@@ -92,8 +92,8 @@ EXEC_FOUND=0
 
 while IFS= read -r file; do
     basename=$(basename "$file")
-    # Skip the pre-commit script itself
-    if [[ "$file" == "scripts/pre-commit" ]]; then
+    # Skip the hook scripts themselves
+    if [[ "$file" == "scripts/pre-commit" ]] || [[ "$file" == "scripts/pre-push" ]]; then
         continue
     fi
     if [[ "$basename" != *.* ]] || [[ "$basename" == *.exe ]]; then
