@@ -37,13 +37,12 @@ describe('<rtc-tool-confirm>', () => {
         expect(el.shadowRoot!.textContent).toContain('/test.txt');
     });
 
-    it('should have Yes, Yes-allow, No buttons', async () => {
+    it('should have Yes, No buttons', async () => {
         const el = await fixture<HTMLElement>(
             html`<rtc-tool-confirm .toolCall=${mockToolCall}></rtc-tool-confirm>`
         );
         await nextFrame();
         expect(el.shadowRoot!.querySelector('[data-action="yes"]')).not.toBeNull();
-        expect(el.shadowRoot!.querySelector('[data-action="yes-allow"]')).not.toBeNull();
         expect(el.shadowRoot!.querySelector('[data-action="no"]')).not.toBeNull();
     });
 

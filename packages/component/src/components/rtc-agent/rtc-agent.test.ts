@@ -31,8 +31,13 @@ describe('<rtc-agent>', () => {
 
     it('should contain a content-wrapper element after login', async () => {
         const el = await fixture<HTMLElement>(html`<rtc-agent></rtc-agent>`);
-        // Login first
-        (el as any).authController.actions.login();
+        // Login via setTokens (actions.login only dispatches an event, does not set isLoggedIn)
+        (el as any).authController.setTokens({
+            accessToken: 'fake-token',
+            refreshToken: 'fake-refresh',
+            userId: 'user-1',
+            expiresIn: 3600,
+        });
         await nextFrame();
         const wrapper = el.shadowRoot?.querySelector('rtc-content-wrapper');
         expect(wrapper).not.toBeNull();

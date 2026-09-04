@@ -121,11 +121,11 @@ describe('<rtc-session-header>', () => {
         expect(el.shadowRoot!.querySelector('rtc-session-panel')).toBeNull();
     });
 
-    it('should call createSession action on new session click', async () => {
-        const createSession = vi.fn();
+    it('should call clearCurrentSession on new session click', async () => {
+        const clearCurrentSession = vi.fn();
         const ctx: SessionContextValue = {
             ...mockSessionCtx,
-            actions: {...mockSessionCtx.actions, createSession},
+            actions: {...mockSessionCtx.actions, clearCurrentSession},
         };
         const el = await fixture<HTMLElement>(
             html`<rtc-session-header></rtc-session-header>`,
@@ -133,6 +133,6 @@ describe('<rtc-session-header>', () => {
         );
         const btn = el.shadowRoot!.querySelector('[data-action="new-session"]') as HTMLElement;
         btn.click();
-        expect(createSession).toHaveBeenCalledTimes(1);
+        expect(clearCurrentSession).toHaveBeenCalledTimes(1);
     });
 });

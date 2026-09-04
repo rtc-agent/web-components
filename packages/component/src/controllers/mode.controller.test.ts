@@ -10,10 +10,10 @@ class MockHost {
 }
 
 describe('ModeController', () => {
-    it('should have default mode "auto"', () => {
+    it('should have default mode "edit"', () => {
         const host = new MockHost();
         const ctrl = new ModeController(host as any);
-        expect(ctrl.value.state.currentMode).toBe('auto');
+        expect(ctrl.value.state.currentMode).toBe('edit');
     });
 
     it('should set mode to manual', () => {
@@ -26,7 +26,7 @@ describe('ModeController', () => {
     it('should cycle through all modes', () => {
         const host = new MockHost();
         const ctrl = new ModeController(host as any);
-        const modes = ['manual', 'edit', 'plan', 'auto', 'bypass'] as const;
+        const modes = ['manual', 'edit', 'bypass'] as const;
         for (const mode of modes) {
             ctrl.actions.setMode(mode);
             expect(ctrl.value.state.currentMode).toBe(mode);
@@ -36,7 +36,7 @@ describe('ModeController', () => {
     it('should request host update on mode change', () => {
         const host = new MockHost();
         const ctrl = new ModeController(host as any);
-        ctrl.actions.setMode('plan');
+        ctrl.actions.setMode('bypass');
         expect(host.updateCount).toBeGreaterThan(0);
     });
 });

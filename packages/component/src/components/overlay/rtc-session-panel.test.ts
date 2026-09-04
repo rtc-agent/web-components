@@ -13,8 +13,8 @@ describe('<rtc-session-panel>', () => {
 
     it('should render sessions list', async () => {
         const sessions = [
-            {id: '1', title: 'Chat A', updatedAt: 1},
-            {id: '2', title: 'Chat B', updatedAt: 2},
+            {clientId: '1', title: 'Chat A', createdAt: 1, updatedAt: 1},
+            {clientId: '2', title: 'Chat B', createdAt: 2, updatedAt: 2},
         ];
         const el = await fixture<HTMLElement>(
             html`<rtc-session-panel .sessions=${sessions}></rtc-session-panel>`
@@ -25,7 +25,7 @@ describe('<rtc-session-panel>', () => {
     });
 
     it('should dispatch rtc-session-selected on item click', async () => {
-        const sessions = [{id: '1', title: 'Chat A', updatedAt: 1}];
+        const sessions = [{clientId: '1', title: 'Chat A', createdAt: 1, updatedAt: 1}];
         const el = await fixture<HTMLElement>(
             html`<rtc-session-panel .sessions=${sessions}></rtc-session-panel>`
         );

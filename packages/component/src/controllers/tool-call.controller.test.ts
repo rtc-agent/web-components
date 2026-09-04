@@ -27,7 +27,8 @@ describe('ToolCallController', () => {
             status: 'pending',
         });
         ctrl.actions.approve('tc-1');
-        expect(ctrl.value.state.pendingCalls[0].status).toBe('approved');
+        // approve() removes the call from pendingCalls (it is no longer pending)
+        expect(ctrl.value.state.pendingCalls).toHaveLength(0);
     });
 
     it('should approve all tool calls for a given tool name', () => {
@@ -37,10 +38,10 @@ describe('ToolCallController', () => {
         ctrl.addPendingCall({id: 'tc-2', toolName: 'Bash', status: 'pending'});
         ctrl.addPendingCall({id: 'tc-3', toolName: 'Write', status: 'pending'});
         ctrl.actions.approveAll('Bash');
+        // approveAll() removes all matching calls from pendingCalls
         const calls = ctrl.value.state.pendingCalls;
-        expect(calls[0].status).toBe('approved');
-        expect(calls[1].status).toBe('approved');
-        expect(calls[2].status).toBe('pending');
+        expect(calls).toHaveLength(1);
+        expect(calls[0].toolName).toBe('Write');
     });
 
     it('should deny a tool call', () => {
@@ -48,7 +49,8 @@ describe('ToolCallController', () => {
         const ctrl = new ToolCallController(host as any);
         ctrl.addPendingCall({id: 'tc-1', toolName: 'Bash', status: 'pending'});
         ctrl.actions.deny('tc-1');
-        expect(ctrl.value.state.pendingCalls[0].status).toBe('denied');
+        // deny() removes the call from pendingCalls
+        expect(ctrl.value.state.pendingCalls).toHaveLength(0);
     });
 
     it('should dispatch rtc-tool-call-approved on approve', () => {

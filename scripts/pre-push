@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+#
+# Pre-push hook for rtc-agent/web-components
+# Mirrors the GitHub CI workflow so failures are caught locally before push.
+#
+# Steps (matches .github/workflows/ci.yml):
+#   1. pnpm build
+#   2. pnpm typecheck
+#   3. pnpm test
+#
+# Note: `pnpm install` is intentionally skipped — the dev is expected to
+# have a fresh node_modules. If install is out of sync, CI will catch it.
+
+set -euo pipefail
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+NC='\033[0m'
+
+echo ""
+echo "🚀 Running pre-push checks (mirrors GitHub CI)..."
+echo ""
+
+FAILED=0
+
+# ============================================================
+# 1. Build
+# ============================================================
+echo "📦 [1/3] pnpm build"
+if pnpm build; then
+    echo -e "${GREEN}  ✓ Build passed${NC}"
+else
+    echo -e "${RED}  ✗ Build failed${NC}"
+    FAILED=1
+fi
+echo ""
+
+# Skip typecheck/test if build failed — they depend on dist/
+if [ "$FAILED" -eq 1 ]; then
+    echo -e "${RED}❌ Pre-push checks failed (build). Commit aborted.${NC}"
+    exit 1
+fi
+
+# ============================================================
+# 2. Typecheck
+# ============================================================
+echo "🔍 [2/3] pnpm typecheck"
+if pnpm typecheck; then
+    echo -e "${GREEN}  ✓ Typecheck passed${NC}"
+else
+    echo -e "${RED}  ✗ Typecheck failed${NC}"
+    FAILED=1
+fi
+echo ""
+
+# ============================================================
+# 3. Test
+# ============================================================
+echo "🧪 [3/3] pnpm test"
+if pnpm test; then
+    echo -e "${GREEN}  ✓ Tests passed${NC}"
+else
+    echo -e "${RED}  ✗ Tests failed${NC}"
+    FAILED=1
+fi
+echo ""
+
+# ============================================================
+# Final result
+# ============================================================
+if [ "$FAILED" -eq 1 ]; then
+    echo -e "${RED}❌ Pre-push checks failed. Push aborted.${NC}"
+    echo -e "${YELLOW}Hint: fix the failures above, or push with --no-verify to bypass (not recommended).${NC}"
+    exit 1
+else
+    echo -e "${GREEN}✅ All pre-push checks passed.${NC}"
+    exit 0
+fi

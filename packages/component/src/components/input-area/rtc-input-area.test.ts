@@ -101,17 +101,17 @@ describe('<rtc-input-area>', () => {
         expect(textarea.value).toBe('');
     });
 
-    it('should dispatch rtc-mode-panel-toggle on mode button click', async () => {
+    it('should show mode panel on mode button click', async () => {
         const el = await fixture<RtcInputArea>(
             html`<rtc-input-area></rtc-input-area>`,
             {setup: (host) => provideContext(host, ModeContext, mockModeCtx)}
         );
         await nextFrame();
-        const handler = vi.fn();
-        el.addEventListener('rtc-mode-panel-toggle', handler);
         const btn = el.shadowRoot!.querySelector('.mode-btn') as HTMLElement;
         btn.click();
-        expect(handler).toHaveBeenCalledTimes(1);
+        await nextFrame();
+        const panel = el.shadowRoot!.querySelector('rtc-mode-panel');
+        expect(panel).not.toBeNull();
     });
 
     it('should have a send button', async () => {

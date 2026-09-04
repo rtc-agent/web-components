@@ -6,16 +6,14 @@ describe('ModeContext', () => {
         expect(ModeContext).toBeDefined();
     });
 
-    it('should define 5 mode configurations', () => {
-        expect(MODE_CONFIGS).toHaveLength(5);
+    it('should define 3 mode configurations', () => {
+        expect(MODE_CONFIGS).toHaveLength(3);
     });
 
-    it('should include manual, edit, plan, auto, bypass modes', () => {
+    it('should include manual, edit, bypass modes', () => {
         const modeNames = MODE_CONFIGS.map((c) => c.mode);
         expect(modeNames).toContain('manual');
         expect(modeNames).toContain('edit');
-        expect(modeNames).toContain('plan');
-        expect(modeNames).toContain('auto');
         expect(modeNames).toContain('bypass');
     });
 

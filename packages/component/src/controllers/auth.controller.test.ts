@@ -17,11 +17,15 @@ describe('AuthController', () => {
         expect(ctrl.value.state.isLoggedIn).toBe(false);
     });
 
-    it('should login and set isLoggedIn to true', () => {
+    it('should login and dispatch rtc-auth-login-requested', () => {
         const host = new MockHost();
         const ctrl = new AuthController(host as any);
         ctrl.actions.login();
-        expect(ctrl.value.state.isLoggedIn).toBe(true);
+        // login() dispatches an event for the root to handle the OAuth flow;
+        // it does NOT set isLoggedIn directly (that happens via setTokens()).
+        expect(host.dispatchEvent).toHaveBeenCalledWith(
+            expect.objectContaining({type: 'rtc-auth-login-requested'})
+        );
     });
 
     it('should logout and clear state', () => {
