@@ -1,0 +1,30 @@
+{
+  "name": "@rtc-agent/client",
+  "version": "0.1.0",
+  "description": "RTC Agent 通信层：Centrifuge 连接、RPC 调用、实时订阅、流式消息",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@rtc-agent/protocol": "workspace:*",
+    "centrifuge": "^5.2.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^2.0.0"
+  }
+}

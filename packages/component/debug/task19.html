@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task 19 Debug - Demo 页面 + 最终集成验证</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #ffffff;
+            color: #333333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #d73a49;
+            margin-bottom: 10px;
+        }
+        h2 {
+            color: #22863a;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 8px;
+        }
+        .description {
+            color: #666666;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            background: #f5f5f5;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        .controls button {
+            padding: 8px 16px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            background: #ffffff;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.15s;
+        }
+        .controls button:hover {
+            background: #f0f0f0;
+            border-color: #ccc;
+        }
+        .controls button.primary {
+            background: #0366d6;
+            color: #fff;
+            border-color: #0366d6;
+        }
+        .controls button.primary:hover {
+            background: #0255b3;
+        }
+        .demo-stage {
+            position: relative;
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            background: #1a1a2e;
+            width: 100%;
+            height: 700px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .stage-label {
+            position: absolute;
+            top: 8px;
+            left: 12px;
+            font-size: 12px;
+            color: #999;
+            font-style: italic;
+            z-index: 1;
+        }
+        .demo-controls {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 100;
+        }
+        .demo-controls button {
+            padding: 8px 16px;
+            background: #334;
+            color: #eee;
+            border: 1px solid #555;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+        .demo-controls button:hover {
+            background: #445;
+        }
+        .demo-controls .label {
+            color: #999;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .event-log {
+            margin-top: 15px;
+            padding: 12px 16px;
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: 'SF Mono', Monaco, Consolas, monospace;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .event-log .event-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .event-log .event-entry:last-child {
+            border-bottom: none;
+        }
+        .event-log .event-name {
+            color: #0366d6;
+            font-weight: bold;
+        }
+        .event-log .event-detail {
+            color: #666;
+            margin-left: 8px;
+        }
+        .event-log .empty {
+            color: #999;
+            font-style: italic;
+        }
+        .checklist {
+            margin-top: 15px;
+            padding: 12px 16px;
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+        }
+        .checklist h3 {
+            margin-top: 0;
+            color: #22863a;
+        }
+        .checklist ul {
+            margin-bottom: 0;
+            line-height: 1.8;
+        }
+        .checklist li {
+            margin-bottom: 4px;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+        .status-badge.pass {
+            background: #dcffe4;
+            color: #22863a;
+        }
+        .status-badge.fail {
+            background: #ffeef0;
+            color: #d73a49;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Task 19 - Demo 页面 + 最终集成验证</h1>
+        <p class="description">
+            验证完整的 <code>&lt;rtc-agent&gt;</code> 组件集成：
+            窗口渲染、登录状态切换、消息显示、思考状态、工具确认弹窗、主题切换。
+            这是最终集成测试，验证所有 14 个子组件和 6 个 Controller 协同工作。
+        </p>
+
+        <!-- 场景 1：完整集成测试 -->
+        <div>
+            <h2>场景 1：完整集成测试（Full Integration）</h2>
+            <div class="test-section">
+                <p>完整的 <code>&lt;rtc-agent&gt;</code> 组件，包含所有子组件和 Controller。</p>
+                <div class="demo-stage" id="integrationStage">
+                    <span class="stage-label">↑ &lt;rtc-agent&gt; 应在此容器内居中显示</span>
+                    <div class="demo-controls">
+                        <span class="label">Demo Controls</span>
+                        <button id="toggle-theme-btn">切换主题</button>
+                        <button id="toggle-auth-btn">切换登录状态</button>
+                        <button id="add-message-btn">添加 AI 消息</button>
+                        <button id="add-thinking-btn">添加思考状态</button>
+                        <button id="trigger-tool-call-btn">触发工具确认</button>
+                    </div>
+                    <rtc-agent id="demo-agent" theme="dark"></rtc-agent>
+                </div>
+                <div class="event-log" id="eventLog">
+                    <div class="empty">暂无事件</div>
+                </div>
+                <div class="checklist">
+                    <h3>✅ 验证清单</h3>
+                    <ul>
+                        <li><strong>初始状态</strong>：未登录，显示 &lt;rtc-login-page&gt;（Logo + 应用名 + 登录按钮）</li>
+                        <li><strong>切换登录</strong>：点击 "切换登录状态" → 显示 &lt;rtc-content-wrapper&gt;（session-header + content-area + notice-bar + input-area）</li>
+                        <li><strong>空状态</strong>：content-area 应显示空状态（Logo + 提示文字）</li>
+                        <li><strong>添加消息</strong>：点击 "添加 AI 消息" → 消息列表显示消息，带时间线圆点 + Markdown 渲染</li>
+                        <li><strong>思考状态</strong>：点击 "添加思考状态" → 显示 "Thinking ›" 动画文字</li>
+                        <li><strong>工具确认</strong>：点击 "触发工具确认" → 显示模态弹窗，包含工具信息和 3 个按钮（Approve / Approve All / Deny）</li>
+                        <li><strong>主题切换</strong>：点击 "切换主题" → 在 dark/light 之间切换，所有组件颜色同步变化</li>
+                        <li><strong>窗口控制</strong>：title-bar 应显示最小化/最大化按钮，点击可切换窗口状态</li>
+                        <li><strong>输入区域</strong>：input-area 应显示文本框 + 工具栏 + 模式按钮，Enter 键发送消息</li>
+                        <li><strong>响应式</strong>：调整浏览器窗口大小 → &lt;rtc-agent&gt; 保持在容器内，不溢出</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- 场景 2：Controller API 验证 -->
+        <div>
+            <h2>场景 2：Controller API 验证（Public Accessors）</h2>
+            <div class="test-section">
+                <p>验证 <code>&lt;rtc-agent&gt;</code> 暴露的 6 个 public controller accessor 是否可用。</p>
+                <div class="controls">
+                    <button id="test-accessors-btn" class="primary">测试所有 Controller Accessors</button>
+                </div>
+                <div class="event-log" id="accessorLog">
+                    <div class="empty">点击按钮测试</div>
+                </div>
+                <div class="checklist">
+                    <h3>✅ 验证清单</h3>
+                    <ul>
+                        <li><code>windowStateController</code> - 存在且可访问</li>
+                        <li><code>authController</code> - 存在且可访问，有 <code>login()</code> 和 <code>logout()</code> 方法</li>
+                        <li><code>sessionController</code> - 存在且可访问</li>
+                        <li><code>messageController</code> - 存在且可访问，有 <code>addDemoAssistantMessage()</code> 和 <code>addDemoThinking()</code> 方法</li>
+                        <li><code>modeController</code> - 存在且可访问</li>
+                        <li><code>toolCallController</code> - 存在且可访问，有 <code>addPendingCall()</code> 方法</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- 场景 3：事件冒泡验证 -->
+        <div>
+            <h2>场景 3：事件冒泡验证（Event Bubbling）</h2>
+            <div class="test-section">
+                <p>验证所有公共事件是否正确冒泡到 <code>&lt;rtc-agent&gt;</code> 根元素。</p>
+                <div class="controls">
+                    <button id="trigger-events-btn" class="primary">触发所有事件</button>
+                    <button id="clear-events-btn">清除事件日志</button>
+                </div>
+                <div class="event-log" id="bubbleLog">
+                    <div class="empty">点击按钮触发事件</div>
+                </div>
+                <div class="checklist">
+                    <h3>✅ 验证清单</h3>
+                    <ul>
+                        <li><code>rtc-auth-login-requested</code> - 登录时触发，bubbles: true, composed: true</li>
+                        <li><code>rtc-message-sent</code> - 发送消息时触发，bubbles: true, composed: true</li>
+                        <li><code>rtc-tool-call-approved</code> - 批准工具调用时触发</li>
+                        <li><code>rtc-tool-call-denied</code> - 拒绝工具调用时触发</li>
+                        <li><code>rtc-session-created</code> - 创建会话时触发</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- 场景 4：跨 Controller 联动 -->
+        <div>
+            <h2>场景 4：跨 Controller 联动（Cross-Controller Wiring）</h2>
+            <div class="test-section">
+                <p>验证 Session 切换时是否自动清空消息列表。</p>
+                <div class="controls">
+                    <button id="setup-cross-test-btn" class="primary">设置测试数据</button>
+                    <button id="switch-session-btn">切换 Session（应清空消息）</button>
+                </div>
+                <div class="event-log" id="crossLog">
+                    <div class="empty">点击按钮测试</div>
+                </div>
+                <div class="checklist">
+                    <h3>✅ 验证清单</h3>
+                    <ul>
+                        <li>点击 "设置测试数据" → 添加 3 条消息 + 创建 2 个 Session</li>
+                        <li>点击 "切换 Session" → 消息列表应被清空（跨 Controller 联动）</li>
+                        <li>验证 <code>sessionController.onSessionSwitch</code> 回调正确触发 <code>messageController.actions.clearMessages()</code></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import '../src/index.ts';
+
+        // === Event logger helper ===
+        function createEventLogger(logEl) {
+            let count = 0;
+            return (eventName, detail) => {
+                count++;
+                if (count === 1) logEl.innerHTML = '';
+                const entry = document.createElement('div');
+                entry.className = 'event-entry';
+                const detailStr = detail ? JSON.stringify(detail) : '';
+                const time = new Date().toLocaleTimeString();
+                entry.innerHTML = `<span style="color:#999;margin-right:6px;">${time}</span><span class="event-name">${eventName}</span><span class="event-detail">${detailStr}</span>`;
+                logEl.appendChild(entry);
+                logEl.scrollTop = logEl.scrollHeight;
+            };
+        }
+
+        const agent = document.getElementById('demo-agent');
+
+        // === 场景 1：完整集成测试 ===
+        const eventLog = createEventLogger(document.getElementById('eventLog'));
+
+        // Listen to all public events
+        const publicEvents = [
+            'rtc-auth-login-requested',
+            'rtc-message-sent',
+            'rtc-tool-call-approved',
+            'rtc-tool-call-denied',
+            'rtc-session-created',
+        ];
+        publicEvents.forEach(evt => {
+            agent.addEventListener(evt, (e) => {
+                eventLog(evt, {bubbles: e.bubbles, composed: e.composed, detail: e.detail});
+            });
+        });
+
+        // Theme toggle
+        document.getElementById('toggle-theme-btn').addEventListener('click', () => {
+            agent.theme = agent.theme === 'dark' ? 'light' : 'dark';
+            eventLog('theme-changed', {theme: agent.theme});
+        });
+
+        // Auth toggle
+        let loggedIn = false;
+        document.getElementById('toggle-auth-btn').addEventListener('click', () => {
+            loggedIn = !loggedIn;
+            if (loggedIn) {
+                agent.authController.login();
+            } else {
+                agent.authController.logout();
+            }
+            eventLog('auth-toggled', {loggedIn});
+        });
+
+        // Add AI message
+        let msgCount = 0;
+        const sampleMessages = [
+            "Hello! I'm your AI assistant. How can I help you today?",
+            "Let me analyze that for you. **Here's what I found:**\n\n- Item one\n- Item two\n- Item three",
+            "Here's a code example:\n\n```typescript\nconst greeting = 'Hello World';\nconsole.log(greeting);\n```",
+            "That's a great question! Let me think about it...\n\nThe answer involves several factors:\n\n1. First consideration\n2. Second consideration\n3. Third consideration",
+        ];
+        document.getElementById('add-message-btn').addEventListener('click', () => {
+            const content = sampleMessages[msgCount % sampleMessages.length];
+            msgCount++;
+            agent.messageController.addDemoAssistantMessage(content);
+            eventLog('message-added', {msgCount});
+        });
+
+        // Add thinking
+        document.getElementById('add-thinking-btn').addEventListener('click', () => {
+            agent.messageController.addDemoThinking();
+            eventLog('thinking-added', {});
+        });
+
+        // Trigger tool call
+        document.getElementById('trigger-tool-call-btn').addEventListener('click', () => {
+            agent.toolCallController.addPendingCall({
+                id: `tc-${Date.now()}`,
+                toolName: 'file-write',
+                status: 'pending',
+                parameters: {path: '/workspace/example.ts', content: 'console.log("hello")'},
+            });
+            eventLog('tool-call-triggered', {});
+        });
+
+        // === 场景 2：Controller API 验证 ===
+        const accessorLog = createEventLogger(document.getElementById('accessorLog'));
+        document.getElementById('test-accessors-btn').addEventListener('click', () => {
+            const accessors = [
+                'windowStateController',
+                'authController',
+                'sessionController',
+                'messageController',
+                'modeController',
+                'toolCallController',
+            ];
+            accessorLog('--- 开始测试 Controller Accessors ---', {});
+            accessors.forEach(name => {
+                const ctrl = agent[name];
+                if (ctrl) {
+                    accessorLog(`✓ ${name}`, {exists: true, type: typeof ctrl});
+                } else {
+                    accessorLog(`✗ ${name}`, {exists: false});
+                }
+            });
+            // Test specific methods
+            if (typeof agent.authController.login === 'function') {
+                accessorLog('✓ authController.login()', {exists: true});
+            } else {
+                accessorLog('✗ authController.login()', {exists: false});
+            }
+            if (typeof agent.authController.logout === 'function') {
+                accessorLog('✓ authController.logout()', {exists: true});
+            } else {
+                accessorLog('✗ authController.logout()', {exists: false});
+            }
+            if (typeof agent.messageController.addDemoAssistantMessage === 'function') {
+                accessorLog('✓ messageController.addDemoAssistantMessage()', {exists: true});
+            } else {
+                accessorLog('✗ messageController.addDemoAssistantMessage()', {exists: false});
+            }
+            if (typeof agent.messageController.addDemoThinking === 'function') {
+                accessorLog('✓ messageController.addDemoThinking()', {exists: true});
+            } else {
+                accessorLog('✗ messageController.addDemoThinking()', {exists: false});
+            }
+            if (typeof agent.toolCallController.addPendingCall === 'function') {
+                accessorLog('✓ toolCallController.addPendingCall()', {exists: true});
+            } else {
+                accessorLog('✗ toolCallController.addPendingCall()', {exists: false});
+            }
+        });
+
+        // === 场景 3：事件冒泡验证 ===
+        const bubbleLog = createEventLogger(document.getElementById('bubbleLog'));
+        document.getElementById('trigger-events-btn').addEventListener('click', () => {
+            bubbleLog('--- 触发所有公共事件 ---', {});
+            // Trigger login event
+            agent.authController.login();
+            // Trigger message event
+            agent.messageController.actions.sendMessage('Test message');
+            // Trigger tool call event
+            agent.toolCallController.addPendingCall({
+                id: `tc-test-${Date.now()}`,
+                toolName: 'test-tool',
+                status: 'pending',
+            });
+            // Trigger session event
+            agent.sessionController.actions.createSession();
+        });
+        document.getElementById('clear-events-btn').addEventListener('click', () => {
+            document.getElementById('bubbleLog').innerHTML = '<div class="empty">已清除</div>';
+        });
+
+        // === 场景 4：跨 Controller 联动 ===
+        const crossLog = createEventLogger(document.getElementById('crossLog'));
+        document.getElementById('setup-cross-test-btn').addEventListener('click', () => {
+            crossLog('--- 设置测试数据 ---', {});
+            // Add 3 messages
+            agent.messageController.addDemoAssistantMessage('Message 1');
+            agent.messageController.addDemoAssistantMessage('Message 2');
+            agent.messageController.addDemoAssistantMessage('Message 3');
+            crossLog('已添加 3 条消息', {count: 3});
+            // Create 2 sessions
+            agent.sessionController.actions.createSession();
+            agent.sessionController.actions.createSession();
+            crossLog('已创建 2 个 Session', {});
+        });
+        document.getElementById('switch-session-btn').addEventListener('click', () => {
+            crossLog('--- 切换 Session ---', {});
+            const sessions = agent.sessionController.value.state.sessions;
+            if (sessions.length >= 2) {
+                const targetId = sessions[0].id;
+                agent.sessionController.actions.switchSession(targetId);
+                crossLog('已切换到 Session', {id: targetId});
+                crossLog('检查消息列表是否被清空...', {});
+                setTimeout(() => {
+                    const msgCount = agent.messageController.value.state.messages.length;
+                    if (msgCount === 0) {
+                        crossLog('✓ 消息列表已被清空', {count: 0});
+                    } else {
+                        crossLog('✗ 消息列表未被清空', {count: msgCount});
+                    }
+                }, 100);
+            } else {
+                crossLog('✗ 没有足够的 Session，请先点击 "设置测试数据"', {});
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task 17 Debug - 浮层组件（Overlay Manager + Panels + Tool Confirm）</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #ffffff;
+            color: #333333;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #d73a49;
+            margin-bottom: 10px;
+        }
+        h2 {
+            color: #22863a;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 8px;
+        }
+        .description {
+            color: #666666;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            background: #f5f5f5;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        .controls button {
+            padding: 8px 16px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            background: #ffffff;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.15s;
+        }
+        .controls button:hover {
+            background: #f0f0f0;
+            border-color: #ccc;
+        }
+        .controls button.primary {
+            background: #0366d6;
+            color: #fff;
+            border-color: #0366d6;
+        }
+        .controls button.primary:hover {
+            background: #0255b3;
+        }
+        .controls button.danger {
+            color: #f44336;
+        }
+        .controls button.danger:hover {
+            background: #f44336;
+            color: #fff;
+        }
+        .overlay-stage {
+            position: relative;
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            background: #f0f0f0;
+            width: 100%;
+            min-height: 400px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+        }
+        .stage-label {
+            position: absolute;
+            top: 8px;
+            left: 12px;
+            font-size: 12px;
+            color: #999;
+            font-style: italic;
+        }
+        .event-log {
+            margin-top: 15px;
+            padding: 12px 16px;
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: 'SF Mono', Monaco, Consolas, monospace;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .event-log .event-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .event-log .event-entry:last-child {
+            border-bottom: none;
+        }
+        .event-log .event-name {
+            color: #0366d6;
+            font-weight: bold;
+        }
+        .event-log .event-detail {
+            color: #666;
+            margin-left: 8px;
+        }
+        .event-log .empty {
+            color: #999;
+            font-style: italic;
+        }
+        .checklist {
+            margin-top: 15px;
+            padding: 12px 16px;
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+        }
+        .checklist h3 {
+            margin-top: 0;
+            color: #22863a;
+        }
+        .checklist ul {
+            margin-bottom: 0;
+            line-height: 1.8;
+        }
+        .mode-indicator {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            background: #e1ecf4;
+            color: #0366d6;
+        }
+        .panel-anchor {
+            position: relative;
+            width: 100%;
+            min-height: 200px;
+            border: 1px dashed #ccc;
+            border-radius: 8px;
+            background: #fafafa;
+            margin-bottom: 15px;
+        }
+        .panel-anchor-bottom {
+            display: flex;
+            align-items: flex-end;
+        }
+        :root {
+            --rtc-border-width: 1px;
+            --rtc-color-border: #e0e0e0;
+            --rtc-color-border-hover: #ccc;
+            --rtc-color-border-focus: #0366d6;
+            --rtc-color-text: #333333;
+            --rtc-color-text-secondary: #666666;
+            --rtc-color-text-tertiary: #999999;
+            --rtc-color-text-inverse: #ffffff;
+            --rtc-color-bg: #ffffff;
+            --rtc-color-bg-secondary: #f5f5f5;
+            --rtc-color-bg-hover: #f0f0f0;
+            --rtc-color-primary: #0366d6;
+            --rtc-color-primary-hover: #0255b3;
+            --rtc-color-error: #f44336;
+            --rtc-color-backdrop: rgba(0, 0, 0, 0.3);
+            --rtc-spacing-xs: 4px;
+            --rtc-spacing-sm: 8px;
+            --rtc-spacing-md: 12px;
+            --rtc-spacing-lg: 16px;
+            --rtc-border-radius: 6px;
+            --rtc-border-radius-sm: 4px;
+            --rtc-border-radius-lg: 8px;
+            --rtc-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+            --rtc-shadow-xl: 0 20px 60px rgba(0, 0, 0, 0.3);
+            --rtc-z-overlay: 500;
+            --rtc-z-modal: 501;
+            --rtc-font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --rtc-font-family-mono: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            --rtc-font-size-xs: 11px;
+            --rtc-font-size-sm: 13px;
+            --rtc-font-size-base: 14px;
+            --rtc-font-size-md: 16px;
+            --rtc-font-weight-medium: 500;
+            --rtc-font-weight-bold: 600;
+            --rtc-line-height-base: 1.5;
+            --rtc-transition-duration: 0.15s;
+            --rtc-transition-timing: ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Task 17 - 浮层组件（修正版）</h1>
+        <p class="description">
+            验证 <code>&lt;rtc-overlay-manager&gt;</code>、<code>&lt;rtc-session-panel&gt;</code>、
+            <code>&lt;rtc-mode-panel&gt;</code>、<code>&lt;rtc-tool-confirm&gt;</code> 四个组件的功能与视觉效果。
+        </p>
+
+        <!-- 场景 1：Session Panel -->
+        <div>
+            <h2>场景 1：&lt;rtc-session-panel&gt; 会话列表面板</h2>
+            <div class="test-section">
+                <div class="controls">
+                    <button id="addSessionBtn">添加会话</button>
+                    <button id="clearSessionsBtn">清空会话</button>
+                    <button id="setCurrentS1Btn">设为当前会话 s1</button>
+                    <button id="setCurrentS2Btn">设为当前会话 s2</button>
+                </div>
+                <div class="panel-anchor" id="sessionPanelAnchor">
+                    <span class="stage-label">↑ 面板将出现在此容器顶部</span>
+                </div>
+                <div class="event-log" id="sessionEventLog">
+                    <div class="empty">暂无事件</div>
+                </div>
+                <div class="checklist">
+                    <h3>✅ 验证清单</h3>
+                    <ul>
+                        <li>面板使用 Shadow DOM，有悬浮阴影效果</li>
+                        <li>每个会话项显示<strong>标题</strong>（单行溢出省略号）+ <strong>更新时间</strong>（小字灰色）</li>
+                        <li>鼠标悬停会话项 → 背景变灰 + 右侧出现 <strong>[编辑] [删除]</strong> 两个图标按钮</li>
+                        <li>当前打开的会话项（<code>current-session-id</code> 匹配）→ 背景变灰<strong>常驻</strong></li>
+                        <li>点击会话项 → 触发 <code>rtc-session-selected</code> 事件</li>
+                        <li>点击编辑按钮 → 触发 <code>rtc-session-rename-requested</code></li>
+                        <li>点击删除按钮 → 触发 <code>rtc-session-delete-requested</code></li>
+                        <li>会话列表为空时显示 "No sessions yet" 居中文字</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- 场景 2：Mode Panel -->
+        <div>
+            <h2>场景 2：&lt;rtc-mode-panel&gt; 模式选择面板</h2>
+            <div class="test-section">
+                <p>每个模式应显示图标 + 名称 + 描述，当前模式在右侧显示 ✓，参考 Claude Code 的 Modes 面板。</p>
+                <div class="controls">
+                    <button id="setCurrentManualBtn">设为 manual</button>
+                    <button id="setCurrentEditBtn">设为 edit</button>
+                    <button id="setCurrentBypassBtn">设为 bypass</button>
+                </div>
+                <div class="panel-anchor panel-anchor-bottom" id="modePanelAnchor">
+                    <span class="stage-label">↓ 面板将出现在此容器底部</span>
+                </div>
+                <div class="event-log" id="modeEventLog">
+                    <div class="empty">暂无事件</div>
+                </div>
+                <div class="checklist">
+                    <h3>✅ 验证清单</h3>
+                    <ul>
+                        <li>每个模式项包含：<strong>左侧图标</strong> + <strong>名称</strong>（大字号）+ <strong>描述文字</strong>（小字灰色）</li>
+                        <li>当前模式项：文字变为主题色、加粗，<strong>右侧</strong>显示 ✓ 对钩图标</li>
+                        <li>5 个模式：Manual / Edit automatically / Plan / Auto / Bypass permissions</li>
+                        <li>鼠标悬停 → 背景变灰</li>
+                        <li>点击模式项 → 触发 <code>rtc-mode-selected</code> 事件，detail 包含 <code>mode</code></li>
+                        <li>切换 current-mode 后，✓ 图标立即转移到新模式项右侧</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- 场景 3：Tool Confirm -->
+        <div>
+            <h2>场景 3：&lt;rtc-tool-confirm&gt; 工具确认对话框</h2>
+            <div class="test-section">
+                <div class="controls">
+                    <button id="setFileWriteBtn">file-write 工具</button>
+                    <button id="setBashRunBtn">bash-run 工具</button>
+                </div>
+                <div class="panel-anchor" id="toolConfirmAnchor" style="min-height: 350px;">
+                    <span class="stage-label">对话框应居中出现在此容器内</span>
+                </div>
+                <div class="event-log" id="toolEventLog">
+                    <div class="empty">暂无事件</div>
+                </div>
+                <div class="checklist">
+                    <h3>✅ 验证清单</h3>
+                    <ul>
+                        <li>有半透明背景遮罩 <code>.backdrop</code>，点击遮罩 → 触发 <code>rtc-tool-call-denied</code>（关闭弹窗）</li>
+                        <li>对话框居中显示</li>
+                        <li>工具信息区域：工具名（主题色加粗）+ 参数 JSON（等宽字体）</li>
+                        <li>三个按钮：<strong>Yes</strong>（蓝色填充）、<strong>Yes, allow all</strong>（普通）、<strong>No</strong>（红色文字）</li>
+                        <li>点击 Yes → 触发 <code>rtc-tool-call-approved</code>（detail.allowAll = false）</li>
+                        <li>点击 Yes, allow all → 触发 <code>rtc-tool-call-approved</code>（detail.allowAll = true）</li>
+                        <li>点击 No → 触发 <code>rtc-tool-call-denied</code></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- 场景 4：Overlay Manager 集成 -->
+        <div>
+            <h2>场景 4：&lt;rtc-overlay-manager&gt; 集成管理</h2>
+            <div class="test-section">
+                <p>
+                    集成展示 overlay-manager 管理面板的能力。面板互斥（同时只开一个），按 Esc 关闭。
+                    <br>当前模式：<span id="currentMode" class="mode-indicator">manual</span>
+                    &nbsp; 当前会话：<span id="currentSessionLabel" class="mode-indicator">s1</span>
+                </p>
+                <div class="controls">
+                    <button id="toggleSessionPanelBtn" class="primary">打开/关闭会话面板</button>
+                    <button id="toggleModePanelBtn" class="primary">打开/关闭模式面板</button>
+                    <button id="triggerToolConfirmBtn" class="danger">触发工具确认弹窗</button>
+                    <button id="dismissToolConfirmBtn">清除待处理工具</button>
+                </div>
+                <div class="overlay-stage" id="overlayStage">
+                    <span class="stage-label">Overlay Manager 工作区域</span>
+                </div>
+                <div class="event-log" id="overlayEventLog">
+                    <div class="empty">暂无事件</div>
+                </div>
+                <div class="checklist">
+                    <h3>✅ 验证清单</h3>
+                    <ul>
+                        <li>点击 "打开会话面板" → <code>rtc-session-panel</code> 出现，位置由 <strong>@floating-ui/dom</strong> 自动定位</li>
+                        <li>当前会话项（s1）有常驻灰色背景</li>
+                        <li>点击 "打开模式面板" → 会话面板关闭，模式面板出现（互斥）</li>
+                        <li>按 <strong>Esc</strong> → 当前面板关闭</li>
+                        <li>点击 "触发工具确认弹窗" → <code>rtc-tool-confirm</code> 出现，带遮罩</li>
+                        <li>在 tool-confirm 上点击 <strong>Yes / Yes, allow all / No</strong> → 触发对应事件，弹窗关闭</li>
+                        <li>点击 tool-confirm 的 <strong>遮罩背景</strong> → 触发 denied 事件，弹窗关闭</li>
+                        <li>点击 "清除待处理工具" → 工具确认弹窗消失</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import {LitElement, html} from 'lit';
+        import {ContextProvider} from '@lit/context';
+        import '../src/components/overlay/rtc-session-panel.ts';
+        import '../src/components/overlay/rtc-mode-panel.ts';
+        import '../src/components/overlay/rtc-tool-confirm.ts';
+        import '../src/components/overlay/rtc-overlay-manager.ts';
+        import {SessionContext} from '../src/contexts/session.ts';
+        import {ModeContext} from '../src/contexts/mode.ts';
+        import {ToolCallContext} from '../src/contexts/tool-call.ts';
+
+        // === Context Provider ===
+        class MultiProvider extends LitElement {
+            constructor() {
+                super();
+                this._sessionProvider = new ContextProvider(this, {
+                    context: SessionContext,
+                    initialValue: {
+                        state: {sessions: [], currentSessionId: null},
+                        actions: {createSession: () => {}, switchSession: () => {}, renameSession: () => {}, deleteSession: () => {}}
+                    }
+                });
+                this._modeProvider = new ContextProvider(this, {
+                    context: ModeContext,
+                    initialValue: {
+                        state: {currentMode: 'manual'},
+                        actions: {setMode: () => {}}
+                    }
+                });
+                this._toolCallProvider = new ContextProvider(this, {
+                    context: ToolCallContext,
+                    initialValue: {
+                        state: {pendingCalls: []},
+                        actions: {approve: () => {}, approveAll: () => {}, deny: () => {}}
+                    }
+                });
+            }
+            setSession(value) { this._sessionProvider.setValue(value); }
+            setMode(value) { this._modeProvider.setValue(value); }
+            setToolCall(value) { this._toolCallProvider.setValue(value); }
+            render() { return html`<slot></slot>`; }
+        }
+        customElements.define('multi-provider', MultiProvider);
+
+        // === Event logger helper ===
+        function createEventLogger(logEl) {
+            let count = 0;
+            return (eventName, detail) => {
+                count++;
+                if (count === 1) logEl.innerHTML = '';
+                const entry = document.createElement('div');
+                entry.className = 'event-entry';
+                const detailStr = detail ? JSON.stringify(detail) : '';
+                entry.innerHTML = `<span class="event-name">${eventName}</span><span class="event-detail">${detailStr}</span>`;
+                logEl.appendChild(entry);
+                logEl.scrollTop = logEl.scrollHeight;
+            };
+        }
+
+        const noopActions = {createSession: () => {}, switchSession: () => {}, renameSession: () => {}, deleteSession: () => {}};
+        const noopModeActions = {setMode: () => {}};
+        const noopToolActions = {approve: () => {}, approveAll: () => {}, deny: () => {}};
+
+        // ============================================================
+        // 场景 1：Session Panel
+        // ============================================================
+        const sessionAnchor = document.getElementById('sessionPanelAnchor');
+        const sessionProvider = document.createElement('multi-provider');
+        sessionProvider.style.cssText = 'display:block;width:100%;height:100%;position:relative;';
+        sessionAnchor.appendChild(sessionProvider);
+
+        const sessionPanel = document.createElement('rtc-session-panel');
+        sessionPanel.currentSessionId = '1';
+        sessionProvider.appendChild(sessionPanel);
+
+        const sessionLog = document.getElementById('sessionEventLog');
+        const logSession = createEventLogger(sessionLog);
+
+        sessionPanel.addEventListener('rtc-session-selected', (e) => {
+            logSession('rtc-session-selected', e.detail);
+        });
+        sessionPanel.addEventListener('rtc-session-rename-requested', (e) => {
+            logSession('rtc-session-rename-requested', e.detail);
+        });
+        sessionPanel.addEventListener('rtc-session-delete-requested', (e) => {
+            logSession('rtc-session-delete-requested', e.detail);
+        });
+
+        const sampleSessions = [
+            {id: '1', title: '关于 React 性能优化的讨论', updatedAt: Date.now() - 3600000},
+            {id: '2', title: 'Go 后端 API 设计', updatedAt: Date.now() - 7200000},
+            {id: '3', title: 'Lit Web Components 学习', updatedAt: Date.now() - 86400000},
+            {id: '4', title: 'Untitled', updatedAt: Date.now() - 172800000},
+        ];
+        let sessionIdx = 3;
+
+        function refreshSessionPanel(sessions, currentId) {
+            sessionPanel.sessions = sessions;
+            sessionPanel.currentSessionId = currentId;
+            sessionProvider.setSession({state: {sessions, currentSessionId: currentId}, actions: noopActions});
+        }
+
+        refreshSessionPanel(sampleSessions.slice(0, 3), '1');
+
+        document.getElementById('addSessionBtn').addEventListener('click', () => {
+            sessionIdx = Math.min(sessionIdx + 1, sampleSessions.length);
+            refreshSessionPanel(sampleSessions.slice(0, sessionIdx), '1');
+        });
+
+        document.getElementById('clearSessionsBtn').addEventListener('click', () => {
+            refreshSessionPanel([], null);
+            sessionIdx = 0;
+        });
+
+        document.getElementById('setCurrentS1Btn').addEventListener('click', () => {
+            refreshSessionPanel(sampleSessions.slice(0, sessionIdx), '1');
+        });
+        document.getElementById('setCurrentS2Btn').addEventListener('click', () => {
+            refreshSessionPanel(sampleSessions.slice(0, sessionIdx), '2');
+        });
+
+        // ============================================================
+        // 场景 2：Mode Panel
+        // ============================================================
+        const modeAnchor = document.getElementById('modePanelAnchor');
+        const modeProvider = document.createElement('multi-provider');
+        modeProvider.style.cssText = 'display:block;width:100%;height:100%;position:relative;';
+        modeAnchor.appendChild(modeProvider);
+
+        const modePanel = document.createElement('rtc-mode-panel');
+        modePanel.modes = ['manual', 'edit', 'plan', 'auto', 'bypass'];
+        modePanel.currentMode = 'manual';
+        modeProvider.appendChild(modePanel);
+
+        const modeLog = document.getElementById('modeEventLog');
+        const logMode = createEventLogger(modeLog);
+
+        modePanel.addEventListener('rtc-mode-selected', (e) => {
+            logMode('rtc-mode-selected', e.detail);
+            modePanel.currentMode = e.detail.mode;
+        });
+
+        document.getElementById('setCurrentManualBtn').addEventListener('click', () => {
+            modePanel.currentMode = 'manual';
+        });
+        document.getElementById('setCurrentEditBtn').addEventListener('click', () => {
+            modePanel.currentMode = 'edit';
+        });
+        document.getElementById('setCurrentBypassBtn').addEventListener('click', () => {
+            modePanel.currentMode = 'bypass';
+        });
+
+        // ============================================================
+        // 场景 3：Tool Confirm
+        // ============================================================
+        const toolAnchor = document.getElementById('toolConfirmAnchor');
+        const toolProvider = document.createElement('multi-provider');
+        toolProvider.style.cssText = 'display:block;width:100%;height:100%;position:relative;';
+        toolAnchor.appendChild(toolProvider);
+
+        const toolConfirm = document.createElement('rtc-tool-confirm');
+        toolConfirm.toolCall = {
+            id: 'tc-demo-1',
+            toolName: 'file-write',
+            status: 'pending',
+            parameters: {path: '/src/main.go', content: 'package main\n\nfunc main() {\n\tfmt.Println("hello")\n}'},
+        };
+        toolProvider.appendChild(toolConfirm);
+
+        const toolLog = document.getElementById('toolEventLog');
+        const logTool = createEventLogger(toolLog);
+
+        toolConfirm.addEventListener('rtc-tool-call-approved', (e) => {
+            logTool('rtc-tool-call-approved', e.detail);
+        });
+        toolConfirm.addEventListener('rtc-tool-call-denied', (e) => {
+            logTool('rtc-tool-call-denied', e.detail);
+        });
+
+        document.getElementById('setFileWriteBtn').addEventListener('click', () => {
+            toolConfirm.toolCall = {
+                id: 'tc-' + Date.now(),
+                toolName: 'file-write',
+                status: 'pending',
+                parameters: {path: '/src/main.go', content: 'package main\n\nfunc main() {\n\tfmt.Println("hello")\n}'},
+            };
+        });
+        document.getElementById('setBashRunBtn').addEventListener('click', () => {
+            toolConfirm.toolCall = {
+                id: 'tc-' + Date.now(),
+                toolName: 'bash-run',
+                status: 'pending',
+                parameters: {command: 'rm -rf /tmp/test-cache && npm install', timeout: 30000},
+            };
+        });
+
+        // ============================================================
+        // 场景 4：Overlay Manager 集成
+        // ============================================================
+        const overlayStage = document.getElementById('overlayStage');
+        const overlayProvider = document.createElement('multi-provider');
+        overlayProvider.style.cssText = 'display:block;width:100%;height:100%;position:relative;';
+        overlayStage.appendChild(overlayProvider);
+
+        const overlayManager = document.createElement('rtc-overlay-manager');
+        overlayProvider.appendChild(overlayManager);
+
+        const overlayLog = document.getElementById('overlayEventLog');
+        const logOverlay = createEventLogger(overlayLog);
+
+        // 初始化会话和模式
+        const initSessions = [
+            {id: 's1', title: '项目架构讨论', updatedAt: Date.now() - 3600000},
+            {id: 's2', title: 'Bug 修复：登录失败', updatedAt: Date.now() - 86400000},
+        ];
+        overlayProvider.setSession({
+            state: {sessions: initSessions, currentSessionId: 's1'},
+            actions: noopActions
+        });
+
+        // 监听所有事件
+        overlayManager.addEventListener('rtc-session-selected', (e) => {
+            logOverlay('rtc-session-selected', e.detail);
+            overlayManager.showSessionPanel = false;
+        });
+        overlayManager.addEventListener('rtc-session-rename-requested', (e) => {
+            logOverlay('rtc-session-rename-requested', e.detail);
+        });
+        overlayManager.addEventListener('rtc-session-delete-requested', (e) => {
+            logOverlay('rtc-session-delete-requested', e.detail);
+        });
+        overlayManager.addEventListener('rtc-mode-selected', (e) => {
+            logOverlay('rtc-mode-selected', e.detail);
+            document.getElementById('currentMode').textContent = e.detail.mode;
+            overlayProvider.setMode({state: {currentMode: e.detail.mode}, actions: noopModeActions});
+            overlayManager.showModePanel = false;
+        });
+        overlayManager.addEventListener('rtc-tool-call-approved', (e) => {
+            logOverlay('rtc-tool-call-approved', e.detail);
+            overlayProvider.setToolCall({state: {pendingCalls: []}, actions: noopToolActions});
+        });
+        overlayManager.addEventListener('rtc-tool-call-denied', (e) => {
+            logOverlay('rtc-tool-call-denied', e.detail);
+            overlayProvider.setToolCall({state: {pendingCalls: []}, actions: noopToolActions});
+        });
+
+        let sessionPanelOpen = false;
+        let modePanelOpen = false;
+
+        document.getElementById('toggleSessionPanelBtn').addEventListener('click', () => {
+            if (sessionPanelOpen) {
+                overlayManager.showSessionPanel = false;
+                sessionPanelOpen = false;
+            } else {
+                overlayManager.openSessionPanel();
+                sessionPanelOpen = true;
+                modePanelOpen = false;
+            }
+        });
+
+        document.getElementById('toggleModePanelBtn').addEventListener('click', () => {
+            if (modePanelOpen) {
+                overlayManager.showModePanel = false;
+                modePanelOpen = false;
+            } else {
+                overlayManager.openModePanel();
+                modePanelOpen = true;
+                sessionPanelOpen = false;
+            }
+        });
+
+        document.getElementById('triggerToolConfirmBtn').addEventListener('click', () => {
+            overlayProvider.setToolCall({
+                state: {
+                    pendingCalls: [{
+                        id: 'tc-overlay-' + Date.now(),
+                        toolName: 'bash-run',
+                        status: 'pending',
+                        parameters: {command: 'git push origin main', timeout: 60000},
+                    }]
+                },
+                actions: noopToolActions
+            });
+        });
+
+        document.getElementById('dismissToolConfirmBtn').addEventListener('click', () => {
+            overlayProvider.setToolCall({
+                state: {pendingCalls: []},
+                actions: noopToolActions
+            });
+        });
+    </script>
+</body>
+</html>

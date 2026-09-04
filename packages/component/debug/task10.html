@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task 10 Debug - Content Wrapper 布局组合</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+        }
+        h1 {
+            margin-bottom: 10px;
+            color: #00d9ff;
+        }
+        h2 {
+            margin-top: 30px;
+            color: #ff6b6b;
+            border-bottom: 1px solid #444;
+            padding-bottom: 5px;
+        }
+        .info-box {
+            background: #2a2a4a;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            border-left: 4px solid #00d9ff;
+        }
+        .info-box p {
+            margin: 5px 0;
+        }
+        .controls {
+            background: #2a2a4a;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        button {
+            background: #00d9ff;
+            color: #000;
+            border: none;
+            padding: 8px 16px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #00b8d4;
+        }
+        button.danger {
+            background: #ff6b6b;
+        }
+        button.danger:hover {
+            background: #ee5a5a;
+        }
+        .status {
+            background: #1a1a2e;
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .verify-list {
+            background: #2a2a4a;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .verify-list li {
+            margin: 8px 0;
+            padding-left: 10px;
+        }
+        .verify-list li::marker {
+            color: #00d9ff;
+        }
+        .demo-area {
+            background: var(--demo-bg, #2a2a4a);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+            transition: background 0.3s;
+        }
+        body.theme-dark {
+            /* Page chrome */
+            --demo-bg: #2a2a4a;
+            --demo-text: #eee;
+            --demo-muted: #888;
+            --frame-border: #00d9ff;
+            /* RTC design tokens (mirrors tokens.ts) */
+            --rtc-spacing-xs: 4px;
+            --rtc-spacing-sm: 8px;
+            --rtc-spacing-md: 16px;
+            --rtc-font-size-sm: 13px;
+            --rtc-font-weight-medium: 500;
+            --rtc-border-width: 1px;
+            --rtc-border-radius-sm: 4px;
+            --rtc-transition-duration: 0.15s;
+            --rtc-transition-timing: ease;
+            --rtc-z-content: 1;
+            --rtc-z-overlay: 500;
+            --rtc-z-title-bar: 1000;
+            /* RTC dark theme colors (mirrors themes/dark.ts) */
+            --rtc-color-text: #cccccc;
+            --rtc-color-text-secondary: #858585;
+            --rtc-color-bg: #1e1e1e;
+            --rtc-color-bg-secondary: #252526;
+            --rtc-color-bg-tertiary: #2d2d30;
+            --rtc-color-bg-hover: #2a2d2e;
+            --rtc-color-bg-active: #37373d;
+            --rtc-color-border: #3c3c3c;
+        }
+        body.theme-light {
+            /* Page chrome */
+            --demo-bg: #e8e8e8;
+            --demo-text: #333;
+            --demo-muted: #666;
+            --frame-border: #007acc;
+            /* RTC design tokens */
+            --rtc-spacing-xs: 4px;
+            --rtc-spacing-sm: 8px;
+            --rtc-spacing-md: 16px;
+            --rtc-font-size-sm: 13px;
+            --rtc-font-weight-medium: 500;
+            --rtc-border-width: 1px;
+            --rtc-border-radius-sm: 4px;
+            --rtc-transition-duration: 0.15s;
+            --rtc-transition-timing: ease;
+            --rtc-z-content: 1;
+            --rtc-z-overlay: 500;
+            --rtc-z-title-bar: 1000;
+            /* RTC light theme colors (mirrors themes/light.ts) */
+            --rtc-color-text: #333333;
+            --rtc-color-text-secondary: #666666;
+            --rtc-color-bg: #ffffff;
+            --rtc-color-bg-secondary: #f5f5f5;
+            --rtc-color-bg-tertiary: #e8e8e8;
+            --rtc-color-bg-hover: #f0f0f0;
+            --rtc-color-bg-active: #e0e0e0;
+            --rtc-color-border: #e0e0e0;
+        }
+        .window-frame {
+            width: 420px;
+            height: 500px;
+            margin: 20px auto;
+            border: 2px solid var(--frame-border, #00d9ff);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 217, 255, 0.2);
+            display: flex;
+            flex-direction: column;
+        }
+        .window-frame rtc-title-bar {
+            flex-shrink: 0;
+        }
+        .window-frame .content-area {
+            flex: 1;
+            overflow: hidden;
+        }
+        .event-log {
+            background: #0a0a1a;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 11px;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+        .event-log .event {
+            color: #4caf50;
+            margin: 2px 0;
+        }
+        .event-log .event.error {
+            color: #ff6b6b;
+        }
+        .mode-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            margin: 5px;
+            font-size: 12px;
+        }
+        .mode-logged-in { background: #4caf50; color: #fff; }
+        .mode-logged-out { background: #9c27b0; color: #fff; }
+        .component-label {
+            background: rgba(0, 217, 255, 0.15);
+            border: 1px dashed #00d9ff;
+            border-radius: 4px;
+            padding: 8px 12px;
+            margin: 4px;
+            text-align: center;
+            font-size: 12px;
+            color: #00d9ff;
+            font-weight: bold;
+        }
+        .component-label small {
+            display: block;
+            color: var(--demo-muted, #888);
+            font-weight: normal;
+            font-size: 10px;
+            margin-top: 2px;
+        }
+        .layout-indicator {
+            background: #2a2a4a;
+            border-radius: 4px;
+            padding: 8px;
+            margin: 10px 0;
+            font-size: 12px;
+            font-family: monospace;
+        }
+        .layout-indicator code {
+            color: #ff9800;
+        }
+    </style>
+</head>
+<body class="theme-dark">
+    <h1>🧪 Task 10 Debug — &lt;rtc-content-wrapper&gt; 布局组合</h1>
+
+    <div class="info-box">
+        <p><strong>本页面验证内容：</strong></p>
+        <p>1. <code>&lt;rtc-content-wrapper&gt;</code> 组件正确渲染（Shadow DOM 隔离）</p>
+        <p>2. 组件内部包含 5 个子组件：session-header、content-area、notice-bar、input-area、overlay-manager</p>
+        <p>3. 布局为垂直 flex 布局（column 方向）</p>
+        <p>4. 事件转发：session-header 的 <code>rtc-session-panel-toggle</code> 事件触发 overlay-manager.openSessionPanel()</p>
+        <p>5. 事件转发：input-area 的 <code>rtc-mode-panel-toggle</code> 事件触发 overlay-manager.openModePanel()</p>
+        <p>6. 样式使用 CSS 变量（<code>--rtc-z-content</code> 等），支持 Light/Dark 主题</p>
+        <p>7. 与 <code>&lt;rtc-title-bar&gt;</code> 组合使用，构成完整窗口布局</p>
+    </div>
+
+    <h2>📋 人工验证清单</h2>
+    <div class="verify-list">
+        <ol>
+            <li>确认 Demo 1 显示完整窗口布局：顶部标题栏 + 下方内容区</li>
+            <li>打开 DevTools，确认 <code>&lt;rtc-content-wrapper&gt;</code> 使用了 Shadow DOM</li>
+            <li>在 DevTools 中查看 <code>&lt;rtc-content-wrapper&gt;</code> 的 Shadow Root，确认包含 5 个子组件标签</li>
+            <li>确认 5 个子组件按顺序排列：session-header → content-area → notice-bar → input-area → overlay-manager</li>
+            <li>确认布局方向为 <code>flex-direction: column</code>（垂直排列）</li>
+            <li>点击「触发 session-panel-toggle」按钮，确认事件日志中出现 <code>openSessionPanel() 被调用</code></li>
+            <li>点击「触发 mode-panel-toggle」按钮，确认事件日志中出现 <code>openModePanel() 被调用</code></li>
+            <li>切换 Light/Dark 主题，确认整个窗口颜色跟随变化</li>
+            <li>确认内容区高度占满剩余空间（flex: 1）</li>
+            <li>确认 <code>&lt;rtc-content-wrapper&gt;</code> 的 <code>z-index</code> 使用 CSS 变量 <code>--rtc-z-content</code></li>
+        </ol>
+    </div>
+
+    <h2>🎮 控制台</h2>
+    <div class="controls">
+        <h3>事件触发测试</h3>
+        <button onclick="triggerSessionPanelToggle()">触发 session-panel-toggle</button>
+        <button onclick="triggerModePanelToggle()">触发 mode-panel-toggle</button>
+        <button onclick="clearEventLog()" class="danger">清空日志</button>
+
+        <h3>主题切换</h3>
+        <button onclick="setTheme('light')">Light 主题</button>
+        <button onclick="setTheme('dark')">Dark 主题</button>
+
+        <h3>布局信息</h3>
+        <div class="layout-indicator">
+            <code>display: flex</code><br>
+            <code>flex-direction: column</code><br>
+            <code>height: 100%</code><br>
+            <code>width: 100%</code><br>
+            <code>position: relative</code><br>
+            <code>z-index: var(--rtc-z-content)</code><br>
+            <code>overflow: hidden</code>
+        </div>
+    </div>
+
+    <h2>📡 事件日志</h2>
+    <div id="event-log" class="event-log">等待事件触发...</div>
+
+    <h2>🖼️ Demo 1 — 登录后完整布局（已登录状态）</h2>
+    <div class="demo-area">
+        <p style="color: var(--demo-muted); font-size: 13px;">模拟登录后的完整窗口布局。标题栏 + content-wrapper（包含 5 个子组件）。</p>
+        <div class="window-frame" id="frame1">
+            <rtc-title-bar id="titlebar1" app-label="RTC Agent"></rtc-title-bar>
+            <div class="content-area">
+                <rtc-content-wrapper id="wrapper1"></rtc-content-wrapper>
+            </div>
+        </div>
+        <div id="demo1-status" class="status">状态：已登录，显示 content-wrapper</div>
+    </div>
+
+    <h2>🔍 Demo 2 — 子组件标签可视化</h2>
+    <div class="demo-area">
+        <p style="color: var(--demo-muted); font-size: 13px;">在每个子组件位置放置可视化标签，方便确认布局结构。这些标签会在后续 Task 中被真实 UI 替换。</p>
+        <div class="window-frame" id="frame2">
+            <rtc-title-bar id="titlebar2" app-label="布局可视化"></rtc-title-bar>
+            <div class="content-area">
+                <rtc-content-wrapper id="wrapper2">
+                    <!-- 这些内容会被 slot 分发到子组件中 -->
+                </rtc-content-wrapper>
+            </div>
+        </div>
+        <div class="layout-indicator">
+            <strong>组件树结构：</strong><br>
+            <code>&lt;rtc-content-wrapper&gt;</code><br>
+            ├── <code>&lt;rtc-session-header&gt;</code> <small>（会话头部 — Task 12 实现）</small><br>
+            ├── <code>&lt;rtc-content-area&gt;</code> <small>（消息区域 — Task 15 实现）</small><br>
+            ├── <code>&lt;rtc-notice-bar&gt;</code> <small>（通知栏 — Task 11 实现）</small><br>
+            ├── <code>&lt;rtc-input-area&gt;</code> <small>（输入区域 — Task 16 实现）</small><br>
+            └── <code>&lt;rtc-overlay-manager&gt;</code> <small>（浮层管理 — Task 17 实现）</small>
+        </div>
+    </div>
+
+    <h2>📊 当前状态</h2>
+    <div id="mode-indicator">
+        登录状态：<span id="badge-login" class="mode-badge mode-logged-in">已登录</span>
+    </div>
+
+    <script type="module">
+        import '../src/index.ts';
+
+        const wrapper1 = document.getElementById('wrapper1');
+        const wrapper2 = document.getElementById('wrapper2');
+        const eventLog = document.getElementById('event-log');
+        let eventCount = 0;
+
+        // 监听 overlay-manager 的方法调用
+        function addMethodSpy(wrapper, name) {
+            // 等待 shadowRoot 可用
+            const checkInterval = setInterval(() => {
+                if (wrapper.shadowRoot) {
+                    const overlayManager = wrapper.shadowRoot.querySelector('rtc-overlay-manager');
+                    if (overlayManager) {
+                        clearInterval(checkInterval);
+                        // 用 Proxy 包装方法以记录调用
+                        const originalOpenSession = overlayManager.openSessionPanel.bind(overlayManager);
+                        const originalOpenMode = overlayManager.openModePanel.bind(overlayManager);
+
+                        overlayManager.openSessionPanel = function() {
+                            addEventLogEntry(`${name}: openSessionPanel() 被调用 ✅`);
+                            return originalOpenSession();
+                        };
+                        overlayManager.openModePanel = function() {
+                            addEventLogEntry(`${name}: openModePanel() 被调用 ✅`);
+                            return originalOpenMode();
+                        };
+                    }
+                }
+            }, 100);
+        }
+
+        addMethodSpy(wrapper1, 'Demo1');
+        addMethodSpy(wrapper2, 'Demo2');
+
+        function addEventLogEntry(message, isError = false) {
+            eventCount++;
+            const time = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = isError ? 'event error' : 'event';
+            entry.textContent = `[${time}] #${eventCount} ${message}`;
+            eventLog.appendChild(entry);
+            eventLog.scrollTop = eventLog.scrollHeight;
+        }
+
+        // 暴露到全局供按钮调用
+        window.triggerSessionPanelToggle = () => {
+            // 在 wrapper1 上触发事件，该事件会冒泡到 session-header
+            const sessionHeader = wrapper1.shadowRoot.querySelector('rtc-session-header');
+            if (sessionHeader) {
+                sessionHeader.dispatchEvent(new CustomEvent('rtc-session-panel-toggle', {
+                    bubbles: true,
+                    composed: true
+                }));
+                addEventLogEntry('触发 rtc-session-panel-toggle 事件');
+            }
+        };
+
+        window.triggerModePanelToggle = () => {
+            // 在 wrapper1 上触发事件，该事件会冒泡到 input-area
+            const inputArea = wrapper1.shadowRoot.querySelector('rtc-input-area');
+            if (inputArea) {
+                inputArea.dispatchEvent(new CustomEvent('rtc-mode-panel-toggle', {
+                    bubbles: true,
+                    composed: true
+                }));
+                addEventLogEntry('触发 rtc-mode-panel-toggle 事件');
+            }
+        };
+
+        window.clearEventLog = () => {
+            eventLog.innerHTML = '等待事件触发...';
+            eventCount = 0;
+        };
+
+        window.setTheme = (theme) => {
+            document.querySelectorAll('rtc-agent').forEach(el => {
+                el.setAttribute('theme', theme);
+            });
+            document.body.className = `theme-${theme}`;
+        };
+
+        // 初始日志
+        setTimeout(() => {
+            addEventLogEntry('页面加载完成，组件已初始化');
+            addEventLogEntry(`wrapper1 shadowRoot: ${wrapper1.shadowRoot ? '✅ 存在' : '❌ 不存在'}`);
+
+            // 检查子组件
+            if (wrapper1.shadowRoot) {
+                const children = [
+                    'rtc-session-header',
+                    'rtc-content-area',
+                    'rtc-notice-bar',
+                    'rtc-input-area',
+                    'rtc-overlay-manager'
+                ];
+                children.forEach(tag => {
+                    const el = wrapper1.shadowRoot.querySelector(tag);
+                    if (el) {
+                        addEventLogEntry(`找到子组件: ${tag} ✅`);
+                    } else {
+                        addEventLogEntry(`未找到子组件: ${tag} ❌`, true);
+                    }
+                });
+            }
+        }, 500);
+    </script>
+</body>
+</html>

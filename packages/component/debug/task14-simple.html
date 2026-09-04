@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task 14 - 最小化测试</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #ffffff;
+            color: #333333;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .test-box {
+            border: 2px solid #007acc;
+            padding: 20px;
+            margin: 20px 0;
+            background: #f5f5f5;
+        }
+        .debug-info {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 10px;
+            margin: 10px 0;
+            font-size: 13px;
+        }
+        .message-list-wrapper {
+            height: 400px;
+            border: 1px solid #ccc;
+            background: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Task 14 - 最小化排查</h1>
+
+        <div class="test-box">
+            <h2>测试 1：组件是否能加载</h2>
+            <div id="test1" class="message-list-wrapper"></div>
+            <div class="debug-info" id="info1">检查中...</div>
+        </div>
+
+        <div class="test-box">
+            <h2>测试 2：手动添加消息</h2>
+            <button id="addBtn">添加消息</button>
+            <div id="test2" class="message-list-wrapper"></div>
+            <div class="debug-info" id="info2">检查中...</div>
+        </div>
+
+        <div class="test-box">
+            <h2>控制台输出</h2>
+            <pre id="console" style="background: #1e1e1e; color: #d4d4d4; padding: 10px; overflow: auto; max-height: 300px;"></pre>
+        </div>
+    </div>
+
+    <script type="module">
+        // 自定义 console.log
+        const consoleEl = document.getElementById('console');
+        function log(msg, data = null) {
+            const time = new Date().toLocaleTimeString();
+            const line = `[${time}] ${msg}${data ? '\n' + JSON.stringify(data, null, 2) : ''}\n`;
+            consoleEl.textContent += line;
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+            console.log(msg, data);
+        }
+
+        log('🚀 开始加载组件...');
+
+        // 导入组件
+        try {
+            await import('../src/components/content-area/rtc-message-list.ts');
+            log('✅ rtc-message-list.ts 加载成功');
+        } catch (e) {
+            log('❌ 加载失败', e.message);
+        }
+
+        try {
+            const {MessageContext} = await import('../src/contexts/message.ts');
+            log('✅ MessageContext 加载成功');
+
+            // 测试 1：检查组件是否能创建
+            const test1 = document.getElementById('test1');
+            const info1 = document.getElementById('info1');
+
+            const list1 = document.createElement('rtc-message-list');
+            test1.appendChild(list1);
+            log('✅ rtc-message-list 元素已创建');
+
+            // 等待组件初始化
+            await customElements.whenDefined('rtc-message-list');
+            log('✅ rtc-message-list 已定义');
+
+            await list1.updateComplete;
+            log('✅ rtc-message-list 首次更新完成');
+
+            // 检查 Shadow DOM
+            if (list1.shadowRoot) {
+                log('✅ Shadow DOM 存在');
+                const scroll = list1.shadowRoot.querySelector('.message-list-scroll');
+                log('Scroll 容器:', scroll ? '存在' : '不存在');
+                const inner = list1.shadowRoot.querySelector('.message-list-inner');
+                log('Inner 容器:', inner ? '存在' : '不存在');
+
+                // 检查实际 HTML
+                log('Shadow DOM innerHTML:', list1.shadowRoot.innerHTML);
+
+                // 检查计算样式
+                if (scroll) {
+                    const scrollStyle = window.getComputedStyle(scroll);
+                    log('Scroll 容器样式:', {
+                        height: scrollStyle.height,
+                        overflow: scrollStyle.overflow,
+                        display: scrollStyle.display,
+                        visibility: scrollStyle.visibility,
+                        opacity: scrollStyle.opacity
+                    });
+                }
+
+                // 检查 :host 样式
+                const hostStyle = window.getComputedStyle(list1);
+                log(':host 样式:', {
+                    display: hostStyle.display,
+                    width: hostStyle.width,
+                    height: hostStyle.height,
+                    overflow: hostStyle.overflow,
+                    visibility: hostStyle.visibility
+                });
+
+                info1.innerHTML = `
+                    <strong>✅ 组件加载成功</strong><br>
+                    Shadow DOM: ✓<br>
+                    Scroll 容器: ${scroll ? '✓' : '✗'}<br>
+                    Inner 容器: ${inner ? '✓' : '✗'}<br>
+                    <small>查看控制台获取详细信息</small>
+                `;
+            } else {
+                log('❌ Shadow DOM 不存在');
+                info1.innerHTML = '<strong>❌ Shadow DOM 不存在</strong>';
+            }
+
+            // 测试 2：使用 context 添加消息
+            const test2 = document.getElementById('test2');
+            const info2 = document.getElementById('info2');
+            const addBtn = document.getElementById('addBtn');
+
+            // 导入 ContextProvider
+            const {ContextProvider} = await import('@lit/context');
+            const {LitElement, html} = await import('lit');
+
+            // 创建一个简单的 provider 元素
+            class SimpleProvider extends LitElement {
+                constructor() {
+                    super();
+                    this._provider = new ContextProvider(this, {
+                        context: MessageContext,
+                        initialValue: {
+                            state: {messages: []},
+                            actions: {
+                                sendMessage: () => {},
+                                appendToLastMessage: () => {},
+                                finalizeLastMessage: () => {},
+                                clearMessages: () => {}
+                            }
+                        }
+                    });
+                }
+
+                setValue(value) {
+                    this._provider.setValue(value);
+                    log('Provider setValue 调用，新值:', value);
+                }
+
+                render() {
+                    return html`<slot></slot>`;
+                }
+            }
+            customElements.define('simple-provider', SimpleProvider);
+
+            // 关键：先创建 provider 并添加到 DOM
+            const provider = document.createElement('simple-provider');
+            provider.style.display = 'block';
+            provider.style.height = '400px';
+            provider.style.border = '2px solid #28a745';
+            provider.style.background = '#f8f9fa';
+
+            // 先添加 provider 到页面
+            test2.parentNode.insertBefore(provider, test2);
+            test2.style.display = 'none';
+            log('✅ provider 添加到页面');
+
+            // 等待 provider 初始化
+            await provider.updateComplete;
+            log('✅ provider 初始化完成');
+
+            // 然后创建 rtc-message-list 并添加到 provider
+            const list2 = document.createElement('rtc-message-list');
+            provider.appendChild(list2);
+            log('✅ list2 添加到 provider');
+
+            // 等待 list2 连接并消费 context
+            await customElements.whenDefined('rtc-message-list');
+            await list2.updateComplete;
+            log('✅ list2 初始化完成');
+
+            log('✅ 测试 2 设置完成');
+
+            let msgCount = 0;
+            addBtn.addEventListener('click', () => {
+                msgCount++;
+                const messages = [];
+                for (let i = 0; i < msgCount; i++) {
+                    messages.push({
+                        id: `msg-${i}`,
+                        role: 'assistant',
+                        content: `消息 #${i + 1}`,
+                        timestamp: Date.now()
+                    });
+                }
+
+                log('准备设置 context, messages:', messages);
+
+                provider.setValue({
+                    state: {messages},
+                    actions: {
+                        sendMessage: () => log('sendMessage'),
+                        appendToLastMessage: () => log('appendToLastMessage'),
+                        finalizeLastMessage: () => log('finalizeLastMessage'),
+                        clearMessages: () => log('clearMessages')
+                    }
+                });
+
+                log(`✅ 点击了添加按钮，${msgCount} 条消息`);
+
+                // 检查渲染结果
+                setTimeout(async () => {
+                    await list2.updateComplete;
+                    const items = list2.shadowRoot.querySelectorAll('rtc-message');
+                    log(`渲染的消息数量: ${items.length}`);
+
+                    // 检查 context 值
+                    log('list2._ctx:', list2._ctx);
+
+                    // 检查 innerHTML
+                    const inner = list2.shadowRoot.querySelector('.message-list-inner');
+                    log('inner.innerHTML:', inner?.innerHTML);
+
+                    info2.innerHTML = `
+                        <strong>消息数量: ${msgCount}</strong><br>
+                        渲染的消息: ${items.length}<br>
+                        Context 消息数: ${list2._ctx?.state?.messages?.length || 0}<br>
+                        ${items.length > 0 ? '✅ 消息已渲染' : '❌ 消息未渲染'}<br>
+                        <small>查看控制台获取详细信息</small>
+                    `;
+                }, 100);
+            });
+
+        } catch (e) {
+            log('❌ 错误', e.message);
+            console.error(e);
+        }
+    </script>
+</body>
+</html>

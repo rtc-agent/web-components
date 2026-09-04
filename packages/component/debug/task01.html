@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task 01 验证 - 测试基础设施</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 2rem;
+            min-height: 100vh;
+        }
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+            color: #60a5fa;
+        }
+        .subtitle {
+            color: #94a3b8;
+            margin-bottom: 2rem;
+            font-size: 0.875rem;
+        }
+        .test-section {
+            background: #1e293b;
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            border: 1px solid #334155;
+        }
+        .test-section h2 {
+            font-size: 1rem;
+            color: #cbd5e1;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .status {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .status.pending {
+            background: #fbbf24;
+            color: #1e293b;
+        }
+        .status.pass {
+            background: #22c55e;
+            color: #fff;
+        }
+        .status.fail {
+            background: #ef4444;
+            color: #fff;
+        }
+        .output {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 0.375rem;
+            padding: 1rem;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            font-size: 0.8125rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            overflow-x: auto;
+        }
+        .output .success {
+            color: #4ade80;
+        }
+        .output .error {
+            color: #f87171;
+        }
+        .output .info {
+            color: #60a5fa;
+        }
+        .render-target {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #0f172a;
+            border: 2px dashed #475569;
+            border-radius: 0.375rem;
+            min-height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .render-target:empty::after {
+            content: '渲染目标（等待测试...）';
+            color: #64748b;
+            font-size: 0.875rem;
+        }
+        #summary {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: linear-gradient(135deg, #1e40af 0%, #7c3aed 100%);
+            border-radius: 0.5rem;
+            text-align: center;
+        }
+        #summary h2 {
+            font-size: 1.25rem;
+            margin-bottom: 0.5rem;
+        }
+        #summary .result {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+        #loading {
+            text-align: center;
+            padding: 2rem;
+            color: #94a3b8;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Task 01 验证 - 测试基础设施</h1>
+    <p class="subtitle">在浏览器中验证测试工具函数是否正常工作</p>
+
+    <div id="loading">正在加载 Lit 库...</div>
+
+    <div class="test-section" style="display:none" id="test1-section">
+        <h2>
+            测试 1: nextFrame() - 等待动画帧
+            <span class="status pending" id="test1-status">等待中</span>
+        </h2>
+        <div class="output" id="test1-output">等待执行...</div>
+    </div>
+
+    <div class="test-section" style="display:none" id="test2-section">
+        <h2>
+            测试 2: fixture() - 渲染 Lit 模板
+            <span class="status pending" id="test2-status">等待中</span>
+        </h2>
+        <div class="output" id="test2-output">等待执行...</div>
+        <div class="render-target" id="test2-render"></div>
+    </div>
+
+    <div class="test-section" style="display:none" id="test3-section">
+        <h2>
+            测试 3: LitElement updateComplete
+            <span class="status pending" id="test3-status">等待中</span>
+        </h2>
+        <div class="output" id="test3-output">等待执行...</div>
+        <div class="render-target" id="test3-render"></div>
+    </div>
+
+    <div id="summary" style="display:none">
+        <h2>测试总结</h2>
+        <div class="result" id="summary-result">运行中...</div>
+    </div>
+
+    <script type="module">
+        // 动态导入 Lit
+        let html, render, LitElement;
+        try {
+            const lit = await import('https://esm.run/lit@3.1.0');
+            html = lit.html;
+            render = lit.render;
+            LitElement = lit.LitElement;
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('test1-section').style.display = 'block';
+            document.getElementById('test2-section').style.display = 'block';
+            document.getElementById('test3-section').style.display = 'block';
+        } catch (e) {
+            document.getElementById('loading').innerHTML = `<span style="color: #f87171;">加载 Lit 失败: ${e.message}</span>`;
+            throw e;
+        }
+
+        // 复现 test-helpers.ts 的函数
+        function nextFrame() {
+            return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+        }
+
+        async function fixture(template, target) {
+            render(template, target);
+            const el = target.firstElementChild;
+            await nextFrame();
+            if (el instanceof LitElement) {
+                await el.updateComplete;
+            }
+            return el;
+        }
+
+        // 测试辅助
+        function updateTest(testNum, status, message) {
+            const statusEl = document.getElementById(`test${testNum}-status`);
+            const outputEl = document.getElementById(`test${testNum}-output`);
+
+            statusEl.className = `status ${status}`;
+            statusEl.textContent = status === 'pass' ? '通过 ✓' : status === 'fail' ? '失败 ✗' : '等待中';
+            outputEl.innerHTML = message;
+        }
+
+        let passed = 0;
+        let failed = 0;
+
+        // 测试 1: nextFrame
+        try {
+            const start = performance.now();
+            let frameCalled = false;
+            requestAnimationFrame(() => { frameCalled = true; });
+            await nextFrame();
+            const duration = (performance.now() - start).toFixed(2);
+
+            if (frameCalled) {
+                updateTest(1, 'pass', `<span class="success">✓ nextFrame() 成功等待动画帧</span>\n<span class="info">耗时: ${duration}ms</span>`);
+                passed++;
+            } else {
+                throw new Error('requestAnimationFrame 未被调用');
+            }
+        } catch (e) {
+            updateTest(1, 'fail', `<span class="error">✗ 错误: ${e.message}</span>`);
+            failed++;
+        }
+
+        // 测试 2: fixture 渲染普通 HTML
+        try {
+            const target = document.getElementById('test2-render');
+            const el = await fixture(html`<div id="test-element" style="color: #4ade80;">Hello from Lit!</div>`, target);
+
+            if (el instanceof HTMLDivElement && el.id === 'test-element' && el.textContent === 'Hello from Lit!') {
+                updateTest(2, 'pass', `<span class="success">✓ fixture() 成功渲染 Lit 模板</span>\n<span class="info">元素: &lt;${el.tagName.toLowerCase()} id="${el.id}"&gt;</span>\n<span class="info">内容: "${el.textContent}"</span>`);
+                passed++;
+            } else {
+                throw new Error('渲染结果不符合预期');
+            }
+        } catch (e) {
+            updateTest(2, 'fail', `<span class="error">✗ 错误: ${e.message}</span>`);
+            failed++;
+        }
+
+        // 测试 3: LitElement updateComplete
+        try {
+            class TestComponent extends LitElement {
+                constructor() {
+                    super();
+                    this.rendered = false;
+                }
+
+                render() {
+                    this.rendered = true;
+                    return html`<span style="color: #60a5fa;">LitElement 已渲染</span>`;
+                }
+            }
+            customElements.define('test-component', TestComponent);
+
+            const target = document.getElementById('test3-render');
+            const el = await fixture(html`<test-component></test-component>`, target);
+
+            if (el instanceof LitElement && el.rendered) {
+                updateTest(3, 'pass', `<span class="success">✓ LitElement.updateComplete 正确等待</span>\n<span class="info">组件已渲染，render() 被调用</span>`);
+                passed++;
+            } else {
+                throw new Error('LitElement 未正确渲染');
+            }
+        } catch (e) {
+            updateTest(3, 'fail', `<span class="error">✗ 错误: ${e.message}</span>`);
+            failed++;
+        }
+
+        // 更新总结
+        document.getElementById('summary').style.display = 'block';
+        const summaryEl = document.getElementById('summary-result');
+        if (failed === 0) {
+            summaryEl.innerHTML = `<span style="color: #4ade80;">全部通过 (${passed}/${passed + failed})</span>`;
+        } else {
+            summaryEl.innerHTML = `<span style="color: #f87171;">${failed} 个失败 (${passed}/${passed + failed})</span>`;
+        }
+    </script>
+</body>
+</html>

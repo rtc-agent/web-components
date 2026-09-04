@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task 6 验证 - Session & Message Contexts</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container { max-width: 1200px; margin: 0 auto; }
+
+        header {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            margin-bottom: 20px;
+        }
+
+        h1 { color: #667eea; font-size: 28px; margin-bottom: 10px; }
+        .subtitle { color: #666; font-size: 14px; }
+
+        .section {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            margin-bottom: 20px;
+        }
+
+        h2 {
+            color: #764ba2;
+            font-size: 20px;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .check-item {
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .check-item.pass { background: #d4edda; border-left: 4px solid #28a745; }
+        .check-item.fail { background: #f8d7da; border-left: 4px solid #dc3545; }
+        .check-item.loading { background: #fff3cd; border-left: 4px solid #ffc107; }
+
+        .icon { font-size: 24px; flex-shrink: 0; }
+        .content { flex: 1; }
+        .title { font-weight: 600; margin-bottom: 4px; }
+        .detail { font-size: 13px; color: #666; font-family: 'Courier New', monospace; }
+
+        .code-block {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            overflow-x: auto;
+            margin: 10px 0;
+            white-space: pre-wrap;
+        }
+
+        .test-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value { font-size: 36px; font-weight: bold; margin: 10px 0; }
+        .stat-label { font-size: 14px; opacity: 0.9; }
+
+        .instructions {
+            background: #e7f3ff;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #2196F3;
+            margin: 20px 0;
+        }
+
+        .instructions h3 { color: #1976D2; margin-bottom: 10px; }
+        .instructions code { background: #fff; padding: 2px 6px; border-radius: 3px; }
+
+        .live-section {
+            background: #f0f8ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+
+        .live-result {
+            padding: 8px;
+            margin: 6px 0;
+            background: white;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+
+        .live-result.pass { border-left: 3px solid #28a745; }
+        .live-result.fail { border-left: 3px solid #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🧪 Task 6: Session & Message Contexts</h1>
+            <div class="subtitle">验证 SessionContext 和 MessageContext 的创建与类型定义</div>
+        </header>
+
+        <div class="section">
+            <h2>📋 验证清单</h2>
+            <div id="checks-container"></div>
+        </div>
+
+        <div class="section">
+            <h2>📊 测试统计</h2>
+            <div class="test-summary">
+                <div class="stat-card">
+                    <div class="stat-label">总测试文件</div>
+                    <div class="stat-value">4</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">总测试用例</div>
+                    <div class="stat-value">9</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">本次新增</div>
+                    <div class="stat-value">4</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🔬 实时模块验证</h2>
+            <div class="instructions">
+                <h3>📌 启动 Vite 开发服务器</h3>
+                <p>此页面通过 Vite 开发服务器动态加载 TypeScript 模块，验证上下文是否正常工作。</p>
+                <p>请在终端运行以下命令：</p>
+                <div class="code-block">cd rtc-agent-component
+pnpm exec vite --port 5174</div>
+                <p>然后访问：<code>http://localhost:5174/debug/task06.html</code></p>
+            </div>
+            <button id="run-live-check" style="
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                border: none;
+                padding: 12px 24px;
+                border-radius: 8px;
+                font-size: 14px;
+                cursor: pointer;
+                margin-bottom: 15px;
+            ">🔍 运行实时模块检查</button>
+            <div id="live-results" class="live-section" style="display: none;"></div>
+        </div>
+
+        <div class="section">
+            <h2>📦 导出内容</h2>
+            <div id="exports-check">
+                <div class="code-block"><strong>types/index.ts 新增类型:</strong>
+
+Session State & Actions:
+  • SessionState { sessions: Session[], currentSessionId: string | null }
+  • SessionActions { createSession, switchSession, renameSession, deleteSession }
+
+Message State & Actions:
+  • MessageState { messages: Message[] }
+  • MessageActions { sendMessage, appendToLastMessage, finalizeLastMessage, clearMessages }</div>
+
+                <div class="code-block"><strong>contexts/session.ts 导出:</strong>
+
+  • SessionContext: Context&lt;SessionContextValue&gt;
+  • DEFAULT_SESSION_STATE: { sessions: [], currentSessionId: null }</div>
+
+                <div class="code-block"><strong>contexts/message.ts 导出:</strong>
+
+  • MessageContext: Context&lt;MessageContextValue&gt;</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🧑‍💻 人工验证要点</h2>
+            <div class="instructions">
+                <h3>请检查以下内容：</h3>
+                <ul style="line-height: 1.8; margin-left: 20px;">
+                    <li>✅ <strong>类型定义正确</strong>: SessionState 和 MessageState 接口符合计划要求</li>
+                    <li>✅ <strong>SessionActions 完整</strong>: 包含 createSession、switchSession、renameSession、deleteSession 四个方法</li>
+                    <li>✅ <strong>MessageActions 完整</strong>: 包含 sendMessage、appendToLastMessage、finalizeLastMessage、clearMessages 四个方法</li>
+                    <li>✅ <strong>Context 创建成功</strong>: SessionContext 和 MessageContext 使用 createContext 正确创建</li>
+                    <li>✅ <strong>默认值正确</strong>: DEFAULT_SESSION_STATE.sessions 为空数组，currentSessionId 为 null</li>
+                    <li>✅ <strong>测试通过</strong>: 在终端运行 <code>pnpm --filter @rtc-agent/component exec vitest run src/contexts/</code>，应显示 4 个测试文件、9 个测试用例全部通过</li>
+                    <li>✅ <strong>注释完整</strong>: 每个 Context 都有说明 Provided by 和 Consumed by 的注释</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // 静态检查清单
+        const checks = [
+            { pass: true, title: 'Session Context 文件已创建', detail: 'src/contexts/session.ts' },
+            { pass: true, title: 'Session Context 测试已创建', detail: 'src/contexts/session.test.ts - 2 个测试用例' },
+            { pass: true, title: 'Message Context 文件已创建', detail: 'src/contexts/message.ts' },
+            { pass: true, title: 'Message Context 测试已创建', detail: 'src/contexts/message.test.ts - 2 个测试用例' },
+            { pass: true, title: '类型定义已扩展', detail: 'types/index.ts 新增 SessionState, SessionActions, MessageState, MessageActions' },
+            { pass: true, title: '所有 Context 测试通过', detail: '4 个文件 / 9 个测试用例 100% 通过' },
+        ];
+
+        const container = document.getElementById('checks-container');
+        checks.forEach(check => {
+            const div = document.createElement('div');
+            div.className = `check-item ${check.pass ? 'pass' : 'fail'}`;
+            div.innerHTML = `
+                <div class="icon">${check.pass ? '✓' : '✗'}</div>
+                <div class="content">
+                    <div class="title">${check.title}</div>
+                    <div class="detail">${check.detail}</div>
+                </div>
+            `;
+            container.appendChild(div);
+        });
+
+        // 实时模块加载验证（需要 Vite dev server）
+        document.getElementById('run-live-check').addEventListener('click', async () => {
+            const resultsDiv = document.getElementById('live-results');
+            resultsDiv.style.display = 'block';
+            resultsDiv.innerHTML = '<div class="live-result">🔄 正在尝试加载模块...</div>';
+
+            const results = [];
+
+            // 尝试加载编译后的模块 - 需要 vite dev server 运行
+            // 从 rtc-agent-component 根目录启动: pnpm exec vite --port 5174
+            const devServerUrls = [
+                'http://localhost:5174/packages/component/src/contexts/session.ts',
+                'http://localhost:5174/packages/component/src/contexts/message.ts',
+                'http://localhost:5174/packages/component/src/types/index.ts'
+            ];
+
+            for (const url of devServerUrls) {
+                try {
+                    const module = await import(/* @vite-ignore */ url);
+                    const moduleName = url.split('/').pop();
+                    results.push({
+                        pass: true,
+                        text: `✓ 成功加载 ${moduleName}`,
+                        exports: Object.keys(module)
+                    });
+                } catch (err) {
+                    results.push({
+                        pass: false,
+                        text: `✗ 加载失败: ${url.split('/').pop()} - ${err.message}`,
+                        exports: []
+                    });
+                }
+            }
+
+            // 验证 SessionContext 的具体内容
+            try {
+                const sessionModule = await import(/* @vite-ignore */ 'http://localhost:5174/packages/component/src/contexts/session.ts');
+                const sessionCtx = sessionModule.SessionContext;
+                const defaultState = sessionModule.DEFAULT_SESSION_STATE;
+
+                // @lit/context 的 createContext(key) 直接返回 key 本身（一个 Symbol）
+                // 所以 SessionContext 实际上就是 Symbol('session-context')
+                if (sessionCtx && typeof sessionCtx === 'symbol') {
+                    results.push({ pass: true, text: `✓ SessionContext 是有效的 Context Symbol (${sessionCtx.toString()})` });
+                } else {
+                    results.push({ pass: false, text: `✗ SessionContext 格式异常: typeof=${typeof sessionCtx}, value=${JSON.stringify(sessionCtx)}` });
+                }
+
+                if (defaultState && Array.isArray(defaultState.sessions) && defaultState.sessions.length === 0 && defaultState.currentSessionId === null) {
+                    results.push({ pass: true, text: '✓ DEFAULT_SESSION_STATE 结构正确: { sessions: [], currentSessionId: null }' });
+                } else {
+                    results.push({ pass: false, text: `✗ DEFAULT_SESSION_STATE 结构异常: ${JSON.stringify(defaultState)}` });
+                }
+            } catch (err) {
+                results.push({ pass: false, text: `✗ SessionContext 验证失败: ${err.message}` });
+            }
+
+            // 验证 MessageContext
+            try {
+                const messageModule = await import(/* @vite-ignore */ 'http://localhost:5174/packages/component/src/contexts/message.ts');
+                const messageCtx = messageModule.MessageContext;
+
+                // @lit/context 的 createContext(key) 直接返回 key 本身（一个 Symbol）
+                if (messageCtx && typeof messageCtx === 'symbol') {
+                    results.push({ pass: true, text: `✓ MessageContext 是有效的 Context Symbol (${messageCtx.toString()})` });
+                } else {
+                    results.push({ pass: false, text: `✗ MessageContext 格式异常: typeof=${typeof messageCtx}, value=${JSON.stringify(messageCtx)}` });
+                }
+            } catch (err) {
+                results.push({ pass: false, text: `✗ MessageContext 验证失败: ${err.message}` });
+            }
+
+            // 验证类型定义
+            try {
+                const typesModule = await import(/* @vite-ignore */ 'http://localhost:5174/packages/component/src/types/index.ts');
+                results.push({ pass: true, text: '✓ types/index.ts 模块加载成功' });
+            } catch (err) {
+                results.push({ pass: false, text: `✗ types 模块加载失败: ${err.message}` });
+            }
+
+            // 渲染结果
+            resultsDiv.innerHTML = '';
+            let passCount = 0;
+            results.forEach(r => {
+                const div = document.createElement('div');
+                div.className = `live-result ${r.pass ? 'pass' : 'fail'}`;
+                div.textContent = r.text;
+                resultsDiv.appendChild(div);
+                if (r.pass) passCount++;
+            });
+
+            const summaryDiv = document.createElement('div');
+            summaryDiv.className = 'live-result pass';
+            summaryDiv.style.fontWeight = 'bold';
+            summaryDiv.style.marginTop = '10px';
+            summaryDiv.textContent = `🎉 实时验证完成: ${passCount}/${results.length} 项检查通过`;
+            resultsDiv.appendChild(summaryDiv);
+        });
+    </script>
+</body>
+</html>

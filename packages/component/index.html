@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Manager</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 28px;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+
+        .filter-btn {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .filter-btn:hover {
+            background: #f0f0f0;
+        }
+
+        .filter-btn.active {
+            background: #3498db;
+            color: white;
+            border-color: #3498db;
+        }
+
+        .create-btn {
+            margin-left: auto;
+            padding: 8px 20px;
+            background: #27ae60;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+
+        .create-btn:hover {
+            background: #229954;
+        }
+
+        .task-list {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .task-item {
+            display: flex;
+            align-items: center;
+            padding: 16px;
+            border-bottom: 1px solid #eee;
+            transition: background 0.2s;
+        }
+
+        .task-item:hover {
+            background: #f9f9f9;
+        }
+
+        .task-item:last-child {
+            border-bottom: none;
+        }
+
+        .task-checkbox {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            margin-right: 12px;
+        }
+
+        .task-content {
+            flex: 1;
+            cursor: pointer;
+        }
+
+        .task-title {
+            font-size: 16px;
+            margin-bottom: 4px;
+        }
+
+        .task-title.completed {
+            text-decoration: line-through;
+            color: #999;
+        }
+
+        .task-meta {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .task-priority {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+            margin-right: 8px;
+        }
+
+        .priority-high {
+            background: #fee;
+            color: #e74c3c;
+        }
+
+        .priority-medium {
+            background: #fff3e0;
+            color: #f39c12;
+        }
+
+        .priority-low {
+            background: #e8f5e9;
+            color: #27ae60;
+        }
+
+        .delete-btn {
+            padding: 6px 12px;
+            background: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+
+        .delete-btn:hover {
+            background: #c0392b;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        }
+
+        .modal-header {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #555;
+        }
+
+        .form-input, .form-select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 24px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2980b9;
+        }
+
+        .btn-secondary {
+            background: #ecf0f1;
+            color: #555;
+        }
+
+        .btn-secondary:hover {
+            background: #d5dbdb;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            background: #2c3e50;
+            color: white;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s;
+            z-index: 2000;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .toast.success {
+            background: #27ae60;
+        }
+
+        .toast.error {
+            background: #e74c3c;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📋 Task Manager</h1>
+
+        <div class="toolbar">
+            <button class="filter-btn active" data-filter="all">All</button>
+            <button class="filter-btn" data-filter="active">Active</button>
+            <button class="filter-btn" data-filter="completed">Completed</button>
+            <button class="create-btn" onclick="openCreateModal()">+ Create Task</button>
+        </div>
+
+        <div class="task-list" id="taskList">
+            <div class="empty-state">Loading tasks...</div>
+        </div>
+    </div>
+
+    <!-- Create/Edit Modal -->
+    <div class="modal" id="taskModal">
+        <div class="modal-content">
+            <div class="modal-header" id="modalTitle">Create Task</div>
+            <form id="taskForm">
+                <input type="hidden" id="taskId">
+                <div class="form-group">
+                    <label class="form-label" for="taskTitle">Title</label>
+                    <input type="text" id="taskTitle" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="taskPriority">Priority</label>
+                    <select id="taskPriority" class="form-select">
+                        <option value="low">Low</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="high">High</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="taskDueDate">Due Date (optional)</label>
+                    <input type="datetime-local" id="taskDueDate" class="form-input">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <!-- RTC Agent 悬浮聊天窗口 -->
+    <rtc-agent></rtc-agent>
+
+    <script type="module">
+        import { defineRegistry, eventBus, RtcAgent } from './src/index.ts';
+        import { virtualFS, toolRegistry } from '@rtc-agent/persistence';
+
+        // 注册 <rtc-agent> 组件（RtcAgent 导入即自动注册）
+        // 此处作为宿主应用，可选择性使用 <rtc-agent> 聊天界面
+        // 本 demo 聚焦于 skill system API 的纯业务调用
+
+        // ============================================
+        // 1. 创建 Registry
+        // ============================================
+        const registry = defineRegistry({
+            name: 'TaskManager',
+            description: 'A simple task management application',
+            persona: 'You are a helpful task management assistant.'
+        });
+
+        // 暴露到 window 供测试和调试使用
+        // @ts-ignore
+        window.registry = registry;
+        // @ts-ignore
+        window.toolRegistry = toolRegistry;
+        // @ts-ignore
+        window.virtualFS = virtualFS;
+
+        // ============================================
+        // 2. 创建 Task Group
+        // ============================================
+        const taskGroup = registry.createGroup({
+            name: 'task',
+            description: 'Task management operations'
+        });
+
+        // ============================================
+        // 3. 注册 Functions
+        // ============================================
+
+        // task.list - 获取任务列表
+        taskGroup.register({
+            name: 'list',
+            description: 'List all tasks with optional filtering',
+            parameters: [
+                {
+                    name: 'filter',
+                    schema: {
+                        type: 'string',
+                        enum: ['all', 'active', 'completed'],
+                        default: 'all',
+                        description: 'Filter tasks by status'
+                    },
+                    required: false
+                }
+            ],
+            returns: {
+                schema: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            id: { type: 'string', format: 'uuid' },
+                            title: { type: 'string' },
+                            completed: { type: 'boolean' },
+                            priority: { type: 'string', enum: ['low', 'medium', 'high'] },
+                            dueDate: { type: 'string', format: 'date-time' },
+                            createdAt: { type: 'string', format: 'date-time' }
+                        }
+                    },
+                    description: 'Array of tasks'
+                }
+            },
+            hooks: {
+                onStart: (params) => {
+                    console.log('[task.list] Fetching tasks with filter:', params.filter);
+                },
+                onSuccess: (result) => {
+                    console.log('[task.list] Success:', result.length, 'tasks');
+                }
+            },
+            handler: async (params) => {
+                // 从 IndexedDB 读取任务
+                const allTasks = await loadTasks();
+                const filter = params.filter || 'all';
+
+                if (filter === 'active') {
+                    return allTasks.filter(t => !t.completed);
+                } else if (filter === 'completed') {
+                    return allTasks.filter(t => t.completed);
+                }
+                return allTasks;
+            }
+        });
+
+        // task.get - 获取单个任务
+        taskGroup.register({
+            name: 'get',
+            description: 'Get a specific task by ID',
+            parameters: [
+                {
+                    name: 'id',
+                    schema: {
+                        type: 'string',
+                        format: 'uuid',
+                        description: 'Task ID'
+                    },
+                    required: true
+                }
+            ],
+            returns: {
+                schema: {
+                    type: 'object',
+                    properties: {
+                        id: { type: 'string', format: 'uuid' },
+                        title: { type: 'string' },
+                        completed: { type: 'boolean' },
+                        priority: { type: 'string', enum: ['low', 'medium', 'high'] },
+                        dueDate: { type: 'string', format: 'date-time' },
+                        createdAt: { type: 'string', format: 'date-time' }
+                    },
+                    description: 'Task object'
+                }
+            },
+            handler: async (params) => {
+                const tasks = await loadTasks();
+                const task = tasks.find(t => t.id === params.id);
+                if (!task) {
+                    throw new Error(`Task not found: ${params.id}`);
+                }
+                return task;
+            }
+        });
+
+        // task.create - 创建任务
+        taskGroup.register({
+            name: 'create',
+            description: 'Create a new task',
+            parameters: [
+                {
+                    name: 'title',
+                    schema: { type: 'string', description: 'Task title' },
+                    required: true
+                },
+                {
+                    name: 'priority',
+                    schema: {
+                        type: 'string',
+                        enum: ['low', 'medium', 'high'],
+                        default: 'medium',
+                        description: 'Task priority'
+                    },
+                    required: false
+                },
+                {
+                    name: 'dueDate',
+                    schema: { type: 'string', format: 'date-time', description: 'Due date' },
+                    required: false
+                }
+            ],
+            returns: {
+                schema: {
+                    type: 'object',
+                    properties: {
+                        id: { type: 'string', format: 'uuid' },
+                        title: { type: 'string' },
+                        completed: { type: 'boolean' },
+                        priority: { type: 'string' },
+                        dueDate: { type: 'string', format: 'date-time' },
+                        createdAt: { type: 'string', format: 'date-time' }
+                    },
+                    description: 'Created task'
+                }
+            },
+            hooks: {
+                onSuccess: (result) => {
+                    showToast('Task created successfully', 'success');
+                }
+            },
+            handler: async (params) => {
+                const tasks = await loadTasks();
+                const newTask = {
+                    id: generateUUID(),
+                    title: params.title,
+                    completed: false,
+                    priority: params.priority || 'medium',
+                    dueDate: params.dueDate || null,
+                    createdAt: new Date().toISOString()
+                };
+                tasks.push(newTask);
+                await saveTasks(tasks);
+                return newTask;
+            }
+        });
+
+        // task.update - 更新任务
+        taskGroup.register({
+            name: 'update',
+            description: 'Update an existing task',
+            parameters: [
+                {
+                    name: 'id',
+                    schema: { type: 'string', format: 'uuid', description: 'Task ID' },
+                    required: true
+                },
+                {
+                    name: 'title',
+                    schema: { type: 'string', description: 'Task title' },
+                    required: false
+                },
+                {
+                    name: 'completed',
+                    schema: { type: 'boolean', description: 'Task completion status' },
+                    required: false
+                },
+                {
+                    name: 'priority',
+                    schema: {
+                        type: 'string',
+                        enum: ['low', 'medium', 'high'],
+                        description: 'Task priority'
+                    },
+                    required: false
+                },
+                {
+                    name: 'dueDate',
+                    schema: { type: 'string', format: 'date-time', description: 'Due date' },
+                    required: false
+                }
+            ],
+            returns: {
+                schema: {
+                    type: 'object',
+                    properties: {
+                        id: { type: 'string', format: 'uuid' },
+                        title: { type: 'string' },
+                        completed: { type: 'boolean' },
+                        priority: { type: 'string' },
+                        dueDate: { type: 'string', format: 'date-time' },
+                        createdAt: { type: 'string', format: 'date-time' }
+                    },
+                    description: 'Updated task'
+                }
+            },
+            hooks: {
+                onSuccess: (result) => {
+                    showToast('Task updated successfully', 'success');
+                }
+            },
+            handler: async (params) => {
+                const tasks = await loadTasks();
+                const index = tasks.findIndex(t => t.id === params.id);
+                if (index === -1) {
+                    throw new Error(`Task not found: ${params.id}`);
+                }
+
+                const task = tasks[index];
+                if (params.title !== undefined) task.title = params.title;
+                if (params.completed !== undefined) task.completed = params.completed;
+                if (params.priority !== undefined) task.priority = params.priority;
+                if (params.dueDate !== undefined) task.dueDate = params.dueDate;
+
+                tasks[index] = task;
+                await saveTasks(tasks);
+                return task;
+            }
+        });
+
+        // task.delete - 删除任务
+        taskGroup.register({
+            name: 'delete',
+            description: 'Delete a task',
+            parameters: [
+                {
+                    name: 'id',
+                    schema: { type: 'string', format: 'uuid', description: 'Task ID' },
+                    required: true
+                }
+            ],
+            returns: {
+                schema: {
+                    type: 'object',
+                    properties: {
+                        success: { type: 'boolean' },
+                        message: { type: 'string' }
+                    },
+                    description: 'Deletion result'
+                }
+            },
+            hooks: {
+                onSuccess: (result) => {
+                    showToast('Task deleted', 'success');
+                },
+                onError: (error) => {
+                    showToast(`Failed to delete task: ${error.message}`, 'error');
+                }
+            },
+            handler: async (params) => {
+                const tasks = await loadTasks();
+                const filtered = tasks.filter(t => t.id !== params.id);
+                if (filtered.length === tasks.length) {
+                    throw new Error(`Task not found: ${params.id}`);
+                }
+                await saveTasks(filtered);
+                return { success: true, message: 'Task deleted' };
+            }
+        });
+
+        // ============================================
+        // 4. 辅助函数
+        // ============================================
+
+        async function loadTasks() {
+            try {
+                const data = await virtualFS.read('/tasks.json');
+                return JSON.parse(data || '[]');
+            } catch {
+                return [];
+            }
+        }
+
+        async function saveTasks(tasks) {
+            await virtualFS.write('/tasks.json', JSON.stringify(tasks, null, 2));
+        }
+
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+                const r = Math.random() * 16 | 0;
+                const v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
+        // ============================================
+        // 5. 连接 <rtc-agent> 组件（自动桥接 Proxy + 加载场景）
+        // ============================================
+
+        // 等待组件升级后再设置属性，确保 Lit property setter 被触发
+        customElements.whenDefined('rtc-agent').then(() => {
+            const rtcAgentEl = document.querySelector('rtc-agent');
+            if (rtcAgentEl) {
+                // 设置 registry：自动创建 rtcAgentAPI Proxy 并注入 ToolRegistry
+                rtcAgentEl.registry = registry;
+                // 设置场景 URL：自动加载场景文档到 VirtualFS
+                rtcAgentEl.scenariosURL = './scenarios/';
+                console.log('[TaskManager] Registry connected to <rtc-agent>');
+            }
+        });
+
+        // ============================================
+        // 8. UI 交互
+        // ============================================
+
+        let currentFilter = 'all';
+
+        // 监听 function 执行事件
+        eventBus.on('function:success', (event) => {
+            console.log(`[EventBus] ${event.path} succeeded`);
+        });
+
+        eventBus.on('function:error', (event) => {
+            console.error(`[EventBus] ${event.path} failed:`, event.error);
+            showToast(event.error.message, 'error');
+        });
+
+        // 渲染任务列表
+        async function renderTasks() {
+            const tasks = await registry.task.list({ filter: currentFilter });
+            const container = document.getElementById('taskList');
+
+            if (tasks.length === 0) {
+                container.innerHTML = '<div class="empty-state">No tasks yet. Create one!</div>';
+                return;
+            }
+
+            container.innerHTML = tasks.map(task => `
+                <div class="task-item" data-id="${task.id}">
+                    <input type="checkbox" class="task-checkbox" ${task.completed ? 'checked' : ''}
+                           onchange="toggleTask('${task.id}', this.checked)">
+                    <div class="task-content" onclick="openEditModal('${task.id}')">
+                        <div class="task-title ${task.completed ? 'completed' : ''}">${escapeHtml(task.title)}</div>
+                        <div class="task-meta">
+                            <span class="task-priority priority-${task.priority}">${task.priority}</span>
+                            ${task.dueDate ? `Due: ${formatDate(task.dueDate)}` : ''}
+                        </div>
+                    </div>
+                    <button class="delete-btn" onclick="deleteTask('${task.id}')">Delete</button>
+                </div>
+            `).join('');
+        }
+
+        // 暴露 renderTasks 到 window 供测试使用
+        // @ts-ignore
+        window.renderTasks = renderTasks;
+
+        // 切换任务完成状态
+        window.toggleTask = async function(id, completed) {
+            await registry.task.update({ id, completed });
+        };
+
+        // 删除任务
+        window.deleteTask = async function(id) {
+            if (confirm('Are you sure you want to delete this task?')) {
+                await registry.task.delete({ id });
+            }
+        };
+
+        // 打开创建模态框
+        window.openCreateModal = function() {
+            document.getElementById('modalTitle').textContent = 'Create Task';
+            document.getElementById('taskForm').reset();
+            document.getElementById('taskId').value = '';
+            document.getElementById('taskModal').classList.add('active');
+        };
+
+        // 打开编辑模态框
+        window.openEditModal = async function(id) {
+            const task = await registry.task.get({ id });
+            document.getElementById('modalTitle').textContent = 'Edit Task';
+            document.getElementById('taskId').value = task.id;
+            document.getElementById('taskTitle').value = task.title;
+            document.getElementById('taskPriority').value = task.priority;
+            document.getElementById('taskDueDate').value = task.dueDate || '';
+            document.getElementById('taskModal').classList.add('active');
+        };
+
+        // 关闭模态框
+        window.closeModal = function() {
+            document.getElementById('taskModal').classList.remove('active');
+        };
+
+        // 表单提交
+        document.getElementById('taskForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('taskId').value;
+            const title = document.getElementById('taskTitle').value;
+            const priority = document.getElementById('taskPriority').value;
+            const dueDate = document.getElementById('taskDueDate').value || undefined;
+
+            if (id) {
+                // 更新
+                await registry.task.update({ id, title, priority, dueDate });
+            } else {
+                // 创建
+                await registry.task.create({ title, priority, dueDate });
+            }
+
+            closeModal();
+            renderTasks();
+        });
+
+        // 筛选按钮
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentFilter = btn.dataset.filter;
+                renderTasks();
+            });
+        });
+
+        // Toast 提示
+        window.showToast = function(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type} show`;
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        };
+
+        // 工具函数
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatDate(dateStr) {
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+        }
+
+        // 初始渲染
+        renderTasks();
+    </script>
+</body>
+</html>

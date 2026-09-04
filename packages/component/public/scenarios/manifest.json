@@ -1,0 +1,14 @@
+{
+  "scenarios": [
+    {
+      "file": "create-and-complete.md",
+      "name": "Create and Complete a Task",
+      "description": "End-to-end flow: create a task, then mark it complete."
+    },
+    {
+      "file": "filter-by-priority.md",
+      "name": "Filter Tasks by Priority",
+      "description": "Create tasks with different priorities, then filter the list."
+    }
+  ]
+}

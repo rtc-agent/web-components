@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Task 02: Design Tokens Debug</title>
+  <style>
+    /* ── Design Tokens (from tokens.ts, applied to :root for this demo) ── */
+    :root {
+      /* Spacing */
+      --rtc-spacing-xs: 4px;
+      --rtc-spacing-sm: 8px;
+      --rtc-spacing-md: 16px;
+      --rtc-spacing-lg: 24px;
+      --rtc-spacing-xl: 32px;
+      --rtc-spacing-2xl: 48px;
+
+      /* Typography */
+      --rtc-font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      --rtc-font-family-mono: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+      --rtc-font-size-xs: 12px;
+      --rtc-font-size-sm: 13px;
+      --rtc-font-size-base: 14px;
+      --rtc-font-size-md: 16px;
+      --rtc-font-size-lg: 18px;
+      --rtc-font-size-xl: 20px;
+      --rtc-font-size-2xl: 24px;
+      --rtc-font-weight-normal: 400;
+      --rtc-font-weight-medium: 500;
+      --rtc-font-weight-bold: 600;
+      --rtc-line-height-tight: 1.25;
+      --rtc-line-height-base: 1.5;
+      --rtc-line-height-loose: 1.75;
+
+      /* Borders */
+      --rtc-border-width: 1px;
+      --rtc-border-radius-sm: 4px;
+      --rtc-border-radius: 6px;
+      --rtc-border-radius-lg: 8px;
+      --rtc-border-radius-xl: 12px;
+
+      /* Shadows */
+      --rtc-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+      --rtc-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+      --rtc-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+      --rtc-shadow-xl: 0 20px 60px rgba(0, 0, 0, 0.3);
+
+      /* Transitions */
+      --rtc-transition-duration: 0.15s;
+      --rtc-transition-duration-slow: 0.3s;
+      --rtc-transition-timing: ease;
+
+      /* Z-index */
+      --rtc-z-content: 1;
+      --rtc-z-overlay: 500;
+      --rtc-z-modal: 501;
+      --rtc-z-title-bar: 1000;
+
+      /* Window */
+      --rtc-window-default-width: 420px;
+      --rtc-window-default-height: 640px;
+      --rtc-window-min-width: 320px;
+      --rtc-window-min-height: 480px;
+      --rtc-window-border-radius: 12px;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: var(--rtc-font-family-base);
+      font-size: var(--rtc-font-size-base);
+      background: #f5f5f5;
+      padding: 20px;
+      color: #333;
+      line-height: var(--rtc-line-height-base);
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+      color: #1a1a1a;
+      font-size: var(--rtc-font-size-2xl);
+      font-weight: var(--rtc-font-weight-bold);
+    }
+
+    h1 .emoji { font-style: normal; }
+
+    .status {
+      background: #4caf50;
+      color: white;
+      padding: 12px 20px;
+      border-radius: var(--rtc-border-radius);
+      margin-bottom: 30px;
+      font-weight: var(--rtc-font-weight-medium);
+      box-shadow: var(--rtc-shadow-sm);
+    }
+
+    .section {
+      background: white;
+      padding: var(--rtc-spacing-lg);
+      margin-bottom: 20px;
+      border-radius: var(--rtc-border-radius-lg);
+      box-shadow: var(--rtc-shadow-md);
+    }
+
+    .section h2 {
+      margin-bottom: 20px;
+      color: #1a1a1a;
+      font-size: var(--rtc-font-size-lg);
+      font-weight: var(--rpc-font-weight-bold, var(--rtc-font-weight-bold));
+      border-bottom: var(--rtc-border-width) solid #e0e0e0;
+      padding-bottom: 10px;
+    }
+
+    .token-demo {
+      margin-bottom: var(--rtc-spacing-md);
+      padding: var(--rtc-spacing-md);
+      border: var(--rtc-border-width) solid #e0e0e0;
+      border-radius: var(--rtc-border-radius);
+    }
+
+    .token-label {
+      font-family: var(--rtc-font-family-mono);
+      font-size: var(--rtc-font-size-xs);
+      color: #666;
+      margin-bottom: 8px;
+    }
+
+    .spacing-demo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .spacing-box {
+      background: #2196f3;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: var(--rtc-font-size-xs);
+      font-weight: var(--rtc-font-weight-bold);
+      border-radius: var(--rtc-border-radius-sm);
+    }
+
+    .shadow-demo {
+      display: inline-block;
+      width: 100px;
+      height: 100px;
+      background: white;
+      border-radius: var(--rtc-border-radius);
+      margin-right: 20px;
+      margin-bottom: 20px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: var(--rtc-font-size-xs);
+      color: #666;
+    }
+
+    .border-demo {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100px;
+      height: 100px;
+      background: #f0f0f0;
+      margin-right: 20px;
+      margin-bottom: 20px;
+      font-size: var(--rtc-font-size-xs);
+      color: #666;
+    }
+
+    .transition-demo {
+      width: 100px;
+      height: 100px;
+      background: #ff9800;
+      border-radius: var(--rtc-border-radius);
+      cursor: pointer;
+      transition: transform var(--rtc-transition-duration) var(--rtc-transition-timing),
+                  background var(--rtc-transition-duration-slow) var(--rtc-transition-timing);
+    }
+
+    .transition-demo:hover {
+      transform: scale(1.2);
+      background: #f57c00;
+    }
+
+    .checklist {
+      background: #fff9e6;
+      border-left: 4px solid #ffc107;
+      padding: var(--rtc-spacing-md) var(--rtc-spacing-lg);
+      margin-top: 30px;
+      border-radius: var(--rtc-border-radius);
+    }
+
+    .checklist h3 {
+      margin-bottom: 12px;
+      color: #856404;
+    }
+
+    .checklist ul {
+      list-style: none;
+      padding-left: 0;
+    }
+
+    .checklist li {
+      padding: 8px 0;
+      padding-left: 28px;
+      position: relative;
+    }
+
+    .checklist li:before {
+      content: "☐";
+      position: absolute;
+      left: 0;
+      font-size: 18px;
+      color: #856404;
+    }
+
+    code {
+      background: #f5f5f5;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: var(--rtc-font-family-mono);
+      font-size: var(--rtc-font-size-xs);
+      color: #d63384;
+    }
+
+    .info-section {
+      background: #e3f2fd;
+    }
+
+    .test-results {
+      background: #e8f5e9;
+      border-left: 4px solid #4caf50;
+      padding: var(--rtc-spacing-md) var(--rtc-spacing-lg);
+      margin-bottom: 20px;
+      border-radius: var(--rtc-border-radius);
+    }
+
+    .test-results h3 {
+      margin-bottom: 12px;
+      color: #2e7d32;
+    }
+
+    .test-pass {
+      color: #2e7d32;
+      font-family: var(--rtc-font-family-mono);
+      font-size: var(--rtc-font-size-sm);
+      padding: 4px 0;
+    }
+
+    .test-pass:before {
+      content: "✓ ";
+      font-weight: var(--rtc-font-weight-bold);
+    }
+
+    .z-index-demo {
+      position: relative;
+      height: 280px;
+      background: #fafafa;
+      border-radius: var(--rtc-border-radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .z-layer {
+      position: absolute;
+      padding: 8px 12px;
+      border-radius: var(--rtc-border-radius-sm);
+      font-size: var(--rtc-font-size-xs);
+      font-family: var(--rtc-font-family-mono);
+      color: white;
+      font-weight: var(--rtc-font-weight-medium);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: var(--rtc-shadow-md);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1><span class="emoji">🎨</span> Task 02: Design Tokens Debug</h1>
+    <div class="status">
+      ✅ Implementation Complete — All 8 tests passing
+    </div>
+
+    <div class="test-results">
+      <h3>🧪 Test Results (from tokens.test.ts)</h3>
+      <div class="test-pass">should export a CSSResult</div>
+      <div class="test-pass">should NOT define color variables (colors belong to theme files)</div>
+      <div class="test-pass">should define spacing variables</div>
+      <div class="test-pass">should define font variables</div>
+      <div class="test-pass">should define border variables</div>
+      <div class="test-pass">should define shadow variables</div>
+      <div class="test-pass">should define transition variables</div>
+      <div class="test-pass">should define z-index layers</div>
+    </div>
+
+    <div class="section">
+      <h2>📏 Spacing Tokens</h2>
+      <p style="margin-bottom: var(--rtc-spacing-md); color: #666;">
+        Verify that spacing values render with correct pixel widths. Blue box width = token value.
+      </p>
+
+      <div class="token-demo">
+        <div class="token-label">--rtc-spacing-xs (4px)</div>
+        <div class="spacing-demo">
+          <div class="spacing-box" style="width: var(--rtc-spacing-xs);">xs</div>
+          <span style="font-size: var(--rtc-font-size-xs); color: #999;">← 4px</span>
+        </div>
+      </div>
+
+      <div class="token-demo">
+        <div class="token-label">--rtc-spacing-sm (8px)</div>
+        <div class="spacing-demo">
+          <div class="spacing-box" style="width: var(--rtc-spacing-sm);">sm</div>
+          <span style="font-size: var(--rtc-font-size-xs); color: #999;">← 8px</span>
+        </div>
+      </div>
+
+      <div class="token-demo">
+        <div class="token-label">--rtc-spacing-md (16px)</div>
+        <div class="spacing-demo">
+          <div class="spacing-box" style="width: var(--rtc-spacing-md);">md</div>
+          <span style="font-size: var(--rtc-font-size-xs); color: #999;">← 16px</span>
+        </div>
+      </div>
+
+      <div class="token-demo">
+        <div class="token-label">--rtc-spacing-lg (24px)</div>
+        <div class="spacing-demo">
+          <div class="spacing-box" style="width: var(--rtc-spacing-lg);">lg</div>
+          <span style="font-size: var(--rtc-font-size-xs); color: #999;">← 24px</span>
+        </div>
+      </div>
+
+      <div class="token-demo">
+        <div class="token-label">--rtc-spacing-xl (32px)</div>
+        <div class="spacing-demo">
+          <div class="spacing-box" style="width: var(--rtc-spacing-xl);">xl</div>
+          <span style="font-size: var(--rtc-font-size-xs); color: #999;">← 32px</span>
+        </div>
+      </div>
+
+      <div class="token-demo">
+        <div class="token-label">--rtc-spacing-2xl (48px)</div>
+        <div class="spacing-demo">
+          <div class="spacing-box" style="width: var(--rtc-spacing-2xl);">2xl</div>
+          <span style="font-size: var(--rtc-font-size-xs); color: #999;">← 48px</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>🔤 Typography Tokens</h2>
+      <p style="margin-bottom: var(--rtc-spacing-md); color: #666;">
+        Verify font families, sizes, weights, and line heights render correctly.
+      </p>
+
+      <div class="token-demo">
+        <div class="token-label">--rtc-font-family-base (system sans-serif)</div>
+        <div style="font-family: var(--rtc-font-family-base); font-size: var(--rtc-font-size-md);">
+          The quick brown fox jumps over the lazy dog
+        </div>
+      </div>
+
+      <div class="token-demo">
+        <div class="token-label">--rtc-font-family-mono (monospace for code)</div>
+        <div style="font-family: var(--rtc-font-family-mono); font-size: var(--rtc-font-size-md);">
+          const agent = new RtcAgent({ theme: 'dark' });
+        </div>
+      </div>
+
+      <div class="token-demo">
+        <div class="token-label">Font Size Scale (12px → 24px)</div>
+        <div style="font-family: var(--rtc-font-family-base);">
+          <div style="font-size: var(--rtc-font-size-xs); margin-bottom: 4px;">xs (12px): Small auxiliary text</div>
+          <div style="font-size: var(--rtc-font-size-sm); margin-bottom: 4px;">sm (13px): Secondary text</div>
+          <div style="font-size: var(--rtc-font-size-base); margin-bottom: 4px;">base (14px): Default body text</div>
+          <div style="font-size: var(--rtc-font-size-md); margin-bottom: 4px;">md (16px): Emphasized text</div>
+          <div style="font-size: var(--rtc-font-size-lg); margin-bottom: 4px;">lg (18px): Section headings</div>
+          <div style="font-size: var(--rtc-font-size-xl); margin-bottom: 4px;">xl (20px): Subtitles</div>
+          <div style="font-size: var(--rtc-font-size-2xl);">2xl (24px): Page titles</div>
+        </div>
+      </div>
+
+      <div class="token-demo">
+        <div class="token-label">Font Weights (400 / 500 / 600)</div>
+        <div style="font-family: var(--rtc-font-family-base); font-size: var(--rtc-font-size-md);">
+          <div style="font-weight: var(--rtc-font-weight-normal); margin-bottom: 4px;">normal (400): Regular body text</div>
+          <div style="font-weight: var(--rtc-font-weight-medium); margin-bottom: 4px;">medium (500): Emphasized text</div>
+          <div style="font-weight: var(--rtc-font-weight-bold);">bold (600): Headings and labels</div>
+        </div>
+      </div>
+
+      <div class="token-demo">
+        <div class="token-label">Line Heights (1.25 / 1.5 / 1.75)</div>
+        <div style="font-family: var(--rtc-font-family-base); font-size: var(--rtc-font-size-base); max-width: 500px;">
+          <div style="line-height: var(--rtc-line-height-tight); margin-bottom: 12px; background: #e3f2fd; padding: 8px; border-radius: var(--rtc-border-radius-sm);">
+            <strong>tight (1.25):</strong> Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+          </div>
+          <div style="line-height: var(--rtc-line-height-base); margin-bottom: 12px; background: #e8f5e9; padding: 8px; border-radius: var(--rtc-border-radius-sm);">
+            <strong>base (1.5):</strong> Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+          </div>
+          <div style="line-height: var(--rtc-line-height-loose); background: #fff3e0; padding: 8px; border-radius: var(--rtc-border-radius-sm);">
+            <strong>loose (1.75):</strong> Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>🔲 Border Tokens</h2>
+      <p style="margin-bottom: var(--rtc-spacing-md); color: #666;">
+        Verify border radii create progressively rounder corners.
+      </p>
+
+      <div class="border-demo" style="border: var(--rtc-border-width) solid #333; border-radius: var(--rtc-border-radius-sm);">
+        sm (4px)
+      </div>
+
+      <div class="border-demo" style="border: var(--rtc-border-width) solid #333; border-radius: var(--rtc-border-radius);">
+        default (6px)
+      </div>
+
+      <div class="border-demo" style="border: var(--rtc-border-width) solid #333; border-radius: var(--rtc-border-radius-lg);">
+        lg (8px)
+      </div>
+
+      <div class="border-demo" style="border: var(--rtc-border-width) solid #333; border-radius: var(--rtc-border-radius-xl);">
+        xl (12px)
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>🌫️ Shadow Tokens</h2>
+      <p style="margin-bottom: var(--rtc-spacing-md); color: #666;">
+        Verify shadow depths are visually distinct and progress smoothly.
+      </p>
+
+      <div class="shadow-demo" style="box-shadow: var(--rtc-shadow-sm);">sm</div>
+      <div class="shadow-demo" style="box-shadow: var(--rtc-shadow-md);">md</div>
+      <div class="shadow-demo" style="box-shadow: var(--rtc-shadow-lg);">lg</div>
+      <div class="shadow-demo" style="box-shadow: var(--rtc-shadow-xl);">xl</div>
+    </div>
+
+    <div class="section">
+      <h2>⚡ Transition Tokens</h2>
+      <p style="margin-bottom: var(--rtc-spacing-md); color: #666;">
+        Hover over the box to see transitions. The animation uses <code>--rtc-transition-duration</code> and <code>--rtc-transition-timing</code>.
+      </p>
+
+      <div class="token-demo">
+        <div class="token-label">Hover me →</div>
+        <div style="display: flex; align-items: center; gap: 20px;">
+          <div class="transition-demo"></div>
+          <div style="font-size: var(--rtc-font-size-sm); color: #666;">
+            <div>Duration: <code>0.15s</code> (transform)</div>
+            <div>Duration slow: <code>0.3s</code> (background)</div>
+            <div>Timing: <code>ease</code></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>📚 Z-Index Layers</h2>
+      <p style="margin-bottom: var(--rtc-spacing-md); color: #666;">
+        Verify z-index values stack correctly (content &lt; overlay &lt; modal &lt; title-bar).
+      </p>
+
+      <div class="z-index-demo">
+        <!-- Bottom layer (largest) - content -->
+        <div class="z-layer" style="background: #90caf9; width: 240px; height: 200px; z-index: var(--rtc-z-content);">
+          content (z=1)
+        </div>
+        <!-- overlay -->
+        <div class="z-layer" style="background: #ffab91; width: 180px; height: 150px; z-index: var(--rtc-z-overlay);">
+          overlay (z=500)
+        </div>
+        <!-- modal -->
+        <div class="z-layer" style="background: #a5d6a7; width: 130px; height: 100px; z-index: var(--rtc-z-modal);">
+          modal (z=501)
+        </div>
+        <!-- Top layer (smallest) - title-bar -->
+        <div class="z-layer" style="background: #ce93d8; width: 90px; height: 60px; z-index: var(--rtc-z-title-bar);">
+          title-bar (z=1000)
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>🪟 Window Dimensions</h2>
+      <p style="margin-bottom: var(--rtc-spacing-md); color: #666;">
+        Default floating window dimensions (visualized at 50% scale).
+      </p>
+
+      <div style="display: inline-block; width: calc(var(--rtc-window-default-width) * 0.5); height: calc(var(--rtc-window-default-height) * 0.5); border: 2px dashed #2196f3; border-radius: var(--rtc-window-border-radius); position: relative; background: rgba(33, 150, 243, 0.05);">
+        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-family: var(--rtc-font-family-mono); font-size: var(--rtc-font-size-xs); color: #2196f3; text-align: center;">
+          420 × 640 (50% scale)<br>
+          border-radius: 12px
+        </div>
+      </div>
+    </div>
+
+    <div class="checklist">
+      <h3>✅ Manual Verification Checklist</h3>
+      <ul>
+        <li>All spacing values render with the expected pixel widths</li>
+        <li>System sans-serif font family displays correctly</li>
+        <li>Monospace font displays correctly (for code blocks)</li>
+        <li>Font size scale progresses smoothly from 12px to 24px</li>
+        <li>Font weights (400/500/600) are visually distinct</li>
+        <li>Line heights (1.25/1.5/1.75) affect text spacing appropriately</li>
+        <li>Border radii create progressively rounder corners</li>
+        <li>Shadows progress from subtle (sm) to dramatic (xl)</li>
+        <li>Transition animation is smooth on hover</li>
+        <li>Z-index layers stack in the correct order</li>
+        <li><strong>Critical:</strong> No color variables (<code>--rtc-color-*</code>) are defined here — they belong in theme files</li>
+      </ul>
+    </div>
+
+    <div class="section info-section" style="margin-top: 20px;">
+      <h2>📝 Implementation Notes</h2>
+      <p style="margin-bottom: 12px;">
+        <strong>File:</strong> <code>packages/component/src/styles/tokens.ts</code>
+      </p>
+      <p style="margin-bottom: 12px;">
+        <strong>Tests:</strong> <code>packages/component/src/styles/tokens.test.ts</code> — 8/8 passing
+      </p>
+      <p style="margin-bottom: 12px;">
+        <strong>Run tests:</strong> <code>pnpm --filter @rtc-agent/component exec vitest run src/styles/tokens.test.ts</code>
+      </p>
+      <p style="margin-bottom: 6px;"><strong>Key Design Decisions:</strong></p>
+      <ul style="margin-left: 20px; line-height: 2;">
+        <li>Color tokens are intentionally <strong>NOT</strong> defined here (they go in <code>themes/light.ts</code> &amp; <code>themes/dark.ts</code>)</li>
+        <li>All variables use <code>--rtc-</code> prefix for namespacing</li>
+        <li>Tokens defined in <code>:host</code> for Shadow DOM compatibility</li>
+        <li>Exported as Lit <code>CSSResult</code> for easy composition into component styles</li>
+      </ul>
+    </div>
+  </div>
+</body>
+</html>

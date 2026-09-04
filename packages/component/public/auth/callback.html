@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>授权完成</title>
+  <style>
+    /* CSS Variables - no hardcoded colors */
+    :root {
+      --callback-color-bg: #667eea;
+      --callback-color-bg-end: #764ba2;
+      --callback-color-surface: #ffffff;
+      --callback-color-text: #333333;
+      --callback-color-text-heading: #111111;
+      --callback-color-text-secondary: #666666;
+      --callback-color-text-muted: #999999;
+      --callback-color-success: #10b981;
+      --callback-color-error: #ef4444;
+      --callback-color-loading-bg: #f3f4f6;
+      --callback-color-loading-text: #6b7280;
+      --callback-color-icon: #ffffff;
+      --callback-color-shadow: rgba(0, 0, 0, 0.3);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+                   'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, var(--callback-color-bg) 0%, var(--callback-color-bg-end) 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--callback-color-text);
+    }
+
+    .container {
+      background: var(--callback-color-surface);
+      border-radius: 16px;
+      padding: 48px;
+      text-align: center;
+      box-shadow: 0 20px 60px var(--callback-color-shadow);
+      max-width: 400px;
+      width: 90%;
+    }
+
+    .icon {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+    }
+
+    .icon.success {
+      background: var(--callback-color-success);
+      color: var(--callback-color-icon);
+    }
+
+    .icon.error {
+      background: var(--callback-color-error);
+      color: var(--callback-color-icon);
+    }
+
+    .icon.loading {
+      background: var(--callback-color-loading-bg);
+      color: var(--callback-color-loading-text);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* Accessibility: reduce motion */
+    @media (prefers-reduced-motion: reduce) {
+      .icon.loading {
+        animation: none;
+      }
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: var(--callback-color-text-heading);
+    }
+
+    p {
+      font-size: 16px;
+      color: var(--callback-color-text-secondary);
+      line-height: 1.5;
+    }
+
+    .countdown {
+      margin-top: 24px;
+      font-size: 14px;
+      color: var(--callback-color-text-muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon loading" id="icon">⏳</div>
+    <h1 id="title">处理中...</h1>
+    <p id="message">请稍候，正在完成授权</p>
+    <p class="countdown" id="countdown">窗口将在 3 秒后自动关闭</p>
+  </div>
+
+  <script>
+    (function() {
+      'use strict';
+
+      var icon = document.getElementById('icon');
+      var title = document.getElementById('title');
+      var message = document.getElementById('message');
+      var countdown = document.getElementById('countdown');
+
+      function showSuccess() {
+        icon.className = 'icon success';
+        icon.textContent = '✓';
+        title.textContent = '授权成功';
+        message.textContent = '正在返回应用...';
+      }
+
+      function showError(error) {
+        icon.className = 'icon error';
+        icon.textContent = '✕';
+        title.textContent = '授权失败';
+        message.textContent = error || '请关闭窗口后重试';
+        countdown.style.display = 'none';
+      }
+
+      // Parse URL parameters
+      var params = new URLSearchParams(window.location.search);
+      var code = params.get('code');
+      var state = params.get('state');
+      var error = params.get('error');
+      var errorDescription = params.get('error_description');
+
+      // Check for errors
+      if (error) {
+        showError(errorDescription || error);
+        return;
+      }
+
+      // Check required parameters
+      if (!code || !state) {
+        showError('缺少必要参数');
+        return;
+      }
+
+      // Notify parent window
+      var target = window.opener || window.parent;
+      if (target) {
+        try {
+          target.postMessage({
+            type: 'oauth-callback',
+            code: code,
+            state: state,
+          }, window.location.origin);
+          showSuccess();
+        } catch (e) {
+          showError('无法通知主窗口');
+          console.error('postMessage failed:', e);
+        }
+      } else {
+        showError('窗口已断开连接，请重新登录');
+        return;
+      }
+
+      // Auto-close countdown
+      var seconds = 3;
+      var timer = setInterval(function() {
+        seconds--;
+        if (seconds <= 0) {
+          clearInterval(timer);
+          window.close();
+        } else {
+          countdown.textContent = '窗口将在 ' + seconds + ' 秒后自动关闭';
+        }
+      }, 1000);
+    })();
+  </script>
+</body>
+</html>

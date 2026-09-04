@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task 18 Debug - 登录页面（Login Page）</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #ffffff;
+            color: #333333;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #d73a49;
+            margin-bottom: 10px;
+        }
+        h2 {
+            color: #22863a;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 8px;
+        }
+        .description {
+            color: #666666;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            background: #f5f5f5;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        .controls button {
+            padding: 8px 16px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            background: #ffffff;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.15s;
+        }
+        .controls button:hover {
+            background: #f0f0f0;
+            border-color: #ccc;
+        }
+        .controls button.primary {
+            background: #0366d6;
+            color: #fff;
+            border-color: #0366d6;
+        }
+        .controls button.primary:hover {
+            background: #0255b3;
+        }
+        .login-stage {
+            position: relative;
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            background: #ffffff;
+            width: 100%;
+            height: 400px;
+            overflow: hidden;
+        }
+        .stage-label {
+            position: absolute;
+            top: 8px;
+            left: 12px;
+            font-size: 12px;
+            color: #999;
+            font-style: italic;
+            z-index: 1;
+        }
+        .event-log {
+            margin-top: 15px;
+            padding: 12px 16px;
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: 'SF Mono', Monaco, Consolas, monospace;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .event-log .event-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .event-log .event-entry:last-child {
+            border-bottom: none;
+        }
+        .event-log .event-name {
+            color: #0366d6;
+            font-weight: bold;
+        }
+        .event-log .event-detail {
+            color: #666;
+            margin-left: 8px;
+        }
+        .event-log .empty {
+            color: #999;
+            font-style: italic;
+        }
+        .checklist {
+            margin-top: 15px;
+            padding: 12px 16px;
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+        }
+        .checklist h3 {
+            margin-top: 0;
+            color: #22863a;
+        }
+        .checklist ul {
+            margin-bottom: 0;
+            line-height: 1.8;
+        }
+        .theme-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            background: #fff;
+            font-size: 13px;
+        }
+        :root {
+            --rtc-border-width: 1px;
+            --rtc-color-border: #e0e0e0;
+            --rtc-color-border-hover: #ccc;
+            --rtc-color-border-focus: #0366d6;
+            --rtc-color-text: #333333;
+            --rtc-color-text-secondary: #666666;
+            --rtc-color-text-tertiary: #999999;
+            --rtc-color-text-inverse: #ffffff;
+            --rtc-color-bg: #ffffff;
+            --rtc-color-bg-secondary: #f5f5f5;
+            --rtc-color-bg-hover: #f0f0f0;
+            --rtc-color-primary: #0366d6;
+            --rtc-color-primary-hover: #0255b3;
+            --rtc-color-error: #f44336;
+            --rtc-color-backdrop: rgba(0, 0, 0, 0.3);
+            --rtc-spacing-xs: 4px;
+            --rtc-spacing-sm: 8px;
+            --rtc-spacing-md: 12px;
+            --rtc-spacing-lg: 16px;
+            --rtc-spacing-xl: 32px;
+            --rtc-border-radius: 6px;
+            --rtc-border-radius-sm: 4px;
+            --rtc-border-radius-lg: 8px;
+            --rtc-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+            --rtc-shadow-xl: 0 20px 60px rgba(0, 0, 0, 0.3);
+            --rtc-z-overlay: 500;
+            --rtc-z-modal: 501;
+            --rtc-font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --rtc-font-family-mono: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            --rtc-font-size-xs: 11px;
+            --rtc-font-size-sm: 13px;
+            --rtc-font-size-base: 14px;
+            --rtc-font-size-md: 16px;
+            --rtc-font-size-lg: 18px;
+            --rtc-font-weight-medium: 500;
+            --rtc-font-weight-bold: 600;
+            --rtc-line-height-base: 1.5;
+            --rtc-transition-duration: 0.15s;
+            --rtc-transition-timing: ease;
+        }
+        :root[data-theme="dark"] {
+            --rtc-color-text: #cccccc;
+            --rtc-color-text-secondary: #999999;
+            --rtc-color-text-tertiary: #666666;
+            --rtc-color-text-inverse: #1e1e1e;
+            --rtc-color-bg: #1e1e1e;
+            --rtc-color-bg-secondary: #252526;
+            --rtc-color-bg-hover: #2a2d2e;
+            --rtc-color-primary: #1e8adc;
+            --rtc-color-primary-hover: #3794e6;
+            --rtc-color-border: #3c3c3c;
+            --rtc-color-border-hover: #505050;
+            --rtc-color-error: #f48771;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Task 18 - &lt;rtc-login-page&gt; 登录页面</h1>
+        <p class="description">
+            验证 <code>&lt;rtc-login-page&gt;</code> 组件：Logo + 应用名 + 登录按钮 + 加载态 + 错误态。
+            组件通过 <code>@lit/context</code> 消费 <code>AuthContext</code>，点击登录按钮触发 <code>rtc-login-requested</code> 事件。
+        </p>
+
+        <!-- 场景 1：默认状态 -->
+        <div>
+            <h2>场景 1：默认状态（Logo + 应用名 + 登录按钮）</h2>
+            <div class="test-section">
+                <p>默认应用名为 <strong>"RTC Agent"</strong>，应显示居中的 Logo、应用名、描述文字和登录按钮。</p>
+                <div class="controls">
+                    <button id="resetScene1Btn" class="primary">重置为默认</button>
+                </div>
+                <div class="login-stage" id="scene1Stage">
+                    <span class="stage-label">↑ 登录页面应在此容器内居中显示</span>
+                </div>
+                <div class="event-log" id="scene1Log">
+                    <div class="empty">暂无事件</div>
+                </div>
+                <div class="checklist">
+                    <h3>✅ 验证清单</h3>
+                    <ul>
+                        <li>使用 <strong>Shadow DOM</strong> 隔离样式</li>
+                        <li>居中显示一个 <strong>72×72 的 SVG Logo</strong>（主题色，0.7 透明度）</li>
+                        <li>Logo 下方显示应用名 <strong>"RTC Agent"</strong>（大字号加粗）</li>
+                        <li>应用名下方显示描述文字 <strong>"Sign in to continue"</strong>（小字灰色）</li>
+                        <li>底部显示蓝色 <strong>Login 按钮</strong>（主色背景 + 反色文字）</li>
+                        <li>鼠标悬停按钮 → 背景色加深（<code>--rtc-color-primary-hover</code>）</li>
+                        <li>点击 Login 按钮 → 触发 <code>rtc-login-requested</code> 事件（bubbles + composed）</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- 场景 2：自定义应用名 -->
+        <div>
+            <h2>场景 2：自定义应用名（<code>app-name</code> 属性）</h2>
+            <div class="test-section">
+                <div class="controls">
+                    <button id="setAppNameABtn" class="primary">设为 "智能助手"</button>
+                    <button id="setAppNameBBtn" class="primary">设为 "My Chatbot"</button>
+                    <button id="setAppNameDefaultBtn">重置为默认</button>
+                </div>
+                <div class="login-stage" id="scene2Stage">
+                    <span class="stage-label">↑ 应用名应随属性变化实时更新</span>
+                </div>
+                <div class="checklist">
+                    <h3>✅ 验证清单</h3>
+                    <ul>
+                        <li>点击 "设为 智能助手" → 应用名变为 <strong>"智能助手"</strong></li>
+                        <li>点击 "设为 My Chatbot" → 应用名变为 <strong>"My Chatbot"</strong></li>
+                        <li>点击 "重置为默认" → 应用名恢复为 <strong>"RTC Agent"</strong></li>
+                        <li>切换过程中 Logo 和按钮位置保持稳定，无跳动</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- 场景 3：加载状态 -->
+        <div>
+            <h2>场景 3：加载状态（<code>loading</code> 属性）</h2>
+            <div class="test-section">
+                <p>当 <code>loading</code> 属性为 true 时，按钮应消失，显示 "Authorizing..." 文字。</p>
+                <div class="controls">
+                    <button id="setLoadingBtn" class="primary">开启加载</button>
+                    <button id="clearLoadingBtn">关闭加载</button>
+                </div>
+                <div class="login-stage" id="scene3Stage">
+                    <span class="stage-label">↑ 加载态应替换登录按钮</span>
+                </div>
+                <div class="checklist">
+                    <h3>✅ 验证清单</h3>
+                    <ul>
+                        <li>开启加载 → Login 按钮 <strong>消失</strong>，显示灰色文字 <strong>"Authorizing..."</strong></li>
+                        <li>关闭加载 → "Authorizing..." 消失，Login 按钮 <strong>恢复显示</strong></li>
+                        <li>加载态下点击区域不会触发 <code>rtc-login-requested</code> 事件</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- 场景 4：错误状态 -->
+        <div>
+            <h2>场景 4：错误状态（<code>error-message</code> 属性）</h2>
+            <div class="test-section">
+                <p>当设置 <code>error-message</code> 时，应在描述文字下方显示红色错误提示。</p>
+                <div class="controls">
+                    <button id="setError1Btn" class="primary">"认证失败，请重试"</button>
+                    <button id="setError2Btn" class="primary">"Token expired"</button>
+                    <button id="clearErrorBtn">清除错误</button>
+                </div>
+                <div class="login-stage" id="scene4Stage">
+                    <span class="stage-label">↑ 错误信息应显示在按钮上方</span>
+                </div>
+                <div class="checklist">
+                    <h3>✅ 验证清单</h3>
+                    <ul>
+                        <li>点击 "认证失败，请重试" → 按钮上方出现 <strong>红色</strong> 错误文字</li>
+                        <li>点击 "Token expired" → 错误文字更新为 "Token expired"</li>
+                        <li>点击 "清除错误" → 错误文字消失，Login 按钮正常显示</li>
+                        <li>错误文字颜色为 <code>--rtc-color-error</code>（红色）</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- 场景 5：主题切换 -->
+        <div>
+            <h2>场景 5：主题切换（light / dark）</h2>
+            <div class="test-section">
+                <div class="controls">
+                    <button id="setLightBtn" class="primary">Light 主题</button>
+                    <button id="setDarkBtn" class="primary">Dark 主题</button>
+                </div>
+                <div class="login-stage" id="scene5Stage">
+                    <span class="stage-label">↑ 主题切换后背景与文字颜色应同步变化</span>
+                </div>
+                <div class="checklist">
+                    <h3>✅ 验证清单</h3>
+                    <ul>
+                        <li>Light 主题：白色背景 + 深色文字 + 蓝色按钮</li>
+                        <li>Dark 主题：深色背景（<code>#1e1e1e</code>）+ 浅色文字 + 亮蓝色按钮</li>
+                        <li>切换主题时过渡平滑，无闪烁</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import {LitElement, html} from 'lit';
+        import {ContextProvider} from '@lit/context';
+        import '../src/components/login/rtc-login-page.ts';
+        import {AuthContext} from '../src/contexts/auth.ts';
+
+        // === Auth Context Provider ===
+        class AuthProvider extends LitElement {
+            constructor() {
+                super();
+                this._provider = new ContextProvider(this, {
+                    context: AuthContext,
+                    initialValue: {
+                        state: {isLoggedIn: false},
+                        login: () => {},
+                        logout: () => {},
+                    }
+                });
+            }
+            setAuth(value) { this._provider.setValue(value); }
+            render() { return html`<slot></slot>`; }
+        }
+        customElements.define('auth-provider', AuthProvider);
+
+        // === Event logger helper ===
+        function createEventLogger(logEl) {
+            let count = 0;
+            return (eventName, detail) => {
+                count++;
+                if (count === 1) logEl.innerHTML = '';
+                const entry = document.createElement('div');
+                entry.className = 'event-entry';
+                const detailStr = detail ? JSON.stringify(detail) : '';
+                const time = new Date().toLocaleTimeString();
+                entry.innerHTML = `<span style="color:#999;margin-right:6px;">${time}</span><span class="event-name">${eventName}</span><span class="event-detail">${detailStr}</span>`;
+                logEl.appendChild(entry);
+                logEl.scrollTop = logEl.scrollHeight;
+            };
+        }
+
+        // Helper: create a login page inside an auth provider, attached to a stage
+        function mountLoginToStage(stageId, opts = {}) {
+            const stage = document.getElementById(stageId);
+            // remove previous stage content except label
+            [...stage.querySelectorAll('auth-provider')].forEach(el => el.remove());
+
+            const provider = document.createElement('auth-provider');
+            provider.style.cssText = 'display:block;width:100%;height:100%;';
+
+            const loginPage = document.createElement('rtc-login-page');
+            if (opts.appName) loginPage.appName = opts.appName;
+            if (opts.loading) loginPage.loading = true;
+            if (opts.errorMessage) loginPage.errorMessage = opts.errorMessage;
+
+            provider.appendChild(loginPage);
+            stage.appendChild(provider);
+
+            return {provider, loginPage};
+        }
+
+        // ============================================================
+        // 场景 1：默认状态
+        // ============================================================
+        const s1 = mountLoginToStage('scene1Stage');
+        const log1 = createEventLogger(document.getElementById('scene1Log'));
+
+        s1.loginPage.addEventListener('rtc-login-requested', (e) => {
+            log1('rtc-login-requested', {bubbles: e.bubbles, composed: e.composedPath().length > 0});
+        });
+
+        document.getElementById('resetScene1Btn').addEventListener('click', () => {
+            const fresh = mountLoginToStage('scene1Stage');
+            fresh.loginPage.addEventListener('rtc-login-requested', (e) => {
+                log1('rtc-login-requested', {bubbles: e.bubbles, composed: e.composedPath().length > 0});
+            });
+        });
+
+        // ============================================================
+        // 场景 2：自定义应用名
+        // ============================================================
+        const s2 = mountLoginToStage('scene2Stage');
+
+        document.getElementById('setAppNameABtn').addEventListener('click', () => {
+            s2.loginPage.appName = '智能助手';
+        });
+        document.getElementById('setAppNameBBtn').addEventListener('click', () => {
+            s2.loginPage.appName = 'My Chatbot';
+        });
+        document.getElementById('setAppNameDefaultBtn').addEventListener('click', () => {
+            s2.loginPage.appName = 'RTC Agent';
+        });
+
+        // ============================================================
+        // 场景 3：加载状态
+        // ============================================================
+        const s3 = mountLoginToStage('scene3Stage');
+
+        document.getElementById('setLoadingBtn').addEventListener('click', () => {
+            s3.loginPage.loading = true;
+        });
+        document.getElementById('clearLoadingBtn').addEventListener('click', () => {
+            s3.loginPage.loading = false;
+        });
+
+        // ============================================================
+        // 场景 4：错误状态
+        // ============================================================
+        const s4 = mountLoginToStage('scene4Stage');
+
+        document.getElementById('setError1Btn').addEventListener('click', () => {
+            s4.loginPage.errorMessage = '认证失败，请重试';
+        });
+        document.getElementById('setError2Btn').addEventListener('click', () => {
+            s4.loginPage.errorMessage = 'Token expired';
+        });
+        document.getElementById('clearErrorBtn').addEventListener('click', () => {
+            s4.loginPage.errorMessage = '';
+        });
+
+        // ============================================================
+        // 场景 5：主题切换
+        // ============================================================
+        const s5 = mountLoginToStage('scene5Stage');
+
+        document.getElementById('setLightBtn').addEventListener('click', () => {
+            document.documentElement.setAttribute('data-theme', 'light');
+        });
+        document.getElementById('setDarkBtn').addEventListener('click', () => {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        });
+    </script>
+</body>
+</html>

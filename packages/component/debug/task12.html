@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task 12 Debug - 会话头部组件</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+            /* RTC design tokens (mirrors tokens.ts) */
+            --rtc-spacing-xs: 4px;
+            --rtc-spacing-sm: 8px;
+            --rtc-spacing-md: 16px;
+            --rtc-spacing-lg: 24px;
+            --rtc-spacing-xl: 32px;
+            --rtc-font-size-sm: 13px;
+            --rtc-font-size-base: 14px;
+            --rtc-font-size-md: 16px;
+            --rtc-font-weight-bold: 700;
+            --rtc-border-width: 1px;
+            --rtc-border-radius: 4px;
+            --rtc-transition-duration: 0.15s;
+            --rtc-transition-timing: ease;
+            /* RTC dark theme colors */
+            --rtc-color-text: #cccccc;
+            --rtc-color-text-secondary: #858585;
+            --rtc-color-text-tertiary: #666666;
+            --rtc-color-bg: #1e1e1e;
+            --rtc-color-bg-secondary: #252526;
+            --rtc-color-bg-tertiary: #2d2d30;
+            --rtc-color-bg-hover: #2a2d2e;
+            --rtc-color-border: #3c3c3c;
+            --rtc-color-primary: #00d9ff;
+        }
+        h1 {
+            margin-bottom: 10px;
+            color: #00d9ff;
+        }
+        h2 {
+            margin-top: 30px;
+            color: #ff6b6b;
+            border-bottom: 1px solid #444;
+            padding-bottom: 5px;
+        }
+        .info-box {
+            background: #2a2a4a;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            border-left: 4px solid #00d9ff;
+        }
+        .info-box p {
+            margin: 5px 0;
+        }
+        .controls {
+            background: #2a2a4a;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        button {
+            background: #00d9ff;
+            color: #000;
+            border: none;
+            padding: 8px 16px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #00b8d4;
+        }
+        .status {
+            background: #1a1a2e;
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .verify-list {
+            background: #2a2a4a;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .verify-list li {
+            margin: 8px 0;
+        }
+        .component-container {
+            background: #252526;
+            border: 1px solid #3c3c3c;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .test-case {
+            background: #2a2a4a;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            border-left: 4px solid #4ecdc4;
+        }
+        .test-case h3 {
+            margin-top: 0;
+            color: #4ecdc4;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Task 12 Debug - 会话头部组件测试</h1>
+
+    <div class="info-box">
+        <p><strong>任务目标：</strong>实现 <code>&lt;rtc-session-header&gt;</code> 组件，显示当前会话标题，包含历史记录按钮和新建会话按钮。</p>
+        <p><strong>核心功能：</strong></p>
+        <ul>
+            <li>显示会话标题（默认 "Untitled"）</li>
+            <li>历史记录按钮（时钟图标）- 点击触发 <code>rtc-session-panel-toggle</code> 事件</li>
+            <li>新建会话按钮（加号图标）- 点击触发 <code>rtc-session-create-requested</code> 事件</li>
+            <li>使用 Shadow DOM 隔离样式</li>
+            <li>使用 CSS 变量进行主题化</li>
+        </ul>
+    </div>
+
+    <h2>测试用例 1：默认标题显示</h2>
+    <div class="test-case">
+        <h3>预期行为</h3>
+        <p>当没有提供 <code>session-title</code> 属性时，组件应显示 "Untitled"。</p>
+        <div class="component-container">
+            <rtc-session-header id="test1"></rtc-session-header>
+        </div>
+        <p><strong>验证点：</strong></p>
+        <ul>
+            <li>✓ 组件正确渲染</li>
+            <li>✓ 标题显示为 "Untitled"</li>
+            <li>✓ 标题文本溢出时显示省略号</li>
+        </ul>
+    </div>
+
+    <h2>测试用例 2：自定义标题显示</h2>
+    <div class="test-case">
+        <h3>预期行为</h3>
+        <p>当提供 <code>session-title</code> 属性时，组件应显示自定义标题。</p>
+        <div class="component-container">
+            <rtc-session-header id="test2" session-title="我的聊天会话"></rtc-session-header>
+        </div>
+        <p><strong>验证点：</strong></p>
+        <ul>
+            <li>✓ 标题显示为 "我的聊天会话"</li>
+            <li>✓ 标题样式正确（粗体、适当大小）</li>
+        </ul>
+    </div>
+
+    <h2>测试用例 3：按钮交互测试</h2>
+    <div class="test-case">
+        <h3>预期行为</h3>
+        <p>点击历史记录按钮和新建会话按钮应触发相应事件。</p>
+        <div class="component-container">
+            <rtc-session-header id="test3" session-title="交互测试"></rtc-session-header>
+        </div>
+        <div class="controls">
+            <p><strong>操作说明：</strong></p>
+            <ol>
+                <li>点击左侧的 <strong>时钟图标</strong> 按钮 - 应触发 <code>rtc-session-panel-toggle</code> 事件</li>
+                <li>点击右侧的 <strong>加号图标</strong> 按钮 - 应触发 <code>rtc-session-create-requested</code> 事件</li>
+            </ol>
+        </div>
+        <div class="status" id="eventLog">事件日志：等待操作...</div>
+    </div>
+
+    <h2>测试用例 4：长标题溢出测试</h2>
+    <div class="test-case">
+        <h3>预期行为</h3>
+        <p>当标题过长时，应显示省略号而不是换行。</p>
+        <div class="component-container">
+            <rtc-session-header id="test4" session-title="这是一个非常非常长的会话标题，用于测试文本溢出省略号功能是否正常工作"></rtc-session-header>
+        </div>
+        <p><strong>验证点：</strong></p>
+        <ul>
+            <li>✓ 标题不换行</li>
+            <li>✓ 超出部分显示为省略号（...）</li>
+            <li>✓ 最大宽度限制为 240px</li>
+        </ul>
+    </div>
+
+    <h2>测试用例 5：悬停效果测试</h2>
+    <div class="test-case">
+        <h3>预期行为</h3>
+        <p>按钮应有悬停效果，鼠标悬停时背景色和文字颜色应改变。</p>
+        <div class="component-container">
+            <rtc-session-header id="test5" session-title="悬停测试"></rtc-session-header>
+        </div>
+        <p><strong>验证点：</strong></p>
+        <ul>
+            <li>✓ 鼠标悬停在按钮上时，背景色变为 <code>--rtc-color-bg-hover</code></li>
+            <li>✓ 鼠标悬停时，图标颜色变为 <code>--rtc-color-text</code></li>
+            <li>✓ 过渡动画平滑（0.15s）</li>
+        </ul>
+    </div>
+
+    <h2>手动验证清单</h2>
+    <div class="verify-list">
+        <p><strong>请逐一验证以下项目：</strong></p>
+        <ol>
+            <li>
+                <strong>Shadow DOM 隔离</strong>
+                <ul>
+                    <li>在浏览器开发者工具中检查组件，确认使用了 Shadow DOM</li>
+                    <li>确认组件样式不会泄漏到外部</li>
+                    <li>确认外部样式不会影响组件内部</li>
+                </ul>
+            </li>
+            <li>
+                <strong>CSS 变量使用</strong>
+                <ul>
+                    <li>检查组件样式中是否使用了 <code>--rtc-</code> 前缀的 CSS 变量</li>
+                    <li>确认没有硬编码的颜色值、间距或字体大小</li>
+                    <li>尝试修改根元素的 CSS 变量，确认组件样式随之改变</li>
+                </ul>
+            </li>
+            <li>
+                <strong>事件冒泡</strong>
+                <ul>
+                    <li>在组件外部监听 <code>rtc-session-panel-toggle</code> 和 <code>rtc-session-create-requested</code> 事件</li>
+                    <li>点击按钮，确认事件能够正确冒泡到父元素</li>
+                    <li>检查事件的 <code>bubbles</code> 和 <code>composed</code> 属性是否为 <code>true</code></li>
+                </ul>
+            </li>
+            <li>
+                <strong>可访问性</strong>
+                <ul>
+                    <li>确认按钮有适当的 <code>title</code> 属性提供工具提示</li>
+                    <li>确认按钮可以通过键盘 Tab 键聚焦</li>
+                    <li>确认按钮可以通过 Enter 或 Space 键激活</li>
+                </ul>
+            </li>
+            <li>
+                <strong>响应式设计</strong>
+                <ul>
+                    <li>缩小浏览器窗口，确认组件布局不会破裂</li>
+                    <li>确认标题的省略号功能在不同宽度下都能正常工作</li>
+                </ul>
+            </li>
+            <li>
+                <strong>单元测试</strong>
+                <ul>
+                    <li>运行命令：<code>pnpm --filter @rtc-agent/component exec vitest run src/components/session-header/</code></li>
+                    <li>确认所有 7 个测试用例都通过</li>
+                </ul>
+            </li>
+        </ol>
+    </div>
+
+    <h2>组件接口文档</h2>
+    <div class="info-box">
+        <p><strong>属性 (Properties)：</strong></p>
+        <ul>
+            <li><code>session-title</code> (String): 会话标题，默认值为 "Untitled"</li>
+        </ul>
+        <p><strong>事件 (Events)：</strong></p>
+        <ul>
+            <li><code>rtc-session-panel-toggle</code>: 切换会话列表面板时触发</li>
+            <li><code>rtc-session-create-requested</code>: 请求创建新会话时触发</li>
+        </ul>
+        <p><strong>CSS Parts：</strong></p>
+        <ul>
+            <li><code>title</code>: 会话标题元素，可用于外部样式定制</li>
+        </ul>
+    </div>
+
+    <script type="module">
+        // Import the component
+        import '../src/components/session-header/rtc-session-header.ts';
+
+        // Event logging for test case 3
+        const test3 = document.getElementById('test3');
+        const eventLog = document.getElementById('eventLog');
+        let eventCount = 0;
+
+        test3.addEventListener('rtc-session-panel-toggle', (e) => {
+            eventCount++;
+            const timestamp = new Date().toLocaleTimeString('zh-CN');
+            eventLog.textContent = `[${timestamp}] 事件 #${eventCount}: rtc-session-panel-toggle 触发\n` +
+                                   `  - bubbles: ${e.bubbles}\n` +
+                                   `  - composed: ${e.composed}\n` +
+                                   `  - target: ${e.target.tagName}`;
+            console.log('rtc-session-panel-toggle event fired', e);
+        });
+
+        test3.addEventListener('rtc-session-create-requested', (e) => {
+            eventCount++;
+            const timestamp = new Date().toLocaleTimeString('zh-CN');
+            eventLog.textContent = `[${timestamp}] 事件 #${eventCount}: rtc-session-create-requested 触发\n` +
+                                   `  - bubbles: ${e.bubbles}\n` +
+                                   `  - composed: ${e.composed}\n` +
+                                   `  - target: ${e.target.tagName}`;
+            console.log('rtc-session-create-requested event fired', e);
+        });
+
+        // Log all events for debugging
+        console.log('Task 12 Debug HTML loaded');
+        console.log('Components initialized:', {
+            test1: document.getElementById('test1'),
+            test2: document.getElementById('test2'),
+            test3: test3,
+            test4: document.getElementById('test4'),
+            test5: document.getElementById('test5')
+        });
+    </script>
+</body>
+</html>

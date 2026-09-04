@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task 11 Debug - 空状态与通知栏组件</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+            /* RTC design tokens (mirrors tokens.ts) */
+            --rtc-spacing-xs: 4px;
+            --rtc-spacing-sm: 8px;
+            --rtc-spacing-md: 16px;
+            --rtc-spacing-lg: 24px;
+            --rtc-spacing-xl: 32px;
+            --rtc-font-size-sm: 13px;
+            --rtc-font-size-md: 16px;
+            --rtc-font-weight-medium: 500;
+            --rtc-border-width: 1px;
+            --rtc-border-radius-sm: 4px;
+            --rtc-transition-duration: 0.15s;
+            --rtc-transition-timing: ease;
+            /* RTC dark theme colors */
+            --rtc-color-text: #cccccc;
+            --rtc-color-text-secondary: #858585;
+            --rtc-color-text-tertiary: #666666;
+            --rtc-color-bg: #1e1e1e;
+            --rtc-color-bg-secondary: #252526;
+            --rtc-color-bg-tertiary: #2d2d30;
+            --rtc-color-border: #3c3c3c;
+            --rtc-color-primary: #00d9ff;
+        }
+        h1 {
+            margin-bottom: 10px;
+            color: #00d9ff;
+        }
+        h2 {
+            margin-top: 30px;
+            color: #ff6b6b;
+            border-bottom: 1px solid #444;
+            padding-bottom: 5px;
+        }
+        .info-box {
+            background: #2a2a4a;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            border-left: 4px solid #00d9ff;
+        }
+        .info-box p {
+            margin: 5px 0;
+        }
+        .controls {
+            background: #2a2a4a;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        button {
+            background: #00d9ff;
+            color: #000;
+            border: none;
+            padding: 8px 16px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #00b8d4;
+        }
+        .status {
+            background: #1a1a2e;
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .verify-list {
+            background: #2a2a4a;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .verify-list li {
+            margin: 8px 0;
+            padding-left: 10px;
+        }
+        .verify-list li::marker {
+            color: #00d9ff;
+        }
+        .demo-area {
+            background: #3a3a5a;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+        }
+        .window-frame {
+            width: 420px;
+            height: 500px;
+            margin: 20px auto;
+            border: 2px solid #00d9ff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 217, 255, 0.3);
+            display: flex;
+            flex-direction: column;
+            background: #2a2a3a;
+        }
+        .window-frame .content-area {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .event-log {
+            background: #0a0a1a;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 11px;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+        .event-log .event {
+            color: #4caf50;
+            margin: 2px 0;
+        }
+        .event-log .event.error {
+            color: #ff6b6b;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #2a2a4a;
+            border-radius: 8px;
+            border-left: 4px solid #ff6b6b;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #ff6b6b;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Task 11 Debug - 空状态与通知栏组件</h1>
+    <div class="info-box">
+        <p><strong>任务目标：</strong>实现两个纯展示组件</p>
+        <ul>
+            <li><code>&lt;rtc-empty-state&gt;</code> - 无消息时显示的空状态组件（居中 logo + 提示文本）</li>
+            <li><code>&lt;rtc-notice-bar&gt;</code> - 可关闭的通知栏组件（显示在内容区和输入区之间）</li>
+        </ul>
+    </div>
+
+    <h2>📋 人工验证清单</h2>
+    <div class="verify-list">
+        <ol>
+            <li><strong>空状态组件 - Shadow DOM：</strong>检查 <code>&lt;rtc-empty-state&gt;</code> 是否正确渲染了 Shadow DOM</li>
+            <li><strong>空状态组件 - 默认提示文本：</strong>验证默认显示 "/model" 相关的提示文本</li>
+            <li><strong>空状态组件 - 自定义提示文本：</strong>通过 <code>hint-text</code> 属性设置自定义文本，验证是否正确显示</li>
+            <li><strong>空状态组件 - Logo 区域：</strong>检查是否渲染了 logo 容器和 SVG 图标</li>
+            <li><strong>通知栏组件 - 有消息时渲染：</strong>设置 <code>message</code> 属性后，验证通知栏是否正确显示</li>
+            <li><strong>通知栏组件 - 无消息时不渲染：</strong>不设置 <code>message</code> 属性时，验证通知栏不显示</li>
+            <li><strong>通知栏组件 - 关闭按钮：</strong>检查是否有关闭按钮（×）</li>
+            <li><strong>通知栏组件 - 关闭功能：</strong>点击关闭按钮后，验证通知栏是否隐藏</li>
+            <li><strong>通知栏组件 - 事件触发：</strong>点击关闭按钮后，验证是否触发了 <code>rtc-notice-dismissed</code> 事件</li>
+            <li><strong>样式验证：</strong>检查组件是否使用了 CSS 变量，样式是否符合设计规范</li>
+        </ol>
+    </div>
+
+    <h2>🎨 演示 1：空状态组件</h2>
+    <div class="test-section">
+        <h3>测试场景 A：默认空状态</h3>
+        <div class="demo-area">
+            <div class="window-frame">
+                <div class="content-area">
+                    <rtc-empty-state id="empty1"></rtc-empty-state>
+                </div>
+            </div>
+        </div>
+        <div class="status" id="status1">状态：等待验证...</div>
+    </div>
+
+    <div class="test-section">
+        <h3>测试场景 B：自定义提示文本</h3>
+        <div class="controls">
+            <button onclick="setCustomHint()">设置自定义提示文本</button>
+            <button onclick="resetHint()">重置为默认</button>
+        </div>
+        <div class="demo-area">
+            <div class="window-frame">
+                <div class="content-area">
+                    <rtc-empty-state id="empty2"></rtc-empty-state>
+                </div>
+            </div>
+        </div>
+        <div class="status" id="status2">状态：等待验证...</div>
+    </div>
+
+    <h2>🎨 演示 2：通知栏组件</h2>
+    <div class="test-section">
+        <h3>测试场景 C：通知栏显示与关闭</h3>
+        <p style="color: #888; font-size: 13px;">通知栏应位于内容区下方、输入区上方</p>
+        <div class="controls">
+            <button onclick="showNotice()">显示通知栏</button>
+            <button onclick="hideNotice()">隐藏通知栏</button>
+            <button onclick="changeMessage()">更改消息内容</button>
+        </div>
+        <div class="demo-area">
+            <div class="window-frame">
+                <div class="content-area" style="flex: 1; background: #2a2a3a;">
+                    <div style="padding: 20px; color: #888; text-align: center;">
+                        （内容区 - 消息列表位置）
+                    </div>
+                </div>
+                <rtc-notice-bar id="notice1" message="这是一条测试通知消息"></rtc-notice-bar>
+                <div style="background: #1a1a2a; padding: 15px; border-top: 1px solid #444;">
+                    <div style="color: #888; text-align: center; font-size: 13px;">
+                        （输入区）
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="event-log" id="eventLog">事件日志：</div>
+        <div class="status" id="status3">状态：等待验证...</div>
+    </div>
+
+    <div class="test-section">
+        <h3>测试场景 D：无消息时不渲染</h3>
+        <p style="color: #888; font-size: 13px;">当 message 属性为空时，通知栏不应显示</p>
+        <div class="demo-area">
+            <div class="window-frame">
+                <div class="content-area" style="flex: 1; background: #2a2a3a;">
+                    <div style="padding: 20px; color: #888; text-align: center;">
+                        （内容区 - 消息列表位置）
+                    </div>
+                </div>
+                <rtc-notice-bar id="notice2"></rtc-notice-bar>
+                <div style="background: #1a1a2a; padding: 15px; border-top: 1px solid #444;">
+                    <div style="color: #888; text-align: center; font-size: 13px;">
+                        （输入区）
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="status" id="status4">状态：等待验证...（通知栏不应显示）</div>
+    </div>
+
+    <h2>🔍 自动化检查</h2>
+    <div class="controls">
+        <button onclick="runAllChecks()">运行所有检查</button>
+    </div>
+    <div class="status" id="autoCheck">点击按钮运行自动化检查...</div>
+
+    <script type="module">
+        import '../src/index.ts';
+        // Explicitly import components for testing
+        import '../src/components/empty-state/rtc-empty-state.ts';
+        import '../src/components/notice-bar/rtc-notice-bar.ts';
+
+        // Define all control functions at module level first
+        const eventLog = document.getElementById('eventLog');
+        let eventCount = 0;
+
+        function logEvent(message, isError = false) {
+            eventCount++;
+            const div = document.createElement('div');
+            div.className = isError ? 'event error' : 'event';
+            div.textContent = `[${eventCount}] ${message}`;
+            eventLog.appendChild(div);
+            eventLog.scrollTop = eventLog.scrollHeight;
+        }
+
+        window.setCustomHint = () => {
+            const empty2 = document.getElementById('empty2');
+            empty2.setAttribute('hint-text', '自定义提示：这是一个测试消息');
+            document.getElementById('status2').textContent = '状态：✓ 自定义提示文本已设置';
+            logEvent('✓ 设置了自定义提示文本');
+        };
+
+        window.resetHint = () => {
+            const empty2 = document.getElementById('empty2');
+            empty2.removeAttribute('hint-text');
+            document.getElementById('status2').textContent = '状态：✓ 已重置为默认提示文本';
+            logEvent('✓ 重置为默认提示文本');
+        };
+
+        window.showNotice = () => {
+            const notice1 = document.getElementById('notice1');
+            notice1.setAttribute('message', '这是一条测试通知消息');
+            document.getElementById('status3').textContent = '状态：✓ 通知栏已显示';
+            logEvent('✓ 通知栏已显示');
+        };
+
+        window.hideNotice = () => {
+            const notice1 = document.getElementById('notice1');
+            notice1.removeAttribute('message');
+            document.getElementById('status3').textContent = '状态：✓ 通知栏已隐藏';
+            logEvent('✓ 通知栏已隐藏');
+        };
+
+        window.changeMessage = () => {
+            const notice1 = document.getElementById('notice1');
+            const messages = [
+                '这是一条测试通知消息',
+                '系统将在 5 分钟后维护',
+                '新功能已上线，点击查看',
+                '网络连接不稳定'
+            ];
+            const randomMsg = messages[Math.floor(Math.random() * messages.length)];
+            notice1.setAttribute('message', randomMsg);
+            logEvent(`✓ 消息已更改为: ${randomMsg}`);
+        };
+
+        window.runAllChecks = async () => {
+            const results = [];
+            const autoCheck = document.getElementById('autoCheck');
+            autoCheck.textContent = '正在运行检查...\n';
+
+            // Check 1: Empty state has shadow DOM
+            const empty1 = document.getElementById('empty1');
+            if (empty1.shadowRoot) {
+                results.push('✓ 检查 1: 空状态组件有 Shadow DOM');
+            } else {
+                results.push('✗ 检查 1: 空状态组件缺少 Shadow DOM');
+            }
+
+            // Check 2: Empty state has default hint
+            await new Promise(resolve => requestAnimationFrame(resolve));
+            if (empty1.shadowRoot) {
+                const hint1 = empty1.shadowRoot.querySelector('.empty-hint');
+                if (hint1 && hint1.textContent.includes('/model')) {
+                    results.push('✓ 检查 2: 空状态组件显示默认提示文本');
+                } else {
+                    results.push('✗ 检查 2: 空状态组件默认提示文本不正确');
+                }
+            } else {
+                results.push('✗ 检查 2: 无法检查 - Shadow DOM 不存在');
+            }
+
+            // Check 3: Empty state has logo
+            if (empty1.shadowRoot) {
+                const logo = empty1.shadowRoot.querySelector('.logo-container');
+                if (logo) {
+                    results.push('✓ 检查 3: 空状态组件有 Logo 区域');
+                } else {
+                    results.push('✗ 检查 3: 空状态组件缺少 Logo 区域');
+                }
+            } else {
+                results.push('✗ 检查 3: 无法检查 - Shadow DOM 不存在');
+            }
+
+            // Check 4: Notice bar renders with message
+            const notice1 = document.getElementById('notice1');
+            await new Promise(resolve => requestAnimationFrame(resolve));
+            if (notice1.shadowRoot) {
+                if (notice1.shadowRoot.textContent.includes('这是一条测试通知消息')) {
+                    results.push('✓ 检查 4: 通知栏在提供消息时正确渲染');
+                } else {
+                    results.push('✗ 检查 4: 通知栏渲染不正确');
+                }
+            } else {
+                results.push('✗ 检查 4: 无法检查 - Shadow DOM 不存在');
+            }
+
+            // Check 5: Notice bar has close button
+            if (notice1.shadowRoot) {
+                const closeBtn = notice1.shadowRoot.querySelector('.close-btn');
+                if (closeBtn) {
+                    results.push('✓ 检查 5: 通知栏有关闭按钮');
+                } else {
+                    results.push('✗ 检查 5: 通知栏缺少关闭按钮');
+                }
+            } else {
+                results.push('✗ 检查 5: 无法检查 - Shadow DOM 不存在');
+            }
+
+            // Check 6: Notice bar doesn't render without message
+            const notice2 = document.getElementById('notice2');
+            await new Promise(resolve => requestAnimationFrame(resolve));
+            if (notice2.shadowRoot) {
+                const bar2 = notice2.shadowRoot.querySelector('.notice-bar');
+                if (!bar2) {
+                    results.push('✓ 检查 6: 无消息时通知栏不渲染');
+                } else {
+                    results.push('✗ 检查 6: 无消息时通知栏仍然渲染了');
+                }
+            } else {
+                results.push('✗ 检查 6: 无法检查 - Shadow DOM 不存在');
+            }
+
+            // Check 7: Close button hides the bar
+            if (notice1.shadowRoot) {
+                const closeBtn = notice1.shadowRoot.querySelector('.close-btn');
+                if (closeBtn) {
+                    closeBtn.click();
+                    await new Promise(resolve => requestAnimationFrame(resolve));
+                    const barAfterClose = notice1.shadowRoot.querySelector('.notice-bar');
+                    if (!barAfterClose) {
+                        results.push('✓ 检查 7: 点击关闭按钮后通知栏隐藏');
+                    } else {
+                        results.push('✗ 检查 7: 点击关闭按钮后通知栏仍然显示');
+                    }
+                } else {
+                    results.push('✗ 检查 7: 无法检查 - 关闭按钮不存在');
+                }
+            } else {
+                results.push('✗ 检查 7: 无法检查 - Shadow DOM 不存在');
+            }
+
+            autoCheck.textContent = results.join('\n');
+        };
+
+        // Wait for components to be defined
+        await customElements.whenDefined('rtc-empty-state');
+        await customElements.whenDefined('rtc-notice-bar');
+
+        // Setup event listeners
+        const notice1 = document.getElementById('notice1');
+        notice1.addEventListener('rtc-notice-dismissed', (e) => {
+            logEvent('✓ rtc-notice-dismissed 事件已触发');
+            document.getElementById('status3').textContent = '状态：✓ 事件已触发，验证通过';
+        });
+
+        logEvent('组件已加载，等待用户操作...');
+    </script>
+</body>
+</html>

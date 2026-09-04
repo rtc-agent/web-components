@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>Task 14 - 最简测试</title>
+    <style>
+        body { padding: 20px; font-family: sans-serif; }
+        #container { height: 400px; border: 2px solid #007acc; }
+    </style>
+</head>
+<body>
+    <h1>最简测试</h1>
+    <button id="btn">添加消息</button>
+    <div id="container"></div>
+    <pre id="log" style="background:#eee;padding:10px;margin-top:20px;"></pre>
+
+    <script type="module">
+        const log = (msg, data) => {
+            const el = document.getElementById('log');
+            el.textContent += msg + (data ? '\n' + JSON.stringify(data, null, 2) : '') + '\n';
+            console.log(msg, data);
+        };
+
+        log('开始...');
+
+        // 导入
+        await import('../src/components/content-area/rtc-message-list.ts');
+        const {MessageContext} = await import('../src/contexts/message.ts');
+        const {provideContext} = await import('../src/test-context-helpers.ts');
+        log('✅ 导入完成');
+
+        // 创建组件
+        const list = document.createElement('rtc-message-list');
+        list.style.height = '100%';
+        log('✅ list 创建');
+
+        // 提供 context
+        const wrapper = provideContext(list, MessageContext, {
+            state: {messages: []},
+            actions: {
+                sendMessage: () => {},
+                appendToLastMessage: () => {},
+                finalizeLastMessage: () => {},
+                clearMessages: () => {}
+            }
+        });
+        log('✅ context 提供完成');
+        log('wrapper:', wrapper);
+        log('wrapper.updateContext:', wrapper.updateContext);
+
+        // 添加到 DOM
+        document.getElementById('container').appendChild(list);
+        log('✅ list 添加到 DOM');
+
+        // 等待初始化
+        await list.updateComplete;
+        log('✅ list 初始化完成');
+        log('list._ctx:', list._ctx);
+
+        // 添加消息
+        let count = 0;
+        document.getElementById('btn').addEventListener('click', () => {
+            count++;
+            const messages = [{
+                id: `msg-${count}`,
+                role: 'assistant',
+                content: `消息 ${count}`,
+                timestamp: Date.now()
+            }];
+
+            log('准备更新 context...');
+            wrapper.updateContext({
+                state: {messages},
+                actions: {
+                    sendMessage: () => {},
+                    appendToLastMessage: () => {},
+                    finalizeLastMessage: () => {},
+                    clearMessages: () => {}
+                }
+            });
+            log('✅ context 已更新');
+
+            setTimeout(() => {
+                log('检查渲染结果...');
+                log('list._ctx:', list._ctx);
+                const items = list.shadowRoot.querySelectorAll('rtc-message');
+                log('渲染的消息数:', items.length);
+                const inner = list.shadowRoot.querySelector('.message-list-inner');
+                log('inner.innerHTML:', inner.innerHTML);
+            }, 100);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task 16 Debug - 输入区域组件（修正版）</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #ffffff;
+            color: #333333;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #d73a49;
+            margin-bottom: 10px;
+        }
+        h2 {
+            color: #22863a;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 8px;
+        }
+        .description {
+            color: #666666;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            background: #f5f5f5;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        .controls button {
+            padding: 8px 16px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            background: #ffffff;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.15s;
+        }
+        .controls button:hover {
+            background: #f0f0f0;
+            border-color: #ccc;
+        }
+        .controls button.primary {
+            background: #0366d6;
+            color: #fff;
+            border-color: #0366d6;
+        }
+        .controls button.primary:hover {
+            background: #0255b3;
+        }
+        .input-area-wrapper {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            background: #f0f0f0;
+            width: 100%;
+            min-height: 300px;
+            padding: 20px;
+            display: flex;
+            align-items: flex-end;
+        }
+        .event-log {
+            margin-top: 15px;
+            padding: 12px 16px;
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: 'SF Mono', Monaco, Consolas, monospace;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .event-log .event-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .event-log .event-entry:last-child {
+            border-bottom: none;
+        }
+        .event-log .event-name {
+            color: #0366d6;
+            font-weight: bold;
+        }
+        .event-log .event-detail {
+            color: #666;
+            margin-left: 8px;
+        }
+        .event-log .empty {
+            color: #999;
+            font-style: italic;
+        }
+        .checklist {
+            margin-top: 15px;
+            padding: 12px 16px;
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+        }
+        .checklist h3 {
+            margin-top: 0;
+            color: #22863a;
+        }
+        .checklist ul {
+            margin-bottom: 0;
+            line-height: 1.8;
+        }
+        .mode-indicator {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            background: #e1ecf4;
+            color: #0366d6;
+        }
+        .status {
+            margin-top: 10px;
+            padding: 8px 12px;
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        :root {
+            --rtc-border-width: 1px;
+            --rtc-color-border: #e0e0e0;
+            --rtc-color-border-hover: #ccc;
+            --rtc-color-border-focus: #0366d6;
+            --rtc-color-text: #333333;
+            --rtc-color-text-secondary: #666666;
+            --rtc-color-text-tertiary: #999999;
+            --rtc-color-bg: #ffffff;
+            --rtc-color-bg-secondary: #f5f5f5;
+            --rtc-color-bg-hover: #f0f0f0;
+            --rtc-color-primary: #ff6b6b;
+            --rtc-spacing-xs: 4px;
+            --rtc-spacing-sm: 8px;
+            --rtc-spacing-md: 12px;
+            --rtc-border-radius: 6px;
+            --rtc-border-radius-sm: 4px;
+            --rtc-font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --rtc-font-size-base: 14px;
+            --rtc-font-size-xs: 12px;
+            --rtc-line-height-base: 1.5;
+            --rtc-transition-duration: 0.15s;
+            --rtc-transition-timing: ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Task 16 - <rtc-input-area> 输入区域组件（修正版）</h1>
+        <p class="description">
+            验证 <code>&lt;rtc-input-area&gt;</code> 组件的修正布局：textarea 在上、工具栏在下、
+            包含发送按钮。对照 Claude Code 截图验证 UI 还原度。
+        </p>
+
+        <!-- 场景 1：基本布局与输入提交 -->
+        <div>
+            <h2>场景 1：布局 & 基本输入提交</h2>
+            <div class="test-section">
+                <p>
+                    <strong>当前模式：</strong>
+                    <span id="currentMode" class="mode-indicator">Manual</span>
+                </p>
+                <div class="input-area-wrapper" id="inputArea1"></div>
+                <div class="status">
+                    <strong>事件日志：</strong>
+                    <div class="event-log" id="eventLog1">
+                        <div class="empty">暂无事件</div>
+                    </div>
+                </div>
+                <div class="controls">
+                    <button id="clearLogBtn">清空日志</button>
+                </div>
+                <div class="checklist">
+                    <h3>✅ 验证清单</h3>
+                    <ul>
+                        <li><strong>布局顺序</strong>：textarea 在上方（占主要空间），工具栏在下方（紧贴底部）</li>
+                        <li><strong>Textarea 右上角</strong>：语音输入按钮（麦克风图标），点击触发 <code>rtc-voice-input-requested</code> 事件</li>
+                        <li><strong>工具栏左侧</strong>：附件按钮（回形针图标）+ 工具按钮（扳手图标）</li>
+                        <li><strong>工具栏右侧</strong>：模式按钮（显示当前模式）+ 发送按钮（↑箭头）</li>
+                        <li><strong>发送按钮</strong>：初始为空内容时禁用（灰色/半透明），输入内容后启用</li>
+                        <li>输入内容后按 <strong>Enter</strong> → 触发 <code>rtc-input-submit</code> 事件，textarea 清空</li>
+                        <li>输入内容后点击 <strong>发送按钮</strong> → 同样触发提交事件</li>
+                        <li>按 <strong>Shift+Enter</strong> → 不提交，文本框中插入换行</li>
+                        <li>文本框为空时按 Enter 或点击发送按钮 → 不触发事件</li>
+                        <li>点击模式按钮 → 触发 <code>rtc-mode-panel-toggle</code> 事件</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- 场景 2：发送按钮启用/禁用状态 -->
+        <div>
+            <h2>场景 2：发送按钮状态</h2>
+            <div class="test-section">
+                <div class="input-area-wrapper" id="inputArea2"></div>
+                <div class="checklist">
+                    <h3>✅ 验证清单</h3>
+                    <ul>
+                        <li>初始状态：发送按钮为禁用态（灰色/透明度低，不可点击）</li>
+                        <li>在 textarea 中输入任意字符后：发送按钮变为启用态（颜色正常）</li>
+                        <li>清空 textarea 后：发送按钮恢复禁用态</li>
+                        <li>提交后 textarea 清空，发送按钮恢复禁用态</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- 场景 3：不同模式 -->
+        <div>
+            <h2>场景 3：不同模式下的显示</h2>
+            <div class="test-section">
+                <p>点击下方按钮切换模式，观察模式按钮标签变化：</p>
+                <div class="controls">
+                    <button id="setManualBtn">Manual</button>
+                    <button id="setEditBtn">Edit automatically</button>
+                    <button id="setPlanBtn">Plan</button>
+                    <button id="setAutoBtn">Auto</button>
+                    <button id="setBypassBtn">Bypass permissions</button>
+                </div>
+                <div class="input-area-wrapper" id="inputArea3"></div>
+                <div class="checklist">
+                    <h3>✅ 验证清单</h3>
+                    <ul>
+                        <li>切换模式后，模式按钮标签文字立即更新</li>
+                        <li>Manual → "Manual" / Edit → "Edit automatically" / Plan → "Plan" / Auto → "Auto" / Bypass → "Bypass permissions"</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- 场景 4：Shadow DOM 结构 -->
+        <div>
+            <h2>场景 4：Shadow DOM 结构验证</h2>
+            <div class="test-section">
+                <div class="input-area-wrapper" id="inputArea4"></div>
+                <div class="checklist">
+                    <h3>✅ 组件结构验证（在 DevTools 中检查）</h3>
+                    <ul>
+                        <li><code>&lt;rtc-input-area&gt;</code> 使用 Shadow DOM（有 shadow root）</li>
+                        <li><code>:host</code> 有 <code>margin</code>、<code>border-radius</code>、<code>box-shadow</code>，呈现悬浮卡片效果</li>
+                        <li>Shadow DOM 内有 <code>&lt;div class="input-inner"&gt;</code>（flex column 容器）</li>
+                        <li><code>.input-inner</code> 内有 <code>.textarea-container</code>（含 textarea + voice-btn）和 <code>.input-toolbar</code></li>
+                        <li>Textarea 右上角有语音按钮，工具栏右侧有模式按钮 + 发送按钮</li>
+                        <li>按钮有 <code>part</code> 属性：<code>part="textarea"</code>、<code>part="voice-btn"</code>、<code>part="toolbar"</code>、<code>part="mode-btn"</code>、<code>part="send-btn"</code></li>
+                        <li>所有样式通过 CSS 变量（<code>--rtc-*</code>）驱动，无硬编码颜色</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import {LitElement, html} from 'lit';
+        import {ContextProvider} from '@lit/context';
+        import '../src/components/input-area/rtc-input-area.ts';
+        import {ModeContext} from '../src/contexts/mode.ts';
+
+        // Context provider wrapper
+        class ModeProvider extends LitElement {
+            constructor() {
+                super();
+                this._provider = new ContextProvider(this, {
+                    context: ModeContext,
+                    initialValue: {
+                        state: {currentMode: 'manual'},
+                        actions: {setMode: () => {}}
+                    }
+                });
+            }
+
+            setValue(value) {
+                this._provider.setValue(value);
+            }
+
+            render() {
+                return html`<slot></slot>`;
+            }
+        }
+        customElements.define('mode-provider', ModeProvider);
+
+        // === 场景 1 ===
+        const container1 = document.getElementById('inputArea1');
+        const provider1 = document.createElement('mode-provider');
+        provider1.style.cssText = 'display:block;width:100%';
+        container1.appendChild(provider1);
+
+        const inputArea1 = document.createElement('rtc-input-area');
+        provider1.appendChild(inputArea1);
+
+        const eventLog1 = document.getElementById('eventLog1');
+        let eventCount1 = 0;
+
+        function addLogEntry(eventName, detail) {
+            eventCount1++;
+            if (eventCount1 === 1) {
+                eventLog1.innerHTML = '';
+            }
+            const entry = document.createElement('div');
+            entry.className = 'event-entry';
+            const detailStr = detail ? JSON.stringify(detail) : '';
+            entry.innerHTML = `<span class="event-name">${eventName}</span><span class="event-detail">${detailStr}</span>`;
+            eventLog1.appendChild(entry);
+            eventLog1.scrollTop = eventLog1.scrollHeight;
+        }
+
+        inputArea1.addEventListener('rtc-input-submit', (e) => {
+            addLogEntry('rtc-input-submit', e.detail);
+        });
+
+        inputArea1.addEventListener('rtc-mode-panel-toggle', () => {
+            addLogEntry('rtc-mode-panel-toggle', null);
+        });
+
+        inputArea1.addEventListener('rtc-voice-input-requested', () => {
+            addLogEntry('rtc-voice-input-requested', null);
+        });
+
+        document.getElementById('clearLogBtn').addEventListener('click', () => {
+            eventLog1.innerHTML = '<div class="empty">暂无事件</div>';
+            eventCount1 = 0;
+        });
+
+        // === 场景 2 ===
+        const container2 = document.getElementById('inputArea2');
+        const provider2 = document.createElement('mode-provider');
+        provider2.style.cssText = 'display:block;width:100%';
+        container2.appendChild(provider2);
+
+        const inputArea2 = document.createElement('rtc-input-area');
+        provider2.appendChild(inputArea2);
+
+        // === 场景 3 ===
+        const container3 = document.getElementById('inputArea3');
+        const provider3 = document.createElement('mode-provider');
+        provider3.style.cssText = 'display:block;width:100%';
+        container3.appendChild(provider3);
+
+        const inputArea3 = document.createElement('rtc-input-area');
+        provider3.appendChild(inputArea3);
+
+        const currentModeSpan = document.getElementById('currentMode');
+
+        function setMode(mode, label) {
+            provider3.setValue({
+                state: {currentMode: mode},
+                actions: {setMode: () => {}}
+            });
+            currentModeSpan.textContent = label;
+        }
+
+        document.getElementById('setManualBtn').addEventListener('click', () => setMode('manual', 'Manual'));
+        document.getElementById('setEditBtn').addEventListener('click', () => setMode('edit', 'Edit automatically'));
+        document.getElementById('setPlanBtn').addEventListener('click', () => setMode('plan', 'Plan'));
+        document.getElementById('setAutoBtn').addEventListener('click', () => setMode('auto', 'Auto'));
+        document.getElementById('setBypassBtn').addEventListener('click', () => setMode('bypass', 'Bypass permissions'));
+
+        // === 场景 4 ===
+        const container4 = document.getElementById('inputArea4');
+        const provider4 = document.createElement('mode-provider');
+        provider4.style.cssText = 'display:block;width:100%';
+        container4.appendChild(provider4);
+
+        const inputArea4 = document.createElement('rtc-input-area');
+        provider4.appendChild(inputArea4);
+    </script>
+</body>
+</html>

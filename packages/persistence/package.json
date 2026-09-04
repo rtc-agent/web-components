@@ -1,0 +1,35 @@
+{
+  "name": "@rtc-agent/persistence",
+  "version": "0.1.0",
+  "description": "RTC Agent 本地持久化层：IndexedDB + Dexie.js",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@babel/core": "^7.24.0",
+    "@babel/preset-typescript": "^7.24.0",
+    "@rtc-agent/client": "workspace:*",
+    "@rtc-agent/protocol": "workspace:*",
+    "dexie": "^4.4.5",
+    "microdiff": "^1.6.0"
+  },
+  "devDependencies": {
+    "@types/babel__core": "^7.20.5",
+    "typescript": "^5.4.0"
+  }
+}

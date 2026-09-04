@@ -1,0 +1,14 @@
+{
+  "name": "rtc-agent-component",
+  "version": "0.1.0",
+  "private": true,
+  "description": "RTC Agent Web Component monorepo",
+  "packageManager": "pnpm@8.15.0",
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev": "pnpm --filter @rtc-agent/component dev",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "test:e2e": "pnpm --filter @rtc-agent/e2e test"
+  }
+}

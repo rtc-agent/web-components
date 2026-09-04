@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task 14 - 使用 provideContext</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #ffffff;
+            color: #333333;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .test-box {
+            border: 2px solid #007acc;
+            padding: 20px;
+            margin: 20px 0;
+            background: #f5f5f5;
+        }
+        .debug-info {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 10px;
+            margin: 10px 0;
+            font-size: 13px;
+        }
+        .message-list-wrapper {
+            height: 400px;
+            border: 1px solid #ccc;
+            background: white;
+        }
+        #console {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 10px;
+            overflow: auto;
+            max-height: 300px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Task 14 - 使用 provideContext</h1>
+
+        <div class="test-box">
+            <h2>测试：添加消息</h2>
+            <button id="addBtn">添加 1 条消息</button>
+            <button id="addFiveBtn">添加 5 条消息</button>
+            <button id="clearBtn">清空</button>
+            <div id="container" class="message-list-wrapper"></div>
+            <div class="debug-info" id="info">等待操作...</div>
+        </div>
+
+        <div class="test-box">
+            <h2>控制台输出</h2>
+            <pre id="console"></pre>
+        </div>
+    </div>
+
+    <script type="module">
+        // 自定义 console.log
+        const consoleEl = document.getElementById('console');
+        function log(msg, data = null) {
+            const time = new Date().toLocaleTimeString();
+            const line = `[${time}] ${msg}${data ? '\n' + JSON.stringify(data, null, 2) : ''}\n`;
+            consoleEl.textContent += line;
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+            console.log(msg, data);
+        }
+
+        log('🚀 开始加载...');
+
+        // 导入组件和工具
+        await import('../src/components/content-area/rtc-message-list.ts');
+        const {MessageContext} = await import('../src/contexts/message.ts');
+        const {provideContext} = await import('../src/test-context-helpers.ts');
+
+        log('✅ 组件和工具加载完成');
+
+        const container = document.getElementById('container');
+        const info = document.getElementById('info');
+        const addBtn = document.getElementById('addBtn');
+        const addFiveBtn = document.getElementById('addFiveBtn');
+        const clearBtn = document.getElementById('clearBtn');
+
+        // 创建 rtc-message-list（但不添加到 DOM）
+        const list = document.createElement('rtc-message-list');
+        log('✅ list 创建完成（未添加到 DOM）');
+
+        // 在添加到 DOM 之前，使用 provideContext 包装
+        const contextValue = {
+            state: {messages: []},
+            actions: {
+                sendMessage: () => log('sendMessage'),
+                appendToLastMessage: () => log('appendToLastMessage'),
+                finalizeLastMessage: () => log('finalizeLastMessage'),
+                clearMessages: () => log('clearMessages')
+            }
+        };
+
+        provideContext(list, MessageContext, contextValue);
+        log('✅ provideContext 调用完成（list 被包装）');
+
+        // 获取 wrapper 引用
+        const wrapper = list.parentElement;
+        log('✅ wrapper 引用获取成功');
+
+        // 现在才把 list 添加到 DOM
+        container.appendChild(list);
+        log('✅ list 添加到 DOM');
+
+        // 等待组件初始化
+        await customElements.whenDefined('rtc-message-list');
+        await list.updateComplete;
+        log('✅ list 初始化完成');
+
+        // 给 list 设置样式
+        list.style.height = '100%';
+        list.style.border = '2px solid #28a745';
+
+        let messages = [];
+        let msgCounter = 0;
+
+        function updateContext() {
+            if (wrapper && wrapper.updateContext) {
+                wrapper.updateContext({
+                    state: {messages},
+                    actions: contextValue.actions
+                });
+                log('Context 更新，消息数:', messages.length);
+            } else {
+                log('❌ wrapper 或 updateContext 方法不存在');
+            }
+        }
+
+        function updateInfo() {
+            setTimeout(async () => {
+                await list.updateComplete;
+                const items = list.shadowRoot.querySelectorAll('rtc-message');
+                log(`渲染的消息数量: ${items.length}`);
+                log(`list._ctx:`, list._ctx);
+
+                info.innerHTML = `
+                    <strong>消息数量: ${messages.length}</strong><br>
+                    渲染的消息: ${items.length}<br>
+                    Context 消息数: ${list._ctx?.state?.messages?.length || 0}<br>
+                    ${items.length > 0 ? '✅ 消息已渲染' : '❌ 消息未渲染'}
+                `;
+            }, 100);
+        }
+
+        addBtn.addEventListener('click', () => {
+            msgCounter++;
+            messages.push({
+                id: `msg-${msgCounter}`,
+                role: 'assistant',
+                content: `消息 #${msgCounter}`,
+                timestamp: Date.now()
+            });
+            updateContext();
+            updateInfo();
+        });
+
+        addFiveBtn.addEventListener('click', () => {
+            for (let i = 0; i < 5; i++) {
+                msgCounter++;
+                messages.push({
+                    id: `msg-${msgCounter}`,
+                    role: 'assistant',
+                    content: `消息 #${msgCounter}`,
+                    timestamp: Date.now()
+                });
+            }
+            updateContext();
+            updateInfo();
+        });
+
+        clearBtn.addEventListener('click', () => {
+            messages = [];
+            msgCounter = 0;
+            updateContext();
+            updateInfo();
+        });
+
+        log('✅ 设置完成，可以点击按钮了');
+    </script>
+</body>
+</html>

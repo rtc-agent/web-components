@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task 09 Debug - Title Bar 完整实现</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+        }
+        h1 {
+            margin-bottom: 10px;
+            color: #00d9ff;
+        }
+        h2 {
+            margin-top: 30px;
+            color: #ff6b6b;
+            border-bottom: 1px solid #444;
+            padding-bottom: 5px;
+        }
+        .info-box {
+            background: #2a2a4a;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            border-left: 4px solid #00d9ff;
+        }
+        .info-box p {
+            margin: 5px 0;
+        }
+        .controls {
+            background: #2a2a4a;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        button {
+            background: #00d9ff;
+            color: #000;
+            border: none;
+            padding: 8px 16px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #00b8d4;
+        }
+        button.danger {
+            background: #ff6b6b;
+        }
+        button.danger:hover {
+            background: #ee5a5a;
+        }
+        .status {
+            background: #1a1a2e;
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .verify-list {
+            background: #2a2a4a;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .verify-list li {
+            margin: 8px 0;
+            padding-left: 10px;
+        }
+        .verify-list li::marker {
+            color: #00d9ff;
+        }
+        .demo-area {
+            background: var(--demo-bg, #2a2a4a);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+            transition: background 0.3s;
+        }
+        body.theme-dark {
+            /* Page chrome */
+            --demo-bg: #2a2a4a;
+            --demo-text: #eee;
+            --demo-muted: #888;
+            --frame-border: #00d9ff;
+            /* RTC design tokens (mirrors tokens.ts) */
+            --rtc-spacing-xs: 4px;
+            --rtc-spacing-sm: 8px;
+            --rtc-spacing-md: 16px;
+            --rtc-font-size-sm: 13px;
+            --rtc-font-weight-medium: 500;
+            --rtc-border-width: 1px;
+            --rtc-border-radius-sm: 4px;
+            --rtc-transition-duration: 0.15s;
+            --rtc-transition-timing: ease;
+            --rtc-z-title-bar: 1000;
+            /* RTC dark theme colors (mirrors themes/dark.ts) */
+            --rtc-color-text: #cccccc;
+            --rtc-color-text-secondary: #858585;
+            --rtc-color-bg: #1e1e1e;
+            --rtc-color-bg-secondary: #252526;
+            --rtc-color-bg-tertiary: #2d2d30;
+            --rtc-color-bg-hover: #2a2d2e;
+            --rtc-color-bg-active: #37373d;
+            --rtc-color-border: #3c3c3c;
+        }
+        body.theme-light {
+            /* Page chrome */
+            --demo-bg: #e8e8e8;
+            --demo-text: #333;
+            --demo-muted: #666;
+            --frame-border: #007acc;
+            /* RTC design tokens */
+            --rtc-spacing-xs: 4px;
+            --rtc-spacing-sm: 8px;
+            --rtc-spacing-md: 16px;
+            --rtc-font-size-sm: 13px;
+            --rtc-font-weight-medium: 500;
+            --rtc-border-width: 1px;
+            --rtc-border-radius-sm: 4px;
+            --rtc-transition-duration: 0.15s;
+            --rtc-transition-timing: ease;
+            --rtc-z-title-bar: 1000;
+            /* RTC light theme colors (mirrors themes/light.ts) */
+            --rtc-color-text: #333333;
+            --rtc-color-text-secondary: #666666;
+            --rtc-color-bg: #ffffff;
+            --rtc-color-bg-secondary: #f5f5f5;
+            --rtc-color-bg-tertiary: #e8e8e8;
+            --rtc-color-bg-hover: #f0f0f0;
+            --rtc-color-bg-active: #e0e0e0;
+            --rtc-color-border: #e0e0e0;
+        }
+        .window-frame {
+            width: 420px;
+            margin: 20px auto;
+            border: 2px solid var(--frame-border, #00d9ff);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 217, 255, 0.2);
+        }
+        .window-body {
+            height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--demo-muted, #888);
+            font-size: 14px;
+        }
+        .event-log {
+            background: #0a0a1a;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 11px;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+        .event-log .event {
+            color: #4caf50;
+            margin: 2px 0;
+        }
+        .mode-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            margin: 5px;
+            font-size: 12px;
+        }
+        .mode-normal { background: #4caf50; color: #fff; }
+        .mode-maximized { background: #ff9800; color: #000; }
+        .mode-minimized { background: #9c27b0; color: #fff; }
+        .label-demo {
+            background: #1a1a2e;
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        input[type="text"] {
+            background: #1a1a2e;
+            border: 1px solid #555;
+            color: #eee;
+            padding: 6px 10px;
+            border-radius: 4px;
+            margin: 5px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body class="theme-dark">
+    <h1>🧪 Task 09 Debug — &lt;rtc-title-bar&gt; 完整实现</h1>
+
+    <div class="info-box">
+        <p><strong>本页面验证内容：</strong></p>
+        <p>1. <code>&lt;rtc-title-bar&gt;</code> 组件正确渲染（Shadow DOM 隔离）</p>
+        <p>2. 应用标签（app-label）显示，默认值为 "RTC Agent"</p>
+        <p>3. 最小化按钮渲染并可点击</p>
+        <p>4. 最大化/恢复按钮渲染并可点击，图标和 title 根据 window-mode 切换</p>
+        <p>5. 三个公共事件正确触发：<code>rtc-window-minimize</code>, <code>rtc-window-maximize</code>, <code>rtc-window-restore</code></p>
+        <p>6. 样式使用 CSS 变量（设计令牌），支持 Light/Dark 主题</p>
+        <p>7. 拖拽光标样式（grab / grabbing）</p>
+    </div>
+
+    <h2>📋 人工验证清单</h2>
+    <div class="verify-list">
+        <ol>
+            <li>确认下方 Demo 1 显示标题栏，标签文字为 <strong>"RTC Agent"</strong>（默认值）</li>
+            <li>确认标题栏右侧有 <strong>最小化</strong> 和 <strong>最大化</strong> 两个按钮</li>
+            <li>鼠标悬停在按钮上，确认背景色变化</li>
+            <li>点击最小化按钮，确认事件日志中出现 <code>rtc-window-minimize</code></li>
+            <li>点击最大化按钮，确认事件日志中出现 <code>rtc-window-maximize</code></li>
+            <li>确认 Demo 2（window-mode="maximized"）的右侧按钮显示 <strong>恢复图标</strong>，hover 时 title 为 "Restore"</li>
+            <li>点击 Demo 2 的恢复按钮，确认事件日志中出现 <code>rtc-window-restore</code></li>
+            <li>确认标题栏鼠标样式为 <code>grab</code>（手型），按下时变为 <code>grabbing</code></li>
+            <li>使用「动态修改」区域修改 app-label 和 window-mode，确认组件实时响应</li>
+            <li>切换 Light/Dark 主题，确认标题栏颜色跟随变化</li>
+            <li>打开浏览器 DevTools，确认 <code>&lt;rtc-title-bar&gt;</code> 使用了 Shadow DOM</li>
+        </ol>
+    </div>
+
+    <h2>🎮 控制台</h2>
+    <div class="controls">
+        <h3>动态修改 Demo 1</h3>
+        <div class="label-demo">
+            <label>app-label：</label>
+            <input type="text" id="label-input" placeholder="输入新的标签文字" value="RTC Agent">
+            <button onclick="updateLabel()">更新标签</button>
+        </div>
+        <div>
+            <button onclick="setDemo1Mode('normal')">设为 Normal</button>
+            <button onclick="setDemo1Mode('maximized')">设为 Maximized</button>
+            <button onclick="setDemo1Mode('minimized')">设为 Minimized</button>
+        </div>
+
+        <h3>主题切换</h3>
+        <button onclick="setTheme('light')">Light 主题</button>
+        <button onclick="setTheme('dark')">Dark 主题</button>
+    </div>
+
+    <h2>📡 事件日志</h2>
+    <div id="event-log" class="event-log">等待事件触发...</div>
+
+    <h2>🖼️ Demo 1 — 默认状态 (window-mode="normal")</h2>
+    <div class="demo-area">
+        <p style="color: var(--demo-muted); font-size: 13px;">默认标题栏，标签为 "RTC Agent"，右侧有最小化和最大化按钮。</p>
+        <div class="window-frame" id="frame1">
+            <rtc-title-bar id="titlebar1"></rtc-title-bar>
+            <div class="window-body">（窗口内容区域）</div>
+        </div>
+        <div id="demo1-status" class="status">window-mode: normal</div>
+    </div>
+
+    <h2>🖼️ Demo 2 — 最大化状态 (window-mode="maximized")</h2>
+    <div class="demo-area">
+        <p style="color: var(--demo-muted); font-size: 13px;">最大化状态下的标题栏，右侧按钮显示恢复图标。</p>
+        <div class="window-frame" id="frame2">
+            <rtc-title-bar id="titlebar2" window-mode="maximized"></rtc-title-bar>
+            <div class="window-body">（窗口内容区域 — 已最大化）</div>
+        </div>
+        <div id="demo2-status" class="status">window-mode: maximized</div>
+    </div>
+
+    <h2>🖼️ Demo 3 — 自定义标签</h2>
+    <div class="demo-area">
+        <p style="color: var(--demo-muted); font-size: 13px;">使用自定义 app-label 属性。</p>
+        <div class="window-frame" id="frame3">
+            <rtc-title-bar id="titlebar3" app-label="我的应用"></rtc-title-bar>
+            <div class="window-body">（自定义标签窗口）</div>
+        </div>
+    </div>
+
+    <h2>📊 当前状态</h2>
+    <div id="mode-indicator">
+        Demo 1 模式：<span id="badge1" class="mode-badge mode-normal">normal</span>
+        &nbsp;&nbsp;
+        Demo 2 模式：<span id="badge2" class="mode-badge mode-maximized">maximized</span>
+    </div>
+
+    <script type="module">
+        import '../src/index.ts';
+
+        const titlebar1 = document.getElementById('titlebar1');
+        const titlebar2 = document.getElementById('titlebar2');
+        const titlebar3 = document.getElementById('titlebar3');
+        const eventLog = document.getElementById('event-log');
+        let eventCount = 0;
+
+        // 监听所有公共事件
+        const publicEvents = [
+            'rtc-window-minimize',
+            'rtc-window-maximize',
+            'rtc-window-restore'
+        ];
+
+        function addEventLogger(el, name) {
+            publicEvents.forEach(eventType => {
+                el.addEventListener(eventType, (e) => {
+                    eventCount++;
+                    const time = new Date().toLocaleTimeString();
+                    const entry = document.createElement('div');
+                    entry.className = 'event';
+                    entry.textContent = `[${time}] #${eventCount} ${name} → ${eventType}`;
+                    eventLog.appendChild(entry);
+                    eventLog.scrollTop = eventLog.scrollHeight;
+                });
+            });
+        }
+
+        addEventLogger(titlebar1, 'Demo1');
+        addEventLogger(titlebar2, 'Demo2');
+        addEventLogger(titlebar3, 'Demo3');
+
+        // 暴露到全局供按钮调用
+        window.updateLabel = () => {
+            const input = document.getElementById('label-input');
+            titlebar1.setAttribute('app-label', input.value);
+        };
+
+        window.setDemo1Mode = (mode) => {
+            titlebar1.setAttribute('window-mode', mode);
+            const badge = document.getElementById('badge1');
+            badge.className = `mode-badge mode-${mode}`;
+            badge.textContent = mode;
+            document.getElementById('demo1-status').textContent = `window-mode: ${mode}`;
+        };
+
+        window.setTheme = (theme) => {
+            document.querySelectorAll('rtc-agent').forEach(el => {
+                el.setAttribute('theme', theme);
+            });
+            // Toggle body class to switch demo-area theme
+            document.body.className = `theme-${theme}`;
+        };
+    </script>
+</body>
+</html>

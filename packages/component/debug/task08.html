@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task 08 Debug - Root Component & Controllers</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+        }
+        h1 {
+            margin-bottom: 10px;
+            color: #00d9ff;
+        }
+        h2 {
+            margin-top: 30px;
+            color: #ff6b6b;
+            border-bottom: 1px solid #444;
+            padding-bottom: 5px;
+        }
+        .info-box {
+            background: #2a2a4a;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            border-left: 4px solid #00d9ff;
+        }
+        .info-box p {
+            margin: 5px 0;
+        }
+        .controls {
+            background: #2a2a4a;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        button {
+            background: #00d9ff;
+            color: #000;
+            border: none;
+            padding: 8px 16px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #00b8d4;
+        }
+        button.danger {
+            background: #ff6b6b;
+        }
+        button.danger:hover {
+            background: #ee5a5a;
+        }
+        button.success {
+            background: #4caf50;
+        }
+        button.success:hover {
+            background: #45a049;
+        }
+        .status {
+            background: #1a1a2e;
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .verify-list {
+            background: #2a2a4a;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .verify-list li {
+            margin: 8px 0;
+            padding-left: 10px;
+        }
+        .verify-list li::marker {
+            color: #00d9ff;
+        }
+        .window-container {
+            position: relative;
+            width: 420px;
+            height: 640px;
+            margin: 20px auto;
+            border: 2px solid #00d9ff;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .event-log {
+            background: #0a0a1a;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 11px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .event-log .event {
+            color: #4caf50;
+            margin: 2px 0;
+        }
+        .mode-indicator {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            margin: 5px;
+        }
+        .mode-manual { background: #ff9800; color: #000; }
+        .mode-edit { background: #2196f3; color: #fff; }
+        .mode-plan { background: #9c27b0; color: #fff; }
+        .mode-auto { background: #4caf50; color: #fff; }
+        .mode-bypass { background: #f44336; color: #fff; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Task 08 Debug — Root Component & Reactive Controllers</h1>
+
+    <div class="info-box">
+        <p><strong>本页面验证内容：</strong></p>
+        <p>1. <code>&lt;rtc-agent&gt;</code> 根组件正确渲染（Shadow DOM）</p>
+        <p>2. 6 个 Reactive Controllers 功能正常（WindowState, Auth, Session, Message, Mode, ToolCall）</p>
+        <p>3. Context Providers 正确连接</p>
+        <p>4. 跨 Controller 通信（Session 切换时清空消息）</p>
+        <p>5. 主题切换功能</p>
+    </div>
+
+    <h2>📋 人工验证清单</h2>
+    <div class="verify-list">
+        <ol>
+            <li>确认下方窗口内显示 "Title Bar (stub)" 和 "Login (stub)"</li>
+            <li>点击「登录」按钮，确认界面切换到 "Content (stub)"</li>
+            <li>点击「登出」按钮，确认界面切换回 "Login (stub)"</li>
+            <li>创建多个 Session，切换 Session，确认消息列表被清空</li>
+            <li>发送消息，确认消息被添加到列表</li>
+            <li>切换不同 Mode，确认状态更新</li>
+            <li>添加 ToolCall，点击 Approve/Deny，确认状态变化</li>
+            <li>切换主题（Light/Dark/System），确认样式变化</li>
+            <li>查看事件日志，确认公共事件正确触发</li>
+        </ol>
+    </div>
+
+    <h2>🎮 控制台</h2>
+    <div class="controls">
+        <h3>Auth 控制</h3>
+        <button onclick="login()">登录</button>
+        <button onclick="logout()" class="danger">登出</button>
+        <span id="auth-status">状态：未登录</span>
+
+        <h3>Session 控制</h3>
+        <button onclick="createSession()">创建 Session</button>
+        <button onclick="switchSession(0)">切换到 Session 1</button>
+        <button onclick="switchSession(1)">切换到 Session 2</button>
+        <button onclick="deleteCurrentSession()" class="danger">删除当前 Session</button>
+        <div id="session-list" class="status">当前无 Session</div>
+
+        <h3>Message 控制</h3>
+        <button onclick="sendMessage()">发送消息 "Hello"</button>
+        <button onclick="appendChunk()">追加流式内容 "..."</button>
+        <button onclick="finalizeMessage()">完成流式消息</button>
+        <button onclick="clearMessages()" class="danger">清空消息</button>
+        <div id="message-list" class="status">当前无消息</div>
+
+        <h3>Mode 控制</h3>
+        <button onclick="setMode('manual')">Manual</button>
+        <button onclick="setMode('edit')">Edit</button>
+        <button onclick="setMode('plan')">Plan</button>
+        <button onclick="setMode('auto')">Auto</button>
+        <button onclick="setMode('bypass')">Bypass</button>
+        <div id="mode-indicator">当前模式：<span class="mode-indicator mode-auto">Auto</span></div>
+
+        <h3>WindowState 控制</h3>
+        <button onclick="maximize()">最大化</button>
+        <button onclick="minimize()">最小化</button>
+        <button onclick="restore()">恢复</button>
+        <div id="window-state" class="status">mode: normal, position: (100, 100), size: (420, 640)</div>
+
+        <h3>ToolCall 控制</h3>
+        <button onclick="addToolCall()">添加 ToolCall</button>
+        <button onclick="approveFirst()" class="success">Approve 第一个</button>
+        <button onclick="denyFirst()" class="danger">Deny 第一个</button>
+        <button onclick="approveAllBash()">Approve 所有 Bash</button>
+        <div id="toolcall-list" class="status">当前无待处理 ToolCall</div>
+
+        <h3>主题控制</h3>
+        <button onclick="setTheme('light')">Light 主题</button>
+        <button onclick="setTheme('dark')">Dark 主题</button>
+        <button onclick="setTheme('system')">System 主题</button>
+    </div>
+
+    <h2>📡 事件日志</h2>
+    <div id="event-log" class="event-log">等待事件...</div>
+
+    <h2>🖼️ 组件渲染区域</h2>
+    <p style="color: #888; font-size: 14px;">组件固定在页面右下角（fixed 定位）。请查看页面右下角。</p>
+    <rtc-agent id="rtc-agent" theme="dark"></rtc-agent>
+
+    <script type="module">
+        import '../src/index.ts';
+
+        const agent = document.getElementById('rtc-agent');
+        const eventLog = document.getElementById('event-log');
+        let eventCount = 0;
+
+        // 监听所有公共事件
+        const publicEvents = [
+            'rtc-auth-login-requested',
+            'rtc-session-created',
+            'rtc-session-switched',
+            'rtc-session-renamed',
+            'rtc-session-deleted',
+            'rtc-message-sent',
+            'rtc-tool-call-approved',
+            'rtc-tool-call-approve-all',
+            'rtc-tool-call-denied'
+        ];
+
+        publicEvents.forEach(eventType => {
+            agent.addEventListener(eventType, (e) => {
+                eventCount++;
+                const time = new Date().toLocaleTimeString();
+                const entry = document.createElement('div');
+                entry.className = 'event';
+                entry.textContent = `[${time}] #${eventCount} ${eventType}` +
+                    (e.detail ? ` ${JSON.stringify(e.detail)}` : '');
+                eventLog.appendChild(entry);
+                eventLog.scrollTop = eventLog.scrollHeight;
+            });
+        });
+
+        // 暴露到全局供按钮调用
+        window.login = () => {
+            agent.authController.actions.login();
+            updateUI();
+        };
+
+        window.logout = () => {
+            agent.authController.actions.logout();
+            updateUI();
+        };
+
+        window.createSession = () => {
+            agent.sessionController.actions.createSession();
+            updateUI();
+        };
+
+        window.switchSession = (index) => {
+            const sessions = agent.sessionController.value.state.sessions;
+            if (sessions[index]) {
+                agent.sessionController.actions.switchSession(sessions[index].id);
+                updateUI();
+            }
+        };
+
+        window.deleteCurrentSession = () => {
+            const state = agent.sessionController.value.state;
+            if (state.currentSessionId) {
+                agent.sessionController.actions.deleteSession(state.currentSessionId);
+                updateUI();
+            }
+        };
+
+        window.sendMessage = () => {
+            agent.messageController.actions.sendMessage('Hello');
+            updateUI();
+        };
+
+        window.appendChunk = () => {
+            agent.messageController.actions.appendToLastMessage('...');
+            updateUI();
+        };
+
+        window.finalizeMessage = () => {
+            agent.messageController.actions.finalizeLastMessage();
+            updateUI();
+        };
+
+        window.clearMessages = () => {
+            agent.messageController.actions.clearMessages();
+            updateUI();
+        };
+
+        window.setMode = (mode) => {
+            agent.modeController.actions.setMode(mode);
+            updateUI();
+        };
+
+        window.maximize = () => {
+            agent.windowStateController.actions.maximize();
+            updateUI();
+        };
+
+        window.minimize = () => {
+            agent.windowStateController.actions.minimize();
+            updateUI();
+        };
+
+        window.restore = () => {
+            agent.windowStateController.actions.restore();
+            updateUI();
+        };
+
+        window.addToolCall = () => {
+            const toolNames = ['Bash', 'Write', 'Read', 'Edit'];
+            const toolName = toolNames[Math.floor(Math.random() * toolNames.length)];
+            agent.toolCallController.addPendingCall({
+                id: `tc-${Date.now()}`,
+                toolName,
+                command: `${toolName.toLowerCase()} command`,
+                status: 'pending'
+            });
+            updateUI();
+        };
+
+        window.approveFirst = () => {
+            const calls = agent.toolCallController.value.state.pendingCalls;
+            const pending = calls.find(c => c.status === 'pending');
+            if (pending) {
+                agent.toolCallController.actions.approve(pending.id);
+                updateUI();
+            }
+        };
+
+        window.denyFirst = () => {
+            const calls = agent.toolCallController.value.state.pendingCalls;
+            const pending = calls.find(c => c.status === 'pending');
+            if (pending) {
+                agent.toolCallController.actions.deny(pending.id);
+                updateUI();
+            }
+        };
+
+        window.approveAllBash = () => {
+            agent.toolCallController.actions.approveAll('Bash');
+            updateUI();
+        };
+
+        window.setTheme = (theme) => {
+            agent.setAttribute('theme', theme);
+            updateUI();
+        };
+
+        function updateUI() {
+            // Auth status
+            const isLoggedIn = agent.authController.value.state.isLoggedIn;
+            document.getElementById('auth-status').textContent =
+                `状态：${isLoggedIn ? '✅ 已登录' : '❌ 未登录'}`;
+
+            // Session list
+            const sessions = agent.sessionController.value.state.sessions;
+            const currentId = agent.sessionController.value.state.currentSessionId;
+            if (sessions.length === 0) {
+                document.getElementById('session-list').textContent = '当前无 Session';
+            } else {
+                document.getElementById('session-list').textContent = sessions.map((s, i) =>
+                    `${s.id === currentId ? '▶ ' : '  '}[${i}] ${s.title} (${s.id.slice(0, 12)}...)`
+                ).join('\n');
+            }
+
+            // Message list
+            const messages = agent.messageController.value.state.messages;
+            if (messages.length === 0) {
+                document.getElementById('message-list').textContent = '当前无消息';
+            } else {
+                document.getElementById('message-list').textContent = messages.map((m, i) =>
+                    `[${i}] ${m.role}: "${m.content}"${m.streaming ? ' (streaming...)' : ''}${m.thinking ? ' (thinking...)' : ''}`
+                ).join('\n');
+            }
+
+            // Mode indicator
+            const mode = agent.modeController.value.state.currentMode;
+            document.getElementById('mode-indicator').innerHTML =
+                `当前模式：<span class="mode-indicator mode-${mode}">${mode}</span>`;
+
+            // Window state
+            const ws = agent.windowStateController.value.state;
+            document.getElementById('window-state').textContent =
+                `mode: ${ws.mode}, position: (${ws.position.x}, ${ws.position.y}), size: (${ws.size.width}, ${ws.size.height})`;
+
+            // ToolCall list
+            const calls = agent.toolCallController.value.state.pendingCalls;
+            if (calls.length === 0) {
+                document.getElementById('toolcall-list').textContent = '当前无待处理 ToolCall';
+            } else {
+                document.getElementById('toolcall-list').textContent = calls.map((c, i) =>
+                    `[${i}] ${c.toolName}: ${c.command || 'no command'} — ${c.status}`
+                ).join('\n');
+            }
+        }
+
+        // 初始更新
+        setTimeout(updateUI, 100);
+    </script>
+</body>
+</html>

@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task 14 Debug - 消息列表（虚拟滚动 + 自动滚动）</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #ffffff;
+            color: #333333;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #d73a49;
+            margin-bottom: 10px;
+        }
+        h2 {
+            color: #22863a;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 8px;
+        }
+        .description {
+            color: #666666;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            background: #f5f5f5;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        .controls button {
+            padding: 8px 16px;
+            border: 1px solid #e0e0e0;
+            background: #ffffff;
+            color: #333333;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .controls button:hover {
+            background: #007acc;
+            color: white;
+            border-color: #007acc;
+        }
+        .message-list-container {
+            height: 400px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            background: #ffffff;
+        }
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            background: #ffffff;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #666666;
+        }
+        .checklist {
+            background: #ffffff;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+        .checklist h3 {
+            margin-top: 0;
+            color: #007acc;
+        }
+        .checklist ul {
+            margin: 10px 0;
+            padding-left: 25px;
+        }
+        .checklist li {
+            margin: 8px 0;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Task 14 Debug - 消息列表组件</h1>
+        <p class="description">
+            验证 <code>&lt;rtc-message-list&gt;</code> 的自动滚动、时间线布局和"新消息"按钮功能。
+        </p>
+
+        <h2>测试场景 1：基础消息列表 + 自动滚动</h2>
+        <div class="test-section">
+            <p class="description">
+                <strong>目标：</strong>验证消息列表能正确渲染、自动滚动到底部、时间线布局正确。
+            </p>
+            <div class="controls">
+                <button id="addOneBtn">添加 1 条消息</button>
+                <button id="addFiveBtn">添加 5 条消息</button>
+                <button id="addTwentyBtn">添加 20 条消息</button>
+                <button id="clearBtn">清空消息</button>
+            </div>
+            <div class="message-list-container" id="container1"></div>
+            <div class="status">
+                <strong>消息数量：</strong><span id="msgCount1">0</span> |
+                <strong>最后一条消息 ID：</strong><span id="lastMsgId1">-</span>
+            </div>
+            <div class="checklist">
+                <h3>✅ 验证清单</h3>
+                <ul>
+                    <li>消息按时间顺序从上到下排列</li>
+                    <li>每条消息都有时间线圆点和竖线</li>
+                    <li>添加新消息时，自动滚动到新消息</li>
+                    <li>最后一条消息的圆点应该是绿色（success 状态）</li>
+                    <li>消息内容支持 Markdown 渲染</li>
+                </ul>
+            </div>
+        </div>
+
+        <h2>测试场景 2："新消息"按钮 + 手动滚动</h2>
+        <div class="test-section">
+            <p class="description">
+                <strong>目标：</strong>验证用户滚动到顶部后，添加新消息时显示"新消息"按钮。
+            </p>
+            <div class="controls">
+                <button id="addManyBtn">添加 10 条消息</button>
+                <button id="scrollToTopBtn">手动滚动到顶部</button>
+            </div>
+            <div class="message-list-container" id="container2"></div>
+            <div class="status">
+                <strong>消息数量：</strong><span id="msgCount2">0</span>
+            </div>
+            <div class="checklist">
+                <h3>✅ 验证清单</h3>
+                <ul>
+                    <li>手动滚动到顶部后，"↓ New messages" 按钮出现在底部中央</li>
+                    <li>添加新消息时，如果用户不在底部，不会自动滚动</li>
+                    <li>点击"新消息"按钮后，滚动到底部，按钮消失</li>
+                </ul>
+            </div>
+        </div>
+
+        <h2>测试场景 3：空列表 + 边界情况</h2>
+        <div class="test-section">
+            <p class="description">
+                <strong>目标：</strong>验证空列表、单条消息等边界情况。
+            </p>
+            <div class="controls">
+                <button id="addSingleBtn">添加 1 条消息到空列表</button>
+                <button id="clearSingleBtn">清空</button>
+            </div>
+            <div class="message-list-container" id="container3"></div>
+            <div class="status">
+                <strong>消息数量：</strong><span id="msgCount3">0</span>
+            </div>
+            <div class="checklist">
+                <h3>✅ 验证清单</h3>
+                <ul>
+                    <li>空列表不显示任何消息，布局正常</li>
+                    <li>添加第一条消息后，正确渲染并滚动到底部</li>
+                    <li>清空后，列表恢复空状态</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import {LitElement, html} from 'lit';
+        import {ContextProvider} from '@lit/context';
+        import '../src/components/content-area/rtc-message-list.ts';
+        import {MessageContext} from '../src/contexts/message.ts';
+
+        // 创建 provider
+        class SimpleProvider extends LitElement {
+            constructor() {
+                super();
+                this._provider = new ContextProvider(this, {
+                    context: MessageContext,
+                    initialValue: {
+                        state: {messages: []},
+                        actions: {
+                            sendMessage: () => {},
+                            appendToLastMessage: () => {},
+                            finalizeLastMessage: () => {},
+                            clearMessages: () => {}
+                        }
+                    }
+                });
+            }
+
+            setValue(value) {
+                this._provider.setValue(value);
+            }
+
+            render() {
+                return html`<slot></slot>`;
+            }
+        }
+        customElements.define('simple-provider', SimpleProvider);
+
+        // 辅助函数：创建测试场景
+        function createTestScenario(containerId) {
+            const container = document.getElementById(containerId);
+
+            const provider = document.createElement('simple-provider');
+            provider.style.display = 'block';
+            provider.style.height = '100%';
+            container.appendChild(provider);
+
+            const list = document.createElement('rtc-message-list');
+            list.style.height = '100%';
+            provider.appendChild(list);
+
+            return {provider, list};
+        }
+
+        // 测试场景 1
+        const scenario1 = createTestScenario('container1');
+        let messages1 = [];
+        let msgIdCounter1 = 0;
+
+        function updateStatus1() {
+            document.getElementById('msgCount1').textContent = messages1.length;
+            document.getElementById('lastMsgId1').textContent =
+                messages1.length > 0 ? messages1[messages1.length - 1].id : '-';
+        }
+
+        document.getElementById('addOneBtn').addEventListener('click', () => {
+            msgIdCounter1++;
+            messages1.push({
+                id: `msg-${msgIdCounter1}`,
+                role: 'assistant',
+                content: `这是第 ${msgIdCounter1} 条消息。\n\n\`\`\`javascript\nconsole.log("Hello!");\n\`\`\``,
+                timestamp: Date.now()
+            });
+            scenario1.provider.setValue({
+                state: {messages: messages1},
+                actions: {
+                    sendMessage: () => {},
+                    appendToLastMessage: () => {},
+                    finalizeLastMessage: () => {},
+                    clearMessages: () => {}
+                }
+            });
+            setTimeout(updateStatus1, 100);
+        });
+
+        document.getElementById('addFiveBtn').addEventListener('click', () => {
+            for (let i = 0; i < 5; i++) {
+                msgIdCounter1++;
+                messages1.push({
+                    id: `msg-${msgIdCounter1}`,
+                    role: 'assistant',
+                    content: `消息 #${msgIdCounter1} - **Markdown** 测试`,
+                    timestamp: Date.now()
+                });
+            }
+            scenario1.provider.setValue({
+                state: {messages: messages1},
+                actions: {
+                    sendMessage: () => {},
+                    appendToLastMessage: () => {},
+                    finalizeLastMessage: () => {},
+                    clearMessages: () => {}
+                }
+            });
+            setTimeout(updateStatus1, 100);
+        });
+
+        document.getElementById('addTwentyBtn').addEventListener('click', () => {
+            for (let i = 0; i < 20; i++) {
+                msgIdCounter1++;
+                messages1.push({
+                    id: `msg-${msgIdCounter1}`,
+                    role: 'assistant',
+                    content: `批量消息 #${msgIdCounter1}`,
+                    timestamp: Date.now()
+                });
+            }
+            scenario1.provider.setValue({
+                state: {messages: messages1},
+                actions: {
+                    sendMessage: () => {},
+                    appendToLastMessage: () => {},
+                    finalizeLastMessage: () => {},
+                    clearMessages: () => {}
+                }
+            });
+            setTimeout(updateStatus1, 100);
+        });
+
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            messages1 = [];
+            msgIdCounter1 = 0;
+            scenario1.provider.setValue({
+                state: {messages: messages1},
+                actions: {
+                    sendMessage: () => {},
+                    appendToLastMessage: () => {},
+                    finalizeLastMessage: () => {},
+                    clearMessages: () => {}
+                }
+            });
+            updateStatus1();
+        });
+
+        // 测试场景 2
+        const scenario2 = createTestScenario('container2');
+        let messages2 = [];
+        let msgIdCounter2 = 0;
+
+        document.getElementById('addManyBtn').addEventListener('click', () => {
+            for (let i = 0; i < 10; i++) {
+                msgIdCounter2++;
+                messages2.push({
+                    id: `msg2-${msgIdCounter2}`,
+                    role: 'assistant',
+                    content: `测试消息 #${msgIdCounter2}`,
+                    timestamp: Date.now()
+                });
+            }
+            scenario2.provider.setValue({
+                state: {messages: messages2},
+                actions: {
+                    sendMessage: () => {},
+                    appendToLastMessage: () => {},
+                    finalizeLastMessage: () => {},
+                    clearMessages: () => {}
+                }
+            });
+            setTimeout(() => {
+                document.getElementById('msgCount2').textContent = messages2.length;
+            }, 100);
+        });
+
+        document.getElementById('scrollToTopBtn').addEventListener('click', () => {
+            const scrollEl = scenario2.list.shadowRoot.querySelector('.message-list-scroll');
+            if (scrollEl) {
+                scrollEl.scrollTop = 0;
+            }
+        });
+
+        // 测试场景 3
+        const scenario3 = createTestScenario('container3');
+        let messages3 = [];
+        let msgIdCounter3 = 0;
+
+        document.getElementById('addSingleBtn').addEventListener('click', () => {
+            msgIdCounter3++;
+            messages3.push({
+                id: `msg3-${msgIdCounter3}`,
+                role: 'assistant',
+                content: `第一条消息`,
+                timestamp: Date.now()
+            });
+            scenario3.provider.setValue({
+                state: {messages: messages3},
+                actions: {
+                    sendMessage: () => {},
+                    appendToLastMessage: () => {},
+                    finalizeLastMessage: () => {},
+                    clearMessages: () => {}
+                }
+            });
+            setTimeout(() => {
+                document.getElementById('msgCount3').textContent = messages3.length;
+            }, 100);
+        });
+
+        document.getElementById('clearSingleBtn').addEventListener('click', () => {
+            messages3 = [];
+            msgIdCounter3 = 0;
+            scenario3.provider.setValue({
+                state: {messages: messages3},
+                actions: {
+                    sendMessage: () => {},
+                    appendToLastMessage: () => {},
+                    finalizeLastMessage: () => {},
+                    clearMessages: () => {}
+                }
+            });
+            document.getElementById('msgCount3').textContent = '0';
+        });
+    </script>
+</body>
+</html>

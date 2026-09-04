@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task 13 Debug - 消息组件（Markdown 渲染）</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        /*
+         * 双主题 CSS 变量：页面本身也跟随主题切换，
+         * 这样能直观验证 <rtc-message> 内部的 Markdown 渲染和高亮
+         * 在 light/dark 主题下的表现（对比背景、文字颜色）。
+         *
+         * 默认 light；在 #page 上设 theme="dark" 即切换到暗色。
+         */
+        #page {
+            /* 默认 = 亮色 */
+            --pg-bg: #ffffff;
+            --pg-fg: #333333;
+            --pg-fg-secondary: #666666;
+            --pg-panel: #f5f5f5;
+            --pg-border: #e0e0e0;
+            --pg-accent: #007acc;
+            --pg-accent-hover: #005a9e;
+            --pg-heading: #d73a49;
+            --pg-accent-2: #22863a;
+        }
+        #page[theme='dark'] {
+            --pg-bg: #1e1e1e;
+            --pg-fg: #cccccc;
+            --pg-fg-secondary: #858585;
+            --pg-panel: #2a2a2a;
+            --pg-border: #3c3c3c;
+            --pg-accent: #00d9ff;
+            --pg-accent-hover: #00b8d4;
+            --pg-heading: #ff6b6b;
+            --pg-accent-2: #4ecdc4;
+        }
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--pg-bg);
+            color: var(--pg-fg);
+            min-height: 100vh;
+            transition: background 0.3s, color 0.3s;
+            /* RTC design tokens (mirrors tokens.ts) — 暗色主题默认值 */
+            --rtc-spacing-xs: 4px;
+            --rtc-spacing-sm: 8px;
+            --rtc-spacing-md: 16px;
+            --rtc-spacing-lg: 24px;
+            --rtc-spacing-xl: 32px;
+            --rtc-font-size-sm: 13px;
+            --rtc-font-size-base: 14px;
+            --rtc-font-size-md: 16px;
+            --rtc-font-weight-bold: 700;
+            --rtc-font-family-mono: 'Menlo', 'Monaco', 'Courier New', monospace;
+            --rtc-line-height-loose: 1.6;
+            --rtc-border-width: 1px;
+            --rtc-border-radius: 4px;
+            --rtc-border-radius-sm: 3px;
+            --rtc-transition-duration: 0.15s;
+            --rtc-transition-duration-slow: 0.3s;
+            --rtc-transition-timing: ease;
+            --rtc-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+            /* RTC 颜色 token：默认 = 暗色主题值（组件测试用） */
+            --rtc-color-text: #cccccc;
+            --rtc-color-text-secondary: #858585;
+            --rtc-color-text-tertiary: #666666;
+            --rtc-color-bg: #1e1e1e;
+            --rtc-color-bg-secondary: #252526;
+            --rtc-color-bg-tertiary: #2d2d30;
+            --rtc-color-bg-hover: #2a2d2e;
+            --rtc-color-border: #3c3c3c;
+            --rtc-color-primary: #00d9ff;
+            --rtc-color-success: #4caf50;
+        }
+        /*
+         * 页面切到亮色时，同步把 --rtc-color-* 也切到亮色主题，
+         * 这样组件内部使用的 token 值也跟着变。
+         */
+        body:has(#page[theme='light']) {
+            --rtc-color-text: #333333;
+            --rtc-color-text-secondary: #666666;
+            --rtc-color-text-tertiary: #999999;
+            --rtc-color-bg: #ffffff;
+            --rtc-color-bg-secondary: #f5f5f5;
+            --rtc-color-bg-tertiary: #e8e8e8;
+            --rtc-color-bg-hover: #f0f0f0;
+            --rtc-color-border: #e0e0e0;
+            --rtc-color-primary: #007acc;
+            --rtc-color-success: #4caf50;
+        }
+        .theme-switcher {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding: 10px 15px;
+            background: var(--pg-panel);
+            border: 1px solid var(--pg-border);
+            border-radius: 8px;
+        }
+        .theme-switcher-label {
+            font-size: 13px;
+            color: var(--pg-fg-secondary);
+        }
+        h1 {
+            margin-bottom: 10px;
+            color: var(--pg-accent);
+        }
+        h2 {
+            margin-top: 30px;
+            color: var(--pg-heading);
+            border-bottom: 1px solid var(--pg-border);
+            padding-bottom: 5px;
+        }
+        .info-box {
+            background: var(--pg-panel);
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            border-left: 4px solid var(--pg-accent);
+            color: var(--pg-fg);
+        }
+        .info-box p {
+            margin: 5px 0;
+        }
+        .controls {
+            background: var(--pg-panel);
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            color: var(--pg-fg);
+        }
+        button {
+            background: var(--pg-accent);
+            color: #ffffff;
+            border: none;
+            padding: 8px 16px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: var(--pg-accent-hover);
+        }
+        .status {
+            background: var(--pg-bg);
+            border: 1px solid var(--pg-border);
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+            color: var(--pg-fg);
+        }
+        .verify-list {
+            background: var(--pg-panel);
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            color: var(--pg-fg);
+        }
+        .verify-list li {
+            margin: 8px 0;
+        }
+        .component-container {
+            border: 1px solid var(--pg-border);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .test-case {
+            background: var(--pg-panel);
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            border-left: 4px solid var(--pg-accent-2);
+            color: var(--pg-fg);
+        }
+        .test-case h3 {
+            margin-top: 0;
+            color: var(--pg-accent-2);
+        }
+        .pass { color: #4caf50; font-weight: bold; }
+        .fail { color: #f44336; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="page" theme="dark">
+    <div class="theme-switcher">
+        <span class="theme-switcher-label">页面主题：</span>
+        <button id="pageThemeLight">亮色 (light)</button>
+        <button id="pageThemeDark">暗色 (dark)</button>
+        <span class="theme-switcher-label" style="margin-left: auto;">
+            切换后，下方所有 <code>&lt;rtc-message&gt;</code> 应跟随主题变化
+            （Markdown 文本、代码块背景、高亮配色都会切换）。
+        </span>
+    </div>
+
+    <h1>🧪 Task 13 Debug - 消息组件（Markdown 渲染）</h1>
+
+    <div class="info-box">
+        <p><strong>任务目标：</strong>实现 <code>&lt;rtc-message&gt;</code> 组件，渲染单条 AI 消息，含时间线圆点 + Markdown 内容。</p>
+        <p><strong>核心功能：</strong></p>
+        <ul>
+            <li>时间线圆点（可点击，hover 放大 2x + 阴影）</li>
+            <li>Markdown 渲染（使用 <code>marked</code> + <code>dompurify</code>，懒加载）</li>
+            <li>支持 thinking 状态（灰色斜体 "Thinking ›"）</li>
+            <li>支持 streaming 状态（中间态）</li>
+            <li>支持 success 状态（最后一条消息完成时，圆点变绿）</li>
+            <li>代码块、行内代码、加粗、列表等 Markdown 元素正确渲染</li>
+        </ul>
+    </div>
+
+    <h2>测试用例 1：基础 Markdown 渲染（加粗、斜体、链接）</h2>
+    <div class="test-case">
+        <h3>预期行为</h3>
+        <p>Markdown 文本应被解析为 HTML 元素。</p>
+        <div class="component-container">
+            <rtc-message id="test1"></rtc-message>
+        </div>
+        <p><strong>验证点：</strong></p>
+        <ul>
+            <li>✓ <code>**bold**</code> 渲染为 <code>&lt;strong&gt;</code> 元素（加粗）</li>
+            <li>✓ <code>*italic*</code> 渲染为 <code>&lt;em&gt;</code> 元素（斜体）</li>
+            <li>✓ 链接可点击，颜色为 <code>--rtc-color-primary</code></li>
+        </ul>
+    </div>
+
+    <h2>测试用例 2：行内代码和代码块</h2>
+    <div class="test-case">
+        <h3>预期行为</h3>
+        <p>代码应有不同样式：行内代码背景稍亮，代码块独立背景 + 横向滚动。</p>
+        <div class="component-container">
+            <rtc-message id="test2"></rtc-message>
+        </div>
+        <p><strong>验证点：</strong></p>
+        <ul>
+            <li>✓ 行内代码 <code>const x = 1;</code> 有浅色背景 + 等宽字体</li>
+            <li>✓ 代码块（pre）独立背景 + 圆角 + 内部代码无额外背景</li>
+            <li>✓ 长代码块可横向滚动（overflow-x: auto）</li>
+        </ul>
+    </div>
+
+    <h2>测试用例 3：列表（有序/无序）</h2>
+    <div class="test-case">
+        <h3>预期行为</h3>
+        <p>Markdown 列表应渲染为 HTML 列表，带正确缩进。</p>
+        <div class="component-container">
+            <rtc-message id="test3"></rtc-message>
+        </div>
+        <p><strong>验证点：</strong></p>
+        <ul>
+            <li>✓ 无序列表使用圆点</li>
+            <li>✓ 有序列表使用数字</li>
+            <li>✓ 左侧 padding 为 <code>--rtc-spacing-lg</code>（24px）</li>
+        </ul>
+    </div>
+
+    <h2>测试用例 4：thinking 状态</h2>
+    <div class="test-case">
+        <h3>预期行为</h3>
+        <p>当 <code>message.thinking = true</code> 时，显示斜体 "Thinking ›"，圆点变为 tertiary 灰色。</p>
+        <div class="component-container">
+            <rtc-message id="test4"></rtc-message>
+        </div>
+        <p><strong>验证点：</strong></p>
+        <ul>
+            <li>✓ 显示 "Thinking ›" 文本，斜体 + 颜色 <code>--rtc-color-text-tertiary</code></li>
+            <li>✓ 圆点颜色变为 <code>--rtc-color-text-tertiary</code>（.thinking .timeline-dot）</li>
+        </ul>
+    </div>
+
+    <h2>测试用例 5：success 状态（最后一条完成的消息）</h2>
+    <div class="test-case">
+        <h3>预期行为</h3>
+        <p>当 <code>is-last=true</code> 且 <code>streaming=false</code> 且 <code>thinking=false</code> 且内容非空时，圆点变为绿色（<code>--rtc-color-success</code>）。</p>
+        <div class="component-container">
+            <rtc-message id="test5"></rtc-message>
+        </div>
+        <p><strong>验证点：</strong></p>
+        <ul>
+            <li>✓ 圆点为绿色 <code>--rtc-color-success</code>（#4caf50）</li>
+            <li>✓ .timeline-item 元素带 <code>.success</code> class</li>
+        </ul>
+    </div>
+
+    <h2>测试用例 6：时间线圆点 hover 交互</h2>
+    <div class="test-case">
+        <h3>预期行为</h3>
+        <p>鼠标悬停在圆点上应放大 2x + 背景色变 + 阴影。</p>
+        <div class="component-container">
+            <rtc-message id="test6"></rtc-message>
+        </div>
+        <p><strong>验证点：</strong></p>
+        <ul>
+            <li>✓ 鼠标悬停时圆点放大 2 倍（transform: scale(2)）</li>
+            <li>✓ 背景色变为 <code>--rtc-color-bg-hover</code></li>
+            <li>✓ 出现阴影 <code>--rtc-shadow-sm</code></li>
+            <li>✓ 过渡时长 0.3s，cubic-bezier(0.4, 0, 0.2, 1) 缓动</li>
+        </ul>
+    </div>
+
+    <h2>测试用例 7：Streaming 中间状态</h2>
+    <div class="test-case">
+        <h3>预期行为</h3>
+        <p>消息正在流式传输时，圆点应保持默认颜色（非 success 绿色），内容实时更新。</p>
+        <div class="component-container">
+            <rtc-message id="test7"></rtc-message>
+        </div>
+        <div class="controls">
+            <p><strong>操作说明：</strong></p>
+            <button id="streamBtn">模拟流式传输（逐字追加）</button>
+            <button id="resetBtn">重置</button>
+        </div>
+        <p><strong>验证点：</strong></p>
+        <ul>
+            <li>✓ 点击"模拟流式传输"，圆点保持默认色（非绿色）</li>
+            <li>✓ 内容逐字追加，Markdown 正确重新渲染</li>
+            <li>✓ 完成后（若设 is-last）才变绿</li>
+        </ul>
+    </div>
+
+    <h2>测试用例 8：XSS 安全性（DOMPurify）</h2>
+    <div class="test-case">
+        <h3>预期行为</h3>
+        <p>即使 Markdown 中包含恶意脚本，DOMPurify 也应将其过滤。高亮处理（在消毒之前）不应引入 XSS。</p>
+        <div class="component-container">
+            <rtc-message id="test8"></rtc-message>
+        </div>
+        <p><strong>验证点：</strong></p>
+        <ul>
+            <li>✓ <code>&lt;script&gt;</code> 标签被移除（不执行）</li>
+            <li>✓ <code>onerror</code>、<code>onclick</code> 等内联事件被移除</li>
+            <li>✓ 安全的 HTML（如 <code>&lt;strong&gt;</code>）保留</li>
+            <li>✓ 打开浏览器控制台，应无 XSS 执行日志</li>
+        </ul>
+    </div>
+
+    <h2>测试用例 9：语法高亮（highlight.js）+ 主题切换</h2>
+    <div class="test-case">
+        <h3>预期行为</h3>
+        <p>Markdown 的围栏代码块（<code>```language</code>）应被 highlight.js 按语言着色：关键字、字符串、注释、数字等颜色不同。切换上方"页面主题"按钮时，代码块配色应跟随切换（亮色 = github.css，暗色 = atom-one-dark.css）。</p>
+        <div class="component-container">
+            <rtc-message id="test9"></rtc-message>
+        </div>
+        <p><strong>验证点：</strong></p>
+        <ul>
+            <li>✓ <code>const</code>、<code>function</code>、<code>if</code>、<code>return</code> 等关键字颜色鲜明</li>
+            <li>✓ 字符串 <code>'hello'</code>、<code>`world`</code> 颜色不同于关键字</li>
+            <li>✓ 注释 <code>// comment</code> 为灰色</li>
+            <li>✓ 数字 <code>42</code> 颜色独立</li>
+            <li>✓ 代码块背景色在亮色主题下为白色、暗色主题下为深灰</li>
+            <li>✓ 代码块文字颜色在亮色主题下为深色、暗色主题下为浅色</li>
+            <li>✓ 切换主题时，所有代码块配色同步过渡（无闪烁、无错位）</li>
+        </ul>
+    </div>
+
+    <h2>测试用例 10：无法识别的语言（fallback）</h2>
+    <div class="test-case">
+        <h3>预期行为</h3>
+        <p>当代码块使用 highlight.js 无法识别的"语言"时，不应崩溃，应保持可读。</p>
+        <div class="component-container">
+            <rtc-message id="test10"></rtc-message>
+        </div>
+        <p><strong>验证点：</strong></p>
+        <ul>
+            <li>✓ 页面不报错（控制台无 exception）</li>
+            <li>✓ 代码文本完整显示，无乱码或截断</li>
+            <li>✓ 即使没有颜色，代码块仍然可读（等宽字体 + 背景色）</li>
+        </ul>
+    </div>
+
+    <h2>手动验证清单</h2>
+    <div class="verify-list">
+        <p><strong>请逐一验证以下项目：</strong></p>
+        <ol>
+            <li>
+                <strong>Shadow DOM 隔离</strong>
+                <ul>
+                    <li>在开发者工具中检查组件，确认使用了 Shadow DOM</li>
+                    <li>确认组件样式不会泄漏到外部（例如 <code>.timeline-item</code> 不会污染页面）</li>
+                </ul>
+            </li>
+            <li>
+                <strong>CSS 变量使用</strong>
+                <ul>
+                    <li>检查 <code>rtc-message.styles.ts</code> 中是否全部使用 <code>--rtc-</code> 前缀变量</li>
+                    <li>确认没有硬编码的颜色值、间距或字体大小</li>
+                </ul>
+            </li>
+            <li>
+                <strong>懒加载</strong>
+                <ul>
+                    <li>在 Network 面板查看 <code>marked</code> 和 <code>dompurify</code> 是否为 chunk 动态加载</li>
+                    <li>首次加载后再次触发渲染，不应再次发起网络请求（缓存验证）</li>
+                </ul>
+            </li>
+            <li>
+                <strong>Generation 计数器（竞态保护）</strong>
+                <ul>
+                    <li>在测试用例 7 中快速点击"模拟流式传输"多次</li>
+                    <li>确认最终渲染的内容与最后一次触发一致（旧 parse 结果被丢弃）</li>
+                </ul>
+            </li>
+            <li>
+                <strong>单元测试</strong>
+                <ul>
+                    <li>运行命令：<code>pnpm --filter @rtc-agent/component exec vitest run src/components/content-area/rtc-message.test.ts</code></li>
+                    <li>确认所有 6 个测试用例都通过</li>
+                </ul>
+            </li>
+        </ol>
+    </div>
+
+    <h2>组件接口文档</h2>
+    <div class="info-box">
+        <p><strong>属性 (Properties)：</strong></p>
+        <ul>
+            <li><code>message: Message</code> - 消息对象 { id, role, content, timestamp, streaming?, thinking? }</li>
+            <li><code>isLast: boolean</code> (attribute: <code>is-last</code>) - 是否为最后一条消息</li>
+        </ul>
+        <p><strong>CSS Parts：</strong></p>
+        <ul>
+            <li><code>dot</code> - 时间线圆点</li>
+            <li><code>content</code> - 消息内容区域</li>
+        </ul>
+    </div>
+
+    <div class="info-box">
+        <h3 style="color: #4ecdc4; margin-top: 0;">📋 自动化自检结果</h3>
+        <div id="selfCheck">正在运行自检…</div>
+    </div>
+
+    <script type="module">
+        // Import the component
+        import '../src/components/content-area/rtc-message.ts';
+
+        // Test case 1: Basic Markdown
+        document.getElementById('test1').message = {
+            id: 'msg-1',
+            role: 'assistant',
+            content: '这是 **加粗** 文本，这是 *斜体* 文本，这是 [链接](https://example.com)。',
+            timestamp: Date.now(),
+        };
+
+        // Test case 2: Code
+        document.getElementById('test2').message = {
+            id: 'msg-2',
+            role: 'assistant',
+            content: '行内代码：`const x = 1;`\n\n代码块：\n\n```typescript\nfunction hello(name: string) {\n  console.log(`Hello, ${name}!`);\n  return {\n    veryLongPropertyName: "that makes this line really long and should cause horizontal scrolling to demonstrate overflow-x: auto behavior",\n  };\n}\n```',
+            timestamp: Date.now(),
+        };
+
+        // Test case 3: Lists
+        document.getElementById('test3').message = {
+            id: 'msg-3',
+            role: 'assistant',
+            content: '无序列表：\n\n- 第一项\n- 第二项\n- 第三项\n\n有序列表：\n\n1. 步骤一\n2. 步骤二\n3. 步骤三',
+            timestamp: Date.now(),
+        };
+
+        // Test case 4: Thinking
+        document.getElementById('test4').message = {
+            id: 'msg-4',
+            role: 'assistant',
+            content: '',
+            timestamp: Date.now(),
+            thinking: true,
+        };
+
+        // Test case 5: Success
+        const test5El = document.getElementById('test5');
+        test5El.message = {
+            id: 'msg-5',
+            role: 'assistant',
+            content: '任务完成！这是最后一条消息。',
+            timestamp: Date.now(),
+            streaming: false,
+        };
+        test5El.setAttribute('is-last', '');
+
+        // Test case 6: Hover
+        document.getElementById('test6').message = {
+            id: 'msg-6',
+            role: 'assistant',
+            content: '将鼠标悬停在左侧圆点上查看交互效果。',
+            timestamp: Date.now(),
+        };
+
+        // Test case 7: Streaming
+        const test7El = document.getElementById('test7');
+        const streamContent = '正在流式传输消息内容... **加粗部分** 也会出现。';
+        let streamIdx = 0;
+        let streamTimer = null;
+
+        document.getElementById('streamBtn').addEventListener('click', () => {
+            if (streamTimer) return;
+            streamIdx = 0;
+            test7El.message = {
+                id: 'msg-7',
+                role: 'assistant',
+                content: '',
+                timestamp: Date.now(),
+                streaming: true,
+            };
+            streamTimer = setInterval(() => {
+                streamIdx++;
+                if (streamIdx > streamContent.length) {
+                    clearInterval(streamTimer);
+                    streamTimer = null;
+                    test7El.message = {
+                        ...test7El.message,
+                        content: streamContent,
+                        streaming: false,
+                    };
+                    return;
+                }
+                test7El.message = {
+                    ...test7El.message,
+                    content: streamContent.slice(0, streamIdx),
+                };
+            }, 50);
+        });
+
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            if (streamTimer) {
+                clearInterval(streamTimer);
+                streamTimer = null;
+            }
+            test7El.message = {
+                id: 'msg-7',
+                role: 'assistant',
+                content: '',
+                timestamp: Date.now(),
+            };
+        });
+
+        // Test case 8: XSS
+        // NOTE: We construct the payload by concatenation — a literal `</scri` + `pt>`
+        // inside this <script type="module"> block would be parsed by the HTML parser as
+        // closing the module script, breaking the whole page.
+        const xssPayload = '安全测试：\n\n<scri' + 'pt>alert("XSS")</scri' + 'pt>\n\n'
+            + '<img src=x onerror="alert(1)">\n\n'
+            + '**保留的加粗** <a href="javascript:alert(1)">恶意链接</a>';
+        document.getElementById('test8').message = {
+            id: 'msg-8',
+            role: 'assistant',
+            content: xssPayload,
+            timestamp: Date.now(),
+        };
+
+        // Test case 9: syntax highlighting
+        // 包含关键字、字符串、数字、注释、函数调用，便于观察不同 token 的颜色。
+        const highlightContent = [
+            '下面是 TypeScript 代码，注意不同 token 的颜色：',
+            '',
+            '```typescript',
+            '// 计算斐波那契数列的第 n 项',
+            'function fibonacci(n: number): number {',
+            '  if (n < 2) return n;',
+            '  const memo: Record<number, number> = {};',
+            '  const helper = (x: number): number => {',
+            '    if (memo[x] !== undefined) return memo[x];',
+            '    return memo[x] = helper(x - 1) + helper(x - 2);',
+            '  };',
+            '  return helper(n);',
+            '}',
+            '',
+            'console.log(fibonacci(10)); // 55',
+            '```',
+            '',
+            '再来看一段 JavaScript 字符串和 HTML：',
+            '',
+            '```javascript',
+            'const greeting = `Hello, ${name}!`;',
+            'const regex = /^https?:\\/\\/.+/i;',
+            'document.querySelector(".btn").addEventListener("click", () => {',
+            '  alert(greeting);',
+            '});',
+            '```',
+        ].join('\n');
+        document.getElementById('test9').message = {
+            id: 'msg-9',
+            role: 'assistant',
+            content: highlightContent,
+            timestamp: Date.now(),
+        };
+
+        // 主题切换由页面顶部的"页面主题"按钮统一控制（见 #pageThemeLight/Dark 处理器）。
+        // <rtc-message> 内部的 :host-context([theme='dark']) 会向上遍历 shadow DOM 边界
+        // 匹配到 #page 的 theme 属性，自动切换高亮配色。无需在 test9 单独处理。
+
+        // Test case 10: unrecognizable language fallback
+        // highlight.js 对 "brainfuck" 或虚构语言可能无法识别，不应崩溃。
+        const unknownContent = [
+            '下面使用一种 highlight.js 大概率无法识别的"语言"：',
+            '',
+            '```totally-made-up-language',
+            'foo bar baz',
+            'qux quux corge grault garply',
+            'waldo fred plugh xyzzy thud',
+            '```',
+        ].join('\n');
+        document.getElementById('test10').message = {
+            id: 'msg-10',
+            role: 'assistant',
+            content: unknownContent,
+            timestamp: Date.now(),
+        };
+
+        // Self-check automation
+        async function runSelfCheck() {
+            const results = [];
+            const wait = (ms) => new Promise(r => setTimeout(r, ms));
+
+            // Wait for lazy modules to load
+            await wait(500);
+
+            // Test 1: bold rendered
+            const t1 = document.getElementById('test1').shadowRoot;
+            const strong = t1?.querySelector('.timeline-content strong');
+            results.push({
+                name: 'Markdown 加粗渲染',
+                pass: !!strong && strong.textContent === '加粗',
+            });
+
+            // Test 2: code rendered
+            const t2 = document.getElementById('test2').shadowRoot;
+            const inlineCode = t2?.querySelector('.timeline-content code');
+            const preCode = t2?.querySelector('.timeline-content pre code');
+            results.push({
+                name: '行内代码 + 代码块渲染',
+                pass: !!inlineCode && !!preCode,
+            });
+
+            // Test 4: thinking
+            const t4 = document.getElementById('test4').shadowRoot;
+            const thinkingItem = t4?.querySelector('.timeline-item.thinking');
+            const thinkingText = t4?.querySelector('.thinking-text');
+            results.push({
+                name: 'thinking 状态 class + 文本',
+                pass: !!thinkingItem && !!thinkingText && thinkingText.textContent.includes('Thinking'),
+            });
+
+            // Test 5: success
+            const t5 = test5El.shadowRoot;
+            const successItem = t5?.querySelector('.timeline-item.success');
+            results.push({
+                name: 'success 状态 class',
+                pass: !!successItem,
+            });
+
+            // Test 8: XSS - script tag should be removed
+            const t8 = document.getElementById('test8').shadowRoot;
+            const script = t8?.querySelector('.timeline-content script');
+            const img = t8?.querySelector('.timeline-content img[onerror]');
+            results.push({
+                name: 'XSS 过滤（无 script、无 onerror）',
+                pass: !script && !img,
+            });
+
+            // Test 9: syntax highlighting
+            const t9 = document.getElementById('test9').shadowRoot;
+            const codeEl = t9?.querySelector('.timeline-content pre code.hljs');
+            const keywordSpan = t9?.querySelector('.timeline-content .hljs-keyword');
+            const stringSpan = t9?.querySelector('.timeline-content .hljs-string');
+            const commentSpan = t9?.querySelector('.timeline-content .hljs-comment');
+            results.push({
+                name: '语法高亮：.hljs 类 + keyword/string/comment 着色',
+                pass: !!codeEl && !!keywordSpan && !!stringSpan && !!commentSpan,
+            });
+
+            const html = results.map(r => {
+                const cls = r.pass ? 'pass' : 'fail';
+                const icon = r.pass ? '✓' : '✗';
+                return `<div><span class="${cls}">${icon} PASS</span> - ${r.name}</div>`;
+            }).join('');
+            const allPass = results.every(r => r.pass);
+            const summary = allPass
+                ? `<div class="pass">全部 ${results.length} 项自检通过 ✓</div>`
+                : `<div class="fail">${results.filter(r => !r.pass).length} 项失败</div>`;
+            document.getElementById('selfCheck').innerHTML = html + summary;
+        }
+
+        // 页面级主题切换：切换 #page 的 theme 属性，
+        // 触发 CSS 变量（--pg-*）切换 + :host-context([theme=dark]) 匹配
+        // 让 <rtc-message> 内部的 Markdown 渲染和高亮配色都跟着变。
+        const page = document.getElementById('page');
+        document.getElementById('pageThemeLight').addEventListener('click', () => {
+            page.setAttribute('theme', 'light');
+        });
+        document.getElementById('pageThemeDark').addEventListener('click', () => {
+            page.setAttribute('theme', 'dark');
+        });
+
+        runSelfCheck();
+
+        console.log('Task 13 Debug HTML loaded');
+    </script>
+    </div><!-- /#page -->
+</body>
+</html>

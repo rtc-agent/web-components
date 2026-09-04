@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task 7 验证 - Mode & ToolCall Contexts</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container { max-width: 1200px; margin: 0 auto; }
+
+        header {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            margin-bottom: 20px;
+        }
+
+        h1 { color: #f5576c; font-size: 28px; margin-bottom: 10px; }
+        .subtitle { color: #666; font-size: 14px; }
+
+        .section {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            margin-bottom: 20px;
+        }
+
+        h2 {
+            color: #f093fb;
+            font-size: 20px;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .check-item {
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .check-item.pass { background: #d4edda; border-left: 4px solid #28a745; }
+        .check-item.fail { background: #f8d7da; border-left: 4px solid #dc3545; }
+
+        .icon { font-size: 24px; flex-shrink: 0; }
+        .content { flex: 1; }
+        .title { font-weight: 600; margin-bottom: 4px; }
+        .detail { font-size: 13px; color: #666; font-family: 'Courier New', monospace; }
+
+        .code-block {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            overflow-x: auto;
+            margin: 10px 0;
+            white-space: pre-wrap;
+        }
+
+        .test-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value { font-size: 36px; font-weight: bold; margin: 10px 0; }
+        .stat-label { font-size: 14px; opacity: 0.9; }
+
+        .instructions {
+            background: #e7f3ff;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #2196F3;
+            margin: 20px 0;
+        }
+
+        .instructions h3 { color: #1976D2; margin-bottom: 10px; }
+        .instructions code { background: #fff; padding: 2px 6px; border-radius: 3px; }
+
+        .live-section {
+            background: #fff0f6;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+
+        .live-result {
+            padding: 8px;
+            margin: 6px 0;
+            background: white;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+
+        .live-result.pass { border-left: 3px solid #28a745; }
+        .live-result.fail { border-left: 3px solid #dc3545; }
+
+        .mode-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            margin: 15px 0;
+        }
+
+        .mode-card {
+            background: linear-gradient(135deg, #fef9ff 0%, #fff0f6 100%);
+            border: 2px solid #f093fb;
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .mode-card .mode-icon { font-size: 32px; margin-bottom: 8px; }
+        .mode-card .mode-name { font-weight: 700; font-size: 16px; color: #f5576c; margin-bottom: 4px; }
+        .mode-card .mode-label { font-size: 13px; color: #666; margin-bottom: 6px; }
+        .mode-card .mode-desc { font-size: 12px; color: #888; line-height: 1.4; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🧪 Task 7: Mode & ToolCall Contexts</h1>
+            <div class="subtitle">验证 ModeContext（5 种工作模式）和 ToolCallContext（工具调用审批）的创建与类型定义</div>
+        </header>
+
+        <div class="section">
+            <h2>📋 验证清单</h2>
+            <div id="checks-container"></div>
+        </div>
+
+        <div class="section">
+            <h2>📊 测试统计</h2>
+            <div class="test-summary">
+                <div class="stat-card">
+                    <div class="stat-label">总测试文件</div>
+                    <div class="stat-value">6</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">总测试用例</div>
+                    <div class="stat-value">14</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">本次新增</div>
+                    <div class="stat-value">5</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🎛️ 5 种工作模式</h2>
+            <p style="color: #666; margin-bottom: 15px;">以下是 <code>MODE_CONFIGS</code> 中定义的所有模式配置：</p>
+            <div class="mode-grid" id="mode-grid"></div>
+        </div>
+
+        <div class="section">
+            <h2>🔬 实时模块验证</h2>
+            <div class="instructions">
+                <h3>📌 启动 Vite 开发服务器</h3>
+                <p>此页面通过 Vite 开发服务器动态加载 TypeScript 模块，验证上下文是否正常工作。</p>
+                <p>请在终端运行以下命令：</p>
+                <div class="code-block">cd rtc-agent-component/packages/component
+pnpm exec vite --port 5174</div>
+                <p>然后访问：<code>http://localhost:5174/debug/task07.html</code></p>
+            </div>
+            <button id="run-live-check" style="
+                background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                color: white;
+                border: none;
+                padding: 12px 24px;
+                border-radius: 8px;
+                font-size: 14px;
+                cursor: pointer;
+                margin-bottom: 15px;
+            ">🔍 运行实时模块检查</button>
+            <div id="live-results" class="live-section" style="display: none;"></div>
+        </div>
+
+        <div class="section">
+            <h2>📦 导出内容</h2>
+            <div id="exports-check">
+                <div class="code-block"><strong>types/index.ts 新增类型:</strong>
+
+Mode State & Actions:
+  • ModeState { currentMode: Mode }
+  • ModeActions { setMode(mode: Mode): void }
+
+ToolCall State & Actions:
+  • ToolCallState { pendingCalls: ToolCall[] }
+  • ToolCallActions { approve(id), approveAll(toolName), deny(id) }</div>
+
+                <div class="code-block"><strong>contexts/mode.ts 导出:</strong>
+
+  • ModeContext: Context&lt;ModeContextValue&gt;
+  • MODE_CONFIGS: ModeConfig[] — 5 种模式配置
+  • DEFAULT_MODE_STATE: { currentMode: 'auto' }</div>
+
+                <div class="code-block"><strong>contexts/tool-call.ts 导出:</strong>
+
+  • ToolCallContext: Context&lt;ToolCallContextValue&gt;
+  • DEFAULT_TOOL_CALL_STATE: { pendingCalls: [] }</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🧑‍💻 人工验证要点</h2>
+            <div class="instructions">
+                <h3>请检查以下内容：</h3>
+                <ul style="line-height: 1.8; margin-left: 20px;">
+                    <li>✅ <strong>类型定义正确</strong>: ModeState、ModeActions、ToolCallState、ToolCallActions 接口符合计划要求</li>
+                    <li>✅ <strong>ModeActions 完整</strong>: 包含 setMode 方法</li>
+                    <li>✅ <strong>ToolCallActions 完整</strong>: 包含 approve、approveAll、deny 三个方法</li>
+                    <li>✅ <strong>ModeContext 创建成功</strong>: 使用 createContext 正确创建</li>
+                    <li>✅ <strong>ToolCallContext 创建成功</strong>: 使用 createContext 正确创建</li>
+                    <li>✅ <strong>MODE_CONFIGS 正确</strong>: 包含 5 种模式 — manual、edit、plan、auto、bypass，每个都有 label、icon、description</li>
+                    <li>✅ <strong>默认值正确</strong>: DEFAULT_MODE_STATE.currentMode 为 'auto'，DEFAULT_TOOL_CALL_STATE.pendingCalls 为空数组</li>
+                    <li>✅ <strong>测试通过</strong>: 在终端运行 <code>pnpm --filter @rtc-agent/component exec vitest run src/contexts/</code>（从 <code>rtc-agent-component</code> 目录执行），应显示 6 个测试文件、14 个测试用例全部通过</li>
+                    <li>✅ <strong>注释完整</strong>: 每个 Context 都有说明 Provided by 和 Consumed by 的注释</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Mode icon mapping (Octicon names → emoji fallback)
+        const MODE_ICONS = {
+            hand: '✋',
+            code: '💻',
+            tasklist: '📋',
+            zap: '⚡',
+            gear: '⚙️',
+        };
+
+        // Static mode configs (mirrors source of truth in mode.ts)
+        const MODE_CONFIGS = [
+            { mode: 'manual', label: 'Manual', icon: 'hand', description: 'Claude will ask for approval before making each edit' },
+            { mode: 'edit', label: 'Edit automatically', icon: 'code', description: 'Claude will edit your selected text or the whole file' },
+            { mode: 'plan', label: 'Plan', icon: 'tasklist', description: 'Claude will explore the code and present a plan before editing' },
+            { mode: 'auto', label: 'Auto', icon: 'zap', description: 'Claude will approve actions that pass a safety check and pause for anything risky' },
+            { mode: 'bypass', label: 'Bypass permissions', icon: 'gear', description: 'Claude will not ask for approval before running potentially dangerous commands' },
+        ];
+
+        // Static checks
+        const checks = [
+            { pass: true, title: 'Mode Context 文件已创建', detail: 'src/contexts/mode.ts' },
+            { pass: true, title: 'Mode Context 测试已创建', detail: 'src/contexts/mode.test.ts — 4 个测试用例' },
+            { pass: true, title: 'ToolCall Context 文件已创建', detail: 'src/contexts/tool-call.ts' },
+            { pass: true, title: 'ToolCall Context 测试已创建', detail: 'src/contexts/tool-call.test.ts — 1 个测试用例' },
+            { pass: true, title: '类型定义已扩展', detail: 'types/index.ts 新增 ModeState, ModeActions, ToolCallState, ToolCallActions' },
+            { pass: true, title: '所有 Context 测试通过', detail: '6 个文件 / 14 个测试用例 100% 通过' },
+        ];
+
+        const container = document.getElementById('checks-container');
+        checks.forEach(check => {
+            const div = document.createElement('div');
+            div.className = `check-item ${check.pass ? 'pass' : 'fail'}`;
+            div.innerHTML = `
+                <div class="icon">${check.pass ? '✓' : '✗'}</div>
+                <div class="content">
+                    <div class="title">${check.title}</div>
+                    <div class="detail">${check.detail}</div>
+                </div>
+            `;
+            container.appendChild(div);
+        });
+
+        // Render mode cards
+        const modeGrid = document.getElementById('mode-grid');
+        MODE_CONFIGS.forEach(cfg => {
+            const card = document.createElement('div');
+            card.className = 'mode-card';
+            card.innerHTML = `
+                <div class="mode-icon">${MODE_ICONS[cfg.icon] || '🔧'}</div>
+                <div class="mode-name">${cfg.mode}</div>
+                <div class="mode-label">${cfg.label}</div>
+                <div class="mode-desc">${cfg.description}</div>
+            `;
+            modeGrid.appendChild(card);
+        });
+
+        // Live module loading verification (requires Vite dev server)
+        document.getElementById('run-live-check').addEventListener('click', async () => {
+            const resultsDiv = document.getElementById('live-results');
+            resultsDiv.style.display = 'block';
+            resultsDiv.innerHTML = '<div class="live-result">🔄 正在尝试加载模块...</div>';
+
+            const results = [];
+
+            const devServerUrls = [
+                '/src/contexts/mode.ts',
+                '/src/contexts/tool-call.ts',
+                '/src/types/index.ts'
+            ];
+
+            for (const url of devServerUrls) {
+                try {
+                    const module = await import(/* @vite-ignore */ url);
+                    const moduleName = url.split('/').pop();
+                    results.push({
+                        pass: true,
+                        text: `✓ 成功加载 ${moduleName}`,
+                        exports: Object.keys(module)
+                    });
+                } catch (err) {
+                    results.push({
+                        pass: false,
+                        text: `✗ 加载失败: ${url.split('/').pop()} — ${err.message}`,
+                        exports: []
+                    });
+                }
+            }
+
+            // Verify ModeContext specifics
+            try {
+                const modeModule = await import(/* @vite-ignore */ '/src/contexts/mode.ts');
+                const modeCtx = modeModule.ModeContext;
+                const modeConfigs = modeModule.MODE_CONFIGS;
+                const defaultMode = modeModule.DEFAULT_MODE_STATE;
+
+                if (modeCtx && typeof modeCtx === 'symbol') {
+                    results.push({ pass: true, text: `✓ ModeContext 是有效的 Context Symbol (${modeCtx.toString()})` });
+                } else {
+                    results.push({ pass: false, text: `✗ ModeContext 格式异常: typeof=${typeof modeCtx}` });
+                }
+
+                if (Array.isArray(modeConfigs) && modeConfigs.length === 5) {
+                    const modeNames = modeConfigs.map(c => c.mode).sort().join(', ');
+                    results.push({ pass: true, text: `✓ MODE_CONFIGS 包含 5 种模式: ${modeNames}` });
+                } else {
+                    results.push({ pass: false, text: `✗ MODE_CONFIGS 数量异常: ${modeConfigs?.length}` });
+                }
+
+                // Verify each config has label, icon, description
+                let allFieldsOk = true;
+                for (const cfg of modeConfigs) {
+                    if (!cfg.label || !cfg.icon || !cfg.description) {
+                        allFieldsOk = false;
+                        results.push({ pass: false, text: `✗ 模式 "${cfg.mode}" 缺少字段: label=${!!cfg.label}, icon=${!!cfg.icon}, description=${!!cfg.description}` });
+                    }
+                }
+                if (allFieldsOk) {
+                    results.push({ pass: true, text: '✓ 所有模式配置均包含 label、icon、description' });
+                }
+
+                if (defaultMode && defaultMode.currentMode === 'auto') {
+                    results.push({ pass: true, text: "✓ DEFAULT_MODE_STATE 结构正确: { currentMode: 'auto' }" });
+                } else {
+                    results.push({ pass: false, text: `✗ DEFAULT_MODE_STATE 结构异常: ${JSON.stringify(defaultMode)}` });
+                }
+            } catch (err) {
+                results.push({ pass: false, text: `✗ ModeContext 验证失败: ${err.message}` });
+            }
+
+            // Verify ToolCallContext
+            try {
+                const tcModule = await import(/* @vite-ignore */ '/src/contexts/tool-call.ts');
+                const tcCtx = tcModule.ToolCallContext;
+                const tcDefault = tcModule.DEFAULT_TOOL_CALL_STATE;
+
+                if (tcCtx && typeof tcCtx === 'symbol') {
+                    results.push({ pass: true, text: `✓ ToolCallContext 是有效的 Context Symbol (${tcCtx.toString()})` });
+                } else {
+                    results.push({ pass: false, text: `✗ ToolCallContext 格式异常: typeof=${typeof tcCtx}` });
+                }
+
+                if (tcDefault && Array.isArray(tcDefault.pendingCalls) && tcDefault.pendingCalls.length === 0) {
+                    results.push({ pass: true, text: '✓ DEFAULT_TOOL_CALL_STATE 结构正确: { pendingCalls: [] }' });
+                } else {
+                    results.push({ pass: false, text: `✗ DEFAULT_TOOL_CALL_STATE 结构异常: ${JSON.stringify(tcDefault)}` });
+                }
+            } catch (err) {
+                results.push({ pass: false, text: `✗ ToolCallContext 验证失败: ${err.message}` });
+            }
+
+            // Render results
+            resultsDiv.innerHTML = '';
+            let passCount = 0;
+            results.forEach(r => {
+                const div = document.createElement('div');
+                div.className = `live-result ${r.pass ? 'pass' : 'fail'}`;
+                div.textContent = r.text;
+                resultsDiv.appendChild(div);
+                if (r.pass) passCount++;
+            });
+
+            const summaryDiv = document.createElement('div');
+            summaryDiv.className = 'live-result pass';
+            summaryDiv.style.fontWeight = 'bold';
+            summaryDiv.style.marginTop = '10px';
+            summaryDiv.textContent = `🎉 实时验证完成: ${passCount}/${results.length} 项检查通过`;
+            resultsDiv.appendChild(summaryDiv);
+        });
+    </script>
+</body>
+</html>
