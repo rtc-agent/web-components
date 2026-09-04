@@ -28,9 +28,6 @@ coverage/
 test-results/
 playwright-report/
 
-# pnpm
-pnpm-lock.yaml
-
 # Logs
 *.log
 npm-debug.log*

@@ -3,6 +3,12 @@ name: Publish to npm
 on:
   release:
     types: [published]
+  workflow_dispatch: # 支持手动触发（用输入框指定 tag）
+    inputs:
+      dist-tag:
+        description: "npm dist-tag (latest / rc / beta / ...)"
+        required: true
+        default: "latest"
 
 permissions:
   contents: read
@@ -33,13 +39,37 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Determine dist-tag
+        id: dist-tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # 手动触发：使用用户输入
+            TAG="${{ inputs.dist-tag }}"
+            echo "Manual trigger, using input tag: $TAG"
+          else
+            # Release 触发：根据版本号自动判断
+            # 读 component 的版本（四个包版本保持一致）
+            VERSION=$(node -p "require('./packages/component/package.json').version")
+            if [[ "$VERSION" == *-* ]]; then
+              # 含 '-' 说明是 prerelease（如 0.1.0-rc.0）→ 发到 'rc' tag
+              TAG="rc"
+            else
+              # 稳定版（如 0.1.0）→ 发到 'latest' tag
+              TAG="latest"
+            fi
+            echo "Release trigger, version=$VERSION → tag=$TAG"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
       - name: Publish to npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
+          TAG="${{ steps.dist-tag.outputs.tag }}"
+          echo "Publishing with dist-tag: $TAG"
           # 按依赖顺序发布：protocol → client → persistence → component
           # pnpm 会自动把 workspace:* 重写为实际版本号
-          pnpm --filter @rtc-agent/protocol    publish --access public --no-git-checks
-          pnpm --filter @rtc-agent/client      publish --access public --no-git-checks
-          pnpm --filter @rtc-agent/persistence publish --access public --no-git-checks
-          pnpm --filter @rtc-agent/component   publish --access public --no-git-checks
+          pnpm --filter @rtc-agent/protocol    publish --access public --tag "$TAG" --no-git-checks
+          pnpm --filter @rtc-agent/client      publish --access public --tag "$TAG" --no-git-checks
+          pnpm --filter @rtc-agent/persistence publish --access public --tag "$TAG" --no-git-checks
+          pnpm --filter @rtc-agent/component   publish --access public --tag "$TAG" --no-git-checks
