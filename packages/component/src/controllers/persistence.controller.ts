@@ -100,10 +100,14 @@ export class PersistenceController implements ReactiveController {
      */
     async disconnect(): Promise<void> {
         if (this._layer) {
-            // 先重置 offset
-            await this._layer.getOffsetManager().reset();
-            // 关闭 WS + DB
-            await this._layer.close();
+            try {
+                // 先重置 offset
+                await this._layer.getOffsetManager().reset();
+                // 关闭 WS + DB
+                await this._layer.close();
+            } catch (err) {
+                console.error('[PersistenceController] disconnect error:', err);
+            }
             this._layer = undefined;
         }
     }
