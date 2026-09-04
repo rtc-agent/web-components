@@ -507,7 +507,9 @@ export class RtcAgent extends LitElement {
                     this._rtcProcessor = new RtcProcessor(this._persistence.layer);
                     this._rtcProcessor.setConfirmDialog((rtc) => this._showToolConfirm(rtc));
                     this._rtcProcessor.setMode(this._mode.value.state.currentMode);
-                    void this._rtcProcessor.onRtcUpdate();
+                    this._rtcProcessor.onRtcUpdate().catch(err => {
+                        console.error('[rtc-agent] onRtcUpdate failed:', err);
+                    });
                     // 监听连接状态变化
                     this._setupConnectionListener();
                 }
