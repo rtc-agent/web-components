@@ -10,9 +10,7 @@ import type {
   FunctionGroupDef,
   RegistryConfig,
   ScenarioDef,
-  VisualHooks,
 } from '../types/skill.js';
-import { CancelledError } from '../types/skill.js';
 import { virtualFS } from '@rtc-agent/persistence';
 import { generateFunctionMd, generateFunctionsIndex, generateAgentMd } from './markdown-generator.js';
 import { eventBus, type FunctionStartEvent, type FunctionSuccessEvent, type FunctionErrorEvent, type FunctionProgressEvent } from './event-bus.js';

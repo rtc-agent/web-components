@@ -1,15 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { FunctionRegistry } from './function-registry.js';
-import { EventBus, eventBus, createEventBus } from './event-bus.js';
+import { eventBus, createEventBus } from './event-bus.js';
 import { parseFrontmatter } from './scenario-loader.js';
 import type { FunctionDef } from '../types/skill.js';
 import type {
   FunctionStartEvent,
   FunctionSuccessEvent,
   FunctionErrorEvent,
-  FunctionProgressEvent,
 } from './event-bus.js';
-import type { FunctionRegistryEventMap } from './event-bus.js';
 
 // Mock @rtc-agent/persistence - factory is hoisted, so no outer-scope references allowed.
 vi.mock('@rtc-agent/persistence', () => ({

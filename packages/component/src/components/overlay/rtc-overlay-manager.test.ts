@@ -1,4 +1,4 @@
-import {describe, it, expect, afterEach, vi} from 'vitest';
+import {describe, it, expect, afterEach} from 'vitest';
 import {html} from 'lit';
 import {fixture, cleanupFixtures, nextFrame} from '../../test-helpers.js';
 import {provideContext} from '../../test-context-helpers.js';

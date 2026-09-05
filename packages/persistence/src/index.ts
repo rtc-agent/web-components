@@ -1,6 +1,6 @@
 import { RTCAgentClient, type RTCAgentClientOptions, type PublicationEvent } from '@rtc-agent/client';
 import type { Update, ContentData, SendMessageRequest, ForkSessionRequest } from '@rtc-agent/protocol';
-import { getDatabase, closeDatabase, flushAll, type LocalSession, type LocalTurn, type LocalMessage, type LocalRtc } from './database.js';
+import { getDatabase, closeDatabase, flushAll, type LocalSession, type LocalMessage, type LocalRtc } from './database.js';
 import { getOffsetManager } from './offset-manager.js';
 import { getEntityRepository } from './entity-repository.js';
 import { nowRFC3339 } from './time-utils.js';
@@ -129,9 +129,10 @@ export class PersistenceLayer {
 
   /**
    * 通过 client_id 获取会话（别名）
+   * @deprecated Use getSession instead
    */
   async getSessionByClientId(clientId: string): Promise<LocalSession | undefined> {
-    return this.entityRepository.getSessionByClientId(clientId);
+    return this.entityRepository.getClientSession(clientId);
   }
 
   /**
@@ -190,7 +191,7 @@ export class PersistenceLayer {
     const { content, messageClientId, sessionClientId } = params;
 
     // 1. 查找 session
-    const existing = await this.entityRepository.getSessionByClientId(sessionClientId);
+    const existing = await this.entityRepository.getClientSession(sessionClientId);
 
     let session: LocalSession;
     let isNewSession: boolean;
@@ -310,7 +311,7 @@ export class PersistenceLayer {
    */
   async stopTurn(sessionClientId: string): Promise<void> {
     // 1. 查找 session
-    const session = await this.entityRepository.getSessionByClientId(sessionClientId);
+    const session = await this.entityRepository.getClientSession(sessionClientId);
     if (!session?.server_id) {
       throw new Error(`Session not found or not synced: ${sessionClientId}`);
     }
@@ -398,7 +399,7 @@ export class PersistenceLayer {
     const { oldSessionClientId, oldMessageClientId, newSessionClientId, newMessageClientId, content, limit } = params;
 
     // 1. 查找旧 session
-    const oldSession = await this.entityRepository.getSessionByClientId(oldSessionClientId);
+    const oldSession = await this.entityRepository.getClientSession(oldSessionClientId);
     if (!oldSession) {
       throw new Error(`Old session not found: ${oldSessionClientId}`);
     }

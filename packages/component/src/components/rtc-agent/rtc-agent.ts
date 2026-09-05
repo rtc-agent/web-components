@@ -48,7 +48,7 @@
  * attribute → CSS :host([data-mode=...]) visual state.
  */
 import {LitElement, html} from 'lit';
-import {customElement, property, state, query} from 'lit/decorators.js';
+import {customElement, property, state} from 'lit/decorators.js';
 import {unsafeHTML} from 'lit/directives/unsafe-html.js';
 import {ContextProvider} from '@lit/context';
 import {styles} from './rtc-agent.styles.js';
@@ -92,7 +92,7 @@ import type {FunctionRegistry} from '../../core/function-registry.js';
 import {_markReady} from '../../core/ready.js';
 
 // Declarative config types
-import type {AgentConfig, AgentFunctionGroup} from '../../types/agent-config.js';
+import type {AgentConfig} from '../../types/agent-config.js';
 // Side-effect import: extends HTMLElementEventMap with rtc-agent-ready event
 import '../../types/events.js';
 

@@ -60,8 +60,6 @@ export class WindowInteractionController implements ReactiveController {
   private _host: ReactiveControllerHost;
   private _windowElement?: HTMLElement;
   private _titleBarElement?: HTMLElement;
-  private _resizeHandles: HTMLElement[] = [];
-  private _liveRegion?: HTMLElement;
 
   private _state: InteractionState = {
     isDragging: false,

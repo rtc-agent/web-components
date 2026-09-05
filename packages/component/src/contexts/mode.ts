@@ -1,5 +1,5 @@
 import {createContext} from '@lit/context';
-import type {Mode, ModeConfig, ModeState, ModeActions} from '../types/index.js';
+import type {ModeConfig, ModeState, ModeActions} from '../types/index.js';
 
 /**
  * Mode Context — current AI working mode and switching actions.

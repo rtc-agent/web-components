@@ -12,10 +12,8 @@
  * @csspart login-btn - The login button
  */
 import {LitElement, html, nothing, svg} from 'lit';
-import {customElement, property, state} from 'lit/decorators.js';
-import {consume} from '@lit/context';
+import {customElement, property} from 'lit/decorators.js';
 import {styles} from './rtc-login-page.styles.js';
-import {AuthContext, type AuthContextValue} from '../../contexts/auth.js';
 
 const logoSvg = svg`
   <svg viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg">
@@ -26,14 +24,6 @@ const logoSvg = svg`
 @customElement('rtc-login-page')
 export class RtcLoginPage extends LitElement {
     static styles = styles;
-
-    @consume({context: AuthContext})
-    @state()
-    private _authCtx: AuthContextValue = {
-        state: {isLoggedIn: false},
-        login: () => {},
-        logout: () => {},
-    };
 
     @property({type: String, attribute: 'app-name'})
     appName = 'RTC Agent';

@@ -59,12 +59,12 @@ export const styles = css`
 
   /* Drag visual feedback */
   :host(.dragging) {
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    box-shadow: var(--rtc-shadow-drag);
   }
 
   /* Resize visual feedback */
   :host(.resizing) {
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    box-shadow: var(--rtc-shadow-drag);
   }
 
   :host([hidden]) {
@@ -92,7 +92,7 @@ export const styles = css`
     border-radius: 50%;
     background: var(--rtc-bubble-bg);
     border: 1px solid var(--rtc-bubble-border);
-    box-shadow: var(--rtc-shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.12));
+    box-shadow: var(--rtc-shadow-lg);
     cursor: pointer;
     overflow: visible;
   }

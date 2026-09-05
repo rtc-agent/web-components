@@ -13,11 +13,7 @@
  * 但毫秒精度对于排序已经足够
  */
 export function formatRFC3339(date: Date = new Date()): string {
-  // 使用 date-fns 生成 ISO 格式，然后调整时区表示
-  const isoString = date.toISOString();
-
   // 转换为本地时区的 RFC3339 格式
-  // ISO: 2026-09-02T09:55:13.228Z (UTC)
   // RFC3339: 2026-09-02T17:55:13.228+08:00 (本地时区)
 
   const year = date.getFullYear();

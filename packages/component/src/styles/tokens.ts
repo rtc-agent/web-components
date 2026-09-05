@@ -62,6 +62,7 @@ export const tokens = css`
     --rtc-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
     --rtc-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
     --rtc-shadow-xl: 0 20px 60px rgba(0, 0, 0, 0.3);
+    --rtc-shadow-drag: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
 
     /* ── Transitions ── */
     --rtc-transition-duration: 0.15s;

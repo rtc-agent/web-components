@@ -10,7 +10,7 @@
  *   import {getIcon} from '../../icons/icons.js';
  *   const icon = getIcon('minimize');
  */
-import {html, nothing} from 'lit';
+import {html} from 'lit';
 import {unsafeHTML} from 'lit/directives/unsafe-html.js';
 
 // Import all SVG files as raw strings

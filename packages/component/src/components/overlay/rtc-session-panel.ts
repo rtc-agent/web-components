@@ -9,7 +9,7 @@
  * @fires rtc-session-delete-requested - User clicked delete (detail: { sessionId })
  * @csspart list - The session list container
  */
-import {LitElement, html, nothing} from 'lit';
+import {LitElement, html} from 'lit';
 import {customElement, property} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
 import {repeat} from 'lit/directives/repeat.js';

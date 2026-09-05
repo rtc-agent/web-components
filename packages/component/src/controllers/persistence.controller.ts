@@ -17,22 +17,8 @@ import {
     type PersistenceLayer,
 } from '@rtc-agent/persistence';
 import type {AuthController} from './auth.controller.js';
-import {AUTH_CONFIG, STORAGE_KEYS} from '../config/auth.js';
-
-/**
- * Load or create the persistent device ID.
- *
- * Stored in localStorage under `rtc_device_id`. Created once on first use,
- * reused across sessions so the backend can identify the same device.
- */
-function getOrCreateDeviceId(): string {
-    let id = localStorage.getItem(STORAGE_KEYS.deviceId);
-    if (!id) {
-        id = crypto.randomUUID();
-        localStorage.setItem(STORAGE_KEYS.deviceId, id);
-    }
-    return id;
-}
+import {AUTH_CONFIG} from '../config/auth.js';
+import {getOrCreateDeviceId} from '../utils/device.js';
 
 export class PersistenceController implements ReactiveController {
     private _layer?: PersistenceLayer;
@@ -80,8 +66,10 @@ export class PersistenceController implements ReactiveController {
                 endpoint: AUTH_CONFIG.wsEndpoint,
                 getToken: () => {
                     const token = this._auth.getAccessToken();
-                    console.log('[PersistenceController] getToken →', token ? `${token.slice(0, 20)}...` : 'UNDEFINED');
-                    if (!token) throw new Error('No access token available');
+                    if (!token) {
+                        console.warn('[PersistenceController] getToken → no access token available');
+                        throw new Error('No access token available');
+                    }
                     return token;
                 },
                 onTokenExpired: () => this._auth.handleTokenExpired(),

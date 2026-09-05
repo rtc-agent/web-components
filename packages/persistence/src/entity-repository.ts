@@ -149,7 +149,7 @@ export class EntityRepository {
     return db.messages.where('server_id').equals(serverId).first();
   }
 
-  async listSessions(cursor?: string, limit: number = 50): Promise<LocalSession[]> {
+  async listSessions(_cursor?: string, limit: number = 50): Promise<LocalSession[]> {
     const db = getDatabase();
     const query = db.sessions.orderBy('updated_at').reverse();
     // TODO: 实现游标分页（cursor 为上一页最后一条的 client_id）
@@ -286,7 +286,7 @@ export class EntityRepository {
     return db.messages.get(clientId);
   }
 
-  async listMessagesBySession(sessionClientId: string, cursor?: number, limit: number = 50): Promise<LocalMessage[]> {
+  async listMessagesBySession(sessionClientId: string, _cursor?: number, limit: number = 50): Promise<LocalMessage[]> {
     const db = getDatabase();
     const query = db.messages.where('session_client_id').equals(sessionClientId);
     // TODO: 实现基于 global_offset 的游标分页（cursor 为上一页最后一条的 global_offset）
@@ -469,7 +469,7 @@ export class EntityRepository {
         const sessionClientId = mapped.session_client_id;
         if (sessionClientId) {
           const { pending, running } = await this.countActiveTurns(sessionClientId);
-          const existingSession = await this.getSessionByClientId(sessionClientId);
+          const existingSession = await this.getClientSession(sessionClientId);
           if (existingSession) {
             await this.upsertSession(
               {

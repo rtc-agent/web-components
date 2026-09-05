@@ -17,13 +17,11 @@ import type { RtcAgentAPI } from '../script-engine.js';
  */
 export class ToolRegistry {
   private tools = new Map<ToolName, Tool>();
-  private rtcAgent?: RtcAgentAPI;
 
   /**
    * @param rtcAgent - 可选的宿主 API，传递给 ScriptTool（M5）
    */
   constructor(rtcAgent?: RtcAgentAPI) {
-    this.rtcAgent = rtcAgent;
     // 注册所有内置工具（M5：传入 rtcAgent）
     const builtinTools = createBuiltinTools(rtcAgent);
     for (const tool of builtinTools) {
@@ -38,7 +36,6 @@ export class ToolRegistry {
    * 组件初始化后调用此方法注入。
    */
   setRtcAgent(rtcAgent: RtcAgentAPI): void {
-    this.rtcAgent = rtcAgent;
     // 替换 ScriptTool 实例
     this.register(new ScriptTool(rtcAgent));
   }

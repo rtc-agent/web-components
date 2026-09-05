@@ -1,4 +1,4 @@
-import {html, render, TemplateResult, LitElement} from 'lit';
+import {render, TemplateResult, LitElement} from 'lit';
 
 /**
  * Wait for one animation frame — ensures Lit has completed its update cycle.
