@@ -68,53 +68,67 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description OAuth2 授权重定向信息 */
         OAuth2AuthorizeResponse: {
+            /** @description OAuth2 Provider 授权页面的完整 URL */
             redirect_url: string;
+            /** @description CSRF 防护随机状态参数，回调时需原样传回 */
             state: string;
         };
         /** @description OAuth2 通用错误响应 */
         OAuth2Error: {
-            /** @description invalid_request / invalid_client / invalid_grant / server_error */
+            /**
+             * @description 错误码：
+             *     - `invalid_request`: 请求参数无效
+             *     - `invalid_client`: 客户端认证失败
+             *     - `invalid_grant`: 授权码无效或已过期
+             *     - `server_error`: 服务器内部错误
+             */
             error: string;
+            /** @description 人类可读的错误描述，用于调试 */
             error_description?: string;
         };
+        /** @description OAuth2 授权码交换请求，使用 Authorization Code 换取 access_token */
         OAuth2TokenExchangeRequest: {
-            /** @description OAuth2 授权码 */
+            /** @description OAuth2 授权码，由授权回调 URL 的 query 参数携带 */
             code: string;
-            /** @description 重定向 URI */
+            /** @description 必须与授权请求中的 redirect_uri 完全一致 */
             redirect_uri: string;
-            /** @description CSRF 防护 state */
+            /** @description CSRF 防护 state，必须与授权请求中的 state 一致且仅使用一次 */
             state: string;
-            /** @description 前端生成的设备 UUID */
+            /** @description 前端生成的设备 UUID，用于标识客户端设备 */
             device_id: string;
-            /** @description 设备名称（如 "Chrome on Mac"） */
+            /** @description 设备显示名称，如 "Chrome on Mac" */
             device_name?: string;
-            /** @description User-Agent 字符串 */
+            /** @description 客户端 User-Agent 字符串，用于设备识别 */
             user_agent?: string;
         };
+        /** @description OAuth2 令牌交换成功响应 */
         OAuth2TokenExchangeResponse: {
-            /** @description JWT access token */
+            /** @description JWT access token，有效期由 expires_in 指定 */
             access_token: string;
-            /** @description refresh token */
+            /** @description refresh token，用于在 access_token 过期后换取新 token */
             refresh_token: string;
             /**
              * Format: int64
-             * @description access token 过期时间（秒）
+             * @description access token 过期时间（秒），通常为 900（15 分钟）
              */
             expires_in: number;
-            /** @description 用户 ID */
+            /** @description 已认证用户的唯一 ID */
             user_id: string;
         };
+        /** @description OAuth2 令牌刷新请求，使用 refresh_token 换取新的 access_token */
         OAuth2TokenRefreshRequest: {
-            /** @description refresh token */
+            /** @description refresh token，使用一次后即失效（rotation） */
             refresh_token: string;
         };
+        /** @description OAuth2 令牌刷新成功响应 */
         OAuth2TokenRefreshResponse: {
             /** @description 新的 JWT access token */
             access_token: string;
             /**
              * Format: int64
-             * @description access token 过期时间（秒）
+             * @description 新 access token 过期时间（秒）
              */
             expires_in: number;
         };
@@ -220,11 +234,29 @@ export interface components {
              * @description 软删除时间
              */
             deleted_at?: string;
+            /** @description 输入 token 数（仅 assistant 消息） */
+            input_tokens?: number;
+            /** @description 输出 token 数（仅 assistant 消息） */
+            output_tokens?: number;
+            /** @description 总 token 数（仅 assistant 消息） */
+            total_tokens?: number;
+            /** @description 缓存命中 token 数 */
+            cached_tokens?: number;
+            /** @description 推理 token 数 */
+            reasoning_tokens?: number;
         };
-        /** @description 消息内容数据，Type 标识 Data 的具体结构，前端根据 Type 决定如何渲染 */
+        /**
+         * @description 消息内容数据，Type 标识 Data 的具体结构，前端根据 Type 决定如何渲染。
+         *     - `markdown`: Data 为字符串
+         *     - `summary`: Data 为 SummaryItem[]
+         *     - `text`: Data 为字符串
+         *     - `thinking`: Data 为字符串
+         *     - `toolcall_input`: Data 为 ToolCall 对象
+         *     - `toolcall_output`: Data 为 ToolCall 对象
+         */
         ContentData: {
             type: components["schemas"]["ContentType"];
-            /** @description 具体内容（结构由 type 决定） */
+            /** @description 具体内容（结构由 type 决定），类型取决于 type 字段 */
             data: unknown;
         };
         ToolCall: {
