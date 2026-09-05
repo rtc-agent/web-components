@@ -81,7 +81,8 @@ export class RTCAgentClient implements IRTCAgentClient {
           // action === 'refresh'，继续获取新 token
         }
         const token = await this.options.getToken();
-        console.log('[RTCAgentClient] getToken returning token:', token ? `${token.slice(0, 20)}...` : 'UNDEFINED');
+        // 安全规范：token 不在日志中打印，仅记录是否存在
+        console.log('[RTCAgentClient] getToken returning token:', token ? 'present' : 'UNDEFINED');
         return token;
       },
     });
