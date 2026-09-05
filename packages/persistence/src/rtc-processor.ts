@@ -74,14 +74,11 @@ export class RtcProcessor {
 
         const rtc = await this.persistence.getNextRtcToProcess();
         if (!rtc) {
-          console.log('[RtcProcessor] No pending RTCs found');
           if (this.pendingCheck) {
             continue;
           }
           break;
         }
-
-        console.log(`[RtcProcessor] Processing RTC: id=${rtc.client_id}, tool=${rtc.tool_name}, status=${rtc.status}, sync_status=${rtc.sync_status}`);
 
         try {
           await this.processOne(rtc);
@@ -119,16 +116,10 @@ export class RtcProcessor {
       // 新任务：检查权限
       const toolName = rtc.tool_name as ToolName;
       const needsConfirm = permissionChecker.needsConfirm(toolName, this.mode);
-      console.log(`[RtcProcessor] Permission check: tool=${toolName}, mode=${this.mode}, needsConfirm=${needsConfirm}`);
 
       let approved = true;
       if (needsConfirm) {
-        // 需要用户确认
-        console.log(`[RtcProcessor] Showing confirm dialog, confirmDialog=${!!this.confirmDialog}`);
         approved = await this.showConfirmDialog(rtc);
-        console.log(`[RtcProcessor] Confirm result: approved=${approved}`);
-      } else {
-        console.log(`[RtcProcessor] Auto-approved: tool=${toolName}, mode=${this.mode}`);
       }
 
       if (!approved) {

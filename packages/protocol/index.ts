@@ -94,7 +94,8 @@ export type SubmitRtcResultRequest = components['schemas']['SubmitRtcResultReque
 export type SubmitRtcResultResult = components['schemas']['SubmitRtcResultResult'];
 export type SubmitRtcResultResponse = components['schemas']['SubmitRtcResultResponse'];
 
-// RPC Query：请求 / 响应export type ListSessionsRequest = components['schemas']['ListSessionsRequest'];
+// RPC Query：请求 / 响应
+export type ListSessionsRequest = components['schemas']['ListSessionsRequest'];
 export type ListSessionsResponse = components['schemas']['ListSessionsResponse'];
 
 export type GetSessionRequest = components['schemas']['GetSessionRequest'];

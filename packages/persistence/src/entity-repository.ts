@@ -134,9 +134,9 @@ export class EntityRepository {
     return db.sessions.get(clientId);
   }
 
+  /** @deprecated Use getClientSession instead */
   async getSessionByClientId(clientId: string): Promise<LocalSession | undefined> {
-    const db = getDatabase();
-    return db.sessions.where('client_id').equals(clientId).first();
+    return this.getClientSession(clientId);
   }
 
   async getSessionByServerId(serverId: string): Promise<LocalSession | undefined> {
@@ -151,10 +151,8 @@ export class EntityRepository {
 
   async listSessions(cursor?: string, limit: number = 50): Promise<LocalSession[]> {
     const db = getDatabase();
-    let query = db.sessions.orderBy('updated_at').reverse();
-    if (cursor) {
-      // TODO: 实现游标分页
-    }
+    const query = db.sessions.orderBy('updated_at').reverse();
+    // TODO: 实现游标分页（cursor 为上一页最后一条的 client_id）
     return query.limit(limit).toArray();
   }
 
@@ -290,13 +288,11 @@ export class EntityRepository {
 
   async listMessagesBySession(sessionClientId: string, cursor?: number, limit: number = 50): Promise<LocalMessage[]> {
     const db = getDatabase();
-    let query = db.messages.where('session_client_id').equals(sessionClientId);
-    if (cursor !== undefined) {
-      query = db.messages.where('session_client_id').equals(sessionClientId);
-      // TODO: 实现基于 global_offset 的游标
-    }
+    const query = db.messages.where('session_client_id').equals(sessionClientId);
+    // TODO: 实现基于 global_offset 的游标分页（cursor 为上一页最后一条的 global_offset）
     // 按 created_at 升序排序，确保消息按时间顺序显示
-    return query.sortBy('created_at');
+    const messages = await query.sortBy('created_at');
+    return messages.slice(0, limit);
   }
 
   // ========== Rtc ==========

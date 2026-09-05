@@ -75,25 +75,6 @@ function validateNumberParam(params: ToolParams, name: string): number | null {
   throw new TypeError(`Parameter '${name}' must be a number, got ${typeof value}`);
 }
 
-/**
- * M7: 参数类型强制转换工具
- * 将参数值转换为指定的基本类型
- */
-function coerceParam(value: unknown, targetType: 'string' | 'number' | 'boolean'): unknown {
-  switch (targetType) {
-    case 'string':
-      return value === undefined || value === null ? '' : String(value);
-    case 'number': {
-      const num = Number(value);
-      return isNaN(num) ? 0 : num;
-    }
-    case 'boolean':
-      return Boolean(value);
-    default:
-      return value;
-  }
-}
-
 /** write 工具的 mode 白名单 (MD4) */
 const VALID_WRITE_MODES = ['overwrite', 'append'] as const;
 type WriteMode = typeof VALID_WRITE_MODES[number];

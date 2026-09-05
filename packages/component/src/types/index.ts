@@ -9,12 +9,16 @@
 export type { ContentData } from '@rtc-agent/protocol';
 import type { ContentData } from '@rtc-agent/protocol';
 
+// Re-export SyncStatus from persistence (single source of truth)
+export type { SyncStatus } from '@rtc-agent/persistence';
+import type { SyncStatus } from '@rtc-agent/persistence';
+
 /* ── Messages ── */
 
 export type MessageRole = 'user' | 'assistant' | 'system';
 
 /** 消息同步状态：pending=本地待同步, synced=已同步, failed=同步失败 */
-export type SyncStatus = 'pending' | 'synced' | 'failed';
+// SyncStatus re-exported from @rtc-agent/persistence above
 
 export interface Message {
     clientId: string;
