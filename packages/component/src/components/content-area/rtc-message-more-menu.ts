@@ -18,6 +18,7 @@
 import {LitElement, html, css} from 'lit';
 import {customElement, property} from 'lit/decorators.js';
 import type {SyncStatus} from '../../types/index.js';
+import {formatTimestampCompact} from '../../utils/format.js';
 
 @customElement('rtc-message-more-menu')
 export class RtcMessageMoreMenu extends LitElement {
@@ -81,18 +82,9 @@ export class RtcMessageMoreMenu extends LitElement {
     @property({type: Number})
     timestamp = 0;
 
-    /**
-     * 格式化时间戳为紧凑格式（参考 rtc-message 的 tooltip 格式）
-     * 格式：MM-DD HH:mm
-     */
+    /** 格式化时间戳为紧凑格式（委托给共享工具函数） */
     private get _formattedTimestamp(): string {
-        if (!this.timestamp) return '';
-        const date = new Date(this.timestamp);
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        const hours = String(date.getHours()).padStart(2, '0');
-        const minutes = String(date.getMinutes()).padStart(2, '0');
-        return `${month}-${day} ${hours}:${minutes}`;
+        return formatTimestampCompact(this.timestamp);
     }
 
     private _handleSelect(action: string) {

@@ -31,7 +31,7 @@ export const styles = css`
   .user-message-wrapper {
     position: sticky;
     top: 0;
-    z-index: 1;
+    z-index: var(--rtc-z-local-1);
     width: 100%;
   }
 
@@ -124,7 +124,7 @@ export const styles = css`
     padding: var(--rtc-spacing-xs) var(--rtc-spacing-sm);
     color: var(--rtc-color-text);
     line-height: var(--rtc-line-height-tight);
-    z-index: 2;
+    z-index: var(--rtc-z-local-2);
   }
 
   .show-more-btn:hover,

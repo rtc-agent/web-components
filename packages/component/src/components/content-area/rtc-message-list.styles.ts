@@ -37,7 +37,7 @@ export const styles = css`
     cursor: pointer;
     box-shadow: var(--rtc-shadow-md);
     transition: opacity var(--rtc-transition-duration) var(--rtc-transition-timing);
-    z-index: 2;
+    z-index: var(--rtc-z-local-2);
   }
 
   .new-message-btn:hover {

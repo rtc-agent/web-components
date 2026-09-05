@@ -26,7 +26,7 @@ export const styles = css`
 
   .dialog {
     background: var(--rtc-color-bg, #fff);
-    border-radius: var(--rtc-radius-lg, 12px);
+    border-radius: var(--rtc-border-radius-lg, 12px);
     padding: 0;
     width: 400px;
     max-width: 90%;
@@ -84,7 +84,7 @@ export const styles = css`
     width: 100%;
     height: 100%;
     border: none;
-    background: #ffffff;
+    background: var(--rtc-color-bg, #ffffff);
   }
 
   .button {
@@ -92,7 +92,7 @@ export const styles = css`
     margin: 0 20px 20px;
     padding: var(--rtc-spacing-md, 12px) var(--rtc-spacing-lg, 24px);
     border: none;
-    border-radius: var(--rtc-radius-md, 8px);
+    border-radius: var(--rtc-border-radius, 8px);
     font-size: var(--rtc-font-size-md, 16px);
     font-weight: 500;
     cursor: pointer;

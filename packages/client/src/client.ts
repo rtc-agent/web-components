@@ -67,7 +67,6 @@ export class RTCAgentClient implements IRTCAgentClient {
 
     this.centrifuge = new Centrifuge(this.options.endpoint, {
       getToken: async () => {
-        console.log('[RTCAgentClient] getToken callback invoked');
         // 检查是否需要处理 token 失效
         if (this.options.onTokenExpired) {
           const action: TokenExpiredAction = await this.options.onTokenExpired();
@@ -81,8 +80,6 @@ export class RTCAgentClient implements IRTCAgentClient {
           // action === 'refresh'，继续获取新 token
         }
         const token = await this.options.getToken();
-        // 安全规范：token 不在日志中打印，仅记录是否存在
-        console.log('[RTCAgentClient] getToken returning token:', token ? 'present' : 'UNDEFINED');
         return token;
       },
     });

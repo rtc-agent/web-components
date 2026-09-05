@@ -51,7 +51,7 @@ export const timelineStyles = css`
     background: var(--rtc-color-text);
     transform: translateX(-50%) scale(1);
     cursor: pointer;
-    z-index: 1;
+    z-index: var(--rtc-z-local-1);
     transition: transform var(--rtc-transition-duration-slow) cubic-bezier(0.4, 0, 0.2, 1),
                 background var(--rtc-transition-duration-slow) cubic-bezier(0.4, 0, 0.2, 1),
                 box-shadow var(--rtc-transition-duration-slow) cubic-bezier(0.4, 0, 0.2, 1);
@@ -81,7 +81,7 @@ export const timelineStyles = css`
     visibility: hidden;
     transition: opacity var(--rtc-transition-duration) var(--rtc-transition-timing),
                 visibility var(--rtc-transition-duration) var(--rtc-transition-timing);
-    z-index: 10;
+    z-index: var(--rtc-z-local-3);
     transform: scale(0.5);
     transform-origin: left bottom;
   }

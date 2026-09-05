@@ -89,6 +89,11 @@ export const tokens = css`
      * - overlay-manager (z: 500) is INSIDE content-area, constrained by its bounds
      * - modal (z: 501) is above overlay (z: 500) for tool confirmation dialogs
      * - All z-index values are relative to their parent stacking context
+     *
+     * Component-internal layering (within a local stacking context):
+     * - --rtc-z-local-1: subtle layering (dots, sticky wrappers, pseudo-elements)
+     * - --rtc-z-local-2: interactive overlays (buttons above masks, floating actions)
+     * - --rtc-z-local-3: tooltips and popups above all siblings
      */
     --rtc-z-root: 9999;
     --rtc-z-content: 1;
@@ -96,6 +101,11 @@ export const tokens = css`
     --rtc-z-overlay: 500;
     --rtc-z-modal: 501;
     --rtc-z-toast: 1000;
+
+    /* Component-internal layering (use within scoped stacking contexts only) */
+    --rtc-z-local-1: 1;
+    --rtc-z-local-2: 2;
+    --rtc-z-local-3: 10;
 
     /* ── Floating window dimensions ── */
     --rtc-window-default-width: 420px;

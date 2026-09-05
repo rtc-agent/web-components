@@ -117,7 +117,7 @@ export const styles = [
       padding: var(--rtc-spacing-xs) var(--rtc-spacing-sm);
       color: var(--rtc-color-text);
       line-height: var(--rtc-line-height-tight);
-      z-index: 2;
+      z-index: var(--rtc-z-local-2);
     }
 
     .copy-btn:hover {

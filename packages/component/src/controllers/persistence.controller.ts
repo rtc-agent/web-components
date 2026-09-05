@@ -58,7 +58,6 @@ export class PersistenceController implements ReactiveController {
 
         const deviceId = getOrCreateDeviceId();
         const userId = this._auth.state.userId;
-        console.log('[PersistenceController] connect() → wsEndpoint:', AUTH_CONFIG.wsEndpoint, 'deviceId:', deviceId, 'userId:', userId);
 
         this._layer = createPersistenceLayer({
             databaseName: userId ? `rtc-agent-${userId}` : undefined,
