@@ -30,7 +30,7 @@ export const styles = css`
     font-family: var(--rtc-font-family-base, sans-serif);
     color: var(--rtc-color-text, #ccc);
     container-type: inline-size;
-    z-index: 9999;
+    z-index: var(--rtc-z-root, 9999);
 
     /* Window interaction tokens */
     --rtc-window-margin: 20px;
@@ -131,7 +131,7 @@ export const styles = css`
     font-weight: var(--rtc-font-weight-bold, 600);
     user-select: none;
     outline: none;
-    z-index: 1;
+    z-index: var(--rtc-z-content, 1);
   }
 
   .bubble svg {

@@ -5,7 +5,7 @@
  */
 
 import type { ScenarioManifest } from '../types/skill.js';
-import { virtualFS } from '@rtc-agent/persistence';
+import { virtualFS, type FileSystemEntryMetadata } from '@rtc-agent/persistence';
 
 /**
  * 解析 YAML frontmatter
@@ -181,16 +181,16 @@ export async function loadScenariosFromURL(baseURL: string, timeoutMs: number = 
       const filename = file.endsWith('.md') ? file : `${file}.md`;
       const path = `/scenarios/${filename}`;
 
-      // 构建元数据
-      const metadata: Record<string, unknown> = {};
-      if (parsed.title) metadata.name = parsed.title;
-      else if (parsed.name) metadata.name = parsed.name;
-      if (parsed.description) metadata.description = parsed.description;
-      if (parsed.tags) metadata.tags = parsed.tags;
-      if (parsed.author) metadata.author = parsed.author;
+      // 构建元数据（类型对齐 FileSystemEntryMetadata，避免 any 逃逸）
+      // 注：FileSystemEntryMetadata 无 author 字段，author 信息保留在 frontmatter 原文中
+      const metadata: Partial<FileSystemEntryMetadata> = {
+        name: parsed.title ?? parsed.name,
+        description: parsed.description,
+        tags: parsed.tags,
+      };
 
       // 写入虚拟文件系统（使用新的 metadataOverride 参数）
-      await virtualFS.write(path, content, 'overwrite', metadata as any);
+      await virtualFS.write(path, content, 'overwrite', metadata);
 
       loadedCount++;
       console.log(`[ScenarioLoader] Loaded: ${file}`);

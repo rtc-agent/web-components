@@ -10,7 +10,7 @@ export const styles = css`
     display: block;
     position: absolute;
     inset: 0;
-    z-index: 1000;
+    z-index: var(--rtc-z-modal, 501);
     pointer-events: none;
   }
 

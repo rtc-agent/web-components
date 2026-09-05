@@ -45,7 +45,15 @@ export async function fixture<T extends HTMLElement>(
 
 /**
  * Cleanup helper — call in afterEach to remove all fixture containers.
+ *
+ * Also clears localStorage to prevent state leakage between tests
+ * (e.g., AuthController persists tokens which would affect subsequent tests).
  */
 export function cleanupFixtures(): void {
     document.body.innerHTML = '';
+    try {
+        localStorage.clear();
+    } catch {
+        // Some environments may block storage access; ignore.
+    }
 }

@@ -89,6 +89,7 @@ export const tokens = css`
      * - modal (z: 501) is above overlay (z: 500) for tool confirmation dialogs
      * - All z-index values are relative to their parent stacking context
      */
+    --rtc-z-root: 9999;
     --rtc-z-content: 1;
     --rtc-z-title-bar: 10;
     --rtc-z-overlay: 500;

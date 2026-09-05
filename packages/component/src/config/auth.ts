@@ -6,10 +6,9 @@
 
 /** Get server URL from env or use default */
 function getServerUrl(): string {
-    // Vite injects env vars at build time
+    // Vite injects env vars at build time (typed via vite/client in vite-env.d.ts)
     try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const env = (import.meta as any).env;
+        const env = import.meta.env;
         return env?.VITE_SERVER_URL || 'http://localhost:8888';
     } catch {
         return 'http://localhost:8888';

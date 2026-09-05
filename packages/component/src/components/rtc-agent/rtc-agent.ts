@@ -135,6 +135,11 @@ export class RtcAgent extends LitElement {
     appLabel = 'RTC Agent';
 
     // SVG/HTML rendered inside the minimized bubble; falls back to first letter of appLabel.
+    //
+    // Safety contract: this property is set by the host application developer via the
+    // `bubble-icon` HTML attribute or the JS property. It MUST NOT receive unsanitized
+    // end-user input. If the value ever comes from user input, the caller is responsible
+    // for sanitizing it (e.g. via DOMPurify) BEFORE assignment.
     @property({type: String, attribute: 'bubble-icon'})
     bubbleIcon = '';
 
@@ -719,6 +724,9 @@ export class RtcAgent extends LitElement {
                 this._rtcProcessor.setConfirmDialog((rtc) => this._showToolConfirm(rtc));
                 this._rtcProcessor.setMode(this._mode.value.state.currentMode);
                 void this._rtcProcessor.onRtcUpdate();
+
+                // 监听连接状态变化
+                this._setupConnectionListener();
             }
             // Load sessions from DB so the panel isn't empty after login
             void this._loadSessions();
