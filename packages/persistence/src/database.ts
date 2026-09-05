@@ -236,7 +236,16 @@ let dbInstance: RTCAgentDatabase | null = null;
 let dbInstanceName: string | null = null;
 
 export function getDatabase(databaseName?: string): RTCAgentDatabase {
-  const name = databaseName ?? 'rtc-agent';
+  // 无参数时直接返回已有实例（如果存在）
+  if (databaseName === undefined) {
+    if (dbInstance) {
+      return dbInstance;
+    }
+    // 首次调用且无参数，使用默认值
+    databaseName = 'rtc-agent';
+  }
+
+  const name = databaseName;
   if (!dbInstance || dbInstanceName !== name) {
     if (dbInstance) {
       dbInstance.close();
