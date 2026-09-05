@@ -70,11 +70,15 @@ export class WindowInteractionController implements ReactiveController {
   private _isEnabled = false;
   private _prefersReducedMotion: boolean;
   private _boundHandleResize: () => void;
+  private _boundHandleMotionPreference: (e: MediaQueryListEvent) => void;
 
   constructor(host: ReactiveControllerHost) {
     this._host = host;
     this._prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     this._boundHandleResize = this._handleViewportResize.bind(this);
+    this._boundHandleMotionPreference = (e: MediaQueryListEvent) => {
+      this._prefersReducedMotion = e.matches;
+    };
 
     this.value = {
       state: this._state,
@@ -88,9 +92,7 @@ export class WindowInteractionController implements ReactiveController {
     };
 
     // Listen for reduced motion preference changes
-    window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', (e) => {
-      this._prefersReducedMotion = e.matches;
-    });
+    window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', this._boundHandleMotionPreference);
   }
 
   /**
@@ -109,6 +111,7 @@ export class WindowInteractionController implements ReactiveController {
 
   hostDisconnected(): void {
     window.removeEventListener('resize', this._boundHandleResize);
+    window.matchMedia('(prefers-reduced-motion: reduce)').removeEventListener('change', this._boundHandleMotionPreference);
     this.destroy();
   }
 

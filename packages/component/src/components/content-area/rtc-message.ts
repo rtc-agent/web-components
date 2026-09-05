@@ -31,6 +31,7 @@ import {classMap} from 'lit/directives/class-map.js';
 import {styles} from './rtc-message.styles.js';
 import type {Message} from '../../types/index.js';
 import {copyToClipboard} from '../../utils/clipboard.js';
+import {formatTimestampCompact, extractTextContent} from '../../utils/format.js';
 
 @customElement('rtc-message')
 export class RtcMessage extends LitElement {
@@ -100,20 +101,9 @@ export class RtcMessage extends LitElement {
             return;
         }
 
-        // Handle different content types
-        let content: string;
-        switch (contentData.type) {
-            case 'text':
-            case 'markdown':
-            case 'thinking':
-                content = typeof contentData.data === 'string' ? contentData.data : JSON.stringify(contentData.data);
-                break;
-            case 'summary':
-                content = '[消息已被压缩]';
-                break;
-            default:
-                content = typeof contentData.data === 'string' ? contentData.data : (contentData.data != null ? JSON.stringify(contentData.data) : '');
-        }
+        // Handle different content types — uses shared utility for consistency
+        // with clipboard copy operations across message components
+        const content = extractTextContent(contentData);
 
         /*
          * 懒加载 marked + DOMPurify + highlight.js 三件套（首次异步，之后复用）。
@@ -188,43 +178,10 @@ export class RtcMessage extends LitElement {
     }
 
     /**
-     * 格式化时间戳为紧凑格式（用于 tooltip）
-     * 格式：MM-DD HH:mm
-     */
-    private get _formattedTimestamp(): string {
-        if (!this.message.timestamp) return '';
-        const date = new Date(this.message.timestamp);
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        const hours = String(date.getHours()).padStart(2, '0');
-        const minutes = String(date.getMinutes()).padStart(2, '0');
-        return `${month}-${day} ${hours}:${minutes}`;
-    }
-
-    /**
-     * 提取消息中的纯文本内容（用于复制）
-     */
-    private get _textContent(): string {
-        const content = this.message?.content;
-        if (!content) return '';
-
-        switch (content.type) {
-            case 'text':
-            case 'markdown':
-            case 'thinking':
-                return typeof content.data === 'string' ? content.data : JSON.stringify(content.data);
-            case 'summary':
-                return '[消息已被压缩]';
-            default:
-                return typeof content.data === 'string' ? content.data : JSON.stringify(content.data);
-        }
-    }
-
-    /**
      * 点击 timeline-dot：复制消息内容到剪贴板
      */
     private async _handleDotClick() {
-        const text = this._textContent;
+        const text = extractTextContent(this.message?.content);
         if (!text) return;
 
         const success = await copyToClipboard(text);
@@ -261,7 +218,7 @@ export class RtcMessage extends LitElement {
         <div
           class="timeline-dot"
           part="dot"
-          data-timestamp=${this._formattedTimestamp}
+          data-timestamp=${formatTimestampCompact(this.message.timestamp)}
           @click=${this._handleDotClick}
         ></div>
         <div class="timeline-content" part="content">

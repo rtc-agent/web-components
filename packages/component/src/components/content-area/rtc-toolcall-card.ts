@@ -25,11 +25,12 @@
  * @csspart out     - Output section
  */
 import {LitElement, html} from 'lit';
-import {customElement, property, state} from 'lit/decorators.js';
+import {customElement, property} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
 import {styles} from './rtc-toolcall-card.styles.js';
 import type {Message} from '../../types/index.js';
 import {copyToClipboard} from '../../utils/clipboard.js';
+import {formatTimestampCompact} from '../../utils/format.js';
 
 /**
  * A paired tool call: input is always present, output arrives later.
@@ -112,13 +113,9 @@ export class RtcToolCallCard extends LitElement {
     @property({type: Boolean, attribute: 'is-last'})
     isLast = false;
 
-    @state()
-    private _formattedTimestamp = '';
-
     connectedCallback() {
         super.connectedCallback();
         this._updateStatus();
-        this._updateTimestamp();
     }
 
     updated(changed: Map<string, unknown>) {
@@ -133,15 +130,11 @@ export class RtcToolCallCard extends LitElement {
         this.setAttribute('data-toolcall-status', status);
     }
 
-    private _updateTimestamp() {
-        const ts = this.pair.input.timestamp;
-        if (!ts) return;
-        const date = new Date(ts);
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        const hours = String(date.getHours()).padStart(2, '0');
-        const minutes = String(date.getMinutes()).padStart(2, '0');
-        this._formattedTimestamp = `${month}-${day} ${hours}:${minutes}`;
+    /**
+     * Formatted timestamp from the input message (computed on each render).
+     */
+    private get _formattedTimestamp(): string {
+        return formatTimestampCompact(this.pair.input.timestamp);
     }
 
     /**

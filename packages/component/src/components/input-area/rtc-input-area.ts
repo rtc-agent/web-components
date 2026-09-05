@@ -114,7 +114,6 @@ export class RtcInputArea extends LitElement {
     }
 
     private get _hasActiveTurns(): boolean {
-        // return this._turnCount.pendingTurnCount + this._turnCount.runningTurnCount > 0;
         return this._turnCount.runningTurnCount > 0;
     }
 

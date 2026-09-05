@@ -44,6 +44,7 @@ import {
 import {styles} from './rtc-user-message.styles.js';
 import type {Message} from '../../types/index.js';
 import {copyToClipboard} from '../../utils/clipboard.js';
+import {extractTextContent} from '../../utils/format.js';
 import './rtc-message-more-menu.js';
 
 @customElement('rtc-user-message')
@@ -168,20 +169,7 @@ export class RtcUserMessage extends LitElement {
     /* ── Helpers ── */
 
     private _getTextContent(): string {
-        const content = this.message?.content;
-        if (!content) return '';
-
-        // Handle different content types
-        switch (content.type) {
-            case 'text':
-            case 'markdown':
-            case 'thinking':
-                return typeof content.data === 'string' ? content.data : JSON.stringify(content.data);
-            case 'summary':
-                return '[消息已被压缩]';
-            default:
-                return typeof content.data === 'string' ? content.data : JSON.stringify(content.data);
-        }
+        return extractTextContent(this.message?.content);
     }
 
     /* ── Event handlers ── */

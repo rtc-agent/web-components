@@ -163,7 +163,8 @@ export class GrepTool implements Tool {
     }
     const path = validateStringParam(params, 'path') || '/';
     const caseSensitive = (params.case_sensitive as boolean) || false;
-    return executeFS(() => virtualFS.grep(pattern, path, caseSensitive));
+    const maxResults = validateNumberParam(params, 'max_results') ?? 100;
+    return executeFS(() => virtualFS.grep(pattern, path, caseSensitive, maxResults));
   }
 }
 

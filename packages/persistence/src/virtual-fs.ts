@@ -287,12 +287,14 @@ export class VirtualFS {
    * @param pattern 正则表达式
    * @param path 搜索范围（默认根目录）
    * @param caseSensitive 是否大小写敏感（默认 false）
+   * @param maxResults 最大返回结果数（默认 100，防止大文件扫描导致性能问题）
    * @returns 匹配结果列表
    */
   async grep(
     pattern: string,
     path: string = '/',
-    caseSensitive: boolean = false
+    caseSensitive: boolean = false,
+    maxResults: number = 100
   ): Promise<Array<{ file: string; line: string; lineNumber: number }>> {
     const normalizedPath = normalizePath(path);
     const db = getDatabase();
@@ -329,6 +331,10 @@ export class VirtualFS {
             line: line,
             lineNumber: i + 1,
           });
+          // Early termination to prevent unbounded scans on large datasets
+          if (results.length >= maxResults) {
+            return results;
+          }
         }
       }
     }
@@ -374,6 +380,9 @@ export class VirtualFS {
 
   /**
    * 推断文件类型
+   *
+   * 基于路径前缀推断文件用途，用于索引和查询。
+   * 默认返回 'index' 作为通用文档类型。
    */
   private inferFileType(path: string): FileSystemEntryType {
     if (path.startsWith('/functions/')) {
@@ -385,9 +394,11 @@ export class VirtualFS {
     if (path.startsWith('/scripts/')) {
       return 'script';
     }
+    // INDEX.md 和 AGENT.md 是索引文件
     if (path.endsWith('/INDEX.md') || path === '/AGENT.md') {
       return 'index';
     }
+    // 其他 Markdown 或文本文件归为 index（通用文档）
     return 'index';
   }
 
