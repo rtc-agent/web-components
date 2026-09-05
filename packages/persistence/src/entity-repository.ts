@@ -149,11 +149,17 @@ export class EntityRepository {
     return db.messages.where('server_id').equals(serverId).first();
   }
 
-  async listSessions(_cursor?: string, limit: number = 50): Promise<LocalSession[]> {
+  async listSessions(cursor?: string, limit: number = 50): Promise<LocalSession[]> {
     const db = getDatabase();
     const query = db.sessions.orderBy('updated_at').reverse();
-    // TODO: 实现游标分页（cursor 为上一页最后一条的 client_id）
-    return query.limit(limit).toArray();
+    const all = await query.toArray();
+    // cursor 为上一页最后一条的 client_id，从该 ID 之后开始返回
+    if (cursor) {
+      const startIdx = all.findIndex(s => s.client_id === cursor);
+      if (startIdx === -1) return all.slice(0, limit);
+      return all.slice(startIdx + 1, startIdx + 1 + limit);
+    }
+    return all.slice(0, limit);
   }
 
   // ========== Turn ==========
@@ -286,12 +292,17 @@ export class EntityRepository {
     return db.messages.get(clientId);
   }
 
-  async listMessagesBySession(sessionClientId: string, _cursor?: number, limit: number = 50): Promise<LocalMessage[]> {
+  async listMessagesBySession(sessionClientId: string, cursor?: number, limit: number = 50): Promise<LocalMessage[]> {
     const db = getDatabase();
     const query = db.messages.where('session_client_id').equals(sessionClientId);
-    // TODO: 实现基于 global_offset 的游标分页（cursor 为上一页最后一条的 global_offset）
     // 按 created_at 升序排序，确保消息按时间顺序显示
     const messages = await query.sortBy('created_at');
+    // cursor 为上一页最后一条的 global_offset，从该 offset 之后开始返回
+    if (cursor !== undefined && cursor > 0) {
+      const startIdx = messages.findIndex(m => m.global_offset > cursor);
+      if (startIdx === -1) return [];
+      return messages.slice(startIdx, startIdx + limit);
+    }
     return messages.slice(0, limit);
   }
 
@@ -429,6 +440,21 @@ export class EntityRepository {
     }
   }
 
+  /**
+   * Resolve a server session_id to the corresponding local client_id.
+   *
+   * Returns the client_id if found, or falls back to the original server_id
+   * (with a warning) if the session is not yet in the local database.
+   */
+  private async _resolveSessionClientId(serverSessionId: string, entityType: string, entityId: string): Promise<string> {
+    const session = await this.getSessionByServerId(serverSessionId);
+    if (session) {
+      return session.client_id;
+    }
+    console.warn(`[EntityRepository] ${entityType} ${entityId} references unknown session ${serverSessionId}`);
+    return serverSessionId;
+  }
+
   private async applyUpdateItem(item: UpdateItem, data: unknown): Promise<void> {
     switch (item.entity) {
       case 'session': {
@@ -451,15 +477,8 @@ export class EntityRepository {
           client_id: raw.client_id || raw.id,
         } as Partial<LocalTurn>;
         delete (mapped as Record<string, unknown>)['id'];
-        // session_id → session_client_id：查找 session 的 client_id
         if (raw.session_id) {
-          const session = await this.getSessionByServerId(raw.session_id);
-          if (session) {
-            mapped.session_client_id = session.client_id;
-          } else {
-            console.warn(`[EntityRepository] Turn ${raw.client_id || raw.id} references unknown session ${raw.session_id}`);
-            mapped.session_client_id = raw.session_id;
-          }
+          mapped.session_client_id = await this._resolveSessionClientId(raw.session_id, 'Turn', raw.client_id || raw.id);
         }
         delete (mapped as Record<string, unknown>)['session_id'];
         await this.upsertTurn(mapped, 'synced');
@@ -491,15 +510,8 @@ export class EntityRepository {
           client_id: raw.client_id || raw.id,
         } as Partial<LocalMessage>;
         delete (mapped as Record<string, unknown>)['id'];
-        // session_id → session_client_id：查找 session 的 client_id
         if (raw.session_id) {
-          const session = await this.getSessionByServerId(raw.session_id);
-          if (session) {
-            mapped.session_client_id = session.client_id;
-          } else {
-            console.warn(`[EntityRepository] Message ${raw.client_id || raw.id} references unknown session ${raw.session_id}`);
-            mapped.session_client_id = raw.session_id;
-          }
+          mapped.session_client_id = await this._resolveSessionClientId(raw.session_id, 'Message', raw.client_id || raw.id);
         }
         delete (mapped as Record<string, unknown>)['session_id'];
         // parent_message_id → parent_client_id：查找父消息的 client_id

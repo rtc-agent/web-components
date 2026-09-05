@@ -233,10 +233,16 @@ export class RTCAgentDatabase extends Dexie {
 // ========== 单例 ==========
 
 let dbInstance: RTCAgentDatabase | null = null;
+let dbInstanceName: string | null = null;
 
 export function getDatabase(databaseName?: string): RTCAgentDatabase {
-  if (!dbInstance) {
-    dbInstance = new RTCAgentDatabase(databaseName);
+  const name = databaseName ?? 'rtc-agent';
+  if (!dbInstance || dbInstanceName !== name) {
+    if (dbInstance) {
+      dbInstance.close();
+    }
+    dbInstance = new RTCAgentDatabase(name);
+    dbInstanceName = name;
   }
   return dbInstance;
 }
@@ -245,6 +251,7 @@ export async function closeDatabase(): Promise<void> {
   if (dbInstance) {
     dbInstance.close();
     dbInstance = null;
+    dbInstanceName = null;
   }
 }
 

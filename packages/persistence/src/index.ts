@@ -150,7 +150,7 @@ export class PersistenceLayer {
   }
 
   /**
-   * 列出某个会话的 RTC
+   * 列出某个会话的 RTC（按 offset 正序，cursor 为起始偏移量）
    */
   async listRtc(sessionClientId: string, cursor?: number, limit?: number): Promise<LocalRtc[]> {
     return this.entityRepository.listRtcBySession(sessionClientId, cursor, limit);
@@ -219,12 +219,17 @@ export class PersistenceLayer {
 
     // 4. 写入 message
     const now = nowRFC3339();
+    // content.data 类型为 unknown，需要序列化存储为 JSON 字符串
+    // MessageController._localMessageToUI 负责反序列化
+    const contentStr = typeof content.data === 'string'
+      ? content.data
+      : JSON.stringify(content.data);
     const msgResult = await this.entityRepository.upsertMessage(
       {
         client_id: messageClientId,
         session_client_id: session.client_id,
         role: 'user',
-        content: content.data as string,
+        content: contentStr,
         streaming_status: 'completed',
         created_at: now,
         updated_at: now,
@@ -435,7 +440,9 @@ export class PersistenceLayer {
         client_id: newMessageClientId,
         session_client_id: newSession.client_id,
         role: 'user',
-        content: content.data as string,
+        content: typeof content.data === 'string'
+          ? content.data
+          : JSON.stringify(content.data),
         streaming_status: 'completed',
         created_at: now,
         updated_at: now,
@@ -504,13 +511,17 @@ export class PersistenceLayer {
       );
 
       // fallback：确保新消息的 server_id 和 sync_status 更新
-      await this.entityRepository.upsertMessage(
-        {
-          client_id: newMessage.client_id,
-          server_id: response.result.message_ids[response.result.message_ids.length - 1], // 最后一条是新消息
-        },
-        'synced'
-      );
+      // message_ids 的最后一条对应新消息（服务端按顺序返回：复制的历史消息 + 新消息）
+      const newMessageServerId = response.result.message_ids?.[response.result.message_ids.length - 1];
+      if (newMessageServerId) {
+        await this.entityRepository.upsertMessage(
+          {
+            client_id: newMessage.client_id,
+            server_id: newMessageServerId,
+          },
+          'synced'
+        );
+      }
     } catch (err) {
       // 4. 失败时
       console.error('[PersistenceLayer] _syncForkToServer RPC failed:', err);

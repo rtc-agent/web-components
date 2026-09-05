@@ -101,12 +101,17 @@ export function isChildPath(parent: string, child: string): boolean {
  *
  * 不支持：
  * - ** 递归匹配（v1 限制，TODO: 未来版本支持）
+ *
+ * 注意：RegExp 字符类中的 `/` 必须转义为 `\/`，否则某些引擎（如 Safari
+ * 旧版本）会将 `[^/]` 中的 `/` 解析为正则字面量的结束符，导致 `*` 错误地
+ * 匹配路径分隔符，破坏目录边界隔离。同时必须转义 `+` 等 RegExp 元字符，
+ * 避免 `a+b` 被解释为"一个或多个 a 后跟 b"。
  */
 export function matchGlob(pattern: string, path: string): boolean {
   const regexStr = pattern
-    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-    .replace(/\*/g, '[^/]*')
-    .replace(/\?/g, '[^/]');
+    .replace(/[.+^${}()|[\]\\/+]/g, '\\$&')
+    .replace(/\*/g, '[^\\/]*')
+    .replace(/\?/g, '[^\\/]');
 
   const regex = new RegExp(`^${regexStr}$`);
   return regex.test(path);
