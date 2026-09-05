@@ -253,11 +253,7 @@ export class FunctionRegistry {
 
     // onStart 单独处理，CancelledError 直接抛出，不触发 onError
     if (hooks.onStart) {
-      try {
-        await hooks.onStart(params);
-      } catch (error) {
-        throw error;
-      }
+      await hooks.onStart(params);
     }
 
     // 主执行逻辑

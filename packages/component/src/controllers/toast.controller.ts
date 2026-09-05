@@ -6,7 +6,7 @@
  *
  * No context — toast state is consumed only by <rtc-toast> via root render.
  */
-import type {ReactiveControllerHost} from 'lit';
+import type {ReactiveController, ReactiveControllerHost} from 'lit';
 import type {ToastItem, ToastType} from '../components/overlay/rtc-toast.js';
 
 export type {ToastItem, ToastType} from '../components/overlay/rtc-toast.js';
@@ -16,9 +16,11 @@ export interface ToastActions {
     remove: (id: number) => void;
 }
 
-export class ToastController {
+export class ToastController implements ReactiveController {
     private _host: ReactiveControllerHost;
     private _toasts: ToastItem[] = [];
+    /** Active auto-dismiss timers, keyed by toast ID */
+    private _timers = new Map<number, ReturnType<typeof setTimeout>>();
 
     readonly actions: ToastActions;
 
@@ -36,7 +38,14 @@ export class ToastController {
     }
 
     hostConnected() {}
-    hostDisconnected() {}
+
+    hostDisconnected() {
+        // Clean up all pending timers to prevent memory leaks
+        for (const timer of this._timers.values()) {
+            clearTimeout(timer);
+        }
+        this._timers.clear();
+    }
 
     private _show(message: string, type: ToastType) {
         const id = Date.now() + Math.random();
@@ -46,11 +55,18 @@ export class ToastController {
         // error 不自动消失，其他类型自动消失
         const duration = type === 'error' ? 0 : type === 'success' ? 2000 : 2500;
         if (duration > 0) {
-            setTimeout(() => this._remove(id), duration);
+            const timer = setTimeout(() => this._remove(id), duration);
+            this._timers.set(id, timer);
         }
     }
 
     private _remove(id: number) {
+        // Clear the associated timer if it exists
+        const timer = this._timers.get(id);
+        if (timer !== undefined) {
+            clearTimeout(timer);
+            this._timers.delete(id);
+        }
         this._toasts = this._toasts.filter(t => t.id !== id);
         this._host.requestUpdate();
     }

@@ -49,7 +49,6 @@
  */
 import {LitElement, html} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
-import {unsafeHTML} from 'lit/directives/unsafe-html.js';
 import {ContextProvider} from '@lit/context';
 import {styles} from './rtc-agent.styles.js';
 import type {WindowMode, ContentData, Session} from '../../types/index.js';
@@ -795,12 +794,46 @@ export class RtcAgent extends LitElement {
 
     /* ── Render ── */
 
+    /**
+     * Sanitize and render bubble icon content.
+     *
+     * Uses DOMPurify (already loaded by rtc-message for Markdown) to strip
+     * any script/event-handler attributes, preventing XSS even if the value
+     * accidentally contains unsanitized user input.
+     */
+    private async _sanitizeBubbleIcon(raw: string): Promise<string> {
+        try {
+            const {default: DOMPurify} = await import('dompurify');
+            return DOMPurify.sanitize(raw, {ALLOWED_TAGS: ['svg', 'path', 'g', 'circle', 'rect', 'line', 'polyline', 'polygon', 'text', 'use'], ALLOWED_ATTR: ['viewBox', 'd', 'xmlns', 'fill', 'stroke', 'stroke-width', 'class', 'width', 'height', 'transform', 'cx', 'cy', 'r', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'points', 'dx', 'dy', 'text-anchor', 'font-size', 'href']});
+        } catch {
+            // DOMPurify not available — strip all tags as a safe fallback
+            const el = document.createElement('div');
+            el.textContent = raw;
+            return el.innerHTML;
+        }
+    }
+
     private _renderBubbleContent() {
         if (this.bubbleIcon) {
-            return html`<span class="bubble-icon">${unsafeHTML(this.bubbleIcon)}</span>`;
+            // Sanitize on each render — bubbleIcon is typically short and static,
+            // so the async overhead is negligible. For hot paths, cache the result.
+            return html`<span class="bubble-icon" .innerHTML=${this._sanitizedBubbleIcon}></span>`;
         }
         const letter = this.appLabel.trim()[0]?.toUpperCase() ?? 'R';
         return html`<span class="bubble-label">${letter}</span>`;
+    }
+
+    /** Cached sanitized bubble icon HTML. */
+    private _sanitizedBubbleIcon = '';
+
+    /** Recompute sanitized icon when bubbleIcon changes. */
+    willUpdate(changed: Map<string, unknown>) {
+        if (changed.has('bubbleIcon') && this.bubbleIcon) {
+            void this._sanitizeBubbleIcon(this.bubbleIcon).then(sanitized => {
+                this._sanitizedBubbleIcon = sanitized;
+                this.requestUpdate();
+            });
+        }
     }
 
     render() {

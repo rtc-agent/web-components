@@ -94,7 +94,7 @@ export class ForkController implements ReactiveController {
             return;
         }
 
-        const newSessionClientId = `session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const newSessionClientId = `session-${crypto.randomUUID()}`;
         const truncatedContent = content.length > 30 ? content.slice(0, 30) + '...' : content;
 
         this._state = {
@@ -116,7 +116,7 @@ export class ForkController implements ReactiveController {
     private async _submitFork(content: ContentData) {
         if (!this._state || !this._deps) return;
 
-        const newMessageClientId = `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const newMessageClientId = `msg-${crypto.randomUUID()}`;
 
         try {
             await this._deps.executeFork({

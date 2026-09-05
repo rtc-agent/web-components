@@ -14,6 +14,13 @@ import type {ModeContextValue} from '../contexts/mode.js';
 import {DEFAULT_MODE_STATE} from '../contexts/mode.js';
 import {STORAGE_KEYS} from '../config/auth.js';
 
+/** Valid mode values for validation of localStorage data */
+const VALID_MODES: ReadonlySet<string> = new Set(['manual', 'edit', 'plan', 'auto', 'bypass']);
+
+function isValidMode(value: string): value is Mode {
+    return VALID_MODES.has(value);
+}
+
 export class ModeController implements ReactiveController {
     host: ReactiveControllerHost;
 
@@ -43,9 +50,8 @@ export class ModeController implements ReactiveController {
     private _restoreMode() {
         try {
             const stored = localStorage.getItem(STORAGE_KEYS.mode);
-            if (stored) {
-                const mode = stored as Mode;
-                this._state = {currentMode: mode};
+            if (stored && isValidMode(stored)) {
+                this._state = {currentMode: stored};
             }
         } catch {
             // localStorage may be unavailable

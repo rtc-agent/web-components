@@ -39,6 +39,8 @@ export class AuthController implements ReactiveController {
     private _state: AuthState = {...DEFAULT_AUTH_STATE};
     private _refreshTimer?: ReturnType<typeof setTimeout>;
     private _boundVisibilityHandler?: () => void;
+    /** In-flight refresh guard — prevents concurrent refresh calls from racing. */
+    private _refreshing?: Promise<boolean>;
 
     readonly actions: {login(): void; logout(): void};
 
@@ -230,12 +232,25 @@ export class AuthController implements ReactiveController {
                 return {success: false};
             }
 
-            const data = await response.json();
-            const expiresAt = Date.now() + data.expires_in * 1000;
+            let data: Record<string, unknown>;
+            try {
+                data = await response.json();
+            } catch {
+                return {success: false};
+            }
+
+            const expiresIn = typeof data.expires_in === 'number' ? data.expires_in : 0;
+            const accessToken = typeof data.access_token === 'string' ? data.access_token : undefined;
+
+            if (!accessToken || !expiresIn) {
+                return {success: false};
+            }
+
+            const expiresAt = Date.now() + expiresIn * 1000;
 
             return {
                 success: true,
-                accessToken: data.access_token,
+                accessToken,
                 expiresAt,
             };
         } catch (error) {
@@ -250,6 +265,9 @@ export class AuthController implements ReactiveController {
      *
      * Flow: try refresh → success returns 'refresh', failure clears tokens and
      * returns 'relogin' (component will show rtc-login-page).
+     *
+     * Uses a _refreshing promise guard to prevent concurrent refresh races
+     * that could corrupt localStorage (parse-modify-write race).
      */
     async handleTokenExpired(): Promise<TokenExpiredAction> {
         if (!this._state.refreshToken) {
@@ -257,33 +275,62 @@ export class AuthController implements ReactiveController {
             return 'relogin';
         }
 
-        const result = await this._executeRefresh(this._state.refreshToken);
+        // Guard: if a refresh is already in-flight, wait for it instead of racing.
+        if (this._refreshing) {
+            const success = await this._refreshing;
+            return success ? 'refresh' : 'relogin';
+        }
+
+        this._refreshing = this._doRefresh();
+        try {
+            const success = await this._refreshing;
+            return success ? 'refresh' : 'relogin';
+        } finally {
+            this._refreshing = undefined;
+        }
+    }
+
+    /**
+     * Internal: execute the refresh flow, update state + localStorage.
+     * Returns true on success, false on failure.
+     */
+    private async _doRefresh(): Promise<boolean> {
+        const result = await this._executeRefresh(this._state.refreshToken!);
 
         if (!result.success) {
             this._logout();
             this.host.dispatchEvent(
                 new CustomEvent('rtc-auth-refresh-failed', {bubbles: true, composed: true})
             );
-            return 'relogin';
+            return false;
         }
 
         // Update state with new token
+        const newAccessToken = result.accessToken!;
+        const newExpiresAt = result.expiresAt!;
+
         this._state = {
             ...this._state,
-            accessToken: result.accessToken!,
-            expiresAt: result.expiresAt!,
+            accessToken: newAccessToken,
+            expiresAt: newExpiresAt,
         };
 
-        // Update localStorage
-        const stored = JSON.parse(localStorage.getItem(STORAGE_KEYS.tokens) || '{}');
-        stored.accessToken = result.accessToken;
-        stored.expiresAt = result.expiresAt;
+        // Update localStorage — merge with existing data to avoid overwriting
+        // fields written by other code paths (e.g. userId, refreshToken)
+        let stored: Record<string, unknown> = {};
+        try {
+            stored = JSON.parse(localStorage.getItem(STORAGE_KEYS.tokens) || '{}');
+        } catch {
+            // Corrupted data; start fresh
+        }
+        stored.accessToken = newAccessToken;
+        stored.expiresAt = newExpiresAt;
         localStorage.setItem(STORAGE_KEYS.tokens, JSON.stringify(stored));
 
         // Schedule next refresh
-        this._scheduleRefresh(result.expiresAt!);
+        this._scheduleRefresh(newExpiresAt);
         this.host.requestUpdate();
-        return 'refresh';
+        return true;
     }
 
     /** Check if refresh needed when page becomes visible */

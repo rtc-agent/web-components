@@ -51,9 +51,7 @@ export class SessionController implements ReactiveController {
 
     private _createSession() {
         // Use crypto.randomUUID() for unique IDs (avoids Date.now() collisions)
-        const clientId = typeof crypto !== 'undefined' && crypto.randomUUID
-            ? `session-${crypto.randomUUID()}`
-            : `session-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+        const clientId = `session-${crypto.randomUUID()}`;
         const newSession: Session = {
             clientId,
             title: 'New Session',

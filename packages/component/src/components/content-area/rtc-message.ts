@@ -130,7 +130,16 @@ export class RtcMessage extends LitElement {
         // Guard: if content changed while we awaited, discard this result.
         if (generation !== this._parseGeneration) return;
 
-        const rawHtml = marked.parse(content) as string;
+        // marked.parse 在异步模式下返回 Promise<string>，同步模式下返回
+        // string | undefined。我们调用时未 await，故 cast 为 string；但 DOMPurify
+        // 对 null/undefined 输入会抛出 TypeError，所以必须在此处兜底。
+        let rawHtml: string;
+        try {
+            rawHtml = (marked.parse(content) as string) ?? '';
+        } catch (err) {
+            console.error('[rtc-message] marked.parse failed:', err);
+            rawHtml = '';
+        }
 
         // Guard again — parsing is async; content may have changed during parse.
         if (generation !== this._parseGeneration) return;

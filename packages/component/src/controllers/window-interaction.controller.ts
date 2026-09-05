@@ -238,7 +238,9 @@ export class WindowInteractionController implements ReactiveController {
 
         event.preventDefault(); // Prevent page scroll
 
-        const rect = this._windowElement!.getBoundingClientRect();
+        const windowElement = this._windowElement;
+        if (!windowElement) return;
+        const rect = windowElement.getBoundingClientRect();
         const margin = this._getMargin();
         const newX = Math.max(margin, Math.min(rect.left + dx, window.innerWidth - rect.width - margin));
         const newY = Math.max(margin, Math.min(rect.top + dy, window.innerHeight - rect.height - margin));
