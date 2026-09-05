@@ -2,12 +2,12 @@
  * RTC Agent — Root Component
  *
  * The only public custom element exposed by the library. This component is a
- * pure "assembler": it creates 6 Reactive Controllers, wires each controller's
+ * pure "assembler": it creates Reactive Controllers, wires each controller's
  * value to a @lit/context provider, and renders the top-level shell UI.
  *
- * All state logic (session, message, tool call, auth, mode, window state) is
- * delegated to controllers in `src/controllers/`. This keeps the root component
- * lean and well within the 300-line limit.
+ * All state logic (session, message, tool call, auth, mode, window state,
+ * toast, fork) is delegated to controllers in `src/controllers/`. This keeps
+ * the root component lean and well within the 300-line limit.
  *
  * @element rtc-agent
  *
@@ -80,6 +80,8 @@ import {ToolCallController} from '../../controllers/tool-call.controller.js';
 import {WindowInteractionController} from '../../controllers/window-interaction.controller.js';
 import {PersistenceController} from '../../controllers/persistence.controller.js';
 import {SkillController} from '../../controllers/skill.controller.js';
+import {ToastController} from '../../controllers/toast.controller.js';
+import {ForkController} from '../../controllers/fork.controller.js';
 
 // Scenario loading
 import {loadScenariosFromURL} from '../../core/scenario-loader.js';
@@ -107,8 +109,8 @@ import '../login/rtc-login-page.js';
 import '../login/rtc-login-dialog.js';
 import '../overlay/rtc-toast.js';
 
-// Toast types
-import type {ToastItem, ToastType} from '../overlay/rtc-toast.js';
+// Toast types (re-exported from ToastController)
+import type {ToastType} from '../overlay/rtc-toast.js';
 
 // Connection state type
 import type {ConnectionState} from '@rtc-agent/client';
@@ -270,13 +272,15 @@ export class RtcAgent extends LitElement {
     private _toolCall = new ToolCallController(this);
     private _interaction = new WindowInteractionController(this);
     private _skill = new SkillController(this, {
-        onToast: (message, type) => this._showToast(message, type),
+        onToast: (message, type) => this._toast.actions.show(message, type as ToastType),
         onConfirmRequest: (requestId, _path, message) => {
             // 使用 window.confirm 作为简单 UI（SkillController 5 秒后也有 fallback）
             const confirmed = window.confirm(message);
             this._skill.respondToConfirm(requestId, confirmed);
         },
     });
+    private _toast = new ToastController(this);
+    private _fork = new ForkController(this);
 
     /* ── Internal State ── */
 
@@ -285,17 +289,6 @@ export class RtcAgent extends LitElement {
 
     /** Show login dialog */
     @state() private _showLoginDialog = false;
-
-    /** Fork 模式状态：用户从某条消息分叉，准备发送新消息创建新 session */
-    @state() private _forkState: {
-        oldSessionClientId: string;
-        oldMessageClientId: string;
-        newSessionClientId: string;
-        hintMessage: string;
-    } | null = null;
-
-    /** Toast 通知列表 */
-    @state() private _toasts: ToastItem[] = [];
 
     /** 连接状态 */
     @state() private _connectionState: ConnectionState = 'disconnected';
@@ -315,11 +308,11 @@ export class RtcAgent extends LitElement {
     private _boundOnRestore = () => this._windowState.actions.restore();
     private _boundOnLoginRequested = () => this._handleLoginRequested();
     private _boundOnNewSession = () => {
-        this._clearForkState();
+        this._fork.actions.clearFork();
         this._message.actions.clearMessages();
     };
     private _boundOnLogout = () => {
-        this._clearForkState();
+        this._fork.actions.clearFork();
         this._rtcProcessor = undefined;
         void this._persistence.disconnect();
         this._session.actions.reset();
@@ -329,9 +322,9 @@ export class RtcAgent extends LitElement {
         const detail = (e as CustomEvent).detail;
         const content: ContentData = {type: 'text', data: detail.content};
 
-        if (this._forkState) {
+        if (this._fork.isActive) {
             // Fork 模式：调用 forkSession
-            void this._handleForkSubmit(content);
+            void this._fork.actions.submitFork(content);
         } else {
             // 普通模式：调用 sendMessage
             void this._message.actions.sendMessage(content);
@@ -339,11 +332,11 @@ export class RtcAgent extends LitElement {
     };
     private _boundOnForkRequested = (e: Event) => {
         const detail = (e as CustomEvent).detail;
-        this._handleForkRequested(detail.oldMessageClientId, detail.content);
+        this._fork.actions.requestFork(detail.oldMessageClientId, detail.content);
     };
     private _boundOnKeydown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape' && this._forkState) {
-            this._clearForkState();
+        if (e.key === 'Escape' && this._fork.isActive) {
+            this._fork.actions.clearFork();
             this._inputArea?.clearValue();
         }
     };
@@ -359,6 +352,10 @@ export class RtcAgent extends LitElement {
         if (message?.clientId && message?.content) {
             void this._message.actions.resendMessage(message.clientId, message.content);
         }
+    };
+    private _boundOnToastRequested = (e: Event) => {
+        const detail = (e as CustomEvent).detail;
+        this._toast.actions.show(detail.message, detail.type);
     };
 
     /** UIUpdateBus unsubscribe reference (set in connectedCallback, cleared in disconnectedCallback). */
@@ -382,6 +379,8 @@ export class RtcAgent extends LitElement {
     get modeController() { return this._mode; }
     get toolCallController() { return this._toolCall; }
     get skillController() { return this._skill; }
+    get toastController() { return this._toast; }
+    get forkController() { return this._fork; }
 
     /* ── Component References ── */
 
@@ -412,9 +411,20 @@ export class RtcAgent extends LitElement {
 
     connectedCallback() {
         super.connectedCallback();
+
+        // Wire ForkController dependencies
+        this._fork.setDeps({
+            getCurrentSessionId: () => this._session.value.state.currentSessionId,
+            clearMessages: () => this._message.actions.clearMessages(),
+            setInputValue: (v) => this._inputArea?.setValue(v),
+            setNoticeMessage: (msg) => { if (this._noticeBar) this._noticeBar.message = msg; },
+            clearNoticeMessage: () => { if (this._noticeBar) this._noticeBar.message = ''; },
+            executeFork: (params) => this._message.actions.forkSession(params),
+        });
+
         // Cross-controller wiring: session switch -> reload messages for the new session
         this._session.onSessionSwitch = () => {
-            this._clearForkState();  // 切换 session 时清理 fork 状态
+            this._fork.actions.clearFork();  // 切换 session 时清理 fork 状态
             void this._message.reload();
             // 切换 session 时立即同步 turn count 到新 session 的值
             void this._refreshTurnCounts();
@@ -566,30 +576,6 @@ export class RtcAgent extends LitElement {
         }
     }
 
-    /** 显示 Toast 通知 */
-    private _showToast(message: string, type: ToastType = 'info') {
-        const id = Date.now() + Math.random();
-        const toast: ToastItem = {id, message, type};
-        this._toasts = [...this._toasts, toast];
-
-        // error 不自动消失，其他类型自动消失
-        const duration = type === 'error' ? 0 : type === 'success' ? 2000 : 2500;
-        if (duration > 0) {
-            setTimeout(() => this._removeToast(id), duration);
-        }
-    }
-
-    /** 移除 Toast */
-    private _removeToast(id: number) {
-        this._toasts = this._toasts.filter(t => t.id !== id);
-    }
-
-    /** Toast 事件处理器 */
-    private _boundOnToastRequested = (e: Event) => {
-        const detail = (e as CustomEvent).detail;
-        this._showToast(detail.message, detail.type);
-    };
-
     disconnectedCallback() {
         super.disconnectedCallback();
         this.removeEventListener('rtc-window-minimize', this._boundOnMinimize);
@@ -639,63 +625,8 @@ export class RtcAgent extends LitElement {
             this._interaction.value.actions.enable();
         }
 
-        // Apply window geometry to DOM (state → inline styles)
-        this._applyWindowGeometry();
-    }
-
-    /**
-     * Apply position/size state to DOM as inline styles.
-     * This is the missing "state → DOM" synchronization layer.
-     *
-     * Inline styles override CSS rules (including :host([data-mode=...])),
-     * so we must clear them when leaving 'normal' mode to let CSS take over.
-     */
-    private _applyWindowGeometry(): void {
-        const {position, size, mode} = this._windowState.value.state;
-
-        if (mode === 'normal') {
-            // Use left/top positioning (compatible with interact.js)
-            this.style.left = `${position.x}px`;
-            this.style.top = `${position.y}px`;
-            this.style.width = `${size.width}px`;
-            this.style.height = `${size.height}px`;
-            // Clear bottom/right (set by CSS defaults)
-            this.style.bottom = '';
-            this.style.right = '';
-        } else if (mode === 'minimized') {
-            // Clear inline width/height so CSS :host([data-mode='minimized']) can
-            // apply the bubble size (40×40). Inline styles would otherwise win.
-            this.style.width = '';
-            this.style.height = '';
-            this.style.minWidth = '';
-            this.style.minHeight = '';
-            // Position bubble at the bottom-right corner of the ORIGINAL window position
-            // (not the viewport's bottom-right)
-            const margin = 20;
-            const bubbleSize = parseInt(getComputedStyle(this).getPropertyValue('--rtc-bubble-size')) || 40;
-            // Use lastState to get the window position before minimization
-            const lastState = this._windowState.value.state.lastState;
-            const windowX = lastState?.position.x ?? position.x;
-            const windowY = lastState?.position.y ?? position.y;
-            const windowWidth = lastState?.size.width ?? size.width;
-            const windowHeight = lastState?.size.height ?? size.height;
-            // Calculate bottom-right corner of the original window
-            const bubbleX = windowX + windowWidth - bubbleSize - margin;
-            const bubbleY = windowY + windowHeight - bubbleSize - margin;
-            this.style.left = `${bubbleX}px`;
-            this.style.top = `${bubbleY}px`;
-            // Clear bottom/right
-            this.style.bottom = '';
-            this.style.right = '';
-        } else {
-            // 'maximized' — clear inline geometry, let CSS inset:0 take over
-            this.style.width = '';
-            this.style.height = '';
-            this.style.left = '';
-            this.style.top = '';
-            this.style.bottom = '';
-            this.style.right = '';
-        }
+        // Apply window geometry to DOM (state → inline styles) — delegated to controller
+        this._windowState.applyGeometry(this);
     }
 
     firstUpdated() {
@@ -745,7 +676,7 @@ export class RtcAgent extends LitElement {
         this._modeAnnouncement = MODE_ANNOUNCEMENTS[mode];
     }
 
-    /* ── Bubble Handlers ─ */
+    /* ── Bubble Handlers ── */
 
     private _handleBubbleClick() {
         this._windowState.actions.restore();
@@ -800,77 +731,7 @@ export class RtcAgent extends LitElement {
         this._showLoginDialog = false;
     }
 
-    /* ── Fork Session Handlers ── */
-
-    /**
-     * 用户点击消息的"分叉"按钮：准备 fork 状态，预填输入框，清空消息列表
-     */
-    private _handleForkRequested(oldMessageClientId: string, content: string) {
-        const currentSessionId = this._session.value.state.currentSessionId;
-        if (!currentSessionId) {
-            console.error('[RtcAgent] cannot fork: no current session');
-            return;
-        }
-
-        // 生成新 session 的 client_id
-        const newSessionClientId = `session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-        // 截断内容用于提示显示
-        const truncatedContent = content.length > 30 ? content.slice(0, 30) + '...' : content;
-
-        // 设置 fork 状态
-        this._forkState = {
-            oldSessionClientId: currentSessionId,
-            oldMessageClientId,
-            newSessionClientId,
-            hintMessage: `🔀 从「${truncatedContent}」分叉`,
-        };
-
-        // 立即清空消息列表（切换到"新 session 空白状态"）
-        this._message.actions.clearMessages();
-
-        // 设置输入框内容
-        this._inputArea?.setValue(content);
-
-        // 设置 notice-bar 提示
-        if (this._noticeBar) {
-            this._noticeBar.message = this._forkState.hintMessage;
-        }
-    }
-
-    /**
-     * Fork 模式下提交消息：调用 forkSession
-     */
-    private async _handleForkSubmit(content: ContentData) {
-        if (!this._forkState) return;
-
-        const newMessageClientId = `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-        try {
-            await this._message.actions.forkSession({
-                oldSessionClientId: this._forkState.oldSessionClientId,
-                oldMessageClientId: this._forkState.oldMessageClientId,
-                newSessionClientId: this._forkState.newSessionClientId,
-                newMessageClientId,
-                content,
-            });
-        } catch (err) {
-            console.error('[RtcAgent] forkSession failed:', err);
-        }
-
-        // 清理 fork 状态
-        this._clearForkState();
-    }
-
-    /**
-     * 清理 fork 状态：重置 _forkState、清空输入框、清空 notice-bar
-     */
-    private _clearForkState() {
-        this._forkState = null;
-        if (this._noticeBar) {
-            this._noticeBar.message = '';
-        }
-    }
+    /* ── Session & Turn Count ── */
 
     /**
      * 从 persistence 层读取当前 session 的 pending_turn_count / running_turn_count，
@@ -950,7 +811,7 @@ export class RtcAgent extends LitElement {
             ? html`<rtc-content-wrapper></rtc-content-wrapper>`
             : html`<rtc-login-page></rtc-login-page>`}
         </div>
-        <rtc-toast .toasts=${this._toasts}></rtc-toast>
+        <rtc-toast .toasts=${this._toast.toasts}></rtc-toast>
       </div>
       <div class="bubble"
           role="button"
