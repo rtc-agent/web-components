@@ -1,20 +1,22 @@
-import {
+import type {
   Session,
   Turn,
   Message,
   Rtc,
+  Update,
   ListSessionsResponse,
   MessageListResponse,
   TurnListResponse,
   RtcListResponse,
   GetSessionResponse,
   SendMessageResponse,
+  SendMessageRequest,
   ForkSessionResponse,
+  ForkSessionRequest,
   CloseSessionResponse,
   StopTurnResponse,
   SubmitRtcResultResponse,
   UpdateRtcStatusResponse,
-  Update, SendMessageRequest, ForkSessionRequest,
 } from '@rtc-agent/protocol';
 
 // ========== 连接状态 ==========

@@ -63,8 +63,6 @@ export class RTCAgentClient implements IRTCAgentClient {
     this.shouldReconnect = true;
     this.setConnectionState('connecting');
 
-    console.log('[RTCAgentClient] connect() → endpoint:', this.options.endpoint);
-
     this.centrifuge = new Centrifuge(this.options.endpoint, {
       getToken: async () => {
         // 检查是否需要处理 token 失效
@@ -236,11 +234,12 @@ export class RTCAgentClient implements IRTCAgentClient {
    * 保证串行执行，同时只有一个 applyUpdates 在运行。
    */
   async applyUpdates(updates: Update[]): Promise<void> {
-    // 串行化：等待上一次完成
-    const previousPromise = this.applyUpdatesQueue;
+    // 串行化：将当前任务链到上一次任务之后。
+    // 关键：必须 await previousPromise，否则并发调用会同时执行 processUpdate，
+    // 导致 offset 跳跃检测失效（两次调用看到相同的 lastOffset，都跳过 gap fill）。
+    let previousPromise = this.applyUpdatesQueue;
 
     const currentPromise = (async () => {
-      // 等待上一次完成（如果有）
       if (previousPromise) {
         await previousPromise;
       }
@@ -255,7 +254,8 @@ export class RTCAgentClient implements IRTCAgentClient {
     try {
       await currentPromise;
     } finally {
-      // 清理队列引用
+      // 清理队列引用：仅当当前任务仍是队尾时才清空，
+      // 避免清空后来者排入的任务。
       if (this.applyUpdatesQueue === currentPromise) {
         this.applyUpdatesQueue = null;
       }
