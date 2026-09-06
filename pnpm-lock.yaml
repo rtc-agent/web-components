@@ -122,6 +122,25 @@ importers:
         specifier: ^5.4.0
         version: 5.9.3
 
+  packages/worker:
+    dependencies:
+      '@rtc-agent/client':
+        specifier: workspace:*
+        version: link:../client
+      '@rtc-agent/persistence':
+        specifier: workspace:*
+        version: link:../persistence
+      '@rtc-agent/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      comlink:
+        specifier: ^4.4.2
+        version: 4.4.2
+    devDependencies:
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+
 packages:
 
   /@asamuzakjp/css-color@6.0.7:
@@ -1385,6 +1404,10 @@ packages:
       safe-buffer: 5.2.1
       to-buffer: 1.2.2
     dev: true
+
+  /comlink@4.4.2:
+    resolution: {integrity: sha512-OxGdvBmJuNKSCMO4NTl1L47VRp6xn2wG4F/2hYzB6tiCb709otOxtEYCSvK80PtjODfXXZu8ds+Nw5kVCjqd2g==}
+    dev: false
 
   /console-browserify@1.2.0:
     resolution: {integrity: sha512-ZMkYO/LkF17QvCPqM0gxw8yUzigAOZOSWSHg91FH6orS7vcEj5dVZTidN2fQ14yBSdg97RqhSNwLUXInd52OTA==}

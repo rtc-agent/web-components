@@ -1,0 +1,35 @@
+{
+  "name": "@rtc-agent/worker",
+  "version": "0.1.0",
+  "description": "RTC Agent SharedWorker：多 Tab 共享一条 WebSocket + 一个 IndexedDB",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./shared-worker": {
+      "import": "./dist/shared-worker.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@rtc-agent/client": "workspace:*",
+    "@rtc-agent/persistence": "workspace:*",
+    "@rtc-agent/protocol": "workspace:*",
+    "comlink": "^4.4.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}
