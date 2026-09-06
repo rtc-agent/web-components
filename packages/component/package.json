@@ -30,6 +30,8 @@
     "@rtc-agent/client": "workspace:*",
     "@rtc-agent/persistence": "workspace:*",
     "@rtc-agent/protocol": "workspace:*",
+    "@rtc-agent/worker": "workspace:*",
+    "comlink": "^4.4.2",
     "dompurify": "^3.4.14",
     "gsap": "^3.15.0",
     "highlight.js": "^11.12.0",

@@ -47,6 +47,12 @@ importers:
       '@rtc-agent/protocol':
         specifier: workspace:*
         version: link:../protocol
+      '@rtc-agent/worker':
+        specifier: workspace:*
+        version: link:../worker
+      comlink:
+        specifier: ^4.4.2
+        version: 4.4.2
       dompurify:
         specifier: ^3.4.14
         version: 3.4.14
