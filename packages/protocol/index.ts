@@ -53,6 +53,7 @@ export type Message = components['schemas']['Message'];
 export type ContentData = components['schemas']['ContentData'];
 export type ToolCall = components['schemas']['ToolCall'];
 export type Rtc = components['schemas']['Rtc'];
+export type TodoItem = components['schemas']['TodoItem'];
 
 // Update
 export type UpdateItem = components['schemas']['UpdateItem'];

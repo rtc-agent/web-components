@@ -157,10 +157,14 @@ export interface components {
             /** @description 会话标题 */
             title?: string;
             status: components["schemas"]["SessionStatus"];
+            /** @description 会话任务列表（对齐 Claude Code 的 TodoWrite 工具） */
+            todo_list?: components["schemas"]["TodoItem"][];
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
             updated_at: string;
+            /** @description AGENT.md 内容快照（仅创建时写入，后续只读） */
+            agent_prompt?: string;
             /**
              * Format: date-time
              * @description 关闭时间
@@ -171,6 +175,18 @@ export interface components {
              * @description 软删除时间
              */
             deleted_at?: string;
+        };
+        /** @description 任务项（对齐 Claude Code 的 TodoItem 结构） */
+        TodoItem: {
+            /** @description 任务描述（祈使句，如 "Run tests"） */
+            content: string;
+            /**
+             * @description 任务状态
+             * @enum {string}
+             */
+            status: "pending" | "in_progress" | "completed";
+            /** @description 执行中的描述（进行时，如 "Running tests"） */
+            active_form: string;
         };
         Turn: {
             id: components["schemas"]["UUID"];
@@ -369,6 +385,8 @@ export interface components {
             content_data: components["schemas"]["ContentData"];
             /** @description 客户端生成的幂等 ID */
             client_id: string;
+            /** @description AGENT.md 内容快照，创建 session 时写入，后续每轮通过 attachment 注入 LLM 上下文 */
+            agent_prompt?: string;
         };
         SendMessageResult: {
             session_id: components["schemas"]["UUID"];
