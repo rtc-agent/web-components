@@ -174,7 +174,7 @@ export class WorkerBridge {
         this._initialized = false;
     }
 
-    // ========== 连接状态监听（替代 Worker 模式下的 getClient()） ==========
+    // ========== 连接状态监听 ==========
 
     /**
      * 获取 Worker 中 RTCAgentClient 的当前连接状态
@@ -188,7 +188,6 @@ export class WorkerBridge {
     /**
      * 监听连接状态变更
      *
-     * Worker 模式下的替代方案：替代直接模式的 `client.on('connection', cb)`。
      * 返回取消监听的函数。
      */
     onConnectionStateChange(listener: (event: ConnectionStateEvent) => void): () => void {
@@ -203,17 +202,16 @@ export class WorkerBridge {
     /**
      * 将主线程的 virtualFS 单例方法替换为 Comlink 代理
      *
-     * Worker 模式下主线程不可直接访问 IndexedDB。
+     * 主线程不可直接访问 IndexedDB。
      * 替换后，所有通过 virtualFS 发起的操作（工具执行、script 读取、
      * function-registry 写文档、scenario-loader 等）都会自动路由到 Worker。
      *
      * 注意：virtualFS 是模块级单例，替换是全局性的。
-     * 仅在 Worker 模式下调用，直接模式保持原样。
      */
     installVirtualFSProxy(): void {
         const core = this._core;
 
-        // 保存原始实现，以备恢复（目前 Worker 模式单向切换，暂不需要恢复）
+        // 保存原始实现，以备恢复（目前单向切换，暂不需要恢复）
         // const original = { ...virtualFS };
 
         virtualFS.read = ((path: string, offset?: number, limit?: number) =>

@@ -49,7 +49,7 @@ sharedSelf.onconnect = (e: MessageEvent): void => {
     close: () => core.close(),
     flushAll: () => core.flushAll(),
 
-    // Worker 模式额外能力
+    // 额外能力
     initializeVirtualFS: (...args: Parameters<WorkerCore['initializeVirtualFS']>) => core.initializeVirtualFS(...args),
     batchWriteFiles: (...args: Parameters<WorkerCore['batchWriteFiles']>) => core.batchWriteFiles(...args),
     resetOffset: () => core.resetOffset(),

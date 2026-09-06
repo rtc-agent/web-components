@@ -342,7 +342,7 @@ export class MessageController implements ReactiveController {
      * 获取当前 session 的用户消息历史（用于输入框上下箭头导航）
      *
      * 返回纯文本内容数组，按时间倒序（最新消息在前）。
-     * 通过 PersistenceLayer 查询，兼容直接模式和 Worker 模式。
+     * 通过 PersistenceLayer 查询。
      */
     async getUserMessageHistory(sessionId: string, limit = 200): Promise<string[]> {
         if (!this._persistence) return [];

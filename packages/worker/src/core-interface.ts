@@ -83,12 +83,12 @@ export interface WorkerPersistenceCore {
   close(): Promise<void>;
   flushAll(): Promise<void>;
 
-  // ========== Worker 模式额外能力 ==========
+  // ========== 额外能力 ==========
 
   /**
    * 初始化虚拟文件系统（AGENT.md）
    *
-   * Worker 模式下 virtualFS 运行在 Worker 内（共享同一 IndexedDB），
+   * VirtualFS 运行在 Worker 内（共享同一 IndexedDB），
    * 因此需要通过 Comlink 调用，而非在主线程直接调用 initializeVirtualFS。
    */
   initializeVirtualFS(config?: AgentMdConfig): Promise<void>;
@@ -96,7 +96,7 @@ export interface WorkerPersistenceCore {
   /**
    * 批量写入虚拟文件系统
    *
-   * Worker 模式下主线程无法直接访问 Worker 内的 VirtualFS/IndexedDB，
+   * 主线程无法直接访问 Worker 内的 VirtualFS/IndexedDB，
    * 通过此方法将文件内容发送到 Worker 内写入。
    */
   batchWriteFiles(files: Array<{
@@ -112,7 +112,7 @@ export interface WorkerPersistenceCore {
   /**
    * 重置 OffsetManager 缓存（等价于 getOffsetManager().reset()）
    *
-   * Worker 模式下主线程无法访问 Worker 内的 OffsetManager，
+   * 主线程无法访问 Worker 内的 OffsetManager，
    * 通过此方法透传 reset 调用。
    */
   resetOffset(): Promise<void>;
@@ -122,7 +122,7 @@ export interface WorkerPersistenceCore {
   /**
    * 读取虚拟文件（Worker 内执行 getDatabase + 读取）
    *
-   * Worker 模式下主线程不可直接访问 IndexedDB，
+   * 主线程不可直接访问 IndexedDB，
    * 通过此方法将 virtualFS.read 调用代理到 Worker。
    */
   virtualFSRead(path: string, offset?: number, limit?: number): Promise<string>;

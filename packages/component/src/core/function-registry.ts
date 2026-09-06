@@ -229,7 +229,7 @@ export class FunctionRegistry {
    * 解决时序问题：register() 在数据库初始化前调用时，文档写入会失败。
    * 数据库初始化完成后，调用此方法重新生成所有文档。
    *
-   * Worker 模式下应使用 generateAllDocsContent() + WorkerBridge.batchWriteFiles()
+   * 应使用 generateAllDocsContent() + WorkerBridge.batchWriteFiles()
    */
   async regenerateAllDocs(): Promise<void> {
     try {
@@ -261,7 +261,7 @@ export class FunctionRegistry {
   /**
    * 生成所有文档内容（不写入 VirtualFS）
    *
-   * Worker 模式下使用：主线程生成内容，通过 WorkerBridge.batchWriteFiles() 发送到 Worker 写入。
+   * 使用方式：主线程生成内容，通过 WorkerBridge.batchWriteFiles() 发送到 Worker 写入。
    *
    * @param scenarioCount scenario 数量（用于生成 AGENT.md）
    * @returns 文件路径和内容数组

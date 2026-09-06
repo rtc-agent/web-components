@@ -532,8 +532,7 @@ export class RtcAgent extends LitElement {
                 }
             } else if (event.entity === 'rtc') {
                 // RTC 更新：仅 Master Tab 触发 RtcProcessor 处理循环
-                // （Worker 模式下 masterLock 存在且 isMaster=false 时跳过；
-                // 直接模式下 masterLock 为 undefined，始终处理）
+                // masterLock 存在且 isMaster=false 时跳过
                 if (this._persistence.masterLock?.isMaster === false) {
                     return;
                 }
@@ -642,8 +641,7 @@ export class RtcAgent extends LitElement {
     /**
      * 设置连接状态监听
      *
-     * 使用 PersistenceController 的统一接口，兼容直接模式和 Worker 模式。
-     * Worker 模式下不再调用 getClient()（会抛异常），改为通过 WorkerBridge 广播获取。
+     * 通过 PersistenceController.onConnectionStateChange 获取连接状态变更事件。
      */
     private async _setupConnectionListener() {
         this._unsubConnection?.();
@@ -891,7 +889,7 @@ export class RtcAgent extends LitElement {
      * 初始化 RTC 处理器并恢复未完成的任务
      *
      * 抽取为私有方法，避免 connectedCallback 与 _handleLoginComplete 重复。
-     * Worker 模式下自动注入 MasterLock，并在升级为 Master 时触发 processLoop。
+     * 自动注入 MasterLock，并在升级为 Master 时触发 processLoop。
      */
     private async _initRtcProcessor(): Promise<void> {
         if (!this._persistence.layer) return;
@@ -900,7 +898,7 @@ export class RtcAgent extends LitElement {
         this._rtcProcessor.setConfirmDialog((rtc) => this._showToolConfirm(rtc));
         this._rtcProcessor.setMode(this._mode.value.state.currentMode);
 
-        // Worker 模式下注入 MasterLock
+        // 注入 MasterLock
         const masterLock = this._persistence.masterLock;
         if (masterLock) {
             this._rtcProcessor.setMaster(masterLock);

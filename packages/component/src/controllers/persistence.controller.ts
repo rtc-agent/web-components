@@ -4,14 +4,10 @@
  * Manages the PersistenceLayer lifecycle: creates it lazily, connects when
  * auth succeeds, disconnects on logout or host teardown.
  *
- * Supports two modes:
- * - Direct mode (default): creates PersistenceLayer in main thread
- * - Worker mode (useSharedWorker=true): creates SharedWorker + Comlink bridge,
- *   exposes a PersistenceLayer-compatible adapter
- *
- * Phase 3 additions:
- * - MasterLock: Master Tab election via Web Locks API (Worker mode only)
- * - Connection state bridge: unified API for both modes
+ * Uses SharedWorker + Comlink architecture:
+ * - SharedWorker hosts PersistenceLayer, Centrifuge WebSocket, IndexedDB
+ * - Comlink bridge exposes a PersistenceLayer-compatible adapter (WorkerPersistenceAdapter)
+ * - MasterLock: Master Tab election via Web Locks API
  *
  * Corresponds to: no context (infrastructure concern, not UI state).
  * Provided by: `<rtc-agent>` (root)
@@ -40,7 +36,7 @@ import {MasterLock} from '../master-lock.js';
  * 将 WorkerPersistenceAdapter 断言为 PersistenceLayer
  *
  * WorkerPersistenceAdapter 结构上匹配 PersistenceLayer，但以下方法语义不同：
- * - getClient(): throws（Worker 模式下用 PersistenceController.onConnectionStateChange 替代）
+ * - getClient(): throws（用 PersistenceController.onConnectionStateChange 替代）
  * - getEntityRepository(): throws（当前无调用方）
  * - getOffsetManager(): 返回仅含 reset() 的 shim
  *
@@ -52,14 +48,13 @@ function _asPersistenceLayer(adapter: WorkerPersistenceAdapter): PersistenceLaye
 }
 
 /**
- * Worker 模式下的 PersistenceLayer 适配器
+ * PersistenceLayer 的 Worker 适配器
  *
- * 实现 PersistenceLayer 的公共接口，内部通过 Comlink 代理转发到 Worker。
- * 使根组件代码无需修改即可在两种模式间切换。
+ * 实现 PersistenceLayer 的公共接口，内部通过 Comlink 代理转发到 SharedWorker。
  *
- * 注意：getClient() / getOffsetManager() / getEntityRepository() 在 Worker 模式下
- * 无法直接工作（这些对象在 Worker 内部），调用时会抛出错误。
- * 这是 Phase 2 的已知限制，后续阶段会通过 Worker 广播连接状态来解决。
+ * 注意：getClient() / getOffsetManager() / getEntityRepository() 无法直接工作
+ * （这些对象在 Worker 内部），调用时会抛出错误。
+ * 连接状态已通过 PersistenceController.onConnectionStateChange 统一接口解决。
  */
 class WorkerPersistenceAdapter {
     private _core: Remote<WorkerPersistenceCore>;
@@ -166,7 +161,7 @@ class WorkerPersistenceAdapter {
     }
 
     /**
-     * 初始化虚拟文件系统（Worker 模式）
+     * 初始化虚拟文件系统
      *
      * virtualFS 在 Worker 内共享同一 IndexedDB，通过 Comlink 透传调用。
      */
@@ -174,32 +169,22 @@ class WorkerPersistenceAdapter {
         await this._core.initializeVirtualFS(config ?? {});
     }
 
-    // ========== Worker 模式下受限的方法 ==========
+    // ========== 受限的方法 ==========
 
     /**
-     * TODO(Phase 3): Worker 模式下需要通过 Worker 广播连接状态事件来替代直接访问 RTCAgentClient。
-     * 当前根组件的 `_setupConnectionListener()` 会调用 getClient()，
-     * 在 Worker 模式下会抛出错误。需要：
-     * 1. WorkerCore 暴露连接状态变更事件
-     * 2. WorkerBridge 桥接该事件到主线程
-     * 3. 根组件根据模式选择监听方式
-     *
-     * @throws Worker 模式下不支持直接访问 RTCAgentClient
+     * @throws 不支持直接访问 RTCAgentClient，使用 PersistenceController.onConnectionStateChange 替代
      */
     getClient(): never {
         throw new Error(
-            '[WorkerPersistenceAdapter] getClient() is not available in Worker mode. ' +
-            'TODO(Phase 3): Worker should broadcast connection state events instead.',
+            '[WorkerPersistenceAdapter] getClient() is not available. ' +
+            'Use PersistenceController.onConnectionStateChange() instead.',
         );
     }
 
     /**
-     * Worker 模式下返回一个 shim 对象，仅支持 reset() 操作。
+     * 返回一个 shim 对象，仅支持 reset() 操作。
      *
      * reset() 通过 Comlink 透传到 Worker 内的 getOffsetManager().reset()。
-     * 其他方法调用会抛出错误。
-     *
-     * TODO(Phase 6): 如果未来需要访问 OffsetManager 的其他方法，扩展此 shim。
      */
     getOffsetManager(): { reset: () => Promise<void> } {
         return {
@@ -208,16 +193,11 @@ class WorkerPersistenceAdapter {
     }
 
     /**
-     * TODO(Phase 3+): 如果根组件需要在 Worker 模式下访问 EntityRepository，
-     * 需要通过 Worker 暴露相关方法。当前根组件不直接调用此方法，
-     * 但如果未来有需要，需要 Worker 侧支持。
-     *
-     * @throws Worker 模式下不支持直接访问 EntityRepository
+     * @throws 不支持直接访问 EntityRepository
      */
     getEntityRepository(): never {
         throw new Error(
-            '[WorkerPersistenceAdapter] getEntityRepository() is not available in Worker mode. ' +
-            'TODO(Phase 3+): Expose entity repository methods via Worker if needed.',
+            '[WorkerPersistenceAdapter] getEntityRepository() is not available.',
         );
     }
 }
@@ -244,14 +224,14 @@ export class PersistenceController implements ReactiveController {
     }
 
     /**
-     * Get the WorkerBridge instance (only available in Worker mode).
+     * Get the WorkerBridge instance.
      */
     get workerBridge(): WorkerBridge | undefined {
         return this._workerBridge;
     }
 
     /**
-     * Get the MasterLock instance (only available in Worker mode).
+     * Get the MasterLock instance.
      *
      * MasterLock 封装 Web Locks API，用于 Master Tab 选举。
      * 每个 Tab 各自持有一个 MasterLock，自己判断是否为 Master。
@@ -313,7 +293,7 @@ export class PersistenceController implements ReactiveController {
     }
 
     /**
-     * Worker mode: create SharedWorker + Comlink bridge.
+     * Create SharedWorker + Comlink bridge.
      *
      * The WorkerPersistenceAdapter wraps the Comlink proxy, presenting a
      * PersistenceLayer-compatible interface to the rest of the application.
@@ -336,7 +316,7 @@ export class PersistenceController implements ReactiveController {
         await this._workerBridge.init(workerConfig);
 
         // 将主线程的 virtualFS 方法替换为 Comlink 代理
-        // Worker 模式下主线程不可直接访问 IndexedDB，
+        // 主线程不可直接访问 IndexedDB，
         // 所有 virtualFS 操作（工具执行、script 读取等）自动路由到 Worker
         this._workerBridge.installVirtualFSProxy();
 
@@ -365,18 +345,17 @@ export class PersistenceController implements ReactiveController {
     /**
      * Disconnect and tear down the PersistenceLayer.
      *
-     * 统一两种模式的生命周期：
-     * - 都先 reset offset，再 close layer
-     * - Worker 模式额外释放 MasterLock + 销毁 WorkerBridge
+     * - 先 reset offset，再 close layer
+     * - 额外释放 MasterLock + 销毁 WorkerBridge
      *
      * Call this on logout or when auth is lost.
      */
     async disconnect(): Promise<void> {
         if (this._layer) {
             try {
-                // 重置 offset（Worker 模式通过 adapter shim 透传到 core.resetOffset()）
+                // 重置 offset（通过 adapter shim 透传到 core.resetOffset()）
                 await this._layer.getOffsetManager().reset();
-                // 关闭 WS + DB（Worker 模式通过 adapter 委托到 core.close()）
+                // 关闭 WS + DB（通过 adapter 委托到 core.close()）
                 await this._layer.close();
             } catch (err) {
                 console.error('[PersistenceController] disconnect error:', err);
@@ -384,7 +363,7 @@ export class PersistenceController implements ReactiveController {
             this._layer = undefined;
         }
 
-        // Worker 模式额外清理
+        // 额外清理
         if (this._workerBridge) {
             this._masterLock?.release();
             this._masterLock = undefined;

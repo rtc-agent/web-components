@@ -330,7 +330,7 @@ export class WorkerCore implements WorkerPersistenceCore {
    * 订阅 RTCAgentClient 连接状态变更
    *
    * connect() 后调用，将连接状态变更广播给所有注册的 Tab 回调。
-   * 替代 Worker 模式下主线程无法直接访问 getClient() 的问题。
+   * 替代 主线程无法直接访问 getClient() 的问题。
    */
   private _subscribeConnectionState(layer: PersistenceLayer): void {
     this._unsubscribeConnectionState();

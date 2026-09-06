@@ -218,7 +218,7 @@ export async function loadScenariosFromURL(baseURL: string, timeoutMs: number = 
 /**
  * 从 URL 加载 Scenarios 内容（不写入 VirtualFS）
  *
- * Worker 模式下使用：主线程获取内容，通过 WorkerBridge.batchWriteFiles() 发送到 Worker 写入。
+ * 使用方式：主线程获取内容，通过 WorkerBridge.batchWriteFiles() 发送到 Worker 写入。
  *
  * @param baseURL Scenario 文件的基础 URL
  * @param timeoutMs 每个请求的超时时间

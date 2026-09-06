@@ -35,7 +35,7 @@ export interface MasterLike {
  * - 根据权限模式决定是否需要用户确认
  * - confirmDialog 由外部注入（component 层实现）
  * - 可选注入 MasterLike：多 Tab 场景下仅 Master Tab 执行工具
- *   （直接模式下无需注入，视为永远是 Master）
+ *   （未注入时视为永远是 Master）
  */
 export class RtcProcessor {
   private persistence: PersistenceLayer;
@@ -73,7 +73,7 @@ export class RtcProcessor {
    * 设置 Master 资格判断
    *
    * 多 Tab 场景下由 component 层注入 MasterLock。
-   * 不设置时视为"永远是 Master"（兼容直接模式）。
+   * 不设置时视为"永远是 Master"。
    */
   setMaster(master: MasterLike | undefined): void {
     this.master = master;
@@ -82,7 +82,7 @@ export class RtcProcessor {
   /**
    * 判断当前 Tab 是否允许执行 RTC
    *
-   * - 未注入 master → 视为 Master（直接模式兼容）
+   * - 未注入 master → 视为 Master
    * - 已注入 master → 按 master.isMaster 判断
    */
   private _isMasterAllowed(): boolean {
