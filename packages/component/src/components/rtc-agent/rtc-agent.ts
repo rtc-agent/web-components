@@ -83,7 +83,7 @@ import {ToastController} from '../../controllers/toast.controller.js';
 import {ForkController} from '../../controllers/fork.controller.js';
 
 // Scenario loading
-import {loadScenariosFromURL, loadScenariosContent} from '../../core/scenario-loader.js';
+import {loadScenariosContent} from '../../core/scenario-loader.js';
 import {defineRegistry} from '../../core/function-registry.js';
 import type {FunctionRegistry} from '../../core/function-registry.js';
 
@@ -96,7 +96,7 @@ import type {AgentConfig} from '../../types/agent-config.js';
 import '../../types/events.js';
 
 // UIUpdateBus (persistence-layer singleton for driving UI refreshes)
-import {getUIUpdateBus, RtcProcessor, initializeVirtualFS} from '@rtc-agent/persistence';
+import {getUIUpdateBus, RtcProcessor} from '@rtc-agent/persistence';
 import type {LocalRtc} from '@rtc-agent/persistence';
 
 // Tool confirm dialog
@@ -180,12 +180,8 @@ export class RtcAgent extends LitElement {
         if (!registry) return;
 
         try {
-            if (this._persistence.isWorkerMode && this._persistence.workerBridge) {
-                const files = registry.generateAllDocsContent(0);
-                await this._persistence.workerBridge!.core.batchWriteFiles(files);
-            } else if (typeof registry.regenerateAllDocs === 'function') {
-                await registry.regenerateAllDocs();
-            }
+            const files = registry.generateAllDocsContent(0);
+            await this._persistence.workerBridge!.core.batchWriteFiles(files);
 
             // 如果 scenariosURL 已设置但 scenarios 还未加载，现在加载
             if (this._scenariosURL) {
@@ -263,40 +259,13 @@ export class RtcAgent extends LitElement {
     /**
      * 加载 scenarios 到 VirtualFS
      *
-     * 根据模式选择直接写入或通过 WorkerBridge 写入
+     * 通过 WorkerBridge 写入 Worker 内的 VirtualFS
      */
     private async _loadScenarios(baseURL: string): Promise<void> {
-        if (this._persistence.isWorkerMode && this._persistence.workerBridge) {
-            const files = await loadScenariosContent(baseURL);
-            await this._persistence.workerBridge!.core.batchWriteFiles(files);
-            console.log(`[rtc-agent] Loaded ${files.length} scenarios from ${baseURL}`);
-        } else {
-            const count = await loadScenariosFromURL(baseURL);
-            console.log(`[rtc-agent] Loaded ${count} scenarios from ${baseURL}`);
-        }
+        const files = await loadScenariosContent(baseURL);
+        await this._persistence.workerBridge!.core.batchWriteFiles(files);
+        console.log(`[rtc-agent] Loaded ${files.length} scenarios from ${baseURL}`);
     }
-
-    /**
-     * 启用 SharedWorker 模式（可选，默认关闭）
-     *
-     * 设置后多 Tab 共享同一 WebSocket 连接、IndexedDB、工具执行。
-     * 仅 Master Tab 执行 RTC 工具调用（proposal §4.2）。
-     *
-     * @example
-     * <rtc-agent shared-worker></rtc-agent>
-     *
-     * @see docs/shared-worker-proposal.md
-     */
-    @property({type: Boolean, attribute: 'shared-worker'})
-    set sharedWorker(value: boolean) {
-        this._sharedWorker = value;
-        // 同步到 PersistenceController（必须在 connect() 之前）
-        this._persistence.setUseSharedWorker(value);
-    }
-    get sharedWorker(): boolean {
-        return this._sharedWorker;
-    }
-    private _sharedWorker = false;
 
     /**
      * 基于 AgentConfig 构建 FunctionRegistry（内部使用）
@@ -490,10 +459,6 @@ export class RtcAgent extends LitElement {
     connectedCallback() {
         super.connectedCallback();
 
-        // 将 shared-worker attribute 同步到 PersistenceController
-        // 必须在任何 connect() 调用之前
-        this._persistence.setUseSharedWorker(this.sharedWorker);
-
         // Wire ForkController dependencies
         this._fork.setDeps({
             getCurrentSessionId: () => this._session.value.state.currentSessionId,
@@ -598,47 +563,30 @@ export class RtcAgent extends LitElement {
                     this._message.persistence = this._persistence.layer;
 
                     // 初始化虚拟文件系统（AGENT.md）
-                    // Worker 模式下通过 WorkerBridge 调用 Worker 内的 VirtualFS
-                    if (this._persistence.isWorkerMode && this._persistence.workerBridge) {
-                        await this._persistence.workerBridge.core.initializeVirtualFS();
+                    await this._persistence.workerBridge!.core.initializeVirtualFS();
 
-                        // Worker 模式下：主线程生成文档内容，通过 batchWriteFiles 发送到 Worker
-                        const registry = this._skill.actions.getRegistry();
-                        console.log('[rtc-agent] After connect, registry:', registry ? 'set' : 'null');
-                        console.log('[rtc-agent] registry constructor:', registry?.constructor?.name);
-                        console.log('[rtc-agent] registry methods:', registry ? Object.getOwnPropertyNames(Object.getPrototypeOf(registry)).filter(n => typeof (registry as any)[n] === 'function').slice(0, 10) : 'N/A');
-                        if (registry && typeof registry.generateAllDocsContent === 'function') {
-                            const files = registry.generateAllDocsContent(0);
-                            console.log('[rtc-agent] Generated docs files:', files.length);
-                            if (files.length > 0) {
-                                await this._persistence.workerBridge.core.batchWriteFiles(files);
-                                console.log('[rtc-agent] batchWriteFiles completed');
-                            }
-                        } else {
-                            console.warn('[rtc-agent] generateAllDocsContent is not a function on registry');
+                    // 主线程生成文档内容，通过 batchWriteFiles 发送到 Worker
+                    const registry = this._skill.actions.getRegistry();
+                    console.log('[rtc-agent] After connect, registry:', registry ? 'set' : 'null');
+                    console.log('[rtc-agent] registry constructor:', registry?.constructor?.name);
+                    console.log('[rtc-agent] registry methods:', registry ? Object.getOwnPropertyNames(Object.getPrototypeOf(registry)).filter(n => typeof (registry as any)[n] === 'function').slice(0, 10) : 'N/A');
+                    if (registry && typeof registry.generateAllDocsContent === 'function') {
+                        const files = registry.generateAllDocsContent(0);
+                        console.log('[rtc-agent] Generated docs files:', files.length);
+                        if (files.length > 0) {
+                            await this._persistence.workerBridge!.core.batchWriteFiles(files);
+                            console.log('[rtc-agent] batchWriteFiles completed');
                         }
                     } else {
-                        await initializeVirtualFS();
-
-                        // 直接模式：重新生成所有已注册 functions 的文档
-                        const registry = this._skill.actions.getRegistry();
-                        if (registry && typeof registry.regenerateAllDocs === 'function') {
-                            await registry.regenerateAllDocs();
-                        }
+                        console.warn('[rtc-agent] generateAllDocsContent is not a function on registry');
                     }
 
                     // 重新加载 scenarios（如果在数据库初始化前设置过 scenariosURL）
                     if (this._scenariosURL) {
                         try {
-                            if (this._persistence.isWorkerMode && this._persistence.workerBridge) {
-                                // Worker 模式：获取内容后发送到 Worker 写入
-                                const files = await loadScenariosContent(this._scenariosURL);
-                                await this._persistence.workerBridge.core.batchWriteFiles(files);
-                                console.log(`[rtc-agent] Re-loaded ${files.length} scenarios from ${this._scenariosURL}`);
-                            } else {
-                                const count = await loadScenariosFromURL(this._scenariosURL);
-                                console.log(`[rtc-agent] Re-loaded ${count} scenarios from ${this._scenariosURL}`);
-                            }
+                            const files = await loadScenariosContent(this._scenariosURL);
+                            await this._persistence.workerBridge!.core.batchWriteFiles(files);
+                            console.log(`[rtc-agent] Re-loaded ${files.length} scenarios from ${this._scenariosURL}`);
                         } catch (err) {
                             console.warn(`[rtc-agent] Failed to re-load scenarios from ${this._scenariosURL}:`, err);
                         }
@@ -845,38 +793,21 @@ export class RtcAgent extends LitElement {
                 this._message.persistence = this._persistence.layer;
 
                 // 初始化虚拟文件系统（AGENT.md）
-                // Worker 模式下通过 WorkerBridge 调用 Worker 内的 VirtualFS
-                if (this._persistence.isWorkerMode && this._persistence.workerBridge) {
-                    await this._persistence.workerBridge.core.initializeVirtualFS();
+                await this._persistence.workerBridge!.core.initializeVirtualFS();
 
-                    // Worker 模式下：主线程生成文档内容，通过 batchWriteFiles 发送到 Worker
-                    const registry = this._skill.actions.getRegistry();
-                    if (registry && typeof registry.generateAllDocsContent === 'function') {
-                        const files = registry.generateAllDocsContent(0);
-                        await this._persistence.workerBridge.core.batchWriteFiles(files);
-                    }
-                } else {
-                    await initializeVirtualFS();
-
-                    // 直接模式：重新生成所有已注册 functions 的文档
-                    const registry = this._skill.actions.getRegistry();
-                    if (registry && typeof registry.regenerateAllDocs === 'function') {
-                        await registry.regenerateAllDocs();
-                    }
+                // 主线程生成文档内容，通过 batchWriteFiles 发送到 Worker
+                const registry = this._skill.actions.getRegistry();
+                if (registry && typeof registry.generateAllDocsContent === 'function') {
+                    const files = registry.generateAllDocsContent(0);
+                    await this._persistence.workerBridge!.core.batchWriteFiles(files);
                 }
 
                 // 重新加载 scenarios（如果在数据库初始化前设置过 scenariosURL）
                 if (this._scenariosURL) {
                     try {
-                        if (this._persistence.isWorkerMode && this._persistence.workerBridge) {
-                            // Worker 模式：获取内容后发送到 Worker 写入
-                            const files = await loadScenariosContent(this._scenariosURL);
-                            await this._persistence.workerBridge.core.batchWriteFiles(files);
-                            console.log(`[rtc-agent] Re-loaded ${files.length} scenarios from ${this._scenariosURL}`);
-                        } else {
-                            const count = await loadScenariosFromURL(this._scenariosURL);
-                            console.log(`[rtc-agent] Re-loaded ${count} scenarios from ${this._scenariosURL}`);
-                        }
+                        const files = await loadScenariosContent(this._scenariosURL);
+                        await this._persistence.workerBridge!.core.batchWriteFiles(files);
+                        console.log(`[rtc-agent] Re-loaded ${files.length} scenarios from ${this._scenariosURL}`);
                     } catch (err) {
                         console.warn(`[rtc-agent] Failed to re-load scenarios from ${this._scenariosURL}:`, err);
                     }

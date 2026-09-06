@@ -32,6 +32,16 @@ const agent = document.querySelector<RtcAgent>('rtc-agent')!;
 ></rtc-agent>
 ```
 
+### 架构
+
+RTC Agent 使用 SharedWorker + Comlink 架构实现多 Tab 共享：
+
+- 单 WebSocket 连接（SharedWorker 内）
+- 共享 IndexedDB 存储
+- Master Tab 选举（Web Locks API）
+
+详细设计见 [docs/shared-worker-proposal.md](../../docs/shared-worker-proposal.md)。
+
 ### 公开属性
 
 | 属性 | 类型 | 默认值 | 说明 |

@@ -20,8 +20,8 @@
 import type {ReactiveController} from 'lit';
 import type {Remote} from 'comlink';
 import {
-    createPersistenceLayer,
     type PersistenceLayer,
+    type PersistenceConfig,
     type LocalSession,
     type LocalMessage,
     type LocalRtc,
@@ -33,7 +33,6 @@ import type {WorkerPersistenceCore} from '@rtc-agent/worker';
 import type {AuthController} from './auth.controller.js';
 import {AUTH_CONFIG} from '../config/auth.js';
 import {getOrCreateDeviceId} from '../utils/device.js';
-import {WORKER_CONFIG} from '../config/worker.js';
 import {WorkerBridge} from '../worker-bridge.js';
 import {MasterLock} from '../master-lock.js';
 
@@ -228,29 +227,10 @@ export class PersistenceController implements ReactiveController {
     private _auth: AuthController;
     private _workerBridge?: WorkerBridge;
     private _masterLock?: MasterLock;
-    /** Worker 模式下是否使用 Worker 桥接（用于区分连接状态获取方式） */
-    private _isWorkerMode = false;
-    /**
-     * 实例级 Worker 模式开关
-     *
-     * 优先级：setUseSharedWorker() > WORKER_CONFIG.useSharedWorker
-     * 由 rtc-agent 在 connectedCallback 中根据 shared-worker attribute 设置
-     */
-    private _useSharedWorker?: boolean;
 
     constructor(host: {addController(c: ReactiveController): void}, auth: AuthController) {
         this._auth = auth;
         host.addController(this);
-    }
-
-    /**
-     * 显式开启/关闭 SharedWorker 模式
-     *
-     * 必须在 connect() 之前调用。覆盖全局 WORKER_CONFIG.useSharedWorker。
-     * rtc-agent 根据 `<rtc-agent shared-worker>` attribute 自动调用。
-     */
-    setUseSharedWorker(value: boolean): void {
-        this._useSharedWorker = value;
     }
 
     /** The PersistenceLayer instance. Only available after connect(). */
@@ -268,13 +248,6 @@ export class PersistenceController implements ReactiveController {
      */
     get workerBridge(): WorkerBridge | undefined {
         return this._workerBridge;
-    }
-
-    /**
-     * Whether the persistence layer is in Worker mode.
-     */
-    get isWorkerMode(): boolean {
-        return this._isWorkerMode;
     }
 
     /**
@@ -301,8 +274,9 @@ export class PersistenceController implements ReactiveController {
     /**
      * Create the PersistenceLayer and connect.
      *
-     * In direct mode (default): creates PersistenceLayer in main thread.
-     * In Worker mode (useSharedWorker=true): creates SharedWorker + Comlink bridge.
+     * Creates SharedWorker + Comlink bridge.
+     * The WorkerPersistenceAdapter wraps the Comlink proxy, presenting a
+     * PersistenceLayer-compatible interface to the rest of the application.
      *
      * Call this after auth succeeds (tokens are set in AuthController).
      * Safe to call multiple times — subsequent calls are no-ops.
@@ -335,20 +309,7 @@ export class PersistenceController implements ReactiveController {
             },
         };
 
-        if (this._useSharedWorker ?? WORKER_CONFIG.useSharedWorker) {
-            await this._connectWorker(config);
-        } else {
-            await this._connectDirect(config);
-        }
-    }
-
-    /**
-     * Direct mode: create PersistenceLayer in main thread.
-     */
-    private async _connectDirect(config: Parameters<typeof createPersistenceLayer>[0]): Promise<void> {
-        this._isWorkerMode = false;
-        this._layer = createPersistenceLayer(config);
-        await this._layer.connect();
+        await this._connectWorker(config);
     }
 
     /**
@@ -357,9 +318,7 @@ export class PersistenceController implements ReactiveController {
      * The WorkerPersistenceAdapter wraps the Comlink proxy, presenting a
      * PersistenceLayer-compatible interface to the rest of the application.
      */
-    private async _connectWorker(config: Parameters<typeof createPersistenceLayer>[0]): Promise<void> {
-        this._isWorkerMode = true;
-
+    private async _connectWorker(config: PersistenceConfig): Promise<void> {
         // Worker URL 由 WorkerBridge 内部通过 `new URL(..., import.meta.url)` 解析
         // Vite 在 dev/build 时自动处理依赖打包
         this._workerBridge = new WorkerBridge(this._auth);
@@ -368,9 +327,9 @@ export class PersistenceController implements ReactiveController {
         // Worker 侧会在 init() 中用自己的 requestToken 桥接替换 getToken，
         // onTokenExpired 同理——Worker 不需要这些主线程回调。
         const { getToken: _gt, onTokenExpired: _ote, ...serializableClient } = config.client;
-        const workerConfig: Parameters<typeof createPersistenceLayer>[0] = {
+        const workerConfig: PersistenceConfig = {
             ...config,
-            client: serializableClient as Parameters<typeof createPersistenceLayer>[0]['client'],
+            client: serializableClient as PersistenceConfig['client'],
         };
 
         // Initialize the Worker (creates PersistenceLayer inside Worker)
@@ -436,23 +395,18 @@ export class PersistenceController implements ReactiveController {
             }
             this._workerBridge = undefined;
         }
-
-        this._isWorkerMode = false;
     }
 
-    // ========== 连接状态统一接口（替代 Worker 模式下的 getClient()） ==========
+    // ========== 连接状态统一接口 ==========
 
     /**
      * 获取当前连接状态
      *
-     * 统一接口：直接模式从 RTCAgentClient 获取，Worker 模式从 WorkerBridge 获取。
+     * 通过 WorkerBridge 获取连接状态。
      */
     async getConnectionState(): Promise<ConnectionState> {
-        if (this._isWorkerMode && this._workerBridge) {
+        if (this._workerBridge) {
             return this._workerBridge.getConnectionState();
-        }
-        if (this._layer) {
-            return this._layer.getClient().getConnectionState();
         }
         return 'disconnected';
     }
@@ -460,15 +414,12 @@ export class PersistenceController implements ReactiveController {
     /**
      * 监听连接状态变更
      *
-     * 统一接口：直接模式监听 RTCAgentClient 事件，Worker 模式监听 WorkerBridge 广播。
+     * 监听 WorkerBridge 广播的连接状态变更事件。
      * 返回取消监听的函数。
      */
     onConnectionStateChange(listener: (event: ConnectionStateEvent) => void): () => void {
-        if (this._isWorkerMode && this._workerBridge) {
+        if (this._workerBridge) {
             return this._workerBridge.onConnectionStateChange(listener);
-        }
-        if (this._layer) {
-            return this._layer.getClient().on('connection', listener);
         }
         // 未连接时返回空取消函数
         return () => {};
