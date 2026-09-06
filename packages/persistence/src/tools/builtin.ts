@@ -12,6 +12,7 @@ import {
   _executeCode,
   parseScriptContent,
   saveScript,
+  transformTypeScript,
   type RtcAgentAPI,
   type ScriptTimeoutError,
   type ScriptCompileError,
@@ -205,6 +206,9 @@ export class ScriptTool implements Tool {
 
   /**
    * 保存脚本到 /scripts/{name}.ts
+   *
+   * 保存前先做语法检查（包括 loop guard），拒绝包含危险循环语法的脚本。
+   * 这样能避免在文件系统里留下"定时炸弹"——run 时才发现被拦。
    */
   private async _saveScript(params: ToolParams): Promise<ToolResult> {
     const name = validateStringParam(params, 'name');
@@ -218,6 +222,17 @@ export class ScriptTool implements Tool {
     }
 
     const description = validateStringParam(params, 'description') || undefined;
+
+    // 先做语法检查（触发 loopGuardPlugin），不通过则拒绝保存
+    try {
+      transformTypeScript(code, name);
+    } catch (err) {
+      if (err instanceof Error && 'isScriptCompileError' in err) {
+        return { success: false, error: `Script syntax check failed: ${(err as ScriptCompileError).message}` };
+      }
+      const msg = err instanceof Error ? err.message : String(err);
+      return { success: false, error: `Script syntax check failed: ${msg}` };
+    }
 
     try {
       const path = await saveScript(name, code, description);

@@ -163,11 +163,54 @@ export function createSandbox(
 const cachedPresets = [presetTypescript] as NonNullable<TransformOptions['presets']>;
 
 /**
+ * 危险循环语法拦截插件
+ *
+ * 浏览器主线程没有抢占式中断机制，一旦脚本进入无限循环，
+ * 即使设置了超时 Promise.race 也只能放弃等待，循环仍会在后台继续运行，
+ * 导致 UI 卡死。
+ *
+ * 本插件在 Babel 转换阶段静态拦截以下语法：
+ * - `while (cond) {}`       → 条件可能永远为 true
+ * - `do {} while (cond)`    → 同上
+ * - `for (;;) {}`           → 显式无限循环（ForStatement 且 test 为 null）
+ *
+ * 以下语法**允许**使用（迭代的是有限集合，循环必然终止）：
+ * - `for...of` / `for...in`
+ * - `for (let i = 0; i < n; i++)` 等常规有限循环
+ * - `Array.prototype.forEach/map/filter/reduce` 等迭代式 API
+ *
+ * 注意：AST 阶段无法判断 `for (let i = 0; i < N; i++)` 的 N 是否过大，
+ * 如需步数兜底可后续叠加注入计数器的插件。
+ */
+const loopGuardPlugin = {
+  visitor: {
+    WhileStatement(path: { buildCodeFrameError: (msg: string) => Error }) {
+      throw path.buildCodeFrameError(
+        '`while` loops are not allowed. Use `for...of` or Array iteration methods (forEach/map/filter/reduce) instead.',
+      );
+    },
+    DoWhileStatement(path: { buildCodeFrameError: (msg: string) => Error }) {
+      throw path.buildCodeFrameError(
+        '`do...while` loops are not allowed. Use `for...of` or Array iteration methods instead.',
+      );
+    },
+    ForStatement(path: { node: { test: unknown }; buildCodeFrameError: (msg: string) => Error }) {
+      // 仅拦截 for(;;)：test 为 null 表示没有终止条件
+      if (path.node.test === null) {
+        throw path.buildCodeFrameError(
+          '`for(;;)` infinite loops are not allowed. Use a bounded `for` loop or `for...of` instead.',
+        );
+      }
+    },
+  },
+};
+
+/**
  * 使用 Babel 转换 TypeScript 语法
  *
  * @param code - TypeScript 源代码
  * @param name - 脚本名称，用于错误定位 (MD1)
- * @throws ScriptCompileError 当 Babel 转换失败时
+ * @throws ScriptCompileError 当 Babel 转换失败或检测到危险循环语法时
  */
 export function transformTypeScript(code: string, name?: string): string {
   const filename = name ? `${name}.ts` : 'script.ts';
@@ -177,6 +220,7 @@ export function transformTypeScript(code: string, name?: string): string {
     result = transformSync(code, {
       presets: cachedPresets,
       filename,
+      plugins: [loopGuardPlugin],
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
