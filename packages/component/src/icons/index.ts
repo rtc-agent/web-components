@@ -24,6 +24,7 @@ export {
     sendIcon,
     stopIcon,
     micIcon,
+    checklistIcon,
     // Utilities
     icons,
     getIcon,

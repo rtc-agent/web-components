@@ -54,4 +54,19 @@ export const styles = css`
     height: 16px;
     fill: currentColor;
   }
+
+  rtc-todo-panel {
+    transition: opacity 300ms ease-out;
+    opacity: 1;
+  }
+
+  rtc-todo-panel.fading-out {
+    opacity: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    rtc-todo-panel {
+      transition: none;
+    }
+  }
 `;

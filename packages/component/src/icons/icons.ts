@@ -33,6 +33,7 @@ import toolSvg from './svg/tool-16.svg?raw';
 import sendSvg from './svg/send-16.svg?raw';
 import stopSvg from './svg/stop-16.svg?raw';
 import micSvg from './svg/mic-16.svg?raw';
+import checklistSvg from './svg/checklist-16.svg?raw';
 
 /**
  * Convert SVG string to Lit template using unsafeHTML
@@ -60,6 +61,7 @@ export const toolIcon = toLitTemplate(toolSvg);
 export const sendIcon = toLitTemplate(sendSvg);
 export const stopIcon = toLitTemplate(stopSvg);
 export const micIcon = toLitTemplate(micSvg);
+export const checklistIcon = toLitTemplate(checklistSvg);
 
 /**
  * Icon name to template mapping
@@ -83,6 +85,7 @@ export const icons = {
     send: sendIcon,
     stop: stopIcon,
     mic: micIcon,
+    checklist: checklistIcon,
 } as const;
 
 export type IconName = keyof typeof icons;

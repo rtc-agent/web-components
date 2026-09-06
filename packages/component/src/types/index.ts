@@ -5,9 +5,9 @@
  * is fully integrated, import canonical types from there and re-export.
  */
 
-// Re-export ContentData from protocol
-export type { ContentData } from '@rtc-agent/protocol';
-import type { ContentData } from '@rtc-agent/protocol';
+// Re-export ContentData and TodoItem from protocol
+export type { ContentData, TodoItem } from '@rtc-agent/protocol';
+import type { ContentData, TodoItem } from '@rtc-agent/protocol';
 
 // Re-export SyncStatus from persistence (single source of truth)
 export type { SyncStatus } from '@rtc-agent/persistence';
@@ -44,6 +44,7 @@ export interface Session {
     title: string;
     createdAt: number;
     updatedAt: number;
+    todoList?: TodoItem[];
 }
 
 /* ── Modes ── */
@@ -144,6 +145,10 @@ export interface SessionActions {
 
 export interface MessageState {
     messages: Message[];
+    /** Whether there are older messages available to load */
+    hasMore: boolean;
+    /** Whether a loadMore request is in progress */
+    isLoadingMore: boolean;
 }
 
 export interface MessageActions {
@@ -170,6 +175,9 @@ export interface MessageActions {
 
     /** 清空所有消息。Session 切换时调用，也可作为用户主动操作。 */
     clearMessages(): void;
+
+    /** 加载更多历史消息（向上翻页） */
+    loadMore(): Promise<void>;
 }
 
 /* ── Mode Actions ── */
