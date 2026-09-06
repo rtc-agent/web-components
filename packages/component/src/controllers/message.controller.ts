@@ -45,7 +45,12 @@ export class MessageController implements ReactiveController {
     }
 
     get value(): MessageContextValue {
-        return {state: this._state, actions: this.actions};
+        return {
+            state: this._state,
+            actions: this.actions,
+            getUserMessageHistory: (sessionId: string, limit?: number) =>
+                this.getUserMessageHistory(sessionId, limit),
+        };
     }
 
     constructor(host: ReactiveControllerHost & EventTarget) {
@@ -331,6 +336,50 @@ export class MessageController implements ReactiveController {
             this._state = {...this._state, isLoadingMore: false};
             this.host.requestUpdate();
         }
+    }
+
+    /**
+     * 获取当前 session 的用户消息历史（用于输入框上下箭头导航）
+     *
+     * 返回纯文本内容数组，按时间倒序（最新消息在前）。
+     * 通过 PersistenceLayer 查询，兼容直接模式和 Worker 模式。
+     */
+    async getUserMessageHistory(sessionId: string, limit = 200): Promise<string[]> {
+        if (!this._persistence) return [];
+
+        try {
+            const messages = await this._persistence.listMessages(
+                sessionId, undefined, limit, 'backward'
+            );
+
+            return messages
+                .filter(m => m.role === 'user' && m.content)
+                .reverse()
+                .map(m => this._extractTextFromContent(m.content));
+        } catch (error) {
+            console.warn('[MessageController] getUserMessageHistory failed:', error);
+            return [];
+        }
+    }
+
+    /**
+     * 从消息 content 中提取纯文本
+     *
+     * content 存储格式：
+     * - 本地写入：纯文本字符串（content.data 为 string 时直接存储）
+     * - 服务端回推：JSON 字符串，格式为 ContentData（如 '{"type":"text","data":"hello"}'）
+     */
+    private _extractTextFromContent(content: string | undefined): string {
+        if (!content) return '';
+        try {
+            const parsed = JSON.parse(content);
+            if (parsed && typeof parsed === 'object' && parsed.type === 'text') {
+                return parsed.data ?? '';
+            }
+        } catch {
+            // Not JSON — treat as plain text
+        }
+        return content;
     }
 
     private _localMessageToUI(local: LocalMessage): Message {

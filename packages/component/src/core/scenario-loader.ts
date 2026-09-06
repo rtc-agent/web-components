@@ -197,6 +197,9 @@ export async function loadScenariosFromURL(baseURL: string, timeoutMs: number = 
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         console.error(`[ScenarioLoader] Timeout loading ${file}`);
+      } else if (err instanceof Error && err.message.includes('getDatabase() called without a name')) {
+        // 数据库尚未初始化——预期的时序问题，后续 connectedCallback 会重新加载
+        continue;
       } else {
         console.error(`[ScenarioLoader] Error loading ${file}:`, err);
       }
@@ -210,6 +213,84 @@ export async function loadScenariosFromURL(baseURL: string, timeoutMs: number = 
 
   console.log(`[ScenarioLoader] Loaded ${loadedCount} scenarios`);
   return loadedCount;
+}
+
+/**
+ * 从 URL 加载 Scenarios 内容（不写入 VirtualFS）
+ *
+ * Worker 模式下使用：主线程获取内容，通过 WorkerBridge.batchWriteFiles() 发送到 Worker 写入。
+ *
+ * @param baseURL Scenario 文件的基础 URL
+ * @param timeoutMs 每个请求的超时时间
+ * @returns 文件路径和内容数组
+ */
+export async function loadScenariosContent(
+  baseURL: string,
+  timeoutMs: number = 10000
+): Promise<Array<{path: string; content: string; metadata: {name?: string; description?: string; tags?: string[]}}>> {
+  // 确保 baseURL 以 / 结尾
+  if (!baseURL.endsWith('/')) {
+    baseURL += '/';
+  }
+
+  // 尝试加载 manifest.json
+  let manifest: ScenarioManifest | null = null;
+
+  try {
+    const manifestUrl = baseURL + 'manifest.json';
+    const response = await fetchWithTimeout(manifestUrl, timeoutMs);
+
+    if (response.ok) {
+      manifest = await response.json();
+    }
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      console.warn('[ScenarioLoader] manifest.json fetch timeout');
+    } else {
+      console.warn('[ScenarioLoader] manifest.json not found');
+    }
+  }
+
+  if (!manifest || !manifest.scenarios) {
+    console.warn('[ScenarioLoader] No manifest.json found.');
+    return [];
+  }
+
+  const filesToLoad = manifest.scenarios.map(s => s.file);
+  const files: Array<{path: string; content: string; metadata: {name?: string; description?: string; tags?: string[]}}> = [];
+
+  for (const file of filesToLoad) {
+    try {
+      const url = baseURL + file;
+      const response = await fetchWithTimeout(url, timeoutMs);
+
+      if (!response.ok) {
+        console.warn(`[ScenarioLoader] Failed to load ${file}: ${response.statusText}`);
+        continue;
+      }
+
+      const content = await response.text();
+      const parsed = parseFrontmatter(content);
+
+      const filename = file.endsWith('.md') ? file : `${file}.md`;
+      const path = `/scenarios/${filename}`;
+
+      const metadata: {name?: string; description?: string; tags?: string[]} = {};
+      if (parsed.title || parsed.name) metadata.name = parsed.title ?? parsed.name;
+      if (parsed.description) metadata.description = parsed.description;
+      if (parsed.tags) metadata.tags = parsed.tags;
+
+      files.push({path, content, metadata});
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        console.error(`[ScenarioLoader] Timeout loading ${file}`);
+      } else {
+        console.error(`[ScenarioLoader] Error loading ${file}:`, err);
+      }
+    }
+  }
+
+  return files;
 }
 
 /**

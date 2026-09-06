@@ -32,8 +32,12 @@ import {styles} from './rtc-input-area.styles.js';
 import {ModeContext, MODE_CONFIGS, type ModeContextValue} from '../../contexts/mode.js';
 import {SessionContext} from '../../contexts/session.js';
 import {TurnCountContext, type TurnCountContextValue} from '../../contexts/turn-count.js';
+import {MessageContext, type MessageContextValue} from '../../contexts/message.js';
 import {attachIcon, toolIcon, sendIcon, stopIcon, micIcon} from '../../icons/index.js';
 import '../overlay/rtc-mode-panel.js';
+
+// UIUpdateBus 用于监听新消息事件
+import {getUIUpdateBus, type UIUpdateEvent} from '@rtc-agent/persistence';
 
 @customElement('rtc-input-area')
 export class RtcInputArea extends LitElement {
@@ -56,11 +60,36 @@ export class RtcInputArea extends LitElement {
     @state()
     private _turnCount: TurnCountContextValue = {pendingTurnCount: 0, runningTurnCount: 0};
 
+    @consume({context: MessageContext, subscribe: true})
+    @state()
+    private _messageCtx: MessageContextValue = {
+        state: {messages: [], hasMore: false, isLoadingMore: false},
+        actions: {
+            sendMessage: async () => {},
+            resendMessage: async () => {},
+            forkSession: async () => {},
+            appendToLastMessage: () => {},
+            finalizeLastMessage: () => {},
+            clearMessages: () => {},
+            loadMore: async () => {},
+        },
+    };
+
     @state()
     private _value = '';
 
     @state()
     private _showModePanel = false;
+
+    // 历史导航状态
+    @state()
+    private _userMessageHistory: string[] = [];
+    @state()
+    private _historyIndex = -1;
+    private _draft = '';
+
+    // UIUpdateBus 订阅清理函数
+    private _busUnsub?: () => void;
 
     @query('.mode-btn')
     private _modeBtn!: HTMLElement;
@@ -147,12 +176,110 @@ export class RtcInputArea extends LitElement {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             this._submit();
+        } else if (e.key === 'ArrowUp' && this._isCursorOnFirstLine()) {
+            e.preventDefault();
+            this._navigateHistory('up');
+        } else if (e.key === 'ArrowDown' && this._isCursorOnLastLine()) {
+            e.preventDefault();
+            this._navigateHistory('down');
+        }
+    }
+
+    /**
+     * 判断光标是否在 textarea 第一行
+     * 光标前没有换行符即为第一行（空值时也返回 true）
+     */
+    private _isCursorOnFirstLine(): boolean {
+        const textarea = this._textarea;
+        if (!textarea) return true;
+        const textBeforeCursor = this._value.substring(0, textarea.selectionStart);
+        return !textBeforeCursor.includes('\n');
+    }
+
+    /**
+     * 判断光标是否在 textarea 最后一行
+     * 光标后没有换行符即为最后一行（空值时也返回 true）
+     */
+    private _isCursorOnLastLine(): boolean {
+        const textarea = this._textarea;
+        if (!textarea) return true;
+        const textAfterCursor = this._value.substring(textarea.selectionEnd);
+        return !textAfterCursor.includes('\n');
+    }
+
+    /**
+     * 历史导航：上箭头回溯、下箭头前进
+     *
+     * 首次按上箭头时从 MessageContext 加载用户消息历史，
+     * 并将当前输入保存为 draft，以便回到最新位置时恢复。
+     */
+    private async _navigateHistory(direction: 'up' | 'down') {
+        // 首次进入历史导航时加载历史消息
+        if (this._historyIndex === -1 && direction === 'up') {
+            this._draft = this._value;
+            await this._loadUserMessageHistory();
+        }
+
+        if (this._userMessageHistory.length === 0) return;
+
+        const maxIndex = this._userMessageHistory.length - 1;
+        let newIndex: number;
+
+        if (direction === 'up') {
+            newIndex = this._historyIndex === -1 ? 0 : Math.min(this._historyIndex + 1, maxIndex);
+        } else {
+            if (this._historyIndex <= 0) {
+                // 回到草稿状态
+                newIndex = -1;
+            } else {
+                newIndex = this._historyIndex - 1;
+            }
+        }
+
+        this._historyIndex = newIndex;
+        this._value = newIndex === -1 ? this._draft : this._userMessageHistory[newIndex];
+
+        // 同步 DOM 并移动光标到末尾
+        const textarea = this._textarea;
+        if (textarea) {
+            textarea.value = this._value;
+            textarea.selectionStart = textarea.selectionEnd = this._value.length;
+        }
+    }
+
+    /**
+     * 从 MessageContext 加载当前 session 的用户消息历史
+     */
+    private async _loadUserMessageHistory() {
+        const sessionId = this._sessionCtx.state.currentSessionId;
+        if (!sessionId) return;
+
+        const fn = this._messageCtx.getUserMessageHistory;
+        if (!fn) return;
+
+        try {
+            this._userMessageHistory = await fn.call(this._messageCtx, sessionId);
+        } catch (error) {
+            console.warn('[rtc-input-area] _loadUserMessageHistory failed:', error);
         }
     }
 
     private _submit() {
         const content = this._value.trim();
         if (!content) return;
+
+        // 退出历史模式
+        this._historyIndex = -1;
+        this._draft = '';
+
+        // 乐观更新：将当前消息插入历史头部（最新消息在前）
+        // 避免 UIUpdateBus 延迟导致刚发的消息不在历史中
+        if (
+            this._userMessageHistory.length === 0 ||
+            this._userMessageHistory[0] !== content
+        ) {
+            this._userMessageHistory = [content, ...this._userMessageHistory];
+        }
 
         this.dispatchEvent(
             new CustomEvent('rtc-input-submit', {
@@ -244,12 +371,35 @@ export class RtcInputArea extends LitElement {
     connectedCallback() {
         super.connectedCallback();
         document.addEventListener('mousedown', this._onDocClick, true);
+
+        // 订阅 UIUpdateBus：收到当前 session 的用户消息时清空历史缓存，下次导航时重新加载
+        const bus = getUIUpdateBus();
+        this._busUnsub = bus.subscribe('message', (event: UIUpdateEvent) => {
+            if (event.action !== 'created' || event.field !== 'role' || event.newValue !== 'user') {
+                return;
+            }
+            // 有新用户消息写入，清空缓存，下次导航时重新加载
+            // （不在此处立即加载，避免频繁查询）
+            this._userMessageHistory = [];
+            this._historyIndex = -1;
+        });
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
         document.removeEventListener('mousedown', this._onDocClick, true);
         this._stopPositioning();
+        this._busUnsub?.();
+        this._busUnsub = undefined;
+    }
+
+    updated(changed: Map<string | number | symbol, unknown>) {
+        // Session 切换时清空历史缓存，下次导航时重新加载
+        if (changed.has('_sessionCtx')) {
+            this._userMessageHistory = [];
+            this._historyIndex = -1;
+            this._draft = '';
+        }
     }
 
     render() {

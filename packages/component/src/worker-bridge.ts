@@ -14,8 +14,8 @@
  * - 一个页面只有一个 SharedWorker 实例（多 Tab 共享由浏览器管理）
  * - Token 请求去重：并发请求共享同一个 Promise（提案 §7）
  */
-import {wrap, type Remote} from 'comlink';
-import {getUIUpdateBus} from '@rtc-agent/persistence';
+import {wrap, proxy, type Remote} from 'comlink';
+import {getUIUpdateBus, virtualFS} from '@rtc-agent/persistence';
 import type {PersistenceConfig, UIUpdateEvent} from '@rtc-agent/persistence';
 import type {ConnectionState, ConnectionStateEvent} from '@rtc-agent/client';
 import type {WorkerPersistenceCore, WorkerCallbacks} from '@rtc-agent/worker';
@@ -25,6 +25,8 @@ export class WorkerBridge {
     private _worker: SharedWorker;
     private _core: Remote<WorkerPersistenceCore>;
     private _callbacks: WorkerCallbacks;
+    /** Comlink proxy 包装后的回调（用于跨 Worker 传递） */
+    private _proxiedCallbacks: WorkerCallbacks;
     private _initialized = false;
 
     /** Token 请求去重缓存（提案 §7：并发请求共享同一个 Promise） */
@@ -33,12 +35,22 @@ export class WorkerBridge {
     /** 连接状态监听器（主线程侧） */
     private _connectionListeners = new Set<(event: ConnectionStateEvent) => void>();
 
-    constructor(workerUrl: string, auth: AuthController) {
+    constructor(auth: AuthController) {
         // 1. 创建 SharedWorker 实例
-        this._worker = new SharedWorker(workerUrl, {
-            name: 'rtc-agent-worker',
-            type: 'module',
-        });
+        //
+        // 使用 `new URL(..., import.meta.url)` 模式，让 Vite 在 dev/build 时自动处理：
+        // - dev: Vite dev server 实时 transform worker 及其依赖（含 workspace 包别名）
+        // - build: Vite 将 worker 打成独立 chunk 并替换 URL
+        //
+        // 注意：必须让 `new SharedWorker(new URL(...))` 出现在同一表达式中，
+        // 否则 Vite 的 AST 检测无法识别。
+        this._worker = new SharedWorker(
+            new URL('../../worker/src/shared-worker.ts', import.meta.url),
+            {
+                name: 'rtc-agent-worker',
+                type: 'module',
+            },
+        );
 
         // 2. Comlink.wrap 获取代理
         // SharedWorker 通过 port 通信，Comlink.wrap 接受 MessagePort
@@ -83,7 +95,11 @@ export class WorkerBridge {
             },
         };
 
-        // 4. 错误处理
+        // 4. 创建 Comlink proxy 包装的回调（用于跨 Worker 传递）
+        // Structured Clone 不支持函数，proxy() 通过 MessagePort 桥接解决此问题
+        this._proxiedCallbacks = proxy(this._callbacks);
+
+        // 5. 错误处理
         this._worker.onerror = (event) => {
             // TODO(Phase 6): Worker crash recovery — 当前仅打印错误。
             // 需要根据 shared-worker-proposal.md §9 的错误处理方案：
@@ -129,8 +145,8 @@ export class WorkerBridge {
         // 初始化 Worker 侧的共享状态
         await this._core.init(config);
 
-        // 注册本 Tab 的回调
-        await this._core.registerCallback(this._callbacks);
+        // 注册本 Tab 的回调（使用 proxy 包装的版本）
+        await this._core.registerCallback(this._proxiedCallbacks);
 
         this._initialized = true;
     }
@@ -148,7 +164,7 @@ export class WorkerBridge {
         }
 
         try {
-            await this._core.unregisterCallback(this._callbacks);
+            await this._core.unregisterCallback(this._proxiedCallbacks);
         } catch (err) {
             console.warn('[WorkerBridge] unregisterCallback failed:', err);
         }
@@ -180,5 +196,58 @@ export class WorkerBridge {
         return () => {
             this._connectionListeners.delete(listener);
         };
+    }
+
+    // ========== virtualFS 代理 ==========
+
+    /**
+     * 将主线程的 virtualFS 单例方法替换为 Comlink 代理
+     *
+     * Worker 模式下主线程不可直接访问 IndexedDB。
+     * 替换后，所有通过 virtualFS 发起的操作（工具执行、script 读取、
+     * function-registry 写文档、scenario-loader 等）都会自动路由到 Worker。
+     *
+     * 注意：virtualFS 是模块级单例，替换是全局性的。
+     * 仅在 Worker 模式下调用，直接模式保持原样。
+     */
+    installVirtualFSProxy(): void {
+        const core = this._core;
+
+        // 保存原始实现，以备恢复（目前 Worker 模式单向切换，暂不需要恢复）
+        // const original = { ...virtualFS };
+
+        virtualFS.read = ((path: string, offset?: number, limit?: number) =>
+            core.virtualFSRead(path, offset, limit)) as typeof virtualFS.read;
+
+        virtualFS.write = ((
+            path: string,
+            content: string,
+            mode: 'overwrite' | 'append' = 'overwrite',
+            metadataOverride?: any,
+        ) =>
+            core.virtualFSWrite(path, content, mode, metadataOverride)) as typeof virtualFS.write;
+
+        virtualFS.ls = ((path?: string) =>
+            core.virtualFSLs(path)) as typeof virtualFS.ls;
+
+        virtualFS.find = ((pattern: string, path?: string) =>
+            core.virtualFSFind(pattern, path)) as typeof virtualFS.find;
+
+        virtualFS.grep = ((
+            pattern: string,
+            path?: string,
+            caseSensitive?: boolean,
+            maxResults?: number,
+        ) =>
+            core.virtualFSGrep(pattern, path, caseSensitive, maxResults)) as typeof virtualFS.grep;
+
+        virtualFS.queryByType = ((type: any) =>
+            core.virtualFSQueryByType(type)) as typeof virtualFS.queryByType;
+
+        virtualFS.exists = ((path: string) =>
+            core.virtualFSExists(path)) as typeof virtualFS.exists;
+
+        virtualFS.remove = ((path: string) =>
+            core.virtualFSRemove(path)) as typeof virtualFS.remove;
     }
 }

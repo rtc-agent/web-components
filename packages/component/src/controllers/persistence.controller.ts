@@ -271,6 +271,13 @@ export class PersistenceController implements ReactiveController {
     }
 
     /**
+     * Whether the persistence layer is in Worker mode.
+     */
+    get isWorkerMode(): boolean {
+        return this._isWorkerMode;
+    }
+
+    /**
      * Get the MasterLock instance (only available in Worker mode).
      *
      * MasterLock 封装 Web Locks API，用于 Master Tab 选举。
@@ -353,13 +360,26 @@ export class PersistenceController implements ReactiveController {
     private async _connectWorker(config: Parameters<typeof createPersistenceLayer>[0]): Promise<void> {
         this._isWorkerMode = true;
 
-        // Resolve worker URL
-        const workerUrl = this._resolveWorkerUrl();
+        // Worker URL 由 WorkerBridge 内部通过 `new URL(..., import.meta.url)` 解析
+        // Vite 在 dev/build 时自动处理依赖打包
+        this._workerBridge = new WorkerBridge(this._auth);
 
-        this._workerBridge = new WorkerBridge(workerUrl, this._auth);
+        // 剥离不可序列化的回调函数（Structured Clone 不支持函数）。
+        // Worker 侧会在 init() 中用自己的 requestToken 桥接替换 getToken，
+        // onTokenExpired 同理——Worker 不需要这些主线程回调。
+        const { getToken: _gt, onTokenExpired: _ote, ...serializableClient } = config.client;
+        const workerConfig: Parameters<typeof createPersistenceLayer>[0] = {
+            ...config,
+            client: serializableClient as Parameters<typeof createPersistenceLayer>[0]['client'],
+        };
 
         // Initialize the Worker (creates PersistenceLayer inside Worker)
-        await this._workerBridge.init(config);
+        await this._workerBridge.init(workerConfig);
+
+        // 将主线程的 virtualFS 方法替换为 Comlink 代理
+        // Worker 模式下主线程不可直接访问 IndexedDB，
+        // 所有 virtualFS 操作（工具执行、script 读取等）自动路由到 Worker
+        this._workerBridge.installVirtualFSProxy();
 
         // Create adapter that wraps the Comlink proxy
         // 断言语义见 _asPersistenceLayer 顶部注释
@@ -381,37 +401,6 @@ export class PersistenceController implements ReactiveController {
             // 开始尝试获取锁（可能排队）
             void this._masterLock.acquire();
         }
-    }
-
-    /**
-     * Resolve the SharedWorker script URL.
-     *
-     * The worker script is in @rtc-agent/worker/dist/shared-worker.js.
-     * In a Vite dev server, this would be served from node_modules.
-     * In production, it should be bundled and served from the same origin.
-     *
-     * TODO(Phase 2): 当前是硬编码路径，需要与 Vite 构建系统集成：
-     * 1. Dev 模式：使用 Vite 的 `?worker&inline` 或手动配置 worker 入口
-     * 2. Prod 模式：确保 worker 脚本被正确打包并复制到 dist 目录
-     * 3. 考虑使用 import.meta.url + new URL() 模式来让 bundler 自动处理
-     */
-    private _resolveWorkerUrl(): string {
-        // Try to use Vite's dev server URL for the worker
-        // In production, this would need to be a proper bundled URL
-        try {
-            // @rtc-agent/worker exports "./shared-worker" → "./dist/shared-worker.js"
-            // Use import.meta.env to detect dev mode
-            if (import.meta.env?.DEV) {
-                // In dev mode, try the node_modules path (Vite should handle this)
-                return '/node_modules/@rtc-agent/worker/dist/shared-worker.js';
-            }
-        } catch {
-            // import.meta.env not available
-        }
-
-        // Production: assume worker script is served from /shared-worker.js
-        // This should be configured via build tooling
-        return '/shared-worker.js';
     }
 
     /**

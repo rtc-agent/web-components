@@ -224,6 +224,81 @@ export class FunctionRegistry {
   }
 
   /**
+   * 重新生成所有文档（用于数据库初始化后）
+   *
+   * 解决时序问题：register() 在数据库初始化前调用时，文档写入会失败。
+   * 数据库初始化完成后，调用此方法重新生成所有文档。
+   *
+   * Worker 模式下应使用 generateAllDocsContent() + WorkerBridge.batchWriteFiles()
+   */
+  async regenerateAllDocs(): Promise<void> {
+    try {
+      // 重新生成所有 function 文档
+      for (const funcDef of this.functions.values()) {
+        const parts = funcDef.name.split('.');
+        const groupName = parts.length > 1 ? parts[0] : undefined;
+        await this._updateFunctionDoc(funcDef, groupName);
+      }
+
+      // 更新 functions 索引
+      await this._updateFunctionsIndex();
+
+      // 更新 scenarios 索引（scenarios 由 scenario-loader 管理，这里只更新索引）
+      await this._updateScenariosIndex();
+
+      // 更新 AGENT.md
+      await this._updateAgentMd();
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      if (this.config.onError) {
+        this.config.onError(error, 'Failed to regenerate all docs');
+      } else {
+        console.error('[FunctionRegistry] Failed to regenerate all docs:', err);
+      }
+    }
+  }
+
+  /**
+   * 生成所有文档内容（不写入 VirtualFS）
+   *
+   * Worker 模式下使用：主线程生成内容，通过 WorkerBridge.batchWriteFiles() 发送到 Worker 写入。
+   *
+   * @param scenarioCount scenario 数量（用于生成 AGENT.md）
+   * @returns 文件路径和内容数组
+   */
+  generateAllDocsContent(scenarioCount = 0): Array<{path: string; content: string}> {
+    const files: Array<{path: string; content: string}> = [];
+    console.log('[FunctionRegistry] generateAllDocsContent called, functions count:', this.functions.size);
+
+    // 生成所有 function 文档
+    for (const funcDef of this.functions.values()) {
+      const parts = funcDef.name.split('.');
+      const groupName = parts.length > 1 ? parts[0] : undefined;
+      const md = generateFunctionMd(funcDef, groupName);
+      const path = groupName
+        ? `/functions/${groupName}/${funcDef.name.split('.')[1]}.md`
+        : `/functions/${funcDef.name}.md`;
+      files.push({path, content: md});
+    }
+
+    // 生成 functions 索引
+    const functions = this.listFunctions();
+    const groups = this.listGroups();
+    files.push({
+      path: '/functions/INDEX.md',
+      content: generateFunctionsIndex(functions, groups),
+    });
+
+    // 生成 AGENT.md
+    files.push({
+      path: '/AGENT.md',
+      content: generateAgentMd(this.config, functions, groups, scenarioCount),
+    });
+
+    return files;
+  }
+
+  /**
    * 执行 Function
    *
    * 使用事件驱动架构，不直接调用 UI：
@@ -353,6 +428,11 @@ export class FunctionRegistry {
       await this._updateAgentMd();
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
+      // 数据库尚未初始化时，文档写入必然失败——这是预期的时序问题，
+      // 后续 regenerateAllDocs() 会在数据库就绪后重新生成，无需报错。
+      if (error.message.includes('getDatabase() called without a name')) {
+        return;
+      }
       if (this.config.onError) {
         this.config.onError(error, `Failed to update documentation for function: ${funcDef.name}`);
       } else {
@@ -451,6 +531,8 @@ export class FunctionRegistry {
       'execute',
       'writeScenario',
       'createProxy',
+      'regenerateAllDocs',
+      'generateAllDocsContent',
     ]);
 
     return new Proxy(this, {

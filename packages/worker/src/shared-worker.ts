@@ -51,7 +51,18 @@ sharedSelf.onconnect = (e: MessageEvent): void => {
 
     // Worker 模式额外能力
     initializeVirtualFS: (...args: Parameters<WorkerCore['initializeVirtualFS']>) => core.initializeVirtualFS(...args),
+    batchWriteFiles: (...args: Parameters<WorkerCore['batchWriteFiles']>) => core.batchWriteFiles(...args),
     resetOffset: () => core.resetOffset(),
+
+    // virtualFS 代理（主线程 → Worker）
+    virtualFSRead: (...args: Parameters<WorkerCore['virtualFSRead']>) => core.virtualFSRead(...args),
+    virtualFSWrite: (...args: Parameters<WorkerCore['virtualFSWrite']>) => core.virtualFSWrite(...args),
+    virtualFSLs: (...args: Parameters<WorkerCore['virtualFSLs']>) => core.virtualFSLs(...args),
+    virtualFSFind: (...args: Parameters<WorkerCore['virtualFSFind']>) => core.virtualFSFind(...args),
+    virtualFSGrep: (...args: Parameters<WorkerCore['virtualFSGrep']>) => core.virtualFSGrep(...args),
+    virtualFSQueryByType: (...args: Parameters<WorkerCore['virtualFSQueryByType']>) => core.virtualFSQueryByType(...args),
+    virtualFSExists: (...args: Parameters<WorkerCore['virtualFSExists']>) => core.virtualFSExists(...args),
+    virtualFSRemove: (...args: Parameters<WorkerCore['virtualFSRemove']>) => core.virtualFSRemove(...args),
   };
 
   expose(facade, port);

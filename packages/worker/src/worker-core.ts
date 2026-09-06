@@ -3,6 +3,7 @@ import {
   getUIUpdateBus,
   getOffsetManager,
   initializeVirtualFS,
+  virtualFS,
   type PersistenceConfig,
   type AgentMdConfig,
   type UIUpdateEvent,
@@ -206,8 +207,84 @@ export class WorkerCore implements WorkerPersistenceCore {
     await initializeVirtualFS(config);
   }
 
+  async batchWriteFiles(files: Array<{
+    path: string;
+    content: string;
+    metadata?: Partial<{
+      name: string;
+      description: string;
+      tags: string[];
+    }>;
+  }>): Promise<void> {
+    console.log('[WorkerCore] batchWriteFiles called, files count:', files.length);
+    for (const file of files) {
+      await virtualFS.write(file.path, file.content, 'overwrite', file.metadata);
+    }
+    console.log('[WorkerCore] batchWriteFiles completed');
+  }
+
   async resetOffset(): Promise<void> {
     await getOffsetManager().reset();
+  }
+
+  // ========== virtualFS 代理（主线程 → Worker） ==========
+
+  async virtualFSRead(path: string, offset?: number, limit?: number): Promise<string> {
+    return virtualFS.read(path, offset, limit);
+  }
+
+  async virtualFSWrite(
+    path: string,
+    content: string,
+    mode: 'overwrite' | 'append' = 'overwrite',
+    metadataOverride?: Partial<{
+      name: string;
+      description: string;
+      tags: string[];
+    }>,
+  ): Promise<number> {
+    return virtualFS.write(path, content, mode, metadataOverride);
+  }
+
+  async virtualFSLs(path?: string): Promise<string[]> {
+    return virtualFS.ls(path);
+  }
+
+  async virtualFSFind(pattern: string, path?: string): Promise<string[]> {
+    return virtualFS.find(pattern, path);
+  }
+
+  async virtualFSGrep(
+    pattern: string,
+    path?: string,
+    caseSensitive?: boolean,
+    maxResults?: number,
+  ): Promise<Array<{ file: string; line: string; lineNumber: number }>> {
+    return virtualFS.grep(pattern, path, caseSensitive, maxResults);
+  }
+
+  async virtualFSQueryByType(type: string): Promise<Array<{
+    path: string;
+    type: string;
+    content: string;
+    metadata: {
+      name: string;
+      description: string;
+      tags?: string[];
+      group?: string;
+      createdAt: Date;
+      updatedAt: Date;
+    };
+  }>> {
+    return virtualFS.queryByType(type as any) as any;
+  }
+
+  async virtualFSExists(path: string): Promise<boolean> {
+    return virtualFS.exists(path);
+  }
+
+  async virtualFSRemove(path: string): Promise<void> {
+    return virtualFS.remove(path);
   }
 
   // ========== 内部 ==========

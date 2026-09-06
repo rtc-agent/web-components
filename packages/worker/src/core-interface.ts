@@ -94,10 +94,100 @@ export interface WorkerPersistenceCore {
   initializeVirtualFS(config?: AgentMdConfig): Promise<void>;
 
   /**
+   * 批量写入虚拟文件系统
+   *
+   * Worker 模式下主线程无法直接访问 Worker 内的 VirtualFS/IndexedDB，
+   * 通过此方法将文件内容发送到 Worker 内写入。
+   */
+  batchWriteFiles(files: Array<{
+    path: string;
+    content: string;
+    metadata?: Partial<{
+      name: string;
+      description: string;
+      tags: string[];
+    }>;
+  }>): Promise<void>;
+
+  /**
    * 重置 OffsetManager 缓存（等价于 getOffsetManager().reset()）
    *
    * Worker 模式下主线程无法访问 Worker 内的 OffsetManager，
    * 通过此方法透传 reset 调用。
    */
   resetOffset(): Promise<void>;
+
+  // ========== virtualFS 代理（主线程 → Worker） ==========
+
+  /**
+   * 读取虚拟文件（Worker 内执行 getDatabase + 读取）
+   *
+   * Worker 模式下主线程不可直接访问 IndexedDB，
+   * 通过此方法将 virtualFS.read 调用代理到 Worker。
+   */
+  virtualFSRead(path: string, offset?: number, limit?: number): Promise<string>;
+
+  /**
+   * 写入虚拟文件（Worker 内执行）
+   */
+  virtualFSWrite(
+    path: string,
+    content: string,
+    mode: 'overwrite' | 'append',
+    metadataOverride?: Partial<{
+      name: string;
+      description: string;
+      tags: string[];
+    }>,
+  ): Promise<number>;
+
+  /**
+   * 列出目录内容（Worker 内执行）
+   */
+  virtualFSLs(path?: string): Promise<string[]>;
+
+  /**
+   * 按文件名搜索（Worker 内执行）
+   */
+  virtualFSFind(pattern: string, path?: string): Promise<string[]>;
+
+  /**
+   * 搜索文件内容（Worker 内执行）
+   */
+  virtualFSGrep(
+    pattern: string,
+    path?: string,
+    caseSensitive?: boolean,
+    maxResults?: number,
+  ): Promise<Array<{ file: string; line: string; lineNumber: number }>>;
+
+  /**
+   * 按类型查询文件（Worker 内执行）
+   *
+   * 返回值类型与 persistence 包的 FileSystemEntry 一致，
+   * 通过 Comlink 传输时 Date 字段保留为 Date 实例。
+   */
+  virtualFSQueryByType(type: string): Promise<Array<{
+    path: string;
+    type: string;
+    content: string;
+    metadata: {
+      name: string;
+      description: string;
+      tags?: string[];
+      group?: string;
+      createdAt: Date;
+      updatedAt: Date;
+    };
+  }>>;
+
+  /**
+   * 检查文件是否存在（Worker 内执行）
+   */
+  virtualFSExists(path: string): Promise<boolean>;
+
+  /**
+   * 删除文件（Worker 内执行）
+   */
+  virtualFSRemove(path: string): Promise<void>;
 }
