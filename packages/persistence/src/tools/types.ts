@@ -3,7 +3,7 @@
  */
 
 /** 工具名称 */
-export type ToolName = 'ls' | 'read' | 'write' | 'find' | 'grep' | 'script';
+export type ToolName = 'ls' | 'read' | 'write' | 'find' | 'grep' | 'script' | 'ask_user';
 
 /** 工具参数 */
 export interface ToolParams {

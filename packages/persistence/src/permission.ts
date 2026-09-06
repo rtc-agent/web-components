@@ -23,12 +23,15 @@ export type PermissionAction =
  * plan 和 auto 模式当前未启用，暂时使用与 edit 相同的规则
  */
 const PERMISSION_RULES: Record<ToolName, Record<Mode, PermissionAction>> = {
-  ls:     { manual: 'allow', edit: 'allow', plan: 'allow', auto: 'allow', bypass: 'allow' },
-  read:   { manual: 'allow', edit: 'allow', plan: 'allow', auto: 'allow', bypass: 'allow' },
-  find:   { manual: 'allow', edit: 'allow', plan: 'allow', auto: 'allow', bypass: 'allow' },
-  grep:   { manual: 'allow', edit: 'allow', plan: 'allow', auto: 'allow', bypass: 'allow' },
-  write:  { manual: 'confirm', edit: 'allow', plan: 'allow', auto: 'allow', bypass: 'allow' },
-  script: { manual: 'confirm', edit: 'confirm', plan: 'confirm', auto: 'confirm', bypass: 'allow' },
+  ls:       { manual: 'allow',   edit: 'allow',   plan: 'allow',   auto: 'allow',   bypass: 'allow' },
+  read:     { manual: 'allow',   edit: 'allow',   plan: 'allow',   auto: 'allow',   bypass: 'allow' },
+  find:     { manual: 'allow',   edit: 'allow',   plan: 'allow',   auto: 'allow',   bypass: 'allow' },
+  grep:     { manual: 'allow',   edit: 'allow',   plan: 'allow',   auto: 'allow',   bypass: 'allow' },
+  write:    { manual: 'confirm', edit: 'allow',   plan: 'allow',   auto: 'allow',   bypass: 'allow' },
+  script:   { manual: 'confirm', edit: 'confirm', plan: 'confirm', auto: 'confirm', bypass: 'allow' },
+  // ask_user is inherently interactive: the "execution" IS the user's selection,
+  // so it always requires the ask-user dialog regardless of mode.
+  ask_user: { manual: 'confirm', edit: 'confirm', plan: 'confirm', auto: 'confirm', bypass: 'allow' },
 };
 
 /**

@@ -17,7 +17,7 @@ export * from './virtual-fs.js';
 export * from './virtual-fs-init.js';
 export * from './script-engine.js';
 export { createBuiltinTools } from './tools/builtin.js';
-export { RtcProcessor, type ConfirmDialogFn } from './rtc-processor.js';
+export { RtcProcessor, type ConfirmDialogFn, type AskUserDialogFn } from './rtc-processor.js';
 
 /**
  * 持久化层配置

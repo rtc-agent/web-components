@@ -101,6 +101,7 @@ import type {LocalRtc} from '@rtc-agent/persistence';
 
 // Tool confirm dialog
 import '../overlay/rtc-tool-confirm.js';
+import '../overlay/rtc-ask-user.js';
 // Child component registrations (side-effect imports)
 import '../title-bar/rtc-title-bar.js';
 import '../content-wrapper/rtc-content-wrapper.js';
@@ -639,6 +640,51 @@ export class RtcAgent extends LitElement {
     }
 
     /**
+     * 显示 AskUser 多选对话框
+     *
+     * 返回用户答案 dict（{answers, annotations?, metadata?}）或 null 表示拒绝。
+     */
+    private _showAskUser(rtc: LocalRtc): Promise<{
+        answers: Record<string, string>;
+        annotations?: Record<string, { preview?: string; notes?: string }>;
+        metadata?: { source?: string };
+    } | null> {
+        return new Promise((resolve) => {
+            const el = document.createElement('rtc-ask-user');
+            el.rtc = rtc;
+
+            const cleanup = () => {
+                el.removeEventListener('rtc-ask-user-submit', onSubmit);
+                el.removeEventListener('rtc-ask-user-dismiss', onDismiss);
+                el.remove();
+            };
+
+            const onSubmit = (e: Event) => {
+                const detail = (e as CustomEvent).detail as {
+                    clientId: string;
+                    payload: {
+                        answers: Record<string, string>;
+                        annotations?: Record<string, { preview?: string; notes?: string }>;
+                        metadata?: { source?: string };
+                    };
+                };
+                cleanup();
+                resolve(detail.payload);
+            };
+
+            const onDismiss = () => {
+                cleanup();
+                resolve(null);
+            };
+
+            el.addEventListener('rtc-ask-user-submit', onSubmit);
+            el.addEventListener('rtc-ask-user-dismiss', onDismiss);
+
+            this.shadowRoot!.appendChild(el);
+        });
+    }
+
+    /**
      * 设置连接状态监听
      *
      * 通过 PersistenceController.onConnectionStateChange 获取连接状态变更事件。
@@ -896,6 +942,7 @@ export class RtcAgent extends LitElement {
 
         this._rtcProcessor = new RtcProcessor(this._persistence.layer);
         this._rtcProcessor.setConfirmDialog((rtc) => this._showToolConfirm(rtc));
+        this._rtcProcessor.setAskUserDialog((rtc) => this._showAskUser(rtc));
         this._rtcProcessor.setMode(this._mode.value.state.currentMode);
 
         // 注入 MasterLock

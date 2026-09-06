@@ -15,6 +15,22 @@ import type { ToolName, ToolParams } from './tools/types.js';
 export type ConfirmDialogFn = (rtc: LocalRtc) => Promise<boolean>;
 
 /**
+ * AskUser 对话框回调类型
+ *
+ * 由 component 层实现（<rtc-ask-user>），注入到 RtcProcessor。
+ * 与普通 confirm 不同：ask_user 的"执行"就是收集用户选择，
+ * 所以回调返回用户答案 dict（或 null 表示拒绝）。
+ *
+ * @param rtc 待回答的 RTC，parameters 内含 questions 数组
+ * @returns 用户答案 { answers, annotations?, metadata? }，或 null 表示拒绝
+ */
+export type AskUserDialogFn = (rtc: LocalRtc) => Promise<{
+  answers: Record<string, string>;
+  annotations?: Record<string, { preview?: string; notes?: string }>;
+  metadata?: { source?: string };
+} | null>;
+
+/**
  * Master 资格判断的最小接口
  *
  * 设计为最小 duck-type，以便 component 层的 MasterLock 或其他实现都能注入。
@@ -47,6 +63,8 @@ export class RtcProcessor {
   private mode: Mode = 'edit';
   /** 确认对话框（由 component 层注入） */
   private confirmDialog?: ConfirmDialogFn;
+  /** AskUser 对话框（由 component 层注入，专用于 ask_user RTC） */
+  private askUserDialog?: AskUserDialogFn;
   /** Master 资格判断（可选，多 Tab 场景注入） */
   private master?: MasterLike;
 
@@ -67,6 +85,11 @@ export class RtcProcessor {
   /** 设置确认对话框回调 */
   setConfirmDialog(fn: ConfirmDialogFn): void {
     this.confirmDialog = fn;
+  }
+
+  /** 设置 AskUser 对话框回调（专用于 ask_user RTC） */
+  setAskUserDialog(fn: AskUserDialogFn): void {
+    this.askUserDialog = fn;
   }
 
   /**
@@ -157,6 +180,14 @@ export class RtcProcessor {
     } else {
       // 新任务：检查权限
       const toolName = rtc.tool_name as ToolName;
+
+      // ask_user is a special case: its "execution" IS the user's input.
+      // Route to the dedicated ask-user dialog instead of the generic confirm.
+      if (toolName === 'ask_user') {
+        await this.processAskUser(rtc);
+        return;
+      }
+
       const needsConfirm = permissionChecker.needsConfirm(toolName, this.mode);
 
       let approved = true;
@@ -205,6 +236,63 @@ export class RtcProcessor {
       } catch (err) {
         console.error('[RtcProcessor] submitRtcResult failed:', err);
       }
+    }
+  }
+
+  /**
+   * 处理 ask_user RTC
+   *
+   * ask_user 与普通工具不同：没有"执行"阶段，用户的选择本身就是 RTC 结果。
+   * 通过专用的 askUserDialog 回调渲染多选 UI，收集答案后直接作为 result 提交。
+   */
+  private async processAskUser(rtc: LocalRtc): Promise<void> {
+    if (!this.askUserDialog) {
+      console.warn('[RtcProcessor] askUserDialog not set, defaulting to reject');
+      try {
+        await this.persistence.submitRtcResult({
+          rtcClientId: rtc.client_id,
+          success: false,
+          error: 'User declined to answer questions',
+        });
+      } catch (err) {
+        console.error('[RtcProcessor] submitRtcResult (ask_user no dialog) failed:', err);
+      }
+      return;
+    }
+
+    let payload: Awaited<ReturnType<AskUserDialogFn>>;
+    try {
+      payload = await this.askUserDialog(rtc);
+    } catch (err) {
+      console.error('[RtcProcessor] askUserDialog threw:', err);
+      try {
+        await this.persistence.submitRtcResult({
+          rtcClientId: rtc.client_id,
+          success: false,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      } catch (submitErr) {
+        console.error('[RtcProcessor] submitRtcResult (ask_user error) failed:', submitErr);
+      }
+      return;
+    }
+
+    try {
+      if (payload === null) {
+        await this.persistence.submitRtcResult({
+          rtcClientId: rtc.client_id,
+          success: false,
+          error: 'User declined to answer questions',
+        });
+      } else {
+        await this.persistence.submitRtcResult({
+          rtcClientId: rtc.client_id,
+          success: true,
+          result: payload,
+        });
+      }
+    } catch (err) {
+      console.error('[RtcProcessor] submitRtcResult (ask_user) failed:', err);
     }
   }
 
