@@ -1,13 +1,17 @@
 import {
   createPersistenceLayer,
   getUIUpdateBus,
+  getOffsetManager,
+  initializeVirtualFS,
   type PersistenceConfig,
+  type AgentMdConfig,
   type UIUpdateEvent,
   type LocalSession,
   type LocalMessage,
   type LocalRtc,
 } from '@rtc-agent/persistence';
 import type { ContentData } from '@rtc-agent/protocol';
+import type { ConnectionState, ConnectionStateEvent } from '@rtc-agent/client';
 import type { WorkerCallbacks, WorkerPersistenceCore } from './core-interface.js';
 
 type PersistenceLayer = ReturnType<typeof createPersistenceLayer>;
@@ -22,6 +26,7 @@ type PersistenceLayer = ReturnType<typeof createPersistenceLayer>;
 export class WorkerCore implements WorkerPersistenceCore {
   private layer: PersistenceLayer | null = null;
   private unsubscribeBus: (() => void) | null = null;
+  private unsubscribeConnection: (() => void) | null = null;
 
   /** 所有连入 Tab 的回调集合 */
   private callbacks = new Set<WorkerCallbacks>();
@@ -77,16 +82,24 @@ export class WorkerCore implements WorkerPersistenceCore {
   async connect(): Promise<void> {
     const layer = this.ensureLayer();
     await layer.connect();
+    // 订阅 RTCAgentClient 连接状态变更，广播给所有 Tab
+    this._subscribeConnectionState(layer);
   }
 
   disconnect(): void {
     const layer = this.ensureLayer();
+    this._unsubscribeConnectionState();
     layer.disconnect();
   }
 
   async reconnect(): Promise<void> {
     const layer = this.ensureLayer();
     await layer.reconnect();
+  }
+
+  async getConnectionState(): Promise<ConnectionState> {
+    const layer = this.ensureLayer();
+    return layer.getClient().getConnectionState();
   }
 
   // ========== 查询 ==========
@@ -175,6 +188,7 @@ export class WorkerCore implements WorkerPersistenceCore {
       this.unsubscribeBus();
       this.unsubscribeBus = null;
     }
+    this._unsubscribeConnectionState();
     if (this.layer) {
       await this.layer.close();
       this.layer = null;
@@ -185,6 +199,15 @@ export class WorkerCore implements WorkerPersistenceCore {
   async flushAll(): Promise<void> {
     const layer = this.ensureLayer();
     return layer.flushAll();
+  }
+
+  async initializeVirtualFS(config: AgentMdConfig = {}): Promise<void> {
+    // virtualFS 内部通过 getDatabase() 访问同一 IndexedDB（Worker 内共享）
+    await initializeVirtualFS(config);
+  }
+
+  async resetOffset(): Promise<void> {
+    await getOffsetManager().reset();
   }
 
   // ========== 内部 ==========
@@ -224,5 +247,42 @@ export class WorkerCore implements WorkerPersistenceCore {
       throw new Error('[WorkerCore] not initialized, call init() first');
     }
     return this.layer;
+  }
+
+  /**
+   * 订阅 RTCAgentClient 连接状态变更
+   *
+   * connect() 后调用，将连接状态变更广播给所有注册的 Tab 回调。
+   * 替代 Worker 模式下主线程无法直接访问 getClient() 的问题。
+   */
+  private _subscribeConnectionState(layer: PersistenceLayer): void {
+    this._unsubscribeConnectionState();
+    const client = layer.getClient();
+    this.unsubscribeConnection = client.on('connection', (event: ConnectionStateEvent) => {
+      this.broadcastConnectionState(event);
+    });
+  }
+
+  /**
+   * 取消订阅连接状态变更
+   */
+  private _unsubscribeConnectionState(): void {
+    if (this.unsubscribeConnection) {
+      this.unsubscribeConnection();
+      this.unsubscribeConnection = null;
+    }
+  }
+
+  /**
+   * 把连接状态变更广播给所有注册的 Tab 回调
+   */
+  private broadcastConnectionState(event: ConnectionStateEvent): void {
+    for (const cb of this.callbacks) {
+      try {
+        cb.onConnectionStateChange(event);
+      } catch (err) {
+        console.error('[WorkerCore] onConnectionStateChange callback error:', err);
+      }
+    }
   }
 }

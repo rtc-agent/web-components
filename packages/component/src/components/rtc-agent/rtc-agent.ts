@@ -225,6 +225,28 @@ export class RtcAgent extends LitElement {
     private _scenariosURL = '';
 
     /**
+     * 启用 SharedWorker 模式（可选，默认关闭）
+     *
+     * 设置后多 Tab 共享同一 WebSocket 连接、IndexedDB、工具执行。
+     * 仅 Master Tab 执行 RTC 工具调用（proposal §4.2）。
+     *
+     * @example
+     * <rtc-agent shared-worker></rtc-agent>
+     *
+     * @see docs/shared-worker-proposal.md
+     */
+    @property({type: Boolean, attribute: 'shared-worker'})
+    set sharedWorker(value: boolean) {
+        this._sharedWorker = value;
+        // 同步到 PersistenceController（必须在 connect() 之前）
+        this._persistence.setUseSharedWorker(value);
+    }
+    get sharedWorker(): boolean {
+        return this._sharedWorker;
+    }
+    private _sharedWorker = false;
+
+    /**
      * 基于 AgentConfig 构建 FunctionRegistry（内部使用）
      *
      * 流程：
@@ -416,6 +438,10 @@ export class RtcAgent extends LitElement {
     connectedCallback() {
         super.connectedCallback();
 
+        // 将 shared-worker attribute 同步到 PersistenceController
+        // 必须在任何 connect() 调用之前
+        this._persistence.setUseSharedWorker(this.sharedWorker);
+
         // Wire ForkController dependencies
         this._fork.setDeps({
             getCurrentSessionId: () => this._session.value.state.currentSessionId,
@@ -488,7 +514,12 @@ export class RtcAgent extends LitElement {
                     void this._refreshTurnCounts();
                 }
             } else if (event.entity === 'rtc') {
-                // RTC 更新：触发 RtcProcessor 处理循环
+                // RTC 更新：仅 Master Tab 触发 RtcProcessor 处理循环
+                // （Worker 模式下 masterLock 存在且 isMaster=false 时跳过；
+                // 直接模式下 masterLock 为 undefined，始终处理）
+                if (this._persistence.masterLock?.isMaster === false) {
+                    return;
+                }
                 this._rtcProcessor?.onRtcUpdate();
             }
         });
@@ -518,12 +549,8 @@ export class RtcAgent extends LitElement {
                     await initializeVirtualFS();
 
                     // 初始化 RTC 处理器并恢复未完成的任务
-                    this._rtcProcessor = new RtcProcessor(this._persistence.layer);
-                    this._rtcProcessor.setConfirmDialog((rtc) => this._showToolConfirm(rtc));
-                    this._rtcProcessor.setMode(this._mode.value.state.currentMode);
-                    this._rtcProcessor.onRtcUpdate().catch(err => {
-                        console.error('[rtc-agent] onRtcUpdate failed:', err);
-                    });
+                    await this._initRtcProcessor();
+
                     // 监听连接状态变化
                     this._setupConnectionListener();
                 }
@@ -568,16 +595,22 @@ export class RtcAgent extends LitElement {
         });
     }
 
-    /** 设置连接状态监听 */
-    private _setupConnectionListener() {
+    /**
+     * 设置连接状态监听
+     *
+     * 使用 PersistenceController 的统一接口，兼容直接模式和 Worker 模式。
+     * Worker 模式下不再调用 getClient()（会抛异常），改为通过 WorkerBridge 广播获取。
+     */
+    private async _setupConnectionListener() {
         this._unsubConnection?.();
-        const client = this._persistence.layer?.getClient();
-        if (client) {
-            this._connectionState = client.getConnectionState();
-            this._unsubConnection = client.on('connection', (event) => {
-                this._connectionState = event.state;
-            });
-        }
+
+        // 使用统一接口获取初始连接状态
+        this._connectionState = await this._persistence.getConnectionState();
+
+        // 使用统一接口监听连接状态变更
+        this._unsubConnection = this._persistence.onConnectionStateChange((event) => {
+            this._connectionState = event.state;
+        });
     }
 
     disconnectedCallback() {
@@ -719,10 +752,7 @@ export class RtcAgent extends LitElement {
                 await initializeVirtualFS();
 
                 // 初始化 RTC 处理器
-                this._rtcProcessor = new RtcProcessor(this._persistence.layer);
-                this._rtcProcessor.setConfirmDialog((rtc) => this._showToolConfirm(rtc));
-                this._rtcProcessor.setMode(this._mode.value.state.currentMode);
-                void this._rtcProcessor.onRtcUpdate();
+                await this._initRtcProcessor();
 
                 // 监听连接状态变化
                 this._setupConnectionListener();
@@ -791,6 +821,38 @@ export class RtcAgent extends LitElement {
                 this._session.actions.switchSession(mostRecent.clientId);
             }
         }
+    }
+
+    /* ── RTC 处理器初始化 ── */
+
+    /**
+     * 初始化 RTC 处理器并恢复未完成的任务
+     *
+     * 抽取为私有方法，避免 connectedCallback 与 _handleLoginComplete 重复。
+     * Worker 模式下自动注入 MasterLock，并在升级为 Master 时触发 processLoop。
+     */
+    private async _initRtcProcessor(): Promise<void> {
+        if (!this._persistence.layer) return;
+
+        this._rtcProcessor = new RtcProcessor(this._persistence.layer);
+        this._rtcProcessor.setConfirmDialog((rtc) => this._showToolConfirm(rtc));
+        this._rtcProcessor.setMode(this._mode.value.state.currentMode);
+
+        // Worker 模式下注入 MasterLock
+        const masterLock = this._persistence.masterLock;
+        if (masterLock) {
+            this._rtcProcessor.setMaster(masterLock);
+            // 当本 Tab 升级为 Master 时，触发 RTC 处理（恢复崩溃恢复场景）
+            const prevOnAcquire = masterLock.onAcquire;
+            masterLock.onAcquire = () => {
+                prevOnAcquire?.();
+                this._rtcProcessor?.onRtcUpdate().catch(err => {
+                    console.error('[rtc-agent] onRtcUpdate on master acquire failed:', err);
+                });
+            };
+        }
+
+        await this._rtcProcessor.onRtcUpdate();
     }
 
     /* ── Render ── */

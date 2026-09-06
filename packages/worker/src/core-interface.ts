@@ -1,5 +1,6 @@
 import type { ContentData } from '@rtc-agent/protocol';
-import type { PersistenceConfig } from '@rtc-agent/persistence';
+import type { ConnectionState, ConnectionStateEvent } from '@rtc-agent/client';
+import type { PersistenceConfig, AgentMdConfig } from '@rtc-agent/persistence';
 import type { UIUpdateEvent, LocalSession, LocalMessage, LocalRtc } from '@rtc-agent/persistence';
 
 /**
@@ -7,10 +8,12 @@ import type { UIUpdateEvent, LocalSession, LocalMessage, LocalRtc } from '@rtc-a
  *
  * - onUIUpdate：Worker 收到实体变更时广播到该 Tab
  * - requestToken：Centrifuge 需要 token 时向任意 Tab 请求
+ * - onConnectionStateChange：Worker 中 RTCAgentClient 连接状态变更时广播到该 Tab
  */
 export interface WorkerCallbacks {
   onUIUpdate: (event: UIUpdateEvent) => void;
   requestToken: () => Promise<string>;
+  onConnectionStateChange: (event: ConnectionStateEvent) => void;
 }
 
 /**
@@ -32,6 +35,7 @@ export interface WorkerPersistenceCore {
   connect(): Promise<void>;
   disconnect(): void;
   reconnect(): Promise<void>;
+  getConnectionState(): Promise<ConnectionState>;
 
   // ========== 查询 ==========
   listSessions(cursor?: string, limit?: number): Promise<LocalSession[]>;
@@ -78,4 +82,22 @@ export interface WorkerPersistenceCore {
   // ========== 生命周期 ==========
   close(): Promise<void>;
   flushAll(): Promise<void>;
+
+  // ========== Worker 模式额外能力 ==========
+
+  /**
+   * 初始化虚拟文件系统（AGENT.md）
+   *
+   * Worker 模式下 virtualFS 运行在 Worker 内（共享同一 IndexedDB），
+   * 因此需要通过 Comlink 调用，而非在主线程直接调用 initializeVirtualFS。
+   */
+  initializeVirtualFS(config?: AgentMdConfig): Promise<void>;
+
+  /**
+   * 重置 OffsetManager 缓存（等价于 getOffsetManager().reset()）
+   *
+   * Worker 模式下主线程无法访问 Worker 内的 OffsetManager，
+   * 通过此方法透传 reset 调用。
+   */
+  resetOffset(): Promise<void>;
 }

@@ -15,6 +15,18 @@ import type { ToolName, ToolParams } from './tools/types.js';
 export type ConfirmDialogFn = (rtc: LocalRtc) => Promise<boolean>;
 
 /**
+ * Master 资格判断的最小接口
+ *
+ * 设计为最小 duck-type，以便 component 层的 MasterLock 或其他实现都能注入。
+ * persistence 包不直接依赖 component 包的 MasterLock 类。
+ *
+ * @see docs/shared-worker-proposal.md §4.2
+ */
+export interface MasterLike {
+  readonly isMaster: boolean;
+}
+
+/**
  * RTC 处理器：串行处理 RTC，防止重入
  *
  * 设计要点：
@@ -22,6 +34,8 @@ export type ConfirmDialogFn = (rtc: LocalRtc) => Promise<boolean>;
  * - pendingCheck 确保不遗漏新推送
  * - 根据权限模式决定是否需要用户确认
  * - confirmDialog 由外部注入（component 层实现）
+ * - 可选注入 MasterLike：多 Tab 场景下仅 Master Tab 执行工具
+ *   （直接模式下无需注入，视为永远是 Master）
  */
 export class RtcProcessor {
   private persistence: PersistenceLayer;
@@ -33,6 +47,8 @@ export class RtcProcessor {
   private mode: Mode = 'edit';
   /** 确认对话框（由 component 层注入） */
   private confirmDialog?: ConfirmDialogFn;
+  /** Master 资格判断（可选，多 Tab 场景注入） */
+  private master?: MasterLike;
 
   constructor(persistence: PersistenceLayer) {
     this.persistence = persistence;
@@ -54,6 +70,26 @@ export class RtcProcessor {
   }
 
   /**
+   * 设置 Master 资格判断
+   *
+   * 多 Tab 场景下由 component 层注入 MasterLock。
+   * 不设置时视为"永远是 Master"（兼容直接模式）。
+   */
+  setMaster(master: MasterLike | undefined): void {
+    this.master = master;
+  }
+
+  /**
+   * 判断当前 Tab 是否允许执行 RTC
+   *
+   * - 未注入 master → 视为 Master（直接模式兼容）
+   * - 已注入 master → 按 master.isMaster 判断
+   */
+  private _isMasterAllowed(): boolean {
+    return this.master === undefined || this.master.isMaster;
+  }
+
+  /**
    * 收到 RTC 更新时调用
    * 如果已经在处理，标记 pendingCheck，当前循环会检查
    */
@@ -66,6 +102,12 @@ export class RtcProcessor {
   }
 
   private async processLoop() {
+    // 非 Master Tab 跳过工具执行（proposal §4.2）
+    // 不设置 processing 标志，避免阻塞未来 Master 升级后的处理
+    if (!this._isMasterAllowed()) {
+      return;
+    }
+
     this.processing = true;
 
     try {

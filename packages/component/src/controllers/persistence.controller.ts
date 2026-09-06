@@ -9,6 +9,10 @@
  * - Worker mode (useSharedWorker=true): creates SharedWorker + Comlink bridge,
  *   exposes a PersistenceLayer-compatible adapter
  *
+ * Phase 3 additions:
+ * - MasterLock: Master Tab election via Web Locks API (Worker mode only)
+ * - Connection state bridge: unified API for both modes
+ *
  * Corresponds to: no context (infrastructure concern, not UI state).
  * Provided by: `<rtc-agent>` (root)
  * Consumed by: other controllers (via `persistence.layer`)
@@ -21,14 +25,32 @@ import {
     type LocalSession,
     type LocalMessage,
     type LocalRtc,
+    type AgentMdConfig,
 } from '@rtc-agent/persistence';
 import type {ContentData} from '@rtc-agent/protocol';
+import type {ConnectionState, ConnectionStateEvent} from '@rtc-agent/client';
 import type {WorkerPersistenceCore} from '@rtc-agent/worker';
 import type {AuthController} from './auth.controller.js';
 import {AUTH_CONFIG} from '../config/auth.js';
 import {getOrCreateDeviceId} from '../utils/device.js';
 import {WORKER_CONFIG} from '../config/worker.js';
 import {WorkerBridge} from '../worker-bridge.js';
+import {MasterLock} from '../master-lock.js';
+
+/**
+ * 将 WorkerPersistenceAdapter 断言为 PersistenceLayer
+ *
+ * WorkerPersistenceAdapter 结构上匹配 PersistenceLayer，但以下方法语义不同：
+ * - getClient(): throws（Worker 模式下用 PersistenceController.onConnectionStateChange 替代）
+ * - getEntityRepository(): throws（当前无调用方）
+ * - getOffsetManager(): 返回仅含 reset() 的 shim
+ *
+ * 当修改 PersistenceLayer 公共 API 时，必须同步更新 WorkerPersistenceAdapter。
+ * 集中在此函数，避免散落在代码中的 `as unknown as` 造成认知负担。
+ */
+function _asPersistenceLayer(adapter: WorkerPersistenceAdapter): PersistenceLayer {
+    return adapter as unknown as PersistenceLayer;
+}
 
 /**
  * Worker 模式下的 PersistenceLayer 适配器
@@ -144,7 +166,16 @@ class WorkerPersistenceAdapter {
         return this._core.flushAll();
     }
 
-    // ========== Worker 模式下不支持的方法 ==========
+    /**
+     * 初始化虚拟文件系统（Worker 模式）
+     *
+     * virtualFS 在 Worker 内共享同一 IndexedDB，通过 Comlink 透传调用。
+     */
+    async initializeVirtualFS(config?: AgentMdConfig): Promise<void> {
+        await this._core.initializeVirtualFS(config ?? {});
+    }
+
+    // ========== Worker 模式下受限的方法 ==========
 
     /**
      * TODO(Phase 3): Worker 模式下需要通过 Worker 广播连接状态事件来替代直接访问 RTCAgentClient。
@@ -164,18 +195,17 @@ class WorkerPersistenceAdapter {
     }
 
     /**
-     * TODO(Phase 3+): 如果根组件需要在 Worker 模式下访问 OffsetManager，
-     * 需要通过 Worker 暴露相关方法或事件。当前 disconnect() 中会调用
-     * getOffsetManager().reset()，但在 Worker 模式下走的是 _workerBridge.destroy() 分支，
-     * 不会触发此方法。
+     * Worker 模式下返回一个 shim 对象，仅支持 reset() 操作。
      *
-     * @throws Worker 模式下不支持直接访问 OffsetManager
+     * reset() 通过 Comlink 透传到 Worker 内的 getOffsetManager().reset()。
+     * 其他方法调用会抛出错误。
+     *
+     * TODO(Phase 6): 如果未来需要访问 OffsetManager 的其他方法，扩展此 shim。
      */
-    getOffsetManager(): never {
-        throw new Error(
-            '[WorkerPersistenceAdapter] getOffsetManager() is not available in Worker mode. ' +
-            'TODO(Phase 3+): Expose offset management via Worker if needed.',
-        );
+    getOffsetManager(): { reset: () => Promise<void> } {
+        return {
+            reset: () => this._core.resetOffset(),
+        };
     }
 
     /**
@@ -197,10 +227,30 @@ export class PersistenceController implements ReactiveController {
     private _layer?: PersistenceLayer;
     private _auth: AuthController;
     private _workerBridge?: WorkerBridge;
+    private _masterLock?: MasterLock;
+    /** Worker 模式下是否使用 Worker 桥接（用于区分连接状态获取方式） */
+    private _isWorkerMode = false;
+    /**
+     * 实例级 Worker 模式开关
+     *
+     * 优先级：setUseSharedWorker() > WORKER_CONFIG.useSharedWorker
+     * 由 rtc-agent 在 connectedCallback 中根据 shared-worker attribute 设置
+     */
+    private _useSharedWorker?: boolean;
 
     constructor(host: {addController(c: ReactiveController): void}, auth: AuthController) {
         this._auth = auth;
         host.addController(this);
+    }
+
+    /**
+     * 显式开启/关闭 SharedWorker 模式
+     *
+     * 必须在 connect() 之前调用。覆盖全局 WORKER_CONFIG.useSharedWorker。
+     * rtc-agent 根据 `<rtc-agent shared-worker>` attribute 自动调用。
+     */
+    setUseSharedWorker(value: boolean): void {
+        this._useSharedWorker = value;
     }
 
     /** The PersistenceLayer instance. Only available after connect(). */
@@ -215,12 +265,22 @@ export class PersistenceController implements ReactiveController {
 
     /**
      * Get the WorkerBridge instance (only available in Worker mode).
-     *
-     * Useful for Phase 3+ (Master election) where the root component
-     * needs direct access to the Worker core.
      */
     get workerBridge(): WorkerBridge | undefined {
         return this._workerBridge;
+    }
+
+    /**
+     * Get the MasterLock instance (only available in Worker mode).
+     *
+     * MasterLock 封装 Web Locks API，用于 Master Tab 选举。
+     * 每个 Tab 各自持有一个 MasterLock，自己判断是否为 Master。
+     * 只有 Master Tab 的 RtcProcessor 会执行 RTC 工具调用。
+     *
+     * @see docs/shared-worker-proposal.md §4.3
+     */
+    get masterLock(): MasterLock | undefined {
+        return this._masterLock;
     }
 
     hostConnected() {
@@ -268,7 +328,7 @@ export class PersistenceController implements ReactiveController {
             },
         };
 
-        if (WORKER_CONFIG.useSharedWorker) {
+        if (this._useSharedWorker ?? WORKER_CONFIG.useSharedWorker) {
             await this._connectWorker(config);
         } else {
             await this._connectDirect(config);
@@ -279,6 +339,7 @@ export class PersistenceController implements ReactiveController {
      * Direct mode: create PersistenceLayer in main thread.
      */
     private async _connectDirect(config: Parameters<typeof createPersistenceLayer>[0]): Promise<void> {
+        this._isWorkerMode = false;
         this._layer = createPersistenceLayer(config);
         await this._layer.connect();
     }
@@ -290,10 +351,9 @@ export class PersistenceController implements ReactiveController {
      * PersistenceLayer-compatible interface to the rest of the application.
      */
     private async _connectWorker(config: Parameters<typeof createPersistenceLayer>[0]): Promise<void> {
+        this._isWorkerMode = true;
+
         // Resolve worker URL
-        // In dev mode with Vite, the worker script needs to be served separately.
-        // For now, use a relative URL that assumes the worker script is at the
-        // same origin (typical for bundled deployments).
         const workerUrl = this._resolveWorkerUrl();
 
         this._workerBridge = new WorkerBridge(workerUrl, this._auth);
@@ -302,12 +362,25 @@ export class PersistenceController implements ReactiveController {
         await this._workerBridge.init(config);
 
         // Create adapter that wraps the Comlink proxy
-        // Type assertion: WorkerPersistenceAdapter has the same public interface
-        // as PersistenceLayer (except getClient/getOffsetManager/getEntityRepository).
-        this._layer = new WorkerPersistenceAdapter(this._workerBridge.core) as unknown as PersistenceLayer;
+        // 断言语义见 _asPersistenceLayer 顶部注释
+        this._layer = _asPersistenceLayer(new WorkerPersistenceAdapter(this._workerBridge.core));
 
         // Connect (starts Centrifuge WebSocket inside Worker)
         await this._workerBridge.core.connect();
+
+        // 创建 MasterLock 并开始选举
+        const userId = this._auth.state.userId;
+        if (userId) {
+            this._masterLock = new MasterLock(userId);
+            this._masterLock.onAcquire = () => {
+                console.info('[PersistenceController] this Tab became Master');
+            };
+            this._masterLock.onRelease = () => {
+                console.info('[PersistenceController] this Tab lost Master');
+            };
+            // 开始尝试获取锁（可能排队）
+            void this._masterLock.acquire();
+        }
     }
 
     /**
@@ -344,30 +417,71 @@ export class PersistenceController implements ReactiveController {
     /**
      * Disconnect and tear down the PersistenceLayer.
      *
-     * In Worker mode: destroys the WorkerBridge (unregister callbacks + close port).
-     * In direct mode: closes the PersistenceLayer directly.
+     * 统一两种模式的生命周期：
+     * - 都先 reset offset，再 close layer
+     * - Worker 模式额外释放 MasterLock + 销毁 WorkerBridge
      *
      * Call this on logout or when auth is lost.
      */
     async disconnect(): Promise<void> {
-        if (this._workerBridge) {
+        if (this._layer) {
             try {
-                await this._workerBridge.destroy();
-            } catch (err) {
-                console.error('[PersistenceController] WorkerBridge disconnect error:', err);
-            }
-            this._workerBridge = undefined;
-            this._layer = undefined;
-        } else if (this._layer) {
-            try {
-                // 先重置 offset
+                // 重置 offset（Worker 模式通过 adapter shim 透传到 core.resetOffset()）
                 await this._layer.getOffsetManager().reset();
-                // 关闭 WS + DB
+                // 关闭 WS + DB（Worker 模式通过 adapter 委托到 core.close()）
                 await this._layer.close();
             } catch (err) {
                 console.error('[PersistenceController] disconnect error:', err);
             }
             this._layer = undefined;
         }
+
+        // Worker 模式额外清理
+        if (this._workerBridge) {
+            this._masterLock?.release();
+            this._masterLock = undefined;
+            try {
+                await this._workerBridge.destroy();
+            } catch (err) {
+                console.error('[PersistenceController] WorkerBridge disconnect error:', err);
+            }
+            this._workerBridge = undefined;
+        }
+
+        this._isWorkerMode = false;
+    }
+
+    // ========== 连接状态统一接口（替代 Worker 模式下的 getClient()） ==========
+
+    /**
+     * 获取当前连接状态
+     *
+     * 统一接口：直接模式从 RTCAgentClient 获取，Worker 模式从 WorkerBridge 获取。
+     */
+    async getConnectionState(): Promise<ConnectionState> {
+        if (this._isWorkerMode && this._workerBridge) {
+            return this._workerBridge.getConnectionState();
+        }
+        if (this._layer) {
+            return this._layer.getClient().getConnectionState();
+        }
+        return 'disconnected';
+    }
+
+    /**
+     * 监听连接状态变更
+     *
+     * 统一接口：直接模式监听 RTCAgentClient 事件，Worker 模式监听 WorkerBridge 广播。
+     * 返回取消监听的函数。
+     */
+    onConnectionStateChange(listener: (event: ConnectionStateEvent) => void): () => void {
+        if (this._isWorkerMode && this._workerBridge) {
+            return this._workerBridge.onConnectionStateChange(listener);
+        }
+        if (this._layer) {
+            return this._layer.getClient().on('connection', listener);
+        }
+        // 未连接时返回空取消函数
+        return () => {};
     }
 }

@@ -29,6 +29,7 @@ sharedSelf.onconnect = (e: MessageEvent): void => {
     connect: () => core.connect(),
     disconnect: () => core.disconnect(),
     reconnect: () => core.reconnect(),
+    getConnectionState: () => core.getConnectionState(),
 
     // 查询
     listSessions: (...args: Parameters<WorkerCore['listSessions']>) => core.listSessions(...args),
@@ -47,6 +48,10 @@ sharedSelf.onconnect = (e: MessageEvent): void => {
     // 生命周期
     close: () => core.close(),
     flushAll: () => core.flushAll(),
+
+    // Worker 模式额外能力
+    initializeVirtualFS: (...args: Parameters<WorkerCore['initializeVirtualFS']>) => core.initializeVirtualFS(...args),
+    resetOffset: () => core.resetOffset(),
   };
 
   expose(facade, port);

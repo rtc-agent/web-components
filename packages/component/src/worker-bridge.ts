@@ -5,16 +5,19 @@
  * 1. 创建 SharedWorker 实例
  * 2. 用 Comlink.wrap() 获取 WorkerPersistenceCore 的代理
  * 3. 注册回调：Worker 的 UIUpdateEvent → 主线程 UIUpdateBus.publish()
- * 4. 注册回调：Worker 的 token 请求 → AuthController.getAccessToken()
+ * 4. 注册回调：Worker 的 token 请求 → AuthController.getAccessToken()（带去重）
+ * 5. 注册回调：Worker 的连接状态变更 → 主线程监听器
  *
  * 设计要点：
  * - 主线程保留 UIUpdateBus 单例（现有 UI 代码继续订阅它）
  * - Worker 广播事件时，WorkerBridge 在主线程 UIUpdateBus 上重新发布
  * - 一个页面只有一个 SharedWorker 实例（多 Tab 共享由浏览器管理）
+ * - Token 请求去重：并发请求共享同一个 Promise（提案 §7）
  */
 import {wrap, type Remote} from 'comlink';
 import {getUIUpdateBus} from '@rtc-agent/persistence';
 import type {PersistenceConfig, UIUpdateEvent} from '@rtc-agent/persistence';
+import type {ConnectionState, ConnectionStateEvent} from '@rtc-agent/client';
 import type {WorkerPersistenceCore, WorkerCallbacks} from '@rtc-agent/worker';
 import type {AuthController} from './controllers/auth.controller.js';
 
@@ -23,6 +26,12 @@ export class WorkerBridge {
     private _core: Remote<WorkerPersistenceCore>;
     private _callbacks: WorkerCallbacks;
     private _initialized = false;
+
+    /** Token 请求去重缓存（提案 §7：并发请求共享同一个 Promise） */
+    private _tokenPromise: Promise<string> | null = null;
+
+    /** 连接状态监听器（主线程侧） */
+    private _connectionListeners = new Set<(event: ConnectionStateEvent) => void>();
 
     constructor(workerUrl: string, auth: AuthController) {
         // 1. 创建 SharedWorker 实例
@@ -43,15 +52,34 @@ export class WorkerBridge {
                 bus.publish(event);
             },
             // Worker 请求 token → AuthController.getAccessToken()
-            // TODO(Phase 3): Token 请求去重 — 提案 §7 要求"并发 token 请求去重：缓存最新 Promise"。
-            // 当前实现每次都直接调用 getAccessToken()，如果多个 Tab 同时请求 token
-            // 会导致多次 AuthController 调用。需要加 Promise 缓存机制。
-            requestToken: async (): Promise<string> => {
-                const token = auth.getAccessToken();
-                if (!token) {
-                    throw new Error('[WorkerBridge] no access token available');
+            // 去重：并发请求共享同一个 Promise，resolve 后清空缓存
+            requestToken: (): Promise<string> => {
+                if (this._tokenPromise) {
+                    return this._tokenPromise;
                 }
-                return token;
+                this._tokenPromise = (async () => {
+                    try {
+                        const token = auth.getAccessToken();
+                        if (!token) {
+                            throw new Error('[WorkerBridge] no access token available');
+                        }
+                        return token;
+                    } finally {
+                        // resolve/reject 后清空缓存，下次请求重新获取
+                        this._tokenPromise = null;
+                    }
+                })();
+                return this._tokenPromise;
+            },
+            // Worker 广播连接状态变更 → 通知主线程监听器
+            onConnectionStateChange: (event: ConnectionStateEvent) => {
+                for (const listener of this._connectionListeners) {
+                    try {
+                        listener(event);
+                    } catch (err) {
+                        console.error('[WorkerBridge] connection listener error:', err);
+                    }
+                }
             },
         };
 
@@ -84,7 +112,7 @@ export class WorkerBridge {
      * 初始化桥接
      *
      * 1. 调用 Worker 的 core.init() 初始化共享状态
-     * 2. 注册本 Tab 的回调（onUIUpdate + requestToken）
+     * 2. 注册本 Tab 的回调（onUIUpdate + requestToken + onConnectionStateChange）
      * 3. 打开 port 开始通信
      *
      * 幂等：多次调用只有第一次生效。
@@ -125,7 +153,32 @@ export class WorkerBridge {
             console.warn('[WorkerBridge] unregisterCallback failed:', err);
         }
 
+        this._connectionListeners.clear();
         this._worker.port.close();
         this._initialized = false;
+    }
+
+    // ========== 连接状态监听（替代 Worker 模式下的 getClient()） ==========
+
+    /**
+     * 获取 Worker 中 RTCAgentClient 的当前连接状态
+     *
+     * 通过 Comlink 调用 Worker 的 getConnectionState()。
+     */
+    async getConnectionState(): Promise<ConnectionState> {
+        return this._core.getConnectionState();
+    }
+
+    /**
+     * 监听连接状态变更
+     *
+     * Worker 模式下的替代方案：替代直接模式的 `client.on('connection', cb)`。
+     * 返回取消监听的函数。
+     */
+    onConnectionStateChange(listener: (event: ConnectionStateEvent) => void): () => void {
+        this._connectionListeners.add(listener);
+        return () => {
+            this._connectionListeners.delete(listener);
+        };
     }
 }
