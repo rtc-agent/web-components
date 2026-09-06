@@ -46,8 +46,8 @@ export class RtcMessageList extends LitElement {
     @consume({context: MessageContext, subscribe: true})
     @state()
     private _ctx: MessageContextValue = {
-        state: {messages: []},
-        actions: {sendMessage: async () => {}, resendMessage: async () => {}, forkSession: async () => {}, appendToLastMessage: () => {}, finalizeLastMessage: () => {}, clearMessages: () => {}}
+        state: {messages: [], hasMore: false, isLoadingMore: false},
+        actions: {sendMessage: async () => {}, resendMessage: async () => {}, forkSession: async () => {}, appendToLastMessage: () => {}, finalizeLastMessage: () => {}, clearMessages: () => {}, loadMore: async () => {}}
     };
 
     @state()
@@ -55,6 +55,9 @@ export class RtcMessageList extends LitElement {
 
     @state()
     private _userAtBottom = true;
+
+    @state()
+    private _showLoadMoreBtn = false;
 
     private _scrollEl?: HTMLElement;
     private _resizeObserver?: ResizeObserver;
@@ -121,7 +124,11 @@ export class RtcMessageList extends LitElement {
             currCount > 1 && !this._arraysEqual(currIds, this._prevMsgIds);
 
         // --- Scroll decision ---
-        if (isShrinkOrReplace) {
+        if (isGrowth && this._anchorInfo) {
+            // Prepend (loadMore): preserve scroll position using anchor
+            this._preserveScrollPosition();
+            this._anchorInfo = null;
+        } else if (isShrinkOrReplace) {
             // Fork/clear: always scroll to bottom, reset user state
             this._userAtBottom = true;
             this._showNewBtn = false;
@@ -133,6 +140,9 @@ export class RtcMessageList extends LitElement {
             }
         }
         // Content-only updates (streaming) are handled by ResizeObserver
+
+        // --- Update load-more button visibility ---
+        this._showLoadMoreBtn = this._ctx.state.hasMore && this._isNearTop();
 
         // --- Snapshot for next comparison ---
         this._prevMsgIds = currIds;
@@ -189,6 +199,9 @@ export class RtcMessageList extends LitElement {
     private _scrollToBottom() {
         if (!this._scrollEl) return;
         this._scrollEl.scrollTo({top: this._scrollEl.scrollHeight, behavior: 'auto'});
+        // 主动标记在底部，防止展开 thinking 等内容变化导致 scroll 事件误判
+        this._userAtBottom = true;
+        this._showNewBtn = false;
     }
 
     private _onScroll = () => {
@@ -197,7 +210,93 @@ export class RtcMessageList extends LitElement {
         const atBottom = scrollHeight - scrollTop - clientHeight < 60;
         this._userAtBottom = atBottom;
         this._showNewBtn = !atBottom;
+
+        // Show/hide load-more button based on scroll position
+        this._showLoadMoreBtn = this._ctx.state.hasMore && this._isNearTop();
     };
+
+    private _isNearTop(): boolean {
+        if (!this._scrollEl) return false;
+        return this._scrollEl.scrollTop < 60;
+    }
+
+    private async _handleLoadMoreClick() {
+        this._showLoadMoreBtn = false;
+
+        // Record the anchor element and its visual position before loading
+        this._anchorInfo = this._captureAnchorInfo();
+
+        await this._ctx.actions.loadMore();
+    }
+
+    /** Anchor info captured before loadMore for scroll position preservation. */
+    private _anchorInfo: {clientId: string; visualTop: number} | null = null;
+
+    /**
+     * Capture the first visible message's clientId and its position
+     * relative to the scroll container viewport.
+     */
+    private _captureAnchorInfo(): {clientId: string; visualTop: number} | null {
+        if (!this._scrollEl) return null;
+        const scrollRect = this._scrollEl.getBoundingClientRect();
+        const children = this._scrollEl.querySelectorAll('[data-client-id]');
+        for (const el of children) {
+            const rect = el.getBoundingClientRect();
+            // First child whose top is at or below the scroll container's top
+            if (rect.top >= scrollRect.top - 10) {
+                return {
+                    clientId: el.getAttribute('data-client-id') ?? '',
+                    visualTop: rect.top - scrollRect.top,
+                };
+            }
+        }
+        return null;
+    }
+
+    /**
+     * After prepending older messages, scroll so the anchor message stays
+     * at the same visual position within the viewport.
+     */
+    private _preserveScrollPosition() {
+        if (!this._scrollEl || !this._anchorInfo) return;
+
+        const anchorId = this._anchorInfo.clientId;
+        const desiredVisualTop = this._anchorInfo.visualTop;
+
+        this.updateComplete.then(async () => {
+            // Wait for child message elements to render
+            const msgEls = this.shadowRoot!.querySelectorAll('rtc-message, rtc-user-message, rtc-toolcall-card');
+            if (msgEls.length > 0) {
+                await Promise.all(
+                    Array.from(msgEls).map(el => (el as LitElement).updateComplete)
+                );
+            }
+
+            // Second pass for async Markdown re-renders
+            if (msgEls.length > 0) {
+                await Promise.all(
+                    Array.from(msgEls).map(el => (el as LitElement).updateComplete)
+                );
+            }
+
+            if (!this._scrollEl) return;
+
+            // Find the anchor element after prepend
+            const anchorEl = this._scrollEl.querySelector(`[data-client-id="${anchorId}"]`) as HTMLElement | null;
+            if (anchorEl) {
+                // Compute current visual position of anchor
+                const scrollRect = this._scrollEl.getBoundingClientRect();
+                const anchorRect = anchorEl.getBoundingClientRect();
+                const currentVisualTop = anchorRect.top - scrollRect.top;
+
+                // Adjust scrollTop so anchor returns to its pre-load visual position
+                this._scrollEl.scrollTop += (currentVisualTop - desiredVisualTop);
+            }
+
+            // Re-evaluate load-more button after scroll adjustment
+            this._showLoadMoreBtn = this._ctx.state.hasMore && this._isNearTop();
+        });
+    }
 
     private _handleNewBtnClick() {
         if (this._scrollEl) {
@@ -212,6 +311,7 @@ export class RtcMessageList extends LitElement {
         const items = this._buildRenderItems(msgs);
         // The last rendered item's key determines which component gets is-last
         const lastRenderedKey = items.length > 0 ? items[items.length - 1].key : '';
+        const isLoadingMore = this._ctx.state.isLoadingMore;
 
         return html`
       <div class="message-list-scroll" part="scroll">
@@ -221,12 +321,13 @@ export class RtcMessageList extends LitElement {
             (item) => item.key,
             (item) => {
               if (item.type === 'user') {
-                return html`<rtc-user-message .message=${item.message}></rtc-user-message>`;
+                return html`<rtc-user-message data-client-id=${item.message.clientId} .message=${item.message}></rtc-user-message>`;
               }
               if (item.type === 'toolcall') {
-                return html`<rtc-toolcall-card .pair=${item.pair}></rtc-toolcall-card>`;
+                return html`<rtc-toolcall-card data-client-id=${item.pair.input.clientId} .pair=${item.pair}></rtc-toolcall-card>`;
               }
               return html`<rtc-message
+                data-client-id=${item.message.clientId}
                 .message=${item.message}
                 ?is-last=${item.key === lastRenderedKey}
               ></rtc-message>`;
@@ -234,6 +335,13 @@ export class RtcMessageList extends LitElement {
           )}
         </div>
       </div>
+      <button
+        class="load-more-btn"
+        ?hidden=${!this._showLoadMoreBtn}
+        ?disabled=${isLoadingMore}
+        @click=${this._handleLoadMoreClick}
+        aria-label="Load earlier messages"
+      >${isLoadingMore ? 'Loading...' : '↑ Load earlier messages'}</button>
       <button
         class="new-message-btn"
         ?hidden=${!this._showNewBtn}

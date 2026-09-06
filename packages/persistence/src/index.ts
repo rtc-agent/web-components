@@ -4,6 +4,7 @@ import { getDatabase, closeDatabase, flushAll, type LocalSession, type LocalMess
 import { getOffsetManager } from './offset-manager.js';
 import { getEntityRepository } from './entity-repository.js';
 import { nowRFC3339 } from './time-utils.js';
+import { virtualFS } from './virtual-fs.js';
 
 export * from './database.js';
 export * from './offset-manager.js';
@@ -136,10 +137,11 @@ export class PersistenceLayer {
   }
 
   /**
-   * 列出某个会话的所有消息
+   * 列出某个会话的消息
+   * @param direction 'backward'（默认）= 从最新向最旧分页；'forward' = 从最旧向最新分页
    */
-  async listMessages(sessionClientId: string, cursor?: number, limit?: number): Promise<LocalMessage[]> {
-    return this.entityRepository.listMessagesBySession(sessionClientId, cursor, limit);
+  async listMessages(sessionClientId: string, cursor?: number, limit?: number, direction?: 'backward' | 'forward'): Promise<LocalMessage[]> {
+    return this.entityRepository.listMessagesBySession(sessionClientId, cursor, limit, direction);
   }
 
   /**
@@ -195,6 +197,7 @@ export class PersistenceLayer {
 
     let session: LocalSession;
     let isNewSession: boolean;
+    let agentPrompt = '';
 
     if (existing) {
       // 2. 找到 session：touch updated_at，保持原有 sync_status 和 server_id
@@ -206,10 +209,16 @@ export class PersistenceLayer {
       );
       session = result.after;
       isNewSession = false;
+      agentPrompt = result.after.agent_prompt ?? "";
     } else {
-      // 3. 没找到：创建新 session
+      // 3. 没找到：创建新 session，从 VirtualFS 读取 AGENT.md 作为 agent_prompt
+      try {
+        agentPrompt = await virtualFS.read('/AGENT.md');
+      } catch {
+        // AGENT.md 不存在时静默跳过（agent_prompt 保持空字符串）
+      }
       const result = await this.entityRepository.upsertSession(
-        { client_id: sessionClientId, status: 'active' },
+        { client_id: sessionClientId, status: 'active', agent_prompt: agentPrompt },
         'pending',
         { silent: true }
       );
@@ -241,7 +250,7 @@ export class PersistenceLayer {
 
     // 5. 立即返回
     // 6. fire-and-forget 异步同步
-    this._syncToServer(message, session, content, isNewSession).catch(err => {
+    this._syncToServer(message, session, content, isNewSession, agentPrompt).catch(err => {
       console.error('[PersistenceLayer] _syncToServer failed:', err);
     });
 
@@ -255,7 +264,8 @@ export class PersistenceLayer {
     message: LocalMessage,
     session: LocalSession,
     content: ContentData,
-    isNewSession: boolean
+    isNewSession: boolean,
+    agentPrompt: string,
   ): Promise<void> {
     // 1. 构造请求
     const req: SendMessageRequest = {
@@ -263,6 +273,7 @@ export class PersistenceLayer {
       content_data: content,
       client_id: message.client_id,
       client_session_id: session.client_id,
+      agent_prompt: agentPrompt,
     };
 
     try {

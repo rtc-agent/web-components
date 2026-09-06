@@ -21,7 +21,10 @@ import type {Session} from '../types/index.js';
 export class MessageController implements ReactiveController {
     host: ReactiveControllerHost & EventTarget;
 
-    private _state: MessageState = {messages: []};
+    private _state: MessageState = {messages: [], hasMore: false, isLoadingMore: false};
+
+    /** Oldest loaded global_offset for backward pagination cursor. */
+    private _oldestLoadedOffset?: number;
 
     /** Persistence layer — injected by root component after construction. */
     private _persistence?: PersistenceLayer;
@@ -58,6 +61,7 @@ export class MessageController implements ReactiveController {
                 this._appendToLastMessage(chunk),
             finalizeLastMessage: () => this._finalizeLastMessage(),
             clearMessages: () => this._clearMessages(),
+            loadMore: async () => { await this.loadMore(); },
         };
     }
 
@@ -79,7 +83,7 @@ export class MessageController implements ReactiveController {
             timestamp: Date.now(),
             syncStatus: 'synced',
         };
-        this._state = {messages: [...this._state.messages, msg]};
+        this._state = {messages: [...this._state.messages, msg], hasMore: this._state.hasMore, isLoadingMore: this._state.isLoadingMore};
         this.host.requestUpdate();
     }
 
@@ -111,7 +115,7 @@ export class MessageController implements ReactiveController {
                     // 添加新消息并按时间排序
                     messages = [...this._state.messages, newMsg].sort((a, b) => a.timestamp - b.timestamp);
                 }
-                this._state = {messages};
+                this._state = {messages, hasMore: this._state.hasMore, isLoadingMore: this._state.isLoadingMore};
                 this.host.requestUpdate();
             }
         } else {
@@ -160,6 +164,7 @@ export class MessageController implements ReactiveController {
                     title: result.session.title || '',
                     createdAt: new Date(result.session.created_at).getTime(),
                     updatedAt: new Date(result.session.updated_at).getTime(),
+                    todoList: result.session.todo_list,
                 };
                 this._sessionController.actions.setCurrentSession(uiSession);
 
@@ -261,10 +266,71 @@ export class MessageController implements ReactiveController {
     private async _reloadFromDB(sessionClientId: string) {
         if (!this._persistence) return;
 
-        const localMessages = await this._persistence.listMessages(sessionClientId);
+        // Load the latest 50 messages (backward = from newest)
+        const PAGE_SIZE = 50;
+        const localMessages = await this._persistence.listMessages(
+            sessionClientId, undefined, PAGE_SIZE, 'backward'
+        );
         const messages = localMessages.map((m) => this._localMessageToUI(m));
-        this._state = {messages};
+
+        // Track pagination state
+        const hasMore = localMessages.length >= PAGE_SIZE;
+        this._oldestLoadedOffset = localMessages.length > 0
+            ? localMessages[0].global_offset
+            : undefined;
+
+        this._state = {messages, hasMore, isLoadingMore: false};
         this.host.requestUpdate();
+    }
+
+    /**
+     * Load older messages (backward pagination).
+     * Prepends older messages to the existing list.
+     */
+    async loadMore(): Promise<void> {
+        if (!this._persistence || !this._state.hasMore || this._state.isLoadingMore) {
+            return;
+        }
+
+        const currentSessionId = this._sessionController?.value.state.currentSessionId;
+        if (!currentSessionId || this._oldestLoadedOffset === undefined) {
+            return;
+        }
+
+        this._state = {...this._state, isLoadingMore: true};
+        this.host.requestUpdate();
+
+        try {
+            const PAGE_SIZE = 50;
+            const olderMessages = await this._persistence.listMessages(
+                currentSessionId,
+                this._oldestLoadedOffset,
+                PAGE_SIZE,
+                'backward'
+            );
+
+            const newMessages = olderMessages.map((m) => this._localMessageToUI(m));
+
+            // Prepend older messages
+            const allMessages = [...newMessages, ...this._state.messages];
+
+            // Update pagination state
+            const hasMore = olderMessages.length >= PAGE_SIZE;
+            if (olderMessages.length > 0) {
+                this._oldestLoadedOffset = olderMessages[0].global_offset;
+            }
+
+            this._state = {
+                messages: allMessages,
+                hasMore,
+                isLoadingMore: false,
+            };
+            this.host.requestUpdate();
+        } catch (error) {
+            console.error('[MessageController] loadMore failed:', error);
+            this._state = {...this._state, isLoadingMore: false};
+            this.host.requestUpdate();
+        }
     }
 
     private _localMessageToUI(local: LocalMessage): Message {
@@ -308,7 +374,7 @@ export class MessageController implements ReactiveController {
             content: {...last.content, data: newData},
             streaming: true,
         };
-        this._state = {messages};
+        this._state = {messages, hasMore: this._state.hasMore, isLoadingMore: this._state.isLoadingMore};
         this.host.requestUpdate();
     }
 
@@ -320,12 +386,12 @@ export class MessageController implements ReactiveController {
             ...last,
             streaming: false,
         };
-        this._state = {messages};
+        this._state = {messages, hasMore: this._state.hasMore, isLoadingMore: this._state.isLoadingMore};
         this.host.requestUpdate();
     }
 
     private _clearMessages() {
-        this._state = {messages: []};
+        this._state = {messages: [], hasMore: false, isLoadingMore: false};
         this.host.requestUpdate();
     }
 }

@@ -292,14 +292,31 @@ export class EntityRepository {
     return db.messages.get(clientId);
   }
 
-  async listMessagesBySession(sessionClientId: string, cursor?: number, limit: number = 50): Promise<LocalMessage[]> {
+  async listMessagesBySession(
+    sessionClientId: string,
+    cursor?: number,
+    limit: number = 50,
+    direction: 'backward' | 'forward' = 'backward'
+  ): Promise<LocalMessage[]> {
     const db = getDatabase();
     const query = db.messages.where('session_client_id').equals(sessionClientId);
     // 按 created_at 升序排序，确保消息按时间顺序显示
     const messages = await query.sortBy('created_at');
-    // cursor 为上一页最后一条的 global_offset，从该 offset 之后开始返回
+
+    if (direction === 'backward') {
+      // 向后分页：获取比 cursor 更旧的消息，取最新的 limit 条
+      let filtered = messages;
+      if (cursor !== undefined && cursor > 0) {
+        filtered = messages.filter(m => m.global_offset !== undefined && m.global_offset < cursor);
+      }
+      // 取最后 limit 条（最新的），升序返回
+      const sliced = filtered.slice(-limit);
+      return sliced.sort((a, b) => a.created_at.localeCompare(b.created_at));
+    }
+
+    // 向前分页（保留现有逻辑）：cursor 为上一页最后一条的 global_offset，从该 offset 之后开始返回
     if (cursor !== undefined && cursor > 0) {
-      const startIdx = messages.findIndex(m => m.global_offset > cursor);
+      const startIdx = messages.findIndex(m => m.global_offset !== undefined && m.global_offset > cursor);
       if (startIdx === -1) return [];
       return messages.slice(startIdx, startIdx + limit);
     }
