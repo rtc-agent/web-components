@@ -203,7 +203,7 @@ export class RtcUserMessage extends LitElement {
 
     /**
      * 将 more-menu teleport 到 shadow root 层级（脱离 wrapper 的 stacking context）。
-     * floating-ui 使用 position: fixed（相对 viewport），坐标不受影响。
+     * floating-ui 使用 position: absolute（相对 offset parent），坐标不受影响。
      */
     private async _teleportMenu() {
         if (!this.shadowRoot || this._moreMenuEl) return;
@@ -249,6 +249,7 @@ export class RtcUserMessage extends LitElement {
 
         const {x, y} = await computePosition(btn, menu, {
             placement: 'bottom-end',
+            strategy: 'absolute',
             middleware: [
                 offset(6),
                 flip({padding: 8}),

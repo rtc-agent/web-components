@@ -776,6 +776,7 @@ export class RtcAgent extends LitElement {
             title: s.title || '',
             createdAt: new Date(s.created_at).getTime(),
             updatedAt: new Date(s.updated_at).getTime(),
+            todoList: s.todo_list,
         }));
         this._session.actions.setSessions(uiSessions);
 

@@ -25,7 +25,7 @@ export class RtcMessageMoreMenu extends LitElement {
     static styles = css`
       :host {
         display: block;
-        position: fixed;
+        position: absolute;
         z-index: var(--rtc-z-overlay, 1000);
         /* top/left set by floating-ui via inline style */
       }

@@ -85,15 +85,13 @@ export class RtcInputArea extends LitElement {
      */
     public setValue(value: string) {
         this._value = value;
-        // 等下一个渲染周期后聚焦并调整高度
+        // 等下一个渲染周期后聚焦
         this.updateComplete.then(() => {
             const textarea = this._textarea;
             if (textarea) {
                 textarea.value = value;
                 textarea.focus();
-                // 自动调整高度
-                textarea.style.height = 'auto';
-                textarea.style.height = `${textarea.scrollHeight}px`;
+                // 不调整高度，保持 CSS 控制的固定高度，内容超出时用滚动条
             }
         });
     }
@@ -207,6 +205,7 @@ export class RtcInputArea extends LitElement {
 
         const {x, y} = await computePosition(btn, panel, {
             placement: 'top-end',
+            strategy: 'absolute',
             middleware: [
                 offset(6),
                 flip({padding: 8}),

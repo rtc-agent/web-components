@@ -1,5 +1,6 @@
-// 数据存取模块
-import { virtualFS } from '@rtc-agent/persistence';
+// 数据存取模块（demo 使用 localStorage，不存入虚拟文件系统）
+
+const STORAGE_KEY = 'rtc-agent-tasks';
 
 export interface Task {
     id: string;
@@ -12,13 +13,13 @@ export interface Task {
 
 export async function loadTasks(): Promise<Task[]> {
     try {
-        const data = await virtualFS.read('/tasks.json');
-        return JSON.parse(data || '[]');
+        const raw = localStorage.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw) : [];
     } catch {
         return [];
     }
 }
 
 export async function saveTasks(tasks: Task[]): Promise<void> {
-    await virtualFS.write('/tasks.json', JSON.stringify(tasks, null, 2));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
 }

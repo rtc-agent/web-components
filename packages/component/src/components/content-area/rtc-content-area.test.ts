@@ -15,8 +15,8 @@ describe('<rtc-content-area>', () => {
             html`<rtc-content-area></rtc-content-area>`,
             {
                 setup: (host) => provideContext(host, MessageContext, {
-                    state: {messages: []},
-                    actions: {sendMessage: async () => {}, resendMessage: async () => {}, forkSession: async () => {}, appendToLastMessage: () => {}, finalizeLastMessage: () => {}, clearMessages: () => {}}
+                    state: {messages: [], hasMore: false, isLoadingMore: false},
+                    actions: {sendMessage: async () => {}, resendMessage: async () => {}, forkSession: async () => {}, appendToLastMessage: () => {}, finalizeLastMessage: () => {}, clearMessages: () => {}, loadMore: async () => {}}
                 })
             }
         );
@@ -28,8 +28,8 @@ describe('<rtc-content-area>', () => {
             html`<rtc-content-area></rtc-content-area>`,
             {
                 setup: (host) => provideContext(host, MessageContext, {
-                    state: {messages: []},
-                    actions: {sendMessage: async () => {}, resendMessage: async () => {}, forkSession: async () => {}, appendToLastMessage: () => {}, finalizeLastMessage: () => {}, clearMessages: () => {}}
+                    state: {messages: [], hasMore: false, isLoadingMore: false},
+                    actions: {sendMessage: async () => {}, resendMessage: async () => {}, forkSession: async () => {}, appendToLastMessage: () => {}, finalizeLastMessage: () => {}, clearMessages: () => {}, loadMore: async () => {}}
                 })
             }
         );
@@ -44,8 +44,8 @@ describe('<rtc-content-area>', () => {
             html`<rtc-content-area></rtc-content-area>`,
             {
                 setup: (host) => provideContext(host, MessageContext, {
-                    state: {messages: msgs},
-                    actions: {sendMessage: async () => {}, resendMessage: async () => {}, forkSession: async () => {}, appendToLastMessage: () => {}, finalizeLastMessage: () => {}, clearMessages: () => {}}
+                    state: {messages: msgs, hasMore: false, isLoadingMore: false},
+                    actions: {sendMessage: async () => {}, resendMessage: async () => {}, forkSession: async () => {}, appendToLastMessage: () => {}, finalizeLastMessage: () => {}, clearMessages: () => {}, loadMore: async () => {}}
                 })
             }
         );
@@ -57,10 +57,10 @@ describe('<rtc-content-area>', () => {
     });
 
     it('should switch from empty to list when messages arrive', async () => {
-        const emptyActions = {sendMessage: async () => {}, resendMessage: async () => {}, forkSession: async () => {}, appendToLastMessage: () => {}, finalizeLastMessage: () => {}, clearMessages: () => {}};
+        const emptyActions = {sendMessage: async () => {}, resendMessage: async () => {}, forkSession: async () => {}, appendToLastMessage: () => {}, finalizeLastMessage: () => {}, clearMessages: () => {}, loadMore: async () => {}};
         const el = await fixture<RtcContentArea>(
             html`<rtc-content-area></rtc-content-area>`,
-            {setup: (host) => provideContext(host, MessageContext, {state: {messages: []}, actions: emptyActions})}
+            {setup: (host) => provideContext(host, MessageContext, {state: {messages: [], hasMore: false, isLoadingMore: false}, actions: emptyActions})}
         );
         await nextFrame();
         expect(el.shadowRoot!.querySelector('rtc-empty-state')).not.toBeNull();

@@ -23,8 +23,8 @@ describe('<rtc-message-list>', () => {
             html`<rtc-message-list></rtc-message-list>`,
             {
                 setup: (host) => provideContext(host, MessageContext, {
-                    state: {messages: []},
-                    actions: {sendMessage: async () => {}, resendMessage: async () => {}, forkSession: async () => {}, appendToLastMessage: () => {}, finalizeLastMessage: () => {}, clearMessages: () => {}}
+                    state: {messages: [], hasMore: false, isLoadingMore: false},
+                    actions: {sendMessage: async () => {}, resendMessage: async () => {}, forkSession: async () => {}, appendToLastMessage: () => {}, finalizeLastMessage: () => {}, clearMessages: () => {}, loadMore: async () => {}}
                 })
             }
         );
@@ -36,8 +36,8 @@ describe('<rtc-message-list>', () => {
             html`<rtc-message-list></rtc-message-list>`,
             {
                 setup: (host) => provideContext(host, MessageContext, {
-                    state: {messages: []},
-                    actions: {sendMessage: async () => {}, resendMessage: async () => {}, forkSession: async () => {}, appendToLastMessage: () => {}, finalizeLastMessage: () => {}, clearMessages: () => {}}
+                    state: {messages: [], hasMore: false, isLoadingMore: false},
+                    actions: {sendMessage: async () => {}, resendMessage: async () => {}, forkSession: async () => {}, appendToLastMessage: () => {}, finalizeLastMessage: () => {}, clearMessages: () => {}, loadMore: async () => {}}
                 })
             }
         );
@@ -55,8 +55,8 @@ describe('<rtc-message-list>', () => {
             html`<rtc-message-list></rtc-message-list>`,
             {
                 setup: (host) => provideContext(host, MessageContext, {
-                    state: {messages},
-                    actions: {sendMessage: async () => {}, resendMessage: async () => {}, forkSession: async () => {}, appendToLastMessage: () => {}, finalizeLastMessage: () => {}, clearMessages: () => {}}
+                    state: {messages, hasMore: false, isLoadingMore: false},
+                    actions: {sendMessage: async () => {}, resendMessage: async () => {}, forkSession: async () => {}, appendToLastMessage: () => {}, finalizeLastMessage: () => {}, clearMessages: () => {}, loadMore: async () => {}}
                 })
             }
         );
@@ -74,8 +74,8 @@ describe('<rtc-message-list>', () => {
             html`<rtc-message-list></rtc-message-list>`,
             {
                 setup: (host) => provideContext(host, MessageContext, {
-                    state: {messages},
-                    actions: {sendMessage: async () => {}, resendMessage: async () => {}, forkSession: async () => {}, appendToLastMessage: () => {}, finalizeLastMessage: () => {}, clearMessages: () => {}}
+                    state: {messages, hasMore: false, isLoadingMore: false},
+                    actions: {sendMessage: async () => {}, resendMessage: async () => {}, forkSession: async () => {}, appendToLastMessage: () => {}, finalizeLastMessage: () => {}, clearMessages: () => {}, loadMore: async () => {}}
                 })
             }
         );
@@ -90,8 +90,8 @@ describe('<rtc-message-list>', () => {
             html`<rtc-message-list></rtc-message-list>`,
             {
                 setup: (host) => provideContext(host, MessageContext, {
-                    state: {messages: []},
-                    actions: {sendMessage: async () => {}, resendMessage: async () => {}, forkSession: async () => {}, appendToLastMessage: () => {}, finalizeLastMessage: () => {}, clearMessages: () => {}}
+                    state: {messages: [], hasMore: false, isLoadingMore: false},
+                    actions: {sendMessage: async () => {}, resendMessage: async () => {}, forkSession: async () => {}, appendToLastMessage: () => {}, finalizeLastMessage: () => {}, clearMessages: () => {}, loadMore: async () => {}}
                 })
             }
         );

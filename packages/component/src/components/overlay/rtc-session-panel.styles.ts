@@ -3,7 +3,7 @@ import {css} from 'lit';
 export const styles = css`
   :host {
     display: block;
-    position: fixed;
+    position: absolute;
     z-index: var(--rtc-z-overlay);
     background: var(--rtc-color-bg);
     border: var(--rtc-border-width) solid var(--rtc-color-border);
