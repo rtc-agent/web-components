@@ -64,14 +64,6 @@ export class RtcMessage extends LitElement {
     private _thinkingExpanded = false;
 
     /**
-     * Summary/Compression 内容的折叠状态。
-     *
-     * 默认折叠（false）。用户可以展开查看压缩摘要。
-     */
-    @state()
-    private _summaryExpanded = false;
-
-    /**
      * Generation counter — ensures stale parse results (from earlier content
      * versions during streaming) never overwrite newer ones. Each call to
      * `_parseMarkdown()` bumps the counter; if the result arrives when the
@@ -192,7 +184,8 @@ export class RtcMessage extends LitElement {
 
     /**
      * 当前消息是否是压缩摘要（content.type === 'summary'）。
-     * 压缩摘要渲染为可折叠区域，显示压缩统计和摘要内容。
+     * 压缩摘要渲染为不可折叠的指示块：streaming 态显示"正在压缩"，
+     * 完成态显示释放/增加的 token 数。
      */
     private get _isSummaryContent(): boolean {
         return this.message?.content?.type === 'summary';
@@ -200,10 +193,6 @@ export class RtcMessage extends LitElement {
 
     private _toggleThinking() {
         this._thinkingExpanded = !this._thinkingExpanded;
-    }
-
-    private _toggleSummary() {
-        this._summaryExpanded = !this._summaryExpanded;
     }
 
     /**
@@ -228,17 +217,6 @@ export class RtcMessage extends LitElement {
         const {message, isLast} = this;
         const isThinking = this._isThinkingContent;
         const isSummary = this._isSummaryContent;
-
-        // Debug logging for summary messages
-        if (message.content?.type === 'summary' || message.role === 'system') {
-            console.log('[rtc-message] Rendering message:', {
-                role: message.role,
-                contentType: message.content?.type,
-                isSummary,
-                isThinking,
-                message,
-            });
-        }
 
         /*
          * success 状态条件：
@@ -288,7 +266,6 @@ export class RtcMessage extends LitElement {
      *
      * 折叠态：显示 header 行（chevron + "思考过程"），内容隐藏。
      * 展开态：header 行 + 下方渲染 Markdown 内容。
-     * streaming 期间 dot 脉冲动画，header 文字闪烁。
      */
     private _renderThinkingBlock() {
         const expanded = this._thinkingExpanded;
@@ -307,97 +284,56 @@ export class RtcMessage extends LitElement {
     }
 
     /**
-     * 渲染压缩摘要块（可折叠）。
+     * 渲染压缩摘要块（不可折叠）。
      *
-     * 折叠态：显示 header 行（chevron + "已压缩上下文" + 释放的 token 数），内容隐藏。
-     * 展开态：header 行 + 压缩统计 + 下方渲染摘要内容。
-     * streaming 期间显示加载动画。
+     * streaming 态：显示"正在压缩上下文..."。
+     * 完成态：显示"已压缩上下文 · 释放/增加 X token"。
+     *
+     * 不再展示压缩后的摘要内容，用户无需阅读；
+     * 只关注"正在压缩"和"释放了多少 token"两个信号。
      */
     private _renderSummaryBlock() {
-        const expanded = this._summaryExpanded;
-        const contentData = this.message?.content?.data as any;
-
-        // Extract metadata and items from content data
-        // Support both new format (SummaryContent) and old format (SummaryItem[])
-        let items: any[] = [];
-        let metadata: any = null;
-
-        if (Array.isArray(contentData)) {
-            // Old format: data is SummaryItem[]
-            items = contentData;
-        } else if (contentData && typeof contentData === 'object') {
-            // New format: data is SummaryContent { items, metadata }
-            items = contentData.items || [];
-            metadata = contentData.metadata || null;
-        }
-
-        // Calculate token savings
-        const tokensBefore = metadata?.tokens_before || 0;
-        const tokensAfter = metadata?.tokens_after || 0;
-        const tokensSaved = tokensBefore - tokensAfter;
-        const durationMs = metadata?.duration_ms || 0;
-        const mode = metadata?.mode || 'unknown';
-        const sessionMemoryUsed = metadata?.session_memory_used || false;
-
-        // Extract summary text from items
-        const summaryText = items.map((item: any) => item.content || '').join('\n\n');
+        const isStreaming = !!this.message.streaming;
+        const {tokensSaved, durationMs} = this._extractSummaryStats();
 
         return html`
-          <div class="summary-block" data-expanded=${expanded ? '' : undefined}>
-            <div class="summary-header" @click=${this._toggleSummary}>
-              <span class="summary-chevron">${expanded ? '▾' : '▸'}</span>
+          <div class="summary-block">
+            <div class="summary-header">
               <span class="summary-label">
-                ${this.message.streaming ? '正在压缩上下文...' : '已压缩上下文'}
+                ${isStreaming ? '正在压缩上下文...' : '已压缩上下文'}
               </span>
-              ${!this.message.streaming && tokensSaved > 0
+              ${!isStreaming && tokensSaved !== 0
                 ? html`<span class="summary-stats">
-                    <span class="summary-tokens-saved">释放 ${this._formatTokens(tokensSaved)}</span>
+                    <span class=${tokensSaved > 0 ? 'summary-tokens-saved' : 'summary-tokens-increased'}>
+                      ${tokensSaved > 0 ? '释放' : '增加'} ${this._formatTokens(Math.abs(tokensSaved))}
+                    </span>
                     ${durationMs > 0 ? html`<span class="summary-duration">· ${this._formatDuration(durationMs)}</span>` : null}
                   </span>`
                 : null}
             </div>
-            ${expanded
-              ? html`
-                  <div class="summary-body">
-                    ${metadata ? html`
-                      <div class="summary-metadata">
-                        ${sessionMemoryUsed
-                          ? html`<div class="summary-stat-item">
-                              <span class="stat-label">方式：</span>
-                              <span class="stat-value">Session Memory（零 API 成本）</span>
-                            </div>`
-                          : html`
-                            <div class="summary-stat-item">
-                              <span class="stat-label">压缩前：</span>
-                              <span class="stat-value">${this._formatTokens(tokensBefore)}</span>
-                            </div>
-                            <div class="summary-stat-item">
-                              <span class="stat-label">压缩后：</span>
-                              <span class="stat-value">${this._formatTokens(tokensAfter)}</span>
-                            </div>
-                            <div class="summary-stat-item">
-                              <span class="stat-label">节省：</span>
-                              <span class="stat-value stat-highlight">${this._formatTokens(tokensSaved)}</span>
-                            </div>
-                            ${durationMs > 0 ? html`
-                              <div class="summary-stat-item">
-                                <span class="stat-label">耗时：</span>
-                                <span class="stat-value">${this._formatDuration(durationMs)}</span>
-                              </div>
-                            ` : null}
-                            <div class="summary-stat-item">
-                              <span class="stat-label">模式：</span>
-                              <span class="stat-value">${mode === 'full' ? '完整压缩' : '部分压缩'}</span>
-                            </div>
-                          `}
-                      </div>
-                    ` : null}
-                    ${summaryText ? html`<div class="summary-content"><div .innerHTML=${this._renderedHtml}></div></div>` : null}
-                  </div>
-                `
-              : null}
           </div>
         `;
+    }
+
+    /**
+     * 从 message.content.data 提取压缩统计信息。
+     *
+     * 兼容两种数据格式：
+     *   - 新格式：SummaryContent { items, metadata }
+     *   - 旧格式：SummaryItem[]（无 metadata，返回全 0）
+     */
+    private _extractSummaryStats() {
+        const contentData = this.message?.content?.data as any;
+        let metadata: any = null;
+
+        if (contentData && typeof contentData === 'object' && !Array.isArray(contentData)) {
+            metadata = contentData.metadata || null;
+        }
+
+        return {
+            tokensSaved: (metadata?.tokens_before || 0) - (metadata?.tokens_after || 0),
+            durationMs: metadata?.duration_ms || 0,
+        };
     }
 
     /**

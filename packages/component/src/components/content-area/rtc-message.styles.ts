@@ -196,7 +196,7 @@ export const styles = [
      *
      * 折叠态：只显示 header，body 不渲染（DOM 中不存在）。
      * 展开态：header + body。
-     * streaming 期间 label 闪烁，提示内容正在更新。
+     * streaming 状态由父级 .timeline-item.streaming 控制 dot 脉冲动画。
      */
     .thinking-block {
       border: 1px solid var(--rtc-color-border);
@@ -230,18 +230,6 @@ export const styles = [
       font-style: italic;
     }
 
-    /*
-     * streaming 期间 label 闪烁，提示思考内容正在实时到达。
-     */
-    @keyframes rtc-thinking-blink {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.4; }
-    }
-
-    .timeline-item.streaming .thinking-label {
-      animation: rtc-thinking-blink 1.5s ease-in-out infinite;
-    }
-
     .thinking-body {
       padding: var(--rtc-spacing-sm);
       border-top: 1px solid var(--rtc-color-border);
@@ -259,21 +247,17 @@ export const styles = [
     }
 
     /*
-     * ── 压缩摘要折叠块 ─────────────────────────────────────────
+     * ── 压缩摘要块（不可折叠）────────────────────────────────
      *
      * 结构：
      *   .summary-block
-     *     ├── .summary-header  (可点击，toggle 折叠)
-     *     │     ├── .summary-chevron  (▸/▾ 箭头)
-     *     │     ├── .summary-label    ("已压缩上下文" 文字)
-     *     │     └── .summary-stats    (释放 token 数 + 耗时)
-     *     └── .summary-body    (展开时显示)
-     *           ├── .summary-metadata  (压缩统计信息)
-     *           └── .summary-content   (摘要内容)
+     *     └── .summary-header
+     *           ├── .summary-label    ("已压缩上下文" / "正在压缩上下文...")
+     *           └── .summary-stats    (释放/增加 token 数 + 耗时，仅完成态显示)
      *
-     * 折叠态：只显示 header，body 不渲染（DOM 中不存在）。
-     * 展开态：header + body（统计 + 内容）。
-     * streaming 期间 label 闪烁，提示压缩正在进行。
+     * 不再展示压缩后的摘要内容，用户只关注两个信号：
+     *   1. 正在压缩（streaming 态，由父级 .timeline-item.streaming 控制 dot 脉冲）
+     *   2. 释放/增加了多少 token（完成态）
      */
     .summary-block {
       border: 1px solid var(--rtc-color-border);
@@ -287,21 +271,8 @@ export const styles = [
       align-items: center;
       gap: var(--rtc-spacing-xs);
       padding: var(--rtc-spacing-xs) var(--rtc-spacing-sm);
-      cursor: pointer;
-      user-select: none;
       color: var(--rtc-color-text-tertiary);
       font-size: var(--rtc-font-size-sm);
-    }
-
-    .summary-header:hover {
-      background: var(--rtc-color-bg-hover);
-    }
-
-    .summary-chevron {
-      display: inline-block;
-      width: 1em;
-      text-align: center;
-      flex-shrink: 0;
     }
 
     .summary-label {
@@ -322,69 +293,13 @@ export const styles = [
       font-weight: var(--rtc-font-weight-medium, 500);
     }
 
-    .summary-duration {
-      color: var(--rtc-color-text-tertiary);
-    }
-
-    /*
-     * streaming 期间 label 闪烁，提示压缩正在进行。
-     */
-    @keyframes rtc-summary-blink {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.4; }
-    }
-
-    .timeline-item.streaming .summary-label {
-      animation: rtc-summary-blink 1.5s ease-in-out infinite;
-    }
-
-    .summary-body {
-      padding: var(--rtc-spacing-sm);
-      border-top: 1px solid var(--rtc-color-border);
-    }
-
-    .summary-metadata {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--rtc-spacing-sm);
-      margin-bottom: var(--rtc-spacing-sm);
-      padding: var(--rtc-spacing-xs) var(--rtc-spacing-sm);
-      background: var(--rtc-color-bg-tertiary);
-      border-radius: var(--rtc-border-radius-sm);
-      font-size: var(--rtc-font-size-xs);
-    }
-
-    .summary-stat-item {
-      display: flex;
-      gap: var(--rtc-spacing-xs);
-      color: var(--rtc-color-text-secondary);
-    }
-
-    .stat-label {
-      color: var(--rtc-color-text-tertiary);
-    }
-
-    .stat-value {
-      color: var(--rtc-color-text);
+    .summary-tokens-increased {
+      color: var(--rtc-color-warning, #f59e0b);
       font-weight: var(--rtc-font-weight-medium, 500);
     }
 
-    .stat-highlight {
-      color: var(--rtc-color-success, #10b981);
-    }
-
-    .summary-content {
-      color: var(--rtc-color-text-secondary);
-      font-size: var(--rtc-font-size-sm);
-    }
-
-    /* summary content 内的首/末块级元素清除 margin */
-    .summary-content > div > *:first-child {
-      margin-top: 0;
-    }
-
-    .summary-content > div > *:last-child {
-      margin-bottom: 0;
+    .summary-duration {
+      color: var(--rtc-color-text-tertiary);
     }
 
     /*
