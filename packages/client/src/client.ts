@@ -277,6 +277,30 @@ export class RTCAgentClient implements IRTCAgentClient {
       if (lastOffset !== undefined && update.offset > lastOffset + 1) {
         // 有跳跃，补全历史
         await this.fillOffsetGap(channel, lastOffset, lastEpoch, update.offset);
+
+        // 补全后再次检查：fillOffsetGap 是否成功将 offset 推进到 update.offset - 1
+        const newPosition = await this.options.getLastOffset?.(channel);
+        const newLastOffset = newPosition?.offset;
+        const newLastEpoch = newPosition?.epoch;
+
+        // 同时验证 offset 和 epoch：
+        // - offset 必须达到 update.offset - 1（保证连续性）
+        // - epoch 必须与预期一致（防止服务端重启后 epoch 变更导致数据错乱）
+        const expectedEpoch = this.epochCache.get(channel) ?? '';
+        if (newLastOffset === undefined || newLastOffset !== update.offset - 1) {
+          // 补全失败，拒绝执行当前 update，保持 offset 不连续的安全性
+          throw new Error(
+            `[RTCAgentClient] Offset gap fill failed: expected ${update.offset - 1}, got ${newLastOffset}. ` +
+            `Rejecting update ${update.offset} to maintain strict +1 continuity.`
+          );
+        }
+        if (newLastEpoch !== undefined && newLastEpoch !== expectedEpoch) {
+          // epoch 变更（服务端可能重启），拒绝执行并通知调用方
+          throw new Error(
+            `[RTCAgentClient] Epoch mismatch after gap fill: expected '${expectedEpoch}', got '${newLastEpoch}'. ` +
+            `Rejecting update ${update.offset} to prevent data corruption.`
+          );
+        }
       }
     }
 
@@ -381,7 +405,17 @@ export class RTCAgentClient implements IRTCAgentClient {
         const update = ctx.data as Update;
 
         // 通过 applyUpdates 统一处理（包含连续性检测 + 历史补全 + 串行化）
-        await this.applyUpdates([update]);
+        // applyUpdates 可能抛出异常（如 gap fill 失败），必须 catch 防止 unhandled rejection。
+        // 异常意味着 offset 连续性被破坏，后续消息将无法处理，需要重新连接或重置 offset。
+        try {
+          await this.applyUpdates([update]);
+        } catch (err) {
+          console.error(
+            `[RTCAgentClient] applyUpdates failed for offset ${update.offset} on channel ${topicChannel}:`,
+            err,
+          );
+          this.emit('error', err instanceof Error ? err : new Error(String(err)));
+        }
       });
 
       topicSub.on('subscribed', async (ctx) => {
@@ -455,10 +489,10 @@ export class RTCAgentClient implements IRTCAgentClient {
         await this.processUpdate(update);
       }
     } catch (err) {
-      // 错误码 112：Unrecoverable Position Error - epoch 已变更
-      // 清空本地 offset，从当前最新位置开始接收
-      console.warn(`[RTCAgentClient] fillOffsetGap failed for channel ${channel}:`, err);
-      // 调用方会在下次收到消息时重新检测并处理
+      // 重新抛出错误，让调用方（processUpdate）知道补全失败
+      // 调用方会拒绝执行后续 update，保证 offset 严格 +1 连续性
+      console.error(`[RTCAgentClient] fillOffsetGap failed for channel ${channel}:`, err);
+      throw err;
     }
   }
 
