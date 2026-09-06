@@ -259,6 +259,135 @@ export const styles = [
     }
 
     /*
+     * ── 压缩摘要折叠块 ─────────────────────────────────────────
+     *
+     * 结构：
+     *   .summary-block
+     *     ├── .summary-header  (可点击，toggle 折叠)
+     *     │     ├── .summary-chevron  (▸/▾ 箭头)
+     *     │     ├── .summary-label    ("已压缩上下文" 文字)
+     *     │     └── .summary-stats    (释放 token 数 + 耗时)
+     *     └── .summary-body    (展开时显示)
+     *           ├── .summary-metadata  (压缩统计信息)
+     *           └── .summary-content   (摘要内容)
+     *
+     * 折叠态：只显示 header，body 不渲染（DOM 中不存在）。
+     * 展开态：header + body（统计 + 内容）。
+     * streaming 期间 label 闪烁，提示压缩正在进行。
+     */
+    .summary-block {
+      border: 1px solid var(--rtc-color-border);
+      border-radius: var(--rtc-border-radius);
+      overflow: hidden;
+      background: var(--rtc-color-bg-secondary);
+    }
+
+    .summary-header {
+      display: flex;
+      align-items: center;
+      gap: var(--rtc-spacing-xs);
+      padding: var(--rtc-spacing-xs) var(--rtc-spacing-sm);
+      cursor: pointer;
+      user-select: none;
+      color: var(--rtc-color-text-tertiary);
+      font-size: var(--rtc-font-size-sm);
+    }
+
+    .summary-header:hover {
+      background: var(--rtc-color-bg-hover);
+    }
+
+    .summary-chevron {
+      display: inline-block;
+      width: 1em;
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    .summary-label {
+      font-style: italic;
+      flex-shrink: 0;
+    }
+
+    .summary-stats {
+      display: flex;
+      gap: var(--rtc-spacing-xs);
+      margin-left: auto;
+      color: var(--rtc-color-text-secondary);
+      font-size: var(--rtc-font-size-xs);
+    }
+
+    .summary-tokens-saved {
+      color: var(--rtc-color-success, #10b981);
+      font-weight: var(--rtc-font-weight-medium, 500);
+    }
+
+    .summary-duration {
+      color: var(--rtc-color-text-tertiary);
+    }
+
+    /*
+     * streaming 期间 label 闪烁，提示压缩正在进行。
+     */
+    @keyframes rtc-summary-blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .timeline-item.streaming .summary-label {
+      animation: rtc-summary-blink 1.5s ease-in-out infinite;
+    }
+
+    .summary-body {
+      padding: var(--rtc-spacing-sm);
+      border-top: 1px solid var(--rtc-color-border);
+    }
+
+    .summary-metadata {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--rtc-spacing-sm);
+      margin-bottom: var(--rtc-spacing-sm);
+      padding: var(--rtc-spacing-xs) var(--rtc-spacing-sm);
+      background: var(--rtc-color-bg-tertiary);
+      border-radius: var(--rtc-border-radius-sm);
+      font-size: var(--rtc-font-size-xs);
+    }
+
+    .summary-stat-item {
+      display: flex;
+      gap: var(--rtc-spacing-xs);
+      color: var(--rtc-color-text-secondary);
+    }
+
+    .stat-label {
+      color: var(--rtc-color-text-tertiary);
+    }
+
+    .stat-value {
+      color: var(--rtc-color-text);
+      font-weight: var(--rtc-font-weight-medium, 500);
+    }
+
+    .stat-highlight {
+      color: var(--rtc-color-success, #10b981);
+    }
+
+    .summary-content {
+      color: var(--rtc-color-text-secondary);
+      font-size: var(--rtc-font-size-sm);
+    }
+
+    /* summary content 内的首/末块级元素清除 margin */
+    .summary-content > div > *:first-child {
+      margin-top: 0;
+    }
+
+    .summary-content > div > *:last-child {
+      margin-bottom: 0;
+    }
+
+    /*
      * ── 语法高亮规则 ────────────────────────────────────────────
      *
      * highlight.js 在代码块内的每个 token 上添加 .hljs-* 类名

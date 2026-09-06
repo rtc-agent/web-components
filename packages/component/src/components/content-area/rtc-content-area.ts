@@ -22,8 +22,8 @@ export class RtcContentArea extends LitElement {
     @consume({context: MessageContext, subscribe: true})
     @state()
     private _ctx: MessageContextValue = {
-        state: {messages: []},
-        actions: {sendMessage: async () => {}, resendMessage: async () => {}, forkSession: async () => {}, appendToLastMessage: () => {}, finalizeLastMessage: () => {}, clearMessages: () => {}}
+        state: {messages: [], hasMore: false, isLoadingMore: false},
+        actions: {sendMessage: async () => {}, resendMessage: async () => {}, forkSession: async () => {}, appendToLastMessage: () => {}, finalizeLastMessage: () => {}, clearMessages: () => {}, loadMore: async () => {}}
     };
 
     private get _hasMessage(): boolean {

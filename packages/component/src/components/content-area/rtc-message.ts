@@ -64,6 +64,14 @@ export class RtcMessage extends LitElement {
     private _thinkingExpanded = false;
 
     /**
+     * Summary/Compression 内容的折叠状态。
+     *
+     * 默认折叠（false）。用户可以展开查看压缩摘要。
+     */
+    @state()
+    private _summaryExpanded = false;
+
+    /**
      * Generation counter — ensures stale parse results (from earlier content
      * versions during streaming) never overwrite newer ones. Each call to
      * `_parseMarkdown()` bumps the counter; if the result arrives when the
@@ -182,8 +190,20 @@ export class RtcMessage extends LitElement {
         return this.message?.content?.type === 'thinking';
     }
 
+    /**
+     * 当前消息是否是压缩摘要（content.type === 'summary'）。
+     * 压缩摘要渲染为可折叠区域，显示压缩统计和摘要内容。
+     */
+    private get _isSummaryContent(): boolean {
+        return this.message?.content?.type === 'summary';
+    }
+
     private _toggleThinking() {
         this._thinkingExpanded = !this._thinkingExpanded;
+    }
+
+    private _toggleSummary() {
+        this._summaryExpanded = !this._summaryExpanded;
     }
 
     /**
@@ -207,19 +227,33 @@ export class RtcMessage extends LitElement {
     render() {
         const {message, isLast} = this;
         const isThinking = this._isThinkingContent;
+        const isSummary = this._isSummaryContent;
+
+        // Debug logging for summary messages
+        if (message.content?.type === 'summary' || message.role === 'system') {
+            console.log('[rtc-message] Rendering message:', {
+                role: message.role,
+                contentType: message.content?.type,
+                isSummary,
+                isThinking,
+                message,
+            });
+        }
 
         /*
          * success 状态条件：
          *   - isLast：只有最后一条消息才显示"完成"绿点
          *   - !streaming：流式传输中不算完成
          *   - 思考类型消息不算"完成"（它是辅助信息，不是最终回复）
+         *   - 压缩摘要不算"完成"（它是系统信息，不是最终回复）
          *   - !!content：必须有内容（空消息不算完成）
          */
         const classes = {
             'timeline-item': true,
             streaming: !!message.streaming,
             'thinking-content': isThinking,
-            success: isLast && !message.streaming && !isThinking && !!message.content?.data,
+            'summary-content': isSummary,
+            success: isLast && !message.streaming && !isThinking && !isSummary && !!message.content?.data,
         };
 
         return html`
@@ -233,15 +267,17 @@ export class RtcMessage extends LitElement {
         <div class="timeline-content" part="content">
           ${isThinking
             ? this._renderThinkingBlock()
-            /*
-             * 注意这一层额外的 <div> 包裹：
-             * 1. .innerHTML 必须挂在某个元素上，不能直接挂在 .timeline-content
-             *    上（否则会和 thinking 分支的结构冲突）
-             * 2. 这层包裹在 CSS 里被选择器穿透：
-             *    `.timeline-content > div > *:first-child { margin-top: 0 }`
-             *    用来清除 Markdown 渲染出的首个 <p> 的 UA 默认 margin
-             */
-            : html`<div .innerHTML=${this._renderedHtml}></div>`}
+            : isSummary
+              ? this._renderSummaryBlock()
+              /*
+               * 注意这一层额外的 <div> 包裹：
+               * 1. .innerHTML 必须挂在某个元素上，不能直接挂在 .timeline-content
+               *    上（否则会和 thinking 分支的结构冲突）
+               * 2. 这层包裹在 CSS 里被选择器穿透：
+               *    `.timeline-content > div > *:first-child { margin-top: 0 }`
+               *    用来清除 Markdown 渲染出的首个 <p> 的 UA 默认 margin
+               */
+              : html`<div .innerHTML=${this._renderedHtml}></div>`}
         </div>
       </div>
     `;
@@ -268,6 +304,149 @@ export class RtcMessage extends LitElement {
               : null}
           </div>
         `;
+    }
+
+    /**
+     * 渲染压缩摘要块（可折叠）。
+     *
+     * 折叠态：显示 header 行（chevron + "已压缩上下文" + 释放的 token 数），内容隐藏。
+     * 展开态：header 行 + 压缩统计 + 下方渲染摘要内容。
+     * streaming 期间显示加载动画。
+     */
+    private _renderSummaryBlock() {
+        const expanded = this._summaryExpanded;
+        const contentData = this.message?.content?.data as any;
+
+        // Extract metadata and items from content data
+        // Support both new format (SummaryContent) and old format (SummaryItem[])
+        let items: any[] = [];
+        let metadata: any = null;
+
+        if (Array.isArray(contentData)) {
+            // Old format: data is SummaryItem[]
+            items = contentData;
+        } else if (contentData && typeof contentData === 'object') {
+            // New format: data is SummaryContent { items, metadata }
+            items = contentData.items || [];
+            metadata = contentData.metadata || null;
+        }
+
+        // Calculate token savings
+        const tokensBefore = metadata?.tokens_before || 0;
+        const tokensAfter = metadata?.tokens_after || 0;
+        const tokensSaved = tokensBefore - tokensAfter;
+        const durationMs = metadata?.duration_ms || 0;
+        const mode = metadata?.mode || 'unknown';
+        const sessionMemoryUsed = metadata?.session_memory_used || false;
+
+        // Extract summary text from items
+        const summaryText = items.map((item: any) => item.content || '').join('\n\n');
+
+        return html`
+          <div class="summary-block" data-expanded=${expanded ? '' : undefined}>
+            <div class="summary-header" @click=${this._toggleSummary}>
+              <span class="summary-chevron">${expanded ? '▾' : '▸'}</span>
+              <span class="summary-label">
+                ${this.message.streaming ? '正在压缩上下文...' : '已压缩上下文'}
+              </span>
+              ${!this.message.streaming && tokensSaved > 0
+                ? html`<span class="summary-stats">
+                    <span class="summary-tokens-saved">释放 ${this._formatTokens(tokensSaved)}</span>
+                    ${durationMs > 0 ? html`<span class="summary-duration">· ${this._formatDuration(durationMs)}</span>` : null}
+                  </span>`
+                : null}
+            </div>
+            ${expanded
+              ? html`
+                  <div class="summary-body">
+                    ${metadata ? html`
+                      <div class="summary-metadata">
+                        ${sessionMemoryUsed
+                          ? html`<div class="summary-stat-item">
+                              <span class="stat-label">方式：</span>
+                              <span class="stat-value">Session Memory（零 API 成本）</span>
+                            </div>`
+                          : html`
+                            <div class="summary-stat-item">
+                              <span class="stat-label">压缩前：</span>
+                              <span class="stat-value">${this._formatTokens(tokensBefore)}</span>
+                            </div>
+                            <div class="summary-stat-item">
+                              <span class="stat-label">压缩后：</span>
+                              <span class="stat-value">${this._formatTokens(tokensAfter)}</span>
+                            </div>
+                            <div class="summary-stat-item">
+                              <span class="stat-label">节省：</span>
+                              <span class="stat-value stat-highlight">${this._formatTokens(tokensSaved)}</span>
+                            </div>
+                            ${durationMs > 0 ? html`
+                              <div class="summary-stat-item">
+                                <span class="stat-label">耗时：</span>
+                                <span class="stat-value">${this._formatDuration(durationMs)}</span>
+                              </div>
+                            ` : null}
+                            <div class="summary-stat-item">
+                              <span class="stat-label">模式：</span>
+                              <span class="stat-value">${mode === 'full' ? '完整压缩' : '部分压缩'}</span>
+                            </div>
+                          `}
+                      </div>
+                    ` : null}
+                    ${summaryText ? html`<div class="summary-content"><div .innerHTML=${this._renderedHtml}></div></div>` : null}
+                  </div>
+                `
+              : null}
+          </div>
+        `;
+    }
+
+    /**
+     * 格式化 token 数量，使用 K/B/T 单位。
+     *
+     * 规则：
+     * - < 1000: 显示原数（如 500）
+     * - < 1M: 显示 K（如 12.5K）
+     * - < 1B: 显示 M（如 1.5M）
+     * - >= 1B: 显示 B（如 2.3B）
+     * - >= 1T: 显示 T（如 1.2T）
+     */
+    private _formatTokens(tokens: number): string {
+        if (tokens < 1000) {
+            return `${tokens}`;
+        } else if (tokens < 1_000_000) {
+            const k = tokens / 1000;
+            return k >= 100 ? `${Math.round(k)}K` : `${k.toFixed(1)}K`;
+        } else if (tokens < 1_000_000_000) {
+            const m = tokens / 1_000_000;
+            return m >= 100 ? `${Math.round(m)}M` : `${m.toFixed(1)}M`;
+        } else if (tokens < 1_000_000_000_000) {
+            const b = tokens / 1_000_000_000;
+            return b >= 100 ? `${Math.round(b)}B` : `${b.toFixed(1)}B`;
+        } else {
+            const t = tokens / 1_000_000_000_000;
+            return `${t.toFixed(1)}T`;
+        }
+    }
+
+    /**
+     * 格式化持续时间。
+     *
+     * 规则：
+     * - < 1000ms: 显示 ms（如 500ms）
+     * - < 60s: 显示 s（如 3.5s）
+     * - >= 60s: 显示 m s（如 2m 30s）
+     */
+    private _formatDuration(ms: number): string {
+        if (ms < 1000) {
+            return `${ms}ms`;
+        } else if (ms < 60_000) {
+            const s = ms / 1000;
+            return s >= 10 ? `${Math.round(s)}s` : `${s.toFixed(1)}s`;
+        } else {
+            const m = Math.floor(ms / 60_000);
+            const s = Math.round((ms % 60_000) / 1000);
+            return s > 0 ? `${m}m ${s}s` : `${m}m`;
+        }
     }
 }
 
