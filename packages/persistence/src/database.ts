@@ -1,6 +1,9 @@
 import Dexie, { type Table } from 'dexie';
 import type { Session, Turn, Message, Rtc } from '@rtc-agent/protocol';
 
+/** 数据库名称必须此前缀开头，确保按用户隔离 */
+export const DB_NAME_PREFIX = 'rtc-agent-';
+
 // ========== 同步状态 ==========
 
 export type SyncStatus = 'pending' | 'synced' | 'failed';
@@ -102,7 +105,12 @@ export class RTCAgentDatabase extends Dexie {
   offsets!: Table<OffsetRecord, string>;
   fileSystemEntries!: Table<FileSystemEntry, string>;
 
-  constructor(databaseName: string = 'rtc-agent') {
+  constructor(databaseName: string) {
+    if (!databaseName.startsWith(DB_NAME_PREFIX)) {
+      throw new Error(
+        `[RTCAgentDatabase] databaseName must start with "${DB_NAME_PREFIX}", got "${databaseName}"`
+      );
+    }
     super(databaseName);
 
     // v1: 旧 schema，以 id（服务端 UUID）为主键
@@ -236,13 +244,21 @@ let dbInstance: RTCAgentDatabase | null = null;
 let dbInstanceName: string | null = null;
 
 export function getDatabase(databaseName?: string): RTCAgentDatabase {
-  // 无参数时直接返回已有实例（如果存在）
+  // 已有实例时直接返回（无参调用仅作为单例访问入口）
   if (databaseName === undefined) {
     if (dbInstance) {
       return dbInstance;
     }
-    // 首次调用且无参数，使用默认值
-    databaseName = 'rtc-agent';
+    throw new Error(
+      `[RTCAgentDatabase] getDatabase() called without a name before any database was initialized. ` +
+      `Pass a databaseName starting with "${DB_NAME_PREFIX}".`
+    );
+  }
+
+  if (!databaseName.startsWith(DB_NAME_PREFIX)) {
+    throw new Error(
+      `[RTCAgentDatabase] databaseName must start with "${DB_NAME_PREFIX}", got "${databaseName}"`
+    );
   }
 
   const name = databaseName;

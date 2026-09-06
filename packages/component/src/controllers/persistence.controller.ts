@@ -59,8 +59,12 @@ export class PersistenceController implements ReactiveController {
         const deviceId = getOrCreateDeviceId();
         const userId = this._auth.state.userId;
 
+        if (!userId) {
+            throw new Error('[PersistenceController] connect() called without userId; refusing to open a shared database');
+        }
+
         this._layer = createPersistenceLayer({
-            databaseName: userId ? `rtc-agent-${userId}` : undefined,
+            databaseName: `rtc-agent-${userId}`,
             client: {
                 endpoint: AUTH_CONFIG.wsEndpoint,
                 getToken: () => {
