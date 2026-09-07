@@ -134,23 +134,24 @@ export class SessionTabController implements ReactiveController {
     /**
      * 用 sessions 中的最新标题同步已有 Tab 的标题
      *
-     * 新建会话发送消息时，Tab 以客户端生成的标题创建（从首条消息提取）。
-     * 当 session 列表从 DB 刷新后（含 server 返回的标题），
-     * 用此方法同步更新 Tab 标题。
+     * DB 是标题的权威来源。UIUpdateBus 推送的 session 变更（用户 rename 或服务端生成）
+     * 都已先写入 DB，此方法负责把 DB 中的最新标题同步到 Tab。
      *
-     * 只更新 `isDefault` 为 true 的 Tab（即默认/占位标题），避免覆盖已有真实标题。
-     * 更新后将 `isDefault` 置为 false。
-     *
-     * 注意：服务器可能返回空标题或默认标题，此时应保留客户端从消息内容生成的标题。
+     * 跳过条件：
+     * - Tab 对应的 session 不在 DB 中（如 unsaved tab，newTitle 为 undefined）
+     * - DB 返回空标题
+     * - DB 标题与 Tab 当前标题完全相同（无变化）
      */
     updateTabTitles(sessionTitleMap: Map<string, string>): boolean {
         console.log('[SessionTabController.updateTabTitles] Called with', sessionTitleMap.size, 'titles');
         let changed = false;
         const tabs = this._state.tabs.map(t => {
             const newTitle = sessionTitleMap.get(t.sessionId);
-            // 只更新 isDefault 的 Tab，且新标题非空
-            const shouldUpdate = t.isDefault === true &&
-                newTitle !== undefined &&
+            // 只要 DB 提供了非空且与当前不同的标题，就同步到 Tab。
+            // DB 是标题的权威来源：UIUpdateBus 推送的变更（无论是用户 rename 还是服务端生成）
+            // 都已经反映在 DB 中，Tab 应当跟随。
+            // 注意：unsaved tab（DB 无记录）的 newTitle 为 undefined，会自动跳过。
+            const shouldUpdate = newTitle !== undefined &&
                 newTitle.trim() !== '' &&
                 newTitle !== t.title;
             if (shouldUpdate) {
