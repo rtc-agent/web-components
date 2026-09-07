@@ -165,6 +165,11 @@ export interface components {
             updated_at: string;
             /** @description AGENT.md 内容快照（仅创建时写入，后续只读） */
             agent_prompt?: string;
+            root_client_session_id?: string;
+            root_server_session_id?: components["schemas"]["UUID"];
+            parent_client_session_id?: string;
+            parent_server_session_id?: components["schemas"]["UUID"];
+            sub_agent_parent_message_id?: components["schemas"]["UUID"];
             /**
              * Format: date-time
              * @description 关闭时间
