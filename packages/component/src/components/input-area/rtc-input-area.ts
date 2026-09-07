@@ -287,7 +287,10 @@ export class RtcInputArea extends LitElement {
 
         // 检查是否为 slash 命令
         const parsed = parseCommand(content);
-        if (parsed.isCommand && parsed.name) {
+        // /goal is NOT a front-end command — it's a plain message with a
+        // /goal prefix that the backend recognizes in loadMessages.
+        // Let it fall through to the rtc-input-submit path below.
+        if (parsed.isCommand && parsed.name && parsed.name !== 'goal') {
             this.dispatchEvent(
                 new CustomEvent('rtc-command-requested', {
                     bubbles: true,
@@ -442,6 +445,25 @@ export class RtcInputArea extends LitElement {
     private _handleCommandSelected(e: Event) {
         const detail = (e as CustomEvent).detail;
         const commandName = detail.command;
+
+        // /goal is a draft-time command: prepend "/goal " to the textarea
+        // and let the user finish typing. Do NOT dispatch rtc-command-requested.
+        if (commandName === 'goal') {
+            this._closeCommandPanel();
+            const textarea = this._textarea;
+            if (textarea) {
+                const prefix = '/goal ';
+                const current = textarea.value;
+                const next = current.startsWith(prefix) ? current : prefix + current;
+                textarea.value = next;
+                this._value = next;
+                textarea.focus();
+                // Place caret at end of "/goal "
+                const caret = prefix.length;
+                textarea.setSelectionRange(caret, caret);
+            }
+            return;
+        }
 
         // Dispatch command requested event
         this.dispatchEvent(

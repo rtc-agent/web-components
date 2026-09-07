@@ -49,7 +49,7 @@ export const COMMAND_CONFIGS: CommandConfig[] = [
         name: 'goal',
         label: '/goal',
         description: '设定目标，持续工作直到达成',
-        available: false,
+        available: true,
         icon: checklistIcon,
     },
 ];
