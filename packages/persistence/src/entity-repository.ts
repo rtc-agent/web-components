@@ -488,17 +488,6 @@ export class EntityRepository {
         // 删除协议层的 id 字段（Local 类型没有 id）
         delete (mapped as Record<string, unknown>)['id'];
 
-        // 保留客户端生成的标题：如果本地 session 已有非空标题，不覆盖
-        // 服务器可能返回默认标题（如 "Initiate new coding session"），
-        // 客户端已从首条消息生成了更有意义的标题
-        if (mapped.client_id) {
-          const existing = await this.getClientSession(mapped.client_id);
-          if (existing && existing.title && mapped.title) {
-            // 本地已有标题，保留它
-            mapped.title = existing.title;
-          }
-        }
-
         await this.upsertSession(mapped, 'synced');
         break;
       }
