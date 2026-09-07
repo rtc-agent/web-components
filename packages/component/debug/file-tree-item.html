@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Tree Item Debug - Phase 2.2</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #404040;
+            color: #cccccc;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        h1 {
+            font-size: 20px;
+            margin-bottom: 20px;
+            color: #ffffff;
+        }
+
+        h2 {
+            font-size: 14px;
+            margin-bottom: 12px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .debug-panel {
+            background: #252526;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+
+        .debug-section {
+            margin-bottom: 16px;
+        }
+
+        .debug-section:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Theme buttons */
+        .theme-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .theme-btn {
+            padding: 8px 16px;
+            background: #3a3a3a;
+            border: none;
+            color: #cccccc;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+
+        .theme-btn:hover {
+            background: #4a4a4a;
+        }
+
+        .theme-btn.active {
+            background: #007acc;
+            color: white;
+        }
+
+        /* State display */
+        .state-display {
+            background: #1e1e1e;
+            padding: 12px;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 12px;
+            color: #4ec9b0;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        /* Control buttons */
+        .control-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .control-btn {
+            padding: 6px 12px;
+            background: #3a3a3a;
+            border: none;
+            color: #cccccc;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 12px;
+            transition: background 0.2s;
+        }
+
+        .control-btn:hover {
+            background: #4a4a4a;
+        }
+
+        .control-btn.primary {
+            background: #0e639c;
+        }
+
+        .control-btn.primary:hover {
+            background: #1177bb;
+        }
+
+        /* Event log */
+        .event-log {
+            background: #1e1e1e;
+            padding: 12px;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 11px;
+            max-height: 150px;
+            overflow-y: auto;
+            color: #d4d4d4;
+        }
+
+        .event-log-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid #2d2d30;
+        }
+
+        .event-log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .event-log-entry .event-name {
+            color: #dcdcaa;
+        }
+
+        .event-log-entry .event-detail {
+            color: #ce9178;
+        }
+
+        .event-log-empty {
+            color: #666;
+            font-style: italic;
+        }
+
+        /* Preview area */
+        .preview-area {
+            background: #252526;
+            border-radius: 8px;
+            overflow: hidden;
+            min-height: 400px;
+        }
+
+        .preview-container {
+            width: 280px;
+            transition: background-color 0.2s, color 0.2s;
+        }
+
+        .preview-container[theme="dark"] {
+            background: #252526;
+            color: #cccccc;
+        }
+
+        .preview-container[theme="light"] {
+            background: #ffffff;
+            color: #333333;
+        }
+
+        .preview-container .sidebar-header {
+            padding: 12px 16px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .preview-container[theme="dark"] .sidebar-header {
+            background: #2d2d30;
+            border-bottom: 1px solid #1a1a1a;
+            color: #888;
+        }
+
+        .preview-container[theme="light"] .sidebar-header {
+            background: #f3f3f3;
+            border-bottom: 1px solid #e0e0e0;
+            color: #666;
+        }
+
+        .preview-container .sidebar-content {
+            padding: 8px 0;
+        }
+
+        /* Info display */
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            font-size: 12px;
+        }
+
+        .info-label {
+            color: #888;
+        }
+
+        .info-value {
+            color: #4ec9b0;
+            font-family: 'SF Mono', Monaco, monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>File Tree Item Debug</h1>
+
+    <div class="debug-panel">
+        <!-- Theme -->
+        <div class="debug-section">
+            <h2>主题 (当前: <span id="currentTheme">dark</span>)</h2>
+            <div class="theme-buttons">
+                <button class="theme-btn" data-theme="light">Light</button>
+                <button class="theme-btn active" data-theme="dark">Dark</button>
+                <button class="theme-btn" data-theme="system">System</button>
+            </div>
+        </div>
+
+        <!-- State Display -->
+        <div class="debug-section">
+            <h2>当前状态</h2>
+            <div class="state-display" id="stateDisplay">
+{
+  "selectedPath": null,
+  "expandedPaths": [],
+  "loadingPaths": []
+}
+            </div>
+        </div>
+
+        <!-- Info -->
+        <div class="debug-section">
+            <h2>信息</h2>
+            <div class="info-row">
+                <span class="info-label">选中路径:</span>
+                <span class="info-value" id="selectedPath">-</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">展开节点数:</span>
+                <span class="info-value" id="expandedCount">0</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">加载节点数:</span>
+                <span class="info-value" id="loadingCount">0</span>
+            </div>
+        </div>
+
+        <!-- Controller Controls -->
+        <div class="debug-section">
+            <h2>Controller 控制</h2>
+            <div class="control-group">
+                <button class="control-btn primary" id="expandAll">展开所有</button>
+                <button class="control-btn" id="collapseAll">折叠所有</button>
+            </div>
+            <div class="control-group">
+                <button class="control-btn" id="selectAgentMd">选中 AGENT.md</button>
+                <button class="control-btn" id="selectCheckout">选中 checkout.md</button>
+                <button class="control-btn" id="clearSelection">清除选中</button>
+            </div>
+            <div class="control-group">
+                <button class="control-btn" id="simulateLoading">模拟加载 /scenarios</button>
+                <button class="control-btn" id="reloadMock">重新加载 Mock</button>
+            </div>
+        </div>
+
+        <!-- Reset -->
+        <div class="debug-section">
+            <div class="control-group">
+                <button class="control-btn" id="resetBtn">Reset</button>
+                <button class="control-btn" id="clearLog">Clear Log</button>
+            </div>
+        </div>
+
+        <!-- Event Log -->
+        <div class="debug-section">
+            <h2>事件日志</h2>
+            <div class="event-log" id="eventLog">
+                <div class="event-log-empty">暂无事件</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Preview Area -->
+    <h2>组件预览</h2>
+    <div class="preview-area">
+        <div class="preview-container" id="previewContainer" theme="dark">
+            <div class="sidebar-header">
+                <span>资源管理器</span>
+            </div>
+            <div class="sidebar-content" id="fileTreeContainer">
+                <!-- File tree will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Import styles (for tokens)
+        import {tokens} from '../src/styles/tokens.ts';
+        import {lightTheme} from '../src/styles/themes/light.ts';
+        import {darkTheme} from '../src/styles/themes/dark.ts';
+
+        // Import component
+        import '../src/components/file-explorer/rtc-file-tree-item.ts';
+
+        // Import context provider helper
+        import {ContextProvider} from '@lit/context';
+        import {FileExplorerContext} from '../src/contexts/file-explorer.ts';
+        import {FileExplorerController} from '../src/controllers/file-explorer.controller.ts';
+
+        // Mock data
+        const mockTree = {
+            path: '/',
+            name: 'root',
+            type: 'folder',
+            children: [
+                {
+                    path: '/functions',
+                    name: 'functions',
+                    type: 'folder',
+                    children: [
+                        {
+                            path: '/functions/user',
+                            name: 'user',
+                            type: 'folder',
+                            children: [
+                                { path: '/functions/user/login.md', name: 'login.md', type: 'file' },
+                                { path: '/functions/user/logout.md', name: 'logout.md', type: 'file' },
+                            ]
+                        },
+                        {
+                            path: '/functions/order',
+                            name: 'order',
+                            type: 'folder',
+                            children: [
+                                { path: '/functions/order/create.md', name: 'create.md', type: 'file' },
+                            ]
+                        },
+                    ]
+                },
+                {
+                    path: '/scenarios',
+                    name: 'scenarios',
+                    type: 'folder',
+                    children: [
+                        { path: '/scenarios/checkout.md', name: 'checkout.md', type: 'file' },
+                        { path: '/scenarios/payment.md', name: 'payment.md', type: 'file' },
+                        { path: '/scenarios/user-flow.md', name: 'user-flow.md', type: 'file' },
+                    ]
+                },
+                {
+                    path: '/scripts',
+                    name: 'scripts',
+                    type: 'folder',
+                    children: []
+                },
+                { path: '/AGENT.md', name: 'AGENT.md', type: 'file' }
+            ]
+        };
+
+        // Simple host object (not a DOM element)
+        const debugHost = {
+            _controllers: [],
+            _updateCallbacks: [],
+            addController(controller) {
+                this._controllers.push(controller);
+                controller.hostConnected?.();
+            },
+            requestUpdate() {
+                this._updateCallbacks.forEach(cb => cb());
+            },
+            onUpdate(callback) {
+                this._updateCallbacks.push(callback);
+            }
+        };
+
+        // Create controller
+        const fileExplorerController = new FileExplorerController(debugHost);
+
+        // Create a context provider wrapper
+        class FileExplorerProvider extends HTMLElement {
+            constructor() {
+                super();
+                this._provider = new ContextProvider(this, {
+                    context: FileExplorerContext,
+                    initialValue: fileExplorerController.value,
+                });
+            }
+
+            updateValue() {
+                this._provider.setValue(fileExplorerController.value);
+            }
+        }
+        customElements.define('file-explorer-provider', FileExplorerProvider);
+
+        // DOM elements
+        const stateDisplay = document.getElementById('stateDisplay');
+        const eventLog = document.getElementById('eventLog');
+        const previewContainer = document.getElementById('previewContainer');
+        const fileTreeContainer = document.getElementById('fileTreeContainer');
+        const currentThemeEl = document.getElementById('currentTheme');
+        const selectedPathEl = document.getElementById('selectedPath');
+        const expandedCountEl = document.getElementById('expandedCount');
+        const loadingCountEl = document.getElementById('loadingCount');
+
+        // Create provider element and wrap the file tree
+        const provider = document.createElement('file-explorer-provider');
+        fileTreeContainer.appendChild(provider);
+
+        // Update context when controller changes
+        debugHost.onUpdate(() => {
+            provider.updateValue();
+            updateStateDisplay();
+        });
+
+        // Initialize mock data
+        function loadMockData() {
+            fileExplorerController.actions.setRoot(JSON.parse(JSON.stringify(mockTree)));
+            // Expand root and scenarios by default
+            fileExplorerController.actions.toggleNode('/');
+            fileExplorerController.actions.toggleNode('/scenarios');
+        }
+
+        loadMockData();
+
+        // Create file tree item
+        const fileTreeItem = document.createElement('rtc-file-tree-item');
+        fileTreeItem.node = fileExplorerController.state.root;
+        fileTreeItem.depth = 0;
+        fileTreeItem.setAttribute('theme', 'dark');
+        provider.appendChild(fileTreeItem);
+
+        // Update file tree when root changes
+        debugHost.onUpdate(() => {
+            fileTreeItem.node = fileExplorerController.state.root;
+        });
+
+        // Update state display
+        function updateStateDisplay() {
+            const state = {
+                selectedPath: fileExplorerController.state.selectedPath,
+                expandedPaths: Array.from(fileExplorerController.value.state.selectedPath ? [] : []),
+                loadingPaths: [],
+            };
+
+            // Collect expanded paths
+            const expandedPaths = [];
+            const loadingPaths = [];
+
+            function collectPaths(node) {
+                if (fileExplorerController.value.isExpanded(node.path)) {
+                    expandedPaths.push(node.path);
+                }
+                if (fileExplorerController.value.isLoading(node.path)) {
+                    loadingPaths.push(node.path);
+                }
+                if (node.children) {
+                    node.children.forEach(collectPaths);
+                }
+            }
+
+            if (fileExplorerController.state.root) {
+                collectPaths(fileExplorerController.state.root);
+            }
+
+            state.expandedPaths = expandedPaths;
+            state.loadingPaths = loadingPaths;
+
+            stateDisplay.textContent = JSON.stringify(state, null, 2);
+
+            // Update info display
+            selectedPathEl.textContent = fileExplorerController.state.selectedPath || '-';
+            expandedCountEl.textContent = expandedPaths.length.toString();
+            loadingCountEl.textContent = loadingPaths.length.toString();
+        }
+
+        // Log event
+        function logEvent(name, detail) {
+            const entry = document.createElement('div');
+            entry.className = 'event-log-entry';
+            entry.innerHTML = `<span class="event-name">${name}</span> <span class="event-detail">${JSON.stringify(detail)}</span>`;
+
+            // Remove empty placeholder
+            const empty = eventLog.querySelector('.event-log-empty');
+            if (empty) empty.remove();
+
+            // Add to top
+            eventLog.insertBefore(entry, eventLog.firstChild);
+
+            // Keep only last 20 entries
+            while (eventLog.children.length > 20) {
+                eventLog.removeChild(eventLog.lastChild);
+            }
+        }
+
+        // Event listeners
+        fileTreeItem.addEventListener('file-tree-item-toggle', (e) => {
+            logEvent('file-tree-item-toggle', e.detail);
+        });
+
+        fileTreeItem.addEventListener('file-tree-item-select', (e) => {
+            logEvent('file-tree-item-select', e.detail);
+        });
+
+        // Theme buttons
+        document.querySelectorAll('.theme-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const theme = btn.dataset.theme;
+                document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentThemeEl.textContent = theme;
+
+                // Apply theme to preview container and component
+                let resolvedTheme = theme;
+                if (theme === 'system') {
+                    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                    resolvedTheme = prefersDark ? 'dark' : 'light';
+                }
+
+                previewContainer.setAttribute('theme', resolvedTheme);
+                fileTreeItem.setAttribute('theme', resolvedTheme);
+
+                // Update provider to trigger re-render with new theme
+                provider.updateValue();
+            });
+        });
+
+        // Controller controls
+        document.getElementById('expandAll').addEventListener('click', () => {
+            fileExplorerController.actions.expandAll();
+        });
+
+        document.getElementById('collapseAll').addEventListener('click', () => {
+            fileExplorerController.actions.collapseAll();
+        });
+
+        document.getElementById('selectAgentMd').addEventListener('click', () => {
+            fileExplorerController.actions.selectNode('/AGENT.md');
+        });
+
+        document.getElementById('selectCheckout').addEventListener('click', () => {
+            fileExplorerController.actions.selectNode('/scenarios/checkout.md');
+        });
+
+        document.getElementById('clearSelection').addEventListener('click', () => {
+            fileExplorerController.actions.selectNode('');
+        });
+
+        document.getElementById('simulateLoading').addEventListener('click', () => {
+            const path = '/scripts';
+            fileExplorerController.actions.setLoading(path, true);
+            logEvent('simulate-loading', {path, loading: true});
+
+            // Simulate loading complete after 2 seconds
+            setTimeout(() => {
+                fileExplorerController.actions.setLoading(path, false);
+                fileExplorerController.actions.updateChildren(path, [
+                    { path: '/scripts/new-script.js', name: 'new-script.js', type: 'file' },
+                    { path: '/scripts/another.ts', name: 'another.ts', type: 'file' },
+                ]);
+                fileExplorerController.actions.toggleNode(path);
+                logEvent('simulate-loading', {path, loading: false, childrenAdded: 2});
+            }, 2000);
+        });
+
+        document.getElementById('reloadMock').addEventListener('click', () => {
+            fileExplorerController.actions.reset();
+            loadMockData();
+            logEvent('reload-mock', {});
+        });
+
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            fileExplorerController.actions.reset();
+            loadMockData();
+            logEvent('reset', {});
+        });
+
+        document.getElementById('clearLog').addEventListener('click', () => {
+            eventLog.innerHTML = '<div class="event-log-empty">暂无事件</div>';
+        });
+
+        // Initial state display
+        updateStateDisplay();
+    </script>
+</body>
+</html>
