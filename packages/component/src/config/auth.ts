@@ -48,4 +48,10 @@ export const STORAGE_KEYS = {
     deviceName: 'rtc_device_name',
     oauthState: 'rtc_oauth_state',
     mode: 'rtc_mode',
+    /** 窗口状态：mode, position, size */
+    windowState: 'rtc_window_state',
+    /** 会话树展开状态：sessionId → isExpanded */
+    sessionTreeExpanded: 'rtc_session_tree_expanded',
+    /** Tab 栏状态：tabs + activeSessionId */
+    sessionTabs: 'rtc_session_tabs',
 } as const;

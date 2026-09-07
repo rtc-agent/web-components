@@ -49,6 +49,8 @@ import downloadSvg from './svg/download-16.svg?raw';
 import undoSvg from './svg/undo-16.svg?raw';
 import redoSvg from './svg/redo-16.svg?raw';
 import xSvg from './svg/x-16.svg?raw';
+import chevronRightSvg from './svg/chevron-right-16.svg?raw';
+import chevronDownSvg from './svg/chevron-down-16.svg?raw';
 
 // Editor toolbar icons (Phase 2.5)
 // bold / italic: Formatting actions.
@@ -114,6 +116,12 @@ export const redoIcon = toLitTemplate(redoSvg);
 // closeIcon: Close tab / dismiss.
 export const closeIcon = toLitTemplate(xSvg);
 
+// Session tree icons
+// chevronRightIcon: Collapsed tree node indicator.
+export const chevronRightIcon = toLitTemplate(chevronRightSvg);
+// chevronDownIcon: Expanded tree node indicator.
+export const chevronDownIcon = toLitTemplate(chevronDownSvg);
+
 // Editor toolbar icons (Phase 2.5)
 // boldIcon: Bold formatting action.
 export const boldIcon = toLitTemplate(boldSvg);
@@ -162,6 +170,9 @@ export const icons = {
     undo: undoIcon,
     redo: redoIcon,
     close: closeIcon,
+    // Session tree icons
+    chevronRight: chevronRightIcon,
+    chevronDown: chevronDownIcon,
     // Editor toolbar icons (Phase 2.5)
     bold: boldIcon,
     italic: italicIcon,

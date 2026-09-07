@@ -45,6 +45,83 @@ export interface Session {
     createdAt: number;
     updatedAt: number;
     todoList?: TodoItem[];
+    /**
+     * 父级 root session 的 clientId（fork 产生的子 session 指向其根 session）。
+     * 为空表示该 session 本身就是 root session。
+     */
+    rootClientSessionId?: string;
+}
+
+/* ── Session Tree ── */
+
+/**
+ * 会话树节点（递归结构）
+ *
+ * root session 作为"文件夹"，子 session（通过 rootClientSessionId 关联）
+ * 嵌套在 children 中。
+ */
+export interface SessionTreeNode {
+    session: Session;
+    children: SessionTreeNode[];
+    isExpanded: boolean;
+}
+
+export interface SessionTreeState {
+    /** 根节点列表（rootClientSessionId 为空的 session） */
+    rootNodes: SessionTreeNode[];
+}
+
+export interface SessionTreeActions {
+    /** 切换节点展开/折叠状态 */
+    toggleExpand(sessionId: string): void;
+    /** 展开指定节点 */
+    expand(sessionId: string): void;
+    /** 折叠指定节点 */
+    collapse(sessionId: string): void;
+    /** 重建整棵树（session 列表变化时调用） */
+    rebuildTree(sessions: Session[]): void;
+}
+
+/* ── Session Tab ── */
+
+/**
+ * 会话 Tab 页签
+ *
+ * 以 sessionId 为唯一标识，同一 session 只允许开一个 tab。
+ */
+export interface SessionTab {
+    /** Session clientId（唯一标识） */
+    sessionId: string;
+    /** 显示标题 */
+    title: string;
+    /** 标题是否为默认/占位值（空、"Untitled"、"New Chat"）。用于标题同步判断。 */
+    isDefault?: boolean;
+    /** 该 Session 是否尚未持久化（未发送过消息）。 */
+    isUnsaved?: boolean;
+}
+
+export interface SessionTabState {
+    /** 打开的 tab 列表（顺序即显示顺序） */
+    tabs: SessionTab[];
+    /** 当前活动 tab 的 sessionId */
+    activeSessionId: string | null;
+}
+
+export interface SessionTabActions {
+    /** 打开或切换到指定 session 的 tab。`options.isUnsaved` 用于新建 unsaved draft tab。 */
+    openOrActivate(sessionId: string, title: string, options?: { isUnsaved?: boolean }): void;
+    /** 关闭指定 tab。若关闭的是活动 tab，自动激活相邻 tab。 */
+    closeTab(sessionId: string): void;
+    /** 设置活动 tab */
+    setActiveTab(sessionId: string | null): void;
+    /** 清空所有 tab */
+    clearAll(): void;
+    /** 用 sessions 中的最新标题同步已有 Tab 的标题 */
+    updateTabTitles(sessionTitleMap: Map<string, string>): void;
+    /** 将指定 tab 标记为已保存。 */
+    markSaved(sessionId: string): void;
+    /** 查找当前 unsaved tab，返回第一个 isUnsaved === true 的 tab。 */
+    findUnsavedTab(): SessionTab | undefined;
 }
 
 /* ── Modes ── */
@@ -120,7 +197,8 @@ export interface SessionState {
 }
 
 export interface SessionActions {
-    createSession(): void;
+    /** 创建新 session 并设为 current。返回新 session 的 clientId（同步可得，规避 context 异步传播）。 */
+    createSession(): string;
 
     switchSession(id: string): void;
 

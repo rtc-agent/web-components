@@ -38,6 +38,9 @@ export {
     undoIcon,
     redoIcon,
     closeIcon,
+    // Session tree icons
+    chevronRightIcon,
+    chevronDownIcon,
     // Editor toolbar icons (Phase 2.5)
     boldIcon,
     italicIcon,
