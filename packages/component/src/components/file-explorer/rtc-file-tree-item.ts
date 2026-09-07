@@ -8,6 +8,8 @@
  * - 从 FileExplorerContext 读取展开/选中/加载状态
  * - 递归渲染子节点
  *
+ * ARIA: role="treeitem"，由父级 Explorer 管理 tabindex（roving）与焦点。
+ *
  * @element rtc-file-tree-item
  * @fires file-tree-item-toggle - 点击文件夹展开/折叠（detail: { path }）
  * @fires file-tree-item-select - 点击文件/文件夹选中（detail: { path }）
@@ -84,6 +86,11 @@ export class RtcFileTreeItem extends LitElement {
         return this._explorerCtx.isExpanded(this.node.path);
     }
 
+    /** 公开给父级 Explorer 用于键盘导航 composed walk */
+    get expanded(): boolean {
+        return this._isExpanded;
+    }
+
     private get _isLoading(): boolean {
         return this._explorerCtx.isLoading(this.node.path);
     }
@@ -94,6 +101,19 @@ export class RtcFileTreeItem extends LitElement {
 
     private get _isFolder(): boolean {
         return this.node.type === 'folder';
+    }
+
+    /** 公开给父级 Explorer 用于键盘导航 composed walk */
+    get isFolder(): boolean {
+        return this._isFolder;
+    }
+
+    /**
+     * 聚焦内部 content div（由父级 Explorer 在键盘导航时调用）
+     */
+    focusContent() {
+        const el = this.shadowRoot?.querySelector('.tree-item-content') as HTMLElement | null;
+        el?.focus();
     }
 
     /* ── Event Handlers ── */
@@ -114,6 +134,18 @@ export class RtcFileTreeItem extends LitElement {
 
     private _handleSelect() {
         this._explorerCtx.actions.selectNode(this.node.path);
+        // 文件夹：点击行同时 toggle 展开/折叠（VS Code 行为）
+        if (this._isFolder) {
+            this._explorerCtx.actions.toggleNode(this.node.path);
+            // 触发 toggle 事件，用于懒加载子节点
+            this.dispatchEvent(
+                new CustomEvent('file-tree-item-toggle', {
+                    bubbles: true,
+                    composed: true,
+                    detail: {path: this.node.path},
+                })
+            );
+        }
         this.dispatchEvent(
             new CustomEvent('file-tree-item-select', {
                 bubbles: true,
@@ -172,12 +204,17 @@ export class RtcFileTreeItem extends LitElement {
 
     render() {
         const paddingLeft = `${this.depth * 16 + 8}px`;
+        const ariaExpanded = this._isFolder ? String(this._isExpanded) : null;
 
         return html`
             <div class="tree-item">
                 <div
                     class="tree-item-content ${this._isSelected ? 'selected' : ''}"
                     style="padding-left: ${paddingLeft}"
+                    role="treeitem"
+                    tabindex="-1"
+                    aria-expanded=${ariaExpanded}
+                    aria-selected=${this._isSelected ? 'true' : 'false'}
                     @click=${this._handleSelect}
                 >
                     ${this._isFolder
@@ -194,7 +231,7 @@ export class RtcFileTreeItem extends LitElement {
 
                 ${this._isFolder && this._isExpanded && this.node.children
                     ? html`
-                        <div class="children">
+                        <div class="children" role="group">
                             ${this.node.children.map(
                                 child => html`
                                     <rtc-file-tree-item

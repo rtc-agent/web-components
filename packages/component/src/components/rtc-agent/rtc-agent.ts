@@ -47,11 +47,11 @@
  * <rtc-title-bar> → <rtc-agent> listener → controller → reflected `data-mode`
  * attribute → CSS :host([data-mode=...]) visual state.
  */
-import {LitElement, html} from 'lit';
+import {LitElement, html, nothing} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
 import {ContextProvider} from '@lit/context';
 import {styles} from './rtc-agent.styles.js';
-import type {WindowMode, ContentData, Session} from '../../types/index.js';
+import type {WindowMode, ContentData, Session, Activity, FileNode} from '../../types/index.js';
 
 // Styles
 import {tokens} from '../../styles/tokens.js';
@@ -68,6 +68,8 @@ import {ModeContext} from '../../contexts/mode.js';
 import {ToolCallContext} from '../../contexts/tool-call.js';
 import {TurnCountContext, DEFAULT_TURN_COUNT} from '../../contexts/turn-count.js';
 import {SkillContext, DEFAULT_SKILL_STATE} from '../../contexts/skill.js';
+import {ActivityContext} from '../../contexts/activity.js';
+import {FileExplorerContext} from '../../contexts/file-explorer.js';
 
 // Controllers
 import {WindowStateController} from '../../controllers/window-state.controller.js';
@@ -81,6 +83,10 @@ import {PersistenceController} from '../../controllers/persistence.controller.js
 import {SkillController} from '../../controllers/skill.controller.js';
 import {ToastController} from '../../controllers/toast.controller.js';
 import {ForkController} from '../../controllers/fork.controller.js';
+import {ActivityController} from '../../controllers/activity.controller.js';
+import {FileExplorerController} from '../../controllers/file-explorer.controller.js';
+import {EditorAreaController} from '../../controllers/editor-area.controller.js';
+import {StatusBarController} from '../../controllers/status-bar.controller.js';
 
 // Scenario loading
 import {loadScenariosContent} from '../../core/scenario-loader.js';
@@ -96,7 +102,7 @@ import type {AgentConfig} from '../../types/agent-config.js';
 import '../../types/events.js';
 
 // UIUpdateBus (persistence-layer singleton for driving UI refreshes)
-import {getUIUpdateBus, RtcProcessor} from '@rtc-agent/persistence';
+import {getUIUpdateBus, RtcProcessor, virtualFS} from '@rtc-agent/persistence';
 import type {LocalRtc} from '@rtc-agent/persistence';
 
 // Tool confirm dialog
@@ -108,6 +114,13 @@ import '../content-wrapper/rtc-content-wrapper.js';
 import '../login/rtc-login-page.js';
 import '../login/rtc-login-dialog.js';
 import '../overlay/rtc-toast.js';
+
+// VS Code 风格布局组件（Phase 3）
+import '../activity-bar/rtc-activity-bar.js';
+import '../file-explorer/rtc-file-explorer.js';
+import '../editor-area/rtc-editor-area.js';
+import '../status-bar/rtc-status-bar.js';
+import '../overlay/rtc-session-panel.js';
 
 // Toast types (re-exported from ToastController)
 import type {ToastType} from '../overlay/rtc-toast.js';
@@ -329,6 +342,13 @@ export class RtcAgent extends LitElement {
     });
     private _toast = new ToastController(this);
     private _fork = new ForkController(this);
+    private _activity = new ActivityController(this);
+    private _fileExplorer = new FileExplorerController(this);
+    private _editorArea = new EditorAreaController(this);
+    private _statusBar = new StatusBarController(this, this._editorArea);
+
+    /** 文件树是否已加载过（首次进入 files 活动时加载一次） */
+    private _fileTreeLoaded = false;
 
     /* ── Internal State ── */
 
@@ -343,6 +363,15 @@ export class RtcAgent extends LitElement {
 
     /** 连接状态 unsub 函数 */
     private _unsubConnection?: () => void;
+
+    /** 小窗口降级：files 活动是否被禁用 */
+    @state() private _filesActivityDisabled = false;
+
+    /** 小窗口降级前记住的活动（恢复时使用） */
+    private _previousActivity: Activity | null = null;
+
+    /** 小窗口阈值 */
+    private static readonly WINDOW_SIZE_THRESHOLD = {width: 600, height: 500};
 
     /** Tracks the last mode we applied DOM side-effects for, to avoid redundant work. */
     private _appliedMode: WindowMode = 'normal';
@@ -386,6 +415,28 @@ export class RtcAgent extends LitElement {
         if (e.key === 'Escape' && this._fork.isActive) {
             this._fork.actions.clearFork();
             this._inputArea?.clearValue();
+            return;
+        }
+
+        // 全局快捷键（仅 files 模式下生效）
+        if (this._activity.active !== 'files') return;
+        const mod = e.metaKey || e.ctrlKey;
+        if (!mod) return;
+
+        if (e.key === 's' || e.key === 'S') {
+            // Ctrl/⌘+S：保存当前文件
+            const activePath = this._editorArea.state.activeFilePath;
+            if (activePath) {
+                e.preventDefault();
+                void this._handleEditorSave(activePath);
+            }
+        } else if (e.key === 'w' || e.key === 'W') {
+            // Ctrl/⌘+W：关闭当前标签
+            const activePath = this._editorArea.state.activeFilePath;
+            if (activePath) {
+                e.preventDefault();
+                this._editorArea.actions.closeFile(activePath);
+            }
         }
     };
     private _boundOnStopRequested = (e: Event) => {
@@ -413,6 +464,97 @@ export class RtcAgent extends LitElement {
         const detail = (e as CustomEvent).detail as { name: string; args?: string };
         void this._handleCommand(detail.name, detail.args);
     };
+    private _boundOnActivityChange = (e: Event) => {
+        const {activity, toggleSidebar} = (e as CustomEvent).detail as {
+            activity: Activity;
+            toggleSidebar: boolean;
+        };
+        // 小窗口降级：阻止切换到 files 模式
+        if (activity === 'files' && this._filesActivityDisabled) {
+            this._toast.actions.show('窗口太小，请放大后使用文件管理', 'info');
+            return;
+        }
+        if (toggleSidebar) {
+            // 点击当前活动 → toggle sidebar
+            this._activity.actions.toggleSidebar();
+        } else {
+            // 切换到不同活动
+            this._activity.actions.setActivity(activity);
+            // 首次进入 files 活动时加载文件树
+            if (activity === 'files' && !this._fileTreeLoaded && this._persistence.isConnected) {
+                void this._loadFileTree();
+            }
+        }
+    };
+    private _boundOnFileSelect = (e: Event) => {
+        const {path} = (e as CustomEvent).detail as {path: string};
+        void this._handleFileOpen(path);
+    };
+    private _boundOnFolderToggle = (e: Event) => {
+        const {path} = (e as CustomEvent).detail as {path: string};
+        // 如果是展开状态且尚未加载子节点，触发懒加载
+        // 注意：toggleNode 已经在 file-tree-item 中调用，这里不再重复调用
+        if (this._fileExplorer.value.isExpanded(path)) {
+            console.log('[rtc-agent] _boundOnFolderToggle: loading children for', path);
+            void this._loadFolderChildren(path);
+        }
+    };
+    private _boundOnEditorAreaSave = (e: Event) => {
+        const {filePath} = (e as CustomEvent).detail as {filePath: string};
+        void this._handleEditorSave(filePath);
+    };
+    private _boundOnEditorAreaTabClose = (e: Event) => {
+        const {filePath} = (e as CustomEvent).detail as {filePath: string};
+        this._editorArea.actions.closeFile(filePath);
+    };
+    private _boundOnEditorAreaTabSelect = (e: Event) => {
+        const {filePath} = (e as CustomEvent).detail as {filePath: string};
+        this._editorArea.actions.switchTab(filePath);
+    };
+    private _boundOnEditorAreaContentChange = (e: Event) => {
+        const {filePath, content} = (e as CustomEvent).detail as {filePath: string; content: string};
+        this._editorArea.actions.updateContent(filePath, content);
+    };
+    private _boundOnEditorAreaViewModeChange = (e: Event) => {
+        const {filePath, viewMode} = (e as CustomEvent).detail as {filePath: string; viewMode: 'edit' | 'preview' | 'split'};
+        this._editorArea.actions.setViewMode(filePath, viewMode);
+    };
+    private _boundOnFileExplorerRefresh = () => {
+        void this._loadFileTree();
+    };
+    private _handleSessionSelectedFromSidebar = (e: Event) => {
+        const {sessionId} = (e as CustomEvent).detail as {sessionId: string};
+        this._session.actions.switchSession(sessionId);
+        // 选择会话后关闭侧边栏
+        this._activity.actions.hideSidebar();
+    };
+    /**
+     * 窗口尺寸变化处理（小窗口降级）
+     *
+     * 当窗口小于阈值时：
+     * - 禁用 files 活动切换
+     * - 如果当前在 files 模式，自动切回 chat 并记住之前的活动
+     */
+    private _handleWindowSizeChange(width: number, height: number) {
+        const {width: thresholdW, height: thresholdH} = RtcAgent.WINDOW_SIZE_THRESHOLD;
+        const belowThreshold = width < thresholdW || height < thresholdH;
+
+        if (belowThreshold && !this._filesActivityDisabled) {
+            // 进入小窗口模式
+            this._filesActivityDisabled = true;
+            if (this._activity.active === 'files') {
+                this._previousActivity = 'files';
+                this._activity.actions.setActivity('chat');
+            }
+        } else if (!belowThreshold && this._filesActivityDisabled) {
+            // 恢复大窗口模式
+            this._filesActivityDisabled = false;
+            if (this._previousActivity === 'files') {
+                this._activity.actions.setActivity('files');
+                this._previousActivity = null;
+            }
+        }
+    }
 
     /** UIUpdateBus unsubscribe reference (set in connectedCallback, cleared in disconnectedCallback). */
     private _busUnsubMessage?: () => void;
@@ -437,6 +579,10 @@ export class RtcAgent extends LitElement {
     get skillController() { return this._skill; }
     get toastController() { return this._toast; }
     get forkController() { return this._fork; }
+    get activityController() { return this._activity; }
+    get fileExplorerController() { return this._fileExplorer; }
+    get editorAreaController() { return this._editorArea; }
+    get statusBarController() { return this._statusBar; }
 
     /* ── Component References ── */
 
@@ -462,6 +608,8 @@ export class RtcAgent extends LitElement {
     private _windowStateProvider = new ContextProvider(this, {context: WindowStateContext});
     private _turnCountProvider = new ContextProvider(this, {context: TurnCountContext, initialValue: DEFAULT_TURN_COUNT});
     private _skillProvider = new ContextProvider(this, {context: SkillContext, initialValue: DEFAULT_SKILL_STATE});
+    private _activityProvider = new ContextProvider(this, {context: ActivityContext});
+    private _fileExplorerProvider = new ContextProvider(this, {context: FileExplorerContext});
 
     /* ── Lifecycle ── */
 
@@ -527,6 +675,17 @@ export class RtcAgent extends LitElement {
         // Listen for command requested (from input area slash commands)
         this.addEventListener('rtc-command-requested', this._boundOnCommandRequested);
 
+        // Listen for VS Code 风格布局事件（Phase 3）
+        this.addEventListener('activity-change', this._boundOnActivityChange);
+        this.addEventListener('file-select', this._boundOnFileSelect);
+        this.addEventListener('folder-toggle', this._boundOnFolderToggle);
+        this.addEventListener('editor-area-save', this._boundOnEditorAreaSave);
+        this.addEventListener('editor-area-tab-close', this._boundOnEditorAreaTabClose);
+        this.addEventListener('editor-area-tab-select', this._boundOnEditorAreaTabSelect);
+        this.addEventListener('editor-area-content-change', this._boundOnEditorAreaContentChange);
+        this.addEventListener('editor-area-view-mode-change', this._boundOnEditorAreaViewModeChange);
+        this.addEventListener('refresh-requested', this._boundOnFileExplorerRefresh);
+
         // Listen for Escape key to cancel fork mode
         this.addEventListener('keydown', this._boundOnKeydown);
 
@@ -552,6 +711,9 @@ export class RtcAgent extends LitElement {
                     return;
                 }
                 this._rtcProcessor?.onRtcUpdate();
+            } else if (event.entity === 'file') {
+                // VFS 文件变更（来自其他标签页的写入/删除）
+                void this._handleFileChange(event.entityId, event.field);
             }
         });
 
@@ -561,6 +723,7 @@ export class RtcAgent extends LitElement {
         };
         this._interaction.onSizeChange = (width, height) => {
             this._windowState.actions.setSize({width, height});
+            this._handleWindowSizeChange(width, height);
         };
         this._interaction.onViewportTooSmall = () => {
             this._windowState.actions.minimize();
@@ -730,6 +893,15 @@ export class RtcAgent extends LitElement {
         this.removeEventListener('rtc-toast-requested', this._boundOnToastRequested);
         this.removeEventListener('rtc-toast-close', this._boundOnToastClose);
         this.removeEventListener('rtc-command-requested', this._boundOnCommandRequested);
+        this.removeEventListener('activity-change', this._boundOnActivityChange);
+        this.removeEventListener('file-select', this._boundOnFileSelect);
+        this.removeEventListener('folder-toggle', this._boundOnFolderToggle);
+        this.removeEventListener('editor-area-save', this._boundOnEditorAreaSave);
+        this.removeEventListener('editor-area-tab-close', this._boundOnEditorAreaTabClose);
+        this.removeEventListener('editor-area-tab-select', this._boundOnEditorAreaTabSelect);
+        this.removeEventListener('editor-area-content-change', this._boundOnEditorAreaContentChange);
+        this.removeEventListener('editor-area-view-mode-change', this._boundOnEditorAreaViewModeChange);
+        this.removeEventListener('refresh-requested', this._boundOnFileExplorerRefresh);
         this.removeEventListener('keydown', this._boundOnKeydown);
         this._busUnsubMessage?.();
         this._rtcProcessor = undefined;
@@ -745,6 +917,8 @@ export class RtcAgent extends LitElement {
         this._modeProvider.setValue(this._mode.value);
         this._windowStateProvider.setValue(this._windowState.value);
         this._skillProvider.setValue(this._skill.value);
+        this._activityProvider.setValue(this._activity.value);
+        this._fileExplorerProvider.setValue(this._fileExplorer.value);
 
         // Sync work mode to RtcProcessor
         if (this._rtcProcessor) {
@@ -1028,6 +1202,175 @@ export class RtcAgent extends LitElement {
         await this._rtcProcessor.onRtcUpdate();
     }
 
+    /* ── VFS 集成（Phase 3/4） ── */
+
+    /**
+     * 从 virtualFS 加载文件树（根目录一级）
+     *
+     * Phase 4 改为仅加载根目录的一级子项，子目录按需懒加载。
+     */
+    private async _loadFileTree(): Promise<void> {
+        if (!this._persistence.isConnected) return;
+
+        try {
+            const root = await this._buildFileNodeShallow('/');
+            this._fileExplorer.actions.setRoot(root);
+            this._fileTreeLoaded = true;
+        } catch (err) {
+            console.error('[rtc-agent] Failed to load file tree:', err);
+        }
+    }
+
+    /**
+     * 浅构建 FileNode：只加载指定目录的一级子项
+     *
+     * 子目录的 children 为 undefined（未加载），
+     * 用户展开时由 _loadFolderChildren 按需加载。
+     */
+    private async _buildFileNodeShallow(path: string): Promise<FileNode> {
+        const name = path === '/' ? '/' : path.split('/').pop()!;
+        const isRoot = path === '/';
+
+        // 如果路径在 VFS 中有记录 → 文件
+        if (!isRoot && await virtualFS.exists(path)) {
+            return {path, name, type: 'file'};
+        }
+
+        // 否则视为目录，ls 获取一级子条目
+        const children: FileNode[] = [];
+        try {
+            const entries = await virtualFS.ls(path);
+            for (const entry of entries) {
+                const childPath = isRoot ? `/${entry}` : `${path}/${entry}`;
+                // 判断子条目是文件还是目录
+                if (await virtualFS.exists(childPath)) {
+                    children.push({path: childPath, name: entry, type: 'file'});
+                } else {
+                    // 目录：children 留空（未加载），展开时懒加载
+                    children.push({path: childPath, name: entry, type: 'folder'});
+                }
+            }
+        } catch {
+            // ls 失败 → 空目录
+        }
+
+        return {path, name, type: 'folder', children};
+    }
+
+    /**
+     * 懒加载指定目录的子项
+     *
+     * 由 folder-toggle 事件触发（首次展开时）。
+     * 加载完成后通过 controller.updateChildren 更新文件树。
+     */
+    private async _loadFolderChildren(path: string): Promise<void> {
+        if (!this._persistence.isConnected) return;
+
+        console.log('[rtc-agent] _loadFolderChildren called for:', path);
+        this._fileExplorer.actions.setLoading(path, true);
+        try {
+            const entries = await virtualFS.ls(path);
+            console.log('[rtc-agent] ls entries:', entries);
+            const children: FileNode[] = [];
+            for (const entry of entries) {
+                const childPath = path === '/' ? `/${entry}` : `${path}/${entry}`;
+                if (await virtualFS.exists(childPath)) {
+                    children.push({path: childPath, name: entry, type: 'file'});
+                } else {
+                    children.push({path: childPath, name: entry, type: 'folder'});
+                }
+            }
+            console.log('[rtc-agent] loaded children:', children);
+            this._fileExplorer.actions.updateChildren(path, children);
+        } catch (err) {
+            console.error('[rtc-agent] Failed to load folder children:', path, err);
+        } finally {
+            this._fileExplorer.actions.setLoading(path, false);
+        }
+    }
+
+    /**
+     * 打开文件：从 VFS 读取内容并在编辑器中打开
+     */
+    private async _handleFileOpen(filePath: string): Promise<void> {
+        try {
+            const content = await virtualFS.read(filePath);
+            this._editorArea.actions.openFile(filePath, content);
+            this._fileExplorer.actions.selectNode(filePath);
+        } catch (err) {
+            console.error('[rtc-agent] Failed to open file:', filePath, err);
+            this._toast.actions.show('打开文件失败', 'error');
+        }
+    }
+
+    /**
+     * 保存文件：将编辑器内容写入 VFS
+     */
+    private async _handleEditorSave(filePath: string): Promise<void> {
+        const tab = this._editorArea.tabs.find(t => t.filePath === filePath);
+        if (!tab) return;
+
+        try {
+            await virtualFS.write(filePath, tab.content, 'overwrite');
+            this._editorArea.actions.saveFile(filePath);
+        } catch (err) {
+            console.error('[rtc-agent] Failed to save file:', filePath, err);
+            this._toast.actions.show('保存文件失败', 'error');
+        }
+    }
+
+    /**
+     * 处理来自其他标签页的文件变更事件
+     *
+     * - write/create：刷新文件树父目录；如果文件已打开且未修改，重新加载内容
+     * - delete：刷新文件树父目录；如果文件已打开，关闭标签
+     * - batch：全量刷新文件树
+     */
+    private async _handleFileChange(filePath: string, field: string): Promise<void> {
+        if (field === 'batch') {
+            // 批量写入：全量刷新文件树
+            if (this._fileTreeLoaded) {
+                void this._loadFileTree();
+            }
+            return;
+        }
+
+        // 推导父目录路径
+        const lastSlash = filePath.lastIndexOf('/');
+        const parentPath = lastSlash <= 0 ? '/' : filePath.substring(0, lastSlash);
+
+        // 刷新文件树中父目录的子项
+        if (this._fileTreeLoaded) {
+            if (parentPath === '/') {
+                void this._loadFileTree();
+            } else {
+                void this._loadFolderChildren(parentPath);
+            }
+        }
+
+        if (field === 'write' || field === 'create') {
+            // 如果该文件已打开且未修改，静默重新加载内容
+            const tab = this._editorArea.tabs.find(t => t.filePath === filePath);
+            if (tab && !tab.isDirty) {
+                try {
+                    const content = await virtualFS.read(filePath);
+                    this._editorArea.actions.openFile(filePath, content);
+                } catch {
+                    // 读取失败，保留当前内容
+                }
+            } else if (tab?.isDirty) {
+                this._toast.actions.show(`文件 ${filePath} 被其他标签页修改`, 'info');
+            }
+        } else if (field === 'delete') {
+            // 文件被删除：如果已打开，关闭标签
+            const tab = this._editorArea.tabs.find(t => t.filePath === filePath);
+            if (tab) {
+                this._editorArea.actions.closeFile(filePath);
+                this._toast.actions.show(`文件 ${filePath} 已被删除`, 'info');
+            }
+        }
+    }
+
     /* ── Render ── */
 
     /**
@@ -1075,6 +1418,8 @@ export class RtcAgent extends LitElement {
     render() {
         const isLoggedIn = this._auth.value.state.isLoggedIn;
         const mode = this._windowState.value.state.mode;
+        const active = this._activity.active;
+        const sidebarVisible = this._activity.sidebarVisible;
 
         return html`
       <div class="window-container">
@@ -1083,11 +1428,9 @@ export class RtcAgent extends LitElement {
           .windowMode=${mode}
           .connectionState=${this._connectionState}
         ></rtc-title-bar>
-        <div class="content-area">
-          ${isLoggedIn
-            ? html`<rtc-content-wrapper></rtc-content-wrapper>`
-            : html`<rtc-login-page></rtc-login-page>`}
-        </div>
+        ${isLoggedIn
+          ? this._renderMainLayout(active, sidebarVisible)
+          : html`<div class="content-area"><rtc-login-page></rtc-login-page></div>`}
         <rtc-toast .toasts=${this._toast.toasts}></rtc-toast>
       </div>
       <div class="bubble"
@@ -1106,6 +1449,61 @@ export class RtcAgent extends LitElement {
             @rtc-login-dialog-close=${this._handleLoginDialogClose}
           ></rtc-login-dialog>`
         : null}
+    `;
+    }
+
+    /**
+     * 渲染主布局（登录后）
+     *
+     * 始终渲染 editor-area-wrapper 和 content-area，通过 hidden 属性切换可见性。
+     * 这样切换模式时组件不被销毁，编辑器状态（打开的标签、内容、dirty）得以保留。
+     *
+     * 聊天模式：Activity Bar + [Sidebar(会话列表)] + Content Area
+     * 文件模式：Activity Bar + [Sidebar(文件树)] + Editor Area + Status Bar
+     * 侧边栏内容取决于当前活动（files → 文件树，chat → 会话列表）
+     */
+    private _renderMainLayout(active: Activity, sidebarVisible: boolean) {
+        const isFiles = active === 'files';
+        const isChat = active === 'chat';
+        const showSidebar = sidebarVisible && (isFiles || isChat);
+
+        return html`
+      <div class="main-layout">
+        <rtc-activity-bar
+          .active=${active}
+          .filesDisabled=${this._filesActivityDisabled}
+          theme=${this.theme}
+        ></rtc-activity-bar>
+        ${showSidebar
+          ? html`<div class="sidebar">
+              ${isFiles
+                ? html`<rtc-file-explorer theme=${this.theme}></rtc-file-explorer>`
+                : isChat
+                  ? html`<rtc-session-panel
+                      sidebar
+                      .sessions=${this._session.value.state.sessions}
+                      current-session-id=${this._session.value.state.currentSessionId ?? ''}
+                      theme=${this.theme}
+                      @rtc-session-selected=${this._handleSessionSelectedFromSidebar}
+                    ></rtc-session-panel>`
+                  : nothing}
+            </div>`
+          : nothing}
+        <div class="editor-area-wrapper" ?hidden=${!isFiles}>
+          <rtc-editor-area
+            .tabs=${this._editorArea.state.tabs}
+            active-file-path=${this._editorArea.state.activeFilePath}
+            theme=${this.theme}
+          ></rtc-editor-area>
+          <rtc-status-bar
+            .fileInfo=${this._statusBar.info}
+            theme=${this.theme}
+          ></rtc-status-bar>
+        </div>
+        <div class="content-area" ?hidden=${isFiles}>
+          <rtc-content-wrapper></rtc-content-wrapper>
+        </div>
+      </div>
     `;
     }
 }
