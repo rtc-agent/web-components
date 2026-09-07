@@ -117,6 +117,7 @@ export class RtcProcessor {
    * 如果已经在处理，标记 pendingCheck，当前循环会检查
    */
   async onRtcUpdate() {
+    console.log('[RtcProcessor] onRtcUpdate called, processing:', this.processing);
     if (this.processing) {
       this.pendingCheck = true;
       return;
@@ -128,10 +129,12 @@ export class RtcProcessor {
     // 非 Master Tab 跳过工具执行（proposal §4.2）
     // 不设置 processing 标志，避免阻塞未来 Master 升级后的处理
     if (!this._isMasterAllowed()) {
+      console.log('[RtcProcessor] processLoop: not master, skipping');
       return;
     }
 
     this.processing = true;
+    console.log('[RtcProcessor] processLoop started');
 
     try {
       while (true) {
@@ -139,20 +142,32 @@ export class RtcProcessor {
 
         const rtc = await this.persistence.getNextRtcToProcess();
         if (!rtc) {
+          console.log('[RtcProcessor] processLoop: no more RTC to process, exiting');
           if (this.pendingCheck) {
             continue;
           }
           break;
         }
 
+        console.log('[RtcProcessor] processing RTC:', rtc.client_id, 'tool:', rtc.tool_name, 'sync_status:', rtc.sync_status);
         try {
           await this.processOne(rtc);
+          console.log('[RtcProcessor] processOne completed successfully');
         } catch (err) {
           console.error('[RtcProcessor] processOne failed:', err);
+          // 如果是连接错误，退出循环，等待连接恢复
+          const errMsg = err instanceof Error ? err.message : String(err);
+          if (errMsg.includes('connection') || errMsg.includes('disconnected')) {
+            console.warn('[RtcProcessor] connection error detected, exiting processLoop');
+            break;
+          }
+          // 其他错误，等待一下再重试，避免快速循环
+          await this.sleep(1000);
         }
       }
     } finally {
       this.processing = false;
+      console.log('[RtcProcessor] processLoop finished');
     }
   }
 

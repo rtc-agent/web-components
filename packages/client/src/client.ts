@@ -59,7 +59,9 @@ export class RTCAgentClient implements IRTCAgentClient {
   // ========== 生命周期 ==========
 
   async connect(): Promise<void> {
+    console.log('[RTCAgentClient] connect() called, current state:', this.connectionState);
     if (this.connectionState === 'connected' || this.connectionState === 'connecting') {
+      console.log('[RTCAgentClient] connect() early return, already', this.connectionState);
       return;
     }
     this.shouldReconnect = true;
@@ -93,17 +95,22 @@ export class RTCAgentClient implements IRTCAgentClient {
       this.setConnectionState('connecting', ctx?.reason);
     });
     this.centrifuge.on('connected', () => {
+      console.log('[RTCAgentClient] centrifuge connected, setting state to connected');
       this.setConnectionState('connected');
       this.subscribeChannels();
     });
     this.centrifuge.on('disconnected', (ctx) => {
+      console.log('[RTCAgentClient] centrifuge disconnected, reason:', ctx?.reason);
       this.setConnectionState('disconnected', ctx?.reason);
     });
     this.centrifuge.on('error', (ctx) => {
+      console.error('[RTCAgentClient] centrifuge error:', ctx?.error);
       this.emit('error', new Error(ctx?.error?.message ?? 'centrifuge error'));
     });
 
+    console.log('[RTCAgentClient] calling centrifuge.connect() synchronously');
     this.centrifuge.connect();
+    console.log('[RTCAgentClient] centrifuge.connect() returned, state:', this.connectionState, '(WebSocket not yet established)');
   }
 
   disconnect(): void {
@@ -359,6 +366,7 @@ export class RTCAgentClient implements IRTCAgentClient {
   }
 
   private setConnectionState(state: ConnectionState, reason?: string): void {
+    console.log('[RTCAgentClient] setConnectionState:', state, 'reason:', reason, 'previous:', this.connectionState);
     if (this.connectionState === state) return;
     this.connectionState = state;
     const event: ConnectionStateEvent = { state, reason };

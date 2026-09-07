@@ -66,7 +66,9 @@ class WorkerPersistenceAdapter {
     // ========== 连接 ==========
 
     async connect(): Promise<void> {
+        console.log('[PersistenceController] connect() called');
         await this._core.connect();
+        console.log('[PersistenceController] connect() completed, worker state:', await this._core.getConnectionState());
     }
 
     disconnect(): void {

@@ -81,10 +81,14 @@ export class WorkerCore implements WorkerPersistenceCore {
   // ========== 连接 ==========
 
   async connect(): Promise<void> {
+    console.log('[WorkerCore] connect() called');
     const layer = this.ensureLayer();
+    console.log('[WorkerCore] calling layer.connect()');
     await layer.connect();
+    console.log('[WorkerCore] layer.connect() returned, client state:', layer.getClient().getConnectionState());
     // 订阅 RTCAgentClient 连接状态变更，广播给所有 Tab
     this._subscribeConnectionState(layer);
+    console.log('[WorkerCore] connection state subscribed, returning from connect()');
   }
 
   disconnect(): void {
@@ -368,7 +372,9 @@ export class WorkerCore implements WorkerPersistenceCore {
   private _subscribeConnectionState(layer: PersistenceLayer): void {
     this._unsubscribeConnectionState();
     const client = layer.getClient();
+    console.log('[WorkerCore] subscribing to connection state changes');
     this.unsubscribeConnection = client.on('connection', (event: ConnectionStateEvent) => {
+      console.log('[WorkerCore] connection state changed:', event.state, 'reason:', event.reason);
       this.broadcastConnectionState(event);
     });
   }
