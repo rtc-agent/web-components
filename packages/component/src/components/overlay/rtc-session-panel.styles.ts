@@ -3,14 +3,19 @@ import {css} from 'lit';
 export const styles = css`
   :host {
     display: block;
-    position: absolute;
-    z-index: var(--rtc-z-overlay);
     background: var(--rtc-color-bg);
     border: var(--rtc-border-width) solid var(--rtc-color-border);
     border-radius: var(--rtc-border-radius-lg);
     box-shadow: var(--rtc-shadow-lg);
     max-height: var(--rtc-overlay-panel-max-height, 320px);
     overflow-y: auto;
+    width: 100%;
+  }
+
+  /* 浮动模式（默认）：绝对定位 + 固定宽度 */
+  :host(:not([sidebar])) {
+    position: absolute;
+    z-index: var(--rtc-z-overlay);
     width: 280px;
     /* top/left set by floating-ui via inline style */
   }

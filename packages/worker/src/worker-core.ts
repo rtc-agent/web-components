@@ -226,6 +226,15 @@ export class WorkerCore implements WorkerPersistenceCore {
       await virtualFS.write(file.path, file.content, 'overwrite', file.metadata);
     }
     console.log('[WorkerCore] batchWriteFiles completed');
+    // 批量写入只发一次广播，避免逐文件通知
+    this.broadcastUIUpdate({
+      entity: 'file',
+      action: 'updated',
+      entityId: '',
+      field: 'batch',
+      oldValue: undefined,
+      newValue: undefined,
+    });
   }
 
   async resetOffset(): Promise<void> {
@@ -248,7 +257,17 @@ export class WorkerCore implements WorkerPersistenceCore {
       tags: string[];
     }>,
   ): Promise<number> {
-    return virtualFS.write(path, content, mode, metadataOverride);
+    const result = await virtualFS.write(path, content, mode, metadataOverride);
+    // 广播文件变更事件给所有标签页
+    this.broadcastUIUpdate({
+      entity: 'file',
+      action: 'updated',
+      entityId: path,
+      field: 'write',
+      oldValue: undefined,
+      newValue: undefined,
+    });
+    return result;
   }
 
   async virtualFSLs(path?: string): Promise<string[]> {
@@ -289,7 +308,16 @@ export class WorkerCore implements WorkerPersistenceCore {
   }
 
   async virtualFSRemove(path: string): Promise<void> {
-    return virtualFS.remove(path);
+    await virtualFS.remove(path);
+    // 广播文件删除事件给所有标签页
+    this.broadcastUIUpdate({
+      entity: 'file',
+      action: 'deleted',
+      entityId: path,
+      field: 'delete',
+      oldValue: undefined,
+      newValue: undefined,
+    });
   }
 
   // ========== 内部 ==========

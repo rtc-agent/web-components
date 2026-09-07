@@ -38,6 +38,12 @@ export {
     undoIcon,
     redoIcon,
     closeIcon,
+    // Editor toolbar icons (Phase 2.5)
+    boldIcon,
+    italicIcon,
+    linkIcon,
+    eyeIcon,
+    columnsIcon,
     // Utilities
     icons,
     getIcon,

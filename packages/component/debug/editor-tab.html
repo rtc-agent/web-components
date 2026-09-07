@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editor Tab Debug - Phase 2.4</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #404040;
+            color: #cccccc;
+            padding: 20px;
+            min-height: 100vh;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        h1 {
+            font-size: 20px;
+            margin-bottom: 20px;
+            color: #ffffff;
+        }
+
+        h2 {
+            font-size: 14px;
+            margin-bottom: 12px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .phase-label {
+            display: inline-block;
+            padding: 2px 8px;
+            background: #0e639c;
+            color: white;
+            border-radius: 3px;
+            font-size: 11px;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+
+        .debug-panel {
+            background: #252526;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+
+        .debug-section {
+            margin-bottom: 16px;
+        }
+
+        .debug-section:last-child {
+            margin-bottom: 0;
+        }
+
+        /* ── Theme buttons ── */
+        .theme-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .theme-btn {
+            padding: 8px 16px;
+            background: #3a3a3a;
+            border: none;
+            color: #cccccc;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+
+        .theme-btn:hover {
+            background: #4a4a4a;
+        }
+
+        .theme-btn.active {
+            background: #007acc;
+            color: white;
+        }
+
+        .current-theme {
+            display: inline-block;
+            padding: 4px 8px;
+            background: #3a3a3a;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-left: 8px;
+        }
+
+        /* ── State display ── */
+        .state-display {
+            background: #1e1e1e;
+            padding: 12px;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 12px;
+            color: #4ec9b0;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        /* ── Control buttons ── */
+        .control-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .control-btn {
+            padding: 6px 12px;
+            background: #3a3a3a;
+            border: none;
+            color: #cccccc;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 12px;
+            transition: background 0.2s;
+        }
+
+        .control-btn:hover {
+            background: #4a4a4a;
+        }
+
+        .control-btn.primary {
+            background: #0e639c;
+        }
+
+        .control-btn.primary:hover {
+            background: #1177bb;
+        }
+
+        /* ── Event log ── */
+        .event-log {
+            background: #1e1e1e;
+            padding: 12px;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 11px;
+            max-height: 150px;
+            overflow-y: auto;
+            color: #d4d4d4;
+        }
+
+        .event-log-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid #2d2d30;
+        }
+
+        .event-log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .event-log-time {
+            color: #666;
+            margin-right: 8px;
+        }
+
+        .event-log-entry .event-name {
+            color: #dcdcaa;
+        }
+
+        .event-log-entry .event-detail {
+            color: #ce9178;
+        }
+
+        .event-log-empty {
+            color: #666;
+            font-style: italic;
+        }
+
+        /* ── Preview area ── */
+        .preview-area {
+            background: #252526;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .preview-container {
+            transition: background-color 0.2s, color 0.2s;
+        }
+
+        /* ── Editor Tabs bar preview ── */
+        .tabs-bar {
+            display: flex;
+            background: var(--rtc-color-bg-tertiary, #2d2d30);
+            border-bottom: 1px solid var(--rtc-color-border, #3c3c3c);
+            min-height: 36px;
+        }
+
+        .tabs-bar-empty {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+            color: var(--rtc-color-text-tertiary, #666);
+            font-size: 13px;
+            font-style: italic;
+        }
+
+        /* ── Theme adaptation for preview container ── */
+        .preview-container[theme="dark"] {
+            background: #1e1e1e;
+            color: #cccccc;
+            --rtc-color-primary: #007acc;
+            --rtc-color-text: #cccccc;
+            --rtc-color-text-secondary: #858585;
+            --rtc-color-text-tertiary: #666666;
+            --rtc-color-text-inverse: #1e1e1e;
+            --rtc-color-bg: #1e1e1e;
+            --rtc-color-bg-secondary: #252526;
+            --rtc-color-bg-tertiary: #2d2d30;
+            --rtc-color-bg-hover: #2a2d2e;
+            --rtc-color-bg-active: #37373d;
+            --rtc-color-border: #3c3c3c;
+            --rtc-color-border-focus: #007acc;
+        }
+
+        .preview-container[theme="light"] {
+            background: #ffffff;
+            color: #333333;
+            --rtc-color-primary: #007acc;
+            --rtc-color-text: #333333;
+            --rtc-color-text-secondary: #666666;
+            --rtc-color-text-tertiary: #999999;
+            --rtc-color-text-inverse: #ffffff;
+            --rtc-color-bg: #ffffff;
+            --rtc-color-bg-secondary: #f5f5f5;
+            --rtc-color-bg-tertiary: #e8e8e8;
+            --rtc-color-bg-hover: #f0f0f0;
+            --rtc-color-bg-active: #e0e0e0;
+            --rtc-color-border: #e0e0e0;
+            --rtc-color-border-focus: #007acc;
+        }
+
+        /* Info section */
+        .info-section {
+            margin-top: 20px;
+            padding: 16px;
+            background: #252526;
+            border-radius: 8px;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .info-section h3 {
+            font-size: 14px;
+            color: #ffffff;
+            margin-bottom: 8px;
+        }
+
+        .info-section ul {
+            margin-left: 20px;
+            color: #999;
+        }
+
+        .info-section code {
+            background: #1e1e1e;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 12px;
+            color: #ce9178;
+        }
+    </style>
+</head>
+<body>
+    <h1>Editor Tab Debug <span class="phase-label">Phase 2.4</span></h1>
+
+    <!-- Debug Panel -->
+    <div class="debug-panel">
+        <!-- Theme Section -->
+        <div class="debug-section">
+            <h2>主题 <span class="current-theme" id="currentTheme">dark</span></h2>
+            <div class="theme-buttons">
+                <button class="theme-btn" data-theme="light">☀️ Light</button>
+                <button class="theme-btn active" data-theme="dark">🌙 Dark</button>
+            </div>
+        </div>
+
+        <!-- State Section -->
+        <div class="debug-section">
+            <h2>状态</h2>
+            <div class="state-display" id="stateDisplay">
+                {"filePath":"/scenarios/checkout.md","fileName":"checkout.md","active":true,"dirty":false}
+            </div>
+        </div>
+
+        <!-- Single Tab Controls -->
+        <div class="debug-section">
+            <h2>单标签控制</h2>
+            <div class="control-group">
+                <button class="control-btn primary" id="setActive">设置 Active</button>
+                <button class="control-btn" id="clearActive">取消 Active</button>
+            </div>
+            <div class="control-group">
+                <button class="control-btn" id="setDirty">标记 Dirty</button>
+                <button class="control-btn" id="clearDirty">清除 Dirty</button>
+            </div>
+        </div>
+
+        <!-- File Name Controls -->
+        <div class="debug-section">
+            <h2>文件名 / 图标</h2>
+            <div class="control-group">
+                <button class="control-btn" data-filename="checkout.md" data-filepath="/scenarios/checkout.md">checkout.md</button>
+                <button class="control-btn" data-filename="helper.ts" data-filepath="/scripts/helper.ts">helper.ts</button>
+                <button class="control-btn" data-filename="app.js" data-filepath="/scripts/app.js">app.js</button>
+                <button class="control-btn" data-filename="README" data-filepath="/README">无扩展名</button>
+            </div>
+            <div class="control-group">
+                <button class="control-btn" id="setLongName">超长文件名</button>
+                <button class="control-btn" id="setNormalName">正常文件名</button>
+            </div>
+        </div>
+
+        <!-- Multi Tab Controls -->
+        <div class="debug-section">
+            <h2>多标签示例</h2>
+            <div class="control-group">
+                <button class="control-btn primary" id="showMultiTab">显示 3 个标签</button>
+                <button class="control-btn" id="showSingleTab">恢复单标签</button>
+            </div>
+            <div class="control-group">
+                <button class="control-btn" id="clearAllTabs">清空所有标签</button>
+            </div>
+        </div>
+
+        <!-- Reset & Log -->
+        <div class="debug-section">
+            <div class="control-group">
+                <button class="control-btn" id="resetBtn">Reset</button>
+                <button class="control-btn" id="clearLog">Clear Log</button>
+            </div>
+        </div>
+
+        <!-- Event Log -->
+        <div class="debug-section">
+            <h2>事件日志</h2>
+            <div class="event-log" id="eventLog">
+                <div class="event-log-empty">暂无事件</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Preview Area -->
+    <h2>组件预览</h2>
+    <div class="preview-area">
+        <div class="preview-container" id="previewContainer" theme="dark">
+            <div class="tabs-bar" id="tabsBar">
+                <!-- Editor tabs are inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Info -->
+    <div class="info-section">
+        <h3>Phase 2.4 验证点</h3>
+        <ul>
+            <li>三种状态视觉区分：普通 / <code>active</code>（顶部蓝条）/ <code>dirty</code>（圆点标记）</li>
+            <li>关闭按钮交互：默认隐藏/淡，悬停显示，点击触发 <code>editor-tab-close</code> 事件</li>
+            <li>文件名超长省略号（max-width: 120px），不破坏布局</li>
+            <li>三种文件类型图标正确切换（.md 蓝 / .ts/.js 黄 / 其他 灰）</li>
+            <li>双主题下所有颜色 token 正确映射</li>
+            <li>多标签并排布局，高度一致</li>
+        </ul>
+    </div>
+
+    <script type="module">
+        // Import component
+        import '../src/components/editor-area/rtc-editor-tab.ts';
+
+        // Import Debug Controller
+        import {DebugController} from './debug-controller.ts';
+
+        // ── Initialize Debug Controller ──
+        const dc = new DebugController({
+            previewSelector: '#previewContainer',
+            stateDisplaySelector: '#stateDisplay',
+            eventLogSelector: '#eventLog',
+            maxLogEntries: 20,
+            defaultTheme: 'dark',
+        });
+
+        // ── State ──
+        const defaultState = {
+            filePath: '/scenarios/checkout.md',
+            fileName: 'checkout.md',
+            active: true,
+            dirty: false,
+        };
+        dc.replaceState({...defaultState});
+
+        // ── DOM refs ──
+        const tabsBar = document.getElementById('tabsBar');
+
+        // ── Create tab helper ──
+        function createTab(filePath, fileName, active = false, dirty = false) {
+            const tab = document.createElement('rtc-editor-tab');
+            tab.filePath = filePath;
+            tab.fileName = fileName;
+            tab.active = active;
+            tab.dirty = dirty;
+            tab.theme = dc.theme;
+            return tab;
+        }
+
+        // ── Render single tab ──
+        function renderSingleTab() {
+            const {filePath, fileName, active, dirty} = dc.state;
+            tabsBar.innerHTML = '';
+            const tab = createTab(filePath, fileName, active, dirty);
+            bindTabEvents(tab);
+            tabsBar.appendChild(tab);
+        }
+
+        // ── Render multi tabs ──
+        function renderMultiTabs() {
+            tabsBar.innerHTML = '';
+            const tabs = [
+                createTab('/scenarios/user-flow.md', 'user-flow.md', false, false),
+                createTab('/scenarios/checkout.md', 'checkout.md', true, true),
+                createTab('/scenarios/payment.md', 'payment.md', false, false),
+            ];
+            tabs.forEach(tab => {
+                bindTabEvents(tab);
+                tabsBar.appendChild(tab);
+            });
+        }
+
+        // ── Clear tabs ──
+        function clearTabs() {
+            tabsBar.innerHTML = '<div class="tabs-bar-empty">（无标签）</div>';
+        }
+
+        // ── Bind events on a tab ──
+        function bindTabEvents(tab) {
+            tab.addEventListener('editor-tab-select', (e) => {
+                dc.logEvent('editor-tab-select', e.detail);
+
+                // 单标签模式：点击切换当前标签的 active 状态
+                if (tabsBar.querySelectorAll('rtc-editor-tab').length === 1) {
+                    const newActive = !tab.active;
+                    tab.active = newActive;
+                    dc.setState({active: newActive});
+                } else {
+                    // 多标签模式：点击的标签变为 active，其他变为 inactive
+                    tabsBar.querySelectorAll('rtc-editor-tab').forEach(t => {
+                        t.active = (t === tab);
+                    });
+                }
+            });
+            tab.addEventListener('editor-tab-close', (e) => {
+                dc.logEvent('editor-tab-close', e.detail);
+                // 移除被点击的标签
+                tab.remove();
+                // 如果 tabs bar 为空，显示空状态
+                if (tabsBar.querySelectorAll('rtc-editor-tab').length === 0) {
+                    tabsBar.innerHTML = '<div class="tabs-bar-empty">（无标签）</div>';
+                }
+            });
+        }
+
+        // ── Sync theme to tabs ──
+        function syncThemeToTabs() {
+            tabsBar.querySelectorAll('rtc-editor-tab').forEach(tab => {
+                tab.theme = dc.theme;
+            });
+        }
+
+        dc.onThemeChange(() => syncThemeToTabs());
+
+        // ── Bind Debug Controller built-in features ──
+        dc.bindThemeButtons();
+
+        // ── Single Tab Controls ──
+        document.getElementById('setActive').addEventListener('click', () => {
+            dc.setState({active: true});
+            renderSingleTab();
+        });
+
+        document.getElementById('clearActive').addEventListener('click', () => {
+            dc.setState({active: false});
+            renderSingleTab();
+        });
+
+        document.getElementById('setDirty').addEventListener('click', () => {
+            dc.setState({dirty: true});
+            renderSingleTab();
+        });
+
+        document.getElementById('clearDirty').addEventListener('click', () => {
+            dc.setState({dirty: false});
+            renderSingleTab();
+        });
+
+        // ── File Name Controls ──
+        document.querySelectorAll('[data-filename]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const fileName = btn.dataset.filename;
+                const filePath = btn.dataset.filepath;
+                dc.setState({fileName, filePath});
+                renderSingleTab();
+                dc.logEvent('filename-changed', {fileName, filePath});
+            });
+        });
+
+        document.getElementById('setLongName').addEventListener('click', () => {
+            const longName = 'this-is-a-very-long-file-name-that-should-be-truncated.md';
+            dc.setState({
+                fileName: longName,
+                filePath: `/scenarios/${longName}`,
+            });
+            renderSingleTab();
+            dc.logEvent('filename-changed', {fileName: longName});
+        });
+
+        document.getElementById('setNormalName').addEventListener('click', () => {
+            dc.setState({
+                fileName: defaultState.fileName,
+                filePath: defaultState.filePath,
+            });
+            renderSingleTab();
+        });
+
+        // ── Multi Tab Controls ──
+        document.getElementById('showMultiTab').addEventListener('click', () => {
+            renderMultiTabs();
+            dc.logEvent('multi-tab-shown', {count: 3});
+        });
+
+        document.getElementById('showSingleTab').addEventListener('click', () => {
+            renderSingleTab();
+            dc.logEvent('single-tab-restored');
+        });
+
+        document.getElementById('clearAllTabs').addEventListener('click', () => {
+            clearTabs();
+            dc.logEvent('all-tabs-cleared');
+        });
+
+        // ── Reset ──
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            dc.replaceState({...defaultState});
+            renderSingleTab();
+            dc.clearLog();
+        });
+
+        document.getElementById('clearLog').addEventListener('click', () => {
+            dc.clearLog();
+        });
+
+        // ── Initial render ──
+        renderSingleTab();
+    </script>
+</body>
+</html>

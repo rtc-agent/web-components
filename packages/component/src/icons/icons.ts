@@ -50,6 +50,17 @@ import undoSvg from './svg/undo-16.svg?raw';
 import redoSvg from './svg/redo-16.svg?raw';
 import xSvg from './svg/x-16.svg?raw';
 
+// Editor toolbar icons (Phase 2.5)
+// bold / italic: Formatting actions.
+// link: Insert hyperlink.
+// eye: Preview mode.
+// columns: Split-screen view.
+import boldSvg from './svg/text-bold-16.svg?raw';
+import italicSvg from './svg/text-italic-16.svg?raw';
+import linkSvg from './svg/link-16.svg?raw';
+import eyeSvg from './svg/eye-16.svg?raw';
+import columnsSvg from './svg/columns-16.svg?raw';
+
 /**
  * Convert SVG string to Lit template using unsafeHTML
  */
@@ -103,6 +114,18 @@ export const redoIcon = toLitTemplate(redoSvg);
 // closeIcon: Close tab / dismiss.
 export const closeIcon = toLitTemplate(xSvg);
 
+// Editor toolbar icons (Phase 2.5)
+// boldIcon: Bold formatting action.
+export const boldIcon = toLitTemplate(boldSvg);
+// italicIcon: Italic formatting action.
+export const italicIcon = toLitTemplate(italicSvg);
+// linkIcon: Insert hyperlink action.
+export const linkIcon = toLitTemplate(linkSvg);
+// eyeIcon: Preview mode toggle.
+export const eyeIcon = toLitTemplate(eyeSvg);
+// columnsIcon: Split-screen view toggle.
+export const columnsIcon = toLitTemplate(columnsSvg);
+
 /**
  * Icon name to template mapping
  */
@@ -139,6 +162,12 @@ export const icons = {
     undo: undoIcon,
     redo: redoIcon,
     close: closeIcon,
+    // Editor toolbar icons (Phase 2.5)
+    bold: boldIcon,
+    italic: italicIcon,
+    link: linkIcon,
+    eye: eyeIcon,
+    columns: columnsIcon,
 } as const;
 
 export type IconName = keyof typeof icons;

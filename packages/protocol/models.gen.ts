@@ -323,7 +323,7 @@ export interface components {
             deleted_at?: string;
         };
         /** @enum {string} */
-        UpdateEntity: "session" | "turn" | "message" | "rtc";
+        UpdateEntity: "session" | "turn" | "message" | "rtc" | "file";
         /** @enum {string} */
         UpdateAction: "created" | "updated" | "deleted";
         /** @enum {string} */

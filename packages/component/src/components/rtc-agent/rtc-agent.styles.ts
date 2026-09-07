@@ -119,6 +119,43 @@ export const styles = css`
     z-index: var(--rtc-z-content, 1);
   }
 
+  /* ── VS Code 风格布局（Phase 3） ── */
+
+  /* 主布局：Activity Bar + Sidebar + Content/Editor */
+  .main-layout {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* 侧边栏容器 */
+  .sidebar {
+    width: 240px;
+    min-width: 180px;
+    border-right: 1px solid var(--rtc-color-border-primary, #333);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* 编辑器区域包裹器（editor-area + status-bar） */
+  .editor-area-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .editor-area-wrapper[hidden] {
+    display: none;
+  }
+
+  .content-area[hidden] {
+    display: none;
+  }
+
   /* ── Bubble ── */
   .bubble {
     display: none;

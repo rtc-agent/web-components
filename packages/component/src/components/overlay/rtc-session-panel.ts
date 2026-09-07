@@ -27,6 +27,10 @@ export class RtcSessionPanel extends LitElement {
     @property({type: String, attribute: 'current-session-id'})
     currentSessionId: string | null = null;
 
+    /** 主题（继承自父级） */
+    @property({type: String, reflect: true})
+    theme: 'light' | 'dark' | 'system' = 'system';
+
     private _handleSelect(session: Session) {
         this.dispatchEvent(
             new CustomEvent('rtc-session-selected', {

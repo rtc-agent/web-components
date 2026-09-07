@@ -277,3 +277,20 @@ export interface EditorTab {
     viewMode: EditorViewMode;
 }
 
+/**
+ * 状态栏显示信息
+ *
+ * 由 StatusBarController 从 EditorAreaController 派生，
+ * 供 rtc-status-bar 组件渲染。
+ */
+export interface StatusBarInfo {
+    /** 文件类型标签（如 "Markdown"、"JavaScript"） */
+    fileType: string;
+    /** 编码（固定 "UTF-8"，后续可扩展） */
+    encoding: string;
+    /** 光标位置（行号 / 列号，均 1-based） */
+    cursor: {line: number; column: number};
+    /** 保存状态：saved=已保存，unsaved=有未保存修改，none=无文件打开 */
+    saveStatus: 'saved' | 'unsaved' | 'none';
+}
+

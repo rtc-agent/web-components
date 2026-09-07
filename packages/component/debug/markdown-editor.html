@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markdown Editor Debug - Phase 2.6</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #404040;
+            color: #cccccc;
+            padding: 20px;
+            min-height: 100vh;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        h1 {
+            font-size: 20px;
+            margin-bottom: 20px;
+            color: #ffffff;
+        }
+
+        h2 {
+            font-size: 14px;
+            margin-bottom: 12px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .phase-label {
+            display: inline-block;
+            padding: 2px 8px;
+            background: #0e639c;
+            color: white;
+            border-radius: 3px;
+            font-size: 11px;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+
+        .debug-panel {
+            background: #252526;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+
+        .debug-section {
+            margin-bottom: 16px;
+        }
+
+        .debug-section:last-child {
+            margin-bottom: 0;
+        }
+
+        /* ── Theme buttons ── */
+        .theme-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .theme-btn {
+            padding: 8px 16px;
+            background: #3a3a3a;
+            border: none;
+            color: #cccccc;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+
+        .theme-btn:hover {
+            background: #4a4a4a;
+        }
+
+        .theme-btn.active {
+            background: #007acc;
+            color: white;
+        }
+
+        /* ── State display ── */
+        .state-display {
+            background: #1e1e1e;
+            padding: 12px;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 12px;
+            color: #4ec9b0;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        /* ── Control buttons ── */
+        .control-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .control-btn {
+            padding: 6px 12px;
+            background: #3a3a3a;
+            border: none;
+            color: #cccccc;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 12px;
+            transition: background 0.2s;
+        }
+
+        .control-btn:hover {
+            background: #4a4a4a;
+        }
+
+        .control-btn.primary {
+            background: #0e639c;
+        }
+
+        .control-btn.primary:hover {
+            background: #1177bb;
+        }
+
+        .control-btn.toggle-on {
+            background: #0e639c;
+            color: white;
+        }
+
+        /* ── Event log ── */
+        .event-log {
+            background: #1e1e1e;
+            padding: 12px;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 11px;
+            max-height: 150px;
+            overflow-y: auto;
+            color: #d4d4d4;
+        }
+
+        .event-log-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid #2d2d30;
+        }
+
+        .event-log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .event-log-entry .event-name {
+            color: #dcdcaa;
+        }
+
+        .event-log-entry .event-detail {
+            color: #ce9178;
+        }
+
+        .event-log-empty {
+            color: #666;
+            font-style: italic;
+        }
+
+        /* ── Preview area ── */
+        .preview-area {
+            background: #252526;
+            border-radius: 8px;
+            overflow: hidden;
+            min-height: 500px;
+        }
+
+        .preview-container {
+            display: flex;
+            flex-direction: column;
+            height: 500px;
+            transition: background-color 0.2s, color 0.2s;
+        }
+
+        /* ── Theme adaptation for preview container ── */
+        .preview-container[theme="dark"] {
+            background: #252526;
+            color: #cccccc;
+            --rtc-color-primary: #007acc;
+            --rtc-color-primary-hover: #1e8adc;
+            --rtc-color-text: #cccccc;
+            --rtc-color-text-secondary: #858585;
+            --rtc-color-text-tertiary: #666666;
+            --rtc-color-text-inverse: #1e1e1e;
+            --rtc-color-bg: #1e1e1e;
+            --rtc-color-bg-secondary: #252526;
+            --rtc-color-bg-tertiary: #2d2d30;
+            --rtc-color-bg-hover: #2a2d2e;
+            --rtc-color-bg-active: #37373d;
+            --rtc-color-border: #3c3c3c;
+            --rtc-color-border-hover: #4c4c4c;
+            --rtc-color-border-focus: #007acc;
+            --rtc-color-on-primary: #ffffff;
+            --rtc-color-accent: #007acc;
+        }
+
+        .preview-container[theme="light"] {
+            background: #ffffff;
+            color: #333333;
+            --rtc-color-primary: #007acc;
+            --rtc-color-primary-hover: #005a9e;
+            --rtc-color-text: #333333;
+            --rtc-color-text-secondary: #666666;
+            --rtc-color-text-tertiary: #999999;
+            --rtc-color-text-inverse: #ffffff;
+            --rtc-color-bg: #ffffff;
+            --rtc-color-bg-secondary: #f5f5f5;
+            --rtc-color-bg-tertiary: #e8e8e8;
+            --rtc-color-bg-hover: #e8e8e8;
+            --rtc-color-bg-active: #d4d4d4;
+            --rtc-color-border: #e0e0e0;
+            --rtc-color-border-hover: #cccccc;
+            --rtc-color-border-focus: #007acc;
+            --rtc-color-on-primary: #ffffff;
+            --rtc-color-accent: #007acc;
+        }
+
+        /* ── Info rows ── */
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            font-size: 12px;
+        }
+
+        .info-label {
+            color: #888;
+        }
+
+        .info-value {
+            color: #4ec9b0;
+            font-family: 'SF Mono', Monaco, monospace;
+        }
+
+        /* ── Cursor display ── */
+        .cursor-display {
+            background: #1e1e1e;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 12px;
+            color: #4ec9b0;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+    <h1>Markdown Editor Debug <span class="phase-label">Phase 2.6</span></h1>
+
+    <div class="debug-panel">
+        <!-- Theme -->
+        <div class="debug-section">
+            <h2>主题 (当前: <span id="currentTheme">dark</span>)</h2>
+            <div class="theme-buttons">
+                <button class="theme-btn" data-theme="light">☀ Light</button>
+                <button class="theme-btn active" data-theme="dark">🌙 Dark</button>
+                <button class="theme-btn" data-theme="system">💻 System</button>
+            </div>
+        </div>
+
+        <!-- State Display -->
+        <div class="debug-section">
+            <h2>当前状态</h2>
+            <div class="state-display" id="stateDisplay">
+{
+  "viewMode": "split",
+  "readOnly": false,
+  "contentLength": 0
+}
+            </div>
+        </div>
+
+        <!-- Info -->
+        <div class="debug-section">
+            <h2>信息</h2>
+            <div class="info-row">
+                <span class="info-label">视图模式:</span>
+                <span class="info-value" id="viewModeInfo">split</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">只读模式:</span>
+                <span class="info-value" id="readOnlyInfo">false</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">内容长度:</span>
+                <span class="info-value" id="contentLengthInfo">0</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">光标位置:</span>
+                <span class="info-value" id="cursorInfo">行 1, 列 1</span>
+            </div>
+        </div>
+
+        <!-- View Mode Controls -->
+        <div class="debug-section">
+            <h2>视图模式</h2>
+            <div class="control-group">
+                <button class="control-btn" data-viewmode="edit">Edit</button>
+                <button class="control-btn" data-viewmode="preview">Preview</button>
+                <button class="control-btn primary" data-viewmode="split">Split</button>
+            </div>
+        </div>
+
+        <!-- Content Presets -->
+        <div class="debug-section">
+            <h2>内容预设</h2>
+            <div class="control-group">
+                <button class="control-btn" id="presetEmpty">空内容</button>
+                <button class="control-btn" id="presetShort">短文档</button>
+                <button class="control-btn" id="presetLong">长文档</button>
+                <button class="control-btn" id="presetCode">代码块</button>
+                <button class="control-btn" id="presetTasks">任务列表</button>
+            </div>
+        </div>
+
+        <!-- State Controls -->
+        <div class="debug-section">
+            <h2>状态控制</h2>
+            <div class="control-group">
+                <button class="control-btn" id="toggleReadOnly">readOnly: OFF</button>
+            </div>
+        </div>
+
+        <!-- Reset -->
+        <div class="debug-section">
+            <div class="control-group">
+                <button class="control-btn" id="resetBtn">Reset</button>
+                <button class="control-btn" id="clearLog">Clear Log</button>
+            </div>
+        </div>
+
+        <!-- Event Log -->
+        <div class="debug-section">
+            <h2>事件日志</h2>
+            <div class="event-log" id="eventLog">
+                <div class="event-log-empty">暂无事件</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Preview Area -->
+    <h2>组件预览</h2>
+    <div class="preview-area">
+        <div class="preview-container" id="previewContainer" theme="dark">
+            <!-- Markdown Editor will be inserted here -->
+        </div>
+    </div>
+
+    <script type="module">
+        // Import styles (for tokens)
+        import {tokens} from '../src/styles/tokens.ts';
+        import {lightTheme} from '../src/styles/themes/light.ts';
+        import {darkTheme} from '../src/styles/themes/dark.ts';
+
+        // Import component
+        import '../src/components/markdown-editor/rtc-markdown-editor.ts';
+
+        // DOM elements
+        const stateDisplay = document.getElementById('stateDisplay');
+        const eventLog = document.getElementById('eventLog');
+        const previewContainer = document.getElementById('previewContainer');
+        const currentThemeEl = document.getElementById('currentTheme');
+        const viewModeInfo = document.getElementById('viewModeInfo');
+        const readOnlyInfo = document.getElementById('readOnlyInfo');
+        const contentLengthInfo = document.getElementById('contentLengthInfo');
+        const cursorInfo = document.getElementById('cursorInfo');
+
+        // Create editor component
+        const editor = document.createElement('rtc-markdown-editor');
+        editor.setAttribute('theme', 'dark');
+        editor.viewMode = 'split';
+        previewContainer.appendChild(editor);
+
+        // State
+        const state = {
+            viewMode: 'split',
+            readOnly: false,
+            content: '',
+            cursorPosition: {line: 1, column: 1},
+        };
+
+        // Sync state → component
+        function syncState() {
+            editor.viewMode = state.viewMode;
+            editor.readOnly = state.readOnly;
+            editor.content = state.content;
+
+            stateDisplay.textContent = JSON.stringify({
+                viewMode: state.viewMode,
+                readOnly: state.readOnly,
+                contentLength: state.content.length,
+            }, null, 2);
+
+            viewModeInfo.textContent = state.viewMode;
+            readOnlyInfo.textContent = state.readOnly.toString();
+            contentLengthInfo.textContent = state.content.length.toString();
+            cursorInfo.textContent = `行 ${state.cursorPosition.line}, 列 ${state.cursorPosition.column}`;
+        }
+
+        // Log event
+        function logEvent(name, detail) {
+            const entry = document.createElement('div');
+            entry.className = 'event-log-entry';
+            const detailStr = detail && Object.keys(detail).length > 0 ? JSON.stringify(detail) : '';
+            entry.innerHTML = `<span class="event-name">${name}</span> <span class="event-detail">${detailStr}</span>`;
+
+            // Remove empty placeholder
+            const empty = eventLog.querySelector('.event-log-empty');
+            if (empty) empty.remove();
+
+            // Add to top
+            eventLog.insertBefore(entry, eventLog.firstChild);
+
+            // Keep only last 20 entries
+            while (eventLog.children.length > 20) {
+                eventLog.removeChild(eventLog.lastChild);
+            }
+        }
+
+        // ── Event listeners on editor ──
+
+        editor.addEventListener('editor-content-change', (e) => {
+            state.content = e.detail.content;
+            syncState();
+            logEvent('editor-content-change', {length: e.detail.content.length});
+        });
+
+        editor.addEventListener('editor-cursor-move', (e) => {
+            state.cursorPosition = e.detail;
+            syncState();
+            logEvent('editor-cursor-move', e.detail);
+        });
+
+        // ── Theme buttons ──
+
+        document.querySelectorAll('.theme-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const theme = btn.dataset.theme;
+                document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentThemeEl.textContent = theme;
+
+                // Resolve system theme
+                let resolvedTheme = theme;
+                if (theme === 'system') {
+                    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                    resolvedTheme = prefersDark ? 'dark' : 'light';
+                }
+
+                previewContainer.setAttribute('theme', resolvedTheme);
+                editor.setAttribute('theme', resolvedTheme);
+            });
+        });
+
+        // ── View mode buttons ──
+
+        function updateViewModeButtons() {
+            document.querySelectorAll('[data-viewmode]').forEach(btn => {
+                btn.classList.toggle('primary', btn.dataset.viewmode === state.viewMode);
+            });
+        }
+
+        document.querySelectorAll('[data-viewmode]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const mode = btn.dataset.viewmode;
+                state.viewMode = mode;
+                syncState();
+                updateViewModeButtons();
+                logEvent('set-view-mode', {viewMode: mode});
+            });
+        });
+
+        // ── Content presets ──
+
+        const presets = {
+            empty: '',
+            short: `# 短文档
+
+这是一个简短的 Markdown 文档示例。
+
+## 功能列表
+
+- 编辑模式
+- 预览模式
+- 分屏模式
+`,
+            long: `# 结账流程
+
+## 用户故事
+
+作为用户，我希望能够快速完成结账，以便尽快收到商品。
+
+## 流程步骤
+
+1. 确认购物车商品
+2. 选择收货地址
+3. 选择支付方式
+4. 确认订单
+5. 完成支付
+
+## 接口调用
+
+\`\`\`javascript
+const order = await checkout({
+  cartId: 'cart_123',
+  addressId: 'addr_456',
+  paymentMethod: 'alipay'
+});
+\`\`\`
+
+## 注意事项
+
+- 库存检查必须在支付前完成
+- 订单创建后锁定库存 15 分钟
+- 支付超时自动取消订单
+
+## 数据表结构
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | string | 订单 ID |
+| userId | string | 用户 ID |
+| status | enum | 订单状态 |
+| createdAt | timestamp | 创建时间 |
+
+## 引用
+
+> 简化购物流程，提升用户体验。
+
+更多详情请参考 [API 文档](https://example.com/api)。
+`,
+            code: `# 代码示例
+
+## JavaScript
+
+\`\`\`javascript
+function fibonacci(n) {
+  if (n <= 1) return n;
+  return fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+console.log(fibonacci(10)); // 55
+\`\`\`
+
+## TypeScript
+
+\`\`\`typescript
+interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
+async function getUser(id: string): Promise<User> {
+  const response = await fetch(\`/api/users/\${id}\`);
+  return response.json();
+}
+\`\`\`
+
+## Python
+
+\`\`\`python
+def quicksort(arr):
+    if len(arr) <= 1:
+        return arr
+    pivot = arr[len(arr) // 2]
+    left = [x for x in arr if x < pivot]
+    middle = [x for x in arr if x == pivot]
+    right = [x for x in arr if x > pivot]
+    return quicksort(left) + middle + quicksort(right)
+
+print(quicksort([3, 6, 8, 10, 1, 2, 1]))
+\`\`\`
+`,
+            tasks: `# 任务列表
+
+## 待办事项
+
+- [x] 完成需求分析
+- [x] 设计数据库 Schema
+- [ ] 实现用户模块
+- [ ] 实现权限管理
+- [ ] 编写单元测试
+
+## 本周计划
+
+- [x] Phase 2.1: Activity Bar
+- [x] Phase 2.2: File Tree Item
+- [x] Phase 2.3: File Explorer
+- [x] Phase 2.4: Editor Tab
+- [x] Phase 2.5: Editor Toolbar
+- [x] Phase 2.6: Markdown Editor
+- [ ] Phase 2.7: Editor Area
+- [ ] Phase 2.8: Status Bar
+
+## 备注
+
+这是一个 **GFM 任务列表** 示例，使用 \`marked\` 渲染。
+`,
+        };
+
+        document.getElementById('presetEmpty').addEventListener('click', () => {
+            state.content = presets.empty;
+            syncState();
+            logEvent('set-preset', {preset: 'empty'});
+        });
+
+        document.getElementById('presetShort').addEventListener('click', () => {
+            state.content = presets.short;
+            syncState();
+            logEvent('set-preset', {preset: 'short'});
+        });
+
+        document.getElementById('presetLong').addEventListener('click', () => {
+            state.content = presets.long;
+            syncState();
+            logEvent('set-preset', {preset: 'long'});
+        });
+
+        document.getElementById('presetCode').addEventListener('click', () => {
+            state.content = presets.code;
+            syncState();
+            logEvent('set-preset', {preset: 'code'});
+        });
+
+        document.getElementById('presetTasks').addEventListener('click', () => {
+            state.content = presets.tasks;
+            syncState();
+            logEvent('set-preset', {preset: 'tasks'});
+        });
+
+        // ── Toggle buttons ──
+
+        function updateToggleButton(btn, key) {
+            const on = state[key];
+            btn.textContent = `${key}: ${on ? 'ON' : 'OFF'}`;
+            btn.classList.toggle('toggle-on', on);
+        }
+
+        document.getElementById('toggleReadOnly').addEventListener('click', () => {
+            state.readOnly = !state.readOnly;
+            updateToggleButton(document.getElementById('toggleReadOnly'), 'readOnly');
+            syncState();
+            logEvent('toggle-readOnly', {readOnly: state.readOnly});
+        });
+
+        // ── Reset / Clear ──
+
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            state.viewMode = 'split';
+            state.readOnly = false;
+            state.content = '';
+            state.cursorPosition = {line: 1, column: 1};
+            syncState();
+            updateToggleButton(document.getElementById('toggleReadOnly'), 'readOnly');
+            updateViewModeButtons();
+            logEvent('reset', {});
+        });
+
+        document.getElementById('clearLog').addEventListener('click', () => {
+            eventLog.innerHTML = '<div class="event-log-empty">暂无事件</div>';
+        });
+
+        // Initial state
+        syncState();
+    </script>
+</body>
+</html>

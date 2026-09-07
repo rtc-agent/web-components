@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editor Area Debug - Phase 2.7</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #404040;
+            color: #cccccc;
+            padding: 20px;
+            min-height: 100vh;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        h1 {
+            font-size: 20px;
+            margin-bottom: 20px;
+            color: #ffffff;
+        }
+
+        h2 {
+            font-size: 14px;
+            margin-bottom: 12px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .phase-label {
+            display: inline-block;
+            padding: 2px 8px;
+            background: #0e639c;
+            color: white;
+            border-radius: 3px;
+            font-size: 11px;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+
+        .debug-panel {
+            background: #252526;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+
+        .debug-section {
+            margin-bottom: 16px;
+        }
+
+        .debug-section:last-child {
+            margin-bottom: 0;
+        }
+
+        /* ── Theme buttons ── */
+        .theme-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .theme-btn {
+            padding: 8px 16px;
+            background: #3a3a3a;
+            border: none;
+            color: #cccccc;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+
+        .theme-btn:hover {
+            background: #4a4a4a;
+        }
+
+        .theme-btn.active {
+            background: #007acc;
+            color: white;
+        }
+
+        /* ── State display ── */
+        .state-display {
+            background: #1e1e1e;
+            padding: 12px;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 12px;
+            color: #4ec9b0;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        /* ── Control buttons ── */
+        .control-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .control-btn {
+            padding: 6px 12px;
+            background: #3a3a3a;
+            border: none;
+            color: #cccccc;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 12px;
+            transition: background 0.2s;
+        }
+
+        .control-btn:hover {
+            background: #4a4a4a;
+        }
+
+        .control-btn.primary {
+            background: #0e639c;
+        }
+
+        .control-btn.primary:hover {
+            background: #1177bb;
+        }
+
+        .control-btn.danger {
+            background: #5a1d1d;
+        }
+
+        .control-btn.danger:hover {
+            background: #7a2d2d;
+        }
+
+        /* ── Event log ── */
+        .event-log {
+            background: #1e1e1e;
+            padding: 12px;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 11px;
+            max-height: 150px;
+            overflow-y: auto;
+            color: #d4d4d4;
+        }
+
+        .event-log-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid #2d2d30;
+        }
+
+        .event-log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .event-log-entry .event-time {
+            color: #858585;
+            margin-right: 8px;
+        }
+
+        .event-log-entry .event-name {
+            color: #dcdcaa;
+        }
+
+        .event-log-entry .event-detail {
+            color: #ce9178;
+        }
+
+        .event-log-empty {
+            color: #666;
+            font-style: italic;
+        }
+
+        /* ── Preview area ── */
+        .preview-area {
+            background: #252526;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .preview-container {
+            display: flex;
+            flex-direction: column;
+            height: 550px;
+            transition: background-color 0.2s, color 0.2s;
+        }
+
+        /* ── Theme adaptation for preview container ── */
+        .preview-container[theme="dark"] {
+            background: #1e1e1e;
+            color: #cccccc;
+            --rtc-color-primary: #007acc;
+            --rtc-color-primary-hover: #1e8adc;
+            --rtc-color-text: #cccccc;
+            --rtc-color-text-secondary: #858585;
+            --rtc-color-text-tertiary: #666666;
+            --rtc-color-text-inverse: #1e1e1e;
+            --rtc-color-bg: #1e1e1e;
+            --rtc-color-bg-secondary: #252526;
+            --rtc-color-bg-tertiary: #2d2d30;
+            --rtc-color-bg-hover: #2a2d2e;
+            --rtc-color-bg-active: #37373d;
+            --rtc-color-border: #3c3c3c;
+            --rtc-color-border-hover: #4c4c4c;
+            --rtc-color-border-focus: #007acc;
+            --rtc-color-on-primary: #ffffff;
+            --rtc-color-accent: #007acc;
+            --rtc-color-error: #f48771;
+            --rtc-spacing-xs: 4px;
+            --rtc-spacing-sm: 8px;
+            --rtc-spacing-md: 12px;
+            --rtc-spacing-lg: 16px;
+            --rtc-font-size-sm: 13px;
+            --rtc-font-size-md: 14px;
+            --rtc-font-size-lg: 16px;
+            --rtc-border-radius-sm: 4px;
+            --rtc-border-radius-md: 6px;
+            --rtc-transition-duration: 0.15s;
+            --rtc-transition-timing: ease;
+        }
+
+        .preview-container[theme="light"] {
+            background: #ffffff;
+            color: #333333;
+            --rtc-color-primary: #007acc;
+            --rtc-color-primary-hover: #005a9e;
+            --rtc-color-text: #333333;
+            --rtc-color-text-secondary: #666666;
+            --rtc-color-text-tertiary: #999999;
+            --rtc-color-text-inverse: #ffffff;
+            --rtc-color-bg: #ffffff;
+            --rtc-color-bg-secondary: #f5f5f5;
+            --rtc-color-bg-tertiary: #e8e8e8;
+            --rtc-color-bg-hover: #e8e8e8;
+            --rtc-color-bg-active: #d4d4d4;
+            --rtc-color-border: #e0e0e0;
+            --rtc-color-border-hover: #cccccc;
+            --rtc-color-border-focus: #007acc;
+            --rtc-color-on-primary: #ffffff;
+            --rtc-color-accent: #007acc;
+            --rtc-color-error: #d32f2f;
+            --rtc-spacing-xs: 4px;
+            --rtc-spacing-sm: 8px;
+            --rtc-spacing-md: 12px;
+            --rtc-spacing-lg: 16px;
+            --rtc-font-size-sm: 13px;
+            --rtc-font-size-md: 14px;
+            --rtc-font-size-lg: 16px;
+            --rtc-border-radius-sm: 4px;
+            --rtc-border-radius-md: 6px;
+            --rtc-transition-duration: 0.15s;
+            --rtc-transition-timing: ease;
+        }
+
+        /* ── Info rows ── */
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            font-size: 12px;
+        }
+
+        .info-label {
+            color: #888;
+        }
+
+        .info-value {
+            color: #4ec9b0;
+            font-family: 'SF Mono', Monaco, monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>Editor Area Debug <span class="phase-label">Phase 2.7</span></h1>
+
+    <div class="debug-panel">
+        <!-- Theme -->
+        <div class="debug-section">
+            <h2>主题 (当前: <span id="currentTheme">dark</span>)</h2>
+            <div class="theme-buttons">
+                <button class="theme-btn" data-theme="light">☀ Light</button>
+                <button class="theme-btn active" data-theme="dark">🌙 Dark</button>
+            </div>
+        </div>
+
+        <!-- State Display -->
+        <div class="debug-section">
+            <h2>当前状态</h2>
+            <div class="state-display" id="stateDisplay">{}</div>
+        </div>
+
+        <!-- Info -->
+        <div class="debug-section">
+            <h2>信息</h2>
+            <div class="info-row">
+                <span class="info-label">打开的标签数:</span>
+                <span class="info-value" id="tabCountInfo">0</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">活动文件:</span>
+                <span class="info-value" id="activeFileInfo">(无)</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">活动视图模式:</span>
+                <span class="info-value" id="viewModeInfo">-</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">脏状态:</span>
+                <span class="info-value" id="dirtyInfo">-</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">光标位置:</span>
+                <span class="info-value" id="cursorInfo">-</span>
+            </div>
+        </div>
+
+        <!-- File Operations -->
+        <div class="debug-section">
+            <h2>文件操作</h2>
+            <div class="control-group">
+                <button class="control-btn primary" id="openAgent">打开 AGENT.md</button>
+                <button class="control-btn primary" id="openCheckout">打开 checkout.md</button>
+                <button class="control-btn primary" id="openScript">打开 script.js</button>
+                <button class="control-btn" id="openMulti">打开多个文件</button>
+            </div>
+        </div>
+
+        <!-- Tab Operations -->
+        <div class="debug-section">
+            <h2>标签操作</h2>
+            <div class="control-group">
+                <button class="control-btn" id="switchFirst">切换到第一个</button>
+                <button class="control-btn" id="switchLast">切换到最后一个</button>
+                <button class="control-btn danger" id="closeActive">关闭当前标签</button>
+                <button class="control-btn danger" id="closeAll">关闭所有</button>
+            </div>
+        </div>
+
+        <!-- View Mode -->
+        <div class="debug-section">
+            <h2>视图模式</h2>
+            <div class="control-group">
+                <button class="control-btn" data-viewmode="edit">Edit</button>
+                <button class="control-btn" data-viewmode="preview">Preview</button>
+                <button class="control-btn" data-viewmode="split">Split</button>
+            </div>
+        </div>
+
+        <!-- Content Operations -->
+        <div class="debug-section">
+            <h2>内容操作</h2>
+            <div class="control-group">
+                <button class="control-btn" id="markDirty">标记未保存</button>
+                <button class="control-btn primary" id="saveFile">保存 (清除 dirty)</button>
+            </div>
+        </div>
+
+        <!-- Reset -->
+        <div class="debug-section">
+            <div class="control-group">
+                <button class="control-btn" id="resetBtn">Reset</button>
+                <button class="control-btn" id="clearLog">Clear Log</button>
+            </div>
+        </div>
+
+        <!-- Event Log -->
+        <div class="debug-section">
+            <h2>事件日志</h2>
+            <div class="event-log" id="eventLog">
+                <div class="event-log-empty">暂无事件</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Preview Area -->
+    <h2>组件预览</h2>
+    <div class="preview-area">
+        <div class="preview-container" id="previewContainer" theme="dark">
+            <!-- Editor Area will be inserted here -->
+        </div>
+    </div>
+
+    <script type="module">
+        // Import component
+        import '../src/components/editor-area/rtc-editor-area.ts';
+        import {EditorAreaController} from '../src/controllers/editor-area.controller.ts';
+
+        // ── Mock Data ──
+        const MOCK_FILES = {
+            '/AGENT.md': `# RTC Agent
+
+Your AI-powered assistant.
+
+## Available Tools
+
+- \`ls\`: List directory contents
+- \`read\`: Read file contents
+- \`write\`: Write or create files
+- \`find\`: Find files by pattern
+- \`grep\`: Search file contents
+
+## Getting Started
+
+The AI Agent can discover and use Functions registered by the host application.
+`,
+            '/scenarios/checkout.md': `# 结账流程
+
+## 用户故事
+
+作为用户，我希望能够快速完成结账，以便尽快收到商品。
+
+## 流程步骤
+
+1. 确认购物车商品
+2. 选择收货地址
+3. 选择支付方式
+4. 确认订单
+5. 完成支付
+
+## 接口调用
+
+\`\`\`javascript
+const order = await checkout({
+  cartId: 'cart_123',
+  addressId: 'addr_456',
+  paymentMethod: 'alipay'
+});
+\`\`\`
+
+## 注意事项
+
+- 库存检查必须在支付前完成
+- 订单创建后锁定库存 15 分钟
+`,
+            '/scripts/utils.js': `// Utility functions
+
+/**
+ * Format date to locale string
+ */
+function formatDate(date) {
+  return new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+/**
+ * Debounce function
+ */
+function debounce(fn, delay = 300) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), delay);
+  };
+}
+
+export { formatDate, debounce };
+`,
+        };
+
+        // ── DOM refs ──
+        const previewContainer = document.getElementById('previewContainer');
+        const stateDisplay = document.getElementById('stateDisplay');
+        const eventLog = document.getElementById('eventLog');
+        const currentThemeEl = document.getElementById('currentTheme');
+        const tabCountInfo = document.getElementById('tabCountInfo');
+        const activeFileInfo = document.getElementById('activeFileInfo');
+        const viewModeInfo = document.getElementById('viewModeInfo');
+        const dirtyInfo = document.getElementById('dirtyInfo');
+        const cursorInfo = document.getElementById('cursorInfo');
+
+        // ── Theme state ──
+        let currentTheme = 'dark';
+
+        // ── Create editor area component ──
+        const editorArea = document.createElement('rtc-editor-area');
+        editorArea.setAttribute('theme', 'dark');
+        previewContainer.appendChild(editorArea);
+
+        // ── Create a fake ReactiveControllerHost for the controller ──
+        const fakeHost = {
+            addController() {},
+            requestUpdate() {
+                syncComponent();
+            },
+        };
+
+        const controller = new EditorAreaController(fakeHost);
+
+        // ── Sync controller state → component ──
+        function syncComponent() {
+            const state = controller.state;
+            editorArea.tabs = [...state.tabs];
+            editorArea.activeFilePath = state.activeFilePath;
+            editorArea.setAttribute('theme', currentTheme);
+
+            // Update state display
+            const displayState = {
+                tabCount: state.tabs.length,
+                activeFilePath: state.activeFilePath || '(none)',
+                tabs: state.tabs.map(t => ({
+                    filePath: t.filePath,
+                    isDirty: t.isDirty,
+                    viewMode: t.viewMode,
+                    contentLength: t.content.length,
+                    cursor: t.cursorPosition,
+                })),
+            };
+            stateDisplay.textContent = JSON.stringify(displayState, null, 2);
+
+            // Update info panel
+            tabCountInfo.textContent = state.tabs.length.toString();
+            activeFileInfo.textContent = state.activeFilePath || '(无)';
+
+            const activeTab = state.tabs.find(t => t.filePath === state.activeFilePath);
+            viewModeInfo.textContent = activeTab ? activeTab.viewMode : '-';
+            dirtyInfo.textContent = activeTab ? (activeTab.isDirty ? 'true (未保存)' : 'false (已保存)') : '-';
+            cursorInfo.textContent = activeTab
+                ? `行 ${activeTab.cursorPosition.line}, 列 ${activeTab.cursorPosition.column}`
+                : '-';
+        }
+
+        // ── Event logging ──
+        function logEvent(name, detail) {
+            const entry = document.createElement('div');
+            entry.className = 'event-log-entry';
+            const time = new Date().toLocaleTimeString();
+            const detailStr = detail && Object.keys(detail).length > 0
+                ? JSON.stringify(detail)
+                : '';
+            entry.innerHTML =
+                `<span class="event-time">${time}</span>` +
+                `<span class="event-name">${name}</span> ` +
+                `<span class="event-detail">${detailStr}</span>`;
+
+            // Remove empty placeholder
+            const empty = eventLog.querySelector('.event-log-empty');
+            if (empty) empty.remove();
+
+            // Add to top
+            eventLog.insertBefore(entry, eventLog.firstChild);
+
+            // Keep only last 30 entries
+            while (eventLog.children.length > 30) {
+                eventLog.removeChild(eventLog.lastChild);
+            }
+        }
+
+        // ── Wire component events ──
+        editorArea.addEventListener('editor-area-tab-select', (e) => {
+            const {filePath} = e.detail;
+            controller.actions.switchTab(filePath);
+            syncComponent();
+            logEvent('editor-area-tab-select', {filePath});
+        });
+
+        editorArea.addEventListener('editor-area-tab-close', (e) => {
+            const {filePath} = e.detail;
+            controller.actions.closeFile(filePath);
+            syncComponent();
+            logEvent('editor-area-tab-close', {filePath});
+        });
+
+        editorArea.addEventListener('editor-area-content-change', (e) => {
+            const {filePath, content} = e.detail;
+            controller.actions.updateContent(filePath, content);
+            syncComponent();
+            logEvent('editor-area-content-change', {filePath, length: content.length});
+        });
+
+        editorArea.addEventListener('editor-area-view-mode-change', (e) => {
+            const {filePath, viewMode} = e.detail;
+            controller.actions.setViewMode(filePath, viewMode);
+            syncComponent();
+            logEvent('editor-area-view-mode-change', {filePath, viewMode});
+        });
+
+        editorArea.addEventListener('editor-area-save', (e) => {
+            const {filePath} = e.detail;
+            controller.actions.saveFile(filePath);
+            syncComponent();
+            logEvent('editor-area-save', {filePath});
+        });
+
+        editorArea.addEventListener('editor-area-cursor-move', (e) => {
+            if (controller.activeFilePath) {
+                controller.actions.setCursorPosition(controller.activeFilePath, e.detail);
+            }
+            // Update cursor display (don't full sync to avoid flicker)
+            cursorInfo.textContent = `行 ${e.detail.line}, 列 ${e.detail.column}`;
+            logEvent('editor-area-cursor-move', e.detail);
+        });
+
+        editorArea.addEventListener('editor-area-undo', () => {
+            logEvent('editor-area-undo', {});
+        });
+
+        editorArea.addEventListener('editor-area-redo', () => {
+            logEvent('editor-area-redo', {});
+        });
+
+        editorArea.addEventListener('editor-area-format', (e) => {
+            logEvent('editor-area-format', e.detail);
+        });
+
+        // ── Theme buttons ──
+        document.querySelectorAll('.theme-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const theme = btn.dataset.theme;
+                currentTheme = theme;
+
+                document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentThemeEl.textContent = theme;
+
+                previewContainer.setAttribute('theme', theme);
+                syncComponent();
+                logEvent('theme-change', {theme});
+            });
+        });
+
+        // ── File operation buttons ──
+        document.getElementById('openAgent').addEventListener('click', () => {
+            controller.actions.openFile('/AGENT.md', MOCK_FILES['/AGENT.md']);
+            syncComponent();
+            logEvent('open-file', {filePath: '/AGENT.md'});
+        });
+
+        document.getElementById('openCheckout').addEventListener('click', () => {
+            controller.actions.openFile('/scenarios/checkout.md', MOCK_FILES['/scenarios/checkout.md']);
+            syncComponent();
+            logEvent('open-file', {filePath: '/scenarios/checkout.md'});
+        });
+
+        document.getElementById('openScript').addEventListener('click', () => {
+            controller.actions.openFile('/scripts/utils.js', MOCK_FILES['/scripts/utils.js']);
+            syncComponent();
+            logEvent('open-file', {filePath: '/scripts/utils.js'});
+        });
+
+        document.getElementById('openMulti').addEventListener('click', () => {
+            for (const [path, content] of Object.entries(MOCK_FILES)) {
+                controller.actions.openFile(path, content);
+            }
+            // Switch to first
+            controller.actions.switchTab('/AGENT.md');
+            syncComponent();
+            logEvent('open-multi', {count: Object.keys(MOCK_FILES).length});
+        });
+
+        // ── Tab operation buttons ──
+        document.getElementById('switchFirst').addEventListener('click', () => {
+            const tabs = controller.tabs;
+            if (tabs.length > 0) {
+                controller.actions.switchTab(tabs[0].filePath);
+                syncComponent();
+                logEvent('switch-tab', {filePath: tabs[0].filePath});
+            }
+        });
+
+        document.getElementById('switchLast').addEventListener('click', () => {
+            const tabs = controller.tabs;
+            if (tabs.length > 0) {
+                controller.actions.switchTab(tabs[tabs.length - 1].filePath);
+                syncComponent();
+                logEvent('switch-tab', {filePath: tabs[tabs.length - 1].filePath});
+            }
+        });
+
+        document.getElementById('closeActive').addEventListener('click', () => {
+            if (controller.activeFilePath) {
+                const path = controller.activeFilePath;
+                controller.actions.closeFile(path);
+                syncComponent();
+                logEvent('close-active', {filePath: path});
+            }
+        });
+
+        document.getElementById('closeAll').addEventListener('click', () => {
+            controller.actions.closeAll();
+            syncComponent();
+            logEvent('close-all', {});
+        });
+
+        // ── View mode buttons ──
+        document.querySelectorAll('[data-viewmode]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (!controller.activeFilePath) return;
+                const mode = btn.dataset.viewmode;
+                controller.actions.setViewMode(controller.activeFilePath, mode);
+                syncComponent();
+                logEvent('set-view-mode', {viewMode: mode});
+            });
+        });
+
+        // ── Content operation buttons ──
+        document.getElementById('markDirty').addEventListener('click', () => {
+            if (!controller.activeFilePath) return;
+            // Simulate content change to mark dirty
+            const tab = controller.activeTab;
+            if (tab) {
+                controller.actions.updateContent(tab.filePath, tab.content + '\n');
+                syncComponent();
+                logEvent('mark-dirty', {filePath: controller.activeFilePath});
+            }
+        });
+
+        document.getElementById('saveFile').addEventListener('click', () => {
+            if (!controller.activeFilePath) return;
+            controller.actions.saveFile(controller.activeFilePath);
+            syncComponent();
+            logEvent('save-file', {filePath: controller.activeFilePath});
+        });
+
+        // ── Reset / Clear ──
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            controller.actions.closeAll();
+            currentTheme = 'dark';
+            document.querySelectorAll('.theme-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.theme === 'dark');
+            });
+            currentThemeEl.textContent = 'dark';
+            previewContainer.setAttribute('theme', 'dark');
+            syncComponent();
+            logEvent('reset', {});
+        });
+
+        document.getElementById('clearLog').addEventListener('click', () => {
+            eventLog.innerHTML = '<div class="event-log-empty">暂无事件</div>';
+        });
+
+        // ── Initial state ──
+        syncComponent();
+    </script>
+</body>
+</html>
