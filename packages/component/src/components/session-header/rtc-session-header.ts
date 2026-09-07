@@ -33,7 +33,7 @@ export class RtcSessionHeader extends LitElement {
     @state()
     private _sessionCtx: SessionContextValue = {
         state: {sessions: [], currentSessionId: null},
-        actions: {createSession: () => {}, switchSession: () => {}, renameSession: () => {}, deleteSession: () => {}, reset: () => {}, clearCurrentSession: () => {}, setCurrentSession: () => {}, setSessions: () => {}},
+        actions: {createSession: () => '', switchSession: () => {}, renameSession: () => {}, deleteSession: () => {}, reset: () => {}, clearCurrentSession: () => {}, setCurrentSession: () => {}, setSessions: () => {}},
     };
 
     @property({type: String, attribute: 'session-title'})
@@ -361,11 +361,12 @@ export class RtcSessionHeader extends LitElement {
     }
 
     private _handleNewSession() {
-        // Start a new conversation: clear current selection and messages, but keep session history
-        // Sending a message will auto-create a new session via MessageController
+        // Start a new conversation: clear current selection and messages, but keep session history.
+        // Then dispatch rtc-session-tree-new so chat-layout 走统一的 unsaved tab 编排流程
+        // （与 session-tree "+" 按钮同源）。
         this._sessionCtx.actions.clearCurrentSession();
         this.dispatchEvent(
-            new CustomEvent('rtc-new-session', {bubbles: true, composed: true})
+            new CustomEvent('rtc-session-tree-new', {bubbles: true, composed: true})
         );
     }
 }
