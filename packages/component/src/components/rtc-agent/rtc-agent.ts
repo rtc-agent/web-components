@@ -63,6 +63,8 @@ import {baseStyles} from '../../styles/base.js';
 import {WindowStateContext} from '../../contexts/window-state.js';
 import {AuthContext} from '../../contexts/auth.js';
 import {SessionContext} from '../../contexts/session.js';
+import {SessionTreeContext} from '../../contexts/session-tree.js';
+import {SessionTabContext} from '../../contexts/session-tab.js';
 import {MessageContext} from '../../contexts/message.js';
 import {ModeContext} from '../../contexts/mode.js';
 import {ToolCallContext} from '../../contexts/tool-call.js';
@@ -87,6 +89,8 @@ import {ActivityController} from '../../controllers/activity.controller.js';
 import {FileExplorerController} from '../../controllers/file-explorer.controller.js';
 import {EditorAreaController} from '../../controllers/editor-area.controller.js';
 import {StatusBarController} from '../../controllers/status-bar.controller.js';
+import {SessionTreeController} from '../../controllers/session-tree.controller.js';
+import {SessionTabController} from '../../controllers/session-tab.controller.js';
 
 // Scenario loading
 import {loadScenariosContent} from '../../core/scenario-loader.js';
@@ -120,7 +124,9 @@ import '../activity-bar/rtc-activity-bar.js';
 import '../file-explorer/rtc-file-explorer.js';
 import '../editor-area/rtc-editor-area.js';
 import '../status-bar/rtc-status-bar.js';
-import '../overlay/rtc-session-panel.js';
+
+// Chat Layout 组件（对话页面改造）
+import '../chat-layout/rtc-chat-layout.js';
 
 // Toast types (re-exported from ToastController)
 import type {ToastType} from '../overlay/rtc-toast.js';
@@ -346,6 +352,8 @@ export class RtcAgent extends LitElement {
     private _fileExplorer = new FileExplorerController(this);
     private _editorArea = new EditorAreaController(this);
     private _statusBar = new StatusBarController(this, this._editorArea);
+    private _sessionTree = new SessionTreeController(this);
+    private _sessionTab = new SessionTabController(this);
 
     /** 文件树是否已加载过（首次进入 files 活动时加载一次） */
     private _fileTreeLoaded = false;
@@ -386,7 +394,12 @@ export class RtcAgent extends LitElement {
     private _boundOnLoginRequested = () => this._handleLoginRequested();
     private _boundOnNewSession = () => {
         this._fork.actions.clearFork();
-        this._message.actions.clearMessages();
+        // 不清空消息：_handleNewSession 已通过 createSession() 创建了新 session
+        // 并切换了 currentSessionId，消息列表已由 reload() 设为空（新 session 无消息）
+        // 仅在 legacy 场景（关闭最后一个 Tab 后发消息）需要清空，但此时 currentSessionId 为 null
+        if (!this._session.value.state.currentSessionId) {
+            this._message.actions.clearMessages();
+        }
     };
     private _boundOnLogout = () => {
         this._fork.actions.clearFork();
@@ -395,21 +408,34 @@ export class RtcAgent extends LitElement {
         this._session.actions.reset();
         this._message.actions.clearMessages();
     };
-    private _boundOnInputSubmit = (e: Event) => {
+    private _boundOnInputSubmit = async (e: Event) => {
         const detail = (e as CustomEvent).detail;
         const content: ContentData = {type: 'text', data: detail.content};
 
-        if (this._fork.isActive) {
-            // Fork 模式：调用 forkSession
-            void this._fork.actions.submitFork(content);
-        } else {
-            // 普通模式：调用 sendMessage
-            void this._message.actions.sendMessage(content);
+        try {
+            if (this._fork.isActive) {
+                // Fork 模式：调用 forkSession
+                await this._fork.actions.submitFork(content);
+            } else {
+                // 普通模式：调用 sendMessage
+                await this._message.actions.sendMessage(content);
+            }
+
+            // 发送成功后，把当前 unsaved tab 晋升为 saved
+            const currentId = this._session.value.state.currentSessionId;
+            if (currentId) {
+                this._sessionTab.actions.markSaved(currentId);
+            }
+        } catch (err) {
+            console.error('[rtc-agent] message submit failed:', err);
         }
     };
-    private _boundOnForkRequested = (e: Event) => {
-        const detail = (e as CustomEvent).detail;
-        this._fork.actions.requestFork(detail.oldMessageClientId, detail.content);
+    private _boundOnForkInitiated = (e: Event) => {
+        const {oldSessionClientId, oldMessageClientId, newSessionClientId, content} =
+            (e as CustomEvent).detail;
+        this._fork.actions.requestFork(
+            oldSessionClientId, oldMessageClientId, newSessionClientId, content
+        );
     };
     private _boundOnKeydown = (e: KeyboardEvent) => {
         if (e.key === 'Escape' && this._fork.isActive) {
@@ -522,11 +548,18 @@ export class RtcAgent extends LitElement {
     private _boundOnFileExplorerRefresh = () => {
         void this._loadFileTree();
     };
-    private _handleSessionSelectedFromSidebar = (e: Event) => {
+    private _boundOnChatLayoutSessionSelect = (e: Event) => {
+        // ChatLayout 内部已调用 switchSession，此处仅作日志/扩展点
         const {sessionId} = (e as CustomEvent).detail as {sessionId: string};
-        this._session.actions.switchSession(sessionId);
-        // 选择会话后关闭侧边栏
-        this._activity.actions.hideSidebar();
+        console.log('[rtc-agent] chat-layout session selected:', sessionId);
+    };
+    private _boundOnChatLayoutTabActivate = (e: Event) => {
+        const {sessionId} = (e as CustomEvent).detail as {sessionId: string};
+        console.log('[rtc-agent] chat-layout tab activated:', sessionId);
+    };
+    private _boundOnChatLayoutTabClose = (e: Event) => {
+        const {sessionId} = (e as CustomEvent).detail as {sessionId: string};
+        console.log('[rtc-agent] chat-layout tab closed:', sessionId);
     };
     /**
      * 窗口尺寸变化处理（小窗口降级）
@@ -583,17 +616,33 @@ export class RtcAgent extends LitElement {
     get fileExplorerController() { return this._fileExplorer; }
     get editorAreaController() { return this._editorArea; }
     get statusBarController() { return this._statusBar; }
+    get sessionTreeController() { return this._sessionTree; }
+    get sessionTabController() { return this._sessionTab; }
 
     /* ── Component References ── */
 
     /** 获取 rtc-input-area 的引用（穿透 shadow DOM） */
     private get _inputArea(): HTMLElement & { setValue: (v: string) => void; clearValue: () => void } | undefined {
+        // Chat 模式：rtc-chat-layout > .content-area > rtc-input-area
+        const chatLayout = this.shadowRoot?.querySelector('rtc-chat-layout');
+        const inputArea = chatLayout?.shadowRoot?.querySelector('rtc-input-area');
+        if (inputArea) {
+            return inputArea as HTMLElement & { setValue: (v: string) => void; clearValue: () => void };
+        }
+        // Legacy fallback: rtc-content-wrapper > rtc-input-area
         const wrapper = this.shadowRoot?.querySelector('rtc-content-wrapper');
         return wrapper?.shadowRoot?.querySelector('rtc-input-area') as HTMLElement & { setValue: (v: string) => void; clearValue: () => void } | undefined;
     }
 
     /** 获取 rtc-notice-bar 的引用（穿透 shadow DOM） */
     private get _noticeBar(): HTMLElement & { message: string } | undefined {
+        // Chat 模式：rtc-chat-layout > .content-area > rtc-notice-bar
+        const chatLayout = this.shadowRoot?.querySelector('rtc-chat-layout');
+        const noticeBar = chatLayout?.shadowRoot?.querySelector('rtc-notice-bar');
+        if (noticeBar) {
+            return noticeBar as HTMLElement & { message: string };
+        }
+        // Legacy fallback: rtc-content-wrapper > rtc-notice-bar
         const wrapper = this.shadowRoot?.querySelector('rtc-content-wrapper');
         return wrapper?.shadowRoot?.querySelector('rtc-notice-bar') as HTMLElement & { message: string } | undefined;
     }
@@ -610,6 +659,8 @@ export class RtcAgent extends LitElement {
     private _skillProvider = new ContextProvider(this, {context: SkillContext, initialValue: DEFAULT_SKILL_STATE});
     private _activityProvider = new ContextProvider(this, {context: ActivityContext});
     private _fileExplorerProvider = new ContextProvider(this, {context: FileExplorerContext});
+    private _sessionTreeProvider = new ContextProvider(this, {context: SessionTreeContext});
+    private _sessionTabProvider = new ContextProvider(this, {context: SessionTabContext});
 
     /* ── Lifecycle ── */
 
@@ -618,7 +669,6 @@ export class RtcAgent extends LitElement {
 
         // Wire ForkController dependencies
         this._fork.setDeps({
-            getCurrentSessionId: () => this._session.value.state.currentSessionId,
             clearMessages: () => this._message.actions.clearMessages(),
             setInputValue: (v) => this._inputArea?.setValue(v),
             setNoticeMessage: (msg) => { if (this._noticeBar) this._noticeBar.message = msg; },
@@ -628,8 +678,16 @@ export class RtcAgent extends LitElement {
 
         // Cross-controller wiring: session switch -> reload messages for the new session
         this._session.onSessionSwitch = () => {
+            console.log('[rtc-agent.onSessionSwitch] currentSessionId:', this._session.value.state.currentSessionId);
             this._fork.actions.clearFork();  // 切换 session 时清理 fork 状态
-            void this._message.reload();
+            if (this._session.value.state.currentSessionId) {
+                console.log('[rtc-agent.onSessionSwitch] Calling message.reload()');
+                void this._message.reload();
+            } else {
+                // currentSessionId 为 null（如关闭最后一个 Tab）→ 清空消息
+                console.log('[rtc-agent.onSessionSwitch] Clearing messages (no current session)');
+                this._message.actions.clearMessages();
+            }
             // 切换 session 时立即同步 turn count 到新 session 的值
             void this._refreshTurnCounts();
         };
@@ -663,8 +721,8 @@ export class RtcAgent extends LitElement {
         // Listen for resend message (from user message resend button)
         this.addEventListener('rtc-user-message-resend', this._boundOnResendMessage);
 
-        // Listen for fork requested (from user message more menu)
-        this.addEventListener('rtc-fork-requested', this._boundOnForkRequested);
+        // Listen for fork initiated (from chat-layout after unsaved tab orchestration)
+        this.addEventListener('rtc-fork-initiated', this._boundOnForkInitiated);
 
         // Listen for toast requested (from various components)
         this.addEventListener('rtc-toast-requested', this._boundOnToastRequested);
@@ -685,6 +743,11 @@ export class RtcAgent extends LitElement {
         this.addEventListener('editor-area-content-change', this._boundOnEditorAreaContentChange);
         this.addEventListener('editor-area-view-mode-change', this._boundOnEditorAreaViewModeChange);
         this.addEventListener('refresh-requested', this._boundOnFileExplorerRefresh);
+
+        // Chat Layout 事件
+        this.addEventListener('rtc-chat-layout-session-select', this._boundOnChatLayoutSessionSelect);
+        this.addEventListener('rtc-chat-layout-tab-activate', this._boundOnChatLayoutTabActivate);
+        this.addEventListener('rtc-chat-layout-tab-close', this._boundOnChatLayoutTabClose);
 
         // Listen for Escape key to cancel fork mode
         this.addEventListener('keydown', this._boundOnKeydown);
@@ -770,6 +833,12 @@ export class RtcAgent extends LitElement {
                     }
 
                     // 初始化 RTC 处理器并恢复未完成的任务
+                    console.log('[rtc-agent] Before _initRtcProcessor, checking connection state...');
+                    const connState = await this._persistence.workerBridge!.core.getConnectionState();
+                    console.log('[rtc-agent] Current connection state:', connState);
+                    if (connState !== 'connected') {
+                        console.warn('[rtc-agent] WARNING: Connection not established before _initRtcProcessor! This may cause RPC failures.');
+                    }
                     await this._initRtcProcessor();
 
                     // 监听连接状态变化
@@ -889,7 +958,7 @@ export class RtcAgent extends LitElement {
         this.removeEventListener('rtc-input-submit', this._boundOnInputSubmit);
         this.removeEventListener('rtc-stop-requested', this._boundOnStopRequested);
         this.removeEventListener('rtc-user-message-resend', this._boundOnResendMessage);
-        this.removeEventListener('rtc-fork-requested', this._boundOnForkRequested);
+        this.removeEventListener('rtc-fork-initiated', this._boundOnForkInitiated);
         this.removeEventListener('rtc-toast-requested', this._boundOnToastRequested);
         this.removeEventListener('rtc-toast-close', this._boundOnToastClose);
         this.removeEventListener('rtc-command-requested', this._boundOnCommandRequested);
@@ -902,6 +971,9 @@ export class RtcAgent extends LitElement {
         this.removeEventListener('editor-area-content-change', this._boundOnEditorAreaContentChange);
         this.removeEventListener('editor-area-view-mode-change', this._boundOnEditorAreaViewModeChange);
         this.removeEventListener('refresh-requested', this._boundOnFileExplorerRefresh);
+        this.removeEventListener('rtc-chat-layout-session-select', this._boundOnChatLayoutSessionSelect);
+        this.removeEventListener('rtc-chat-layout-tab-activate', this._boundOnChatLayoutTabActivate);
+        this.removeEventListener('rtc-chat-layout-tab-close', this._boundOnChatLayoutTabClose);
         this.removeEventListener('keydown', this._boundOnKeydown);
         this._busUnsubMessage?.();
         this._rtcProcessor = undefined;
@@ -919,6 +991,8 @@ export class RtcAgent extends LitElement {
         this._skillProvider.setValue(this._skill.value);
         this._activityProvider.setValue(this._activity.value);
         this._fileExplorerProvider.setValue(this._fileExplorer.value);
+        this._sessionTreeProvider.setValue(this._sessionTree.value);
+        this._sessionTabProvider.setValue(this._sessionTab.value);
 
         // Sync work mode to RtcProcessor
         if (this._rtcProcessor) {
@@ -945,13 +1019,15 @@ export class RtcAgent extends LitElement {
     }
 
     firstUpdated() {
-        // Set initial position (bottom-right corner)
-        const margin = 20;
-        const defaultWidth = parseInt(getComputedStyle(this).getPropertyValue('--rtc-window-default-width')) || 420;
-        const defaultHeight = parseInt(getComputedStyle(this).getPropertyValue('--rtc-window-default-height')) || 640;
-        const initialX = window.innerWidth - defaultWidth - margin;
-        const initialY = window.innerHeight - defaultHeight - margin;
-        this._windowState.actions.setPosition({x: initialX, y: initialY});
+        // Set initial position only when no persisted state exists
+        if (!this._windowState.restored) {
+            const margin = 20;
+            const defaultWidth = parseInt(getComputedStyle(this).getPropertyValue('--rtc-window-default-width')) || 420;
+            const defaultHeight = parseInt(getComputedStyle(this).getPropertyValue('--rtc-window-default-height')) || 640;
+            const initialX = window.innerWidth - defaultWidth - margin;
+            const initialY = window.innerHeight - defaultHeight - margin;
+            this._windowState.actions.setPosition({x: initialX, y: initialY});
+        }
 
         // Bind elements after Shadow DOM is ready
         const titleBarElement = this.shadowRoot?.querySelector('rtc-title-bar');
@@ -1097,24 +1173,55 @@ export class RtcAgent extends LitElement {
         if (!this._persistence.layer) return;
 
         const sessions = await this._persistence.layer.listSessions();
+        console.log('[rtc-agent._loadSessions] Loaded sessions from DB:', sessions.length);
+        sessions.forEach(s => console.log(`  - ${s.client_id}: title="${s.title || ''}", root=${s.root_client_session_id || 'null'}`));
+
         const uiSessions: Session[] = sessions.map(s => ({
             clientId: s.client_id,
             title: s.title || '',
             createdAt: new Date(s.created_at).getTime(),
             updatedAt: new Date(s.updated_at).getTime(),
             todoList: s.todo_list,
+            rootClientSessionId: s.root_client_session_id,
         }));
         this._session.actions.setSessions(uiSessions);
 
-        // Auto-select most recent session on initial load only (e.g. after refresh)
+        // 同步到 SessionTreeController（构建层级树）
+        this._sessionTree.actions.rebuildTree(uiSessions);
+
+        // 过滤无效的 Tab（session 已被删除的从持久化中清理）
+        const validIds = new Set(uiSessions.map(s => s.clientId));
+        const hadInvalidTabs = this._sessionTab.filterInvalidTabs(validIds);
+        console.log('[rtc-agent._loadSessions] filterInvalidTabs:', hadInvalidTabs ? 'removed some' : 'none removed');
+        console.log('[rtc-agent._loadSessions] Tabs after filter:', this._sessionTab.value.state.tabs.map(t => `${t.sessionId}="${t.title}"`));
+        console.log('[rtc-agent._loadSessions] activeSessionId:', this._sessionTab.value.state.activeSessionId);
+
+        // 用 sessions 中的最新标题同步已有 Tab 的标题
+        // 修复：新建会话发送消息时 Tab 以空标题创建，server 返回真实标题后需同步更新
+        const titleMap = new Map(uiSessions.map(s => [s.clientId, s.title]));
+        const titlesUpdated = this._sessionTab.updateTabTitles(titleMap);
+        console.log('[rtc-agent._loadSessions] updateTabTitles:', titlesUpdated ? 'updated' : 'no change');
+        console.log('[rtc-agent._loadSessions] Tabs after title sync:', this._sessionTab.value.state.tabs.map(t => `${t.sessionId}="${t.title}"`));
+
+        // Auto-select on initial load only (e.g. after refresh)
         // Don't auto-select on subsequent session updates (user may have clicked + to clear selection)
+        // Only auto-select if there are open tabs (avoid selecting session when all tabs were closed)
         if (!this._initialSessionLoadDone) {
             this._initialSessionLoadDone = true;
-            if (!this._session.value.state.currentSessionId && uiSessions.length > 0) {
-                const mostRecent = uiSessions.reduce((a, b) =>
-                    a.updatedAt > b.updatedAt ? a : b
-                );
-                this._session.actions.switchSession(mostRecent.clientId);
+            const hasOpenTabs = this._sessionTab.value.state.tabs.length > 0;
+            console.log('[rtc-agent._loadSessions] Initial load: hasOpenTabs=', hasOpenTabs, 'currentSessionId=', this._session.value.state.currentSessionId);
+            if (hasOpenTabs && !this._session.value.state.currentSessionId) {
+                // 优先恢复 Tab 栏的活动 tab（即使其 session 不在 DB，如 unsaved tab）
+                // 其次选择最近更新的 session（仅在无活动 tab 时）
+                const activeTabId = this._sessionTab.value.state.activeSessionId;
+                const targetId = activeTabId
+                    ?? (uiSessions.length > 0
+                        ? uiSessions.reduce((a, b) => a.updatedAt > b.updatedAt ? a : b).clientId
+                        : null);
+                if (targetId) {
+                    console.log('[rtc-agent._loadSessions] Auto-selecting session:', targetId, '(from activeTabId:', activeTabId, ')');
+                    this._session.actions.switchSession(targetId);
+                }
             }
         }
     }
@@ -1455,10 +1562,7 @@ export class RtcAgent extends LitElement {
     /**
      * 渲染主布局（登录后）
      *
-     * 始终渲染 editor-area-wrapper 和 content-area，通过 hidden 属性切换可见性。
-     * 这样切换模式时组件不被销毁，编辑器状态（打开的标签、内容、dirty）得以保留。
-     *
-     * 聊天模式：Activity Bar + [Sidebar(会话列表)] + Content Area
+     * 聊天模式：Activity Bar + [Sidebar] + Chat Layout（会话树 + Tab + 聊天）
      * 文件模式：Activity Bar + [Sidebar(文件树)] + Editor Area + Status Bar
      * 侧边栏内容取决于当前活动（files → 文件树，chat → 会话列表）
      */
@@ -1474,35 +1578,26 @@ export class RtcAgent extends LitElement {
           .filesDisabled=${this._filesActivityDisabled}
           theme=${this.theme}
         ></rtc-activity-bar>
-        ${showSidebar
+        ${showSidebar && isFiles
           ? html`<div class="sidebar">
-              ${isFiles
-                ? html`<rtc-file-explorer theme=${this.theme}></rtc-file-explorer>`
-                : isChat
-                  ? html`<rtc-session-panel
-                      sidebar
-                      .sessions=${this._session.value.state.sessions}
-                      current-session-id=${this._session.value.state.currentSessionId ?? ''}
-                      theme=${this.theme}
-                      @rtc-session-selected=${this._handleSessionSelectedFromSidebar}
-                    ></rtc-session-panel>`
-                  : nothing}
+              <rtc-file-explorer theme=${this.theme}></rtc-file-explorer>
             </div>`
           : nothing}
-        <div class="editor-area-wrapper" ?hidden=${!isFiles}>
-          <rtc-editor-area
-            .tabs=${this._editorArea.state.tabs}
-            active-file-path=${this._editorArea.state.activeFilePath}
-            theme=${this.theme}
-          ></rtc-editor-area>
-          <rtc-status-bar
-            .fileInfo=${this._statusBar.info}
-            theme=${this.theme}
-          ></rtc-status-bar>
-        </div>
-        <div class="content-area" ?hidden=${isFiles}>
-          <rtc-content-wrapper></rtc-content-wrapper>
-        </div>
+        ${isFiles
+          ? html`<div class="editor-area-wrapper">
+              <rtc-editor-area
+                .tabs=${this._editorArea.state.tabs}
+                active-file-path=${this._editorArea.state.activeFilePath}
+                theme=${this.theme}
+              ></rtc-editor-area>
+              <rtc-status-bar
+                .fileInfo=${this._statusBar.info}
+                theme=${this.theme}
+              ></rtc-status-bar>
+            </div>`
+          : isChat
+            ? html`<rtc-chat-layout theme=${this.theme}></rtc-chat-layout>`
+            : nothing}
       </div>
     `;
     }

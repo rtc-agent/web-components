@@ -39,7 +39,7 @@ describe('<rtc-agent>', () => {
         expect(titleBar).not.toBeNull();
     });
 
-    it('should contain a content-wrapper element after login', async () => {
+    it('should contain a chat-layout element after login', async () => {
         const el = await fixture<RtcAgent>(html`<rtc-agent></rtc-agent>`);
         // Login via setTokens (actions.login only dispatches an event, does not set isLoggedIn)
         el.authController.setTokens({
@@ -49,8 +49,8 @@ describe('<rtc-agent>', () => {
             expiresIn: 3600,
         });
         await el.updateComplete;
-        const wrapper = el.shadowRoot?.querySelector('rtc-content-wrapper');
-        expect(wrapper).not.toBeNull();
+        const chatLayout = el.shadowRoot?.querySelector('rtc-chat-layout');
+        expect(chatLayout).not.toBeNull();
     });
 
     it('should render login page when not logged in', async () => {
