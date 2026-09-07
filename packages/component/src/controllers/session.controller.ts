@@ -49,7 +49,7 @@ export class SessionController implements ReactiveController {
     hostConnected() {}
     hostDisconnected() {}
 
-    private _createSession() {
+    private _createSession(): string {
         // Use crypto.randomUUID() for unique IDs (avoids Date.now() collisions)
         const clientId = `session-${crypto.randomUUID()}`;
         const newSession: Session = {
@@ -68,9 +68,11 @@ export class SessionController implements ReactiveController {
                 detail: {session: newSession},
             })
         );
+        return clientId;
     }
 
     private _switchSession(id: string) {
+        console.log('[SessionController._switchSession] Switching to session:', id);
         this._state = {...this._state, currentSessionId: id};
         this.host.requestUpdate();
         // Clear messages for new session — delegate to root via callback
@@ -131,6 +133,7 @@ export class SessionController implements ReactiveController {
     }
 
     private _setCurrentSession(session: Session) {
+        console.log('[SessionController._setCurrentSession] Setting session:', session.clientId, 'title:', `"${session.title}"`);
         const existingIndex = this._state.sessions.findIndex(
             (s) => s.clientId === session.clientId
         );

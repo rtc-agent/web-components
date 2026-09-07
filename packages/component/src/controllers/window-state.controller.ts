@@ -16,16 +16,27 @@ import type {
 } from '../types/index.js';
 import type {WindowStateContextValue} from '../contexts/window-state.js';
 import {DEFAULT_WINDOW_STATE} from '../contexts/window-state.js';
+import {STORAGE_KEYS} from '../config/auth.js';
+
+/** 序列化窗口状态时剔除 transient 字段（lastState 在 restore 后无意义） */
+type PersistedWindowState = Omit<WindowState, 'lastState'>;
 
 export class WindowStateController implements ReactiveController {
     host: ReactiveControllerHost;
 
     private _state: WindowState = {...DEFAULT_WINDOW_STATE};
+    /** Whether state was restored from localStorage (used to skip initial position setup). */
+    private _restored = false;
 
     readonly actions: WindowStateActions;
 
     get value(): WindowStateContextValue {
         return {state: this._state, actions: this.actions};
+    }
+
+    /** Whether window state was restored from localStorage. */
+    get restored(): boolean {
+        return this._restored;
     }
 
     constructor(host: ReactiveControllerHost) {
@@ -39,10 +50,75 @@ export class WindowStateController implements ReactiveController {
             minimize: () => this._setMode('minimized'),
             restore: () => this._setMode('normal'),
         };
+
+        this._restoreState();
     }
 
     hostConnected() {}
     hostDisconnected() {}
+
+    /* ── Persistence ── */
+
+    private _restoreState() {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEYS.windowState);
+            if (!raw) return;
+            const saved: PersistedWindowState = JSON.parse(raw);
+            // Validate required fields
+            if (
+                saved.mode &&
+                saved.position?.x != null &&
+                saved.position?.y != null &&
+                saved.size?.width != null &&
+                saved.size?.height != null
+            ) {
+                this._state = {...saved, lastState: undefined};
+                this._restored = true;
+                // Clamp to current viewport — devtools / zoom may have changed
+                this._clampToViewport();
+            }
+        } catch {
+            // localStorage may be unavailable or data corrupted
+        }
+    }
+
+    /**
+     * 将窗口位置和尺寸限制在当前视口范围内
+     *
+     * 刷新后浏览器 devtools、缩放比例可能已变化，
+     * 直接恢复上次的位置可能导致窗口溢出视口（如被右侧 devtools 遮挡）。
+     */
+    private _clampToViewport() {
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const {position, size, mode} = this._state;
+
+        if (mode === 'maximized') return; // maximized 由 CSS inset:0 控制，无需 clamp
+
+        // 限制尺寸不超过视口
+        const width = Math.min(size.width, vw);
+        const height = Math.min(size.height, vh);
+
+        // 限制位置：确保窗口至少部分可见
+        const x = Math.max(0, Math.min(position.x, vw - width));
+        const y = Math.max(0, Math.min(position.y, vh - height));
+
+        this._state = {
+            ...this._state,
+            position: {x, y},
+            size: {width, height},
+        };
+    }
+
+    private _persistState() {
+        try {
+            const {mode, position, size} = this._state;
+            const persisted: PersistedWindowState = {mode, position, size};
+            localStorage.setItem(STORAGE_KEYS.windowState, JSON.stringify(persisted));
+        } catch {
+            // localStorage may be unavailable
+        }
+    }
 
     private _setMode(mode: WindowMode) {
         const current = this._state;
@@ -52,11 +128,13 @@ export class WindowStateController implements ReactiveController {
                 : current.lastState;
 
         this._state = {...current, mode, lastState};
+        this._persistState();
         this.host.requestUpdate();
     }
 
     private _updateState(partial: Partial<WindowState>) {
         this._state = {...this._state, ...partial};
+        this._persistState();
         this.host.requestUpdate();
     }
 

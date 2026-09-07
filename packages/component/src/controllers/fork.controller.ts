@@ -21,8 +21,8 @@ export interface ForkState {
 }
 
 export interface ForkActions {
-    /** Initiate a fork from a specific message. */
-    requestFork: (oldMessageClientId: string, content: string) => void;
+    /** Initiate a fork from a specific message. newSessionClientId is provided by the caller (chat-layout). */
+    requestFork: (oldSessionClientId: string, oldMessageClientId: string, newSessionClientId: string, content: string) => void;
     /** Submit the fork: create the new session and send the message. */
     submitFork: (content: ContentData) => Promise<void>;
     /** Cancel the fork and return to normal mode. */
@@ -34,8 +34,6 @@ export interface ForkActions {
  * Set by the root component after construction.
  */
 export interface ForkDeps {
-    /** Get the current session's client ID. */
-    getCurrentSessionId: () => string | null;
     /** Clear messages in the message list (switch to blank state). */
     clearMessages: () => void;
     /** Set the input area value (pre-fill with forked content). */
@@ -73,7 +71,7 @@ export class ForkController implements ReactiveController {
         this._host = host;
         this._host.addController(this);
         this.actions = {
-            requestFork: (msgId, content) => this._requestFork(msgId, content),
+            requestFork: (oldSC, oldMC, newSC, content) => this._requestFork(oldSC, oldMC, newSC, content),
             submitFork: (content) => this._submitFork(content),
             clearFork: () => this._clearFork(),
         };
@@ -87,18 +85,11 @@ export class ForkController implements ReactiveController {
     hostConnected() {}
     hostDisconnected() {}
 
-    private _requestFork(oldMessageClientId: string, content: string) {
-        const currentSessionId = this._deps?.getCurrentSessionId();
-        if (!currentSessionId) {
-            console.error('[ForkController] cannot fork: no current session');
-            return;
-        }
-
-        const newSessionClientId = `session-${crypto.randomUUID()}`;
+    private _requestFork(oldSessionClientId: string, oldMessageClientId: string, newSessionClientId: string, content: string) {
         const truncatedContent = content.length > 30 ? content.slice(0, 30) + '...' : content;
 
         this._state = {
-            oldSessionClientId: currentSessionId,
+            oldSessionClientId,
             oldMessageClientId,
             newSessionClientId,
             hintMessage: `🔀 从「${truncatedContent}」分叉`,

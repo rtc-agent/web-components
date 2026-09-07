@@ -145,9 +145,12 @@ export class MessageController implements ReactiveController {
         if (this._sessionController) {
             const currentSessionId =
                 this._sessionController.value.state.currentSessionId;
+            console.log('[MessageController._sendMessage] currentSessionId before:', currentSessionId);
             sessionClientId = currentSessionId ?? crypto.randomUUID();
+            console.log('[MessageController._sendMessage] sessionClientId to use:', sessionClientId, currentSessionId ? '(existing)' : '(NEW)');
         } else {
             sessionClientId = crypto.randomUUID();
+            console.log('[MessageController._sendMessage] No sessionController, created new sessionClientId:', sessionClientId);
         }
 
         // Write to persistence (local-first + background sync).
@@ -156,12 +159,16 @@ export class MessageController implements ReactiveController {
             messageClientId,
             sessionClientId,
         });
+        console.log('[MessageController._sendMessage] persistence.sendMessage returned:');
+        console.log('  session.client_id:', result.session.client_id);
+        console.log('  message.session_client_id:', result.message.session_client_id);
 
         // Update session in SessionController (upsert + select).
         // Only update if the user hasn't moved to a different session in the meantime.
         if (this._sessionController) {
             const currentSessionId =
                 this._sessionController.value.state.currentSessionId;
+            console.log('[MessageController._sendMessage] currentSessionId after persistence:', currentSessionId, 'result.session.client_id:', result.session.client_id);
             // Only set if: no current session, or current session matches what we're updating
             if (!currentSessionId || currentSessionId === result.session.client_id) {
                 const uiSession: Session = {
@@ -171,10 +178,12 @@ export class MessageController implements ReactiveController {
                     updatedAt: new Date(result.session.updated_at).getTime(),
                     todoList: result.session.todo_list,
                 };
+                console.log('[MessageController._sendMessage] setCurrentSession:', uiSession.clientId, 'title:', `"${uiSession.title}"`);
                 this._sessionController.actions.setCurrentSession(uiSession);
 
                 // Reload messages from DB to reflect the just-written message.
                 await this._reloadFromDB(result.session.client_id);
+                console.log('[MessageController._sendMessage] _reloadFromDB completed');
             }
         }
 
@@ -226,6 +235,10 @@ export class MessageController implements ReactiveController {
 
     /**
      * 分叉对话：基于旧消息创建新 session
+     *
+     * 注意：与 _sendMessage 一样，fork 完成后需要调用 setCurrentSession
+     * 将新 session 加入 sessions 列表，否则 _ensureTabForSession 无法
+     * 立即找到该 session 来获取真实标题。
      */
     private async _forkSession(params: {
         oldSessionClientId: string;
@@ -250,9 +263,17 @@ export class MessageController implements ReactiveController {
             limit: params.limit,
         });
 
-        // 切换到新 session
+        // 将新 session 加入 sessions 列表并设为 currentSession
+        // （与 _sendMessage 保持一致，确保 _ensureTabForSession 能立即找到）
         if (this._sessionController) {
-            this._sessionController.actions.switchSession(result.session.client_id);
+            const uiSession: Session = {
+                clientId: result.session.client_id,
+                title: result.session.title || '',
+                createdAt: new Date(result.session.created_at).getTime(),
+                updatedAt: new Date(result.session.updated_at).getTime(),
+                todoList: result.session.todo_list,
+            };
+            this._sessionController.actions.setCurrentSession(uiSession);
         }
 
         // 重新加载新 session 的消息列表
