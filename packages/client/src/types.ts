@@ -17,6 +17,8 @@ import type {
   StopTurnResponse,
   SubmitRtcResultResponse,
   UpdateRtcStatusResponse,
+  CompactSessionRequest,
+  CompactSessionResponse,
 } from '@rtc-agent/protocol';
 
 // ========== 连接状态 ==========
@@ -160,6 +162,7 @@ export interface IRTCAgentClient {
   getSession(sessionId: string): Promise<GetSessionResponse>;
   closeSession(sessionId: string): Promise<CloseSessionResponse>;
   forkSession(req: ForkSessionRequest): Promise<ForkSessionResponse>;
+  compactSession(req: CompactSessionRequest): Promise<CompactSessionResponse>;
 
   // 消息 & Turn
   sendMessage(req: SendMessageRequest): Promise<SendMessageResponse>;

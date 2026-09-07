@@ -63,6 +63,8 @@ export interface WorkerPersistenceCore {
 
   stopTurn(sessionClientId: string): Promise<void>;
 
+  compactSession(sessionClientId: string, customInstruction?: string): Promise<void>;
+
   submitRtcResult(params: {
     rtcClientId: string;
     success: boolean;

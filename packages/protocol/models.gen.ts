@@ -422,6 +422,20 @@ export interface components {
             result: components["schemas"]["ForkSessionResult"];
             updates?: components["schemas"]["Update"][];
         };
+        /** @description 手动触发上下文压缩 */
+        CompactSessionRequest: {
+            session_id: components["schemas"]["UUID"];
+            /** @description 自定义摘要指令，覆盖默认压缩 prompt */
+            custom_instruction?: string;
+        };
+        CompactSessionResult: {
+            success: boolean;
+        };
+        /** @description 压缩会话响应 */
+        CompactSessionResponse: {
+            result: components["schemas"]["CompactSessionResult"];
+            updates?: components["schemas"]["Update"][];
+        };
         StopTurnRequest: {
             session_id: components["schemas"]["UUID"];
             /** @description 客户端生成的幂等 ID */
@@ -473,7 +487,7 @@ export interface components {
          * @description RPC 方法名，前后端统一从 protocol 导入，禁止硬编码字符串
          * @enum {string}
          */
-        RpcMethod: "v1.session.list" | "v1.session.get" | "v1.session.close" | "v1.session.update" | "v1.session.fork" | "v1.message.send" | "v1.message.list" | "v1.message.get" | "v1.turn.list" | "v1.turn.get" | "v1.turn.stop" | "v1.rtc.list" | "v1.rtc.get" | "v1.rtc.update_status" | "v1.rtc.submit_result";
+        RpcMethod: "v1.session.list" | "v1.session.get" | "v1.session.close" | "v1.session.update" | "v1.session.fork" | "v1.session.compact" | "v1.message.send" | "v1.message.list" | "v1.message.get" | "v1.turn.list" | "v1.turn.get" | "v1.turn.stop" | "v1.rtc.list" | "v1.rtc.get" | "v1.rtc.update_status" | "v1.rtc.submit_result";
         /** @description 获取会话列表请求 */
         ListSessionsRequest: {
             /** @description 分页游标（上一页最后一条的 ID） */

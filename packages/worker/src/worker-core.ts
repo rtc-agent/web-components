@@ -160,6 +160,11 @@ export class WorkerCore implements WorkerPersistenceCore {
     return layer.stopTurn(sessionClientId);
   }
 
+  async compactSession(sessionClientId: string, customInstruction?: string): Promise<void> {
+    const layer = this.ensureLayer();
+    return layer.compactSession(sessionClientId, customInstruction);
+  }
+
   async submitRtcResult(params: {
     rtcClientId: string;
     success: boolean;

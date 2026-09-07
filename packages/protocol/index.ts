@@ -31,6 +31,7 @@ export const RpcMethod = {
     SessionClose: 'v1.session.close',
     SessionUpdate: 'v1.session.update',
     SessionFork: 'v1.session.fork',
+    SessionCompact: 'v1.session.compact',
     // Message
     MessageSend: 'v1.message.send',
     MessageList: 'v1.message.list',
@@ -86,6 +87,10 @@ export type ForkSessionResponse = components['schemas']['ForkSessionResponse'];
 export type StopTurnRequest = components['schemas']['StopTurnRequest'];
 export type StopTurnResult = components['schemas']['StopTurnResult'];
 export type StopTurnResponse = components['schemas']['StopTurnResponse'];
+
+export type CompactSessionRequest = components['schemas']['CompactSessionRequest'];
+export type CompactSessionResult = components['schemas']['CompactSessionResult'];
+export type CompactSessionResponse = components['schemas']['CompactSessionResponse'];
 
 export type UpdateRtcStatusRequest = components['schemas']['UpdateRtcStatusRequest'];
 export type UpdateRtcStatusResult = components['schemas']['UpdateRtcStatusResult'];

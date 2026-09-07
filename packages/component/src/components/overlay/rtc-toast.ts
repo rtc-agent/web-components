@@ -100,6 +100,27 @@ export class RtcToast extends LitElement {
       flex: 1;
     }
 
+    .toast-close {
+      flex-shrink: 0;
+      width: 16px;
+      height: 16px;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      color: var(--rtc-color-text-secondary, #666666);
+      padding: 0;
+      border-radius: 2px;
+      transition: background 0.15s ease;
+    }
+
+    .toast-close:hover {
+      background: var(--rtc-color-bg-hover, #f5f5f5);
+    }
+
     @keyframes toast-enter {
       from {
         opacity: 0;
@@ -134,6 +155,16 @@ export class RtcToast extends LitElement {
   @property({type: Array})
   toasts: ToastItem[] = [];
 
+  private _handleClose(id: number) {
+    this.dispatchEvent(
+      new CustomEvent('rtc-toast-close', {
+        bubbles: true,
+        composed: true,
+        detail: {id},
+      })
+    );
+  }
+
   render() {
     if (this.toasts.length === 0) return nothing;
 
@@ -146,6 +177,9 @@ export class RtcToast extends LitElement {
             ${toast.type === 'success' ? '✓' : toast.type === 'error' ? '✗' : 'ℹ'}
           </span>
           <span class="toast-message" part="message">${toast.message}</span>
+          <button class="toast-close" part="close" @click=${() => this._handleClose(toast.id)} aria-label="关闭">
+            ×
+          </button>
         </div>
       `
     );

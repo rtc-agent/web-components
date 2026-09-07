@@ -130,6 +130,10 @@ class WorkerPersistenceAdapter {
         return this._core.stopTurn(sessionClientId);
     }
 
+    async compactSession(sessionClientId: string, customInstruction?: string): Promise<void> {
+        return this._core.compactSession(sessionClientId, customInstruction);
+    }
+
     async submitRtcResult(params: {
         rtcClientId: string;
         success: boolean;

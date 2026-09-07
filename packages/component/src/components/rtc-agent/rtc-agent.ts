@@ -405,6 +405,14 @@ export class RtcAgent extends LitElement {
         const detail = (e as CustomEvent).detail;
         this._toast.actions.show(detail.message, detail.type);
     };
+    private _boundOnToastClose = (e: Event) => {
+        const detail = (e as CustomEvent).detail;
+        this._toast.actions.remove(detail.id);
+    };
+    private _boundOnCommandRequested = (e: Event) => {
+        const detail = (e as CustomEvent).detail as { name: string; args?: string };
+        void this._handleCommand(detail.name, detail.args);
+    };
 
     /** UIUpdateBus unsubscribe reference (set in connectedCallback, cleared in disconnectedCallback). */
     private _busUnsubMessage?: () => void;
@@ -512,6 +520,12 @@ export class RtcAgent extends LitElement {
 
         // Listen for toast requested (from various components)
         this.addEventListener('rtc-toast-requested', this._boundOnToastRequested);
+
+        // Listen for toast close (from toast component)
+        this.addEventListener('rtc-toast-close', this._boundOnToastClose);
+
+        // Listen for command requested (from input area slash commands)
+        this.addEventListener('rtc-command-requested', this._boundOnCommandRequested);
 
         // Listen for Escape key to cancel fork mode
         this.addEventListener('keydown', this._boundOnKeydown);
@@ -714,6 +728,8 @@ export class RtcAgent extends LitElement {
         this.removeEventListener('rtc-user-message-resend', this._boundOnResendMessage);
         this.removeEventListener('rtc-fork-requested', this._boundOnForkRequested);
         this.removeEventListener('rtc-toast-requested', this._boundOnToastRequested);
+        this.removeEventListener('rtc-toast-close', this._boundOnToastClose);
+        this.removeEventListener('rtc-command-requested', this._boundOnCommandRequested);
         this.removeEventListener('keydown', this._boundOnKeydown);
         this._busUnsubMessage?.();
         this._rtcProcessor = undefined;
@@ -926,6 +942,56 @@ export class RtcAgent extends LitElement {
                 );
                 this._session.actions.switchSession(mostRecent.clientId);
             }
+        }
+    }
+
+    /* ── Slash 命令处理 ── */
+
+    /**
+     * 处理 slash 命令
+     *
+     * 当前支持的命令：
+     * - /compact [custom_instruction]：压缩当前会话上下文
+     */
+    private async _handleCommand(name: string, args?: string): Promise<void> {
+        switch (name) {
+            case 'compact':
+                await this._handleCompactCommand(args);
+                break;
+            default:
+                this._toast.actions.show(`未知命令: /${name}`, 'error');
+                break;
+        }
+    }
+
+    /**
+     * 处理 /compact 命令
+     *
+     * 调用服务端 RPC 压缩当前会话上下文。
+     * 成功后不立即显示成功 Toast（等待 Live 推送更新 session 状态）。
+     * 失败时显示错误 Toast。
+     */
+    private async _handleCompactCommand(customInstruction?: string): Promise<void> {
+        const sessionId = this._session.value.state.currentSessionId;
+        if (!sessionId) {
+            this._toast.actions.show('没有活动的会话', 'error');
+            return;
+        }
+
+        if (!this._persistence.layer) {
+            this._toast.actions.show('服务未连接', 'error');
+            return;
+        }
+
+        this._toast.actions.show('正在压缩上下文...', 'info');
+
+        try {
+            await this._persistence.layer.compactSession(sessionId, customInstruction);
+            // 成功：不立即显示成功 Toast，等待 Live 推送 session 更新
+        } catch (err) {
+            console.error('[rtc-agent] /compact failed:', err);
+            const message = err instanceof Error ? err.message : '压缩上下文失败';
+            this._toast.actions.show(message, 'error');
         }
     }
 

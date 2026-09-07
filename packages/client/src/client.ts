@@ -12,6 +12,8 @@ import type {
   StopTurnResponse,
   SubmitRtcResultResponse,
   UpdateRtcStatusResponse,
+  CompactSessionRequest,
+  CompactSessionResponse,
 } from '@rtc-agent/protocol';
 import type {
   IRTCAgentClient,
@@ -141,6 +143,12 @@ export class RTCAgentClient implements IRTCAgentClient {
 
   async closeSession(sessionId: string): Promise<CloseSessionResponse> {
     return this.rpc<CloseSessionResponse>(RpcMethod.SessionClose, { session_id: sessionId });
+  }
+
+  async compactSession(
+    req: CompactSessionRequest,
+  ): Promise<CompactSessionResponse> {
+    return this.rpc<CompactSessionResponse>(RpcMethod.SessionCompact, req);
   }
 
   // ========== 消息 & Turn ==========

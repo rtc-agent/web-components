@@ -1,5 +1,5 @@
 import { RTCAgentClient, type RTCAgentClientOptions, type PublicationEvent } from '@rtc-agent/client';
-import type { Update, ContentData, SendMessageRequest, ForkSessionRequest } from '@rtc-agent/protocol';
+import type { Update, ContentData, SendMessageRequest, ForkSessionRequest, CompactSessionRequest } from '@rtc-agent/protocol';
 import { getDatabase, closeDatabase, flushAll, type LocalSession, type LocalMessage, type LocalRtc } from './database.js';
 import { getOffsetManager } from './offset-manager.js';
 import { getEntityRepository } from './entity-repository.js';
@@ -334,6 +334,29 @@ export class PersistenceLayer {
 
     // 2. 调用 RPC
     const response = await this.client.stopTurn(session.server_id);
+
+    // 3. 处理 updates
+    if (response.updates && response.updates.length > 0) {
+      await this.client.applyUpdates(response.updates);
+    }
+  }
+
+  /**
+   * 压缩会话上下文
+   */
+  async compactSession(sessionClientId: string, customInstruction?: string): Promise<void> {
+    // 1. 查找 session
+    const session = await this.entityRepository.getClientSession(sessionClientId);
+    if (!session?.server_id) {
+      throw new Error(`Session not found or not synced: ${sessionClientId}`);
+    }
+
+    // 2. 调用 RPC
+    const req: CompactSessionRequest = {
+      session_id: session.server_id,
+      custom_instruction: customInstruction,
+    };
+    const response = await this.client.compactSession(req);
 
     // 3. 处理 updates
     if (response.updates && response.updates.length > 0) {

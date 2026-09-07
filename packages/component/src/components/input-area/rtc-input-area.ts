@@ -11,6 +11,7 @@
  *
  * @element rtc-input-area
  * @fires rtc-input-submit - User submitted message (detail: { content })
+ * @fires rtc-command-requested - User submitted a slash command (detail: { name, args })
  * @fires rtc-voice-input-requested - User clicked voice input button
  * @csspart textarea - The textarea element
  * @csspart toolbar - The toolbar row
@@ -34,7 +35,9 @@ import {SessionContext} from '../../contexts/session.js';
 import {TurnCountContext, type TurnCountContextValue} from '../../contexts/turn-count.js';
 import {MessageContext, type MessageContextValue} from '../../contexts/message.js';
 import {attachIcon, toolIcon, sendIcon, stopIcon, micIcon} from '../../icons/index.js';
+import {parseCommand} from '../../utils/command-parser.js';
 import '../overlay/rtc-mode-panel.js';
+import '../overlay/rtc-command-panel.js';
 
 // UIUpdateBus 用于监听新消息事件
 import {getUIUpdateBus, type UIUpdateEvent} from '@rtc-agent/persistence';
@@ -81,6 +84,9 @@ export class RtcInputArea extends LitElement {
     @state()
     private _showModePanel = false;
 
+    @state()
+    private _showCommandPanel = false;
+
     // 历史导航状态
     @state()
     private _userMessageHistory: string[] = [];
@@ -97,7 +103,14 @@ export class RtcInputArea extends LitElement {
     @query('rtc-mode-panel')
     private _modePanel?: HTMLElement;
 
+    @query('.tool-btn')
+    private _commandBtn!: HTMLElement;
+
+    @query('rtc-command-panel')
+    private _commandPanel?: HTMLElement;
+
     private _cleanupPosition: (() => void) | null = null;
+    private _cleanupCommandPosition: (() => void) | null = null;
 
     private get _textarea(): HTMLTextAreaElement | null {
         return this.shadowRoot?.querySelector('.input-textarea') ?? null;
@@ -272,6 +285,21 @@ export class RtcInputArea extends LitElement {
         this._historyIndex = -1;
         this._draft = '';
 
+        // 检查是否为 slash 命令
+        const parsed = parseCommand(content);
+        if (parsed.isCommand && parsed.name) {
+            this.dispatchEvent(
+                new CustomEvent('rtc-command-requested', {
+                    bubbles: true,
+                    composed: true,
+                    detail: {name: parsed.name, args: parsed.args},
+                })
+            );
+            this._value = '';
+            if (this._textarea) this._textarea.value = '';
+            return;
+        }
+
         // 乐观更新：将当前消息插入历史头部（最新消息在前）
         // 避免 UIUpdateBus 延迟导致刚发的消息不在历史中
         if (
@@ -360,11 +388,85 @@ export class RtcInputArea extends LitElement {
         this._closeModePanel();
     }
 
+    private _handleCommandToggle() {
+        this._showCommandPanel = !this._showCommandPanel;
+        if (this._showCommandPanel) {
+            this._startCommandPositioning();
+        } else {
+            this._stopCommandPositioning();
+        }
+    }
+
+    private _closeCommandPanel() {
+        this._showCommandPanel = false;
+        this._stopCommandPositioning();
+    }
+
+    private async _startCommandPositioning() {
+        // Wait for render so rtc-command-panel exists in DOM
+        await this.updateComplete;
+        const btn = this._commandBtn;
+        const panel = this._commandPanel;
+        if (!btn || !panel) return;
+
+        this._cleanupCommandPosition?.();
+        this._cleanupCommandPosition = autoUpdate(btn, panel, () => this._updateCommandPosition());
+    }
+
+    private async _updateCommandPosition() {
+        await this.updateComplete;
+        const btn = this._commandBtn;
+        const panel = this._commandPanel;
+        if (!btn || !panel) return;
+
+        const {x, y} = await computePosition(btn, panel, {
+            placement: 'top-start',
+            strategy: 'absolute',
+            middleware: [
+                offset(6),
+                flip({padding: 8}),
+                shift({padding: 8}),
+            ],
+        });
+        Object.assign(panel.style, {
+            left: `${x}px`,
+            top: `${y}px`,
+        });
+    }
+
+    private _stopCommandPositioning() {
+        this._cleanupCommandPosition?.();
+        this._cleanupCommandPosition = null;
+    }
+
+    private _handleCommandSelected(e: Event) {
+        const detail = (e as CustomEvent).detail;
+        const commandName = detail.command;
+
+        // Dispatch command requested event
+        this.dispatchEvent(
+            new CustomEvent('rtc-command-requested', {
+                bubbles: true,
+                composed: true,
+                detail: {name: commandName},
+            })
+        );
+        this._closeCommandPanel();
+    }
+
+    private _handleCommandPanelClose() {
+        this._closeCommandPanel();
+    }
+
     private _onDocClick = (e: MouseEvent) => {
-        if (!this._showModePanel) return;
         const path = e.composedPath();
         if (!path.includes(this)) {
-            this._closeModePanel();
+            if (this._showModePanel) {
+                this._closeModePanel();
+            }
+            if (this._showCommandPanel) {
+                this._closeCommandPanel();
+            }
         }
     };
 
@@ -420,7 +522,7 @@ export class RtcInputArea extends LitElement {
         </div>
         <div class="input-toolbar" part="toolbar">
           <button class="toolbar-btn" title="Attach file">${attachIcon}</button>
-          <button class="toolbar-btn" title="Tool call">${toolIcon}</button>
+          <button class="toolbar-btn tool-btn" title="Commands" @click=${this._handleCommandToggle}>${toolIcon}</button>
           <span class="toolbar-spacer"></span>
           <button class="mode-btn" part="mode-btn" @click=${this._handleModeToggle}>
             ${this._currentModeLabel}
@@ -440,6 +542,12 @@ export class RtcInputArea extends LitElement {
             @rtc-mode-selected=${this._handleModeSelected}
             @rtc-mode-panel-close=${this._handleModePanelClose}
           ></rtc-mode-panel>
+        ` : ''}
+        ${this._showCommandPanel ? html`
+          <rtc-command-panel
+            @rtc-command-selected=${this._handleCommandSelected}
+            @rtc-command-panel-close=${this._handleCommandPanelClose}
+          ></rtc-command-panel>
         ` : ''}
       </div>
     `;
