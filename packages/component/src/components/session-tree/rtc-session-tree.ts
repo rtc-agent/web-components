@@ -99,10 +99,16 @@ export class RtcSessionTree extends LitElement {
     }
 
     private _handleRefresh() {
+        // Session 列表由 UIUpdateBus 实时同步（服务端变更自动推送），无手动刷新逻辑。
+        // 保留按钮但给出提示，避免用户困惑。未来若需要强制拉取可在此处接入。
         this.dispatchEvent(
-            new CustomEvent('rtc-session-tree-refresh', {
+            new CustomEvent('rtc-toast-requested', {
                 bubbles: true,
                 composed: true,
+                detail: {
+                    message: '会话列表已自动同步',
+                    type: 'info',
+                },
             })
         );
     }
@@ -332,6 +338,5 @@ declare global {
         'rtc-session-tree-select': CustomEvent<{sessionId: string}>;
         'rtc-session-tree-toggle': CustomEvent<{sessionId: string}>;
         'rtc-session-tree-new': CustomEvent<void>;
-        'rtc-session-tree-refresh': CustomEvent<void>;
     }
 }

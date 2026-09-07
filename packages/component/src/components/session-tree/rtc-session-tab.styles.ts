@@ -13,6 +13,7 @@ export const styles = css`
     :host {
         display: inline-block;
         height: 36px;
+        max-width: 200px;
         flex-shrink: 0;
         background: transparent;
     }
@@ -25,7 +26,7 @@ export const styles = css`
         gap: var(--rtc-spacing-xs);
         cursor: pointer;
         background: var(--rtc-color-bg-tertiary);
-        border-right: var(--rtc-border-width) solid var(--rtc-color-border);
+        border-right: 2px solid var(--rtc-color-border);
         font-size: var(--rtc-font-size-sm);
         color: var(--rtc-color-text-secondary);
         position: relative;
