@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tab Session Debug — 验证 Tab 标题保护、新建、Fork 流程</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1e1e1e;
+            color: #cccccc;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        h1 { font-size: 18px; margin-bottom: 4px; color: #ffffff; }
+        .subtitle { font-size: 12px; color: #888; margin-bottom: 16px; }
+        h2 { font-size: 13px; margin-bottom: 8px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 1fr 340px;
+            gap: 16px;
+            height: calc(100vh - 100px);
+        }
+
+        /* ── Left: Preview ── */
+        .preview-area {
+            background: #252526;
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .preview-header {
+            padding: 8px 12px;
+            background: #2d2d30;
+            font-size: 11px;
+            color: #888;
+            border-bottom: 1px solid #3e3e42;
+        }
+
+        .preview-body {
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* ── Right: Controls ── */
+        .controls {
+            background: #252526;
+            border-radius: 8px;
+            padding: 12px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .section {
+            background: #2d2d30;
+            border-radius: 6px;
+            padding: 10px;
+        }
+
+        .btn-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+
+        .btn {
+            padding: 5px 10px;
+            background: #3a3a3a;
+            border: 1px solid #4e4e4e;
+            color: #cccccc;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 12px;
+            transition: background 0.15s;
+            white-space: nowrap;
+        }
+
+        .btn:hover { background: #4a4a4a; }
+        .btn.primary { background: #0e639c; border-color: #1177bb; }
+        .btn.primary:hover { background: #1177bb; }
+        .btn.danger { background: #6e1b1b; border-color: #8b2020; }
+        .btn.danger:hover { background: #8b2020; }
+        .btn.success { background: #1b6e2e; border-color: #208b35; }
+        .btn.success:hover { background: #208b35; }
+
+        .input-row { display: flex; gap: 6px; margin-top: 6px; }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 5px 8px;
+            background: #1e1e1e;
+            border: 1px solid #4e4e4e;
+            color: #cccccc;
+            border-radius: 4px;
+            font-size: 12px;
+            outline: none;
+        }
+
+        input[type="text"]:focus { border-color: #007acc; }
+
+        /* ── State display ── */
+        .state-display {
+            background: #1e1e1e;
+            padding: 8px;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 11px;
+            color: #4ec9b0;
+            max-height: 180px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .log {
+            background: #1e1e1e;
+            padding: 8px;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 10px;
+            max-height: 160px;
+            overflow-y: auto;
+            color: #d4d4d4;
+        }
+
+        .log-entry {
+            padding: 2px 0;
+            border-bottom: 1px solid #2d2d30;
+            line-height: 1.4;
+        }
+
+        .log-entry .ts { color: #666; }
+        .log-entry .name { color: #dcdcaa; }
+        .log-entry .detail { color: #ce9178; }
+        .log-entry .ok { color: #4ec9b0; }
+        .log-entry .err { color: #f48771; }
+
+        .badge {
+            display: inline-block;
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+
+        .badge-ok { background: #1b6e2e; color: #a3e8b2; }
+        .badge-warn { background: #6e5a1b; color: #f0d080; }
+        .badge-err { background: #6e1b1b; color: #f0a0a0; }
+
+        .check-list {
+            font-size: 12px;
+            line-height: 1.7;
+        }
+
+        .check-item { display: flex; align-items: center; gap: 6px; }
+        .check-icon { width: 14px; text-align: center; }
+    </style>
+</head>
+<body>
+    <h1>Tab Session Debug</h1>
+    <div class="subtitle">验证：Tab 标题保护 · 新建对话不覆盖已有 Tab · Fork 创建新 Tab · 关闭全部后自动创建</div>
+
+    <div class="layout">
+        <!-- Left: Preview -->
+        <div class="preview-area">
+            <div class="preview-header">rtc-chat-layout（mock context）</div>
+            <div class="preview-body">
+                <rtc-chat-layout id="chatLayout" theme="dark"></rtc-chat-layout>
+            </div>
+        </div>
+
+        <!-- Right: Controls -->
+        <div class="controls">
+
+            <!-- 验证清单 -->
+            <div class="section">
+                <h2>验证清单</h2>
+                <div class="check-list" id="checkList">
+                    <div class="check-item" data-check="1">
+                        <span class="check-icon">○</span>
+                        <span>新建对话：已有真实标题 Tab 不被覆盖</span>
+                    </div>
+                    <div class="check-item" data-check="2">
+                        <span class="check-icon">○</span>
+                        <span>Fork 流程：自动打开新 Tab</span>
+                    </div>
+                    <div class="check-item" data-check="3">
+                        <span class="check-icon">○</span>
+                        <span>关闭全部 Tab：发消息后自动创建</span>
+                    </div>
+                    <div class="check-item" data-check="4">
+                        <span class="check-icon">○</span>
+                        <span>localStorage 迁移：旧数据补 isDefault</span>
+                    </div>
+                    <div class="check-item" data-check="5">
+                        <span class="check-icon">○</span>
+                        <span>标题同步：isDefault Tab 被更新为真实标题</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 模拟操作 -->
+            <div class="section">
+                <h2>模拟操作</h2>
+                <div class="btn-row">
+                    <button class="btn primary" id="btnNewConv">➕ 新建对话</button>
+                    <button class="btn" id="btnSimMsg">📨 模拟发送消息</button>
+                </div>
+                <div class="input-row">
+                    <input type="text" id="inputTitle" placeholder="消息对应 session 标题" value="hi">
+                </div>
+                <div class="btn-row">
+                    <button class="btn success" id="btnSimFork">🔀 模拟 Fork</button>
+                    <button class="btn" id="btnSyncTitles">🔄 同步标题</button>
+                </div>
+                <div class="input-row">
+                    <input type="text" id="inputSyncTitle" placeholder="sync title for current session" value="Real Server Title">
+                </div>
+                <div class="btn-row">
+                    <button class="btn" id="btnOpenTab">📂 直接打开 Tab</button>
+                </div>
+                <div class="input-row">
+                    <input type="text" id="inputOpenSessionId" placeholder="sessionId" value="existing-session-1">
+                    <input type="text" id="inputOpenTitle" placeholder="title" value="Existing Tab">
+                </div>
+            </div>
+
+            <!-- Tab 状态 -->
+            <div class="section">
+                <h2>Tab 状态（实时）</h2>
+                <div class="state-display" id="stateDisplay">loading...</div>
+            </div>
+
+            <!-- Session 列表 -->
+            <div class="section">
+                <h2>Session 列表（mock）</h2>
+                <div class="state-display" id="sessionDisplay">loading...</div>
+            </div>
+
+            <!-- 日志 -->
+            <div class="section">
+                <h2>事件日志 <button class="btn" id="btnClearLog" style="float:right;font-size:10px;padding:2px 6px;">Clear</button></h2>
+                <div class="log" id="eventLog">
+                    <div class="log-entry"><span class="ts">--:--:--</span> 等待操作...</div>
+                </div>
+            </div>
+
+            <!-- 重置 -->
+            <div class="section">
+                <div class="btn-row">
+                    <button class="btn danger" id="btnReset">🗑️ 清空所有 Tab</button>
+                    <button class="btn danger" id="btnClearStorage">🗑️ 清空 localStorage</button>
+                    <button class="btn" id="btnReload">🔄 重新加载页面</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import '../src/components/chat-layout/rtc-chat-layout.ts';
+        import {SessionTreeController} from '../src/controllers/session-tree.controller.ts';
+        import {SessionTabController} from '../src/controllers/session-tab.controller.ts';
+        import {SessionTreeContext} from '../src/contexts/session-tree.ts';
+        import {SessionTabContext} from '../src/contexts/session-tab.ts';
+        import {SessionContext} from '../src/contexts/session.ts';
+        import {ContextProvider} from '@lit/context';
+
+        // ── Helpers ──
+
+        function ts() {
+            return new Date().toLocaleTimeString('zh-CN', {hour12: false});
+        }
+
+        function logEvent(name, detail, type = '') {
+            const el = document.getElementById('eventLog');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            const cls = type === 'ok' ? 'ok' : type === 'err' ? 'err' : 'detail';
+            entry.innerHTML = `<span class="ts">${ts()}</span> <span class="name">${name}</span> <span class="${cls}">${JSON.stringify(detail)}</span>`;
+            // Remove placeholder
+            const placeholder = el.querySelector('.log-entry:first-child');
+            if (placeholder && placeholder.textContent.includes('等待操作')) placeholder.remove();
+            el.insertBefore(entry, el.firstChild);
+            while (el.children.length > 50) el.removeChild(el.lastChild);
+        }
+
+        function setCheck(num, status) {
+            const item = document.querySelector(`[data-check="${num}"]`);
+            if (!item) return;
+            const icon = item.querySelector('.check-icon');
+            if (status === 'pass') {
+                icon.textContent = '✓';
+                icon.style.color = '#4ec9b0';
+            } else if (status === 'fail') {
+                icon.textContent = '✗';
+                icon.style.color = '#f48771';
+            } else {
+                icon.textContent = '◌';
+                icon.style.color = '#f0d080';
+            }
+        }
+
+        // ── Controller Hosts ──
+
+        function makeHost() {
+            const cbs = [];
+            return {
+                addController(c) { c.hostConnected?.(); },
+                requestUpdate() { cbs.forEach(cb => cb()); },
+                onUpdate(cb) { cbs.push(cb); },
+                dispatchEvent(e) {
+                    // Bubble to document for rtc-message-sent
+                    document.dispatchEvent(e);
+                },
+            };
+        }
+
+        const treeHost = makeHost();
+        const tabHost = makeHost();
+        const sessionHost = makeHost();
+
+        const treeController = new SessionTreeController(treeHost);
+        const tabController = new SessionTabController(tabHost);
+
+        // ── Mock Session State ──
+
+        let mockSessions = [
+            {clientId: 'existing-session-1', title: 'Existing Tab', createdAt: Date.now() - 3600000, updatedAt: Date.now() - 60000},
+            {clientId: 'existing-session-2', title: 'Another Session', createdAt: Date.now() - 7200000, updatedAt: Date.now() - 120000},
+        ];
+        let currentSessionId = null;
+        let forkActive = false;
+
+        const sessionActions = {
+            createSession: () => {
+                const id = `session-${crypto.randomUUID()}`;
+                const newSession = {clientId: id, title: 'New Session', createdAt: Date.now(), updatedAt: Date.now()};
+                mockSessions = [...mockSessions, newSession];
+                currentSessionId = id;
+                treeController.actions.rebuildTree(mockSessions);
+                sessionHost.requestUpdate();
+                logEvent('createSession', {id, title: 'New Session'});
+                return id;
+            },
+            switchSession: (id) => {
+                currentSessionId = id;
+                sessionHost.requestUpdate();
+                logEvent('switchSession', {id});
+            },
+            renameSession: (id, title) => {
+                const s = mockSessions.find(s => s.clientId === id);
+                if (s) { s.title = title; treeController.actions.rebuildTree(mockSessions); sessionHost.requestUpdate(); }
+            },
+            deleteSession: (id) => {
+                mockSessions = mockSessions.filter(s => s.clientId !== id);
+                if (currentSessionId === id) currentSessionId = null;
+                treeController.actions.rebuildTree(mockSessions);
+                sessionHost.requestUpdate();
+            },
+            reset: () => { currentSessionId = null; },
+            clearCurrentSession: () => {
+                currentSessionId = null;
+                sessionHost.requestUpdate();
+                logEvent('clearCurrentSession', {});
+            },
+            setCurrentSession: (session) => {
+                // Upsert: add to list or update existing
+                const idx = mockSessions.findIndex(s => s.clientId === session.clientId);
+                if (idx >= 0) {
+                    mockSessions[idx] = {...mockSessions[idx], ...session};
+                } else {
+                    mockSessions = [...mockSessions, session];
+                }
+                currentSessionId = session.clientId;
+                treeController.actions.rebuildTree(mockSessions);
+                sessionHost.requestUpdate();
+                logEvent('setCurrentSession', {id: session.clientId, title: session.title}, 'ok');
+            },
+            setSessions: (sessions) => {
+                mockSessions = sessions;
+                treeController.actions.rebuildTree(mockSessions);
+                sessionHost.requestUpdate();
+            },
+        };
+
+        // ── Context Providers ──
+
+        class SessionTreeProvider extends HTMLElement {
+            constructor() {
+                super();
+                this._provider = new ContextProvider(this, {context: SessionTreeContext, initialValue: treeController.value});
+            }
+            updateValue() { this._provider.setValue(treeController.value); }
+        }
+        customElements.define('session-tree-provider-dbg', SessionTreeProvider);
+
+        class SessionTabProvider extends HTMLElement {
+            constructor() {
+                super();
+                this._provider = new ContextProvider(this, {context: SessionTabContext, initialValue: tabController.value});
+            }
+            updateValue() { this._provider.setValue(tabController.value); }
+        }
+        customElements.define('session-tab-provider-dbg', SessionTabProvider);
+
+        class SessionProvider extends HTMLElement {
+            constructor() {
+                super();
+                this._provider = new ContextProvider(this, {context: SessionContext, initialValue: {state: {sessions: mockSessions, currentSessionId}, actions: sessionActions}});
+            }
+            updateValue() {
+                this._provider.setValue({state: {sessions: mockSessions, currentSessionId}, actions: sessionActions});
+            }
+        }
+        customElements.define('session-provider-dbg', SessionProvider);
+
+        // ── Wire Up ──
+
+        const previewBody = document.querySelector('.preview-body');
+        const chatLayout = document.getElementById('chatLayout');
+
+        const treeProvider = document.createElement('session-tree-provider-dbg');
+        const tabProvider = document.createElement('session-tab-provider-dbg');
+        const sessionProvider = document.createElement('session-provider-dbg');
+
+        treeProvider.style.cssText = 'display: contents;';
+        tabProvider.style.cssText = 'display: contents;';
+        sessionProvider.style.cssText = 'display: contents;';
+
+        previewBody.appendChild(treeProvider);
+        treeProvider.appendChild(tabProvider);
+        tabProvider.appendChild(sessionProvider);
+        sessionProvider.appendChild(chatLayout);
+
+        treeHost.onUpdate(() => { treeProvider.updateValue(); updateDisplays(); });
+        tabHost.onUpdate(() => { tabProvider.updateValue(); updateDisplays(); });
+        sessionHost.onUpdate(() => { sessionProvider.updateValue(); updateDisplays(); });
+
+        // ── Event Logging ──
+
+        chatLayout.addEventListener('rtc-chat-layout-session-select', (e) => logEvent('chat-layout-session-select', e.detail));
+        chatLayout.addEventListener('rtc-chat-layout-tab-activate', (e) => logEvent('chat-layout-tab-activate', e.detail));
+        chatLayout.addEventListener('rtc-chat-layout-tab-close', (e) => logEvent('chat-layout-tab-close', e.detail));
+        chatLayout.addEventListener('rtc-new-session', () => logEvent('rtc-new-session', {needsNewTab: true}, 'ok'));
+
+        // ── Display Updates ──
+
+        function updateDisplays() {
+            const stateEl = document.getElementById('stateDisplay');
+            stateEl.textContent = JSON.stringify({
+                tabs: tabController.value.state.tabs.map(t => ({
+                    sessionId: t.sessionId.slice(0, 12) + '...',
+                    title: t.title,
+                    isDefault: t.isDefault,
+                })),
+                activeSessionId: tabController.value.state.activeSessionId?.slice(0, 12) + '...',
+                currentSessionId: currentSessionId?.slice(0, 12) + '...',
+            }, null, 2);
+
+            const sessionEl = document.getElementById('sessionDisplay');
+            sessionEl.textContent = JSON.stringify(
+                mockSessions.map(s => ({id: s.clientId.slice(0, 12) + '...', title: s.title})),
+                null, 2
+            );
+        }
+
+        updateDisplays();
+
+        // ── Button Handlers ──
+
+        /**
+         * 模拟"新建对话 + 发送消息"完整流程
+         *
+         * 1. 点击 "+" → _handleNewSession → createSession + _needsNewTab=true
+         * 2. 用户输入并发送 → _sendMessage → setCurrentSession(真实标题) + 派发 rtc-message-sent
+         * 3. chat-layout._boundOnMessageSent → _ensureTabForSession → 用真实标题打开 Tab
+         */
+        document.getElementById('btnNewConv').addEventListener('click', () => {
+            // Step 1: 模拟 _handleNewSession
+            sessionActions.createSession();
+            // _needsNewTab 是 chat-layout 的内部状态，我们通过派发 rtc-new-session 来触发
+            // chat-layout 监听 rtc-new-session 并设置 _needsNewTab = true（在我们的新实现中）
+            // 但是 rtc-new-session 是从 chat-layout 自己派发给 rtc-agent 的，不是反过来的
+            // 所以我们需要直接模拟 chat-layout 的行为：在点击 + 时，chat-layout 设置 _needsNewTab = true
+            // 由于 chat-layout 在 _handleNewSession 里设置了 _needsNewTab = true，
+            // 我们在这里通过触发 tree 的 new 事件来模拟点击 +
+            logEvent('SIM: click [+]', {note: '触发 rtc-session-tree-new → _handleNewSession'}, 'ok');
+
+            // 直接模拟 + 按钮点击：在 chat-layout 的 shadow DOM 里找到 tree 并触发 new 事件
+            // 更简单的方式：直接调用 _handleNewSession（但那是 private 方法）
+            // 最简单：手动设置 _needsNewTab = true 并模拟后续流程
+            // 但是 _needsNewTab 是 private state，无法从外部设置
+
+            // 正确方式：让 chat-layout 通过 rtc-session-tree-new 事件来处理
+            // rtc-session-tree-new 从 rtc-session-tree 派发，chat-layout 监听了这个事件
+            const treeEl = chatLayout.shadowRoot?.querySelector('rtc-session-tree');
+            if (treeEl) {
+                treeEl.dispatchEvent(new CustomEvent('rtc-session-tree-new', {bubbles: true, composed: true}));
+                logEvent('dispatched', {event: 'rtc-session-tree-new'}, 'ok');
+            } else {
+                logEvent('ERROR', {msg: 'rtc-session-tree not found in shadow DOM'}, 'err');
+            }
+        });
+
+        /**
+         * 模拟发送消息（在已 _needsNewTab=true 的场景下）
+         *
+         * 模拟 _sendMessage 的行为：
+         * 1. setCurrentSession 将 session 加入列表并设置标题
+         * 2. 派发 rtc-message-sent 事件
+         */
+        document.getElementById('btnSimMsg').addEventListener('click', () => {
+            const title = document.getElementById('inputTitle').value.trim() || 'Untitled';
+            if (!currentSessionId) {
+                logEvent('ERROR', {msg: 'no currentSessionId - create a session first'}, 'err');
+                return;
+            }
+            // Step 1: setCurrentSession 将真实标题设置到 sessions 列表
+            const session = mockSessions.find(s => s.clientId === currentSessionId);
+            if (session) session.title = title;
+            sessionActions.setCurrentSession({
+                clientId: currentSessionId,
+                title,
+                createdAt: session?.createdAt ?? Date.now(),
+                updatedAt: Date.now(),
+            });
+
+            // Step 2: 派发 rtc-message-sent（chat-layout 在 document 上监听）
+            document.dispatchEvent(new CustomEvent('rtc-message-sent', {
+                bubbles: true,
+                composed: true,
+                detail: {message: {session_client_id: currentSessionId}},
+            }));
+            logEvent('SIM: message sent', {sessionId: currentSessionId.slice(0, 12), title}, 'ok');
+        });
+
+        /**
+         * 模拟 Fork 流程
+         *
+         * 1. 派发 rtc-fork-requested（chat-layout 监听并设置 _needsNewTab=true）
+         * 2. 模拟 submitFork 完成：setCurrentSession 把新 session 加入列表
+         * 3. 派发 rtc-message-sent
+         */
+        document.getElementById('btnSimFork').addEventListener('click', () => {
+            if (!currentSessionId) {
+                logEvent('ERROR', {msg: 'no currentSessionId - select a session first'}, 'err');
+                return;
+            }
+            const forkTitle = document.getElementById('inputTitle').value.trim() || 'Forked Session';
+            const newSessionId = `session-${crypto.randomUUID()}`;
+
+            // Step 1: 派发 rtc-fork-requested（chat-layout 拦截，设置 _needsNewTab=true）
+            chatLayout.dispatchEvent(new CustomEvent('rtc-fork-requested', {
+                bubbles: true,
+                composed: true,
+                detail: {oldMessageClientId: 'msg-old', content: forkTitle},
+            }));
+            logEvent('SIM: fork requested', {from: currentSessionId.slice(0, 12)}, 'ok');
+
+            // Step 2: 模拟 _forkSession 完成：setCurrentSession 把新 session 加入列表
+            mockSessions = [...mockSessions, {
+                clientId: newSessionId,
+                title: forkTitle,
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+                rootClientSessionId: currentSessionId,
+            }];
+            currentSessionId = newSessionId;
+            treeController.actions.rebuildTree(mockSessions);
+            sessionActions.setCurrentSession({
+                clientId: newSessionId,
+                title: forkTitle,
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+            });
+
+            // Step 3: 派发 rtc-message-sent
+            setTimeout(() => {
+                document.dispatchEvent(new CustomEvent('rtc-message-sent', {
+                    bubbles: true,
+                    composed: true,
+                    detail: {message: {session_client_id: newSessionId}},
+                }));
+                logEvent('SIM: fork message sent', {newSessionId: newSessionId.slice(0, 12), title: forkTitle}, 'ok');
+            }, 50);
+        });
+
+        /**
+         * 模拟标题同步（updateTabTitles）
+         *
+         * 将当前 session 的标题同步到 isDefault 的 Tab
+         */
+        document.getElementById('btnSyncTitles').addEventListener('click', () => {
+            const title = document.getElementById('inputSyncTitle').value.trim();
+            if (!currentSessionId) {
+                logEvent('ERROR', {msg: 'no currentSessionId'}, 'err');
+                return;
+            }
+            const map = new Map();
+            map.set(currentSessionId, title);
+            const changed = tabController.updateTabTitles(map);
+            logEvent('updateTabTitles', {sessionId: currentSessionId.slice(0, 12), title, changed}, changed ? 'ok' : '');
+        });
+
+        /**
+         * 直接打开 Tab（测试 _openOrActivate 的标题保护逻辑）
+         */
+        document.getElementById('btnOpenTab').addEventListener('click', () => {
+            const sessionId = document.getElementById('inputOpenSessionId').value.trim();
+            const title = document.getElementById('inputOpenTitle').value.trim();
+            tabController.actions.openOrActivate(sessionId, title);
+            logEvent('openOrActivate', {sessionId: sessionId.slice(0, 12), title}, 'ok');
+        });
+
+        // ── Reset / Clear ──
+
+        document.getElementById('btnReset').addEventListener('click', () => {
+            tabController.actions.clearAll();
+            logEvent('clearAll tabs', {}, 'ok');
+        });
+
+        document.getElementById('btnClearStorage').addEventListener('click', () => {
+            localStorage.removeItem('rtc:sessionTabs');
+            logEvent('clear localStorage', {key: 'rtc:sessionTabs'}, 'ok');
+        });
+
+        document.getElementById('btnReload').addEventListener('click', () => location.reload());
+
+        document.getElementById('btnClearLog').addEventListener('click', () => {
+            document.getElementById('eventLog').innerHTML = '<div class="log-entry"><span class="ts">--:--:--</span> 等待操作...</div>';
+        });
+
+        // ── 自动验证 ──
+
+        /**
+         * 验证场景 4：localStorage 迁移
+         * 写入旧格式数据（无 isDefault），重新加载后检查是否正确补上
+         */
+        function testMigration() {
+            const oldData = {
+                tabs: [
+                    {sessionId: 'old-1', title: ''},
+                    {sessionId: 'old-2', title: 'Untitled'},
+                    {sessionId: 'old-3', title: 'Real Title'},
+                    {sessionId: 'old-4', title: 'New Chat'},
+                ],
+                activeSessionId: 'old-1',
+            };
+            localStorage.setItem('rtc:sessionTabs', JSON.stringify(oldData));
+            logEvent('migration test data written', oldData, 'ok');
+            logEvent('INSTRUCTION', {msg: '点击"重新加载页面"验证迁移，然后检查 Tab 状态中的 isDefault 字段'}, 'ok');
+        }
+
+        // 暴露给控制台
+        window.testMigration = testMigration;
+        window.tabController = tabController;
+        window.mockSessions = () => mockSessions;
+
+        logEvent('DEBUG PAGE LOADED', {
+            instructions: [
+                '1. 点击"直接打开 Tab"打开一个真实标题的 Tab（如 "Existing Tab"）',
+                '2. 点击 ➕ 新建对话 → 应创建新 Tab "Untitled"（isDefault=true），不影响已有 Tab',
+                '3. 点击 📨 模拟发送消息 → Tab 标题应变为真实标题（isDefault=false）',
+                '4. 点击 🔀 模拟 Fork → 应创建新的 fork Tab',
+                '5. 关闭所有 Tab 后，点击 ➕ + 📨 → 应自动创建新 Tab',
+                '6. 控制台执行 testMigration() 后刷新页面验证迁移',
+            ]
+        }, 'ok');
+    </script>
+</body>
+</html>

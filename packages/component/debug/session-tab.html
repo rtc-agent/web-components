@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Session Tab Debug - Step 4.2</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #404040;
+            color: #cccccc;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        h1 {
+            font-size: 20px;
+            margin-bottom: 20px;
+            color: #ffffff;
+        }
+
+        h2 {
+            font-size: 14px;
+            margin-bottom: 12px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .debug-panel {
+            background: #252526;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+
+        .debug-section {
+            margin-bottom: 16px;
+        }
+
+        .debug-section:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Theme buttons */
+        .theme-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .theme-btn {
+            padding: 8px 16px;
+            background: #3a3a3a;
+            border: none;
+            color: #cccccc;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+
+        .theme-btn:hover {
+            background: #4a4a4a;
+        }
+
+        .theme-btn.active {
+            background: #007acc;
+            color: white;
+        }
+
+        /* Control buttons */
+        .control-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .control-btn {
+            padding: 6px 12px;
+            background: #3a3a3a;
+            border: none;
+            color: #cccccc;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 12px;
+            transition: background 0.2s;
+        }
+
+        .control-btn:hover {
+            background: #4a4a4a;
+        }
+
+        .control-btn.primary {
+            background: #0e639c;
+        }
+
+        .control-btn.primary:hover {
+            background: #1177bb;
+        }
+
+        /* State display */
+        .state-display {
+            background: #1e1e1e;
+            padding: 12px;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 12px;
+            color: #4ec9b0;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        /* Event log */
+        .event-log {
+            background: #1e1e1e;
+            padding: 12px;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 11px;
+            max-height: 150px;
+            overflow-y: auto;
+            color: #d4d4d4;
+        }
+
+        .event-log-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid #2d2d30;
+        }
+
+        .event-log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .event-log-entry .event-name {
+            color: #dcdcaa;
+        }
+
+        .event-log-entry .event-detail {
+            color: #ce9178;
+        }
+
+        .event-log-empty {
+            color: #666;
+            font-style: italic;
+        }
+
+        /* Preview area */
+        .preview-area {
+            background: #252526;
+            border-radius: 8px;
+            overflow: hidden;
+            min-height: 100px;
+        }
+
+        .preview-container {
+            transition: background-color 0.2s, color 0.2s;
+        }
+
+        .preview-container[theme="dark"] {
+            background: #2d2d30;
+            color: #cccccc;
+        }
+
+        .preview-container[theme="light"] {
+            background: #f3f3f3;
+            color: #333333;
+        }
+
+        .preview-container .tab-bar {
+            display: flex;
+            height: 36px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Session Tab Debug</h1>
+
+    <div class="debug-panel">
+        <!-- Theme -->
+        <div class="debug-section">
+            <h2>主题 (当前: <span id="currentTheme">dark</span>)</h2>
+            <div class="theme-buttons">
+                <button class="theme-btn" data-theme="light">Light</button>
+                <button class="theme-btn active" data-theme="dark">Dark</button>
+                <button class="theme-btn" data-theme="system">System</button>
+            </div>
+        </div>
+
+        <!-- State Display -->
+        <div class="debug-section">
+            <h2>当前状态</h2>
+            <div class="state-display" id="stateDisplay">{
+  "tabs": [],
+  "activeSessionId": null
+}</div>
+        </div>
+
+        <!-- Controller Controls -->
+        <div class="debug-section">
+            <h2>Controller 控制</h2>
+            <div class="control-group">
+                <button class="control-btn primary" id="openTab1">打开 Session 1</button>
+                <button class="control-btn primary" id="openTab2">打开 Session 2</button>
+                <button class="control-btn primary" id="openTab3">打开 Session 3</button>
+            </div>
+            <div class="control-group">
+                <button class="control-btn" id="activateTab1">激活 Session 1</button>
+                <button class="control-btn" id="activateTab2">激活 Session 2</button>
+                <button class="control-btn" id="activateTab3">激活 Session 3</button>
+            </div>
+            <div class="control-group">
+                <button class="control-btn" id="closeTab1">关闭 Session 1</button>
+                <button class="control-btn" id="closeTab2">关闭 Session 2</button>
+                <button class="control-btn" id="closeTab3">关闭 Session 3</button>
+            </div>
+            <div class="control-group">
+                <button class="control-btn" id="clearAll">清空所有 Tab</button>
+                <button class="control-btn" id="reloadMock">重新加载 Mock</button>
+            </div>
+        </div>
+
+        <!-- Reset -->
+        <div class="debug-section">
+            <div class="control-group">
+                <button class="control-btn" id="resetBtn">Reset</button>
+                <button class="control-btn" id="clearLog">Clear Log</button>
+            </div>
+        </div>
+
+        <!-- Event Log -->
+        <div class="debug-section">
+            <h2>事件日志</h2>
+            <div class="event-log" id="eventLog">
+                <div class="event-log-empty">暂无事件</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Preview Area -->
+    <h2>组件预览</h2>
+    <div class="preview-area">
+        <div class="preview-container" id="previewContainer" theme="dark">
+            <div class="tab-bar" id="tabBar">
+                <!-- Tabs will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Import component
+        import '../src/components/session-tree/rtc-session-tab.ts';
+
+        // Import controller
+        import {SessionTabController} from '../src/controllers/session-tab.controller.ts';
+
+        // Import styles
+        import {tokens} from '../src/styles/tokens.ts';
+        import {lightTheme} from '../src/styles/themes/light.ts';
+        import {darkTheme} from '../src/styles/themes/dark.ts';
+
+        // Simple host object
+        const debugHost = {
+            _controllers: [],
+            _updateCallbacks: [],
+            addController(controller) {
+                this._controllers.push(controller);
+                controller.hostConnected?.();
+            },
+            requestUpdate() {
+                this._updateCallbacks.forEach(cb => cb());
+            },
+            onUpdate(callback) {
+                this._updateCallbacks.push(callback);
+            }
+        };
+
+        // Create controller
+        const tabController = new SessionTabController(debugHost);
+
+        // DOM elements
+        const stateDisplay = document.getElementById('stateDisplay');
+        const eventLog = document.getElementById('eventLog');
+        const previewContainer = document.getElementById('previewContainer');
+        const tabBar = document.getElementById('tabBar');
+        const currentThemeEl = document.getElementById('currentTheme');
+
+        // Mock sessions
+        const mockSessions = [
+            { sessionId: 'session-1', title: 'Main Conversation' },
+            { sessionId: 'session-2', title: 'Code Review' },
+            { sessionId: 'session-3', title: 'Design Discussion' },
+        ];
+
+        // Initialize mock data
+        let currentTheme = 'dark';
+
+        function loadMockData() {
+            mockSessions.forEach(s => {
+                tabController.actions.openOrActivate(s.sessionId, s.title);
+            });
+        }
+
+        loadMockData();
+
+        // Render tabs
+        function renderTabs() {
+            tabBar.innerHTML = '';
+            const tabs = tabController.value.state.tabs;
+            const activeSessionId = tabController.value.state.activeSessionId;
+
+            tabs.forEach(tab => {
+                const tabEl = document.createElement('rtc-session-tab');
+                tabEl.sessionId = tab.sessionId;
+                tabEl.title = tab.title;
+                tabEl.theme = currentTheme;
+                tabEl.active = tab.sessionId === activeSessionId;
+
+                tabEl.addEventListener('rtc-session-tab-activate', (e) => {
+                    logEvent('rtc-session-tab-activate', e.detail);
+                    tabController.actions.setActiveTab(e.detail.sessionId);
+                });
+
+                tabEl.addEventListener('rtc-session-tab-close', (e) => {
+                    logEvent('rtc-session-tab-close', e.detail);
+                    tabController.actions.closeTab(e.detail.sessionId);
+                });
+
+                tabBar.appendChild(tabEl);
+            });
+
+            updateStateDisplay();
+        }
+
+        // Update tabs when controller changes
+        debugHost.onUpdate(() => {
+            renderTabs();
+        });
+
+        renderTabs();
+
+        // Update state display
+        function updateStateDisplay() {
+            const state = {
+                tabs: tabController.value.state.tabs,
+                activeSessionId: tabController.value.state.activeSessionId,
+            };
+            stateDisplay.textContent = JSON.stringify(state, null, 2);
+        }
+
+        // Log event
+        function logEvent(name, detail) {
+            const entry = document.createElement('div');
+            entry.className = 'event-log-entry';
+            entry.innerHTML = `<span class="event-name">${name}</span> <span class="event-detail">${JSON.stringify(detail)}</span>`;
+
+            const empty = eventLog.querySelector('.event-log-empty');
+            if (empty) empty.remove();
+
+            eventLog.insertBefore(entry, eventLog.firstChild);
+
+            while (eventLog.children.length > 20) {
+                eventLog.removeChild(eventLog.lastChild);
+            }
+        }
+
+        // Theme buttons
+        document.querySelectorAll('.theme-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const theme = btn.dataset.theme;
+                document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentThemeEl.textContent = theme;
+
+                let resolvedTheme = theme;
+                if (theme === 'system') {
+                    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                    resolvedTheme = prefersDark ? 'dark' : 'light';
+                }
+
+                currentTheme = resolvedTheme;
+                previewContainer.setAttribute('theme', resolvedTheme);
+                renderTabs();
+            });
+        });
+
+        // Controller controls
+        document.getElementById('openTab1').addEventListener('click', () => {
+            tabController.actions.openOrActivate('session-1', 'Main Conversation');
+            logEvent('open-tab', {sessionId: 'session-1'});
+        });
+
+        document.getElementById('openTab2').addEventListener('click', () => {
+            tabController.actions.openOrActivate('session-2', 'Code Review');
+            logEvent('open-tab', {sessionId: 'session-2'});
+        });
+
+        document.getElementById('openTab3').addEventListener('click', () => {
+            tabController.actions.openOrActivate('session-3', 'Design Discussion');
+            logEvent('open-tab', {sessionId: 'session-3'});
+        });
+
+        document.getElementById('activateTab1').addEventListener('click', () => {
+            tabController.actions.setActiveTab('session-1');
+            logEvent('activate-tab', {sessionId: 'session-1'});
+        });
+
+        document.getElementById('activateTab2').addEventListener('click', () => {
+            tabController.actions.setActiveTab('session-2');
+            logEvent('activate-tab', {sessionId: 'session-2'});
+        });
+
+        document.getElementById('activateTab3').addEventListener('click', () => {
+            tabController.actions.setActiveTab('session-3');
+            logEvent('activate-tab', {sessionId: 'session-3'});
+        });
+
+        document.getElementById('closeTab1').addEventListener('click', () => {
+            tabController.actions.closeTab('session-1');
+            logEvent('close-tab', {sessionId: 'session-1'});
+        });
+
+        document.getElementById('closeTab2').addEventListener('click', () => {
+            tabController.actions.closeTab('session-2');
+            logEvent('close-tab', {sessionId: 'session-2'});
+        });
+
+        document.getElementById('closeTab3').addEventListener('click', () => {
+            tabController.actions.closeTab('session-3');
+            logEvent('close-tab', {sessionId: 'session-3'});
+        });
+
+        document.getElementById('clearAll').addEventListener('click', () => {
+            tabController.actions.clearAll();
+            logEvent('clear-all', {});
+        });
+
+        document.getElementById('reloadMock').addEventListener('click', () => {
+            tabController.actions.clearAll();
+            loadMockData();
+            logEvent('reload-mock', {});
+        });
+
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            tabController.actions.clearAll();
+            loadMockData();
+            logEvent('reset', {});
+        });
+
+        document.getElementById('clearLog').addEventListener('click', () => {
+            eventLog.innerHTML = '<div class="event-log-empty">暂无事件</div>';
+        });
+    </script>
+</body>
+</html>
