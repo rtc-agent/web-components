@@ -91,6 +91,8 @@ export class EntityRepository {
       existing = await db.sessions.where('client_id').equals(session.client_id).first();
     }
 
+    console.log('[EntityRepository.upsertSession]', existing ? 'UPDATE' : 'CREATE', 'client_id:', session.client_id, 'title:', session.title);
+
     let result: UpsertResult<LocalSession>;
     let action: UpdateAction;
     if (existing) {
@@ -104,6 +106,7 @@ export class EntityRepository {
       await db.sessions.put(updated);
       result = { before, after: updated };
       action = 'updated';
+      console.log('[EntityRepository.upsertSession] After update - title:', updated.title);
     } else {
       const newSession: LocalSession = {
         client_id: session.client_id || '',
@@ -121,6 +124,7 @@ export class EntityRepository {
       await db.sessions.put(newSession);
       result = { before: undefined, after: newSession };
       action = 'created';
+      console.log('[EntityRepository.upsertSession] After create - title:', newSession.title);
     }
 
     if (!options?.silent) {
@@ -483,6 +487,18 @@ export class EntityRepository {
         };
         // 删除协议层的 id 字段（Local 类型没有 id）
         delete (mapped as Record<string, unknown>)['id'];
+
+        // 保留客户端生成的标题：如果本地 session 已有非空标题，不覆盖
+        // 服务器可能返回默认标题（如 "Initiate new coding session"），
+        // 客户端已从首条消息生成了更有意义的标题
+        if (mapped.client_id) {
+          const existing = await this.getClientSession(mapped.client_id);
+          if (existing && existing.title && mapped.title) {
+            // 本地已有标题，保留它
+            mapped.title = existing.title;
+          }
+        }
+
         await this.upsertSession(mapped, 'synced');
         break;
       }

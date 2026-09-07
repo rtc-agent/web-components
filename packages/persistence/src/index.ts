@@ -217,13 +217,19 @@ export class PersistenceLayer {
       } catch {
         // AGENT.md 不存在时静默跳过（agent_prompt 保持空字符串）
       }
+
+      // 从第一条消息内容生成会话标题（取首行，最多 50 字符）
+      const generatedTitle = this._generateSessionTitle(content);
+      console.log('[PersistenceLayer.sendMessage] New session created, generated title:', `"${generatedTitle}"`);
+
       const result = await this.entityRepository.upsertSession(
-        { client_id: sessionClientId, status: 'active', agent_prompt: agentPrompt },
+        { client_id: sessionClientId, status: 'active', agent_prompt: agentPrompt, title: generatedTitle },
         'pending',
         { silent: true }
       );
       session = result.after;
       isNewSession = true;
+      console.log('[PersistenceLayer.sendMessage] Session after upsert:', { client_id: session.client_id, title: session.title });
     }
 
     // 4. 写入 message
@@ -255,6 +261,34 @@ export class PersistenceLayer {
     });
 
     return { session, message };
+  }
+
+  /**
+   * 从消息内容生成会话标题
+   *
+   * 取第一条消息的首行文本，截断到 50 字符。
+   * 如果内容为空或无法解析，返回 "New Chat"。
+   */
+  private _generateSessionTitle(content: ContentData): string {
+    try {
+      let text = '';
+      if (typeof content.data === 'string') {
+        text = content.data;
+      } else if (content.data && typeof content.data === 'object') {
+        // 尝试从对象中提取文本
+        const obj = content.data as Record<string, unknown>;
+        text = (obj.text as string) || (obj.content as string) || JSON.stringify(content.data);
+      }
+
+      // 取首行，去除空白
+      const firstLine = text.split('\n')[0]?.trim() || '';
+      if (!firstLine) return 'New Chat';
+
+      // 截断到 50 字符
+      return firstLine.length > 50 ? firstLine.substring(0, 50) + '…' : firstLine;
+    } catch {
+      return 'New Chat';
+    }
   }
 
   /**
@@ -397,11 +431,38 @@ export class PersistenceLayer {
       );
 
       // 2. 单次上报
+      // 检查并截断大数据，避免超过 Centrifuge 消息大小限制（默认 64KB）
+      const MAX_RESULT_SIZE = 50000; // 50KB 安全阈值
+      let resultToSend = result;
+      let truncated = false;
+
+      try {
+        const resultStr = JSON.stringify(result);
+        if (resultStr.length > MAX_RESULT_SIZE) {
+          console.warn('[PersistenceLayer] result too large:', resultStr.length, 'bytes, truncating to', MAX_RESULT_SIZE, 'bytes');
+          truncated = true;
+          // 截断策略：保留开头和结尾，中间用省略号
+          const keepStart = Math.floor(MAX_RESULT_SIZE * 0.8);
+          const keepEnd = Math.floor(MAX_RESULT_SIZE * 0.2);
+          const truncatedStr = resultStr.substring(0, keepStart) +
+            '\n\n... [TRUNCATED: original size ' + resultStr.length + ' bytes] ...\n\n' +
+            resultStr.substring(resultStr.length - keepEnd);
+          // 尝试解析回对象，失败则保持字符串
+          try {
+            resultToSend = JSON.parse(truncatedStr);
+          } catch {
+            resultToSend = truncatedStr;
+          }
+        }
+      } catch (err) {
+        console.warn('[PersistenceLayer] failed to check result size:', err);
+      }
+
       const response = await this.client.submitRtcResult(
         rtc.server_id,
         success,
-        result,
-        error
+        resultToSend,
+        truncated ? '[Result truncated due to size limit. Full result stored locally.]' : error
       );
 
       if (response.updates?.length) {
