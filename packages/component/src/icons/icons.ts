@@ -35,6 +35,21 @@ import stopSvg from './svg/stop-16.svg?raw';
 import micSvg from './svg/mic-16.svg?raw';
 import checklistSvg from './svg/checklist-16.svg?raw';
 
+// File explorer icons (Phase 1)
+// Note: saveIcon uses octicon 'download' — octicons has no 'save' glyph.
+// Note: filesIcon and folderClosedIcon share the same 'file-directory' SVG source.
+import fileDirectorySvg from './svg/file-directory-16.svg?raw';
+import commentDiscussionSvg from './svg/comment-discussion-16.svg?raw';
+import fileDirectoryOpenFillSvg from './svg/file-directory-open-fill-16.svg?raw';
+import markdownSvg from './svg/markdown-16.svg?raw';
+import fileCodeSvg from './svg/file-code-16.svg?raw';
+import fileSvg from './svg/file-16.svg?raw';
+import syncSvg from './svg/sync-16.svg?raw';
+import downloadSvg from './svg/download-16.svg?raw';
+import undoSvg from './svg/undo-16.svg?raw';
+import redoSvg from './svg/redo-16.svg?raw';
+import xSvg from './svg/x-16.svg?raw';
+
 /**
  * Convert SVG string to Lit template using unsafeHTML
  */
@@ -63,6 +78,31 @@ export const stopIcon = toLitTemplate(stopSvg);
 export const micIcon = toLitTemplate(micSvg);
 export const checklistIcon = toLitTemplate(checklistSvg);
 
+// File explorer icons (Phase 1)
+// filesIcon: Activity Bar "Explorer" activity.
+export const filesIcon = toLitTemplate(fileDirectorySvg);
+// chatIcon: Activity Bar "Chat" activity.
+export const chatIcon = toLitTemplate(commentDiscussionSvg);
+// folderClosedIcon: File tree collapsed folder. Same SVG as filesIcon.
+export const folderClosedIcon = toLitTemplate(fileDirectorySvg);
+// folderOpenIcon: File tree expanded folder.
+export const folderOpenIcon = toLitTemplate(fileDirectoryOpenFillSvg);
+// fileMarkdownIcon: .md file in tree.
+export const fileMarkdownIcon = toLitTemplate(markdownSvg);
+// fileScriptIcon: .js / .ts file in tree.
+export const fileScriptIcon = toLitTemplate(fileCodeSvg);
+// fileDefaultIcon: Other file types in tree.
+export const fileDefaultIcon = toLitTemplate(fileSvg);
+// refreshIcon: Refresh action (sidebar header, etc.).
+export const refreshIcon = toLitTemplate(syncSvg);
+// saveIcon: Save action. Octicons has no 'save' glyph — uses 'download' instead.
+export const saveIcon = toLitTemplate(downloadSvg);
+// undoIcon / redoIcon: History navigation.
+export const undoIcon = toLitTemplate(undoSvg);
+export const redoIcon = toLitTemplate(redoSvg);
+// closeIcon: Close tab / dismiss.
+export const closeIcon = toLitTemplate(xSvg);
+
 /**
  * Icon name to template mapping
  */
@@ -86,6 +126,19 @@ export const icons = {
     stop: stopIcon,
     mic: micIcon,
     checklist: checklistIcon,
+    // File explorer icons (Phase 1)
+    files: filesIcon,
+    chat: chatIcon,
+    folderClosed: folderClosedIcon,
+    folderOpen: folderOpenIcon,
+    fileMarkdown: fileMarkdownIcon,
+    fileScript: fileScriptIcon,
+    fileDefault: fileDefaultIcon,
+    refresh: refreshIcon,
+    save: saveIcon,
+    undo: undoIcon,
+    redo: redoIcon,
+    close: closeIcon,
 } as const;
 
 export type IconName = keyof typeof icons;

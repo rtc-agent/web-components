@@ -218,3 +218,62 @@ export type {
     ScenarioManifest,
 } from './skill.js';
 
+/* ── File Explorer & Editor (Phase 1) ── */
+
+/**
+ * Activity Bar 的活动类型
+ *
+ * - files: 资源管理器（文件树 + 编辑器）
+ * - chat: 聊天模式（当前主界面）
+ * - settings: 设置（底部）
+ */
+export type Activity = 'files' | 'chat' | 'settings';
+
+/**
+ * 文件树节点（递归结构）
+ *
+ * 对应 VirtualFS 的目录/文件条目。`children` 为 undefined 表示"未加载"
+ * （懒加载语义），与空数组（空目录）区分。
+ */
+export interface FileNode {
+    /** 绝对路径，如 '/scenarios/checkout.md' */
+    path: string;
+    /** 文件名（不含路径） */
+    name: string;
+    /** 节点类型 */
+    type: 'file' | 'folder';
+    /** 子节点。仅 folder 有意义；undefined 表示尚未加载。 */
+    children?: FileNode[];
+    /** 是否展开。仅 folder 有意义。 */
+    isExpanded?: boolean;
+    /** 是否正在懒加载子节点。仅 folder 有意义。 */
+    isLoading?: boolean;
+}
+
+/**
+ * 编辑器视图模式
+ *
+ * - edit: 仅显示编辑面板
+ * - preview: 仅显示预览面板
+ * - split: 左右分屏（中间可拖动分割条）
+ */
+export type EditorViewMode = 'edit' | 'preview' | 'split';
+
+/**
+ * 编辑器标签页
+ *
+ * 以 filePath 为唯一标识，同一路径只允许开一个 tab。
+ */
+export interface EditorTab {
+    /** 文件路径（唯一标识） */
+    filePath: string;
+    /** 当前编辑内容 */
+    content: string;
+    /** 是否有未保存修改 */
+    isDirty: boolean;
+    /** 光标位置（行号 / 列号，均 1-based） */
+    cursorPosition: {line: number; column: number};
+    /** 当前 tab 的视图模式（每个 tab 独立） */
+    viewMode: EditorViewMode;
+}
+
