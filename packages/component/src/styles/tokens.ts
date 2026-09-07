@@ -64,6 +64,15 @@ export const tokens = css`
     --rtc-shadow-xl: 0 20px 60px rgba(0, 0, 0, 0.3);
     --rtc-shadow-drag: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
 
+    /* ── File-type icon colors ──
+     *
+     * Semantic/decorative colors for file type identification.
+     * Consistent across light/dark themes (VS Code convention).
+     */
+    --rtc-color-icon-folder: #dcb67a;
+    --rtc-color-icon-file-md: #519aba;
+    --rtc-color-icon-file-js: #cbcb41;
+
     /* ── Transitions ── */
     --rtc-transition-duration: 0.15s;
     --rtc-transition-duration-slow: 0.3s;

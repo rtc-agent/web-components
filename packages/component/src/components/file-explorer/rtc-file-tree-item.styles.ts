@@ -9,6 +9,7 @@ import {css} from 'lit';
 export const styles = css`
     :host {
         display: block;
+        background: transparent;
     }
 
     .tree-item {
@@ -29,6 +30,12 @@ export const styles = css`
     }
 
     .tree-item-content:hover {
+        background-color: var(--rtc-color-bg-hover);
+    }
+
+    .tree-item-content:focus-visible {
+        outline: 1px solid var(--rtc-color-primary);
+        outline-offset: -1px;
         background-color: var(--rtc-color-bg-hover);
     }
 
@@ -90,12 +97,9 @@ export const styles = css`
         fill: currentColor;
     }
 
-    .icon.folder {
-        color: #dcb67a;
-    }
-
+    .icon.folder,
     .icon.folder-open {
-        color: #dcb67a;
+        color: var(--rtc-color-icon-folder);
     }
 
     .icon.file {
@@ -103,11 +107,11 @@ export const styles = css`
     }
 
     .icon.file-md {
-        color: #519aba;
+        color: var(--rtc-color-icon-file-md);
     }
 
     .icon.file-js {
-        color: #cbcb41;
+        color: var(--rtc-color-icon-file-js);
     }
 
     /* 文件名 */
