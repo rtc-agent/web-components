@@ -12,7 +12,7 @@ import type {
   ScenarioDef,
 } from '../types/skill.js';
 import { virtualFS } from '@rtc-agent/persistence';
-import { generateFunctionMd, generateFunctionsIndex, generateAgentMd } from './markdown-generator.js';
+import { generateFunctionMd, generateFunctionsIndex, generateAgentMd, generateScenariosIndex } from './markdown-generator.js';
 import { registerBuiltinSystemGroup } from './builtin-system-group.js';
 import { eventBus, type FunctionStartEvent, type FunctionSuccessEvent, type FunctionErrorEvent, type FunctionProgressEvent } from './event-bus.js';
 
@@ -467,8 +467,7 @@ export class FunctionRegistry {
     // 查询所有 scenario 文件
     const scenarios = await virtualFS.queryByType('scenario');
 
-    // 使用 markdown-generator 中的共享函数
-    const { generateScenariosIndex } = await import('./markdown-generator.js');
+    // 使用 markdown-generator 中的共享函数（静态导入，已在文件顶部引入）
     const md = generateScenariosIndex(scenarios);
 
     // 索引文件总是覆盖写入，保持最新状态

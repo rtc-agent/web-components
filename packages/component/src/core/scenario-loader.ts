@@ -6,6 +6,7 @@
 
 import type { ScenarioManifest } from '../types/skill.js';
 import { virtualFS, type FileSystemEntryMetadata } from '@rtc-agent/persistence';
+import { generateScenariosIndex } from './markdown-generator.js';
 
 /**
  * 解析 YAML frontmatter
@@ -300,8 +301,7 @@ async function updateScenariosIndex(): Promise<void> {
   // 查询所有 scenario 文件
   const scenarios = await virtualFS.queryByType('scenario');
 
-  // 使用 markdown-generator 中的共享函数
-  const { generateScenariosIndex } = await import('./markdown-generator.js');
+  // 使用 markdown-generator 中的共享函数（静态导入，已在文件顶部引入）
   const md = generateScenariosIndex(scenarios);
 
   await virtualFS.write('/scenarios/INDEX.md', md, 'overwrite');
