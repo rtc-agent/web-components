@@ -12,7 +12,7 @@ import {css} from 'lit';
  * └─────────────────────────┘
  *
  * Maximized mode: host fills viewport (inset: 0).
- * Minimized mode: host shrinks to a circular bubble; content hidden.
+ * Minimized mode: host shrinks to a rounded-square bubble (23.2% radius); content hidden.
  */
 export const styles = css`
   :host {
@@ -85,16 +85,17 @@ export const styles = css`
 
   /* ── Minimized ── */
   :host([data-mode='minimized']) {
+    /* 与 logo 同构的圆角方形：圆角比例 = 290/1250 = 23.2% */
     width: var(--rtc-bubble-size);
     height: var(--rtc-bubble-size);
     min-width: 0;
     min-height: 0;
-    border-radius: 50%;
+    border-radius: calc(var(--rtc-bubble-size) * 0.232);
     background: var(--rtc-bubble-bg);
     border: 1px solid var(--rtc-bubble-border);
     box-shadow: var(--rtc-shadow-lg);
     cursor: pointer;
-    overflow: visible;
+    overflow: hidden;
   }
 
   .window-container {
@@ -172,9 +173,22 @@ export const styles = css`
   }
 
   .bubble svg {
-    width: 20px;
-    height: 20px;
-    fill: currentColor;
+    width: 28px;
+    height: 28px;
+  }
+
+  /* 默认产品 logo 撑满气泡 */
+  .bubble-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+  }
+
+  .bubble-logo svg {
+    width: 100%;
+    height: 100%;
   }
 
   :host([data-mode='minimized']) .bubble {
@@ -182,9 +196,57 @@ export const styles = css`
   }
 
   .bubble:focus-visible {
-    outline: 2px solid var(--rtc-color-border-focus, #007acc);
+    outline: 2px solid var(--rtc-color-border-focus, #2741fe);
     outline-offset: 2px;
-    border-radius: 50%;
+    border-radius: calc(var(--rtc-bubble-size) * 0.232);
+  }
+
+  /* ── Notification pulse animation ── */
+  :host([data-notification='active']) {
+    animation: rtc-notification-shadow-pulse 1.5s ease-in-out infinite;
+  }
+
+  :host([data-notification='active']) .bubble {
+    /* 橙色到黄色渐变 */
+    background: linear-gradient(135deg, #F97802 100%, #F9CD53 0%) !important;
+    color: white !important;
+    /* 添加缩放脉冲动画 */
+    animation: rtc-notification-bubble-pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes rtc-notification-shadow-pulse {
+    0%,
+    100% {
+      box-shadow:
+        var(--rtc-shadow-lg),
+        0 0 0 0 rgba(249, 120, 2, 0);
+    }
+    50% {
+      box-shadow:
+        var(--rtc-shadow-lg),
+        0 0 24px 8px rgba(249, 120, 2, 0.8);
+    }
+  }
+
+  @keyframes rtc-notification-bubble-pulse {
+    0%,
+    100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.15);
+    }
+  }
+
+  /* 尊重用户动画偏好 */
+  @media (prefers-reduced-motion: reduce) {
+    :host([data-notification='active']) {
+      animation: none;
+    }
+
+    :host([data-notification='active']) .bubble {
+      opacity: 0.7;
+    }
   }
 
   /* ── Screen-reader live region ── */

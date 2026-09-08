@@ -29,10 +29,16 @@ import {repeat} from 'lit/directives/repeat.js';
 
 export type ToastType = 'success' | 'error' | 'info';
 
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 export interface ToastItem {
   id: number;
   message: string;
   type: ToastType;
+  action?: ToastAction;
 }
 
 @customElement('rtc-toast')
@@ -65,6 +71,35 @@ export class RtcToast extends LitElement {
       color: var(--rtc-color-text, #333333);
       pointer-events: auto;
       animation: toast-enter 0.2s ease-out;
+      outline: none;
+    }
+
+    .toast-item:focus-visible {
+      outline: 2px solid var(--rtc-color-border-focus, #2741fe);
+      outline-offset: 2px;
+    }
+
+    .toast-action {
+      flex-shrink: 0;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      font-size: var(--rtc-font-size-sm, 13px);
+      font-weight: 500;
+      color: var(--rtc-color-primary, #2741fe);
+      padding: 2px 8px;
+      border-radius: 4px;
+      transition: background 0.15s ease;
+    }
+
+    .toast-action:hover {
+      background: var(--rtc-color-bg-hover, #f5f5f5);
+      text-decoration: underline;
+    }
+
+    .toast-action:focus-visible {
+      outline: 2px solid var(--rtc-color-border-focus, #2741fe);
+      outline-offset: 1px;
     }
 
     .toast-item.exiting {
@@ -93,11 +128,17 @@ export class RtcToast extends LitElement {
     }
 
     .toast-icon.info {
-      background: var(--rtc-color-info, #2196f3);
+      background: var(--rtc-color-info, #2ac9ff);
     }
 
     .toast-message {
       flex: 1;
+      /* 文本溢出处理：单行截断 */
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      /* 限制最大宽度，防止过长内容撑开容器 */
+      max-width: 400px;
     }
 
     .toast-close {
@@ -165,6 +206,19 @@ export class RtcToast extends LitElement {
     );
   }
 
+  private _handleKeyDown(event: KeyboardEvent, toast: ToastItem) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      if (toast.action) {
+        toast.action.onClick();
+      }
+      this._handleClose(toast.id);
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      this._handleClose(toast.id);
+    }
+  }
+
   render() {
     if (this.toasts.length === 0) return nothing;
 
@@ -172,11 +226,32 @@ export class RtcToast extends LitElement {
       this.toasts,
       toast => toast.id,
       toast => html`
-        <div class="toast-item" part="item" role="status" aria-live="polite">
+        <div
+          class="toast-item"
+          part="item"
+          role="status"
+          aria-live="polite"
+          tabindex="0"
+          @keydown=${(e: KeyboardEvent) => this._handleKeyDown(e, toast)}
+        >
           <span class="toast-icon ${toast.type}" part="icon">
             ${toast.type === 'success' ? '✓' : toast.type === 'error' ? '✗' : 'ℹ'}
           </span>
           <span class="toast-message" part="message">${toast.message}</span>
+          ${toast.action
+            ? html`<button
+                class="toast-action"
+                part="action"
+                @click=${(e: Event) => {
+                  e.stopPropagation();
+                  toast.action!.onClick();
+                  this._handleClose(toast.id);
+                }}
+                aria-label=${`${toast.action.label} ${toast.message}`}
+              >
+                ${toast.action.label}
+              </button>`
+            : nothing}
           <button class="toast-close" part="close" @click=${() => this._handleClose(toast.id)} aria-label="关闭">
             ×
           </button>

@@ -72,6 +72,8 @@ import {TurnCountContext, DEFAULT_TURN_COUNT} from '../../contexts/turn-count.js
 import {SkillContext, DEFAULT_SKILL_STATE} from '../../contexts/skill.js';
 import {ActivityContext} from '../../contexts/activity.js';
 import {FileExplorerContext} from '../../contexts/file-explorer.js';
+import {SettingsContext} from '../../contexts/settings.js';
+import {NotificationContext} from '../../contexts/notification.js';
 
 // Controllers
 import {WindowStateController} from '../../controllers/window-state.controller.js';
@@ -91,6 +93,8 @@ import {EditorAreaController} from '../../controllers/editor-area.controller.js'
 import {StatusBarController} from '../../controllers/status-bar.controller.js';
 import {SessionTreeController} from '../../controllers/session-tree.controller.js';
 import {SessionTabController} from '../../controllers/session-tab.controller.js';
+import {SettingsController} from '../../controllers/settings.controller.js';
+import {NotificationController} from '../../controllers/notification.controller.js';
 
 // Scenario loading
 import {loadScenariosContent} from '../../core/scenario-loader.js';
@@ -99,6 +103,9 @@ import type {FunctionRegistry} from '../../core/function-registry.js';
 
 // Ready signal
 import {_markReady} from '../../core/ready.js';
+
+// Logo
+import {renderBubbleLogo} from '../../icons/logo.js';
 
 // Declarative config types
 import type {AgentConfig} from '../../types/agent-config.js';
@@ -127,6 +134,9 @@ import '../status-bar/rtc-status-bar.js';
 
 // Chat Layout 组件（对话页面改造）
 import '../chat-layout/rtc-chat-layout.js';
+
+// Settings Layout 组件
+import '../settings-layout/rtc-settings-layout.js';
 
 // Toast types (re-exported from ToastController)
 import type {ToastType} from '../overlay/rtc-toast.js';
@@ -354,6 +364,8 @@ export class RtcAgent extends LitElement {
     private _statusBar = new StatusBarController(this, this._editorArea);
     private _sessionTree = new SessionTreeController(this);
     private _sessionTab = new SessionTabController(this);
+    private _settings = new SettingsController(this);
+    private _notification = new NotificationController(this);
 
     /** 文件树是否已加载过（首次进入 files 活动时加载一次） */
     private _fileTreeLoaded = false;
@@ -378,6 +390,9 @@ export class RtcAgent extends LitElement {
     /** Tracks whether we've done the initial session load (for auto-select logic). */
     private _initialSessionLoadDone = false;
 
+    /** Auto-save debounce timers per file */
+    private _autoSaveTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
     /** Bound event handlers (stored so we can remove them in disconnectedCallback). */
     private _boundOnMinimize = () => this._windowState.actions.minimize();
     private _boundOnMaximize = () => this._windowState.actions.maximize();
@@ -393,6 +408,22 @@ export class RtcAgent extends LitElement {
         }
     };
     private _boundOnLogout = () => {
+        // 清理自动保存定时器
+        for (const timer of this._autoSaveTimers.values()) {
+            clearTimeout(timer);
+        }
+        this._autoSaveTimers.clear();
+
+        // 重置状态标志，确保重新登录后重新加载
+        this._fileTreeLoaded = false;
+        this._initialSessionLoadDone = false;
+
+        // 重置 UI 状态
+        this._editorArea.actions.closeAll();
+        this._sessionTab.actions.clearAll();
+        this._activity.actions.setActivity('chat');
+
+        // 清理现有状态
         this._fork.actions.clearFork();
         this._rtcProcessor = undefined;
         void this._persistence.disconnect();
@@ -548,6 +579,12 @@ export class RtcAgent extends LitElement {
     };
     private _boundOnEditorAreaTabClose = (e: Event) => {
         const {filePath} = (e as CustomEvent).detail as {filePath: string};
+        // Clear auto-save timer if exists
+        const timer = this._autoSaveTimers.get(filePath);
+        if (timer) {
+            clearTimeout(timer);
+            this._autoSaveTimers.delete(filePath);
+        }
         this._editorArea.actions.closeFile(filePath);
     };
     private _boundOnEditorAreaTabSelect = (e: Event) => {
@@ -557,6 +594,11 @@ export class RtcAgent extends LitElement {
     private _boundOnEditorAreaContentChange = (e: Event) => {
         const {filePath, content} = (e as CustomEvent).detail as {filePath: string; content: string};
         this._editorArea.actions.updateContent(filePath, content);
+
+        // Auto-save if enabled
+        if (this._settings.value.state.files.autoSave) {
+            this._scheduleAutoSave(filePath);
+        }
     };
     private _boundOnEditorAreaViewModeChange = (e: Event) => {
         const {filePath, viewMode} = (e as CustomEvent).detail as {filePath: string; viewMode: 'edit' | 'preview' | 'split'};
@@ -644,6 +686,7 @@ export class RtcAgent extends LitElement {
     get statusBarController() { return this._statusBar; }
     get sessionTreeController() { return this._sessionTree; }
     get sessionTabController() { return this._sessionTab; }
+    get notificationController() { return this._notification; }
 
     /* ── Component References ── */
 
@@ -687,6 +730,8 @@ export class RtcAgent extends LitElement {
     private _fileExplorerProvider = new ContextProvider(this, {context: FileExplorerContext});
     private _sessionTreeProvider = new ContextProvider(this, {context: SessionTreeContext});
     private _sessionTabProvider = new ContextProvider(this, {context: SessionTabContext});
+    private _settingsProvider = new ContextProvider(this, {context: SettingsContext});
+    private _notificationProvider = new ContextProvider(this, {context: NotificationContext});
 
     /* ── Lifecycle ── */
 
@@ -725,6 +770,16 @@ export class RtcAgent extends LitElement {
             this._session.persistence = this._persistence.layer;
         }
         this._message.sessionController = this._session;
+
+        // Inject dependencies into NotificationController
+        this._notification.sessionController = this._session;
+        this._notification.messageController = this._message;
+        this._notification.toastController = this._toast;
+        this._notification.windowStateController = this._windowState;
+        this._notification.settingsController = this._settings;
+        if (this._persistence.layer) {
+            this._notification.persistence = this._persistence.layer;
+        }
 
         // Listen for window-control events from <rtc-title-bar> (composed + bubbling).
         this.addEventListener('rtc-window-minimize', this._boundOnMinimize);
@@ -855,6 +910,7 @@ export class RtcAgent extends LitElement {
                 if (this._persistence.layer) {
                     this._message.persistence = this._persistence.layer;
                     this._session.persistence = this._persistence.layer;
+                    this._notification.persistence = this._persistence.layer;
 
                     // 初始化虚拟文件系统（AGENT.md）
                     await this._persistence.workerBridge!.core.initializeVirtualFS();
@@ -1048,6 +1104,12 @@ export class RtcAgent extends LitElement {
         this._busUnsubMessage?.();
         this._rtcProcessor = undefined;
         this._unsubConnection?.();
+
+        // Clear all auto-save timers
+        for (const timer of this._autoSaveTimers.values()) {
+            clearTimeout(timer);
+        }
+        this._autoSaveTimers.clear();
     }
 
     updated() {
@@ -1063,6 +1125,8 @@ export class RtcAgent extends LitElement {
         this._fileExplorerProvider.setValue(this._fileExplorer.value);
         this._sessionTreeProvider.setValue(this._sessionTree.value);
         this._sessionTabProvider.setValue(this._sessionTab.value);
+        this._settingsProvider.setValue(this._settings.value);
+        this._notificationProvider.setValue(this._notification.value);
 
         // Sync work mode to RtcProcessor
         if (this._rtcProcessor) {
@@ -1133,6 +1197,11 @@ export class RtcAgent extends LitElement {
             }
         });
 
+        // 从最小化恢复时，清除通知动画和未读计数
+        if (this._appliedMode === 'minimized' && mode !== 'minimized') {
+            this._notification.actions.markAsRead();
+        }
+
         // Announce to screen readers.
         this._modeAnnouncement = MODE_ANNOUNCEMENTS[mode];
     }
@@ -1141,12 +1210,15 @@ export class RtcAgent extends LitElement {
 
     private _handleBubbleClick() {
         this._windowState.actions.restore();
+        // 恢复窗口时清除通知动画和未读计数
+        this._notification.actions.markAsRead();
     }
 
     private _handleBubbleKeydown(e: KeyboardEvent) {
         if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             this._windowState.actions.restore();
+            this._notification.actions.markAsRead();
         }
     }
 
@@ -1207,6 +1279,7 @@ export class RtcAgent extends LitElement {
             if (this._persistence.layer) {
                 this._message.persistence = this._persistence.layer;
                 this._session.persistence = this._persistence.layer;
+                this._notification.persistence = this._persistence.layer;
 
                 // 初始化虚拟文件系统（AGENT.md）
                 await this._persistence.workerBridge!.core.initializeVirtualFS();
@@ -1561,7 +1634,8 @@ export class RtcAgent extends LitElement {
     private async _handleFileOpen(filePath: string): Promise<void> {
         try {
             const content = await virtualFS.read(filePath);
-            this._editorArea.actions.openFile(filePath, content);
+            const defaultViewMode = this._settings.value.state.files.defaultViewMode;
+            this._editorArea.actions.openFile(filePath, content, defaultViewMode);
             this._fileExplorer.actions.selectNode(filePath);
         } catch (err) {
             console.error('[rtc-agent] Failed to open file:', filePath, err);
@@ -1605,6 +1679,13 @@ export class RtcAgent extends LitElement {
      * 保存文件：将编辑器内容写入 VFS
      */
     private async _handleEditorSave(filePath: string): Promise<void> {
+        // Clear auto-save timer if exists
+        const timer = this._autoSaveTimers.get(filePath);
+        if (timer) {
+            clearTimeout(timer);
+            this._autoSaveTimers.delete(filePath);
+        }
+
         const tab = this._editorArea.tabs.find(t => t.filePath === filePath);
         if (!tab) return;
 
@@ -1616,6 +1697,25 @@ export class RtcAgent extends LitElement {
             console.error('[rtc-agent] Failed to save file:', filePath, err);
             this._toast.actions.show('保存文件失败', 'error');
         }
+    }
+
+    /**
+     * 调度自动保存（防抖）
+     */
+    private _scheduleAutoSave(filePath: string): void {
+        // Clear existing timer for this file
+        const existingTimer = this._autoSaveTimers.get(filePath);
+        if (existingTimer) {
+            clearTimeout(existingTimer);
+        }
+
+        // Schedule new save after 1 second of inactivity
+        const timer = setTimeout(() => {
+            this._autoSaveTimers.delete(filePath);
+            void this._handleEditorSave(filePath);
+        }, 1000);
+
+        this._autoSaveTimers.set(filePath, timer);
     }
 
     /**
@@ -1697,8 +1797,8 @@ export class RtcAgent extends LitElement {
             // so the async overhead is negligible. For hot paths, cache the result.
             return html`<span class="bubble-icon" .innerHTML=${this._sanitizedBubbleIcon}></span>`;
         }
-        const letter = this.appLabel.trim()[0]?.toUpperCase() ?? 'R';
-        return html`<span class="bubble-label">${letter}</span>`;
+        // 默认使用产品 logo 的简化版本
+        return html`<span class="bubble-logo">${renderBubbleLogo(this.theme === 'dark')}</span>`;
     }
 
     /** Cached sanitized bubble icon HTML. */
@@ -1729,7 +1829,7 @@ export class RtcAgent extends LitElement {
         ></rtc-title-bar>
         ${isLoggedIn
           ? this._renderMainLayout(active, sidebarVisible)
-          : html`<div class="content-area"><rtc-login-page></rtc-login-page></div>`}
+          : html`<div class="content-area"><rtc-login-page theme=${this.theme}></rtc-login-page></div>`}
         <rtc-toast .toasts=${this._toast.toasts}></rtc-toast>
       </div>
       <div class="bubble"
@@ -1761,6 +1861,7 @@ export class RtcAgent extends LitElement {
     private _renderMainLayout(active: Activity, sidebarVisible: boolean) {
         const isFiles = active === 'files';
         const isChat = active === 'chat';
+        const isSettings = active === 'settings';
         const showSidebar = sidebarVisible && (isFiles || isChat);
 
         return html`
@@ -1788,7 +1889,9 @@ export class RtcAgent extends LitElement {
             </div>`
           : isChat
             ? html`<rtc-chat-layout theme=${this.theme} .sessionTreeVisible=${sidebarVisible}></rtc-chat-layout>`
-            : nothing}
+            : isSettings
+              ? html`<rtc-settings-layout theme=${this.theme}></rtc-settings-layout>`
+              : nothing}
       </div>
     `;
     }

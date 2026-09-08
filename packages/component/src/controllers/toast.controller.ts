@@ -7,12 +7,12 @@
  * No context — toast state is consumed only by <rtc-toast> via root render.
  */
 import type {ReactiveController, ReactiveControllerHost} from 'lit';
-import type {ToastItem, ToastType} from '../components/overlay/rtc-toast.js';
+import type {ToastItem, ToastType, ToastAction} from '../components/overlay/rtc-toast.js';
 
-export type {ToastItem, ToastType} from '../components/overlay/rtc-toast.js';
+export type {ToastItem, ToastType, ToastAction} from '../components/overlay/rtc-toast.js';
 
 export interface ToastActions {
-    show: (message: string, type?: ToastType) => void;
+    show: (message: string, type?: ToastType, action?: ToastAction) => void;
     remove: (id: number) => void;
 }
 
@@ -32,7 +32,7 @@ export class ToastController implements ReactiveController {
         this._host = host;
         this._host.addController(this);
         this.actions = {
-            show: (message, type = 'info') => this._show(message, type),
+            show: (message, type = 'info', action) => this._show(message, type, action),
             remove: (id) => this._remove(id),
         };
     }
@@ -47,9 +47,9 @@ export class ToastController implements ReactiveController {
         this._timers.clear();
     }
 
-    private _show(message: string, type: ToastType) {
+    private _show(message: string, type: ToastType, action?: ToastAction) {
         const id = Date.now() + Math.random();
-        this._toasts = [...this._toasts, {id, message, type}];
+        this._toasts = [...this._toasts, {id, message, type, action}];
         this._host.requestUpdate();
 
         // error 不自动消失，其他类型自动消失
