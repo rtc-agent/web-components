@@ -92,7 +92,12 @@ export class NotificationController implements ReactiveController {
         // 音效文件路径：运行时基于当前脚本所在位置解析，
         // 这样组件无论部署在根路径还是子路径（如 /rtc-agent/）都能正确加载。
         // 与 worker-bridge.ts 使用相同的 import.meta.url 模式。
-        const base = new URL('./', import.meta.url).pathname;
+        //
+        // 注：必须把 import.meta.url 先赋给变量再传给 URL 构造器，
+        // 否则 Rollup 会静态匹配 `new URL(literal, import.meta.url)` 模式并报警告
+        // （`/* @vite-ignore */` 在 TS 经过 esbuild 转译后注释位置会变化，无法稳定抑制）。
+        const here = import.meta.url;
+        const base = new URL('./', here).pathname;
         const soundUrls: Record<string, string> = {
             message: `${base}sounds/message.mp3`,
         };
