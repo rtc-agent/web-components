@@ -323,9 +323,12 @@ export class PersistenceController implements ReactiveController {
      * PersistenceLayer-compatible interface to the rest of the application.
      */
     private async _connectWorker(config: PersistenceConfig): Promise<void> {
-        // Worker URL 由 WorkerBridge 内部通过 `new URL(..., import.meta.url)` 解析
-        // Vite 在 dev/build 时自动处理依赖打包
         this._workerBridge = new WorkerBridge(this._auth);
+
+        // 异步加载 worker 脚本：从 Vite 工厂函数提取 URL → fetch → blob URL → SharedWorker
+        // 这样 SharedWorker 继承页面 origin，避免 CDN 部署时的跨源错误。
+        // 详见 worker-bridge.ts 顶部注释。
+        await this._workerBridge.initWorker();
 
         // 剥离不可序列化的回调函数（Structured Clone 不支持函数）。
         // Worker 侧会在 init() 中用自己的 requestToken 桥接替换 getToken，

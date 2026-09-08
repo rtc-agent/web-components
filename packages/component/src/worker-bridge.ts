@@ -21,18 +21,59 @@ import type {ConnectionState, ConnectionStateEvent} from '@rtc-agent/client';
 import type {WorkerPersistenceCore, WorkerCallbacks} from '@rtc-agent/worker';
 import type {AuthController} from './controllers/auth.controller.js';
 
-// 使用 `?sharedworker&inline` 让 Vite 把 SharedWorker 脚本内联为 blob URL，
-// 而不是指向 CDN 上的独立 chunk。原因：浏览器强制 SharedWorker 脚本必须与
-// 页面同源；当组件从 jsdelivr 等 CDN 加载时，`new URL(..., import.meta.url)`
-// 解析出的 worker URL 也在 CDN 上 → 与 http://localhost 等宿主页面跨域 → 拒绝构造。
-// 内联后 worker 脚本变成 blob URL，始终与页面同源，问题解决。
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore — Vite 专属 import，tsc 不识别 ?sharedworker&inline 后缀
-import InlineSharedWorker from '../../worker/src/shared-worker.ts?sharedworker&inline';
+// Worker 脚本加载策略
+//
+// 背景：组件可能从 CDN 加载，此时组件脚本与宿主页面跨源。
+// SharedWorker 要求脚本同源（data: URL 分配 opaque origin，blob: URL 继承创建页面 origin）。
+//
+// Vite 的 `?sharedworker` 导入会编译 worker 并生成一个**工厂函数**（不是 URL 字符串）。
+// 工厂函数内部用 `new URL("assets/shared-worker-<hash>.js", import.meta.url)` 引用编译后的
+// worker chunk，运行时调用它会在 CDN 上构造跨源 SharedWorker → SecurityError。
+//
+// 解决方案：
+//   1. 把工厂函数 toString()，用正则提取内嵌的 worker chunk 相对路径
+//   2. 用 `new URL(相对路径, import.meta.url)` 解析出 CDN 上的绝对 URL
+//   3. fetch 该 URL（CDN 需返回 CORS 头）拿到编译后的 worker 脚本
+//   4. 用 Blob + URL.createObjectURL 创建 blob: URL → 继承页面 origin
+//   5. 用 blob: URL 构造 SharedWorker → 同源，可访问 IndexedDB
+import workerFactory from '../../worker/src/shared-worker.ts?sharedworker';
+
+/**
+ * 从 Vite 生成的 worker 工厂函数源码中提取 worker chunk 的 URL。
+ *
+ * Vite 在不同模式下生成的工厂函数格式不同：
+ *
+ * - dev 模式（plain string）：
+ *     function WorkerWrapper(options) {
+ *       return new SharedWorker("/@fs/.../shared-worker.ts?worker_file&type=module", ...)
+ *     }
+ *
+ * - 生产模式（new URL）：
+ *     function CM(t) {
+ *       return new SharedWorker("" + new URL("assets/shared-worker-<hash>.js", import.meta.url).href, ...)
+ *     }
+ *
+ * 先尝试 new URL(...) 模式（生产），再尝试 plain string（dev）。
+ */
+function extractWorkerRelativePath(factory: Function): string {
+    const src = factory.toString();
+
+    // 1. 生产模式：new URL("...", import.meta.url)
+    const urlMatch = src.match(/new URL\(\s*(["'`])([^"'`]+)\1/);
+    if (urlMatch) return urlMatch[2];
+
+    // 2. dev 模式：new SharedWorker("literal-string", ...)
+    const literalMatch = src.match(/new SharedWorker\(\s*(["'`])([^"'`]+)\1/);
+    if (literalMatch) return literalMatch[2];
+
+    throw new Error(
+        '[WorkerBridge] Cannot extract worker URL from factory. Source: ' + src.slice(0, 300)
+    );
+}
 
 export class WorkerBridge {
-    private _worker: SharedWorker;
-    private _core: Remote<WorkerPersistenceCore>;
+    private _worker: SharedWorker | null = null;
+    private _core: Remote<WorkerPersistenceCore> | null = null;
     private _callbacks: WorkerCallbacks;
     /** Comlink proxy 包装后的回调（用于跨 Worker 传递） */
     private _proxiedCallbacks: WorkerCallbacks;
@@ -44,25 +85,8 @@ export class WorkerBridge {
     /** 连接状态监听器（主线程侧） */
     private _connectionListeners = new Set<(event: ConnectionStateEvent) => void>();
 
-    constructor(auth: AuthController) {
-        // 1. 创建 SharedWorker 实例
-        //
-        // 使用 Vite 的 `?sharedworker&inline` 把 worker 内联为 blob URL
-        // （详见顶部 import 处的注释）。
-        //
-        // 注：InlineSharedWorker 是 Vite 构造的 SharedWorker 子类。`type: 'module'`
-        // 在运行时是合法的 SharedWorker option，但 Vite 生成的类型定义未包含它，
-        // 用 `as any` 绕过类型检查。
-        this._worker = new InlineSharedWorker({
-            name: 'rtc-agent-worker',
-            type: 'module',
-        } as any) as SharedWorker;
-
-        // 2. Comlink.wrap 获取代理
-        // SharedWorker 通过 port 通信，Comlink.wrap 接受 MessagePort
-        this._core = wrap<WorkerPersistenceCore>(this._worker.port);
-
-        // 3. 准备回调（稍后注册到 Worker）
+    constructor(private readonly _auth: AuthController) {
+        // 1. 准备回调（在 init() 中注册到 Worker）
         this._callbacks = {
             // Worker 广播 UIUpdateEvent → 主线程 UIUpdateBus.publish()
             onUIUpdate: (event: UIUpdateEvent) => {
@@ -77,7 +101,7 @@ export class WorkerBridge {
                 }
                 this._tokenPromise = (async () => {
                     try {
-                        const token = auth.getAccessToken();
+                        const token = this._auth.getAccessToken();
                         if (!token) {
                             throw new Error('[WorkerBridge] no access token available');
                         }
@@ -101,21 +125,95 @@ export class WorkerBridge {
             },
         };
 
-        // 4. 创建 Comlink proxy 包装的回调（用于跨 Worker 传递）
+        // 2. 创建 Comlink proxy 包装的回调（用于跨 Worker 传递）
         // Structured Clone 不支持函数，proxy() 通过 MessagePort 桥接解决此问题
         this._proxiedCallbacks = proxy(this._callbacks);
 
+        // 注：SharedWorker 实例、Comlink wrap、错误处理都在 initWorker() 中创建，
+        // 因为需要先 async fetch worker 脚本并生成 blob URL。
+    }
+
+    /**
+     * 异步创建 SharedWorker 实例
+     *
+     * 流程：
+     * 1. 从 Vite 工厂函数提取 worker chunk 的相对路径
+     * 2. 解析出 CDN 上的绝对 URL，fetch 编译后的 worker 脚本（依赖 CORS）
+     * 3. 用 Blob + createObjectURL 创建同源 blob: URL
+     * 4. 用 blob: URL 构造 SharedWorker → 继承页面 origin
+     *
+     * 必须在 init() 之前调用。
+     */
+    async initWorker(): Promise<void> {
+        // 1. 提取 worker chunk 路径（从 Vite 工厂函数源码）
+        const workerPath = extractWorkerRelativePath(workerFactory);
+
+        // 2. 解析出 worker 的绝对 URL
+        const here = import.meta.url;
+        const workerUrl = new URL(workerPath, here).href;
+
+        // 3. 判断是否跨源
+        const pageOrigin = window.location.origin;
+        let workerOrigin: string;
+        try {
+            workerOrigin = new URL(workerUrl).origin;
+        } catch {
+            workerOrigin = pageOrigin;
+        }
+        const isCrossOrigin = workerOrigin !== pageOrigin;
+
+        console.info('[WorkerBridge] worker init:', {
+            workerUrl,
+            pageOrigin,
+            workerOrigin,
+            isCrossOrigin,
+        });
+
+        if (!isCrossOrigin) {
+            // 同源：直接用工厂函数构造 SharedWorker（最简单、最可靠）
+            // 本地 dev、同源部署都走这里
+            // Vite 的类型定义有误（把 ?sharedworker 导入标为构造函数），运行时它是普通函数
+            this._worker = new (workerFactory as any)();
+        } else {
+            // 跨源（CDN 部署）：fetch worker 脚本 → 用 Blob 创建同源 blob: URL → 构造 SharedWorker
+            // CDN 必须返回 CORS 头（Access-Control-Allow-Origin），否则 fetch 会失败
+            let script: string;
+            try {
+                const response = await fetch(workerUrl);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status} ${response.statusText}`);
+                }
+                script = await response.text();
+            } catch (err) {
+                throw new Error(
+                    `[WorkerBridge] failed to fetch worker script from ${workerUrl}: ${err instanceof Error ? err.message : err}`
+                );
+            }
+
+            const blob = new Blob([script], { type: 'application/javascript' });
+            const blobUrl = URL.createObjectURL(blob);
+
+            try {
+                this._worker = new SharedWorker(blobUrl, {
+                    name: 'rtc-agent-worker',
+                    type: 'module',
+                });
+            } finally {
+                // blob URL 已传给 SharedWorker，可立即释放（worker 已持有脚本内容）
+                URL.revokeObjectURL(blobUrl);
+            }
+        }
+
+        // 4. Comlink.wrap 获取代理（两种路径都需要）
+        this._core = wrap<WorkerPersistenceCore>(this._worker!.port);
+
         // 5. 错误处理
-        this._worker.onerror = (event) => {
-            // TODO(Phase 6): Worker crash recovery — 当前仅打印错误。
-            // 需要根据 shared-worker-proposal.md §9 的错误处理方案：
-            // 1. 检测到 Worker 崩溃后重建 SharedWorker 实例
-            // 2. 重新调用 init() 初始化
-            // 3. 重新触发 Master 选举
-            //
-            // 打印完整错误信息：message/filename/lineno/colno 定位错误位置，
-            // event.error 是实际 Error 对象（含 stack）。只打印 `event` 时多数
-            // 浏览器只显示 generic Event，没有可读信息。
+        // TODO(Phase 6): Worker crash recovery — 当前仅打印错误。
+        // 需要根据 shared-worker-proposal.md §9 的错误处理方案：
+        // 1. 检测到 Worker 崩溃后重建 SharedWorker 实例
+        // 2. 重新调用 init() 初始化
+        // 3. 重新触发 Master 选举
+        this._worker!.onerror = (event) => {
             console.error('[WorkerBridge] SharedWorker error:', {
                 message: event.message,
                 filename: event.filename,
@@ -125,7 +223,7 @@ export class WorkerBridge {
             });
         };
 
-        this._worker.port.onmessageerror = (event) => {
+        this._worker!.port.onmessageerror = (event) => {
             console.error('[WorkerBridge] port message error:', event);
         };
     }
@@ -135,9 +233,11 @@ export class WorkerBridge {
      *
      * 所有方法调用都会通过 postMessage 转发到 Worker 执行。
      * 返回的对象接口与 WorkerPersistenceCore 完全一致。
+     *
+     * 必须在 initWorker() 之后访问。
      */
     get core(): Remote<WorkerPersistenceCore> {
-        return this._core;
+        return this._core!;
     }
 
     /**
@@ -148,11 +248,15 @@ export class WorkerBridge {
      * 3. 打开 port 开始通信
      *
      * 幂等：多次调用只有第一次生效。
+     * 必须先调用 initWorker()。
      */
     async init(config: PersistenceConfig): Promise<void> {
         if (this._initialized) {
             console.warn('[WorkerBridge] already initialized');
             return;
+        }
+        if (!this._worker || !this._core) {
+            throw new Error('[WorkerBridge] init() called before initWorker()');
         }
 
         // 打开 port（必须在首次通信前调用）
@@ -178,6 +282,9 @@ export class WorkerBridge {
         if (!this._initialized) {
             return;
         }
+        if (!this._worker || !this._core) {
+            return;
+        }
 
         try {
             await this._core.unregisterCallback(this._proxiedCallbacks);
@@ -198,7 +305,7 @@ export class WorkerBridge {
      * 通过 Comlink 调用 Worker 的 getConnectionState()。
      */
     async getConnectionState(): Promise<ConnectionState> {
-        return this._core.getConnectionState();
+        return this._core!.getConnectionState();
     }
 
     /**
@@ -225,7 +332,7 @@ export class WorkerBridge {
      * 注意：virtualFS 是模块级单例，替换是全局性的。
      */
     installVirtualFSProxy(): void {
-        const core = this._core;
+        const core = this._core!;
 
         // 保存原始实现，以备恢复（目前单向切换，暂不需要恢复）
         // const original = { ...virtualFS };
