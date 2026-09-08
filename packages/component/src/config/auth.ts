@@ -4,15 +4,35 @@
  * Centralized configuration for OAuth2 authentication flow.
  */
 
-/** Get server URL from env or use default */
+/**
+ * Runtime-overridable server URL.
+ *
+ * Set via `<rtc-agent server-url="...">` attribute (wired in RtcAgent setter).
+ * Precedence: explicit setServerUrl() > VITE_SERVER_URL env > 'http://localhost:28080'.
+ */
+let _serverUrl: string | null = null;
+
+/**
+ * Override the backend server URL.
+ *
+ * Called by the <rtc-agent> component when its `server-url` attribute is set.
+ * Safe to call multiple times; takes effect immediately for subsequent reads.
+ */
+export function setServerUrl(url: string | null): void {
+    _serverUrl = url && url.length > 0 ? url.replace(/\/+$/, '') : null;
+}
+
+/** Get server URL (runtime override > env > default). */
 function getServerUrl(): string {
+    if (_serverUrl) return _serverUrl;
     // Vite injects env vars at build time (typed via vite/client in vite-env.d.ts)
     try {
         const env = import.meta.env;
-        return env?.VITE_SERVER_URL || 'http://localhost:8888';
+        if (env?.VITE_SERVER_URL) return env.VITE_SERVER_URL;
     } catch {
-        return 'http://localhost:8888';
+        // ignore
     }
+    return 'http://localhost:28080';
 }
 
 /** Auth-related configuration */

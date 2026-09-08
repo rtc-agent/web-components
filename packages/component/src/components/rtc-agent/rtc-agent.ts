@@ -20,6 +20,7 @@
  * @attr {string} [app-label=RTC Agent] - Application label (title bar + bubble tooltip)
  * @attr {string} [bubble-icon] - SVG/HTML string rendered inside the minimized bubble
  * @attr {string} [scenarios-url] - URL to load scenario documents from (auto-loads manifest.json + .md files)
+ * @attr {string} [server-url] - Backend server URL (overrides VITE_SERVER_URL env and the default http://localhost:28080)
  *
  * @attr {string} [data-mode='normal'|'maximized'|'minimized'] - Reflected window state
  *
@@ -97,12 +98,17 @@ import {SettingsController} from '../../controllers/settings.controller.js';
 import {NotificationController} from '../../controllers/notification.controller.js';
 
 // Scenario loading
+import {setServerUrl} from '../../config/auth.js';
 import {loadScenariosContent} from '../../core/scenario-loader.js';
 import {defineRegistry} from '../../core/function-registry.js';
 import type {FunctionRegistry} from '../../core/function-registry.js';
 
 // Ready signal
 import {_markReady} from '../../core/ready.js';
+
+// i18n
+import {initLocale, getLocale, localeContext, type LocaleContextValue, sourceLocale, targetLocales, switchLocale} from '../../core/i18n.js';
+import {msg} from '@lit/localize';
 
 // Logo
 import {renderBubbleLogo} from '../../icons/logo.js';
@@ -261,6 +267,24 @@ export class RtcAgent extends LitElement {
     private _agentConfig: AgentConfig | null = null;
 
     /**
+     * Backend server URL (overrides VITE_SERVER_URL env and the built-in default).
+     *
+     * Propagated to AUTH_CONFIG so OAuth / WebSocket endpoints pick it up.
+     *
+     * @example
+     * <rtc-agent server-url="http://localhost:28080"></rtc-agent>
+     */
+    @property({type: String, attribute: 'server-url'})
+    set serverURL(value: string) {
+        this._serverURL = value;
+        setServerUrl(value);
+    }
+    get serverURL(): string {
+        return this._serverURL;
+    }
+    private _serverURL = '';
+
+    /**
      * 场景文档 URL（可选）
      *
      * 设置后自动从指定 URL 加载场景文档到 VirtualFS。
@@ -390,6 +414,9 @@ export class RtcAgent extends LitElement {
     /** Tracks whether we've done the initial session load (for auto-select logic). */
     private _initialSessionLoadDone = false;
 
+    /** Tracks whether locale has been initialized (only once). */
+    private _localeInitialized = false;
+
     /** Auto-save debounce timers per file */
     private _autoSaveTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -511,9 +538,9 @@ export class RtcAgent extends LitElement {
 
         const result = await this._session.actions.deleteSession(sessionId);
         if (result.ok) {
-            this._toast.actions.show('会话已删除', 'success');
+            this._toast.actions.show(msg('会话已删除'), 'success');
         } else {
-            this._toast.actions.show(result.error ?? '删除失败', 'error');
+            this._toast.actions.show(result.error ?? msg('删除失败'), 'error');
         }
     };
     private _boundOnSessionRenameRequested = async (e: Event) => {
@@ -523,12 +550,12 @@ export class RtcAgent extends LitElement {
         const title = prompt('重命名会话', current?.title ?? '');
         if (title === null) return; // 用户取消
         if (!title.trim()) {
-            this._toast.actions.show('标题不能为空', 'info');
+            this._toast.actions.show(msg('标题不能为空'), 'info');
             return;
         }
         const result = await this._session.actions.renameSession(sessionId, title.trim());
         if (!result.ok) {
-            this._toast.actions.show(result.error ?? '重命名失败', 'error');
+            this._toast.actions.show(result.error ?? msg('重命名失败'), 'error');
         }
     };
     private _boundOnToastRequested = (e: Event) => {
@@ -732,11 +759,22 @@ export class RtcAgent extends LitElement {
     private _sessionTabProvider = new ContextProvider(this, {context: SessionTabContext});
     private _settingsProvider = new ContextProvider(this, {context: SettingsContext});
     private _notificationProvider = new ContextProvider(this, {context: NotificationContext});
+    private _localeProvider = new ContextProvider(this, {context: localeContext, initialValue: {
+        locale: sourceLocale,
+        setLocale: switchLocale,
+        locales: [sourceLocale, ...targetLocales],
+    } as LocaleContextValue});
 
     /* ── Lifecycle ── */
 
     connectedCallback() {
         super.connectedCallback();
+
+        // Initialize i18n locale (once)
+        if (!this._localeInitialized) {
+            this._localeInitialized = true;
+            void initLocale();
+        }
 
         // Wire ForkController dependencies
         this._fork.setDeps({
@@ -912,8 +950,9 @@ export class RtcAgent extends LitElement {
                     this._session.persistence = this._persistence.layer;
                     this._notification.persistence = this._persistence.layer;
 
-                    // 初始化虚拟文件系统（AGENT.md）
-                    await this._persistence.workerBridge!.core.initializeVirtualFS();
+                    // 注：AGENT.md 由 FunctionRegistry.generateAllDocsContent() 首次写入（含 persona），
+                    // 不再调用 initializeVirtualFS() 写入默认 AGENT.md，
+                    // 否则后续的 batchWriteFiles 因 'create-new' 模式无法覆盖默认文件。
 
                     // 如果恢复后活动是 'files'，自动加载文件树
                     // （正常流程中文件树在 activity-change 事件中按需加载，
@@ -1127,6 +1166,11 @@ export class RtcAgent extends LitElement {
         this._sessionTabProvider.setValue(this._sessionTab.value);
         this._settingsProvider.setValue(this._settings.value);
         this._notificationProvider.setValue(this._notification.value);
+        this._localeProvider.setValue({
+            locale: getLocale() as typeof sourceLocale | typeof targetLocales[number],
+            setLocale: switchLocale,
+            locales: [sourceLocale, ...targetLocales],
+        });
 
         // Sync work mode to RtcProcessor
         if (this._rtcProcessor) {
@@ -1281,8 +1325,8 @@ export class RtcAgent extends LitElement {
                 this._session.persistence = this._persistence.layer;
                 this._notification.persistence = this._persistence.layer;
 
-                // 初始化虚拟文件系统（AGENT.md）
-                await this._persistence.workerBridge!.core.initializeVirtualFS();
+                // 注：AGENT.md 由 FunctionRegistry.generateAllDocsContent() 首次写入（含 persona），
+                // 不再调用 initializeVirtualFS() 写入默认 AGENT.md。
 
                 // 主线程生成文档内容，通过 batchWriteFiles 发送到 Worker
                 const registry = this._skill.actions.getRegistry();
@@ -1487,23 +1531,23 @@ export class RtcAgent extends LitElement {
     private async _handleCompactCommand(customInstruction?: string): Promise<void> {
         const sessionId = this._session.value.state.currentSessionId;
         if (!sessionId) {
-            this._toast.actions.show('没有活动的会话', 'error');
+            this._toast.actions.show(msg('没有活动的会话'), 'error');
             return;
         }
 
         if (!this._persistence.layer) {
-            this._toast.actions.show('服务未连接', 'error');
+            this._toast.actions.show(msg('服务未连接'), 'error');
             return;
         }
 
-        this._toast.actions.show('正在压缩上下文...', 'info');
+        this._toast.actions.show(msg('正在压缩上下文...'), 'info');
 
         try {
             await this._persistence.layer.compactSession(sessionId, customInstruction);
             // 成功：不立即显示成功 Toast，等待 Live 推送 session 更新
         } catch (err) {
             console.error('[rtc-agent] /compact failed:', err);
-            const message = err instanceof Error ? err.message : '压缩上下文失败';
+            const message = err instanceof Error ? err.message : msg('压缩上下文失败');
             this._toast.actions.show(message, 'error');
         }
     }
@@ -1639,7 +1683,7 @@ export class RtcAgent extends LitElement {
             this._fileExplorer.actions.selectNode(filePath);
         } catch (err) {
             console.error('[rtc-agent] Failed to open file:', filePath, err);
-            this._toast.actions.show('打开文件失败', 'error');
+            this._toast.actions.show(msg('打开文件失败'), 'error');
         }
     }
 
@@ -1692,10 +1736,10 @@ export class RtcAgent extends LitElement {
         try {
             await virtualFS.write(filePath, tab.content, 'overwrite');
             this._editorArea.actions.saveFile(filePath);
-            this._toast.actions.show('已保存', 'success');
+            this._toast.actions.show(msg('已保存'), 'success');
         } catch (err) {
             console.error('[rtc-agent] Failed to save file:', filePath, err);
-            this._toast.actions.show('保存文件失败', 'error');
+            this._toast.actions.show(msg('保存文件失败'), 'error');
         }
     }
 
