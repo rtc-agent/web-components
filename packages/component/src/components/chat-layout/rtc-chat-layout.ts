@@ -18,7 +18,7 @@
  * @fires rtc-fork-initiated - 分叉请求编排完成 (detail: { oldSessionClientId, oldMessageClientId, newSessionClientId, content })
  * @fires rtc-new-session - 新建会话（含全部关闭后自动创建）
  */
-import {LitElement, html} from 'lit';
+import {LitElement, html, nothing} from 'lit';
 import {customElement, property} from 'lit/decorators.js';
 import {consume} from '@lit/context';
 import {styles} from './rtc-chat-layout.styles.js';
@@ -49,6 +49,16 @@ export class RtcChatLayout extends LitElement {
     @property({type: String, reflect: true})
     theme: 'light' | 'dark' | 'system' = 'system';
 
+    /**
+     * 会话树（.sidebar）是否可见
+     *
+     * 由父级 rtc-agent 根据 ActivityController.sidebarVisible 透传：
+     * - 点击"聊天"活动栏图标 → toggleSidebar → false → 隐藏
+     * - 再次点击 → toggleSidebar → true → 展开
+     */
+    @property({type: Boolean, reflect: true, attribute: 'session-tree-visible'})
+    sessionTreeVisible = true;
+
     /* ── Context ── */
 
     @consume({context: SessionContext, subscribe: true})
@@ -58,8 +68,8 @@ export class RtcChatLayout extends LitElement {
         actions: {
             createSession: () => '',
             switchSession: () => {},
-            renameSession: () => {},
-            deleteSession: () => {},
+            renameSession: async () => ({ok: true}),
+            deleteSession: async () => ({ok: true}),
             reset: () => {},
             clearCurrentSession: () => {},
             setCurrentSession: () => {},
@@ -77,8 +87,10 @@ export class RtcChatLayout extends LitElement {
             setActiveTab: () => {},
             clearAll: () => {},
             updateTabTitles: () => {},
+            syncTabStatuses: () => {},
             markSaved: () => {},
             findUnsavedTab: () => undefined,
+            updateTabStatus: () => {},
         },
     };
 
@@ -320,15 +332,17 @@ export class RtcChatLayout extends LitElement {
 
     render() {
         return html`
-            <!-- 左栏：会话树 -->
-            <div class="sidebar">
-                <rtc-session-tree
-                    theme=${this.theme}
-                    selected-session-id=${this._sessionCtx.state.currentSessionId ?? ''}
-                    @rtc-session-tree-select=${this._handleTreeSelect}
-                    @rtc-session-tree-toggle=${this._handleTreeToggle}
-                ></rtc-session-tree>
-            </div>
+            <!-- 左栏：会话树（通过 sessionTreeVisible 控制显隐） -->
+            ${this.sessionTreeVisible
+              ? html`<div class="sidebar">
+                    <rtc-session-tree
+                        theme=${this.theme}
+                        selected-session-id=${this._sessionCtx.state.currentSessionId ?? ''}
+                        @rtc-session-tree-select=${this._handleTreeSelect}
+                        @rtc-session-tree-toggle=${this._handleTreeToggle}
+                    ></rtc-session-tree>
+                </div>`
+              : nothing}
 
             <!-- 右栏：Tab + 聊天内容 -->
             <div class="main">

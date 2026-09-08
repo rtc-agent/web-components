@@ -51,7 +51,7 @@ import {LitElement, html, nothing} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
 import {ContextProvider} from '@lit/context';
 import {styles} from './rtc-agent.styles.js';
-import type {WindowMode, ContentData, Session, Activity, FileNode} from '../../types/index.js';
+import type {WindowMode, ContentData, Session, SessionStatus, Activity, FileNode, TodoItem} from '../../types/index.js';
 
 // Styles
 import {tokens} from '../../styles/tokens.js';
@@ -372,15 +372,6 @@ export class RtcAgent extends LitElement {
     /** 连接状态 unsub 函数 */
     private _unsubConnection?: () => void;
 
-    /** 小窗口降级：files 活动是否被禁用 */
-    @state() private _filesActivityDisabled = false;
-
-    /** 小窗口降级前记住的活动（恢复时使用） */
-    private _previousActivity: Activity | null = null;
-
-    /** 小窗口阈值 */
-    private static readonly WINDOW_SIZE_THRESHOLD = {width: 600, height: 500};
-
     /** Tracks the last mode we applied DOM side-effects for, to avoid redundant work. */
     private _appliedMode: WindowMode = 'normal';
 
@@ -478,6 +469,37 @@ export class RtcAgent extends LitElement {
             void this._message.actions.resendMessage(message.clientId, message.content);
         }
     };
+    private _boundOnSessionDeleteRequested = async (e: Event) => {
+        const {sessionId} = (e as CustomEvent).detail;
+        console.log('[rtc-agent] session delete requested:', sessionId);
+        // 确认弹窗
+        // const current = this._session.value.state.sessions.find(s => s.clientId === sessionId);
+        // const title = current?.title ?? '此会话';
+        // const confirmed = confirm(`确定要删除「${title}」吗？删除后可从服务端恢复。`);
+        // if (!confirmed) return;
+
+        const result = await this._session.actions.deleteSession(sessionId);
+        if (result.ok) {
+            this._toast.actions.show('会话已删除', 'success');
+        } else {
+            this._toast.actions.show(result.error ?? '删除失败', 'error');
+        }
+    };
+    private _boundOnSessionRenameRequested = async (e: Event) => {
+        const {sessionId} = (e as CustomEvent).detail;
+        // 简单 prompt 交互：生产环境可替换为内联编辑或模态框
+        const current = this._session.value.state.sessions.find(s => s.clientId === sessionId);
+        const title = prompt('重命名会话', current?.title ?? '');
+        if (title === null) return; // 用户取消
+        if (!title.trim()) {
+            this._toast.actions.show('标题不能为空', 'info');
+            return;
+        }
+        const result = await this._session.actions.renameSession(sessionId, title.trim());
+        if (!result.ok) {
+            this._toast.actions.show(result.error ?? '重命名失败', 'error');
+        }
+    };
     private _boundOnToastRequested = (e: Event) => {
         const detail = (e as CustomEvent).detail;
         this._toast.actions.show(detail.message, detail.type);
@@ -495,11 +517,6 @@ export class RtcAgent extends LitElement {
             activity: Activity;
             toggleSidebar: boolean;
         };
-        // 小窗口降级：阻止切换到 files 模式
-        if (activity === 'files' && this._filesActivityDisabled) {
-            this._toast.actions.show('窗口太小，请放大后使用文件管理', 'info');
-            return;
-        }
         if (toggleSidebar) {
             // 点击当前活动 → toggle sidebar
             this._activity.actions.toggleSidebar();
@@ -545,6 +562,13 @@ export class RtcAgent extends LitElement {
         const {filePath, viewMode} = (e as CustomEvent).detail as {filePath: string; viewMode: 'edit' | 'preview' | 'split'};
         this._editorArea.actions.setViewMode(filePath, viewMode);
     };
+    private _boundOnEditorAreaCursorMove = (e: Event) => {
+        const position = (e as CustomEvent).detail as {line: number; column: number};
+        const filePath = this._editorArea.activeFilePath;
+        if (filePath) {
+            this._editorArea.actions.setCursorPosition(filePath, position);
+        }
+    };
     private _boundOnFileExplorerRefresh = () => {
         void this._loadFileTree();
     };
@@ -561,33 +585,35 @@ export class RtcAgent extends LitElement {
         const {sessionId} = (e as CustomEvent).detail as {sessionId: string};
         console.log('[rtc-agent] chat-layout tab closed:', sessionId);
     };
-    /**
-     * 窗口尺寸变化处理（小窗口降级）
-     *
-     * 当窗口小于阈值时：
-     * - 禁用 files 活动切换
-     * - 如果当前在 files 模式，自动切回 chat 并记住之前的活动
-     */
-    private _handleWindowSizeChange(width: number, height: number) {
-        const {width: thresholdW, height: thresholdH} = RtcAgent.WINDOW_SIZE_THRESHOLD;
-        const belowThreshold = width < thresholdW || height < thresholdH;
 
-        if (belowThreshold && !this._filesActivityDisabled) {
-            // 进入小窗口模式
-            this._filesActivityDisabled = true;
-            if (this._activity.active === 'files') {
-                this._previousActivity = 'files';
-                this._activity.actions.setActivity('chat');
-            }
-        } else if (!belowThreshold && this._filesActivityDisabled) {
-            // 恢复大窗口模式
-            this._filesActivityDisabled = false;
-            if (this._previousActivity === 'files') {
-                this._activity.actions.setActivity('files');
-                this._previousActivity = null;
-            }
+    /**
+     * Wheel event handler to prevent scroll chaining to host page.
+     *
+     * When a scrollable container inside the shadow DOM reaches its boundary
+     * (top or bottom), continuing to scroll would propagate the wheel event
+     * to the host page, causing it to scroll. This handler detects when the
+     * innermost scrollable element is at its boundary and prevents the event
+     * from propagating further.
+     */
+    private _boundOnWheel = (e: WheelEvent) => {
+        const target = e.composedPath()[0] as Element;
+        const scrollable = this._findScrollableParent(target);
+
+        if (!scrollable) return;
+
+        const {scrollTop, scrollHeight, clientHeight} = scrollable;
+        const atTop = scrollTop <= 0;
+        const atBottom = Math.ceil(scrollTop + clientHeight) >= scrollHeight;
+
+        const scrollingUp = e.deltaY < 0;
+        const scrollingDown = e.deltaY > 0;
+
+        // If at boundary and continuing to scroll in that direction, prevent propagation
+        if ((atTop && scrollingUp) || (atBottom && scrollingDown)) {
+            e.preventDefault();
+            e.stopPropagation();
         }
-    }
+    };
 
     /** UIUpdateBus unsubscribe reference (set in connectedCallback, cleared in disconnectedCallback). */
     private _busUnsubMessage?: () => void;
@@ -695,6 +721,8 @@ export class RtcAgent extends LitElement {
         // Inject persistence layer and session controller into MessageController
         if (this._persistence.layer) {
             this._message.persistence = this._persistence.layer;
+            // 注入 persistence 到 SessionController（用于 rename/delete 持久化）
+            this._session.persistence = this._persistence.layer;
         }
         this._message.sessionController = this._session;
 
@@ -721,6 +749,10 @@ export class RtcAgent extends LitElement {
         // Listen for resend message (from user message resend button)
         this.addEventListener('rtc-user-message-resend', this._boundOnResendMessage);
 
+        // Listen for session delete / rename requests (from sidebar or session panel)
+        this.addEventListener('rtc-session-delete-requested', this._boundOnSessionDeleteRequested);
+        this.addEventListener('rtc-session-rename-requested', this._boundOnSessionRenameRequested);
+
         // Listen for fork initiated (from chat-layout after unsaved tab orchestration)
         this.addEventListener('rtc-fork-initiated', this._boundOnForkInitiated);
 
@@ -742,6 +774,7 @@ export class RtcAgent extends LitElement {
         this.addEventListener('editor-area-tab-select', this._boundOnEditorAreaTabSelect);
         this.addEventListener('editor-area-content-change', this._boundOnEditorAreaContentChange);
         this.addEventListener('editor-area-view-mode-change', this._boundOnEditorAreaViewModeChange);
+        this.addEventListener('editor-area-cursor-move', this._boundOnEditorAreaCursorMove);
         this.addEventListener('refresh-requested', this._boundOnFileExplorerRefresh);
 
         // Chat Layout 事件
@@ -752,14 +785,35 @@ export class RtcAgent extends LitElement {
         // Listen for Escape key to cancel fork mode
         this.addEventListener('keydown', this._boundOnKeydown);
 
+        // Prevent scroll chaining: when inner scrollable reaches boundary,
+        // don't propagate wheel event to host page
+        this.addEventListener('wheel', this._boundOnWheel, {passive: false});
+
         // Subscribe to UIUpdateBus for persistence-driven UI refreshes
         const bus = getUIUpdateBus();
         this._busUnsubMessage = bus.subscribe((event) => {
+            console.log('[rtc-agent] UIUpdateBus event:', event.entity, event.field, event.entityId);
             if (event.entity === 'message') {
                 void this._message.reload(event.entityId);
             } else if (event.entity === 'session') {
                 // Session update: reload sessions list from DB, but preserve currentSessionId
+                console.log('[rtc-agent] session update detected, calling _loadSessions');
                 void this._loadSessions();
+                // status 变动 → 同步到 SessionTab（active/idle/closed 切换驱动 dot 动画）
+                if (event.field === 'status') {
+                    const newStatus = event.newValue as SessionStatus | undefined;
+                    if (newStatus) {
+                        this._sessionTab.actions.updateTabStatus(event.entityId, newStatus);
+                    }
+                }
+                // todo_list 变动 → 插入本地 markdown 消息，让对话流展示 todo 历史
+                if (event.field === 'todo_list') {
+                    const newTodoList = event.newValue as TodoItem[] | undefined;
+                    if (newTodoList?.length) {
+                        const markdown = this._formatTodoListAsMarkdown(newTodoList);
+                        void this._insertTodoListMessage(event.entityId, markdown);
+                    }
+                }
                 // Turn count 字段变化 → 把当前 session 的活跃 turn 数量推入 context
                 if (
                     event.field === 'pending_turn_count' ||
@@ -786,7 +840,6 @@ export class RtcAgent extends LitElement {
         };
         this._interaction.onSizeChange = (width, height) => {
             this._windowState.actions.setSize({width, height});
-            this._handleWindowSizeChange(width, height);
         };
         this._interaction.onViewportTooSmall = () => {
             this._windowState.actions.minimize();
@@ -801,9 +854,22 @@ export class RtcAgent extends LitElement {
             void this._persistence.connect().then(async () => {
                 if (this._persistence.layer) {
                     this._message.persistence = this._persistence.layer;
+                    this._session.persistence = this._persistence.layer;
 
                     // 初始化虚拟文件系统（AGENT.md）
                     await this._persistence.workerBridge!.core.initializeVirtualFS();
+
+                    // 如果恢复后活动是 'files'，自动加载文件树
+                    // （正常流程中文件树在 activity-change 事件中按需加载，
+                    //  但刷新后不会触发 activity-change，需要手动触发一次）
+                    if (this._activity.active === 'files' && !this._fileTreeLoaded) {
+                        await this._loadFileTree();
+                    }
+
+                    // 刷新后恢复 Editor Area 已打开文件的内容
+                    // （tab 元数据在 EditorAreaController 构造时已从 localStorage 恢复，
+                    //  这里从 VFS 重新加载每个 tab 的文件内容）
+                    await this._restoreEditorAreaContent();
 
                     // 主线程生成文档内容，通过 batchWriteFiles 发送到 Worker
                     const registry = this._skill.actions.getRegistry();
@@ -959,6 +1025,8 @@ export class RtcAgent extends LitElement {
         this.removeEventListener('rtc-stop-requested', this._boundOnStopRequested);
         this.removeEventListener('rtc-user-message-resend', this._boundOnResendMessage);
         this.removeEventListener('rtc-fork-initiated', this._boundOnForkInitiated);
+        this.removeEventListener('rtc-session-delete-requested', this._boundOnSessionDeleteRequested);
+        this.removeEventListener('rtc-session-rename-requested', this._boundOnSessionRenameRequested);
         this.removeEventListener('rtc-toast-requested', this._boundOnToastRequested);
         this.removeEventListener('rtc-toast-close', this._boundOnToastClose);
         this.removeEventListener('rtc-command-requested', this._boundOnCommandRequested);
@@ -970,11 +1038,13 @@ export class RtcAgent extends LitElement {
         this.removeEventListener('editor-area-tab-select', this._boundOnEditorAreaTabSelect);
         this.removeEventListener('editor-area-content-change', this._boundOnEditorAreaContentChange);
         this.removeEventListener('editor-area-view-mode-change', this._boundOnEditorAreaViewModeChange);
+        this.removeEventListener('editor-area-cursor-move', this._boundOnEditorAreaCursorMove);
         this.removeEventListener('refresh-requested', this._boundOnFileExplorerRefresh);
         this.removeEventListener('rtc-chat-layout-session-select', this._boundOnChatLayoutSessionSelect);
         this.removeEventListener('rtc-chat-layout-tab-activate', this._boundOnChatLayoutTabActivate);
         this.removeEventListener('rtc-chat-layout-tab-close', this._boundOnChatLayoutTabClose);
         this.removeEventListener('keydown', this._boundOnKeydown);
+        this.removeEventListener('wheel', this._boundOnWheel);
         this._busUnsubMessage?.();
         this._rtcProcessor = undefined;
         this._unsubConnection?.();
@@ -1080,6 +1150,41 @@ export class RtcAgent extends LitElement {
         }
     }
 
+    /**
+     * Find the nearest scrollable ancestor of an element within the component.
+     *
+     * Traverses up the DOM tree (crossing shadow DOM boundaries via composedPath)
+     * to find the first element with overflow-y: auto|scroll that has scrollable
+     * content (scrollHeight > clientHeight).
+     */
+    private _findScrollableParent(el: Element): Element | null {
+        let current: Element | null = el;
+
+        while (current && current !== this) {
+            const style = getComputedStyle(current);
+            const overflowY = style.overflowY;
+
+            if ((overflowY === 'auto' || overflowY === 'scroll') &&
+                current.scrollHeight > current.clientHeight) {
+                return current;
+            }
+
+            // Move to parent, handling shadow DOM boundaries
+            if (current.parentElement) {
+                current = current.parentElement;
+            } else {
+                const root = current.getRootNode();
+                if (root instanceof ShadowRoot && root.host !== this) {
+                    current = root.host;
+                } else {
+                    break;
+                }
+            }
+        }
+
+        return null;
+    }
+
     /* ── Login Dialog Handlers ── */
 
     private _handleLoginRequested() {
@@ -1101,6 +1206,7 @@ export class RtcAgent extends LitElement {
         void this._persistence.connect().then(async () => {
             if (this._persistence.layer) {
                 this._message.persistence = this._persistence.layer;
+                this._session.persistence = this._persistence.layer;
 
                 // 初始化虚拟文件系统（AGENT.md）
                 await this._persistence.workerBridge!.core.initializeVirtualFS();
@@ -1148,6 +1254,37 @@ export class RtcAgent extends LitElement {
      *
      * 没有 currentSessionId 或 persistence 未就绪时，推送零值。
      */
+    /**
+     * 将 TodoItem[] 格式化为 markdown checkbox 列表
+     */
+    private _formatTodoListAsMarkdown(todoList: TodoItem[]): string {
+        return todoList.map(item => {
+            const checkbox = item.status === 'completed' ? '[x]' :
+                             item.status === 'in_progress' ? '[~]' : '[ ]';
+            return `- ${checkbox} ${item.content}`;
+        }).join('\n');
+    }
+
+    /**
+     * 插入 todo_list 变动的本地消息到对话中
+     */
+    private async _insertTodoListMessage(sessionClientId: string, markdown: string): Promise<void> {
+        try {
+            const layer = this._persistence.layer;
+            if (!layer) return;
+
+            await layer.insertLocalMessage({
+                sessionClientId,
+                role: 'assistant',
+                content: JSON.stringify({type: 'markdown', data: markdown}),
+                creatorKind: 'system',
+                creatorRefId: 'todo_list_update',
+            });
+        } catch (err) {
+            console.error('[rtc-agent] Failed to insert todo_list message:', err);
+        }
+    }
+
     private async _refreshTurnCounts() {
         const currentId = this._session.value.state.currentSessionId;
         if (!currentId || !this._persistence.layer) {
@@ -1183,6 +1320,7 @@ export class RtcAgent extends LitElement {
             updatedAt: new Date(s.updated_at).getTime(),
             todoList: s.todo_list,
             rootClientSessionId: s.root_client_session_id,
+            status: s.status as SessionStatus | undefined,
         }));
         this._session.actions.setSessions(uiSessions);
 
@@ -1196,12 +1334,33 @@ export class RtcAgent extends LitElement {
         console.log('[rtc-agent._loadSessions] Tabs after filter:', this._sessionTab.value.state.tabs.map(t => `${t.sessionId}="${t.title}"`));
         console.log('[rtc-agent._loadSessions] activeSessionId:', this._sessionTab.value.state.activeSessionId);
 
+        // 同步 SessionController.currentSessionId 与 Tab 的 activeSessionId
+        // 当活动 Tab 被过滤掉时，需要切换 session 以触发消息清理
+        const newActiveId = this._sessionTab.value.state.activeSessionId;
+        const currentId = this._session.value.state.currentSessionId;
+        if (currentId !== newActiveId) {
+            console.log('[rtc-agent._loadSessions] Syncing currentSessionId:', currentId, '->', newActiveId);
+            if (newActiveId) {
+                this._session.actions.switchSession(newActiveId);
+            } else {
+                this._session.actions.clearCurrentSession();
+            }
+        }
+
         // 用 sessions 中的最新标题同步已有 Tab 的标题
         // 修复：新建会话发送消息时 Tab 以空标题创建，server 返回真实标题后需同步更新
         const titleMap = new Map(uiSessions.map(s => [s.clientId, s.title]));
         const titlesUpdated = this._sessionTab.updateTabTitles(titleMap);
         console.log('[rtc-agent._loadSessions] updateTabTitles:', titlesUpdated ? 'updated' : 'no change');
         console.log('[rtc-agent._loadSessions] Tabs after title sync:', this._sessionTab.value.state.tabs.map(t => `${t.sessionId}="${t.title}"`));
+
+        // 用 sessions 中的最新 status 同步已有 Tab 的 status（驱动 status dot 显示）
+        const statusMap = new Map(
+            uiSessions.filter(s => s.status).map(s => [s.clientId, s.status!])
+        );
+        if (statusMap.size > 0) {
+            this._sessionTab.actions.syncTabStatuses(statusMap);
+        }
 
         // Auto-select on initial load only (e.g. after refresh)
         // Don't auto-select on subsequent session updates (user may have clicked + to clear selection)
@@ -1411,6 +1570,38 @@ export class RtcAgent extends LitElement {
     }
 
     /**
+     * 刷新后恢复 Editor Area 已打开文件的内容
+     *
+     * tab 元数据（filePath、viewMode、cursorPosition、activeFilePath）
+     * 在 EditorAreaController 构造时已从 localStorage 恢复，但 content 为空。
+     * 该方法在 VFS 就绪后遍历所有已恢复的 tab，从 VFS 读取内容并填充。
+     * 读取失败（文件已不存在）的 tab 会被自动关闭。
+     */
+    private async _restoreEditorAreaContent(): Promise<void> {
+        const tabs = [...this._editorArea.tabs];
+        if (tabs.length === 0) return;
+
+        const activeFilePath = this._editorArea.activeFilePath;
+        console.log('[rtc-agent] Restoring editor area content for', tabs.length, 'tabs');
+        for (const tab of tabs) {
+            try {
+                const content = await virtualFS.read(tab.filePath);
+                this._editorArea.actions.loadContent(tab.filePath, content);
+            } catch {
+                // 文件在 VFS 中已不存在（例如被其他客户端删除），关闭该 tab
+                console.warn('[rtc-agent] Restored tab file not found in VFS, closing:', tab.filePath);
+                this._editorArea.actions.closeFile(tab.filePath);
+            }
+        }
+
+        // 文件树已加载的前提下，选中当前活动文件
+        // （文件树在调用本方法之前已按需加载，保证节点已渲染）
+        if (activeFilePath && this._fileTreeLoaded) {
+            this._fileExplorer.actions.selectNode(activeFilePath);
+        }
+    }
+
+    /**
      * 保存文件：将编辑器内容写入 VFS
      */
     private async _handleEditorSave(filePath: string): Promise<void> {
@@ -1420,6 +1611,7 @@ export class RtcAgent extends LitElement {
         try {
             await virtualFS.write(filePath, tab.content, 'overwrite');
             this._editorArea.actions.saveFile(filePath);
+            this._toast.actions.show('已保存', 'success');
         } catch (err) {
             console.error('[rtc-agent] Failed to save file:', filePath, err);
             this._toast.actions.show('保存文件失败', 'error');
@@ -1575,7 +1767,6 @@ export class RtcAgent extends LitElement {
       <div class="main-layout">
         <rtc-activity-bar
           .active=${active}
-          .filesDisabled=${this._filesActivityDisabled}
           theme=${this.theme}
         ></rtc-activity-bar>
         ${showSidebar && isFiles
@@ -1596,7 +1787,7 @@ export class RtcAgent extends LitElement {
               ></rtc-status-bar>
             </div>`
           : isChat
-            ? html`<rtc-chat-layout theme=${this.theme}></rtc-chat-layout>`
+            ? html`<rtc-chat-layout theme=${this.theme} .sessionTreeVisible=${sidebarVisible}></rtc-chat-layout>`
             : nothing}
       </div>
     `;

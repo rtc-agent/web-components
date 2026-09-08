@@ -6,11 +6,16 @@
  * Corresponds to: `ActivityContext` (defined in `contexts/activity.ts`).
  * Provided by: `<rtc-agent>` (root)
  * Consumed by: `<rtc-activity-bar>`, `<rtc-agent>` (布局条件渲染)
+ *
+ * ## 持久化
+ * - 通过 localStorage 保存当前 active 活动和 sidebarVisible 状态
+ * - 刷新页面后恢复到上次离开时的活动
  */
 import type {ReactiveController, ReactiveControllerHost} from 'lit';
 import type {Activity} from '../types/index.js';
 import type {ActivityState, ActivityActions, ActivityContextValue} from '../contexts/activity.js';
 import {DEFAULT_ACTIVITY_STATE} from '../contexts/activity.js';
+import {STORAGE_KEYS} from '../config/auth.js';
 
 // Re-export types for convenience
 export type {ActivityState, ActivityActions};
@@ -46,10 +51,41 @@ export class ActivityController implements ReactiveController {
             toggleSidebar: () => this._toggleSidebar(),
             reset: () => this._reset(),
         };
+        this._restore();
     }
 
     hostConnected() {}
     hostDisconnected() {}
+
+    /* ─ Persistence ── */
+
+    private _restore() {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEYS.activityBar);
+            if (!raw) return;
+            const saved = JSON.parse(raw);
+            const isValidActivity = (v: unknown): v is Activity =>
+                v === 'files' || v === 'chat' || v === 'settings';
+            if (saved && typeof saved === 'object') {
+                this._state = {
+                    active: isValidActivity(saved.active) ? saved.active : DEFAULT_ACTIVITY_STATE.active,
+                    sidebarVisible: typeof saved.sidebarVisible === 'boolean'
+                        ? saved.sidebarVisible
+                        : DEFAULT_ACTIVITY_STATE.sidebarVisible,
+                };
+            }
+        } catch {
+            // localStorage may be unavailable or data corrupted
+        }
+    }
+
+    private _persist() {
+        try {
+            localStorage.setItem(STORAGE_KEYS.activityBar, JSON.stringify(this._state));
+        } catch {
+            // localStorage may be unavailable
+        }
+    }
 
     /**
      * 设置活动
@@ -68,6 +104,7 @@ export class ActivityController implements ReactiveController {
                 active: activity,
                 sidebarVisible: true,
             };
+            this._persist();
             this.host.requestUpdate();
         }
     }
@@ -75,6 +112,7 @@ export class ActivityController implements ReactiveController {
     private _showSidebar() {
         if (!this._state.sidebarVisible) {
             this._state = {...this._state, sidebarVisible: true};
+            this._persist();
             this.host.requestUpdate();
         }
     }
@@ -82,6 +120,7 @@ export class ActivityController implements ReactiveController {
     private _hideSidebar() {
         if (this._state.sidebarVisible) {
             this._state = {...this._state, sidebarVisible: false};
+            this._persist();
             this.host.requestUpdate();
         }
     }
@@ -91,11 +130,13 @@ export class ActivityController implements ReactiveController {
             ...this._state,
             sidebarVisible: !this._state.sidebarVisible,
         };
+        this._persist();
         this.host.requestUpdate();
     }
 
     private _reset() {
         this._state = {...DEFAULT_ACTIVITY_STATE};
+        this._persist();
         this.host.requestUpdate();
     }
 }
