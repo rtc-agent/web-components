@@ -21,6 +21,15 @@ import type {ConnectionState, ConnectionStateEvent} from '@rtc-agent/client';
 import type {WorkerPersistenceCore, WorkerCallbacks} from '@rtc-agent/worker';
 import type {AuthController} from './controllers/auth.controller.js';
 
+// 使用 `?sharedworker&inline` 让 Vite 把 SharedWorker 脚本内联为 blob URL，
+// 而不是指向 CDN 上的独立 chunk。原因：浏览器强制 SharedWorker 脚本必须与
+// 页面同源；当组件从 jsdelivr 等 CDN 加载时，`new URL(..., import.meta.url)`
+// 解析出的 worker URL 也在 CDN 上 → 与 http://localhost 等宿主页面跨域 → 拒绝构造。
+// 内联后 worker 脚本变成 blob URL，始终与页面同源，问题解决。
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore — Vite 专属 import，tsc 不识别 ?sharedworker&inline 后缀
+import InlineSharedWorker from '../../worker/src/shared-worker.ts?sharedworker&inline';
+
 export class WorkerBridge {
     private _worker: SharedWorker;
     private _core: Remote<WorkerPersistenceCore>;
@@ -38,19 +47,16 @@ export class WorkerBridge {
     constructor(auth: AuthController) {
         // 1. 创建 SharedWorker 实例
         //
-        // 使用 `new URL(..., import.meta.url)` 模式，让 Vite 在 dev/build 时自动处理：
-        // - dev: Vite dev server 实时 transform worker 及其依赖（含 workspace 包别名）
-        // - build: Vite 将 worker 打成独立 chunk 并替换 URL
+        // 使用 Vite 的 `?sharedworker&inline` 把 worker 内联为 blob URL
+        // （详见顶部 import 处的注释）。
         //
-        // 注意：必须让 `new SharedWorker(new URL(...))` 出现在同一表达式中，
-        // 否则 Vite 的 AST 检测无法识别。
-        this._worker = new SharedWorker(
-            new URL('../../worker/src/shared-worker.ts', import.meta.url),
-            {
-                name: 'rtc-agent-worker',
-                type: 'module',
-            },
-        );
+        // 注：InlineSharedWorker 是 Vite 构造的 SharedWorker 子类。`type: 'module'`
+        // 在运行时是合法的 SharedWorker option，但 Vite 生成的类型定义未包含它，
+        // 用 `as any` 绕过类型检查。
+        this._worker = new InlineSharedWorker({
+            name: 'rtc-agent-worker',
+            type: 'module',
+        } as any) as SharedWorker;
 
         // 2. Comlink.wrap 获取代理
         // SharedWorker 通过 port 通信，Comlink.wrap 接受 MessagePort

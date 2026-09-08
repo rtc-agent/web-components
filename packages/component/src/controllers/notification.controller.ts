@@ -27,6 +27,14 @@ import type {PersistenceLayer} from '@rtc-agent/persistence';
 import {getUIUpdateBus} from '@rtc-agent/persistence';
 import type {UIUpdateEvent} from '@rtc-agent/persistence';
 
+// 音效资源 URL：Vite 的 `?url` 后缀在 dev/build 时都会解析为正确可访问的 URL
+// （dev: dev server 路径；build: dist 下的 hashed 路径），无论组件部署在根路径、
+// 子路径还是 CDN，都能正确加载。相比 `new URL('./', import.meta.url).pathname`
+// 的旧方案：(1) 不会因 host 不匹配导致 404；(2) 不需要音效文件和脚本同目录。
+import messageSoundUrl from '../assets/sounds/message.mp3?url';
+import completeSoundUrl from '../assets/sounds/complete.mp3?url';
+import errorSoundUrl from '../assets/sounds/error.mp3?url';
+
 export class NotificationController implements ReactiveController {
     host: ReactiveControllerHost & HTMLElement;
 
@@ -89,17 +97,9 @@ export class NotificationController implements ReactiveController {
      * 注意：音效文件路径在构建时应确保存在，运行时加载失败会降级处理。
      */
     private _preloadSounds(): void {
-        // 音效文件路径：运行时基于当前脚本所在位置解析，
-        // 这样组件无论部署在根路径还是子路径（如 /rtc-agent/）都能正确加载。
-        // 与 worker-bridge.ts 使用相同的 import.meta.url 模式。
-        //
-        // 注：必须把 import.meta.url 先赋给变量再传给 URL 构造器，
-        // 否则 Rollup 会静态匹配 `new URL(literal, import.meta.url)` 模式并报警告
-        // （`/* @vite-ignore */` 在 TS 经过 esbuild 转译后注释位置会变化，无法稳定抑制）。
-        const here = import.meta.url;
-        const base = new URL('./', here).pathname;
+        // 直接使用 Vite 解析好的资源 URL，无需运行时拼接
         const soundUrls: Record<string, string> = {
-            message: `${base}sounds/message.mp3`,
+            message: messageSoundUrl,
         };
 
         for (const [type, url] of Object.entries(soundUrls)) {
@@ -108,8 +108,8 @@ export class NotificationController implements ReactiveController {
 
         // 延迟加载非关键音效
         const deferredSounds: Record<string, string> = {
-            complete: `${base}sounds/complete.mp3`,
-            error: `${base}sounds/error.mp3`,
+            complete: completeSoundUrl,
+            error: errorSoundUrl,
         };
 
         if ('requestIdleCallback' in window) {
