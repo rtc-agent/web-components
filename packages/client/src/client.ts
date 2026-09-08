@@ -14,6 +14,8 @@ import type {
   UpdateRtcStatusResponse,
   CompactSessionRequest,
   CompactSessionResponse,
+  UpdateSessionRequest,
+  UpdateSessionResponse,
 } from '@rtc-agent/protocol';
 import type {
   IRTCAgentClient,
@@ -156,6 +158,12 @@ export class RTCAgentClient implements IRTCAgentClient {
     req: CompactSessionRequest,
   ): Promise<CompactSessionResponse> {
     return this.rpc<CompactSessionResponse>(RpcMethod.SessionCompact, req);
+  }
+
+  async updateSession(
+    req: UpdateSessionRequest,
+  ): Promise<UpdateSessionResponse> {
+    return this.rpc<UpdateSessionResponse>(RpcMethod.SessionUpdate, req);
   }
 
   // ========== 消息 & Turn ==========
@@ -435,12 +443,64 @@ export class RTCAgentClient implements IRTCAgentClient {
       });
 
       topicSub.on('subscribed', async (ctx) => {
-        // 订阅成功时，保存 epoch 到缓存和持久化存储
+        // 订阅成功时，检测 offset 连续性，防止离线消息丢失
         if (ctx.streamPosition) {
           const epoch = ctx.streamPosition.epoch;
-          const offset = ctx.streamPosition.offset;
+          const serverOffset = ctx.streamPosition.offset;
+
+          // 先更新 epoch 缓存（无论 offset 是否变化，epoch 都需要同步）
           this.epochCache.set(topicChannel, epoch);
-          await this.options.updateOffset?.(topicChannel, offset, epoch);
+
+          // 检测 offset 连续性
+          const position = await this.options.getLastOffset?.(topicChannel);
+          const localOffset = position?.offset;
+
+          if (localOffset === undefined) {
+            // 本地没有记录（首次订阅），直接使用服务器 offset
+            await this.options.updateOffset?.(topicChannel, serverOffset, epoch);
+          } else if (serverOffset <= localOffset) {
+            // 服务器 offset <= 本地 offset：重复订阅或回退，保持不变
+            // 不覆盖，避免回退导致后续消息被重复处理
+          } else {
+            // serverOffset > localOffset：存在间隙（包括 +1 的情况），补全历史
+            // 注意：serverOffset === localOffset + 1 时，表示服务器有一条新消息（offset=serverOffset）
+            // 客户端还没收到，也需要补全
+            const lastEpoch = position?.epoch ?? this.epochCache.get(topicChannel) ?? '';
+            try {
+              // 补全范围：(localOffset, serverOffset]，即 localOffset+1 到 serverOffset
+              // fillOffsetGap 的 toOffset 参数是不包含的，所以传 serverOffset + 1
+              await this.fillOffsetGap(topicChannel, localOffset, lastEpoch, serverOffset + 1);
+
+              // 补全后验证：offset 应该推进到 serverOffset
+              const newPosition = await this.options.getLastOffset?.(topicChannel);
+              const newOffset = newPosition?.offset;
+              const newEpoch = newPosition?.epoch;
+
+              if (newOffset === undefined || newOffset !== serverOffset) {
+                throw new Error(
+                  `[RTCAgentClient] Offset gap fill failed on subscribe: expected ${serverOffset}, got ${newOffset}. ` +
+                  `Offline updates may be lost.`
+                );
+              }
+              if (newEpoch !== undefined && newEpoch !== epoch) {
+                throw new Error(
+                  `[RTCAgentClient] Epoch mismatch after gap fill on subscribe: expected '${epoch}', got '${newEpoch}'. ` +
+                  `Server may have restarted.`
+                );
+              }
+
+              // 补全成功，更新到最新 offset
+              await this.options.updateOffset?.(topicChannel, serverOffset, epoch);
+            } catch (err) {
+              console.error(
+                `[RTCAgentClient] fillOffsetGap failed on subscribe for offset ${serverOffset}:`,
+                err,
+              );
+              this.emit('error', err instanceof Error ? err : new Error(String(err)));
+              // 注意：即使补全失败，epoch 已更新到缓存（已在上面完成）
+              // 但不更新 offset，保持不连续状态，后续 publication 会再次尝试补全或报错
+            }
+          }
         }
       });
     }
