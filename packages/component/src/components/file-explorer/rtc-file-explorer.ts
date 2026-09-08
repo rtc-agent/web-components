@@ -23,7 +23,7 @@ import {darkTheme} from '../../styles/themes/dark.js';
 import {baseStyles} from '../../styles/base.js';
 import {FileExplorerContext, type FileExplorerContextValue} from '../../contexts/file-explorer.js';
 import type {FileNode} from '../../types/index.js';
-import {plusIcon, refreshIcon} from '../../icons/index.js';
+import {refreshIcon} from '../../icons/index.js';
 
 // 子组件（副作用导入）
 import './rtc-file-tree-item.js';
@@ -100,19 +100,6 @@ export class RtcFileExplorer extends LitElement {
                 bubbles: true,
                 composed: true,
                 detail: {path: e.detail.path},
-            })
-        );
-    }
-
-    /**
-     * 新建文件按钮（预留，未来实现）
-     */
-    private _handleNewFile() {
-        // TODO: Phase 4 实现新建文件对话框
-        this.dispatchEvent(
-            new CustomEvent('new-file-requested', {
-                bubbles: true,
-                composed: true,
             })
         );
     }
@@ -387,12 +374,6 @@ export class RtcFileExplorer extends LitElement {
             <div class="sidebar-header">
                 <span class="sidebar-title">资源管理器</span>
                 <div class="sidebar-actions">
-                    <button
-                        class="action-btn"
-                        title="新建文件"
-                        aria-label="新建文件"
-                        @click=${this._handleNewFile}
-                    >${plusIcon}</button>
                     <button
                         class="action-btn"
                         title="刷新"

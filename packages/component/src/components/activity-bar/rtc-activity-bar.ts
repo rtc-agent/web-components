@@ -35,10 +35,6 @@ export class RtcActivityBar extends LitElement {
     @property({type: String, reflect: true})
     active: Activity = 'chat';
 
-    /** files 活动是否被禁用（小窗口降级时使用） */
-    @property({type: Boolean, attribute: 'files-disabled'})
-    filesDisabled = false;
-
     /**
      * 处理活动图标点击
      *
@@ -68,9 +64,7 @@ export class RtcActivityBar extends LitElement {
      * - Home/End：跳到首/末项
      */
     private _handleKeydown(e: KeyboardEvent, currentActivity: Activity) {
-        const available = this.filesDisabled
-            ? ACTIVITY_LIST.filter(a => a !== 'files')
-            : ACTIVITY_LIST;
+        const available = ACTIVITY_LIST;
         const idx = available.indexOf(currentActivity);
 
         let handled = true;
@@ -122,7 +116,6 @@ export class RtcActivityBar extends LitElement {
      * 计算 roving tabindex：当前 active 的活动获得 tabindex=0，其余 -1
      */
     private _tabIndex(activity: Activity): number {
-        if (activity === 'files' && this.filesDisabled) return -1;
         return activity === this.active ? 0 : -1;
     }
 
@@ -130,16 +123,15 @@ export class RtcActivityBar extends LitElement {
         return html`
             <!-- 顶部活动 -->
             <div
-                class="activity-icon ${this.active === 'files' ? 'active' : ''} ${this.filesDisabled ? 'disabled' : ''}"
+                class="activity-icon ${this.active === 'files' ? 'active' : ''}"
                 data-activity="files"
                 role="tab"
                 tabindex="${this._tabIndex('files')}"
                 aria-label="资源管理器"
                 aria-selected="${this.active === 'files'}"
-                aria-disabled="${this.filesDisabled}"
-                title="${this.filesDisabled ? '窗口太小，请放大后使用' : '资源管理器'}"
-                @click=${() => !this.filesDisabled && this._handleClick('files')}
-                @keydown=${(e: KeyboardEvent) => !this.filesDisabled && this._handleKeydown(e, 'files')}
+                title="资源管理器"
+                @click=${() => this._handleClick('files')}
+                @keydown=${(e: KeyboardEvent) => this._handleKeydown(e, 'files')}
             >${filesIcon}</div>
 
             <div

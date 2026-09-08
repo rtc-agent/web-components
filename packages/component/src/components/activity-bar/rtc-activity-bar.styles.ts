@@ -56,12 +56,6 @@ export const styles = css`
         border-radius: 0 2px 2px 0;
     }
 
-    .activity-icon.disabled {
-        opacity: 0.35;
-        cursor: not-allowed;
-        pointer-events: none;
-    }
-
     .activity-spacer {
         flex: 1;
     }

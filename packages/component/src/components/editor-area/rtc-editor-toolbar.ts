@@ -63,7 +63,7 @@ export class RtcEditorToolbar extends LitElement {
 
     /** 当前视图模式 */
     @property({type: String, attribute: 'view-mode'})
-    viewMode: EditorViewMode = 'split';
+    viewMode: EditorViewMode = 'edit';
 
     /** 主题 */
     @property({type: String, reflect: true})
@@ -160,6 +160,7 @@ export class RtcEditorToolbar extends LitElement {
                 <span class="separator" role="separator"></span>
 
                 <!-- 格式化 -->
+                <!-- 暂不支持
                 <button
                     class="toolbar-btn"
                     title="加粗"
@@ -184,7 +185,7 @@ export class RtcEditorToolbar extends LitElement {
                     aria-label="链接"
                     @click=${() => this._handleFormat('link')}
                 >${linkIcon}</button>
-
+                 -->
                 <!-- 弹性空间 -->
                 <span class="spacer"></span>
 

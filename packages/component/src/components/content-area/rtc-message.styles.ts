@@ -31,7 +31,7 @@ export const styles = [
        *   - dark 主题：highlight.js atom-one-dark.css
        */
       --rtc-syntax-text: #24292e;
-      --rtc-syntax-bg: #ffffff;
+      --rtc-syntax-bg: #f6f8fa;
       --rtc-syntax-keyword: #d73a49;
       --rtc-syntax-title: #6f42c1;
       --rtc-syntax-attr: #005cc5;
