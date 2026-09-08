@@ -56,7 +56,6 @@ export const styles = css`
     font-size: var(--rtc-font-size-sm);
     color: var(--rtc-color-text);
     word-break: break-all;
-    white-space: pre-wrap;
     flex: 1;
     min-height: 0;
     overflow-y: auto;
@@ -64,6 +63,7 @@ export const styles = css`
   }
 
   .tool-params {
+    white-space: pre-wrap;
     margin-top: var(--rtc-spacing-xs);
   }
 

@@ -14,12 +14,16 @@
  * @csspart status-dot - The connection status indicator dot
  */
 import {LitElement, html} from 'lit';
-import {customElement, property} from 'lit/decorators.js';
+import {customElement, property, state} from 'lit/decorators.js';
+import {localized, msg} from '@lit/localize';
+import {consume} from '@lit/context';
 import {styles} from './rtc-title-bar.styles.js';
 import type {WindowMode} from '../../types/index.js';
 import type {ConnectionState} from '@rtc-agent/client';
 import {minimizeIcon, maximizeIcon, restoreIcon} from '../../icons/index.js';
+import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 
+@localized()
 @customElement('rtc-title-bar')
 export class RtcTitleBar extends LitElement {
     static styles = styles;
@@ -33,13 +37,23 @@ export class RtcTitleBar extends LitElement {
     @property({type: String, attribute: 'connection-state'})
     connectionState: ConnectionState = 'disconnected';
 
+    @consume({context: localeContext, subscribe: true})
+    @state()
+    private _localeCtx: LocaleContextValue = {
+        locale: sourceLocale,
+        setLocale: async () => {
+            console.warn('[rtc-title-bar] Locale context not initialized');
+        },
+        locales: [sourceLocale, ...targetLocales],
+    };
+
     private _getStatusText(): string {
         switch (this.connectionState) {
-            case 'connected': return '已连接';
-            case 'connecting': return '连接中';
-            case 'reconnecting': return '重新连接中';
-            case 'disconnected': return '未连接';
-            default: return '未知';
+            case 'connected': return msg('已连接');
+            case 'connecting': return msg('连接中');
+            case 'reconnecting': return msg('重新连接中');
+            case 'disconnected': return msg('未连接');
+            default: return msg('未知');
         }
     }
 
@@ -62,6 +76,9 @@ export class RtcTitleBar extends LitElement {
     }
 
     render() {
+        // Reference locale to ensure re-render on locale change
+        void this._localeCtx.locale;
+
         const isMaximized = this.windowMode === 'maximized';
         return html`
       <div class="title-bar" part="bar" tabindex="0" role="toolbar" aria-label="Window controls">
@@ -78,15 +95,13 @@ export class RtcTitleBar extends LitElement {
           <button
             class="window-btn"
             data-action="minimize"
-            title="Minimize"
-            aria-label="Minimize window"
+            aria-label="Minimize"
             @click=${this._handleMinimize}
           >${minimizeIcon}</button>
           <button
             class="window-btn"
-            data-action="maximize"
-            title=${isMaximized ? 'Restore' : 'Maximize'}
-            aria-label=${isMaximized ? 'Restore window' : 'Maximize window'}
+            data-action=${isMaximized ? 'restore' : 'maximize'}
+            aria-label=${isMaximized ? 'Restore' : 'Maximize'}
             @click=${this._handleMaximizeToggle}
           >${isMaximized ? restoreIcon : maximizeIcon}</button>
         </div>

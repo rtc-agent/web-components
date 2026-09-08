@@ -34,6 +34,9 @@
  */
 import {LitElement, html} from 'lit';
 import {customElement, property, state, query} from 'lit/decorators.js';
+import {consume} from '@lit/context';
+import {localized, msg} from '@lit/localize';
+import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {
     computePosition,
     flip,
@@ -47,9 +50,20 @@ import {copyToClipboard} from '../../utils/clipboard.js';
 import {extractTextContent} from '../../utils/format.js';
 import './rtc-message-more-menu.js';
 
+@localized()
 @customElement('rtc-user-message')
 export class RtcUserMessage extends LitElement {
     static styles = styles;
+
+    @consume({context: localeContext, subscribe: true})
+    @state()
+    private _localeCtx: LocaleContextValue = {
+        locale: sourceLocale,
+        setLocale: async () => {
+            console.warn('[RtcUserMessage] Locale context not initialized');
+        },
+        locales: [sourceLocale, ...targetLocales],
+    };
 
     @property({type: Object})
     message: Message = {
@@ -298,7 +312,7 @@ export class RtcUserMessage extends LitElement {
             bubbles: true,
             composed: true,
             detail: {
-                message: success ? '已复制到剪贴板' : '复制失败',
+                message: success ? msg('已复制到剪贴板') : msg('复制失败'),
                 type: success ? 'success' : 'error',
             },
         }));
@@ -333,6 +347,7 @@ export class RtcUserMessage extends LitElement {
     /* ── Render ── */
 
     render() {
+        void this._localeCtx.locale;
         const text = this._getTextContent();
 
         return html`

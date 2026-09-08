@@ -1,0 +1,727 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+<file target-language="en-US" source-language="zh-CN" original="lit-localize-inputs" datatype="plaintext">
+<body>
+<trans-unit id="sbc651b0927b335dc">
+  <source>聊天</source>
+  <target>Chat</target>
+</trans-unit>
+<trans-unit id="s6230bbe9df46da66">
+  <source>资源管理器</source>
+  <target>Explorer</target>
+</trans-unit>
+<trans-unit id="scd423a09356c197d">
+  <source>设置</source>
+  <target>Settings</target>
+</trans-unit>
+<trans-unit id="s49730f3d5751a433">
+  <source>Loading...</source>
+  <target>Loading...</target>
+</trans-unit>
+<trans-unit id="s8626a54775ae59c0">
+  <source>↑ Load earlier messages</source>
+  <target>↑ Load earlier messages</target>
+</trans-unit>
+<trans-unit id="sad864ecd84596f7c">
+  <source>↓ New messages</source>
+  <target>↓ New messages</target>
+</trans-unit>
+<trans-unit id="s30189008b07bb70a">
+  <source>复制</source>
+  <target>Copy</target>
+</trans-unit>
+<trans-unit id="s116ef308966c6210">
+  <source>分叉</source>
+  <target>Fork</target>
+</trans-unit>
+<trans-unit id="sf14eef0954efc3b7">
+  <source>重试</source>
+  <target>Retry</target>
+</trans-unit>
+<trans-unit id="sea0d5bef4f2142e5">
+  <source>已复制到剪贴板</source>
+  <target>Copied to clipboard</target>
+</trans-unit>
+<trans-unit id="sc6c9cbda03a182ec">
+  <source>复制失败</source>
+  <target>Copy failed</target>
+</trans-unit>
+<trans-unit id="sd6033e5780676c2b">
+  <source>思考过程</source>
+  <target>Thinking process</target>
+</trans-unit>
+<trans-unit id="sddd11705d58eb498">
+  <source>正在压缩上下文...</source>
+  <target>Compressing context...</target>
+</trans-unit>
+<trans-unit id="s74d863b5dab8f5a3">
+  <source>已压缩上下文</source>
+  <target>Context compressed</target>
+</trans-unit>
+<trans-unit id="sf1380a0954b4a679">
+  <source>释放</source>
+  <target>Release</target>
+</trans-unit>
+<trans-unit id="s356dec08b50028d3">
+  <source>增加</source>
+  <target>Increase</target>
+</trans-unit>
+<trans-unit id="s69d4b7b972b239d4">
+  <source>从文件树中选择文件以开始编辑</source>
+  <target>Select a file from the tree to start editing</target>
+</trans-unit>
+<trans-unit id="sded54abab00e3aa8">
+  <source>未保存</source>
+  <target>Unsaved</target>
+</trans-unit>
+<trans-unit id="sc5e96a910aec44bb">
+  <source>关闭 <x id="0" equiv-text="${this.fileName}"/></source>
+  <target>Close <x id="0" equiv-text="${this.fileName}"/></target>
+</trans-unit>
+<trans-unit id="sc0ea59c46f0381fa">
+  <source>保存 (Ctrl+S)</source>
+  <target>Save (Ctrl+S)</target>
+</trans-unit>
+<trans-unit id="s035e62088a8f0790">
+  <source>保存</source>
+  <target>Save</target>
+</trans-unit>
+<trans-unit id="s8baa4f887fe090f0">
+  <source>撤销 (Ctrl+Z)</source>
+  <target>Undo (Ctrl+Z)</target>
+</trans-unit>
+<trans-unit id="s835830081d3105a9">
+  <source>撤销</source>
+  <target>Undo</target>
+</trans-unit>
+<trans-unit id="s2299833f34611b58">
+  <source>重做 (Ctrl+Shift+Z)</source>
+  <target>Redo (Ctrl+Shift+Z)</target>
+</trans-unit>
+<trans-unit id="sf1136409548a9686">
+  <source>重做</source>
+  <target>Redo</target>
+</trans-unit>
+<trans-unit id="s1240310896b4f8b8">
+  <source>加粗</source>
+  <target>Bold</target>
+</trans-unit>
+<trans-unit id="s81522d081c024698">
+  <source>斜体</source>
+  <target>Italic</target>
+</trans-unit>
+<trans-unit id="s0649af088d321069">
+  <source>代码</source>
+  <target>Code</target>
+</trans-unit>
+<trans-unit id="s01366f0961abde4c">
+  <source>链接</source>
+  <target>Link</target>
+</trans-unit>
+<trans-unit id="s169b937d864e2dd9">
+  <source>视图模式</source>
+  <target>View mode</target>
+</trans-unit>
+<trans-unit id="s47960b97d8d2ef8c">
+  <source>编辑模式</source>
+  <target>Edit mode</target>
+</trans-unit>
+<trans-unit id="s3d70bc709c396bfd">
+  <source>预览模式</source>
+  <target>Preview mode</target>
+</trans-unit>
+<trans-unit id="sdaf29b61b062ec42">
+  <source>分屏模式</source>
+  <target>Split view</target>
+</trans-unit>
+<trans-unit id="se4952c108aaa10a6">
+  <source>Type /goal &lt;your objective&gt; — AI plans, executes, and self-checks until done.</source>
+  <target>Type /goal &lt;your objective&gt; — AI plans, executes, and self-checks until done.</target>
+</trans-unit>
+<trans-unit id="s756e3761c6bda497">
+  <source>文件列表为空</source>
+  <target>File list is empty</target>
+</trans-unit>
+<trans-unit id="scd1969a73b8f18b6">
+  <source>点击刷新按钮加载</source>
+  <target>Click refresh to load</target>
+</trans-unit>
+<trans-unit id="s112886089625cc92">
+  <source>刷新</source>
+  <target>Refresh</target>
+</trans-unit>
+<trans-unit id="s2f834ec7550c9db3">
+  <source>文件树</source>
+  <target>File tree</target>
+</trans-unit>
+<trans-unit id="sf886a1d8bd2479a9">
+  <source>Voice input</source>
+  <target>Voice input</target>
+</trans-unit>
+<trans-unit id="sf18fdd3ba5f7797a">
+  <source>Attach file</source>
+  <target>Attach file</target>
+</trans-unit>
+<trans-unit id="sebf4dcb0999597b3">
+  <source>Commands</source>
+  <target>Commands</target>
+</trans-unit>
+<trans-unit id="sd9ad53251f2330a5">
+  <source>Stop</source>
+  <target>Stop</target>
+</trans-unit>
+<trans-unit id="s57adf424d57c8a0f">
+  <source>Send</source>
+  <target>Send</target>
+</trans-unit>
+<trans-unit id="s7b5aee7b6c940618">
+  <source>登录成功</source>
+  <target>Login successful</target>
+</trans-unit>
+<trans-unit id="s8d10f47b7be30353">
+  <source>登录失败</source>
+  <target>Login failed</target>
+</trans-unit>
+<trans-unit id="sb32373084660391d">
+  <source>登录</source>
+  <target>Login</target>
+</trans-unit>
+<trans-unit id="seaa179773e22d3aa">
+  <source>正在准备授权...</source>
+  <target>Preparing authorization...</target>
+</trans-unit>
+<trans-unit id="s5534ea14f2cc2b87">
+  <source>请在下方完成授权</source>
+  <target>Please complete authorization below</target>
+</trans-unit>
+<trans-unit id="sc8642c233baa3709">
+  <source>正在验证身份...</source>
+  <target>Verifying identity...</target>
+</trans-unit>
+<trans-unit id="s7fbb7359d395acdc">
+  <source>即将自动关闭...</source>
+  <target>Auto-closing soon...</target>
+</trans-unit>
+<trans-unit id="s787365cbdb27ad0b">
+  <source>授权页面</source>
+  <target>Authorization page</target>
+</trans-unit>
+<trans-unit id="sc49f3731be3e5066">
+  <source>获取授权 URL 失败: <x id="0" equiv-text="${response.status}"/></source>
+  <target>Failed to get authorization URL: <x id="0" equiv-text="${response.status}"/></target>
+</trans-unit>
+<trans-unit id="sba8df9c0de68d224">
+  <source>未知错误</source>
+  <target>Unknown error</target>
+</trans-unit>
+<trans-unit id="s90ec41e502050332">
+  <source>State 校验失败，请重试</source>
+  <target>State validation failed, please retry</target>
+</trans-unit>
+<trans-unit id="s32a563a1015bfd96">
+  <source>Token 交换失败: <x id="0" equiv-text="${response.status}"/></source>
+  <target>Token exchange failed: <x id="0" equiv-text="${response.status}"/></target>
+</trans-unit>
+<trans-unit id="sebe7fcdde2daf169">
+  <source>Sign in to continue</source>
+  <target>Sign in to continue</target>
+</trans-unit>
+<trans-unit id="s2603d59558584677">
+  <source>Authorizing...</source>
+  <target>Authorizing...</target>
+</trans-unit>
+<trans-unit id="sc8da3cc71de63832">
+  <source>Login</source>
+  <target>Login</target>
+</trans-unit>
+<trans-unit id="sfba237d3fcfe2d80">
+  <source>渲染失败: <x id="0" equiv-text="${err instanceof Error ? err.message : String(err)}"/></source>
+  <target>Render failed: <x id="0" equiv-text="${err instanceof Error ? err.message : String(err)}"/></target>
+</trans-unit>
+<trans-unit id="s49a0df2ed77024c0">
+  <source>编辑器</source>
+  <target>Editor</target>
+</trans-unit>
+<trans-unit id="s87df31162aa2c32d">
+  <source>开始输入 Markdown...</source>
+  <target>Start typing Markdown...</target>
+</trans-unit>
+<trans-unit id="s0df0b8096c673ba1">
+  <source>预览</source>
+  <target>Preview</target>
+</trans-unit>
+<trans-unit id="se2f078a670065ad5">
+  <source>暂无内容</source>
+  <target>No content yet</target>
+</trans-unit>
+<trans-unit id="s12d6dde9b30c3093">
+  <source>Dismiss</source>
+  <target>Dismiss</target>
+</trans-unit>
+<trans-unit id="s385560c07ab56134">
+  <source>Answer <x id="0" equiv-text="${questions.length}"/> questions</source>
+  <target>Answer <x id="0" equiv-text="${questions.length}"/> questions</target>
+</trans-unit>
+<trans-unit id="s20b474275affc7f0">
+  <source>Answer a question</source>
+  <target>Answer a question</target>
+</trans-unit>
+<trans-unit id="s8c8674f87c7198fe">
+  <source>Question <x id="0" equiv-text="${this._currentTab + 1}"/> of <x id="1" equiv-text="${questions.length}"/></source>
+  <target>Question <x id="0" equiv-text="${this._currentTab + 1}"/> of <x id="1" equiv-text="${questions.length}"/></target>
+</trans-unit>
+<trans-unit id="s417b90913e05bc17">
+  <source>Preview</source>
+  <target>Preview</target>
+</trans-unit>
+<trans-unit id="sc690d6763d9a9d82">
+  <source> · <x id="0" equiv-text="${previewOpt.label}"/></source>
+  <target> · <x id="0" equiv-text="${previewOpt.label}"/></target>
+</trans-unit>
+<trans-unit id="sb2ae2adbfc9627a1">
+  <source>(Recommended)</source>
+  <target>(Recommended)</target>
+</trans-unit>
+<trans-unit id="sc9e494c8346b7cb5">
+  <source>Other</source>
+  <target>Other</target>
+</trans-unit>
+<trans-unit id="sd11fb57c850fc938">
+  <source>Type your answer…</source>
+  <target>Type your answer…</target>
+</trans-unit>
+<trans-unit id="sc5f211aa0fe829a8">
+  <source>← Prev</source>
+  <target>← Prev</target>
+</trans-unit>
+<trans-unit id="s37cb5b4503fc7e1e">
+  <source>Next →</source>
+  <target>Next →</target>
+</trans-unit>
+<trans-unit id="sb3d4f79d9d8b71e5">
+  <source>Submit</source>
+  <target>Submit</target>
+</trans-unit>
+<trans-unit id="s2ceb11be2290bb1b">
+  <source>Cancel</source>
+  <target>Cancel</target>
+</trans-unit>
+<trans-unit id="scad05556becd2c42">
+  <source>即将推出</source>
+  <target>Coming soon</target>
+</trans-unit>
+<trans-unit id="scde53b78f6a826d1">
+  <source>No sessions yet</source>
+  <target>No sessions yet</target>
+</trans-unit>
+<trans-unit id="s927497135cdabe78">
+  <source>Untitled</source>
+  <target>Untitled</target>
+</trans-unit>
+<trans-unit id="sc992ab0858c53e28">
+  <source>编辑</source>
+  <target>Edit</target>
+</trans-unit>
+<trans-unit id="s116b640896bcf4e1">
+  <source>删除</source>
+  <target>Delete</target>
+</trans-unit>
+<trans-unit id="s15e8bb089a90e6bd">
+  <source>关闭</source>
+  <target>Close</target>
+</trans-unit>
+<trans-unit id="s9c4ab9eaf58d6c0a">
+  <source>No tasks yet</source>
+  <target>No tasks yet</target>
+</trans-unit>
+<trans-unit id="s9a923f7be53ec1ac">
+  <source>Task list</source>
+  <target>Task list</target>
+</trans-unit>
+<trans-unit id="s294eb06e0e6a9ef9">
+  <source>Allow this tool call?</source>
+  <target>Allow this tool call?</target>
+</trans-unit>
+<trans-unit id="s0116da495c2a975c">
+  <source>The AI wants to use a tool. Review the details below.</source>
+  <target>The AI wants to use a tool. Review the details below.</target>
+</trans-unit>
+<trans-unit id="scb489a1a173ac3f0">
+  <source>Yes</source>
+  <target>Yes</target>
+</trans-unit>
+<trans-unit id="s09205907b5b56cda">
+  <source>No</source>
+  <target>No</target>
+</trans-unit>
+<trans-unit id="s1e3b8c46001e3962">
+  <source>会话已删除</source>
+  <target>Session deleted</target>
+</trans-unit>
+<trans-unit id="s03259582cecb7f6f">
+  <source>删除失败</source>
+  <target>Delete failed</target>
+</trans-unit>
+<trans-unit id="s4c68ea778c075cf4">
+  <source>标题不能为空</source>
+  <target>Title cannot be empty</target>
+</trans-unit>
+<trans-unit id="sa33d70ea05452700">
+  <source>重命名失败</source>
+  <target>Rename failed</target>
+</trans-unit>
+<trans-unit id="s912a87b19f6ee361">
+  <source>没有活动的会话</source>
+  <target>No active session</target>
+</trans-unit>
+<trans-unit id="sa74001c408f0c766">
+  <source>服务未连接</source>
+  <target>Service not connected</target>
+</trans-unit>
+<trans-unit id="s66f8df91e53055b9">
+  <source>压缩上下文失败</source>
+  <target>Failed to compress context</target>
+</trans-unit>
+<trans-unit id="s2bf07bb911ff2d3d">
+  <source>打开文件失败</source>
+  <target>Failed to open file</target>
+</trans-unit>
+<trans-unit id="s642cc600292d5ea7">
+  <source>保存文件失败</source>
+  <target>Failed to save file</target>
+</trans-unit>
+<trans-unit id="scb28f786166ab88f">
+  <source>Session history</source>
+  <target>Session history</target>
+</trans-unit>
+<trans-unit id="s3c0f26e08b2b5bfe">
+  <source>Toggle task list</source>
+  <target>Toggle task list</target>
+</trans-unit>
+<trans-unit id="s47e699a5378f8e6d">
+  <source>New session</source>
+  <target>New session</target>
+</trans-unit>
+<trans-unit id="sc653d15633466d0a">
+  <source>会话列表已自动同步</source>
+  <target>Session list auto-synced</target>
+</trans-unit>
+<trans-unit id="s9a3854a632c60986">
+  <source>暂无会话</source>
+  <target>No sessions</target>
+</trans-unit>
+<trans-unit id="s0016a70887124d70">
+  <source>会话</source>
+  <target>Session</target>
+</trans-unit>
+<trans-unit id="s3bd3f018e0432f30">
+  <source>刷新会话列表</source>
+  <target>Refresh session list</target>
+</trans-unit>
+<trans-unit id="sdce945c24ad44e16">
+  <source>新建会话</source>
+  <target>New session</target>
+</trans-unit>
+<trans-unit id="s3e6962be7add59b4">
+  <source>删除当前会话</source>
+  <target>Delete current session</target>
+</trans-unit>
+<trans-unit id="s38a3347d83d583d3">
+  <source>会话树</source>
+  <target>Session tree</target>
+</trans-unit>
+<trans-unit id="s041e26088b672986">
+  <source>主题</source>
+  <target>Theme</target>
+</trans-unit>
+<trans-unit id="s3faeacd5ca504f5d">
+  <source>选择界面的配色方案</source>
+  <target>Choose interface color scheme</target>
+</trans-unit>
+<trans-unit id="s53d0584edced7d5f">
+  <source>主题已切换为 <x id="0" equiv-text="${(e.target as HTMLSelectElement).value}"/></source>
+  <target>Theme switched to <x id="0" equiv-text="${(e.target as HTMLSelectElement).value}"/></target>
+</trans-unit>
+<trans-unit id="s9b9f3c08329ae856">
+  <source>浅色</source>
+  <target>Light</target>
+</trans-unit>
+<trans-unit id="s9c255408322fd48a">
+  <source>深色</source>
+  <target>Dark</target>
+</trans-unit>
+<trans-unit id="sadea7069d35b5725">
+  <source>跟随系统</source>
+  <target>System</target>
+</trans-unit>
+<trans-unit id="sa8a184ccbfdd1145">
+  <source>字体大小</source>
+  <target>Font size</target>
+</trans-unit>
+<trans-unit id="se437504559428199">
+  <source>调整界面文字大小（12–24px）</source>
+  <target>Adjust interface text size (12–24px)</target>
+</trans-unit>
+<trans-unit id="s2046a88742040df7">
+  <source>字体大小已设为 <x id="0" equiv-text="${clamped}"/>px</source>
+  <target>Font size set to <x id="0" equiv-text="${clamped}"/>px</target>
+</trans-unit>
+<trans-unit id="s98c96ddda9eb32e5">
+  <source>发送快捷键</source>
+  <target>Send shortcut</target>
+</trans-unit>
+<trans-unit id="s17cbdcb3d08e1faa">
+  <source>选择发送消息的键盘快捷键</source>
+  <target>Choose keyboard shortcut for sending messages</target>
+</trans-unit>
+<trans-unit id="sdd9f19f38158a338">
+  <source>发送快捷键已切换为 <x id="0" equiv-text="${(e.target as HTMLSelectElement).value}"/></source>
+  <target>Send shortcut switched to <x id="0" equiv-text="${(e.target as HTMLSelectElement).value}"/></target>
+</trans-unit>
+<trans-unit id="sdc04230409cbaa04">
+  <source>消息密度</source>
+  <target>Message density</target>
+</trans-unit>
+<trans-unit id="sd959e77c2a48c8e5">
+  <source>调整聊天消息的间距</source>
+  <target>Adjust chat message spacing</target>
+</trans-unit>
+<trans-unit id="sb3ce019fa1dd0ac1">
+  <source>消息密度已切换为 <x id="0" equiv-text="${(e.target as HTMLSelectElement).value}"/></source>
+  <target>Message density switched to <x id="0" equiv-text="${(e.target as HTMLSelectElement).value}"/></target>
+</trans-unit>
+<trans-unit id="sd06ce7085f313af5">
+  <source>紧凑</source>
+  <target>Compact</target>
+</trans-unit>
+<trans-unit id="sb413b6091ff8ea35">
+  <source>舒适</source>
+  <target>Comfortable</target>
+</trans-unit>
+<trans-unit id="sa1230a5be083ab6a">
+  <source>自动保存</source>
+  <target>Auto-save</target>
+</trans-unit>
+<trans-unit id="se3de579dffbece39">
+  <source>编辑文件时自动保存更改</source>
+  <target>Automatically save changes when editing files</target>
+</trans-unit>
+<trans-unit id="s23e84510a641ea77">
+  <source>自动保存已启用</source>
+  <target>Auto-save enabled</target>
+</trans-unit>
+<trans-unit id="sbde5411128e19ff9">
+  <source>自动保存已禁用</source>
+  <target>Auto-save disabled</target>
+</trans-unit>
+<trans-unit id="s6ffdf1b6d6afe7b5">
+  <source>默认视图模式</source>
+  <target>Default view mode</target>
+</trans-unit>
+<trans-unit id="s2fa45d68e8e7c9db">
+  <source>选择文件编辑器的默认显示模式</source>
+  <target>Choose default display mode for file editor</target>
+</trans-unit>
+<trans-unit id="s7005b25019cc68ec">
+  <source>默认视图已切换为 <x id="0" equiv-text="${(e.target as HTMLSelectElement).value}"/></source>
+  <target>Default view switched to <x id="0" equiv-text="${(e.target as HTMLSelectElement).value}"/></target>
+</trans-unit>
+<trans-unit id="s116379089658e1c2">
+  <source>分屏</source>
+  <target>Split</target>
+</trans-unit>
+<trans-unit id="s4005447f5c22615f">
+  <source>启用声音</source>
+  <target>Enable sound</target>
+</trans-unit>
+<trans-unit id="s28bbcff0ca38cbfa">
+  <source>收到消息时播放提示音</source>
+  <target>Play notification sound when receiving messages</target>
+</trans-unit>
+<trans-unit id="s5007a4b7896f1b7a">
+  <source>声音通知已启用</source>
+  <target>Sound notifications enabled</target>
+</trans-unit>
+<trans-unit id="sc81820b7ef327434">
+  <source>声音通知已禁用</source>
+  <target>Sound notifications disabled</target>
+</trans-unit>
+<trans-unit id="s88a3ac78fc8c5c69">
+  <source>启用 Toast</source>
+  <target>Enable toast</target>
+</trans-unit>
+<trans-unit id="sd0236d545cb80b16">
+  <source>显示桌面通知弹窗</source>
+  <target>Show desktop notification popups</target>
+</trans-unit>
+<trans-unit id="s6beb126e6d1c828e">
+  <source>Toast 通知已启用</source>
+  <target>Toast notifications enabled</target>
+</trans-unit>
+<trans-unit id="sc4fc0e6eb8473f10">
+  <source>Toast 通知已禁用</source>
+  <target>Toast notifications disabled</target>
+</trans-unit>
+<trans-unit id="s8e904bba6bce5305">
+  <source>未登录</source>
+  <target>Not logged in</target>
+</trans-unit>
+<trans-unit id="s60571c91c53b82fd">
+  <source>用户 ID</source>
+  <target>User ID</target>
+</trans-unit>
+<trans-unit id="s49261a90b150c43b">
+  <source>当前登录的用户标识</source>
+  <target>Currently logged-in user identifier</target>
+</trans-unit>
+<trans-unit id="sb330c4084676d9c0">
+  <source>登出</source>
+  <target>Logout</target>
+</trans-unit>
+<trans-unit id="s072cdcb911e30e5a">
+  <source>清除登录状态并返回登录页</source>
+  <target>Clear login state and return to login page</target>
+</trans-unit>
+<trans-unit id="s4c5ab7fb1d23cc62">
+  <source>版本号</source>
+  <target>Version</target>
+</trans-unit>
+<trans-unit id="s813535081c1375df">
+  <source>文档</source>
+  <target>Docs</target>
+</trans-unit>
+<trans-unit id="s2f94de08af7c2cd1">
+  <source>外观</source>
+  <target>Appearance</target>
+</trans-unit>
+<trans-unit id="s8113c0081bda9c10">
+  <source>文件</source>
+  <target>Files</target>
+</trans-unit>
+<trans-unit id="sf23abf0955854338">
+  <source>通知</source>
+  <target>Notifications</target>
+</trans-unit>
+<trans-unit id="se03f11094613a52a">
+  <source>账户</source>
+  <target>Account</target>
+</trans-unit>
+<trans-unit id="s1511980899235644">
+  <source>关于</source>
+  <target>About</target>
+</trans-unit>
+<trans-unit id="s15a45bb12c36294e">
+  <source>设置分类</source>
+  <target>Settings categories</target>
+</trans-unit>
+<trans-unit id="s28af5a8fabdda335">
+  <source>关闭设置</source>
+  <target>Close settings</target>
+</trans-unit>
+<trans-unit id="s962bdbdeeca87ed7">
+  <source>未打开文件</source>
+  <target>No file open</target>
+</trans-unit>
+<trans-unit id="sa05585a6c2d7a920">
+  <source>行 <x id="0" equiv-text="${cursor.line}"/>, 列 <x id="1" equiv-text="${cursor.column}"/></source>
+  <target>Ln <x id="0" equiv-text="${cursor.line}"/>, Col <x id="1" equiv-text="${cursor.column}"/></target>
+</trans-unit>
+<trans-unit id="sfb9613db0964d8c0">
+  <source>已保存</source>
+  <target>Saved</target>
+</trans-unit>
+<trans-unit id="s6f5e80d8df78807c">
+  <source>已连接</source>
+  <target>Connected</target>
+</trans-unit>
+<trans-unit id="s7eb0adbb93c5afb3">
+  <source>连接中</source>
+  <target>Connecting</target>
+</trans-unit>
+<trans-unit id="s825b1a7334e42ce8">
+  <source>重新连接中</source>
+  <target>Reconnecting</target>
+</trans-unit>
+<trans-unit id="s51b507b884967f54">
+  <source>未连接</source>
+  <target>Disconnected</target>
+</trans-unit>
+<trans-unit id="s783adf081440d848">
+  <source>未知</source>
+  <target>Unknown</target>
+</trans-unit>
+<trans-unit id="scdd07a0935dbe208">
+  <source>语言</source>
+  <target>Language</target>
+</trans-unit>
+<trans-unit id="sdfc63fc25f36f2c0">
+  <source>选择界面显示语言</source>
+  <target>Choose interface display language</target>
+</trans-unit>
+<trans-unit id="s95203a8a3bd01de5">
+  <source>语言已切换为 <x id="0" equiv-text="${locale}"/></source>
+  <target>Language switched to <x id="0" equiv-text="${locale}"/></target>
+</trans-unit>
+<trans-unit id="sca6fb271b73ed1e1">
+  <source>压缩上下文，减少 token 消耗</source>
+  <target>Compress context to reduce token usage</target>
+</trans-unit>
+<trans-unit id="sfcf02d7fbb1eef49">
+  <source>循环执行任务</source>
+  <target>Execute task in a loop</target>
+</trans-unit>
+<trans-unit id="se6d9e8aab546989b">
+  <source>设定目标，持续工作直到达成</source>
+  <target>Set a goal and work continuously until it is achieved</target>
+</trans-unit>
+<trans-unit id="s6f6ff6080ce73d26">
+  <source>手动</source>
+  <target>Manual</target>
+</trans-unit>
+<trans-unit id="scd257409357d9dba">
+  <source>计划</source>
+  <target>Plan</target>
+</trans-unit>
+<trans-unit id="sba5f9c092611d8af">
+  <source>自动</source>
+  <target>Auto</target>
+</trans-unit>
+<trans-unit id="sa99214edf2192eb6">
+  <source>绕过权限</source>
+  <target>Bypass permissions</target>
+</trans-unit>
+<trans-unit id="s0f4f1bba95d2298b">
+  <source>Claude 会在每次编辑前征求你的同意</source>
+  <target>Claude will ask for your consent before each edit</target>
+</trans-unit>
+<trans-unit id="sa062c958bd25c534">
+  <source>Claude 会自动编辑你选中的文本或整个文件</source>
+  <target>Claude automatically edits your selected text or the entire file</target>
+</trans-unit>
+<trans-unit id="s8f39c831592be416">
+  <source>Claude 会先探索代码并展示计划，然后再进行编辑</source>
+  <target>Claude explores the code and presents a plan before making edits</target>
+</trans-unit>
+<trans-unit id="s239712be1485333a">
+  <source>Claude 会自动执行通过安全检查的操作，对有风险的操作会暂停</source>
+  <target>Claude automatically performs operations that pass safety checks, pausing for risky ones</target>
+</trans-unit>
+<trans-unit id="s43fefc62381b84ab">
+  <source>Claude 不会在执行潜在危险命令前征求同意</source>
+  <target>Claude won't ask for consent before executing potentially dangerous commands</target>
+</trans-unit>
+<trans-unit id="sdf41d8e301813b92">
+  <source>🔀 从「<x id="0" equiv-text="${truncatedContent}"/>」分叉</source>
+  <target>🔀 Forked from <x id="0" equiv-text="${truncatedContent}"/></target>
+</trans-unit>
+<trans-unit id="s5ecd97c510a4f3de">
+  <source>新消息</source>
+  <target>New message</target>
+</trans-unit>
+<trans-unit id="s7a3a550815a6de71">
+  <source>查看</source>
+  <target>View</target>
+</trans-unit>
+</body>
+</file>
+</xliff>

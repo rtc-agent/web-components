@@ -11,8 +11,11 @@
  * @fires rtc-session-tree-item-toggle - 点击展开/折叠（detail: { sessionId }）
  */
 import {LitElement, html, nothing, svg} from 'lit';
-import {customElement, property} from 'lit/decorators.js';
+import {customElement, property, state} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
+import {localized, msg} from '@lit/localize';
+import {consume} from '@lit/context';
+import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {tokens} from '../../styles/tokens.js';
 import {lightTheme} from '../../styles/themes/light.js';
 import {darkTheme} from '../../styles/themes/dark.js';
@@ -31,9 +34,20 @@ const chevronSvg = svg`<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/sv
     <path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>`;
 
+@localized()
 @customElement('rtc-session-tree-item')
 export class RtcSessionTreeItem extends LitElement {
     static styles = [tokens, lightTheme, darkTheme, baseStyles, styles];
+
+    @consume({context: localeContext, subscribe: true})
+    @state()
+    private _localeCtx: LocaleContextValue = {
+        locale: sourceLocale,
+        setLocale: async () => {
+            console.warn('[RtcSessionTreeItem] Locale context not initialized');
+        },
+        locales: [sourceLocale, ...targetLocales],
+    };
 
     @property({type: Object})
     node!: SessionTreeNode;
@@ -71,6 +85,7 @@ export class RtcSessionTreeItem extends LitElement {
     }
 
     render() {
+        void this._localeCtx.locale;
         const node = this.node;
         const hasChildren = node.children.length > 0;
         const isSelected = this.selectedSessionId === node.session.clientId;
@@ -120,7 +135,7 @@ export class RtcSessionTreeItem extends LitElement {
                           aria-hidden="true"
                       ></span>`
                     : nothing}
-                <span class="label">${node.session.title || 'Untitled'}</span>
+                <span class="label">${node.session.title || msg('Untitled')}</span>
                 ${node.session.updatedAt
                     ? html`<span class="timestamp">${formatRelativeTime(node.session.updatedAt)}</span>`
                     : nothing}

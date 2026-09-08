@@ -8,8 +8,11 @@
  * @fires rtc-session-tab-close - 点击关闭（detail: { sessionId }）
  */
 import {LitElement, html, svg} from 'lit';
-import {customElement, property} from 'lit/decorators.js';
+import {customElement, property, state} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
+import {localized, msg} from '@lit/localize';
+import {consume} from '@lit/context';
+import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {tokens} from '../../styles/tokens.js';
 import {lightTheme} from '../../styles/themes/light.js';
 import {darkTheme} from '../../styles/themes/dark.js';
@@ -22,9 +25,20 @@ const closeSvg = svg`<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"
     <path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
 </svg>`;
 
+@localized()
 @customElement('rtc-session-tab')
 export class RtcSessionTab extends LitElement {
     static styles = [tokens, lightTheme, darkTheme, baseStyles, styles];
+
+    @consume({context: localeContext, subscribe: true})
+    @state()
+    private _localeCtx: LocaleContextValue = {
+        locale: sourceLocale,
+        setLocale: async () => {
+            console.warn('[RtcSessionTab] Locale context not initialized');
+        },
+        locales: [sourceLocale, ...targetLocales],
+    };
 
     @property({type: String, attribute: 'session-id'})
     sessionId!: string;
@@ -78,6 +92,7 @@ export class RtcSessionTab extends LitElement {
     }
 
     render() {
+        void this._localeCtx.locale;
         return html`
             <div
                 class=${classMap({
@@ -98,13 +113,13 @@ export class RtcSessionTab extends LitElement {
                     })}
                     aria-hidden="true"
                 ></span>
-                <span class="tab-title">${this.title || 'Untitled'}</span>
+                <span class="tab-title">${this.title || msg('Untitled')}</span>
                 ${this.dirty
                     ? html`<span class="tab-dirty" aria-label="unsaved"></span>`
                     : ''}
                 <button
                     class="tab-close"
-                    aria-label="关闭"
+                    aria-label=${msg('关闭')}
                     tabindex="-1"
                     @click=${this._handleClose}
                 >${closeSvg}</button>

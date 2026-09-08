@@ -18,14 +18,18 @@
  * VS Code 风格：蓝底白字，双主题同色。
  */
 import {LitElement, html} from 'lit';
-import {customElement, property} from 'lit/decorators.js';
+import {customElement, property, state} from 'lit/decorators.js';
+import {localized, msg, str} from '@lit/localize';
+import {consume} from '@lit/context';
 import {styles} from './rtc-status-bar.styles.js';
 import type {StatusBarInfo} from '../../types/index.js';
 import {tokens} from '../../styles/tokens.js';
 import {lightTheme} from '../../styles/themes/light.js';
 import {darkTheme} from '../../styles/themes/dark.js';
 import {baseStyles} from '../../styles/base.js';
+import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 
+@localized()
 @customElement('rtc-status-bar')
 export class RtcStatusBar extends LitElement {
     static styles = [tokens, lightTheme, darkTheme, baseStyles, styles];
@@ -45,9 +49,22 @@ export class RtcStatusBar extends LitElement {
     @property({type: String, reflect: true})
     theme: 'light' | 'dark' | 'system' = 'system';
 
+    @consume({context: localeContext, subscribe: true})
+    @state()
+    private _localeCtx: LocaleContextValue = {
+        locale: sourceLocale,
+        setLocale: async () => {
+            console.warn('[rtc-status-bar] Locale context not initialized');
+        },
+        locales: [sourceLocale, ...targetLocales],
+    };
+
     /* ── Render ── */
 
     render() {
+        // Reference locale to ensure re-render on locale change
+        void this._localeCtx.locale;
+
         if (this.fileInfo.saveStatus === 'none') {
             return this._renderEmpty();
         }
@@ -56,7 +73,7 @@ export class RtcStatusBar extends LitElement {
     }
 
     private _renderEmpty() {
-        return html`<span class="status-empty">未打开文件</span>`;
+        return html`<span class="status-empty">${msg('未打开文件')}</span>`;
     }
 
     private _renderItems() {
@@ -69,7 +86,7 @@ export class RtcStatusBar extends LitElement {
             <span class="status-item status-file-type">${fileType}</span>
             <span class="status-item status-encoding">${encoding}</span>
             <span class="status-item status-cursor">
-                行 ${cursor.line}, 列 ${cursor.column}
+                ${msg(str`行 ${cursor.line}, 列 ${cursor.column}`)}
             </span>
             <span class="status-spacer"></span>
             <span class="status-item status-save ${displayStatus === 'unsaved' ? 'status-save-unsaved' : ''}">
@@ -81,9 +98,9 @@ export class RtcStatusBar extends LitElement {
     private _renderSaveStatus(status: 'saved' | 'unsaved'): string {
         switch (status) {
             case 'saved':
-                return '已保存';
+                return msg('已保存');
             case 'unsaved':
-                return '未保存';
+                return msg('未保存');
             default:
                 return '';
         }

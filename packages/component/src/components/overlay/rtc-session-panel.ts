@@ -10,16 +10,30 @@
  * @csspart list - The session list container
  */
 import {LitElement, html} from 'lit';
-import {customElement, property} from 'lit/decorators.js';
+import {customElement, property, state} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
 import {repeat} from 'lit/directives/repeat.js';
+import {localized, msg} from '@lit/localize';
+import {consume} from '@lit/context';
+import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {styles} from './rtc-session-panel.styles.js';
 import type {Session} from '../../types/index.js';
 import {editIcon, deleteIcon} from '../../icons/index.js';
 
+@localized()
 @customElement('rtc-session-panel')
 export class RtcSessionPanel extends LitElement {
     static styles = styles;
+
+    @consume({context: localeContext, subscribe: true})
+    @state()
+    private _localeCtx: LocaleContextValue = {
+        locale: sourceLocale,
+        setLocale: async () => {
+            console.warn('[RtcSessionPanel] Locale context not initialized');
+        },
+        locales: [sourceLocale, ...targetLocales],
+    };
 
     @property({type: Array})
     sessions: Session[] = [];
@@ -64,8 +78,9 @@ export class RtcSessionPanel extends LitElement {
     }
 
     render() {
+        void this._localeCtx.locale;
         if (this.sessions.length === 0) {
-            return html`<div class="empty-text">No sessions yet</div>`;
+            return html`<div class="empty-text">${msg('No sessions yet')}</div>`;
         }
 
         return html`
@@ -79,17 +94,17 @@ export class RtcSessionPanel extends LitElement {
               @click=${() => this._handleSelect(s)}
             >
               <div class="session-text">
-                <span class="session-title">${s.title || 'Untitled'}</span>
+                <span class="session-title">${s.title || msg('Untitled')}</span>
                 <span class="session-time">${new Date(s.updatedAt).toLocaleString()}</span>
               </div>
               <div class="session-actions">
                 <button class="session-action-btn" data-action="rename"
                   @click=${(e: Event) => this._handleRename(s, e)}
-                  title="编辑">${editIcon}
+                  title=${msg('编辑')}>${editIcon}
                 </button>
                 <button class="session-action-btn" data-action="delete"
                   @click=${(e: Event) => this._handleDelete(s, e)}
-                  title="删除">${deleteIcon}
+                  title=${msg('删除')}>${deleteIcon}
                 </button>
               </div>
             </div>

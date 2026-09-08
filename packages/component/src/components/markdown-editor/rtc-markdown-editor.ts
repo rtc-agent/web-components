@@ -22,6 +22,9 @@
  */
 import {LitElement, html} from 'lit';
 import {customElement, property, state, query} from 'lit/decorators.js';
+import {consume} from '@lit/context';
+import {localized, msg, str} from '@lit/localize';
+import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {styles} from './rtc-markdown-editor.styles.js';
 import type {EditorViewMode} from '../../types/index.js';
 import {tokens} from '../../styles/tokens.js';
@@ -29,9 +32,20 @@ import {lightTheme} from '../../styles/themes/light.js';
 import {darkTheme} from '../../styles/themes/dark.js';
 import {baseStyles} from '../../styles/base.js';
 
+@localized()
 @customElement('rtc-markdown-editor')
 export class RtcMarkdownEditor extends LitElement {
     static styles = [tokens, lightTheme, darkTheme, baseStyles, styles];
+
+    @consume({context: localeContext, subscribe: true})
+    @state()
+    private _localeCtx: LocaleContextValue = {
+        locale: sourceLocale,
+        setLocale: async () => {
+            console.warn('[rtc-markdown-editor] Locale context not initialized');
+        },
+        locales: [sourceLocale, ...targetLocales],
+    };
 
     /* ── Properties ── */
 
@@ -146,7 +160,7 @@ export class RtcMarkdownEditor extends LitElement {
             this._renderedHtml = cleanHtml;
         } catch (err) {
             console.error('[rtc-markdown-editor] Failed to parse markdown:', err);
-            this._renderedHtml = `<p style="color: var(--rtc-color-error);">渲染失败: ${err instanceof Error ? err.message : String(err)}</p>`;
+            this._renderedHtml = `<p style="color: var(--rtc-color-error);">${msg(str`渲染失败: ${err instanceof Error ? err.message : String(err)}`)}</p>`;
         }
     }
 
@@ -288,12 +302,12 @@ export class RtcMarkdownEditor extends LitElement {
     private _renderEditPane() {
         return html`
             <div class="edit-pane">
-                <div class="edit-pane-header">编辑器</div>
+                <div class="edit-pane-header">${msg("编辑器")}</div>
                 <textarea
                     class="editor-textarea"
                     .value=${this.content}
                     ?readonly=${this.readOnly}
-                    placeholder="开始输入 Markdown..."
+                    placeholder=${msg("开始输入 Markdown...")}
                     spellcheck="false"
                     @input=${this._handleInput}
                     @keyup=${this._handleKeyUp}
@@ -309,10 +323,10 @@ export class RtcMarkdownEditor extends LitElement {
 
         return html`
             <div class="preview-pane">
-                <div class="preview-pane-header">预览</div>
+                <div class="preview-pane-header">${msg("预览")}</div>
                 <div class="preview-content">
                     ${isEmpty
-                        ? html`<div class="empty-state">暂无内容</div>`
+                        ? html`<div class="empty-state">${msg("暂无内容")}</div>`
                         : html`<div .innerHTML=${this._renderedHtml}></div>`
                     }
                 </div>
@@ -327,12 +341,12 @@ export class RtcMarkdownEditor extends LitElement {
         return html`
             <div class="split-container">
                 <div class="edit-pane" style=${leftStyle}>
-                    <div class="edit-pane-header">编辑器</div>
+                    <div class="edit-pane-header">${msg("编辑器")}</div>
                     <textarea
                         class="editor-textarea"
                         .value=${this.content}
                         ?readonly=${this.readOnly}
-                        placeholder="开始输入 Markdown..."
+                        placeholder=${msg("开始输入 Markdown...")}
                         spellcheck="false"
                         @input=${this._handleInput}
                         @keyup=${this._handleKeyUp}
@@ -345,10 +359,10 @@ export class RtcMarkdownEditor extends LitElement {
                     @mousedown=${this._handleSplitMouseDown}
                 ></div>
                 <div class="preview-pane" style=${rightStyle}>
-                    <div class="preview-pane-header">预览</div>
+                    <div class="preview-pane-header">${msg("预览")}</div>
                     <div class="preview-content">
                         ${!this.content.trim()
-                            ? html`<div class="empty-state">暂无内容</div>`
+                            ? html`<div class="empty-state">${msg("暂无内容")}</div>`
                             : html`<div .innerHTML=${this._renderedHtml}></div>`
                         }
                     </div>
@@ -358,6 +372,7 @@ export class RtcMarkdownEditor extends LitElement {
     }
 
     render() {
+        void this._localeCtx.locale;
         return html`
             <div class="editor-content">
                 ${this.viewMode === 'edit'

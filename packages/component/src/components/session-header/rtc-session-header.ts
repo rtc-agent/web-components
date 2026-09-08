@@ -11,6 +11,8 @@
 import {LitElement, html, nothing} from 'lit';
 import {customElement, property, state, query} from 'lit/decorators.js';
 import {consume} from '@lit/context';
+import {localized, msg} from '@lit/localize';
+import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {
     computePosition,
     flip,
@@ -25,9 +27,20 @@ import '../overlay/rtc-session-panel.js';
 import '../overlay/rtc-todo-panel.js';
 import type {Session, TodoItem} from '../../types/index.js';
 
+@localized()
 @customElement('rtc-session-header')
 export class RtcSessionHeader extends LitElement {
     static styles = styles;
+
+    @consume({context: localeContext, subscribe: true})
+    @state()
+    private _localeCtx: LocaleContextValue = {
+        locale: sourceLocale,
+        setLocale: async () => {
+            console.warn('[rtc-session-header] Locale context not initialized');
+        },
+        locales: [sourceLocale, ...targetLocales],
+    };
 
     @consume({context: SessionContext, subscribe: true})
     @state()
@@ -305,6 +318,7 @@ export class RtcSessionHeader extends LitElement {
     /* ── Render ── */
 
     render() {
+        void this._localeCtx.locale;
         const sessions: Session[] = this._sessionCtx.state.sessions;
         const currentSessionId = this._sessionCtx.state.currentSessionId;
 
@@ -312,7 +326,7 @@ export class RtcSessionHeader extends LitElement {
         const currentSession = currentSessionId
             ? sessions.find(s => s.clientId === currentSessionId)
             : undefined;
-        const title = currentSession?.title || this.sessionTitle || 'Untitled';
+        const title = currentSession?.title || this.sessionTitle || msg('Untitled');
         const todoList: TodoItem[] = currentSession?.todoList ?? [];
 
         return html`
@@ -322,22 +336,22 @@ export class RtcSessionHeader extends LitElement {
           <button
             class="icon-btn"
             data-action="history"
-            title="Session history"
-            aria-label="Session history"
+            title=${msg("Session history")}
+            aria-label=${msg("Session history")}
             @click=${this._handleHistoryClick}
           >${clockIcon}</button>
           <button
             class="icon-btn"
             data-action="todo"
-            title="Task list"
-            aria-label="Toggle task list"
+            title=${msg("Task list")}
+            aria-label=${msg("Toggle task list")}
             @click=${this._handleTodoClick}
           >${checklistIcon}</button>
           <button
             class="icon-btn"
             data-action="new-session"
-            title="New session"
-            aria-label="New session"
+            title=${msg("New session")}
+            aria-label=${msg("New session")}
             @click=${this._handleNewSession}
           >${plusIcon}</button>
         </div>

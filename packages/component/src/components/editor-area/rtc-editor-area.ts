@@ -33,7 +33,10 @@
  * 使用项目 design tokens（--rtc-color-*），支持亮色/暗色主题。
  */
 import {LitElement, html, nothing} from 'lit';
-import {customElement, property} from 'lit/decorators.js';
+import {customElement, property, state} from 'lit/decorators.js';
+import {localized, msg} from '@lit/localize';
+import {consume} from '@lit/context';
+import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {styles} from './rtc-editor-area.styles.js';
 import type {EditorTab, EditorViewMode} from '../../types/index.js';
 import {fileMarkdownIcon} from '../../icons/index.js';
@@ -50,9 +53,22 @@ import '../markdown-editor/rtc-markdown-editor.js';
 /** 格式化类型（与 toolbar 一致） */
 type FormatType = 'bold' | 'italic' | 'code' | 'link';
 
+@localized()
 @customElement('rtc-editor-area')
 export class RtcEditorArea extends LitElement {
     static styles = [tokens, lightTheme, darkTheme, baseStyles, styles];
+
+    /* ── i18n ── */
+
+    @consume({context: localeContext, subscribe: true})
+    @state()
+    private _localeCtx: LocaleContextValue = {
+        locale: sourceLocale,
+        setLocale: async () => {
+            console.warn('[rtc-editor-area] Locale context not initialized');
+        },
+        locales: [sourceLocale, ...targetLocales],
+    };
 
     /* ── Properties ── */
 
@@ -253,7 +269,7 @@ export class RtcEditorArea extends LitElement {
             <div class="welcome-screen">
                 <div class="welcome-icon">${fileMarkdownIcon}</div>
                 <div class="welcome-title">RTC Agent Editor</div>
-                <div class="welcome-hint">从文件树中选择文件以开始编辑</div>
+                <div class="welcome-hint">${msg('从文件树中选择文件以开始编辑')}</div>
             </div>
         `;
     }
@@ -269,6 +285,7 @@ export class RtcEditorArea extends LitElement {
     /* ── Main Render ── */
 
     render() {
+        void this._localeCtx.locale;
         return html`
             ${this._renderTabs()}
             ${this._renderToolbar()}

@@ -20,12 +20,16 @@
     "build": "vite build",
     "dev": "vite",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "i18n:extract": "lit-localize extract",
+    "i18n:build": "lit-localize build",
+    "i18n:lint": "lit-localize lint"
   },
   "dependencies": {
     "@floating-ui/dom": "^1.8.0",
     "@lit-labs/virtualizer": "^2.1.1",
     "@lit/context": "^1.1.6",
+    "@lit/localize": "^0.12.2",
     "@primer/octicons": "^19.33.0",
     "@rtc-agent/client": "workspace:*",
     "@rtc-agent/persistence": "workspace:*",
@@ -40,6 +44,7 @@
     "marked": "^18.0.11"
   },
   "devDependencies": {
+    "@lit/localize-tools": "^0.8.2",
     "@types/dompurify": "^3.2.0",
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^30.0.1",

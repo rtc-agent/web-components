@@ -10,9 +10,12 @@
  */
 import {LitElement, html} from 'lit';
 import {customElement, state} from 'lit/decorators.js';
+import {localized, msg, str} from '@lit/localize';
+import {consume} from '@lit/context';
 import {styles} from './rtc-login-dialog.styles.js';
 import {AUTH_CONFIG, STORAGE_KEYS} from '../../config/auth.js';
 import {getOrCreateDeviceId, getDeviceName} from '../../utils/device.js';
+import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 
 type LoginStatus = 'opening' | 'waiting' | 'exchanging' | 'success' | 'error';
 
@@ -28,6 +31,7 @@ interface OAuth2TokenExchangeResponse {
     expires_in: number;
 }
 
+@localized()
 @customElement('rtc-login-dialog')
 export class RtcLoginDialog extends LitElement {
     static styles = styles;
@@ -36,10 +40,23 @@ export class RtcLoginDialog extends LitElement {
     @state() private _errorMessage = '';
     @state() private _authUrl = '';
 
+    @consume({context: localeContext, subscribe: true})
+    @state()
+    private _localeCtx: LocaleContextValue = {
+        locale: sourceLocale,
+        setLocale: async () => {
+            console.warn('[rtc-login-dialog] Locale context not initialized');
+        },
+        locales: [sourceLocale, ...targetLocales],
+    };
+
     private _messageHandler: ((event: MessageEvent) => void) | null = null;
     private _loginStarted = false;
 
     render() {
+        // Reference locale to ensure re-render on locale change
+        void this._localeCtx.locale;
+
         return html`
       <div
         class="overlay"
@@ -51,7 +68,7 @@ export class RtcLoginDialog extends LitElement {
         <div class="dialog">
           <div class="dialog-header">
             <div class="title" id="dialog-title">${this._getTitle()}</div>
-            <button class="close-btn" @click=${this._close} aria-label="关闭">×</button>
+            <button class="close-btn" @click=${this._close} aria-label=${msg('关闭')}>×</button>
           </div>
           <div class="status">${this._getStatusMessage()}</div>
           ${this._renderContent()}
@@ -64,24 +81,24 @@ export class RtcLoginDialog extends LitElement {
     private _getTitle(): string {
         switch (this._status) {
             case 'success':
-                return '登录成功';
+                return msg('登录成功');
             case 'error':
-                return '登录失败';
+                return msg('登录失败');
             default:
-                return '登录';
+                return msg('登录');
         }
     }
 
     private _getStatusMessage(): string {
         switch (this._status) {
             case 'opening':
-                return '正在准备授权...';
+                return msg('正在准备授权...');
             case 'waiting':
-                return '请在下方完成授权';
+                return msg('请在下方完成授权');
             case 'exchanging':
-                return '正在验证身份...';
+                return msg('正在验证身份...');
             case 'success':
-                return '即将自动关闭...';
+                return msg('即将自动关闭...');
             case 'error':
                 return '';
             default:
@@ -97,7 +114,7 @@ export class RtcLoginDialog extends LitElement {
         if (isError) {
             return html`
         <button class="button button-primary" @click=${this._startLogin}>
-          重试
+          ${msg('重试')}
         </button>
       `;
         }
@@ -117,7 +134,7 @@ export class RtcLoginDialog extends LitElement {
           <iframe
             class="auth-iframe"
             src=${this._authUrl}
-            title="授权页面"
+            title=${msg('授权页面')}
             allow="credentials"
           ></iframe>
         </div>
@@ -162,7 +179,7 @@ export class RtcLoginDialog extends LitElement {
 
             const response = await fetch(authzUrl.toString());
             if (!response.ok) {
-                throw new Error(`获取授权 URL 失败: ${response.status}`);
+                throw new Error(msg(str`获取授权 URL 失败: ${response.status}`));
             }
 
             const authz: OAuth2AuthorizeResponse = await response.json();
@@ -180,7 +197,7 @@ export class RtcLoginDialog extends LitElement {
 
         } catch (error) {
             this._status = 'error';
-            this._errorMessage = error instanceof Error ? error.message : '未知错误';
+            this._errorMessage = error instanceof Error ? error.message : msg('未知错误');
             this._loginStarted = false; // Allow retry
         }
     }
@@ -210,7 +227,7 @@ export class RtcLoginDialog extends LitElement {
         const savedState = sessionStorage.getItem(STORAGE_KEYS.oauthState);
         if (state !== savedState) {
             this._status = 'error';
-            this._errorMessage = 'State 校验失败，请重试';
+            this._errorMessage = msg('State 校验失败，请重试');
             this._loginStarted = false;
             return;
         }
@@ -234,7 +251,7 @@ export class RtcLoginDialog extends LitElement {
 
             if (!response.ok) {
                 const errData = await response.json().catch(() => ({}));
-                throw new Error(errData.error_description || `Token 交换失败: ${response.status}`);
+                throw new Error(errData.error_description || msg(str`Token 交换失败: ${response.status}`));
             }
 
             const tokens: OAuth2TokenExchangeResponse = await response.json();
@@ -260,7 +277,7 @@ export class RtcLoginDialog extends LitElement {
 
         } catch (error) {
             this._status = 'error';
-            this._errorMessage = error instanceof Error ? error.message : '未知错误';
+            this._errorMessage = error instanceof Error ? error.message : msg('未知错误');
             this._loginStarted = false;
         }
 

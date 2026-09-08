@@ -24,8 +24,11 @@
  * @element rtc-toast
  */
 import {LitElement, html, css, nothing} from 'lit';
-import {customElement, property} from 'lit/decorators.js';
+import {customElement, property, state} from 'lit/decorators.js';
 import {repeat} from 'lit/directives/repeat.js';
+import {localized, msg} from '@lit/localize';
+import {consume} from '@lit/context';
+import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 
 export type ToastType = 'success' | 'error' | 'info';
 
@@ -41,6 +44,7 @@ export interface ToastItem {
   action?: ToastAction;
 }
 
+@localized()
 @customElement('rtc-toast')
 export class RtcToast extends LitElement {
   static styles = css`
@@ -193,6 +197,16 @@ export class RtcToast extends LitElement {
     }
   `;
 
+  @consume({context: localeContext, subscribe: true})
+  @state()
+  private _localeCtx: LocaleContextValue = {
+      locale: sourceLocale,
+      setLocale: async () => {
+          console.warn('[RtcToast] Locale context not initialized');
+      },
+      locales: [sourceLocale, ...targetLocales],
+  };
+
   @property({type: Array})
   toasts: ToastItem[] = [];
 
@@ -220,6 +234,7 @@ export class RtcToast extends LitElement {
   }
 
   render() {
+    void this._localeCtx.locale;
     if (this.toasts.length === 0) return nothing;
 
     return repeat(
@@ -252,7 +267,7 @@ export class RtcToast extends LitElement {
                 ${toast.action.label}
               </button>`
             : nothing}
-          <button class="toast-close" part="close" @click=${() => this._handleClose(toast.id)} aria-label="关闭">
+          <button class="toast-close" part="close" @click=${() => this._handleClose(toast.id)} aria-label=${msg('关闭')}>
             ×
           </button>
         </div>

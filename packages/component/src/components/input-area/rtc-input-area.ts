@@ -22,6 +22,8 @@
 import {LitElement, html} from 'lit';
 import {customElement, state, query} from 'lit/decorators.js';
 import {consume} from '@lit/context';
+import {localized, msg} from '@lit/localize';
+import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {
     computePosition,
     flip,
@@ -30,7 +32,7 @@ import {
     autoUpdate,
 } from '@floating-ui/dom';
 import {styles} from './rtc-input-area.styles.js';
-import {ModeContext, MODE_CONFIGS, type ModeContextValue} from '../../contexts/mode.js';
+import {ModeContext, type ModeContextValue} from '../../contexts/mode.js';
 import {SessionContext} from '../../contexts/session.js';
 import {TurnCountContext, type TurnCountContextValue} from '../../contexts/turn-count.js';
 import {MessageContext, type MessageContextValue} from '../../contexts/message.js';
@@ -43,9 +45,22 @@ import '../overlay/rtc-command-panel.js';
 // UIUpdateBus 用于监听新消息事件
 import {getUIUpdateBus, type UIUpdateEvent} from '@rtc-agent/persistence';
 
+@localized()
 @customElement('rtc-input-area')
 export class RtcInputArea extends LitElement {
     static styles = styles;
+
+    /* ── i18n ── */
+
+    @consume({context: localeContext, subscribe: true})
+    @state()
+    private _localeCtx: LocaleContextValue = {
+        locale: sourceLocale,
+        setLocale: async () => {
+            console.warn('[rtc-input-area] Locale context not initialized');
+        },
+        locales: [sourceLocale, ...targetLocales],
+    };
 
     @consume({context: ModeContext, subscribe: true})
     @state()
@@ -358,8 +373,15 @@ export class RtcInputArea extends LitElement {
     }
 
     private get _currentModeLabel(): string {
-        return MODE_CONFIGS.find(c => c.mode === this._modeCtx.state.currentMode)?.label
-            ?? this._modeCtx.state.currentMode;
+        const mode = this._modeCtx.state.currentMode;
+        switch (mode) {
+            case 'manual': return msg('手动');
+            case 'edit': return msg('编辑');
+            case 'plan': return msg('计划');
+            case 'auto': return msg('自动');
+            case 'bypass': return msg('绕过权限');
+            default: return mode;
+        }
     }
 
     private _handleModeToggle() {
@@ -559,6 +581,7 @@ export class RtcInputArea extends LitElement {
     }
 
     render() {
+        void this._localeCtx.locale;
         return html`
       <div class="input-inner">
         <div class="textarea-container">
@@ -570,13 +593,13 @@ export class RtcInputArea extends LitElement {
             @input=${this._handleInput}
             @keydown=${this._handleKeydown}
           ></textarea>
-          <button class="voice-btn" part="voice-btn" title="Voice input" @click=${this._handleVoice}>
+          <button class="voice-btn" part="voice-btn" title=${msg('Voice input')} @click=${this._handleVoice}>
             ${micIcon}
           </button>
         </div>
         <div class="input-toolbar" part="toolbar">
-          <button class="toolbar-btn" title="Attach file">${attachIcon}</button>
-          <button class="toolbar-btn tool-btn" title="Commands" @click=${this._handleCommandToggle}>${toolIcon}</button>
+          <button class="toolbar-btn" title=${msg('Attach file')}>${attachIcon}</button>
+          <button class="toolbar-btn tool-btn" title=${msg('Commands')} @click=${this._handleCommandToggle}>${toolIcon}</button>
           <span class="toolbar-spacer"></span>
           <button class="mode-btn" part="mode-btn" @click=${this._handleModeToggle}>
             ${this._currentModeLabel}
@@ -584,7 +607,7 @@ export class RtcInputArea extends LitElement {
           <button
             class="send-btn ${this._showStop ? 'send-btn--stop' : ''}"
             part="send-btn"
-            title=${this._showStop ? 'Stop' : 'Send'}
+            title=${this._showStop ? msg('Stop') : msg('Send')}
             ?disabled=${!this._showStop && !this._hasContent}
             @click=${this._showStop ? this._handleStop : this._submit}
           >${this._showStop ? stopIcon : sendIcon}</button>

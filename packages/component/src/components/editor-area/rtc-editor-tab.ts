@@ -19,7 +19,10 @@
  * 使用项目 design tokens（--rtc-color-*），支持亮色/暗色主题。
  */
 import {LitElement, html} from 'lit';
-import {customElement, property} from 'lit/decorators.js';
+import {customElement, property, state} from 'lit/decorators.js';
+import {localized, msg, str} from '@lit/localize';
+import {consume} from '@lit/context';
+import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {styles} from './rtc-editor-tab.styles.js';
 import {
     closeIcon,
@@ -32,9 +35,22 @@ import {lightTheme} from '../../styles/themes/light.js';
 import {darkTheme} from '../../styles/themes/dark.js';
 import {baseStyles} from '../../styles/base.js';
 
+@localized()
 @customElement('rtc-editor-tab')
 export class RtcEditorTab extends LitElement {
     static styles = [tokens, lightTheme, darkTheme, baseStyles, styles];
+
+    /* ── i18n ── */
+
+    @consume({context: localeContext, subscribe: true})
+    @state()
+    private _localeCtx: LocaleContextValue = {
+        locale: sourceLocale,
+        setLocale: async () => {
+            console.warn('[rtc-editor-tab] Locale context not initialized');
+        },
+        locales: [sourceLocale, ...targetLocales],
+    };
 
     /* ── Properties ── */
 
@@ -197,6 +213,7 @@ export class RtcEditorTab extends LitElement {
     /* ── Main Render ── */
 
     render() {
+        void this._localeCtx.locale;
         const tabClass = [
             'tab',
             this.active ? 'active' : '',
@@ -221,14 +238,14 @@ export class RtcEditorTab extends LitElement {
                 <span class="name">${this.fileName}</span>
 
                 ${this.dirty
-                    ? html`<span class="dirty-dot" aria-label="未保存"></span>`
+                    ? html`<span class="dirty-dot" aria-label=${msg('未保存')}></span>`
                     : ''}
 
                 <span
                     class="close-btn"
                     role="button"
                     tabindex="0"
-                    aria-label="关闭 ${this.fileName}"
+                    aria-label=${msg(str`关闭 ${this.fileName}`)}
                     @click=${this._handleClose}
                     @keydown=${(e: KeyboardEvent) => {
                         if (e.key === 'Enter' || e.key === ' ') {

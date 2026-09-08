@@ -16,6 +16,8 @@
 import {LitElement, html} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
 import {consume} from '@lit/context';
+import {localized, msg} from '@lit/localize';
+import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {styles} from './rtc-file-explorer.styles.js';
 import {tokens} from '../../styles/tokens.js';
 import {lightTheme} from '../../styles/themes/light.js';
@@ -29,9 +31,22 @@ import {refreshIcon} from '../../icons/index.js';
 import './rtc-file-tree-item.js';
 import type {RtcFileTreeItem} from './rtc-file-tree-item.js';
 
+@localized()
 @customElement('rtc-file-explorer')
 export class RtcFileExplorer extends LitElement {
     static styles = [tokens, lightTheme, darkTheme, baseStyles, styles];
+
+    /* ── i18n ── */
+
+    @consume({context: localeContext, subscribe: true})
+    @state()
+    private _localeCtx: LocaleContextValue = {
+        locale: sourceLocale,
+        setLocale: async () => {
+            console.warn('[rtc-file-explorer] Locale context not initialized');
+        },
+        locales: [sourceLocale, ...targetLocales],
+    };
 
     /* ── Properties ── */
 
@@ -342,7 +357,7 @@ export class RtcFileExplorer extends LitElement {
         return html`
             <div class="empty-state">
                 <span class="empty-state-icon">${refreshIcon}</span>
-                <span class="empty-state-text">文件列表为空<br>点击刷新按钮加载</span>
+                <span class="empty-state-text">${msg('文件列表为空')}<br>${msg('点击刷新按钮加载')}</span>
             </div>
         `;
     }
@@ -370,14 +385,15 @@ export class RtcFileExplorer extends LitElement {
     }
 
     render() {
+        void this._localeCtx.locale;
         return html`
             <div class="sidebar-header">
-                <span class="sidebar-title">资源管理器</span>
+                <span class="sidebar-title">${msg('资源管理器')}</span>
                 <div class="sidebar-actions">
                     <button
                         class="action-btn"
-                        title="刷新"
-                        aria-label="刷新"
+                        title=${msg('刷新')}
+                        aria-label=${msg('刷新')}
                         @click=${this._handleRefresh}
                     >${refreshIcon}</button>
                 </div>
@@ -385,7 +401,7 @@ export class RtcFileExplorer extends LitElement {
             <div
                 class="sidebar-content"
                 role="tree"
-                aria-label="文件树"
+                aria-label=${msg('文件树')}
                 @keydown=${this._handleKeydown}
             >
                 ${this._renderTree()}

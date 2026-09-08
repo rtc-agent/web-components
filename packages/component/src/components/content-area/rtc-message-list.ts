@@ -30,6 +30,8 @@
 import {LitElement, html} from 'lit';
 import {customElement, state} from 'lit/decorators.js';
 import {consume} from '@lit/context';
+import {localized, msg} from '@lit/localize';
+import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {repeat} from 'lit/directives/repeat.js';
 import {styles} from './rtc-message-list.styles.js';
 import {MessageContext, type MessageContextValue} from '../../contexts/message.js';
@@ -40,9 +42,20 @@ import './rtc-user-message.js';
 import './rtc-toolcall-card.js';
 import type {ToolCallPair} from './rtc-toolcall-card.js';
 
+@localized()
 @customElement('rtc-message-list')
 export class RtcMessageList extends LitElement {
     static styles = styles;
+
+    @consume({context: localeContext, subscribe: true})
+    @state()
+    private _localeCtx: LocaleContextValue = {
+        locale: sourceLocale,
+        setLocale: async () => {
+            console.warn('[RtcMessageList] Locale context not initialized');
+        },
+        locales: [sourceLocale, ...targetLocales],
+    };
 
     @consume({context: MessageContext, subscribe: true})
     @state()
@@ -331,6 +344,7 @@ export class RtcMessageList extends LitElement {
     }
 
     render() {
+        void this._localeCtx.locale;
         const msgs = this.messages;
         const items = this._buildRenderItems(msgs);
         // The last rendered item's key determines which component gets is-last
@@ -365,12 +379,12 @@ export class RtcMessageList extends LitElement {
         ?disabled=${isLoadingMore}
         @click=${this._handleLoadMoreClick}
         aria-label="Load earlier messages"
-      >${isLoadingMore ? 'Loading...' : '↑ Load earlier messages'}</button>
+      >${isLoadingMore ? msg('Loading...') : msg('↑ Load earlier messages')}</button>
       <button
         class="new-message-btn"
         ?hidden=${!this._showNewBtn}
         @click=${this._handleNewBtnClick}
-      >↓ New messages</button>
+      >${msg('↓ New messages')}</button>
     `;
     }
 

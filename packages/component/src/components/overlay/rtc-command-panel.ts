@@ -10,8 +10,11 @@
  * @csspart list - The command list container
  */
 import {LitElement, html} from 'lit';
-import {customElement, property} from 'lit/decorators.js';
+import {customElement, property, state} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
+import {localized, msg} from '@lit/localize';
+import {consume} from '@lit/context';
+import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {styles} from './rtc-command-panel.styles.js';
 import {gearIcon, clockIcon, checklistIcon} from '../../icons/index.js';
 
@@ -54,9 +57,20 @@ export const COMMAND_CONFIGS: CommandConfig[] = [
     },
 ];
 
+@localized()
 @customElement('rtc-command-panel')
 export class RtcCommandPanel extends LitElement {
     static styles = styles;
+
+    @consume({context: localeContext, subscribe: true})
+    @state()
+    private _localeCtx: LocaleContextValue = {
+        locale: sourceLocale,
+        setLocale: async () => {
+            console.warn('[RtcCommandPanel] Locale context not initialized');
+        },
+        locales: [sourceLocale, ...targetLocales],
+    };
 
     @property({type: Array})
     commands: CommandConfig[] = COMMAND_CONFIGS;
@@ -96,6 +110,7 @@ export class RtcCommandPanel extends LitElement {
     }
 
     render() {
+        void this._localeCtx.locale;
         return html`
       <div class="command-list" part="list">
         ${this.commands.map(
@@ -103,19 +118,28 @@ export class RtcCommandPanel extends LitElement {
                 <div
                   class="command-item ${classMap({disabled: !cmd.available})}"
                   @click=${() => this._handleSelect(cmd)}
-                  title=${cmd.available ? cmd.description : '即将推出'}
+                  title=${cmd.available ? this._translateDesc(cmd.name, cmd.description) : msg('即将推出')}
                 >
                   <span class="command-icon">${cmd.icon}</span>
                   <span class="command-text">
                     <span class="command-label">${cmd.label}</span>
-                    <span class="command-desc">${cmd.description}</span>
+                    <span class="command-desc">${this._translateDesc(cmd.name, cmd.description)}</span>
                   </span>
-                  ${!cmd.available ? html`<span class="command-badge">即将推出</span>` : ''}
+                  ${!cmd.available ? html`<span class="command-badge">${msg('即将推出')}</span>` : ''}
                 </div>
               `
         )}
       </div>
     `;
+    }
+
+    private _translateDesc(name: string, fallback: string): string {
+        switch (name) {
+            case 'compact': return msg('压缩上下文，减少 token 消耗');
+            case 'loop': return msg('循环执行任务');
+            case 'goal': return msg('设定目标，持续工作直到达成');
+            default: return fallback;
+        }
     }
 }
 

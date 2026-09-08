@@ -64,7 +64,7 @@ describe('<rtc-title-bar>', () => {
             html`<rtc-title-bar window-mode="maximized"></rtc-title-bar>`
         );
         await nextFrame();
-        const btn = el.shadowRoot!.querySelector('[data-action="maximize"]');
-        expect(btn!.getAttribute('title')).toBe('Restore');
+        const btn = el.shadowRoot!.querySelector('[data-action="restore"]');
+        expect(btn!.getAttribute('aria-label')).toBe('Restore');
     });
 });

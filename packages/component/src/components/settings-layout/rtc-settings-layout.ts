@@ -14,6 +14,8 @@
 import {LitElement, html, nothing} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
 import {consume} from '@lit/context';
+import {localized, msg, str} from '@lit/localize';
+import {localeContext, type LocaleContextValue, sourceLocale, targetLocales, switchLocale, type SupportedLocale} from '../../core/i18n.js';
 import {styles} from './rtc-settings-layout.styles.js';
 import {tokens} from '../../styles/tokens.js';
 import {lightTheme} from '../../styles/themes/light.js';
@@ -31,15 +33,24 @@ import './rtc-settings-nav.js';
 import type {SettingsState} from '../../contexts/settings.js';
 
 /** 面板标题映射 */
-const PANEL_TITLES: Record<SettingsCategory, string> = {
-    appearance: '外观',
-    chat: '聊天',
-    files: '文件',
-    notifications: '通知',
-    account: '账户',
-    about: '关于',
-};
+function panelTitle(category: SettingsCategory): string {
+    switch (category) {
+        case 'appearance':
+            return msg('外观');
+        case 'chat':
+            return msg('聊天');
+        case 'files':
+            return msg('文件');
+        case 'notifications':
+            return msg('通知');
+        case 'account':
+            return msg('账户');
+        case 'about':
+            return msg('关于');
+    }
+}
 
+@localized()
 @customElement('rtc-settings-layout')
 export class RtcSettingsLayout extends LitElement {
     static styles = [tokens, lightTheme, darkTheme, baseStyles, styles];
@@ -63,6 +74,16 @@ export class RtcSettingsLayout extends LitElement {
     @consume({context: AuthContext, subscribe: true})
     @property({attribute: false})
     private _authCtx: AuthContextValue | undefined;
+
+    @consume({context: localeContext, subscribe: true})
+    @state()
+    private _localeCtx: LocaleContextValue = {
+        locale: sourceLocale,
+        setLocale: async () => {
+            console.warn('[rtc-settings-layout] Locale context not initialized');
+        },
+        locales: [sourceLocale, ...targetLocales],
+    };
 
     /** 当前选中的分类 */
     @state()
@@ -108,11 +129,11 @@ export class RtcSettingsLayout extends LitElement {
         if (!s) return nothing;
 
         return html`
-            <div class="panel-header" id="panel-header-appearance">${PANEL_TITLES.appearance}</div>
+            <div class="panel-header" id="panel-header-appearance">${panelTitle('appearance')}</div>
             <div class="setting-row">
                 <div class="setting-label">
-                    <label for="theme-select">主题</label>
-                    <span class="setting-desc">选择界面的配色方案</span>
+                    <label for="theme-select">${msg('主题')}</label>
+                    <span class="setting-desc">${msg('选择界面的配色方案')}</span>
                 </div>
                 <div class="setting-control">
                     <select
@@ -122,19 +143,39 @@ export class RtcSettingsLayout extends LitElement {
                             this._updateSetting(
                                 'appearance',
                                 {theme: (e.target as HTMLSelectElement).value},
-                                `主题已切换为 ${(e.target as HTMLSelectElement).value}`
+                                msg(str`主题已切换为 ${(e.target as HTMLSelectElement).value}`)
                             )}
                     >
-                        <option value="light">浅色</option>
-                        <option value="dark">深色</option>
-                        <option value="system">跟随系统</option>
+                        <option value="light">${msg('浅色')}</option>
+                        <option value="dark">${msg('深色')}</option>
+                        <option value="system">${msg('跟随系统')}</option>
                     </select>
                 </div>
             </div>
             <div class="setting-row">
                 <div class="setting-label">
-                    <label for="font-size-input">字体大小</label>
-                    <span class="setting-desc">调整界面文字大小（12–24px）</span>
+                    <label for="locale-select">${msg('语言')}</label>
+                    <span class="setting-desc">${msg('选择界面显示语言')}</span>
+                </div>
+                <div class="setting-control">
+                    <select
+                        id="locale-select"
+                        .value=${this._localeCtx.locale}
+                        @change=${async (e: Event) => {
+                            const locale = (e.target as HTMLSelectElement).value as SupportedLocale;
+                            await switchLocale(locale);
+                            this._liveMessage = msg(str`语言已切换为 ${locale}`);
+                        }}
+                    >
+                        <option value="zh-CN">简体中文</option>
+                        <option value="en-US">English</option>
+                    </select>
+                </div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <label for="font-size-input">${msg('字体大小')}</label>
+                    <span class="setting-desc">${msg('调整界面文字大小（12–24px）')}</span>
                 </div>
                 <div class="setting-control">
                     <div class="number-input">
@@ -151,7 +192,7 @@ export class RtcSettingsLayout extends LitElement {
                                 this._updateSetting(
                                     'appearance',
                                     {fontSize: clamped},
-                                    `字体大小已设为 ${clamped}px`
+                                    msg(str`字体大小已设为 ${clamped}px`)
                                 );
                             }}
                         />
@@ -168,11 +209,11 @@ export class RtcSettingsLayout extends LitElement {
         if (!s) return nothing;
 
         return html`
-            <div class="panel-header" id="panel-header-chat">${PANEL_TITLES.chat}</div>
+            <div class="panel-header" id="panel-header-chat">${panelTitle('chat')}</div>
             <div class="setting-row">
                 <div class="setting-label">
-                    <label for="send-shortcut-select">发送快捷键</label>
-                    <span class="setting-desc">选择发送消息的键盘快捷键</span>
+                    <label for="send-shortcut-select">${msg('发送快捷键')}</label>
+                    <span class="setting-desc">${msg('选择发送消息的键盘快捷键')}</span>
                 </div>
                 <div class="setting-control">
                     <select
@@ -182,7 +223,7 @@ export class RtcSettingsLayout extends LitElement {
                             this._updateSetting(
                                 'chat',
                                 {sendShortcut: (e.target as HTMLSelectElement).value as 'Enter' | 'Ctrl+Enter'},
-                                `发送快捷键已切换为 ${(e.target as HTMLSelectElement).value}`
+                                msg(str`发送快捷键已切换为 ${(e.target as HTMLSelectElement).value}`)
                             )}
                     >
                         <option value="Enter">Enter</option>
@@ -192,8 +233,8 @@ export class RtcSettingsLayout extends LitElement {
             </div>
             <div class="setting-row">
                 <div class="setting-label">
-                    <label for="density-select">消息密度</label>
-                    <span class="setting-desc">调整聊天消息的间距</span>
+                    <label for="density-select">${msg('消息密度')}</label>
+                    <span class="setting-desc">${msg('调整聊天消息的间距')}</span>
                 </div>
                 <div class="setting-control">
                     <select
@@ -203,11 +244,11 @@ export class RtcSettingsLayout extends LitElement {
                             this._updateSetting(
                                 'chat',
                                 {density: (e.target as HTMLSelectElement).value as 'compact' | 'comfortable'},
-                                `消息密度已切换为 ${(e.target as HTMLSelectElement).value}`
+                                msg(str`消息密度已切换为 ${(e.target as HTMLSelectElement).value}`)
                             )}
                     >
-                        <option value="compact">紧凑</option>
-                        <option value="comfortable">舒适</option>
+                        <option value="compact">${msg('紧凑')}</option>
+                        <option value="comfortable">${msg('舒适')}</option>
                     </select>
                 </div>
             </div>
@@ -220,11 +261,11 @@ export class RtcSettingsLayout extends LitElement {
         if (!s) return nothing;
 
         return html`
-            <div class="panel-header" id="panel-header-files">${PANEL_TITLES.files}</div>
+            <div class="panel-header" id="panel-header-files">${panelTitle('files')}</div>
             <div class="setting-row">
                 <div class="setting-label">
-                    <label for="auto-save-toggle">自动保存</label>
-                    <span class="setting-desc">编辑文件时自动保存更改</span>
+                    <label for="auto-save-toggle">${msg('自动保存')}</label>
+                    <span class="setting-desc">${msg('编辑文件时自动保存更改')}</span>
                 </div>
                 <div class="setting-control">
                     <label class="toggle">
@@ -236,7 +277,7 @@ export class RtcSettingsLayout extends LitElement {
                                 this._updateSetting(
                                     'files',
                                     {autoSave: (e.target as HTMLInputElement).checked},
-                                    `自动保存已${(e.target as HTMLInputElement).checked ? '启用' : '禁用'}`
+                                    (e.target as HTMLInputElement).checked ? msg('自动保存已启用') : msg('自动保存已禁用')
                                 )}
                         />
                         <span class="toggle-track"></span>
@@ -246,8 +287,8 @@ export class RtcSettingsLayout extends LitElement {
             </div>
             <div class="setting-row">
                 <div class="setting-label">
-                    <label for="view-mode-select">默认视图模式</label>
-                    <span class="setting-desc">选择文件编辑器的默认显示模式</span>
+                    <label for="view-mode-select">${msg('默认视图模式')}</label>
+                    <span class="setting-desc">${msg('选择文件编辑器的默认显示模式')}</span>
                 </div>
                 <div class="setting-control">
                     <select
@@ -257,12 +298,12 @@ export class RtcSettingsLayout extends LitElement {
                             this._updateSetting(
                                 'files',
                                 {defaultViewMode: (e.target as HTMLSelectElement).value as 'edit' | 'preview' | 'split'},
-                                `默认视图已切换为 ${(e.target as HTMLSelectElement).value}`
+                                msg(str`默认视图已切换为 ${(e.target as HTMLSelectElement).value}`)
                             )}
                     >
-                        <option value="edit">编辑</option>
-                        <option value="preview">预览</option>
-                        <option value="split">分屏</option>
+                        <option value="edit">${msg('编辑')}</option>
+                        <option value="preview">${msg('预览')}</option>
+                        <option value="split">${msg('分屏')}</option>
                     </select>
                 </div>
             </div>
@@ -275,11 +316,11 @@ export class RtcSettingsLayout extends LitElement {
         if (!s) return nothing;
 
         return html`
-            <div class="panel-header" id="panel-header-notifications">${PANEL_TITLES.notifications}</div>
+            <div class="panel-header" id="panel-header-notifications">${panelTitle('notifications')}</div>
             <div class="setting-row">
                 <div class="setting-label">
-                    <label for="sound-toggle">启用声音</label>
-                    <span class="setting-desc">收到消息时播放提示音</span>
+                    <label for="sound-toggle">${msg('启用声音')}</label>
+                    <span class="setting-desc">${msg('收到消息时播放提示音')}</span>
                 </div>
                 <div class="setting-control">
                     <label class="toggle">
@@ -291,7 +332,7 @@ export class RtcSettingsLayout extends LitElement {
                                 this._updateSetting(
                                     'notifications',
                                     {soundEnabled: (e.target as HTMLInputElement).checked},
-                                    `声音通知已${(e.target as HTMLInputElement).checked ? '启用' : '禁用'}`
+                                    (e.target as HTMLInputElement).checked ? msg('声音通知已启用') : msg('声音通知已禁用')
                                 )}
                     />
                         <span class="toggle-track"></span>
@@ -301,8 +342,8 @@ export class RtcSettingsLayout extends LitElement {
             </div>
             <div class="setting-row">
                 <div class="setting-label">
-                    <label for="toast-toggle">启用 Toast</label>
-                    <span class="setting-desc">显示桌面通知弹窗</span>
+                    <label for="toast-toggle">${msg('启用 Toast')}</label>
+                    <span class="setting-desc">${msg('显示桌面通知弹窗')}</span>
                 </div>
                 <div class="setting-control">
                     <label class="toggle">
@@ -314,7 +355,7 @@ export class RtcSettingsLayout extends LitElement {
                                 this._updateSetting(
                                     'notifications',
                                     {toastEnabled: (e.target as HTMLInputElement).checked},
-                                    `Toast 通知已${(e.target as HTMLInputElement).checked ? '启用' : '禁用'}`
+                                    (e.target as HTMLInputElement).checked ? msg('Toast 通知已启用') : msg('Toast 通知已禁用')
                                 )}
                     />
                         <span class="toggle-track"></span>
@@ -328,14 +369,14 @@ export class RtcSettingsLayout extends LitElement {
     /** 渲染账户面板 */
     private _renderAccount() {
         const auth = this._authCtx;
-        const userId = auth?.state.userId ?? '未登录';
+        const userId = auth?.state.userId ?? msg('未登录');
 
         return html`
-            <div class="panel-header" id="panel-header-account">${PANEL_TITLES.account}</div>
+            <div class="panel-header" id="panel-header-account">${panelTitle('account')}</div>
             <div class="setting-row">
                 <div class="setting-label">
-                    <label>用户 ID</label>
-                    <span class="setting-desc">当前登录的用户标识</span>
+                    <label>${msg('用户 ID')}</label>
+                    <span class="setting-desc">${msg('当前登录的用户标识')}</span>
                 </div>
                 <div class="setting-control">
                     <span class="info-value">${userId}</span>
@@ -343,16 +384,16 @@ export class RtcSettingsLayout extends LitElement {
             </div>
             <div class="setting-row">
                 <div class="setting-label">
-                    <label>登出</label>
-                    <span class="setting-desc">清除登录状态并返回登录页</span>
+                    <label>${msg('登出')}</label>
+                    <span class="setting-desc">${msg('清除登录状态并返回登录页')}</span>
                 </div>
                 <div class="setting-control">
                     <button
                         class="danger"
-                        aria-label="登出"
+                        aria-label="${msg('登出')}"
                         ?disabled=${!auth?.state.isLoggedIn}
                         @click=${() => auth?.logout()}
-                    >登出</button>
+                    >${msg('登出')}</button>
                 </div>
             </div>
         `;
@@ -361,14 +402,14 @@ export class RtcSettingsLayout extends LitElement {
     /** 渲染关于页面 */
     private _renderAbout() {
         return html`
-            <div class="panel-header" id="panel-header-about">${PANEL_TITLES.about}</div>
+            <div class="panel-header" id="panel-header-about">${panelTitle('about')}</div>
             <div class="about-brand">
                 <div class="about-logo">${renderLogo(this.theme === 'dark')}</div>
                 <div class="about-name">RTC Agent</div>
             </div>
             <div class="setting-row">
                 <div class="setting-label">
-                    <label>版本号</label>
+                    <label>${msg('版本号')}</label>
                 </div>
                 <div class="setting-control">
                     <span class="info-value">0.1.0</span>
@@ -376,7 +417,7 @@ export class RtcSettingsLayout extends LitElement {
             </div>
             <div class="setting-row">
                 <div class="setting-label">
-                    <label>文档</label>
+                    <label>${msg('文档')}</label>
                 </div>
                 <div class="setting-control">
                     <span class="info-value">https://docs.rtc-agent.dev</span>
@@ -406,6 +447,7 @@ export class RtcSettingsLayout extends LitElement {
     }
 
     render() {
+        void this._localeCtx.locale;
         return html`
             <rtc-settings-nav
                 .active=${this._activeCategory}

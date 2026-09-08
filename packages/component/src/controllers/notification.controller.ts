@@ -15,6 +15,7 @@
  * Consumed by: 需要感知未读通知的组件
  */
 import type {ReactiveController, ReactiveControllerHost} from 'lit';
+import {msg} from '@lit/localize';
 import type {NotificationContextValue, NotificationState, NotificationActions} from '../contexts/notification.js';
 import {DEFAULT_NOTIFICATION_STATE} from '../contexts/notification.js';
 import type {SessionController} from './session.controller.js';
@@ -88,8 +89,10 @@ export class NotificationController implements ReactiveController {
      * 注意：音效文件路径在构建时应确保存在，运行时加载失败会降级处理。
      */
     private _preloadSounds(): void {
-        // 音效文件路径（运行时解析，构建时可能不存在）
-        const base = import.meta.env?.BASE_URL ?? '/';
+        // 音效文件路径：运行时基于当前脚本所在位置解析，
+        // 这样组件无论部署在根路径还是子路径（如 /rtc-agent/）都能正确加载。
+        // 与 worker-bridge.ts 使用相同的 import.meta.url 模式。
+        const base = new URL('./', import.meta.url).pathname;
         const soundUrls: Record<string, string> = {
             message: `${base}sounds/message.mp3`,
         };
@@ -264,14 +267,14 @@ export class NotificationController implements ReactiveController {
         // 查找 session 标题
         const sessions = this.sessionController?.value.state.sessions ?? [];
         const session = sessions.find(s => s.clientId === sessionId);
-        const title = session?.title ?? '新消息';
+        const title = session?.title ?? msg('新消息');
 
         // 使用 ToastController 显示通知，附带跳转动作
         this.toastController?.actions.show(
             `${title}: ${content}`,
             'info',
             {
-                label: '查看',
+                label: msg('查看'),
                 onClick: () => this._navigateToSession(sessionId),
             }
         );

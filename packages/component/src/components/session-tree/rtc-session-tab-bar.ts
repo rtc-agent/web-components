@@ -11,8 +11,10 @@
  * @fires rtc-session-tab-bar-close - 关闭 Tab (detail: { sessionId })
  */
 import {LitElement, html} from 'lit';
-import {customElement, property} from 'lit/decorators.js';
+import {customElement, property, state} from 'lit/decorators.js';
 import {consume} from '@lit/context';
+import {localized} from '@lit/localize';
+import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {styles} from './rtc-session-tab-bar.styles.js';
 import {tokens} from '../../styles/tokens.js';
 import {lightTheme} from '../../styles/themes/light.js';
@@ -23,9 +25,20 @@ import {SessionTabContext, type SessionTabContextValue} from '../../contexts/ses
 // 子组件（副作用导入）
 import './rtc-session-tab.js';
 
+@localized()
 @customElement('rtc-session-tab-bar')
 export class RtcSessionTabBar extends LitElement {
     static styles = [tokens, lightTheme, darkTheme, baseStyles, styles];
+
+    @consume({context: localeContext, subscribe: true})
+    @state()
+    private _localeCtx: LocaleContextValue = {
+        locale: sourceLocale,
+        setLocale: async () => {
+            console.warn('[RtcSessionTabBar] Locale context not initialized');
+        },
+        locales: [sourceLocale, ...targetLocales],
+    };
 
     /* ── Properties ─ */
 
@@ -81,6 +94,7 @@ export class RtcSessionTabBar extends LitElement {
     /* ── Render ── */
 
     render() {
+        void this._localeCtx.locale;
         const {tabs, activeSessionId} = this._tabCtx.state;
 
         return html`

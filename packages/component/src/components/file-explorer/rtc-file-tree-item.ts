@@ -15,8 +15,10 @@
  * @fires file-tree-item-select - 点击文件/文件夹选中（detail: { path }）
  */
 import {LitElement, html, nothing} from 'lit';
-import {customElement, property} from 'lit/decorators.js';
+import {customElement, property, state} from 'lit/decorators.js';
 import {consume} from '@lit/context';
+import {localized} from '@lit/localize';
+import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {styles} from './rtc-file-tree-item.styles.js';
 import {FileExplorerContext, type FileExplorerContextValue} from '../../contexts/file-explorer.js';
 import type {FileNode} from '../../types/index.js';
@@ -41,9 +43,22 @@ const chevronRightSvg = html`
     </svg>
 `;
 
+@localized()
 @customElement('rtc-file-tree-item')
 export class RtcFileTreeItem extends LitElement {
     static styles = [tokens, lightTheme, darkTheme, baseStyles, styles];
+
+    /* ── i18n ── */
+
+    @consume({context: localeContext, subscribe: true})
+    @state()
+    private _localeCtx: LocaleContextValue = {
+        locale: sourceLocale,
+        setLocale: async () => {
+            console.warn('[rtc-file-tree-item] Locale context not initialized');
+        },
+        locales: [sourceLocale, ...targetLocales],
+    };
 
     /* ── Properties ── */
 
@@ -203,6 +218,7 @@ export class RtcFileTreeItem extends LitElement {
     /* ── Main Render ── */
 
     render() {
+        void this._localeCtx.locale;
         const paddingLeft = `${this.depth * 16 + 8}px`;
         const ariaExpanded = this._isFolder ? String(this._isExpanded) : null;
 

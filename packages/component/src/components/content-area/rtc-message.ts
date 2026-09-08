@@ -27,15 +27,29 @@
  */
 import {LitElement, html} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
+import {consume} from '@lit/context';
+import {localized, msg} from '@lit/localize';
+import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {classMap} from 'lit/directives/class-map.js';
 import {styles} from './rtc-message.styles.js';
 import type {Message} from '../../types/index.js';
 import {copyToClipboard} from '../../utils/clipboard.js';
 import {formatTimestampCompact, extractTextContent} from '../../utils/format.js';
 
+@localized()
 @customElement('rtc-message')
 export class RtcMessage extends LitElement {
     static styles = styles;
+
+    @consume({context: localeContext, subscribe: true})
+    @state()
+    private _localeCtx: LocaleContextValue = {
+        locale: sourceLocale,
+        setLocale: async () => {
+            console.warn('[RtcMessage] Locale context not initialized');
+        },
+        locales: [sourceLocale, ...targetLocales],
+    };
 
     @property({type: Object})
     message: Message = {clientId: '', role: 'assistant', content: {type: 'text', data: ''}, timestamp: 0, syncStatus: 'synced'};
@@ -207,13 +221,14 @@ export class RtcMessage extends LitElement {
             bubbles: true,
             composed: true,
             detail: {
-                message: success ? '已复制到剪贴板' : '复制失败',
+                message: success ? msg('已复制到剪贴板') : msg('复制失败'),
                 type: success ? 'success' : 'error',
             },
         }));
     }
 
     render() {
+        void this._localeCtx.locale;
         const {message, isLast} = this;
         const isThinking = this._isThinkingContent;
         const isSummary = this._isSummaryContent;
@@ -274,7 +289,7 @@ export class RtcMessage extends LitElement {
           <div class="thinking-block" data-expanded=${expanded ? '' : undefined}>
             <div class="thinking-header" @click=${this._toggleThinking}>
               <span class="thinking-chevron">${expanded ? '▾' : '▸'}</span>
-              <span class="thinking-label">思考过程</span>
+              <span class="thinking-label">${msg('思考过程')}</span>
             </div>
             ${expanded
               ? html`<div class="thinking-body"><div .innerHTML=${this._renderedHtml}></div></div>`
@@ -300,12 +315,12 @@ export class RtcMessage extends LitElement {
           <div class="summary-block">
             <div class="summary-header">
               <span class="summary-label">
-                ${isStreaming ? '正在压缩上下文...' : '已压缩上下文'}
+                ${isStreaming ? msg('正在压缩上下文...') : msg('已压缩上下文')}
               </span>
               ${!isStreaming && tokensSaved !== 0
                 ? html`<span class="summary-stats">
                     <span class=${tokensSaved > 0 ? 'summary-tokens-saved' : 'summary-tokens-increased'}>
-                      ${tokensSaved > 0 ? '释放' : '增加'} ${this._formatTokens(Math.abs(tokensSaved))}
+                      ${tokensSaved > 0 ? msg('释放') : msg('增加')} ${this._formatTokens(Math.abs(tokensSaved))}
                     </span>
                     ${durationMs > 0 ? html`<span class="summary-duration">· ${this._formatDuration(durationMs)}</span>` : null}
                   </span>`

@@ -8,6 +8,8 @@ import { nodePolyfills } from 'vite-plugin-node-polyfills';
 // - Lit 的装饰器需要 experimentalDecorators（已在 tsconfig 开启）
 
 export default defineConfig({
+  // 使用相对路径，这样组件部署在任意子路径（如 /rtc-agent/）时资源都能正确解析
+  base: './',
   plugins: [
     nodePolyfills({
       include: ['path', 'buffer', 'process'],

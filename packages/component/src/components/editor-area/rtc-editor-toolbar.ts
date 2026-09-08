@@ -20,7 +20,10 @@
  * 使用项目 design tokens（--rtc-color-*），支持亮色/暗色主题。
  */
 import {LitElement, html} from 'lit';
-import {customElement, property} from 'lit/decorators.js';
+import {customElement, property, state} from 'lit/decorators.js';
+import {localized, msg, str} from '@lit/localize';
+import {consume} from '@lit/context';
+import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {styles} from './rtc-editor-toolbar.styles.js';
 import type {EditorViewMode} from '../../types/index.js';
 import {
@@ -43,9 +46,22 @@ import {baseStyles} from '../../styles/base.js';
 /** 格式化类型 */
 type FormatType = 'bold' | 'italic' | 'code' | 'link';
 
+@localized()
 @customElement('rtc-editor-toolbar')
 export class RtcEditorToolbar extends LitElement {
     static styles = [tokens, lightTheme, darkTheme, baseStyles, styles];
+
+    /* ── i18n ── */
+
+    @consume({context: localeContext, subscribe: true})
+    @state()
+    private _localeCtx: LocaleContextValue = {
+        locale: sourceLocale,
+        setLocale: async () => {
+            console.warn('[rtc-editor-toolbar] Locale context not initialized');
+        },
+        locales: [sourceLocale, ...targetLocales],
+    };
 
     /* ── Properties ── */
 
@@ -125,18 +141,19 @@ export class RtcEditorToolbar extends LitElement {
     /* ── Main Render ── */
 
     render() {
+        void this._localeCtx.locale;
         return html`
             <div class="toolbar" role="toolbar" aria-label="Editor toolbar">
                 <!-- 保存（主按钮） -->
                 <button
                     class="toolbar-btn primary"
                     ?disabled=${!this.canSave}
-                    title="保存 (Ctrl+S)"
-                    aria-label="保存"
+                    title=${msg(str`保存 (Ctrl+S)`)}
+                    aria-label=${msg('保存')}
                     @click=${this._handleSave}
                 >
                     ${saveIcon}
-                    <span>保存</span>
+                    <span>${msg('保存')}</span>
                 </button>
 
                 <span class="separator" role="separator"></span>
@@ -145,15 +162,15 @@ export class RtcEditorToolbar extends LitElement {
                 <button
                     class="toolbar-btn"
                     ?disabled=${!this.canUndo}
-                    title="撤销 (Ctrl+Z)"
-                    aria-label="撤销"
+                    title=${msg(str`撤销 (Ctrl+Z)`)}
+                    aria-label=${msg('撤销')}
                     @click=${this._handleUndo}
                 >${undoIcon}</button>
                 <button
                     class="toolbar-btn"
                     ?disabled=${!this.canRedo}
-                    title="重做 (Ctrl+Shift+Z)"
-                    aria-label="重做"
+                    title=${msg(str`重做 (Ctrl+Shift+Z)`)}
+                    aria-label=${msg('重做')}
                     @click=${this._handleRedo}
                 >${redoIcon}</button>
 
@@ -163,26 +180,26 @@ export class RtcEditorToolbar extends LitElement {
                 <!-- 暂不支持
                 <button
                     class="toolbar-btn"
-                    title="加粗"
-                    aria-label="加粗"
+                    title=${msg('加粗')}
+                    aria-label=${msg('加粗')}
                     @click=${() => this._handleFormat('bold')}
                 >${boldIcon}</button>
                 <button
                     class="toolbar-btn"
-                    title="斜体"
-                    aria-label="斜体"
+                    title=${msg('斜体')}
+                    aria-label=${msg('斜体')}
                     @click=${() => this._handleFormat('italic')}
                 >${italicIcon}</button>
                 <button
                     class="toolbar-btn"
-                    title="代码"
-                    aria-label="代码"
+                    title=${msg('代码')}
+                    aria-label=${msg('代码')}
                     @click=${() => this._handleFormat('code')}
                 >${codeIcon}</button>
                 <button
                     class="toolbar-btn"
-                    title="链接"
-                    aria-label="链接"
+                    title=${msg('链接')}
+                    aria-label=${msg('链接')}
                     @click=${() => this._handleFormat('link')}
                 >${linkIcon}</button>
                  -->
@@ -190,25 +207,25 @@ export class RtcEditorToolbar extends LitElement {
                 <span class="spacer"></span>
 
                 <!-- 视图切换 -->
-                <div class="view-toggle" role="group" aria-label="视图模式">
+                <div class="view-toggle" role="group" aria-label=${msg('视图模式')}>
                     <button
                         class="view-toggle-btn ${this.viewMode === 'edit' ? 'active' : ''}"
-                        title="编辑模式"
-                        aria-label="编辑模式"
+                        title=${msg('编辑模式')}
+                        aria-label=${msg('编辑模式')}
                         aria-pressed=${this.viewMode === 'edit'}
                         @click=${() => this._handleViewModeChange('edit')}
                     >${editIcon}</button>
                     <button
                         class="view-toggle-btn ${this.viewMode === 'preview' ? 'active' : ''}"
-                        title="预览模式"
-                        aria-label="预览模式"
+                        title=${msg('预览模式')}
+                        aria-label=${msg('预览模式')}
                         aria-pressed=${this.viewMode === 'preview'}
                         @click=${() => this._handleViewModeChange('preview')}
                     >${eyeIcon}</button>
                     <button
                         class="view-toggle-btn ${this.viewMode === 'split' ? 'active' : ''}"
-                        title="分屏模式"
-                        aria-label="分屏模式"
+                        title=${msg('分屏模式')}
+                        aria-label=${msg('分屏模式')}
                         aria-pressed=${this.viewMode === 'split'}
                         @click=${() => this._handleViewModeChange('split')}
                     >${columnsIcon}</button>

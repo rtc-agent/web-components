@@ -40,7 +40,7 @@ describe('<rtc-input-area>', () => {
         );
         await nextFrame();
         const btn = el.shadowRoot!.querySelector('.mode-btn');
-        expect(btn!.textContent).toContain('Manual');
+        expect(btn!.textContent).toContain('手动');
     });
 
     it('should dispatch rtc-input-submit with content on Enter', async () => {

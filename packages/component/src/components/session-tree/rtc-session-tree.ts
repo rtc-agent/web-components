@@ -18,6 +18,8 @@
 import {LitElement, html} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
 import {consume} from '@lit/context';
+import {localized, msg} from '@lit/localize';
+import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {styles} from './rtc-session-tree.styles.js';
 import {tokens} from '../../styles/tokens.js';
 import {lightTheme} from '../../styles/themes/light.js';
@@ -30,9 +32,20 @@ import {plusIcon, refreshIcon, deleteIcon} from '../../icons/index.js';
 import './rtc-session-tree-item.js';
 import type {RtcSessionTreeItem} from './rtc-session-tree-item.js';
 
+@localized()
 @customElement('rtc-session-tree')
 export class RtcSessionTree extends LitElement {
     static styles = [tokens, lightTheme, darkTheme, baseStyles, styles];
+
+    @consume({context: localeContext, subscribe: true})
+    @state()
+    private _localeCtx: LocaleContextValue = {
+        locale: sourceLocale,
+        setLocale: async () => {
+            console.warn('[RtcSessionTree] Locale context not initialized');
+        },
+        locales: [sourceLocale, ...targetLocales],
+    };
 
     /* ── Properties ── */
 
@@ -106,7 +119,7 @@ export class RtcSessionTree extends LitElement {
                 bubbles: true,
                 composed: true,
                 detail: {
-                    message: '会话列表已自动同步',
+                    message: msg('会话列表已自动同步'),
                     type: 'info',
                 },
             })
@@ -284,7 +297,7 @@ export class RtcSessionTree extends LitElement {
         return html`
             <div class="empty-state">
                 <span class="empty-state-icon">${refreshIcon}</span>
-                <span class="empty-state-text">暂无会话</span>
+                <span class="empty-state-text">${msg('暂无会话')}</span>
             </div>
         `;
     }
@@ -308,26 +321,27 @@ export class RtcSessionTree extends LitElement {
     }
 
     render() {
+        void this._localeCtx.locale;
         return html`
             <div class="sidebar-header">
-                <span class="sidebar-title">会话</span>
+                <span class="sidebar-title">${msg('会话')}</span>
                 <div class="sidebar-actions">
                     <button
                         class="action-btn"
-                        title="刷新"
-                        aria-label="刷新会话列表"
+                        title=${msg('刷新')}
+                        aria-label=${msg('刷新会话列表')}
                         @click=${this._handleRefresh}
                     >${refreshIcon}</button>
                     <button
                         class="action-btn"
-                        title="新建会话"
-                        aria-label="新建会话"
+                        title=${msg('新建会话')}
+                        aria-label=${msg('新建会话')}
                         @click=${this._handleNewSession}
                     >${plusIcon}</button>
                     <button
                         class="action-btn action-btn--danger"
-                        title="删除当前会话"
-                        aria-label="删除当前会话"
+                        title=${msg('删除当前会话')}
+                        aria-label=${msg('删除当前会话')}
                         ?disabled=${!this.selectedSessionId}
                         @click=${this._handleDelete}
                     >${deleteIcon}</button>
@@ -336,7 +350,7 @@ export class RtcSessionTree extends LitElement {
             <div
                 class="sidebar-content"
                 role="tree"
-                aria-label="会话树"
+                aria-label=${msg('会话树')}
                 @keydown=${this._handleKeydown}
             >
                 ${this._renderTree()}

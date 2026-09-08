@@ -8,8 +8,11 @@
  * @fires settings-nav-change - 分类切换时触发 (detail: { category })
  */
 import {LitElement, html} from 'lit';
-import {customElement, property} from 'lit/decorators.js';
+import {customElement, property, state} from 'lit/decorators.js';
 import type {TemplateResult} from 'lit';
+import {localized, msg} from '@lit/localize';
+import {consume} from '@lit/context';
+import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {styles} from './rtc-settings-nav.styles.js';
 import {
     gearIcon,
@@ -32,15 +35,18 @@ interface CategoryDef {
     icon: TemplateResult;
 }
 
-const CATEGORIES: CategoryDef[] = [
-    {id: 'appearance', label: '外观', icon: gearIcon},
-    {id: 'chat', label: '聊天', icon: chatIcon},
-    {id: 'files', label: '文件', icon: filesIcon},
-    {id: 'notifications', label: '通知', icon: checklistIcon},
-    {id: 'account', label: '账户', icon: personIcon},
-    {id: 'about', label: '关于', icon: codeIcon},
-];
+function getCategories(): CategoryDef[] {
+    return [
+        {id: 'appearance', label: msg('外观'), icon: gearIcon},
+        {id: 'chat', label: msg('聊天'), icon: chatIcon},
+        {id: 'files', label: msg('文件'), icon: filesIcon},
+        {id: 'notifications', label: msg('通知'), icon: checklistIcon},
+        {id: 'account', label: msg('账户'), icon: personIcon},
+        {id: 'about', label: msg('关于'), icon: codeIcon},
+    ];
+}
 
+@localized()
 @customElement('rtc-settings-nav')
 export class RtcSettingsNav extends LitElement {
     static styles = styles;
@@ -54,6 +60,16 @@ export class RtcSettingsNav extends LitElement {
     /** 当前选中的分类 */
     @property({type: String, reflect: true})
     active: SettingsCategory = 'appearance';
+
+    @consume({context: localeContext, subscribe: true})
+    @state()
+    private _localeCtx: LocaleContextValue = {
+        locale: sourceLocale,
+        setLocale: async () => {
+            console.warn('[rtc-settings-nav] Locale context not initialized');
+        },
+        locales: [sourceLocale, ...targetLocales],
+    };
 
     /** 处理分类点击 */
     private _handleClick(category: SettingsCategory) {
@@ -75,7 +91,7 @@ export class RtcSettingsNav extends LitElement {
      * - Enter/Space：激活当前分类
      */
     private _handleKeydown(e: KeyboardEvent, current: SettingsCategory) {
-        const items = CATEGORIES;
+        const items = getCategories();
         const idx = items.findIndex((c) => c.id === current);
         let handled = true;
 
@@ -145,9 +161,10 @@ export class RtcSettingsNav extends LitElement {
     }
 
     render() {
+        void this._localeCtx.locale;
         return html`
-            <div role="tablist" aria-orientation="vertical" aria-label="设置分类">
-                ${CATEGORIES.map(
+            <div role="tablist" aria-orientation="vertical" aria-label="${msg('设置分类')}">
+                ${getCategories().map(
                     (cat) => html`
                         <button
                             class="nav-item"

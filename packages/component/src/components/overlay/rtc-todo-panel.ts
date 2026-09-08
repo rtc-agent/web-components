@@ -7,7 +7,10 @@
  * @csspart list - The todo list container
  */
 import {LitElement, html, nothing} from 'lit';
-import {customElement, property} from 'lit/decorators.js';
+import {customElement, property, state} from 'lit/decorators.js';
+import {localized, msg} from '@lit/localize';
+import {consume} from '@lit/context';
+import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {repeat} from 'lit/directives/repeat.js';
 import {styles} from './rtc-todo-panel.styles.js';
 import type {TodoItem} from '../../types/index.js';
@@ -26,9 +29,20 @@ function todoListChanged(newVal: TodoItem[], oldVal: TodoItem[] | undefined): bo
     );
 }
 
+@localized()
 @customElement('rtc-todo-panel')
 export class RtcTodoPanel extends LitElement {
     static styles = styles;
+
+    @consume({context: localeContext, subscribe: true})
+    @state()
+    private _localeCtx: LocaleContextValue = {
+        locale: sourceLocale,
+        setLocale: async () => {
+            console.warn('[rtc-todo-panel] Locale context not initialized');
+        },
+        locales: [sourceLocale, ...targetLocales],
+    };
 
     @property({type: Array, hasChanged: todoListChanged})
     todoList: TodoItem[] = [];
@@ -46,12 +60,13 @@ export class RtcTodoPanel extends LitElement {
     }
 
     render() {
+        void this._localeCtx.locale;
         if (this.todoList.length === 0) {
-            return html`<div class="empty-text" aria-live="polite">No tasks yet</div>`;
+            return html`<div class="empty-text" aria-live="polite">${msg('No tasks yet')}</div>`;
         }
 
         return html`
-      <div class="todo-list" part="list" role="list" aria-label="Task list">
+      <div class="todo-list" part="list" role="list" aria-label="${msg('Task list')}">
         ${repeat(
             this.todoList,
             (_item, i) => `${i}-${_item.content}`,

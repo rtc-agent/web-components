@@ -10,6 +10,7 @@
  * No context — fork state is consumed only by the root component internally.
  */
 import type {ReactiveController, ReactiveControllerHost} from 'lit';
+import {msg, str} from '@lit/localize';
 import type {ContentData} from '../types/index.js';
 
 /** Fork state: set when user initiates a fork, cleared on submit or cancel. */
@@ -92,7 +93,7 @@ export class ForkController implements ReactiveController {
             oldSessionClientId,
             oldMessageClientId,
             newSessionClientId,
-            hintMessage: `🔀 从「${truncatedContent}」分叉`,
+            hintMessage: msg(str`🔀 从「${truncatedContent}」分叉`),
         };
         this._host.requestUpdate();
 

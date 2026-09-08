@@ -28,7 +28,7 @@ describe('<rtc-mode-panel>', () => {
         );
         await nextFrame();
         const active = el.shadowRoot!.querySelector('.mode-item.active');
-        expect(active!.textContent!.trim()).toContain('edit');
+        expect(active!.textContent!.trim()).toContain('编辑');
     });
 
     it('should dispatch rtc-mode-selected on item click', async () => {

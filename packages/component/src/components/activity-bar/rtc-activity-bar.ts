@@ -15,7 +15,9 @@
  * 使用项目 design tokens（--rtc-color-*），支持亮色/暗色主题。
  */
 import {LitElement, html} from 'lit';
-import {customElement, property} from 'lit/decorators.js';
+import {customElement, property, state} from 'lit/decorators.js';
+import {localized, msg} from '@lit/localize';
+import {consume} from '@lit/context';
 import {styles} from './rtc-activity-bar.styles.js';
 import type {Activity} from '../../types/index.js';
 import {
@@ -23,10 +25,12 @@ import {
     chatIcon,
     gearIcon,
 } from '../../icons/index.js';
+import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 
 /** 可聚焦的活动列表（顺序：files → chat → settings） */
 const ACTIVITY_LIST: Activity[] = ['files', 'chat', 'settings'];
 
+@localized()
 @customElement('rtc-activity-bar')
 export class RtcActivityBar extends LitElement {
     static styles = styles;
@@ -34,6 +38,16 @@ export class RtcActivityBar extends LitElement {
     /** 当前活动 */
     @property({type: String, reflect: true})
     active: Activity = 'chat';
+
+    @consume({context: localeContext, subscribe: true})
+    @state()
+    private _localeCtx: LocaleContextValue = {
+        locale: sourceLocale,
+        setLocale: async () => {
+            console.warn('[rtc-activity-bar] Locale context not initialized');
+        },
+        locales: [sourceLocale, ...targetLocales],
+    };
 
     /**
      * 处理活动图标点击
@@ -120,6 +134,9 @@ export class RtcActivityBar extends LitElement {
     }
 
     render() {
+        // Reference locale to ensure re-render on locale change
+        void this._localeCtx.locale;
+
         return html`
             <!-- 顶部活动 -->
             <div
@@ -127,9 +144,9 @@ export class RtcActivityBar extends LitElement {
                 data-activity="chat"
                 role="tab"
                 tabindex="${this._tabIndex('chat')}"
-                aria-label="聊天"
+                aria-label=${msg('聊天')}
                 aria-selected="${this.active === 'chat'}"
-                title="聊天"
+                title=${msg('聊天')}
                 @click=${() => this._handleClick('chat')}
                 @keydown=${(e: KeyboardEvent) => this._handleKeydown(e, 'chat')}
             >${chatIcon}</div>
@@ -138,9 +155,9 @@ export class RtcActivityBar extends LitElement {
                     data-activity="files"
                     role="tab"
                     tabindex="${this._tabIndex('files')}"
-                    aria-label="资源管理器"
+                    aria-label=${msg('资源管理器')}
                     aria-selected="${this.active === 'files'}"
-                    title="资源管理器"
+                    title=${msg('资源管理器')}
                     @click=${() => this._handleClick('files')}
                     @keydown=${(e: KeyboardEvent) => this._handleKeydown(e, 'files')}
             >${filesIcon}</div>
@@ -154,9 +171,9 @@ export class RtcActivityBar extends LitElement {
                 data-activity="settings"
                 role="tab"
                 tabindex="${this._tabIndex('settings')}"
-                aria-label="设置"
+                aria-label=${msg('设置')}
                 aria-selected="${this.active === 'settings'}"
-                title="设置"
+                title=${msg('设置')}
                 @click=${() => this._handleClick('settings')}
                 @keydown=${(e: KeyboardEvent) => this._handleKeydown(e, 'settings')}
             >${gearIcon}</div>

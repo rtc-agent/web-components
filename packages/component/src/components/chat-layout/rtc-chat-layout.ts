@@ -19,8 +19,10 @@
  * @fires rtc-new-session - 新建会话（含全部关闭后自动创建）
  */
 import {LitElement, html, nothing} from 'lit';
-import {customElement, property} from 'lit/decorators.js';
+import {customElement, property, state} from 'lit/decorators.js';
 import {consume} from '@lit/context';
+import {localized} from '@lit/localize';
+import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {styles} from './rtc-chat-layout.styles.js';
 import {tokens} from '../../styles/tokens.js';
 import {lightTheme} from '../../styles/themes/light.js';
@@ -39,11 +41,22 @@ import '../notice-bar/rtc-notice-bar.js';
 import '../input-area/rtc-input-area.js';
 import '../overlay/rtc-overlay-manager.js';
 
+@localized()
 @customElement('rtc-chat-layout')
 export class RtcChatLayout extends LitElement {
     static styles = [tokens, lightTheme, darkTheme, baseStyles, styles];
 
     /* ── Properties ── */
+
+    @consume({context: localeContext, subscribe: true})
+    @state()
+    private _localeCtx: LocaleContextValue = {
+        locale: sourceLocale,
+        setLocale: async () => {
+            console.warn('[RtcChatLayout] Locale context not initialized');
+        },
+        locales: [sourceLocale, ...targetLocales],
+    };
 
     /** 主题：light / dark / system */
     @property({type: String, reflect: true})
@@ -331,6 +344,7 @@ export class RtcChatLayout extends LitElement {
     }
 
     render() {
+        void this._localeCtx.locale;
         return html`
             <!-- 左栏：会话树（通过 sessionTreeVisible 控制显隐） -->
             ${this.sessionTreeVisible

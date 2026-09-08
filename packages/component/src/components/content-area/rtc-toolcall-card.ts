@@ -25,7 +25,10 @@
  * @csspart out     - Output section
  */
 import {LitElement, html} from 'lit';
-import {customElement, property} from 'lit/decorators.js';
+import {customElement, property, state} from 'lit/decorators.js';
+import {consume} from '@lit/context';
+import {localized, msg} from '@lit/localize';
+import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {classMap} from 'lit/directives/class-map.js';
 import {styles} from './rtc-toolcall-card.styles.js';
 import type {Message} from '../../types/index.js';
@@ -103,9 +106,20 @@ function tryFormatJson(value: unknown): string {
     return JSON.stringify(value, null, 2);
 }
 
+@localized()
 @customElement('rtc-toolcall-card')
 export class RtcToolCallCard extends LitElement {
     static styles = styles;
+
+    @consume({context: localeContext, subscribe: true})
+    @state()
+    private _localeCtx: LocaleContextValue = {
+        locale: sourceLocale,
+        setLocale: async () => {
+            console.warn('[RtcToolCallCard] Locale context not initialized');
+        },
+        locales: [sourceLocale, ...targetLocales],
+    };
 
     @property({type: Object})
     pair: ToolCallPair = {input: {clientId: '', role: 'assistant', content: {type: 'text', data: ''}, timestamp: 0, syncStatus: 'synced'}};
@@ -163,7 +177,7 @@ export class RtcToolCallCard extends LitElement {
             bubbles: true,
             composed: true,
             detail: {
-                message: success ? '已复制到剪贴板' : '复制失败',
+                message: success ? msg('已复制到剪贴板') : msg('复制失败'),
                 type: success ? 'success' : 'error',
             },
         }));
@@ -177,6 +191,7 @@ export class RtcToolCallCard extends LitElement {
     }
 
     render() {
+        void this._localeCtx.locale;
         const inData = parseToolCallData(this.pair.input);
         const outData = this.pair.output ? parseToolCallData(this.pair.output) : null;
         const hasOutput = !!this.pair.output;

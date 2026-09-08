@@ -15,6 +15,9 @@
  */
 import {LitElement, html, nothing} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
+import {consume} from '@lit/context';
+import {localized, msg, str} from '@lit/localize';
+import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import type {PropertyValues} from 'lit';
 import {styles} from './rtc-ask-user.styles.js';
 import type {LocalRtc} from '@rtc-agent/persistence';
@@ -41,9 +44,20 @@ export interface AskUserPayload {
 /** Sentinel index for the auto-appended "Other" option. */
 const OTHER_INDEX = -1;
 
+@localized()
 @customElement('rtc-ask-user')
 export class RtcAskUser extends LitElement {
   static styles = styles;
+
+  @consume({context: localeContext, subscribe: true})
+  @state()
+  private _localeCtx: LocaleContextValue = {
+    locale: sourceLocale,
+    setLocale: async () => {
+      console.warn('[rtc-ask-user] Locale context not initialized');
+    },
+    locales: [sourceLocale, ...targetLocales],
+  };
 
   /** The RTC record; parameters.questions carries the question list. */
   @property({type: Object})
@@ -244,6 +258,7 @@ export class RtcAskUser extends LitElement {
   // ────────────────────────── Render ──────────────────────────
 
   render() {
+    void this._localeCtx.locale;
     const questions = this._questions;
     if (questions.length === 0) {
       return html`<div class="backdrop" @click=${this._dismiss}></div>`;
@@ -251,8 +266,8 @@ export class RtcAskUser extends LitElement {
 
     const multi = this._isMulti;
     const title = multi
-      ? `Answer ${questions.length} questions`
-      : 'Answer a question';
+      ? msg(str`Answer ${questions.length} questions`)
+      : msg('Answer a question');
 
     return html`
       <div class="backdrop" @click=${this._dismiss}></div>
@@ -266,7 +281,7 @@ export class RtcAskUser extends LitElement {
         ${this._renderHeader(title)}
         ${multi ? this._renderTabBar() : nothing}
         ${multi ? this._renderTabContent() : this._renderQuestion(0)}
-        ${multi ? html`<div class="progress">Question ${this._currentTab + 1} of ${questions.length}</div>` : nothing}
+        ${multi ? html`<div class="progress">${msg(str`Question ${this._currentTab + 1} of ${questions.length}`)}</div>` : nothing}
         ${this._renderActions()}
       </div>
     `;
@@ -337,7 +352,7 @@ export class RtcAskUser extends LitElement {
           ${this._renderOther(qIdx, inputType, indicatorClass, sel.has(OTHER_INDEX))}
         </div>
         ${previewOpt?.preview ? html`
-          <div class="preview-label">Preview${previewOpt.label ? ` · ${previewOpt.label}` : ''}</div>
+          <div class="preview-label">${msg("Preview")}${previewOpt.label ? msg(str` · ${previewOpt.label}`) : ''}</div>
           <div class="preview-panel">${previewOpt.preview}</div>
         ` : nothing}
       </div>
@@ -368,7 +383,7 @@ export class RtcAskUser extends LitElement {
         <div class="option-body">
           <div class="option-label">
             ${opt.label}
-            ${recMatch ? html`<span class="rec">(Recommended)</span>` : nothing}
+            ${recMatch ? html`<span class="rec">${msg("(Recommended)")}</span>` : nothing}
           </div>
           <div class="option-desc">${descWithoutRec}</div>
         </div>
@@ -393,14 +408,14 @@ export class RtcAskUser extends LitElement {
           <input type="${inputType}" name="q-${qIdx}-other" .checked=${selected}>
           <span class="indicator"></span>
           <div class="option-body">
-            <div class="option-label">Other</div>
+            <div class="option-label">${msg("Other")}</div>
           </div>
         </label>
         ${selected ? html`
           <input
             class="other-input"
             type="text"
-            placeholder="Type your answer…"
+            placeholder=${msg("Type your answer…")}
             .value=${this._otherTexts[qIdx] || ''}
             @input=${(e: Event) => this._onOtherInput(qIdx, e)}
           >
@@ -421,29 +436,29 @@ export class RtcAskUser extends LitElement {
             class="action-btn ghost"
             ?disabled=${isFirst}
             @click=${() => this._goTab(this._currentTab - 1)}
-          >← Prev</button>
+          >${msg("← Prev")}</button>
           <button
             class="action-btn ghost"
             style=${isLast ? 'visibility: hidden' : ''}
             @click=${() => this._goTab(this._currentTab + 1)}
-          >Next →</button>
+          >${msg("Next →")}</button>
           <button
             class="action-btn primary"
             ?disabled=${!this._canSubmit}
             @click=${this._submit}
-          >Submit</button>
+          >${msg("Submit")}</button>
         </div>
       `;
     }
 
     return html`
       <div class="actions">
-        <button class="action-btn ghost" @click=${this._dismiss}>Cancel</button>
+        <button class="action-btn ghost" @click=${this._dismiss}>${msg("Cancel")}</button>
         <button
           class="action-btn primary"
           ?disabled=${!this._canSubmit}
           @click=${this._submit}
-        >Submit</button>
+        >${msg("Submit")}</button>
       </div>
     `;
   }

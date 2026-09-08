@@ -20,36 +20,36 @@ export const ModeContext = createContext<ModeContextValue>(
 export const MODE_CONFIGS: ModeConfig[] = [
     {
         mode: 'manual',
-        label: 'Manual',
+        label: '手动',
         icon: 'hand',
-        description: 'Claude will ask for approval before making each edit',
+        description: 'Claude 会在每次编辑前征求你的同意',
     },
     {
         mode: 'edit',
-        label: 'Edit automatically',
+        label: '编辑',
         icon: 'code',
-        description: 'Claude will edit your selected text or the whole file',
+        description: 'Claude 会自动编辑你选中的文本或整个文件',
     },
     // {
     //     mode: 'plan',
-    //     label: 'Plan',
+    //     label: '计划',
     //     icon: 'tasklist',
     //     description:
-    //         'Claude will explore the code and present a plan before editing',
+    //         'Claude 会先探索代码并展示计划，然后再进行编辑',
     // },
     // {
     //     mode: 'auto',
-    //     label: 'Auto',
+    //     label: '自动',
     //     icon: 'zap',
     //     description:
-    //         'Claude will approve actions that pass a safety check and pause for anything risky',
+    //         'Claude 会自动执行通过安全检查的操作，对有风险的操作会暂停',
     // },
     {
         mode: 'bypass',
-        label: 'Bypass permissions',
+        label: '绕过权限',
         icon: 'gear',
         description:
-            'Claude will not ask for approval before running potentially dangerous commands',
+            'Claude 不会在执行潜在危险命令前征求同意',
     },
 ];
 

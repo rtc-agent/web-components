@@ -16,10 +16,14 @@
  * @element rtc-message-more-menu
  */
 import {LitElement, html, css} from 'lit';
-import {customElement, property} from 'lit/decorators.js';
+import {customElement, property, state} from 'lit/decorators.js';
+import {consume} from '@lit/context';
+import {localized, msg} from '@lit/localize';
+import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import type {SyncStatus} from '../../types/index.js';
 import {formatTimestampCompact} from '../../utils/format.js';
 
+@localized()
 @customElement('rtc-message-more-menu')
 export class RtcMessageMoreMenu extends LitElement {
     static styles = css`
@@ -76,6 +80,16 @@ export class RtcMessageMoreMenu extends LitElement {
       }
     `;
 
+    @consume({context: localeContext, subscribe: true})
+    @state()
+    private _localeCtx: LocaleContextValue = {
+        locale: sourceLocale,
+        setLocale: async () => {
+            console.warn('[RtcMessageMoreMenu] Locale context not initialized');
+        },
+        locales: [sourceLocale, ...targetLocales],
+    };
+
     @property({type: String})
     syncStatus: SyncStatus = 'synced';
 
@@ -98,15 +112,16 @@ export class RtcMessageMoreMenu extends LitElement {
     }
 
     render() {
+        void this._localeCtx.locale;
         return html`
       <div class="more-menu">
-        <button @click=${() => this._handleSelect('copy')}>复制</button>
+        <button @click=${() => this._handleSelect('copy')}>${msg('复制')}</button>
         <button
           ?disabled=${this.syncStatus !== 'synced'}
           @click=${() => this._handleSelect('fork')}
-        >分叉</button>
+        >${msg('分叉')}</button>
         ${this.syncStatus === 'failed'
-            ? html`<button @click=${() => this._handleSelect('retry')}>重试</button>`
+            ? html`<button @click=${() => this._handleSelect('retry')}>${msg('重试')}</button>`
             : null}
         <div class="divider"></div>
         <div class="footer">${this._formattedTimestamp}</div>

@@ -8,11 +8,25 @@
  */
 import {LitElement, html, nothing} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
+import {localized, msg} from '@lit/localize';
+import {consume} from '@lit/context';
+import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {styles} from './rtc-notice-bar.styles.js';
 
+@localized()
 @customElement('rtc-notice-bar')
 export class RtcNoticeBar extends LitElement {
     static styles = styles;
+
+    @consume({context: localeContext, subscribe: true})
+    @state()
+    private _localeCtx: LocaleContextValue = {
+        locale: sourceLocale,
+        setLocale: async () => {
+            console.warn('[rtc-notice-bar] Locale context not initialized');
+        },
+        locales: [sourceLocale, ...targetLocales],
+    };
 
     @property({type: String})
     message = '';
@@ -28,12 +42,13 @@ export class RtcNoticeBar extends LitElement {
     }
 
     render() {
+        void this._localeCtx.locale;
         if (!this.message || this._dismissed) return nothing;
 
         return html`
       <div class="notice-bar">
         <span class="message">${this.message}</span>
-        <button class="close-btn" title="Dismiss" @click=${this._handleClose}>&times;</button>
+        <button class="close-btn" title=${msg('Dismiss')} @click=${this._handleClose}>&times;</button>
       </div>
     `;
     }
