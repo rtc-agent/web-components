@@ -188,9 +188,9 @@ export class ScriptTool implements Tool {
   }
 
   async execute(params: ToolParams): Promise<ToolResult> {
-    const action = validateStringParam(params, 'action');
+    let action = validateStringParam(params, 'action');
     if (!action) {
-      return { success: false, error: 'action is required (save, run, or eval)' };
+      action = 'eval';
     }
 
     if (action === 'save') {
