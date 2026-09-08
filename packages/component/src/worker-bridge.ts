@@ -112,7 +112,17 @@ export class WorkerBridge {
             // 1. 检测到 Worker 崩溃后重建 SharedWorker 实例
             // 2. 重新调用 init() 初始化
             // 3. 重新触发 Master 选举
-            console.error('[WorkerBridge] SharedWorker error:', event);
+            //
+            // 打印完整错误信息：message/filename/lineno/colno 定位错误位置，
+            // event.error 是实际 Error 对象（含 stack）。只打印 `event` 时多数
+            // 浏览器只显示 generic Event，没有可读信息。
+            console.error('[WorkerBridge] SharedWorker error:', {
+                message: event.message,
+                filename: event.filename,
+                lineno: event.lineno,
+                colno: event.colno,
+                error: event.error,
+            });
         };
 
         this._worker.port.onmessageerror = (event) => {
