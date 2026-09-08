@@ -24,7 +24,7 @@ export const styles = css`
   }
 
   .title-bar:focus-visible {
-    outline: 2px solid var(--rtc-color-border-focus, #007acc);
+    outline: 2px solid var(--rtc-color-border-focus, #2741fe);
     outline-offset: -2px;
   }
 

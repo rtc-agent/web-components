@@ -34,13 +34,13 @@ export const tokens = css`
       Roboto, Oxygen, Ubuntu, sans-serif;
     --rtc-font-family-mono: 'SF Mono', Monaco, 'Cascadia Code', monospace;
 
-    --rtc-font-size-xs: 12px;
-    --rtc-font-size-sm: 13px;
-    --rtc-font-size-base: 14px;
-    --rtc-font-size-md: 16px;
-    --rtc-font-size-lg: 18px;
-    --rtc-font-size-xl: 20px;
-    --rtc-font-size-2xl: 24px;
+    --rtc-font-size-xs: calc(var(--rtc-font-size-user, 14px) * 0.857);
+    --rtc-font-size-sm: calc(var(--rtc-font-size-user, 14px) * 0.929);
+    --rtc-font-size-base: var(--rtc-font-size-user, 14px);
+    --rtc-font-size-md: calc(var(--rtc-font-size-user, 14px) * 1.143);
+    --rtc-font-size-lg: calc(var(--rtc-font-size-user, 14px) * 1.286);
+    --rtc-font-size-xl: calc(var(--rtc-font-size-user, 14px) * 1.429);
+    --rtc-font-size-2xl: calc(var(--rtc-font-size-user, 14px) * 1.714);
 
     --rtc-font-weight-normal: 400;
     --rtc-font-weight-medium: 500;

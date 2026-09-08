@@ -322,7 +322,7 @@ export class RtcChatLayout extends LitElement {
     private _renderChatContent() {
         return html`
             <div class="content-area">
-                <rtc-content-area></rtc-content-area>
+                <rtc-content-area theme=${this.theme}></rtc-content-area>
                 <rtc-notice-bar></rtc-notice-bar>
                 <rtc-input-area></rtc-input-area>
                 <rtc-overlay-manager></rtc-overlay-manager>

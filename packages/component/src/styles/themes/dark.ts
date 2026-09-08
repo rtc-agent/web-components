@@ -1,42 +1,51 @@
+/**
+ * RTC Agent 主题 — 夜晚（暗色）
+ *
+ * 产品品牌色：
+ *   - 主色（蓝青，深底柔和）：#1A7AB0
+ *   - 警告（橙色行星）：#F97802
+ *   - 信息（蓝青）：#1A7AB0
+ *   - 成功（亮绿）：#4ADE80
+ *   - 错误（红色）：#F87171
+ *   - 文字（月亮色）：#E8E8E8
+ *   - 背景（夜空极深色）：#0B1127
+ */
 import {css} from 'lit';
 
-/**
- * Dark Theme — VS Code-inspired dark color scheme.
- *
- * SINGLE SOURCE OF TRUTH for dark mode color tokens. All --rtc-color-* variables
- * are defined here (and in light.ts for light mode). The base tokens.ts file only
- * defines structural tokens (spacing, typography, shadows, etc.).
- *
- * Activated by `theme="dark"` attribute on <rtc-agent>.
- * Only overrides color tokens; spacing/font/layout unchanged.
- */
 export const darkTheme = css`
-  :host([theme='dark']) {
-    --rtc-color-primary: #007acc;
-    --rtc-color-primary-hover: #1e8adc;
-    --rtc-color-primary-active: #3a9ae8;
+    :host([theme='dark']) {
+        /* 背景 */
+        --rtc-color-bg: #0B1127;
+        --rtc-color-bg-secondary: #111B36;
+        --rtc-color-bg-tertiary: #1A2548;
+        --rtc-color-bg-hover: #1E2D52;
+        --rtc-color-bg-active: #253560;
 
-    --rtc-color-text: #cccccc;
-    --rtc-color-text-secondary: #858585;
-    --rtc-color-text-tertiary: #666666;
-    --rtc-color-text-inverse: #1e1e1e;
+        /* 主色 */
+        --rtc-color-primary: #1A7AB0;
+        --rtc-color-primary-hover: #2290CC;
+        --rtc-color-primary-active: #145F8C;
+        --rtc-color-primary-rgb: 26 122 176;
 
-    --rtc-color-bg: #1e1e1e;
-    --rtc-color-bg-secondary: #252526;
-    --rtc-color-bg-tertiary: #2d2d30;
-    --rtc-color-bg-hover: #2a2d2e;
-    --rtc-color-bg-active: #37373d;
+        /* 文字 */
+        --rtc-color-text: #E8E8E8;
+        --rtc-color-text-secondary: #A0A8C0;
+        --rtc-color-text-tertiary: #6B7394;
+        --rtc-color-text-inverse: #0B1127;
 
-    --rtc-color-border: #3c3c3c;
-    --rtc-color-border-hover: #4c4c4c;
-    --rtc-color-border-focus: #007acc;
+        /* 边框 */
+        --rtc-color-border: #1E2A4A;
+        --rtc-color-border-hover: #2A3860;
+        --rtc-color-border-focus: #1A7AB0;
 
-    --rtc-color-success: #4caf50;
-    --rtc-color-warning: #ff9800;
-    --rtc-color-error: #f44336;
-    --rtc-color-info: #2196f3;
+        /* 语义 */
+        --rtc-color-success: #4ADE80;
+        --rtc-color-warning: #F97802;
+        --rtc-color-error: #F87171;
+        --rtc-color-info: #1A7AB0;
+        --rtc-color-accent: #1A7AB0;
 
-    /* Overlay/backdrop */
-    --rtc-color-backdrop: rgba(0, 0, 0, 0.6);
-  }
+        /* 遮罩 */
+        --rtc-color-backdrop: rgba(11,17,39,0.6);
+    }
 `;

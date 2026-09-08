@@ -17,8 +17,6 @@ export const styles = css`
   .logo-container svg {
     width: 64px;
     height: 64px;
-    fill: var(--rtc-color-primary);
-    opacity: 0.6;
   }
 
   .empty-hint {

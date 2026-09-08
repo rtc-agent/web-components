@@ -9,12 +9,12 @@ describe('Dark Theme', () => {
 
     it('should set dark background', () => {
         expect(darkTheme.cssText).toContain('--rtc-color-bg');
-        expect(darkTheme.cssText).toContain('#1e1e1e');
+        expect(darkTheme.cssText).toContain('#1A7AB0');
     });
 
     it('should set light text', () => {
         expect(darkTheme.cssText).toContain('--rtc-color-text');
-        expect(darkTheme.cssText).toContain('#cccccc');
+        expect(darkTheme.cssText).toContain('#E8E8E8');
     });
 
     it('should target dark theme attribute', () => {

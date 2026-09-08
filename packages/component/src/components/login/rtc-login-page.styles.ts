@@ -24,8 +24,6 @@ export const styles = css`
   .logo svg {
     width: 72px;
     height: 72px;
-    fill: var(--rtc-color-primary);
-    opacity: 0.7;
   }
 
   .app-name {

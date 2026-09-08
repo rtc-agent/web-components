@@ -151,8 +151,8 @@ export const styles = [
      * 避免依赖浏览器默认 <a> 颜色（亮色主题下深蓝 #0000EE 在暗色背景上几乎不可见）。
      *
      * 主题跟随：
-     *   - 亮色主题 --rtc-color-primary = #007acc（蓝）
-     *   - 暗色主题 --rtc-color-primary = #00d9ff / #007acc（亮青/蓝）
+     *   - 亮色主题 --rtc-color-primary = #2741fe（蓝）
+     *   - 暗色主题 --rtc-color-primary = #00d9ff / #2741fe（亮青/蓝）
      *
      * 同时加 hover/focus 样式，保持可访问性（键盘 Tab 可见焦点）。
      */

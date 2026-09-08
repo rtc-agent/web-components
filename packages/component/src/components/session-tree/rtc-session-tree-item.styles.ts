@@ -165,7 +165,7 @@ export const styles = css`
     }
 
     :host([theme='dark']) .tree-item-content.selected {
-        background-color: var(--rtc-color-primary, #007acc);
+        background-color: var(--rtc-color-primary, #2741fe);
         color: var(--rtc-color-text-inverse, #ffffff);
     }
 
@@ -187,7 +187,7 @@ export const styles = css`
     }
 
     :host([theme='light']) .tree-item-content.selected {
-        background-color: var(--rtc-color-primary, #007acc);
+        background-color: var(--rtc-color-primary, #2741fe);
         color: var(--rtc-color-text-inverse, #ffffff);
     }
 

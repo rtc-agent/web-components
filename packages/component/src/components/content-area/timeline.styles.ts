@@ -21,7 +21,7 @@ export const timelineStyles = css`
   /* ── 时间线 item ────────────────────────────────────────────── */
   .timeline-item {
     position: relative;
-    margin-bottom: var(--rtc-spacing-md);
+    margin-bottom: var(--rtc-message-gap, var(--rtc-spacing-md));
     padding: var(--rtc-spacing-xs) var(--rtc-spacing-lg) var(--rtc-spacing-xs) var(--rtc-spacing-xl);
   }
 

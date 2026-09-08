@@ -13,11 +13,11 @@ describe('Light Theme', () => {
 
     it('should set light background', () => {
         expect(lightTheme.cssText).toContain('--rtc-color-bg');
-        expect(lightTheme.cssText).toContain('#ffffff');
+        expect(lightTheme.cssText).toContain('#FFFFFF');
     });
 
     it('should set dark text', () => {
         expect(lightTheme.cssText).toContain('--rtc-color-text');
-        expect(lightTheme.cssText).toContain('#333333');
+        expect(lightTheme.cssText).toContain('#1A1A2E');
     });
 });

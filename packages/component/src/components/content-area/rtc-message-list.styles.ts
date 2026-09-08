@@ -77,4 +77,22 @@ export const styles = css`
   .load-more-btn[hidden] {
     display: none;
   }
+
+  /* ── Density: compact ── */
+  :host([data-density='compact']) {
+    --rtc-message-gap: var(--rtc-spacing-sm);
+  }
+
+  :host([data-density='compact']) .message-list-scroll {
+    padding: var(--rtc-spacing-sm) var(--rtc-spacing-md);
+  }
+
+  /* ── Density: comfortable ── */
+  :host([data-density='comfortable']) {
+    --rtc-message-gap: var(--rtc-spacing-md);
+  }
+
+  :host([data-density='comfortable']) .message-list-scroll {
+    padding: var(--rtc-spacing-md) var(--rtc-spacing-lg);
+  }
 `;

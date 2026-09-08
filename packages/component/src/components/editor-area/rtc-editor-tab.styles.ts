@@ -48,7 +48,7 @@ export const styles = css`
         left: 0;
         right: 0;
         height: 1px;
-        background: var(--rtc-color-primary, #007acc);
+        background: var(--rtc-color-primary, #2741fe);
     }
 
     /* 文件图标 */

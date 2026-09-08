@@ -7,7 +7,7 @@
  * @csspart container - The content container
  */
 import {LitElement, html} from 'lit';
-import {customElement, state} from 'lit/decorators.js';
+import {customElement, property, state} from 'lit/decorators.js';
 import {consume} from '@lit/context';
 import {cache} from 'lit/directives/cache.js';
 import {styles} from './rtc-content-area.styles.js';
@@ -18,6 +18,9 @@ import '../empty-state/rtc-empty-state.js';
 @customElement('rtc-content-area')
 export class RtcContentArea extends LitElement {
     static styles = styles;
+
+    @property({type: String, attribute: 'theme'})
+    theme: 'light' | 'dark' | 'system' = 'system';
 
     @consume({context: MessageContext, subscribe: true})
     @state()
@@ -36,7 +39,7 @@ export class RtcContentArea extends LitElement {
         ${cache(
             this._hasMessage
                 ? html`<rtc-message-list></rtc-message-list>`
-                : html`<rtc-empty-state></rtc-empty-state>`
+                : html`<rtc-empty-state theme=${this.theme}></rtc-empty-state>`
         )}
       </div>
     `;

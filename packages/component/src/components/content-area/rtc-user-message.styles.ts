@@ -23,7 +23,7 @@ import {css} from 'lit';
 export const styles = css`
   :host {
     display: block;
-    margin: var(--rtc-spacing-sm) var(--rtc-spacing-md);
+    margin: var(--rtc-message-gap, var(--rtc-spacing-sm)) var(--rtc-spacing-md);
     box-sizing: border-box;
   }
 

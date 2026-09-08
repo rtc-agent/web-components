@@ -66,7 +66,7 @@ export const styles = css`
 
     /* 主按钮（保存） */
     .toolbar-btn.primary {
-        background: var(--rtc-color-primary, #007acc);
+        background: var(--rtc-color-primary, #2741fe);
         color: var(--rtc-color-on-primary, #ffffff);
         padding: 0 var(--rtc-spacing-sm, 8px);
         gap: var(--rtc-spacing-xs, 4px);
@@ -140,7 +140,7 @@ export const styles = css`
     }
 
     .view-toggle-btn.active {
-        background: var(--rtc-color-primary, #007acc);
+        background: var(--rtc-color-primary, #2741fe);
         color: var(--rtc-color-on-primary, #ffffff);
     }
 
@@ -213,7 +213,7 @@ export const styles = css`
     }
 
     :host([theme='light']) .view-toggle-btn.active {
-        background: var(--rtc-color-primary, #007acc);
+        background: var(--rtc-color-primary, #2741fe);
         color: var(--rtc-color-on-primary, #ffffff);
     }
 `;

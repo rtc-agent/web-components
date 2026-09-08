@@ -15,7 +15,7 @@ describe('<rtc-empty-state>', () => {
         const el = await fixture<HTMLElement>(html`<rtc-empty-state></rtc-empty-state>`);
         await nextFrame();
         const hint = el.shadowRoot!.querySelector('.empty-hint');
-        expect(hint!.textContent).toContain('/model');
+        expect(hint!.textContent).toContain('/goal');
     });
 
     it('should display custom hint text', async () => {

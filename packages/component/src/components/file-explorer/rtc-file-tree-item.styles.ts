@@ -175,7 +175,7 @@ export const styles = css`
     }
 
     :host([theme="light"]) .tree-item-content.selected {
-        background-color: var(--rtc-color-primary, #007acc);
+        background-color: var(--rtc-color-primary, #2741fe);
         color: var(--rtc-color-on-primary, #ffffff);
     }
 

@@ -16,7 +16,7 @@ export const styles = css`
         height: 22px;
         padding: 0 var(--rtc-spacing-md, 12px);
         gap: var(--rtc-spacing-md, 12px);
-        background: var(--rtc-color-accent, #007acc);
+        background: var(--rtc-color-accent, #2741fe);
         color: var(--rtc-color-on-primary, #ffffff);
         font-size: var(--rtc-font-size-sm, 13px);
         line-height: 1;
