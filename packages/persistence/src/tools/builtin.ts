@@ -77,7 +77,7 @@ function validateNumberParam(params: ToolParams, name: string): number | null {
 }
 
 /** write 工具的 mode 白名单 (MD4) */
-const VALID_WRITE_MODES = ['overwrite', 'append'] as const;
+const VALID_WRITE_MODES = ['overwrite', 'append', 'create-new'] as const;
 type WriteMode = typeof VALID_WRITE_MODES[number];
 
 function isValidWriteMode(mode: unknown): mode is WriteMode {

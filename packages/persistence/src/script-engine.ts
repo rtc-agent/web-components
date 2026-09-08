@@ -4,10 +4,10 @@
  * 脚本执行引擎：保存、转换、执行 LLM 生成的脚本
  *
  * 设计原则：
- * - 白名单是"提醒"，不是"防线"（LLM 不是攻击者）
- * - 使用 Babel 转换 TypeScript 语法
- * - 使用 new Function() 执行（无需安全沙箱）
- * - 使用 "use strict" + fn.call(undefined) 防止 this 逃逸到 globalThis
+ * - 沙箱限制"副作用"（存储/网络/DOM），不限制"表达力"（语言/数据结构/逻辑）
+ * - 使用 Babel AST 转换在编译期阻断危险 API 访问（存储、网络、DOM、原型链逃逸）
+ * - 使用 new Function() 执行，配合 "use strict" + fn.call(undefined) 防止 this 逃逸
+ * - LLM 的创造力在逻辑层——开放完整的纯计算标准库 + rtcAgent API
  */
 
 import { transformSync } from '@babel/core';
@@ -64,27 +64,74 @@ export interface RtcAgentAPI {
 
 /**
  * 脚本执行沙箱中可用的 API
+ *
+ * 沙箱策略：开放纯计算标准库 + 阻断副作用 API（存储/网络/DOM）
+ * LLM 的创造力在逻辑层（数据处理、控制流、rtcAgent 调用组合），这一层完全敞开。
  */
 export interface ScriptSandbox {
   /** rtcAgent 宿主 API（见 RtcAgentAPI 接口定义） */
   rtcAgent: RtcAgentAPI;
+  /** 劫持的 console（输出同时收集到 ConsoleOutput） */
   console: {
     log: (...args: unknown[]) => void;
     warn: (...args: unknown[]) => void;
     error: (...args: unknown[]) => void;
   };
+  /** 脚本调用参数 */
   params: Record<string, unknown>;
-  // 基础类型
+
+  // === 语言构造器与内置对象 ===
   Promise: PromiseConstructor;
   Date: DateConstructor;
-  Math: Math;
-  JSON: JSON;
+  Math: typeof Math;
+  JSON: typeof JSON;
   Array: ArrayConstructor;
   Object: ObjectConstructor;
   String: StringConstructor;
   Number: NumberConstructor;
   Boolean: BooleanConstructor;
   Error: ErrorConstructor;
+
+  // 数据结构
+  Map: MapConstructor;
+  Set: SetConstructor;
+  WeakMap: WeakMapConstructor;
+  WeakSet: WeakSetConstructor;
+  RegExp: RegExpConstructor;
+  Symbol: SymbolConstructor;
+  BigInt: BigIntConstructor;
+
+  // Error 子类（结构兼容 ErrorConstructor）
+  TypeError: ErrorConstructor;
+  RangeError: ErrorConstructor;
+  ReferenceError: ErrorConstructor;
+  SyntaxError: ErrorConstructor;
+  URIError: ErrorConstructor;
+  AggregateError: ErrorConstructor;
+
+  // === 解析与编码函数 ===
+  parseInt: typeof parseInt;
+  parseFloat: typeof parseFloat;
+  isNaN: typeof isNaN;
+  isFinite: typeof isFinite;
+  encodeURIComponent: typeof encodeURIComponent;
+  decodeURIComponent: typeof decodeURIComponent;
+  encodeURI: typeof encodeURI;
+  decodeURI: typeof decodeURI;
+  atob: typeof atob;
+  btoa: typeof btoa;
+
+  // === 工具函数 ===
+  structuredClone: typeof structuredClone;
+
+  // === 特殊值 ===
+  NaN: number;
+  Infinity: number;
+  undefined: undefined;
+
+  // === URL 解析（纯数据操作，无网络） ===
+  URL: typeof URL;
+  URLSearchParams: typeof URLSearchParams;
 }
 
 /**
@@ -98,6 +145,12 @@ export interface ConsoleOutput {
 
 /**
  * 创建默认沙箱
+ *
+ * 注入三类内容：
+ * 1. rtcAgent / params — 宿主 API 与调用参数（非全局对象）
+ * 2. console — 劫持版（输出同时收集到 ConsoleOutput）
+ * 3. 纯计算标准库 — Map/Set/RegExp/parseInt/structuredClone 等
+ *    （这些在浏览器主线程已存在，显式注入使 API 表面清晰可审计）
  *
  * @param rtcAgent - 宿主 API
  * @param params - 脚本参数
@@ -140,21 +193,32 @@ export function createSandbox(
       },
     },
     params,
-    Promise,
-    Date,
-    Math,
-    JSON,
-    Array,
-    Object,
-    String,
-    Number,
-    Boolean,
-    Error,
+    // 语言构造器
+    Promise, Date, Math, JSON, Array, Object, String, Number, Boolean, Error,
+    // 数据结构
+    Map, Set, WeakMap, WeakSet, RegExp, Symbol, BigInt,
+    // Error 子类
+    TypeError: TypeError as unknown as ErrorConstructor,
+    RangeError: RangeError as unknown as ErrorConstructor,
+    ReferenceError: ReferenceError as unknown as ErrorConstructor,
+    SyntaxError: SyntaxError as unknown as ErrorConstructor,
+    URIError: URIError as unknown as ErrorConstructor,
+    AggregateError: AggregateError as unknown as ErrorConstructor,
+    // 解析与编码
+    parseInt, parseFloat, isNaN, isFinite,
+    encodeURIComponent, decodeURIComponent, encodeURI, decodeURI,
+    atob, btoa,
+    // 工具
+    structuredClone,
+    // 特殊值
+    NaN, Infinity, undefined,
+    // URL
+    URL, URLSearchParams,
   };
 }
 
 // ============================================================
-// Babel Transform (M2, MD1, m1)
+// Babel Transform — Sandbox Plugin (MD2, 安全加固)
 // ============================================================
 
 /**
@@ -163,27 +227,124 @@ export function createSandbox(
 const cachedPresets = [presetTypescript] as NonNullable<TransformOptions['presets']>;
 
 /**
- * 危险循环语法拦截插件
+ * 禁止在脚本中直接访问的全局标识符（副作用 API）
  *
- * 浏览器主线程没有抢占式中断机制，一旦脚本进入无限循环，
- * 即使设置了超时 Promise.race 也只能放弃等待，循环仍会在后台继续运行，
- * 导致 UI 卡死。
+ * 沙箱策略：限制"副作用"（存储/网络/DOM），不限制"表达力"（语言/数据结构/逻辑）。
+ * 脚本的创造力应在逻辑层——数据处理、控制流、rtcAgent 调用组合。
+ * 平台 API 应通过 rtcAgent.callFunction 间接访问。
  *
- * 本插件在 Babel 转换阶段静态拦截以下语法：
- * - `while (cond) {}`       → 条件可能永远为 true
- * - `do {} while (cond)`    → 同上
- * - `for (;;) {}`           → 显式无限循环（ForStatement 且 test 为 null）
- *
- * 以下语法**允许**使用（迭代的是有限集合，循环必然终止）：
- * - `for...of` / `for...in`
- * - `for (let i = 0; i < n; i++)` 等常规有限循环
- * - `Array.prototype.forEach/map/filter/reduce` 等迭代式 API
- *
- * 注意：AST 阶段无法判断 `for (let i = 0; i < N; i++)` 的 N 是否过大，
- * 如需步数兜底可后续叠加注入计数器的插件。
+ * 以下分类列出被阻断的全局标识符：
  */
-const loopGuardPlugin = {
+const BLOCKED_GLOBALS: ReadonlySet<string> = new Set([
+  // 存储 API — 脚本应通过 rtcAgent.readFile/writeFile 访问文件
+  'localStorage', 'sessionStorage', 'indexedDB', 'caches', 'cookieStore',
+  // 网络 API — 脚本应通过 rtcAgent.callFunction 调用外部服务
+  'fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource', 'BroadcastChannel',
+  // DOM / 浏览器环境 — 脚本应通过 rtcAgent 操作 UI
+  'window', 'self', 'document', 'navigator', 'location', 'history',
+  'screen', 'alert', 'confirm', 'prompt', 'open', 'close', 'print',
+  'postMessage', 'frames', 'parent', 'top', 'opener',
+  // 元编程 / 逃逸 — 防止突破沙箱
+  'eval', 'Function', 'globalThis', 'global',
+  // Worker — 防止创建新的执行上下文
+  'Worker', 'SharedWorker', 'ServiceWorker', 'importScripts',
+  // 定时器 — 防止逃逸超时控制（应使用 rtcAgent.delay 等包装版本）
+  'setTimeout', 'setInterval',
+  // 共享内存
+  'SharedArrayBuffer', 'Atomics',
+  // Node.js 兼容 — 防止 bundler 注入的 CJS 全局
+  'require', 'module', 'exports', '__dirname', '__filename',
+]);
+
+/**
+ * 禁止通过 MemberExpression 访问的属性名
+ *
+ * 防止原型链逃逸：
+ * - `x.constructor.constructor('return this')()`
+ * - `x.__proto__`
+ */
+const BLOCKED_MEMBER_PROPERTIES: ReadonlySet<string> = new Set([
+  '__proto__',
+  'constructor',
+]);
+
+/**
+ * 沙箱安全插件
+ *
+ * 在 Babel 转换阶段静态阻断以下类别的语法：
+ *
+ * 1. 危险全局标识符（BLOCKED_GLOBALS）
+ *    - 阻断对存储/网络/DOM/元编程等副作用 API 的直接访问
+ *    - 如果标识符有本地绑定（变量声明/函数参数），允许（用户自己声明的同名变量）
+ *    - 跳过 TypeScript 类型位置（type annotation 不触发阻断）
+ *
+ * 2. 原型链逃逸属性（BLOCKED_MEMBER_PROPERTIES）
+ *    - 阻断 `.constructor` / `.__proto__` 访问（包括字符串索引形式 `['constructor']`）
+ *
+ * 3. 动态 import()
+ *    - 阻断 `import(...)` 语法，防止加载远程代码
+ *
+ * 4. 危险循环语法（原有 loopGuardPlugin 逻辑）
+ *    - `while` / `do...while` / `for(;;)` — 没有可预见的终止条件
+ *    - 允许：`for...of` / `for...in` / 有界 `for` / Array 迭代方法
+ */
+const sandboxPlugin = {
   visitor: {
+    // 1. 阻断危险全局标识符
+    Identifier(path: {
+      isReferencedIdentifier: () => boolean;
+      node: { name: string };
+      parent: { type: string };
+      scope: { hasBinding: (name: string) => boolean };
+      buildCodeFrameError: (msg: string) => Error;
+    }) {
+      if (!path.isReferencedIdentifier()) return;
+
+      const name = path.node.name;
+      if (!BLOCKED_GLOBALS.has(name)) return;
+
+      // 有本地绑定（变量声明/函数参数等），允许
+      if (path.scope.hasBinding(name)) return;
+
+      // 跳过 TypeScript 类型位置（type annotation 不是值引用）
+      if (path.parent.type.startsWith('TS')) return;
+
+      throw path.buildCodeFrameError(
+        `Access to global '${name}' is not allowed. Use rtcAgent APIs instead.`,
+      );
+    },
+
+    // 2. 阻断原型链逃逸
+    MemberExpression(path: {
+      node: { property: { type: string; name?: string; value?: string }; computed: boolean };
+      buildCodeFrameError: (msg: string) => Error;
+    }) {
+      const { property, computed } = path.node;
+
+      let propName: string | undefined;
+      if (!computed && property.type === 'Identifier') {
+        propName = property.name;
+      } else if (computed && property.type === 'StringLiteral') {
+        propName = property.value;
+      }
+
+      if (propName && BLOCKED_MEMBER_PROPERTIES.has(propName)) {
+        throw path.buildCodeFrameError(
+          `Access to '.${propName}' is not allowed (prototype chain escape prevention).`,
+        );
+      }
+    },
+
+    // 3. 阻断动态 import()
+    ImportExpression(path: {
+      buildCodeFrameError: (msg: string) => Error;
+    }) {
+      throw path.buildCodeFrameError(
+        'Dynamic import() is not allowed in scripts.',
+      );
+    },
+
+    // 4. 循环守卫
     WhileStatement(path: { buildCodeFrameError: (msg: string) => Error }) {
       throw path.buildCodeFrameError(
         '`while` loops are not allowed. Use `for...of` or Array iteration methods (forEach/map/filter/reduce) instead.',
@@ -206,11 +367,15 @@ const loopGuardPlugin = {
 };
 
 /**
- * 使用 Babel 转换 TypeScript 语法
+ * 使用 Babel 转换 TypeScript 语法并应用沙箱安全检查
+ *
+ * 转换流程：
+ * 1. TypeScript 类型擦除（preset-typescript）
+ * 2. 沙箱安全插件（阻断危险 API、原型链逃逸、动态 import、无限循环）
  *
  * @param code - TypeScript 源代码
  * @param name - 脚本名称，用于错误定位 (MD1)
- * @throws ScriptCompileError 当 Babel 转换失败或检测到危险循环语法时
+ * @throws ScriptCompileError 当 Babel 转换失败或检测到危险语法/API 访问时
  */
 export function transformTypeScript(code: string, name?: string): string {
   const filename = name ? `${name}.ts` : 'script.ts';
@@ -220,7 +385,7 @@ export function transformTypeScript(code: string, name?: string): string {
     result = transformSync(code, {
       presets: cachedPresets,
       filename,
-      plugins: [loopGuardPlugin],
+      plugins: [sandboxPlugin],
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

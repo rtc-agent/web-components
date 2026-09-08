@@ -13,6 +13,7 @@ import type {
 } from '../types/skill.js';
 import { virtualFS } from '@rtc-agent/persistence';
 import { generateFunctionMd, generateFunctionsIndex, generateAgentMd } from './markdown-generator.js';
+import { registerBuiltinSystemGroup } from './builtin-system-group.js';
 import { eventBus, type FunctionStartEvent, type FunctionSuccessEvent, type FunctionErrorEvent, type FunctionProgressEvent } from './event-bus.js';
 
 /**
@@ -386,6 +387,8 @@ export class FunctionRegistry {
    * m8: scenario.id 字段被忽略，文件名始终从 title 生成 slug。
    * 原因：虚拟文件系统的文件路径基于 title slug，id 仅用于数据库索引。
    * scenario.id 在 scenario-loader 的 manifest 中用于唯一标识，但不影响文件存储路径。
+   *
+   * 写入策略：使用 'create-new' 模式，文件已存在时不覆盖（保护用户编辑的内容）
    */
   async writeScenario(scenario: ScenarioDef): Promise<void> {
     // 生成文件名（使用 title 的 slug 版本）
@@ -402,7 +405,8 @@ export class FunctionRegistry {
     content += '---\n\n';
     content += scenario.content;
 
-    await virtualFS.write(path, content, 'overwrite');
+    // 使用 'create-new' 模式：文件已存在时不覆盖
+    await virtualFS.write(path, content, 'create-new');
 
     // 更新索引
     await this._updateScenariosIndex();
@@ -443,16 +447,21 @@ export class FunctionRegistry {
 
   /**
    * 更新 Functions 索引
+   *
+   * 写入策略：使用 'overwrite' 模式（索引文件总是最新状态）
    */
   private async _updateFunctionsIndex(): Promise<void> {
     const functions = this.listFunctions();
     const groups = this.listGroups();
     const md = generateFunctionsIndex(functions, groups);
+    // 索引文件总是覆盖写入，保持最新状态
     await virtualFS.write('/functions/INDEX.md', md, 'overwrite');
   }
 
   /**
    * 更新 Scenarios 索引
+   *
+   * 写入策略：使用 'overwrite' 模式（索引文件总是最新状态）
    */
   private async _updateScenariosIndex(): Promise<void> {
     // 查询所有 scenario 文件
@@ -462,6 +471,7 @@ export class FunctionRegistry {
     const { generateScenariosIndex } = await import('./markdown-generator.js');
     const md = generateScenariosIndex(scenarios);
 
+    // 索引文件总是覆盖写入，保持最新状态
     await virtualFS.write('/scenarios/INDEX.md', md, 'overwrite');
 
     // 更新 AGENT.md
@@ -470,6 +480,8 @@ export class FunctionRegistry {
 
   /**
    * 更新 AGENT.md
+   *
+   * 写入策略：使用 'create-new' 模式，文件已存在时不覆盖（保护用户编辑的内容）
    */
   private async _updateAgentMd(): Promise<void> {
     const functions = this.listFunctions();
@@ -477,7 +489,8 @@ export class FunctionRegistry {
     const scenarios = await virtualFS.queryByType('scenario');
 
     const md = generateAgentMd(this.config, functions, groups, scenarios.length);
-    await virtualFS.write('/AGENT.md', md, 'overwrite');
+    // 使用 'create-new' 模式：文件已存在时不覆盖
+    await virtualFS.write('/AGENT.md', md, 'create-new');
   }
 
   /**
@@ -565,8 +578,12 @@ export class FunctionRegistry {
 
 /**
  * 创建全局 Registry
+ *
+ * 自动注册内置 system 工具组（delay/uuid/now/random/time），
+ * 使脚本可以通过 rtcAgent.system.* 访问被沙箱阻断的常用平台 API。
  */
 export function defineRegistry(config: RegistryConfig): FunctionRegistry & Record<string, FunctionGroup> {
   const registry = new FunctionRegistry(config);
+  registerBuiltinSystemGroup(registry);
   return registry.createProxy();
 }

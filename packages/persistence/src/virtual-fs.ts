@@ -156,14 +156,14 @@ export class VirtualFS {
    *
    * @param path 文件路径
    * @param content 文件内容
-   * @param mode 写入模式：overwrite（覆盖）或 append（追加）
+   * @param mode 写入模式：overwrite（覆盖）、append（追加）或 create-new（仅创建，文件存在则跳过）
    * @param metadataOverride 可选的元数据覆盖（部分字段）
-   * @returns 写入后的文件总字符数
+   * @returns 写入后的文件总字符数，create-new 模式下文件已存在时返回现有文件字符数
    */
   async write(
     path: string,
     content: string,
-    mode: 'overwrite' | 'append' = 'overwrite',
+    mode: 'overwrite' | 'append' | 'create-new' = 'overwrite',
     metadataOverride?: Partial<FileSystemEntryMetadata>
   ): Promise<number> {
     const normalizedPath = normalizePath(path);
@@ -171,6 +171,11 @@ export class VirtualFS {
 
     const type = this.inferFileType(normalizedPath);
     const existing = await db.fileSystemEntries.get(normalizedPath);
+
+    // create-new 模式：文件已存在则跳过写入
+    if (mode === 'create-new' && existing) {
+      return existing.content.length;
+    }
 
     let finalContent = content;
     let metadata: FileSystemEntryMetadata;
