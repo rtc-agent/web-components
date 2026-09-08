@@ -61,6 +61,15 @@ export interface WorkerPersistenceCore {
     sessionClientId: string;
   }): Promise<{ session: LocalSession; message: LocalMessage }>;
 
+  /** 插入本地消息（不发送到服务器） */
+  insertLocalMessage(params: {
+    sessionClientId: string;
+    role: 'user' | 'assistant' | 'tool' | 'system';
+    content: string;
+    creatorKind?: string;
+    creatorRefId?: string;
+  }): Promise<LocalMessage>;
+
   stopTurn(sessionClientId: string): Promise<void>;
 
   compactSession(sessionClientId: string, customInstruction?: string): Promise<void>;
@@ -80,6 +89,12 @@ export interface WorkerPersistenceCore {
     content: ContentData;
     limit?: number;
   }): Promise<{ session: LocalSession; message: LocalMessage }>;
+
+  /** 软删除会话（本地乐观更新 + 异步 RPC 同步） */
+  deleteSession(sessionClientId: string): Promise<void>;
+
+  /** 更新会话标题（本地乐观更新 + 异步 RPC 同步） */
+  updateSessionTitle(sessionClientId: string, title: string): Promise<void>;
 
   // ========== 生命周期 ==========
   close(): Promise<void>;

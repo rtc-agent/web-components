@@ -33,7 +33,7 @@ export class RtcSessionHeader extends LitElement {
     @state()
     private _sessionCtx: SessionContextValue = {
         state: {sessions: [], currentSessionId: null},
-        actions: {createSession: () => '', switchSession: () => {}, renameSession: () => {}, deleteSession: () => {}, reset: () => {}, clearCurrentSession: () => {}, setCurrentSession: () => {}, setSessions: () => {}},
+        actions: {createSession: () => '', switchSession: () => {}, renameSession: async () => ({ok: true}), deleteSession: async () => ({ok: true}), reset: () => {}, clearCurrentSession: () => {}, setCurrentSession: () => {}, setSessions: () => {}},
     };
 
     @property({type: String, attribute: 'session-title'})

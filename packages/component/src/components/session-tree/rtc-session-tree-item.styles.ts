@@ -105,6 +105,31 @@ export const styles = css`
         color: var(--rtc-color-text-secondary);
     }
 
+    /* ── Status dot ── */
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        background: var(--rtc-color-success, #22c55e);
+        opacity: 0.6;
+    }
+
+    .status-dot.active {
+        opacity: 1;
+        animation: rtc-tree-status-pulse 1.6s ease-in-out infinite;
+    }
+
+    .status-dot.closed {
+        background: var(--rtc-color-text-tertiary, #6b7280);
+        opacity: 0.5;
+    }
+
+    @keyframes rtc-tree-status-pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50%      { opacity: 0.4; transform: scale(0.85); }
+    }
+
     /* 标题 */
     .label {
         flex: 1;
@@ -172,5 +197,11 @@ export const styles = css`
 
     :host([theme='light']) .timestamp {
         color: var(--rtc-color-text-tertiary, #999999);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .status-dot.active {
+            animation: none;
+        }
     }
 `;

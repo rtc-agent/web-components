@@ -159,6 +159,17 @@ export class WorkerCore implements WorkerPersistenceCore {
     return layer.sendMessage(params);
   }
 
+  async insertLocalMessage(params: {
+    sessionClientId: string;
+    role: 'user' | 'assistant' | 'tool' | 'system';
+    content: string;
+    creatorKind?: string;
+    creatorRefId?: string;
+  }): Promise<LocalMessage> {
+    const layer = this.ensureLayer();
+    return layer.insertLocalMessage(params);
+  }
+
   async stopTurn(sessionClientId: string): Promise<void> {
     const layer = this.ensureLayer();
     return layer.stopTurn(sessionClientId);
@@ -189,6 +200,16 @@ export class WorkerCore implements WorkerPersistenceCore {
   }): Promise<{ session: LocalSession; message: LocalMessage }> {
     const layer = this.ensureLayer();
     return layer.forkSession(params);
+  }
+
+  async deleteSession(sessionClientId: string): Promise<void> {
+    const layer = this.ensureLayer();
+    return layer.deleteSession(sessionClientId);
+  }
+
+  async updateSessionTitle(sessionClientId: string, title: string): Promise<void> {
+    const layer = this.ensureLayer();
+    return layer.updateSessionTitle(sessionClientId, title);
   }
 
   // ========== 生命周期 ==========
@@ -227,7 +248,11 @@ export class WorkerCore implements WorkerPersistenceCore {
   }>): Promise<void> {
     console.log('[WorkerCore] batchWriteFiles called, files count:', files.length);
     for (const file of files) {
-      await virtualFS.write(file.path, file.content, 'overwrite', file.metadata);
+      // 根据文件路径决定写入模式
+      // - /AGENT.md 和 /scenarios/*.md：使用 'create-new'（文件存在时不覆盖）
+      // - /functions/*.md 和其他文件：使用 'overwrite'（总是覆盖）
+      const mode = this._getWriteModeForPath(file.path);
+      await virtualFS.write(file.path, file.content, mode, file.metadata);
     }
     console.log('[WorkerCore] batchWriteFiles completed');
     // 批量写入只发一次广播，避免逐文件通知
@@ -239,6 +264,26 @@ export class WorkerCore implements WorkerPersistenceCore {
       oldValue: undefined,
       newValue: undefined,
     });
+  }
+
+  /**
+   * 根据文件路径决定写入模式
+   *
+   * - /AGENT.md：使用 'create-new'（保护用户编辑的内容）
+   * - /scenarios/*.md：使用 'create-new'（保护用户编辑的内容）
+   * - /functions/*.md 和其他文件：使用 'overwrite'（总是覆盖，保持最新）
+   */
+  private _getWriteModeForPath(path: string): 'overwrite' | 'append' | 'create-new' {
+    // /AGENT.md
+    if (path === '/AGENT.md') {
+      return 'create-new';
+    }
+    // /scenarios/*.md（但不包括 /scenarios/INDEX.md）
+    if (path.startsWith('/scenarios/') && path !== '/scenarios/INDEX.md') {
+      return 'create-new';
+    }
+    // 其他文件（包括 /functions/*.md 和索引文件）
+    return 'overwrite';
   }
 
   async resetOffset(): Promise<void> {

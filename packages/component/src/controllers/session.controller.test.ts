@@ -45,26 +45,26 @@ describe('SessionController', () => {
         expect(ctrl.value.state.currentSessionId).toBe(id);
     });
 
-    it('should rename session', () => {
+    it('should rename session', async () => {
         const host = new MockHost();
         const ctrl = new SessionController(host as any);
         ctrl.actions.createSession();
         const id = ctrl.value.state.sessions[0].clientId;
-        ctrl.actions.renameSession(id, 'New Title');
+        await ctrl.actions.renameSession(id, 'New Title');
         expect(ctrl.value.state.sessions[0].title).toBe('New Title');
     });
 
-    it('should delete session and update current if needed', () => {
+    it('should delete session and update current if needed', async () => {
         const host = new MockHost();
         const ctrl = new SessionController(host as any);
         ctrl.actions.createSession();
         const id = ctrl.value.state.sessions[0].clientId;
-        ctrl.actions.deleteSession(id);
+        await ctrl.actions.deleteSession(id);
         expect(ctrl.value.state.sessions).toHaveLength(0);
         expect(ctrl.value.state.currentSessionId).toBeNull();
     });
 
-    it('should switch to last session when current is deleted', () => {
+    it('should switch to last session when current is deleted', async () => {
         const host = new MockHost();
         const ctrl = new SessionController(host as any);
         ctrl.actions.createSession();
@@ -72,7 +72,7 @@ describe('SessionController', () => {
         const firstId = ctrl.value.state.sessions[0].clientId;
         const secondId = ctrl.value.state.sessions[1].clientId;
         expect(ctrl.value.state.currentSessionId).toBe(secondId);
-        ctrl.actions.deleteSession(secondId);
+        await ctrl.actions.deleteSession(secondId);
         expect(ctrl.value.state.currentSessionId).toBe(firstId);
     });
 

@@ -12,7 +12,7 @@
  * 消费方：<rtc-session-tab-bar>, <rtc-chat-layout>
  */
 import type {ReactiveController, ReactiveControllerHost} from 'lit';
-import type {SessionTab, SessionTabState, SessionTabActions} from '../types/index.js';
+import type {SessionTab, SessionTabState, SessionTabActions, SessionStatus} from '../types/index.js';
 import {STORAGE_KEYS} from '../config/auth.js';
 
 /** 持久化的 Tab 数据 */
@@ -44,8 +44,12 @@ export class SessionTabController implements ReactiveController {
             clearAll: () => this._clearAll(),
             updateTabTitles: (sessionTitleMap: Map<string, string>) =>
                 this.updateTabTitles(sessionTitleMap),
+            syncTabStatuses: (sessionStatusMap: Map<string, SessionStatus>) =>
+                this.syncTabStatuses(sessionStatusMap),
             markSaved: (sessionId: string) => this._markSaved(sessionId),
             findUnsavedTab: () => this._findUnsavedTab(),
+            updateTabStatus: (sessionId: string, status) =>
+                this._updateTabStatus(sessionId, status),
         };
 
         this._restoreTabs();
@@ -170,6 +174,30 @@ export class SessionTabController implements ReactiveController {
         return changed;
     }
 
+    /**
+     * 用 sessions 中的最新状态同步已有 Tab 的 status
+     *
+     * DB 是 status 的权威来源（服务端 turn 生命周期事件写入）。
+     * 在 _loadSessions 时调用，确保 tab status 与 DB 一致。
+     */
+    syncTabStatuses(sessionStatusMap: Map<string, SessionStatus>): boolean {
+        let changed = false;
+        const tabs = this._state.tabs.map(t => {
+            const newStatus = sessionStatusMap.get(t.sessionId);
+            if (newStatus !== undefined && newStatus !== t.status) {
+                changed = true;
+                return {...t, status: newStatus};
+            }
+            return t;
+        });
+        if (changed) {
+            this._state = {...this._state, tabs};
+            this._persistTabs();
+            this.host.requestUpdate();
+        }
+        return changed;
+    }
+
     /* ── Private ── */
 
     private _isPlaceholderTitle(title: string): boolean {
@@ -187,6 +215,18 @@ export class SessionTabController implements ReactiveController {
         if (!tab || tab.isUnsaved !== true) return;
         const tabs = this._state.tabs.map(t =>
             t.sessionId === sessionId ? {...t, isUnsaved: false} : t
+        );
+        this._state = {...this._state, tabs};
+        this._persistTabs();
+        this.host.requestUpdate();
+    }
+
+    /** 更新指定 tab 的 session 运行状态（active/idle/closed）。 */
+    private _updateTabStatus(sessionId: string, status: SessionStatus): void {
+        const tab = this._state.tabs.find(t => t.sessionId === sessionId);
+        if (!tab || tab.status === status) return;
+        const tabs = this._state.tabs.map(t =>
+            t.sessionId === sessionId ? {...t, status} : t
         );
         this._state = {...this._state, tabs};
         this._persistTabs();

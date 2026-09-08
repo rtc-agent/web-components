@@ -128,6 +128,16 @@ class WorkerPersistenceAdapter {
         return this._core.sendMessage(params);
     }
 
+    async insertLocalMessage(params: {
+        sessionClientId: string;
+        role: 'user' | 'assistant' | 'tool' | 'system';
+        content: string;
+        creatorKind?: string;
+        creatorRefId?: string;
+    }): Promise<LocalMessage> {
+        return this._core.insertLocalMessage(params);
+    }
+
     async stopTurn(sessionClientId: string): Promise<void> {
         return this._core.stopTurn(sessionClientId);
     }
@@ -154,6 +164,14 @@ class WorkerPersistenceAdapter {
         limit?: number;
     }): Promise<{ session: LocalSession; message: LocalMessage }> {
         return this._core.forkSession(params);
+    }
+
+    async deleteSession(sessionClientId: string): Promise<void> {
+        return this._core.deleteSession(sessionClientId);
+    }
+
+    async updateSessionTitle(sessionClientId: string, title: string): Promise<void> {
+        return this._core.updateSessionTitle(sessionClientId, title);
     }
 
     // ========== 生命周期 ==========

@@ -45,8 +45,10 @@ export class RtcSessionTabBar extends LitElement {
             setActiveTab: () => {},
             clearAll: () => {},
             updateTabTitles: () => {},
+            syncTabStatuses: () => {},
             markSaved: () => {},
             findUnsavedTab: () => undefined,
+            updateTabStatus: () => {},
         },
     };
 
@@ -87,6 +89,7 @@ export class RtcSessionTabBar extends LitElement {
                     <rtc-session-tab
                         session-id=${tab.sessionId}
                         title=${tab.title}
+                        status=${tab.status ?? 'idle'}
                         ?active=${tab.sessionId === activeSessionId}
                         ?dirty=${tab.isUnsaved === true}
                         theme=${this.theme}

@@ -78,6 +78,21 @@ export const styles = css`
         fill: currentColor;
     }
 
+    .action-btn--danger {
+        color: var(--rtc-color-text-secondary);
+    }
+
+    .action-btn--danger:hover {
+        background: var(--rtc-color-bg-danger, rgba(220, 53, 69, 0.12));
+        color: var(--rtc-color-danger, #dc3545);
+    }
+
+    .action-btn--danger:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        pointer-events: none;
+    }
+
     /* ── Content ── */
 
     .sidebar-content {

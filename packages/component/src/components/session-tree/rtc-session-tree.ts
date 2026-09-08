@@ -24,7 +24,7 @@ import {lightTheme} from '../../styles/themes/light.js';
 import {darkTheme} from '../../styles/themes/dark.js';
 import {baseStyles} from '../../styles/base.js';
 import {SessionTreeContext, type SessionTreeContextValue} from '../../contexts/session-tree.js';
-import {plusIcon, refreshIcon} from '../../icons/index.js';
+import {plusIcon, refreshIcon, deleteIcon} from '../../icons/index.js';
 
 // 子组件（副作用导入）
 import './rtc-session-tree-item.js';
@@ -109,6 +109,22 @@ export class RtcSessionTree extends LitElement {
                     message: '会话列表已自动同步',
                     type: 'info',
                 },
+            })
+        );
+    }
+
+    private _handleDelete() {
+        if (!this.selectedSessionId) {
+            console.warn('[rtc-session-tree] delete clicked but no session selected');
+            return;
+        }
+        console.log('[rtc-session-tree] delete requested for session:', this.selectedSessionId);
+        // 向上冒泡，由 rtc-agent 根组件监听后调用 SessionController.deleteSession
+        this.dispatchEvent(
+            new CustomEvent('rtc-session-delete-requested', {
+                bubbles: true,
+                composed: true,
+                detail: {sessionId: this.selectedSessionId},
             })
         );
     }
@@ -308,6 +324,13 @@ export class RtcSessionTree extends LitElement {
                         aria-label="新建会话"
                         @click=${this._handleNewSession}
                     >${plusIcon}</button>
+                    <button
+                        class="action-btn action-btn--danger"
+                        title="删除当前会话"
+                        aria-label="删除当前会话"
+                        ?disabled=${!this.selectedSessionId}
+                        @click=${this._handleDelete}
+                    >${deleteIcon}</button>
                 </div>
             </div>
             <div

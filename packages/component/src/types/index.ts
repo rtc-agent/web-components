@@ -39,6 +39,9 @@ export interface Message {
 
 /* ── Sessions ── */
 
+/** Session 运行状态，与 protocol SessionStatus 对齐 */
+export type SessionStatus = 'active' | 'closed' | 'idle';
+
 export interface Session {
     clientId: string;
     title: string;
@@ -50,6 +53,8 @@ export interface Session {
      * 为空表示该 session 本身就是 root session。
      */
     rootClientSessionId?: string;
+    /** Session 运行状态：active（agent 生成中）/ idle（等待输入）/ closed（已关闭） */
+    status?: SessionStatus;
 }
 
 /* ── Session Tree ── */
@@ -98,6 +103,8 @@ export interface SessionTab {
     isDefault?: boolean;
     /** 该 Session 是否尚未持久化（未发送过消息）。 */
     isUnsaved?: boolean;
+    /** Session 运行状态：active（agent 生成中）/ idle（等待输入）/ closed（已关闭） */
+    status?: SessionStatus;
 }
 
 export interface SessionTabState {
@@ -118,10 +125,14 @@ export interface SessionTabActions {
     clearAll(): void;
     /** 用 sessions 中的最新标题同步已有 Tab 的标题 */
     updateTabTitles(sessionTitleMap: Map<string, string>): void;
+    /** 用 sessions 中的最新状态同步已有 Tab 的 status */
+    syncTabStatuses(sessionStatusMap: Map<string, SessionStatus>): void;
     /** 将指定 tab 标记为已保存。 */
     markSaved(sessionId: string): void;
     /** 查找当前 unsaved tab，返回第一个 isUnsaved === true 的 tab。 */
     findUnsavedTab(): SessionTab | undefined;
+    /** 更新指定 tab 的 session 运行状态。 */
+    updateTabStatus(sessionId: string, status: SessionStatus): void;
 }
 
 /* ── Modes ── */
@@ -202,9 +213,9 @@ export interface SessionActions {
 
     switchSession(id: string): void;
 
-    renameSession(id: string, title: string): void;
+    renameSession(id: string, title: string): Promise<{ok: boolean; error?: string}>;
 
-    deleteSession(id: string): void;
+    deleteSession(id: string): Promise<{ok: boolean; error?: string}>;
 
     /** Reset all session state */
     reset(): void;

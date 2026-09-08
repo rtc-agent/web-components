@@ -41,10 +41,13 @@ sharedSelf.onconnect = (e: MessageEvent): void => {
 
     // 操作
     sendMessage: (...args: Parameters<WorkerCore['sendMessage']>) => core.sendMessage(...args),
+    insertLocalMessage: (...args: Parameters<WorkerCore['insertLocalMessage']>) => core.insertLocalMessage(...args),
     stopTurn: (...args: Parameters<WorkerCore['stopTurn']>) => core.stopTurn(...args),
     compactSession: (...args: Parameters<WorkerCore['compactSession']>) => core.compactSession(...args),
     submitRtcResult: (...args: Parameters<WorkerCore['submitRtcResult']>) => core.submitRtcResult(...args),
     forkSession: (...args: Parameters<WorkerCore['forkSession']>) => core.forkSession(...args),
+    deleteSession: (...args: Parameters<WorkerCore['deleteSession']>) => core.deleteSession(...args),
+    updateSessionTitle: (...args: Parameters<WorkerCore['updateSessionTitle']>) => core.updateSessionTitle(...args),
 
     // 生命周期
     close: () => core.close(),

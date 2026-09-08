@@ -120,6 +120,7 @@ export class EntityRepository {
         sync_status: syncStatus,
         pending_turn_count: 0,
         running_turn_count: 0,
+        agent_prompt: session.agent_prompt || '',
       };
       await db.sessions.put(newSession);
       result = { before: undefined, after: newSession };
@@ -157,13 +158,42 @@ export class EntityRepository {
     const db = getDatabase();
     const query = db.sessions.orderBy('updated_at').reverse();
     const all = await query.toArray();
+    console.log(`[EntityRepository.listSessions] total=${all.length}, with deleted_at=${all.filter(s => s.deleted_at).length}`);
+    // 过滤软删除项（deleted_at 非空表示已删除）
+    const active = all.filter(s => !s.deleted_at);
+    console.log(`[EntityRepository.listSessions] after filter=${active.length}`);
     // cursor 为上一页最后一条的 client_id，从该 ID 之后开始返回
     if (cursor) {
-      const startIdx = all.findIndex(s => s.client_id === cursor);
-      if (startIdx === -1) return all.slice(0, limit);
-      return all.slice(startIdx + 1, startIdx + 1 + limit);
+      const startIdx = active.findIndex(s => s.client_id === cursor);
+      if (startIdx === -1) return active.slice(0, limit);
+      return active.slice(startIdx + 1, startIdx + 1 + limit);
     }
-    return all.slice(0, limit);
+    return active.slice(0, limit);
+  }
+
+  /**
+   * 软删除会话：设置 deleted_at + updated_at，标记 sync_status='pending'
+   *
+   * 不直接删除 IndexedDB 行，保留数据供同步使用。
+   * listSessions 会自动过滤 deleted_at 非空的记录。
+   */
+  async softDeleteSession(clientId: string): Promise<UpsertResult<LocalSession>> {
+    const existing = await this.getClientSession(clientId);
+    if (!existing) {
+      throw new Error(`[EntityRepository] softDeleteSession: session not found: ${clientId}`);
+    }
+    const now = nowRFC3339();
+    console.log(`[EntityRepository.softDeleteSession] setting deleted_at=${now} for ${clientId}`);
+    const result = await this.upsertSession(
+      {
+        client_id: clientId,
+        deleted_at: now,
+        updated_at: now,
+      },
+      'pending',
+    );
+    console.log(`[EntityRepository.softDeleteSession] after upsert, deleted_at=${result.after.deleted_at}`);
+    return result;
   }
 
   // ========== Turn ==========

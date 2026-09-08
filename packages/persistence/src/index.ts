@@ -198,12 +198,18 @@ export class PersistenceLayer {
     let session: LocalSession;
     let isNewSession: boolean;
     let agentPrompt = '';
+    // 3. 没找到：创建新 session，从 VirtualFS 读取 AGENT.md 作为 agent_prompt
+    try {
+      agentPrompt = await virtualFS.read('/AGENT.md');
+    } catch {
+      // AGENT.md 不存在时静默跳过（agent_prompt 保持空字符串）
+    }
 
     if (existing) {
       // 2. 找到 session：touch updated_at，保持原有 sync_status 和 server_id
       const now = nowRFC3339();
       const result = await this.entityRepository.upsertSession(
-        { client_id: existing.client_id, server_id: existing.server_id, updated_at: now },
+        { client_id: existing.client_id, server_id: existing.server_id, updated_at: now, agent_prompt: agentPrompt },
         existing.sync_status,
         { silent: true }
       );
@@ -211,13 +217,6 @@ export class PersistenceLayer {
       isNewSession = false;
       agentPrompt = result.after.agent_prompt ?? "";
     } else {
-      // 3. 没找到：创建新 session，从 VirtualFS 读取 AGENT.md 作为 agent_prompt
-      try {
-        agentPrompt = await virtualFS.read('/AGENT.md');
-      } catch {
-        // AGENT.md 不存在时静默跳过（agent_prompt 保持空字符串）
-      }
-
       // 从第一条消息内容生成会话标题（取首行，最多 50 字符）
       const generatedTitle = this._generateSessionTitle(content);
       console.log('[PersistenceLayer.sendMessage] New session created, generated title:', `"${generatedTitle}"`);
@@ -261,6 +260,37 @@ export class PersistenceLayer {
     });
 
     return { session, message };
+  }
+
+  /**
+   * 插入本地消息（不发送到服务器）
+   *
+   * 用于在对话流中插入系统生成的消息（如 todo_list 变动通知）。
+   * 消息直接写入 IndexedDB，syncStatus 为 'synced'，不会触发后台同步。
+   */
+  async insertLocalMessage(params: {
+    sessionClientId: string;
+    role: 'user' | 'assistant' | 'tool' | 'system';
+    content: string;
+    creatorKind?: string;
+    creatorRefId?: string;
+  }): Promise<LocalMessage> {
+    const now = nowRFC3339();
+    const result = await this.entityRepository.upsertMessage(
+      {
+        client_id: crypto.randomUUID(),
+        session_client_id: params.sessionClientId,
+        role: params.role,
+        content: params.content,
+        streaming_status: 'completed',
+        creator_kind: params.creatorKind ?? 'system',
+        creator_ref_id: params.creatorRefId ?? '',
+        created_at: now,
+        updated_at: now,
+      },
+      'synced',
+    );
+    return result.after;
   }
 
   /**
@@ -395,6 +425,109 @@ export class PersistenceLayer {
     // 3. 处理 updates
     if (response.updates && response.updates.length > 0) {
       await this.client.applyUpdates(response.updates);
+    }
+  }
+
+  /**
+   * 删除会话（软删除）：本地乐观更新 + 异步 RPC 同步
+   *
+   * 流程：
+   * 1. EntityRepository.softDeleteSession → 本地写入 deleted_at + updated_at，sync_status='pending'
+   * 2. 异步 RPC：调用 updateSession({ session_id, deleted_at })
+   *    - 成功：回写 sync_status='synced'
+   *    - 失败：指数退避重试（最多 3 次），超限后 sync_status='failed' + 通知 UI
+   */
+  async deleteSession(sessionClientId: string): Promise<void> {
+    const session = await this.entityRepository.getClientSession(sessionClientId);
+    if (!session) return;
+
+    // Step 1: 本地乐观更新（通过 EntityRepository，触发 UIUpdateBus）
+    await this.entityRepository.softDeleteSession(sessionClientId);
+
+    // Step 2: 异步 RPC 同步（仅当 server_id 已存在时）
+    if (session.server_id) {
+      const deletedAt = session.deleted_at ?? nowRFC3339();
+      this._syncWithRetry(
+        () => this.client.updateSession({ session_id: session.server_id!, deleted_at: deletedAt }),
+        session.server_id,
+        'delete',
+      );
+    }
+  }
+
+  /**
+   * 更新会话标题：本地乐观更新 + 异步 RPC 同步
+   */
+  async updateSessionTitle(sessionClientId: string, title: string): Promise<void> {
+    const session = await this.entityRepository.getClientSession(sessionClientId);
+    if (!session) return;
+
+    // Step 1: 本地乐观更新
+    const now = nowRFC3339();
+    await this.entityRepository.upsertSession(
+      {
+        client_id: sessionClientId,
+        title,
+        updated_at: now,
+      },
+      'pending',
+    );
+
+    // Step 2: 异步 RPC 同步
+    if (session.server_id) {
+      this._syncWithRetry(
+        () => this.client.updateSession({ session_id: session.server_id!, title }),
+        session.server_id,
+        'update',
+      );
+    }
+  }
+
+  /**
+   * 通用同步重试逻辑（指数退避）
+   *
+   * 异步启动，不阻塞调用方。
+   * 成功时回写 sync_status='synced'；失败超限时标记 sync_status='failed'。
+   */
+  private static readonly SYNC_MAX_RETRIES = 3;
+  private static readonly SYNC_BASE_DELAY_MS = 1000;
+
+  private _syncWithRetry(
+    rpc: () => Promise<unknown>,
+    serverId: string,
+    action: 'delete' | 'update',
+  ): void {
+    const attempt = async (retries: number): Promise<void> => {
+      try {
+        await rpc();
+        // 成功后回写 sync_status='synced'
+        await this._markSessionSynced(serverId);
+      } catch (err) {
+        if (retries < PersistenceLayer.SYNC_MAX_RETRIES - 1) {
+          const delay = PersistenceLayer.SYNC_BASE_DELAY_MS * 2 ** retries;
+          await new Promise(r => setTimeout(r, delay));
+          return attempt(retries + 1);
+        }
+        // 超限后标记 failed
+        console.error(`[PersistenceLayer] ${action}Session RPC failed after ${PersistenceLayer.SYNC_MAX_RETRIES} attempts:`, err);
+        await this._markSessionSyncFailed(serverId);
+      }
+    };
+    // fire-and-forget
+    void attempt(0);
+  }
+
+  private async _markSessionSynced(serverId: string): Promise<void> {
+    const session = await this.entityRepository.getSessionByServerId(serverId);
+    if (session) {
+      await this.entityRepository.upsertSession({ client_id: session.client_id }, 'synced');
+    }
+  }
+
+  private async _markSessionSyncFailed(serverId: string): Promise<void> {
+    const session = await this.entityRepository.getSessionByServerId(serverId);
+    if (session) {
+      await this.entityRepository.upsertSession({ client_id: session.client_id }, 'failed');
     }
   }
 

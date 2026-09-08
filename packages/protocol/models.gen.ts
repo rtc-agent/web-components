@@ -372,6 +372,11 @@ export interface components {
             session_id: components["schemas"]["UUID"];
             /** @description 新标题（不传表示不修改） */
             title?: string;
+            /**
+             * Format: date-time
+             * @description 软删除时间
+             */
+            deleted_at?: string;
         };
         UpdateSessionResult: {
             session_id: components["schemas"]["UUID"];

@@ -15,6 +15,7 @@ import type {ReactiveController, ReactiveControllerHost} from 'lit';
 import type {Session, SessionState, SessionActions} from '../types/index.js';
 import type {SessionContextValue} from '../contexts/session.js';
 import {DEFAULT_SESSION_STATE} from '../contexts/session.js';
+import type {PersistenceLayer} from '@rtc-agent/persistence';
 
 export class SessionController implements ReactiveController {
     host: ReactiveControllerHost & EventTarget;
@@ -25,6 +26,14 @@ export class SessionController implements ReactiveController {
 
     /** Called when session switches — root wires this to MessageController. */
     onSessionSwitch?: () => void;
+
+    /**
+     * Persistence layer reference (injected by root after connect).
+     *
+     * When set, rename/delete operations are persisted to IndexedDB + synced to server.
+     * When unset, rename/delete operate in-memory only (offline / pre-connect fallback).
+     */
+    persistence?: PersistenceLayer;
 
     get value(): SessionContextValue {
         return {state: this._state, actions: this.actions};
@@ -86,7 +95,18 @@ export class SessionController implements ReactiveController {
         );
     }
 
-    private _renameSession(id: string, title: string) {
+    private async _renameSession(id: string, title: string): Promise<{ok: boolean; error?: string}> {
+        // 1. Persist + sync (fire-and-forget the RPC, but await the local write)
+        if (this.persistence) {
+            try {
+                await this.persistence.updateSessionTitle(id, title);
+            } catch (err) {
+                console.error('[SessionController._renameSession] persistence failed:', err);
+                return {ok: false, error: '重命名失败，请稍后重试'};
+            }
+        }
+
+        // 2. Update in-memory state
         const sessions = this._state.sessions.map((s) =>
             s.clientId === id ? {...s, title, updatedAt: Date.now()} : s
         );
@@ -99,9 +119,26 @@ export class SessionController implements ReactiveController {
                 detail: {id, title},
             })
         );
+        return {ok: true};
     }
 
-    private _deleteSession(id: string) {
+    private async _deleteSession(id: string): Promise<{ok: boolean; error?: string}> {
+        console.log('[SessionController._deleteSession] id:', id, 'persistence:', !!this.persistence);
+        // 1. Persist + sync (fire-and-forget the RPC, but await the local write)
+        if (this.persistence) {
+            try {
+                console.log('[SessionController._deleteSession] calling persistence.deleteSession');
+                await this.persistence.deleteSession(id);
+                console.log('[SessionController._deleteSession] persistence.deleteSession completed');
+            } catch (err) {
+                console.error('[SessionController._deleteSession] persistence failed:', err);
+                return {ok: false, error: '删除失败，请稍后重试'};
+            }
+        } else {
+            console.warn('[SessionController._deleteSession] NO persistence layer, doing in-memory only');
+        }
+
+        // 2. Update in-memory state
         const sessions = this._state.sessions.filter((s) => s.clientId !== id);
         const currentSessionId =
             this._state.currentSessionId === id
@@ -111,6 +148,20 @@ export class SessionController implements ReactiveController {
                 : this._state.currentSessionId;
         this._state = {sessions, currentSessionId};
         this.host.requestUpdate();
+
+        // 3. If we deleted the active session, trigger switch to the new active
+        if (this._state.currentSessionId !== id && currentSessionId !== this._state.currentSessionId) {
+            // currentSessionId changed — fire switch event
+            this.onSessionSwitch?.();
+            this.host.dispatchEvent(
+                new CustomEvent('rtc-session-switched', {
+                    bubbles: true,
+                    composed: true,
+                    detail: {id: currentSessionId},
+                })
+            );
+        }
+
         this.host.dispatchEvent(
             new CustomEvent('rtc-session-deleted', {
                 bubbles: true,
@@ -118,6 +169,7 @@ export class SessionController implements ReactiveController {
                 detail: {id},
             })
         );
+        return {ok: true};
     }
 
     private _reset() {

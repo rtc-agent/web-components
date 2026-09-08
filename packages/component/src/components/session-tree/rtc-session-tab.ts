@@ -15,6 +15,7 @@ import {lightTheme} from '../../styles/themes/light.js';
 import {darkTheme} from '../../styles/themes/dark.js';
 import {baseStyles} from '../../styles/base.js';
 import {styles} from './rtc-session-tab.styles.js';
+import type {SessionStatus} from '../../types/index.js';
 
 // 内联 close SVG（与 rtc-editor-tab 保持一致）
 const closeSvg = svg`<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
@@ -36,6 +37,10 @@ export class RtcSessionTab extends LitElement {
 
     @property({type: Boolean, reflect: true})
     dirty = false;
+
+    /** Session 运行状态：active（agent 生成中）/ idle（等待输入）/ closed（已关闭） */
+    @property({type: String, reflect: true})
+    status: SessionStatus = 'idle';
 
     /** 主题：light / dark / system */
     @property({type: String, reflect: true})
@@ -85,6 +90,14 @@ export class RtcSessionTab extends LitElement {
                 @click=${this._handleClick}
                 @keydown=${this._handleKeyDown}
             >
+                <span
+                    class=${classMap({
+                        'status-dot': true,
+                        'active': this.status === 'active',
+                        'closed': this.status === 'closed',
+                    })}
+                    aria-hidden="true"
+                ></span>
                 <span class="tab-title">${this.title || 'Untitled'}</span>
                 ${this.dirty
                     ? html`<span class="tab-dirty" aria-label="unsaved"></span>`

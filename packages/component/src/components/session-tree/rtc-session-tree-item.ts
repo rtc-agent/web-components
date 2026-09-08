@@ -110,6 +110,16 @@ export class RtcSessionTreeItem extends LitElement {
                         ? (node.isExpanded ? folderOpenIcon : folderClosedIcon)
                         : chatIcon}
                 </span>
+                ${!isRoot
+                    ? html`<span
+                          class=${classMap({
+                              'status-dot': true,
+                              'active': node.session.status === 'active',
+                              'closed': node.session.status === 'closed',
+                          })}
+                          aria-hidden="true"
+                      ></span>`
+                    : nothing}
                 <span class="label">${node.session.title || 'Untitled'}</span>
                 ${node.session.updatedAt
                     ? html`<span class="timestamp">${formatRelativeTime(node.session.updatedAt)}</span>`
