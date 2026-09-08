@@ -1,101 +1,174 @@
-# RTC Agent Web Components
+# 🤖 RTC Agent
 
-基于 Lit 的 Web Component 组件库，以浮窗形式为宿主页面提供 RTC Agent 交互界面。
+[English](./README.md) | [中文](./README-ZH.md)
 
-## 功能特性
+![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
+![WebSocket](https://img.shields.io/badge/WebSocket-Centrifuge-663399)
+![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)
 
-- 浮窗式 UI：支持 normal / maximized / minimized 三种窗口形态，可拖动、缩放
-- 多会话管理：会话列表、切换、创建、Fork
-- 实时消息：流式响应、Tool Call 卡片、确认弹窗
-- 本地持久化：IndexedDB 存储消息、会话、虚拟文件系统（AGENT.md）
-- 主题系统：light / dark / system 三套主题，通过 CSS 变量扩展
-- 技能系统：Scenario 文档加载、FunctionRegistry 声明式注册
-- 可访问性：ARIA、焦点管理、`prefers-reduced-motion` 支持
+## **Remote Tool Calling — Integrate AI Assistant into Your Website with 3 Lines of Code**
 
-## 快速开始
+Not screenshot recognition, not DOM crawling. AI operates websites directly through frontend tools — every step transparent and observable.
 
-### 前置条件
+---
 
-- Node.js >= 18
-- pnpm >= 8.15
+> **One-liner**: An open-source website AI assistant backend. Integrate a transparent, efficient, and cost-effective AI assistant into your website with just a few lines of code via the standardized Remote Tool Calling protocol.
 
-### 安装
+RTC Agent lets AI reason on the server while **tools execute on the frontend** — reading page content, operating a virtual file system, calling business APIs — all synchronized in real-time over WebSocket, fully visible to your users.
 
-```bash
-pnpm install
+![RTC Agent UI Overview](https://rtc-agent.github.io/docs/demo-screenshot/chat-demo.png)
+
+## 🎯 Who Should Use RTC Agent?
+
+- **SaaS product teams**: Want to add an AI assistant to their product without restructuring the backend
+- **Frontend developers**: Want to quickly integrate AI capabilities, focusing on business logic rather than AI infrastructure
+- **Privacy-sensitive applications**: Healthcare, finance, enterprise internal tools — where data cannot leave the user's device
+
+---
+
+## ✨ Core Capabilities
+
+### 📂 Frontend Virtual File System
+
+Built on **IndexedDB**, AI tools (`read` / `write` / `ls` / `grep`) operate directly on frontend files. Data never leaves the user's browser.
+
+### 🔑 Script Tool + Function Composition
+
+Developers **only need to maintain their own Function library**. The Agent executes them on the frontend via the `script` tool and can **freely combine multiple Functions** to accomplish complex tasks — no predefined workflows needed.
+
+> 💡 **Developer's perspective**: You just define your business atomic capabilities (Functions), and the Agent learns how to combine them on its own. It's like giving AI a set of LEGO bricks — it figures out how to build what you want.
+
+### 💬 Real-Time Communication
+
+Built on **Centrifuge WebSocket**, with bidirectional message pushing, supporting streaming output, tool call progress, and state synchronization.
+
+### 🧠 Memory System
+
+Dual-layer memory: **Session Memory** (conversation context compression) + **User Memory** (cross-session long-term memory with vector retrieval). AI truly "remembers" your users.
+
+### 🗜️ Context Management
+
+Automatically compresses long conversations, keeping token consumption under control. Say goodbye to "context length exceeded" errors.
+
+### 🤖 Sub-Agents + 🎯 Goal-Driven Execution
+
+Complex tasks are automatically decomposed, with multiple specialized sub-agents working in parallel. AI sets, tracks, and completes multi-step goals, with turn-boundary checkpoints ensuring no task is lost.
+
+---
+
+## 🏗️ Architecture
+
+```mermaid
+flowchart LR
+    subgraph BROWSER["🖥️ Browser / Frontend"]
+        direction TB
+        UI["👤 Web Component"]
+        WS["🔌 WebSocket Client"]
+        SCRIPT["🔑 script tool"]
+        TOOLS["⚙️ Basic Tools"]
+        VFS[("💾 Virtual File System<br/>IndexedDB")]
+        FX["📦 Function Library"]
+    end
+
+    subgraph SERVER["⚙️ RTC Agent Server"]
+        direction TB
+        GW["🌐 WebSocket Gateway"]
+        AUTH["🔐 Auth"]
+        CTX["🗜️ Context Manager"]
+        MEM["🧠 Memory System"]
+        AGENT["🤖 Agent Engine"]
+    end
+
+    LLM["🧠 LLM Provider"]
+
+    UI -->|User message| GW
+    GW --> AUTH --> CTX
+    CTX -.->|Inject memory| MEM
+    CTX --> AGENT
+    AGENT -->|Inference request| LLM
+    LLM -->|tool_calls| AGENT
+    AGENT -->|script call| GW
+    GW <-->|WebSocket| WS
+    WS --> SCRIPT
+    WS --> TOOLS
+    SCRIPT -->|Compose calls| FX
+    SCRIPT -->|Read/Write| VFS
+    TOOLS -->|Read/Write| VFS
+    SCRIPT -->|Results| WS
+    AGENT -->|Response| GW
+    GW -->|Streaming output| UI
+
+    style BROWSER fill:#e1f5fe,stroke:#0288d1,stroke-width:3px
+    style SERVER fill:#f3e5f5,stroke:#7b1fa2,stroke-width:3px
+    style LLM fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    style VFS fill:#c8e6c9,stroke:#388e3c,stroke-width:2px
+    style SCRIPT fill:#ffeb3b,stroke:#f9a825,stroke-width:2px,color:#000
 ```
 
-### 本地开发
+Core data flow:
 
-```bash
-pnpm dev            # 启动 Vite 开发服务器（默认 http://localhost:5173）
-pnpm build          # 构建所有包
-pnpm typecheck      # 全仓库类型检查
-pnpm test           # 运行全部单元测试
+1. All **Function and file data** live in the browser's IndexedDB — the server never touches business data
+2. The Agent Engine sends tool calls to the browser via the RTC protocol; the browser executes and returns results
+3. Memory and context management run on the server, optimizing conversation quality
+
+---
+
+## 🔄 How It Works
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant FE as Frontend
+    participant S as Server
+    participant LLM as LLM Provider
+
+    U->>FE: Send message
+    FE->>S: WebSocket push
+    S->>S: Inject memory, compress context, load Function manifest
+    S->>LLM: Inference request
+    LLM-->>S: tool_calls (request to call Functions)
+    S->>FE: RTC event (tool call request)
+    FE->>FE: script tool executes Function
+    FE->>S: Submit execution result
+    S->>LLM: Continue reasoning with result
+    LLM-->>S: Final response
+    S->>FE: Streaming output
+    FE->>U: Display result
 ```
 
-## 项目结构
+### 🔑 Key Differences
 
-本仓库是 pnpm monorepo，包含以下包：
+| | Traditional Approach | RTC | RTC + Function |
+| --- | --------- | ----- | ---------------- |
+| **Tool execution location** | Server-side ❌ | Frontend ✅ | Frontend ✅ |
+| **Data flow** | Uploaded to cloud 🔒 | Stays on user device 🔐 | Stays on user device 🔐 |
+| **Extension method** | Modify server code | Define frontend tools | **Just define Functions; the Agent learns to compose them** |
 
-| 包 | 路径 | 说明 |
-| --- | --- | --- |
-| `@rtc-agent/component` | `packages/component` | Web Component 组件库（Lit） |
-| `@rtc-agent/client` | `packages/client` | Centrifuge 通信层（连接、RPC、订阅、流式） |
-| `@rtc-agent/persistence` | `packages/persistence` | 本地持久化层（IndexedDB + Dexie） |
-| `@rtc-agent/protocol` | `packages/protocol` | 协议类型定义（OpenAPI 生成的 TS 类型） |
+---
 
-### 包依赖关系
+## 📊 Comparison with Other AI Assistant Solutions
 
-```
-component
-├── client
-│    └── protocol
-├── persistence
-│    ├── client
-│    └── protocol
-└── protocol
-```
+| Solution | Integration Cost | Observability | Token Cost | Error Rate | Privacy & Security |
+| :----: | :-------: | :-------: | :---------: | :-----: | :-------: |
+| **RTC Agent** | Low — a few lines of code | Fully transparent | Low | Low | Data stays on frontend |
+| Visual Parsing (Screenshot + OCR) | Medium | Black box | Very high | Relatively high | Requires uploading screenshots |
+| DOM Crawling (Server-side parsing) | Complex | Partially visible | Medium | Medium | Data uploaded to cloud |
+| Browser Extension | Requires installation | Good | Medium | Medium | Runs locally |
 
-## 宿主集成
+> Every solution has its place: visual parsing works well for legacy systems with zero modification, and browser extensions suit offline scenarios. RTC Agent's advantage is — **no installation, no screenshots, no server-side changes** — just a few lines of code to let AI understand and operate your website in a structured way.
 
-最简用法：
+---
 
-```html
-<script type="module">
-  import '@rtc-agent/component';
-</script>
-<rtc-agent></rtc-agent>
-```
+## 🚀 Next Steps
 
-声明式注册函数：
+- [Getting Started](https://rtc-agent.github.io/docs/en/getting-started/) — Integrate RTC Agent in 5 minutes
+- [Core Concepts](https://rtc-agent.github.io/docs/en/concepts/) — Deep dive into the RTC protocol and virtual file system
+- [Integration Guide](https://rtc-agent.github.io/docs/en/integration/) — Learn how to register Functions and write Scenarios
 
-```ts
-const agent = document.querySelector<RtcAgent>('rtc-agent')!;
-agent.agentConfig = {
-  name: 'MermaidEditor',
-  persona: 'You are a helpful Mermaid diagram assistant.',
-  groups: [{
-    name: 'editor',
-    description: 'Editor operations',
-    functions: [
-      { name: 'getCode', description: 'Get current code', handler: () => editorAPI.getCode() },
-    ],
-  }],
-};
-```
+---
 
-## 测试
+### 📄 License
 
-```bash
-pnpm test               # 全部单元测试（vitest）
-pnpm test:e2e           # E2E 测试（playwright）
-```
+[MIT License](./LICENSE)
 
-## 贡献指南
-
-欢迎提交 Issue 与 PR。代码风格遵循仓库根目录 `.claude/skills/rtc-agent-development-standards/` 下的规范。
-
-## License
-
-[MIT](./LICENSE)
+Made with ❤️ by RTC Agent Team
