@@ -3,12 +3,15 @@ name: Publish to npm
 on:
   release:
     types: [published]
-  workflow_dispatch: # 支持手动触发（用输入框指定 tag）
+  workflow_dispatch:
     inputs:
-      dist-tag:
-        description: "npm dist-tag (latest / rc / beta / ...)"
+      version:
+        description: "Version to publish (e.g. 0.1.0-rc.2). Must match a git tag if release trigger is unused."
         required: true
-        default: "latest"
+      dist-tag:
+        description: "npm dist-tag. 'auto' derives 'rc' from prerelease versions, 'latest' otherwise."
+        required: true
+        default: "auto"
 
 permissions:
   contents: read
@@ -39,37 +42,69 @@ jobs:
       - name: Build
         run: pnpm build
 
-      - name: Determine dist-tag
-        id: dist-tag
+      - name: Determine version and dist-tag
+        id: release-info
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            # 手动触发：使用用户输入
-            TAG="${{ inputs.dist-tag }}"
-            echo "Manual trigger, using input tag: $TAG"
-          else
-            # Release 触发：根据版本号自动判断
-            # 读 component 的版本（四个包版本保持一致）
-            VERSION=$(node -p "require('./packages/component/package.json').version")
-            if [[ "$VERSION" == *-* ]]; then
-              # 含 '-' 说明是 prerelease（如 0.1.0-rc.0）→ 发到 'rc' tag
-              TAG="rc"
+            # 手动触发：version 来自输入框，dist-tag 可显式指定或 auto
+            VERSION="${{ inputs.version }}"
+            if [ "${{ inputs.dist-tag }}" = "auto" ]; then
+              if [[ "$VERSION" == *-* ]]; then TAG="rc"; else TAG="latest"; fi
             else
-              # 稳定版（如 0.1.0）→ 发到 'latest' tag
-              TAG="latest"
+              TAG="${{ inputs.dist-tag }}"
             fi
-            echo "Release trigger, version=$VERSION → tag=$TAG"
+            echo "Manual trigger: version=$VERSION, tag=$TAG"
+          else
+            # Release 触发：从 release tag_name 解析版本（去掉前导 'v'）
+            TAG_NAME="${{ github.event.release.tag_name }}"
+            VERSION="${TAG_NAME#v}"
+            if [[ "$VERSION" == *-* ]]; then TAG="rc"; else TAG="latest"; fi
+            echo "Release trigger: tag_name=$TAG_NAME → version=$VERSION, dist-tag=$TAG"
           fi
+
+          # 基本格式校验
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$ ]]; then
+            echo "::error::Invalid version format: $VERSION"
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Sync version to all package.json files
+        env:
+          VERSION: ${{ steps.release-info.outputs.version }}
+        run: |
+          echo "Setting version=$VERSION across all @rtc-agent/* packages"
+          node -e "
+            const fs = require('fs');
+            const path = require('path');
+            const root = process.cwd();
+            const pkgsDir = path.join(root, 'packages');
+            const version = process.env.VERSION;
+            for (const dir of fs.readdirSync(pkgsDir)) {
+              const pkgPath = path.join(pkgsDir, dir, 'package.json');
+              if (!fs.existsSync(pkgPath)) continue;
+              const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+              if (!pkg.name || !pkg.name.startsWith('@rtc-agent/')) continue;
+              const prev = pkg.version;
+              pkg.version = version;
+              fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+              console.log('  ' + pkg.name + ': ' + prev + ' → ' + version);
+            }
+          "
 
       - name: Publish to npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          TAG="${{ steps.dist-tag.outputs.tag }}"
-          echo "Publishing with dist-tag: $TAG"
-          # 按依赖顺序发布：protocol → client → persistence → component
+          TAG="${{ steps.release-info.outputs.tag }}"
+          VERSION="${{ steps.release-info.outputs.version }}"
+          echo "Publishing @rtc-agent/*@ $VERSION with dist-tag: $TAG"
+          # 按依赖顺序发布：protocol → client → persistence → worker → component
           # pnpm 会自动把 workspace:* 重写为实际版本号
           pnpm --filter @rtc-agent/protocol    publish --access public --tag "$TAG" --no-git-checks
           pnpm --filter @rtc-agent/client      publish --access public --tag "$TAG" --no-git-checks
           pnpm --filter @rtc-agent/persistence publish --access public --tag "$TAG" --no-git-checks
+          pnpm --filter @rtc-agent/worker      publish --access public --tag "$TAG" --no-git-checks
           pnpm --filter @rtc-agent/component   publish --access public --tag "$TAG" --no-git-checks
