@@ -18,9 +18,13 @@
   ],
   "scripts": {
     "build": "vite build",
+    "prebuild": "lit-localize build",
     "dev": "vite",
+    "predev": "lit-localize build",
     "typecheck": "tsc --noEmit",
+    "pretypecheck": "lit-localize build",
     "test": "vitest run --passWithNoTests",
+    "pretest": "lit-localize build",
     "i18n:extract": "lit-localize extract",
     "i18n:build": "lit-localize build",
     "i18n:lint": "lit-localize lint"
