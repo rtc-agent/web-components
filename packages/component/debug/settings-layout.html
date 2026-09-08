@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings Layout Debug — UI 调试</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #404040;
+            color: #cccccc;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        h1 { font-size: 20px; margin-bottom: 20px; color: #ffffff; }
+        h2 { font-size: 14px; margin-bottom: 12px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        .page-layout {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+
+        /* ── 左侧调试面板 ── */
+
+        .debug-sidebar {
+            width: 320px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .debug-panel {
+            background: #252526;
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .debug-section { margin-bottom: 16px; }
+        .debug-section:last-child { margin-bottom: 0; }
+
+        .btn-group { display: flex; flex-wrap: wrap; gap: 6px; }
+
+        .debug-btn {
+            padding: 6px 12px;
+            background: #3a3a3a;
+            border: 1px solid #555;
+            color: #cccccc;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 12px;
+            transition: background 0.15s;
+        }
+
+        .debug-btn:hover { background: #4a4a4a; border-color: #777; }
+        .debug-btn.active { background: #007acc; color: white; border-color: #007acc; }
+        .debug-btn.success { border-color: #4caf50; color: #4caf50; }
+        .debug-btn.warning { border-color: #ff9800; color: #ff9800; }
+        .debug-btn.error { border-color: #f44336; color: #f44336; }
+
+        /* ── 状态显示 ── */
+
+        .state-display {
+            background: #1e1e1e;
+            border: 1px solid #3c3c3c;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            font-size: 11px;
+            line-height: 1.5;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+            color: #d4d4d4;
+        }
+
+        .state-key { color: #9cdcfe; }
+        .state-string { color: #ce9178; }
+        .state-number { color: #b5cea8; }
+        .state-boolean { color: #569cd6; }
+
+        /* ── 事件日志 ── */
+
+        .event-log {
+            background: #1e1e1e;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 11px;
+            max-height: 150px;
+            overflow-y: auto;
+            color: #d4d4d4;
+        }
+
+        .event-entry {
+            padding: 3px 0;
+            border-bottom: 1px solid #2d2d30;
+        }
+        .event-entry:last-child { border-bottom: none; }
+        .event-time { color: #666; margin-right: 6px; }
+        .event-name { color: #dcdcaa; }
+        .event-detail { color: #ce9178; }
+
+        /* ── 右侧预览区 ── */
+
+        .preview-area {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .preview-container {
+            background: #252526;
+            border-radius: 8px;
+            overflow: hidden;
+            height: 600px;
+            transition: background-color 0.2s, color 0.2s;
+        }
+
+        .preview-container[theme="light"] {
+            background: #ffffff;
+            color: #333333;
+        }
+
+        .preview-host {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* ── 尺寸模拟 ── */
+
+        .size-controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .size-controls label {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .size-controls input[type="range"] {
+            width: 100px;
+        }
+
+        /* ── Scrollbar ── */
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #777; }
+    </style>
+</head>
+<body>
+
+<h1>⚙️ Settings Layout — UI Debug</h1>
+
+<div class="page-layout">
+    <!-- ── 左侧调试面板 ── -->
+    <div class="debug-sidebar">
+        <!-- 主题切换 -->
+        <div class="debug-panel">
+            <div class="debug-section">
+                <h2>主题</h2>
+                <div class="btn-group">
+                    <button class="debug-btn active" data-theme="dark">Dark</button>
+                    <button class="debug-btn" data-theme="light">Light</button>
+                    <button class="debug-btn" data-theme="system">System</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 设置操作 -->
+        <div class="debug-panel">
+            <div class="debug-section">
+                <h2>快速设置</h2>
+                <div class="btn-group">
+                    <button class="debug-btn success" onclick="setDefaults()">恢复默认</button>
+                    <button class="debug-btn warning" onclick="setCompact()">紧凑模式</button>
+                    <button class="debug-btn" onclick="setComfortable()">舒适模式</button>
+                </div>
+            </div>
+            <div class="debug-section">
+                <h2>外观</h2>
+                <div class="btn-group">
+                    <button class="debug-btn" onclick="setFontSize(12)">12px</button>
+                    <button class="debug-btn" onclick="setFontSize(14)">14px</button>
+                    <button class="debug-btn" onclick="setFontSize(16)">16px</button>
+                    <button class="debug-btn" onclick="setFontSize(18)">18px</button>
+                    <button class="debug-btn" onclick="setFontSize(24)">24px</button>
+                </div>
+            </div>
+            <div class="debug-section">
+                <h2>分类切换</h2>
+                <div class="btn-group">
+                    <button class="debug-btn" onclick="switchCategory('appearance')">外观</button>
+                    <button class="debug-btn" onclick="switchCategory('chat')">聊天</button>
+                    <button class="debug-btn" onclick="switchCategory('files')">文件</button>
+                    <button class="debug-btn" onclick="switchCategory('notifications')">通知</button>
+                    <button class="debug-btn" onclick="switchCategory('account')">账户</button>
+                    <button class="debug-btn" onclick="switchCategory('about')">关于</button>
+                </div>
+            </div>
+            <div class="debug-section">
+                <h2>账户</h2>
+                <div class="btn-group">
+                    <button class="debug-btn success" onclick="authLogin()">登录</button>
+                    <button class="debug-btn error" onclick="authLogout()">登出</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 尺寸模拟 -->
+        <div class="debug-panel">
+            <div class="debug-section">
+                <h2>容器尺寸</h2>
+                <div class="size-controls">
+                    <label>宽度:</label>
+                    <input type="range" min="400" max="1200" value="800" oninput="resizeWidth(this.value)">
+                    <span id="width-value" style="font-size: 12px; color: #888; min-width: 40px;">800px</span>
+                </div>
+                <div class="size-controls" style="margin-top: 8px;">
+                    <label>高度:</label>
+                    <input type="range" min="300" max="800" value="600" oninput="resizeHeight(this.value)">
+                    <span id="height-value" style="font-size: 12px; color: #888; min-width: 40px;">600px</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 当前状态 -->
+        <div class="debug-panel">
+            <div class="debug-section">
+                <h2>当前状态</h2>
+                <div id="state-display" class="state-display">Loading...</div>
+            </div>
+        </div>
+
+        <!-- 事件日志 -->
+        <div class="debug-panel">
+            <div class="debug-section">
+                <h2>事件日志</h2>
+                <div class="btn-group" style="margin-bottom: 8px;">
+                    <button class="debug-btn" onclick="clearEvents()">清空</button>
+                </div>
+                <div id="event-log" class="event-log">
+                    <div style="color: #666; font-style: italic;">等待事件...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── 右侧预览区 ── -->
+    <div class="preview-area">
+        <div id="preview-container" class="preview-container" theme="dark">
+            <div id="preview-host" class="preview-host"></div>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    // ── 导入组件 ──
+    import {LitElement, html} from 'lit';
+    import {ContextProvider} from '@lit/context';
+
+    // 导入 settings 组件
+    import '../src/components/settings-layout/rtc-settings-layout.ts';
+    import '../src/components/settings-layout/rtc-settings-nav.ts';
+
+    // 导入 context
+    import {SettingsContext, DEFAULT_SETTINGS_STATE} from '../src/contexts/settings.ts';
+    import {AuthContext, DEFAULT_AUTH_STATE} from '../src/contexts/auth.ts';
+
+    // ── 状态管理 ──
+
+    let currentState = JSON.parse(JSON.stringify(DEFAULT_SETTINGS_STATE));
+    let currentAuth = {state: {...DEFAULT_AUTH_STATE, userId: 'demo-user-123'}};
+    const events = [];
+    const MAX_EVENTS = 50;
+
+    // ── Context Provider 包装元素（使用原生 customElements.define，避免 TS 装饰器） ──
+
+    class SettingsDebugProvider extends LitElement {
+        constructor() {
+            super();
+            this._provider = new ContextProvider(this, {
+                context: SettingsContext,
+                initialValue: this._buildSettingsValue(),
+            });
+            this._authProvider = new ContextProvider(this, {
+                context: AuthContext,
+                initialValue: this._buildAuthValue(),
+            });
+        }
+
+        _buildSettingsValue() {
+            return {
+                state: JSON.parse(JSON.stringify(currentState)),
+                actions: {
+                    updateAppearance: (partial) => {
+                        currentState.appearance = {...currentState.appearance, ...partial};
+                        this._sync();
+                        logEvent('updateAppearance', JSON.stringify(partial));
+                    },
+                    updateChat: (partial) => {
+                        currentState.chat = {...currentState.chat, ...partial};
+                        this._sync();
+                        logEvent('updateChat', JSON.stringify(partial));
+                    },
+                    updateFiles: (partial) => {
+                        currentState.files = {...currentState.files, ...partial};
+                        this._sync();
+                        logEvent('updateFiles', JSON.stringify(partial));
+                    },
+                    updateNotifications: (partial) => {
+                        currentState.notifications = {...currentState.notifications, ...partial};
+                        this._sync();
+                        logEvent('updateNotifications', JSON.stringify(partial));
+                    },
+                },
+            };
+        }
+
+        _buildAuthValue() {
+            return {
+                state: JSON.parse(JSON.stringify(currentAuth.state)),
+                login: () => {
+                    currentAuth.state.isLoggedIn = true;
+                    currentAuth.state.userId = 'demo-user-123';
+                    this._syncAuth();
+                    logEvent('auth:login', 'User logged in');
+                },
+                logout: () => {
+                    currentAuth.state.isLoggedIn = false;
+                    currentAuth.state.userId = undefined;
+                    this._syncAuth();
+                    logEvent('auth:logout', 'User logged out');
+                },
+            };
+        }
+
+        _sync() {
+            this._provider.setValue(this._buildSettingsValue());
+            updateStateDisplay();
+        }
+
+        _syncAuth() {
+            this._authProvider.setValue(this._buildAuthValue());
+            updateStateDisplay();
+        }
+
+        render() {
+            return html`<slot></slot>`;
+        }
+    }
+
+    customElements.define('settings-debug-provider', SettingsDebugProvider);
+
+    // ── 初始化 ──
+
+    function init() {
+        const host = document.getElementById('preview-host');
+        const provider = document.createElement('settings-debug-provider');
+        const layout = document.createElement('rtc-settings-layout');
+        layout.setAttribute('theme', 'dark');
+        layout.id = 'settings-layout';
+
+        provider.appendChild(layout);
+        host.appendChild(provider);
+
+        // 监听 nav 事件
+        layout.addEventListener('settings-nav-change', (e) => {
+            logEvent('settings-nav-change', e.detail.category);
+        });
+
+        updateStateDisplay();
+        logEvent('system', 'Debug page initialized');
+    }
+
+    // ── UI 更新 ──
+
+    function updateStateDisplay() {
+        const el = document.getElementById('state-display');
+        el.innerHTML = syntaxHighlight(JSON.stringify(currentState, null, 2));
+    }
+
+    function syntaxHighlight(json) {
+        // Escape for HTML template literal safety
+        const escaped = json
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+        return escaped
+            .replace(/"([^"]*)":/g, '<span class="state-key">"$1":</span>')
+            .replace(/: "([^"]*)"/g, ': <span class="state-string">"$1"</span>')
+            .replace(/: (true|false)/g, ': <span class="state-boolean">$1</span>')
+            .replace(/: (\d+\.?\d*)/g, ': <span class="state-number">$1</span>');
+    }
+
+    // ── 事件日志 ──
+
+    window.logEvent = function(name, detail) {
+        const now = new Date();
+        const time = now.toLocaleTimeString('en-US', {hour12: false});
+        events.unshift({time, name, detail});
+        if (events.length > MAX_EVENTS) events.pop();
+        renderEvents();
+    };
+
+    function renderEvents() {
+        const el = document.getElementById('event-log');
+        if (events.length === 0) {
+            el.innerHTML = '<div style="color: #666; font-style: italic;">等待事件...</div>';
+            return;
+        }
+        el.innerHTML = events.map(e => `
+            <div class="event-entry">
+                <span class="event-time">${e.time}</span>
+                <span class="event-name">${e.name}</span>
+                <span class="event-detail">${e.detail}</span>
+            </div>
+        `).join('');
+    }
+
+    window.clearEvents = function() {
+        events.length = 0;
+        renderEvents();
+    };
+
+    // ── 主题切换 ──
+
+    document.querySelectorAll('[data-theme]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('[data-theme]').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            const theme = btn.dataset.theme;
+            const container = document.getElementById('preview-container');
+            const layout = document.getElementById('settings-layout');
+
+            // Resolve system theme
+            let resolvedTheme = theme;
+            if (theme === 'system') {
+                resolvedTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            }
+
+            container.setAttribute('theme', resolvedTheme);
+            layout.setAttribute('theme', theme);
+
+            logEvent('theme-change', theme);
+        });
+    });
+
+    // ── 快速设置 ──
+
+    window.setDefaults = function() {
+        currentState = JSON.parse(JSON.stringify(DEFAULT_SETTINGS_STATE));
+        // Trigger re-render via the provider
+        const provider = document.querySelector('settings-debug-provider');
+        if (provider) provider._sync();
+        logEvent('reset', 'Settings restored to defaults');
+    };
+
+    window.setCompact = function() {
+        currentState.chat.density = 'compact';
+        currentState.appearance.fontSize = 12;
+        const provider = document.querySelector('settings-debug-provider');
+        if (provider) provider._sync();
+        logEvent('preset', 'Compact mode');
+    };
+
+    window.setComfortable = function() {
+        currentState.chat.density = 'comfortable';
+        currentState.appearance.fontSize = 16;
+        const provider = document.querySelector('settings-debug-provider');
+        if (provider) provider._sync();
+        logEvent('preset', 'Comfortable mode');
+    };
+
+    // ── 字体大小 ──
+
+    window.setFontSize = function(size) {
+        currentState.appearance.fontSize = size;
+        const provider = document.querySelector('settings-debug-provider');
+        if (provider) provider._sync();
+        logEvent('fontSize', `${size}px`);
+    };
+
+    // ── 分类切换（通过直接操作 nav 的 active 属性） ──
+
+    window.switchCategory = function(category) {
+        const layout = document.getElementById('settings-layout');
+        if (!layout) return;
+        // 通过派发事件让 layout 的 _handleCategoryChange 同步内部状态
+        layout.dispatchEvent(new CustomEvent('settings-nav-change', {
+            detail: {category},
+        }));
+        logEvent('switchCategory', category);
+    };
+
+    // ── 账户操作 ──
+
+    window.authLogin = function() {
+        const provider = document.querySelector('settings-debug-provider');
+        if (provider) {
+            currentAuth.state.isLoggedIn = true;
+            currentAuth.state.userId = 'demo-user-123';
+            provider._syncAuth();
+        }
+        logEvent('auth', 'Login triggered');
+    };
+
+    window.authLogout = function() {
+        const provider = document.querySelector('settings-debug-provider');
+        if (provider) {
+            currentAuth.state.isLoggedIn = false;
+            currentAuth.state.userId = undefined;
+            provider._syncAuth();
+        }
+        logEvent('auth', 'Logout triggered');
+    };
+
+    // ── 容器尺寸 ──
+
+    window.resizeWidth = function(val) {
+        const container = document.getElementById('preview-container');
+        container.style.width = val + 'px';
+        document.getElementById('width-value').textContent = val + 'px';
+    };
+
+    window.resizeHeight = function(val) {
+        const container = document.getElementById('preview-container');
+        container.style.height = val + 'px';
+        document.getElementById('height-value').textContent = val + 'px';
+    };
+
+    // ── 启动 ──
+    init();
+</script>
+
+</body>
+</html>

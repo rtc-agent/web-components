@@ -33,6 +33,7 @@ import {consume} from '@lit/context';
 import {repeat} from 'lit/directives/repeat.js';
 import {styles} from './rtc-message-list.styles.js';
 import {MessageContext, type MessageContextValue} from '../../contexts/message.js';
+import {SettingsContext, type SettingsContextValue} from '../../contexts/settings.js';
 import type {Message} from '../../types/index.js';
 import './rtc-message.js';
 import './rtc-user-message.js';
@@ -48,6 +49,24 @@ export class RtcMessageList extends LitElement {
     private _ctx: MessageContextValue = {
         state: {messages: [], hasMore: false, isLoadingMore: false},
         actions: {sendMessage: async () => {}, resendMessage: async () => {}, forkSession: async () => {}, appendToLastMessage: () => {}, finalizeLastMessage: () => {}, clearMessages: () => {}, loadMore: async () => {}}
+    };
+
+    @consume({context: SettingsContext, subscribe: true})
+    @state()
+    private _settingsCtx: SettingsContextValue = {
+        state: {
+            appearance: {theme: 'system', fontSize: 14},
+            chat: {sendShortcut: 'Enter', density: 'comfortable'},
+            files: {autoSave: true, defaultViewMode: 'split'},
+            notifications: {soundEnabled: true, toastEnabled: true},
+        },
+        actions: {
+            updateAppearance: () => {},
+            updateChat: () => {},
+            updateFiles: () => {},
+            updateNotifications: () => {},
+            resetAll: () => {},
+        },
     };
 
     @state()
@@ -110,6 +129,11 @@ export class RtcMessageList extends LitElement {
      */
     updated(changed: Map<string, unknown>) {
         super.updated(changed);
+
+        // Set density attribute for CSS styling
+        const density = this._settingsCtx.state.chat.density;
+        this.setAttribute('data-density', density);
+
         if (!changed.has('_ctx')) return;
 
         const msgs = this.messages;

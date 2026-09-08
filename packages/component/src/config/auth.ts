@@ -58,4 +58,6 @@ export const STORAGE_KEYS = {
     activityBar: 'rtc_activity_bar',
     /** Editor Area 状态：打开的 tabs + activeFilePath */
     editorArea: 'rtc_editor_area',
+    /** 全局设置状态 */
+    settings: 'rtc_settings',
 } as const;

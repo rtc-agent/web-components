@@ -43,7 +43,7 @@ export interface EditorAreaState {
 
 export interface EditorAreaActions {
     /** 打开文件（幂等：已存在则切换到该 tab） */
-    openFile(filePath: string, content: string): void;
+    openFile(filePath: string, content: string, viewMode?: EditorViewMode): void;
     /** 关闭标签 */
     closeFile(filePath: string): void;
     /** 关闭所有标签 */
@@ -81,7 +81,7 @@ export class EditorAreaController implements ReactiveController {
         this._host = host;
         this._host.addController(this);
         this.actions = {
-            openFile: (filePath, content) => this._openFile(filePath, content),
+            openFile: (filePath, content, viewMode) => this._openFile(filePath, content, viewMode),
             closeFile: (filePath) => this._closeFile(filePath),
             closeAll: () => this._closeAll(),
             switchTab: (filePath) => this._switchTab(filePath),
@@ -183,7 +183,7 @@ export class EditorAreaController implements ReactiveController {
      *
      * 幂等：如果文件已打开，只切换标签不覆盖内容。
      */
-    private _openFile(filePath: string, content: string) {
+    private _openFile(filePath: string, content: string, viewMode: EditorViewMode = 'edit') {
         const existing = this._tabs.find(t => t.filePath === filePath);
         if (existing) {
             // 已打开，只切换
@@ -198,7 +198,7 @@ export class EditorAreaController implements ReactiveController {
             content,
             isDirty: false,
             cursorPosition: {line: 1, column: 1},
-            viewMode: 'edit',
+            viewMode,
         };
 
         this._tabs = [...this._tabs, newTab];

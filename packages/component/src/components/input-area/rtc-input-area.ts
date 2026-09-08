@@ -34,6 +34,7 @@ import {ModeContext, MODE_CONFIGS, type ModeContextValue} from '../../contexts/m
 import {SessionContext} from '../../contexts/session.js';
 import {TurnCountContext, type TurnCountContextValue} from '../../contexts/turn-count.js';
 import {MessageContext, type MessageContextValue} from '../../contexts/message.js';
+import {SettingsContext, type SettingsContextValue} from '../../contexts/settings.js';
 import {attachIcon, toolIcon, sendIcon, stopIcon, micIcon} from '../../icons/index.js';
 import {parseCommand} from '../../utils/command-parser.js';
 import '../overlay/rtc-mode-panel.js';
@@ -75,6 +76,24 @@ export class RtcInputArea extends LitElement {
             finalizeLastMessage: () => {},
             clearMessages: () => {},
             loadMore: async () => {},
+        },
+    };
+
+    @consume({context: SettingsContext, subscribe: true})
+    @state()
+    private _settingsCtx: SettingsContextValue = {
+        state: {
+            appearance: {theme: 'system', fontSize: 14},
+            chat: {sendShortcut: 'Enter', density: 'comfortable'},
+            files: {autoSave: true, defaultViewMode: 'split'},
+            notifications: {soundEnabled: true, toastEnabled: true},
+        },
+        actions: {
+            updateAppearance: () => {},
+            updateChat: () => {},
+            updateFiles: () => {},
+            updateNotifications: () => {},
+            resetAll: () => {},
         },
     };
 
@@ -186,10 +205,23 @@ export class RtcInputArea extends LitElement {
         // 忽略 IME 组合输入过程中的按键（中文/日文/韩文输入法）
         if (e.isComposing || e.keyCode === 229) return;
 
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            this._submit();
-        } else if (e.key === 'ArrowUp' && this._isCursorOnFirstLine()) {
+        const shortcut = this._settingsCtx.state.chat.sendShortcut;
+
+        if (shortcut === 'Ctrl+Enter') {
+            // Ctrl/Cmd+Enter 发送，Enter 换行
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                this._submit();
+            }
+        } else {
+            // Enter 发送（默认），Shift+Enter 换行
+            if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+                this._submit();
+            }
+        }
+
+        if (e.key === 'ArrowUp' && this._isCursorOnFirstLine()) {
             e.preventDefault();
             this._navigateHistory('up');
         } else if (e.key === 'ArrowDown' && this._isCursorOnLastLine()) {
