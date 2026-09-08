@@ -123,18 +123,6 @@ export class RtcActivityBar extends LitElement {
         return html`
             <!-- 顶部活动 -->
             <div
-                class="activity-icon ${this.active === 'files' ? 'active' : ''}"
-                data-activity="files"
-                role="tab"
-                tabindex="${this._tabIndex('files')}"
-                aria-label="资源管理器"
-                aria-selected="${this.active === 'files'}"
-                title="资源管理器"
-                @click=${() => this._handleClick('files')}
-                @keydown=${(e: KeyboardEvent) => this._handleKeydown(e, 'files')}
-            >${filesIcon}</div>
-
-            <div
                 class="activity-icon ${this.active === 'chat' ? 'active' : ''}"
                 data-activity="chat"
                 role="tab"
@@ -145,6 +133,17 @@ export class RtcActivityBar extends LitElement {
                 @click=${() => this._handleClick('chat')}
                 @keydown=${(e: KeyboardEvent) => this._handleKeydown(e, 'chat')}
             >${chatIcon}</div>
+            <div
+                    class="activity-icon ${this.active === 'files' ? 'active' : ''}"
+                    data-activity="files"
+                    role="tab"
+                    tabindex="${this._tabIndex('files')}"
+                    aria-label="资源管理器"
+                    aria-selected="${this.active === 'files'}"
+                    title="资源管理器"
+                    @click=${() => this._handleClick('files')}
+                    @keydown=${(e: KeyboardEvent) => this._handleKeydown(e, 'files')}
+            >${filesIcon}</div>
 
             <!-- Spacer 将设置推到底部 -->
             <div class="activity-spacer"></div>
