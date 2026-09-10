@@ -12,8 +12,8 @@ import {css} from 'lit';
 export const styles = css`
     :host {
         display: inline-block;
+        width: 160px;
         height: 36px;
-        max-width: 200px;
         flex-shrink: 0;
         background: transparent;
     }

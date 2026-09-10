@@ -12,7 +12,7 @@ import {
   type LocalRtc,
 } from '@rtc-agent/persistence';
 import type { ContentData } from '@rtc-agent/protocol';
-import type { ConnectionState, ConnectionStateEvent } from '@rtc-agent/client';
+import type { ConnectionState, ConnectionStateEvent, TokenExpiredAction } from '@rtc-agent/client';
 import type { WorkerCallbacks, WorkerPersistenceCore } from './core-interface.js';
 
 type PersistenceLayer = ReturnType<typeof createPersistenceLayer>;
@@ -45,13 +45,14 @@ export class WorkerCore implements WorkerPersistenceCore {
       return;
     }
 
-    // 把 RTCAgentClient 的 getToken 桥接到 callbacks.requestToken
-    // 注意：此时 callbacks 还是空的，但 getToken 会在 connect() 时才被调用
+    // 把 RTCAgentClient 的 getToken / onTokenExpired 桥接到 callbacks
+    // 注意：此时 callbacks 还是空的，但回调会在 connect() 时才被调用
     const bridgedConfig: PersistenceConfig = {
       ...config,
       client: {
         ...config.client,
         getToken: () => this.requestToken(),
+        onTokenExpired: () => this.requestTokenRefresh(),
       },
     };
 
@@ -399,6 +400,24 @@ export class WorkerCore implements WorkerPersistenceCore {
       }
     }
     throw new Error('[WorkerCore] no callback available to provide token');
+  }
+
+  /**
+   * 请求 Token 刷新（供 RTCAgentClient 的 onTokenExpired 回调使用）
+   *
+   * - 选择任一已注册的 requestTokenRefresh 回调
+   * - 失败时尝试下一个
+   * - 所有回调都失败时返回 'relogin'（要求用户重新登录）
+   */
+  private async requestTokenRefresh(): Promise<TokenExpiredAction> {
+    for (const cb of this.callbacks) {
+      try {
+        return await cb.requestTokenRefresh();
+      } catch (err) {
+        console.warn('[WorkerCore] requestTokenRefresh failed, trying next:', err);
+      }
+    }
+    return 'relogin';
   }
 
   private ensureLayer(): PersistenceLayer {

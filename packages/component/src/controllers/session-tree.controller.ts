@@ -49,16 +49,8 @@ export class SessionTreeController implements ReactiveController {
     /* ── Persistence ── */
 
     private _restoreExpanded() {
-        try {
-            const raw = localStorage.getItem(STORAGE_KEYS.sessionTreeExpanded);
-            if (!raw) return;
-            const saved: ExpandedMap = JSON.parse(raw);
-            for (const [sessionId, isExpanded] of Object.entries(saved)) {
-                this._expanded.set(sessionId, Boolean(isExpanded));
-            }
-        } catch {
-            // localStorage may be unavailable or data corrupted
-        }
+        // 默认全部折叠，不恢复之前的展开状态
+        // 如需持久化展开状态，可在此处从 localStorage 读取
     }
 
     private _persistExpanded() {

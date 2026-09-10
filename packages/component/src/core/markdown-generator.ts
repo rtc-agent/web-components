@@ -262,7 +262,7 @@ export function generateFunctionsIndex(
 
         for (const func of groupFunctions) {
           const funcName = func.name.split('.')[1];
-          md += `| ${funcName} | ${func.description} |\n`;
+          md += `| ${funcName} | <description>${func.description}</description> |\n`;
         }
         md += '\n';
       }
@@ -277,7 +277,7 @@ export function generateFunctionsIndex(
     md += `|----------|-------------|\n`;
 
     for (const func of ungroupedFunctions) {
-      md += `| ${func.name} | ${func.description} |\n`;
+      md += `| ${func.name} | <description>${func.description}</description> |\n`;
     }
     md += '\n';
   }

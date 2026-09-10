@@ -13,7 +13,7 @@
 import {LitElement, html} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
 import {consume} from '@lit/context';
-import {localized} from '@lit/localize';
+import {localized, msg} from '@lit/localize';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {styles} from './rtc-session-tab-bar.styles.js';
 import {tokens} from '../../styles/tokens.js';
@@ -21,6 +21,7 @@ import {lightTheme} from '../../styles/themes/light.js';
 import {darkTheme} from '../../styles/themes/dark.js';
 import {baseStyles} from '../../styles/base.js';
 import {SessionTabContext, type SessionTabContextValue} from '../../contexts/session-tab.js';
+import {plusIcon} from '../../icons/index.js';
 
 // 子组件（副作用导入）
 import './rtc-session-tab.js';
@@ -45,6 +46,11 @@ export class RtcSessionTabBar extends LitElement {
     /** 主题（继承自父级） */
     @property({type: String, reflect: true})
     theme: 'light' | 'dark' | 'system' = 'system';
+
+    /* ── Private ── */
+
+    /** 上一次激活的 sessionId，用于检测变化 */
+    private _prevActiveSessionId: string | null = null;
 
     /* ── Context ── */
 
@@ -91,6 +97,35 @@ export class RtcSessionTabBar extends LitElement {
         );
     }
 
+    private _handleNewSession() {
+        // 复用 rtc-session-tree-new 事件，由 chat-layout 统一处理
+        this.dispatchEvent(
+            new CustomEvent('rtc-session-tree-new', {
+                bubbles: true,
+                composed: true,
+            })
+        );
+    }
+
+    /* ── Lifecycle ── */
+
+    protected updated(): void {
+        const {activeSessionId} = this._tabCtx.state;
+
+        // 检测 activeSessionId 变化，自动滚动到激活的 Tab
+        if (activeSessionId && activeSessionId !== this._prevActiveSessionId) {
+            this._prevActiveSessionId = activeSessionId;
+            requestAnimationFrame(() => {
+                const activeTab = this.shadowRoot?.getElementById(`tab-${activeSessionId}`);
+                activeTab?.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'nearest',
+                    inline: 'nearest',
+                });
+            });
+        }
+    }
+
     /* ── Render ── */
 
     render() {
@@ -98,19 +133,28 @@ export class RtcSessionTabBar extends LitElement {
         const {tabs, activeSessionId} = this._tabCtx.state;
 
         return html`
-            <div class="tabs-bar">
-                ${tabs.map(tab => html`
-                    <rtc-session-tab
-                        session-id=${tab.sessionId}
-                        title=${tab.title}
-                        status=${tab.status ?? 'idle'}
-                        ?active=${tab.sessionId === activeSessionId}
-                        ?dirty=${tab.isUnsaved === true}
-                        theme=${this.theme}
-                        @rtc-session-tab-activate=${this._handleActivate}
-                        @rtc-session-tab-close=${this._handleClose}
-                    ></rtc-session-tab>
-                `)}
+            <div class="tab-bar-wrapper">
+                <div class="tabs-scroll">
+                    ${tabs.map(tab => html`
+                        <rtc-session-tab
+                            id="tab-${tab.sessionId}"
+                            session-id=${tab.sessionId}
+                            title=${tab.title}
+                            status=${tab.status ?? 'idle'}
+                            ?active=${tab.sessionId === activeSessionId}
+                            ?dirty=${tab.isUnsaved === true}
+                            theme=${this.theme}
+                            @rtc-session-tab-activate=${this._handleActivate}
+                            @rtc-session-tab-close=${this._handleClose}
+                        ></rtc-session-tab>
+                    `)}
+                </div>
+                <button
+                    class="tab-add"
+                    title=${msg('新建会话')}
+                    aria-label=${msg('新建会话')}
+                    @click=${this._handleNewSession}
+                >${plusIcon}</button>
             </div>
         `;
     }
@@ -124,5 +168,6 @@ declare global {
     interface HTMLElementEventMap {
         'rtc-session-tab-bar-activate': CustomEvent<{sessionId: string}>;
         'rtc-session-tab-bar-close': CustomEvent<{sessionId: string}>;
+        'rtc-session-tree-new': CustomEvent<void>;
     }
 }

@@ -113,6 +113,11 @@ export class WorkerBridge {
                 })();
                 return this._tokenPromise;
             },
+            // Worker 请求刷新 token → AuthController.handleTokenExpired()
+            // 返回 'refresh' 表示已刷新，'relogin' 表示需要重新登录
+            requestTokenRefresh: (): Promise<'refresh' | 'relogin'> => {
+                return this._auth.handleTokenExpired();
+            },
             // Worker 广播连接状态变更 → 通知主线程监听器
             onConnectionStateChange: (event: ConnectionStateEvent) => {
                 for (const listener of this._connectionListeners) {

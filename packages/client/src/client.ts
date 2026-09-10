@@ -47,6 +47,8 @@ export class RTCAgentClient implements IRTCAgentClient {
   private readonly listeners = new Map<EventName, Set<EventCallback<EventName>>>();
   /** 是否应该继续重连（token 失效时可能被设为 false） */
   private shouldReconnect = true;
+  /** 是否曾经连接成功过（用于区分首次连接和重连） */
+  private wasConnected = false;
   /** Updates 处理串行化队列 */
   private applyUpdatesQueue: Promise<void> | null = null;
   /** 缓存的订阅对象 */
@@ -71,8 +73,10 @@ export class RTCAgentClient implements IRTCAgentClient {
 
     this.centrifuge = new Centrifuge(this.options.endpoint, {
       getToken: async () => {
-        // 检查是否需要处理 token 失效
-        if (this.options.onTokenExpired) {
+        const token = await this.options.getToken();
+
+        // 仅当 token 确实过期时才触发刷新回调，避免每次重连都触发 HTTP 请求
+        if (this._isTokenExpired(token) && this.options.onTokenExpired) {
           const action: TokenExpiredAction = await this.options.onTokenExpired();
           if (action === 'relogin') {
             // 需要重新登录，停止重连
@@ -81,9 +85,10 @@ export class RTCAgentClient implements IRTCAgentClient {
             this.setConnectionState('disconnected', 'token expired, relogin required');
             throw new Error('Token expired, user needs to re-login');
           }
-          // action === 'refresh'，继续获取新 token
+          // action === 'refresh'，刷新成功，重新获取 token
+          return this.options.getToken();
         }
-        const token = await this.options.getToken();
+
         return token;
       },
     });
@@ -94,10 +99,13 @@ export class RTCAgentClient implements IRTCAgentClient {
         this.centrifuge?.disconnect();
         return;
       }
-      this.setConnectionState('connecting', ctx?.reason);
+      // 区分首次连接和重连（Issue 2）
+      const state = this.wasConnected ? 'reconnecting' : 'connecting';
+      this.setConnectionState(state, ctx?.reason);
     });
     this.centrifuge.on('connected', () => {
       console.log('[RTCAgentClient] centrifuge connected, setting state to connected');
+      this.wasConnected = true;
       this.setConnectionState('connected');
       this.subscribeChannels();
     });
@@ -117,6 +125,7 @@ export class RTCAgentClient implements IRTCAgentClient {
 
   disconnect(): void {
     this.shouldReconnect = false;
+    this.wasConnected = false;
     this.centrifuge?.disconnect();
     this.centrifuge = null;
     // 清理旧订阅：它们绑定在已销毁的 Centrifuge 实例上，重连时需重建
@@ -380,6 +389,25 @@ export class RTCAgentClient implements IRTCAgentClient {
     const event: ConnectionStateEvent = { state, reason };
     this.emit('connection', event);
     this.options.onConnectionStateChange?.(event);
+  }
+
+  /**
+   * 检查 JWT 是否已过期
+   *
+   * 解析 JWT payload 中的 exp 字段（Unix 时间戳，秒），
+   * 与当前时间比较。解析失败时返回 false（不阻止连接）。
+   */
+  private _isTokenExpired(token: string): boolean {
+    try {
+      const parts = token.split('.');
+      if (parts.length !== 3) return false;
+      const payload = JSON.parse(atob(parts[1]));
+      if (typeof payload.exp !== 'number') return false;
+      return payload.exp * 1000 < Date.now();
+    } catch {
+      // JWT 解析失败，不阻止连接
+      return false;
+    }
   }
 
   /**

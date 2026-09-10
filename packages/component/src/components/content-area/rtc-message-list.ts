@@ -35,6 +35,7 @@ import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} fro
 import {repeat} from 'lit/directives/repeat.js';
 import {styles} from './rtc-message-list.styles.js';
 import {MessageContext, type MessageContextValue} from '../../contexts/message.js';
+import {SessionContext, type SessionContextValue} from '../../contexts/session.js';
 import {SettingsContext, type SettingsContextValue} from '../../contexts/settings.js';
 import type {Message} from '../../types/index.js';
 import './rtc-message.js';
@@ -64,6 +65,25 @@ export class RtcMessageList extends LitElement {
         actions: {sendMessage: async () => {}, resendMessage: async () => {}, forkSession: async () => {}, appendToLastMessage: () => {}, finalizeLastMessage: () => {}, clearMessages: () => {}, loadMore: async () => {}}
     };
 
+    @consume({context: SessionContext, subscribe: true})
+    @state()
+    private _sessionCtx: SessionContextValue = {
+        state: {sessions: [], currentSessionId: null},
+        actions: {
+            createSession: () => '',
+            switchSession: () => {},
+            renameSession: async () => ({ok: true, error: ''}),
+            deleteSession: async () => ({ok: true, error: ''}),
+            reset: () => {},
+            clearCurrentSession: () => {},
+            setCurrentSession: () => {},
+            setSessions: () => {},
+        },
+    };
+
+    /** Previous session ID, used to detect session switches (tab activation). */
+    private _prevSessionId: string | null = null;
+
     @consume({context: SettingsContext, subscribe: true})
     @state()
     private _settingsCtx: SettingsContextValue = {
@@ -91,8 +111,27 @@ export class RtcMessageList extends LitElement {
     @state()
     private _showLoadMoreBtn = false;
 
+    /**
+     * User intent to follow new content.
+     *
+     * Distinct from `_userAtBottom` (which drives the "new messages" button UI):
+     * - `_userAtBottom`: updated on every scroll event, reflects physical position.
+     * - `_shouldAutoScroll`: sticky "follow" intent; flipped to false only when the
+     *   user deliberately scrolls upward, flipped back to true when user returns
+     *   to the bottom or clicks "New messages". Content-growth scroll events
+     *   (thinking expansion, streaming Markdown) do NOT flip it.
+     */
+    private _shouldAutoScroll = true;
+
+    /** Previous scroll position, used to distinguish user scrolls from content growth. */
+    private _lastScrollTop = 0;
+
     private _scrollEl?: HTMLElement;
     private _resizeObserver?: ResizeObserver;
+    private _resizeDebounceTimer?: number;
+
+    /** Bound visibilitychange handler for cleanup. */
+    private _boundOnVisibilityChange = this._onVisibilityChange.bind(this);
 
     /** Previous message IDs for change detection. */
     private _prevMsgIds: string[] = [];
@@ -116,18 +155,41 @@ export class RtcMessageList extends LitElement {
         this._scrollEl = this.shadowRoot!.querySelector('.message-list-scroll') as HTMLElement;
         this._scrollEl?.addEventListener('scroll', this._onScroll);
 
-        // ResizeObserver: pure safety net for post-render content growth.
-        // Fires when inner container size changes (streaming chunks, late Markdown).
-        // No decision logic -- just "if at bottom, scroll."
+        // Defeat browser scroll restoration on initial mount: force scrollTop to 0
+        // so the first `updated()` cycle can scroll cleanly to the bottom.
+        if (this._scrollEl) {
+            this._scrollEl.scrollTop = 0;
+            this._lastScrollTop = 0;
+        }
+        // Snapshot initial session ID so we can detect future switches
+        this._prevSessionId = this._sessionCtx.state.currentSessionId;
+
+        // ResizeObserver: safety net for post-render content growth.
+        // Fires when inner container size changes (streaming chunks, late Markdown,
+        // thinking-block expansion). Uses debounced scroll to handle async renders
+        // (e.g., Markdown that renders after the initial updateComplete).
         const inner = this.shadowRoot!.querySelector('.message-list-inner') as HTMLElement;
         if (inner) {
             this._resizeObserver = new ResizeObserver(() => {
-                if (this._userAtBottom) {
-                    this._scrollToBottom();
-                }
+                if (!this._shouldAutoScroll) return;
+                // Immediate scroll
+                this._scrollToBottom();
+                // Debounced compensation: handles late async renders (Markdown, etc.)
+                // that complete after the ResizeObserver fires.
+                clearTimeout(this._resizeDebounceTimer);
+                this._resizeDebounceTimer = window.setTimeout(() => {
+                    if (this._shouldAutoScroll) {
+                        this._scrollToBottom();
+                    }
+                }, 100);
             });
             this._resizeObserver.observe(inner);
         }
+
+        // Visibility change: when the page becomes visible again (e.g., user switches
+        // back to this browser tab), scroll to bottom if following. This handles the
+        // case where the user was away and content may have changed.
+        document.addEventListener('visibilitychange', this._boundOnVisibilityChange);
     }
 
     /**
@@ -147,6 +209,24 @@ export class RtcMessageList extends LitElement {
         const density = this._settingsCtx.state.chat.density;
         this.setAttribute('data-density', density);
 
+        // --- Session switch detection ---
+        // When currentSessionId changes (tab activation, closing other tabs that
+        // triggers a switch, etc.), force scroll to bottom and reset all tracking
+        // state. This ensures the new session's messages are always visible at bottom.
+        const currSessionId = this._sessionCtx.state.currentSessionId;
+        if (changed.has('_sessionCtx') && currSessionId !== this._prevSessionId) {
+            this._prevSessionId = currSessionId;
+            // Reset message tracking so the next _ctx update is seen as "first load"
+            this._prevMsgIds = [];
+            this._prevMsgCount = 0;
+            this._shouldAutoScroll = true;
+            this._userAtBottom = true;
+            this._showNewBtn = false;
+            // Defer scroll to allow message reload to complete
+            this._scheduleScroll();
+            return;
+        }
+
         if (!changed.has('_ctx')) return;
 
         const msgs = this.messages;
@@ -154,6 +234,7 @@ export class RtcMessageList extends LitElement {
         const currCount = msgs.length;
 
         // --- Change detection ---
+        const isFirstLoad = this._prevMsgCount === 0 && currCount > 0;
         const isGrowth = currCount > this._prevMsgCount;
         const isShrinkOrReplace = currCount < this._prevMsgCount ||
             (currCount > 0 && this._prevMsgCount > 0 && this._isCompleteReplacement(currIds));
@@ -161,18 +242,26 @@ export class RtcMessageList extends LitElement {
             currCount > 1 && !this._arraysEqual(currIds, this._prevMsgIds);
 
         // --- Scroll decision ---
-        if (isGrowth && this._anchorInfo) {
+        if (isFirstLoad) {
+            // First load of a session (including refresh/re-enter):
+            // always scroll to bottom, reset follow intent.
+            this._shouldAutoScroll = true;
+            this._userAtBottom = true;
+            this._showNewBtn = false;
+            this._scheduleScroll();
+        } else if (isGrowth && this._anchorInfo) {
             // Prepend (loadMore): preserve scroll position using anchor
             this._preserveScrollPosition();
             this._anchorInfo = null;
         } else if (isShrinkOrReplace) {
-            // Fork/clear: always scroll to bottom, reset user state
+            // Fork/clear: always scroll to bottom, reset state
+            this._shouldAutoScroll = true;
             this._userAtBottom = true;
             this._showNewBtn = false;
             this._scheduleScroll();
         } else if (isGrowth || isReorder) {
-            // New messages or reorder: scroll if user is at bottom
-            if (this._userAtBottom) {
+            // New messages or reorder: scroll only if user intends to follow
+            if (this._shouldAutoScroll) {
                 this._scheduleScroll();
             }
         }
@@ -190,6 +279,8 @@ export class RtcMessageList extends LitElement {
         super.disconnectedCallback();
         this._scrollEl?.removeEventListener('scroll', this._onScroll);
         this._resizeObserver?.disconnect();
+        clearTimeout(this._resizeDebounceTimer);
+        document.removeEventListener('visibilitychange', this._boundOnVisibilityChange);
     }
 
     /**
@@ -236,21 +327,65 @@ export class RtcMessageList extends LitElement {
     private _scrollToBottom() {
         if (!this._scrollEl) return;
         this._scrollEl.scrollTo({top: this._scrollEl.scrollHeight, behavior: 'auto'});
-        // 主动标记在底部，防止展开 thinking 等内容变化导致 scroll 事件误判
+        // 主动滚动：同步恢复跟随意图，避免后续内容变化引起的 scroll 事件误判
+        this._shouldAutoScroll = true;
         this._userAtBottom = true;
         this._showNewBtn = false;
+        // 立即同步 tracking 字段，防止下一轮 _onScroll 把这次主动滚动误判为内容增长
+        this._lastScrollTop = this._scrollEl.scrollTop;
     }
 
     private _onScroll = () => {
         if (!this._scrollEl) return;
         const {scrollHeight, scrollTop, clientHeight} = this._scrollEl;
         const atBottom = scrollHeight - scrollTop - clientHeight < 60;
+
+        // Button visibility follows physical position
         this._userAtBottom = atBottom;
         this._showNewBtn = !atBottom;
+
+        // Scroll-intent detection: flip `_shouldAutoScroll` only on deliberate
+        // user action, ignoring passive scroll events caused by content growth.
+        //
+        // Heuristic via delta analysis against last observed scroll state:
+        //   - scrollTop decreased meaningfully (user scrolled UP)  → stop following
+        //   - user is back at the bottom                            → resume following
+        //   - scrollTop unchanged + scrollHeight grew (thinking expand,
+        //     streaming Markdown, tool-call render)                 → preserve prior intent
+        //   - scrollTop increased (programmatic `_scrollToBottom`
+        //     or user scrolling down)                                → preserve prior intent
+        const scrollTopDelta = scrollTop - this._lastScrollTop;
+        if (scrollTopDelta < -10) {
+            this._shouldAutoScroll = false;
+        } else if (atBottom) {
+            this._shouldAutoScroll = true;
+        }
+        // else: preserve (content growth, programmatic scroll, minor jitter)
+
+        this._lastScrollTop = scrollTop;
 
         // Show/hide load-more button based on scroll position
         this._showLoadMoreBtn = this._ctx.state.hasMore && this._isNearTop();
     };
+
+    /**
+     * Visibility change handler.
+     *
+     * When the page becomes visible again (e.g., user switches back to this browser
+     * tab after looking at other tabs or applications), scroll to bottom if the user
+     * intends to follow. This ensures the latest content is visible when the user
+     * returns, especially after content may have changed while the page was hidden.
+     */
+    private _onVisibilityChange() {
+        if (document.visibilityState === 'visible' && this._shouldAutoScroll) {
+            // Delay slightly to allow any pending renders to complete
+            requestAnimationFrame(() => {
+                if (this._shouldAutoScroll) {
+                    this._scrollToBottom();
+                }
+            });
+        }
+    }
 
     private _isNearTop(): boolean {
         if (!this._scrollEl) return false;
@@ -339,12 +474,15 @@ export class RtcMessageList extends LitElement {
         if (this._scrollEl) {
             this._scrollEl.scrollTo({top: this._scrollEl.scrollHeight, behavior: 'smooth'});
         }
-        this._showNewBtn = false;
+        this._shouldAutoScroll = true;
         this._userAtBottom = true;
+        this._showNewBtn = false;
     }
 
     render() {
         void this._localeCtx.locale;
+        // _userAtBottom is a @state driving re-render on scroll; consumed implicitly.
+        void this._userAtBottom;
         const msgs = this.messages;
         const items = this._buildRenderItems(msgs);
         // The last rendered item's key determines which component gets is-last

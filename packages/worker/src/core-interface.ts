@@ -8,11 +8,13 @@ import type { UIUpdateEvent, LocalSession, LocalMessage, LocalRtc } from '@rtc-a
  *
  * - onUIUpdate：Worker 收到实体变更时广播到该 Tab
  * - requestToken：Centrifuge 需要 token 时向任意 Tab 请求
+ * - requestTokenRefresh：Centrifuge 检测到 token 过期时向任意 Tab 请求刷新
  * - onConnectionStateChange：Worker 中 RTCAgentClient 连接状态变更时广播到该 Tab
  */
 export interface WorkerCallbacks {
   onUIUpdate: (event: UIUpdateEvent) => void;
   requestToken: () => Promise<string>;
+  requestTokenRefresh: () => Promise<'refresh' | 'relogin'>;
   onConnectionStateChange: (event: ConnectionStateEvent) => void;
 }
 
