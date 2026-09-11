@@ -34,10 +34,20 @@ export function setServerUrl(url: string | null): void {
  * Override the OAuth redirect URI.
  *
  * Called by the <rtc-agent> component when its `redirect-uri` attribute is set.
+ * If the URI starts with '/', it's treated as a path and prepended with window.location.origin.
  * Safe to call multiple times; takes effect immediately for subsequent reads.
  */
 export function setRedirectUri(uri: string | null): void {
-    _redirectUri = uri && uri.length > 0 ? uri.replace(/\/+$/, '') : null;
+    if (!uri || uri.length === 0) {
+        _redirectUri = null;
+        return;
+    }
+    // If starts with '/', treat as path relative to current origin
+    if (uri.startsWith('/')) {
+        _redirectUri = `${window.location.origin}${uri}`;
+    } else {
+        _redirectUri = uri.replace(/\/+$/, '');
+    }
 }
 
 /** Get server URL (runtime override > env > default). */
