@@ -7,10 +7,13 @@
  *
  * 注册方式：遵循标准 FunctionDef 规范，自动生成虚拟文档（/functions/system/*.md）
  * LLM 通过 /AGENT.md → /functions/INDEX.md 发现这些函数。
+ *
+ * 注意：此文件演示了 Zod schema 注册方式（推荐），同时也兼容 OpenAPI Schema 方式。
  */
 
 import type { FunctionDef } from '../types/skill.js';
 import type { FunctionRegistry } from './function-registry.js';
+import { z, withMeta } from '../validation/index.js';
 
 /**
  * system 组定义
@@ -40,22 +43,15 @@ export function registerBuiltinSystemGroup(registry: FunctionRegistry): void {
  * system.delay(ms) — Promise-based sleep
  *
  * 包装 setTimeout，受脚本超时控制（Promise.race 会在脚本超时时 reject）。
+ *
+ * 使用 Zod schema 定义参数（推荐方式）
  */
 export const DELAY_DEF: FunctionDef = {
   name: 'delay',
   description: 'Pause execution for a specified duration. Returns a promise that resolves after the delay.',
-  parameters: [
-    {
-      name: 'ms',
-      schema: {
-        type: 'integer',
-        description: 'Delay duration in milliseconds (0–60000)',
-        minimum: 0,
-        maximum: 60000,
-      },
-      required: true,
-    },
-  ],
+  zodSchema: z.object({
+    ms: z.number().int().min(0).max(60000).describe('Delay duration in milliseconds (0–60000)'),
+  }),
   returns: {
     schema: {
       type: 'object',
@@ -81,23 +77,15 @@ export const DELAY_DEF: FunctionDef = {
  * system.uuid() — Generate UUID v4
  *
  * 使用 crypto.randomUUID()（现代浏览器均支持）。
+ *
+ * 使用 Zod schema 定义参数（推荐方式）
  */
 export const UUID_DEF: FunctionDef = {
   name: 'uuid',
   description: 'Generate a random UUID v4 string.',
-  parameters: [
-    {
-      name: 'count',
-      schema: {
-        type: 'integer',
-        description: 'Number of UUIDs to generate (1–100). If omitted, returns a single string.',
-        minimum: 1,
-        maximum: 100,
-        default: 1,
-      },
-      required: false,
-    },
-  ],
+  zodSchema: z.object({
+    count: z.number().int().min(1).max(100).default(1).describe('Number of UUIDs to generate (1–100). If omitted, returns a single string.'),
+  }),
   returns: {
     schema: {
       type: 'string',
@@ -133,39 +121,18 @@ export const NOW_DEF: FunctionDef = {
 
 /**
  * system.random(options?) — Random number generation
+ *
+ * 使用 Zod schema 定义参数（推荐方式）
+ * 使用 withMeta 添加示例值
  */
 export const RANDOM_DEF: FunctionDef = {
   name: 'random',
   description: 'Generate a random number within a range. Can produce integers or floating-point values.',
-  parameters: [
-    {
-      name: 'min',
-      schema: {
-        type: 'number',
-        description: 'Minimum value (inclusive)',
-        default: 0,
-      },
-      required: false,
-    },
-    {
-      name: 'max',
-      schema: {
-        type: 'number',
-        description: 'Maximum value (inclusive for integers, exclusive for floats)',
-        default: 1,
-      },
-      required: false,
-    },
-    {
-      name: 'integer',
-      schema: {
-        type: 'boolean',
-        description: 'If true, generate an integer; otherwise generate a float',
-        default: false,
-      },
-      required: false,
-    },
-  ],
+  zodSchema: z.object({
+    min: withMeta(z.number().default(0), { example: 1 }).describe('Minimum value (inclusive)'),
+    max: withMeta(z.number().default(1), { example: 100 }).describe('Maximum value (inclusive for integers, exclusive for floats)'),
+    integer: withMeta(z.boolean().default(false), { example: true }).describe('If true, generate an integer; otherwise generate a float'),
+  }),
   returns: {
     schema: { type: 'number', description: 'Random number in [min, max]' },
     description: 'Random number',
@@ -186,22 +153,15 @@ export const RANDOM_DEF: FunctionDef = {
 
 /**
  * system.time(format?) — Formatted current time
+ *
+ * 使用 Zod schema 定义参数（推荐方式）
  */
 export const TIME_DEF: FunctionDef = {
   name: 'time',
   description: 'Get the current time as a formatted string.',
-  parameters: [
-    {
-      name: 'format',
-      schema: {
-        type: 'string',
-        description: 'Output format',
-        enum: ['iso', 'locale', 'timestamp'],
-        default: 'iso',
-      },
-      required: false,
-    },
-  ],
+  zodSchema: z.object({
+    format: z.enum(['iso', 'locale', 'timestamp']).default('iso').describe('Output format'),
+  }),
   returns: {
     schema: { type: 'string', description: 'Formatted time string' },
     description: 'Current time as a string',

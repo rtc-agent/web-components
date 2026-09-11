@@ -2,26 +2,29 @@
  * RTC Message List Component
  *
  * Renders messages in a scrollable container with timeline layout.
- * Auto-scrolls to bottom when new messages arrive (if user is at bottom).
- * Shows "new messages" button when user has scrolled up.
+ * The component is self-responsible for auto-scrolling — it does not analyze
+ * what kind of change happened (new message, toolcall output, reorder, etc.).
  *
  * ## Auto-scroll mechanism
  *
- * Uses reactive change detection in `updated()` + version counter debouncing:
+ * 1. **`updated()` reacts to context changes** — two triggers:
+ *    - `_sessionCtx` changed (session switch) → reset follow intent to true
+ *    - `_ctx` changed (messages changed) → scroll to bottom if following
+ *    No change-type detection. No growth/shrink/reorder analysis.
  *
- * 1. **`updated()` as single decision point** -- compares current vs. previous
- *    message state, determines scroll intent:
- *    - Growth (count increased): new messages -> scroll if at bottom
- *    - Shrink/Replace (Fork/clear): always scroll, reset state
- *    - Reorder (same IDs, different order): scroll if at bottom
- *    - Content update (streaming): handled by ResizeObserver
+ * 2. **`_onScroll` tracks user intent** — purely based on scroll position:
+ *    - `distanceFromBottom < 60` → following (matches "new messages" button zone)
+ *    - `distanceFromBottom ≥ 60` → not following
+ *    Programmatic scrolls are guarded by `_programmaticScrollCount` to prevent
+ *    sub-pixel rounding from incorrectly disabling follow intent.
  *
- * 2. **Version counter replaces `_pendingScroll`** -- monotonically increasing
- *    integer; each scroll request captures its version; superseded requests
- *    are silently discarded. No boolean flag, no blocking, no lost scrolls.
+ * 3. **`overflow-anchor: none` (CSS)** — prevents the browser from adjusting
+ *    scrollTop when content above changes. Ensures `_onScroll` only fires for
+ *    user-initiated scrolls and programmatic `scrollTo()`.
  *
- * 3. **ResizeObserver as pure safety net** -- only handles post-render content
- *    growth (async Markdown, streaming); no decision logic.
+ * 4. **ResizeObserver handles async content** — fires when inner container size
+ *    changes (Markdown rendering, thinking expansion, tool-call cards). Scrolls
+ *    to bottom only if `_shouldAutoScroll` is true.
  *
  * @element rtc-message-list
  * @csspart scroll - The scroll container
@@ -114,17 +117,33 @@ export class RtcMessageList extends LitElement {
     /**
      * User intent to follow new content.
      *
-     * Distinct from `_userAtBottom` (which drives the "new messages" button UI):
-     * - `_userAtBottom`: updated on every scroll event, reflects physical position.
-     * - `_shouldAutoScroll`: sticky "follow" intent; flipped to false only when the
-     *   user deliberately scrolls upward, flipped back to true when user returns
-     *   to the bottom or clicks "New messages". Content-growth scroll events
-     *   (thinking expansion, streaming Markdown) do NOT flip it.
+     * Set by `_onScroll` based on `distanceFromBottom`:
+     * - `distanceFromBottom < 60` → true (user is in the "follow zone")
+     * - `distanceFromBottom ≥ 60` → false (user scrolled up to read history)
+     *
+     * The 60px threshold matches the "new messages" button visibility, creating
+     * a consistent "follow zone": when the button is hidden, auto-scroll is active.
+     *
+     * With `overflow-anchor: none`, content growth does NOT trigger scroll events,
+     * so `_shouldAutoScroll` only changes on: (a) user scrolls, (b) programmatic
+     * `scrollTo()` (which lands at bottom → true).
+     *
+     * Consumed by: `updated()` (new message growth decision), ResizeObserver
+     * (async content rendering), `_onVisibilityChange` (tab re-focus).
      */
     private _shouldAutoScroll = true;
 
-    /** Previous scroll position, used to distinguish user scrolls from content growth. */
-    private _lastScrollTop = 0;
+    /**
+     * Guard counter: incremented during programmatic `scrollTo()` calls.
+     * When > 0, `_onScroll` skips updating `_shouldAutoScroll` to prevent
+     * sub-pixel rounding errors from incorrectly disabling follow intent.
+     *
+     * Uses a counter (not boolean) to handle multiple concurrent programmatic
+     * scrolls (e.g., from _scheduleScroll + ResizeObserver firing in quick succession).
+     * Each scroll increments; a 50ms timeout decrements. This covers async scroll
+     * events that might fire after `scrollTo()` returns.
+     */
+    private _programmaticScrollCount = 0;
 
     private _scrollEl?: HTMLElement;
     private _resizeObserver?: ResizeObserver;
@@ -132,12 +151,6 @@ export class RtcMessageList extends LitElement {
 
     /** Bound visibilitychange handler for cleanup. */
     private _boundOnVisibilityChange = this._onVisibilityChange.bind(this);
-
-    /** Previous message IDs for change detection. */
-    private _prevMsgIds: string[] = [];
-
-    /** Previous message count for growth/shrink detection. */
-    private _prevMsgCount = 0;
 
     /**
      * Monotonically increasing version counter for scroll debouncing.
@@ -159,7 +172,6 @@ export class RtcMessageList extends LitElement {
         // so the first `updated()` cycle can scroll cleanly to the bottom.
         if (this._scrollEl) {
             this._scrollEl.scrollTop = 0;
-            this._lastScrollTop = 0;
         }
         // Snapshot initial session ID so we can detect future switches
         this._prevSessionId = this._sessionCtx.state.currentSessionId;
@@ -193,14 +205,20 @@ export class RtcMessageList extends LitElement {
     }
 
     /**
-     * Single decision point for auto-scroll.
+     * Auto-scroll decision point.
      *
-     * Detects what changed in the messages array and determines scroll intent:
+     * The component is responsible for its own scrolling. It does not analyze
+     * what kind of change happened (growth, shrink, reorder, toolcall merge, etc.).
+     * It only asks two questions:
      *
-     * - **Growth** (count increased): new messages arrived -> scroll if at bottom
-     * - **Shrink/Replace** (count decreased OR all IDs changed): fork/clear -> always scroll, reset state
-     * - **Reorder** (same IDs, different order): sort -> scroll if at bottom
-     * - **Content update** (same IDs, same order): streaming append -> handled by ResizeObserver
+     * 1. **Did messages change?** (`_ctx` changed) → if following, scroll to bottom.
+     * 2. **Did session change?** (`_sessionCtx` changed) → reset follow intent to true,
+     *    then scroll to bottom (user expects to see latest messages in a new session).
+     *
+     * Async content rendering (Markdown, tool call expansion) is handled by
+     * ResizeObserver, which scrolls when the inner container size changes.
+     *
+     * Load-more (prepend) is a special case: preserve scroll position via anchor.
      */
     updated(changed: Map<string, unknown>) {
         super.updated(changed);
@@ -209,70 +227,35 @@ export class RtcMessageList extends LitElement {
         const density = this._settingsCtx.state.chat.density;
         this.setAttribute('data-density', density);
 
-        // --- Session switch detection ---
-        // When currentSessionId changes (tab activation, closing other tabs that
-        // triggers a switch, etc.), force scroll to bottom and reset all tracking
-        // state. This ensures the new session's messages are always visible at bottom.
+        // --- Session switch: reset follow intent ---
+        // When the user opens/switches to a different session, they expect to see
+        // the latest messages. Reset follow intent so subsequent message changes
+        // will auto-scroll.
         const currSessionId = this._sessionCtx.state.currentSessionId;
         if (changed.has('_sessionCtx') && currSessionId !== this._prevSessionId) {
             this._prevSessionId = currSessionId;
-            // Reset message tracking so the next _ctx update is seen as "first load"
-            this._prevMsgIds = [];
-            this._prevMsgCount = 0;
             this._shouldAutoScroll = true;
             this._userAtBottom = true;
             this._showNewBtn = false;
-            // Defer scroll to allow message reload to complete
-            this._scheduleScroll();
-            return;
         }
 
-        if (!changed.has('_ctx')) return;
-
-        const msgs = this.messages;
-        const currIds = msgs.map(m => m.clientId);
-        const currCount = msgs.length;
-
-        // --- Change detection ---
-        const isFirstLoad = this._prevMsgCount === 0 && currCount > 0;
-        const isGrowth = currCount > this._prevMsgCount;
-        const isShrinkOrReplace = currCount < this._prevMsgCount ||
-            (currCount > 0 && this._prevMsgCount > 0 && this._isCompleteReplacement(currIds));
-        const isReorder = !isGrowth && !isShrinkOrReplace &&
-            currCount > 1 && !this._arraysEqual(currIds, this._prevMsgIds);
-
-        // --- Scroll decision ---
-        if (isFirstLoad) {
-            // First load of a session (including refresh/re-enter):
-            // always scroll to bottom, reset follow intent.
-            this._shouldAutoScroll = true;
-            this._userAtBottom = true;
-            this._showNewBtn = false;
-            this._scheduleScroll();
-        } else if (isGrowth && this._anchorInfo) {
-            // Prepend (loadMore): preserve scroll position using anchor
-            this._preserveScrollPosition();
-            this._anchorInfo = null;
-        } else if (isShrinkOrReplace) {
-            // Fork/clear: always scroll to bottom, reset state
-            this._shouldAutoScroll = true;
-            this._userAtBottom = true;
-            this._showNewBtn = false;
-            this._scheduleScroll();
-        } else if (isGrowth || isReorder) {
-            // New messages or reorder: scroll only if user intends to follow
-            if (this._shouldAutoScroll) {
+        // --- Messages changed: scroll if following ---
+        // We don't care WHAT changed (new message, toolcall output, reorder, etc.).
+        // If the user wants to follow, scroll to bottom. ResizeObserver handles
+        // async content rendering (Markdown, thinking blocks, etc.).
+        if (changed.has('_ctx')) {
+            if (this._anchorInfo) {
+                // Load-more (prepend): preserve scroll position using anchor
+                this._preserveScrollPosition();
+                this._anchorInfo = null;
+            } else if (this._shouldAutoScroll) {
+                // Normal change (append, update, etc.): scroll to bottom
                 this._scheduleScroll();
             }
         }
-        // Content-only updates (streaming) are handled by ResizeObserver
 
         // --- Update load-more button visibility ---
         this._showLoadMoreBtn = this._ctx.state.hasMore && this._isNearTop();
-
-        // --- Snapshot for next comparison ---
-        this._prevMsgIds = currIds;
-        this._prevMsgCount = currCount;
     }
 
     disconnectedCallback() {
@@ -284,18 +267,23 @@ export class RtcMessageList extends LitElement {
     }
 
     /**
-     * Schedule a scroll-to-bottom after all pending renders complete.
+     * Schedule a scroll-to-bottom after the current render completes.
      *
      * Uses a version counter for clean debouncing:
      * - Each call increments `_scrollVersion`
      * - The async callback captures its version
      * - If version is stale when callback runs, a newer request has superseded it
-     * - No boolean flag, no blocking, no lost scrolls
      *
-     * Two-phase wait:
-     * 1. `this.updateComplete` -- this component's render is done
-     * 2. All child `<rtc-message>` elements' `updateComplete` -- their render
-     *    (including async Markdown) is done
+     * Waits for:
+     * 1. `this.updateComplete` -- this component's render is done (new message
+     *    element is in the DOM)
+     * 2. All child message elements' `updateComplete` -- their first render
+     *    (empty content for async Markdown, complete for sync components)
+     *
+     * Note: async Markdown rendering (marked + DOMPurify + highlight.js) happens
+     * AFTER the child's first `updateComplete` resolves. The ResizeObserver is the
+     * safety net that scrolls again when the content actually renders and the inner
+     * container size changes.
      */
     private _scheduleScroll() {
         const version = ++this._scrollVersion;
@@ -303,16 +291,8 @@ export class RtcMessageList extends LitElement {
         this.updateComplete.then(async () => {
             if (version !== this._scrollVersion) return;
 
-            // Wait for all message children to finish their current update
+            // Wait for all message children to finish their first render
             const msgEls = this.shadowRoot!.querySelectorAll('rtc-message, rtc-user-message');
-            if (msgEls.length > 0) {
-                await Promise.all(
-                    Array.from(msgEls).map(el => (el as LitElement).updateComplete)
-                );
-            }
-
-            // Second pass: catches the re-render triggered by async Markdown
-            // setting `_renderedHtml` (which triggers another Lit update cycle).
             if (msgEls.length > 0) {
                 await Promise.all(
                     Array.from(msgEls).map(el => (el as LitElement).updateComplete)
@@ -326,43 +306,49 @@ export class RtcMessageList extends LitElement {
 
     private _scrollToBottom() {
         if (!this._scrollEl) return;
+        // Increment guard counter so _onScroll doesn't override _shouldAutoScroll
+        // with a potentially incorrect value due to sub-pixel rounding.
+        this._programmaticScrollCount++;
         this._scrollEl.scrollTo({top: this._scrollEl.scrollHeight, behavior: 'auto'});
-        // 主动滚动：同步恢复跟随意图，避免后续内容变化引起的 scroll 事件误判
+        // Decrement after a short delay to cover async scroll events.
+        // scrollTo({behavior: 'auto'}) typically fires scroll events synchronously,
+        // but some browsers may defer them. 50ms covers layout/scroll batching.
+        window.setTimeout(() => { this._programmaticScrollCount--; }, 50);
+        // Sync intent state: programmatic scroll means we're following.
         this._shouldAutoScroll = true;
         this._userAtBottom = true;
         this._showNewBtn = false;
-        // 立即同步 tracking 字段，防止下一轮 _onScroll 把这次主动滚动误判为内容增长
-        this._lastScrollTop = this._scrollEl.scrollTop;
     }
 
     private _onScroll = () => {
         if (!this._scrollEl) return;
         const {scrollHeight, scrollTop, clientHeight} = this._scrollEl;
-        const atBottom = scrollHeight - scrollTop - clientHeight < 60;
+        const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
 
-        // Button visibility follows physical position
+        // Button visibility: generous threshold (60px)
+        // Shows "new messages" button early so user can click before reaching absolute bottom
+        const atBottom = distanceFromBottom < 60;
         this._userAtBottom = atBottom;
         this._showNewBtn = !atBottom;
 
-        // Scroll-intent detection: flip `_shouldAutoScroll` only on deliberate
-        // user action, ignoring passive scroll events caused by content growth.
+        // Auto-scroll intent: only update on USER-initiated scrolls.
+        // Programmatic scrolls (from _scrollToBottom) increment a guard counter
+        // to prevent sub-pixel rounding errors from incorrectly disabling follow intent.
         //
-        // Heuristic via delta analysis against last observed scroll state:
-        //   - scrollTop decreased meaningfully (user scrolled UP)  → stop following
-        //   - user is back at the bottom                            → resume following
-        //   - scrollTop unchanged + scrollHeight grew (thinking expand,
-        //     streaming Markdown, tool-call render)                 → preserve prior intent
-        //   - scrollTop increased (programmatic `_scrollToBottom`
-        //     or user scrolling down)                                → preserve prior intent
-        const scrollTopDelta = scrollTop - this._lastScrollTop;
-        if (scrollTopDelta < -10) {
-            this._shouldAutoScroll = false;
-        } else if (atBottom) {
-            this._shouldAutoScroll = true;
+        // With `overflow-anchor: none` on the scroll container, content growth
+        // does NOT change scrollTop, so no scroll event fires during async renders
+        // (Markdown, thinking expansion, tool-call cards). This means _onScroll
+        // only fires for: (1) user-initiated scrolls, (2) programmatic scrollTo().
+        //
+        // Threshold: 60px (same as button visibility). This creates a "follow zone":
+        // - User scrolls up beyond 60px → intent disabled (reading history)
+        // - User scrolls back within 60px → intent re-enabled (ready to follow)
+        // - Programmatic scrolls → intent always enabled (guard counter active)
+        // The generous threshold accounts for sub-pixel rounding and users who
+        // scroll "close to" the bottom without hitting the exact pixel.
+        if (this._programmaticScrollCount === 0) {
+            this._shouldAutoScroll = distanceFromBottom < 60;
         }
-        // else: preserve (content growth, programmatic scroll, minor jitter)
-
-        this._lastScrollTop = scrollTop;
 
         // Show/hide load-more button based on scroll position
         this._showLoadMoreBtn = this._ctx.state.hasMore && this._isNearTop();
@@ -444,13 +430,6 @@ export class RtcMessageList extends LitElement {
                 );
             }
 
-            // Second pass for async Markdown re-renders
-            if (msgEls.length > 0) {
-                await Promise.all(
-                    Array.from(msgEls).map(el => (el as LitElement).updateComplete)
-                );
-            }
-
             if (!this._scrollEl) return;
 
             // Find the anchor element after prepend
@@ -472,7 +451,12 @@ export class RtcMessageList extends LitElement {
 
     private _handleNewBtnClick() {
         if (this._scrollEl) {
+            // Smooth scroll is async (animation over ~500ms). Increment the guard
+            // counter to prevent _onScroll from disabling follow intent during the animation.
+            this._programmaticScrollCount++;
             this._scrollEl.scrollTo({top: this._scrollEl.scrollHeight, behavior: 'smooth'});
+            // Decrement counter after animation completes
+            window.setTimeout(() => { this._programmaticScrollCount--; }, 500);
         }
         this._shouldAutoScroll = true;
         this._userAtBottom = true;
@@ -573,24 +557,6 @@ export class RtcMessageList extends LitElement {
         }
 
         return items;
-    }
-
-    // ========== Change Detection Helpers ==========
-
-    /** True if the current IDs share no overlap with previous IDs (fork/clear scenario). */
-    private _isCompleteReplacement(currIds: string[]): boolean {
-        if (this._prevMsgIds.length === 0) return false;
-        const prevSet = new Set(this._prevMsgIds);
-        return currIds.every(id => !prevSet.has(id));
-    }
-
-    /** True if two string arrays have the same elements in the same order. */
-    private _arraysEqual(a: string[], b: string[]): boolean {
-        if (a.length !== b.length) return false;
-        for (let i = 0; i < a.length; i++) {
-            if (a[i] !== b[i]) return false;
-        }
-        return true;
     }
 }
 

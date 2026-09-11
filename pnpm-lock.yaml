@@ -78,6 +78,9 @@ importers:
       marked:
         specifier: ^18.0.11
         version: 18.0.11
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
     devDependencies:
       '@lit/localize-tools':
         specifier: ^0.8.2
@@ -3268,3 +3271,7 @@ packages:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
     engines: {node: '>=10'}
     dev: true
+
+  /zod@3.25.76:
+    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
+    dev: false

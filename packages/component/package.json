@@ -45,7 +45,8 @@
     "highlight.js": "^11.12.0",
     "interactjs": "^1.10.28",
     "lit": "^3.1.0",
-    "marked": "^18.0.11"
+    "marked": "^18.0.11",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@lit/localize-tools": "^0.8.2",

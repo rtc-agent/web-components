@@ -79,3 +79,20 @@ export type {
     FunctionErrorEvent,
     FunctionProgressEvent,
 } from './core/event-bus.js';
+
+// ===== Validation (Zod Integration) =====
+
+export {
+    z,
+    validateParams,
+    formatValidationError,
+    buildValidator,
+    withValidation,
+    zodToParams,
+    openApiToZod,
+    withMeta,
+} from './validation/index.js';
+export type {
+    ValidationError,
+    ValidationResult,
+} from './validation/index.js';

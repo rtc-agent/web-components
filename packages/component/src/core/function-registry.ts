@@ -15,6 +15,7 @@ import { virtualFS } from '@rtc-agent/persistence';
 import { generateFunctionMd, generateFunctionsIndex, generateAgentMd, generateScenariosIndex } from './markdown-generator.js';
 import { registerBuiltinSystemGroup } from './builtin-system-group.js';
 import { eventBus, type FunctionStartEvent, type FunctionSuccessEvent, type FunctionErrorEvent, type FunctionProgressEvent } from './event-bus.js';
+import { buildValidator, validateParams, formatValidationError } from '../validation/index.js';
 
 /**
  * FunctionGroup 实例
@@ -319,6 +320,22 @@ export class FunctionRegistry {
       throw new Error(`Function not found: ${path}`);
     }
 
+    // 参数校验：优先使用 zodSchema，否则从 parameters 生成
+    const validator = buildValidator(funcDef.zodSchema, funcDef.parameters);
+    if (validator) {
+      const validation = validateParams(validator, params);
+      if (!validation.success) {
+        // 解析 group 名称和 function 名称
+        const parts = path.split('.');
+        const groupName = parts.length > 1 ? parts[0] : 'global';
+        const funcName = parts.length > 1 ? parts[1] : parts[0];
+        const errorMsg = formatValidationError(groupName, funcName, validation.errors!);
+        throw new Error(errorMsg);
+      }
+      // 使用校验后的数据（可能包含默认值）
+      params = validation.data!;
+    }
+
     // 先发出 start 事件，再调用 onStart hook。
     // UI 层可以先收到通知（如显示 loading），然后 onStart 可能弹出确认框等。
     const startEvent: FunctionStartEvent = { path, params };
@@ -489,7 +506,7 @@ export class FunctionRegistry {
 
     const md = generateAgentMd(this.config, functions, groups, scenarios.length);
     // 使用 'create-new' 模式：文件已存在时不覆盖
-    await virtualFS.write('/AGENT.md', md, 'create-new');
+    await virtualFS.write('/AGENT.md', md, 'overwrite');
   }
 
   /**

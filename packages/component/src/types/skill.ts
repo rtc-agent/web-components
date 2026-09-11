@@ -4,6 +4,8 @@
  * 定义 Function、FunctionGroup、VisualHooks 等核心类型
  */
 
+import type { ZodType } from 'zod';
+
 /**
  * CancelledError - 用户取消操作
  *
@@ -42,6 +44,7 @@ export class CancelledError extends Error {
  * - 格式：date, date-time, email, uri, uuid 等
  * - 嵌套对象和数组
  * - 枚举值
+ * - 示例值（example）
  */
 export interface OpenAPISchema {
   /** 数据类型 */
@@ -54,6 +57,8 @@ export interface OpenAPISchema {
   required?: boolean;
   /** 默认值 */
   default?: unknown;
+  /** 示例值 */
+  example?: unknown;
   /** 枚举值 */
   enum?: unknown[];
   /** 对象属性定义 */
@@ -128,8 +133,10 @@ export interface FunctionDef {
   name: string;
   /** Function 描述 */
   description: string;
-  /** 参数列表 */
+  /** 参数列表（OpenAPI 格式，向后兼容） */
   parameters?: ParameterDef[];
+  /** Zod schema（用于运行时校验，优先于 parameters） */
+  zodSchema?: ZodType;
   /** 返回值定义 */
   returns?: ReturnDef;
   /** Visual Hooks */
