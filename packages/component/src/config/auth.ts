@@ -13,6 +13,14 @@
 let _serverUrl: string | null = null;
 
 /**
+ * Runtime-overridable redirect URI.
+ *
+ * Set via `<rtc-agent redirect-uri="...">` attribute (wired in RtcAgent setter).
+ * Precedence: explicit setRedirectUri() > window.location.origin + '/auth/callback.html'.
+ */
+let _redirectUri: string | null = null;
+
+/**
  * Override the backend server URL.
  *
  * Called by the <rtc-agent> component when its `server-url` attribute is set.
@@ -20,6 +28,16 @@ let _serverUrl: string | null = null;
  */
 export function setServerUrl(url: string | null): void {
     _serverUrl = url && url.length > 0 ? url.replace(/\/+$/, '') : null;
+}
+
+/**
+ * Override the OAuth redirect URI.
+ *
+ * Called by the <rtc-agent> component when its `redirect-uri` attribute is set.
+ * Safe to call multiple times; takes effect immediately for subsequent reads.
+ */
+export function setRedirectUri(uri: string | null): void {
+    _redirectUri = uri && uri.length > 0 ? uri.replace(/\/+$/, '') : null;
 }
 
 /** Get server URL (runtime override > env > default). */
@@ -49,8 +67,9 @@ export const AUTH_CONFIG = {
         return http.replace(/^http/, 'ws') + '/connection/websocket';
     },
 
-    /** Callback URL (dynamically generated from current origin) */
+    /** Callback URL (runtime override > dynamically generated from current origin) */
     get redirectUri(): string {
+        if (_redirectUri) return _redirectUri;
         return `${window.location.origin}/auth/callback.html`;
     },
 

@@ -98,7 +98,7 @@ import {SettingsController} from '../../controllers/settings.controller.js';
 import {NotificationController} from '../../controllers/notification.controller.js';
 
 // Scenario loading
-import {setServerUrl} from '../../config/auth.js';
+import {setServerUrl, setRedirectUri} from '../../config/auth.js';
 import {loadScenariosContent} from '../../core/scenario-loader.js';
 import {defineRegistry} from '../../core/function-registry.js';
 import type {FunctionRegistry} from '../../core/function-registry.js';
@@ -283,6 +283,24 @@ export class RtcAgent extends LitElement {
         return this._serverURL;
     }
     private _serverURL = '';
+
+    /**
+     * OAuth callback URL (overrides the default window.location.origin + '/auth/callback.html').
+     *
+     * Propagated to AUTH_CONFIG so OAuth flow uses the correct redirect URI.
+     *
+     * @example
+     * <rtc-agent redirect-uri="https://example.com/auth/callback.html"></rtc-agent>
+     */
+    @property({type: String, attribute: 'redirect-uri'})
+    set redirectURI(value: string) {
+        this._redirectURI = value;
+        setRedirectUri(value);
+    }
+    get redirectURI(): string {
+        return this._redirectURI;
+    }
+    private _redirectURI = '';
 
     /**
      * 场景文档 URL（可选）
