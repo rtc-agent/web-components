@@ -44,15 +44,17 @@ describe('<rtc-login-page>', () => {
         expect(name!.textContent!.trim()).toBe('RTC Agent');
     });
 
-    it('should show login button when not loading', async () => {
+    it('should show provider button when not loading', async () => {
         const el = await fixture<RtcLoginPage>(
             html`<rtc-login-page></rtc-login-page>`,
             {setup: (host) => provideContext(host, AuthContext, mockAuthCtx)}
         );
+        // 等待 provider 加载完成（网络请求失败会回退到 mock provider）
+        await el.updateComplete;
         await nextFrame();
-        const btn = el.shadowRoot!.querySelector('.login-btn');
+        await nextFrame();
+        const btn = el.shadowRoot!.querySelector('.provider-btn');
         expect(btn).not.toBeNull();
-        expect(btn!.textContent).toContain('Login');
     });
 
     it('should show loading state when loading', async () => {
@@ -77,17 +79,23 @@ describe('<rtc-login-page>', () => {
         expect(err!.textContent).toContain('Auth failed');
     });
 
-    it('should dispatch rtc-login-requested on button click', async () => {
+    it('should dispatch rtc-login-requested on provider button click', async () => {
         const el = await fixture<RtcLoginPage>(
             html`<rtc-login-page></rtc-login-page>`,
             {setup: (host) => provideContext(host, AuthContext, mockAuthCtx)}
         );
+        // 等待 provider 加载完成
+        await el.updateComplete;
+        await nextFrame();
         await nextFrame();
         const handler = vi.fn();
         el.addEventListener('rtc-login-requested', handler);
-        const btn = el.shadowRoot!.querySelector('.login-btn') as HTMLElement;
+        const btn = el.shadowRoot!.querySelector('.provider-btn') as HTMLElement;
         btn.click();
         expect(handler).toHaveBeenCalledTimes(1);
+        expect(handler).toHaveBeenCalledWith(expect.objectContaining({
+            detail: { provider: 'mock' }
+        }));
     });
 
     it('should render a logo area', async () => {

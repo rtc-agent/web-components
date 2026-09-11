@@ -36,3 +36,4 @@ pnpm-debug.log*
 
 # i18n generated files — 勿手动编辑
 packages/component/src/.generated/
+CONTAINER_HIERARCHY.md
