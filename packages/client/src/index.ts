@@ -1,6 +1,8 @@
 // @rtc-agent/client —— RTC Agent 通信层
 
 export { RTCAgentClient } from './client.js';
+export { OAuth2Client } from './oauth2-client.js';
+export type { OAuth2ClientOptions, OAuth2ProvidersResponse } from './oauth2-client.js';
 export type {
   IRTCAgentClient,
   RTCAgentClientOptions,

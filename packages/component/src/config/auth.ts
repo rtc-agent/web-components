@@ -49,9 +49,6 @@ export const AUTH_CONFIG = {
         return http.replace(/^http/, 'ws') + '/connection/websocket';
     },
 
-    /** OAuth2 Provider name */
-    provider: 'mock',
-
     /** Callback URL (dynamically generated from current origin) */
     get redirectUri(): string {
         return `${window.location.origin}/auth/callback.html`;

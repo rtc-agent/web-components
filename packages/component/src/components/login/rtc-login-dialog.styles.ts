@@ -87,6 +87,23 @@ export const styles = css`
     background: var(--rtc-color-bg, #ffffff);
   }
 
+  /* ── 等待弹窗授权状态 ── */
+  .waiting-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--rtc-spacing-xl, 32px);
+    text-align: center;
+  }
+
+  .waiting-container p {
+    font-size: var(--rtc-font-size-base, 16px);
+    color: var(--rtc-color-text, #111);
+    margin-bottom: var(--rtc-spacing-lg, 24px);
+  }
+
   .button {
     width: calc(100% - 40px);
     margin: 0 20px 20px;
@@ -111,6 +128,19 @@ export const styles = css`
   .button-primary:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+  }
+
+  .button-secondary {
+    background: var(--rtc-color-bg-secondary, #f3f4f6);
+    color: var(--rtc-color-text, #111);
+    border: 1px solid var(--rtc-color-border, #e5e7eb);
+    width: auto;
+    margin: 0;
+    padding: var(--rtc-spacing-sm, 8px) var(--rtc-spacing-lg, 24px);
+  }
+
+  .button-secondary:hover:not(:disabled) {
+    background: var(--rtc-color-bg-tertiary, #e5e7eb);
   }
 
   .error {

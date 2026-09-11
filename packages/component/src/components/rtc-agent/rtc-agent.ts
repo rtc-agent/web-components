@@ -402,6 +402,9 @@ export class RtcAgent extends LitElement {
     /** Show login dialog */
     @state() private _showLoginDialog = false;
 
+    /** Selected OAuth2 provider for login dialog */
+    @state() private _selectedProvider = 'mock';
+
     /** 连接状态 */
     @state() private _connectionState: ConnectionState = 'disconnected';
 
@@ -424,7 +427,7 @@ export class RtcAgent extends LitElement {
     private _boundOnMinimize = () => this._windowState.actions.minimize();
     private _boundOnMaximize = () => this._windowState.actions.maximize();
     private _boundOnRestore = () => this._windowState.actions.restore();
-    private _boundOnLoginRequested = () => this._handleLoginRequested();
+    private _boundOnLoginRequested = (event: Event) => this._handleLoginRequested(event);
     private _boundOnNewSession = () => {
         this._fork.actions.clearFork();
         // 不清空消息：_handleNewSession 已通过 createSession() 创建了新 session
@@ -1303,7 +1306,10 @@ export class RtcAgent extends LitElement {
 
     /* ── Login Dialog Handlers ── */
 
-    private _handleLoginRequested() {
+    private _handleLoginRequested(event: Event) {
+        const customEvent = event as CustomEvent<{provider?: string}>;
+        const provider = customEvent?.detail?.provider ?? 'mock';
+        this._selectedProvider = provider;
         this._showLoginDialog = true;
     }
 
@@ -1888,6 +1894,7 @@ export class RtcAgent extends LitElement {
       <span class="sr-only" aria-live="polite" role="status">${this._modeAnnouncement}</span>
       ${this._showLoginDialog
         ? html`<rtc-login-dialog
+            .provider=${this._selectedProvider}
             @rtc-login-complete=${this._handleLoginComplete}
             @rtc-login-dialog-close=${this._handleLoginDialogClose}
           ></rtc-login-dialog>`
