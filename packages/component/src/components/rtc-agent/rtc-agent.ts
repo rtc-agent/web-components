@@ -52,7 +52,7 @@ import {LitElement, html, nothing} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
 import {ContextProvider} from '@lit/context';
 import {styles} from './rtc-agent.styles.js';
-import type {WindowMode, ContentData, Session, SessionStatus, Activity, FileNode, TodoItem} from '../../types/index.js';
+import type {WindowMode, ContentData, Session, SessionStatus, Activity, FileNode} from '../../types/index.js';
 
 // Styles
 import {tokens} from '../../styles/tokens.js';
@@ -921,13 +921,13 @@ export class RtcAgent extends LitElement {
                     }
                 }
                 // todo_list 变动 → 插入本地 markdown 消息，让对话流展示 todo 历史
-                if (event.field === 'todo_list') {
-                    const newTodoList = event.newValue as TodoItem[] | undefined;
-                    if (newTodoList?.length) {
-                        const markdown = this._formatTodoListAsMarkdown(newTodoList);
-                        void this._insertTodoListMessage(event.entityId, markdown);
-                    }
-                }
+                // if (event.field === 'todo_list') {
+                //     const newTodoList = event.newValue as TodoItem[] | undefined;
+                //     if (newTodoList?.length) {
+                //         const markdown = this._formatTodoListAsMarkdown(newTodoList);
+                //         void this._insertTodoListMessage(event.entityId, markdown);
+                //     }
+                // }
                 // Turn count 字段变化 → 把当前 session 的活跃 turn 数量推入 context
                 if (
                     event.field === 'pending_turn_count' ||
@@ -1398,33 +1398,33 @@ export class RtcAgent extends LitElement {
     /**
      * 将 TodoItem[] 格式化为 markdown checkbox 列表
      */
-    private _formatTodoListAsMarkdown(todoList: TodoItem[]): string {
-        return todoList.map(item => {
-            const checkbox = item.status === 'completed' ? '[x]' :
-                             item.status === 'in_progress' ? '[~]' : '[ ]';
-            return `- ${checkbox} ${item.content}`;
-        }).join('\n');
-    }
+    // private _formatTodoListAsMarkdown(todoList: TodoItem[]): string {
+    //     return todoList.map(item => {
+    //         const checkbox = item.status === 'completed' ? '[x]' :
+    //                          item.status === 'in_progress' ? '[~]' : '[ ]';
+    //         return `- ${checkbox} ${item.content}`;
+    //     }).join('\n');
+    // }
 
     /**
      * 插入 todo_list 变动的本地消息到对话中
      */
-    private async _insertTodoListMessage(sessionClientId: string, markdown: string): Promise<void> {
-        try {
-            const layer = this._persistence.layer;
-            if (!layer) return;
-
-            await layer.insertLocalMessage({
-                sessionClientId,
-                role: 'assistant',
-                content: JSON.stringify({type: 'markdown', data: markdown}),
-                creatorKind: 'system',
-                creatorRefId: 'todo_list_update',
-            });
-        } catch (err) {
-            console.error('[rtc-agent] Failed to insert todo_list message:', err);
-        }
-    }
+    // private async _insertTodoListMessage(sessionClientId: string, markdown: string): Promise<void> {
+    //     try {
+    //         const layer = this._persistence.layer;
+    //         if (!layer) return;
+    //
+    //         await layer.insertLocalMessage({
+    //             sessionClientId,
+    //             role: 'assistant',
+    //             content: JSON.stringify({type: 'markdown', data: markdown}),
+    //             creatorKind: 'system',
+    //             creatorRefId: 'todo_list_update',
+    //         });
+    //     } catch (err) {
+    //         console.error('[rtc-agent] Failed to insert todo_list message:', err);
+    //     }
+    // }
 
     private async _refreshTurnCounts() {
         const currentId = this._session.value.state.currentSessionId;

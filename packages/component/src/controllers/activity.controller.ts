@@ -99,10 +99,10 @@ export class ActivityController implements ReactiveController {
             // 点击当前活动，toggle sidebar
             this._toggleSidebar();
         } else {
-            // 切换到新活动，显示 sidebar
+            // 切换到新活动，保留 sidebarVisible 状态
             this._state = {
                 active: activity,
-                sidebarVisible: true,
+                sidebarVisible: this._state.sidebarVisible,
             };
             this._persist();
             this.host.requestUpdate();
