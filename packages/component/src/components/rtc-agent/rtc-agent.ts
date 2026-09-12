@@ -560,7 +560,8 @@ export class RtcAgent extends LitElement {
     };
     private _boundOnInputSubmit = async (e: Event) => {
         const detail = (e as CustomEvent).detail;
-        const content: ContentData = {type: 'text', data: detail.content};
+        // 直接使用 rtc-input-area 传来的 contentData
+        const content: ContentData = detail.contentData;
 
         try {
             if (this._fork.isActive) {

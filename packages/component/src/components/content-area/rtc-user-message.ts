@@ -45,7 +45,7 @@ import {
     autoUpdate,
 } from '@floating-ui/dom';
 import {styles} from './rtc-user-message.styles.js';
-import type {Message} from '../../types/index.js';
+import type {Message, UserMessageContent} from '../../types/index.js';
 import {copyToClipboard} from '../../utils/clipboard.js';
 import {extractTextContent} from '../../utils/format.js';
 import './rtc-message-more-menu.js';
@@ -184,6 +184,17 @@ export class RtcUserMessage extends LitElement {
 
     private _getTextContent(): string {
         return extractTextContent(this.message?.content);
+    }
+
+    /**
+     * 提取 user_message 类型的结构化数据（如果有）
+     */
+    private _getUserMessageData(): UserMessageContent | null {
+        const content = this.message?.content;
+        if (content?.type === 'user_message') {
+            return content.data as UserMessageContent;
+        }
+        return null;
     }
 
     /* ── Event handlers ── */
@@ -348,11 +359,19 @@ export class RtcUserMessage extends LitElement {
 
     render() {
         void this._localeCtx.locale;
-        const text = this._getTextContent();
+        const userData = this._getUserMessageData();
+        const text = userData?.text ?? this._getTextContent();
 
         return html`
       <div class="user-message-wrapper" part="wrapper">
         <div class="user-message" part="bubble">
+          ${userData?.scenarios?.length ? html`
+            <div class="scenario-tags" part="scenario-tags">
+              ${userData.scenarios.map(s => html`
+                <span class="scenario-tag" part="scenario-tag">#${s.title}</span>
+              `)}
+            </div>
+          ` : ''}
           <div class="user-message-text" part="text">${text}</div>
 
           ${this._isOverflowing

@@ -143,7 +143,7 @@ export interface components {
         /** @enum {string} */
         MessageStreamingStatus: "pending" | "streaming" | "completed" | "failed";
         /** @enum {string} */
-        ContentType: "markdown" | "summary" | "text" | "thinking" | "toolcall_input" | "toolcall_output";
+        ContentType: "markdown" | "summary" | "text" | "thinking" | "toolcall_input" | "toolcall_output" | "user_message";
         /** @enum {string} */
         RtcStatus: "pending" | "sent" | "executing" | "completed" | "failed" | "timeout" | "rejected";
         Session: {
@@ -274,11 +274,41 @@ export interface components {
          *     - `thinking`: Data 为字符串
          *     - `toolcall_input`: Data 为 ToolCall 对象
          *     - `toolcall_output`: Data 为 ToolCall 对象
+         *     - `user_message`: Data 为 UserMessageContent 对象
          */
         ContentData: {
             type: components["schemas"]["ContentType"];
             /** @description 具体内容（结构由 type 决定），类型取决于 type 字段 */
             data: unknown;
+        };
+        /** @description 用户消息内容（支持文本 + 场景 + 文件预留） */
+        UserMessageContent: {
+            /** @description 消息文本内容 */
+            text: string;
+            /** @description 文件附件列表（预留字段，暂不实现） */
+            files?: components["schemas"]["FileAttachment"][];
+            /** @description 场景列表（包含完整内容，无需再读取文件） */
+            scenarios?: components["schemas"]["ScenarioRef"][];
+        };
+        /** @description 文件附件（预留） */
+        FileAttachment: {
+            /** @description MIME 类型（如 image/png, application/pdf） */
+            mimetype: string;
+            /** @description 文件唯一标识（用于引用已上传的文件） */
+            fileid: string;
+            /** @description 扩展字段（如文件名、大小等） */
+            extra?: {
+                [key: string]: unknown;
+            };
+        };
+        /** @description 场景引用（包含完整内容） */
+        ScenarioRef: {
+            /** @description 场景标题（如 "Create and Complete a Task"） */
+            title: string;
+            /** @description 场景文件路径（如 "/scenarios/create-and-complete.md"） */
+            filepath: string;
+            /** @description 场景文件完整内容（Markdown 格式） */
+            file_content: string;
         };
         ToolCall: {
             id: components["schemas"]["UUID"];

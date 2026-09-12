@@ -55,6 +55,9 @@ export type ContentData = components['schemas']['ContentData'];
 export type ToolCall = components['schemas']['ToolCall'];
 export type Rtc = components['schemas']['Rtc'];
 export type TodoItem = components['schemas']['TodoItem'];
+export type UserMessageContent = components['schemas']['UserMessageContent'];
+export type FileAttachment = components['schemas']['FileAttachment'];
+export type ScenarioRef = components['schemas']['ScenarioRef'];
 
 // Update
 export type UpdateItem = components['schemas']['UpdateItem'];

@@ -44,6 +44,15 @@ export function extractTextContent(content: ContentData | undefined | null): str
       return typeof content.data === 'string' ? content.data : JSON.stringify(content.data);
     case 'summary':
       return '[消息已被压缩]';
+    case 'user_message': {
+      const data = content.data as {text?: string; scenarios?: Array<{title: string}>};
+      let result = data?.text ?? '';
+      if (data?.scenarios?.length) {
+        const tags = data.scenarios.map(s => `#${s.title}`).join(' ');
+        result = `${tags}\n${result}`;
+      }
+      return result;
+    }
     default:
       return typeof content.data === 'string' ? content.data : (content.data != null ? JSON.stringify(content.data) : '');
   }

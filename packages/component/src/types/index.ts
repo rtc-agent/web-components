@@ -6,7 +6,7 @@
  */
 
 // Re-export ContentData and TodoItem from protocol
-export type { ContentData, TodoItem } from '@rtc-agent/protocol';
+export type { ContentData, TodoItem, UserMessageContent, ScenarioRef, FileAttachment } from '@rtc-agent/protocol';
 import type { ContentData, TodoItem } from '@rtc-agent/protocol';
 
 // Re-export SyncStatus from persistence (single source of truth)

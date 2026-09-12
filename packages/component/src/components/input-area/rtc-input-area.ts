@@ -37,10 +37,12 @@ import {SessionContext} from '../../contexts/session.js';
 import {TurnCountContext, type TurnCountContextValue} from '../../contexts/turn-count.js';
 import {MessageContext, type MessageContextValue} from '../../contexts/message.js';
 import {SettingsContext, type SettingsContextValue} from '../../contexts/settings.js';
-import {attachIcon, toolIcon, sendIcon, stopIcon, micIcon} from '../../icons/index.js';
+import {attachIcon, toolIcon, sendIcon, stopIcon, micIcon, checklistIcon} from '../../icons/index.js';
 import {parseCommand} from '../../utils/command-parser.js';
+import type {ScenarioRef, ContentData} from '../../types/index.js';
 import '../overlay/rtc-mode-panel.js';
 import '../overlay/rtc-command-panel.js';
+import '../overlay/rtc-scenario-panel.js';
 
 // UIUpdateBus 用于监听新消息事件
 import {getUIUpdateBus, type UIUpdateEvent} from '@rtc-agent/persistence';
@@ -121,6 +123,12 @@ export class RtcInputArea extends LitElement {
     @state()
     private _showCommandPanel = false;
 
+    @state()
+    private _showScenarioPanel = false;
+
+    @state()
+    private _selectedScenarios: ScenarioRef[] = [];
+
     // 历史导航状态
     @state()
     private _userMessageHistory: string[] = [];
@@ -143,8 +151,15 @@ export class RtcInputArea extends LitElement {
     @query('rtc-command-panel')
     private _commandPanel?: HTMLElement;
 
+    @query('.scenario-btn')
+    private _scenarioBtn!: HTMLElement;
+
+    @query('rtc-scenario-panel')
+    private _scenarioPanel?: HTMLElement;
+
     private _cleanupPosition: (() => void) | null = null;
     private _cleanupCommandPosition: (() => void) | null = null;
+    private _cleanupScenarioPosition: (() => void) | null = null;
 
     private get _textarea(): HTMLTextAreaElement | null {
         return this.shadowRoot?.querySelector('.input-textarea') ?? null;
@@ -325,15 +340,15 @@ export class RtcInputArea extends LitElement {
     }
 
     private _submit() {
-        const content = this._value.trim();
-        if (!content) return;
+        const text = this._value.trim();
+        if (!text) return;
 
         // 退出历史模式
         this._historyIndex = -1;
         this._draft = '';
 
         // 检查是否为 slash 命令
-        const parsed = parseCommand(content);
+        const parsed = parseCommand(text);
         // /goal is NOT a front-end command — it's a plain message with a
         // /goal prefix that the backend recognizes in loadMessages.
         // Let it fall through to the rtc-input-submit path below.
@@ -354,21 +369,32 @@ export class RtcInputArea extends LitElement {
         // 避免 UIUpdateBus 延迟导致刚发的消息不在历史中
         if (
             this._userMessageHistory.length === 0 ||
-            this._userMessageHistory[0] !== content
+            this._userMessageHistory[0] !== text
         ) {
-            this._userMessageHistory = [content, ...this._userMessageHistory];
+            this._userMessageHistory = [text, ...this._userMessageHistory];
         }
+
+        // 构建 UserMessageContent
+        const contentData: ContentData = {
+            type: 'user_message',
+            data: {
+                text: text,
+                files: [],  // 预留字段
+                scenarios: this._selectedScenarios.length > 0 ? this._selectedScenarios : undefined,
+            },
+        };
 
         this.dispatchEvent(
             new CustomEvent('rtc-input-submit', {
                 bubbles: true,
                 composed: true,
-                detail: {content},
+                detail: {contentData},
             })
         );
+
+        // 清空状态
         this._value = '';
-        // Directly clear the DOM textarea — Lit's dirty-check won't update
-        // when the last rendered value was already '' (the initial state).
+        this._selectedScenarios = [];
         if (this._textarea) this._textarea.value = '';
     }
 
@@ -534,6 +560,105 @@ export class RtcInputArea extends LitElement {
         this._closeCommandPanel();
     }
 
+    private _handleScenarioToggle() {
+        this._showScenarioPanel = !this._showScenarioPanel;
+        if (this._showScenarioPanel) {
+            this._startScenarioPositioning();
+        } else {
+            this._stopScenarioPositioning();
+        }
+    }
+
+    private _closeScenarioPanel() {
+        this._showScenarioPanel = false;
+        this._stopScenarioPositioning();
+    }
+
+    private async _startScenarioPositioning() {
+        await this.updateComplete;
+        const btn = this._scenarioBtn;
+        const panel = this._scenarioPanel;
+        if (!btn || !panel) return;
+
+        this._cleanupScenarioPosition?.();
+        this._cleanupScenarioPosition = autoUpdate(btn, panel, () => this._updateScenarioPosition());
+    }
+
+    private async _updateScenarioPosition() {
+        await this.updateComplete;
+        const btn = this._scenarioBtn;
+        const panel = this._scenarioPanel;
+        if (!btn || !panel) return;
+
+        const {x, y} = await computePosition(btn, panel, {
+            placement: 'top-end',
+            strategy: 'absolute',
+            middleware: [
+                offset(6),
+                flip({padding: 8}),
+                shift({padding: 8}),
+            ],
+        });
+        Object.assign(panel.style, {
+            left: `${x}px`,
+            top: `${y}px`,
+        });
+    }
+
+    private _stopScenarioPositioning() {
+        this._cleanupScenarioPosition?.();
+        this._cleanupScenarioPosition = null;
+    }
+
+    private _handleScenarioSelected(e: Event) {
+        const detail = (e as CustomEvent).detail;
+        const scenario: ScenarioRef = detail.scenario;
+        const selected: boolean = detail.selected;
+
+        if (!selected) {
+            // 取消选中
+            const index = this._selectedScenarios.findIndex(s => s.filepath === scenario.filepath);
+            if (index >= 0) {
+                this._selectedScenarios = this._selectedScenarios.filter((_, i) => i !== index);
+                this._removeScenarioTag(scenario.title);
+            }
+        } else {
+            // 选中
+            this._selectedScenarios = [...this._selectedScenarios, scenario];
+            this._insertScenarioTag(scenario.title);
+        }
+    }
+
+    private _handleScenarioPanelClose() {
+        this._closeScenarioPanel();
+    }
+
+    private _insertScenarioTag(title: string) {
+        const textarea = this._textarea;
+        if (!textarea) return;
+
+        const tag = `#${title} `;
+        const cursorPos = textarea.selectionStart;
+        const before = this._value.substring(0, cursorPos);
+        const after = this._value.substring(cursorPos);
+
+        this._value = before + tag + after;
+        textarea.value = this._value;
+
+        // 移动光标到标签后
+        const newCursorPos = cursorPos + tag.length;
+        textarea.setSelectionRange(newCursorPos, newCursorPos);
+        textarea.focus();
+    }
+
+    private _removeScenarioTag(title: string) {
+        const tag = `#${title} `;
+        this._value = this._value.replace(tag, '');
+        if (this._textarea) {
+            this._textarea.value = this._value;
+        }
+    }
+
     private _onDocClick = (e: MouseEvent) => {
         const path = e.composedPath();
         if (!path.includes(this)) {
@@ -542,6 +667,9 @@ export class RtcInputArea extends LitElement {
             }
             if (this._showCommandPanel) {
                 this._closeCommandPanel();
+            }
+            if (this._showScenarioPanel) {
+                this._closeScenarioPanel();
             }
         }
     };
@@ -567,6 +695,8 @@ export class RtcInputArea extends LitElement {
         super.disconnectedCallback();
         document.removeEventListener('mousedown', this._onDocClick, true);
         this._stopPositioning();
+        this._stopCommandPositioning();
+        this._stopScenarioPositioning();
         this._busUnsub?.();
         this._busUnsub = undefined;
     }
@@ -600,6 +730,7 @@ export class RtcInputArea extends LitElement {
         <div class="input-toolbar" part="toolbar">
           <button class="toolbar-btn" title=${msg('Attach file')}>${attachIcon}</button>
           <button class="toolbar-btn tool-btn" title=${msg('Commands')} @click=${this._handleCommandToggle}>${toolIcon}</button>
+          <button class="toolbar-btn scenario-btn" title=${msg('Scenarios')} @click=${this._handleScenarioToggle}>${checklistIcon}</button>
           <span class="toolbar-spacer"></span>
           <button class="mode-btn" part="mode-btn" @click=${this._handleModeToggle}>
             ${this._currentModeLabel}
@@ -625,6 +756,12 @@ export class RtcInputArea extends LitElement {
             @rtc-command-selected=${this._handleCommandSelected}
             @rtc-command-panel-close=${this._handleCommandPanelClose}
           ></rtc-command-panel>
+        ` : ''}
+        ${this._showScenarioPanel ? html`
+          <rtc-scenario-panel
+            @rtc-scenario-selected=${this._handleScenarioSelected}
+            @rtc-scenario-panel-close=${this._handleScenarioPanelClose}
+          ></rtc-scenario-panel>
         ` : ''}
       </div>
     `;

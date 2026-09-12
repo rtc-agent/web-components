@@ -56,7 +56,7 @@ describe('<rtc-input-area>', () => {
         textarea.dispatchEvent(new Event('input'));
         textarea.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter'}));
         expect(handler).toHaveBeenCalledTimes(1);
-        expect(handler.mock.calls[0][0].detail.content).toBe('Hello');
+        expect(handler.mock.calls[0][0].detail.contentData.data.text).toBe('Hello');
     });
 
     it('should not submit on Enter+Shift', async () => {
@@ -163,7 +163,7 @@ describe('<rtc-input-area>', () => {
         const btn = el.shadowRoot!.querySelector('.send-btn') as HTMLButtonElement;
         btn.click();
         expect(handler).toHaveBeenCalledTimes(1);
-        expect(handler.mock.calls[0][0].detail.content).toBe('Hello');
+        expect(handler.mock.calls[0][0].detail.contentData.data.text).toBe('Hello');
     });
 
     it('should have a voice input button', async () => {

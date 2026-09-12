@@ -90,6 +90,26 @@ export const styles = css`
     margin: 0;
   }
 
+  /* ── Scenario tags ── */
+  .scenario-tags {
+    display: flex;
+    flex-direction: column;
+    gap: var(--rtc-spacing-xs, 4px);
+    margin-bottom: var(--rtc-spacing-sm, 8px);
+  }
+
+  .scenario-tag {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    padding: 2px var(--rtc-spacing-sm, 8px);
+    border-radius: var(--rtc-border-radius-sm, 4px);
+    font-size: var(--rtc-font-size-xs, 12px);
+    line-height: var(--rtc-line-height-tight, 1.4);
+    background: rgb(var(--rtc-color-primary-rgb) / 0.12);
+    color: var(--rtc-color-primary);
+  }
+
   /* ── Pending glow animation ── */
   @keyframes rtc-user-message-glow {
     0%, 100% {
