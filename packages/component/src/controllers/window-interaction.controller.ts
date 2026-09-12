@@ -72,8 +72,14 @@ export class WindowInteractionController implements ReactiveController {
   private _boundHandleResize: () => void;
   private _boundHandleMotionPreference: (e: MediaQueryListEvent) => void;
 
-  constructor(host: ReactiveControllerHost) {
+  /** 窗口配置 */
+  private _draggable = true;
+  private _resizable = true;
+
+  constructor(host: ReactiveControllerHost, config?: { draggable?: boolean; resizable?: boolean }) {
     this._host = host;
+    this._draggable = config?.draggable ?? true;
+    this._resizable = config?.resizable ?? true;
     this._prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     this._boundHandleResize = this._handleViewportResize.bind(this);
     this._boundHandleMotionPreference = (e: MediaQueryListEvent) => {
@@ -93,6 +99,35 @@ export class WindowInteractionController implements ReactiveController {
 
     // Listen for reduced motion preference changes
     window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', this._boundHandleMotionPreference);
+  }
+
+  /** 更新配置 */
+  setConfig(config: { draggable?: boolean; resizable?: boolean }): void {
+    this._draggable = config.draggable ?? true;
+    this._resizable = config.resizable ?? true;
+
+    // 先销毁现有的 interact 实例
+    if (this._windowElement) {
+      interact(this._windowElement).unset();
+    }
+    if (this._titleBarElement) {
+      interact(this._titleBarElement).unset();
+    }
+
+    // 重新初始化交互（如果已启用）
+    if (this._isEnabled) {
+      this._initInteractions();
+    }
+  }
+
+  /** 是否允许拖拽 */
+  get draggable(): boolean {
+    return this._draggable;
+  }
+
+  /** 是否允许调整大小 */
+  get resizable(): boolean {
+    return this._resizable;
   }
 
   /**
@@ -159,7 +194,7 @@ export class WindowInteractionController implements ReactiveController {
   }
 
   private _initDrag(): void {
-    if (!this._titleBarElement) return;
+    if (!this._titleBarElement || !this._draggable) return;
 
     interact(this._titleBarElement).draggable({
       listeners: {
@@ -173,7 +208,7 @@ export class WindowInteractionController implements ReactiveController {
   }
 
   private _initResize(): void {
-    if (!this._windowElement) return;
+    if (!this._windowElement || !this._resizable) return;
 
     const minSize = this._getMinSize();
     const margin = this._getMargin();

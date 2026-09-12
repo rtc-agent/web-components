@@ -115,6 +115,10 @@ import {renderBubbleLogo} from '../../icons/logo.js';
 
 // Declarative config types
 import type {AgentConfig} from '../../types/agent-config.js';
+import type {WindowConfig} from '../../types/window-config.js';
+import {resolveWindowConfig} from '../../types/window-config.js';
+import type {ActivityBarConfig} from '../../types/activity-bar-config.js';
+import {resolveActivityBarConfig, type ResolvedActivityBarConfig} from '../../types/activity-bar-config.js';
 // Side-effect import: extends HTMLElementEventMap with rtc-agent-ready event
 import '../../types/events.js';
 
@@ -329,6 +333,76 @@ export class RtcAgent extends LitElement {
     private _scenariosURL = '';
 
     /**
+     * 窗口配置（可选）
+     *
+     * 控制窗口的默认状态、尺寸、位置、交互限制等。
+     *
+     * @example
+     * ```ts
+     * agent.windowConfig = {
+     *   defaultMode: 'maximized',
+     *   embedded: true,  // 禁用所有窗口交互
+     *   showMinimize: false,
+     *   showMaximize: false,
+     * };
+     * ```
+     */
+    @property({attribute: false})
+    set windowConfig(value: WindowConfig | null) {
+        this._windowConfig = value;
+        const resolved = resolveWindowConfig(value ?? undefined);
+        this._resolvedWindowConfig = resolved;
+
+        // 更新控制器配置
+        this._windowState.setConfig(resolved);
+        this._interaction.setConfig({
+            draggable: resolved.draggable,
+            resizable: resolved.resizable,
+        });
+
+        // 触发重新渲染
+        this.requestUpdate();
+    }
+    get windowConfig(): WindowConfig | null {
+        return this._windowConfig;
+    }
+    private _windowConfig: WindowConfig | null = null;
+
+    /**
+     * Activity Bar 配置（可选）
+     *
+     * 控制 Activity Bar 中各活动按钮的显隐。
+     * 注意：chat 按钮始终显示，不可隐藏。
+     *
+     * @example
+     * ```ts
+     * agent.activityBarConfig = {
+     *   disabledActivities: ['files', 'settings'],  // 只显示 chat
+     *   defaultActivity: 'chat',
+     * };
+     * ```
+     */
+    @property({attribute: false})
+    set activityBarConfig(value: ActivityBarConfig | null) {
+        this._activityBarConfig = value;
+        this._resolvedActivityBarConfig = resolveActivityBarConfig(value ?? undefined);
+
+        // 如果当前活动被禁用，切换到默认活动
+        const disabled = this._resolvedActivityBarConfig.disabledActivities;
+        if (disabled.includes(this._activity.active as 'files' | 'settings')) {
+            this._activity.actions.setActivity(this._resolvedActivityBarConfig.defaultActivity);
+        }
+
+        // 触发重新渲染
+        this.requestUpdate();
+    }
+    get activityBarConfig(): ActivityBarConfig | null {
+        return this._activityBarConfig;
+    }
+    private _activityBarConfig: ActivityBarConfig | null = null;
+    private _resolvedActivityBarConfig: ResolvedActivityBarConfig = resolveActivityBarConfig();
+
+    /**
      * 加载 scenarios 到 VirtualFS
      *
      * 通过 WorkerBridge 写入 Worker 内的 VirtualFS
@@ -382,14 +456,20 @@ export class RtcAgent extends LitElement {
 
     /* ── Reactive Controllers ── */
 
-    private _windowState = new WindowStateController(this);
+    /** 解析后的窗口配置 */
+    private _resolvedWindowConfig = resolveWindowConfig();
+
+    private _windowState = new WindowStateController(this, this._resolvedWindowConfig);
     private _auth = new AuthController(this);
     private _persistence = new PersistenceController(this, this._auth);
     private _session = new SessionController(this);
     private _message = new MessageController(this);
     private _mode = new ModeController(this);
     private _toolCall = new ToolCallController(this);
-    private _interaction = new WindowInteractionController(this);
+    private _interaction = new WindowInteractionController(this, {
+        draggable: this._resolvedWindowConfig.draggable,
+        resizable: this._resolvedWindowConfig.resizable,
+    });
     private _skill = new SkillController(this, {
         onToast: (message, type) => this._toast.actions.show(message, type as ToastType),
         onConfirmRequest: (requestId, _path, message) => {
@@ -1894,6 +1974,8 @@ export class RtcAgent extends LitElement {
           app-label=${this.appLabel}
           .windowMode=${mode}
           .connectionState=${this._connectionState}
+          ?show-minimize=${this._resolvedWindowConfig.showMinimize}
+          ?show-maximize=${this._resolvedWindowConfig.showMaximize}
         ></rtc-title-bar>
         ${isLoggedIn
           ? this._renderMainLayout(active, sidebarVisible)
@@ -1932,12 +2014,15 @@ export class RtcAgent extends LitElement {
         const isChat = active === 'chat';
         const isSettings = active === 'settings';
         const showSidebar = sidebarVisible && (isFiles || isChat);
+        const disabled = this._resolvedActivityBarConfig.disabledActivities;
 
         return html`
       <div class="main-layout">
         <rtc-activity-bar
           .active=${active}
           theme=${this.theme}
+          ?show-files=${!disabled.includes('files')}
+          ?show-settings=${!disabled.includes('settings')}
         ></rtc-activity-bar>
         ${showSidebar && isFiles
           ? html`<div class="sidebar">

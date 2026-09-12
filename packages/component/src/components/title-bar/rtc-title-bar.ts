@@ -13,7 +13,7 @@
  * @csspart controls - The window controls container
  * @csspart status-dot - The connection status indicator dot
  */
-import {LitElement, html} from 'lit';
+import {LitElement, html, nothing} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
 import {localized, msg} from '@lit/localize';
 import {consume} from '@lit/context';
@@ -36,6 +36,14 @@ export class RtcTitleBar extends LitElement {
 
     @property({type: String, attribute: 'connection-state'})
     connectionState: ConnectionState = 'disconnected';
+
+    /** 是否显示最小化按钮 */
+    @property({type: Boolean, attribute: 'show-minimize'})
+    showMinimize = true;
+
+    /** 是否显示最大化按钮 */
+    @property({type: Boolean, attribute: 'show-maximize'})
+    showMaximize = true;
 
     @consume({context: localeContext, subscribe: true})
     @state()
@@ -92,18 +100,22 @@ export class RtcTitleBar extends LitElement {
           ${this.appLabel}
         </span>
         <div class="window-controls" part="controls">
+          ${this.showMinimize ? html`
           <button
             class="window-btn"
             data-action="minimize"
             aria-label="Minimize"
             @click=${this._handleMinimize}
           >${minimizeIcon}</button>
+          ` : nothing}
+          ${this.showMaximize ? html`
           <button
             class="window-btn"
             data-action=${isMaximized ? 'restore' : 'maximize'}
             aria-label=${isMaximized ? 'Restore' : 'Maximize'}
             @click=${this._handleMaximizeToggle}
           >${isMaximized ? restoreIcon : maximizeIcon}</button>
+          ` : nothing}
         </div>
       </div>
     `;

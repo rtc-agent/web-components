@@ -17,6 +17,7 @@ import type {
 import type {WindowStateContextValue} from '../contexts/window-state.js';
 import {DEFAULT_WINDOW_STATE} from '../contexts/window-state.js';
 import {STORAGE_KEYS} from '../config/auth.js';
+import type {ResolvedWindowConfig} from '../types/window-config.js';
 
 /** 序列化窗口状态时剔除 transient 字段（lastState 在 restore 后无意义） */
 type PersistedWindowState = Omit<WindowState, 'lastState'>;
@@ -27,6 +28,8 @@ export class WindowStateController implements ReactiveController {
     private _state: WindowState = {...DEFAULT_WINDOW_STATE};
     /** Whether state was restored from localStorage (used to skip initial position setup). */
     private _restored = false;
+    /** Window configuration */
+    private _config: ResolvedWindowConfig;
 
     readonly actions: WindowStateActions;
 
@@ -39,8 +42,23 @@ export class WindowStateController implements ReactiveController {
         return this._restored;
     }
 
-    constructor(host: ReactiveControllerHost) {
+    constructor(host: ReactiveControllerHost, config?: ResolvedWindowConfig) {
         this.host = host;
+        this._config = config ?? {
+            defaultMode: 'normal',
+            initialPosition: { x: -1, y: -1 },
+            initialSize: { width: 420, height: 640 },
+            minWidth: 350,
+            minHeight: 520,
+            maxWidth: Infinity,
+            maxHeight: Infinity,
+            draggable: true,
+            resizable: true,
+            showMinimize: true,
+            showMaximize: true,
+            showClose: false,
+            embedded: false,
+        };
         this.host.addController(this);
         this.actions = {
             setMode: (mode: WindowMode) => this._setMode(mode),
@@ -54,6 +72,21 @@ export class WindowStateController implements ReactiveController {
         this._restoreState();
     }
 
+    /** 更新配置 */
+    setConfig(config: ResolvedWindowConfig): void {
+        this._config = config;
+        // 如果没有保存的状态，应用默认模式
+        if (!this._restored) {
+            this._state = {...this._state, mode: config.defaultMode};
+            this.host.requestUpdate();
+        }
+    }
+
+    /** 获取配置 */
+    get config(): ResolvedWindowConfig {
+        return this._config;
+    }
+
     hostConnected() {}
     hostDisconnected() {}
 
@@ -62,7 +95,11 @@ export class WindowStateController implements ReactiveController {
     private _restoreState() {
         try {
             const raw = localStorage.getItem(STORAGE_KEYS.windowState);
-            if (!raw) return;
+            if (!raw) {
+                // 没有保存的状态，应用默认模式
+                this._state = {...this._state, mode: this._config.defaultMode};
+                return;
+            }
             const saved: PersistedWindowState = JSON.parse(raw);
             // Validate required fields
             if (
@@ -76,9 +113,13 @@ export class WindowStateController implements ReactiveController {
                 this._restored = true;
                 // Clamp to current viewport — devtools / zoom may have changed
                 this._clampToViewport();
+            } else {
+                // 保存的状态无效，应用默认模式
+                this._state = {...this._state, mode: this._config.defaultMode};
             }
         } catch {
             // localStorage may be unavailable or data corrupted
+            this._state = {...this._state, mode: this._config.defaultMode};
         }
     }
 

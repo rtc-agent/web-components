@@ -5,6 +5,121 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Task Manager</title>
     <link rel="stylesheet" href="./styles/main.css">
+    <style>
+        /* Debug Panel Styles */
+        .debug-panel {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.9);
+            color: #fff;
+            padding: 16px;
+            border-radius: 8px;
+            z-index: 10000;
+            max-width: 320px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 13px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .debug-panel h3 {
+            margin: 0 0 12px 0;
+            font-size: 14px;
+            color: #4ade80;
+            border-bottom: 1px solid #333;
+            padding-bottom: 8px;
+        }
+
+        .debug-panel h4 {
+            margin: 12px 0 8px 0;
+            font-size: 12px;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .debug-panel h4:first-of-type {
+            margin-top: 0;
+        }
+
+        .debug-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+
+        .debug-grid-single {
+            grid-template-columns: 1fr;
+        }
+
+        .debug-btn {
+            padding: 8px 12px;
+            border: 1px solid #333;
+            background: #1a1a1a;
+            color: #fff;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.15s ease;
+            text-align: left;
+        }
+
+        .debug-btn:hover {
+            background: #2a2a2a;
+            border-color: #4ade80;
+        }
+
+        .debug-btn.active {
+            background: #4ade80;
+            color: #000;
+            border-color: #4ade80;
+        }
+
+        .debug-btn span {
+            display: block;
+            font-size: 10px;
+            color: #666;
+            margin-top: 2px;
+        }
+
+        .debug-btn.active span {
+            color: #333;
+        }
+
+        .debug-status {
+            margin-top: 12px;
+            padding: 8px;
+            background: #1a1a1a;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 11px;
+            color: #94a3b8;
+            border: 1px solid #333;
+        }
+
+        .debug-status code {
+            color: #4ade80;
+        }
+
+        .debug-toggle {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: #4ade80;
+            color: #000;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            z-index: 10001;
+        }
+
+        .debug-panel.hidden {
+            display: none;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -55,9 +170,246 @@
     <!-- Toast -->
     <div class="toast" id="toast"></div>
 
+    <!-- Debug Panel Toggle -->
+    <button class="debug-toggle" id="debugToggle" onclick="toggleDebugPanel()">🔧 Debug</button>
+
+    <!-- Debug Panel -->
+    <div class="debug-panel hidden" id="debugPanel">
+        <h3>🔧 Window Config Debug</h3>
+
+        <h4>Default Mode</h4>
+        <div class="debug-grid">
+            <button class="debug-btn active" data-config="mode-normal" onclick="setWindowMode('normal')">
+                Normal
+                <span>浮动窗口</span>
+            </button>
+            <button class="debug-btn" data-config="mode-maximized" onclick="setWindowMode('maximized')">
+                Maximized
+                <span>全屏</span>
+            </button>
+            <button class="debug-btn" data-config="mode-minimized" onclick="setWindowMode('minimized')">
+                Minimized
+                <span>最小化</span>
+            </button>
+        </div>
+
+        <h4>Presets</h4>
+        <div class="debug-grid debug-grid-single">
+            <button class="debug-btn" data-config="preset-embedded" onclick="applyPreset('embedded')">
+                📌 Embedded Mode
+                <span>embedded: true (禁用所有交互 + 最大化)</span>
+            </button>
+            <button class="debug-btn" data-config="preset-no-minimize" onclick="applyPreset('no-minimize')">
+                🚫 No Minimize
+                <span>showMinimize: false, defaultMode: maximized</span>
+            </button>
+            <button class="debug-btn" data-config="preset-fixed" onclick="applyPreset('fixed')">
+                📍 Fixed Position
+                <span>draggable: false, resizable: false</span>
+            </button>
+            <button class="debug-btn" data-config="preset-default" onclick="applyPreset('default')">
+                🔄 Reset to Default
+                <span>恢复默认配置</span>
+            </button>
+        </div>
+
+        <h4>Buttons</h4>
+        <div class="debug-grid">
+            <button class="debug-btn active" data-config="btn-minimize" onclick="toggleButton('showMinimize')">
+                Show Minimize
+            </button>
+            <button class="debug-btn active" data-config="btn-maximize" onclick="toggleButton('showMaximize')">
+                Show Maximize
+            </button>
+        </div>
+
+        <h4>Interaction</h4>
+        <div class="debug-grid">
+            <button class="debug-btn active" data-config="drag" onclick="toggleInteraction('draggable')">
+                Draggable
+            </button>
+            <button class="debug-btn active" data-config="resize" onclick="toggleInteraction('resizable')">
+                Resizable
+            </button>
+        </div>
+
+        <h4>Activity Bar</h4>
+        <div class="debug-grid">
+            <button class="debug-btn active" data-config="btn-files" onclick="toggleActivityButton('files')">
+                Files
+            </button>
+            <button class="debug-btn active" data-config="btn-settings" onclick="toggleActivityButton('settings')">
+                Settings
+            </button>
+        </div>
+
+        <div class="debug-status" id="debugStatus">
+            Current: <code>default</code>
+        </div>
+    </div>
+
     <!-- RTC Agent 悬浮聊天窗口 -->
     <rtc-agent server-url="http://localhost:28080"></rtc-agent>
 
     <script type="module" src="./src/main.ts"></script>
+    <script>
+        // Debug Panel Logic
+        let currentConfig = {
+            defaultMode: 'normal',
+            showMinimize: true,
+            showMaximize: true,
+            draggable: true,
+            resizable: true,
+            embedded: false,
+        };
+
+        let currentActivityBarConfig = {
+            disabledActivities: [],
+        };
+
+        function toggleDebugPanel() {
+            const panel = document.getElementById('debugPanel');
+            panel.classList.toggle('hidden');
+        }
+
+        function setWindowMode(mode) {
+            currentConfig.defaultMode = mode;
+            currentConfig.embedded = false;
+            applyConfig();
+            updateButtonStates();
+        }
+
+        function applyPreset(preset) {
+            switch (preset) {
+                case 'embedded':
+                    currentConfig = {
+                        defaultMode: 'maximized',
+                        showMinimize: false,
+                        showMaximize: false,
+                        draggable: false,
+                        resizable: false,
+                        embedded: true,
+                    };
+                    break;
+                case 'no-minimize':
+                    currentConfig = {
+                        defaultMode: 'maximized',
+                        showMinimize: false,
+                        showMaximize: true,
+                        draggable: true,
+                        resizable: true,
+                        embedded: false,
+                    };
+                    break;
+                case 'fixed':
+                    currentConfig = {
+                        defaultMode: 'normal',
+                        showMinimize: true,
+                        showMaximize: true,
+                        draggable: false,
+                        resizable: false,
+                        embedded: false,
+                    };
+                    break;
+                case 'default':
+                    currentConfig = {
+                        defaultMode: 'normal',
+                        showMinimize: true,
+                        showMaximize: true,
+                        draggable: true,
+                        resizable: true,
+                        embedded: false,
+                    };
+                    break;
+            }
+            applyConfig();
+            updateButtonStates();
+        }
+
+        function toggleButton(button) {
+            currentConfig[button] = !currentConfig[button];
+            applyConfig();
+            updateButtonStates();
+        }
+
+        function toggleInteraction(interaction) {
+            currentConfig[interaction] = !currentConfig[interaction];
+            applyConfig();
+            updateButtonStates();
+        }
+
+        function toggleActivityButton(activity) {
+            const idx = currentActivityBarConfig.disabledActivities.indexOf(activity);
+            if (idx >= 0) {
+                currentActivityBarConfig.disabledActivities.splice(idx, 1);
+            } else {
+                currentActivityBarConfig.disabledActivities.push(activity);
+            }
+            applyActivityBarConfig();
+            updateButtonStates();
+        }
+
+        function applyConfig() {
+            const agent = document.querySelector('rtc-agent');
+            if (agent) {
+                agent.windowConfig = { ...currentConfig };
+                updateStatus();
+            }
+        }
+
+        function applyActivityBarConfig() {
+            const agent = document.querySelector('rtc-agent');
+            if (agent) {
+                agent.activityBarConfig = { ...currentActivityBarConfig };
+                updateStatus();
+            }
+        }
+
+        function updateButtonStates() {
+            // Mode buttons
+            document.querySelectorAll('[data-config^="mode-"]').forEach(btn => {
+                const mode = btn.dataset.config.replace('mode-', '');
+                btn.classList.toggle('active', mode === currentConfig.defaultMode);
+            });
+
+            // Preset buttons
+            document.querySelectorAll('[data-config^="preset-"]').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            if (currentConfig.embedded) {
+                document.querySelector('[data-config="preset-embedded"]')?.classList.add('active');
+            }
+
+            // Button toggles
+            document.querySelector('[data-config="btn-minimize"]')?.classList.toggle('active', currentConfig.showMinimize);
+            document.querySelector('[data-config="btn-maximize"]')?.classList.toggle('active', currentConfig.showMaximize);
+
+            // Interaction toggles
+            document.querySelector('[data-config="drag"]')?.classList.toggle('active', currentConfig.draggable);
+            document.querySelector('[data-config="resize"]')?.classList.toggle('active', currentConfig.resizable);
+
+            // Activity Bar toggles
+            document.querySelector('[data-config="btn-files"]')?.classList.toggle('active', !currentActivityBarConfig.disabledActivities.includes('files'));
+            document.querySelector('[data-config="btn-settings"]')?.classList.toggle('active', !currentActivityBarConfig.disabledActivities.includes('settings'));
+        }
+
+        function updateStatus() {
+            const status = document.getElementById('debugStatus');
+            const parts = [];
+            if (currentConfig.embedded) parts.push('embedded');
+            parts.push(`mode: ${currentConfig.defaultMode}`);
+            if (!currentConfig.showMinimize) parts.push('no-minimize');
+            if (!currentConfig.showMaximize) parts.push('no-maximize');
+            if (!currentConfig.draggable) parts.push('no-drag');
+            if (!currentConfig.resizable) parts.push('no-resize');
+            if (currentActivityBarConfig.disabledActivities.length > 0) {
+                parts.push(`no-${currentActivityBarConfig.disabledActivities.join(', no-')}`);
+            }
+            status.innerHTML = `Current: <code>${parts.join(', ')}</code>`;
+        }
+
+        // Initialize
+        updateStatus();
+    </script>
 </body>
 </html>

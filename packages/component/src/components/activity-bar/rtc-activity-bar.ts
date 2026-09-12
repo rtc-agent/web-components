@@ -14,7 +14,7 @@
  * ## 样式
  * 使用项目 design tokens（--rtc-color-*），支持亮色/暗色主题。
  */
-import {LitElement, html} from 'lit';
+import {LitElement, html, nothing} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
 import {localized, msg} from '@lit/localize';
 import {consume} from '@lit/context';
@@ -38,6 +38,14 @@ export class RtcActivityBar extends LitElement {
     /** 当前活动 */
     @property({type: String, reflect: true})
     active: Activity = 'chat';
+
+    /** 是否显示 Files 按钮 */
+    @property({type: Boolean, attribute: 'show-files'})
+    showFiles = true;
+
+    /** 是否显示 Settings 按钮 */
+    @property({type: Boolean, attribute: 'show-settings'})
+    showSettings = true;
 
     @consume({context: localeContext, subscribe: true})
     @state()
@@ -150,6 +158,7 @@ export class RtcActivityBar extends LitElement {
                 @click=${() => this._handleClick('chat')}
                 @keydown=${(e: KeyboardEvent) => this._handleKeydown(e, 'chat')}
             >${chatIcon}</div>
+            ${this.showFiles ? html`
             <div
                     class="activity-icon ${this.active === 'files' ? 'active' : ''}"
                     data-activity="files"
@@ -161,11 +170,13 @@ export class RtcActivityBar extends LitElement {
                     @click=${() => this._handleClick('files')}
                     @keydown=${(e: KeyboardEvent) => this._handleKeydown(e, 'files')}
             >${filesIcon}</div>
+            ` : nothing}
 
             <!-- Spacer 将设置推到底部 -->
             <div class="activity-spacer"></div>
 
             <!-- 底部活动 -->
+            ${this.showSettings ? html`
             <div
                 class="activity-icon ${this.active === 'settings' ? 'active' : ''}"
                 data-activity="settings"
@@ -177,6 +188,7 @@ export class RtcActivityBar extends LitElement {
                 @click=${() => this._handleClick('settings')}
                 @keydown=${(e: KeyboardEvent) => this._handleKeydown(e, 'settings')}
             >${gearIcon}</div>
+            ` : nothing}
         `;
     }
 }

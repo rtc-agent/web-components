@@ -115,21 +115,19 @@ export class RtcMessageList extends LitElement {
     private _showLoadMoreBtn = false;
 
     /**
-     * User intent to follow new content.
+     * Whether the user intends to follow new content ("follow mode").
      *
-     * Set by `_onScroll` based on `distanceFromBottom`:
-     * - `distanceFromBottom < 60` → true (user is in the "follow zone")
-     * - `distanceFromBottom ≥ 60` → false (user scrolled up to read history)
+     * This is a **mutable flag** representing user intent, NOT scroll position.
+     * It is set by:
+     * - `_onScroll` — when user scrolls to bottom → true, scrolls up → false
+     * - `_handleNewBtnClick` — user explicitly clicks "New messages" → true
+     * - Session switch — user expects to see latest messages → true
      *
-     * The 60px threshold matches the "new messages" button visibility, creating
-     * a consistent "follow zone": when the button is hidden, auto-scroll is active.
+     * It is NOT set by `_scrollToBottom()` — system actions don't change intent.
+     * This separation prevents async code from overwriting user intent.
      *
-     * With `overflow-anchor: none`, content growth does NOT trigger scroll events,
-     * so `_shouldAutoScroll` only changes on: (a) user scrolls, (b) programmatic
-     * `scrollTo()` (which lands at bottom → true).
-     *
-     * Consumed by: `updated()` (new message growth decision), ResizeObserver
-     * (async content rendering), `_onVisibilityChange` (tab re-focus).
+     * Consumed by: `updated()`, `_scheduleScroll()` callback, ResizeObserver,
+     * `_onVisibilityChange`.
      */
     private _shouldAutoScroll = true;
 
@@ -227,14 +225,14 @@ export class RtcMessageList extends LitElement {
         const density = this._settingsCtx.state.chat.density;
         this.setAttribute('data-density', density);
 
-        // --- Session switch: reset follow intent ---
+        // --- Session switch: enable follow mode and scroll to bottom ---
         // When the user opens/switches to a different session, they expect to see
-        // the latest messages. Reset follow intent so subsequent message changes
-        // will auto-scroll.
+        // the latest messages. Enable follow mode and scroll to bottom.
         const currSessionId = this._sessionCtx.state.currentSessionId;
         if (changed.has('_sessionCtx') && currSessionId !== this._prevSessionId) {
             this._prevSessionId = currSessionId;
             this._shouldAutoScroll = true;
+            this._scrollToBottom();
             this._userAtBottom = true;
             this._showNewBtn = false;
         }
@@ -300,13 +298,16 @@ export class RtcMessageList extends LitElement {
             }
 
             if (version !== this._scrollVersion) return;
+            // Re-check follow intent before scrolling — user may have scrolled
+            // up while we were waiting for updateComplete.
+            if (!this._shouldAutoScroll) return;
             this._scrollToBottom();
         });
     }
 
     private _scrollToBottom() {
         if (!this._scrollEl) return;
-        // Increment guard counter so _onScroll doesn't override _shouldAutoScroll
+        // Increment guard counter so _onScroll doesn't override _userAtBottom
         // with a potentially incorrect value due to sub-pixel rounding.
         this._programmaticScrollCount++;
         this._scrollEl.scrollTo({top: this._scrollEl.scrollHeight, behavior: 'auto'});
@@ -314,8 +315,9 @@ export class RtcMessageList extends LitElement {
         // scrollTo({behavior: 'auto'}) typically fires scroll events synchronously,
         // but some browsers may defer them. 50ms covers layout/scroll batching.
         window.setTimeout(() => { this._programmaticScrollCount--; }, 50);
-        // Sync intent state: programmatic scroll means we're following.
-        this._shouldAutoScroll = true;
+        // NOTE: _scrollToBottom() does NOT set _shouldAutoScroll.
+        // System actions (auto-scroll) should not change user intent.
+        // Only user actions (_onScroll, _handleNewBtnClick, session switch) set it.
         this._userAtBottom = true;
         this._showNewBtn = false;
     }
@@ -331,23 +333,15 @@ export class RtcMessageList extends LitElement {
         this._userAtBottom = atBottom;
         this._showNewBtn = !atBottom;
 
-        // Auto-scroll intent: only update on USER-initiated scrolls.
+        // Follow intent: only update on USER-initiated scrolls.
         // Programmatic scrolls (from _scrollToBottom) increment a guard counter
         // to prevent sub-pixel rounding errors from incorrectly disabling follow intent.
         //
         // With `overflow-anchor: none` on the scroll container, content growth
-        // does NOT change scrollTop, so no scroll event fires during async renders
-        // (Markdown, thinking expansion, tool-call cards). This means _onScroll
-        // only fires for: (1) user-initiated scrolls, (2) programmatic scrollTo().
-        //
-        // Threshold: 60px (same as button visibility). This creates a "follow zone":
-        // - User scrolls up beyond 60px → intent disabled (reading history)
-        // - User scrolls back within 60px → intent re-enabled (ready to follow)
-        // - Programmatic scrolls → intent always enabled (guard counter active)
-        // The generous threshold accounts for sub-pixel rounding and users who
-        // scroll "close to" the bottom without hitting the exact pixel.
+        // does NOT change scrollTop, so no scroll event fires during async renders.
+        // _onScroll only fires for: (1) user-initiated scrolls, (2) programmatic scrollTo().
         if (this._programmaticScrollCount === 0) {
-            this._shouldAutoScroll = distanceFromBottom < 60;
+            this._shouldAutoScroll = atBottom;
         }
 
         // Show/hide load-more button based on scroll position
@@ -458,6 +452,7 @@ export class RtcMessageList extends LitElement {
             // Decrement counter after animation completes
             window.setTimeout(() => { this._programmaticScrollCount--; }, 500);
         }
+        // User explicitly clicked "New messages" → enable follow mode.
         this._shouldAutoScroll = true;
         this._userAtBottom = true;
         this._showNewBtn = false;
