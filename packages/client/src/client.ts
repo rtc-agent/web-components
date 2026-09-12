@@ -111,6 +111,13 @@ export class RTCAgentClient implements IRTCAgentClient {
     });
     this.centrifuge.on('disconnected', (ctx) => {
       console.log('[RTCAgentClient] centrifuge disconnected, reason:', ctx?.reason);
+
+      // 检测服务端拒绝 token 的情况（如 "invalid token"）
+      // 即使 JWT 未过期，也需要触发刷新机制
+      if (ctx?.reason === 'invalid token' && this.options.onTokenExpired) {
+        this.handleInvalidToken();
+      }
+
       this.setConnectionState('disconnected', ctx?.reason);
     });
     this.centrifuge.on('error', (ctx) => {
@@ -389,6 +396,44 @@ export class RTCAgentClient implements IRTCAgentClient {
     const event: ConnectionStateEvent = { state, reason };
     this.emit('connection', event);
     this.options.onConnectionStateChange?.(event);
+  }
+
+  /**
+   * 处理服务端拒绝 token 的情况（如 "invalid token"）。
+   *
+   * 即使 JWT 未过期，服务端也可能因为以下原因拒绝 token：
+   * - 服务器重启导致 JWT secret 变化
+   * - Token 被服务端主动失效
+   * - Token 格式或签名问题
+   *
+   * 此方法会调用 onTokenExpired 回调，根据返回的动作决定是否重新连接。
+   */
+  private async handleInvalidToken(): Promise<void> {
+    if (!this.options.onTokenExpired) {
+      console.warn('[RTCAgentClient] invalid token but no onTokenExpired callback provided');
+      return;
+    }
+
+    try {
+      const action: TokenExpiredAction = await this.options.onTokenExpired();
+      if (action === 'relogin') {
+        // 需要重新登录，停止重连
+        this.shouldReconnect = false;
+        this.centrifuge?.disconnect();
+        this.setConnectionState('disconnected', 'token expired, relogin required');
+      } else {
+        // action === 'refresh'，已刷新 token，尝试重新连接
+        console.log('[RTCAgentClient] token refreshed, attempting to reconnect');
+        // 延迟重连，避免立即重试导致的快速循环
+        setTimeout(() => {
+          if (this.shouldReconnect) {
+            this.reconnect();
+          }
+        }, 1000);
+      }
+    } catch (err) {
+      console.error('[RTCAgentClient] handleInvalidToken failed:', err);
+    }
   }
 
   /**

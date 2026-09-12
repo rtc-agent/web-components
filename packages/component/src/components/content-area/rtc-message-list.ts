@@ -330,18 +330,19 @@ export class RtcMessageList extends LitElement {
         // Button visibility: generous threshold (60px)
         // Shows "new messages" button early so user can click before reaching absolute bottom
         const atBottom = distanceFromBottom < 60;
-        this._userAtBottom = atBottom;
-        this._showNewBtn = !atBottom;
 
-        // Follow intent: only update on USER-initiated scrolls.
-        // Programmatic scrolls (from _scrollToBottom) increment a guard counter
-        // to prevent sub-pixel rounding errors from incorrectly disabling follow intent.
-        //
-        // With `overflow-anchor: none` on the scroll container, content growth
-        // does NOT change scrollTop, so no scroll event fires during async renders.
-        // _onScroll only fires for: (1) user-initiated scrolls, (2) programmatic scrollTo().
+        // Follow intent: always update based on scroll position.
+        // The 60px threshold is large enough to be immune to sub-pixel rounding,
+        // so we don't need the _programmaticScrollCount guard here.
+        // This ensures user scroll-up is immediately respected, even during
+        // streaming when programmatic scrolls happen frequently.
+        this._shouldAutoScroll = atBottom;
+
+        // UI state (_userAtBottom, _showNewBtn): guarded by _programmaticScrollCount
+        // to prevent sub-pixel rounding from causing flicker during programmatic scrolls.
         if (this._programmaticScrollCount === 0) {
-            this._shouldAutoScroll = atBottom;
+            this._userAtBottom = atBottom;
+            this._showNewBtn = !atBottom;
         }
 
         // Show/hide load-more button based on scroll position

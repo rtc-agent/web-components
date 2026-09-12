@@ -620,55 +620,43 @@ export class RtcInputArea extends LitElement {
             const index = this._selectedScenarios.findIndex(s => s.filepath === scenario.filepath);
             if (index >= 0) {
                 this._selectedScenarios = this._selectedScenarios.filter((_, i) => i !== index);
-                this._removeScenarioTag(scenario.title);
             }
         } else {
             // 选中
             this._selectedScenarios = [...this._selectedScenarios, scenario];
-            this._insertScenarioTag(scenario.title);
         }
+
+        // 选中/取消选中后自动关闭 panel
+        this._closeScenarioPanel();
     }
 
     private _handleScenarioPanelClose() {
         this._closeScenarioPanel();
     }
 
-    private _insertScenarioTag(title: string) {
-        const textarea = this._textarea;
-        if (!textarea) return;
-
-        const tag = `#${title} `;
-        const cursorPos = textarea.selectionStart;
-        const before = this._value.substring(0, cursorPos);
-        const after = this._value.substring(cursorPos);
-
-        this._value = before + tag + after;
-        textarea.value = this._value;
-
-        // 移动光标到标签后
-        const newCursorPos = cursorPos + tag.length;
-        textarea.setSelectionRange(newCursorPos, newCursorPos);
-        textarea.focus();
-    }
-
-    private _removeScenarioTag(title: string) {
-        const tag = `#${title} `;
-        this._value = this._value.replace(tag, '');
-        if (this._textarea) {
-            this._textarea.value = this._value;
-        }
-    }
-
     private _onDocClick = (e: MouseEvent) => {
         const path = e.composedPath();
-        if (!path.includes(this)) {
-            if (this._showModePanel) {
+
+        // Mode panel: 点击 mode panel 外部时关闭
+        if (this._showModePanel) {
+            const modePanel = this._modePanel;
+            if (modePanel && !path.includes(modePanel)) {
                 this._closeModePanel();
             }
-            if (this._showCommandPanel) {
+        }
+
+        // Command panel: 点击 command panel 外部时关闭
+        if (this._showCommandPanel) {
+            const commandPanel = this._commandPanel;
+            if (commandPanel && !path.includes(commandPanel)) {
                 this._closeCommandPanel();
             }
-            if (this._showScenarioPanel) {
+        }
+
+        // Scenario panel: 点击 scenario panel 外部时关闭
+        if (this._showScenarioPanel) {
+            const scenarioPanel = this._scenarioPanel;
+            if (scenarioPanel && !path.includes(scenarioPanel)) {
                 this._closeScenarioPanel();
             }
         }
@@ -759,6 +747,7 @@ export class RtcInputArea extends LitElement {
         ` : ''}
         ${this._showScenarioPanel ? html`
           <rtc-scenario-panel
+            .initialSelectedPaths=${this._selectedScenarios.map(s => s.filepath)}
             @rtc-scenario-selected=${this._handleScenarioSelected}
             @rtc-scenario-panel-close=${this._handleScenarioPanelClose}
           ></rtc-scenario-panel>

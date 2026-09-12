@@ -10,7 +10,7 @@
  * @csspart list - The scenario list container
  */
 import {LitElement, html} from 'lit';
-import {customElement, state} from 'lit/decorators.js';
+import {customElement, state, property} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
 import {localized, msg} from '@lit/localize';
 import {styles} from './rtc-scenario-panel.styles.js';
@@ -36,6 +36,10 @@ export class RtcScenarioPanel extends LitElement {
     @state()
     private _selectedPaths: Set<string> = new Set();
 
+    /** 外部传入的已选中路径列表，用于初始化选中状态 */
+    @property({type: Array})
+    initialSelectedPaths: string[] = [];
+
     @state()
     private _loading = true;
 
@@ -48,6 +52,13 @@ export class RtcScenarioPanel extends LitElement {
     disconnectedCallback() {
         super.disconnectedCallback();
         this.removeEventListener('keydown', this._onKeydown);
+    }
+
+    updated(changed: Map<string, unknown>) {
+        super.updated(changed);
+        if (changed.has('initialSelectedPaths')) {
+            this._selectedPaths = new Set(this.initialSelectedPaths);
+        }
     }
 
     private _onKeydown = (e: KeyboardEvent) => {
