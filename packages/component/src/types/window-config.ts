@@ -6,6 +6,29 @@
  */
 
 /**
+ * Bubble 位置配置
+ *
+ * 使用数学笛卡尔坐标系：
+ * - 原点在宿主应用的某个角（由 corner 决定）
+ * - x 轴：右正左负
+ * - y 轴：上正下负（数学坐标系，非屏幕坐标系）
+ *
+ * 象限分布：
+ * - top-left: 第四象限 (x>0, y<0)
+ * - top-right: 第三象限 (x<0, y<0)
+ * - bottom-left: 第一象限 (x>0, y>0)
+ * - bottom-right: 第二象限 (x<0, y>0)
+ */
+export type BubbleCorner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+
+export interface BubblePosition {
+    /** 坐标系原点在宿主应用的哪个角 */
+    corner: BubbleCorner;
+    /** 相对于原点的偏移（数学笛卡尔坐标） */
+    offset: { x: number; y: number };
+}
+
+/**
  * 窗口配置
  *
  * 通过 <rtc-agent>.windowConfig 属性设置。
@@ -69,6 +92,16 @@ export interface WindowConfig {
      * - defaultMode: 'maximized'
      */
     embedded?: boolean;
+
+    // ── Bubble 位置 ──────────────────────────────────────
+
+    /**
+     * 最小化 bubble 的位置配置
+     *
+     * 使用数学笛卡尔坐标系，原点在宿主应用的某个角。
+     * 默认值：{ corner: 'bottom-right', offset: { x: -20, y: 20 } }
+     */
+    bubblePosition?: BubblePosition;
 }
 
 /**
@@ -88,6 +121,7 @@ export interface ResolvedWindowConfig {
     showMaximize: boolean;
     showClose: boolean;
     embedded: boolean;
+    bubblePosition: BubblePosition;
 }
 
 /**
@@ -107,6 +141,7 @@ export const DEFAULT_WINDOW_CONFIG: ResolvedWindowConfig = {
     showMaximize: true,
     showClose: false,
     embedded: false,
+    bubblePosition: { corner: 'bottom-right', offset: { x: -20, y: 20 } },  // 右下角向内偏移 20px
 };
 
 /**
@@ -128,6 +163,7 @@ export function resolveWindowConfig(config?: WindowConfig): ResolvedWindowConfig
             showMaximize: false,
             showClose: false,
             defaultMode: config.defaultMode ?? 'maximized',
+            bubblePosition: config.bubblePosition ?? DEFAULT_WINDOW_CONFIG.bubblePosition,
         };
     }
 
@@ -136,5 +172,6 @@ export function resolveWindowConfig(config?: WindowConfig): ResolvedWindowConfig
         ...config,
         initialPosition: config.initialPosition ?? DEFAULT_WINDOW_CONFIG.initialPosition,
         initialSize: config.initialSize ?? DEFAULT_WINDOW_CONFIG.initialSize,
+        bubblePosition: config.bubblePosition ?? DEFAULT_WINDOW_CONFIG.bubblePosition,
     };
 }

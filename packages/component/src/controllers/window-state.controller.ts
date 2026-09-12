@@ -30,6 +30,8 @@ export class WindowStateController implements ReactiveController {
     private _restored = false;
     /** Window configuration */
     private _config: ResolvedWindowConfig;
+    /** Callback when viewport is too small for the window (triggers auto-minimize). */
+    onViewportTooSmall?: () => void;
 
     readonly actions: WindowStateActions;
 
@@ -58,6 +60,7 @@ export class WindowStateController implements ReactiveController {
             showMaximize: true,
             showClose: false,
             embedded: false,
+            bubblePosition: { corner: 'bottom-right', offset: { x: -20, y: 20 } },
         };
         this.host.addController(this);
         this.actions = {
@@ -87,8 +90,77 @@ export class WindowStateController implements ReactiveController {
         return this._config;
     }
 
-    hostConnected() {}
-    hostDisconnected() {}
+    hostConnected() {
+        // Listen for viewport resize (e.g. DevTools open/close/resize)
+        window.addEventListener('resize', this._boundOnViewportResize);
+    }
+    hostDisconnected() {
+        window.removeEventListener('resize', this._boundOnViewportResize);
+    }
+
+    /** Viewport resize handler — bound once in constructor. */
+    private _boundOnViewportResize = () => this._handleViewportResize();
+
+    /**
+     * Handle viewport resize (e.g. DevTools open/close/resize).
+     *
+     * - minimized: recalculate bubble position from bubblePosition config + new viewport size
+     * - normal: clamp position to keep window visible; auto-minimize if viewport too small
+     * - maximized: no action needed (CSS inset:0 handles it)
+     */
+    private _handleViewportResize(): void {
+        const { mode } = this._state;
+
+        if (mode === 'maximized') return; // CSS handles it
+
+        if (mode === 'minimized') {
+            // Just trigger a re-render — applyGeometry will recalculate bubble position
+            // from bubblePosition config using the new viewport dimensions
+            this.host.requestUpdate();
+            return;
+        }
+
+        // Normal mode: check if viewport is too small for the window
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const { position, size } = this._state;
+        const margin = 20;
+
+        if (vw < size.width + 2 * margin || vh < size.height + 2 * margin) {
+            this.onViewportTooSmall?.();
+            return;
+        }
+
+        // Clamp position to keep window visible
+        let x = position.x;
+        let y = position.y;
+        let needsUpdate = false;
+
+        // Right edge
+        if (x + size.width > vw - margin) {
+            x = vw - size.width - margin;
+            needsUpdate = true;
+        }
+        // Bottom edge
+        if (y + size.height > vh - margin) {
+            y = vh - size.height - margin;
+            needsUpdate = true;
+        }
+        // Left edge
+        if (x < margin) {
+            x = margin;
+            needsUpdate = true;
+        }
+        // Top edge
+        if (y < margin) {
+            y = margin;
+            needsUpdate = true;
+        }
+
+        if (needsUpdate) {
+            this._updateState({ position: { x, y } });
+        }
+    }
 
     /* ── Persistence ── */
 
@@ -163,14 +235,67 @@ export class WindowStateController implements ReactiveController {
 
     private _setMode(mode: WindowMode) {
         const current = this._state;
-        const lastState =
-            mode !== 'normal'
-                ? {position: {...current.position}, size: {...current.size}}
-                : current.lastState;
+        let lastState = current.lastState;
+
+        if (mode === 'normal' && !lastState) {
+            // First restore from minimized: calculate window position based on bubblePosition.corner
+            // This determines the "expand direction" based on the configured corner
+            lastState = this._calculateInitialWindowState();
+        } else if (mode !== 'normal') {
+            // Save current state before minimizing/maximizing
+            lastState = {position: {...current.position}, size: {...current.size}};
+        }
 
         this._state = {...current, mode, lastState};
         this._persistState();
         this.host.requestUpdate();
+    }
+
+    /**
+     * Calculate initial window state based on bubblePosition.corner
+     *
+     * The corner determines which corner of the window aligns with the bubble position:
+     * - bottom-right: window's bottom-right aligns with bubble (expand to upper-left)
+     * - top-left: window's top-left aligns with bubble (expand to lower-right)
+     * - etc.
+     */
+    private _calculateInitialWindowState(): { position: { x: number; y: number }; size: { width: number; height: number } } {
+        const { corner, offset } = this._config.bubblePosition;
+        const { width, height } = this._config.initialSize;
+        const viewport = { width: window.innerWidth, height: window.innerHeight };
+
+        let x: number;
+        let y: number;
+
+        // Calculate window position based on corner
+        // The window's corner (specified by bubblePosition.corner) should align with the bubble position
+        switch (corner) {
+            case 'top-left':
+                // Window's top-left corner at bubble position
+                x = offset.x;
+                y = -offset.y;
+                break;
+            case 'top-right':
+                // Window's top-right corner at bubble position
+                x = viewport.width + offset.x - width;
+                y = -offset.y;
+                break;
+            case 'bottom-left':
+                // Window's bottom-left corner at bubble position
+                x = offset.x;
+                y = viewport.height - offset.y - height;
+                break;
+            case 'bottom-right':
+                // Window's bottom-right corner at bubble position
+                x = viewport.width + offset.x - width;
+                y = viewport.height - offset.y - height;
+                break;
+        }
+
+        return {
+            position: { x, y },
+            size: { width, height },
+        };
     }
 
     private _updateState(partial: Partial<WindowState>) {
@@ -206,19 +331,48 @@ export class WindowStateController implements ReactiveController {
             el.style.height = '';
             el.style.minWidth = '';
             el.style.minHeight = '';
-            // Position bubble at the bottom-right corner of the ORIGINAL window position
-            // (not the viewport's bottom-right)
-            const margin = 20;
+
+            // Calculate bubble position using bubblePosition config
             const bubbleSize = parseInt(getComputedStyle(el).getPropertyValue('--rtc-bubble-size')) || 40;
-            // Use lastState to get the window position before minimization
-            const lastState = this._state.lastState;
-            const windowX = lastState?.position.x ?? position.x;
-            const windowY = lastState?.position.y ?? position.y;
-            const windowWidth = lastState?.size.width ?? size.width;
-            const windowHeight = lastState?.size.height ?? size.height;
-            // Calculate bottom-right corner of the original window
-            const bubbleX = windowX + windowWidth - bubbleSize - margin;
-            const bubbleY = windowY + windowHeight - bubbleSize - margin;
+            const viewport = { width: window.innerWidth, height: window.innerHeight };
+            const { corner, offset } = this._config.bubblePosition;
+
+            // Calculate bubble's top-left corner position based on the Cartesian coordinate system
+            // The offset represents the position of the bubble's corner closest to the origin
+            let bubbleX: number;
+            let bubbleY: number;
+
+            switch (corner) {
+                case 'top-left':
+                    // Origin at top-left (0, 0)
+                    // Nearest corner of bubble is top-left
+                    // offset: x>0 (right), y<0 (down in Cartesian, but we convert)
+                    bubbleX = offset.x;
+                    bubbleY = -offset.y;
+                    break;
+                case 'top-right':
+                    // Origin at top-right (viewport.width, 0)
+                    // Nearest corner of bubble is top-right
+                    // offset: x<0 (left), y<0 (down in Cartesian)
+                    bubbleX = viewport.width + offset.x - bubbleSize;
+                    bubbleY = -offset.y;
+                    break;
+                case 'bottom-left':
+                    // Origin at bottom-left (0, viewport.height)
+                    // Nearest corner of bubble is bottom-left
+                    // offset: x>0 (right), y>0 (up in Cartesian)
+                    bubbleX = offset.x;
+                    bubbleY = viewport.height - offset.y - bubbleSize;
+                    break;
+                case 'bottom-right':
+                    // Origin at bottom-right (viewport.width, viewport.height)
+                    // Nearest corner of bubble is bottom-right
+                    // offset: x<0 (left), y>0 (up in Cartesian)
+                    bubbleX = viewport.width + offset.x - bubbleSize;
+                    bubbleY = viewport.height - offset.y - bubbleSize;
+                    break;
+            }
+
             el.style.left = `${bubbleX}px`;
             el.style.top = `${bubbleY}px`;
             // Clear bottom/right

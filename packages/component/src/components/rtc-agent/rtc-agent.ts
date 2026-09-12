@@ -1035,7 +1035,9 @@ export class RtcAgent extends LitElement {
         this._interaction.onSizeChange = (width, height) => {
             this._windowState.actions.setSize({width, height});
         };
-        this._interaction.onViewportTooSmall = () => {
+
+        // WindowStateController viewport resize callback
+        this._windowState.onViewportTooSmall = () => {
             this._windowState.actions.minimize();
         };
 

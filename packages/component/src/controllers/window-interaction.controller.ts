@@ -55,7 +55,6 @@ export class WindowInteractionController implements ReactiveController {
   // Callbacks — wired by host component
   onPositionChange?: (x: number, y: number) => void;
   onSizeChange?: (width: number, height: number) => void;
-  onViewportTooSmall?: () => void;
 
   private _host: ReactiveControllerHost;
   private _windowElement?: HTMLElement;
@@ -69,7 +68,6 @@ export class WindowInteractionController implements ReactiveController {
 
   private _isEnabled = false;
   private _prefersReducedMotion: boolean;
-  private _boundHandleResize: () => void;
   private _boundHandleMotionPreference: (e: MediaQueryListEvent) => void;
 
   /** 窗口配置 */
@@ -81,7 +79,6 @@ export class WindowInteractionController implements ReactiveController {
     this._draggable = config?.draggable ?? true;
     this._resizable = config?.resizable ?? true;
     this._prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    this._boundHandleResize = this._handleViewportResize.bind(this);
     this._boundHandleMotionPreference = (e: MediaQueryListEvent) => {
       this._prefersReducedMotion = e.matches;
     };
@@ -141,11 +138,10 @@ export class WindowInteractionController implements ReactiveController {
   }
 
   hostConnected(): void {
-    window.addEventListener('resize', this._boundHandleResize);
+    // Viewport resize is handled by WindowStateController
   }
 
   hostDisconnected(): void {
-    window.removeEventListener('resize', this._boundHandleResize);
     window.matchMedia('(prefers-reduced-motion: reduce)').removeEventListener('change', this._boundHandleMotionPreference);
     this.destroy();
   }
@@ -380,59 +376,6 @@ export class WindowInteractionController implements ReactiveController {
     this._state = { ...this._state, isResizing: false };
     this._windowElement?.classList.remove('resizing');
     this._host.requestUpdate();
-  }
-
-  private _handleViewportResize(): void {
-    if (!this._windowElement) return;
-
-    const viewport = {
-      width: window.innerWidth,
-      height: window.innerHeight,
-    };
-
-    const minSize = this._getMinSize();
-
-    // Check if viewport too small
-    if (viewport.width < minSize.width || viewport.height < minSize.height) {
-      this.onViewportTooSmall?.();
-      return;
-    }
-
-    // Adjust position to keep window in viewport
-    const rect = this._windowElement.getBoundingClientRect();
-    const margin = this._getMargin();
-
-    let x = rect.left;
-    let y = rect.top;
-    let needsUpdate = false;
-
-    // Right edge
-    if (x + rect.width > viewport.width - margin) {
-      x = viewport.width - rect.width - margin;
-      needsUpdate = true;
-    }
-
-    // Bottom edge
-    if (y + rect.height > viewport.height - margin) {
-      y = viewport.height - rect.height - margin;
-      needsUpdate = true;
-    }
-
-    // Left edge
-    if (x < margin) {
-      x = margin;
-      needsUpdate = true;
-    }
-
-    // Top edge
-    if (y < margin) {
-      y = margin;
-      needsUpdate = true;
-    }
-
-    if (needsUpdate) {
-      this.onPositionChange?.(x, y);
-    }
   }
 
   private _getMargin(): number {

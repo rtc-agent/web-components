@@ -243,6 +243,26 @@
             </button>
         </div>
 
+        <h4>Bubble Corner</h4>
+        <div class="debug-grid">
+            <button class="debug-btn" data-config="corner-top-left" onclick="setBubbleCorner('top-left')">
+                ↖ Top Left
+                <span>x&gt;0, y&lt;0</span>
+            </button>
+            <button class="debug-btn" data-config="corner-top-right" onclick="setBubbleCorner('top-right')">
+                ↗ Top Right
+                <span>x&lt;0, y&lt;0</span>
+            </button>
+            <button class="debug-btn active" data-config="corner-bottom-left" onclick="setBubbleCorner('bottom-left')">
+                ↙ Bottom Left
+                <span>x&gt;0, y&gt;0</span>
+            </button>
+            <button class="debug-btn" data-config="corner-bottom-right" onclick="setBubbleCorner('bottom-right')">
+                ↘ Bottom Right
+                <span>x&lt;0, y&gt;0</span>
+            </button>
+        </div>
+
         <div class="debug-status" id="debugStatus">
             Current: <code>default</code>
         </div>
@@ -266,6 +286,9 @@
         let currentActivityBarConfig = {
             disabledActivities: [],
         };
+
+        let currentBubbleCorner = 'bottom-right';
+        const bubbleOffset = 20; // distance from edges
 
         function toggleDebugPanel() {
             const panel = document.getElementById('debugPanel');
@@ -349,10 +372,34 @@
             updateButtonStates();
         }
 
+        function setBubbleCorner(corner) {
+            currentBubbleCorner = corner;
+            applyConfig();
+            updateButtonStates();
+        }
+
+        function getBubblePosition(corner) {
+            // Cartesian coordinate system: x right positive, y up positive
+            // offset represents the bubble's corner closest to the origin
+            switch (corner) {
+                case 'top-left':
+                    return { corner, offset: { x: bubbleOffset, y: -bubbleOffset } };
+                case 'top-right':
+                    return { corner, offset: { x: -bubbleOffset, y: -bubbleOffset } };
+                case 'bottom-left':
+                    return { corner, offset: { x: bubbleOffset, y: bubbleOffset } };
+                case 'bottom-right':
+                    return { corner, offset: { x: -bubbleOffset, y: bubbleOffset } };
+            }
+        }
+
         function applyConfig() {
             const agent = document.querySelector('rtc-agent');
             if (agent) {
-                agent.windowConfig = { ...currentConfig };
+                agent.windowConfig = {
+                    ...currentConfig,
+                    bubblePosition: getBubblePosition(currentBubbleCorner),
+                };
                 updateStatus();
             }
         }
@@ -391,6 +438,12 @@
             // Activity Bar toggles
             document.querySelector('[data-config="btn-files"]')?.classList.toggle('active', !currentActivityBarConfig.disabledActivities.includes('files'));
             document.querySelector('[data-config="btn-settings"]')?.classList.toggle('active', !currentActivityBarConfig.disabledActivities.includes('settings'));
+
+            // Bubble corner
+            document.querySelectorAll('[data-config^="corner-"]').forEach(btn => {
+                const corner = btn.dataset.config.replace('corner-', '');
+                btn.classList.toggle('active', corner === currentBubbleCorner);
+            });
         }
 
         function updateStatus() {
@@ -405,6 +458,7 @@
             if (currentActivityBarConfig.disabledActivities.length > 0) {
                 parts.push(`no-${currentActivityBarConfig.disabledActivities.join(', no-')}`);
             }
+            parts.push(`bubble: ${currentBubbleCorner}`);
             status.innerHTML = `Current: <code>${parts.join(', ')}</code>`;
         }
 
