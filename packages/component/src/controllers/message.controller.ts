@@ -387,15 +387,30 @@ export class MessageController implements ReactiveController {
      * 从消息 content 中提取纯文本
      *
      * content 存储格式：
-     * - 本地写入：纯文本字符串（content.data 为 string 时直接存储）
-     * - 服务端回推：JSON 字符串，格式为 ContentData（如 '{"type":"text","data":"hello"}'）
+     * - 新格式（修复后）：完整的 ContentData JSON，如 '{"type":"user_message","data":{"text":"..."}}'
+     * - 旧格式（历史数据）：纯文本字符串或只有 data 的对象，如 '{"text":"..."}'
+     * - 纯文本：直接返回
      */
     private _extractTextFromContent(content: string | undefined): string {
         if (!content) return '';
         try {
             const parsed = JSON.parse(content);
-            if (parsed && typeof parsed === 'object' && parsed.type === 'text') {
-                return parsed.data ?? '';
+            if (parsed && typeof parsed === 'object') {
+                // 新格式：完整的 ContentData（包含 type 字段）
+                if ('type' in parsed) {
+                    if (parsed.type === 'text' || parsed.type === 'markdown' || parsed.type === 'thinking') {
+                        return parsed.data ?? '';
+                    } else if (parsed.type === 'user_message') {
+                        // user_message 类型：从 data.text 中提取
+                        return parsed.data?.text ?? '';
+                    }
+                } else {
+                    // 旧格式：没有 type 字段，尝试从常见字段提取
+                    // 兼容历史 user_message 数据：{"text":"...","scenarios":[...]}
+                    if ('text' in parsed && typeof parsed.text === 'string') {
+                        return parsed.text;
+                    }
+                }
             }
         } catch {
             // Not JSON — treat as plain text
