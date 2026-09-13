@@ -42,6 +42,20 @@ export class AuthController implements ReactiveController {
     /** In-flight refresh guard — prevents concurrent refresh calls from racing. */
     private _refreshing?: Promise<boolean>;
 
+    /**
+     * Callback fired when auth state transitions to logged-in.
+     *
+     * Covers all login paths:
+     * - Initial token load (valid tokens in localStorage)
+     * - Token refresh success (expired tokens refreshed on page load)
+     * - Login dialog completion (user explicitly logs in)
+     *
+     * Used by rtc-agent.ts to trigger WebSocket connection after auth is ready,
+     * fixing the race condition where connectedCallback() runs before async
+     * token refresh completes.
+     */
+    onLogin?: () => void;
+
     readonly actions: {login(): void; logout(): void};
 
     get value(): AuthContextValue {
@@ -116,6 +130,8 @@ export class AuthController implements ReactiveController {
 
         this._scheduleRefresh(expiresAt);
         this.host.requestUpdate();
+        // Notify rtc-agent to trigger WebSocket connection
+        this.onLogin?.();
     }
 
     /** Get current access token (for API requests) */
@@ -174,6 +190,9 @@ export class AuthController implements ReactiveController {
                         });
                         this._scheduleRefresh(result.expiresAt!);
                         this.host.requestUpdate();
+                        // Notify rtc-agent to trigger WebSocket connection
+                        // (fixes race condition: connectedCallback() ran before refresh completed)
+                        this.onLogin?.();
                     } else {
                         localStorage.removeItem(STORAGE_KEYS.tokens);
                     }
@@ -187,6 +206,9 @@ export class AuthController implements ReactiveController {
                     expiresAt: tokens.expiresAt,
                 };
                 this._scheduleRefresh(tokens.expiresAt);
+                // Tokens were valid, but connection still needs to be triggered
+                // on initial load (connectedCallback may have already run)
+                this.onLogin?.();
             }
         } catch {
             localStorage.removeItem(STORAGE_KEYS.tokens);

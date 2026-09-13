@@ -1083,8 +1083,19 @@ export class RtcAgent extends LitElement {
         // Reflect initial mode attribute.
         this.setAttribute('data-mode', this._windowState.value.state.mode);
 
+        // Set auth login callback to trigger WebSocket connection.
+        // This fixes the race condition where tokens are expired on page load:
+        // _loadTokens() starts async refresh, but connectedCallback() runs before
+        // refresh completes, so isLoggedIn is still false. When refresh succeeds,
+        // onLogin fires and triggers connection.
+        this._auth.onLogin = () => {
+            void this._connectWithRetry();
+        };
+
         // If tokens were restored from localStorage (e.g. page refresh),
         // connect persistence layer immediately.
+        // Note: If tokens were expired and refresh is in-flight, this check will be false,
+        // but onLogin callback will trigger connection when refresh completes.
         if (this._auth.state.isLoggedIn) {
             void this._connectWithRetry();
         }
@@ -1300,6 +1311,7 @@ export class RtcAgent extends LitElement {
         this._busUnsubMessage?.();
         this._rtcProcessor = undefined;
         this._unsubConnection?.();
+        this._auth.onLogin = undefined;  // Clear auth callback to prevent leaks
 
         // Clear all auto-save timers
         for (const timer of this._autoSaveTimers.values()) {
@@ -1484,15 +1496,13 @@ export class RtcAgent extends LitElement {
         const {accessToken, refreshToken, userId, expiresIn} = event.detail;
 
         // Call controller.setTokens() directly (not via Context)
+        // setTokens() internally calls onLogin callback which triggers _connectWithRetry()
         this._auth.setTokens({
             accessToken,
             refreshToken,
             userId,
             expiresIn,
         });
-
-        // Connect persistence layer (WebSocket + IndexedDB) and inject into MessageController
-        void this._connectWithRetry();
 
         this._showLoginDialog = false;
     }

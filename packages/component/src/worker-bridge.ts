@@ -79,9 +79,6 @@ export class WorkerBridge {
     private _proxiedCallbacks: WorkerCallbacks;
     private _initialized = false;
 
-    /** Token 请求去重缓存（提案 §7：并发请求共享同一个 Promise） */
-    private _tokenPromise: Promise<string> | null = null;
-
     /** 连接状态监听器（主线程侧） */
     private _connectionListeners = new Set<(event: ConnectionStateEvent) => void>();
 
@@ -97,24 +94,12 @@ export class WorkerBridge {
                 bus.publish(event);
             },
             // Worker 请求 token → AuthController.getAccessToken()
-            // 去重：并发请求共享同一个 Promise，resolve 后清空缓存
-            requestToken: (): Promise<string> => {
-                if (this._tokenPromise) {
-                    return this._tokenPromise;
+            requestToken: async (): Promise<string> => {
+                const token = this._auth.getAccessToken();
+                if (!token) {
+                    throw new Error('[WorkerBridge] no access token available');
                 }
-                this._tokenPromise = (async () => {
-                    try {
-                        const token = this._auth.getAccessToken();
-                        if (!token) {
-                            throw new Error('[WorkerBridge] no access token available');
-                        }
-                        return token;
-                    } finally {
-                        // resolve/reject 后清空缓存，下次请求重新获取
-                        this._tokenPromise = null;
-                    }
-                })();
-                return this._tokenPromise;
+                return token;
             },
             // Worker 请求刷新 token → AuthController.handleTokenExpired()
             // 返回 'refresh' 表示已刷新，'relogin' 表示需要重新登录
