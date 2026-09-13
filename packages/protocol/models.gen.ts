@@ -199,6 +199,11 @@ export interface components {
             total_tokens?: number;
             /**
              * Format: int64
+             * @description 当前上下文实际 token 数（压缩后由 cumulativeTokenCounter 回写，用于前端压缩进度计算）
+             */
+            current_context_tokens?: number;
+            /**
+             * Format: int64
              * @description 累计缓存读取 token 数
              */
             total_cached_read_tokens?: number;

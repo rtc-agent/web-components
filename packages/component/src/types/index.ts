@@ -66,6 +66,8 @@ export interface Session {
     totalOutputTokens?: number;
     /** 累计总 token 数（包含所有类型） */
     totalTokens?: number;
+    /** 当前上下文实际 token 数（压缩后回写，用于压缩进度计算） */
+    currentContextTokens?: number;
     /** 累计缓存读取 token 数 */
     totalCachedReadTokens?: number;
     /** 累计缓存写入 token 数 */

@@ -220,7 +220,8 @@ export class RtcChatLayout extends LitElement {
         if (session) {
             inputArea.setTokenUsage({
                 estimatedNext: session.estimatedNextRoundTokens ?? 0,
-                totalTokens: session.totalTokens ?? 0,
+                // 优先使用 currentContextTokens（压缩后回写的实际值），fallback 到 totalTokens
+                totalTokens: session.currentContextTokens ?? session.totalTokens ?? 0,
                 totalCostUsd: session.totalCostUsd ?? 0,
                 compressionThreshold: session.compressionThreshold ?? 0,
                 compressionProgress: session.compressionProgress ?? 0,

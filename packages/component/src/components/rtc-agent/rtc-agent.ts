@@ -1581,6 +1581,7 @@ export class RtcAgent extends LitElement {
             totalInputTokens: s.total_input_tokens,
             totalOutputTokens: s.total_output_tokens,
             totalTokens: s.total_tokens,
+            currentContextTokens: s.current_context_tokens,
             totalCachedReadTokens: s.total_cached_read_tokens,
             totalCachedWriteTokens: s.total_cached_write_tokens,
             totalReasoningTokens: s.total_reasoning_tokens,
