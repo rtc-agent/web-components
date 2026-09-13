@@ -115,6 +115,11 @@ export class RTCAgentClient implements IRTCAgentClient {
       // 检测服务端拒绝 token 的情况（如 "invalid token"）
       // 即使 JWT 未过期，也需要触发刷新机制
       if (ctx?.reason === 'invalid token' && this.options.onTokenExpired) {
+        // 关键修复：立即断开 Centrifuge 连接，阻止其自动重连使用缓存的旧 Token
+        // Centrifuge 会在重连时复用缓存的 Token，导致刷新后的新 Token 无法生效
+        const oldCentrifuge = this.centrifuge;
+        this.centrifuge = null; // 清除引用，防止后续操作使用旧实例
+        oldCentrifuge?.disconnect(); // 显式断开，阻止自动重连
         this.handleInvalidToken();
       }
 
