@@ -300,6 +300,7 @@ export class PersistenceController implements ReactiveController {
 
         const config = {
             databaseName: `rtc-agent-${userId}`,
+            deviceId,
             client: {
                 endpoint: AUTH_CONFIG.wsEndpoint,
                 getToken: () => {

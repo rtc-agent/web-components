@@ -2,7 +2,7 @@ import { RTCAgentClient, type RTCAgentClientOptions, type PublicationEvent } fro
 import type { Update, ContentData, SendMessageRequest, ForkSessionRequest, CompactSessionRequest } from '@rtc-agent/protocol';
 import { getDatabase, closeDatabase, flushAll, type LocalSession, type LocalMessage, type LocalRtc } from './database.js';
 import { getOffsetManager } from './offset-manager.js';
-import { getEntityRepository } from './entity-repository.js';
+import { initEntityRepository, getEntityRepository } from './entity-repository.js';
 import { nowRFC3339 } from './time-utils.js';
 import { virtualFS } from './virtual-fs.js';
 
@@ -27,6 +27,8 @@ export interface PersistenceConfig {
   client: RTCAgentClientOptions;
   /** 数据库名称（默认 'rtc-agent'） */
   databaseName?: string;
+  /** 当前设备的 Device ID，用于写入时过滤非本设备的 RTC */
+  deviceId: string;
 }
 
 /**
@@ -35,9 +37,13 @@ export interface PersistenceConfig {
 export class PersistenceLayer {
   private client: RTCAgentClient;
   private offsetManager = getOffsetManager();
-  private entityRepository = getEntityRepository();
+  private entityRepository;
 
   constructor(config: PersistenceConfig) {
+    // 初始化 EntityRepository 单例（写入时 Device ID 过滤）
+    initEntityRepository(config.deviceId);
+    this.entityRepository = getEntityRepository();
+
     // 创建 RTCAgentClient，注入 offset 和 publication 回调
     const clientOptions: RTCAgentClientOptions = {
       ...config.client,
@@ -160,6 +166,11 @@ export class PersistenceLayer {
 
   /**
    * 获取下一个待处理的 RTC
+   *
+   * Device ID 过滤已在写入时完成（EntityRepository.applyUpdateItem），
+   * 此处只需可选地按 session 过滤。
+   *
+   * @param sessionClientId 可选，限定某个 session 的 RTC
    */
   async getNextRtcToProcess(sessionClientId?: string): Promise<LocalRtc | undefined> {
     return this.entityRepository.getNextRtcToProcess(sessionClientId);
@@ -233,11 +244,9 @@ export class PersistenceLayer {
 
     // 4. 写入 message
     const now = nowRFC3339();
-    // content.data 类型为 unknown，需要序列化存储为 JSON 字符串
-    // MessageController._localMessageToUI 负责反序列化
-    const contentStr = typeof content.data === 'string'
-      ? content.data
-      : JSON.stringify(content.data);
+    // 存储完整的 ContentData（包含 type 和 data），以便读取时能正确识别消息类型
+    // MessageController._localMessageToUI 和 _extractTextFromContent 负责反序列化
+    const contentStr = JSON.stringify(content);
     const msgResult = await this.entityRepository.upsertMessage(
       {
         client_id: messageClientId,

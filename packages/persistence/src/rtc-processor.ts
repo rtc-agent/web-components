@@ -52,6 +52,8 @@ export interface MasterLike {
  * - confirmDialog 由外部注入（component 层实现）
  * - 可选注入 MasterLike：多 Tab 场景下仅 Master Tab 执行工具
  *   （未注入时视为永远是 Master）
+ *
+ * Device ID 过滤在写入时完成（EntityRepository），此处无需关心。
  */
 export class RtcProcessor {
   private persistence: PersistenceLayer;
@@ -140,7 +142,7 @@ export class RtcProcessor {
       while (true) {
         this.pendingCheck = false;
 
-        const rtc = await this.persistence.getNextRtcToProcess();
+        const rtc = await this.persistence.getNextRtcToProcess(undefined);
         if (!rtc) {
           console.log('[RtcProcessor] processLoop: no more RTC to process, exiting');
           if (this.pendingCheck) {

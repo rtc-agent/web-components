@@ -235,6 +235,16 @@ export class RTCAgentDatabase extends Dexie {
       // *metadata.tags 是多值索引，支持数组字段的查询
       fileSystemEntries: 'path, type, metadata.group, *metadata.tags',
     });
+
+    // v7: 添加 device_id 索引用于 RTC Device ID 过滤
+    this.version(7).stores({
+      sessions: 'client_id, server_id, sync_status, owner_ref_id, status, updated_at, device_id',
+      turns: 'client_id, server_id, sync_status, session_client_id, status',
+      messages: 'client_id, server_id, sync_status, session_client_id, turn_id, global_offset, created_at',
+      rtcs: 'client_id, server_id, sync_status, session_client_id, turn_id, status, offset',
+      offsets: 'channel',
+      fileSystemEntries: 'path, type, metadata.group, *metadata.tags',
+    });
   }
 }
 

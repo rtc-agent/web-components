@@ -75,6 +75,13 @@ function emitUIUpdates(
  * 实体仓储：负责实体的 CRUD 和同步状态管理
  */
 export class EntityRepository {
+  /** 当前设备的 Device ID，用于写入时过滤非本设备的 RTC */
+  private deviceId: string;
+
+  constructor(deviceId: string) {
+    this.deviceId = deviceId;
+  }
+
   // ========== Session ==========
 
   async upsertSession(
@@ -423,9 +430,18 @@ export class EntityRepository {
    * 排序：按 offset 正序
    *
    * 注意：status='pending' 表示工具尚未执行，无论 sync_status 是什么
+   *
+   * @param sessionClientId 可选，限定某个 session 的 RTC
+   * @param deviceId 必填，只返回 Session.device_id 匹配的 RTC
    */
   async getNextRtcToProcess(sessionClientId?: string): Promise<LocalRtc | undefined> {
     const db = getDatabase();
+
+    // 写入时已过滤非本设备的 RTC，此处只需按 session 过滤
+    const matchesSession = (rtc: LocalRtc): boolean => {
+      if (!sessionClientId) return true;
+      return rtc.session_client_id === sessionClientId;
+    };
 
     // 1. 先查 sync_status = 'failed' 的（需要重试上报）
     const failed = await db.rtcs
@@ -433,12 +449,9 @@ export class EntityRepository {
       .equals('failed')
       .sortBy('offset');
 
-    const filteredFailed = sessionClientId
-      ? failed.filter(r => r.session_client_id === sessionClientId)
-      : failed;
-
-    if (filteredFailed.length > 0) {
-      return filteredFailed[0];
+    const matchFailed = failed.find(r => matchesSession(r));
+    if (matchFailed) {
+      return matchFailed;
     }
 
     // 2. 再查 status = 'pending' 的（待执行的新任务）
@@ -447,10 +460,7 @@ export class EntityRepository {
       .filter(r => r.status === 'pending')
       .sortBy('offset');
 
-    if (sessionClientId) {
-      return allPending.find(r => r.session_client_id === sessionClientId);
-    }
-    return allPending[0];
+    return allPending.find(r => matchesSession(r));
   }
 
   /**
@@ -581,22 +591,30 @@ export class EntityRepository {
       }
       case 'rtc': {
         const raw = data as Rtc;
+        // session_id → session_client_id：查找 session 的 client_id
+        let sessionClientId: string | undefined;
+        if (raw.session_id) {
+          const session = await this.getSessionByServerId(raw.session_id);
+          if (session) {
+            // 写入时过滤：不是本设备 Session 的 RTC，跳过写入
+            if (session.device_id && session.device_id !== this.deviceId) {
+              console.log(`[EntityRepository] Skipping RTC ${raw.client_id || raw.id} - session belongs to different device`);
+              return;
+            }
+            sessionClientId = session.client_id;
+          } else {
+            console.warn(`[EntityRepository] Rtc ${raw.client_id || raw.id} references unknown session ${raw.session_id}`);
+            sessionClientId = raw.session_id;
+          }
+        }
+
         const mapped: Partial<LocalRtc> = {
           ...raw,
           server_id: raw.id,
           client_id: raw.client_id || raw.id,
+          session_client_id: sessionClientId || '',
         } as Partial<LocalRtc>;
         delete (mapped as Record<string, unknown>)['id'];
-        // session_id → session_client_id：查找 session 的 client_id
-        if (raw.session_id) {
-          const session = await this.getSessionByServerId(raw.session_id);
-          if (session) {
-            mapped.session_client_id = session.client_id;
-          } else {
-            console.warn(`[EntityRepository] Rtc ${raw.client_id || raw.id} references unknown session ${raw.session_id}`);
-            mapped.session_client_id = raw.session_id;
-          }
-        }
         delete (mapped as Record<string, unknown>)['session_id'];
         // RTC 从服务端推送来时，数据已同步（synced），但需要客户端执行后上报结果
         // sync_status 表示"执行结果是否已上报"，初始应为 pending
@@ -610,9 +628,28 @@ export class EntityRepository {
 // 单例
 let entityRepositoryInstance: EntityRepository | null = null;
 
+/**
+ * 初始化 EntityRepository 单例
+ *
+ * 必须在应用启动时调用一次，传入当前设备的 Device ID。
+ * Device ID 用于写入时过滤非本设备的 RTC。
+ */
+export function initEntityRepository(deviceId: string): void {
+  if (entityRepositoryInstance) {
+    console.warn('[EntityRepository] Already initialized, ignoring re-init');
+    return;
+  }
+  entityRepositoryInstance = new EntityRepository(deviceId);
+}
+
+/**
+ * 获取 EntityRepository 单例
+ *
+ * 必须先调用 initEntityRepository(deviceId)。
+ */
 export function getEntityRepository(): EntityRepository {
   if (!entityRepositoryInstance) {
-    entityRepositoryInstance = new EntityRepository();
+    throw new Error('[EntityRepository] Not initialized - call initEntityRepository(deviceId) first');
   }
   return entityRepositoryInstance;
 }
