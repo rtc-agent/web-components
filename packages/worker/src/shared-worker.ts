@@ -25,6 +25,9 @@ sharedSelf.onconnect = (e: MessageEvent): void => {
     registerCallback: (cb: WorkerCallbacks) => core.registerCallback(cb),
     unregisterCallback: (cb: WorkerCallbacks) => core.unregisterCallback(cb),
 
+    // 健康检查（不需要 init）
+    ping: () => core.ping(),
+
     // 连接
     connect: () => core.connect(),
     disconnect: () => core.disconnect(),

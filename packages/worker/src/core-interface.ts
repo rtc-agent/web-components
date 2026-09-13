@@ -33,6 +33,13 @@ export interface WorkerPersistenceCore {
   /** 取消注册一个 Tab 的回调 */
   unregisterCallback(cb: WorkerCallbacks): void;
 
+  /**
+   * 健康检查：验证 Worker 是否正在运行
+   *
+   * 不需要 init() 就能工作，用于主线程验证 SharedWorker 是否成功启动。
+   */
+  ping(): string;
+
   // ========== 连接 ==========
   connect(): Promise<void>;
   disconnect(): void;

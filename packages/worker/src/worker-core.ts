@@ -79,6 +79,16 @@ export class WorkerCore implements WorkerPersistenceCore {
     this.callbacks.delete(cb);
   }
 
+  /**
+   * 健康检查：验证 Worker 是否正在运行
+   *
+   * 这个方法不需要 init() 就能工作，用于主线程验证
+   * SharedWorker 是否成功启动并可响应消息。
+   */
+  ping(): string {
+    return 'pong';
+  }
+
   // ========== 连接 ==========
 
   async connect(): Promise<void> {
