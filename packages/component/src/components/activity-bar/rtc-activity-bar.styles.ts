@@ -15,6 +15,9 @@ export const styles = css`
         align-items: center;
         padding: var(--rtc-space-s, 8px) 0;
         flex-shrink: 0;
+        /* 始终在 drawer 之上，防止被遮罩覆盖 */
+        position: relative;
+        z-index: var(--rtc-z-activity-bar, 30);
     }
 
     .activity-icon {

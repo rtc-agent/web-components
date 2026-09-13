@@ -16,6 +16,12 @@ export const styles = css`
         font-family: var(--rtc-font-family-base, sans-serif);
         font-size: var(--rtc-font-size, var(--rtc-font-size-base, 14px));
         color: var(--rtc-color-text, #cccccc);
+        position: relative;
+    }
+
+    /* 设置导航抽屉宽度与 settings-nav 一致 */
+    rtc-drawer {
+        --rtc-drawer-width: 200px;
     }
 
     .main {

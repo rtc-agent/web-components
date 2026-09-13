@@ -148,6 +148,9 @@ import '../chat-layout/rtc-chat-layout.js';
 // Settings Layout 组件
 import '../settings-layout/rtc-settings-layout.js';
 
+// Drawer 组件（overlay 抽屉面板）
+import '../drawer/rtc-drawer.js';
+
 // Toast types (re-exported from ToastController)
 import type {ToastType} from '../overlay/rtc-toast.js';
 
@@ -762,6 +765,9 @@ export class RtcAgent extends LitElement {
         const {sessionId} = (e as CustomEvent).detail as {sessionId: string};
         console.log('[rtc-agent] chat-layout tab closed:', sessionId);
     };
+    private _boundOnDrawerClose = () => {
+        this._activity.actions.hideSidebar();
+    };
 
     /**
      * Wheel event handler to prevent scroll chaining to host page.
@@ -1014,6 +1020,9 @@ export class RtcAgent extends LitElement {
         this.addEventListener('rtc-chat-layout-session-select', this._boundOnChatLayoutSessionSelect);
         this.addEventListener('rtc-chat-layout-tab-activate', this._boundOnChatLayoutTabActivate);
         this.addEventListener('rtc-chat-layout-tab-close', this._boundOnChatLayoutTabClose);
+
+        // Drawer 关闭事件（来自任何子组件中的 rtc-drawer）
+        this.addEventListener('rtc-drawer-close', this._boundOnDrawerClose);
 
         // Listen for Escape key to cancel fork mode
         this.addEventListener('keydown', this._boundOnKeydown);
@@ -1306,6 +1315,7 @@ export class RtcAgent extends LitElement {
         this.removeEventListener('rtc-chat-layout-session-select', this._boundOnChatLayoutSessionSelect);
         this.removeEventListener('rtc-chat-layout-tab-activate', this._boundOnChatLayoutTabActivate);
         this.removeEventListener('rtc-chat-layout-tab-close', this._boundOnChatLayoutTabClose);
+        this.removeEventListener('rtc-drawer-close', this._boundOnDrawerClose);
         this.removeEventListener('keydown', this._boundOnKeydown);
         this.removeEventListener('wheel', this._boundOnWheel);
         this._busUnsubMessage?.();
@@ -2068,15 +2078,17 @@ export class RtcAgent extends LitElement {
     /**
      * 渲染主布局（登录后）
      *
-     * 聊天模式：Activity Bar + [Sidebar] + Chat Layout（会话树 + Tab + 聊天）
-     * 文件模式：Activity Bar + [Sidebar(文件树)] + Editor Area + Status Bar
-     * 侧边栏内容取决于当前活动（files → 文件树，chat → 会话列表）
+     * 聊天模式：Activity Bar + Chat Layout（内含 drawer + Tab + 聊天）
+     * 文件模式：Activity Bar + [Drawer(文件树)] + Editor Area + Status Bar
+     * 设置模式：Activity Bar + Settings Layout（内含 drawer + 设置内容）
+     *
+     * 所有侧边面板统一使用 <rtc-drawer> overlay 抽屉，不挤压主内容区。
      */
     private _renderMainLayout(active: Activity, sidebarVisible: boolean) {
         const isFiles = active === 'files';
         const isChat = active === 'chat';
         const isSettings = active === 'settings';
-        const showSidebar = sidebarVisible && (isFiles || isChat);
+        const showSidebar = sidebarVisible && (isFiles || isChat || isSettings);
         const disabled = this._resolvedActivityBarConfig.disabledActivities;
 
         return html`
@@ -2087,10 +2099,10 @@ export class RtcAgent extends LitElement {
           ?show-files=${!disabled.includes('files')}
           ?show-settings=${!disabled.includes('settings')}
         ></rtc-activity-bar>
-        ${showSidebar && isFiles
-          ? html`<div class="sidebar">
+        ${isFiles
+          ? html`<rtc-drawer ?open=${showSidebar} style="--rtc-drawer-left: 48px">
               <rtc-file-explorer theme=${this.theme}></rtc-file-explorer>
-            </div>`
+            </rtc-drawer>`
           : nothing}
         ${isFiles
           ? html`<div class="editor-area-wrapper">
@@ -2107,7 +2119,7 @@ export class RtcAgent extends LitElement {
           : isChat
             ? html`<rtc-chat-layout theme=${this.theme} .sessionTreeVisible=${sidebarVisible}></rtc-chat-layout>`
             : isSettings
-              ? html`<rtc-settings-layout theme=${this.theme}></rtc-settings-layout>`
+              ? html`<rtc-settings-layout theme=${this.theme} .sidebarVisible=${sidebarVisible}></rtc-settings-layout>`
               : nothing}
       </div>
     `;

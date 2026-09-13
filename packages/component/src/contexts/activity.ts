@@ -46,5 +46,5 @@ export const ActivityContext = createContext<ActivityContextValue>(
 
 export const DEFAULT_ACTIVITY_STATE: ActivityState = {
     active: 'chat',
-    sidebarVisible: false,
+    sidebarVisible: true,
 };

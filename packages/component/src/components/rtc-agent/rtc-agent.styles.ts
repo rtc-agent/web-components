@@ -122,22 +122,14 @@ export const styles = css`
 
   /* ── VS Code 风格布局（Phase 3） ── */
 
-  /* 主布局：Activity Bar + Sidebar + Content/Editor */
+  /* 主布局：Activity Bar + Content/Editor
+   * position: relative 供 rtc-drawer 的 absolute 定位基准 */
   .main-layout {
     flex: 1;
     display: flex;
     min-height: 0;
     overflow: hidden;
-  }
-
-  /* 侧边栏容器 */
-  .sidebar {
-    width: 240px;
-    min-width: 180px;
-    border-right: 1px solid var(--rtc-color-border-primary, #333);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
+    position: relative;
   }
 
   /* 编辑器区域包裹器（editor-area + status-bar） */

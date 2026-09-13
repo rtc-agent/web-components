@@ -9,13 +9,13 @@ export const styles = css`
     :host {
         width: 200px;
         background: var(--rtc-color-bg-secondary, #252526);
-        border-right: 1px solid var(--rtc-color-border, #3c3c3c);
         display: flex;
         flex-direction: column;
         overflow-y: auto;
         overflow-x: hidden;
         flex-shrink: 0;
         padding: var(--rtc-spacing-sm, 8px) 0;
+        height: 100%;
     }
 
     .nav-item {

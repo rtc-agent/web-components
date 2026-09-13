@@ -28,6 +28,7 @@ import type {AuthContextValue} from '../../contexts/auth.js';
 import {renderLogo} from '../../icons/logo.js';
 import type {SettingsCategory} from './rtc-settings-nav.js';
 import './rtc-settings-nav.js';
+import '../drawer/rtc-drawer.js';
 
 // 导入类型（仅用于 TypeScript）
 import type {SettingsState} from '../../contexts/settings.js';
@@ -64,6 +65,15 @@ export class RtcSettingsLayout extends LitElement {
     /** 主题属性 */
     @property({type: String, reflect: true})
     theme: 'light' | 'dark' | 'system' = 'system';
+
+    /**
+     * 设置导航抽屉是否可见
+     *
+     * 由父级 rtc-agent 根据 ActivityController.sidebarVisible 透传。
+     * 使用 <rtc-drawer> overlay 抽屉模式，不挤压主内容区。
+     */
+    @property({type: Boolean, attribute: false})
+    sidebarVisible = false;
 
     /** 消费 SettingsContext */
     @consume({context: SettingsContext, subscribe: true})
@@ -449,10 +459,13 @@ export class RtcSettingsLayout extends LitElement {
     render() {
         void this._localeCtx.locale;
         return html`
-            <rtc-settings-nav
-                .active=${this._activeCategory}
-                @settings-nav-change=${this._handleCategoryChange}
-            ></rtc-settings-nav>
+            <!-- 设置导航抽屉（overlay 模式，不挤压主内容区） -->
+            <rtc-drawer ?open=${this.sidebarVisible}>
+                <rtc-settings-nav
+                    .active=${this._activeCategory}
+                    @settings-nav-change=${this._handleCategoryChange}
+                ></rtc-settings-nav>
+            </rtc-drawer>
             <div
                 class="main"
                 role="tabpanel"

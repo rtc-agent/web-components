@@ -18,7 +18,7 @@
  * @fires rtc-fork-initiated - 分叉请求编排完成 (detail: { oldSessionClientId, oldMessageClientId, newSessionClientId, content })
  * @fires rtc-new-session - 新建会话（含全部关闭后自动创建）
  */
-import {LitElement, html, nothing} from 'lit';
+import {LitElement, html} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
 import {consume} from '@lit/context';
 import {localized} from '@lit/localize';
@@ -41,6 +41,7 @@ import '../notice-bar/rtc-notice-bar.js';
 import '../input-area/rtc-input-area.js';
 import type {RtcInputArea} from '../input-area/rtc-input-area.js';
 import '../overlay/rtc-overlay-manager.js';
+import '../drawer/rtc-drawer.js';
 
 @localized()
 @customElement('rtc-chat-layout')
@@ -400,17 +401,15 @@ export class RtcChatLayout extends LitElement {
     render() {
         void this._localeCtx.locale;
         return html`
-            <!-- 左栏：会话树（通过 sessionTreeVisible 控制显隐） -->
-            ${this.sessionTreeVisible
-              ? html`<div class="sidebar">
-                    <rtc-session-tree
-                        theme=${this.theme}
-                        selected-session-id=${this._sessionCtx.state.currentSessionId ?? ''}
-                        @rtc-session-tree-select=${this._handleTreeSelect}
-                        @rtc-session-tree-toggle=${this._handleTreeToggle}
-                    ></rtc-session-tree>
-                </div>`
-              : nothing}
+            <!-- 左栏：会话树（通过 rtc-drawer overlay 抽屉实现） -->
+            <rtc-drawer ?open=${this.sessionTreeVisible}>
+                <rtc-session-tree
+                    theme=${this.theme}
+                    selected-session-id=${this._sessionCtx.state.currentSessionId ?? ''}
+                    @rtc-session-tree-select=${this._handleTreeSelect}
+                    @rtc-session-tree-toggle=${this._handleTreeToggle}
+                ></rtc-session-tree>
+            </rtc-drawer>
 
             <!-- 右栏：Tab + 聊天内容 -->
             <div class="main">
