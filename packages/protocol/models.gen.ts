@@ -154,6 +154,8 @@ export interface components {
             owner_kind: string;
             /** @description 所有者引用 ID（user → user UUID，system → "system"） */
             owner_ref_id: string;
+            /** @description 创建此 Session 的设备 ID（来自 JWT Token），用于前端判断 RTC 请求归属 */
+            device_id?: string;
             /** @description 会话标题 */
             title?: string;
             status: components["schemas"]["SessionStatus"];
@@ -180,6 +182,63 @@ export interface components {
              * @description 软删除时间
              */
             deleted_at?: string;
+            /**
+             * Format: int64
+             * @description 累计纯输入 token 数（不含 cached read/write）
+             */
+            total_input_tokens?: number;
+            /**
+             * Format: int64
+             * @description 累计输出 token 数
+             */
+            total_output_tokens?: number;
+            /**
+             * Format: int64
+             * @description 累计总 token 数（包含所有类型）
+             */
+            total_tokens?: number;
+            /**
+             * Format: int64
+             * @description 累计缓存读取 token 数
+             */
+            total_cached_read_tokens?: number;
+            /**
+             * Format: int64
+             * @description 累计缓存写入 token 数
+             */
+            total_cached_write_tokens?: number;
+            /**
+             * Format: int64
+             * @description 累计推理 token 数
+             */
+            total_reasoning_tokens?: number;
+            /**
+             * Format: double
+             * @description 累计成本（美元）
+             */
+            total_cost_usd?: number;
+            /**
+             * Format: date-time
+             * @description 最后一次 token 统计更新时间
+             */
+            last_token_update_at?: string;
+            /**
+             * Format: int64
+             * @description 压缩触发阈值（contextTokensLimit - autoCompactBufferTokens），前端用于计算圆环进度
+             */
+            compression_threshold?: number;
+            /**
+             * Format: double
+             * @description 压缩进度 (0-100)，后端实时计算
+             */
+            compression_progress?: number;
+            /** @description 距离压缩的轮次（-1 表示已超过阈值） */
+            rounds_until_compression?: number;
+            /**
+             * Format: int64
+             * @description 预估下一轮 token 数
+             */
+            estimated_next_round_tokens?: number;
         };
         /** @description 任务项（对齐 Claude Code 的 TodoItem 结构） */
         TodoItem: {

@@ -39,6 +39,7 @@ import '../session-tree/rtc-session-tab-bar.js';
 import '../content-area/rtc-content-area.js';
 import '../notice-bar/rtc-notice-bar.js';
 import '../input-area/rtc-input-area.js';
+import type {RtcInputArea} from '../input-area/rtc-input-area.js';
 import '../overlay/rtc-overlay-manager.js';
 
 @localized()
@@ -182,6 +183,58 @@ export class RtcChatLayout extends LitElement {
         );
         console.log('[chat-layout._boundOnForkRequested] Dispatched rtc-fork-initiated, newSession=', newSessionClientId);
     };
+
+    /**
+     * 获取 Shadow DOM 中的 rtc-input-area 组件引用。
+     */
+    private _getInputArea(): RtcInputArea | null {
+        return this.shadowRoot?.querySelector('rtc-input-area') ?? null;
+    }
+
+    /**
+     * 更新 TokenUsage 数据（注入到 rtc-input-area 内的 rtc-token-usage）
+     *
+     * 在 session 切换或 session 数据更新时调用。
+     */
+    private _updateTokenDisplayFromSession() {
+        const inputArea = this._getInputArea();
+        if (!inputArea) return;
+
+        const currentId = this._sessionCtx.state.currentSessionId;
+        if (!currentId) {
+            // 无活跃 session，重置显示
+            inputArea.setTokenUsage({
+                estimatedNext: 0,
+                totalTokens: 0,
+                totalCostUsd: 0,
+                compressionThreshold: 0,
+                compressionProgress: 0,
+                roundsUntilCompression: -1,
+            });
+            return;
+        }
+
+        const session = this._sessionCtx.state.sessions.find(
+            s => s.clientId === currentId
+        );
+        if (session) {
+            inputArea.setTokenUsage({
+                estimatedNext: session.estimatedNextRoundTokens ?? 0,
+                totalTokens: session.totalTokens ?? 0,
+                totalCostUsd: session.totalCostUsd ?? 0,
+                compressionThreshold: session.compressionThreshold ?? 0,
+                compressionProgress: session.compressionProgress ?? 0,
+                roundsUntilCompression: session.roundsUntilCompression ?? -1,
+                details: {
+                    input: session.totalInputTokens,
+                    output: session.totalOutputTokens,
+                    cachedRead: session.totalCachedReadTokens,
+                    cachedWrite: session.totalCachedWriteTokens,
+                    reasoning: session.totalReasoningTokens,
+                },
+            });
+        }
+    }
 
     private _boundOnMessageSent = (e: Event) => {
         const detail = (e as CustomEvent).detail;
@@ -370,6 +423,19 @@ export class RtcChatLayout extends LitElement {
                 ${this._renderChatContent()}
             </div>
         `;
+    }
+
+    /**
+     * Lit updated() lifecycle: called after render when properties or state change.
+     *
+     * Used to sync TokenUsage data when session context changes.
+     */
+    updated(changed: Map<string, unknown>) {
+        super.updated(changed);
+        // Session context changed (currentSessionId or sessions list) → update token usage
+        if (changed.has('_sessionCtx')) {
+            this._updateTokenDisplayFromSession();
+        }
     }
 }
 

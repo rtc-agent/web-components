@@ -111,6 +111,14 @@ export const styles = css`
     flex: 1;
   }
 
+  .toolbar-divider {
+    width: 1px;
+    height: 16px;
+    background: var(--rtc-color-border, #e0e0e0);
+    flex-shrink: 0;
+    margin: 0 var(--rtc-spacing-xs);
+  }
+
   .mode-btn {
     border: var(--rtc-border-width) solid var(--rtc-color-border);
     background: var(--rtc-color-bg-secondary);

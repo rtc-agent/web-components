@@ -44,6 +44,8 @@ export type SessionStatus = 'active' | 'closed' | 'idle';
 
 export interface Session {
     clientId: string;
+    /** 创建此 Session 的设备 ID（来自 JWT Token），用于前端判断 RTC 请求归属 */
+    deviceId?: string;
     title: string;
     createdAt: number;
     updatedAt: number;
@@ -55,6 +57,36 @@ export interface Session {
     rootClientSessionId?: string;
     /** Session 运行状态：active（agent 生成中）/ idle（等待输入）/ closed（已关闭） */
     status?: SessionStatus;
+
+    // ── Token 用量（从 LocalSession 透传，后端 session.updated 推送后填充） ──
+
+    /** 累计纯输入 token 数（不含 cached read/write） */
+    totalInputTokens?: number;
+    /** 累计输出 token 数 */
+    totalOutputTokens?: number;
+    /** 累计总 token 数（包含所有类型） */
+    totalTokens?: number;
+    /** 累计缓存读取 token 数 */
+    totalCachedReadTokens?: number;
+    /** 累计缓存写入 token 数 */
+    totalCachedWriteTokens?: number;
+    /** 累计推理 token 数 */
+    totalReasoningTokens?: number;
+    /** 累计成本（美元） */
+    totalCostUsd?: number;
+    /** 最后一次 token 统计更新时间（ISO 8601） */
+    lastTokenUpdateAt?: string;
+
+    // ── Token 预估（后端实时计算，通过 session.updated 推送） ──
+
+    /** 压缩触发阈值（contextTokensLimit - autoCompactBufferTokens） */
+    compressionThreshold?: number;
+    /** 压缩进度 (0-100) */
+    compressionProgress?: number;
+    /** 距离压缩的轮次（-1 表示已超过阈值） */
+    roundsUntilCompression?: number;
+    /** 预估下一轮 token 数 */
+    estimatedNextRoundTokens?: number;
 }
 
 /* ── Session Tree ── */

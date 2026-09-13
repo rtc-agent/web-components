@@ -43,6 +43,7 @@ import type {ScenarioRef, ContentData} from '../../types/index.js';
 import '../overlay/rtc-mode-panel.js';
 import '../overlay/rtc-command-panel.js';
 import '../overlay/rtc-scenario-panel.js';
+import '../token-usage/rtc-token-usage.js';
 
 // UIUpdateBus 用于监听新消息事件
 import {getUIUpdateBus, type UIUpdateEvent} from '@rtc-agent/persistence';
@@ -128,6 +129,53 @@ export class RtcInputArea extends LitElement {
 
     @state()
     private _selectedScenarios: ScenarioRef[] = [];
+
+    // Token usage 数据（由 rtc-chat-layout 通过 setter 注入）
+    @state()
+    private _tokenEstimatedNext = 0;
+    @state()
+    private _tokenTotalTokens = 0;
+    @state()
+    private _tokenTotalCostUsd = 0;
+    @state()
+    private _tokenCompressionThreshold = 0;
+    @state()
+    private _tokenCompressionProgress = 0;
+    @state()
+    private _tokenRoundsUntilCompression = -1;
+    @state()
+    private _tokenDetails?: {
+        input?: number;
+        output?: number;
+        cachedRead?: number;
+        cachedWrite?: number;
+        reasoning?: number;
+    };
+
+    /** 外部设置 token 使用数据（由 rtc-chat-layout 调用） */
+    setTokenUsage(data: {
+        estimatedNext: number;
+        totalTokens: number;
+        totalCostUsd: number;
+        compressionThreshold: number;
+        compressionProgress: number;
+        roundsUntilCompression: number;
+        details?: {
+            input?: number;
+            output?: number;
+            cachedRead?: number;
+            cachedWrite?: number;
+            reasoning?: number;
+        };
+    }) {
+        this._tokenEstimatedNext = data.estimatedNext;
+        this._tokenTotalTokens = data.totalTokens;
+        this._tokenTotalCostUsd = data.totalCostUsd;
+        this._tokenCompressionThreshold = data.compressionThreshold;
+        this._tokenCompressionProgress = data.compressionProgress;
+        this._tokenRoundsUntilCompression = data.roundsUntilCompression;
+        this._tokenDetails = data.details;
+    }
 
     // 历史导航状态
     @state()
@@ -719,6 +767,16 @@ export class RtcInputArea extends LitElement {
           <button class="toolbar-btn" title=${msg('Attach file')}>${attachIcon}</button>
           <button class="toolbar-btn tool-btn" title=${msg('Commands')} @click=${this._handleCommandToggle}>${toolIcon}</button>
           <button class="toolbar-btn scenario-btn" title=${msg('Scenarios')} @click=${this._handleScenarioToggle}>${checklistIcon}</button>
+          <div class="toolbar-divider"></div>
+          <rtc-token-usage
+              .estimatedNext=${this._tokenEstimatedNext}
+              .totalTokens=${this._tokenTotalTokens}
+              .totalCostUsd=${this._tokenTotalCostUsd}
+              .compressionThreshold=${this._tokenCompressionThreshold}
+              .compressionProgress=${this._tokenCompressionProgress}
+              .roundsUntilCompression=${this._tokenRoundsUntilCompression}
+              .details=${this._tokenDetails}
+          ></rtc-token-usage>
           <span class="toolbar-spacer"></span>
           <button class="mode-btn" part="mode-btn" @click=${this._handleModeToggle}>
             ${this._currentModeLabel}
