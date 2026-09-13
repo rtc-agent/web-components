@@ -258,9 +258,10 @@ export class ScriptTool implements Tool {
 
     const scriptParams = (params.params as Record<string, unknown>) || {};
     const timeout = validateNumberParam(params, 'timeout') ?? 30000;
+    const title = validateStringParam(params, 'title') ?? undefined;
 
     // MD5 + M5: 使用构造函数注入的 rtcAgent
-    return this._executeCode(name, scriptParams, timeout);
+    return this._executeCode(name, scriptParams, timeout, undefined, title);
   }
 
   /**
@@ -274,9 +275,10 @@ export class ScriptTool implements Tool {
 
     const scriptParams = (params.params as Record<string, unknown>) || {};
     const timeout = validateNumberParam(params, 'timeout') ?? 30000;
+    const title = validateStringParam(params, 'title') ?? undefined;
 
     // MD5 + M5: 使用构造函数注入的 rtcAgent
-    return this._executeCode(undefined, scriptParams, timeout, code);
+    return this._executeCode(undefined, scriptParams, timeout, code, title);
   }
 
   /**
@@ -291,7 +293,8 @@ export class ScriptTool implements Tool {
     name: string | undefined,
     scriptParams: Record<string, unknown>,
     timeout: number,
-    inlineCode?: string
+    inlineCode?: string,
+    title?: string
   ): Promise<ToolResult> {
     if (!this.rtcAgent) {
       return { success: false, error: 'rtcAgent not initialized. Pass rtcAgent to ScriptTool constructor.' };
@@ -313,16 +316,23 @@ export class ScriptTool implements Tool {
 
       // 创建输出收集器
       const output = { logs: [], warns: [], errors: [] };
-      const sandbox = createSandbox(this.rtcAgent, scriptParams, output);
+      const sandbox = createSandbox(this.rtcAgent, scriptParams, output, title || undefined);
+
+      // 计时：记录脚本执行耗时
+      const startTime = performance.now();
       const result = await _executeCode(code, sandbox, timeout, name);
+      const durationMs = Math.round(performance.now() - startTime);
 
       // 构建返回数据
       const data: Record<string, unknown> = {};
       if (name) data.name = name;
       if (result !== undefined) data.result = result;
-      if (output.logs.length > 0) data.logs = output.logs;
-      if (output.warns.length > 0) data.warnings = output.warns;
-      if (output.errors.length > 0) data.errors = output.errors;
+      // 截断控制台输出（最多 100 条，避免超大输出撑爆数据库）
+      const MAX_LOG_ENTRIES = 100;
+      if (output.logs.length > 0) data.logs = output.logs.slice(0, MAX_LOG_ENTRIES);
+      if (output.warns.length > 0) data.warnings = output.warns.slice(0, MAX_LOG_ENTRIES);
+      if (output.errors.length > 0) data.errors = output.errors.slice(0, MAX_LOG_ENTRIES);
+      data.duration_ms = durationMs;
 
       return {
         success: true,

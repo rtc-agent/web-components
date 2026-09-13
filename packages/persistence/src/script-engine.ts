@@ -159,8 +159,10 @@ export interface ConsoleOutput {
 export function createSandbox(
   rtcAgent: RtcAgentAPI,
   params: Record<string, unknown> = {},
-  output?: ConsoleOutput
+  output?: ConsoleOutput,
+  title?: string
 ): ScriptSandbox {
+  const prefix = title ? `[Script: ${title}]` : '[Script]';
   const formatArgs = (args: unknown[]): string =>
     args.map(arg => {
       if (typeof arg === 'object') {
@@ -178,17 +180,17 @@ export function createSandbox(
     console: {
       log: (...args) => {
         const msg = formatArgs(args);
-        console.log('[Script]', msg);
+        console.log(prefix, msg);
         if (output) output.logs.push(msg);
       },
       warn: (...args) => {
         const msg = formatArgs(args);
-        console.warn('[Script]', msg);
+        console.warn(prefix, msg);
         if (output) output.warns.push(msg);
       },
       error: (...args) => {
         const msg = formatArgs(args);
-        console.error('[Script]', msg);
+        console.error(prefix, msg);
         if (output) output.errors.push(msg);
       },
     },
