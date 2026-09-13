@@ -85,6 +85,9 @@ export class WorkerBridge {
     /** 连接状态监听器（主线程侧） */
     private _connectionListeners = new Set<(event: ConnectionStateEvent) => void>();
 
+    private static readonly MAX_INIT_RETRIES = 3;
+    private static readonly INIT_RETRY_DELAY_MS = 1000;
+
     constructor(private readonly _auth: AuthController) {
         // 1. 准备回调（在 init() 中注册到 Worker）
         this._callbacks = {
@@ -146,10 +149,45 @@ export class WorkerBridge {
      * 2. 解析出 CDN 上的绝对 URL，fetch 编译后的 worker 脚本（依赖 CORS）
      * 3. 用 Blob + createObjectURL 创建同源 blob: URL
      * 4. 用 blob: URL 构造 SharedWorker → 继承页面 origin
+     * 5. 验证 Worker 是否成功启动（通过 ping 测试）
      *
      * 必须在 init() 之前调用。
+     * 支持重试：如果失败，会自动重试最多 MAX_INIT_RETRIES 次。
      */
     async initWorker(): Promise<void> {
+        let lastError: Error | null = null;
+
+        for (let attempt = 0; attempt <= WorkerBridge.MAX_INIT_RETRIES; attempt++) {
+            try {
+                if (attempt > 0) {
+                    console.warn(`[WorkerBridge] Retrying worker initialization (attempt ${attempt + 1}/${WorkerBridge.MAX_INIT_RETRIES + 1})...`);
+                    await this._delay(WorkerBridge.INIT_RETRY_DELAY_MS * attempt);
+                }
+
+                await this._initWorkerOnce();
+                // 验证 Worker 是否真正启动
+                await this._verifyWorkerAlive();
+
+                return;
+            } catch (err) {
+                lastError = err instanceof Error ? err : new Error(String(err));
+                console.error(`[WorkerBridge] Worker initialization attempt ${attempt + 1} failed:`, lastError.message);
+
+                // 清理失败的 Worker 实例
+                this._cleanupFailedWorker();
+            }
+        }
+
+        // 所有重试都失败
+        throw new Error(
+            `[WorkerBridge] Failed to initialize SharedWorker after ${WorkerBridge.MAX_INIT_RETRIES + 1} attempts: ${lastError?.message}`
+        );
+    }
+
+    /**
+     * 单次 Worker 初始化尝试
+     */
+    private async _initWorkerOnce(): Promise<void> {
         // 1. 提取 worker chunk 路径（从 Vite 工厂函数源码）
         const workerPath = extractWorkerRelativePath(workerFactory);
 
@@ -184,7 +222,9 @@ export class WorkerBridge {
             // CDN 必须返回 CORS 头（Access-Control-Allow-Origin），否则 fetch 会失败
             let script: string;
             try {
-                const response = await fetch(workerUrl);
+                const response = await fetch(workerUrl, {
+                    cache: 'no-store', // 避免使用过期的缓存脚本
+                });
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status} ${response.statusText}`);
                 }
@@ -213,11 +253,6 @@ export class WorkerBridge {
         this._core = wrap<WorkerPersistenceCore>(this._worker!.port);
 
         // 5. 错误处理
-        // TODO(Phase 6): Worker crash recovery — 当前仅打印错误。
-        // 需要根据 shared-worker-proposal.md §9 的错误处理方案：
-        // 1. 检测到 Worker 崩溃后重建 SharedWorker 实例
-        // 2. 重新调用 init() 初始化
-        // 3. 重新触发 Master 选举
         this._worker!.onerror = (event) => {
             console.error('[WorkerBridge] SharedWorker error:', {
                 message: event.message,
@@ -231,6 +266,61 @@ export class WorkerBridge {
         this._worker!.port.onmessageerror = (event) => {
             console.error('[WorkerBridge] port message error:', event);
         };
+    }
+
+    /**
+     * 验证 Worker 是否真正启动并可响应
+     *
+     * 通过调用一个轻量级的方法（ping）来验证 Worker 是否存活。
+     * ping() 不需要 init() 就能工作，适合用于启动验证。
+     * 如果 Worker 启动失败或立即崩溃，这个调用会超时或抛出错误。
+     */
+    private async _verifyWorkerAlive(): Promise<void> {
+        if (!this._core) {
+            throw new Error('[WorkerBridge] No core available for verification');
+        }
+
+        // 设置超时：如果 Worker 在 5 秒内没有响应，认为启动失败
+        const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error('Worker verification timed out')), 5000);
+        });
+
+        try {
+            const result = await Promise.race([
+                this._core.ping(),
+                timeoutPromise,
+            ]);
+            if (result !== 'pong') {
+                throw new Error(`Unexpected ping response: ${result}`);
+            }
+            console.info('[WorkerBridge] Worker verification successful');
+        } catch (err) {
+            throw new Error(
+                `[WorkerBridge] Worker verification failed: ${err instanceof Error ? err.message : 'unknown error'}`
+            );
+        }
+    }
+
+    /**
+     * 清理失败的 Worker 实例
+     */
+    private _cleanupFailedWorker(): void {
+        if (this._worker) {
+            try {
+                this._worker.port.close();
+            } catch {
+                // 忽略关闭错误
+            }
+            this._worker = null;
+        }
+        this._core = null;
+    }
+
+    /**
+     * 延迟指定毫秒数
+     */
+    private _delay(ms: number): Promise<void> {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     /**

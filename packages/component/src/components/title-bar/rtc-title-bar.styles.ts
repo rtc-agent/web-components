@@ -62,6 +62,17 @@ export const styles = css`
     background: var(--rtc-color-error);
   }
 
+  /* 连接失败状态：红色闪烁 */
+  .status-dot.failed {
+    background: var(--rtc-color-error);
+    animation: status-blink 1s step-end infinite;
+  }
+
+  @keyframes status-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
   @keyframes status-pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.4; }
@@ -70,7 +81,8 @@ export const styles = css`
   /* 无障碍：减弱动画 */
   @media (prefers-reduced-motion: reduce) {
     .status-dot.connecting,
-    .status-dot.reconnecting {
+    .status-dot.reconnecting,
+    .status-dot.failed {
       animation: none;
     }
   }
@@ -104,5 +116,24 @@ export const styles = css`
     width: 14px;
     height: 14px;
     fill: currentColor;
+  }
+
+  /* 重试按钮：连接失败时突出显示 */
+  .retry-btn {
+    color: var(--rtc-color-error);
+  }
+
+  .retry-btn:hover {
+    background: var(--rtc-color-error-bg, rgba(221, 48, 48, 0.1));
+    color: var(--rtc-color-error);
+  }
+
+  /* 重试按钮旋转动画 */
+  .retry-btn svg {
+    transition: transform 0.3s ease;
+  }
+
+  .retry-btn:hover svg {
+    transform: rotate(180deg);
   }
 `;

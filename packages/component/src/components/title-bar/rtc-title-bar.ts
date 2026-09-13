@@ -8,10 +8,12 @@
  * @fires rtc-window-minimize - User clicked minimize
  * @fires rtc-window-maximize - User clicked maximize
  * @fires rtc-window-restore - User clicked restore (when maximized)
+ * @fires rtc-connection-retry - User clicked retry button (when connection failed)
  *
  * @csspart label - The app label element
  * @csspart controls - The window controls container
  * @csspart status-dot - The connection status indicator dot
+ * @csspart retry-btn - The connection retry button
  */
 import {LitElement, html, nothing} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
@@ -20,7 +22,7 @@ import {consume} from '@lit/context';
 import {styles} from './rtc-title-bar.styles.js';
 import type {WindowMode} from '../../types/index.js';
 import type {ConnectionState} from '@rtc-agent/client';
-import {minimizeIcon, maximizeIcon, restoreIcon} from '../../icons/index.js';
+import {minimizeIcon, maximizeIcon, restoreIcon, retryIcon} from '../../icons/index.js';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 
 @localized()
@@ -44,6 +46,14 @@ export class RtcTitleBar extends LitElement {
     /** 是否显示最大化按钮 */
     @property({type: Boolean, attribute: 'show-maximize'})
     showMaximize = true;
+
+    /** 连接是否失败（显示重试按钮） */
+    @property({type: Boolean, attribute: 'connection-failed'})
+    connectionFailed = false;
+
+    /** 连接失败的错误信息（用于 tooltip） */
+    @property({type: String, attribute: 'connection-error'})
+    connectionError = '';
 
     @consume({context: localeContext, subscribe: true})
     @state()
@@ -83,23 +93,43 @@ export class RtcTitleBar extends LitElement {
         }
     }
 
+    private _handleRetry() {
+        this.dispatchEvent(
+            new CustomEvent('rtc-connection-retry', {bubbles: true, composed: true})
+        );
+    }
+
     render() {
         // Reference locale to ensure re-render on locale change
         void this._localeCtx.locale;
 
         const isMaximized = this.windowMode === 'maximized';
+        const statusText = this.connectionFailed
+            ? `${msg('连接失败')}: ${this.connectionError || msg('点击重试')}`
+            : this._getStatusText();
+
         return html`
       <div class="title-bar" part="bar" tabindex="0" role="toolbar" aria-label="Window controls">
         <span class="app-label" part="label">
           <span
-            class="status-dot ${this.connectionState}"
+            class="status-dot ${this.connectionFailed ? 'failed' : this.connectionState}"
             part="status-dot"
-            title=${this._getStatusText()}
-            aria-label=${this._getStatusText()}
+            title=${statusText}
+            aria-label=${statusText}
           ></span>
           ${this.appLabel}
         </span>
         <div class="window-controls" part="controls">
+          ${this.connectionFailed ? html`
+          <button
+            class="window-btn retry-btn"
+            part="retry-btn"
+            data-action="retry"
+            aria-label=${msg('重新连接')}
+            title=${msg('点击重新连接')}
+            @click=${this._handleRetry}
+          >${retryIcon}</button>
+          ` : nothing}
           ${this.showMinimize ? html`
           <button
             class="window-btn"

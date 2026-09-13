@@ -34,6 +34,7 @@ export {
     fileScriptIcon,
     fileDefaultIcon,
     refreshIcon,
+    retryIcon,
     saveIcon,
     undoIcon,
     redoIcon,

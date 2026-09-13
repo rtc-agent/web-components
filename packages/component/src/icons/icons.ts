@@ -108,6 +108,8 @@ export const fileScriptIcon = toLitTemplate(fileCodeSvg);
 export const fileDefaultIcon = toLitTemplate(fileSvg);
 // refreshIcon: Refresh action (sidebar header, etc.).
 export const refreshIcon = toLitTemplate(syncSvg);
+// retryIcon: Retry connection action. Same SVG as refreshIcon (sync semantic).
+export const retryIcon = toLitTemplate(syncSvg);
 // saveIcon: Save action. Octicons has no 'save' glyph — uses 'download' instead.
 export const saveIcon = toLitTemplate(downloadSvg);
 // undoIcon / redoIcon: History navigation.
@@ -166,6 +168,7 @@ export const icons = {
     fileScript: fileScriptIcon,
     fileDefault: fileDefaultIcon,
     refresh: refreshIcon,
+    retry: retryIcon,
     save: saveIcon,
     undo: undoIcon,
     redo: redoIcon,

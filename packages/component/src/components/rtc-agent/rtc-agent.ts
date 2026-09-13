@@ -509,6 +509,12 @@ export class RtcAgent extends LitElement {
     /** 连接状态 unsub 函数 */
     private _unsubConnection?: () => void;
 
+    /** 连接是否失败（用于显示重试按钮） */
+    @state() private _connectionFailed = false;
+
+    /** 连接失败时的错误信息 */
+    @state() private _connectionError = '';
+
     /** Tracks the last mode we applied DOM side-effects for, to avoid redundant work. */
     private _appliedMode: WindowMode = 'normal';
 
@@ -817,6 +823,38 @@ export class RtcAgent extends LitElement {
     get sessionTabController() { return this._sessionTab; }
     get notificationController() { return this._notification; }
 
+    /* ── Public Methods ── */
+
+    /**
+     * 连接失败时手动重连
+     *
+     * 当 SharedWorker 初始化失败或 WebSocket 连接无法建立时，
+     * 可以调用此方法尝试重新连接。
+     */
+    async reconnect(): Promise<void> {
+        if (this._persistence.isConnected) {
+            console.warn('[rtc-agent] Already connected');
+            return;
+        }
+        await this._connectWithRetry();
+    }
+
+    /**
+     * 连接是否失败
+     *
+     * 用于 UI 组件显示重试按钮或错误信息。
+     */
+    get connectionFailed(): boolean {
+        return this._connectionFailed;
+    }
+
+    /**
+     * 连接失败的错误信息
+     */
+    get connectionError(): string {
+        return this._connectionError;
+    }
+
     /* ── Component References ── */
 
     /** 获取 rtc-input-area 的引用（穿透 shadow DOM） */
@@ -1048,70 +1086,85 @@ export class RtcAgent extends LitElement {
         // If tokens were restored from localStorage (e.g. page refresh),
         // connect persistence layer immediately.
         if (this._auth.state.isLoggedIn) {
-            void this._persistence.connect().then(async () => {
-                if (this._persistence.layer) {
-                    this._message.persistence = this._persistence.layer;
-                    this._session.persistence = this._persistence.layer;
-                    this._notification.persistence = this._persistence.layer;
+            void this._connectWithRetry();
+        }
+    }
 
-                    // 注：AGENT.md 由 FunctionRegistry.generateAllDocsContent() 首次写入（含 persona），
-                    // 不再调用 initializeVirtualFS() 写入默认 AGENT.md，
-                    // 否则后续的 batchWriteFiles 因 'create-new' 模式无法覆盖默认文件。
+    /**
+     * 连接 persistence 层，带错误处理和重试
+     *
+     * 如果连接失败，会设置 _connectionFailed 状态，
+     * 用户可以在 UI 中看到错误信息并手动重试。
+     */
+    private async _connectWithRetry(): Promise<void> {
+        this._connectionFailed = false;
+        this._connectionError = '';
 
-                    // 如果恢复后活动是 'files'，自动加载文件树
-                    // （正常流程中文件树在 activity-change 事件中按需加载，
-                    //  但刷新后不会触发 activity-change，需要手动触发一次）
-                    if (this._activity.active === 'files' && !this._fileTreeLoaded) {
-                        await this._loadFileTree();
-                    }
+        try {
+            await this._persistence.connect();
 
-                    // 刷新后恢复 Editor Area 已打开文件的内容
-                    // （tab 元数据在 EditorAreaController 构造时已从 localStorage 恢复，
-                    //  这里从 VFS 重新加载每个 tab 的文件内容）
-                    await this._restoreEditorAreaContent();
+            if (this._persistence.layer) {
+                this._message.persistence = this._persistence.layer;
+                this._session.persistence = this._persistence.layer;
+                this._notification.persistence = this._persistence.layer;
 
-                    // 主线程生成文档内容，通过 batchWriteFiles 发送到 Worker
-                    const registry = this._skill.actions.getRegistry();
-                    console.log('[rtc-agent] After connect, registry:', registry ? 'set' : 'null');
-                    console.log('[rtc-agent] registry constructor:', registry?.constructor?.name);
-                    console.log('[rtc-agent] registry methods:', registry ? Object.getOwnPropertyNames(Object.getPrototypeOf(registry)).filter(n => typeof (registry as any)[n] === 'function').slice(0, 10) : 'N/A');
-                    if (registry && typeof registry.generateAllDocsContent === 'function') {
-                        const files = registry.generateAllDocsContent(0);
-                        console.log('[rtc-agent] Generated docs files:', files.length);
-                        if (files.length > 0) {
-                            await this._persistence.workerBridge!.core.batchWriteFiles(files);
-                            console.log('[rtc-agent] batchWriteFiles completed');
-                        }
-                    } else {
-                        console.warn('[rtc-agent] generateAllDocsContent is not a function on registry');
-                    }
+                // 注：AGENT.md 由 FunctionRegistry.generateAllDocsContent() 首次写入（含 persona），
+                // 不再调用 initializeVirtualFS() 写入默认 AGENT.md，
+                // 否则后续的 batchWriteFiles 因 'create-new' 模式无法覆盖默认文件。
 
-                    // 重新加载 scenarios（如果在数据库初始化前设置过 scenariosURL）
-                    if (this._scenariosURL) {
-                        try {
-                            const files = await loadScenariosContent(this._scenariosURL);
-                            await this._persistence.workerBridge!.core.batchWriteFiles(files);
-                            console.log(`[rtc-agent] Re-loaded ${files.length} scenarios from ${this._scenariosURL}`);
-                        } catch (err) {
-                            console.warn(`[rtc-agent] Failed to re-load scenarios from ${this._scenariosURL}:`, err);
-                        }
-                    }
-
-                    // 初始化 RTC 处理器并恢复未完成的任务
-                    console.log('[rtc-agent] Before _initRtcProcessor, checking connection state...');
-                    const connState = await this._persistence.workerBridge!.core.getConnectionState();
-                    console.log('[rtc-agent] Current connection state:', connState);
-                    if (connState !== 'connected') {
-                        console.warn('[rtc-agent] WARNING: Connection not established before _initRtcProcessor! This may cause RPC failures.');
-                    }
-                    await this._initRtcProcessor();
-
-                    // 监听连接状态变化
-                    this._setupConnectionListener();
+                // 如果恢复后活动是 'files'，自动加载文件树
+                // （正常流程中文件树在 activity-change 事件中按需加载，
+                //  但刷新后不会触发 activity-change，需要手动触发一次）
+                if (this._activity.active === 'files' && !this._fileTreeLoaded) {
+                    await this._loadFileTree();
                 }
-                // Load sessions from DB so the panel isn't empty after refresh
-                void this._loadSessions();
-            });
+
+                // 刷新后恢复 Editor Area 已打开文件的内容
+                // （tab 元数据在 EditorAreaController 构造时已从 localStorage 恢复，
+                //  这里从 VFS 重新加载每个 tab 的文件内容）
+                await this._restoreEditorAreaContent();
+
+                // 主线程生成文档内容，通过 batchWriteFiles 发送到 Worker
+                const registry = this._skill.actions.getRegistry();
+                console.log('[rtc-agent] After connect, registry:', registry ? 'set' : 'null');
+                if (registry && typeof registry.generateAllDocsContent === 'function') {
+                    const files = registry.generateAllDocsContent(0);
+                    if (files.length > 0) {
+                        await this._persistence.workerBridge!.core.batchWriteFiles(files);
+                        console.log('[rtc-agent] batchWriteFiles completed');
+                    }
+                }
+
+                // 重新加载 scenarios（如果在数据库初始化前设置过 scenariosURL）
+                if (this._scenariosURL) {
+                    try {
+                        const files = await loadScenariosContent(this._scenariosURL);
+                        await this._persistence.workerBridge!.core.batchWriteFiles(files);
+                        console.log(`[rtc-agent] Re-loaded ${files.length} scenarios from ${this._scenariosURL}`);
+                    } catch (err) {
+                        console.warn(`[rtc-agent] Failed to re-load scenarios from ${this._scenariosURL}:`, err);
+                    }
+                }
+
+                // 初始化 RTC 处理器并恢复未完成的任务
+                await this._initRtcProcessor();
+
+                // 监听连接状态变化
+                this._setupConnectionListener();
+            }
+            // Load sessions from DB so the panel isn't empty after refresh
+            void this._loadSessions();
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            console.error('[rtc-agent] Connection failed:', errorMessage);
+            this._connectionFailed = true;
+            this._connectionError = errorMessage;
+
+            // 显示错误 Toast
+            this._toast.actions.show(
+                msg(`连接失败: ${errorMessage}`),
+                'error'
+            );
         }
     }
 
@@ -1331,6 +1384,19 @@ export class RtcAgent extends LitElement {
         }));
     }
 
+    /* ── Connection Retry Handler ── */
+
+    /**
+     * 处理用户点击重试按钮
+     *
+     * 当 SharedWorker 初始化失败或 WebSocket 连接无法建立时，
+     * 用户可以在 title bar 中点击重试按钮触发此方法。
+     */
+    private _handleConnectionRetry() {
+        console.log('[rtc-agent] Connection retry requested by user');
+        void this.reconnect();
+    }
+
     /* ── Mode Transition Side-Effects ── */
 
     private _handleModeTransition(mode: WindowMode) {
@@ -1426,42 +1492,7 @@ export class RtcAgent extends LitElement {
         });
 
         // Connect persistence layer (WebSocket + IndexedDB) and inject into MessageController
-        void this._persistence.connect().then(async () => {
-            if (this._persistence.layer) {
-                this._message.persistence = this._persistence.layer;
-                this._session.persistence = this._persistence.layer;
-                this._notification.persistence = this._persistence.layer;
-
-                // 注：AGENT.md 由 FunctionRegistry.generateAllDocsContent() 首次写入（含 persona），
-                // 不再调用 initializeVirtualFS() 写入默认 AGENT.md。
-
-                // 主线程生成文档内容，通过 batchWriteFiles 发送到 Worker
-                const registry = this._skill.actions.getRegistry();
-                if (registry && typeof registry.generateAllDocsContent === 'function') {
-                    const files = registry.generateAllDocsContent(0);
-                    await this._persistence.workerBridge!.core.batchWriteFiles(files);
-                }
-
-                // 重新加载 scenarios（如果在数据库初始化前设置过 scenariosURL）
-                if (this._scenariosURL) {
-                    try {
-                        const files = await loadScenariosContent(this._scenariosURL);
-                        await this._persistence.workerBridge!.core.batchWriteFiles(files);
-                        console.log(`[rtc-agent] Re-loaded ${files.length} scenarios from ${this._scenariosURL}`);
-                    } catch (err) {
-                        console.warn(`[rtc-agent] Failed to re-load scenarios from ${this._scenariosURL}:`, err);
-                    }
-                }
-
-                // 初始化 RTC 处理器
-                await this._initRtcProcessor();
-
-                // 监听连接状态变化
-                this._setupConnectionListener();
-            }
-            // Load sessions from DB so the panel isn't empty after login
-            void this._loadSessions();
-        });
+        void this._connectWithRetry();
 
         this._showLoginDialog = false;
     }
@@ -1539,12 +1570,27 @@ export class RtcAgent extends LitElement {
 
         const uiSessions: Session[] = sessions.map(s => ({
             clientId: s.client_id,
+            deviceId: s.device_id,
             title: s.title || '',
             createdAt: new Date(s.created_at).getTime(),
             updatedAt: new Date(s.updated_at).getTime(),
             todoList: s.todo_list,
             rootClientSessionId: s.root_client_session_id,
             status: s.status as SessionStatus | undefined,
+            // Token 用量字段（后端 session.updated 推送后自动填充）
+            totalInputTokens: s.total_input_tokens,
+            totalOutputTokens: s.total_output_tokens,
+            totalTokens: s.total_tokens,
+            totalCachedReadTokens: s.total_cached_read_tokens,
+            totalCachedWriteTokens: s.total_cached_write_tokens,
+            totalReasoningTokens: s.total_reasoning_tokens,
+            totalCostUsd: s.total_cost_usd,
+            lastTokenUpdateAt: s.last_token_update_at,
+            // Token 预估字段（后端实时计算，通过 session.updated 推送）
+            compressionThreshold: s.compression_threshold,
+            compressionProgress: s.compression_progress,
+            roundsUntilCompression: s.rounds_until_compression,
+            estimatedNextRoundTokens: s.estimated_next_round_tokens,
         }));
         this._session.actions.setSessions(uiSessions);
 
@@ -1977,8 +2023,11 @@ export class RtcAgent extends LitElement {
           app-label=${this.appLabel}
           .windowMode=${mode}
           .connectionState=${this._connectionState}
+          ?connection-failed=${this._connectionFailed}
+          connection-error=${this._connectionError}
           ?show-minimize=${this._resolvedWindowConfig.showMinimize}
           ?show-maximize=${this._resolvedWindowConfig.showMaximize}
+          @rtc-connection-retry=${this._handleConnectionRetry}
         ></rtc-title-bar>
         ${isLoggedIn
           ? this._renderMainLayout(active, sidebarVisible)

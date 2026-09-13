@@ -232,6 +232,9 @@ export class PersistenceController implements ReactiveController {
     private _workerBridge?: WorkerBridge;
     private _masterLock?: MasterLock;
 
+    private static readonly MAX_CONNECT_RETRIES = 2;
+    private static readonly CONNECT_RETRY_DELAY_MS = 2000;
+
     constructor(host: {addController(c: ReactiveController): void}, auth: AuthController) {
         this._auth = auth;
         host.addController(this);
@@ -321,8 +324,40 @@ export class PersistenceController implements ReactiveController {
      *
      * The WorkerPersistenceAdapter wraps the Comlink proxy, presenting a
      * PersistenceLayer-compatible interface to the rest of the application.
+     *
+     * 支持重试：如果 Worker 初始化或连接失败，会自动重试。
      */
     private async _connectWorker(config: PersistenceConfig): Promise<void> {
+        let lastError: Error | null = null;
+
+        for (let attempt = 0; attempt <= PersistenceController.MAX_CONNECT_RETRIES; attempt++) {
+            try {
+                if (attempt > 0) {
+                    console.warn(`[PersistenceController] Retrying connection (attempt ${attempt + 1}/${PersistenceController.MAX_CONNECT_RETRIES + 1})...`);
+                    await this._delay(PersistenceController.CONNECT_RETRY_DELAY_MS * attempt);
+                }
+
+                await this._connectWorkerOnce(config);
+                return;
+            } catch (err) {
+                lastError = err instanceof Error ? err : new Error(String(err));
+                console.error(`[PersistenceController] Connection attempt ${attempt + 1} failed:`, lastError.message);
+
+                // 清理失败的连接
+                await this._cleanupFailedConnection();
+            }
+        }
+
+        // 所有重试都失败
+        throw new Error(
+            `[PersistenceController] Failed to connect after ${PersistenceController.MAX_CONNECT_RETRIES + 1} attempts: ${lastError?.message}`
+        );
+    }
+
+    /**
+     * 单次连接尝试
+     */
+    private async _connectWorkerOnce(config: PersistenceConfig): Promise<void> {
         this._workerBridge = new WorkerBridge(this._auth);
 
         // 异步加载 worker 脚本：从 Vite 工厂函数提取 URL → fetch → blob URL → SharedWorker
@@ -367,6 +402,28 @@ export class PersistenceController implements ReactiveController {
             // 开始尝试获取锁（可能排队）
             void this._masterLock.acquire();
         }
+    }
+
+    /**
+     * 清理失败的连接
+     */
+    private async _cleanupFailedConnection(): Promise<void> {
+        if (this._workerBridge) {
+            try {
+                await this._workerBridge.destroy();
+            } catch {
+                // 忽略清理错误
+            }
+            this._workerBridge = undefined;
+        }
+        this._layer = undefined;
+    }
+
+    /**
+     * 延迟指定毫秒数
+     */
+    private _delay(ms: number): Promise<void> {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     /**
