@@ -117,11 +117,13 @@ export class RtcSessionTabBar extends LitElement {
             this._prevActiveSessionId = activeSessionId;
             requestAnimationFrame(() => {
                 const activeTab = this.shadowRoot?.getElementById(`tab-${activeSessionId}`);
-                activeTab?.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'nearest',
-                    inline: 'nearest',
-                });
+                if (activeTab && typeof activeTab.scrollIntoView === 'function') {
+                    activeTab.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'nearest',
+                        inline: 'nearest',
+                    });
+                }
             });
         }
     }
