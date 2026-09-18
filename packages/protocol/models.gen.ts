@@ -143,7 +143,22 @@ export interface components {
         /** @enum {string} */
         MessageStreamingStatus: "pending" | "streaming" | "completed" | "failed";
         /** @enum {string} */
-        ContentType: "markdown" | "summary" | "text" | "thinking" | "toolcall_input" | "toolcall_output" | "user_message";
+        ContentType: "markdown" | "summary" | "text" | "thinking" | "toolcall_input" | "toolcall_output" | "user_message" | "error";
+        /** @enum {string} */
+        ErrorCategory: "api" | "stream" | "tool" | "context" | "system" | "network" | "timeout" | "permission";
+        ErrorContent: {
+            category: components["schemas"]["ErrorCategory"];
+            /** @description 简短错误标题 */
+            title: string;
+            /** @description 详细描述（可包含建议操作） */
+            message: string;
+            /** @description 是否可重试 */
+            retryable: boolean;
+            /** @description 原始错误信息（仅当 show_raw_error 为 true 时前端展示） */
+            raw_error?: string;
+            /** @description 服务端控制的 RawError 可见性标志（debug 模式下为 true） */
+            show_raw_error?: boolean;
+        };
         /** @enum {string} */
         RtcStatus: "pending" | "sent" | "executing" | "completed" | "failed" | "timeout" | "rejected";
         Session: {
@@ -339,6 +354,7 @@ export interface components {
          *     - `toolcall_input`: Data 为 ToolCall 对象
          *     - `toolcall_output`: Data 为 ToolCall 对象
          *     - `user_message`: Data 为 UserMessageContent 对象
+         *     - `error`: Data 为 ErrorContent 对象
          */
         ContentData: {
             type: components["schemas"]["ContentType"];

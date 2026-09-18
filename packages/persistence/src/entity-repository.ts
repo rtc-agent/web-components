@@ -42,9 +42,14 @@ function emitUIUpdates(
 ): void {
   const bus = getUIUpdateBus();
 
-  if (!before) {
+  // 深拷贝，确保数据可结构化克隆（通过 Comlink postMessage 传递）
+  // 避免不可克隆的对象（如循环引用、DOM 元素、函数等）导致 DataCloneError
+  const cloneableAfter = safeClone(after);
+  const cloneableBefore = before ? safeClone(before) : undefined;
+
+  if (!cloneableBefore) {
     // 新增：把 after 中每个顶层字段都发一条 CREATE 事件
-    for (const [field, newValue] of Object.entries(after)) {
+    for (const [field, newValue] of Object.entries(cloneableAfter)) {
       bus.publish({
         entity,
         action,
@@ -58,7 +63,7 @@ function emitUIUpdates(
   }
 
   // 已存在：按 microdiff 差异逐字段发布
-  const changes = diff(before, after);
+  const changes = diff(cloneableBefore, cloneableAfter);
   for (const change of changes) {
     bus.publish({
       entity,
@@ -68,6 +73,22 @@ function emitUIUpdates(
       oldValue: (change as { oldValue?: unknown }).oldValue,
       newValue: (change as { value?: unknown }).value,
     });
+  }
+}
+
+/**
+ * 安全克隆对象，确保可通过 structured clone 算法序列化
+ *
+ * 使用 JSON 序列化/反序列化来移除不可克隆的对象（如函数、DOM 元素、循环引用等）。
+ * 如果序列化失败，返回空对象以避免 DataCloneError。
+ */
+function safeClone<T>(obj: T): T {
+  try {
+    return JSON.parse(JSON.stringify(obj));
+  } catch {
+    // 序列化失败（如循环引用），返回空对象
+    console.warn('[safeClone] failed to clone object, returning empty object');
+    return {} as T;
   }
 }
 
@@ -341,18 +362,31 @@ export class EntityRepository {
   ): Promise<LocalMessage[]> {
     const db = getDatabase();
     const query = db.messages.where('session_client_id').equals(sessionClientId);
-    // 按 created_at 升序排序，确保消息按时间顺序显示
-    const messages = await query.sortBy('created_at');
+    // 排序策略：
+    // - global_offset > 0（已同步）：按 global_offset 排序（保证全局顺序，处理 error 消息等共享 created_at 的情况）
+    // - global_offset === 0（本地未同步）：回退到 created_at（避免本地消息因 offset=0 而排到最前面）
+    const messages = await query.sortBy('global_offset');
+    messages.sort((a, b) => {
+      const aKey = (a.global_offset && a.global_offset > 0) ? a.global_offset : new Date(a.created_at).getTime();
+      const bKey = (b.global_offset && b.global_offset > 0) ? b.global_offset : new Date(b.created_at).getTime();
+      return aKey - bKey;
+    });
 
     if (direction === 'backward') {
       // 向后分页：获取比 cursor 更旧的消息，取最新的 limit 条
       let filtered = messages;
       if (cursor !== undefined && cursor > 0) {
-        filtered = messages.filter(m => m.global_offset !== undefined && m.global_offset < cursor);
+        // 只包含已同步的消息（global_offset > 0），排除本地消息（offset=0）
+        // 本地消息通常是最新的，不应出现在"更早消息"的分页中
+        filtered = messages.filter(m => m.global_offset !== undefined && m.global_offset > 0 && m.global_offset < cursor);
       }
       // 取最后 limit 条（最新的），升序返回
       const sliced = filtered.slice(-limit);
-      return sliced.sort((a, b) => a.created_at.localeCompare(b.created_at));
+      return sliced.sort((a, b) => {
+        const aKey = (a.global_offset && a.global_offset > 0) ? a.global_offset : new Date(a.created_at).getTime();
+        const bKey = (b.global_offset && b.global_offset > 0) ? b.global_offset : new Date(b.created_at).getTime();
+        return aKey - bKey;
+      });
     }
 
     // 向前分页（保留现有逻辑）：cursor 为上一页最后一条的 global_offset，从该 offset 之后开始返回

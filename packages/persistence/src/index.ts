@@ -574,7 +574,8 @@ export class PersistenceLayer {
 
       // 2. 单次上报
       // 检查并截断大数据，避免超过 Centrifuge 消息大小限制（默认 64KB）
-      const MAX_RESULT_SIZE = 50000; // 50KB 安全阈值
+      // 降低阈值到 32KB，为消息头和序列化开销预留空间
+      const MAX_RESULT_SIZE = 32000; // 32KB 安全阈值
       let resultToSend = result;
       let truncated = false;
 

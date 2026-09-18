@@ -123,6 +123,21 @@ export class RTCAgentClient implements IRTCAgentClient {
         this.handleInvalidToken();
       }
 
+      // 检测消息大小超限：服务端拒绝连接，需要手动触发重连
+      // Centrifuge 不会自动重试这种类型的服务端拒绝
+      if (ctx?.reason === 'message size limit exceeded') {
+        console.warn('[RTCAgentClient] message size limit exceeded, will retry connection after delay');
+        // 延迟后重连，给服务端一些缓冲时间
+        setTimeout(() => {
+          if (this.shouldReconnect && this.connectionState === 'disconnected') {
+            console.log('[RTCAgentClient] attempting reconnect after message size limit error');
+            this.reconnect().catch(err => {
+              console.error('[RTCAgentClient] reconnect failed:', err);
+            });
+          }
+        }, 3000); // 3秒后重试
+      }
+
       this.setConnectionState('disconnected', ctx?.reason);
     });
     this.centrifuge.on('error', (ctx) => {

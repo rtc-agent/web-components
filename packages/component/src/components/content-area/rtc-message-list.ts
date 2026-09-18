@@ -44,6 +44,7 @@ import type {Message} from '../../types/index.js';
 import './rtc-message.js';
 import './rtc-user-message.js';
 import './rtc-toolcall-card.js';
+import './rtc-error-message.js';
 import type {ToolCallPair} from './rtc-toolcall-card.js';
 
 @localized()
@@ -290,7 +291,7 @@ export class RtcMessageList extends LitElement {
             if (version !== this._scrollVersion) return;
 
             // Wait for all message children to finish their first render
-            const msgEls = this.shadowRoot!.querySelectorAll('rtc-message, rtc-user-message');
+            const msgEls = this.shadowRoot!.querySelectorAll('rtc-message, rtc-user-message, rtc-toolcall-card, rtc-error-message');
             if (msgEls.length > 0) {
                 await Promise.all(
                     Array.from(msgEls).map(el => (el as LitElement).updateComplete)
@@ -418,7 +419,7 @@ export class RtcMessageList extends LitElement {
 
         this.updateComplete.then(async () => {
             // Wait for child message elements to render
-            const msgEls = this.shadowRoot!.querySelectorAll('rtc-message, rtc-user-message, rtc-toolcall-card');
+            const msgEls = this.shadowRoot!.querySelectorAll('rtc-message, rtc-user-message, rtc-toolcall-card, rtc-error-message');
             if (msgEls.length > 0) {
                 await Promise.all(
                     Array.from(msgEls).map(el => (el as LitElement).updateComplete)
@@ -482,6 +483,9 @@ export class RtcMessageList extends LitElement {
               if (item.type === 'toolcall') {
                 return html`<rtc-toolcall-card data-client-id=${item.pair.input.clientId} .pair=${item.pair}></rtc-toolcall-card>`;
               }
+              if (item.type === 'error') {
+                return html`<rtc-error-message data-client-id=${item.message.clientId} .message=${item.message}></rtc-error-message>`;
+              }
               return html`<rtc-message
                 data-client-id=${item.message.clientId}
                 .message=${item.message}
@@ -511,13 +515,15 @@ export class RtcMessageList extends LitElement {
      *
      * Pairs toolcall_input + toolcall_output into a single ToolCallPair.
      * Output messages that are paired are excluded from the render list.
+     * Error messages are routed to their own render type.
      *
-     * Returns ordered render items: user | assistant | toolcall.
+     * Returns ordered render items: user | assistant | toolcall | error.
      */
     private _buildRenderItems(msgs: Message[]): Array<
         | {type: 'user'; key: string; message: Message}
         | {type: 'assistant'; key: string; message: Message}
         | {type: 'toolcall'; key: string; pair: ToolCallPair}
+        | {type: 'error'; key: string; message: Message}
     > {
         // 1. Build a map: input clientId -> output Message (for quick lookup)
         const inputToOutput = new Map<string, Message>();
@@ -531,6 +537,7 @@ export class RtcMessageList extends LitElement {
             | {type: 'user'; key: string; message: Message}
             | {type: 'assistant'; key: string; message: Message}
             | {type: 'toolcall'; key: string; pair: ToolCallPair}
+            | {type: 'error'; key: string; message: Message}
         > = [];
 
         for (const m of msgs) {
@@ -539,7 +546,10 @@ export class RtcMessageList extends LitElement {
                 continue;
             }
 
-            if (m.content?.type === 'toolcall_input') {
+            if (m.content?.type === 'error') {
+                // Error messages get their own render component
+                items.push({type: 'error', key: m.clientId, message: m});
+            } else if (m.content?.type === 'toolcall_input') {
                 items.push({
                     type: 'toolcall',
                     key: m.clientId,
