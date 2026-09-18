@@ -48,6 +48,8 @@ export class SessionController implements ReactiveController {
             renameSession: (id: string, title: string) =>
                 this._renameSession(id, title),
             deleteSession: (id: string) => this._deleteSession(id),
+            closeSession: (id: string) => this._closeSession(id),
+            reopenSession: (id: string) => this._reopenSession(id),
             reset: () => this._reset(),
             clearCurrentSession: () => this._clearCurrentSession(),
             setCurrentSession: (session: Session) => this._setCurrentSession(session),
@@ -170,6 +172,55 @@ export class SessionController implements ReactiveController {
             })
         );
         return {ok: true};
+    }
+
+    /**
+     * 通知后端关闭 session
+     *
+     * 仅发送 RPC 通知，不做本地状态变更（Tab 关闭由调用方处理）。
+     * 失败时仅 log 错误，由调用方决定如何处理。
+     */
+    private async _closeSession(id: string): Promise<{ok: boolean; error?: Error}> {
+        if (!this.persistence) {
+            console.warn('[SessionController._closeSession] No persistence layer, skipping');
+            return {ok: true};
+        }
+
+        // 检查 session 是否已同步到后端（有 server_id）
+        const session = await this.persistence.getSession(id);
+        if (!session?.server_id) {
+            // 未同步的 session 无需通知后端
+            return {ok: true};
+        }
+
+        try {
+            await this.persistence.closeSession(id);
+            return {ok: true};
+        } catch (err) {
+            console.error('[SessionController._closeSession] Failed to close session:', err);
+            return {ok: false, error: err instanceof Error ? err : new Error(String(err))};
+        }
+    }
+
+    /**
+     * 重新打开已关闭的 session（透明 reopen）
+     *
+     * 调用后端 openSession API，将 session 状态从 closed 改回 idle/active。
+     * 后端返回 updates 后由 applyUpdates 处理本地状态同步。
+     */
+    private async _reopenSession(id: string): Promise<{ok: boolean; error?: Error}> {
+        if (!this.persistence) {
+            console.error('[SessionController._reopenSession] No persistence layer');
+            return {ok: false, error: new Error('Persistence layer not available')};
+        }
+
+        try {
+            await this.persistence.openSession(id);
+            return {ok: true};
+        } catch (err) {
+            console.error('[SessionController._reopenSession] Failed to reopen session:', err);
+            return {ok: false, error: err instanceof Error ? err : new Error(String(err))};
+        }
     }
 
     private _reset() {

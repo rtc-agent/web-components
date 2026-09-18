@@ -142,6 +142,14 @@ class WorkerPersistenceAdapter {
         return this._core.stopTurn(sessionClientId);
     }
 
+    async closeSession(sessionClientId: string): Promise<void> {
+        return this._core.closeSession(sessionClientId);
+    }
+
+    async openSession(sessionClientId: string): Promise<void> {
+        return this._core.openSession(sessionClientId);
+    }
+
     async compactSession(sessionClientId: string, customInstruction?: string): Promise<void> {
         return this._core.compactSession(sessionClientId, customInstruction);
     }

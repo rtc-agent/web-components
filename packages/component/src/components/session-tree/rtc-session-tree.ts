@@ -26,7 +26,7 @@ import {lightTheme} from '../../styles/themes/light.js';
 import {darkTheme} from '../../styles/themes/dark.js';
 import {baseStyles} from '../../styles/base.js';
 import {SessionTreeContext, type SessionTreeContextValue} from '../../contexts/session-tree.js';
-import {plusIcon, refreshIcon, deleteIcon} from '../../icons/index.js';
+import {plusIcon, refreshIcon} from '../../icons/index.js';
 
 // 子组件（副作用导入）
 import './rtc-session-tree-item.js';
@@ -126,18 +126,26 @@ export class RtcSessionTree extends LitElement {
         );
     }
 
-    private _handleDelete() {
-        if (!this.selectedSessionId) {
-            console.warn('[rtc-session-tree] delete clicked but no session selected');
-            return;
-        }
-        console.log('[rtc-session-tree] delete requested for session:', this.selectedSessionId);
-        // 向上冒泡，由 rtc-agent 根组件监听后调用 SessionController.deleteSession
+    private _handleItemRename(e: CustomEvent) {
+        const {sessionId, title} = e.detail;
+        // 向上转发为统一的重命名确认事件，由 rtc-agent 直接调用 SessionController
+        this.dispatchEvent(
+            new CustomEvent('rtc-session-rename-confirmed', {
+                bubbles: true,
+                composed: true,
+                detail: {sessionId, title},
+            })
+        );
+    }
+
+    private _handleItemDelete(e: CustomEvent) {
+        const {sessionId} = e.detail;
+        // 向上转发为统一的删除请求事件，由 rtc-agent 调用 SessionController.deleteSession
         this.dispatchEvent(
             new CustomEvent('rtc-session-delete-requested', {
                 bubbles: true,
                 composed: true,
-                detail: {sessionId: this.selectedSessionId},
+                detail: {sessionId},
             })
         );
     }
@@ -315,6 +323,8 @@ export class RtcSessionTree extends LitElement {
                     selected-session-id=${this.selectedSessionId ?? ''}
                     @rtc-session-tree-item-select=${this._handleSelect}
                     @rtc-session-tree-item-toggle=${this._handleToggle}
+                    @rtc-session-tree-item-rename=${this._handleItemRename}
+                    @rtc-session-tree-item-delete=${this._handleItemDelete}
                 ></rtc-session-tree-item>
             `
         );
@@ -338,13 +348,6 @@ export class RtcSessionTree extends LitElement {
                         aria-label=${msg('新建会话')}
                         @click=${this._handleNewSession}
                     >${plusIcon}</button>
-                    <button
-                        class="action-btn action-btn--danger"
-                        title=${msg('删除当前会话')}
-                        aria-label=${msg('删除当前会话')}
-                        ?disabled=${!this.selectedSessionId}
-                        @click=${this._handleDelete}
-                    >${deleteIcon}</button>
                 </div>
             </div>
             <div
@@ -375,5 +378,7 @@ declare global {
         'rtc-session-tree-select': CustomEvent<{sessionId: string}>;
         'rtc-session-tree-toggle': CustomEvent<{sessionId: string}>;
         'rtc-session-tree-new': CustomEvent<void>;
+        'rtc-session-rename-confirmed': CustomEvent<{sessionId: string; title: string}>;
+        'rtc-session-delete-requested': CustomEvent<{sessionId: string}>;
     }
 }

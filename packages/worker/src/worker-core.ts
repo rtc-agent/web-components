@@ -186,6 +186,16 @@ export class WorkerCore implements WorkerPersistenceCore {
     return layer.stopTurn(sessionClientId);
   }
 
+  async closeSession(sessionClientId: string): Promise<void> {
+    const layer = this.ensureLayer();
+    return layer.closeSession(sessionClientId);
+  }
+
+  async openSession(sessionClientId: string): Promise<void> {
+    const layer = this.ensureLayer();
+    return layer.openSession(sessionClientId);
+  }
+
   async compactSession(sessionClientId: string, customInstruction?: string): Promise<void> {
     const layer = this.ensureLayer();
     return layer.compactSession(sessionClientId, customInstruction);

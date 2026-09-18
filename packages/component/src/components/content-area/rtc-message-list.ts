@@ -78,6 +78,8 @@ export class RtcMessageList extends LitElement {
             switchSession: () => {},
             renameSession: async () => ({ok: true, error: ''}),
             deleteSession: async () => ({ok: true, error: ''}),
+            closeSession: async () => ({ok: true}),
+            reopenSession: async () => ({ok: true}),
             reset: () => {},
             clearCurrentSession: () => {},
             setCurrentSession: () => {},

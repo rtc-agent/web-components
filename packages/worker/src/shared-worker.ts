@@ -46,6 +46,8 @@ sharedSelf.onconnect = (e: MessageEvent): void => {
     sendMessage: (...args: Parameters<WorkerCore['sendMessage']>) => core.sendMessage(...args),
     insertLocalMessage: (...args: Parameters<WorkerCore['insertLocalMessage']>) => core.insertLocalMessage(...args),
     stopTurn: (...args: Parameters<WorkerCore['stopTurn']>) => core.stopTurn(...args),
+    closeSession: (...args: Parameters<WorkerCore['closeSession']>) => core.closeSession(...args),
+    openSession: (...args: Parameters<WorkerCore['openSession']>) => core.openSession(...args),
     compactSession: (...args: Parameters<WorkerCore['compactSession']>) => core.compactSession(...args),
     submitRtcResult: (...args: Parameters<WorkerCore['submitRtcResult']>) => core.submitRtcResult(...args),
     forkSession: (...args: Parameters<WorkerCore['forkSession']>) => core.forkSession(...args),

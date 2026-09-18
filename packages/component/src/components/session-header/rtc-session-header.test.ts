@@ -8,7 +8,7 @@ import './rtc-session-header.js';
 
 const mockSessionCtx: SessionContextValue = {
     state: {sessions: [], currentSessionId: null},
-    actions: {createSession: () => '', switchSession: () => {}, renameSession: async () => ({ok: true}), deleteSession: async () => ({ok: true}), reset: () => {}, clearCurrentSession: () => {}, setCurrentSession: () => {}, setSessions: () => {}},
+    actions: {createSession: () => '', switchSession: () => {}, renameSession: async () => ({ok: true}), deleteSession: async () => ({ok: true}), closeSession: async () => ({ok: true}), reopenSession: async () => ({ok: true}), reset: () => {}, clearCurrentSession: () => {}, setCurrentSession: () => {}, setSessions: () => {}},
 };
 
 describe('<rtc-session-header>', () => {

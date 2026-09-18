@@ -477,6 +477,17 @@ export interface components {
             result: components["schemas"]["CloseSessionResult"];
             updates?: components["schemas"]["Update"][];
         };
+        OpenSessionRequest: {
+            session_id: components["schemas"]["UUID"];
+        };
+        OpenSessionResult: {
+            success: boolean;
+        };
+        /** @description Response for reopening a closed session */
+        OpenSessionResponse: {
+            result: components["schemas"]["OpenSessionResult"];
+            updates?: components["schemas"]["Update"][];
+        };
         /** @description 更新会话请求（目前仅支持标题） */
         UpdateSessionRequest: {
             session_id: components["schemas"]["UUID"];
@@ -607,7 +618,7 @@ export interface components {
          * @description RPC 方法名，前后端统一从 protocol 导入，禁止硬编码字符串
          * @enum {string}
          */
-        RpcMethod: "v1.session.list" | "v1.session.get" | "v1.session.close" | "v1.session.update" | "v1.session.fork" | "v1.session.compact" | "v1.message.send" | "v1.message.list" | "v1.message.get" | "v1.turn.list" | "v1.turn.get" | "v1.turn.stop" | "v1.rtc.list" | "v1.rtc.get" | "v1.rtc.update_status" | "v1.rtc.submit_result";
+        RpcMethod: "v1.session.list" | "v1.session.get" | "v1.session.close" | "v1.session.open" | "v1.session.update" | "v1.session.fork" | "v1.session.compact" | "v1.message.send" | "v1.message.list" | "v1.message.get" | "v1.turn.list" | "v1.turn.get" | "v1.turn.stop" | "v1.rtc.list" | "v1.rtc.get" | "v1.rtc.update_status" | "v1.rtc.submit_result";
         /** @description 获取会话列表请求 */
         ListSessionsRequest: {
             /** @description 分页游标（上一页最后一条的 ID） */

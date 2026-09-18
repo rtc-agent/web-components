@@ -13,13 +13,6 @@
  */
 import type {ReactiveController, ReactiveControllerHost} from 'lit';
 import type {SessionTab, SessionTabState, SessionTabActions, SessionStatus} from '../types/index.js';
-import {STORAGE_KEYS} from '../config/auth.js';
-
-/** 持久化的 Tab 数据 */
-interface PersistedTabData {
-    tabs: SessionTab[];
-    activeSessionId: string | null;
-}
 
 export class SessionTabController implements ReactiveController {
     host: ReactiveControllerHost;
@@ -51,57 +44,10 @@ export class SessionTabController implements ReactiveController {
             updateTabStatus: (sessionId: string, status) =>
                 this._updateTabStatus(sessionId, status),
         };
-
-        this._restoreTabs();
     }
 
     hostConnected() {}
     hostDisconnected() {}
-
-    /* ─ Persistence ── */
-
-    private _restoreTabs() {
-        try {
-            const raw = localStorage.getItem(STORAGE_KEYS.sessionTabs);
-            console.log('[SessionTabController._restoreTabs] localStorage data:', raw);
-            if (!raw) return;
-            const saved: PersistedTabData = JSON.parse(raw);
-            if (saved.tabs && Array.isArray(saved.tabs) && saved.tabs.length > 0) {
-                const migrated = saved.tabs.map(t => ({
-                    ...t,
-                    isDefault: t.isDefault ?? this._isPlaceholderTitle(t.title),
-                    isUnsaved: t.isUnsaved ?? false,
-                }));
-                this._state = {
-                    tabs: migrated,
-                    activeSessionId: saved.activeSessionId ?? null,
-                };
-                console.log('[SessionTabController._restoreTabs] Restored tabs:', migrated.map(t => `${t.sessionId}="${t.title}"(isDefault=${t.isDefault})`));
-                console.log('[SessionTabController._restoreTabs] Restored activeSessionId:', saved.activeSessionId);
-            }
-        } catch {
-            // localStorage may be unavailable or data corrupted
-        }
-    }
-
-    private _persistTabs() {
-        try {
-            if (this._state.tabs.length === 0) {
-                localStorage.removeItem(STORAGE_KEYS.sessionTabs);
-                console.log('[SessionTabController._persistTabs] Cleared (no tabs)');
-            } else {
-                const data: PersistedTabData = {
-                    tabs: this._state.tabs,
-                    activeSessionId: this._state.activeSessionId,
-                };
-                localStorage.setItem(STORAGE_KEYS.sessionTabs, JSON.stringify(data));
-                console.log('[SessionTabController._persistTabs] Saved tabs:', this._state.tabs.map(t => `${t.sessionId}="${t.title}"`));
-                console.log('[SessionTabController._persistTabs] Saved activeSessionId:', this._state.activeSessionId);
-            }
-        } catch {
-            // localStorage may be unavailable
-        }
-    }
 
     /**
      * 过滤掉无效 Tab（session 已被删除或不存在）
@@ -128,7 +74,7 @@ export class SessionTabController implements ReactiveController {
 
         if (tabs.length !== before) {
             this._state = {tabs, activeSessionId};
-            this._persistTabs();
+
             this.host.requestUpdate();
             return true;
         }
@@ -168,7 +114,7 @@ export class SessionTabController implements ReactiveController {
 
         if (changed) {
             this._state = {...this._state, tabs};
-            this._persistTabs();
+
             this.host.requestUpdate();
         }
         return changed;
@@ -192,7 +138,7 @@ export class SessionTabController implements ReactiveController {
         });
         if (changed) {
             this._state = {...this._state, tabs};
-            this._persistTabs();
+
             this.host.requestUpdate();
         }
         return changed;
@@ -217,7 +163,7 @@ export class SessionTabController implements ReactiveController {
             t.sessionId === sessionId ? {...t, isUnsaved: false} : t
         );
         this._state = {...this._state, tabs};
-        this._persistTabs();
+
         this.host.requestUpdate();
     }
 
@@ -229,15 +175,16 @@ export class SessionTabController implements ReactiveController {
             t.sessionId === sessionId ? {...t, status} : t
         );
         this._state = {...this._state, tabs};
-        this._persistTabs();
+
         this.host.requestUpdate();
     }
 
-    private _openOrActivate(sessionId: string, title: string, options?: { isUnsaved?: boolean }) {
+    private _openOrActivate(sessionId: string, title: string, options?: { isUnsaved?: boolean; activate?: boolean }) {
         console.log('[SessionTabController._openOrActivate] sessionId:', sessionId, 'title:', `"${title}"`);
         console.log('[SessionTabController._openOrActivate] Current tabs:', this._state.tabs.map(t => `${t.sessionId}="${t.title}"(isDefault=${t.isDefault})`));
 
         const isPlaceholder = this._isPlaceholderTitle(title);
+        const shouldActivate = options?.activate ?? true; // 默认激活
         const existingIndex = this._state.tabs.findIndex(
             t => t.sessionId === sessionId
         );
@@ -247,10 +194,10 @@ export class SessionTabController implements ReactiveController {
             // 保护已有真实标题的 Tab 不被占位标题覆盖
             if (isPlaceholder && !existing.isDefault && existing.title !== title) {
                 console.log('[SessionTabController._openOrActivate] Protected tab title:', existing.title);
-                // 仍然激活该 Tab，但不更新标题
-                if (this._state.activeSessionId !== sessionId) {
+                // 仅在需要激活时更新 activeSessionId
+                if (shouldActivate && this._state.activeSessionId !== sessionId) {
                     this._state = {...this._state, activeSessionId: sessionId};
-                    this._persistTabs();
+
                     this.host.requestUpdate();
                 }
                 return;
@@ -260,7 +207,7 @@ export class SessionTabController implements ReactiveController {
                     ? {...t, title, isDefault: isPlaceholder ? true : false}
                     : t
             );
-            this._state = {tabs, activeSessionId: sessionId};
+            this._state = {tabs, activeSessionId: shouldActivate ? sessionId : this._state.activeSessionId};
         } else {
             const newTab: SessionTab = {
                 sessionId,
@@ -269,11 +216,11 @@ export class SessionTabController implements ReactiveController {
                 isUnsaved: options?.isUnsaved ?? false,
             };
             const tabs = [...this._state.tabs, newTab];
-            this._state = {tabs, activeSessionId: sessionId};
+            this._state = {tabs, activeSessionId: shouldActivate ? sessionId : this._state.activeSessionId};
         }
 
         console.log('[SessionTabController._openOrActivate] Final tabs:', this._state.tabs.map(t => `${t.sessionId}="${t.title}"(isDefault=${t.isDefault})`));
-        this._persistTabs();
+
         this.host.requestUpdate();
     }
 
@@ -297,25 +244,25 @@ export class SessionTabController implements ReactiveController {
         }
 
         this._state = {tabs, activeSessionId};
-        this._persistTabs();
+
         this.host.requestUpdate();
     }
 
     private _setActiveTab(sessionId: string | null) {
         if (sessionId !== null && sessionId !== this._state.activeSessionId) {
             this._state = {...this._state, activeSessionId: sessionId};
-            this._persistTabs();
+
             this.host.requestUpdate();
         } else if (sessionId === null && this._state.activeSessionId !== null) {
             this._state = {...this._state, activeSessionId: null};
-            this._persistTabs();
+
             this.host.requestUpdate();
         }
     }
 
     private _clearAll() {
         this._state = {tabs: [], activeSessionId: null};
-        this._persistTabs();
+
         this.host.requestUpdate();
     }
 }

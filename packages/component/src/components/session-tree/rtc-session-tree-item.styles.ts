@@ -149,6 +149,141 @@ export const styles = css`
         padding-left: 8px;
     }
 
+    /* ── Action buttons (重命名/删除) ── */
+    .actions {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        flex-shrink: 0;
+        margin-left: auto;
+        padding-left: 4px;
+        opacity: 0;
+        transition: opacity 0.15s ease;
+    }
+
+    .tree-item-content:hover .actions,
+    .tree-item-content.selected .actions {
+        opacity: 1;
+    }
+
+    /* hover/selected 时隐藏 timestamp，给 actions 让位 */
+    .tree-item-content:hover .timestamp,
+    .tree-item-content.selected .timestamp {
+        display: none;
+    }
+
+    .action-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 20px;
+        height: 20px;
+        padding: 0;
+        border: none;
+        border-radius: 3px;
+        background: transparent;
+        color: var(--rtc-color-text-secondary, #666666);
+        cursor: pointer;
+        transition: background-color 0.1s ease, color 0.1s ease;
+    }
+
+    .action-btn svg {
+        width: 14px;
+        height: 14px;
+        fill: currentColor;
+    }
+
+    .action-btn:hover {
+        background-color: var(--rtc-color-bg-active, rgba(0, 0, 0, 0.08));
+        color: var(--rtc-color-text, #333333);
+    }
+
+    .action-btn--danger:hover {
+        background-color: var(--rtc-color-danger-bg, rgba(220, 38, 38, 0.12));
+        color: var(--rtc-color-danger, #dc2626);
+    }
+
+    /* 选中态下 action-btn 的颜色适配 */
+    .tree-item-content.selected .action-btn {
+        color: var(--rtc-color-text-inverse, #ffffff);
+        opacity: 0.7;
+    }
+
+    .tree-item-content.selected .action-btn:hover {
+        opacity: 1;
+        background-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .tree-item-content.selected .action-btn--danger:hover {
+        background-color: rgba(255, 255, 255, 0.2);
+        color: var(--rtc-color-text-inverse, #ffffff);
+    }
+
+    /* ── 内联重命名 ── */
+    .rename-input {
+        flex: 1;
+        min-width: 0;
+        height: 22px;
+        padding: 0 6px;
+        border: 1px solid var(--rtc-color-primary, #2741fe);
+        border-radius: 3px;
+        background: var(--rtc-color-bg-input, #ffffff);
+        color: var(--rtc-color-text, #333333);
+        font-size: 13px;
+        line-height: 22px;
+        outline: none;
+    }
+
+    .rename-actions {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        flex-shrink: 0;
+        margin-left: 4px;
+    }
+
+    .rename-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 20px;
+        height: 20px;
+        padding: 0;
+        border: none;
+        border-radius: 3px;
+        background: transparent;
+        cursor: pointer;
+        transition: background-color 0.1s ease, color 0.1s ease;
+    }
+
+    .rename-btn svg {
+        width: 14px;
+        height: 14px;
+        fill: currentColor;
+    }
+
+    .rename-btn--confirm {
+        color: var(--rtc-color-success, #16a34a);
+    }
+
+    .rename-btn--confirm:hover {
+        background-color: var(--rtc-color-success-bg, rgba(22, 163, 74, 0.12));
+    }
+
+    .rename-btn--cancel {
+        color: var(--rtc-color-text-secondary, #666666);
+    }
+
+    .rename-btn--cancel:hover {
+        background-color: var(--rtc-color-bg-active, rgba(0, 0, 0, 0.08));
+        color: var(--rtc-color-text, #333333);
+    }
+
+    /* 重命名态下的特殊样式 */
+    .tree-item-content.renaming {
+        background-color: var(--rtc-color-bg-hover);
+    }
+
     /* 子节点容器 */
     .children {
         display: block;
@@ -177,6 +312,35 @@ export const styles = css`
         color: var(--rtc-color-text-tertiary, #6e6e6e);
     }
 
+    :host([theme='dark']) .action-btn {
+        color: var(--rtc-color-text-secondary, #858585);
+    }
+
+    :host([theme='dark']) .action-btn:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+        color: var(--rtc-color-text, #cccccc);
+    }
+
+    :host([theme='dark']) .action-btn--danger:hover {
+        background-color: rgba(220, 38, 38, 0.2);
+        color: var(--rtc-color-danger, #f87171);
+    }
+
+    :host([theme='dark']) .rename-input {
+        background: var(--rtc-color-bg-input, #1e1e1e);
+        color: var(--rtc-color-text, #cccccc);
+        border-color: var(--rtc-color-primary, #2741fe);
+    }
+
+    :host([theme='dark']) .rename-btn--cancel {
+        color: var(--rtc-color-text-secondary, #858585);
+    }
+
+    :host([theme='dark']) .rename-btn--cancel:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+        color: var(--rtc-color-text, #cccccc);
+    }
+
     /* ── 亮色主题适配 ── */
     :host([theme='light']) .tree-item-content {
         color: var(--rtc-color-text, #333333);
@@ -197,6 +361,35 @@ export const styles = css`
 
     :host([theme='light']) .timestamp {
         color: var(--rtc-color-text-tertiary, #999999);
+    }
+
+    :host([theme='light']) .action-btn {
+        color: var(--rtc-color-text-secondary, #666666);
+    }
+
+    :host([theme='light']) .action-btn:hover {
+        background-color: rgba(0, 0, 0, 0.06);
+        color: var(--rtc-color-text, #333333);
+    }
+
+    :host([theme='light']) .action-btn--danger:hover {
+        background-color: rgba(220, 38, 38, 0.1);
+        color: var(--rtc-color-danger, #dc2626);
+    }
+
+    :host([theme='light']) .rename-input {
+        background: var(--rtc-color-bg-input, #ffffff);
+        color: var(--rtc-color-text, #333333);
+        border-color: var(--rtc-color-primary, #2741fe);
+    }
+
+    :host([theme='light']) .rename-btn--cancel {
+        color: var(--rtc-color-text-secondary, #666666);
+    }
+
+    :host([theme='light']) .rename-btn--cancel:hover {
+        background-color: rgba(0, 0, 0, 0.06);
+        color: var(--rtc-color-text, #333333);
     }
 
     @media (prefers-reduced-motion: reduce) {

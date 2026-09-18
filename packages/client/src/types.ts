@@ -14,6 +14,7 @@ import type {
   ForkSessionResponse,
   ForkSessionRequest,
   CloseSessionResponse,
+  OpenSessionResponse,
   StopTurnResponse,
   SubmitRtcResultResponse,
   UpdateRtcStatusResponse,
@@ -161,6 +162,7 @@ export interface IRTCAgentClient {
   listSessions(cursor?: string, limit?: number): Promise<ListSessionsResponse>;
   getSession(sessionId: string): Promise<GetSessionResponse>;
   closeSession(sessionId: string): Promise<CloseSessionResponse>;
+  openSession(sessionId: string): Promise<OpenSessionResponse>;
   forkSession(req: ForkSessionRequest): Promise<ForkSessionResponse>;
   compactSession(req: CompactSessionRequest): Promise<CompactSessionResponse>;
 

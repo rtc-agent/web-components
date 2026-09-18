@@ -98,8 +98,6 @@ export const STORAGE_KEYS = {
     windowState: 'rtc_window_state',
     /** 会话树展开状态：sessionId → isExpanded */
     sessionTreeExpanded: 'rtc_session_tree_expanded',
-    /** Tab 栏状态：tabs + activeSessionId */
-    sessionTabs: 'rtc_session_tabs',
     /** Activity Bar 状态：active activity + sidebarVisible */
     activityBar: 'rtc_activity_bar',
     /** Editor Area 状态：打开的 tabs + activeFilePath */

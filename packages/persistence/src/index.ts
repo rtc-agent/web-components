@@ -415,6 +415,44 @@ export class PersistenceLayer {
   }
 
   /**
+   * 关闭会话（通知后端停止 turn loop）
+   */
+  async closeSession(sessionClientId: string): Promise<void> {
+    // 1. 查找 session
+    const session = await this.entityRepository.getClientSession(sessionClientId);
+    if (!session?.server_id) {
+      throw new Error(`Session not found or not synced: ${sessionClientId}`);
+    }
+
+    // 2. 调用 RPC
+    const response = await this.client.closeSession(session.server_id);
+
+    // 3. 处理 updates
+    if (response.updates && response.updates.length > 0) {
+      await this.client.applyUpdates(response.updates);
+    }
+  }
+
+  /**
+   * 重新打开已关闭的会话
+   */
+  async openSession(sessionClientId: string): Promise<void> {
+    // 1. 查找 session
+    const session = await this.entityRepository.getClientSession(sessionClientId);
+    if (!session?.server_id) {
+      throw new Error(`Session not found or not synced: ${sessionClientId}`);
+    }
+
+    // 2. 调用 RPC
+    const response = await this.client.openSession(session.server_id);
+
+    // 3. 处理 updates
+    if (response.updates && response.updates.length > 0) {
+      await this.client.applyUpdates(response.updates);
+    }
+  }
+
+  /**
    * 压缩会话上下文
    */
   async compactSession(sessionClientId: string, customInstruction?: string): Promise<void> {

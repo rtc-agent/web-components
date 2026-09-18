@@ -150,7 +150,7 @@ export interface SessionTabState {
 
 export interface SessionTabActions {
     /** 打开或切换到指定 session 的 tab。`options.isUnsaved` 用于新建 unsaved draft tab。 */
-    openOrActivate(sessionId: string, title: string, options?: { isUnsaved?: boolean }): void;
+    openOrActivate(sessionId: string, title: string, options?: { isUnsaved?: boolean; activate?: boolean }): void;
     /** 关闭指定 tab。若关闭的是活动 tab，自动激活相邻 tab。 */
     closeTab(sessionId: string): void;
     /** 设置活动 tab */
@@ -250,6 +250,12 @@ export interface SessionActions {
     renameSession(id: string, title: string): Promise<{ok: boolean; error?: string}>;
 
     deleteSession(id: string): Promise<{ok: boolean; error?: string}>;
+
+    /** 通知后端关闭 session（Tab 关闭时调用，fire-and-forget） */
+    closeSession(sessionId: string): Promise<{ok: boolean; error?: Error}>;
+
+    /** 重新打开已关闭的 session（打开 closed session 时调用，透明 reopen） */
+    reopenSession(sessionId: string): Promise<{ok: boolean; error?: Error}>;
 
     /** Reset all session state */
     reset(): void;

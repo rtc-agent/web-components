@@ -9,6 +9,8 @@
  * @element rtc-session-tree-item
  * @fires rtc-session-tree-item-select - 点击会话（detail: { sessionId }）
  * @fires rtc-session-tree-item-toggle - 点击展开/折叠（detail: { sessionId }）
+ * @fires rtc-session-tree-item-rename - 确认重命名（detail: { sessionId, title }）
+ * @fires rtc-session-tree-item-delete - 点击删除（detail: { sessionId }）
  */
 import {LitElement, html, nothing, svg} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
@@ -25,6 +27,10 @@ import {
     folderOpenIcon,
     folderClosedIcon,
     chatIcon,
+    editIcon,
+    deleteIcon,
+    checkIcon,
+    closeIcon,
 } from '../../icons/index.js';
 import {formatRelativeTime} from '../../utils/relative-time.js';
 import type {SessionTreeNode} from '../../types/index.js';
@@ -62,7 +68,16 @@ export class RtcSessionTreeItem extends LitElement {
     @property({type: String, reflect: true})
     theme: 'light' | 'dark' | 'system' = 'system';
 
+    /** 内联重命名模式 */
+    @state()
+    private _isRenaming = false;
+
+    @state()
+    private _renameValue = '';
+
     private _handleClick() {
+        // 重命名模式下不响应主体点击
+        if (this._isRenaming) return;
         // 点击主体（包括文件夹和叶子）只选中，不展开/折叠
         this.dispatchEvent(
             new CustomEvent('rtc-session-tree-item-select', {
@@ -84,6 +99,63 @@ export class RtcSessionTreeItem extends LitElement {
         );
     }
 
+    private _handleRenameClick(e: Event) {
+        e.stopPropagation();
+        this._renameValue = this.node.session.title || '';
+        this._isRenaming = true;
+        // 下一帧聚焦 input
+        requestAnimationFrame(() => {
+            const input = this.shadowRoot?.querySelector('.rename-input') as HTMLInputElement | null;
+            input?.focus();
+            input?.select();
+        });
+    }
+
+    private _handleRenameConfirm(e: Event) {
+        e.stopPropagation();
+        const title = this._renameValue.trim();
+        if (!title) {
+            // 标题为空时取消而非确认
+            this._handleRenameCancel(e);
+            return;
+        }
+        this._isRenaming = false;
+        this.dispatchEvent(
+            new CustomEvent('rtc-session-tree-item-rename', {
+                bubbles: true,
+                composed: true,
+                detail: {sessionId: this.node.session.clientId, title},
+            })
+        );
+    }
+
+    private _handleRenameCancel(e?: Event) {
+        e?.stopPropagation();
+        this._isRenaming = false;
+        this._renameValue = '';
+    }
+
+    private _handleRenameKeydown(e: KeyboardEvent) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            this._handleRenameConfirm(e);
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            this._handleRenameCancel(e);
+        }
+    }
+
+    private _handleDeleteClick(e: Event) {
+        e.stopPropagation();
+        this.dispatchEvent(
+            new CustomEvent('rtc-session-tree-item-delete', {
+                bubbles: true,
+                composed: true,
+                detail: {sessionId: this.node.session.clientId},
+            })
+        );
+    }
+
     render() {
         void this._localeCtx.locale;
         const node = this.node;
@@ -97,6 +169,7 @@ export class RtcSessionTreeItem extends LitElement {
                 class=${classMap({
                     'tree-item-content': true,
                     'selected': isSelected,
+                    'renaming': this._isRenaming,
                 })}
                 style="padding-left: ${paddingLeft}"
                 role="treeitem"
@@ -135,10 +208,52 @@ export class RtcSessionTreeItem extends LitElement {
                           aria-hidden="true"
                       ></span>`
                     : nothing}
-                <span class="label">${node.session.title || msg('Untitled')}</span>
-                ${node.session.updatedAt
-                    ? html`<span class="timestamp">${formatRelativeTime(node.session.updatedAt)}</span>`
-                    : nothing}
+                ${this._isRenaming
+                    ? html`
+                        <input
+                            class="rename-input"
+                            type="text"
+                            .value=${this._renameValue}
+                            @input=${(e: Event) => { this._renameValue = (e.target as HTMLInputElement).value; }}
+                            @keydown=${this._handleRenameKeydown}
+                            @click=${(e: Event) => e.stopPropagation()}
+                        />
+                        <span class="rename-actions">
+                            <button
+                                class="rename-btn rename-btn--confirm"
+                                title=${msg('确认')}
+                                aria-label=${msg('确认重命名')}
+                                @click=${this._handleRenameConfirm}
+                            >${checkIcon}</button>
+                            <button
+                                class="rename-btn rename-btn--cancel"
+                                title=${msg('取消')}
+                                aria-label=${msg('取消重命名')}
+                                @click=${this._handleRenameCancel}
+                            >${closeIcon}</button>
+                        </span>
+                    `
+                    : html`
+                        <span class="label">${node.session.title || msg('Untitled')}</span>
+                        ${node.session.updatedAt
+                            ? html`<span class="timestamp">${formatRelativeTime(node.session.updatedAt)}</span>`
+                            : nothing}
+                        <span class="actions">
+                            <button
+                                class="action-btn"
+                                title=${msg('重命名')}
+                                aria-label=${msg('重命名')}
+                                @click=${this._handleRenameClick}
+                            >${editIcon}</button>
+                            <button
+                                class="action-btn action-btn--danger"
+                                title=${msg('删除')}
+                                aria-label=${msg('删除')}
+                                @click=${this._handleDeleteClick}
+                            >${deleteIcon}</button>
+                        </span>
+                    `
+                }
             </div>
             ${hasChildren && node.isExpanded
                 ? html`
@@ -161,6 +276,22 @@ export class RtcSessionTreeItem extends LitElement {
                                     @rtc-session-tree-item-toggle=${(e: CustomEvent) =>
                                         this.dispatchEvent(
                                             new CustomEvent('rtc-session-tree-item-toggle', {
+                                                bubbles: true,
+                                                composed: true,
+                                                detail: e.detail,
+                                            })
+                                        )}
+                                    @rtc-session-tree-item-rename=${(e: CustomEvent) =>
+                                        this.dispatchEvent(
+                                            new CustomEvent('rtc-session-tree-item-rename', {
+                                                bubbles: true,
+                                                composed: true,
+                                                detail: e.detail,
+                                            })
+                                        )}
+                                    @rtc-session-tree-item-delete=${(e: CustomEvent) =>
+                                        this.dispatchEvent(
+                                            new CustomEvent('rtc-session-tree-item-delete', {
                                                 bubbles: true,
                                                 composed: true,
                                                 detail: e.detail,

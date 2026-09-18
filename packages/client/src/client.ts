@@ -9,6 +9,7 @@ import type {
   SendMessageResponse,
   ForkSessionResponse,
   CloseSessionResponse,
+  OpenSessionResponse,
   StopTurnResponse,
   SubmitRtcResultResponse,
   UpdateRtcStatusResponse,
@@ -188,6 +189,10 @@ export class RTCAgentClient implements IRTCAgentClient {
 
   async closeSession(sessionId: string): Promise<CloseSessionResponse> {
     return this.rpc<CloseSessionResponse>(RpcMethod.SessionClose, { session_id: sessionId });
+  }
+
+  async openSession(sessionId: string): Promise<OpenSessionResponse> {
+    return this.rpc<OpenSessionResponse>(RpcMethod.SessionOpen, { session_id: sessionId });
   }
 
   async compactSession(

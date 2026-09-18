@@ -31,6 +31,7 @@ export const RpcMethod = {
     SessionList: 'v1.session.list',
     SessionGet: 'v1.session.get',
     SessionClose: 'v1.session.close',
+    SessionOpen: 'v1.session.open',
     SessionUpdate: 'v1.session.update',
     SessionFork: 'v1.session.fork',
     SessionCompact: 'v1.session.compact',
@@ -76,6 +77,10 @@ export interface RpcActionResponse<T> {
 export type CloseSessionRequest = components['schemas']['CloseSessionRequest'];
 export type CloseSessionResult = components['schemas']['CloseSessionResult'];
 export type CloseSessionResponse = components['schemas']['CloseSessionResponse'];
+
+export type OpenSessionRequest = components['schemas']['OpenSessionRequest'];
+export type OpenSessionResult = components['schemas']['OpenSessionResult'];
+export type OpenSessionResponse = components['schemas']['OpenSessionResponse'];
 
 export type UpdateSessionRequest = components['schemas']['UpdateSessionRequest'];
 export type UpdateSessionResult = components['schemas']['UpdateSessionResult'];

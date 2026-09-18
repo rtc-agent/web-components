@@ -40,7 +40,8 @@
  * - Each controller encapsulates one context's state + actions
  * - Root creates controllers and wires them to context providers
  * - Controllers call `host.requestUpdate()` after state mutations
- * - Root syncs controller.value to provider via `updated()` lifecycle
+ * - Root syncs controller.value to provider via `updated()` lifecycle + `updateComplete` Promise
+ * - Using `updateComplete` ensures Context consumers update after host finishes, avoiding change-in-update warnings
  * - Cross-controller communication (e.g., session switch -> clear messages)
  *   is handled by the root via callbacks
  *
@@ -521,6 +522,14 @@ export class RtcAgent extends LitElement {
     /** Tracks the last mode we applied DOM side-effects for, to avoid redundant work. */
     private _appliedMode: WindowMode = 'normal';
 
+    /**
+     * Guard flag to prevent infinite loop when auto-creating unsaved tab
+     *
+     * Set to true before creating tab, false after. Prevents updated() from
+     * recursively triggering itself when the newly created tab triggers another update.
+     */
+    private _creatingUnsavedTab = false;
+
     /** Tracks whether we've done the initial session load (for auto-select logic). */
     private _initialSessionLoadDone = false;
 
@@ -664,6 +673,15 @@ export class RtcAgent extends LitElement {
             this._toast.actions.show(msg('标题不能为空'), 'info');
             return;
         }
+        const result = await this._session.actions.renameSession(sessionId, title.trim());
+        if (!result.ok) {
+            this._toast.actions.show(result.error ?? msg('重命名失败'), 'error');
+        }
+    };
+    private _boundOnSessionRenameConfirmed = async (e: Event) => {
+        const {sessionId, title} = (e as CustomEvent).detail;
+        // 内联编辑已确认，直接调用 renameSession
+        if (!title.trim()) return;
         const result = await this._session.actions.renameSession(sessionId, title.trim());
         if (!result.ok) {
             this._toast.actions.show(result.error ?? msg('重命名失败'), 'error');
@@ -891,7 +909,7 @@ export class RtcAgent extends LitElement {
 
     /* ── Context Providers ── */
 
-    private _sessionProvider = new ContextProvider(this, {context: SessionContext});
+    private _sessionProvider = new ContextProvider(this, {context: SessionContext, initialValue: this._session.value});
     private _messageProvider = new ContextProvider(this, {context: MessageContext});
     private _toolCallProvider = new ContextProvider(this, {context: ToolCallContext});
     private _authProvider = new ContextProvider(this, {context: AuthContext, initialValue: this._auth.value});
@@ -991,6 +1009,8 @@ export class RtcAgent extends LitElement {
         // Listen for session delete / rename requests (from sidebar or session panel)
         this.addEventListener('rtc-session-delete-requested', this._boundOnSessionDeleteRequested);
         this.addEventListener('rtc-session-rename-requested', this._boundOnSessionRenameRequested);
+        // Listen for inline rename confirmation (from session tree item)
+        this.addEventListener('rtc-session-rename-confirmed', this._boundOnSessionRenameConfirmed);
 
         // Listen for fork initiated (from chat-layout after unsaved tab orchestration)
         this.addEventListener('rtc-fork-initiated', this._boundOnForkInitiated);
@@ -1043,9 +1063,30 @@ export class RtcAgent extends LitElement {
                 void this._loadSessions();
                 // status 变动 → 同步到 SessionTab（active/idle/closed 切换驱动 dot 动画）
                 if (event.field === 'status') {
+                    const oldStatus = event.oldValue as SessionStatus | undefined;
                     const newStatus = event.newValue as SessionStatus | undefined;
+                    const sessionId = event.entityId;
+
                     if (newStatus) {
-                        this._sessionTab.actions.updateTabStatus(event.entityId, newStatus);
+                        // 场景 1：session 被关闭（open → closed）→ 关闭 Tab
+                        // Tab 数量监测和自动创建 unsaved tab 由 updated() 生命周期统一处理
+                        if (newStatus === 'closed') {
+                            console.log('[rtc-agent] Session closed, closing tab:', sessionId);
+                            this._sessionTab.actions.closeTab(sessionId);
+                        }
+                        // 场景 2：session 被重新打开（closed → idle）→ 创建 Tab 但不选中
+                        else if (oldStatus === 'closed' && (newStatus === 'idle' || newStatus === 'active')) {
+                            console.log('[rtc-agent] Session reopened, creating tab:', sessionId);
+                            // 从 session 列表获取标题
+                            const session = this._session.value.state.sessions.find(s => s.clientId === sessionId);
+                            const title = session?.title || 'Untitled';
+                            this._sessionTab.actions.openOrActivate(sessionId, title, {activate: false});
+                            // 注意：不调用 switchSession，保持当前 activeSessionId 不变
+                        }
+                        // 其他状态变化 → 只更新 status dot
+                        else {
+                            this._sessionTab.actions.updateTabStatus(sessionId, newStatus);
+                        }
                     }
                 }
                 // todo_list 变动 → 插入本地 markdown 消息，让对话流展示 todo 历史
@@ -1299,6 +1340,7 @@ export class RtcAgent extends LitElement {
         this.removeEventListener('rtc-fork-initiated', this._boundOnForkInitiated);
         this.removeEventListener('rtc-session-delete-requested', this._boundOnSessionDeleteRequested);
         this.removeEventListener('rtc-session-rename-requested', this._boundOnSessionRenameRequested);
+        this.removeEventListener('rtc-session-rename-confirmed', this._boundOnSessionRenameConfirmed);
         this.removeEventListener('rtc-toast-requested', this._boundOnToastRequested);
         this.removeEventListener('rtc-toast-close', this._boundOnToastClose);
         this.removeEventListener('rtc-command-requested', this._boundOnCommandRequested);
@@ -1331,25 +1373,44 @@ export class RtcAgent extends LitElement {
     }
 
     updated() {
-        // Sync controller values to context providers
-        this._sessionProvider.setValue(this._session.value);
-        this._messageProvider.setValue(this._message.value);
-        this._toolCallProvider.setValue(this._toolCall.value);
-        this._authProvider.setValue(this._auth.value);
-        this._modeProvider.setValue(this._mode.value);
-        this._windowStateProvider.setValue(this._windowState.value);
-        this._skillProvider.setValue(this._skill.value);
-        this._activityProvider.setValue(this._activity.value);
-        this._fileExplorerProvider.setValue(this._fileExplorer.value);
-        this._sessionTreeProvider.setValue(this._sessionTree.value);
-        this._sessionTabProvider.setValue(this._sessionTab.value);
-        this._settingsProvider.setValue(this._settings.value);
-        this._notificationProvider.setValue(this._notification.value);
-        this._localeProvider.setValue({
-            locale: getLocale() as typeof sourceLocale | typeof targetLocales[number],
-            setLocale: switchLocale,
-            locales: [sourceLocale, ...targetLocales],
+        // Sync controller values to context providers after host update completes
+        // Using updateComplete ensures we don't trigger change-in-update warnings
+        void this.updateComplete.then(() => {
+            this._sessionProvider.setValue(this._session.value);
+            this._messageProvider.setValue(this._message.value);
+            this._toolCallProvider.setValue(this._toolCall.value);
+            this._authProvider.setValue(this._auth.value);
+            this._modeProvider.setValue(this._mode.value);
+            this._windowStateProvider.setValue(this._windowState.value);
+            this._skillProvider.setValue(this._skill.value);
+            this._activityProvider.setValue(this._activity.value);
+            this._fileExplorerProvider.setValue(this._fileExplorer.value);
+            this._sessionTreeProvider.setValue(this._sessionTree.value);
+            this._sessionTabProvider.setValue(this._sessionTab.value);
+            this._settingsProvider.setValue(this._settings.value);
+            this._notificationProvider.setValue(this._notification.value);
+            this._localeProvider.setValue({
+                locale: getLocale() as typeof sourceLocale | typeof targetLocales[number],
+                setLocale: switchLocale,
+                locales: [sourceLocale, ...targetLocales],
+            });
         });
+
+        // 监测 Tab 数量：当所有 Tab 关闭时，自动创建新的 unsaved Tab
+        // 这是响应式的设计：通过 Lit 的 updated() 生命周期监听 state 变化
+        // 无需在每个关闭 Tab 的地方重复逻辑
+        const tabCount = this._sessionTab.value.state.tabs.length;
+        if (tabCount === 0 && !this._creatingUnsavedTab) {
+            console.log('[rtc-agent.updated] No tabs left, auto-creating unsaved tab');
+            this._creatingUnsavedTab = true;
+            try {
+                const newId = this._session.actions.createSession();
+                this._session.actions.switchSession(newId);
+                this._sessionTab.actions.openOrActivate(newId, 'Untitled', {isUnsaved: true});
+            } finally {
+                this._creatingUnsavedTab = false;
+            }
+        }
 
         // Sync work mode to RtcProcessor
         if (this._rtcProcessor) {
@@ -1617,6 +1678,21 @@ export class RtcAgent extends LitElement {
 
         // 同步到 SessionTreeController（构建层级树）
         this._sessionTree.actions.rebuildTree(uiSessions);
+
+        // ── 首次加载时从 DB 恢复 Tabs（替代 localStorage） ──
+        // 放在 rebuildTree 之后、filterInvalidTabs 之前。
+        // 恢复的 tabs 会被后续的 filterInvalidTabs/updateTabTitles/syncTabStatuses 立即处理。
+        if (!this._initialSessionLoadDone) {
+            const openSessions = uiSessions
+                .filter(s => s.status !== 'closed')
+                .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+
+            for (const session of openSessions) {
+                const title = session.title || 'Untitled';
+                this._sessionTab.actions.openOrActivate(session.clientId, title);
+            }
+            console.log('[rtc-agent._loadSessions] Restored tabs from DB:', openSessions.length);
+        }
 
         // 过滤无效的 Tab（session 已被删除的从持久化中清理）
         const validIds = new Set(uiSessions.map(s => s.clientId));

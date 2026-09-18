@@ -81,6 +81,12 @@ export interface WorkerPersistenceCore {
 
   stopTurn(sessionClientId: string): Promise<void>;
 
+  /** 关闭会话（通知后端停止 turn loop） */
+  closeSession(sessionClientId: string): Promise<void>;
+
+  /** 重新打开已关闭的会话 */
+  openSession(sessionClientId: string): Promise<void>;
+
   compactSession(sessionClientId: string, customInstruction?: string): Promise<void>;
 
   submitRtcResult(params: {

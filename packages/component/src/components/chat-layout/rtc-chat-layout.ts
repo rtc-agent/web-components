@@ -85,6 +85,8 @@ export class RtcChatLayout extends LitElement {
             switchSession: () => {},
             renameSession: async () => ({ok: true}),
             deleteSession: async () => ({ok: true}),
+            closeSession: async () => ({ok: true}),
+            reopenSession: async () => ({ok: true}),
             reset: () => {},
             clearCurrentSession: () => {},
             setCurrentSession: () => {},
@@ -164,7 +166,7 @@ export class RtcChatLayout extends LitElement {
         // 1. 通过 _ensureUnsavedSession 复用/新建 unsaved tab
         // 2. 派发 rtc-fork-initiated 携带完整分叉元数据，由 rtc-agent 接线到 ForkController
         const {oldMessageClientId, content} = (e as CustomEvent).detail ?? {};
-        const oldSessionClientId = this._sessionCtx.state.currentSessionId;
+        const oldSessionClientId = this._sessionCtx?.state?.currentSessionId;
         if (!oldSessionClientId) {
             console.warn('[chat-layout._boundOnForkRequested] No current session, ignoring fork');
             return;
@@ -201,7 +203,7 @@ export class RtcChatLayout extends LitElement {
         const inputArea = this._getInputArea();
         if (!inputArea) return;
 
-        const currentId = this._sessionCtx.state.currentSessionId;
+        const currentId = this._sessionCtx?.state?.currentSessionId;
         if (!currentId) {
             // 无活跃 session，重置显示
             inputArea.setTokenUsage({
@@ -215,7 +217,7 @@ export class RtcChatLayout extends LitElement {
             return;
         }
 
-        const session = this._sessionCtx.state.sessions.find(
+        const session = this._sessionCtx?.state?.sessions.find(
             s => s.clientId === currentId
         );
         if (session) {
@@ -264,7 +266,7 @@ export class RtcChatLayout extends LitElement {
      * 后续 `_loadSessions` 会通过 `updateTabTitles` 同步真实标题。
      */
     private _ensureTabForSession(sessionId: string) {
-        const session = this._sessionCtx.state.sessions.find(
+        const session = this._sessionCtx?.state?.sessions.find(
             s => s.clientId === sessionId
         );
         const title = session?.title || 'Untitled';
@@ -277,16 +279,43 @@ export class RtcChatLayout extends LitElement {
     /**
      * 点击会话树节点
      *
-     * 1. 打开/切换到对应 Tab
-     * 2. 切换 SessionContext 的 currentSessionId（触发聊天内容刷新）
+     * 1. 检查 session 状态，如果是 closed 则先调用 reopenSession
+     * 2. 打开/切换到对应 Tab
+     * 3. 切换 SessionContext 的 currentSessionId（触发聊天内容刷新）
      */
     private _handleTreeSelect(e: CustomEvent) {
         const {sessionId} = e.detail;
+        void this._openWithReopenCheck(sessionId);
+    }
 
-        // 打开或切换到 Tab（自动处理标题保护逻辑）
+    /**
+     * 打开 session（含透明 reopen 检查）
+     *
+     * 如果 session 状态为 closed，先调用 reopenSession 重新打开。
+     * 成功后再执行 UI 操作（打开 Tab + 切换 session）。
+     */
+    private async _openWithReopenCheck(sessionId: string) {
+        const session = this._sessionCtx?.state?.sessions.find(s => s.clientId === sessionId);
+
+        // 透明 reopen：如果 session 是 closed，先调用 openSession
+        if (session?.status === 'closed') {
+            const result = await this._sessionCtx.actions.reopenSession(sessionId);
+            if (!result.ok) {
+                // 失败时显示 toast 提示
+                this.dispatchEvent(new CustomEvent('rtc-toast-requested', {
+                    bubbles: true,
+                    composed: true,
+                    detail: {
+                        message: '重新打开会话失败，请重试',
+                        type: 'error',
+                    },
+                }));
+                return; // 不打开 Tab
+            }
+        }
+
+        // 成功（或无需 reopen）→ 同步执行 UI 操作
         this._ensureTabForSession(sessionId);
-
-        // 切换 SessionContext（触发聊天内容刷新）
         this._sessionCtx.actions.switchSession(sessionId);
 
         this.dispatchEvent(
@@ -352,7 +381,16 @@ export class RtcChatLayout extends LitElement {
      */
     private _handleTabClose(e: CustomEvent) {
         const {sessionId} = e.detail;
-        const wasActive = this._sessionCtx.state.currentSessionId === sessionId;
+        const wasActive = this._sessionCtx?.state?.currentSessionId === sessionId;
+
+        // ── 通知后端关闭 session（仅对已保存的 session，unsaved tab 没有后端 session） ──
+        const closedTab = this._tabCtx.state.tabs.find(t => t.sessionId === sessionId);
+        if (closedTab && !closedTab.isUnsaved) {
+            // fire-and-forget：不阻塞 Tab 关闭 UI，失败仅 log
+            void this._sessionCtx.actions.closeSession(sessionId).catch(err => {
+                console.error('[chat-layout] closeSession failed (non-fatal):', err);
+            });
+        }
 
         this.dispatchEvent(
             new CustomEvent('rtc-chat-layout-tab-close', {
@@ -405,7 +443,7 @@ export class RtcChatLayout extends LitElement {
             <rtc-drawer ?open=${this.sessionTreeVisible}>
                 <rtc-session-tree
                     theme=${this.theme}
-                    selected-session-id=${this._sessionCtx.state.currentSessionId ?? ''}
+                    selected-session-id=${this._sessionCtx?.state?.currentSessionId ?? ''}
                     @rtc-session-tree-select=${this._handleTreeSelect}
                     @rtc-session-tree-toggle=${this._handleTreeToggle}
                 ></rtc-session-tree>
