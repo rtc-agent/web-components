@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>@lit-labs/virtualizer Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        h1 {
+            margin-bottom: 20px;
+        }
+        .controls {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        button {
+            padding: 8px 16px;
+            cursor: pointer;
+        }
+        lit-virtualizer {
+            height: 500px;
+            border: 2px solid #ccc;
+        }
+        .message {
+            padding: 12px;
+            margin: 8px;
+            border-radius: 8px;
+        }
+        .message.user {
+            background: #e3f2fd;
+            margin-left: 40px;
+        }
+        .message.assistant {
+            background: #f5f5f5;
+            margin-right: 40px;
+        }
+        .message.thinking {
+            background: #fff3e0;
+            font-style: italic;
+        }
+        .message.long {
+            min-height: 200px;
+        }
+        .message.expandable {
+            background: #e8f5e9;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .message.expandable .content-preview {
+            color: #666;
+            font-size: 14px;
+        }
+        .message.expandable.expanded .content-full {
+            display: block;
+            margin-top: 10px;
+            padding: 10px;
+            background: #f1f8e9;
+            border-radius: 4px;
+        }
+        .message.expandable .content-full {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>@lit-labs/virtualizer 测试</h1>
+
+        <div class="controls">
+            <button id="add-btn">添加消息</button>
+            <button id="add-long-btn">添加长消息</button>
+            <button id="add-expandable-btn">添加可展开消息</button>
+            <button id="scroll-bottom-btn">滚动到底部</button>
+            <button id="clear-btn">清空</button>
+        </div>
+
+        <lit-virtualizer id="virtualizer" scroller></lit-virtualizer>
+
+        <div style="margin-top: 20px; padding: 10px; background: #e8e8e8; border-radius: 4px;">
+            <strong>说明：</strong>
+            <ul>
+                <li>使用 lit-virtualizer 元素（不是 virtualize directive）</li>
+                <li>scroller 属性使其成为滚动容器</li>
+                <li>支持动态添加消息</li>
+                <li>支持不同高度的消息（普通、长消息、可展开消息）</li>
+                <li>可展开消息点击后高度变化，测试动态高度处理</li>
+            </ul>
+        </div>
+    </div>
+
+    <script type="module">
+        import '@lit-labs/virtualizer';
+
+        const virtualizer = document.getElementById('virtualizer');
+
+        // 初始化消息
+        let messages = [];
+        let messageCount = 0;
+
+        function updateMessages() {
+            virtualizer.items = messages;
+            virtualizer.renderItem = (message, index) => {
+                const div = document.createElement('div');
+                div.className = `message ${message.type} ${message.long ? 'long' : ''} ${message.expandable ? 'expandable' : ''}`;
+
+                if (message.expandable) {
+                    div.innerHTML = `
+                        <div><strong>${message.role}:</strong></div>
+                        <div class="content-preview">${message.content}</div>
+                        <div class="content-full">
+                            <p>这是展开后的完整内容。这个消息的高度会动态变化，用于测试虚拟滚动对动态高度元素的处理。</p>
+                            <p>包含多行文本：</p>
+                            <ul>
+                                <li>第一项</li>
+                                <li>第二项</li>
+                                <li>第三项</li>
+                            </ul>
+                            <p>点击消息可以折叠/展开。</p>
+                        </div>
+                    `;
+                    div.addEventListener('click', () => {
+                        div.classList.toggle('expanded');
+                        // 更新消息状态
+                        message.expanded = !message.expanded;
+                    });
+                    if (message.expanded) {
+                        div.classList.add('expanded');
+                    }
+                } else {
+                    div.innerHTML = `
+                        <div><strong>${message.role}:</strong></div>
+                        <div>${message.content}</div>
+                        ${message.long ? '<div style="margin-top: 10px; color: #666;">[这是一条长消息，高度超过 200px]</div>' : ''}
+                    `;
+                }
+
+                return div;
+            };
+        }
+
+        function addMessage(type = 'assistant', long = false, expandable = false) {
+            messageCount++;
+            messages.push({
+                role: type === 'user' ? 'User' : 'Assistant',
+                type: type,
+                content: `这是第 ${messageCount} 条消息`,
+                long: long,
+                expandable: expandable,
+                expanded: false,
+            });
+            updateMessages();
+
+            // 自动滚动到底部
+            setTimeout(() => {
+                virtualizer.scrollTop = virtualizer.scrollHeight;
+            }, 100);
+        }
+
+        // 添加初始消息
+        for (let i = 0; i < 20; i++) {
+            addMessage(i % 3 === 0 ? 'user' : 'assistant', i % 5 === 0);
+        }
+
+        // 按钮事件
+        document.getElementById('add-btn').addEventListener('click', () => addMessage('assistant', false, false));
+        document.getElementById('add-long-btn').addEventListener('click', () => addMessage('assistant', true, false));
+        document.getElementById('add-expandable-btn').addEventListener('click', () => addMessage('assistant', false, true));
+        document.getElementById('scroll-bottom-btn').addEventListener('click', () => {
+            virtualizer.scrollTop = virtualizer.scrollHeight;
+        });
+        document.getElementById('clear-btn').addEventListener('click', () => {
+            messages = [];
+            messageCount = 0;
+            updateMessages();
+        });
+    </script>
+</body>
+</html>

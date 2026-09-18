@@ -2,40 +2,33 @@
  * RTC Message List Component
  *
  * Renders messages in a scrollable container with timeline layout.
- * The component is self-responsible for auto-scrolling — it does not analyze
- * what kind of change happened (new message, toolcall output, reorder, etc.).
+ * Uses @lit-labs/virtualizer for virtual scrolling with automatic
+ * dynamic-height handling via ResizeObserver.
  *
  * ## Auto-scroll mechanism
  *
  * 1. **`updated()` reacts to context changes** — two triggers:
  *    - `_sessionCtx` changed (session switch) → reset follow intent to true
  *    - `_ctx` changed (messages changed) → scroll to bottom if following
- *    No change-type detection. No growth/shrink/reorder analysis.
  *
- * 2. **`_onScroll` tracks user intent** — purely based on scroll position:
- *    - `distanceFromBottom < 60` → following (matches "new messages" button zone)
- *    - `distanceFromBottom ≥ 60` → not following
- *    Programmatic scrolls are guarded by `_programmaticScrollCount` to prevent
- *    sub-pixel rounding from incorrectly disabling follow intent.
+ * 2. **`_handleScroll` (template-bound) tracks scroll position** — via RAF throttling:
+ *    - Updates "New messages" button visibility based on distance from bottom
+ *    - Auto-triggers `loadMore()` when scrollTop < threshold
  *
- * 3. **`overflow-anchor: none` (CSS)** — prevents the browser from adjusting
- *    scrollTop when content above changes. Ensures `_onScroll` only fires for
- *    user-initiated scrolls and programmatic `scrollTo()`.
- *
- * 4. **ResizeObserver handles async content** — fires when inner container size
- *    changes (Markdown rendering, thinking expansion, tool-call cards). Scrolls
- *    to bottom only if `_shouldAutoScroll` is true.
+ * 3. **ResizeObserver (built into @lit-labs/virtualizer)** handles async content:
+ *    - Markdown rendering, thinking expansion, tool-call card resizing
+ *    - Scrolls to bottom only if `_shouldAutoScroll` is true.
  *
  * @element rtc-message-list
- * @csspart scroll - The scroll container
- * @csspart inner - The inner message container
  */
-import {LitElement, html} from 'lit';
+import {LitElement, html, type TemplateResult} from 'lit';
 import {customElement, state} from 'lit/decorators.js';
 import {consume} from '@lit/context';
 import {localized, msg} from '@lit/localize';
+import {query} from 'lit/decorators/query.js';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
-import {repeat} from 'lit/directives/repeat.js';
+import '@lit-labs/virtualizer';
+import type {LitVirtualizer} from '@lit-labs/virtualizer';
 import {styles} from './rtc-message-list.styles.js';
 import {MessageContext, type MessageContextValue} from '../../contexts/message.js';
 import {SessionContext, type SessionContextValue} from '../../contexts/session.js';
@@ -45,12 +38,33 @@ import './rtc-message.js';
 import './rtc-user-message.js';
 import './rtc-toolcall-card.js';
 import './rtc-error-message.js';
-import type {ToolCallPair} from './rtc-toolcall-card.js';
+import type {RenderItem} from './types.js';
+
+/**
+ * 虚拟滚动配置常量
+ *
+ * 集中管理虚拟滚动相关的阈值与缓冲参数，
+ * 避免在组件内散落 magic number，便于统一调优。
+ */
+const VIRTUAL_SCROLL_CONFIG = {
+  /** "在底部"判定阈值（px） */
+  SCROLL_END_THRESHOLD: 80,
+  /** 自动加载历史触发阈值（px），scrollTop 小于此值时触发 loadMore */
+  AUTO_LOAD_MORE_THRESHOLD: 120,
+  /** "靠近顶部"判定阈值（px），用于控制 "Load more" 按钮显示 */
+  NEAR_TOP_THRESHOLD: 60,
+  /** Safari 橡皮筋回弹等待延迟（ms） */
+  SAFARI_BOUNCE_DELAY: 200,
+} as const;
+
 
 @localized()
 @customElement('rtc-message-list')
 export class RtcMessageList extends LitElement {
     static styles = styles;
+
+    @query('lit-virtualizer')
+    private _virtualizerEl!: LitVirtualizer;
 
     @consume({context: localeContext, subscribe: true})
     @state()
@@ -112,9 +126,6 @@ export class RtcMessageList extends LitElement {
     private _showNewBtn = false;
 
     @state()
-    private _userAtBottom = true;
-
-    @state()
     private _showLoadMoreBtn = false;
 
     /**
@@ -122,82 +133,111 @@ export class RtcMessageList extends LitElement {
      *
      * This is a **mutable flag** representing user intent, NOT scroll position.
      * It is set by:
-     * - `_onScroll` — when user scrolls to bottom → true, scrolls up → false
      * - `_handleNewBtnClick` — user explicitly clicks "New messages" → true
      * - Session switch — user expects to see latest messages → true
      *
-     * It is NOT set by `_scrollToBottom()` — system actions don't change intent.
-     * This separation prevents async code from overwriting user intent.
+     * It is NOT set by `scrollToBottom()` — system actions
+     * don't change intent. This separation prevents async code from overwriting
+     * user intent.
      *
-     * Consumed by: `updated()`, `_scheduleScroll()` callback, ResizeObserver,
-     * `_onVisibilityChange`.
+     * Consumed by: `updated()`, `_onVisibilityChange`.
      */
     private _shouldAutoScroll = true;
 
     /**
-     * Guard counter: incremented during programmatic `scrollTo()` calls.
-     * When > 0, `_onScroll` skips updating `_shouldAutoScroll` to prevent
-     * sub-pixel rounding errors from incorrectly disabling follow intent.
+     * 用户当前可见的最后一条消息 ID。
      *
-     * Uses a counter (not boolean) to handle multiple concurrent programmatic
-     * scrolls (e.g., from _scheduleScroll + ResizeObserver firing in quick succession).
-     * Each scroll increments; a 50ms timeout decrements. This covers async scroll
-     * events that might fire after `scrollTo()` returns.
+     * 用于判断用户是否在看最新消息：
+     * - 如果等于最后一条消息的 ID，说明用户在看最新消息，应该自动跟随
+     * - 如果不等于，说明用户在查看历史，不应该自动滚动
+     *
+     * 在 `_handleScroll` 中更新。
      */
-    private _programmaticScrollCount = 0;
+    private _lastVisibleMessageId: string | null = null;
 
-    private _scrollEl?: HTMLElement;
-    private _resizeObserver?: ResizeObserver;
-    private _resizeDebounceTimer?: number;
+    /** 上一次更新时的最后一条消息 ID，用于检测新消息是否追加。 */
+    private _prevLastMessageId: string | null = null;
+
+    /** RAF 节流标志，避免 _handleScroll 每帧重复调度按钮可见性更新 */
+    private _scrollRafPending = false;
 
     /** Bound visibilitychange handler for cleanup. */
     private _boundOnVisibilityChange = this._onVisibilityChange.bind(this);
 
-    /**
-     * Monotonically increasing version counter for scroll debouncing.
-     * Each scroll request increments and captures the current value.
-     * Before executing, the async scroll checks if its version is still current.
-     * A newer request invalidates older ones -- no boolean flag needed.
-     */
-    private _scrollVersion = 0;
+    /** 缓存的渲染项数组。在 willUpdate() 中通过 _buildRenderItems() 预计算。 */
+    private _renderItems: RenderItem[] = [];
+
+    /** Previous messages count, used to detect message truncation/clearing. */
+    private _prevMessagesCount = 0;
+
+    /** Stable renderItem function reference. */
+    private _renderItemFn = (item: RenderItem): TemplateResult => {
+        const lastKey = this._renderItems[this._renderItems.length - 1]?.key;
+        return this._renderMessageItem(item, lastKey);
+    };
+
+    /** Stable keyFunction reference. */
+    private _keyFn = (item: RenderItem) => item.key;
 
     get messages(): Message[] {
         return this._ctx.state.messages;
     }
 
-    firstUpdated() {
-        this._scrollEl = this.shadowRoot!.querySelector('.message-list-scroll') as HTMLElement;
-        this._scrollEl?.addEventListener('scroll', this._onScroll);
-
-        // Defeat browser scroll restoration on initial mount: force scrollTop to 0
-        // so the first `updated()` cycle can scroll cleanly to the bottom.
-        if (this._scrollEl) {
-            this._scrollEl.scrollTop = 0;
+    /**
+     * 滚动到底部
+     *
+     * 公共方法，供父组件或外部调用。
+     * 通过设置 lit-virtualizer 的 scrollTop = scrollHeight 实现。
+     */
+    scrollToBottom() {
+        const el = this._virtualizerEl;
+        if (el) {
+            el.scrollTop = el.scrollHeight;
         }
-        // Snapshot initial session ID so we can detect future switches
+    }
+
+    /**
+     * 跳转到特定消息
+     *
+     * @param clientId - 消息的 clientId
+     *
+     * 必须在 _renderItems 中查找索引，而非 messages。
+     * 因为虚拟器的索引对应 _renderItems 数组。
+     */
+    scrollToMessage(clientId: string) {
+        const index = this._renderItems.findIndex(item => item.key === clientId);
+        if (index >= 0) {
+            this._virtualizerEl?.scrollToIndex(index, 'center');
+        }
+    }
+
+    protected willUpdate(changed: Map<string, unknown>): void {
+        // 构建 _renderItems
+        if (changed.has('_ctx') || changed.has('messages')) {
+            this._renderItems = this._buildRenderItems(this.messages);
+        }
+    }
+
+    async firstUpdated() {
+        // 等待 DOM 更新完成，确保 lit-virtualizer 已连接
+        await this.updateComplete;
+
+        // 等待 virtualizer 完成首次布局
+        // 捕获拒绝（例如 jsdom 测试中元素在布局完成前被卸载会触发 "disconnected"），
+        // 避免产生 Unhandled Promise Rejection。
+        if (this._virtualizerEl?.layoutComplete) {
+            try {
+                await this._virtualizerEl.layoutComplete;
+            } catch {
+                // 布局未完成不影响后续流程；滚动操作已对 null/空布局做容错处理
+            }
+        }
+
+        // 滚动到底部（使用重试版本，确保真正到达底部）
+        this._scrollToBottomWithRetry();
+
+        // 快照初始 session ID
         this._prevSessionId = this._sessionCtx.state.currentSessionId;
-
-        // ResizeObserver: safety net for post-render content growth.
-        // Fires when inner container size changes (streaming chunks, late Markdown,
-        // thinking-block expansion). Uses debounced scroll to handle async renders
-        // (e.g., Markdown that renders after the initial updateComplete).
-        const inner = this.shadowRoot!.querySelector('.message-list-inner') as HTMLElement;
-        if (inner) {
-            this._resizeObserver = new ResizeObserver(() => {
-                if (!this._shouldAutoScroll) return;
-                // Immediate scroll
-                this._scrollToBottom();
-                // Debounced compensation: handles late async renders (Markdown, etc.)
-                // that complete after the ResizeObserver fires.
-                clearTimeout(this._resizeDebounceTimer);
-                this._resizeDebounceTimer = window.setTimeout(() => {
-                    if (this._shouldAutoScroll) {
-                        this._scrollToBottom();
-                    }
-                }, 100);
-            });
-            this._resizeObserver.observe(inner);
-        }
 
         // Visibility change: when the page becomes visible again (e.g., user switches
         // back to this browser tab), scroll to bottom if following. This handles the
@@ -216,9 +256,6 @@ export class RtcMessageList extends LitElement {
      * 2. **Did session change?** (`_sessionCtx` changed) → reset follow intent to true,
      *    then scroll to bottom (user expects to see latest messages in a new session).
      *
-     * Async content rendering (Markdown, tool call expansion) is handled by
-     * ResizeObserver, which scrolls when the inner container size changes.
-     *
      * Load-more (prepend) is a special case: preserve scroll position via anchor.
      */
     updated(changed: Map<string, unknown>) {
@@ -229,154 +266,84 @@ export class RtcMessageList extends LitElement {
         this.setAttribute('data-density', density);
 
         // --- Session switch: enable follow mode and scroll to bottom ---
-        // When the user opens/switches to a different session, they expect to see
-        // the latest messages. Enable follow mode and scroll to bottom.
         const currSessionId = this._sessionCtx.state.currentSessionId;
         if (changed.has('_sessionCtx') && currSessionId !== this._prevSessionId) {
             this._prevSessionId = currSessionId;
             this._shouldAutoScroll = true;
-            this._scrollToBottom();
-            this._userAtBottom = true;
+            this._scrollToBottomWithRetry();
             this._showNewBtn = false;
+            this._showLoadMoreBtn = false;
         }
 
         // --- Messages changed: scroll if following ---
-        // We don't care WHAT changed (new message, toolcall output, reorder, etc.).
-        // If the user wants to follow, scroll to bottom. ResizeObserver handles
-        // async content rendering (Markdown, thinking blocks, etc.).
         if (changed.has('_ctx')) {
             if (this._anchorInfo) {
                 // Load-more (prepend): preserve scroll position using anchor
                 this._preserveScrollPosition();
                 this._anchorInfo = null;
-            } else if (this._shouldAutoScroll) {
-                // Normal change (append, update, etc.): scroll to bottom
-                this._scheduleScroll();
+            } else if (this._shouldAutoScroll && this._lastVisibleMessageId === this._prevLastMessageId) {
+                // 用户之前在看最后一条消息，新消息到来时自动滚动
+                this._scrollToBottomWithRetry();
             }
         }
 
         // --- Update load-more button visibility ---
         this._showLoadMoreBtn = this._ctx.state.hasMore && this._isNearTop();
+
+        // 更新最后一条消息 ID，用于下次判断
+        const msgs = this._ctx.state.messages;
+        this._prevLastMessageId = msgs.length > 0 ? msgs[msgs.length - 1].clientId : null;
+
+        // 检测消息清空（如 session reset / clearMessages）
+        if (changed.has('_ctx') && msgs.length === 0 && this._prevMessagesCount > 0) {
+            this._shouldAutoScroll = true;
+        }
+        this._prevMessagesCount = msgs.length;
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
-        this._scrollEl?.removeEventListener('scroll', this._onScroll);
-        this._resizeObserver?.disconnect();
-        clearTimeout(this._resizeDebounceTimer);
         document.removeEventListener('visibilitychange', this._boundOnVisibilityChange);
     }
 
     /**
-     * Schedule a scroll-to-bottom after the current render completes.
-     *
-     * Uses a version counter for clean debouncing:
-     * - Each call increments `_scrollVersion`
-     * - The async callback captures its version
-     * - If version is stale when callback runs, a newer request has superseded it
-     *
-     * Waits for:
-     * 1. `this.updateComplete` -- this component's render is done (new message
-     *    element is in the DOM)
-     * 2. All child message elements' `updateComplete` -- their first render
-     *    (empty content for async Markdown, complete for sync components)
-     *
-     * Note: async Markdown rendering (marked + DOMPurify + highlight.js) happens
-     * AFTER the child's first `updateComplete` resolves. The ResizeObserver is the
-     * safety net that scrolls again when the content actually renders and the inner
-     * container size changes.
-     */
-    private _scheduleScroll() {
-        const version = ++this._scrollVersion;
-
-        this.updateComplete.then(async () => {
-            if (version !== this._scrollVersion) return;
-
-            // Wait for all message children to finish their first render
-            const msgEls = this.shadowRoot!.querySelectorAll('rtc-message, rtc-user-message, rtc-toolcall-card, rtc-error-message');
-            if (msgEls.length > 0) {
-                await Promise.all(
-                    Array.from(msgEls).map(el => (el as LitElement).updateComplete)
-                );
-            }
-
-            if (version !== this._scrollVersion) return;
-            // Re-check follow intent before scrolling — user may have scrolled
-            // up while we were waiting for updateComplete.
-            if (!this._shouldAutoScroll) return;
-            this._scrollToBottom();
-        });
-    }
-
-    private _scrollToBottom() {
-        if (!this._scrollEl) return;
-        // Increment guard counter so _onScroll doesn't override _userAtBottom
-        // with a potentially incorrect value due to sub-pixel rounding.
-        this._programmaticScrollCount++;
-        this._scrollEl.scrollTo({top: this._scrollEl.scrollHeight, behavior: 'auto'});
-        // Decrement after a short delay to cover async scroll events.
-        // scrollTo({behavior: 'auto'}) typically fires scroll events synchronously,
-        // but some browsers may defer them. 50ms covers layout/scroll batching.
-        window.setTimeout(() => { this._programmaticScrollCount--; }, 50);
-        // NOTE: _scrollToBottom() does NOT set _shouldAutoScroll.
-        // System actions (auto-scroll) should not change user intent.
-        // Only user actions (_onScroll, _handleNewBtnClick, session switch) set it.
-        this._userAtBottom = true;
-        this._showNewBtn = false;
-    }
-
-    private _onScroll = () => {
-        if (!this._scrollEl) return;
-        const {scrollHeight, scrollTop, clientHeight} = this._scrollEl;
-        const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-
-        // Button visibility: generous threshold (60px)
-        // Shows "new messages" button early so user can click before reaching absolute bottom
-        const atBottom = distanceFromBottom < 60;
-
-        // Follow intent: always update based on scroll position.
-        // The 60px threshold is large enough to be immune to sub-pixel rounding,
-        // so we don't need the _programmaticScrollCount guard here.
-        // This ensures user scroll-up is immediately respected, even during
-        // streaming when programmatic scrolls happen frequently.
-        this._shouldAutoScroll = atBottom;
-
-        // UI state (_userAtBottom, _showNewBtn): guarded by _programmaticScrollCount
-        // to prevent sub-pixel rounding from causing flicker during programmatic scrolls.
-        if (this._programmaticScrollCount === 0) {
-            this._userAtBottom = atBottom;
-            this._showNewBtn = !atBottom;
-        }
-
-        // Show/hide load-more button based on scroll position
-        this._showLoadMoreBtn = this._ctx.state.hasMore && this._isNearTop();
-    };
-
-    /**
      * Visibility change handler.
      *
-     * When the page becomes visible again (e.g., user switches back to this browser
-     * tab after looking at other tabs or applications), scroll to bottom if the user
-     * intends to follow. This ensures the latest content is visible when the user
-     * returns, especially after content may have changed while the page was hidden.
+     * When the page becomes visible again, scroll to bottom if the user
+     * intends to follow.
      */
     private _onVisibilityChange() {
         if (document.visibilityState === 'visible' && this._shouldAutoScroll) {
-            // Delay slightly to allow any pending renders to complete
             requestAnimationFrame(() => {
                 if (this._shouldAutoScroll) {
-                    this._scrollToBottom();
+                    this._scrollToBottomWithRetry();
                 }
             });
         }
     }
 
     private _isNearTop(): boolean {
-        if (!this._scrollEl) return false;
-        return this._scrollEl.scrollTop < 60;
+        const el = this._virtualizerEl;
+        if (!el) return false;
+        return el.scrollTop < VIRTUAL_SCROLL_CONFIG.NEAR_TOP_THRESHOLD;
+    }
+
+    private _isNearBottom(): boolean {
+        const el = this._virtualizerEl;
+        if (!el) return true;
+        return el.scrollHeight - el.scrollTop - el.clientHeight < VIRTUAL_SCROLL_CONFIG.SCROLL_END_THRESHOLD;
     }
 
     private async _handleLoadMoreClick() {
+        if (this._ctx.state.isLoadingMore) return;
+
+        // Safari 橡皮筋防护：scrollTop < 0 表示处于回弹状态，延迟 prepend
+        const el = this._virtualizerEl;
+        if (el && el.scrollTop < 0) {
+            await new Promise(resolve => setTimeout(resolve, VIRTUAL_SCROLL_CONFIG.SAFARI_BOUNCE_DELAY));
+            if (!el || el.scrollTop < 0) return;
+        }
+
         this._showLoadMoreBtn = false;
 
         // Record the anchor element and its visual position before loading
@@ -393,15 +360,16 @@ export class RtcMessageList extends LitElement {
      * relative to the scroll container viewport.
      */
     private _captureAnchorInfo(): {clientId: string; visualTop: number} | null {
-        if (!this._scrollEl) return null;
-        const scrollRect = this._scrollEl.getBoundingClientRect();
-        const children = this._scrollEl.querySelectorAll('[data-client-id]');
-        for (const el of children) {
-            const rect = el.getBoundingClientRect();
+        const el = this._virtualizerEl;
+        if (!el) return null;
+        const scrollRect = el.getBoundingClientRect();
+        const children = el.querySelectorAll('[data-client-id]');
+        for (const child of children) {
+            const rect = child.getBoundingClientRect();
             // First child whose top is at or below the scroll container's top
             if (rect.top >= scrollRect.top - 10) {
                 return {
-                    clientId: el.getAttribute('data-client-id') ?? '',
+                    clientId: child.getAttribute('data-client-id') ?? '',
                     visualTop: rect.top - scrollRect.top,
                 };
             }
@@ -414,32 +382,31 @@ export class RtcMessageList extends LitElement {
      * at the same visual position within the viewport.
      */
     private _preserveScrollPosition() {
-        if (!this._scrollEl || !this._anchorInfo) return;
+        const el = this._virtualizerEl;
+        if (!el || !this._anchorInfo) return;
 
         const anchorId = this._anchorInfo.clientId;
         const desiredVisualTop = this._anchorInfo.visualTop;
 
         this.updateComplete.then(async () => {
-            // Wait for child message elements to render
-            const msgEls = this.shadowRoot!.querySelectorAll('rtc-message, rtc-user-message, rtc-toolcall-card, rtc-error-message');
-            if (msgEls.length > 0) {
-                await Promise.all(
-                    Array.from(msgEls).map(el => (el as LitElement).updateComplete)
-                );
+            // Wait for virtualizer layout to complete
+            if (el.layoutComplete) {
+                try {
+                    await el.layoutComplete;
+                } catch {
+                    // 布局未完成时保持原 anchor 位置即可，无需回退
+                }
             }
 
-            if (!this._scrollEl) return;
-
             // Find the anchor element after prepend
-            const anchorEl = this._scrollEl.querySelector(`[data-client-id="${anchorId}"]`) as HTMLElement | null;
+            const anchorEl = el.querySelector(`[data-client-id="${anchorId}"]`) as HTMLElement | null;
             if (anchorEl) {
-                // Compute current visual position of anchor
-                const scrollRect = this._scrollEl.getBoundingClientRect();
+                const scrollRect = el.getBoundingClientRect();
                 const anchorRect = anchorEl.getBoundingClientRect();
                 const currentVisualTop = anchorRect.top - scrollRect.top;
 
                 // Adjust scrollTop so anchor returns to its pre-load visual position
-                this._scrollEl.scrollTop += (currentVisualTop - desiredVisualTop);
+                el.scrollTop += (currentVisualTop - desiredVisualTop);
             }
 
             // Re-evaluate load-more button after scroll adjustment
@@ -448,62 +415,63 @@ export class RtcMessageList extends LitElement {
     }
 
     private _handleNewBtnClick() {
-        if (this._scrollEl) {
-            // Smooth scroll is async (animation over ~500ms). Increment the guard
-            // counter to prevent _onScroll from disabling follow intent during the animation.
-            this._programmaticScrollCount++;
-            this._scrollEl.scrollTo({top: this._scrollEl.scrollHeight, behavior: 'smooth'});
-            // Decrement counter after animation completes
-            window.setTimeout(() => { this._programmaticScrollCount--; }, 500);
-        }
-        // User explicitly clicked "New messages" → enable follow mode.
         this._shouldAutoScroll = true;
-        this._userAtBottom = true;
-        this._showNewBtn = false;
+        this._scrollToBottomWithRetry();
+    }
+
+    /**
+     * 平滑滚动到底部，并循环验证是否真正到达底部。
+     *
+     * lit-virtualizer 可能需要异步渲染，导致一次滚动无法真正到达底部。
+     * 此方法会循环检查，直到真正到达底部或达到最大尝试次数。
+     */
+    private _scrollToBottomWithRetry() {
+        const el = this._virtualizerEl;
+        if (!el) return;
+
+        let attempts = 0;
+        const maxAttempts = 5;
+
+        const tryScroll = () => {
+            if (attempts >= maxAttempts) return;
+
+            // 平滑滚动到底部
+            el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+
+            // 延迟检查是否到达底部（等待动画完成）
+            setTimeout(() => {
+                if (!this._isNearBottom()) {
+                    attempts++;
+                    tryScroll();
+                }
+            }, 400); // 等待 400ms 让动画完成
+        };
+
+        tryScroll();
     }
 
     render() {
         void this._localeCtx.locale;
-        // _userAtBottom is a @state driving re-render on scroll; consumed implicitly.
-        void this._userAtBottom;
-        const msgs = this.messages;
-        const items = this._buildRenderItems(msgs);
-        // The last rendered item's key determines which component gets is-last
-        const lastRenderedKey = items.length > 0 ? items[items.length - 1].key : '';
-        const isLoadingMore = this._ctx.state.isLoadingMore;
 
         return html`
-      <div class="message-list-scroll" part="scroll">
-        <div class="message-list-inner" part="inner">
-          ${repeat(
-            items,
-            (item) => item.key,
-            (item) => {
-              if (item.type === 'user') {
-                return html`<rtc-user-message data-client-id=${item.message.clientId} .message=${item.message}></rtc-user-message>`;
-              }
-              if (item.type === 'toolcall') {
-                return html`<rtc-toolcall-card data-client-id=${item.pair.input.clientId} .pair=${item.pair}></rtc-toolcall-card>`;
-              }
-              if (item.type === 'error') {
-                return html`<rtc-error-message data-client-id=${item.message.clientId} .message=${item.message}></rtc-error-message>`;
-              }
-              return html`<rtc-message
-                data-client-id=${item.message.clientId}
-                .message=${item.message}
-                ?is-last=${item.key === lastRenderedKey}
-              ></rtc-message>`;
-            }
-          )}
-        </div>
-      </div>
+      <lit-virtualizer
+        class="message-list-scroll"
+        scroller
+        .items=${this._renderItems}
+        .renderItem=${this._renderItemFn}
+        .keyFunction=${this._keyFn}
+        @scroll=${this._handleScroll}
+      ></lit-virtualizer>
+
+      <!-- Load more 按钮 -->
       <button
         class="load-more-btn"
         ?hidden=${!this._showLoadMoreBtn}
-        ?disabled=${isLoadingMore}
+        ?disabled=${this._ctx.state.isLoadingMore}
         @click=${this._handleLoadMoreClick}
-        aria-label="Load earlier messages"
-      >${isLoadingMore ? msg('Loading...') : msg('↑ Load earlier messages')}</button>
+      >${this._ctx.state.isLoadingMore ? msg('Loading...') : msg('↑ Load earlier messages')}</button>
+
+      <!-- New messages 按钮 -->
       <button
         class="new-message-btn"
         ?hidden=${!this._showNewBtn}
@@ -521,12 +489,7 @@ export class RtcMessageList extends LitElement {
      *
      * Returns ordered render items: user | assistant | toolcall | error.
      */
-    private _buildRenderItems(msgs: Message[]): Array<
-        | {type: 'user'; key: string; message: Message}
-        | {type: 'assistant'; key: string; message: Message}
-        | {type: 'toolcall'; key: string; pair: ToolCallPair}
-        | {type: 'error'; key: string; message: Message}
-    > {
+    private _buildRenderItems(msgs: Message[]): RenderItem[] {
         // 1. Build a map: input clientId -> output Message (for quick lookup)
         const inputToOutput = new Map<string, Message>();
         for (const m of msgs) {
@@ -535,12 +498,7 @@ export class RtcMessageList extends LitElement {
             }
         }
 
-        const items: Array<
-            | {type: 'user'; key: string; message: Message}
-            | {type: 'assistant'; key: string; message: Message}
-            | {type: 'toolcall'; key: string; pair: ToolCallPair}
-            | {type: 'error'; key: string; message: Message}
-        > = [];
+        const items: RenderItem[] = [];
 
         for (const m of msgs) {
             if (m.content?.type === 'toolcall_output') {
@@ -549,7 +507,6 @@ export class RtcMessageList extends LitElement {
             }
 
             if (m.content?.type === 'error') {
-                // Error messages get their own render component
                 items.push({type: 'error', key: m.clientId, message: m});
             } else if (m.content?.type === 'toolcall_input') {
                 items.push({
@@ -565,6 +522,150 @@ export class RtcMessageList extends LitElement {
         }
 
         return items;
+    }
+
+    /**
+     * 处理滚动容器的 scroll 事件。
+     *
+     * 职责：
+     * 1. 通过 RAF 节流更新按钮可见性（"New messages" / "Load more"）
+     * 2. 当滚动到顶部附近且存在更多历史时，自动触发加载
+     * 3. 更新用户可见的最后一条消息 ID，用于自动滚动判断
+     */
+    private _handleScroll = () => {
+        if (!this._virtualizerEl) return;
+
+        // 更新用户可见的最后一条消息 ID
+        this._updateLastVisibleMessageId();
+
+        // 使用 RAF 节流更新按钮可见性
+        if (!this._scrollRafPending) {
+            this._scrollRafPending = true;
+            requestAnimationFrame(() => {
+                this._scrollRafPending = false;
+                this._updateButtonVisibility();
+            });
+        }
+
+        // 自动加载历史
+        if (this._virtualizerEl.scrollTop < VIRTUAL_SCROLL_CONFIG.AUTO_LOAD_MORE_THRESHOLD
+            && this._ctx.state.hasMore) {
+            this._handleLoadMoreClick();
+        }
+    };
+
+    /**
+     * 更新自动滚动状态。
+     *
+     * 判断条件：
+     * 1. 最后一条消息被虚拟列表渲染（在 DOM 中存在）
+     * 2. 最后一条消息的底部在视口内（用户能看到消息结尾）
+     *
+     * 只有同时满足这两个条件，才启用自动滚动。
+     */
+    private _updateLastVisibleMessageId() {
+        const el = this._virtualizerEl;
+        if (!el) {
+            this._shouldAutoScroll = false;
+            return;
+        }
+
+        // 获取数据中的最后一条消息 ID
+        const msgs = this._ctx.state.messages;
+        const lastMsgId = msgs.length > 0 ? msgs[msgs.length - 1].clientId : null;
+        if (!lastMsgId) {
+            this._shouldAutoScroll = false;
+            return;
+        }
+
+        // 检查最后一条消息是否被渲染
+        const lastEl = el.querySelector(`[data-client-id="${lastMsgId}"]`);
+        if (!lastEl) {
+            // 最后一条消息没有被渲染，不在视口内
+            this._shouldAutoScroll = false;
+            return;
+        }
+
+        // 检查最后一条消息的底部是否在视口内
+        const rect = lastEl.getBoundingClientRect();
+        const scrollRect = el.getBoundingClientRect();
+
+        if (rect.bottom <= scrollRect.bottom) {
+            // 最后一条消息的底部在视口内，用户能看到消息结尾
+            this._lastVisibleMessageId = lastMsgId;
+            this._shouldAutoScroll = true;
+        } else {
+            // 最后一条消息的底部不在视口内
+            this._shouldAutoScroll = false;
+        }
+    }
+
+    /**
+     * 根据当前滚动位置更新按钮可见性。
+     * 由 _handleScroll 通过 RAF 节流调用。
+     */
+    private _updateButtonVisibility() {
+        this._showNewBtn = !this._isNearBottom();
+        this._showLoadMoreBtn = this._ctx.state.hasMore && this._isNearTop();
+    }
+
+    /**
+     * 根据渲染项类型路由到不同的消息组件。
+     *
+     * 使用 switch + never 穷尽检查，确保添加新 RenderItem 类型时
+     * 编译器会报错提醒更新此方法。
+     *
+     * 每个消息组件用 div.message-item 包装，确保宽度 100% 并统一 padding。
+     *
+     * @param item - 渲染项（经过 _buildRenderItems 处理后的消息表示）
+     * @param lastKey - 最后一个渲染项的 key，用于标记 is-last 属性
+     *                  （仅 assistant 消息需要，以隐藏尾部间距）
+     */
+    private _renderMessageItem(item: RenderItem, lastKey: string | undefined) {
+        switch (item.type) {
+            case 'user':
+                return html`
+                    <div class="message-item">
+                        <rtc-user-message
+                            data-client-id=${item.message.clientId}
+                            .message=${item.message}
+                        ></rtc-user-message>
+                    </div>
+                `;
+            case 'toolcall':
+                return html`
+                    <div class="message-item">
+                        <rtc-toolcall-card
+                            data-client-id=${item.pair.input.clientId}
+                            .pair=${item.pair}
+                        ></rtc-toolcall-card>
+                    </div>
+                `;
+            case 'error':
+                return html`
+                    <div class="message-item">
+                        <rtc-error-message
+                            data-client-id=${item.message.clientId}
+                            .message=${item.message}
+                        ></rtc-error-message>
+                    </div>
+                `;
+            case 'assistant':
+                return html`
+                    <div class="message-item">
+                        <rtc-message
+                            data-client-id=${item.message.clientId}
+                            .message=${item.message}
+                            ?is-last=${item.key === lastKey}
+                        ></rtc-message>
+                    </div>
+                `;
+            default: {
+                const _exhaustive: never = item;
+                console.warn('[RtcMessageList] Unknown render item type:', _exhaustive);
+                return html``;
+            }
+        }
     }
 }
 

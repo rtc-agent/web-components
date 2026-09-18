@@ -23,8 +23,10 @@ import {css} from 'lit';
 export const styles = css`
   :host {
     display: block;
-    margin: var(--rtc-message-gap, var(--rtc-spacing-sm)) var(--rtc-spacing-md);
+    width: 100%;
     box-sizing: border-box;
+    /* 移除左右 margin，避免宽度计算问题。间距由父容器 .message-item 的 padding 控制 */
+    margin: var(--rtc-message-gap, var(--rtc-spacing-sm)) 0;
   }
 
   /* ── Wrapper ── */

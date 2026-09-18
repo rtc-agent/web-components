@@ -416,18 +416,31 @@ export class PersistenceLayer {
 
   /**
    * 关闭会话（通知后端停止 turn loop）
+   *
+   * 如果 session 尚未同步到后端（无 server_id），仅更新本地 status 为 'closed'，
+   * 不发送 RPC 请求。
    */
   async closeSession(sessionClientId: string): Promise<void> {
     // 1. 查找 session
     const session = await this.entityRepository.getClientSession(sessionClientId);
-    if (!session?.server_id) {
-      throw new Error(`Session not found or not synced: ${sessionClientId}`);
+    if (!session) {
+      throw new Error(`Session not found: ${sessionClientId}`);
     }
 
-    // 2. 调用 RPC
+    // 2. 未同步的 session：仅更新本地 status
+    if (!session.server_id) {
+      await this.entityRepository.upsertSession(
+        {client_id: sessionClientId, status: 'closed'},
+        session.sync_status,
+        {silent: false}
+      );
+      return;
+    }
+
+    // 3. 已同步的 session：调用 RPC
     const response = await this.client.closeSession(session.server_id);
 
-    // 3. 处理 updates
+    // 4. 处理 updates
     if (response.updates && response.updates.length > 0) {
       await this.client.applyUpdates(response.updates);
     }

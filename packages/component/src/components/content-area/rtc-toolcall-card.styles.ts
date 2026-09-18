@@ -18,6 +18,12 @@ import {timelineStyles} from './timeline.styles.js';
 export const styles = [
   timelineStyles,
   css`
+    :host {
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
     /* ─ Card ── */
     .toolcall-card {
       position: relative;

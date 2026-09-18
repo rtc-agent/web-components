@@ -18,6 +18,8 @@ export const styles = [
   css`
     :host {
       display: block;
+      width: 100%;
+      box-sizing: border-box;
 
       /*
        * ── 语法高亮颜色（默认 = github.css light 主题）────────

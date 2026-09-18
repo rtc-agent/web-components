@@ -910,19 +910,19 @@ export class RtcAgent extends LitElement {
     /* ── Context Providers ── */
 
     private _sessionProvider = new ContextProvider(this, {context: SessionContext, initialValue: this._session.value});
-    private _messageProvider = new ContextProvider(this, {context: MessageContext});
-    private _toolCallProvider = new ContextProvider(this, {context: ToolCallContext});
+    private _messageProvider = new ContextProvider(this, {context: MessageContext, initialValue: this._message.value});
+    private _toolCallProvider = new ContextProvider(this, {context: ToolCallContext, initialValue: this._toolCall.value});
     private _authProvider = new ContextProvider(this, {context: AuthContext, initialValue: this._auth.value});
-    private _modeProvider = new ContextProvider(this, {context: ModeContext});
-    private _windowStateProvider = new ContextProvider(this, {context: WindowStateContext});
+    private _modeProvider = new ContextProvider(this, {context: ModeContext, initialValue: this._mode.value});
+    private _windowStateProvider = new ContextProvider(this, {context: WindowStateContext, initialValue: this._windowState.value});
     private _turnCountProvider = new ContextProvider(this, {context: TurnCountContext, initialValue: DEFAULT_TURN_COUNT});
     private _skillProvider = new ContextProvider(this, {context: SkillContext, initialValue: DEFAULT_SKILL_STATE});
-    private _activityProvider = new ContextProvider(this, {context: ActivityContext});
-    private _fileExplorerProvider = new ContextProvider(this, {context: FileExplorerContext});
-    private _sessionTreeProvider = new ContextProvider(this, {context: SessionTreeContext});
-    private _sessionTabProvider = new ContextProvider(this, {context: SessionTabContext});
-    private _settingsProvider = new ContextProvider(this, {context: SettingsContext});
-    private _notificationProvider = new ContextProvider(this, {context: NotificationContext});
+    private _activityProvider = new ContextProvider(this, {context: ActivityContext, initialValue: this._activity.value});
+    private _fileExplorerProvider = new ContextProvider(this, {context: FileExplorerContext, initialValue: this._fileExplorer.value});
+    private _sessionTreeProvider = new ContextProvider(this, {context: SessionTreeContext, initialValue: this._sessionTree.value});
+    private _sessionTabProvider = new ContextProvider(this, {context: SessionTabContext, initialValue: this._sessionTab.value});
+    private _settingsProvider = new ContextProvider(this, {context: SettingsContext, initialValue: this._settings.value});
+    private _notificationProvider = new ContextProvider(this, {context: NotificationContext, initialValue: this._notification.value});
     private _localeProvider = new ContextProvider(this, {context: localeContext, initialValue: {
         locale: sourceLocale,
         setLocale: switchLocale,

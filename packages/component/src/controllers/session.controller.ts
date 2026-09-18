@@ -175,21 +175,15 @@ export class SessionController implements ReactiveController {
     }
 
     /**
-     * 通知后端关闭 session
+     * 关闭 session
      *
-     * 仅发送 RPC 通知，不做本地状态变更（Tab 关闭由调用方处理）。
+     * 对于已同步的 session（有 server_id），发送 RPC 通知后端关闭。
+     * 对于未同步的 session（无 server_id），仅更新本地 status 为 'closed'，不上传服务器。
      * 失败时仅 log 错误，由调用方决定如何处理。
      */
     private async _closeSession(id: string): Promise<{ok: boolean; error?: Error}> {
         if (!this.persistence) {
             console.warn('[SessionController._closeSession] No persistence layer, skipping');
-            return {ok: true};
-        }
-
-        // 检查 session 是否已同步到后端（有 server_id）
-        const session = await this.persistence.getSession(id);
-        if (!session?.server_id) {
-            // 未同步的 session 无需通知后端
             return {ok: true};
         }
 

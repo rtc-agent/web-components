@@ -21,22 +21,41 @@ export const styles = css`
      * This avoids height resolution issues when parent height changes. */
     flex: 1;
     min-height: 0;
-    overflow-y: auto;
-    padding: var(--rtc-spacing-md) var(--rtc-spacing-lg);
+    width: 100%;
+    /* 禁止水平滚动，防止内容宽度超出 */
+    overflow-x: hidden;
+    /* 不设 padding，避免内容宽度超出容器导致水平滚动 */
     background: var(--rtc-color-bg-secondary);
-    /* scroll-behavior removed: auto-scroll must be instant to avoid race
-     * conditions with ResizeObserver. Smooth scroll is applied explicitly
-     * in _handleNewBtnClick() for user-initiated scroll only. */
     /* Disable browser scroll anchoring: prevents the browser from adjusting
-     * scrollTop when content above changes (e.g., async Markdown rendering).
-     * Without this, content growth could trigger spurious scroll events that
-     * confuse the user-intent detection in _onScroll. */
+     * scrollTop when content above changes (e.g., async Markdown rendering). */
     overflow-anchor: none;
+    /* 禁用 Safari 橡皮筋回弹效果，防止虚拟滚动中 prepend 操作触发 bounce */
+    overscroll-behavior: none;
   }
 
-  .message-list-inner {
-    display: flex;
-    flex-direction: column;
+  /* lit-virtualizer 内部容器（shadow DOM 外的直接子 div） */
+  .message-list-scroll > div {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* 消息包装器：每条消息由 div.message-item 包裹。
+   * 负责宽度、padding 和 box-sizing。 */
+  .message-item {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0 var(--rtc-spacing-lg);
+  }
+
+  /* 确保所有消息组件都是块级元素并填充父容器宽度 */
+  .message-item > rtc-message,
+  .message-item > rtc-user-message,
+  .message-item > rtc-toolcall-card,
+  .message-item > rtc-error-message {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
   }
 
   .new-message-btn {
@@ -94,21 +113,12 @@ export const styles = css`
     display: none;
   }
 
-  /* ── Density: compact ── */
+  /* ── Density ── */
   :host([data-density='compact']) {
     --rtc-message-gap: var(--rtc-spacing-sm);
   }
 
-  :host([data-density='compact']) .message-list-scroll {
-    padding: var(--rtc-spacing-sm) var(--rtc-spacing-md);
-  }
-
-  /* ── Density: comfortable ── */
   :host([data-density='comfortable']) {
     --rtc-message-gap: var(--rtc-spacing-md);
-  }
-
-  :host([data-density='comfortable']) .message-list-scroll {
-    padding: var(--rtc-spacing-md) var(--rtc-spacing-lg);
   }
 `;
