@@ -345,8 +345,15 @@ export class RtcMessageList extends LitElement {
         this._hasMore = data.hasMore;
         this._isLoadingMore = data.isLoadingMore;
 
+        console.log(
+            `[rtc-message-list] _handleMessagesUpdate: ` +
+            `oldCount=${oldMessages.length}, newCount=${newMessages.length}, ` +
+            `hasMore=${data.hasMore}, isLoadingMore=${data.isLoadingMore}`
+        );
+
         // Mark as fully loaded if repository says no more
         if (this._hasMore === false) {
+            console.log('[rtc-message-list] Setting loadedTop=true because hasMore=false');
             this._virtualScroll.setFullyLoaded('top', true);
         }
     }
