@@ -47,9 +47,10 @@ export class MessageController implements ReactiveController {
                 fetchMessages: async (sessionId: string) => {
                     if (!this._persistence) return [];
                     const messages = await this._persistence.listMessages(sessionId, undefined, 50, 'backward');
-                    // Track pagination cursor
+                    // Track pagination cursors
                     if (messages.length > 0) {
                         this._repository?.setOldestOffset(sessionId, messages[0].global_offset);
+                        this._repository?.setNewestOffset(sessionId, messages[messages.length - 1].global_offset);
                     }
                     return messages.map(m => this._localMessageToUI(m));
                 },
@@ -59,6 +60,15 @@ export class MessageController implements ReactiveController {
                     // Update pagination cursor
                     if (messages.length > 0) {
                         this._repository?.setOldestOffset(sessionId, messages[0].global_offset);
+                    }
+                    return messages.map(m => this._localMessageToUI(m));
+                },
+                fetchNewerMessages: async (sessionId: string, afterOffset?: number) => {
+                    if (!this._persistence) return [];
+                    const messages = await this._persistence.listMessages(sessionId, afterOffset, 50, 'forward');
+                    // Update pagination cursor
+                    if (messages.length > 0) {
+                        this._repository?.setNewestOffset(sessionId, messages[messages.length - 1].global_offset);
                     }
                     return messages.map(m => this._localMessageToUI(m));
                 },
@@ -155,6 +165,16 @@ export class MessageController implements ReactiveController {
     async loadMoreForSession(sessionId: string): Promise<void> {
         if (!this._repository) return;
         await this._repository.loadMore(sessionId);
+        this.host.requestUpdate();
+    }
+
+    /**
+     * Load newer messages for a session (forward pagination).
+     * Called by rtc-message-list when virtual scroll needs to load newer messages.
+     */
+    async loadNewerForSession(sessionId: string): Promise<void> {
+        if (!this._repository) return;
+        await this._repository.loadNewer(sessionId);
         this.host.requestUpdate();
     }
 

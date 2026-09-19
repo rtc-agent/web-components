@@ -520,9 +520,9 @@ export class RtcMessageList extends LitElement {
 
     /**
      * Handle virtual scroll's onLoadMore callback.
-     * Triggers load-more from repository. The actual prepend is handled by
+     * Triggers load-more from repository. The actual prepend/append is handled by
      * _handleMessagesUpdate via repository subscription.
-     * Returns empty array since we don't prepend here.
+     * Returns empty array since we don't prepend/append here.
      */
     private async _handleVirtualScrollLoadMore(
         direction: 'top' | 'bottom',
@@ -533,15 +533,18 @@ export class RtcMessageList extends LitElement {
         try {
             if (direction === 'top') {
                 if (!boundary.firstId) return [];
-                // Trigger load-more. Repository subscription will update _messages,
+                // Trigger backward load-more. Repository subscription will update _messages,
                 // which triggers _handleMessagesUpdate to call virtualScroll.prependItems().
                 await this.messageController.loadMoreForSession(this.sessionId);
             } else {
-                // Bottom loading not implemented yet
-                return [];
+                // direction === 'bottom'
+                if (!boundary.lastId) return [];
+                // Trigger forward load-more. Repository subscription will update _messages,
+                // which triggers _handleMessagesUpdate to call virtualScroll.appendItems().
+                await this.messageController.loadNewerForSession(this.sessionId);
             }
 
-            // Return empty array - actual prepend is handled by _handleMessagesUpdate
+            // Return empty array - actual prepend/append is handled by _handleMessagesUpdate
             return [];
         } catch (err) {
             console.error('[rtc-message-list] loadMore failed:', err);

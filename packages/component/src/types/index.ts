@@ -274,10 +274,14 @@ export interface SessionActions {
 
 export interface MessageState {
     messages: Message[];
-    /** Whether there are older messages available to load */
+    /** Whether there are older messages available to load (backward pagination) */
     hasMore: boolean;
-    /** Whether a loadMore request is in progress */
+    /** Whether a loadMore (backward) request is in progress */
     isLoadingMore: boolean;
+    /** Whether there are newer messages available to load (forward pagination) */
+    hasMoreNewer?: boolean;
+    /** Whether a loadNewer (forward) request is in progress */
+    isLoadingNewer?: boolean;
 }
 
 export interface MessageActions {

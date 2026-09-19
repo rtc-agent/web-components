@@ -28,6 +28,9 @@ export interface MessageApi {
 
     /** Fetch older messages before a given offset (backward pagination). */
     fetchOlderMessages(sessionId: string, beforeOffset?: number): Promise<Message[]>;
+
+    /** Fetch newer messages after a given offset (forward pagination). */
+    fetchNewerMessages(sessionId: string, afterOffset?: number): Promise<Message[]>;
 }
 
 /** Callback signature for session data subscriptions. */
@@ -41,6 +44,8 @@ const DEFAULT_STATE: MessageState = {
     messages: [],
     hasMore: false,
     isLoadingMore: false,
+    hasMoreNewer: false,
+    isLoadingNewer: false,
 };
 
 export class MessageRepository {
@@ -50,11 +55,17 @@ export class MessageRepository {
     /** Per-session subscriber sets. */
     private _subscribers = new Map<string, Set<SessionDataCallback>>();
 
-    /** Tracks sessions with an in-flight loadMore request. */
+    /** Tracks sessions with an in-flight loadMore (backward) request. */
     private _loadingSessions = new Set<string>();
+
+    /** Tracks sessions with an in-flight loadNewer (forward) request. */
+    private _loadingNewerSessions = new Set<string>();
 
     /** Per-session oldest loaded offset for backward pagination cursor. */
     private _oldestOffsets = new Map<string, number>();
+
+    /** Per-session newest loaded offset for forward pagination cursor. */
+    private _newestOffsets = new Map<string, number>();
 
     constructor(private readonly _api: MessageApi) {}
 
@@ -193,6 +204,63 @@ export class MessageRepository {
     }
 
     /**
+     * Load newer messages for a session (forward pagination).
+     *
+     * Concurrent calls for the same session are de-duplicated: if a load is
+     * already in-flight, subsequent calls return the existing promise.
+     * On failure, `isLoadingNewer` is reset to false.
+     *
+     * @returns the full message list after appending newer messages,
+     *          or the current list if load was skipped (no hasMoreNewer / already loading).
+     */
+    async loadNewer(sessionId: string): Promise<Message[]> {
+        const current = this._getState(sessionId);
+
+        // Nothing to load
+        if (!current.hasMoreNewer) return current.messages;
+
+        // Already loading — return current state
+        if (this._loadingNewerSessions.has(sessionId)) return current.messages;
+
+        const newestOffset = this._newestOffsets.get(sessionId);
+
+        // Mark loading
+        this._loadingNewerSessions.add(sessionId);
+        this._setState(sessionId, {...current, isLoadingNewer: true});
+
+        try {
+            const newerMessages = await this._api.fetchNewerMessages(
+                sessionId,
+                newestOffset,
+            );
+
+            const beforeState = this._getState(sessionId);
+            const allMessages = [...beforeState.messages, ...newerMessages];
+            const hasMoreNewer = newerMessages.length >= PAGE_SIZE;
+
+            this._setState(sessionId, {
+                messages: allMessages,
+                hasMore: beforeState.hasMore,
+                isLoadingMore: beforeState.isLoadingMore,
+                hasMoreNewer,
+                isLoadingNewer: false,
+            });
+
+            return allMessages;
+        } catch (error) {
+            console.error(`[MessageRepository] loadNewer(${sessionId}) failed:`, error);
+
+            // Reset loading state on failure
+            const failedState = this._getState(sessionId);
+            this._setState(sessionId, {...failedState, isLoadingNewer: false});
+
+            return this._getState(sessionId).messages;
+        } finally {
+            this._loadingNewerSessions.delete(sessionId);
+        }
+    }
+
+    /**
      * Fetch messages for a session (initial load).
      *
      * Sets `hasMore` based on whether the API returned PAGE_SIZE messages.
@@ -221,7 +289,9 @@ export class MessageRepository {
         this._sessions.delete(sessionId);
         this._subscribers.delete(sessionId);
         this._loadingSessions.delete(sessionId);
+        this._loadingNewerSessions.delete(sessionId);
         this._oldestOffsets.delete(sessionId);
+        this._newestOffsets.delete(sessionId);
     }
 
     // ── Setters for pagination tracking (used by controller integration) ──
@@ -241,6 +311,23 @@ export class MessageRepository {
      */
     getOldestOffset(sessionId: string): number | undefined {
         return this._oldestOffsets.get(sessionId);
+    }
+
+    /**
+     * Set the newest loaded offset for a session.
+     *
+     * This is used by the controller layer to track the forward pagination cursor.
+     * Called after initial load or loadNewer completes.
+     */
+    setNewestOffset(sessionId: string, offset: number): void {
+        this._newestOffsets.set(sessionId, offset);
+    }
+
+    /**
+     * Get the newest loaded offset for a session.
+     */
+    getNewestOffset(sessionId: string): number | undefined {
+        return this._newestOffsets.get(sessionId);
     }
 
     // ── Private helpers ──

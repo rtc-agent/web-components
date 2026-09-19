@@ -32,9 +32,10 @@ function createMessage(overrides: Partial<Message> = {}): Message {
 function createMockApi() {
     const fetchMessages = vi.fn(async (_sessionId: string): Promise<Message[]> => []);
     const fetchOlderMessages = vi.fn(async (_sessionId: string, _beforeOffset?: number): Promise<Message[]> => []);
+    const fetchNewerMessages = vi.fn(async (_sessionId: string, _afterOffset?: number): Promise<Message[]> => []);
 
-    const api: MessageApi = {fetchMessages, fetchOlderMessages};
-    return {api, fetchMessages, fetchOlderMessages};
+    const api: MessageApi = {fetchMessages, fetchOlderMessages, fetchNewerMessages};
+    return {api, fetchMessages, fetchOlderMessages, fetchNewerMessages};
 }
 
 describe('MessageRepository', () => {
