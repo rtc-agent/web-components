@@ -26,6 +26,20 @@ export class MessageController implements ReactiveController {
     /** Oldest loaded global_offset for backward pagination cursor. */
     private _oldestLoadedOffset?: number;
 
+    // ── Multi-session message cache (LRU) ──
+    private _messageCache = new Map<string, MessageState>();
+    private _oldestOffsetCache = new Map<string, number>();
+    private readonly MAX_CACHE_SIZE = 20;
+
+    // ── Scroll position cache (per session) ──
+    private _scrollPositionCache = new Map<string, {index: number; messageId: string}>();
+
+    // Race protection: guards against stale _reloadFromDB results
+    private _reloadGeneration = 0;
+
+    // Per-session loadMore concurrency guard
+    private _loadingMoreSessions = new Set<string>();
+
     /** Persistence layer — injected by root component after construction. */
     private _persistence?: PersistenceLayer;
 
@@ -95,38 +109,62 @@ export class MessageController implements ReactiveController {
     /**
      * Reload messages from persistence. Public method for UIUpdateBus / root wiring.
      *
-     * - With entityId: immutable single-message update (replace matching clientId).
-     * - Without entityId: full reload for the current session (from SessionController).
+     * - With entityId: single-message update — updates current state if the message
+     *   belongs to the current session, otherwise updates the cached state for the
+     *   background session that owns the message.
+     * - Without entityId: session switch — saves current session to cache, then loads
+     *   the new session via two-phase loading (cache hit → instant display + background
+     *   DB refresh; cache miss → full DB load).
      */
     async reload(entityId?: string) {
         if (!this._persistence) return;
 
         if (entityId) {
+            // Single-message update (from UIUpdateBus)
             const localMsg = await this._persistence.getMessage(entityId);
-            if (localMsg) {
-                // Only reload if the message belongs to the current session
-                const currentSessionId =
-                    this._sessionController?.value.state.currentSessionId;
-                if (localMsg.session_client_id !== currentSessionId) {
-                    return;
-                }
+            if (!localMsg) return;
 
-                const newMsg = this._localMessageToUI(localMsg);
-                const existed = this._state.messages.some((m) => m.clientId === entityId);
-                let messages: Message[];
-                if (existed) {
-                    messages = this._state.messages.map((m) => m.clientId === entityId ? newMsg : m);
-                } else {
-                    // 添加新消息并按时间排序
-                    messages = [...this._state.messages, newMsg].sort((a, b) => a.timestamp - b.timestamp);
-                }
-                this._state = {messages, hasMore: this._state.hasMore, isLoadingMore: this._state.isLoadingMore};
-                this.host.requestUpdate();
-            }
-        } else {
             const currentSessionId =
                 this._sessionController?.value.state.currentSessionId;
-            if (currentSessionId) {
+
+            if (localMsg.session_client_id === currentSessionId) {
+                // Message belongs to current session — update active state
+                this._updateSingleMessage(entityId, localMsg);
+            } else {
+                // Background session — update cached state
+                this._updateCachedMessage(
+                    localMsg.session_client_id, entityId, localMsg
+                );
+            }
+        } else {
+            // Session switch: save current state, then load new session
+            this._saveCurrentSessionToCache();
+
+            const currentSessionId =
+                this._sessionController?.value.state.currentSessionId;
+            if (!currentSessionId) return;
+
+            // Clear _state immediately to prevent stale data from the previous
+            // session being shown via getSessionState() while waiting for the
+            // new session's data to load. The cache hit path below will overwrite
+            // this with cached data instantly; the cache miss path awaits DB load.
+            this._state = {messages: [], hasMore: false, isLoadingMore: false};
+            this._oldestLoadedOffset = undefined;
+            this.host.requestUpdate();
+
+            const cached = this._messageCache.get(currentSessionId);
+            if (cached) {
+                // ── Two-phase loading ──
+                // Phase 1: restore from cache instantly (synchronous, < 1ms)
+                this._state = {...cached};
+                this._oldestLoadedOffset =
+                    this._oldestOffsetCache.get(currentSessionId);
+                this.host.requestUpdate();
+
+                // Phase 2: background DB refresh for data freshness
+                this._reloadFromDB(currentSessionId);
+            } else {
+                // Cache miss — full DB load
                 await this._reloadFromDB(currentSessionId);
             }
         }
@@ -145,12 +183,9 @@ export class MessageController implements ReactiveController {
         if (this._sessionController) {
             const currentSessionId =
                 this._sessionController.value.state.currentSessionId;
-            console.log('[MessageController._sendMessage] currentSessionId before:', currentSessionId);
             sessionClientId = currentSessionId ?? crypto.randomUUID();
-            console.log('[MessageController._sendMessage] sessionClientId to use:', sessionClientId, currentSessionId ? '(existing)' : '(NEW)');
         } else {
             sessionClientId = crypto.randomUUID();
-            console.log('[MessageController._sendMessage] No sessionController, created new sessionClientId:', sessionClientId);
         }
 
         // Write to persistence (local-first + background sync).
@@ -159,16 +194,12 @@ export class MessageController implements ReactiveController {
             messageClientId,
             sessionClientId,
         });
-        console.log('[MessageController._sendMessage] persistence.sendMessage returned:');
-        console.log('  session.client_id:', result.session.client_id);
-        console.log('  message.session_client_id:', result.message.session_client_id);
 
         // Update session in SessionController (upsert + select).
         // Only update if the user hasn't moved to a different session in the meantime.
         if (this._sessionController) {
             const currentSessionId =
                 this._sessionController.value.state.currentSessionId;
-            console.log('[MessageController._sendMessage] currentSessionId after persistence:', currentSessionId, 'result.session.client_id:', result.session.client_id);
             // Only set if: no current session, or current session matches what we're updating
             if (!currentSessionId || currentSessionId === result.session.client_id) {
                 const uiSession: Session = {
@@ -178,12 +209,10 @@ export class MessageController implements ReactiveController {
                     updatedAt: new Date(result.session.updated_at).getTime(),
                     todoList: result.session.todo_list,
                 };
-                console.log('[MessageController._sendMessage] setCurrentSession:', uiSession.clientId, 'title:', `"${uiSession.title}"`);
                 this._sessionController.actions.setCurrentSession(uiSession);
 
                 // Reload messages from DB to reflect the just-written message.
                 await this._reloadFromDB(result.session.client_id);
-                console.log('[MessageController._sendMessage] _reloadFromDB completed');
             }
         }
 
@@ -292,11 +321,24 @@ export class MessageController implements ReactiveController {
     private async _reloadFromDB(sessionClientId: string) {
         if (!this._persistence) return;
 
+        // Race protection: if a newer reload starts while this one is in-flight,
+        // the stale result is discarded (generation mismatch → early return).
+        const gen = ++this._reloadGeneration;
+
         // Load the latest 50 messages (backward = from newest)
         const PAGE_SIZE = 50;
         const localMessages = await this._persistence.listMessages(
             sessionClientId, undefined, PAGE_SIZE, 'backward'
         );
+
+        // Guard: another reload has superseded this one
+        if (gen !== this._reloadGeneration) return;
+
+        // Guard against session switch during await: if the user navigated away
+        // while the DB query was in-flight, discard the stale result.
+        const currentSessionId = this._sessionController?.value.state.currentSessionId;
+        if (sessionClientId !== currentSessionId) return;
+
         const messages = localMessages.map((m) => this._localMessageToUI(m));
 
         // Track pagination state
@@ -306,6 +348,248 @@ export class MessageController implements ReactiveController {
             : undefined;
 
         this._state = {messages, hasMore, isLoadingMore: false};
+        this._cacheMessageState(sessionClientId);
+        this.host.requestUpdate();
+    }
+
+    // ── Multi-session cache helpers ──
+
+    /**
+     * Save current session's state to the LRU cache.
+     *
+     * Called at the beginning of a session switch (reload without entityId).
+     * Captures _state and _oldestLoadedOffset before they are overwritten.
+     */
+    private _saveCurrentSessionToCache() {
+        const currentSessionId =
+            this._sessionController?.value.state.currentSessionId;
+        if (!currentSessionId) return;
+        if (this._state.messages.length === 0 && !this._state.hasMore) return;
+
+        this._cacheMessageState(currentSessionId);
+    }
+
+    /**
+     * Store a session's state into the LRU cache with eviction.
+     *
+     * LRU semantics: delete + re-set ensures the accessed entry moves to the
+     * tail of the Map insertion order. When MAX_CACHE_SIZE is exceeded, the
+     * eldest entry (first key in the Map) is evicted.
+     */
+    private _cacheMessageState(sessionId: string) {
+        // Delete before set → moves entry to Map tail (true LRU position)
+        this._messageCache.delete(sessionId);
+        this._messageCache.set(sessionId, {...this._state});
+
+        if (this._oldestLoadedOffset !== undefined) {
+            this._oldestOffsetCache.delete(sessionId);
+            this._oldestOffsetCache.set(sessionId, this._oldestLoadedOffset);
+        }
+
+        // Evict eldest entry when cache exceeds capacity
+        if (this._messageCache.size > this.MAX_CACHE_SIZE) {
+            const eldest = this._messageCache.keys().next().value;
+            if (eldest !== undefined) {
+                this._messageCache.delete(eldest);
+                this._oldestOffsetCache.delete(eldest);
+            }
+        }
+    }
+
+    /**
+     * Evict a session from all caches (message state, offsets, scroll position).
+     *
+     * Called when a Tab is closed or a session should no longer be cached.
+     */
+    evictSession(sessionId: string) {
+        this._messageCache.delete(sessionId);
+        this._oldestOffsetCache.delete(sessionId);
+        this._scrollPositionCache.delete(sessionId);
+    }
+
+    /**
+     * Save scroll position for a session.
+     *
+     * Called by rtc-message-list before a session switch occurs.
+     * Stores the first visible message index and ID for later restoration.
+     */
+    saveScrollPosition(sessionId: string, index: number, messageId: string) {
+        this._scrollPositionCache.set(sessionId, {index, messageId});
+    }
+
+    /**
+     * Consume saved scroll position for a session.
+     *
+     * Returns and removes the cached scroll position. The "consume" semantics
+     * ensure one-shot restoration — the position is not restored again on
+     * subsequent calls.
+     */
+    consumeScrollPosition(sessionId: string): {index: number; messageId: string} | undefined {
+        const pos = this._scrollPositionCache.get(sessionId);
+        if (pos) this._scrollPositionCache.delete(sessionId);
+        return pos;
+    }
+
+    /**
+     * Get the message state for a given session.
+     *
+     * Returns the active _state if sessionId matches the current session,
+     * otherwise returns the cached state (or undefined if not cached).
+     * Intended for wrapper components that need to query arbitrary session state.
+     */
+    getSessionState(sessionId: string): MessageState | undefined {
+        const currentSessionId =
+            this._sessionController?.value.state.currentSessionId;
+
+        if (sessionId === currentSessionId) {
+            return this._state;
+        }
+        return this._messageCache.get(sessionId);
+    }
+
+    /**
+     * Load older messages for a specific session (supports background sessions).
+     *
+     * Uses `_loadingMoreSessions` Set to prevent concurrent loadMore for the
+     * same session. Sets isLoadingMore before the async operation and calls
+     * host.requestUpdate() after each state transition for signal propagation.
+     */
+    async loadMoreForSession(sessionId: string): Promise<void> {
+        if (!this._persistence) return;
+
+        const isCurrent = sessionId ===
+            this._sessionController?.value.state.currentSessionId;
+
+        // Resolve target state and offset
+        const state = isCurrent
+            ? this._state
+            : this._messageCache.get(sessionId);
+        if (!state || !state.hasMore) return;
+
+        const oldestOffset = isCurrent
+            ? this._oldestLoadedOffset
+            : this._oldestOffsetCache.get(sessionId);
+        if (oldestOffset === undefined) return;
+
+        // Concurrency guard: prevent duplicate in-flight loads per session
+        if (this._loadingMoreSessions.has(sessionId)) return;
+        this._loadingMoreSessions.add(sessionId);
+
+        // Set loading flag before async operation
+        const updatedState = {...state, isLoadingMore: true};
+        if (isCurrent) {
+            this._state = updatedState;
+        } else {
+            this._messageCache.set(sessionId, updatedState);
+        }
+        this.host.requestUpdate();
+
+        try {
+            const PAGE_SIZE = 50;
+            const olderMessages = await this._persistence.listMessages(
+                sessionId, oldestOffset, PAGE_SIZE, 'backward'
+            );
+
+            const newMessages = olderMessages.map((m) => this._localMessageToUI(m));
+            const allMessages = [...newMessages, ...updatedState.messages];
+            const hasMore = olderMessages.length >= PAGE_SIZE;
+            const newOffset = olderMessages.length > 0
+                ? olderMessages[0].global_offset
+                : oldestOffset;
+
+            const finalState = {
+                messages: allMessages,
+                hasMore,
+                isLoadingMore: false,
+            };
+
+            if (isCurrent) {
+                this._state = finalState;
+                this._oldestLoadedOffset = newOffset;
+            } else {
+                // LRU touch: delete + re-set to move to tail
+                this._messageCache.delete(sessionId);
+                this._messageCache.set(sessionId, finalState);
+                this._oldestOffsetCache.delete(sessionId);
+                this._oldestOffsetCache.set(sessionId, newOffset);
+            }
+        } catch (error) {
+            console.error(
+                `[MessageController] loadMoreForSession(${sessionId}) failed:`,
+                error,
+            );
+            const errorState = {...updatedState, isLoadingMore: false};
+            if (isCurrent) {
+                this._state = errorState;
+            } else {
+                this._messageCache.set(sessionId, errorState);
+            }
+        } finally {
+            this._loadingMoreSessions.delete(sessionId);
+            this.host.requestUpdate();
+        }
+    }
+
+    /**
+     * Update a single message in the current session's active state.
+     *
+     * If the message already exists (matched by clientId), it is replaced
+     * in-place. Otherwise the new message is appended and the list is sorted
+     * by timestamp.
+     */
+    private _updateSingleMessage(entityId: string, localMsg: LocalMessage) {
+        const newMsg = this._localMessageToUI(localMsg);
+        const existed = this._state.messages.some((m) => m.clientId === entityId);
+        let messages: Message[];
+        if (existed) {
+            messages = this._state.messages.map(
+                (m) => m.clientId === entityId ? newMsg : m
+            );
+        } else {
+            messages = [...this._state.messages, newMsg]
+                .sort((a, b) => a.timestamp - b.timestamp);
+        }
+        this._state = {
+            messages,
+            hasMore: this._state.hasMore,
+            isLoadingMore: this._state.isLoadingMore,
+        };
+        this.host.requestUpdate();
+    }
+
+    /**
+     * Update a single message in a cached (background) session's state.
+     *
+     * Mirrors _updateSingleMessage but targets the LRU cache entry.
+     * Calls host.requestUpdate() to propagate signal to consumers.
+     */
+    private _updateCachedMessage(
+        sessionId: string,
+        entityId: string,
+        localMsg: LocalMessage,
+    ) {
+        const cached = this._messageCache.get(sessionId);
+        if (!cached) return;
+
+        const newMsg = this._localMessageToUI(localMsg);
+        const existed = cached.messages.some((m) => m.clientId === entityId);
+        let messages: Message[];
+        if (existed) {
+            messages = cached.messages.map(
+                (m) => m.clientId === entityId ? newMsg : m
+            );
+        } else {
+            messages = [...cached.messages, newMsg]
+                .sort((a, b) => a.timestamp - b.timestamp);
+        }
+
+        // LRU touch: delete + re-set to move to tail
+        this._messageCache.delete(sessionId);
+        this._messageCache.set(sessionId, {
+            messages,
+            hasMore: cached.hasMore,
+            isLoadingMore: cached.isLoadingMore,
+        });
         this.host.requestUpdate();
     }
 

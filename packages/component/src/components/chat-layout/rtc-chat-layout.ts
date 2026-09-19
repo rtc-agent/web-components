@@ -37,9 +37,11 @@ import {SessionTabContext, type SessionTabContextValue} from '../../contexts/ses
 import '../session-tree/rtc-session-tree.js';
 import '../session-tree/rtc-session-tab-bar.js';
 import '../content-area/rtc-content-area.js';
+import type {RtcContentArea} from '../content-area/rtc-content-area.js';
 import '../notice-bar/rtc-notice-bar.js';
 import '../input-area/rtc-input-area.js';
 import type {RtcInputArea} from '../input-area/rtc-input-area.js';
+import type {MessageController} from '../../controllers/message.controller.js';
 import '../overlay/rtc-overlay-manager.js';
 import '../drawer/rtc-drawer.js';
 
@@ -73,6 +75,10 @@ export class RtcChatLayout extends LitElement {
      */
     @property({type: Boolean, reflect: true, attribute: 'session-tree-visible'})
     sessionTreeVisible = true;
+
+    /** MessageController — injected by rtc-agent for per-session data access */
+    @property({attribute: false})
+    messageController?: MessageController;
 
     /* ── Context ── */
 
@@ -400,6 +406,13 @@ export class RtcChatLayout extends LitElement {
             })
         );
 
+        // Notify MessageController to evict this session's cache
+        this.messageController?.evictSession?.(sessionId);
+
+        // Notify rtc-input-area to evict input state cache
+        const inputArea = this.shadowRoot?.querySelector('rtc-input-area') as RtcInputArea | null;
+        inputArea?.evictInputState?.(sessionId);
+
         if (wasActive) {
             // 同步计算：关闭这个 Tab 后还剩几个
             const remainingTabs = this._tabCtx.state.tabs.filter(
@@ -426,11 +439,19 @@ export class RtcChatLayout extends LitElement {
     /* ── Render ── */
 
     private _renderChatContent() {
+        const activeSessionId = this._sessionCtx?.state?.currentSessionId;
+
         return html`
             <div class="content-area">
-                <rtc-content-area theme=${this.theme}></rtc-content-area>
+                <rtc-content-area
+                    theme=${this.theme}
+                    .sessionId=${activeSessionId}
+                    .messageController=${this.messageController}
+                ></rtc-content-area>
                 <rtc-notice-bar></rtc-notice-bar>
-                <rtc-input-area></rtc-input-area>
+                <rtc-input-area
+                    .sessionId=${activeSessionId}
+                ></rtc-input-area>
                 <rtc-overlay-manager></rtc-overlay-manager>
             </div>
         `;
@@ -473,6 +494,11 @@ export class RtcChatLayout extends LitElement {
         // Session context changed (currentSessionId or sessions list) → update token usage
         if (changed.has('_sessionCtx')) {
             this._updateTokenDisplayFromSession();
+        }
+        // Pass messageController to rtc-content-area (supplementary injection after first render)
+        const contentArea = this.shadowRoot?.querySelector('rtc-content-area') as RtcContentArea | null;
+        if (contentArea && this.messageController && !contentArea.messageController) {
+            contentArea.messageController = this.messageController;
         }
     }
 }
