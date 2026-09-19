@@ -207,27 +207,39 @@ export class MessageController implements ReactiveController {
         if (entityId) {
             const localMsg = await this._persistence.getMessage(entityId);
             if (localMsg) {
-                // Only reload if the message belongs to the current session
-                const currentSessionId =
-                    this._sessionController?.value.state.currentSessionId;
-                if (localMsg.session_client_id !== currentSessionId) {
-                    return;
-                }
+                // Update the repository for the session this message actually belongs to
+                // (not just currentSessionId - supports multi-instance where multiple
+                // rtc-message-list components can be active simultaneously)
+                const messageSessionId = localMsg.session_client_id;
 
                 const newMsg = this._localMessageToUI(localMsg);
-                const existed = this._state.messages.some((m) => m.clientId === entityId);
-                let messages: Message[];
-                if (existed) {
-                    messages = this._state.messages.map((m) => m.clientId === entityId ? newMsg : m);
-                } else {
-                    // 添加新消息并按时间排序
-                    messages = [...this._state.messages, newMsg].sort((a, b) => a.timestamp - b.timestamp);
-                }
-                this._state = {messages, hasMore: this._state.hasMore, isLoadingMore: this._state.isLoadingMore};
 
-                // Update repository for the current session
-                if (this._repository && currentSessionId) {
-                    this._repository.updateMessages(currentSessionId, messages);
+                // Update repository state for this message's session
+                if (this._repository && messageSessionId) {
+                    const currentState = this._repository.getSessionState(messageSessionId);
+                    const existed = currentState.messages.some((m) => m.clientId === entityId);
+                    let messages: Message[];
+                    if (existed) {
+                        messages = currentState.messages.map((m) => m.clientId === entityId ? newMsg : m);
+                    } else {
+                        // 添加新消息并按时间排序
+                        messages = [...currentState.messages, newMsg].sort((a, b) => a.timestamp - b.timestamp);
+                    }
+                    this._repository.updateMessages(messageSessionId, messages);
+                }
+
+                // Also update legacy state if this is the current session
+                // (for MessageContext consumers like rtc-input-area)
+                const currentSessionId = this._sessionController?.value.state.currentSessionId;
+                if (messageSessionId === currentSessionId) {
+                    const existed = this._state.messages.some((m) => m.clientId === entityId);
+                    let messages: Message[];
+                    if (existed) {
+                        messages = this._state.messages.map((m) => m.clientId === entityId ? newMsg : m);
+                    } else {
+                        messages = [...this._state.messages, newMsg].sort((a, b) => a.timestamp - b.timestamp);
+                    }
+                    this._state = {messages, hasMore: this._state.hasMore, isLoadingMore: this._state.isLoadingMore};
                 }
 
                 this.host.requestUpdate();
