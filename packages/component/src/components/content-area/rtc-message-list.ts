@@ -335,6 +335,12 @@ export class RtcMessageList extends LitElement {
                     this._isVirtualScrollOperation = false;
                 }, 50);
             }
+
+            // Also update items that changed in place (e.g., status: syncing → synced)
+            this._virtualScroll.updateItems(newMessages);
+        } else {
+            // Same length - check if any items changed (e.g., status update)
+            this._virtualScroll.updateItems(newMessages);
         }
 
         this._messages = newMessages;

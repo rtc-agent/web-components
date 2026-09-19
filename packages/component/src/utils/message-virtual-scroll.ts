@@ -126,6 +126,55 @@ export class MessageVirtualScroll<T> {
     }
 
     /**
+     * Update items in place (e.g., when message status changes from 'syncing' to 'synced').
+     * Only re-renders items that have changed and are currently in the DOM.
+     * More efficient than setItems() which re-renders everything.
+     */
+    updateItems(items: T[]) {
+        // Build a map of old items by ID for quick lookup
+        const oldItemsById = new Map<string, { index: number; item: T }>();
+        this._items.forEach((item, index) => {
+            oldItemsById.set(this._getItemId(item), { index, item });
+        });
+
+        // Update items array
+        this._items = [...items];
+
+        // Find and re-render changed items
+        items.forEach((newItem, newIndex) => {
+            const itemId = this._getItemId(newItem);
+            const oldEntry = oldItemsById.get(itemId);
+
+            if (!oldEntry) {
+                // New item (shouldn't happen in updateItems, but handle gracefully)
+                return;
+            }
+
+            // Check if item has changed (simple reference check)
+            if (oldEntry.item === newItem) {
+                return; // No change
+            }
+
+            // Item changed - check if it's currently rendered
+            const element = this._elementMap.get(oldEntry.index);
+            if (!element || !element.isConnected) {
+                return; // Not in DOM
+            }
+
+            // Re-render this item
+            const newElement = this._renderItem(newItem, newIndex);
+            newElement.dataset.messageIndex = String(newIndex);
+            this._elementMap.set(newIndex, newElement);
+
+            // Replace old element with new one
+            element.replaceWith(newElement);
+
+            // Notify size change (height might have changed)
+            this._onSizeChange?.();
+        });
+    }
+
+    /**
      * Mark that all messages in a direction have been loaded.
      * Called by the consumer when repository has no more messages.
      */
