@@ -306,6 +306,7 @@ describe('<rtc-message-list>', () => {
             const virtualizer = el.shadowRoot!.querySelector('lit-virtualizer');
             expect(virtualizer).not.toBeNull();
 
+            // Far from bottom: scrollHeight - scrollTop - clientHeight > 80
             Object.defineProperty(virtualizer, 'scrollHeight', {value: 5000, configurable: true});
             Object.defineProperty(virtualizer, 'scrollTop', {value: 0, configurable: true});
             Object.defineProperty(virtualizer, 'clientHeight', {value: 500, configurable: true});
@@ -328,7 +329,7 @@ describe('<rtc-message-list>', () => {
             const virtualizer = el.shadowRoot!.querySelector('lit-virtualizer');
             expect(virtualizer).not.toBeNull();
 
-            // Near bottom: scrollHeight - scrollTop - clientHeight < 80 (SCROLL_END_THRESHOLD)
+            // Near bottom: scrollHeight - scrollTop - clientHeight < 80
             Object.defineProperty(virtualizer, 'scrollHeight', {value: 5000, configurable: true});
             Object.defineProperty(virtualizer, 'scrollTop', {value: 4950, configurable: true});
             Object.defineProperty(virtualizer, 'clientHeight', {value: 500, configurable: true});

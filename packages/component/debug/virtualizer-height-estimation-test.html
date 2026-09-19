@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtualizer Height Estimation Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #fafafa;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 { margin-bottom: 10px; font-size: 20px; }
+        .description {
+            margin-bottom: 20px;
+            padding: 12px;
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .controls {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 8px 16px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: white;
+            font-size: 13px;
+        }
+        button:hover { background: #f5f5f5; }
+        button.primary { background: #1976d2; color: white; border-color: #1976d2; }
+        button.primary:hover { background: #1565c0; }
+        button.danger { background: #d32f2f; color: white; border-color: #d32f2f; }
+        button.danger:hover { background: #b71c1c; }
+
+        .test-container {
+            display: flex;
+            gap: 20px;
+        }
+        .virtualizer-panel {
+            flex: 1;
+            min-width: 400px;
+        }
+        .results-panel {
+            flex: 1;
+            min-width: 400px;
+        }
+        lit-virtualizer {
+            height: 500px;
+            border: 2px solid #1976d2;
+            border-radius: 4px;
+            background: white;
+        }
+        .test-item {
+            padding: 8px 12px;
+            border-bottom: 1px solid #eee;
+            box-sizing: border-box;
+            font-size: 13px;
+        }
+        .test-item.short { height: 50px; background: #e3f2fd; }
+        .test-item.medium { height: 150px; background: #e8f5e9; }
+        .test-item.tall { height: 400px; background: #fff3e0; }
+        .test-item.extra-tall { height: 600px; background: #fce4ec; }
+
+        .results {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 16px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .results .pass { color: #2e7d32; }
+        .results .fail { color: #d32f2f; }
+        .results .warn { color: #f57f17; }
+        .results .info { color: #1565c0; }
+        .results .header { font-weight: bold; margin-top: 12px; color: #333; font-size: 13px; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 12px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 6px 8px;
+            text-align: left;
+        }
+        th { background: #f5f5f5; font-weight: bold; }
+        td.error { color: #d32f2f; font-weight: bold; }
+        td.ok { color: #2e7d32; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Test 1: Virtualizer Height Estimation Error</h1>
+        <div class="description">
+            <strong>Purpose:</strong> Measure the difference between <code>scrollHeight</code> (estimated by lit-virtualizer)
+            and the actual total content height.<br>
+            <strong>Method:</strong> Create 100 items with highly variable heights (50px-600px), then compare
+            <code>scrollHeight</code> vs summing all actual item heights via <code>getBoundingClientRect()</code>.
+        </div>
+
+        <div class="controls">
+            <button class="primary" id="btn-run">Run Test</button>
+            <button id="btn-run-async">Run Async Content Test</button>
+            <button class="danger" id="btn-clear">Clear Results</button>
+        </div>
+
+        <div class="test-container">
+            <div class="virtualizer-panel">
+                <lit-virtualizer id="virtualizer" scroller></lit-virtualizer>
+            </div>
+            <div class="results-panel">
+                <div class="results" id="results">Click "Run Test" to start...</div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import '@lit-labs/virtualizer';
+
+        const virtualizer = document.getElementById('virtualizer');
+        const resultsEl = document.getElementById('results');
+
+        // Generate items with highly variable heights
+        function generateItems(count) {
+            const items = [];
+            const heights = [50, 50, 50, 80, 100, 150, 150, 200, 300, 400, 500, 600];
+            for (let i = 0; i < count; i++) {
+                const h = heights[i % heights.length];
+                items.push({ index: i, height: h, key: `item-${i}` });
+            }
+            return items;
+        }
+
+        const renderItem = (item) => {
+            const sizeClass = item.height <= 60 ? 'short' : item.height <= 160 ? 'medium' : item.height <= 400 ? 'tall' : 'extra-tall';
+            return {
+                html: `<div class="test-item ${sizeClass}" style="height: ${item.height}px">Item #${item.index} (${item.height}px)</div>`,
+                key: item.key,
+            };
+        };
+
+        function log(html, cls = '') {
+            resultsEl.innerHTML += `<div class="${cls}">${html}</div>`;
+            resultsEl.scrollTop = resultsEl.scrollHeight;
+        }
+
+        function logHeader(text) {
+            log(`<div class="header">--- ${text} ---</div>`);
+        }
+
+        // Measure actual total height by summing all item heights
+        function measureActualTotalHeight(items) {
+            let total = 0;
+            for (const item of items) {
+                total += item.height;
+                // Account for margins if any
+            }
+            return total;
+        }
+
+        // Measure the sum of rendered item heights via DOM
+        function measureRenderedItemsHeight() {
+            const children = Array.from(virtualizer.children).filter(
+                c => !c.hasAttribute('virtualizer-sizer')
+            );
+            let total = 0;
+            let count = 0;
+            for (const child of children) {
+                const rect = child.getBoundingClientRect();
+                total += rect.height;
+                count++;
+            }
+            return { total, count };
+        }
+
+        async function runTest() {
+            resultsEl.innerHTML = '';
+            logHeader('Starting Height Estimation Test');
+
+            const items = generateItems(100);
+            const actualTotal = measureActualTotalHeight(items);
+
+            log(`Items: ${items.length}`, 'info');
+            log(`Actual total height (sum of all items): ${actualTotal}px`, 'info');
+
+            // Set items
+            virtualizer.items = items;
+            virtualizer.renderItem = renderItem;
+            virtualizer.keyFunction = (item) => item.key;
+
+            // Wait for layout
+            log('Waiting for layoutComplete...', 'info');
+            try {
+                await virtualizer.layoutComplete;
+            } catch (e) {
+                // ignore
+            }
+
+            // Wait a bit more for measurements
+            await new Promise(r => setTimeout(r, 500));
+
+            const scrollHeight = virtualizer.scrollHeight;
+            const clientHeight = virtualizer.clientHeight;
+
+            logHeader('Results');
+            log(`scrollHeight (virtualizer): ${scrollHeight}px`);
+            log(`clientHeight (viewport): ${clientHeight}px`);
+            log(`Actual total content height: ${actualTotal}px`);
+
+            const error = scrollHeight - actualTotal;
+            const errorPercent = ((error / actualTotal) * 100).toFixed(2);
+            const cls = Math.abs(errorPercent) > 5 ? 'fail' : Math.abs(errorPercent) > 1 ? 'warn' : 'pass';
+            log(`Estimation error: ${error}px (${errorPercent}%)`, cls);
+
+            // Now measure what the virtualizer has actually rendered
+            const { total: renderedTotal, count: renderedCount } = measureRenderedItemsHeight();
+            log(`Rendered items: ${renderedCount} of ${items.length}`, 'info');
+            log(`Sum of rendered item heights: ${renderedTotal}px`, 'info');
+
+            if (renderedCount < items.length) {
+                log(`Not all items rendered (virtualized). Only ${renderedCount} measured.`, 'warn');
+                log(`Average rendered item height: ${(renderedTotal / renderedCount).toFixed(1)}px`, 'info');
+                const estimatedFromAvg = items.length * (renderedTotal / renderedCount);
+                log(`Estimated total from rendered avg: ${estimatedFromAvg.toFixed(0)}px`, 'info');
+                const error2 = estimatedFromAvg - actualTotal;
+                const errorPct2 = ((error2 / actualTotal) * 100).toFixed(2);
+                const cls2 = Math.abs(errorPct2) > 5 ? 'fail' : Math.abs(errorPct2) > 1 ? 'warn' : 'pass';
+                log(`Estimated-from-rendered error: ${error2.toFixed(0)}px (${errorPct2}%)`, cls2);
+            }
+
+            logHeader('Scroll to end test');
+            // Scroll to the end using scrollToIndex
+            try {
+                virtualizer.scrollToIndex(items.length - 1, 'end');
+            } catch (e) {
+                log(`scrollToIndex error: ${e.message}`, 'fail');
+            }
+
+            await new Promise(r => setTimeout(r, 500));
+            try {
+                await virtualizer.layoutComplete;
+            } catch (e) {}
+
+            await new Promise(r => setTimeout(r, 200));
+
+            const scrollTop = virtualizer.scrollTop;
+            const maxScrollTop = scrollHeight - clientHeight;
+            const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+
+            log(`After scrollToIndex(last, 'end'):`);
+            log(`  scrollTop: ${scrollTop}px`);
+            log(`  maxScrollTop (scrollHeight - clientHeight): ${maxScrollTop}px`);
+            log(`  distanceFromBottom (scrollHeight - scrollTop - clientHeight): ${distanceFromBottom}px`,
+                distanceFromBottom > 1 ? 'fail' : 'pass');
+
+            // Now try absolute bottom: scrollTop = scrollHeight
+            logHeader('Absolute bottom test (scrollTop = scrollHeight)');
+            virtualizer.scrollTop = virtualizer.scrollHeight;
+            await new Promise(r => setTimeout(r, 200));
+
+            const newScrollTop = virtualizer.scrollTop;
+            const newDistanceFromBottom = virtualizer.scrollHeight - virtualizer.scrollTop - virtualizer.clientHeight;
+            log(`After scrollTop = scrollHeight:`);
+            log(`  scrollTop: ${newScrollTop}px`);
+            log(`  distanceFromBottom: ${newDistanceFromBottom}px`,
+                newDistanceFromBottom > 1 ? 'fail' : 'pass');
+
+            // Compare last item position vs viewport bottom
+            logHeader('DOM measurement vs scrollHeight');
+            const lastRenderedChild = Array.from(virtualizer.children)
+                .filter(c => !c.hasAttribute('virtualizer-sizer'))
+                .pop();
+            if (lastRenderedChild) {
+                const childRect = lastRenderedChild.getBoundingClientRect();
+                const containerRect = virtualizer.getBoundingClientRect();
+                const domDistanceFromBottom = containerRect.bottom - childRect.bottom;
+                log(`Last rendered item bottom: ${childRect.bottom}px`);
+                log(`Container bottom: ${containerRect.bottom}px`);
+                log(`DOM distance from bottom: ${domDistanceFromBottom.toFixed(1)}px`,
+                    domDistanceFromBottom > 5 ? 'warn' : 'pass');
+                log(`scrollHeight-based distance: ${newDistanceFromBottom}px`);
+                log(`Difference (DOM vs scrollHeight): ${(domDistanceFromBottom - newDistanceFromBottom).toFixed(1)}px`,
+                    Math.abs(domDistanceFromBottom - newDistanceFromBottom) > 5 ? 'fail' : 'pass');
+            }
+
+            logHeader('Summary');
+            log(`The scrollHeight is an ESTIMATE: items.length * avgRenderedItemSize`, 'info');
+            log(`scrollToIndex(last, 'end') aligns item BOTTOM to viewport BOTTOM`, 'info');
+            log(`Neither guarantees "absolute bottom" in the traditional sense`, 'info');
+            log(`The error depends on how representative the rendered sample is of the full list`, 'info');
+        }
+
+        async function runAsyncTest() {
+            resultsEl.innerHTML = '';
+            logHeader('Starting Async Content Rendering Test');
+
+            // Start with small items, then grow them
+            const items = [];
+            for (let i = 0; i < 50; i++) {
+                items.push({ index: i, height: 50, key: `async-${i}` });
+            }
+
+            const asyncRenderItem = (item) => {
+                return {
+                    html: `<div class="test-item short" style="height: ${item.height}px; transition: height 0.3s ease;" data-idx="${item.index}">Async Item #${item.index} (${item.height}px)</div>`,
+                    key: item.key,
+                };
+            };
+
+            virtualizer.items = items;
+            virtualizer.renderItem = asyncRenderItem;
+            virtualizer.keyFunction = (item) => item.key;
+
+            try { await virtualizer.layoutComplete; } catch (e) {}
+            await new Promise(r => setTimeout(r, 300));
+
+            log(`Phase 1: All items at 50px`, 'info');
+            log(`  scrollHeight: ${virtualizer.scrollHeight}px`);
+            log(`  Expected: ${50 * 50}px`);
+
+            // Now change some items to be much taller
+            log('Phase 2: Expanding items to variable heights...', 'info');
+            const heights = [50, 80, 150, 300, 500, 200, 100, 400, 600, 150];
+            for (let i = 0; i < items.length; i++) {
+                items[i] = { ...items[i], height: heights[i % heights.length] };
+            }
+            virtualizer.items = [...items];
+
+            // Monitor scrollHeight changes
+            const observations = [];
+            const interval = setInterval(() => {
+                observations.push({
+                    time: Date.now(),
+                    scrollHeight: virtualizer.scrollHeight,
+                });
+            }, 50);
+
+            // Wait for stabilization
+            await new Promise(r => setTimeout(r, 2000));
+            clearInterval(interval);
+
+            const actualTotal = items.reduce((sum, item) => sum + item.height, 0);
+            const finalScrollHeight = virtualizer.scrollHeight;
+
+            log(`  Final scrollHeight: ${finalScrollHeight}px`);
+            log(`  Actual total: ${actualTotal}px`);
+            const error = finalScrollHeight - actualTotal;
+            const errorPct = ((error / actualTotal) * 100).toFixed(2);
+            log(`  Error: ${error}px (${errorPct}%)`, Math.abs(errorPct) > 5 ? 'fail' : 'pass');
+
+            log(`  scrollHeight observations over time:`, 'info');
+            for (const obs of observations) {
+                log(`    t+${obs.time - observations[0].time}ms: ${obs.scrollHeight}px`);
+            }
+            const stabilized = observations.length > 2 &&
+                observations.slice(-3).every((o, i, arr) => Math.abs(o.scrollHeight - arr[0].scrollHeight) < 2);
+            log(`  Stabilized: ${stabilized ? 'YES' : 'NO'}`, stabilized ? 'pass' : 'warn');
+
+            logHeader('Key insight');
+            log('When content height changes asynchronously (e.g. Markdown rendering),', 'info');
+            log('scrollHeight may lag behind reality until the virtualizer re-measures.', 'info');
+            log('This causes "pulled back" effects during slow scrolling.', 'info');
+        }
+
+        document.getElementById('btn-run').addEventListener('click', runTest);
+        document.getElementById('btn-run-async').addEventListener('click', runAsyncTest);
+        document.getElementById('btn-clear').addEventListener('click', () => {
+            resultsEl.innerHTML = 'Cleared.';
+        });
+    </script>
+</body>
+</html>

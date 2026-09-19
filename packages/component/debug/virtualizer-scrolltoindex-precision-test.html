@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtualizer scrollToIndex Precision Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #fafafa;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { margin-bottom: 10px; font-size: 20px; }
+        .description {
+            margin-bottom: 20px;
+            padding: 12px;
+            background: #e3f2fd;
+            border-left: 4px solid #1976d2;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .controls {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 8px 16px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: white;
+            font-size: 13px;
+        }
+        button:hover { background: #f5f5f5; }
+        button.primary { background: #1976d2; color: white; border-color: #1976d2; }
+
+        .test-container { display: flex; gap: 20px; }
+        .virtualizer-panel { flex: 1; min-width: 400px; }
+        .results-panel { flex: 1; min-width: 400px; }
+
+        lit-virtualizer {
+            height: 500px;
+            border: 2px solid #1976d2;
+            border-radius: 4px;
+            background: white;
+        }
+        .test-item {
+            padding: 8px 12px;
+            border-bottom: 1px solid #eee;
+            box-sizing: border-box;
+            font-size: 13px;
+        }
+
+        .results {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 16px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .results .pass { color: #2e7d32; }
+        .results .fail { color: #d32f2f; }
+        .results .warn { color: #f57f17; }
+        .results .info { color: #1565c0; }
+        .results .header { font-weight: bold; margin-top: 12px; color: #333; font-size: 13px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Test 2: scrollToIndex Precision</h1>
+        <div class="description">
+            <strong>Purpose:</strong> Measure the precision of <code>scrollToIndex(lastIndex, 'end')</code>
+            and compare with <code>scrollTop = scrollHeight</code>.<br>
+            <strong>Key question:</strong> After <code>scrollToIndex(last, 'end')</code>, what is
+            <code>scrollHeight - scrollTop - clientHeight</code>? It should be 0 for "at bottom",
+            but virtualizer's estimated scrollHeight may cause a non-zero residual.
+        </div>
+
+        <div class="controls">
+            <button class="primary" id="btn-test1">Test: scrollToIndex vs scrollTop=scrollHeight</button>
+            <button class="primary" id="btn-test2">Test: Slow scroll detection accuracy</button>
+            <button class="primary" id="btn-test3">Test: DOM-based bottom detection</button>
+        </div>
+
+        <div class="test-container">
+            <div class="virtualizer-panel">
+                <lit-virtualizer id="virtualizer" scroller></lit-virtualizer>
+            </div>
+            <div class="results-panel">
+                <div class="results" id="results">Click a test button to start...</div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import '@lit-labs/virtualizer';
+
+        const virtualizer = document.getElementById('virtualizer');
+        const resultsEl = document.getElementById('results');
+
+        function log(html, cls = '') {
+            resultsEl.innerHTML += `<div class="${cls}">${html}</div>`;
+            resultsEl.scrollTop = resultsEl.scrollHeight;
+        }
+        function logHeader(text) {
+            log(`<div class="header">--- ${text} ---</div>`);
+        }
+
+        // Generate items with variable heights
+        function generateItems(count) {
+            const items = [];
+            const heights = [60, 80, 120, 150, 200, 250, 300, 350, 400, 500];
+            for (let i = 0; i < count; i++) {
+                items.push({ index: i, height: heights[i % heights.length], key: `item-${i}` });
+            }
+            return items;
+        }
+
+        const renderItem = (item) => {
+            return {
+                html: `<div class="test-item" style="height: ${item.height}px">Item #${item.index} (${item.height}px)</div>`,
+                key: item.key,
+            };
+        };
+
+        // Get last rendered child element (excluding sizer)
+        function getLastRenderedChild() {
+            return Array.from(virtualizer.children)
+                .filter(c => !c.hasAttribute('virtualizer-sizer'))
+                .pop();
+        }
+
+        // DOM-based distance from bottom measurement
+        function getDomDistanceFromBottom() {
+            const lastChild = getLastRenderedChild();
+            if (!lastChild) return Infinity;
+            const childRect = lastChild.getBoundingClientRect();
+            const containerRect = virtualizer.getBoundingClientRect();
+            return containerRect.bottom - childRect.bottom;
+        }
+
+        // ScrollHeight-based distance from bottom
+        function getScrollHeightDistanceFromBottom() {
+            return virtualizer.scrollHeight - virtualizer.scrollTop - virtualizer.clientHeight;
+        }
+
+        async function setup() {
+            resultsEl.innerHTML = '';
+            const items = generateItems(100);
+            virtualizer.items = items;
+            virtualizer.renderItem = renderItem;
+            virtualizer.keyFunction = (item) => item.key;
+            try { await virtualizer.layoutComplete; } catch (e) {}
+            await new Promise(r => setTimeout(r, 500));
+            return items;
+        }
+
+        // Test 1: Compare scrollToIndex('end') vs scrollTop=scrollHeight
+        async function test1() {
+            const items = await setup();
+            logHeader('Test 1: scrollToIndex(last, end) vs scrollTop=scrollHeight');
+
+            // Method A: scrollToIndex
+            log('Method A: scrollToIndex(lastIndex, "end")', 'info');
+            try {
+                virtualizer.scrollToIndex(items.length - 1, 'end');
+            } catch (e) {
+                log(`Error: ${e.message}`, 'fail');
+            }
+            try { await virtualizer.layoutComplete; } catch (e) {}
+            await new Promise(r => setTimeout(r, 300));
+
+            const distA = getScrollHeightDistanceFromBottom();
+            const domDistA = getDomDistanceFromBottom();
+            log(`  scrollHeight - scrollTop - clientHeight = ${distA.toFixed(1)}px`,
+                Math.abs(distA) > 5 ? 'fail' : 'pass');
+            log(`  DOM distance from bottom: ${domDistA.toFixed(1)}px`,
+                Math.abs(domDistA) > 5 ? 'fail' : 'pass');
+
+            // Check: is the last item's bottom aligned with viewport bottom?
+            const lastChild = getLastRenderedChild();
+            if (lastChild) {
+                const childRect = lastChild.getBoundingClientRect();
+                const containerRect = virtualizer.getBoundingClientRect();
+                log(`  Last item bottom: ${childRect.bottom.toFixed(1)}px`);
+                log(`  Container bottom: ${containerRect.bottom.toFixed(1)}px`);
+                log(`  Alignment error: ${Math.abs(childRect.bottom - containerRect.bottom).toFixed(1)}px`,
+                    Math.abs(childRect.bottom - containerRect.bottom) > 5 ? 'warn' : 'pass');
+            }
+
+            // Method B: scrollTop = scrollHeight
+            log('Method B: scrollTop = scrollHeight', 'info');
+            virtualizer.scrollTop = virtualizer.scrollHeight;
+            await new Promise(r => setTimeout(r, 300));
+            try { await virtualizer.layoutComplete; } catch (e) {}
+            await new Promise(r => setTimeout(r, 200));
+
+            const distB = getScrollHeightDistanceFromBottom();
+            const domDistB = getDomDistanceFromBottom();
+            log(`  scrollHeight - scrollTop - clientHeight = ${distB.toFixed(1)}px`,
+                Math.abs(distB) > 5 ? 'fail' : 'pass');
+            log(`  DOM distance from bottom: ${domDistB.toFixed(1)}px`,
+                Math.abs(domDistB) > 5 ? 'fail' : 'pass');
+
+            logHeader('Comparison');
+            log(`Method A residual: ${distA.toFixed(1)}px (scrollHeight-based), ${domDistA.toFixed(1)}px (DOM-based)`);
+            log(`Method B residual: ${distB.toFixed(1)}px (scrollHeight-based), ${domDistB.toFixed(1)}px (DOM-based)`);
+
+            // Method C: scrollTop = scrollHeight, then check DOM
+            logHeader('Method C: scrollTop = scrollHeight + DOM correction');
+            virtualizer.scrollTop = virtualizer.scrollHeight;
+            await new Promise(r => setTimeout(r, 100));
+            try { await virtualizer.layoutComplete; } catch (e) {}
+            await new Promise(r => setTimeout(r, 100));
+
+            // After setting scrollTop = scrollHeight, the browser clamps it
+            log(`  scrollTop after setting to scrollHeight: ${virtualizer.scrollTop}`);
+            log(`  scrollHeight: ${virtualizer.scrollHeight}`);
+            log(`  clientHeight: ${virtualizer.clientHeight}`);
+            log(`  Max possible scrollTop: ${virtualizer.scrollHeight - virtualizer.clientHeight}`);
+        }
+
+        // Test 2: Slow scroll detection accuracy
+        async function test2() {
+            const items = await setup();
+            logHeader('Test 2: Slow Scroll Detection Accuracy');
+            log('Simulates slow upward scroll and checks if "near bottom" detection works correctly', 'info');
+
+            // First scroll to absolute bottom
+            virtualizer.scrollTop = virtualizer.scrollHeight;
+            await new Promise(r => setTimeout(r, 300));
+            try { await virtualizer.layoutComplete; } catch (e) {}
+            await new Promise(r => setTimeout(r, 200));
+
+            log(`Initial position: scrollTop=${virtualizer.scrollTop}, distanceFromBottom=${getScrollHeightDistanceFromBottom().toFixed(1)}px`);
+
+            // Simulate slow upward scroll, 10px at a time
+            const threshold = 80; // Same as SCROLL_END_THRESHOLD
+            const results = [];
+            const startScrollTop = virtualizer.scrollTop;
+
+            for (let i = 0; i < 20; i++) {
+                virtualizer.scrollTop -= 10;
+                await new Promise(r => setTimeout(r, 50));
+
+                const shDist = getScrollHeightDistanceFromBottom();
+                const domDist = getDomDistanceFromBottom();
+                const isNearBottomSH = shDist < threshold;
+                const isNearBottomDOM = domDist < threshold;
+
+                results.push({
+                    step: i + 1,
+                    scrollTop: virtualizer.scrollTop,
+                    shDist: shDist.toFixed(1),
+                    domDist: domDist.toFixed(1),
+                    shNearBottom: isNearBottomSH,
+                    domNearBottom: isNearBottomDOM,
+                    disagreement: isNearBottomSH !== isNearBottomDOM,
+                });
+            }
+
+            log('Step-by-step results:', 'info');
+            log('<table><tr><th>Step</th><th>scrollTop</th><th>SH-dist</th><th>DOM-dist</th><th>SH near?</th><th>DOM near?</th><th>Disagree?</th></tr>');
+            for (const r of results) {
+                const disCls = r.disagreement ? 'fail' : '';
+                log(`<tr class="${disCls}"><td>${r.step}</td><td>${r.scrollTop}</td><td>${r.shDist}</td><td>${r.domDist}</td><td>${r.shNearBottom}</td><td>${r.domNearBottom}</td><td>${r.disagreement ? 'YES!' : 'no'}</td></tr>`);
+            }
+            log('</table>');
+
+            const disagreements = results.filter(r => r.disagreement);
+            if (disagreements.length > 0) {
+                log(`${disagreements.length} disagreements detected!`, 'fail');
+                log('This means scrollHeight-based detection and DOM-based detection disagree.', 'warn');
+                log('When they disagree, the user may experience "pulled back" behavior.', 'warn');
+            } else {
+                log('No disagreements detected.', 'pass');
+            }
+        }
+
+        // Test 3: DOM-based bottom detection
+        async function test3() {
+            const items = await setup();
+            logHeader('Test 3: DOM-Based Bottom Detection');
+            log('Tests a fix proposal: use DOM measurement instead of scrollHeight for "is at bottom" detection', 'info');
+
+            // Scroll to bottom using different methods
+            const methods = [
+                {
+                    name: 'scrollToIndex(last, "end")',
+                    fn: () => { try { virtualizer.scrollToIndex(items.length - 1, 'end'); } catch (e) {} }
+                },
+                {
+                    name: 'scrollTop = scrollHeight',
+                    fn: () => { virtualizer.scrollTop = virtualizer.scrollHeight; }
+                },
+                {
+                    name: 'scrollTop = scrollHeight (clamped by browser)',
+                    fn: () => { virtualizer.scrollTop = Math.min(virtualizer.scrollHeight, virtualizer.scrollHeight); }
+                },
+            ];
+
+            for (const method of methods) {
+                log(`\nMethod: ${method.name}`, 'info');
+                method.fn();
+                try { await virtualizer.layoutComplete; } catch (e) {}
+                await new Promise(r => setTimeout(r, 300));
+
+                const shDist = getScrollHeightDistanceFromBottom();
+                const domDist = getDomDistanceFromBottom();
+                const scrollTop = virtualizer.scrollTop;
+
+                log(`  scrollTop: ${scrollTop}`);
+                log(`  scrollHeight-based dist from bottom: ${shDist.toFixed(1)}px`, Math.abs(shDist) > 5 ? 'warn' : 'pass');
+                log(`  DOM-based dist from bottom: ${domDist.toFixed(1)}px`, Math.abs(domDist) > 5 ? 'warn' : 'pass');
+
+                // Check if last item is visible
+                const lastChild = getLastRenderedChild();
+                if (lastChild) {
+                    const childRect = lastChild.getBoundingClientRect();
+                    const containerRect = virtualizer.getBoundingClientRect();
+                    const isVisible = childRect.bottom <= containerRect.bottom + 1;
+                    log(`  Last rendered item fully visible: ${isVisible}`, isVisible ? 'pass' : 'fail');
+                    log(`  Last item bottom - container bottom: ${(childRect.bottom - containerRect.bottom).toFixed(1)}px`);
+                }
+            }
+
+            logHeader('Fix proposal validation');
+            log('Proposed fix: Replace scrollHeight-based distance check with DOM measurement', 'info');
+            log('');
+            log('Current code (problematic):');
+            log('  const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;');
+            log('');
+            log('Proposed code:');
+            log('  const lastChild = getLastRenderedChild();');
+            log('  const childRect = lastChild.getBoundingClientRect();');
+            log('  const containerRect = el.getBoundingClientRect();');
+            log('  const distanceFromBottom = containerRect.bottom - childRect.bottom;');
+            log('');
+            log('This measures ACTUAL visual distance, not estimated scroll distance.');
+            log('It is immune to scrollHeight estimation errors.');
+        }
+
+        document.getElementById('btn-test1').addEventListener('click', test1);
+        document.getElementById('btn-test2').addEventListener('click', test2);
+        document.getElementById('btn-test3').addEventListener('click', test3);
+    </script>
+</body>
+</html>

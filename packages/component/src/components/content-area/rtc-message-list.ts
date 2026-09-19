@@ -25,8 +25,8 @@
  *    - Updates `_followMode` based on distance from bottom.
  *
  * 4. **`_handleNewMessages` runs on every repository notification**:
- *    - Checks real-time scroll position (works even for background tabs).
- *    - Sets `_pendingScroll` when near bottom.
+ *    - Checks `_followMode` (user intent signal) to decide whether to queue auto-scroll.
+ *    - Real-time scroll position is verified in `_applyPendingScroll` before executing.
  *
  * 5. **ResizeObserver (built into @lit-labs/virtualizer)** handles async content:
  *    - Markdown rendering, thinking expansion, tool-call card resizing.
@@ -166,6 +166,9 @@ export class RtcMessageList extends LitElement {
     /** Maximum-wait fallback timer from _waitForRenderComplete. */
     private _renderMaxWaitTimer?: ReturnType<typeof setTimeout>;
 
+    /** Secondary-check timer from _applyPendingScroll (300ms post-scroll). */
+    private _secondaryCheckTimer?: ReturnType<typeof setTimeout>;
+
     // ── UI state ──
 
     @state()
@@ -243,6 +246,7 @@ export class RtcMessageList extends LitElement {
         // Clean up render-complete observers/timers (Issue #8 fix)
         clearTimeout(this._renderStableTimer);
         clearTimeout(this._renderMaxWaitTimer);
+        clearTimeout(this._secondaryCheckTimer);
         this._renderObserver?.disconnect();
     }
 
@@ -480,8 +484,6 @@ export class RtcMessageList extends LitElement {
         if (gen !== this._applyPendingScrollGeneration) return;
 
         // 3. Execute scroll — but only if user still intends to follow.
-        // During the awaits above, _followMode may have flipped to false
-        // (user scrolled up). Respect the current intent, not the stale one.
         if (this._followMode && this._renderItems.length > 0) {
             try {
                 el.scrollToIndex(this._renderItems.length - 1, 'end');
@@ -493,12 +495,13 @@ export class RtcMessageList extends LitElement {
         if (gen !== this._applyPendingScrollGeneration) return;
 
         // 4. Secondary check: async content (Markdown, tool-call cards) may
-        // have changed scrollHeight after the initial scroll. Re-check both
-        // _followMode (user intent) and real-time DOM position (ground truth).
-        await new Promise(resolve => setTimeout(resolve, 300));
+        // have changed scrollHeight after the initial scroll.
+        await new Promise(resolve => {
+            this._secondaryCheckTimer = setTimeout(resolve, 300);
+        });
         if (gen !== this._applyPendingScrollGeneration) return;
 
-        if (this._followMode) {
+        if (this._followMode && this._renderItems.length > 0) {
             const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
             if (distanceFromBottom > 10) {
                 try {
@@ -526,9 +529,17 @@ export class RtcMessageList extends LitElement {
         // and _applyPendingScroll depend on it as the authoritative signal of
         // user intent. Deferring it to RAF (~16ms) creates a window where
         // _followMode is stale relative to the actual scroll position.
-        const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-            < VIRTUAL_SCROLL_CONFIG.SCROLL_END_THRESHOLD;
-        this._followMode = isNearBottom;
+        //
+        // During programmatic scroll (_scrollSuppressed=true), scroll events
+        // come from the virtualizer's internal adjustments, not user action.
+        // Updating _followMode from these events can incorrectly flip it to
+        // false, causing _applyPendingScroll's secondary check to skip the
+        // re-scroll and the button to reappear.
+        if (!this._scrollSuppressed) {
+            const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+                < VIRTUAL_SCROLL_CONFIG.SCROLL_END_THRESHOLD;
+            this._followMode = isNearBottom;
+        }
 
         // UI state updates are still throttled via RAF to avoid excessive re-renders.
         if (this._scrollRafPending) return;
@@ -548,7 +559,9 @@ export class RtcMessageList extends LitElement {
 
             // Auto-trigger loadMore when near top
             if (el.scrollTop < VIRTUAL_SCROLL_CONFIG.AUTO_LOAD_MORE_THRESHOLD && this._hasMore) {
-                this._handleLoadMoreClick();
+                this._handleLoadMoreClick().catch(err => {
+                    console.debug('[rtc-message-list] loadMore error (auto):', err);
+                });
             }
         });
     };
@@ -621,7 +634,9 @@ export class RtcMessageList extends LitElement {
         // re-showing the button we just hid.
         this._scrollSuppressed = true;
         try {
-            await this._applyPendingScroll();
+            await this._applyPendingScroll().catch(err => {
+                console.debug('[rtc-message-list] _applyPendingScroll error (btn):', err);
+            });
         } finally {
             this._scrollSuppressed = false;
         }
