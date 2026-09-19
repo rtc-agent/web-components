@@ -42,7 +42,10 @@ const createMockController = (sessionId: string, messages: Message[]): MessageCo
         },
     };
 
-    return {repository: mockRepository as MessageRepository} as MessageController;
+    return {
+        repository: mockRepository as MessageRepository,
+        fetchInitialMessages: async () => {},
+    } as MessageController;
 };
 
 describe('<rtc-message-list>', () => {
@@ -94,7 +97,9 @@ describe('<rtc-message-list>', () => {
             html`<rtc-message-list .sessionId=${sessionId} .messageController=${controller}></rtc-message-list>`
         );
         await nextFrame();
+        await nextFrame(); // Extra frame for virtual scroll to render
         const items = el.shadowRoot!.querySelectorAll('rtc-message');
+        expect(items.length).toBe(2);
         expect(items[0].hasAttribute('is-last')).toBe(false);
         expect(items[1].hasAttribute('is-last')).toBe(true);
     });

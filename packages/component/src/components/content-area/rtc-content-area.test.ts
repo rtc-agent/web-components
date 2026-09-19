@@ -41,7 +41,10 @@ const createMockController = (sessionId: string, messages: Message[]): MessageCo
         },
     };
 
-    return {repository: mockRepository as MessageRepository} as MessageController;
+    return {
+        repository: mockRepository as MessageRepository,
+        fetchInitialMessages: async () => {},
+    } as MessageController;
 };
 
 describe('<rtc-content-area>', () => {

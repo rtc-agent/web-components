@@ -288,6 +288,10 @@ export class RtcMessageList extends LitElement {
             return;
         }
 
+        // Update _messages BEFORE virtual scroll operations so that
+        // _renderMessageElement can correctly determine isLast
+        this._messages = newMessages;
+
         if (oldMessages.length === 0 && newMessages.length > 0) {
             // Initial load
             this._isVirtualScrollOperation = true;
@@ -343,7 +347,6 @@ export class RtcMessageList extends LitElement {
             this._virtualScroll.updateItems(newMessages);
         }
 
-        this._messages = newMessages;
         this._hasMore = data.hasMore;
 
         console.log(
