@@ -94,7 +94,8 @@ export class MessageVirtualScroll<T> {
 
     private _isLoading = {top: false, bottom: false};
     private _scrollHandler: (() => void) | null = null;
-    private _sliceTimer: number | null = null;
+    private _sliceDebounceTimer: number | null = null;
+    private _sliceDebounceDelay: number;
 
     constructor(options: MessageVirtualScrollOptions<T>) {
         this._scrollContainer = options.scrollContainer;
@@ -104,15 +105,12 @@ export class MessageVirtualScroll<T> {
         this._onLoadMore = options.onLoadMore;
         this._onSizeChange = options.onSizeChange;
         this._query = options.query ?? '.message';
-        this._preloadThreshold = options.preloadThreshold ?? 200;
+        this._preloadThreshold = options.preloadThreshold ?? 300;
         this._bufferMessages = options.bufferMessages ?? 20;
+        this._sliceDebounceDelay = options.sliceInterval ?? 3000;
 
         this._scrollHandler = () => this._onScroll();
         this._scrollContainer.addEventListener('scroll', this._scrollHandler, {passive: true});
-
-        // Periodic viewport slicing (debounced, like Telegram's sliceViewportDebounced)
-        const sliceInterval = options.sliceInterval ?? 3000;
-        this._sliceTimer = window.setInterval(() => this._sliceViewport(), sliceInterval);
     }
 
     /**
@@ -217,8 +215,8 @@ export class MessageVirtualScroll<T> {
         if (this._scrollHandler) {
             this._scrollContainer.removeEventListener('scroll', this._scrollHandler);
         }
-        if (this._sliceTimer) {
-            clearInterval(this._sliceTimer);
+        if (this._sliceDebounceTimer) {
+            clearTimeout(this._sliceDebounceTimer);
         }
     }
 
@@ -249,6 +247,15 @@ export class MessageVirtualScroll<T> {
         const {scrollTop, scrollHeight, clientHeight} = this._scrollContainer;
         const distanceFromTop = scrollTop;
         const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+
+        // Debounced viewport slicing (like Telegram's sliceViewportDebounced)
+        // Reset timer on each scroll event, execute after user stops scrolling
+        if (this._sliceDebounceTimer) {
+            clearTimeout(this._sliceDebounceTimer);
+        }
+        this._sliceDebounceTimer = window.setTimeout(() => {
+            this._sliceViewport();
+        }, this._sliceDebounceDelay);
 
         if (!this._onLoadMore) return;
 
