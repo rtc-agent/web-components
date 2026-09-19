@@ -2,17 +2,24 @@ import {css} from 'lit';
 
 export const styles = css`
   :host {
-    /* Use flex layout instead of height: 100% for robust height resolution.
-     * The parent (.content-container) is a flex column container, so flex: 1
-     * ensures this element fills available space even when sibling heights
-     * change dynamically (e.g., input area expanding from 36px to 200px).
-     * min-height: 0 allows the flex item to shrink below content size. */
+    /* In rtc-chat-layout: sized by position: absolute; inset: 0 (light DOM CSS).
+     * In rtc-content-area: flex: 1 fills the flex column container.
+     * display: flex is needed so .list-wrapper can use flex: 1 to stretch. */
     display: flex;
     flex-direction: column;
     flex: 1;
     min-height: 0;
     overflow: hidden;
     position: relative;
+  }
+
+  /* Wrapper div between :host and lit-virtualizer.
+   * Bridges the flex layout from :host down to the virtualizer. */
+  .list-wrapper {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
   }
 
   .message-list-scroll {
@@ -27,7 +34,14 @@ export const styles = css`
     /* 不设 padding，避免内容宽度超出容器导致水平滚动 */
     background: var(--rtc-color-bg-secondary);
     /* Disable browser scroll anchoring: prevents the browser from adjusting
-     * scrollTop when content above changes (e.g., async Markdown rendering). */
+     * scrollTop when content above changes (e.g., async Markdown rendering).
+     *
+     * Note: "overflow-anchor: none" is not supported in Safari.
+     * Safari may apply its own scroll anchoring (Scroll Anchoring / Scroll
+     * Position Restoration), which could conflict with the virtualizer's scroll
+     * management. If visual glitches occur in Safari when async content
+     * (Markdown) renders above the viewport, consider implementing a JS-based
+     * scroll anchor prevention or saving/restoring scrollTop around renders. */
     overflow-anchor: none;
     /* 禁用 Safari 橡皮筋回弹效果，防止虚拟滚动中 prepend 操作触发 bounce */
     overscroll-behavior: none;

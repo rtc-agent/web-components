@@ -7,6 +7,12 @@ import {css} from 'lit';
  * - rtc-drawer overlay 抽屉（会话树，从左侧滑入，不挤压主内容）
  * - 右栏：TabBar + 聊天内容区（flex: 1）
  *
+ * 多实例渲染：
+ * - .message-lists-container 容纳多个 rtc-message-list（每 tab 一个）
+ * - 每个 rtc-message-list 使用 position: absolute 堆叠
+ * - 通过 visibility 切换 active tab（非 display 或 hidden attribute）
+ * - 非 active tab 的 virtualizer 在后台继续工作
+ *
  * 颜色使用项目 Tokens，确保双主题适配。
  */
 export const styles = css`
@@ -33,35 +39,17 @@ export const styles = css`
         flex-shrink: 0;
     }
 
-    /* ── 聊天内容区 ── */
-    .content-area {
+    /* ── 多实例消息列表容器 ── */
+    .message-lists-container {
+        position: relative;
         flex: 1;
-        display: flex;
-        flex-direction: column;
         overflow: hidden;
         min-height: 0;
     }
 
-    /* ── 空状态（无活动 Tab） ── */
-    .empty-state {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        color: var(--rtc-color-text-tertiary);
-        gap: var(--rtc-spacing-sm);
-        user-select: none;
-    }
-
-    .empty-state-icon svg {
-        width: 48px;
-        height: 48px;
-        fill: currentColor;
-        opacity: 0.3;
-    }
-
-    .empty-state-text {
-        font-size: var(--rtc-font-size-sm);
+    .message-lists-container rtc-message-list {
+        position: absolute;
+        inset: 0;
+        /* visibility is set inline per-instance */
     }
 `;

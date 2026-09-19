@@ -7,9 +7,14 @@
  *
  * 点击会话树节点 → 打开/切换 Tab → 聊天内容区显示该 session 的消息。
  *
- * 聊天内容区复用现有组件（rtc-content-area / rtc-notice-bar /
- * rtc-input-area / rtc-overlay-manager），通过 SessionContext 的
- * currentSessionId 切换不同 session。
+ * 多实例渲染架构：每个 Tab 渲染一个独立的 `<rtc-message-list>` 实例，
+ * 用 `visibility` 切换 active tab。非 active tab 的 message-list 保持
+ * `visibility: hidden`，但 virtualizer 在后台继续工作。Tab 关闭时从
+ * `_tabs` 数组移除，对应 message-list 从 DOM 移除。
+ *
+ * 聊天内容区复用现有组件（rtc-message-list / rtc-notice-bar /
+ * rtc-input-area / rtc-overlay-manager / rtc-empty-state），通过
+ * SessionTabContext 的 activeSessionId 切换不同 session。
  *
  * @element rtc-chat-layout
  * @fires rtc-chat-layout-session-select - 用户点击会话树节点 (detail: { sessionId })
@@ -36,8 +41,8 @@ import {SessionTabContext, type SessionTabContextValue} from '../../contexts/ses
 // Child components
 import '../session-tree/rtc-session-tree.js';
 import '../session-tree/rtc-session-tab-bar.js';
-import '../content-area/rtc-content-area.js';
-import type {RtcContentArea} from '../content-area/rtc-content-area.js';
+import '../content-area/rtc-message-list.js';
+import '../empty-state/rtc-empty-state.js';
 import '../notice-bar/rtc-notice-bar.js';
 import '../input-area/rtc-input-area.js';
 import type {RtcInputArea} from '../input-area/rtc-input-area.js';
@@ -116,6 +121,25 @@ export class RtcChatLayout extends LitElement {
             updateTabStatus: () => {},
         },
     };
+
+    /* ── LRU virtualizer management (Issue #4 fix) ── */
+
+    /**
+     * Maximum number of virtualizer instances kept alive simultaneously.
+     *
+     * Tabs outside the LRU window use `display: none` to destroy their DOM,
+     * freeing memory and CPU. The tradeoff is that scrolling position is lost
+     * for evicted tabs — they will scroll to top when revisited.
+     */
+    private readonly MAX_ACTIVE_VIRTUALIZERS = 3;
+
+    /**
+     * Session IDs in most-recently-active order (index 0 = most recent).
+     *
+     * Updated whenever the active tab changes. Tabs in this list keep their
+     * virtualizer alive; tabs outside get `display: none`.
+     */
+    private _recentlyActiveTabs: string[] = [];
 
     /* ── Lifecycle ── */
 
@@ -409,6 +433,9 @@ export class RtcChatLayout extends LitElement {
         // Notify MessageController to evict this session's cache
         this.messageController?.evictSession?.(sessionId);
 
+        // Remove closed tab from LRU list to prevent stale entries
+        this._recentlyActiveTabs = this._recentlyActiveTabs.filter(id => id !== sessionId);
+
         // Notify rtc-input-area to evict input state cache
         const inputArea = this.shadowRoot?.querySelector('rtc-input-area') as RtcInputArea | null;
         inputArea?.evictInputState?.(sessionId);
@@ -438,22 +465,60 @@ export class RtcChatLayout extends LitElement {
 
     /* ── Render ── */
 
+    /**
+     * Update the LRU list when a tab becomes active.
+     *
+     * Moves the given sessionId to the front of _recentlyActiveTabs,
+     * then truncates to MAX_ACTIVE_VIRTUALIZERS entries.
+     */
+    private _updateRecentlyActiveTabs(sessionId: string) {
+        // Remove if already present
+        this._recentlyActiveTabs = this._recentlyActiveTabs.filter(id => id !== sessionId);
+        // Add to front (most recent)
+        this._recentlyActiveTabs.unshift(sessionId);
+        // Keep only MAX_ACTIVE_VIRTUALIZERS entries
+        if (this._recentlyActiveTabs.length > this.MAX_ACTIVE_VIRTUALIZERS) {
+            this._recentlyActiveTabs = this._recentlyActiveTabs.slice(0, this.MAX_ACTIVE_VIRTUALIZERS);
+        }
+    }
+
     private _renderChatContent() {
-        const activeSessionId = this._sessionCtx?.state?.currentSessionId;
+        const tabs = this._tabCtx.state.tabs;
+        const activeSessionId = this._tabCtx.state.activeSessionId;
+
+        // Empty state: no open tabs
+        if (tabs.length === 0 || !activeSessionId) {
+            return html`<rtc-empty-state .theme=${this.theme}></rtc-empty-state>`;
+        }
+
+        // Update LRU tracking for the active tab
+        this._updateRecentlyActiveTabs(activeSessionId);
 
         return html`
-            <div class="content-area">
-                <rtc-content-area
-                    theme=${this.theme}
-                    .sessionId=${activeSessionId}
-                    .messageController=${this.messageController}
-                ></rtc-content-area>
-                <rtc-notice-bar></rtc-notice-bar>
-                <rtc-input-area
-                    .sessionId=${activeSessionId}
-                ></rtc-input-area>
-                <rtc-overlay-manager></rtc-overlay-manager>
+            <rtc-notice-bar
+                .theme=${this.theme}
+            ></rtc-notice-bar>
+            <div class="message-lists-container">
+                ${tabs.map(tab => {
+                    const isActive = activeSessionId === tab.sessionId;
+                    const isInLRU = this._recentlyActiveTabs.includes(tab.sessionId);
+                    const shouldRender = isActive || isInLRU;
+
+                    return html`
+                        <rtc-message-list
+                            .sessionId=${tab.sessionId}
+                            .messageController=${this.messageController}
+                            .theme=${this.theme}
+                            style="visibility: ${isActive ? 'visible' : 'hidden'}; display: ${shouldRender ? '' : 'none'}"
+                        ></rtc-message-list>
+                    `;
+                })}
             </div>
+            <rtc-input-area
+                .sessionId=${activeSessionId}
+                .messageController=${this.messageController}
+            ></rtc-input-area>
+            <rtc-overlay-manager></rtc-overlay-manager>
         `;
     }
 
@@ -494,11 +559,6 @@ export class RtcChatLayout extends LitElement {
         // Session context changed (currentSessionId or sessions list) → update token usage
         if (changed.has('_sessionCtx')) {
             this._updateTokenDisplayFromSession();
-        }
-        // Pass messageController to rtc-content-area (supplementary injection after first render)
-        const contentArea = this.shadowRoot?.querySelector('rtc-content-area') as RtcContentArea | null;
-        if (contentArea && this.messageController && !contentArea.messageController) {
-            contentArea.messageController = this.messageController;
         }
     }
 }

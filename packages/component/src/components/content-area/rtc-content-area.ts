@@ -1,23 +1,26 @@
 /**
  * RTC Content Area Component
  *
- * Hosts a single rtc-message-list instance. Session switching is handled by
- * the MessageController's data-level caching (LRU message state cache) and
- * scroll position cache — not by DOM-level instance caching.
+ * Hosts rtc-message-list instances. In the multi-instance architecture, each
+ * `<rtc-message-list>` subscribes directly to the MessageRepository for its
+ * own sessionId, so session switching is handled by the component lifecycle
+ * (connect/disconnect) rather than by data-level caching in the parent.
  *
- * When sessionId changes (tab switch), willUpdate() saves the current scroll
- * position before the context update propagates. The message-list restores
- * the saved position after rendering the new session's data.
+ * @deprecated This component is part of the legacy single-instance architecture.
+ * Use `<rtc-chat-layout>` instead, which provides a more flexible multi-instance
+ * architecture with independent session subscriptions.
+ *
+ * This component is kept for backward compatibility only. It is still referenced
+ * by `<rtc-content-wrapper>` (which itself is deprecated), but new code should
+ * migrate to `<rtc-chat-layout>`.
  *
  * @element rtc-content-area
  * @csspart container - The content container
  */
 import {LitElement, html} from 'lit';
 import {customElement, property} from 'lit/decorators.js';
-import {query} from 'lit/decorators/query.js';
 import {styles} from './rtc-content-area.styles.js';
 import type {MessageController} from '../../controllers/message.controller.js';
-import type {RtcMessageList} from './rtc-message-list.js';
 import './rtc-message-list.js';
 import '../empty-state/rtc-empty-state.js';
 
@@ -34,18 +37,6 @@ export class RtcContentArea extends LitElement {
     @property({attribute: false})
     messageController?: MessageController;
 
-    @query('rtc-message-list')
-    private _messageList?: RtcMessageList;
-
-    protected willUpdate(changed: Map<string, unknown>) {
-        if (changed.has('sessionId')) {
-            const prevSessionId = changed.get('sessionId') as string | null;
-            if (prevSessionId) {
-                this._saveScrollPosition(prevSessionId);
-            }
-        }
-    }
-
     render() {
         if (!this.sessionId) {
             return html`<rtc-empty-state theme=${this.theme}></rtc-empty-state>`;
@@ -60,32 +51,6 @@ export class RtcContentArea extends LitElement {
                 ></rtc-message-list>
             </div>
         `;
-    }
-
-    /**
-     * Save the current message list's scroll position before session switch.
-     *
-     * Called from willUpdate() BEFORE the context update propagates to the
-     * message list. At this point, the lit-virtualizer still holds the old
-     * session's DOM, so firstVisibleIndex is valid.
-     */
-    private _saveScrollPosition(oldSessionId: string) {
-        if (!this.messageController || !this._messageList) return;
-
-        const virtualizer = this._messageList.getVirtualizer();
-        if (!virtualizer) return;
-
-        const index = virtualizer.firstVisibleIndex;
-        if (index == null || index < 0) return;
-
-        const items = this._messageList.getRenderItems();
-        if (index >= items.length) return;
-
-        this.messageController.saveScrollPosition(
-            oldSessionId,
-            index,
-            items[index].key,
-        );
     }
 }
 

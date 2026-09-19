@@ -954,8 +954,8 @@ export class RtcAgent extends LitElement {
             console.log('[rtc-agent.onSessionSwitch] currentSessionId:', this._session.value.state.currentSessionId);
             this._fork.actions.clearFork();  // 切换 session 时清理 fork 状态
             if (this._session.value.state.currentSessionId) {
-                console.log('[rtc-agent.onSessionSwitch] Calling message.reload()');
-                void this._message.reload();
+                console.log('[rtc-agent.onSessionSwitch] Calling message.reloadForSession()');
+                void this._message.reloadForSession();
             } else {
                 // currentSessionId 为 null（如关闭最后一个 Tab）→ 清空消息
                 console.log('[rtc-agent.onSessionSwitch] Clearing messages (no current session)');
@@ -1056,7 +1056,7 @@ export class RtcAgent extends LitElement {
         this._busUnsubMessage = bus.subscribe((event) => {
             console.log('[rtc-agent] UIUpdateBus event:', event.entity, event.field, event.entityId);
             if (event.entity === 'message') {
-                void this._message.reload(event.entityId);
+                void this._message.updateMessage(event.entityId);
             } else if (event.entity === 'session') {
                 // Session update: reload sessions list from DB, but preserve currentSessionId
                 console.log('[rtc-agent] session update detected, calling _loadSessions');
@@ -1372,6 +1372,9 @@ export class RtcAgent extends LitElement {
         this._autoSaveTimers.clear();
     }
 
+    // Flag to track if messageController has been injected into rtc-chat-layout
+    private _chatLayoutInjected = false;
+
     updated() {
         // Sync controller values to context providers after host update completes
         // Using updateComplete ensures we don't trigger change-in-update warnings
@@ -1395,6 +1398,28 @@ export class RtcAgent extends LitElement {
                 locales: [sourceLocale, ...targetLocales],
             });
         });
+
+        // Inject messageController into rtc-chat-layout (supplementary injection after first render)
+        // This handles the edge case where the property is set after the first render.
+        //
+        // IMPORTANT: rtc-chat-layout is conditionally rendered in _renderMainLayout() —
+        // when the user switches to a different activity (files/settings), the chat-layout
+        // DOM element is destroyed. When they switch back to 'chat', a NEW element is created.
+        // We must reset _chatLayoutInjected when the chat-layout is not present, so the new
+        // instance receives the messageController injection. Without this, the new chat-layout
+        // has messageController=undefined, which causes the wrapper's _syncLocalContext() to
+        // return early, resulting in no messages being displayed.
+        const active = this._activity.active;
+        if (active !== 'chat') {
+            // chat-layout is not in the DOM — reset so the next creation triggers injection
+            this._chatLayoutInjected = false;
+        } else if (!this._chatLayoutInjected) {
+            const chatLayout = this.shadowRoot?.querySelector('rtc-chat-layout') as HTMLElement & { messageController?: MessageController } | null;
+            if (chatLayout) {
+                chatLayout.messageController = this._message;
+                this._chatLayoutInjected = true;
+            }
+        }
 
         // 监测 Tab 数量：当所有 Tab 关闭时，自动创建新的 unsaved Tab
         // 这是响应式的设计：通过 Lit 的 updated() 生命周期监听 state 变化
@@ -2193,7 +2218,7 @@ export class RtcAgent extends LitElement {
               ></rtc-status-bar>
             </div>`
           : isChat
-            ? html`<rtc-chat-layout theme=${this.theme} .sessionTreeVisible=${sidebarVisible}></rtc-chat-layout>`
+            ? html`<rtc-chat-layout theme=${this.theme} .sessionTreeVisible=${sidebarVisible} .messageController=${this._message}></rtc-chat-layout>`
             : isSettings
               ? html`<rtc-settings-layout theme=${this.theme} .sidebarVisible=${sidebarVisible}></rtc-settings-layout>`
               : nothing}

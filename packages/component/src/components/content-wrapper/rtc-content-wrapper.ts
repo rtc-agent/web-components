@@ -5,6 +5,13 @@
  *   session-header → content-area → notice-bar → input-area
  * Also contains overlay-manager (positioned absolutely).
  *
+ * @deprecated This component is part of the legacy single-instance architecture.
+ * Use `<rtc-chat-layout>` instead, which provides a more flexible multi-instance
+ * architecture with independent session subscriptions.
+ *
+ * This component is kept as a legacy fallback for backward compatibility.
+ * `<rtc-agent>` still references it, but new code should use `<rtc-chat-layout>`.
+ *
  * @element rtc-content-wrapper
  */
 import {LitElement, html} from 'lit';

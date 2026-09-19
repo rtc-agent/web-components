@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Instance Virtualizer - Visibility Hidden Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            margin-bottom: 10px;
+        }
+        .description {
+            margin-bottom: 20px;
+            padding: 12px;
+            background: #e8f5e9;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .controls {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 8px 16px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: white;
+        }
+        button:hover {
+            background: #f5f5f5;
+        }
+        button.primary {
+            background: #1976d2;
+            color: white;
+            border-color: #1976d2;
+        }
+        button.primary:hover {
+            background: #1565c0;
+        }
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 0;
+            border-bottom: 2px solid #ccc;
+        }
+        .tab {
+            padding: 8px 16px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            border-bottom: none;
+            border-radius: 4px 4px 0 0;
+            background: #f5f5f5;
+        }
+        .tab.active {
+            background: white;
+            border-bottom: 2px solid white;
+            margin-bottom: -2px;
+        }
+        .tab-content {
+            border: 2px solid #ccc;
+            border-top: none;
+            padding: 0;
+            position: relative;
+            height: 500px;
+        }
+        .virtualizer-container {
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+        }
+        lit-virtualizer {
+            height: 100%;
+        }
+        .message {
+            padding: 12px;
+            margin: 8px;
+            border-radius: 8px;
+        }
+        .message.user {
+            background: #e3f2fd;
+            margin-left: 40px;
+        }
+        .message.assistant {
+            background: #f5f5f5;
+            margin-right: 40px;
+        }
+        .message.async {
+            background: #fff3e0;
+            margin-right: 40px;
+            transition: min-height 0.5s ease;
+        }
+        .message.async.rendered {
+            min-height: 150px;
+            background: #ffe0b2;
+        }
+        .log-panel {
+            margin-top: 20px;
+            padding: 12px;
+            background: #263238;
+            color: #aed581;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            margin: 2px 0;
+        }
+        .log-entry.success {
+            color: #81c784;
+        }
+        .log-entry.warning {
+            color: #ffb74d;
+        }
+        .log-entry.error {
+            color: #e57373;
+        }
+        .log-entry.info {
+            color: #64b5f6;
+        }
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Multi-Instance Virtualizer - Visibility Hidden Test</h1>
+        <div class="description">
+            <strong>验证目标：</strong>
+            <ol style="margin: 8px 0;">
+                <li><code>visibility: hidden</code> 下 lit-virtualizer 的 <code>layoutComplete</code> 能正确 resolve</li>
+                <li><code>visibility: hidden</code> 下 item 的 ResizeObserver 回调能触发（异步高度变化能被感知）</li>
+                <li><code>scrollHeight</code> 在 <code>visibility: hidden</code> 下能正确反映内容高度</li>
+                <li>多个 virtualizer 实例同时存在时的性能</li>
+            </ol>
+        </div>
+
+        <div class="controls">
+            <button class="primary" id="create-tab-btn">创建 Tab</button>
+            <button id="close-tab-btn">关闭当前 Tab</button>
+            <button id="add-message-btn">添加消息</button>
+            <button id="add-async-btn">添加异步消息（模拟 Markdown）</button>
+            <button id="scroll-bottom-btn">滚动到底部</button>
+            <button id="test-all-btn">运行自动测试</button>
+            <button id="clear-log-btn">清空日志</button>
+        </div>
+
+        <div class="tabs" id="tabs"></div>
+        <div class="tab-content">
+            <div id="virtualizer-containers"></div>
+        </div>
+
+        <div class="status" id="status">
+            状态：等待操作...
+        </div>
+
+        <div class="log-panel" id="log-panel"></div>
+    </div>
+
+    <script type="module">
+        import '@lit-labs/virtualizer';
+
+        // 状态
+        let tabs = [];
+        let activeTabId = null;
+        let tabCounter = 0;
+        let messageCounters = {};
+
+        // 日志
+        function log(message, type = 'info') {
+            const logPanel = document.getElementById('log-panel');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logPanel.appendChild(entry);
+            logPanel.scrollTop = logPanel.scrollHeight;
+        }
+
+        function updateStatus(message) {
+            document.getElementById('status').textContent = `状态：${message}`;
+        }
+
+        // 创建 Tab
+        function createTab() {
+            tabCounter++;
+            const tabId = `tab-${tabCounter}`;
+            messageCounters[tabId] = 0;
+
+            // 创建 tab 按钮
+            const tabEl = document.createElement('div');
+            tabEl.className = 'tab';
+            tabEl.dataset.tabId = tabId;
+            tabEl.textContent = `Tab ${tabCounter}`;
+            tabEl.addEventListener('click', () => switchTab(tabId));
+            document.getElementById('tabs').appendChild(tabEl);
+
+            // 创建 virtualizer 容器
+            const container = document.createElement('div');
+            container.className = 'virtualizer-container';
+            container.id = `container-${tabId}`;
+            container.style.visibility = 'hidden';
+
+            const virtualizer = document.createElement('lit-virtualizer');
+            virtualizer.id = `virtualizer-${tabId}`;
+            virtualizer.setAttribute('scroller', '');
+            container.appendChild(virtualizer);
+            document.getElementById('virtualizer-containers').appendChild(container);
+
+            // 存储 tab 数据
+            tabs.push({
+                id: tabId,
+                messages: [],
+                virtualizer: virtualizer,
+                container: container,
+                tabElement: tabEl,
+            });
+
+            log(`创建 Tab: ${tabId}`, 'success');
+
+            // 切换到新 tab
+            switchTab(tabId);
+        }
+
+        // 切换 Tab
+        function switchTab(tabId) {
+            const prevActiveTab = tabs.find(t => t.id === activeTabId);
+            const newActiveTab = tabs.find(t => t.id === tabId);
+
+            if (!newActiveTab) return;
+
+            // 隐藏旧 tab
+            if (prevActiveTab) {
+                prevActiveTab.container.style.visibility = 'hidden';
+                prevActiveTab.tabElement.classList.remove('active');
+            }
+
+            // 显示新 tab
+            newActiveTab.container.style.visibility = 'visible';
+            newActiveTab.tabElement.classList.add('active');
+            activeTabId = tabId;
+
+            log(`切换到 Tab: ${tabId}`, 'info');
+
+            // 验证 scrollHeight
+            setTimeout(() => {
+                const scrollHeight = newActiveTab.virtualizer.scrollHeight;
+                const clientHeight = newActiveTab.virtualizer.clientHeight;
+                log(`  scrollHeight: ${scrollHeight}, clientHeight: ${clientHeight}`, 'info');
+            }, 100);
+        }
+
+        // 关闭当前 Tab
+        function closeCurrentTab() {
+            if (!activeTabId) {
+                log('没有活动的 Tab', 'warning');
+                return;
+            }
+
+            const tabIndex = tabs.findIndex(t => t.id === activeTabId);
+            if (tabIndex === -1) return;
+
+            const tab = tabs[tabIndex];
+            tab.container.remove();
+            tab.tabElement.remove();
+            tabs.splice(tabIndex, 1);
+
+            log(`关闭 Tab: ${activeTabId}`, 'success');
+
+            // 切换到下一个 tab
+            if (tabs.length > 0) {
+                const newActiveIndex = Math.min(tabIndex, tabs.length - 1);
+                switchTab(tabs[newActiveIndex].id);
+            } else {
+                activeTabId = null;
+            }
+        }
+
+        // 添加消息
+        function addMessage(async = false) {
+            if (!activeTabId) {
+                log('没有活动的 Tab', 'warning');
+                return;
+            }
+
+            const tab = tabs.find(t => t.id === activeTabId);
+            if (!tab) return;
+
+            messageCounters[activeTabId]++;
+            const msgId = messageCounters[activeTabId];
+
+            const message = {
+                id: msgId,
+                role: msgId % 3 === 0 ? 'User' : 'Assistant',
+                type: async ? 'async' : (msgId % 3 === 0 ? 'user' : 'assistant'),
+                content: `消息 ${msgId}`,
+                async: async,
+                rendered: !async,
+            };
+
+            tab.messages.push(message);
+            updateVirtualizer(tab);
+
+            log(`Tab ${activeTabId}: 添加消息 ${msgId}${async ? '（异步）' : ''}`, 'info');
+
+            // 如果是异步消息，模拟 Markdown 渲染延迟
+            if (async) {
+                setTimeout(() => {
+                    message.rendered = true;
+                    updateVirtualizer(tab);
+                    log(`Tab ${activeTabId}: 消息 ${msgId} 渲染完成（高度变化）`, 'success');
+                }, 500 + Math.random() * 1000);
+            }
+
+            // 自动滚动到底部
+            setTimeout(() => {
+                tab.virtualizer.scrollTop = tab.virtualizer.scrollHeight;
+            }, 100);
+        }
+
+        // 更新 virtualizer
+        function updateVirtualizer(tab) {
+            tab.virtualizer.items = tab.messages;
+            tab.virtualizer.renderItem = (message) => {
+                const div = document.createElement('div');
+                div.className = `message ${message.type}${message.rendered ? ' rendered' : ''}`;
+                div.innerHTML = `
+                    <div><strong>${message.role}:</strong></div>
+                    <div>${message.content}</div>
+                    ${message.async && !message.rendered ? '<div style="color: #999;">[渲染中...]</div>' : ''}
+                    ${message.async && message.rendered ? '<div style="margin-top: 10px; color: #666;">[渲染完成，高度已变化]</div>' : ''}
+                `;
+                return div;
+            };
+        }
+
+        // 滚动到底部
+        function scrollToBottom() {
+            if (!activeTabId) {
+                log('没有活动的 Tab', 'warning');
+                return;
+            }
+
+            const tab = tabs.find(t => t.id === activeTabId);
+            if (!tab) return;
+
+            tab.virtualizer.scrollTop = tab.virtualizer.scrollHeight;
+            log(`Tab ${activeTabId}: 滚动到底部`, 'info');
+        }
+
+        // 运行自动测试
+        async function runAutoTest() {
+            log('=== 开始自动测试 ===', 'info');
+            updateStatus('运行自动测试...');
+
+            // 测试 1：创建多个 tab，验证 visibility: hidden 下的行为
+            log('测试 1：创建 3 个 Tab', 'info');
+            createTab();
+            addMessage();
+            addMessage();
+
+            createTab();
+            addMessage();
+            addMessage(true); // 异步消息
+
+            createTab();
+            addMessage();
+
+            // 测试 2：切换到第一个 tab（现在是 hidden），验证 scrollHeight
+            log('测试 2：切换到第一个 Tab（验证 visibility: hidden 下的 scrollHeight）', 'info');
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            const firstTab = tabs[0];
+            const firstTabId = firstTab.id;
+
+            // 先记录当前 scrollHeight（hidden 状态）
+            const hiddenScrollHeight = firstTab.virtualizer.scrollHeight;
+            log(`  Tab ${firstTabId} 在 hidden 状态下的 scrollHeight: ${hiddenScrollHeight}`, 'info');
+
+            // 切换到第一个 tab
+            switchTab(firstTabId);
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            // 再记录 visible 状态下的 scrollHeight
+            const visibleScrollHeight = firstTab.virtualizer.scrollHeight;
+            log(`  Tab ${firstTabId} 在 visible 状态下的 scrollHeight: ${visibleScrollHeight}`, 'info');
+
+            if (hiddenScrollHeight === visibleScrollHeight) {
+                log('  ✅ scrollHeight 在 hidden 和 visible 状态下一致', 'success');
+            } else {
+                log(`  ⚠️ scrollHeight 不一致：hidden=${hiddenScrollHeight}, visible=${visibleScrollHeight}`, 'warning');
+            }
+
+            // 测试 3：验证异步消息的高度变化
+            log('测试 3：验证异步消息的高度变化（第二个 Tab 有异步消息）', 'info');
+            const secondTab = tabs[1];
+            const secondTabId = secondTab.id;
+
+            // 切换到第二个 tab
+            switchTab(secondTabId);
+            await new Promise(resolve => setTimeout(resolve, 1500)); // 等待异步消息渲染完成
+
+            const scrollHeightAfterRender = secondTab.virtualizer.scrollHeight;
+            log(`  Tab ${secondTabId} 渲染完成后的 scrollHeight: ${scrollHeightAfterRender}`, 'info');
+
+            if (scrollHeightAfterRender > 100) {
+                log('  ✅ 异步消息渲染后 scrollHeight 增加', 'success');
+            } else {
+                log('  ⚠️ scrollHeight 没有明显增加', 'warning');
+            }
+
+            // 测试 4：验证 layoutComplete
+            log('测试 4：验证 layoutComplete promise', 'info');
+            const thirdTab = tabs[2];
+            switchTab(thirdTab.id);
+
+            if (thirdTab.virtualizer.layoutComplete) {
+                const startTime = Date.now();
+                await thirdTab.virtualizer.layoutComplete;
+                const elapsed = Date.now() - startTime;
+                log(`  layoutComplete 在 ${elapsed}ms 后 resolve`, 'success');
+            } else {
+                log('  ⚠️ layoutComplete 为 undefined', 'warning');
+            }
+
+            // 测试 5：验证多个 virtualizer 实例的性能
+            log('测试 5：创建 10 个 Tab，每个添加 50 条消息，验证性能', 'info');
+            const startTime = Date.now();
+
+            for (let i = 0; i < 10; i++) {
+                createTab();
+                for (let j = 0; j < 50; j++) {
+                    addMessage();
+                }
+            }
+
+            const elapsed = Date.now() - startTime;
+            log(`  创建 10 个 Tab，每个 50 条消息，耗时 ${elapsed}ms`, elapsed < 5000 ? 'success' : 'warning');
+
+            updateStatus('自动测试完成');
+            log('=== 自动测试完成 ===', 'success');
+        }
+
+        // 清空日志
+        function clearLog() {
+            document.getElementById('log-panel').innerHTML = '';
+            log('日志已清空', 'info');
+        }
+
+        // 绑定事件
+        document.getElementById('create-tab-btn').addEventListener('click', createTab);
+        document.getElementById('close-tab-btn').addEventListener('click', closeCurrentTab);
+        document.getElementById('add-message-btn').addEventListener('click', () => addMessage(false));
+        document.getElementById('add-async-btn').addEventListener('click', () => addMessage(true));
+        document.getElementById('scroll-bottom-btn').addEventListener('click', scrollToBottom);
+        document.getElementById('test-all-btn').addEventListener('click', runAutoTest);
+        document.getElementById('clear-log-btn').addEventListener('click', clearLog);
+
+        // 初始化
+        log('Debug HTML 已加载', 'success');
+        log('点击"创建 Tab"开始测试，或点击"运行自动测试"执行完整测试流程', 'info');
+    </script>
+</body>
+</html>

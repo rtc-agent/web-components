@@ -20,7 +20,7 @@
  * @csspart voice-btn - The voice input button
  */
 import {LitElement, html} from 'lit';
-import {customElement, state, query} from 'lit/decorators.js';
+import {customElement, property, state, query} from 'lit/decorators.js';
 import {consume} from '@lit/context';
 import {localized, msg} from '@lit/localize';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
@@ -115,6 +115,9 @@ export class RtcInputArea extends LitElement {
         },
     };
 
+    @property({type: String})
+    sessionId: string | null = null;
+
     @state()
     private _value = '';
 
@@ -177,12 +180,24 @@ export class RtcInputArea extends LitElement {
         this._tokenDetails = data.details;
     }
 
+    /** Evict cached input state for a session (called when Tab is closed) */
+    evictInputState(sessionId: string) {
+        this._inputStateCache.delete(sessionId);
+    }
+
     // 历史导航状态
     @state()
     private _userMessageHistory: string[] = [];
     @state()
     private _historyIndex = -1;
     private _draft = '';
+
+    // Per-session input state cache
+    private _inputStateCache = new Map<string, {
+        value: string;
+        draft: string;
+        selectedScenarios: ScenarioRef[];
+    }>();
 
     // UIUpdateBus 订阅清理函数
     private _busUnsub?: () => void;
@@ -738,8 +753,39 @@ export class RtcInputArea extends LitElement {
     }
 
     updated(changed: Map<string | number | symbol, unknown>) {
-        // Session 切换时清空历史缓存，下次导航时重新加载
-        if (changed.has('_sessionCtx')) {
+        // Session 切换时保存/恢复输入状态
+        if (changed.has('sessionId')) {
+            const prevId = changed.get('sessionId') as string | null;
+
+            // Save old session's input state
+            if (prevId) {
+                this._inputStateCache.set(prevId, {
+                    value: this._value,
+                    draft: this._draft,
+                    selectedScenarios: [...this._selectedScenarios],
+                });
+            }
+
+            // Restore new session's input state
+            if (this.sessionId) {
+                const cached = this._inputStateCache.get(this.sessionId);
+                if (cached) {
+                    this._value = cached.value;
+                    this._draft = cached.draft;
+                    this._selectedScenarios = [...cached.selectedScenarios];
+                } else {
+                    this._value = '';
+                    this._draft = '';
+                    this._selectedScenarios = [];
+                }
+            }
+
+            // History navigation state always resets (each session has different history)
+            this._userMessageHistory = [];
+            this._historyIndex = -1;
+        }
+        // Fallback for callers that don't pass sessionId (backward compatibility)
+        else if (changed.has('_sessionCtx')) {
             this._userMessageHistory = [];
             this._historyIndex = -1;
             this._draft = '';
