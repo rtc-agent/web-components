@@ -51,7 +51,7 @@
             display: flex;
             flex-direction: column;
         }
-        rtc-message-list {
+        windowed-message-list {
             display: flex;
             flex: 1;
             min-height: 0;
@@ -88,11 +88,12 @@
         <span class="info" id="session-info">Session: session-1</span>
     </div>
     <div class="chat-container">
-        <rtc-message-list id="message-list"></rtc-message-list>
+        <windowed-message-list id="message-list"></windowed-message-list>
     </div>
     <div class="status-bar">
-        <div class="metric"><span class="label">Repo messages:</span><span class="value" id="stat-repo">0</span></div>
-        <div class="metric"><span class="label">DOM messages:</span><span class="value" id="stat-dom">0</span></div>
+        <div class="metric"><span class="label">Repo:</span><span class="value" id="stat-repo">0</span></div>
+        <div class="metric"><span class="label">DOM:</span><span class="value" id="stat-dom">0</span></div>
+        <div class="metric"><span class="label">Window:</span><span class="value" id="stat-window">[0, 0)</span></div>
         <div class="metric"><span class="label">hasMore:</span><span class="value" id="stat-hasmore">false</span></div>
         <div class="metric"><span class="label">isLoading:</span><span class="value" id="stat-loading">false</span></div>
         <div class="metric"><span class="label">scrollTop:</span><span class="value" id="stat-scrolltop">0</span></div>

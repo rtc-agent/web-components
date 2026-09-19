@@ -25,6 +25,33 @@
             height: 100vh;
         }
 
+        .tabs {
+            display: flex;
+            background: #2a2a2a;
+            border-bottom: 1px solid #3a3a3a;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            background: #2a2a2a;
+            border: none;
+            border-right: 1px solid #3a3a3a;
+            color: #aaa;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            background: #3a3a3a;
+        }
+
+        .tab.active {
+            background: #1a1a1a;
+            color: #eee;
+            border-bottom: 2px solid #4a9eff;
+        }
+
         .toolbar {
             padding: 12px;
             background: #2a2a2a;
@@ -46,6 +73,33 @@
 
         .toolbar button:hover {
             background: #5a5a5a;
+        }
+
+        /* Tab content wrapper - provides positioning context */
+        .tab-content-wrapper {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* All tab-content elements are positioned at the same location */
+        .tab-content {
+            display: flex;
+            flex-direction: column;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            overflow: hidden;
+        }
+
+        /* Non-active tabs: use content-visibility: hidden for performance */
+        /* This hides content but maintains layout, avoiding reflow on tab switch */
+        .tab-content:not(.active) {
+            content-visibility: hidden;
+            contain-intrinsic-size: 0 500px;
+            pointer-events: none;
         }
 
         .chat-container {
@@ -158,6 +212,14 @@
 </head>
 <body>
     <div class="container">
+        <!-- Tab bar -->
+        <div class="tabs">
+            <button class="tab active" data-tab="0">Session 1</button>
+            <button class="tab" data-tab="1">Session 2</button>
+            <button class="tab" data-tab="2">Session 3</button>
+        </div>
+
+        <!-- Toolbar (shared across all tabs) -->
         <div class="toolbar">
             <button id="btn-load-initial">Load Initial (50)</button>
             <button id="btn-load-more">Load More (older)</button>
@@ -167,12 +229,33 @@
             <button id="btn-scroll-top">Scroll to Top</button>
             <button id="btn-scroll-bottom">Scroll to Bottom</button>
             <button id="btn-slice" style="background: #5a3a3a;">Manual Slice</button>
-            <span id="session-info" style="margin-left: auto; color: #888;">Session: session-1</span>
+            <span id="session-info" style="margin-left: auto; color: #888;">Active: Session 1</span>
         </div>
 
-        <div class="chat-container">
-            <div class="message-list-scroll" id="scroll-container">
-                <div class="message-list-inner" id="inner-container"></div>
+        <!-- Tab content wrapper - all tabs positioned at same location -->
+        <div class="tab-content-wrapper">
+            <div class="tab-content active" data-tab="0">
+                <div class="chat-container">
+                    <div class="message-list-scroll" id="scroll-container-0">
+                        <div class="message-list-inner" id="inner-container-0"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-content" data-tab="1">
+                <div class="chat-container">
+                    <div class="message-list-scroll" id="scroll-container-1">
+                        <div class="message-list-inner" id="inner-container-1"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-content" data-tab="2">
+                <div class="chat-container">
+                    <div class="message-list-scroll" id="scroll-container-2">
+                        <div class="message-list-inner" id="inner-container-2"></div>
+                    </div>
+                </div>
             </div>
         </div>
 
