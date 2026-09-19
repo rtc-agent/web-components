@@ -33,7 +33,7 @@ import {
 } from '@floating-ui/dom';
 import {styles} from './rtc-input-area.styles.js';
 import {ModeContext, type ModeContextValue} from '../../contexts/mode.js';
-import {SessionContext} from '../../contexts/session.js';
+import {SessionContext, type SessionContextValue} from '../../contexts/session.js';
 import {TurnCountContext, type TurnCountContextValue} from '../../contexts/turn-count.js';
 import {MessageContext, type MessageContextValue} from '../../contexts/message.js';
 import {SettingsContext, type SettingsContextValue} from '../../contexts/settings.js';
@@ -91,8 +91,20 @@ export class RtcInputArea extends LitElement {
 
     @consume({context: SessionContext, subscribe: true})
     @state()
-    private _sessionCtx: {state: {currentSessionId: string | null}} = {
-        state: {currentSessionId: null},
+    private _sessionCtx: SessionContextValue = {
+        state: {sessions: [], currentSessionId: null},
+        actions: {
+            createSession: () => '',
+            switchSession: () => {},
+            renameSession: async () => ({ok: true}),
+            deleteSession: async () => ({ok: true}),
+            closeSession: async () => ({ok: true}),
+            reopenSession: async () => ({ok: true}),
+            reset: () => {},
+            clearCurrentSession: () => {},
+            setCurrentSession: () => {},
+            setSessions: () => {},
+        },
     };
 
     @consume({context: TurnCountContext, subscribe: true})
@@ -169,29 +181,57 @@ export class RtcInputArea extends LitElement {
         reasoning?: number;
     };
 
-    /** 外部设置 token 使用数据（由 rtc-chat-layout 调用） */
-    setTokenUsage(data: {
-        estimatedNext: number;
-        totalTokens: number;
-        totalCostUsd: number;
-        compressionThreshold: number;
-        compressionProgress: number;
-        roundsUntilCompression: number;
-        details?: {
-            input?: number;
-            output?: number;
-            cachedRead?: number;
-            cachedWrite?: number;
-            reasoning?: number;
-        };
-    }) {
-        this._tokenEstimatedNext = data.estimatedNext;
-        this._tokenTotalTokens = data.totalTokens;
-        this._tokenTotalCostUsd = data.totalCostUsd;
-        this._tokenCompressionThreshold = data.compressionThreshold;
-        this._tokenCompressionProgress = data.compressionProgress;
-        this._tokenRoundsUntilCompression = data.roundsUntilCompression;
-        this._tokenDetails = data.details;
+    /**
+     * 根据当前 session 更新 token 显示数据
+     *
+     * 从 SessionContext 中查找 sessionId 对应的 session，
+     * 提取 token 相关字段并更新内部 state。
+     */
+    private _updateTokenDisplay() {
+        const sessionId = this._effectiveSessionId;
+        if (!sessionId) {
+            // 无 session，清空显示
+            this._tokenEstimatedNext = 0;
+            this._tokenTotalTokens = 0;
+            this._tokenTotalCostUsd = 0;
+            this._tokenCompressionThreshold = 0;
+            this._tokenCompressionProgress = 0;
+            this._tokenRoundsUntilCompression = -1;
+            this._tokenDetails = undefined;
+            return;
+        }
+
+        // 从 sessions 数组中查找目标 session
+        const session = this._sessionCtx.state.sessions.find(s => s.clientId === sessionId);
+        if (!session) {
+            // Session 未找到，保持当前显示（可能是首次加载时数据尚未到达）
+            return;
+        }
+
+        // 提取 token 相关字段
+        this._tokenEstimatedNext = session.estimatedNextRoundTokens ?? 0;
+        this._tokenTotalTokens = session.totalTokens ?? 0;
+        this._tokenTotalCostUsd = session.totalCostUsd ?? 0;
+        this._tokenCompressionThreshold = session.compressionThreshold ?? 0;
+        this._tokenCompressionProgress = session.compressionProgress ?? 0;
+        this._tokenRoundsUntilCompression = session.roundsUntilCompression ?? -1;
+
+        // 构建 details 对象
+        if (session.totalInputTokens !== undefined ||
+            session.totalOutputTokens !== undefined ||
+            session.totalCachedReadTokens !== undefined ||
+            session.totalCachedWriteTokens !== undefined ||
+            session.totalReasoningTokens !== undefined) {
+            this._tokenDetails = {
+                input: session.totalInputTokens,
+                output: session.totalOutputTokens,
+                cachedRead: session.totalCachedReadTokens,
+                cachedWrite: session.totalCachedWriteTokens,
+                reasoning: session.totalReasoningTokens,
+            };
+        } else {
+            this._tokenDetails = undefined;
+        }
     }
 
     // 历史导航状态
@@ -760,6 +800,8 @@ export class RtcInputArea extends LitElement {
             this._userMessageHistory = [];
             this._historyIndex = -1;
             this._draft = '';
+            // 更新 token 显示（从 SessionContext 中提取当前 session 的数据）
+            this._updateTokenDisplay();
         }
     }
 
