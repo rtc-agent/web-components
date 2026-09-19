@@ -141,7 +141,7 @@ export class MessageVirtualScroll<T> {
      * Prepend items (older messages) with smooth scroll compensation.
      * Uses Telegram's ScrollSaver algorithm.
      */
-    async prependItems(items: T[]): Promise<void> {
+    prependItems(items: T[]): void {
         if (items.length === 0) return;
 
         // Save scroll state using Telegram's algorithm
@@ -166,7 +166,7 @@ export class MessageVirtualScroll<T> {
      * Uses Telegram's ScrollSaver algorithm with reverse=false.
      * Anchors to the LAST visible element's bottom position.
      */
-    async appendItems(items: T[]): Promise<void> {
+    appendItems(items: T[]): void {
         if (items.length === 0) return;
 
         // Save scroll state using Telegram's algorithm (reverse=false for bottom)

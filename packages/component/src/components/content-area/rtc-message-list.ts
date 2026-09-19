@@ -334,7 +334,10 @@ export class RtcMessageList extends LitElement {
                 if (appended.length > 0) {
                     this._virtualScroll.appendItems(appended);
                 }
-                this._isVirtualScrollOperation = false;
+                // Delay reset to allow ResizeObserver to fire and be ignored
+                setTimeout(() => {
+                    this._isVirtualScrollOperation = false;
+                }, 50);
             }
         }
 
