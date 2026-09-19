@@ -351,10 +351,14 @@ export class RtcMessageList extends LitElement {
             `hasMore=${data.hasMore}, isLoadingMore=${data.isLoadingMore}`
         );
 
-        // Mark as fully loaded if repository says no more
+        // Update loadedTop based on hasMore
         if (this._hasMore === false) {
             console.log('[rtc-message-list] Setting loadedTop=true because hasMore=false');
             this._virtualScroll.setFullyLoaded('top', true);
+        } else if (this._hasMore === true) {
+            // hasMore became true - reset loadedTop so loadMore can be triggered
+            console.log('[rtc-message-list] Setting loadedTop=false because hasMore=true');
+            this._virtualScroll.setFullyLoaded('top', false);
         }
     }
 
