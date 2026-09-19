@@ -74,6 +74,9 @@ export class WindowInteractionController implements ReactiveController {
   private _draggable = true;
   private _resizable = true;
 
+  /** 全局样式是否已注入 */
+  private static _globalStyleInjected = false;
+
   constructor(host: ReactiveControllerHost, config?: { draggable?: boolean; resizable?: boolean }) {
     this._host = host;
     this._draggable = config?.draggable ?? true;
@@ -82,6 +85,9 @@ export class WindowInteractionController implements ReactiveController {
     this._boundHandleMotionPreference = (e: MediaQueryListEvent) => {
       this._prefersReducedMotion = e.matches;
     };
+
+    // 注入全局样式（只注入一次）
+    WindowInteractionController._injectGlobalStyle();
 
     this.value = {
       state: this._state,
@@ -96,6 +102,27 @@ export class WindowInteractionController implements ReactiveController {
 
     // Listen for reduced motion preference changes
     window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', this._boundHandleMotionPreference);
+  }
+
+  /**
+   * 注入全局样式到 document.head
+   *
+   * 用于在拖动/缩放期间禁用文本选中，避免影响宿主页面。
+   * 使用 class 而非 inline style 以减少重绘开销。
+   */
+  private static _injectGlobalStyle(): void {
+    if (WindowInteractionController._globalStyleInjected) return;
+
+    const style = document.createElement('style');
+    style.textContent = `
+      body.rtc-interacting,
+      body.rtc-interacting * {
+        user-select: none !important;
+        -webkit-user-select: none !important;
+      }
+    `;
+    document.head.appendChild(style);
+    WindowInteractionController._globalStyleInjected = true;
   }
 
   /** 更新配置 */
@@ -298,9 +325,28 @@ export class WindowInteractionController implements ReactiveController {
     this._host.requestUpdate();
   }
 
+  /**
+   * 禁用文本选中（拖动/缩放期间调用）
+   *
+   * 通过在 document.body 上添加 class 来防止拖动操作
+   * 意外选中宿主页面或窗口内的文字。
+   * 使用 class 而非 inline style 以避免触发全局重绘。
+   */
+  private _disableTextSelection(): void {
+    document.body.classList.add('rtc-interacting');
+  }
+
+  /**
+   * 恢复文本选中（拖动/缩放结束后调用）
+   */
+  private _restoreTextSelection(): void {
+    document.body.classList.remove('rtc-interacting');
+  }
+
   private _onDragStart(): void {
     this._state = { ...this._state, isDragging: true };
     this._windowElement?.classList.add('dragging');
+    this._disableTextSelection();
     this._host.requestUpdate();
   }
 
@@ -326,12 +372,14 @@ export class WindowInteractionController implements ReactiveController {
   private _onDragEnd(): void {
     this._state = { ...this._state, isDragging: false };
     this._windowElement?.classList.remove('dragging');
+    this._restoreTextSelection();
     this._host.requestUpdate();
   }
 
   private _onResizeStart(): void {
     this._state = { ...this._state, isResizing: true };
     this._windowElement?.classList.add('resizing');
+    this._disableTextSelection();
     this._host.requestUpdate();
   }
 
@@ -375,6 +423,7 @@ export class WindowInteractionController implements ReactiveController {
   private _onResizeEnd(): void {
     this._state = { ...this._state, isResizing: false };
     this._windowElement?.classList.remove('resizing');
+    this._restoreTextSelection();
     this._host.requestUpdate();
   }
 

@@ -792,15 +792,21 @@ export class RtcAgent extends LitElement {
      *
      * When a scrollable container inside the shadow DOM reaches its boundary
      * (top or bottom), continuing to scroll would propagate the wheel event
-     * to the host page, causing it to scroll. This handler detects when the
-     * innermost scrollable element is at its boundary and prevents the event
-     * from propagating further.
+     * to the host page, causing it to scroll. This handler:
+     * 1. If a scrollable parent exists and is at its boundary, prevents propagation
+     * 2. If no scrollable parent exists, always prevents propagation (wheel events
+     *    inside the component should never affect the host page)
      */
     private _boundOnWheel = (e: WheelEvent) => {
         const target = e.composedPath()[0] as Element;
         const scrollable = this._findScrollableParent(target);
 
-        if (!scrollable) return;
+        // No scrollable container found — prevent all wheel events from reaching host page
+        if (!scrollable) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+        }
 
         const {scrollTop, scrollHeight, clientHeight} = scrollable;
         const atTop = scrollTop <= 0;

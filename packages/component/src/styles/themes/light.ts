@@ -44,6 +44,16 @@ export const lightTheme = css`
         --rtc-color-info: #2AC9FF;
         --rtc-color-accent: #2741FE;
 
+        /* Toolcall header colors (for ID-based hashing) */
+        --rtc-color-toolcall-0: #2741FE; /* blue */
+        --rtc-color-toolcall-1: #4CAF50; /* green */
+        --rtc-color-toolcall-2: #F97802; /* orange */
+        --rtc-color-toolcall-3: #9C27B0; /* purple */
+        --rtc-color-toolcall-4: #F44336; /* red */
+        --rtc-color-toolcall-5: #00BCD4; /* cyan */
+        --rtc-color-toolcall-6: #E91E63; /* pink */
+        --rtc-color-toolcall-7: #8BC34A; /* lime */
+
         /* 遮罩 */
         --rtc-color-backdrop: rgba(0,0,0,0.3);
     }

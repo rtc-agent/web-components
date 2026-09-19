@@ -132,7 +132,7 @@ export class WorkerCore implements WorkerPersistenceCore {
 
   async listMessages(
     sessionClientId: string,
-    cursor?: number,
+    cursor?: string,
     limit?: number,
     direction?: 'backward' | 'forward',
   ): Promise<LocalMessage[]> {

@@ -24,7 +24,7 @@
  * @csspart in      - Input section
  * @csspart out     - Output section
  */
-import {LitElement, html} from 'lit';
+import {LitElement, html, nothing} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
 import {consume} from '@lit/context';
 import {localized, msg} from '@lit/localize';
@@ -87,6 +87,41 @@ function parseToolCallData(message: Message): ToolCallData | null {
 }
 
 /**
+ * Parsed script tool input parameters.
+ */
+interface ScriptInput {
+    title: string;
+    action: 'eval' | 'run' | 'save';
+    name?: string;
+    code?: string;
+}
+
+/**
+ * Parse script tool input from ToolCallData.
+ */
+function parseScriptInput(toolData: ToolCallData): ScriptInput | null {
+    if (toolData.tool_name !== 'script') return null;
+    try {
+        let input: any;
+        if (typeof toolData.input === 'string') {
+            input = JSON.parse(toolData.input);
+        } else if (typeof toolData.input === 'object' && toolData.input !== null) {
+            input = toolData.input;
+        } else {
+            return null;
+        }
+        return {
+            title: input.title || '',
+            action: input.action || 'eval',
+            name: input.name,
+            code: input.code,
+        };
+    } catch {
+        return null;
+    }
+}
+
+/**
  * Try to parse a value as JSON and return pretty-printed result.
  * Falls back to the original string if parsing fails.
  *
@@ -104,6 +139,28 @@ function tryFormatJson(value: unknown): string {
         }
     }
     return JSON.stringify(value, null, 2);
+}
+
+/**
+ * Hash a string to an index (0-7) for color selection.
+ * Uses a simple hash algorithm for consistent results.
+ */
+function hashToColorIndex(str: string): number {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+        hash = hash & hash; // Convert to 32-bit integer
+    }
+    return Math.abs(hash) % 8;
+}
+
+/**
+ * Get a CSS variable name for the toolcall color based on ID.
+ * Returns a CSS variable like `var(--rtc-color-toolcall-3)`.
+ */
+function idToColorVar(id: string): string {
+    const index = hashToColorIndex(id);
+    return `var(--rtc-color-toolcall-${index})`;
 }
 
 @localized()
@@ -193,10 +250,10 @@ export class RtcToolCallCard extends LitElement {
     render() {
         void this._localeCtx.locale;
         const inData = parseToolCallData(this.pair.input);
-        const outData = this.pair.output ? parseToolCallData(this.pair.output) : null;
         const hasOutput = !!this.pair.output;
         const toolName = inData?.tool_name ?? 'unknown';
-        const inParams = inData?.input != null ? tryFormatJson(inData.input) : '{}';
+        const toolCallId = inData?.id || this.pair.input.clientId || '';
+        const headerColor = toolCallId ? idToColorVar(toolCallId) : '';
 
         const classes = {
             'timeline-item': true,
@@ -215,35 +272,150 @@ export class RtcToolCallCard extends LitElement {
         <div class="timeline-content" part="content">
           <div class="toolcall-card" part="card">
             <div class="toolcall-header" part="header">
-              <span class="toolcall-name">${toolName}</span>
+              <span class="toolcall-name" style=${headerColor ? `color: ${headerColor}` : ''}>${this._formatHeader(toolName, inData)}</span>
             </div>
-
-            <div class="toolcall-section in" part="in">
-              <span class="toolcall-label">In</span>
-              <span class="toolcall-value" title=${inParams}>${inParams}</span>
-              <button
-                class="copy-btn"
-                @click=${() => this._handleCopy(this._inCopyText)}
-                title="Copy input"
-              >⧉</button>
-            </div>
-
-            ${hasOutput && outData?.output != null
-                ? html`
-              <div class="toolcall-section out" part="out">
-                <span class="toolcall-label">Out</span>
-                <div class="toolcall-output-content">${tryFormatJson(outData.output)}</div>
-                <button
-                  class="copy-btn"
-                  @click=${() => this._handleCopy(this._outCopyText)}
-                  title="Copy output"
-                >⧉</button>
-              </div>`
-                : null}
+            ${this._renderInputSection(toolName, inData)}
           </div>
         </div>
       </div>
     `;
+    }
+
+    /**
+     * Format header text based on tool type.
+     */
+    private _formatHeader(toolName: string, toolData: ToolCallData | null): string {
+        if (!toolData) return toolName;
+
+        // Parse input params
+        let input: any = {};
+        try {
+            const raw = toolData.input;
+            if (typeof raw === 'string') input = JSON.parse(raw);
+            else if (typeof raw === 'object' && raw !== null) input = raw;
+        } catch { /* ignore */ }
+
+        switch (toolName) {
+            case 'script': {
+                const title = input.title;
+                return title ? `script ${title}` : 'script';
+            }
+            case 'read': {
+                const path = input.path || '';
+                return `read ${path}`;
+            }
+            case 'ls': {
+                const path = input.path || '/';
+                return `ls ${path}`;
+            }
+            case 'write': {
+                const path = input.path || '';
+                return `write ${path}`;
+            }
+            case 'grep': {
+                const pattern = input.pattern || '';
+                return `grep ${pattern}`;
+            }
+            case 'find': {
+                const pattern = input.pattern || '';
+                return `find ${pattern}`;
+            }
+            default:
+                return toolName;
+        }
+    }
+
+    /**
+     * Render input section based on tool type.
+     */
+    private _renderInputSection(toolName: string, toolData: ToolCallData | null) {
+        // read/ls/write/grep/find: header-only, no content section
+        if (['read', 'ls', 'write', 'grep', 'find'].includes(toolName)) {
+            return nothing;
+        }
+
+        // Script tool: render based on action
+        if (toolName === 'script' && toolData) {
+            return this._renderScriptInput(toolData);
+        }
+
+        // Default: show formatted JSON parameters
+        const params = toolData?.input != null ? tryFormatJson(toolData.input) : '{}';
+        return html`
+          <div class="toolcall-section in" part="in">
+            <span class="toolcall-label">In</span>
+            <span class="toolcall-value" title=${params}>${params}</span>
+            <button
+              class="copy-btn"
+              @click=${() => this._handleCopy(this._inCopyText)}
+              title="Copy input"
+            >⧉</button>
+          </div>
+        `;
+    }
+
+    /**
+     * Render script tool input based on action type.
+     */
+    private _renderScriptInput(toolData: ToolCallData) {
+        const script = parseScriptInput(toolData);
+        if (!script) {
+            // Fallback to default rendering
+            const params = tryFormatJson(toolData.input);
+            return html`
+              <div class="toolcall-section in" part="in">
+                <span class="toolcall-label">In</span>
+                <span class="toolcall-value">${params}</span>
+              </div>
+            `;
+        }
+
+        // eval: show code only
+        if (script.action === 'eval') {
+            return html`
+              <div class="toolcall-section in" part="in">
+                <span class="toolcall-label">Code</span>
+                <pre class="toolcall-code-block">${script.code || ''}</pre>
+                <button
+                  class="copy-btn"
+                  @click=${() => this._handleCopy(script.code || '')}
+                  title="Copy code"
+                >⧉</button>
+              </div>
+            `;
+        }
+
+        // save: show name + code
+        if (script.action === 'save') {
+            return html`
+              <div class="toolcall-section in" part="in">
+                <div class="toolcall-script-meta">
+                  <span class="toolcall-meta-label">Name</span>
+                  <span class="toolcall-meta-value">${script.name || ''}</span>
+                </div>
+                <pre class="toolcall-code-block">${script.code || ''}</pre>
+                <button
+                  class="copy-btn"
+                  @click=${() => this._handleCopy(script.code || '')}
+                  title="Copy code"
+                >⧉</button>
+              </div>
+            `;
+        }
+
+        // run: show name + action (no code)
+        return html`
+          <div class="toolcall-section in" part="in">
+            <div class="toolcall-script-meta">
+              <span class="toolcall-meta-label">Name</span>
+              <span class="toolcall-meta-value">${script.name || ''}</span>
+            </div>
+            <div class="toolcall-script-meta">
+              <span class="toolcall-meta-label">Action</span>
+              <span class="toolcall-meta-value">${script.action}</span>
+            </div>
+          </div>
+        `;
     }
 }
 

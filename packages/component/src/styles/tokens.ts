@@ -16,6 +16,7 @@ import {css} from 'lit';
  * - --rtc-transition-*   : animation duration, timing
  * - --rtc-z-*            : z-index layers (content:1, overlay:500, title-bar:1000)
  * - --rtc-window-*       : floating window dimensions
+ * - --rtc-content-height-* : max-height for scrollable content areas (xs:60 sm:100 md:160 lg:240 xl:360)
  *
  * Colors: See themes/light.ts and themes/dark.ts for --rtc-color-* definitions.
  */
@@ -122,5 +123,20 @@ export const tokens = css`
     --rtc-window-min-width: 350px;
     --rtc-window-min-height: 520px;
     --rtc-window-border-radius: 12px;
+
+    /* ── Content area max-heights ──
+     *
+     * For scrollable content regions (code blocks, logs, file lists, etc.)
+     * - xs: inline preview / single-line summary
+     * - sm: compact view (short outputs)
+     * - md: normal view (default for most content)
+     * - lg: expanded view (long logs, large outputs)
+     * - xl: near-full view (detailed inspection)
+     */
+    --rtc-content-height-xs: 60px;
+    --rtc-content-height-sm: 100px;
+    --rtc-content-height-md: 160px;
+    --rtc-content-height-lg: 240px;
+    --rtc-content-height-xl: 360px;
   }
 `;

@@ -309,9 +309,10 @@ export class MessageVirtualScroll<T> {
                     if (items.length > 0) {
                         return this.prependItems(items);
                     }
-                    // No more messages - mark as fully loaded
-                    console.log('[VirtualScroll] loadMore(top) returned 0 items, marking loadedTop=true');
-                    this._loadedTop = true;
+                    // No more messages returned directly - but DO NOT auto-mark as fully loaded.
+                    // Consumer controls _loadedTop via setFullyLoaded() based on repository's hasMore.
+                    // (loadMore may be async; actual items arrive via subscription updates.)
+                    console.log('[VirtualScroll] loadMore(top) returned 0 items; consumer should update loadedTop via setFullyLoaded()');
                 })
                 .finally(() => {
                     this._isLoading.top = false;
@@ -333,10 +334,10 @@ export class MessageVirtualScroll<T> {
                     console.log(`[VirtualScroll] loadMore(bottom) returned ${items.length} items`);
                     if (items.length > 0) {
                         return this.appendItems(items);
-                    } else {
-                        // No more messages - mark as fully loaded
-                        this._loadedBottom = true;
                     }
+                    // No more messages returned directly - but DO NOT auto-mark as fully loaded.
+                    // Consumer controls _loadedBottom via setFullyLoaded() based on repository's hasMore.
+                    console.log('[VirtualScroll] loadMore(bottom) returned 0 items; consumer should update loadedBottom via setFullyLoaded()');
                 })
                 .finally(() => {
                     this._isLoading.bottom = false;

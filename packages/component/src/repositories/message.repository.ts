@@ -21,16 +21,18 @@ import type {Message, MessageState} from '../types/index.js';
  * API contract for message fetching.
  *
  * Implementations can wrap REST calls, WebSocket queries, or persistence layer.
+ *
+ * Cursor format: "${timestamp}|${clientId}" for (created_at, client_id) composite pagination.
  */
 export interface MessageApi {
     /** Fetch the latest messages for a session (initial load). */
     fetchMessages(sessionId: string): Promise<Message[]>;
 
-    /** Fetch older messages before a given offset (backward pagination). */
-    fetchOlderMessages(sessionId: string, beforeOffset?: number): Promise<Message[]>;
+    /** Fetch older messages before a given cursor (backward pagination). */
+    fetchOlderMessages(sessionId: string, beforeCursor?: string): Promise<Message[]>;
 
-    /** Fetch newer messages after a given offset (forward pagination). */
-    fetchNewerMessages(sessionId: string, afterOffset?: number): Promise<Message[]>;
+    /** Fetch newer messages after a given cursor (forward pagination). */
+    fetchNewerMessages(sessionId: string, afterCursor?: string): Promise<Message[]>;
 }
 
 /** Callback signature for session data subscriptions. */
@@ -61,11 +63,11 @@ export class MessageRepository {
     /** Tracks sessions with an in-flight loadNewer (forward) request. */
     private _loadingNewerSessions = new Set<string>();
 
-    /** Per-session oldest loaded offset for backward pagination cursor. */
-    private _oldestOffsets = new Map<string, number>();
+    /** Per-session oldest loaded cursor for backward pagination. Format: "${timestamp}|${clientId}" */
+    private _oldestCursors = new Map<string, string>();
 
-    /** Per-session newest loaded offset for forward pagination cursor. */
-    private _newestOffsets = new Map<string, number>();
+    /** Per-session newest loaded cursor for forward pagination. Format: "${timestamp}|${clientId}" */
+    private _newestCursors = new Map<string, string>();
 
     constructor(private readonly _api: MessageApi) {}
 
@@ -161,13 +163,28 @@ export class MessageRepository {
     async loadMore(sessionId: string): Promise<Message[]> {
         const current = this._getState(sessionId);
 
+        console.log(
+            `[MessageRepository] loadMore(${sessionId}) called: hasMore=${current.hasMore}, ` +
+            `isLoading=${this._loadingSessions.has(sessionId)}, cachedMessages=${current.messages.length}`
+        );
+
         // Nothing to load
-        if (!current.hasMore) return current.messages;
+        if (!current.hasMore) {
+            console.log(`[MessageRepository] loadMore(${sessionId}): early return - hasMore=false`);
+            return current.messages;
+        }
 
         // Already loading — return current state
-        if (this._loadingSessions.has(sessionId)) return current.messages;
+        if (this._loadingSessions.has(sessionId)) {
+            console.log(`[MessageRepository] loadMore(${sessionId}): early return - already loading`);
+            return current.messages;
+        }
 
-        const oldestOffset = this._oldestOffsets.get(sessionId);
+        const oldestCursor = this._oldestCursors.get(sessionId);
+
+        console.log(
+            `[MessageRepository] loadMore(${sessionId}): oldestCursor=${oldestCursor ?? 'none'}`
+        );
 
         // Mark loading
         this._loadingSessions.add(sessionId);
@@ -176,7 +193,7 @@ export class MessageRepository {
         try {
             const olderMessages = await this._api.fetchOlderMessages(
                 sessionId,
-                oldestOffset,
+                oldestCursor,
             );
 
             const beforeState = this._getState(sessionId);
@@ -222,7 +239,7 @@ export class MessageRepository {
         // Already loading — return current state
         if (this._loadingNewerSessions.has(sessionId)) return current.messages;
 
-        const newestOffset = this._newestOffsets.get(sessionId);
+        const newestCursor = this._newestCursors.get(sessionId);
 
         // Mark loading
         this._loadingNewerSessions.add(sessionId);
@@ -231,7 +248,7 @@ export class MessageRepository {
         try {
             const newerMessages = await this._api.fetchNewerMessages(
                 sessionId,
-                newestOffset,
+                newestCursor,
             );
 
             const beforeState = this._getState(sessionId);
@@ -290,44 +307,70 @@ export class MessageRepository {
         this._subscribers.delete(sessionId);
         this._loadingSessions.delete(sessionId);
         this._loadingNewerSessions.delete(sessionId);
-        this._oldestOffsets.delete(sessionId);
-        this._newestOffsets.delete(sessionId);
+        this._oldestCursors.delete(sessionId);
+        this._newestCursors.delete(sessionId);
     }
 
     // ── Setters for pagination tracking (used by controller integration) ──
 
     /**
-     * Set the oldest loaded offset for a session.
+     * Set the hasMore flag for a session.
+     *
+     * This is used by the controller layer to sync pagination state after
+     * operations like _reloadFromDB that calculate hasMore independently.
+     * Without this, updateMessages only replaces the messages array but
+     * keeps the existing hasMore value (which may be the DEFAULT_STATE's false).
+     */
+    setHasMore(sessionId: string, value: boolean): void {
+        const current = this._getState(sessionId);
+        this._setState(sessionId, {...current, hasMore: value});
+    }
+
+    /**
+     * Set the hasMoreNewer flag for a session.
+     *
+     * This is used to indicate whether there are newer messages available
+     * in the database for forward pagination.
+     */
+    setHasMoreNewer(sessionId: string, value: boolean): void {
+        const current = this._getState(sessionId);
+        this._setState(sessionId, {...current, hasMoreNewer: value});
+    }
+
+    /**
+     * Set the oldest loaded cursor for a session.
+     * Cursor format: "${timestamp}|${clientId}" for (created_at, client_id) composite pagination.
      *
      * This is used by the controller layer to track the backward pagination cursor.
      * Called after initial load or loadMore completes.
      */
-    setOldestOffset(sessionId: string, offset: number): void {
-        this._oldestOffsets.set(sessionId, offset);
+    setOldestOffset(sessionId: string, cursor: string): void {
+        this._oldestCursors.set(sessionId, cursor);
     }
 
     /**
-     * Get the oldest loaded offset for a session.
+     * Get the oldest loaded cursor for a session.
      */
-    getOldestOffset(sessionId: string): number | undefined {
-        return this._oldestOffsets.get(sessionId);
+    getOldestOffset(sessionId: string): string | undefined {
+        return this._oldestCursors.get(sessionId);
     }
 
     /**
-     * Set the newest loaded offset for a session.
+     * Set the newest loaded cursor for a session.
+     * Cursor format: "${timestamp}|${clientId}" for (created_at, client_id) composite pagination.
      *
      * This is used by the controller layer to track the forward pagination cursor.
      * Called after initial load or loadNewer completes.
      */
-    setNewestOffset(sessionId: string, offset: number): void {
-        this._newestOffsets.set(sessionId, offset);
+    setNewestOffset(sessionId: string, cursor: string): void {
+        this._newestCursors.set(sessionId, cursor);
     }
 
     /**
-     * Get the newest loaded offset for a session.
+     * Get the newest loaded cursor for a session.
      */
-    getNewestOffset(sessionId: string): number | undefined {
-        return this._newestOffsets.get(sessionId);
+    getNewestOffset(sessionId: string): string | undefined {
+        return this._newestCursors.get(sessionId);
     }
 
     // ── Private helpers ──

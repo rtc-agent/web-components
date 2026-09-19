@@ -356,46 +356,61 @@ export class EntityRepository {
 
   async listMessagesBySession(
     sessionClientId: string,
-    cursor?: number,
+    cursor?: string,
     limit: number = 50,
     direction: 'backward' | 'forward' = 'backward'
   ): Promise<LocalMessage[]> {
     const db = getDatabase();
     const query = db.messages.where('session_client_id').equals(sessionClientId);
-    // 排序策略：
-    // - global_offset > 0（已同步）：按 global_offset 排序（保证全局顺序，处理 error 消息等共享 created_at 的情况）
-    // - global_offset === 0（本地未同步）：回退到 created_at（避免本地消息因 offset=0 而排到最前面）
-    const messages = await query.sortBy('global_offset');
-    messages.sort((a, b) => {
-      const aKey = (a.global_offset && a.global_offset > 0) ? a.global_offset : new Date(a.created_at).getTime();
-      const bKey = (b.global_offset && b.global_offset > 0) ? b.global_offset : new Date(b.created_at).getTime();
-      return aKey - bKey;
-    });
+    const allMessages = await query.toArray();
+
+    // 排序策略：先用 created_at，相同则用 client_id（客户端ID主键）
+    // 这确保排序是确定性的，即使多条消息同一时间创建
+    const sortKey = (m: LocalMessage) => {
+      const ts = new Date(m.created_at).getTime();
+      return `${ts}|${m.client_id}`;
+    };
+
+    allMessages.sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
+
+    // Debug: log cursor and message count
+    console.log(
+      `[listMessagesBySession] session=${sessionClientId}, cursor=${cursor ?? 'none'}, ` +
+      `direction=${direction}, totalMessages=${allMessages.length}`
+    );
+    if (allMessages.length > 0 && cursor) {
+      console.log(
+        `[listMessagesBySession] DB range: [${sortKey(allMessages[0])}, ${sortKey(allMessages[allMessages.length - 1])}]`
+      );
+    }
+
+    // 解析游标：格式为 "${timestamp}|${clientId}"
+    let cursorKey: string | null = null;
+    if (cursor) {
+      cursorKey = cursor;
+    }
 
     if (direction === 'backward') {
-      // 向后分页：获取比 cursor 更旧的消息，取最新的 limit 条
-      let filtered = messages;
-      if (cursor !== undefined && cursor > 0) {
-        // 只包含已同步的消息（global_offset > 0），排除本地消息（offset=0）
-        // 本地消息通常是最新的，不应出现在"更早消息"的分页中
-        filtered = messages.filter(m => m.global_offset !== undefined && m.global_offset > 0 && m.global_offset < cursor);
+      // 向后分页：获取比 cursor 更旧的消息
+      let filtered = allMessages;
+      if (cursorKey) {
+        // 严格小于游标（开区间），确保不重复
+        filtered = allMessages.filter(m => sortKey(m) < cursorKey!);
       }
+      console.log(`[listMessagesBySession] backward: filtered=${filtered.length}`);
       // 取最后 limit 条（最新的），升序返回
       const sliced = filtered.slice(-limit);
-      return sliced.sort((a, b) => {
-        const aKey = (a.global_offset && a.global_offset > 0) ? a.global_offset : new Date(a.created_at).getTime();
-        const bKey = (b.global_offset && b.global_offset > 0) ? b.global_offset : new Date(b.created_at).getTime();
-        return aKey - bKey;
-      });
+      return sliced;
     }
 
-    // 向前分页（保留现有逻辑）：cursor 为上一页最后一条的 global_offset，从该 offset 之后开始返回
-    if (cursor !== undefined && cursor > 0) {
-      const startIdx = messages.findIndex(m => m.global_offset !== undefined && m.global_offset > cursor);
-      if (startIdx === -1) return [];
-      return messages.slice(startIdx, startIdx + limit);
+    // 向前分页：获取比 cursor 更新的消息
+    if (cursorKey) {
+      // 严格大于游标（开区间），确保不重复
+      const filtered = allMessages.filter(m => sortKey(m) > cursorKey!);
+      console.log(`[listMessagesBySession] forward: filtered=${filtered.length}`);
+      return filtered.slice(0, limit);
     }
-    return messages.slice(0, limit);
+    return allMessages.slice(0, limit);
   }
 
   // ========== Rtc ==========

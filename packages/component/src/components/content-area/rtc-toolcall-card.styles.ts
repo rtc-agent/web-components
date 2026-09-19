@@ -61,7 +61,7 @@ export const styles = [
 
     .toolcall-label {
       flex-shrink: 0;
-      width: 2.5em;
+      min-width: 2.5em;
       font-weight: var(--rtc-font-weight-bold);
       font-size: var(--rtc-font-size-xs);
       color: var(--rtc-color-text-tertiary);
@@ -86,13 +86,15 @@ export const styles = [
       color: var(--rtc-color-text-secondary);
       white-space: pre-wrap;
       word-break: break-all;
+      max-height: var(--rtc-content-height-sm);
+      overflow-y: auto;
       margin: 0;
     }
 
     /* ── OUT: scrollable, mono ─ */
     .toolcall-output-content {
       flex: 1;
-      max-height: 60px;
+      max-height: var(--rtc-content-height-xs);
       overflow-y: auto;
       font-family: var(--rtc-font-family-mono);
       font-size: var(--rtc-font-size-xs);
@@ -100,6 +102,44 @@ export const styles = [
       white-space: pre-wrap;
       word-break: break-all;
       margin: 0;
+    }
+
+    /* ── Code block (for script tool) ─ */
+    .toolcall-code-block {
+      flex: 1;
+      max-height: var(--rtc-content-height-md);
+      overflow-y: auto;
+      font-family: var(--rtc-font-family-mono);
+      font-size: var(--rtc-font-size-xs);
+      color: var(--rtc-color-text);
+      white-space: pre-wrap;
+      word-break: break-all;
+      margin: 0;
+      padding: var(--rtc-spacing-xs);
+      border: 1px solid var(--rtc-color-border);
+      border-radius: var(--rtc-border-radius-sm);
+    }
+
+    /* ── Script meta rows (name, action) ─ */
+    .toolcall-script-meta {
+      display: flex;
+      align-items: baseline;
+      gap: var(--rtc-spacing-xs);
+      padding: 2px 0;
+    }
+
+    .toolcall-meta-label {
+      flex-shrink: 0;
+      font-size: var(--rtc-font-size-xs);
+      font-weight: var(--rtc-font-weight-bold);
+      color: var(--rtc-color-text-tertiary);
+      min-width: 3em;
+    }
+
+    .toolcall-meta-value {
+      font-family: var(--rtc-font-family-mono);
+      font-size: var(--rtc-font-size-xs);
+      color: var(--rtc-color-text);
     }
 
     /* ── Copy button (per-section) ── */

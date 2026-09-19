@@ -436,17 +436,31 @@ export class RtcChatLayout extends LitElement {
     /* ── Render ── */
 
     private _renderChatContent() {
-        const currentSessionId = this._sessionCtx?.state?.currentSessionId;
+        // Guard: wait for tab context to be available
+        if (!this._tabCtx?.state) {
+            return html`<div class="tab-content-wrapper"></div>`;
+        }
+
+        const {tabs, activeSessionId} = this._tabCtx.state;
+
+        // Render all open tabs, each with its own content-area instance
+        // Non-active tabs use content-visibility: hidden to preserve state
         return html`
-            <div class="content-area">
-                <rtc-content-area
-                    theme=${this.theme}
-                    .sessionId=${currentSessionId}
-                    .messageController=${this.messageController}
-                ></rtc-content-area>
-                <rtc-notice-bar></rtc-notice-bar>
-                <rtc-input-area></rtc-input-area>
-                <rtc-overlay-manager></rtc-overlay-manager>
+            <div class="tab-content-wrapper">
+                ${tabs.map(tab => html`
+                    <div class="tab-content ${tab.sessionId === activeSessionId ? 'active' : ''}">
+                        <rtc-content-area
+                            theme=${this.theme}
+                            .sessionId=${tab.sessionId}
+                            .messageController=${this.messageController}
+                        ></rtc-content-area>
+                        <rtc-notice-bar></rtc-notice-bar>
+                        <rtc-input-area
+                            .sessionId=${tab.sessionId}
+                        ></rtc-input-area>
+                        <rtc-overlay-manager></rtc-overlay-manager>
+                    </div>
+                `)}
             </div>
         `;
     }

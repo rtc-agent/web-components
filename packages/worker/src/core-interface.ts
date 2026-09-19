@@ -51,7 +51,7 @@ export interface WorkerPersistenceCore {
   getSession(clientId: string): Promise<LocalSession | undefined>;
   listMessages(
     sessionClientId: string,
-    cursor?: number,
+    cursor?: string,
     limit?: number,
     direction?: 'backward' | 'forward',
   ): Promise<LocalMessage[]>;

@@ -45,6 +45,16 @@ export const darkTheme = css`
         --rtc-color-info: #1A7AB0;
         --rtc-color-accent: #1A7AB0;
 
+        /* Toolcall header colors (for ID-based hashing, brighter for dark bg) */
+        --rtc-color-toolcall-0: #5B7BFF; /* bright blue */
+        --rtc-color-toolcall-1: #4ADE80; /* bright green */
+        --rtc-color-toolcall-2: #FB923C; /* bright orange */
+        --rtc-color-toolcall-3: #C084FC; /* bright purple */
+        --rtc-color-toolcall-4: #F87171; /* bright red */
+        --rtc-color-toolcall-5: #22D3EE; /* bright cyan */
+        --rtc-color-toolcall-6: #F472B6; /* bright pink */
+        --rtc-color-toolcall-7: #A3E635; /* bright lime */
+
         /* 遮罩 */
         --rtc-color-backdrop: rgba(11,17,39,0.6);
     }

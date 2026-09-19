@@ -41,6 +41,7 @@ import type {Message, MessageState} from '../../types/index.js';
 import './rtc-message.js';
 import './rtc-user-message.js';
 import './rtc-toolcall-card.js';
+import './rtc-toolcall-reply.js';
 import './rtc-error-message.js';
 import {MessageVirtualScroll, type WindowBoundary} from '../../utils/message-virtual-scroll.js';
 
@@ -98,18 +99,11 @@ export class RtcMessageList extends LitElement {
     @state()
     private _hasMore = false;
 
-    /** Whether a loadMore request is in-flight. */
-    @state()
-    private _isLoadingMore = false;
-
     @state()
     private _showNewBtn = false;
 
     @state()
     private _userAtBottom = true;
-
-    @state()
-    private _showLoadMoreBtn = false;
 
     /**
      * Whether the user intends to follow new content ("follow mode").
@@ -244,6 +238,9 @@ export class RtcMessageList extends LitElement {
         // back to this browser tab), scroll to bottom if following. This handles the
         // case where the user was away and content may have changed.
         document.addEventListener('visibilitychange', this._boundOnVisibilityChange);
+
+        // Listen for toolcall jump events (from rtc-toolcall-reply)
+        this.addEventListener('rtc-toolcall-jump', this._handleToolcallJump as EventListener);
     }
 
     /**
@@ -288,7 +285,6 @@ export class RtcMessageList extends LitElement {
         if (!this._virtualScroll) {
             this._messages = newMessages;
             this._hasMore = data.hasMore;
-            this._isLoadingMore = data.isLoadingMore;
             return;
         }
 
@@ -343,22 +339,41 @@ export class RtcMessageList extends LitElement {
 
         this._messages = newMessages;
         this._hasMore = data.hasMore;
-        this._isLoadingMore = data.isLoadingMore;
 
         console.log(
             `[rtc-message-list] _handleMessagesUpdate: ` +
             `oldCount=${oldMessages.length}, newCount=${newMessages.length}, ` +
-            `hasMore=${data.hasMore}, isLoadingMore=${data.isLoadingMore}`
+            `hasMore=${data.hasMore}`
         );
 
-        // Update loadedTop based on hasMore
-        if (this._hasMore === false) {
-            console.log('[rtc-message-list] Setting loadedTop=true because hasMore=false');
-            this._virtualScroll.setFullyLoaded('top', true);
-        } else if (this._hasMore === true) {
-            // hasMore became true - reset loadedTop so loadMore can be triggered
-            console.log('[rtc-message-list] Setting loadedTop=false because hasMore=true');
-            this._virtualScroll.setFullyLoaded('top', false);
+        // Update loadedTop/loadedBottom based on hasMore AND virtual scroll alignment.
+        //
+        // Key insight: hasMore only tells us if the REPOSITORY has more messages.
+        // But the virtual scroll may have sliced away messages that are still in the repository.
+        // So loadedTop should be true only when:
+        //   1. hasMore=false (no more messages in DB), AND
+        //   2. Virtual scroll's first item = repository's first item (nothing was sliced away)
+        //
+        // If messages were sliced away, loadedTop must be false so scrolling back
+        // triggers loadMore to restore them from repository cache.
+        if (this._virtualScroll) {
+            const stats = this._virtualScroll.getStats();
+            const repoFirstId = newMessages.length > 0 ? newMessages[0].clientId : undefined;
+            const repoLastId = newMessages.length > 0 ? newMessages[newMessages.length - 1].clientId : undefined;
+
+            // loadedTop: repository has no more AND virtual scroll starts at repository's first
+            if (this._hasMore === false && stats.firstId === repoFirstId) {
+                this._virtualScroll.setFullyLoaded('top', true);
+            } else if (this._hasMore === true || (stats.firstId !== undefined && stats.firstId !== repoFirstId)) {
+                this._virtualScroll.setFullyLoaded('top', false);
+            }
+
+            // loadedBottom: repository has no more newer AND virtual scroll ends at repository's last
+            if (data.hasMoreNewer === false && stats.lastId === repoLastId) {
+                this._virtualScroll.setFullyLoaded('bottom', true);
+            } else if (data.hasMoreNewer === true || (stats.lastId !== undefined && stats.lastId !== repoLastId)) {
+                this._virtualScroll.setFullyLoaded('bottom', false);
+            }
         }
     }
 
@@ -403,9 +418,6 @@ export class RtcMessageList extends LitElement {
                 this._scheduleScroll();
             }
         }
-
-        // --- Update load-more button visibility ---
-        this._showLoadMoreBtn = this._hasMore && this._isNearTop();
     }
 
     disconnectedCallback() {
@@ -414,6 +426,7 @@ export class RtcMessageList extends LitElement {
         this._resizeObserver?.disconnect();
         clearTimeout(this._resizeDebounceTimer);
         document.removeEventListener('visibilitychange', this._boundOnVisibilityChange);
+        this.removeEventListener('rtc-toolcall-jump', this._handleToolcallJump as EventListener);
         this._subscription?.();
         this._subscription = undefined;
         this._virtualScroll?.dispose();
@@ -500,9 +513,6 @@ export class RtcMessageList extends LitElement {
             this._userAtBottom = atBottom;
             this._showNewBtn = !atBottom;
         }
-
-        // Show/hide load-more button based on scroll position
-        this._showLoadMoreBtn = this._hasMore && this._isNearTop();
     };
 
     /**
@@ -524,16 +534,15 @@ export class RtcMessageList extends LitElement {
         }
     }
 
-    private _isNearTop(): boolean {
-        if (!this._scrollEl) return false;
-        return this._scrollEl.scrollTop < 60;
-    }
-
     /**
      * Handle virtual scroll's onLoadMore callback.
      * Triggers load-more from repository. The actual prepend/append is handled by
      * _handleMessagesUpdate via repository subscription.
      * Returns empty array since we don't prepend/append here.
+     *
+     * IMPORTANT: For bottom direction, first check if repository has messages
+     * after the current window (from viewport slicing). If yes, return them
+     * directly from cache instead of going to DB.
      */
     private async _handleVirtualScrollLoadMore(
         direction: 'top' | 'bottom',
@@ -542,20 +551,81 @@ export class RtcMessageList extends LitElement {
         if (!this.sessionId || !this.messageController) return [];
 
         try {
+            // Snapshot message count before load to detect if anything arrived
+            const countBefore = this._messages.length;
+
             if (direction === 'top') {
                 if (!boundary.firstId) return [];
-                // Trigger backward load-more. Repository subscription will update _messages,
-                // which triggers _handleMessagesUpdate to call virtualScroll.prependItems().
+
+                // First, check if repository has messages BEFORE the current window.
+                // Virtual scroll's _sliceViewport removes items from its internal _items,
+                // but they're still in repository's messages array. Return them from cache
+                // instead of going to DB.
+                const repoState = this.messageController.repository.getSessionState(this.sessionId);
+                const firstRenderedId = boundary.firstId;
+                const firstRenderedIndex = repoState.messages.findIndex(m => m.clientId === firstRenderedId);
+
+                if (firstRenderedIndex > 0) {
+                    // Repository has messages before the current window — return from cache
+                    const cachedOlder = repoState.messages.slice(0, firstRenderedIndex);
+                    console.log(`[rtc-message-list] loadMore(top): returning ${cachedOlder.length} messages from repository cache`);
+                    return cachedOlder;
+                }
+
+                // No cached messages before the window — try loading from DB
                 await this.messageController.loadMoreForSession(this.sessionId);
+
+                // After loadMore, check if we should mark loadedTop=true.
+                // Only mark true if hasMore=false AND virtual scroll's first item
+                // matches repository's first item (no sliced-away messages above).
+                const repoStateAfter = this.messageController.repository.getSessionState(this.sessionId);
+                const repoFirstId = repoStateAfter.messages.length > 0 ? repoStateAfter.messages[0].clientId : undefined;
+                if (!repoStateAfter.hasMore && boundary.firstId === repoFirstId) {
+                    console.log('[rtc-message-list] loadMore(top): hasMore=false and aligned, marking loadedTop=true');
+                    this._virtualScroll?.setFullyLoaded('top', true);
+                }
             } else {
                 // direction === 'bottom'
                 if (!boundary.lastId) return [];
-                // Trigger forward load-more. Repository subscription will update _messages,
-                // which triggers _handleMessagesUpdate to call virtualScroll.appendItems().
+
+                // First, check if repository has messages after the current window.
+                // Virtual scroll's _sliceViewport removes items from its internal _items,
+                // but they're still in repository's messages array. Return them from cache
+                // instead of going to DB.
+                const repoState = this.messageController.repository.getSessionState(this.sessionId);
+                const lastRenderedId = boundary.lastId;
+                const lastRenderedIndex = repoState.messages.findIndex(m => m.clientId === lastRenderedId);
+
+                if (lastRenderedIndex >= 0 && lastRenderedIndex < repoState.messages.length - 1) {
+                    // Repository has messages after the current window — return from cache
+                    const cachedNewer = repoState.messages.slice(lastRenderedIndex + 1);
+                    console.log(`[rtc-message-list] loadMore(bottom): returning ${cachedNewer.length} messages from repository cache`);
+                    return cachedNewer;
+                }
+
+                // No cached messages — try loading from DB via loadNewerForSession
+                // But first check if there might be newer messages (hasMoreNewer)
+                // Since hasMoreNewer is rarely set, we still try the load in case
+                // new messages arrived from another tab or WebSocket
                 await this.messageController.loadNewerForSession(this.sessionId);
+
+                // If no new messages arrived, check if we should mark loadedBottom=true.
+                // Only mark true if hasMoreNewer=false AND virtual scroll's last item
+                // matches repository's last item (no sliced-away messages below).
+                if (this._messages.length === countBefore) {
+                    const repoState = this.messageController.repository.getSessionState(this.sessionId);
+                    const repoLastId = repoState.messages.length > 0
+                        ? repoState.messages[repoState.messages.length - 1].clientId
+                        : undefined;
+                    if (!repoState.hasMoreNewer && boundary.lastId === repoLastId) {
+                        console.log('[rtc-message-list] loadMore(bottom): hasMoreNewer=false and aligned, marking loadedBottom=true');
+                        this._virtualScroll?.setFullyLoaded('bottom', true);
+                    }
+                }
             }
 
             // Return empty array - actual prepend/append is handled by _handleMessagesUpdate
+            // (except for bottom cache hit above, which returns messages directly)
             return [];
         } catch (err) {
             console.error('[rtc-message-list] loadMore failed:', err);
@@ -565,7 +635,7 @@ export class RtcMessageList extends LitElement {
 
     /**
      * Render a message element for virtual scroll.
-     * Toolcall input and output are rendered separately (no pairing).
+     * Toolcall input renders as a card; output renders as a reply with jump.
      */
     private _renderMessageElement(msg: Message, index: number): HTMLElement {
         const isLast = index === this._messages.length - 1;
@@ -578,14 +648,32 @@ export class RtcMessageList extends LitElement {
             return el;
         }
 
-        // Toolcall input and output rendered separately (no pairing)
-        if (msg.content?.type === 'toolcall_input' || msg.content?.type === 'toolcall_output') {
-            const el = document.createElement('rtc-message');
+        // Toolcall input → card
+        if (msg.content?.type === 'toolcall_input') {
+            const el = document.createElement('rtc-toolcall-card');
+            el.setAttribute('data-client-id', msg.clientId);
+            // rtc-toolcall-card expects a `pair` property: { input, output? }
+            // Find corresponding output from _messages (if already arrived)
+            const output = this._messages.find(
+                m => m.content?.type === 'toolcall_output' && m.parentClientId === msg.clientId
+            );
+            (el as any).pair = { input: msg, output };
+            if (isLast) el.setAttribute('is-last', '');
+            return el;
+        }
+
+        // Toolcall output → reply (with clickable jump to input)
+        if (msg.content?.type === 'toolcall_output') {
+            // Orphaned output (no parentClientId): render as plain message
+            if (!msg.parentClientId) {
+                const el = document.createElement('rtc-message');
+                el.setAttribute('data-client-id', msg.clientId);
+                (el as any).message = msg;
+                return el;
+            }
+            const el = document.createElement('rtc-toolcall-reply');
             el.setAttribute('data-client-id', msg.clientId);
             (el as any).message = msg;
-            if (isLast) {
-                el.setAttribute('is-last', '');
-            }
             return el;
         }
 
@@ -607,21 +695,6 @@ export class RtcMessageList extends LitElement {
         return el;
     }
 
-    private _handleLoadMoreClick = async () => {
-        // Guard: prevent concurrent load-more requests
-        if (this._isLoadingMore || !this._virtualScroll) return;
-
-        // Trigger virtual scroll's load-more by simulating scroll to top
-        // (virtual scroll will auto-load when near edge)
-        const stats = this._virtualScroll.getStats();
-        if (stats.firstId) {
-            await this._handleVirtualScrollLoadMore('top', {
-                firstId: stats.firstId,
-                lastId: stats.lastId,
-            });
-        }
-    };
-
     private _handleNewBtnClick = () => {
         if (this._scrollEl) {
             // Smooth scroll is async (animation over ~500ms). Increment the guard
@@ -637,11 +710,32 @@ export class RtcMessageList extends LitElement {
         this._showNewBtn = false;
     };
 
+    /**
+     * Handle toolcall jump: scroll to the input message and highlight it.
+     * Triggered by clicking the reply header in rtc-toolcall-reply.
+     */
+    private _handleToolcallJump = (e: CustomEvent<{targetClientId: string}>) => {
+        const { targetClientId } = e.detail;
+        if (!targetClientId || !this._scrollEl) return;
+
+        const el = this._scrollEl.querySelector(`[data-client-id="${targetClientId}"]`) as HTMLElement | null;
+        if (!el) {
+            // Input may have been sliced away — scroll to bottom as fallback
+            console.debug(`[rtc-message-list] Jump target ${targetClientId} not in DOM`);
+            return;
+        }
+
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        // Brief highlight animation
+        el.classList.add('highlight');
+        window.setTimeout(() => el.classList.remove('highlight'), 2000);
+    };
+
     render() {
         void this._localeCtx.locale;
         // _userAtBottom is a @state driving re-render on scroll; consumed implicitly.
         void this._userAtBottom;
-        const isLoadingMore = this._isLoadingMore;
 
         // Virtual scroll manages DOM elements directly.
         // render() only provides the container structure.
@@ -651,13 +745,6 @@ export class RtcMessageList extends LitElement {
                     <!-- MessageVirtualScroll dynamically inserts message elements here -->
                 </div>
             </div>
-            <button
-                class="load-more-btn"
-                ?hidden=${!this._showLoadMoreBtn}
-                ?disabled=${isLoadingMore}
-                @click=${this._handleLoadMoreClick}
-                aria-label="Load earlier messages"
-            >${isLoadingMore ? msg('Loading...') : msg('↑ Load earlier messages')}</button>
             <button
                 class="new-message-btn"
                 ?hidden=${!this._showNewBtn}

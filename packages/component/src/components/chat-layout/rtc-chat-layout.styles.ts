@@ -33,7 +33,34 @@ export const styles = css`
         flex-shrink: 0;
     }
 
-    /* ── 聊天内容区 ── */
+    /* ── Tab 内容容器 ── */
+    .tab-content-wrapper {
+        flex: 1;
+        position: relative;
+        overflow: hidden;
+    }
+
+    /* ── 每个 Tab 的内容区（绝对定位，重叠在同一位置） ── */
+    .tab-content {
+        display: flex;
+        flex-direction: column;
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        overflow: hidden;
+    }
+
+    /* ── 非活动 Tab：使用 content-visibility: hidden 保留状态 ── */
+    /* 保留 DOM 和状态（滚动位置、输入内容等），只是不渲染到屏幕 */
+    .tab-content:not(.active) {
+        content-visibility: hidden;
+        contain-intrinsic-size: 0 500px;
+        pointer-events: none;
+    }
+
+    /* ── 聊天内容区（保留作为向后兼容） ── */
     .content-area {
         flex: 1;
         display: flex;

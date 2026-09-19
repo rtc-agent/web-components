@@ -24,8 +24,8 @@ export class MessageController implements ReactiveController {
 
     private _state: MessageState = {messages: [], hasMore: false, isLoadingMore: false};
 
-    /** Oldest loaded global_offset for backward pagination cursor. */
-    private _oldestLoadedOffset?: number;
+    /** Oldest loaded cursor for backward pagination. Format: "${timestamp}|${clientId}" */
+    private _oldestLoadedCursor?: string;
 
     /** Message repository for multi-session support. */
     private _repository?: MessageRepository;
@@ -47,33 +47,42 @@ export class MessageController implements ReactiveController {
                 fetchMessages: async (sessionId: string) => {
                     if (!this._persistence) return [];
                     const messages = await this._persistence.listMessages(sessionId, undefined, 50, 'backward');
-                    // Track pagination cursors
+                    // Track pagination cursors using (created_at, client_id) composite key
                     if (messages.length > 0) {
-                        this._repository?.setOldestOffset(sessionId, messages[0].global_offset);
-                        this._repository?.setNewestOffset(sessionId, messages[messages.length - 1].global_offset);
+                        this._repository?.setOldestOffset(sessionId, this._buildCursor(messages[0]));
+                        this._repository?.setNewestOffset(sessionId, this._buildCursor(messages[messages.length - 1]));
                     }
                     return messages.map(m => this._localMessageToUI(m));
                 },
-                fetchOlderMessages: async (sessionId: string, beforeOffset?: number) => {
+                fetchOlderMessages: async (sessionId: string, beforeCursor?: string) => {
                     if (!this._persistence) return [];
-                    const messages = await this._persistence.listMessages(sessionId, beforeOffset, 50, 'backward');
+                    const messages = await this._persistence.listMessages(sessionId, beforeCursor, 50, 'backward');
                     // Update pagination cursor
                     if (messages.length > 0) {
-                        this._repository?.setOldestOffset(sessionId, messages[0].global_offset);
+                        this._repository?.setOldestOffset(sessionId, this._buildCursor(messages[0]));
                     }
                     return messages.map(m => this._localMessageToUI(m));
                 },
-                fetchNewerMessages: async (sessionId: string, afterOffset?: number) => {
+                fetchNewerMessages: async (sessionId: string, afterCursor?: string) => {
                     if (!this._persistence) return [];
-                    const messages = await this._persistence.listMessages(sessionId, afterOffset, 50, 'forward');
+                    const messages = await this._persistence.listMessages(sessionId, afterCursor, 50, 'forward');
                     // Update pagination cursor
                     if (messages.length > 0) {
-                        this._repository?.setNewestOffset(sessionId, messages[messages.length - 1].global_offset);
+                        this._repository?.setNewestOffset(sessionId, this._buildCursor(messages[messages.length - 1]));
                     }
                     return messages.map(m => this._localMessageToUI(m));
                 },
             });
         }
+    }
+
+    /**
+     * Build pagination cursor from a message.
+     * Format: "${timestamp}|${clientId}" for (created_at, client_id) composite sorting.
+     */
+    private _buildCursor(msg: { created_at: string; client_id: string }): string {
+        const ts = new Date(msg.created_at).getTime();
+        return `${ts}|${msg.client_id}`;
     }
 
     /** Get the message repository for multi-session support. */
@@ -399,20 +408,31 @@ export class MessageController implements ReactiveController {
         );
         const messages = localMessages.map((m) => this._localMessageToUI(m));
 
-        // Track pagination state
+        // Track pagination state using (created_at, client_id) composite cursor
         const hasMore = localMessages.length >= PAGE_SIZE;
-        this._oldestLoadedOffset = localMessages.length > 0
-            ? localMessages[0].global_offset
+        this._oldestLoadedCursor = localMessages.length > 0
+            ? this._buildCursor(localMessages[0])
             : undefined;
 
         // Update legacy state (for MessageContext consumers like rtc-input-area)
         this._state = {messages, hasMore, isLoadingMore: false};
 
         // Update repository (for rtc-message-list subscription)
+        // IMPORTANT: Must set hasMore explicitly — updateMessages only replaces messages array.
+        // Without this, repository keeps hasMore=false (from DEFAULT_STATE), and
+        // rtc-message-list won't trigger loadMore when user scrolls to top.
         if (this._repository) {
             this._repository.updateMessages(sessionClientId, messages);
-            if (this._oldestLoadedOffset !== undefined) {
-                this._repository.setOldestOffset(sessionClientId, this._oldestLoadedOffset);
+            this._repository.setHasMore(sessionClientId, hasMore);
+            if (this._oldestLoadedCursor !== undefined) {
+                this._repository.setOldestOffset(sessionClientId, this._oldestLoadedCursor);
+            }
+            // Also set newestOffset so forward pagination cursor is correct
+            if (localMessages.length > 0) {
+                this._repository.setNewestOffset(
+                    sessionClientId,
+                    this._buildCursor(localMessages[localMessages.length - 1])
+                );
             }
         }
 
@@ -429,7 +449,7 @@ export class MessageController implements ReactiveController {
         }
 
         const currentSessionId = this._sessionController?.value.state.currentSessionId;
-        if (!currentSessionId || this._oldestLoadedOffset === undefined) {
+        if (!currentSessionId || this._oldestLoadedCursor === undefined) {
             return;
         }
 
@@ -440,7 +460,7 @@ export class MessageController implements ReactiveController {
             const PAGE_SIZE = 50;
             const olderMessages = await this._persistence.listMessages(
                 currentSessionId,
-                this._oldestLoadedOffset,
+                this._oldestLoadedCursor,
                 PAGE_SIZE,
                 'backward'
             );
@@ -453,7 +473,7 @@ export class MessageController implements ReactiveController {
             // Update pagination state
             const hasMore = olderMessages.length >= PAGE_SIZE;
             if (olderMessages.length > 0) {
-                this._oldestLoadedOffset = olderMessages[0].global_offset;
+                this._oldestLoadedCursor = this._buildCursor(olderMessages[0]);
             }
 
             this._state = {

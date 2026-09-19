@@ -31,8 +31,8 @@ function createMessage(overrides: Partial<Message> = {}): Message {
  */
 function createMockApi() {
     const fetchMessages = vi.fn(async (_sessionId: string): Promise<Message[]> => []);
-    const fetchOlderMessages = vi.fn(async (_sessionId: string, _beforeOffset?: number): Promise<Message[]> => []);
-    const fetchNewerMessages = vi.fn(async (_sessionId: string, _afterOffset?: number): Promise<Message[]> => []);
+    const fetchOlderMessages = vi.fn(async (_sessionId: string, _beforeCursor?: string): Promise<Message[]> => []);
+    const fetchNewerMessages = vi.fn(async (_sessionId: string, _afterCursor?: string): Promise<Message[]> => []);
 
     const api: MessageApi = {fetchMessages, fetchOlderMessages, fetchNewerMessages};
     return {api, fetchMessages, fetchOlderMessages, fetchNewerMessages};
@@ -69,7 +69,7 @@ describe('MessageRepository', () => {
     describe('getSessionState', () => {
         it('returns default state for uninitialized session', () => {
             const state = repo.getSessionState('unknown-session');
-            expect(state).toEqual({messages: [], hasMore: false, isLoadingMore: false});
+            expect(state).toEqual({messages: [], hasMore: false, isLoadingMore: false, hasMoreNewer: false, isLoadingNewer: false});
         });
 
         it('returns default state (not the same reference) each time', () => {
@@ -191,6 +191,8 @@ describe('MessageRepository', () => {
                 messages: [],
                 hasMore: false,
                 isLoadingMore: false,
+                hasMoreNewer: false,
+                isLoadingNewer: false,
             });
         });
 
@@ -245,6 +247,8 @@ describe('MessageRepository', () => {
                 messages: [],
                 hasMore: false,
                 isLoadingMore: false,
+                hasMoreNewer: false,
+                isLoadingNewer: false,
             });
         });
 
@@ -523,33 +527,36 @@ describe('MessageRepository', () => {
             expect(mockApi.fetchOlderMessages).toHaveBeenCalledTimes(2);
         });
 
-        it('passes oldest offset to API', async () => {
+        it('passes oldest cursor to API', async () => {
             await seedHasMore();
 
-            // Set an offset
-            repo.setOldestOffset('s1', 100);
+            // Set a cursor (format: "${timestamp}|${clientId}")
+            const cursor = '1234567890|msg-001';
+            repo.setOldestOffset('s1', cursor);
 
             mockApi.fetchOlderMessages.mockResolvedValueOnce([]);
             await repo.loadMore('s1');
 
-            expect(mockApi.fetchOlderMessages).toHaveBeenCalledWith('s1', 100);
+            expect(mockApi.fetchOlderMessages).toHaveBeenCalledWith('s1', cursor);
         });
     });
 
-    // ── Offset management ──
+    // ── Cursor management ──
 
-    describe('offset management', () => {
+    describe('cursor management', () => {
         it('getOldestOffset returns undefined for uninitialized session', () => {
             expect(repo.getOldestOffset('unknown')).toBeUndefined();
         });
 
         it('setOldestOffset and getOldestOffset work correctly', () => {
-            repo.setOldestOffset('s1', 42);
-            expect(repo.getOldestOffset('s1')).toBe(42);
+            const cursor = '1234567890|msg-001';
+            repo.setOldestOffset('s1', cursor);
+            expect(repo.getOldestOffset('s1')).toBe(cursor);
         });
 
-        it('evictSession clears offset', () => {
-            repo.setOldestOffset('s1', 42);
+        it('evictSession clears cursor', () => {
+            const cursor = '1234567890|msg-001';
+            repo.setOldestOffset('s1', cursor);
             repo.evictSession('s1');
             expect(repo.getOldestOffset('s1')).toBeUndefined();
         });

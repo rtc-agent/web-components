@@ -145,8 +145,9 @@ export class PersistenceLayer {
   /**
    * 列出某个会话的消息
    * @param direction 'backward'（默认）= 从最新向最旧分页；'forward' = 从最旧向最新分页
+   * @param cursor 分页游标，格式为 "${timestamp}|${clientId}"，用于 (created_at, client_id) 复合排序
    */
-  async listMessages(sessionClientId: string, cursor?: number, limit?: number, direction?: 'backward' | 'forward'): Promise<LocalMessage[]> {
+  async listMessages(sessionClientId: string, cursor?: string, limit?: number, direction?: 'backward' | 'forward'): Promise<LocalMessage[]> {
     return this.entityRepository.listMessagesBySession(sessionClientId, cursor, limit, direction);
   }
 

@@ -20,7 +20,7 @@
  * @csspart voice-btn - The voice input button
  */
 import {LitElement, html} from 'lit';
-import {customElement, state, query} from 'lit/decorators.js';
+import {customElement, property, state, query} from 'lit/decorators.js';
 import {consume} from '@lit/context';
 import {localized, msg} from '@lit/localize';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
@@ -52,6 +52,23 @@ import {getUIUpdateBus, type UIUpdateEvent} from '@rtc-agent/persistence';
 @customElement('rtc-input-area')
 export class RtcInputArea extends LitElement {
     static styles = styles;
+
+    /**
+     * Optional session ID override.
+     * When provided, this takes precedence over SessionContext.currentSessionId.
+     * Used in multi-tab layouts where each tab has its own input-area instance.
+     */
+    @property({type: String})
+    sessionId: string | null = null;
+
+    /**
+     * Returns the effective session ID:
+     * - sessionId property if explicitly set
+     * - Otherwise, falls back to SessionContext.currentSessionId
+     */
+    private get _effectiveSessionId(): string | null {
+        return this.sessionId ?? this._sessionCtx.state.currentSessionId;
+    }
 
     /* ── i18n ── */
 
@@ -263,7 +280,7 @@ export class RtcInputArea extends LitElement {
      * Stop 按钮点击：发送停止请求事件
      */
     private _handleStop() {
-        const sessionId = this._sessionCtx.state.currentSessionId;
+        const sessionId = this._effectiveSessionId;
         if (!sessionId) return;
 
         this.dispatchEvent(
@@ -374,7 +391,7 @@ export class RtcInputArea extends LitElement {
      * 从 MessageContext 加载当前 session 的用户消息历史
      */
     private async _loadUserMessageHistory() {
-        const sessionId = this._sessionCtx.state.currentSessionId;
+        const sessionId = this._effectiveSessionId;
         if (!sessionId) return;
 
         const fn = this._messageCtx.getUserMessageHistory;
@@ -739,7 +756,7 @@ export class RtcInputArea extends LitElement {
 
     updated(changed: Map<string | number | symbol, unknown>) {
         // Session 切换时清空历史缓存，下次导航时重新加载
-        if (changed.has('_sessionCtx')) {
+        if (changed.has('_sessionCtx') || changed.has('sessionId')) {
             this._userMessageHistory = [];
             this._historyIndex = -1;
             this._draft = '';

@@ -64,36 +64,6 @@ export const styles = css`
     display: none;
   }
 
-  .load-more-btn {
-    position: absolute;
-    top: var(--rtc-spacing-md);
-    left: 50%;
-    transform: translateX(-50%);
-    background: var(--rtc-color-primary);
-    color: var(--rtc-color-text-inverse);
-    border: none;
-    padding: var(--rtc-spacing-xs) var(--rtc-spacing-md);
-    border-radius: var(--rtc-border-radius-lg);
-    font-size: var(--rtc-font-size-sm);
-    cursor: pointer;
-    box-shadow: var(--rtc-shadow-md);
-    transition: opacity var(--rtc-transition-duration) var(--rtc-transition-timing);
-    z-index: var(--rtc-z-local-2);
-  }
-
-  .load-more-btn:hover:not(:disabled) {
-    background: var(--rtc-color-primary-hover);
-  }
-
-  .load-more-btn:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-  }
-
-  .load-more-btn[hidden] {
-    display: none;
-  }
-
   /* ── Density: compact ── */
   :host([data-density='compact']) {
     --rtc-message-gap: var(--rtc-spacing-sm);
@@ -110,5 +80,15 @@ export const styles = css`
 
   :host([data-density='comfortable']) .message-list-scroll {
     padding: var(--rtc-spacing-md) var(--rtc-spacing-lg);
+  }
+
+  /* ── Highlight animation (for toolcall jump target) ── */
+  .highlight {
+    animation: rtc-highlight-fade 2s ease-out;
+  }
+
+  @keyframes rtc-highlight-fade {
+    0% { box-shadow: 0 0 0 2px var(--rtc-color-warning, gold); }
+    100% { box-shadow: none; }
   }
 `;
