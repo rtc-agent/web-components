@@ -17,6 +17,7 @@ import type {MessageContextValue} from '../contexts/message.js';
 import type {PersistenceLayer, LocalMessage} from '@rtc-agent/persistence';
 import type {SessionController} from './session.controller.js';
 import type {Session} from '../types/index.js';
+import {MessageRepository} from '../repositories/index.js';
 
 export class MessageController implements ReactiveController {
     host: ReactiveControllerHost & EventTarget;
@@ -25,6 +26,9 @@ export class MessageController implements ReactiveController {
 
     /** Oldest loaded global_offset for backward pagination cursor. */
     private _oldestLoadedOffset?: number;
+
+    /** Message repository for multi-session support. */
+    private _repository?: MessageRepository;
 
     /** Persistence layer — injected by root component after construction. */
     private _persistence?: PersistenceLayer;
@@ -37,6 +41,29 @@ export class MessageController implements ReactiveController {
     /** Setter for persistence injection (avoids circular deps). */
     set persistence(layer: PersistenceLayer) {
         this._persistence = layer;
+        // Initialize repository when persistence is set
+        if (!this._repository) {
+            this._repository = new MessageRepository({
+                fetchMessages: async (sessionId: string) => {
+                    if (!this._persistence) return [];
+                    const messages = await this._persistence.listMessages(sessionId, undefined, 50, 'backward');
+                    return messages.map(m => this._localMessageToUI(m));
+                },
+                fetchOlderMessages: async (sessionId: string, beforeOffset?: number) => {
+                    if (!this._persistence) return [];
+                    const messages = await this._persistence.listMessages(sessionId, beforeOffset, 50, 'backward');
+                    return messages.map(m => this._localMessageToUI(m));
+                },
+            });
+        }
+    }
+
+    /** Get the message repository for multi-session support. */
+    get repository(): MessageRepository {
+        if (!this._repository) {
+            throw new Error('[MessageController] Repository not initialized. Set persistence first.');
+        }
+        return this._repository;
     }
 
     /** Setter for session controller injection (avoids circular deps). */
@@ -89,6 +116,30 @@ export class MessageController implements ReactiveController {
             syncStatus: 'synced',
         };
         this._state = {messages: [...this._state.messages, msg], hasMore: this._state.hasMore, isLoadingMore: this._state.isLoadingMore};
+        this.host.requestUpdate();
+    }
+
+    /**
+     * Fetch initial messages for a session (if repository doesn't have data yet).
+     * Called by rtc-message-list in willUpdate.
+     */
+    async fetchInitialMessages(sessionId: string): Promise<void> {
+        if (!this._repository) return;
+
+        const state = this._repository.getSessionState(sessionId);
+        if (state.messages.length === 0) {
+            await this._repository.fetchMessages(sessionId);
+        }
+        this.host.requestUpdate();
+    }
+
+    /**
+     * Load more messages for a specific session (backward pagination).
+     * Called by rtc-message-list when user scrolls to top.
+     */
+    async loadMoreForSession(sessionId: string): Promise<void> {
+        if (!this._repository) return;
+        await this._repository.loadMore(sessionId);
         this.host.requestUpdate();
     }
 
