@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtual Scroll Debug - Message List</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a1a;
+            color: #eee;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .toolbar {
+            padding: 12px;
+            background: #2a2a2a;
+            border-bottom: 1px solid #3a3a3a;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .toolbar button {
+            padding: 8px 16px;
+            background: #4a4a4a;
+            border: none;
+            border-radius: 4px;
+            color: #eee;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .toolbar button:hover {
+            background: #5a5a5a;
+        }
+
+        .chat-container {
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .message-list-scroll {
+            height: 100%;
+            overflow-y: auto;
+            padding: 16px;
+            position: relative;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+
+        .message-list-scroll::-webkit-scrollbar {
+            display: none;
+        }
+
+        .message-list-inner {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .message {
+            padding: 12px;
+            border-radius: 8px;
+            background: #2a2a2a;
+        }
+
+        .message.user {
+            background: #3a3a5a;
+            margin-left: 20%;
+        }
+
+        .message.assistant {
+            background: #2a2a4a;
+            margin-right: 20%;
+        }
+
+        .message-meta {
+            font-size: 11px;
+            color: #888;
+            margin-bottom: 4px;
+        }
+
+        .message-content {
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .status-bar {
+            padding: 8px 12px;
+            background: #2a2a2a;
+            border-top: 1px solid #3a3a3a;
+            font-size: 12px;
+            color: #aaa;
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .status-item {
+            display: flex;
+            gap: 4px;
+        }
+
+        .status-label {
+            color: #888;
+        }
+
+        .status-value {
+            color: #4a9eff;
+            font-weight: 600;
+        }
+
+        .load-more-indicator {
+            text-align: center;
+            padding: 12px;
+            color: #888;
+            font-size: 12px;
+        }
+
+        /* Custom Scrollbar - Exact copy from Telegram Web */
+        .custom-scrollbar-thumb-container {
+            position: sticky;
+            top: 0;
+            z-index: 4;
+        }
+
+        .custom-scrollbar-thumb {
+            position: absolute;
+            inset-inline-end: 1px;
+            width: 5px;
+            background-color: rgba(255, 255, 255, 0.5);
+            cursor: default;
+            opacity: 0;
+            border-radius: 3px;
+            transition: opacity 0.1s ease-in-out;
+        }
+
+        .message-list-scroll:hover .custom-scrollbar-thumb,
+        .custom-scrollbar-thumb.is-focused {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="toolbar">
+            <button id="btn-load-initial">Load Initial (50)</button>
+            <button id="btn-load-more">Load More (older)</button>
+            <button id="btn-append">Append Message</button>
+            <button id="btn-add-100">Add 100 Messages</button>
+            <button id="btn-clear">Clear</button>
+            <button id="btn-scroll-top">Scroll to Top</button>
+            <button id="btn-scroll-bottom">Scroll to Bottom</button>
+            <button id="btn-slice" style="background: #5a3a3a;">Manual Slice</button>
+            <span id="session-info" style="margin-left: auto; color: #888;">Session: session-1</span>
+        </div>
+
+        <div class="chat-container">
+            <div class="message-list-scroll" id="scroll-container">
+                <div class="message-list-inner" id="inner-container"></div>
+            </div>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-item">
+                <span class="status-label">Repo:</span>
+                <span class="status-value" id="stat-repo">0</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Rendered:</span>
+                <span class="status-value" id="stat-rendered">0</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Window:</span>
+                <span class="status-value" id="stat-window">[0, 0)</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">ScrollTop:</span>
+                <span class="status-value" id="stat-scrolltop">0</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">ScrollHeight:</span>
+                <span class="status-value" id="stat-scrollheight">0</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Loaded:</span>
+                <span class="status-value" id="stat-loaded">T:1 B:1</span>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="./message-list-virtual.debug.ts"></script>
+</body>
+</html>
