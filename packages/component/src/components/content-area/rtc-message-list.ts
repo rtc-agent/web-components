@@ -2,15 +2,14 @@
  * RTC Message List Component
  *
  * Renders messages in a scrollable container with timeline layout.
- * The component is self-responsible for auto-scrolling — it does not analyze
- * what kind of change happened (new message, toolcall output, reorder, etc.).
+ * Each `<rtc-message-list>` subscribes directly to `MessageRepository` for a
+ * specific `sessionId`. This allows multiple instances to coexist (e.g. one per
+ * open tab) without relying on a shared `MessageContext`.
  *
  * ## Auto-scroll mechanism
  *
- * 1. **`updated()` reacts to context changes** — two triggers:
- *    - `_sessionCtx` changed (session switch) → reset follow intent to true
- *    - `_ctx` changed (messages changed) → scroll to bottom if following
- *    No change-type detection. No growth/shrink/reorder analysis.
+ * 1. **`updated()` reacts to message changes**:
+ *    - If `_shouldAutoScroll` is true, scroll to bottom.
  *
  * 2. **`_onScroll` tracks user intent** — purely based on scroll position:
  *    - `distanceFromBottom < 60` → following (matches "new messages" button zone)
@@ -31,16 +30,15 @@
  * @csspart inner - The inner message container
  */
 import {LitElement, html} from 'lit';
-import {customElement, state} from 'lit/decorators.js';
+import {customElement, property, state} from 'lit/decorators.js';
 import {consume} from '@lit/context';
 import {localized, msg} from '@lit/localize';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {repeat} from 'lit/directives/repeat.js';
 import {styles} from './rtc-message-list.styles.js';
-import {MessageContext, type MessageContextValue} from '../../contexts/message.js';
-import {SessionContext, type SessionContextValue} from '../../contexts/session.js';
 import {SettingsContext, type SettingsContextValue} from '../../contexts/settings.js';
-import type {Message} from '../../types/index.js';
+import type {MessageController} from '../../controllers/message.controller.js';
+import type {Message, MessageState} from '../../types/index.js';
 import './rtc-message.js';
 import './rtc-user-message.js';
 import './rtc-toolcall-card.js';
@@ -52,6 +50,14 @@ import type {ToolCallPair} from './rtc-toolcall-card.js';
 export class RtcMessageList extends LitElement {
     static styles = styles;
 
+    /** Session ID for this message list instance. */
+    @property({type: String})
+    sessionId: string | null = null;
+
+    /** Message controller for accessing repository. */
+    @property({attribute: false})
+    messageController?: MessageController;
+
     @consume({context: localeContext, subscribe: true})
     @state()
     private _localeCtx: LocaleContextValue = {
@@ -61,34 +67,6 @@ export class RtcMessageList extends LitElement {
         },
         locales: [sourceLocale, ...targetLocales],
     };
-
-    @consume({context: MessageContext, subscribe: true})
-    @state()
-    private _ctx: MessageContextValue = {
-        state: {messages: [], hasMore: false, isLoadingMore: false},
-        actions: {sendMessage: async () => {}, resendMessage: async () => {}, forkSession: async () => {}, appendToLastMessage: () => {}, finalizeLastMessage: () => {}, clearMessages: () => {}, loadMore: async () => {}}
-    };
-
-    @consume({context: SessionContext, subscribe: true})
-    @state()
-    private _sessionCtx: SessionContextValue = {
-        state: {sessions: [], currentSessionId: null},
-        actions: {
-            createSession: () => '',
-            switchSession: () => {},
-            renameSession: async () => ({ok: true, error: ''}),
-            deleteSession: async () => ({ok: true, error: ''}),
-            closeSession: async () => ({ok: true}),
-            reopenSession: async () => ({ok: true}),
-            reset: () => {},
-            clearCurrentSession: () => {},
-            setCurrentSession: () => {},
-            setSessions: () => {},
-        },
-    };
-
-    /** Previous session ID, used to detect session switches (tab activation). */
-    private _prevSessionId: string | null = null;
 
     @consume({context: SettingsContext, subscribe: true})
     @state()
@@ -107,6 +85,23 @@ export class RtcMessageList extends LitElement {
             resetAll: () => {},
         },
     };
+
+    // ── Repository subscription state ──
+
+    /** Unsubscribe function returned by MessageRepository.subscribe(). */
+    private _subscription?: () => void;
+
+    /** Messages for the current session (driven by repository subscription). */
+    @state()
+    private _messages: Message[] = [];
+
+    /** Whether older messages are available (backward pagination). */
+    @state()
+    private _hasMore = false;
+
+    /** Whether a loadMore request is in-flight. */
+    @state()
+    private _isLoadingMore = false;
 
     @state()
     private _showNewBtn = false;
@@ -162,7 +157,30 @@ export class RtcMessageList extends LitElement {
     private _scrollVersion = 0;
 
     get messages(): Message[] {
-        return this._ctx.state.messages;
+        return this._messages;
+    }
+
+    /**
+     * Public API: scroll to the bottom of the message list.
+     * Called by parent components (e.g., rtc-content-area) when needed.
+     */
+    scrollToBottom() {
+        this._shouldAutoScroll = true;
+        this._scrollToBottom();
+    }
+
+    /**
+     * Public API: scroll to a specific message by clientId.
+     * Called by parent components to navigate to a particular message.
+     */
+    scrollToMessage(clientId: string) {
+        if (!this._scrollEl) return;
+        const el = this._scrollEl.querySelector(`[data-client-id="${clientId}"]`) as HTMLElement | null;
+        if (el) {
+            el.scrollIntoView({behavior: 'smooth', block: 'center'});
+            // Disable follow mode since user is viewing a specific message
+            this._shouldAutoScroll = false;
+        }
     }
 
     firstUpdated() {
@@ -174,8 +192,9 @@ export class RtcMessageList extends LitElement {
         if (this._scrollEl) {
             this._scrollEl.scrollTop = 0;
         }
-        // Snapshot initial session ID so we can detect future switches
-        this._prevSessionId = this._sessionCtx.state.currentSessionId;
+
+        // Subscribe to repository for this session
+        this._subscribeToSession();
 
         // ResizeObserver: safety net for post-render content growth.
         // Fires when inner container size changes (streaming chunks, late Markdown,
@@ -206,14 +225,43 @@ export class RtcMessageList extends LitElement {
     }
 
     /**
+     * Subscribe to MessageRepository for the current session.
+     * Called on firstUpdated and when sessionId changes.
+     */
+    private _subscribeToSession() {
+        if (!this.sessionId || !this.messageController) return;
+
+        // Unsubscribe from previous session
+        this._subscription?.();
+        this._subscription = undefined;
+
+        try {
+            // Subscribe to repository for this session
+            this._subscription = this.messageController.repository.subscribe(
+                this.sessionId,
+                (data: MessageState) => {
+                    this._messages = data.messages;
+                    this._hasMore = data.hasMore;
+                    this._isLoadingMore = data.isLoadingMore;
+                },
+            );
+
+            // Trigger initial data load
+            this.messageController.fetchInitialMessages(this.sessionId);
+        } catch (err) {
+            console.debug('[rtc-message-list] Repository not ready:', (err as Error).message);
+        }
+    }
+
+    /**
      * Auto-scroll decision point.
      *
      * The component is responsible for its own scrolling. It does not analyze
      * what kind of change happened (growth, shrink, reorder, toolcall merge, etc.).
      * It only asks two questions:
      *
-     * 1. **Did messages change?** (`_ctx` changed) → if following, scroll to bottom.
-     * 2. **Did session change?** (`_sessionCtx` changed) → reset follow intent to true,
+     * 1. **Did messages change?** (`_messages` changed) → if following, scroll to bottom.
+     * 2. **Did session change?** (`sessionId` changed) → reset follow intent to true,
      *    then scroll to bottom (user expects to see latest messages in a new session).
      *
      * Async content rendering (Markdown, tool call expansion) is handled by
@@ -229,11 +277,9 @@ export class RtcMessageList extends LitElement {
         this.setAttribute('data-density', density);
 
         // --- Session switch: enable follow mode and scroll to bottom ---
-        // When the user opens/switches to a different session, they expect to see
-        // the latest messages. Enable follow mode and scroll to bottom.
-        const currSessionId = this._sessionCtx.state.currentSessionId;
-        if (changed.has('_sessionCtx') && currSessionId !== this._prevSessionId) {
-            this._prevSessionId = currSessionId;
+        // When the sessionId property changes, re-subscribe and scroll to bottom.
+        if (changed.has('sessionId')) {
+            this._subscribeToSession();
             this._shouldAutoScroll = true;
             this._scrollToBottom();
             this._userAtBottom = true;
@@ -244,7 +290,7 @@ export class RtcMessageList extends LitElement {
         // We don't care WHAT changed (new message, toolcall output, reorder, etc.).
         // If the user wants to follow, scroll to bottom. ResizeObserver handles
         // async content rendering (Markdown, thinking blocks, etc.).
-        if (changed.has('_ctx')) {
+        if (changed.has('_messages')) {
             if (this._anchorInfo) {
                 // Load-more (prepend): preserve scroll position using anchor
                 this._preserveScrollPosition();
@@ -256,7 +302,7 @@ export class RtcMessageList extends LitElement {
         }
 
         // --- Update load-more button visibility ---
-        this._showLoadMoreBtn = this._ctx.state.hasMore && this._isNearTop();
+        this._showLoadMoreBtn = this._hasMore && this._isNearTop();
     }
 
     disconnectedCallback() {
@@ -265,6 +311,8 @@ export class RtcMessageList extends LitElement {
         this._resizeObserver?.disconnect();
         clearTimeout(this._resizeDebounceTimer);
         document.removeEventListener('visibilitychange', this._boundOnVisibilityChange);
+        this._subscription?.();
+        this._subscription = undefined;
     }
 
     /**
@@ -349,7 +397,7 @@ export class RtcMessageList extends LitElement {
         }
 
         // Show/hide load-more button based on scroll position
-        this._showLoadMoreBtn = this._ctx.state.hasMore && this._isNearTop();
+        this._showLoadMoreBtn = this._hasMore && this._isNearTop();
     };
 
     /**
@@ -376,14 +424,24 @@ export class RtcMessageList extends LitElement {
         return this._scrollEl.scrollTop < 60;
     }
 
-    private async _handleLoadMoreClick() {
+    private _handleLoadMoreClick = async () => {
+        // Guard: prevent concurrent load-more requests
+        if (this._isLoadingMore) return;
+
+        // Capture sessionId to detect tab switches during async operation
+        const sessionId = this.sessionId;
+        if (!sessionId || !this.messageController) return;
+
         this._showLoadMoreBtn = false;
 
         // Record the anchor element and its visual position before loading
         this._anchorInfo = this._captureAnchorInfo();
 
-        await this._ctx.actions.loadMore();
-    }
+        await this.messageController.loadMoreForSession(sessionId);
+
+        // Verify sessionId hasn't changed during async operation
+        if (this.sessionId !== sessionId) return;
+    };
 
     /** Anchor info captured before loadMore for scroll position preservation. */
     private _anchorInfo: {clientId: string; visualTop: number} | null = null;
@@ -443,11 +501,11 @@ export class RtcMessageList extends LitElement {
             }
 
             // Re-evaluate load-more button after scroll adjustment
-            this._showLoadMoreBtn = this._ctx.state.hasMore && this._isNearTop();
+            this._showLoadMoreBtn = this._hasMore && this._isNearTop();
         });
     }
 
-    private _handleNewBtnClick() {
+    private _handleNewBtnClick = () => {
         if (this._scrollEl) {
             // Smooth scroll is async (animation over ~500ms). Increment the guard
             // counter to prevent _onScroll from disabling follow intent during the animation.
@@ -460,7 +518,7 @@ export class RtcMessageList extends LitElement {
         this._shouldAutoScroll = true;
         this._userAtBottom = true;
         this._showNewBtn = false;
-    }
+    };
 
     render() {
         void this._localeCtx.locale;
@@ -470,7 +528,7 @@ export class RtcMessageList extends LitElement {
         const items = this._buildRenderItems(msgs);
         // The last rendered item's key determines which component gets is-last
         const lastRenderedKey = items.length > 0 ? items[items.length - 1].key : '';
-        const isLoadingMore = this._ctx.state.isLoadingMore;
+        const isLoadingMore = this._isLoadingMore;
 
         return html`
       <div class="message-list-scroll" part="scroll">

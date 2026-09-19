@@ -8,8 +8,10 @@
  * 点击会话树节点 → 打开/切换 Tab → 聊天内容区显示该 session 的消息。
  *
  * 聊天内容区复用现有组件（rtc-content-area / rtc-notice-bar /
- * rtc-input-area / rtc-overlay-manager），通过 SessionContext 的
- * currentSessionId 切换不同 session。
+ * rtc-input-area / rtc-overlay-manager）。通过 SessionContext 的
+ * currentSessionId 切换不同 session，并通过 messageController 属性
+ * 将 MessageRepository 传递给 rtc-content-area → rtc-message-list，
+ * 实现每个 tab 独立的消息实例。
  *
  * @element rtc-chat-layout
  * @fires rtc-chat-layout-session-select - 用户点击会话树节点 (detail: { sessionId })
@@ -40,6 +42,7 @@ import '../content-area/rtc-content-area.js';
 import '../notice-bar/rtc-notice-bar.js';
 import '../input-area/rtc-input-area.js';
 import type {RtcInputArea} from '../input-area/rtc-input-area.js';
+import type {MessageController} from '../../controllers/message.controller.js';
 import '../overlay/rtc-overlay-manager.js';
 import '../drawer/rtc-drawer.js';
 
@@ -73,6 +76,10 @@ export class RtcChatLayout extends LitElement {
      */
     @property({type: Boolean, reflect: true, attribute: 'session-tree-visible'})
     sessionTreeVisible = true;
+
+    /** Message controller for repository access (passed to rtc-content-area). */
+    @property({attribute: false})
+    messageController?: MessageController;
 
     /* ── Context ── */
 
@@ -400,6 +407,9 @@ export class RtcChatLayout extends LitElement {
             })
         );
 
+        // Notify MessageController to evict this session's cache (prevent memory leak)
+        this.messageController?.evictSession(sessionId);
+
         if (wasActive) {
             // 同步计算：关闭这个 Tab 后还剩几个
             const remainingTabs = this._tabCtx.state.tabs.filter(
@@ -426,9 +436,14 @@ export class RtcChatLayout extends LitElement {
     /* ── Render ── */
 
     private _renderChatContent() {
+        const currentSessionId = this._sessionCtx?.state?.currentSessionId;
         return html`
             <div class="content-area">
-                <rtc-content-area theme=${this.theme}></rtc-content-area>
+                <rtc-content-area
+                    theme=${this.theme}
+                    .sessionId=${currentSessionId}
+                    .messageController=${this.messageController}
+                ></rtc-content-area>
                 <rtc-notice-bar></rtc-notice-bar>
                 <rtc-input-area></rtc-input-area>
                 <rtc-overlay-manager></rtc-overlay-manager>

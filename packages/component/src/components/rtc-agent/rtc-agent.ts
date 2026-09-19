@@ -2193,7 +2193,7 @@ export class RtcAgent extends LitElement {
               ></rtc-status-bar>
             </div>`
           : isChat
-            ? html`<rtc-chat-layout theme=${this.theme} .sessionTreeVisible=${sidebarVisible}></rtc-chat-layout>`
+            ? html`<rtc-chat-layout theme=${this.theme} .sessionTreeVisible=${sidebarVisible} .messageController=${this._message}></rtc-chat-layout>`
             : isSettings
               ? html`<rtc-settings-layout theme=${this.theme} .sidebarVisible=${sidebarVisible}></rtc-settings-layout>`
               : nothing}

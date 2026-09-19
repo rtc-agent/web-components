@@ -47,11 +47,19 @@ export class MessageController implements ReactiveController {
                 fetchMessages: async (sessionId: string) => {
                     if (!this._persistence) return [];
                     const messages = await this._persistence.listMessages(sessionId, undefined, 50, 'backward');
+                    // Track pagination cursor
+                    if (messages.length > 0) {
+                        this._repository?.setOldestOffset(sessionId, messages[0].global_offset);
+                    }
                     return messages.map(m => this._localMessageToUI(m));
                 },
                 fetchOlderMessages: async (sessionId: string, beforeOffset?: number) => {
                     if (!this._persistence) return [];
                     const messages = await this._persistence.listMessages(sessionId, beforeOffset, 50, 'backward');
+                    // Update pagination cursor
+                    if (messages.length > 0) {
+                        this._repository?.setOldestOffset(sessionId, messages[0].global_offset);
+                    }
                     return messages.map(m => this._localMessageToUI(m));
                 },
             });
@@ -116,6 +124,13 @@ export class MessageController implements ReactiveController {
             syncStatus: 'synced',
         };
         this._state = {messages: [...this._state.messages, msg], hasMore: this._state.hasMore, isLoadingMore: this._state.isLoadingMore};
+
+        // Update repository for the current session
+        const currentSessionId = this._sessionController?.value.state.currentSessionId;
+        if (this._repository && currentSessionId) {
+            this._repository.appendMessage(currentSessionId, msg);
+        }
+
         this.host.requestUpdate();
     }
 
@@ -141,6 +156,14 @@ export class MessageController implements ReactiveController {
         if (!this._repository) return;
         await this._repository.loadMore(sessionId);
         this.host.requestUpdate();
+    }
+
+    /**
+     * Evict a session from the repository cache.
+     * Called when a tab is closed to free memory.
+     */
+    evictSession(sessionId: string): void {
+        this._repository?.evictSession(sessionId);
     }
 
     /**
@@ -172,6 +195,12 @@ export class MessageController implements ReactiveController {
                     messages = [...this._state.messages, newMsg].sort((a, b) => a.timestamp - b.timestamp);
                 }
                 this._state = {messages, hasMore: this._state.hasMore, isLoadingMore: this._state.isLoadingMore};
+
+                // Update repository for the current session
+                if (this._repository && currentSessionId) {
+                    this._repository.updateMessages(currentSessionId, messages);
+                }
+
                 this.host.requestUpdate();
             }
         } else {
@@ -356,7 +385,17 @@ export class MessageController implements ReactiveController {
             ? localMessages[0].global_offset
             : undefined;
 
+        // Update legacy state (for MessageContext consumers like rtc-input-area)
         this._state = {messages, hasMore, isLoadingMore: false};
+
+        // Update repository (for rtc-message-list subscription)
+        if (this._repository) {
+            this._repository.updateMessages(sessionClientId, messages);
+            if (this._oldestLoadedOffset !== undefined) {
+                this._repository.setOldestOffset(sessionClientId, this._oldestLoadedOffset);
+            }
+        }
+
         this.host.requestUpdate();
     }
 
@@ -511,6 +550,13 @@ export class MessageController implements ReactiveController {
             streaming: true,
         };
         this._state = {messages, hasMore: this._state.hasMore, isLoadingMore: this._state.isLoadingMore};
+
+        // Update repository for the current session
+        const currentSessionId = this._sessionController?.value.state.currentSessionId;
+        if (this._repository && currentSessionId) {
+            this._repository.updateMessages(currentSessionId, messages);
+        }
+
         this.host.requestUpdate();
     }
 
@@ -523,11 +569,25 @@ export class MessageController implements ReactiveController {
             streaming: false,
         };
         this._state = {messages, hasMore: this._state.hasMore, isLoadingMore: this._state.isLoadingMore};
+
+        // Update repository for the current session
+        const currentSessionId = this._sessionController?.value.state.currentSessionId;
+        if (this._repository && currentSessionId) {
+            this._repository.updateMessages(currentSessionId, messages);
+        }
+
         this.host.requestUpdate();
     }
 
     private _clearMessages() {
         this._state = {messages: [], hasMore: false, isLoadingMore: false};
+
+        // Update repository for the current session
+        const currentSessionId = this._sessionController?.value.state.currentSessionId;
+        if (this._repository && currentSessionId) {
+            this._repository.updateMessages(currentSessionId, []);
+        }
+
         this.host.requestUpdate();
     }
 }
