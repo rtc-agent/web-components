@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug: rtc-message-list</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .toolbar {
+            display: flex;
+            gap: 8px;
+            padding: 12px 16px;
+            background: #16213e;
+            border-bottom: 1px solid #0f3460;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .toolbar button {
+            padding: 6px 14px;
+            background: #0f3460;
+            color: #e0e0e0;
+            border: 1px solid #1a4080;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .toolbar button:hover { background: #1a4080; }
+        .toolbar button:active { background: #254e94; }
+        .toolbar .separator {
+            width: 1px;
+            height: 24px;
+            background: #0f3460;
+        }
+        .toolbar .info {
+            font-size: 12px;
+            color: #888;
+            margin-left: auto;
+        }
+        .chat-container {
+            flex: 1;
+            min-height: 0;
+            position: relative;
+        }
+        rtc-message-list {
+            display: block;
+            height: 100%;
+        }
+        /* Status bar */
+        .status-bar {
+            display: flex;
+            gap: 16px;
+            padding: 8px 16px;
+            background: #16213e;
+            border-top: 1px solid #0f3460;
+            font-size: 12px;
+            color: #888;
+        }
+        .status-bar .metric { display: flex; gap: 4px; }
+        .status-bar .metric .label { color: #666; }
+        .status-bar .metric .value { color: #4cc9f0; font-weight: 600; }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <button id="btn-load-initial">📥 Load Initial (50)</button>
+        <button id="btn-load-more">⬆️ Load More (older)</button>
+        <button id="btn-append">📩 Append Message</button>
+        <button id="btn-streaming">🌊 Start Streaming</button>
+        <button id="btn-stop-streaming">⏹ Stop Streaming</button>
+        <div class="separator"></div>
+        <button id="btn-switch-session">🔄 Switch Session</button>
+        <button id="btn-add-100">➕ Add 100 Messages</button>
+        <button id="btn-clear">🗑️ Clear</button>
+        <div class="separator"></div>
+        <button id="btn-scroll-top">⬆️ Scroll Top</button>
+        <button id="btn-scroll-bottom">⬇️ Scroll Bottom</button>
+        <span class="info" id="session-info">Session: session-1</span>
+    </div>
+    <div class="chat-container">
+        <rtc-message-list id="message-list"></rtc-message-list>
+    </div>
+    <div class="status-bar">
+        <div class="metric"><span class="label">Repo messages:</span><span class="value" id="stat-repo">0</span></div>
+        <div class="metric"><span class="label">DOM messages:</span><span class="value" id="stat-dom">0</span></div>
+        <div class="metric"><span class="label">hasMore:</span><span class="value" id="stat-hasmore">false</span></div>
+        <div class="metric"><span class="label">isLoading:</span><span class="value" id="stat-loading">false</span></div>
+        <div class="metric"><span class="label">scrollTop:</span><span class="value" id="stat-scrolltop">0</span></div>
+        <div class="metric"><span class="label">scrollHeight:</span><span class="value" id="stat-scrollheight">0</span></div>
+    </div>
+
+    <script type="module" src="./message-list.debug.ts"></script>
+</body>
+</html>
