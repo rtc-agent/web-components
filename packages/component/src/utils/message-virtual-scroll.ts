@@ -140,6 +140,9 @@ export class MessageVirtualScroll<T> {
     /**
      * Prepend items (older messages) with smooth scroll compensation.
      * Uses Telegram's ScrollSaver algorithm.
+     *
+     * IMPORTANT: Only inserts new elements at the beginning, does NOT re-render
+     * all elements. This preserves DOM element references for ScrollSaver.
      */
     prependItems(items: T[]): void {
         if (items.length === 0) return;
@@ -151,8 +154,31 @@ export class MessageVirtualScroll<T> {
         // Prepend to items array
         this._items = [...items, ...this._items];
 
-        // Re-render: clear and re-render all (indices shift after prepend)
-        this._renderAll();
+        // Re-index existing elements (indices shift after prepend)
+        // We need to update messageIndex dataset for all existing elements
+        const existingElements = Array.from(this._innerContainer.children) as HTMLElement[];
+        for (const el of existingElements) {
+            const oldIndex = parseInt(el.dataset.messageIndex || '-1', 10);
+            if (oldIndex >= 0) {
+                el.dataset.messageIndex = String(oldIndex + items.length);
+            }
+        }
+
+        // Insert new elements at the beginning (don't re-render existing)
+        const fragment = document.createDocumentFragment();
+        items.forEach((item, index) => {
+            const el = this._renderItem(item, index);
+            el.dataset.messageIndex = String(index);
+            this._elementMap.set(index, el);
+            fragment.appendChild(el);
+        });
+
+        // Insert at the beginning
+        if (this._innerContainer.firstChild) {
+            this._innerContainer.insertBefore(fragment, this._innerContainer.firstChild);
+        } else {
+            this._innerContainer.appendChild(fragment);
+        }
 
         // Restore scroll position using Telegram's algorithm
         scrollSaver.restore();
