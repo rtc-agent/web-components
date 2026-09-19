@@ -248,6 +248,13 @@ export class MessageVirtualScroll<T> {
         const distanceFromTop = scrollTop;
         const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
 
+        console.log(
+            `[VirtualScroll] _onScroll: scrollTop=${scrollTop}, scrollHeight=${scrollHeight}, clientHeight=${clientHeight}, ` +
+            `distanceFromTop=${distanceFromTop}, distanceFromBottom=${distanceFromBottom}, ` +
+            `loadedTop=${this._loadedTop}, loadedBottom=${this._loadedBottom}, ` +
+            `isLoadingTop=${this._isLoading.top}, isLoadingBottom=${this._isLoading.bottom}`
+        );
+
         // Debounced viewport slicing (like Telegram's sliceViewportDebounced)
         // Reset timer on each scroll event, execute after user stops scrolling
         if (this._sliceDebounceTimer) {
@@ -257,9 +264,13 @@ export class MessageVirtualScroll<T> {
             this._sliceViewport();
         }, this._sliceDebounceDelay);
 
-        if (!this._onLoadMore) return;
+        if (!this._onLoadMore) {
+            console.log('[VirtualScroll] _onScroll: no onLoadMore callback');
+            return;
+        }
 
         const boundary = this._getWindowBoundary();
+        console.log(`[VirtualScroll] _onScroll: boundary=${JSON.stringify(boundary)}`);
 
         // Load more top: near top AND not fully loaded in that direction
         // Telegram uses onScrollOffset = 300px for early triggering
@@ -273,11 +284,18 @@ export class MessageVirtualScroll<T> {
                         return this.prependItems(items);
                     }
                     // No more messages - mark as fully loaded
+                    console.log('[VirtualScroll] loadMore(top) returned 0 items, marking loadedTop=true');
                     this._loadedTop = true;
                 })
                 .finally(() => {
                     this._isLoading.top = false;
                 });
+        } else {
+            console.log(
+                `[VirtualScroll] loadMore(top) NOT triggered: ` +
+                `distanceFromTop=${distanceFromTop} >= threshold=${this._preloadThreshold}? ${distanceFromTop >= this._preloadThreshold}, ` +
+                `loadedTop=${this._loadedTop}, isLoadingTop=${this._isLoading.top}`
+            );
         }
 
         // Load more bottom: near bottom AND not fully loaded in that direction
