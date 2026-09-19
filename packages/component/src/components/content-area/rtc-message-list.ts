@@ -34,7 +34,6 @@ import {customElement, property, state} from 'lit/decorators.js';
 import {consume} from '@lit/context';
 import {localized, msg} from '@lit/localize';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
-import {repeat} from 'lit/directives/repeat.js';
 import {styles} from './rtc-message-list.styles.js';
 import {SettingsContext, type SettingsContextValue} from '../../contexts/settings.js';
 import type {MessageController} from '../../controllers/message.controller.js';
@@ -43,7 +42,7 @@ import './rtc-message.js';
 import './rtc-user-message.js';
 import './rtc-toolcall-card.js';
 import './rtc-error-message.js';
-import type {ToolCallPair} from './rtc-toolcall-card.js';
+import {MessageVirtualScroll, type WindowBoundary} from '../../utils/message-virtual-scroll.js';
 
 @localized()
 @customElement('rtc-message-list')
@@ -145,6 +144,12 @@ export class RtcMessageList extends LitElement {
     private _resizeObserver?: ResizeObserver;
     private _resizeDebounceTimer?: number;
 
+    /** Virtual scroll instance for efficient rendering */
+    private _virtualScroll?: MessageVirtualScroll<Message>;
+
+    /** Flag to prevent ResizeObserver feedback loop during virtual scroll operations */
+    private _isVirtualScrollOperation = false;
+
     /** Bound visibilitychange handler for cleanup. */
     private _boundOnVisibilityChange = this._onVisibilityChange.bind(this);
 
@@ -185,12 +190,29 @@ export class RtcMessageList extends LitElement {
 
     firstUpdated() {
         this._scrollEl = this.shadowRoot!.querySelector('.message-list-scroll') as HTMLElement;
-        this._scrollEl?.addEventListener('scroll', this._onScroll);
+        const innerEl = this.shadowRoot!.querySelector('.message-list-inner') as HTMLElement;
 
         // Defeat browser scroll restoration on initial mount: force scrollTop to 0
         // so the first `updated()` cycle can scroll cleanly to the bottom.
         if (this._scrollEl) {
             this._scrollEl.scrollTop = 0;
+            // Add scroll listener for UI state updates (button visibility, auto-scroll intent)
+            this._scrollEl.addEventListener('scroll', this._onScroll, {passive: true});
+        }
+
+        // Initialize virtual scroll
+        if (this._scrollEl && innerEl) {
+            this._virtualScroll = new MessageVirtualScroll<Message>({
+                scrollContainer: this._scrollEl,
+                innerContainer: innerEl,
+                renderItem: (msg, index) => this._renderMessageElement(msg, index),
+                getItemId: (msg) => msg.clientId,
+                onLoadMore: (direction, boundary) => this._handleVirtualScrollLoadMore(direction, boundary),
+                query: '[data-client-id]',
+                preloadThreshold: 300, // Telegram uses 300px
+                bufferMessages: 20,
+                sliceInterval: 3000,
+            });
         }
 
         // Subscribe to repository for this session
@@ -200,22 +222,22 @@ export class RtcMessageList extends LitElement {
         // Fires when inner container size changes (streaming chunks, late Markdown,
         // thinking-block expansion). Uses debounced scroll to handle async renders
         // (e.g., Markdown that renders after the initial updateComplete).
-        const inner = this.shadowRoot!.querySelector('.message-list-inner') as HTMLElement;
-        if (inner) {
+        // IMPORTANT: Ignore resizes from virtual scroll's own operations to prevent feedback loop.
+        if (innerEl) {
             this._resizeObserver = new ResizeObserver(() => {
+                // Ignore resizes from virtual scroll operations (prependItems/appendItems)
+                if (this._isVirtualScrollOperation) return;
+
                 if (!this._shouldAutoScroll) return;
-                // Immediate scroll
-                this._scrollToBottom();
                 // Debounced compensation: handles late async renders (Markdown, etc.)
-                // that complete after the ResizeObserver fires.
                 clearTimeout(this._resizeDebounceTimer);
                 this._resizeDebounceTimer = window.setTimeout(() => {
-                    if (this._shouldAutoScroll) {
+                    if (this._shouldAutoScroll && !this._isVirtualScrollOperation) {
                         this._scrollToBottom();
                     }
                 }, 100);
             });
-            this._resizeObserver.observe(inner);
+            this._resizeObserver.observe(innerEl);
         }
 
         // Visibility change: when the page becomes visible again (e.g., user switches
@@ -235,14 +257,16 @@ export class RtcMessageList extends LitElement {
         this._subscription?.();
         this._subscription = undefined;
 
+        // Clear virtual scroll for new session
+        this._virtualScroll?.clear();
+        this._messages = [];
+
         try {
             // Subscribe to repository for this session
             this._subscription = this.messageController.repository.subscribe(
                 this.sessionId,
                 (data: MessageState) => {
-                    this._messages = data.messages;
-                    this._hasMore = data.hasMore;
-                    this._isLoadingMore = data.isLoadingMore;
+                    this._handleMessagesUpdate(data);
                 },
             );
 
@@ -250,6 +274,77 @@ export class RtcMessageList extends LitElement {
             this.messageController.fetchInitialMessages(this.sessionId);
         } catch (err) {
             console.debug('[rtc-message-list] Repository not ready:', (err as Error).message);
+        }
+    }
+
+    /**
+     * Handle messages update from repository subscription.
+     * Converts repository changes to virtual scroll operations.
+     */
+    private _handleMessagesUpdate(data: MessageState) {
+        const oldMessages = this._messages;
+        const newMessages = data.messages;
+
+        if (!this._virtualScroll) {
+            this._messages = newMessages;
+            this._hasMore = data.hasMore;
+            this._isLoadingMore = data.isLoadingMore;
+            return;
+        }
+
+        if (oldMessages.length === 0 && newMessages.length > 0) {
+            // Initial load
+            this._isVirtualScrollOperation = true;
+            this._virtualScroll.setItems(newMessages);
+            if (this._shouldAutoScroll) {
+                this._virtualScroll.scrollToBottom();
+            }
+            this._isVirtualScrollOperation = false;
+        } else if (newMessages.length !== oldMessages.length) {
+            // Detect changes: prepend, append, or both
+            const oldSet = new Set(oldMessages.map(m => m.clientId));
+
+            // Find prepended messages (in new but before old first)
+            const prepended: Message[] = [];
+            const appended: Message[] = [];
+
+            const oldFirstId = oldMessages[0]?.clientId;
+            const oldLastId = oldMessages[oldMessages.length - 1]?.clientId;
+
+            for (const m of newMessages) {
+                if (!oldSet.has(m.clientId)) {
+                    // Check if it's before old first or after old last
+                    const newIdx = newMessages.indexOf(m);
+                    const oldFirstIdx = oldFirstId ? newMessages.findIndex(nm => nm.clientId === oldFirstId) : -1;
+                    const oldLastIdx = oldLastId ? newMessages.findIndex(nm => nm.clientId === oldLastId) : -1;
+
+                    if (oldFirstIdx === -1 || newIdx < oldFirstIdx) {
+                        prepended.push(m);
+                    } else if (oldLastIdx === -1 || newIdx > oldLastIdx) {
+                        appended.push(m);
+                    }
+                }
+            }
+
+            if (prepended.length > 0 || appended.length > 0) {
+                this._isVirtualScrollOperation = true;
+                if (prepended.length > 0) {
+                    this._virtualScroll.prependItems(prepended);
+                }
+                if (appended.length > 0) {
+                    this._virtualScroll.appendItems(appended);
+                }
+                this._isVirtualScrollOperation = false;
+            }
+        }
+
+        this._messages = newMessages;
+        this._hasMore = data.hasMore;
+        this._isLoadingMore = data.isLoadingMore;
+
+        // Mark as fully loaded if repository says no more
+        if (this._hasMore === false) {
+            this._virtualScroll.setFullyLoaded('top', true);
         }
     }
 
@@ -276,27 +371,21 @@ export class RtcMessageList extends LitElement {
         const density = this._settingsCtx.state.chat.density;
         this.setAttribute('data-density', density);
 
-        // --- Session switch: enable follow mode and scroll to bottom ---
-        // When the sessionId property changes, re-subscribe and scroll to bottom.
+        // --- Session switch: clear virtual scroll, re-subscribe, scroll to bottom ---
         if (changed.has('sessionId')) {
+            this._virtualScroll?.clear();
             this._subscribeToSession();
             this._shouldAutoScroll = true;
-            this._scrollToBottom();
+            this._virtualScroll?.scrollToBottom();
             this._userAtBottom = true;
             this._showNewBtn = false;
         }
 
         // --- Messages changed: scroll if following ---
-        // We don't care WHAT changed (new message, toolcall output, reorder, etc.).
-        // If the user wants to follow, scroll to bottom. ResizeObserver handles
-        // async content rendering (Markdown, thinking blocks, etc.).
+        // Virtual scroll handles its own scroll preservation via ScrollSaver.
+        // We only need to scroll to bottom for new messages (append).
         if (changed.has('_messages')) {
-            if (this._anchorInfo) {
-                // Load-more (prepend): preserve scroll position using anchor
-                this._preserveScrollPosition();
-                this._anchorInfo = null;
-            } else if (this._shouldAutoScroll) {
-                // Normal change (append, update, etc.): scroll to bottom
+            if (this._shouldAutoScroll) {
                 this._scheduleScroll();
             }
         }
@@ -313,6 +402,8 @@ export class RtcMessageList extends LitElement {
         document.removeEventListener('visibilitychange', this._boundOnVisibilityChange);
         this._subscription?.();
         this._subscription = undefined;
+        this._virtualScroll?.dispose();
+        this._virtualScroll = undefined;
     }
 
     /**
@@ -424,86 +515,104 @@ export class RtcMessageList extends LitElement {
         return this._scrollEl.scrollTop < 60;
     }
 
+    /**
+     * Handle virtual scroll's onLoadMore callback.
+     * Loads more messages from repository when scrolling near edges.
+     */
+    private async _handleVirtualScrollLoadMore(
+        direction: 'top' | 'bottom',
+        boundary: WindowBoundary
+    ): Promise<Message[]> {
+        if (!this.sessionId || !this.messageController) return [];
+
+        const beforeMessages = [...this._messages];
+
+        try {
+            if (direction === 'top') {
+                if (!boundary.firstId) return [];
+                await this.messageController.loadMoreForSession(this.sessionId);
+            } else {
+                // Bottom loading not implemented yet
+                return [];
+            }
+
+            // Wait for repository subscription to update _messages
+            await this.updateComplete;
+
+            // Find newly loaded messages (in _messages but not in beforeMessages)
+            const beforeSet = new Set(beforeMessages.map(m => m.clientId));
+            const newMessages = this._messages.filter(m => !beforeSet.has(m.clientId));
+
+            // Mark as fully loaded if no new messages and repository says no more
+            if (newMessages.length === 0 && !this._hasMore) {
+                this._virtualScroll?.setFullyLoaded(direction, true);
+            }
+
+            return newMessages;
+        } catch (err) {
+            console.error('[rtc-message-list] loadMore failed:', err);
+            return [];
+        }
+    }
+
+    /**
+     * Render a message element for virtual scroll.
+     * Toolcall input and output are rendered separately (no pairing).
+     */
+    private _renderMessageElement(msg: Message, index: number): HTMLElement {
+        const isLast = index === this._messages.length - 1;
+
+        // Error messages
+        if (msg.content?.type === 'error') {
+            const el = document.createElement('rtc-error-message');
+            el.setAttribute('data-client-id', msg.clientId);
+            (el as any).message = msg;
+            return el;
+        }
+
+        // Toolcall input and output rendered separately (no pairing)
+        if (msg.content?.type === 'toolcall_input' || msg.content?.type === 'toolcall_output') {
+            const el = document.createElement('rtc-message');
+            el.setAttribute('data-client-id', msg.clientId);
+            (el as any).message = msg;
+            if (isLast) {
+                el.setAttribute('is-last', '');
+            }
+            return el;
+        }
+
+        // User messages
+        if (msg.role === 'user') {
+            const el = document.createElement('rtc-user-message');
+            el.setAttribute('data-client-id', msg.clientId);
+            (el as any).message = msg;
+            return el;
+        }
+
+        // Assistant messages
+        const el = document.createElement('rtc-message');
+        el.setAttribute('data-client-id', msg.clientId);
+        (el as any).message = msg;
+        if (isLast) {
+            el.setAttribute('is-last', '');
+        }
+        return el;
+    }
+
     private _handleLoadMoreClick = async () => {
         // Guard: prevent concurrent load-more requests
-        if (this._isLoadingMore) return;
+        if (this._isLoadingMore || !this._virtualScroll) return;
 
-        // Capture sessionId to detect tab switches during async operation
-        const sessionId = this.sessionId;
-        if (!sessionId || !this.messageController) return;
-
-        this._showLoadMoreBtn = false;
-
-        // Record the anchor element and its visual position before loading
-        this._anchorInfo = this._captureAnchorInfo();
-
-        await this.messageController.loadMoreForSession(sessionId);
-
-        // Verify sessionId hasn't changed during async operation
-        if (this.sessionId !== sessionId) return;
-    };
-
-    /** Anchor info captured before loadMore for scroll position preservation. */
-    private _anchorInfo: {clientId: string; visualTop: number} | null = null;
-
-    /**
-     * Capture the first visible message's clientId and its position
-     * relative to the scroll container viewport.
-     */
-    private _captureAnchorInfo(): {clientId: string; visualTop: number} | null {
-        if (!this._scrollEl) return null;
-        const scrollRect = this._scrollEl.getBoundingClientRect();
-        const children = this._scrollEl.querySelectorAll('[data-client-id]');
-        for (const el of children) {
-            const rect = el.getBoundingClientRect();
-            // First child whose top is at or below the scroll container's top
-            if (rect.top >= scrollRect.top - 10) {
-                return {
-                    clientId: el.getAttribute('data-client-id') ?? '',
-                    visualTop: rect.top - scrollRect.top,
-                };
-            }
+        // Trigger virtual scroll's load-more by simulating scroll to top
+        // (virtual scroll will auto-load when near edge)
+        const stats = this._virtualScroll.getStats();
+        if (stats.firstId) {
+            await this._handleVirtualScrollLoadMore('top', {
+                firstId: stats.firstId,
+                lastId: stats.lastId,
+            });
         }
-        return null;
-    }
-
-    /**
-     * After prepending older messages, scroll so the anchor message stays
-     * at the same visual position within the viewport.
-     */
-    private _preserveScrollPosition() {
-        if (!this._scrollEl || !this._anchorInfo) return;
-
-        const anchorId = this._anchorInfo.clientId;
-        const desiredVisualTop = this._anchorInfo.visualTop;
-
-        this.updateComplete.then(async () => {
-            // Wait for child message elements to render
-            const msgEls = this.shadowRoot!.querySelectorAll('rtc-message, rtc-user-message, rtc-toolcall-card, rtc-error-message');
-            if (msgEls.length > 0) {
-                await Promise.all(
-                    Array.from(msgEls).map(el => (el as LitElement).updateComplete)
-                );
-            }
-
-            if (!this._scrollEl) return;
-
-            // Find the anchor element after prepend
-            const anchorEl = this._scrollEl.querySelector(`[data-client-id="${anchorId}"]`) as HTMLElement | null;
-            if (anchorEl) {
-                // Compute current visual position of anchor
-                const scrollRect = this._scrollEl.getBoundingClientRect();
-                const anchorRect = anchorEl.getBoundingClientRect();
-                const currentVisualTop = anchorRect.top - scrollRect.top;
-
-                // Adjust scrollTop so anchor returns to its pre-load visual position
-                this._scrollEl.scrollTop += (currentVisualTop - desiredVisualTop);
-            }
-
-            // Re-evaluate load-more button after scroll adjustment
-            this._showLoadMoreBtn = this._hasMore && this._isNearTop();
-        });
-    }
+    };
 
     private _handleNewBtnClick = () => {
         if (this._scrollEl) {
@@ -524,106 +633,31 @@ export class RtcMessageList extends LitElement {
         void this._localeCtx.locale;
         // _userAtBottom is a @state driving re-render on scroll; consumed implicitly.
         void this._userAtBottom;
-        const msgs = this.messages;
-        const items = this._buildRenderItems(msgs);
-        // The last rendered item's key determines which component gets is-last
-        const lastRenderedKey = items.length > 0 ? items[items.length - 1].key : '';
         const isLoadingMore = this._isLoadingMore;
 
+        // Virtual scroll manages DOM elements directly.
+        // render() only provides the container structure.
         return html`
-      <div class="message-list-scroll" part="scroll">
-        <div class="message-list-inner" part="inner">
-          ${repeat(
-            items,
-            (item) => item.key,
-            (item) => {
-              if (item.type === 'user') {
-                return html`<rtc-user-message data-client-id=${item.message.clientId} .message=${item.message}></rtc-user-message>`;
-              }
-              if (item.type === 'toolcall') {
-                return html`<rtc-toolcall-card data-client-id=${item.pair.input.clientId} .pair=${item.pair}></rtc-toolcall-card>`;
-              }
-              if (item.type === 'error') {
-                return html`<rtc-error-message data-client-id=${item.message.clientId} .message=${item.message}></rtc-error-message>`;
-              }
-              return html`<rtc-message
-                data-client-id=${item.message.clientId}
-                .message=${item.message}
-                ?is-last=${item.key === lastRenderedKey}
-              ></rtc-message>`;
-            }
-          )}
-        </div>
-      </div>
-      <button
-        class="load-more-btn"
-        ?hidden=${!this._showLoadMoreBtn}
-        ?disabled=${isLoadingMore}
-        @click=${this._handleLoadMoreClick}
-        aria-label="Load earlier messages"
-      >${isLoadingMore ? msg('Loading...') : msg('↑ Load earlier messages')}</button>
-      <button
-        class="new-message-btn"
-        ?hidden=${!this._showNewBtn}
-        @click=${this._handleNewBtnClick}
-      >${msg('↓ New messages')}</button>
-    `;
+            <div class="message-list-scroll" part="scroll">
+                <div class="message-list-inner" part="inner">
+                    <!-- MessageVirtualScroll dynamically inserts message elements here -->
+                </div>
+            </div>
+            <button
+                class="load-more-btn"
+                ?hidden=${!this._showLoadMoreBtn}
+                ?disabled=${isLoadingMore}
+                @click=${this._handleLoadMoreClick}
+                aria-label="Load earlier messages"
+            >${isLoadingMore ? msg('Loading...') : msg('↑ Load earlier messages')}</button>
+            <button
+                class="new-message-btn"
+                ?hidden=${!this._showNewBtn}
+                @click=${this._handleNewBtnClick}
+            >${msg('↓ New messages')}</button>
+        `;
     }
 
-    /**
-     * Build render items from the flat message list.
-     *
-     * Pairs toolcall_input + toolcall_output into a single ToolCallPair.
-     * Output messages that are paired are excluded from the render list.
-     * Error messages are routed to their own render type.
-     *
-     * Returns ordered render items: user | assistant | toolcall | error.
-     */
-    private _buildRenderItems(msgs: Message[]): Array<
-        | {type: 'user'; key: string; message: Message}
-        | {type: 'assistant'; key: string; message: Message}
-        | {type: 'toolcall'; key: string; pair: ToolCallPair}
-        | {type: 'error'; key: string; message: Message}
-    > {
-        // 1. Build a map: input clientId -> output Message (for quick lookup)
-        const inputToOutput = new Map<string, Message>();
-        for (const m of msgs) {
-            if (m.content?.type === 'toolcall_output' && m.parentClientId) {
-                inputToOutput.set(m.parentClientId, m);
-            }
-        }
-
-        const items: Array<
-            | {type: 'user'; key: string; message: Message}
-            | {type: 'assistant'; key: string; message: Message}
-            | {type: 'toolcall'; key: string; pair: ToolCallPair}
-            | {type: 'error'; key: string; message: Message}
-        > = [];
-
-        for (const m of msgs) {
-            if (m.content?.type === 'toolcall_output') {
-                // Output is rendered as part of its input pair, skip standalone
-                continue;
-            }
-
-            if (m.content?.type === 'error') {
-                // Error messages get their own render component
-                items.push({type: 'error', key: m.clientId, message: m});
-            } else if (m.content?.type === 'toolcall_input') {
-                items.push({
-                    type: 'toolcall',
-                    key: m.clientId,
-                    pair: {input: m, output: inputToOutput.get(m.clientId)},
-                });
-            } else if (m.role === 'user') {
-                items.push({type: 'user', key: m.clientId, message: m});
-            } else {
-                items.push({type: 'assistant', key: m.clientId, message: m});
-            }
-        }
-
-        return items;
-    }
 }
 
 declare global {
