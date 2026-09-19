@@ -520,7 +520,9 @@ export class RtcMessageList extends LitElement {
 
     /**
      * Handle virtual scroll's onLoadMore callback.
-     * Loads more messages from repository when scrolling near edges.
+     * Triggers load-more from repository. The actual prepend is handled by
+     * _handleMessagesUpdate via repository subscription.
+     * Returns empty array since we don't prepend here.
      */
     private async _handleVirtualScrollLoadMore(
         direction: 'top' | 'bottom',
@@ -528,30 +530,19 @@ export class RtcMessageList extends LitElement {
     ): Promise<Message[]> {
         if (!this.sessionId || !this.messageController) return [];
 
-        const beforeMessages = [...this._messages];
-
         try {
             if (direction === 'top') {
                 if (!boundary.firstId) return [];
+                // Trigger load-more. Repository subscription will update _messages,
+                // which triggers _handleMessagesUpdate to call virtualScroll.prependItems().
                 await this.messageController.loadMoreForSession(this.sessionId);
             } else {
                 // Bottom loading not implemented yet
                 return [];
             }
 
-            // Wait for repository subscription to update _messages
-            await this.updateComplete;
-
-            // Find newly loaded messages (in _messages but not in beforeMessages)
-            const beforeSet = new Set(beforeMessages.map(m => m.clientId));
-            const newMessages = this._messages.filter(m => !beforeSet.has(m.clientId));
-
-            // Mark as fully loaded if no new messages and repository says no more
-            if (newMessages.length === 0 && !this._hasMore) {
-                this._virtualScroll?.setFullyLoaded(direction, true);
-            }
-
-            return newMessages;
+            // Return empty array - actual prepend is handled by _handleMessagesUpdate
+            return [];
         } catch (err) {
             console.error('[rtc-message-list] loadMore failed:', err);
             return [];
