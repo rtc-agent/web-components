@@ -175,11 +175,6 @@ export class EntityRepository {
     return db.sessions.get(clientId);
   }
 
-  /** @deprecated Use getClientSession instead */
-  async getSessionByClientId(clientId: string): Promise<LocalSession | undefined> {
-    return this.getClientSession(clientId);
-  }
-
   async getSessionByServerId(serverId: string): Promise<LocalSession | undefined> {
     const db = getDatabase();
     return db.sessions.where('server_id').equals(serverId).first();

@@ -92,10 +92,6 @@ class WorkerPersistenceAdapter {
         return this._core.getSession(clientId);
     }
 
-    async getSessionByClientId(clientId: string): Promise<LocalSession | undefined> {
-        return this._core.getSession(clientId);
-    }
-
     async listMessages(
         sessionClientId: string,
         cursor?: string,

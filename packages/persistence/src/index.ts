@@ -138,14 +138,6 @@ export class PersistenceLayer {
   }
 
   /**
-   * Get a session by client_id (alias).
-   * @deprecated Use getSession instead
-   */
-  async getSessionByClientId(clientId: string): Promise<LocalSession | undefined> {
-    return this.entityRepository.getClientSession(clientId);
-  }
-
-  /**
    * List messages for a session.
    * @param direction 'backward' (default) = newest to oldest; 'forward' = oldest to newest
    * @param cursor Pagination cursor in "${timestamp}|${clientId}" format for (created_at, client_id) compound sort
@@ -214,10 +206,12 @@ export class PersistenceLayer {
     let isNewSession: boolean;
     let agentPrompt = '';
     // 3. Not found: create new session, read AGENT.md from VirtualFS as agent_prompt
+    // Read AGENT.md from VirtualFS as agent_prompt (silently skip if not found).
+    // Other errors (e.g. DB corruption) are logged at debug level for diagnostics.
     try {
       agentPrompt = await virtualFS.read('/AGENT.md');
-    } catch {
-      // Silently skip when AGENT.md doesn't exist (agent_prompt stays empty)
+    } catch (err) {
+      log.debug('AGENT.md not found or unreadable (non-fatal):', err);
     }
 
     if (existing) {
@@ -308,6 +302,37 @@ export class PersistenceLayer {
     return result.after;
   }
 
+  // ========== Private helpers ==========
+
+  /**
+   * Look up a session and verify it has been synced to the server.
+   *
+   * Throws if the session is not found or has no server_id (not yet synced).
+   * Extracted to eliminate the repeated lookup + guard pattern across
+   * stopTurn, closeSession, openSession, and compactSession.
+   *
+   * Returns the session with `server_id` narrowed to non-undefined string.
+   */
+  private async _requireSyncedSession(sessionClientId: string): Promise<LocalSession & { server_id: string }> {
+    const session = await this.entityRepository.getClientSession(sessionClientId);
+    if (!session?.server_id) {
+      throw new Error(`Session not found or not synced: ${sessionClientId}`);
+    }
+    return session as LocalSession & { server_id: string };
+  }
+
+  /**
+   * Apply server-returned updates from an RPC response.
+   *
+   * No-op when the response has no updates. Extracted to eliminate the repeated
+   * `if (response.updates && response.updates.length > 0)` guard.
+   */
+  private async _applyResponseUpdates(response: { updates?: Update[] }): Promise<void> {
+    if (response.updates && response.updates.length > 0) {
+      await this.client.applyUpdates(response.updates);
+    }
+  }
+
   /**
    * Generate a session title from message content.
    *
@@ -360,9 +385,7 @@ export class PersistenceLayer {
       const response = await this.client.sendMessage(req);
 
       // 3. On success: apply server-returned updates
-      if (response.updates && response.updates.length > 0) {
-        await this.client.applyUpdates(response.updates);
-      }
+      await this._applyResponseUpdates(response);
 
       // Fallback: ensure message sync_status is marked as synced
       await this.entityRepository.upsertMessage(
@@ -405,80 +428,40 @@ export class PersistenceLayer {
    * Stop the current turn.
    */
   async stopTurn(sessionClientId: string): Promise<void> {
-    // 1. Look up session
-    const session = await this.entityRepository.getClientSession(sessionClientId);
-    if (!session?.server_id) {
-      throw new Error(`Session not found or not synced: ${sessionClientId}`);
-    }
-
-    // 2. Call RPC
+    const session = await this._requireSyncedSession(sessionClientId);
     const response = await this.client.stopTurn(session.server_id);
-
-    // 3. Apply updates
-    if (response.updates && response.updates.length > 0) {
-      await this.client.applyUpdates(response.updates);
-    }
+    await this._applyResponseUpdates(response);
   }
 
   /**
    * Close a session (notify backend to stop the turn loop).
    */
   async closeSession(sessionClientId: string): Promise<void> {
-    // 1. Look up session
-    const session = await this.entityRepository.getClientSession(sessionClientId);
-    if (!session?.server_id) {
-      throw new Error(`Session not found or not synced: ${sessionClientId}`);
-    }
-
-    // 2. Call RPC
+    const session = await this._requireSyncedSession(sessionClientId);
     const response = await this.client.closeSession(session.server_id);
-
-    // 3. Apply updates
-    if (response.updates && response.updates.length > 0) {
-      await this.client.applyUpdates(response.updates);
-    }
+    await this._applyResponseUpdates(response);
   }
 
   /**
    * Reopen a closed session.
    */
   async openSession(sessionClientId: string): Promise<void> {
-    // 1. Look up session
-    const session = await this.entityRepository.getClientSession(sessionClientId);
-    if (!session?.server_id) {
-      throw new Error(`Session not found or not synced: ${sessionClientId}`);
-    }
-
-    // 2. Call RPC
+    const session = await this._requireSyncedSession(sessionClientId);
     const response = await this.client.openSession(session.server_id);
-
-    // 3. Apply updates
-    if (response.updates && response.updates.length > 0) {
-      await this.client.applyUpdates(response.updates);
-    }
+    await this._applyResponseUpdates(response);
   }
 
   /**
    * Compact session context.
    */
   async compactSession(sessionClientId: string, customInstruction?: string): Promise<void> {
-    // 1. Look up session
-    const session = await this.entityRepository.getClientSession(sessionClientId);
-    if (!session?.server_id) {
-      throw new Error(`Session not found or not synced: ${sessionClientId}`);
-    }
-
-    // 2. Call RPC
+    const session = await this._requireSyncedSession(sessionClientId);
     const req: CompactSessionRequest = {
       session_id: session.server_id,
       custom_instruction: customInstruction,
     };
     const response = await this.client.compactSession(req);
-
-    // 3. Apply updates
-    if (response.updates && response.updates.length > 0) {
-      await this.client.applyUpdates(response.updates);
-    }
+    await this._applyResponseUpdates(response);
   }
 
   /**
@@ -653,9 +636,7 @@ export class PersistenceLayer {
         truncated ? '[Result truncated due to size limit. Full result stored locally.]' : error
       );
 
-      if (response.updates?.length) {
-        await this.client.applyUpdates(response.updates);
-      }
+      await this._applyResponseUpdates(response);
 
       // Success: mark as synced
       await this.entityRepository.upsertRtc({ client_id: rtcClientId }, 'synced');
@@ -779,9 +760,7 @@ export class PersistenceLayer {
 
       // 3. On success: apply server-returned updates
       // Updates include: new session (created) + copied historical messages (created)
-      if (response.updates && response.updates.length > 0) {
-        await this.client.applyUpdates(response.updates);
-      }
+      await this._applyResponseUpdates(response);
 
       // Fallback: ensure new session has server_id and sync_status updated
       await this.entityRepository.upsertSession(
