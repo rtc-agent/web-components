@@ -31,10 +31,10 @@ import { createLogger } from '@rtc-agent/client';
 const log = createLogger('SessionHeader');
 
 /** Delay before auto-closing the todo panel after the last update (ms). */
-const TODO_AUTO_CLOSE_DELAY_MS = 3000;
+const TODO_PANEL_AUTO_CLOSE_DELAY_MS = 3000;
 
 /** Duration of the todo panel fade-out animation (ms). */
-const TODO_FADE_OUT_DURATION_MS = 300;
+const TODO_PANEL_FADE_OUT_DURATION_MS = 300;
 
 @localized()
 @customElement('rtc-session-header')
@@ -74,7 +74,7 @@ export class RtcSessionHeader extends LitElement {
     /** Previous todoList for detecting changes. null = not initialized. */
     private _prevTodoList: TodoItem[] | null = null;
 
-    /** Timer for auto-close after {@link TODO_AUTO_CLOSE_DELAY_MS} ms. */
+    /** Timer for auto-close after {@link TODO_PANEL_AUTO_CLOSE_DELAY_MS} ms. */
     private _autoCloseTimer?: ReturnType<typeof setTimeout>;
 
     /** Timer for fade-out animation completion (inner timer, tracked separately). */
@@ -295,9 +295,9 @@ export class RtcSessionHeader extends LitElement {
                 this._isFadingOut = false;
                 this._stopTodoPositioning();
                 this._fadeOutTimer = undefined;
-            }, TODO_FADE_OUT_DURATION_MS);
+            }, TODO_PANEL_FADE_OUT_DURATION_MS);
             this._autoCloseTimer = undefined;
-        }, TODO_AUTO_CLOSE_DELAY_MS);
+        }, TODO_PANEL_AUTO_CLOSE_DELAY_MS);
     }
 
     /**

@@ -356,17 +356,21 @@ export function buildCoreAPI(): Pick<
             if (el.persistenceController.isConnected) return true;
 
             return new Promise<boolean>((resolve) => {
-                const interval = setInterval(() => {
-                    if (el.persistenceController.isConnected) {
-                        clearInterval(interval);
-                        clearTimeout(timer);
-                        resolve(true);
-                    }
-                }, 200);
-                const timer = setTimeout(() => {
+                // Single cleanup function prevents timer leaks: all exit paths
+                // (connected, timeout) clear BOTH timers before resolving.
+                let resolved = false;
+                const done = (result: boolean) => {
+                    if (resolved) return;
+                    resolved = true;
                     clearInterval(interval);
-                    resolve(false);
-                }, timeoutMs);
+                    clearTimeout(timeout);
+                    resolve(result);
+                };
+
+                const interval = setInterval(() => {
+                    if (el.persistenceController.isConnected) done(true);
+                }, 200);
+                const timeout = setTimeout(() => done(false), timeoutMs);
             });
         },
 

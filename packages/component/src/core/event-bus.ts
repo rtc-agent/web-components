@@ -110,7 +110,7 @@ export class EventBus<TEventMap extends DefaultEventMap = DefaultEventMap> {
   /**
    * 发出事件（异步，等待所有 handler 完成）
    *
-   * M9: 注意：此方法永远 resolve，handler 中的错误会被 catch 并输出到 console.error。
+   * M9: 注意：此方法永远 resolve，handler 中的错误会被 catch 并通过 log.error 输出。
    * 如果需要错误传播（handler 错误导致 emitAsync reject），请使用 emitAsyncStrict。
    */
   async emitAsync<K extends keyof TEventMap & string>(
