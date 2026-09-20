@@ -707,13 +707,23 @@ export class MessageVirtualScroll<T> {
     dispose() {
         if (this._scrollHandler) {
             this._scrollContainer.removeEventListener('scroll', this._scrollHandler);
+            this._scrollHandler = null;
         }
         if (this._sliceDebounceTimer) {
             clearTimeout(this._sliceDebounceTimer);
+            this._sliceDebounceTimer = null;
         }
         if (this._interactionCleanup) {
             this._interactionCleanup();
+            this._interactionCleanup = null;
         }
+        // Release internal references to allow GC of items and DOM elements.
+        // Without this, the scroll container's parent may hold the virtual scroll
+        // object alive long after disconnection, keeping large item arrays and
+        // element maps in memory.
+        this._items = [];
+        this._elementMap.clear();
+        this._idToIndex.clear();
     }
 
     getStats() {
@@ -744,12 +754,9 @@ export class MessageVirtualScroll<T> {
         const distanceFromTop = scrollTop;
         const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
 
-        log.debug(
-            `_onScroll: scrollTop=${scrollTop}, scrollHeight=${scrollHeight}, clientHeight=${clientHeight}, ` +
-            `distanceFromTop=${distanceFromTop}, distanceFromBottom=${distanceFromBottom}, ` +
-            `loadedTop=${this._loadedTop}, loadedBottom=${this._loadedBottom}, ` +
-            `isLoadingTop=${this._isLoading.top}, isLoadingBottom=${this._isLoading.bottom}`
-        );
+        // NOTE: avoid per-event debug logging here — scroll fires at 60fps+ and
+        // would fill the 500-entry logBuffer in seconds, drowning other log output.
+        // Only log when a meaningful action is triggered (loadMore, slice).
 
         // Debounced viewport slicing (like Telegram's sliceViewportDebounced)
         // Only trigger on user-initiated scrolls, not programmatic scrolls (auto-scroll).
@@ -761,33 +768,26 @@ export class MessageVirtualScroll<T> {
             this._sliceDebounceTimer = window.setTimeout(() => {
                 this._sliceViewport();
             }, this._sliceDebounceDelay);
-        } else {
-            log.debug('_onScroll: skipping slice timer (programmatic scroll)');
         }
 
-        if (!this._onLoadMore) {
-            log.debug('_onScroll: no onLoadMore callback');
-            return;
-        }
+        if (!this._onLoadMore) return;
 
         const boundary = this._getWindowBoundary();
-        log.debug(`_onScroll: boundary=${JSON.stringify(boundary)}`);
 
         // Load more top: near top AND not fully loaded in that direction
         // Telegram uses onScrollOffset = 300px for early triggering
         if (distanceFromTop < this._preloadThreshold && !this._loadedTop && !this._isLoading.top) {
-            log.debug(`Triggering loadMore(top), distanceFromTop=${distanceFromTop}, threshold=${this._preloadThreshold}, boundary.firstId=${boundary.firstId}`);
+            log.debug(`loadMore(top) triggered, distance=${distanceFromTop}, threshold=${this._preloadThreshold}`);
             this._isLoading.top = true;
             this._onLoadMore('top', boundary)
                 .then(items => {
-                    log.debug(`loadMore(top) returned ${items.length} items`);
                     if (items.length > 0) {
+                        log.debug(`loadMore(top) returned ${items.length} items`);
                         return this.prependItems(items);
                     }
                     // No more messages returned directly - but DO NOT auto-mark as fully loaded.
                     // Consumer controls _loadedTop via setFullyLoaded() based on repository's hasMore.
                     // (loadMore may be async; actual items arrive via subscription updates.)
-                    log.debug('loadMore(top) returned 0 items; consumer should update loadedTop via setFullyLoaded()');
                 })
                 .catch(err => {
                     // Guard against unhandled rejection from onLoadMore callback or DOM operations
@@ -797,27 +797,20 @@ export class MessageVirtualScroll<T> {
                 .finally(() => {
                     this._isLoading.top = false;
                 });
-        } else {
-            log.debug(
-                `loadMore(top) NOT triggered: ` +
-                `distanceFromTop=${distanceFromTop} >= threshold=${this._preloadThreshold}? ${distanceFromTop >= this._preloadThreshold}, ` +
-                `loadedTop=${this._loadedTop}, isLoadingTop=${this._isLoading.top}`
-            );
         }
 
         // Load more bottom: near bottom AND not fully loaded in that direction
         if (distanceFromBottom < this._preloadThreshold && !this._loadedBottom && !this._isLoading.bottom) {
-            log.debug(`Triggering loadMore(bottom), distanceFromBottom=${distanceFromBottom}, threshold=${this._preloadThreshold}, boundary.lastId=${boundary.lastId}`);
+            log.debug(`loadMore(bottom) triggered, distance=${distanceFromBottom}, threshold=${this._preloadThreshold}`);
             this._isLoading.bottom = true;
             this._onLoadMore('bottom', boundary)
                 .then(items => {
-                    log.debug(`loadMore(bottom) returned ${items.length} items`);
                     if (items.length > 0) {
+                        log.debug(`loadMore(bottom) returned ${items.length} items`);
                         return this.appendItems(items);
                     }
                     // No more messages returned directly - but DO NOT auto-mark as fully loaded.
                     // Consumer controls _loadedBottom via setFullyLoaded() based on repository's hasMore.
-                    log.debug('loadMore(bottom) returned 0 items; consumer should update loadedBottom via setFullyLoaded()');
                 })
                 .catch(err => {
                     // Guard against unhandled rejection from onLoadMore callback or DOM operations

@@ -12,6 +12,9 @@
  */
 
 import { getDatabase, type FileSystemEntry, type FileSystemEntryType, type FileSystemEntryMetadata } from './database.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('VirtualFS');
 
 /**
  * Path-related error.
@@ -136,10 +139,12 @@ export class VirtualFS {
    */
   async read(path: string, offset?: number, limit?: number): Promise<string> {
     const normalizedPath = normalizePath(path);
+    log.debug('read:', normalizedPath, 'offset:', offset, 'limit:', limit);
     const db = getDatabase();
 
     const entry = await db.fileSystemEntries.get(normalizedPath);
     if (!entry) {
+      log.debug('read: file not found:', normalizedPath);
       throw new PathError('ENOENT', `File not found: ${normalizedPath}`);
     }
 
@@ -151,6 +156,7 @@ export class VirtualFS {
       content = content.substring(start, end);
     }
 
+    log.debug('read: success, content length:', content.length);
     return content;
   }
 
@@ -170,6 +176,7 @@ export class VirtualFS {
     metadataOverride?: Partial<FileSystemEntryMetadata>
   ): Promise<number> {
     const normalizedPath = normalizePath(path);
+    log.debug('write:', normalizedPath, 'mode:', mode, 'content length:', content.length);
     const db = getDatabase();
 
     const type = this.inferFileType(normalizedPath);
@@ -177,6 +184,7 @@ export class VirtualFS {
 
     // create-new mode: skip write if file already exists
     if (mode === 'create-new' && existing) {
+      log.debug('write: file already exists in create-new mode, skipping:', normalizedPath);
       return existing.content.length;
     }
 
@@ -216,6 +224,7 @@ export class VirtualFS {
     };
 
     await db.fileSystemEntries.put(entry);
+    log.debug('write: success, final content length:', finalContent.length);
     return finalContent.length;
   }
 
@@ -227,6 +236,7 @@ export class VirtualFS {
    */
   async ls(path: string = '/'): Promise<string[]> {
     const normalizedPath = normalizePath(path);
+    log.debug('ls:', normalizedPath);
     const db = getDatabase();
 
     const children = new Set<string>();
@@ -266,6 +276,7 @@ export class VirtualFS {
    */
   async find(pattern: string, path: string = '/'): Promise<string[]> {
     const normalizedPath = normalizePath(path);
+    log.debug('find: pattern:', pattern, 'path:', normalizedPath);
     const db = getDatabase();
 
     let entries: FileSystemEntry[];
@@ -310,6 +321,7 @@ export class VirtualFS {
     maxResults: number = 100
   ): Promise<Array<{ file: string; line: string; lineNumber: number }>> {
     const normalizedPath = normalizePath(path);
+    log.debug('grep: pattern:', pattern, 'path:', normalizedPath, 'caseSensitive:', caseSensitive);
     const db = getDatabase();
 
     let regex: RegExp;
@@ -317,6 +329,7 @@ export class VirtualFS {
       const flags = caseSensitive ? '' : 'i';
       regex = new RegExp(pattern, flags);
     } catch (err) {
+      log.warn('grep: invalid regex pattern:', pattern, err);
       throw new SyntaxError(`Invalid regex pattern: ${pattern}`);
     }
 
@@ -381,14 +394,17 @@ export class VirtualFS {
    */
   async remove(path: string): Promise<void> {
     const normalizedPath = normalizePath(path);
+    log.debug('remove:', normalizedPath);
     const db = getDatabase();
 
     const exists = await this.exists(normalizedPath);
     if (!exists) {
+      log.debug('remove: file not found:', normalizedPath);
       throw new PathError('ENOENT', `File not found: ${normalizedPath}`);
     }
 
     await db.fileSystemEntries.delete(normalizedPath);
+    log.debug('remove: success:', normalizedPath);
   }
 
   /**

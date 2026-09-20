@@ -1,5 +1,8 @@
 import Dexie, { type Table } from 'dexie';
 import type { Session, Turn, Message, Rtc } from '@rtc-agent/protocol';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('Database');
 
 /** Database names must start with this prefix to ensure per-user isolation */
 export const DB_NAME_PREFIX = 'rtc-agent-';
@@ -113,6 +116,7 @@ export class RTCAgentDatabase extends Dexie {
         `[RTCAgentDatabase] databaseName must start with "${DB_NAME_PREFIX}", got "${databaseName}"`
       );
     }
+    log.info('Initializing database:', databaseName);
     super(databaseName);
 
     // v1: Legacy schema, using id (server UUID) as primary key
@@ -135,6 +139,7 @@ export class RTCAgentDatabase extends Dexie {
         offsets: 'channel',
       })
       .upgrade(async (tx) => {
+        log.info('Migrating database from v1 to v2: switching to client_id as primary key');
         // Data migration: v1 PK was id (server UUID), v2 PK is client_id.
         // Since update(key, changes) looks up by the new PK, old records may lack client_id,
         // causing update to find no target row and silently fail. Use clear + add instead.
@@ -299,8 +304,10 @@ export function getDatabase(databaseName?: string): RTCAgentDatabase {
   const name = databaseName;
   if (!dbInstance || dbInstanceName !== name) {
     if (dbInstance) {
+      log.info('Closing previous database instance:', dbInstanceName);
       dbInstance.close();
     }
+    log.info('Creating new database instance:', name);
     dbInstance = new RTCAgentDatabase(name);
     dbInstanceName = name;
   }
@@ -309,6 +316,7 @@ export function getDatabase(databaseName?: string): RTCAgentDatabase {
 
 export async function closeDatabase(): Promise<void> {
   if (dbInstance) {
+    log.info('Closing database:', dbInstanceName);
     dbInstance.close();
     dbInstance = null;
     dbInstanceName = null;
@@ -319,6 +327,7 @@ export async function closeDatabase(): Promise<void> {
  * Flush all data (for development/testing).
  */
 export async function flushAll(): Promise<void> {
+  log.warn('flushAll: clearing all database tables');
   const db = getDatabase();
   const tables = [db.sessions, db.turns, db.messages, db.rtcs, db.offsets, db.fileSystemEntries];
   await db.transaction('rw', tables, async () => {

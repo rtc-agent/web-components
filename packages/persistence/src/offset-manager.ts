@@ -1,4 +1,7 @@
 import { getDatabase, type OffsetRecord } from './database.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('OffsetManager');
 
 /**
  * OffsetManager: handles persistence of offset and epoch values.
@@ -11,8 +14,10 @@ export class OffsetManager {
     const db = getDatabase();
     const record = await db.offsets.get(channel);
     if (!record) {
+      log.debug('getPosition: no record for channel:', channel);
       return undefined;
     }
+    log.debug('getPosition:', channel, 'offset:', record.offset, 'epoch:', record.epoch);
     return { offset: record.offset, epoch: record.epoch };
   }
 
@@ -20,6 +25,7 @@ export class OffsetManager {
    * Update the offset and epoch for a given channel.
    */
   async updatePosition(channel: string, offset: number, epoch: string): Promise<void> {
+    log.debug('updatePosition:', channel, 'offset:', offset, 'epoch:', epoch);
     const db = getDatabase();
     const record: OffsetRecord = {
       channel,
@@ -34,6 +40,7 @@ export class OffsetManager {
    * Clear the offset for a specific channel (used on epoch change).
    */
   async clearPosition(channel: string): Promise<void> {
+    log.debug('clearPosition:', channel);
     const db = getDatabase();
     await db.offsets.delete(channel);
   }
@@ -42,6 +49,7 @@ export class OffsetManager {
    * Clear all offset records.
    */
   async clearAll(): Promise<void> {
+    log.info('clearAll: clearing all offset records');
     const db = getDatabase();
     await db.offsets.clear();
   }
@@ -50,6 +58,7 @@ export class OffsetManager {
    * Reset all offsets (equivalent to clearAll).
    */
   async reset(): Promise<void> {
+    log.info('reset: resetting all offsets');
     await this.clearAll();
   }
 }

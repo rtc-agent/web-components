@@ -369,8 +369,16 @@ export function buildExtAPI(): Pick<
                 log.info(`simulateOffline: blocked WebSocket to ${resolvedUrl}`);
 
                 // Use EventTarget as the base and augment with WebSocket-shaped properties.
+                //
+                // EventTarget methods (addEventListener, removeEventListener, dispatchEvent)
+                // carry internal-slot brand checks — calling them on a proxy or prototype
+                // descendant throws TypeError. We therefore bind them directly to `target`
+                // so that all event registration and dispatch flows through the real EventTarget.
                 const target = new EventTarget();
                 const ws = Object.create(target) as WebSocket;
+                ws.addEventListener = target.addEventListener.bind(target);
+                ws.removeEventListener = target.removeEventListener.bind(target);
+                ws.dispatchEvent = target.dispatchEvent.bind(target);
 
                 // Read-only connection metadata.
                 Object.defineProperty(ws, 'url', {value: resolvedUrl, enumerable: true});
@@ -386,11 +394,26 @@ export function buildExtAPI(): Pick<
                     enumerable: true,
                 });
 
-                // Event handler properties (required by the WebSocket interface).
-                ws.onopen = null;
-                ws.onmessage = null;
-                ws.onerror = null;
-                ws.onclose = null;
+                // Event handler properties — must behave like real WebSocket IDL attributes:
+                // setting `ws.onerror = fn` must register the handler via addEventListener('error', fn),
+                // and `dispatchEvent(new Event('error'))` must invoke the assigned handler.
+                // We use accessor properties that forward to the underlying EventTarget,
+                // matching the real WebSocket API contract.
+                const handlerNames = ['onopen', 'onmessage', 'onerror', 'onclose'] as const;
+                for (const name of handlerNames) {
+                    const eventType = name.slice(2); // 'onopen' → 'open'
+                    let handler: ((ev: Event) => void) | null = null;
+                    Object.defineProperty(ws, name, {
+                        get() { return handler; },
+                        set(fn: ((ev: Event) => void) | null) {
+                            if (handler) target.removeEventListener(eventType, handler);
+                            handler = fn;
+                            if (fn) target.addEventListener(eventType, fn);
+                        },
+                        enumerable: true,
+                        configurable: true,
+                    });
+                }
 
                 // send(): if the connection is not OPEN, follow the spec and throw.
                 ws.send = (() => {

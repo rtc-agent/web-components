@@ -39,37 +39,36 @@ export function installDebugAPI(): void {
     installLogCapture();
 
     // Compose the API from core and extended implementations.
-    // Note: we cannot use simple spread because `isOffline` and `logs` are getters
-    // that must remain dynamic. Spreading would evaluate them once and copy static values.
+    //
+    // We cannot use simple spread because `isOffline` and `logs` are getters
+    // that must remain dynamic — spreading evaluates them once and copies static values.
+    // Strategy: destructure to exclude getter properties, spread the rest, then
+    // re-attach the getters as live accessor properties via Object.defineProperty.
     const coreAPI = buildCoreAPI();
     const extAPI = buildExtAPI();
 
-    // Extract getters before spreading to preserve them
-    const {isOffline: _isOfflineGetter, ...extAPIWithoutGetter} = extAPI;
-    const {logs: _logsGetter, clearLogs, ...coreAPIWithoutGetters} = coreAPI;
+    // Destructure out the getter-valued properties so they are excluded from spread.
+    // The discarded values (_logsValue, _isOfflineValue) are the one-shot evaluations
+    // we want to discard — we re-attach them as live getters below.
+    const {logs: _logsValue, clearLogs, ...coreWithoutLogs} = coreAPI;
+    const {isOffline: _isOfflineValue, ...extWithoutOffline} = extAPI;
 
     const api: RtcAgentDebugAPI = {
-        ...coreAPIWithoutGetters,
+        ...coreWithoutLogs,
         clearLogs,
-        ...extAPIWithoutGetter,
+        ...extWithoutOffline,
     } as RtcAgentDebugAPI;
 
-    // Re-attach logs as a dynamic getter using Object.defineProperty.
+    // Re-attach `logs` as a dynamic getter that delegates to the core API's getter.
     Object.defineProperty(api, 'logs', {
-        get: () => {
-            const descriptor = Object.getOwnPropertyDescriptor(coreAPI, 'logs');
-            return descriptor?.get?.call(coreAPI) ?? [];
-        },
+        get: () => coreAPI.logs,
         enumerable: true,
         configurable: false,
     });
 
-    // Re-attach isOffline as a dynamic getter using Object.defineProperty.
+    // Re-attach `isOffline` as a dynamic getter that delegates to the ext API's getter.
     Object.defineProperty(api, 'isOffline', {
-        get: () => {
-            const descriptor = Object.getOwnPropertyDescriptor(extAPI, 'isOffline');
-            return descriptor?.get?.call(extAPI) ?? false;
-        },
+        get: () => extAPI.isOffline,
         enumerable: true,
         configurable: false,
     });
