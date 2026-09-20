@@ -1,33 +1,36 @@
 /**
- * Playwright test for index.html script execution
+ * Playwright test for Task Manager script execution
  *
  * Tests that rtcAgent.task.create() works correctly in the browser sandbox
+ * via the script tool (toolRegistry.get('script')).
  */
 
 import { test, expect } from '@playwright/test';
 
 test.describe('Task Manager - Script Execution', () => {
   test('should execute rtcAgent.task.create via script tool', async ({ page }) => {
-    // Navigate to the page
+    // Navigate to the Task Manager demo page (served by Vite at port 3000)
     await page.goto('http://localhost:3000');
 
-    // Wait for the page to load
+    // Wait for the task list container to render
     await page.waitForSelector('.task-list');
 
-    // Wait for registry to be initialized (exposed to window)
+    // Wait for registry to be initialized and functions registered
     await page.waitForFunction(() => {
-      // @ts-ignore
       return window.registry && window.registry.listFunctions().length > 0;
     }, { timeout: 5000 });
 
-    // Execute the script via the toolRegistry (simulating what the Agent does)
-    const result = await page.evaluate(async () => {
-      // @ts-ignore - access toolRegistry from window
-      const toolRegistry = window.toolRegistry;
+    // Wait for toolRegistry bridge to be established
+    // (SkillController bridges rtcAgentAPI into toolRegistry when registry is set on <rtc-agent>)
+    await page.waitForFunction(() => {
+      return window.toolRegistry && window.toolRegistry.has('script');
+    }, { timeout: 5000 });
 
-      const scriptTool = toolRegistry.get('script');
+    // Execute the script via the script tool (simulating what the LLM agent does)
+    const result = await page.evaluate(async () => {
+      const scriptTool = window.toolRegistry.get('script');
       if (!scriptTool) {
-        return { error: 'script tool not found' };
+        return { error: 'script tool not found in toolRegistry' };
       }
 
       try {
@@ -41,33 +44,27 @@ test.describe('Task Manager - Script Execution', () => {
       }
     });
 
-    console.log('Script execution result:', result);
-
-    // Verify no error
+    // Verify no error occurred
     expect(result.error).toBeUndefined();
     expect(result.success).toBe(true);
 
     // Verify console output was captured
-    expect(result.result.data.logs).toBeDefined();
-    expect(result.result.data.logs.length).toBeGreaterThan(0);
-    expect(result.result.data.logs[0]).toContain('Created:');
+    const scriptResult = result.result as { data?: { logs?: string[] } };
+    expect(scriptResult.data?.logs).toBeDefined();
+    expect(scriptResult.data!.logs!.length).toBeGreaterThan(0);
+    expect(scriptResult.data!.logs![0]).toContain('Created:');
 
-    // Verify the task was saved to virtualFS
+    // Verify the task was created in the registry (stored in localStorage by TaskManager)
     const tasks = await page.evaluate(async () => {
-      // @ts-ignore
-      const virtualFS = window.virtualFS;
-      const data = await virtualFS.read('/tasks.json');
-      return JSON.parse(data || '[]');
+      return await window.registry.execute('task.list', {}) as Array<{ title: string }>;
     });
 
-    console.log('Tasks in virtualFS:', tasks);
     expect(tasks.length).toBeGreaterThan(0);
-    expect(tasks.some((t: any) => t.title === 'test')).toBe(true);
+    expect(tasks.some((t) => t.title === 'test')).toBe(true);
 
-    // Manually trigger UI refresh and verify
+    // Manually trigger UI refresh and verify the task appears
     await page.evaluate(() => {
-      // @ts-ignore
-      renderTasks();
+      window.renderTasks();
     });
 
     const taskTitle = await page.textContent('.task-title');
@@ -80,16 +77,13 @@ test.describe('Task Manager - Script Execution', () => {
 
     // Wait for registry
     await page.waitForFunction(() => {
-      // @ts-ignore
       return window.registry && window.registry.listFunctions().length > 0;
     }, { timeout: 5000 });
 
     // Create a task using the registry directly
     await page.evaluate(async () => {
-      // @ts-ignore
-      await window.registry.task.create({ title: 'UI test task' });
-      // @ts-ignore
-      await renderTasks();
+      await window.registry.execute('task.create', { title: 'UI test task' });
+      await window.renderTasks();
     });
 
     // Wait for UI to update

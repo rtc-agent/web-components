@@ -1,37 +1,53 @@
-// 主入口模块
+// Main entry module — TaskManager demo page
 import { eventBus } from './index.js';
 import { registry } from './registry.js';
 import { escapeHtml, formatDate } from './utils.js';
 import type { Task } from './storage.js';
+import { toolRegistry, virtualFS } from '@rtc-agent/persistence';
+import type { RtcAgent } from './components/rtc-agent/rtc-agent.js';
 
-// 暴露到 window 供测试和调试使用
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-(window as any).registry = registry;
+// Expose to window for Playwright E2E tests and debug access
+declare global {
+    interface Window {
+        registry: typeof registry;
+        toolRegistry: typeof toolRegistry;
+        virtualFS: typeof virtualFS;
+        renderTasks: () => Promise<void>;
+        toggleTask: (id: string, completed: boolean) => Promise<void>;
+        deleteTask: (id: string) => Promise<void>;
+        openCreateModal: () => void;
+        openEditModal: (id: string) => Promise<void>;
+        closeModal: () => void;
+    }
+}
+
+window.registry = registry;
+window.toolRegistry = toolRegistry;
+window.virtualFS = virtualFS;
 
 // ============================================
-// 连接 <rtc-agent> 组件
+// Connect <rtc-agent> component
 // ============================================
 customElements.whenDefined('rtc-agent').then(() => {
     const rtcAgentEl = document.querySelector('rtc-agent');
     if (rtcAgentEl) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (rtcAgentEl as any).registry = registry;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (rtcAgentEl as any).scenariosURL = './scenarios/';
+        // Inject registry — triggers SkillController bridge to toolRegistry
+        // (enables script tool to call rtcAgent.task.create() etc.)
+        (rtcAgentEl as RtcAgent).registry = registry;
+        (rtcAgentEl as RtcAgent).scenariosURL = './scenarios/';
         console.log('[TaskManager] Registry connected to <rtc-agent>');
     }
 });
 
 // ============================================
-// UI 交互
+// UI interactions
 // ============================================
 
 let currentFilter = 'all';
 
-// 监听 function 执行事件 - 刷新页面并显示 Toast
+// Refresh task list when data-modifying functions succeed
 eventBus.on('function:success', (event) => {
     console.log(`[EventBus] ${event.path} succeeded`);
-    // 只对修改数据的操作刷新列表（排除 list/get 查询操作）
     if (['task.create', 'task.update', 'task.delete'].includes(event.path)) {
         renderTasks();
     }
@@ -41,10 +57,9 @@ eventBus.on('function:error', (event) => {
     console.error(`[EventBus] ${event.path} failed:`, event.error);
 });
 
-// 渲染任务列表
+// Render the task list UI
 export async function renderTasks(): Promise<void> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tasks = await (registry as any).task.list({ filter: currentFilter }) as Task[];
+    const tasks = await registry.execute('task.list', { filter: currentFilter }) as Task[];
     const container = document.getElementById('taskList')!;
 
     if (tasks.length === 0) {
@@ -68,36 +83,28 @@ export async function renderTasks(): Promise<void> {
     `).join('');
 }
 
-// 暴露到 window
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-(window as any).renderTasks = renderTasks;
+// Window function assignments (typed via global Window interface augmentation above)
+window.renderTasks = renderTasks;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-(window as any).toggleTask = async function(id: string, completed: boolean) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (registry as any).task.update({ id, completed });
+window.toggleTask = async function(id: string, completed: boolean) {
+    await registry.execute('task.update', { id, completed });
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-(window as any).deleteTask = async function(id: string) {
+window.deleteTask = async function(id: string) {
     if (confirm('Are you sure you want to delete this task?')) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (registry as any).task.delete({ id });
+        await registry.execute('task.delete', { id });
     }
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-(window as any).openCreateModal = function() {
+window.openCreateModal = function() {
     document.getElementById('modalTitle')!.textContent = 'Create Task';
     (document.getElementById('taskForm') as HTMLFormElement).reset();
     (document.getElementById('taskId') as HTMLInputElement).value = '';
     document.getElementById('taskModal')!.classList.add('active');
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-(window as any).openEditModal = async function(id: string) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const task = await (registry as any).task.get({ id }) as Task;
+window.openEditModal = async function(id: string) {
+    const task = await registry.execute('task.get', { id }) as Task;
     document.getElementById('modalTitle')!.textContent = 'Edit Task';
     (document.getElementById('taskId') as HTMLInputElement).value = task.id;
     (document.getElementById('taskTitle') as HTMLInputElement).value = task.title;
@@ -109,10 +116,9 @@ export async function renderTasks(): Promise<void> {
 function closeModal() {
     document.getElementById('taskModal')!.classList.remove('active');
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-(window as any).closeModal = closeModal;
+window.closeModal = closeModal;
 
-// 表单提交
+// Form submit — create or update task
 document.getElementById('taskForm')!.addEventListener('submit', async (e) => {
     e.preventDefault();
     const id = (document.getElementById('taskId') as HTMLInputElement).value;
@@ -121,18 +127,16 @@ document.getElementById('taskForm')!.addEventListener('submit', async (e) => {
     const dueDate = (document.getElementById('taskDueDate') as HTMLInputElement).value || undefined;
 
     if (id) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (registry as any).task.update({ id, title, priority, dueDate });
+        await registry.execute('task.update', { id, title, priority, dueDate });
     } else {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (registry as any).task.create({ title, priority, dueDate });
+        await registry.execute('task.create', { title, priority, dueDate });
     }
 
     closeModal();
     renderTasks();
 });
 
-// 筛选按钮
+// Filter buttons
 document.querySelectorAll('.filter-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
@@ -142,5 +146,5 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
     });
 });
 
-// 初始渲染
+// Initial render
 renderTasks();
