@@ -439,7 +439,7 @@ export class WorkerBridge {
             path: string,
             content: string,
             mode: 'overwrite' | 'append' = 'overwrite',
-            metadataOverride?: any,
+            metadataOverride?: Partial<{ name: string; description: string; tags: string[] }>,
         ) =>
             core.virtualFSWrite(path, content, mode, metadataOverride)) as typeof virtualFS.write;
 
@@ -457,7 +457,7 @@ export class WorkerBridge {
         ) =>
             core.virtualFSGrep(pattern, path, caseSensitive, maxResults)) as typeof virtualFS.grep;
 
-        virtualFS.queryByType = ((type: any) =>
+        virtualFS.queryByType = ((type: string) =>
             core.virtualFSQueryByType(type)) as typeof virtualFS.queryByType;
 
         virtualFS.exists = ((path: string) =>

@@ -217,7 +217,8 @@ export class AuthController implements ReactiveController {
                 // on initial load (connectedCallback may have already run)
                 this.onLogin?.();
             }
-        } catch {
+        } catch (err) {
+            log.warn('Failed to load/parse tokens from localStorage, clearing:', err);
             localStorage.removeItem(STORAGE_KEYS.tokens);
         }
     }
@@ -264,7 +265,8 @@ export class AuthController implements ReactiveController {
             let data: Record<string, unknown>;
             try {
                 data = await response.json();
-            } catch {
+            } catch (err) {
+                log.warn('Token refresh response body parse failed:', err);
                 return {success: false};
             }
 
@@ -349,8 +351,9 @@ export class AuthController implements ReactiveController {
         let stored: Record<string, unknown> = {};
         try {
             stored = JSON.parse(localStorage.getItem(STORAGE_KEYS.tokens) || '{}');
-        } catch {
+        } catch (err) {
             // Corrupted data; start fresh
+            log.debug('Stored token data corrupted, starting fresh:', err);
         }
         stored.accessToken = newAccessToken;
         stored.expiresAt = newExpiresAt;

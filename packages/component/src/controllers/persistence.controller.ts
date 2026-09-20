@@ -438,8 +438,8 @@ export class PersistenceController implements ReactiveController {
         if (this._workerBridge) {
             try {
                 await this._workerBridge.destroy();
-            } catch {
-                // 忽略清理错误
+            } catch (err) {
+                log.debug('Cleanup after failed connection (non-critical):', err);
             }
             this._workerBridge = undefined;
         }

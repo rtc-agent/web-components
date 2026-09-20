@@ -10,16 +10,25 @@ import {STORAGE_KEYS} from '../config/auth.js';
  *
  * Generates a UUID on first call and persists it to localStorage.
  * Subsequent calls return the stored ID.
+ *
+ * Falls back to an ephemeral UUID if localStorage is unavailable
+ * (e.g. private browsing, quota exceeded) — the ID will differ across
+ * page loads but the component remains functional.
  */
 export function getOrCreateDeviceId(): string {
-    let deviceId = localStorage.getItem(STORAGE_KEYS.deviceId);
+    try {
+        let deviceId = localStorage.getItem(STORAGE_KEYS.deviceId);
 
-    if (!deviceId) {
-        deviceId = crypto.randomUUID();
-        localStorage.setItem(STORAGE_KEYS.deviceId, deviceId);
+        if (!deviceId) {
+            deviceId = crypto.randomUUID();
+            localStorage.setItem(STORAGE_KEYS.deviceId, deviceId);
+        }
+
+        return deviceId;
+    } catch {
+        // localStorage unavailable — return ephemeral UUID
+        return crypto.randomUUID();
     }
-
-    return deviceId;
 }
 
 /**
@@ -28,8 +37,12 @@ export function getOrCreateDeviceId(): string {
  * Reads from localStorage, or generates a default based on UserAgent.
  */
 export function getDeviceName(): string {
-    const stored = localStorage.getItem(STORAGE_KEYS.deviceName);
-    if (stored) return stored;
+    try {
+        const stored = localStorage.getItem(STORAGE_KEYS.deviceName);
+        if (stored) return stored;
+    } catch {
+        // localStorage unavailable
+    }
 
     return getDefaultDeviceName();
 }
@@ -38,7 +51,11 @@ export function getDeviceName(): string {
  * Set device name.
  */
 export function setDeviceName(name: string): void {
-    localStorage.setItem(STORAGE_KEYS.deviceName, name);
+    try {
+        localStorage.setItem(STORAGE_KEYS.deviceName, name);
+    } catch {
+        // localStorage may be unavailable (private browsing, quota exceeded)
+    }
 }
 
 /** Generate default device name from UserAgent */

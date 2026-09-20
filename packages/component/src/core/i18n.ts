@@ -57,9 +57,13 @@ export function isValidLocale(value: string): value is SupportedLocale {
 const STORAGE_KEY = 'rtc-agent-locale';
 
 function getInitialLocale(): SupportedLocale {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved && isValidLocale(saved)) {
-    return saved;
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved && isValidLocale(saved)) {
+      return saved;
+    }
+  } catch {
+    // localStorage unavailable — fall through to browser language
   }
   const browserLang = navigator.language;
   if (isValidLocale(browserLang)) {
@@ -78,7 +82,11 @@ export async function initLocale(): Promise<void> {
 }
 
 export function persistLocale(locale: SupportedLocale): void {
-  localStorage.setItem(STORAGE_KEY, locale);
+  try {
+    localStorage.setItem(STORAGE_KEY, locale);
+  } catch {
+    // localStorage may be unavailable (private browsing, quota exceeded)
+  }
 }
 
 /**

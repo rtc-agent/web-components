@@ -21,5 +21,9 @@ export async function loadTasks(): Promise<Task[]> {
 }
 
 export async function saveTasks(tasks: Task[]): Promise<void> {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+    } catch {
+        // localStorage may be unavailable (private browsing, quota exceeded)
+    }
 }
