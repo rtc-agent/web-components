@@ -132,7 +132,6 @@ import '../overlay/rtc-tool-confirm.js';
 import '../overlay/rtc-ask-user.js';
 // Child component registrations (side-effect imports)
 import '../title-bar/rtc-title-bar.js';
-import '../content-wrapper/rtc-content-wrapper.js';
 import '../login/rtc-login-page.js';
 import '../login/rtc-login-dialog.js';
 import '../overlay/rtc-toast.js';
@@ -549,6 +548,22 @@ export class RtcAgent extends LitElement {
      */
     private _connecting?: Promise<void>;
 
+    /**
+     * Connection generation counter for race-condition prevention.
+     *
+     * When logout (or disconnect) clears `_connecting` while the underlying Promise
+     * is still in-flight, a subsequent login can set a new `_connecting`. When the
+     * OLD Promise finally resolves, its `finally` block would wrongly clear the NEW
+     * `_connecting`, leaving the new connection attempt invisible to the concurrency
+     * guard — leading to duplicate connection attempts and inconsistent state.
+     *
+     * Fix: each connection attempt captures the current generation; in `finally`,
+     * we only clear `_connecting` if the generation still matches. Any code path
+     * that invalidates an in-flight connection (logout, disconnect) bumps the
+     * generation instead of clearing `_connecting`, so stale Promises self-inhibit.
+     */
+    private _connectGeneration = 0;
+
     /** Tracks the last mode we applied DOM side-effects for, to avoid redundant work. */
     private _appliedMode: WindowMode = 'normal';
 
@@ -603,8 +618,11 @@ export class RtcAgent extends LitElement {
         // Clean up existing state.
         this._fork.actions.clearFork();
         this._rtcProcessor = undefined;
-        // Clear any in-flight connection to prevent stale promises from blocking
-        // the next login attempt.
+        // Invalidate any in-flight connection attempt: bumping the generation counter
+        // causes the stale Promise's `finally` block to skip clearing `_connecting`,
+        // so a subsequent login can safely start a fresh attempt without the old
+        // Promise wiping out the new `_connecting` reference on resolution.
+        this._connectGeneration++;
         this._connecting = undefined;
         void this._persistence.disconnect();
         this._session.actions.reset();
@@ -1127,14 +1145,6 @@ export class RtcAgent extends LitElement {
                         }
                     }
                 }
-                // todo_list change -> insert local markdown message to show todo history in conversation.
-                // if (event.field === 'todo_list') {
-                //     const newTodoList = event.newValue as TodoItem[] | undefined;
-                //     if (newTodoList?.length) {
-                //         const markdown = this._formatTodoListAsMarkdown(newTodoList);
-                //         void this._insertTodoListMessage(event.entityId, markdown);
-                //     }
-                // }
                 // Turn count field changed -> push active turn count for current session into context.
                 if (
                     event.field === 'pending_turn_count' ||
@@ -1217,6 +1227,10 @@ export class RtcAgent extends LitElement {
     }
 
     private async _doConnectWithRetry(): Promise<void> {
+        // Capture the current generation so we can detect stale resolution:
+        // if logout bumps _connectGeneration while this Promise is still in-flight,
+        // the finally block must NOT clear _connecting (it belongs to a newer attempt).
+        const gen = this._connectGeneration;
         try {
             this._connectionFailed = false;
             this._connectionError = '';
@@ -1252,7 +1266,15 @@ export class RtcAgent extends LitElement {
             }
             this._connectionState = result.connectionState;
         } finally {
-            this._connecting = undefined;
+            // Only clear _connecting if no newer attempt has superseded us.
+            // If _connectGeneration was bumped (e.g. by logout), this Promise is
+            // stale — leave the current _connecting alone so the new attempt stays
+            // visible to the concurrency guard in _connectWithRetry.
+            if (this._connectGeneration === gen) {
+                this._connecting = undefined;
+            } else {
+                log.debug('Stale connection attempt resolved, skipping _connecting cleanup');
+            }
         }
     }
 
@@ -1316,6 +1338,10 @@ export class RtcAgent extends LitElement {
         this._rtcProcessor = undefined;
         this._unsubConnection?.();
         this._auth.onLogin = undefined;  // Clear auth callback to prevent leaks
+
+        // Invalidate any in-flight connection attempt (see _connectGeneration docs).
+        this._connectGeneration++;
+        this._connecting = undefined;
 
         // Clear all auto-save timers
         for (const timer of this._autoSaveTimers.values()) {
@@ -1551,37 +1577,6 @@ export class RtcAgent extends LitElement {
      *
      * Pushes zero values when there's no currentSessionId or persistence isn't ready.
      */
-    /**
-     * Format TodoItem[] as a markdown checkbox list.
-     */
-    // private _formatTodoListAsMarkdown(todoList: TodoItem[]): string {
-    //     return todoList.map(item => {
-    //         const checkbox = item.status === 'completed' ? '[x]' :
-    //                          item.status === 'in_progress' ? '[~]' : '[ ]';
-    //         return `- ${checkbox} ${item.content}`;
-    //     }).join('\n');
-    // }
-
-    /**
-     * Insert a local message for todo_list changes into the conversation.
-     */
-    // private async _insertTodoListMessage(sessionClientId: string, markdown: string): Promise<void> {
-    //     try {
-    //         const layer = this._persistence.layer;
-    //         if (!layer) return;
-    //
-    //         await layer.insertLocalMessage({
-    //             sessionClientId,
-    //             role: 'assistant',
-    //             content: JSON.stringify({type: 'markdown', data: markdown}),
-    //             creatorKind: 'system',
-    //             creatorRefId: 'todo_list_update',
-    //         });
-    //     } catch (err) {
-    //         log.error('Failed to insert todo_list message:', err);
-    //     }
-    // }
-
     private async _refreshTurnCounts() {
         const currentId = this._session.value.state.currentSessionId;
         if (!currentId || !this._persistence.layer) {
