@@ -39,10 +39,40 @@ export function installDebugAPI(): void {
     installLogCapture();
 
     // Compose the API from core and extended implementations.
+    // Note: we cannot use simple spread because `isOffline` and `logs` are getters
+    // that must remain dynamic. Spreading would evaluate them once and copy static values.
+    const coreAPI = buildCoreAPI();
+    const extAPI = buildExtAPI();
+
+    // Extract getters before spreading to preserve them
+    const {isOffline: _isOfflineGetter, ...extAPIWithoutGetter} = extAPI;
+    const {logs: _logsGetter, clearLogs, ...coreAPIWithoutGetters} = coreAPI;
+
     const api: RtcAgentDebugAPI = {
-        ...buildCoreAPI(),
-        ...buildExtAPI(),
+        ...coreAPIWithoutGetters,
+        clearLogs,
+        ...extAPIWithoutGetter,
     } as RtcAgentDebugAPI;
+
+    // Re-attach logs as a dynamic getter using Object.defineProperty.
+    Object.defineProperty(api, 'logs', {
+        get: () => {
+            const descriptor = Object.getOwnPropertyDescriptor(coreAPI, 'logs');
+            return descriptor?.get?.call(coreAPI) ?? [];
+        },
+        enumerable: true,
+        configurable: false,
+    });
+
+    // Re-attach isOffline as a dynamic getter using Object.defineProperty.
+    Object.defineProperty(api, 'isOffline', {
+        get: () => {
+            const descriptor = Object.getOwnPropertyDescriptor(extAPI, 'isOffline');
+            return descriptor?.get?.call(extAPI) ?? false;
+        },
+        enumerable: true,
+        configurable: false,
+    });
 
     Object.defineProperty(window, 'rtcAgentDebug', {
         value: api,

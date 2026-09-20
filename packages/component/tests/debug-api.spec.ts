@@ -975,14 +975,15 @@ test.describe('Debug API - Network Simulation', () => {
 
         const result = await page.evaluate(async () => {
             const api = (window as any).rtcAgentDebug;
-            expect(api.isOffline).toBe(false);
+            const wasOnline = api.isOffline;
             api.simulateOffline();
             const offline = api.isOffline;
             api.restoreNetwork();
-            return offline;
+            return {wasOnline, offline};
         });
 
-        expect(result).toBe(true);
+        expect(result.wasOnline).toBe(false);
+        expect(result.offline).toBe(true);
     });
 
     test('restoreNetwork resets isOffline to false', async ({page}) => {
