@@ -789,6 +789,11 @@ export class MessageVirtualScroll<T> {
                     // (loadMore may be async; actual items arrive via subscription updates.)
                     log.debug('loadMore(top) returned 0 items; consumer should update loadedTop via setFullyLoaded()');
                 })
+                .catch(err => {
+                    // Guard against unhandled rejection from onLoadMore callback or DOM operations
+                    // in prependItems (e.g. when component is disconnected mid-load).
+                    log.error('loadMore(top) failed:', err);
+                })
                 .finally(() => {
                     this._isLoading.top = false;
                 });
@@ -813,6 +818,11 @@ export class MessageVirtualScroll<T> {
                     // No more messages returned directly - but DO NOT auto-mark as fully loaded.
                     // Consumer controls _loadedBottom via setFullyLoaded() based on repository's hasMore.
                     log.debug('loadMore(bottom) returned 0 items; consumer should update loadedBottom via setFullyLoaded()');
+                })
+                .catch(err => {
+                    // Guard against unhandled rejection from onLoadMore callback or DOM operations
+                    // in appendItems (e.g. when component is disconnected mid-load).
+                    log.error('loadMore(bottom) failed:', err);
                 })
                 .finally(() => {
                     this._isLoading.bottom = false;
