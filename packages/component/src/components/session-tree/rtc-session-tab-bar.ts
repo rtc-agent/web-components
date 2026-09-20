@@ -27,7 +27,7 @@ import {plusIcon} from '../../icons/index.js';
 import './rtc-session-tab.js';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('RtcSessionTabBar');
+const log = createLogger('SessionTabBar');
 
 @localized()
 @customElement('rtc-session-tab-bar')

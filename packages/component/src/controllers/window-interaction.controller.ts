@@ -31,7 +31,7 @@ import type { InteractEvent } from '@interactjs/core/InteractEvent';
 import type { ResizeEvent } from '@interactjs/actions/resize/plugin';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('WindowInteraction');
+const log = createLogger('WindowInteractionController');
 
 export interface InteractionState {
   isDragging: boolean;

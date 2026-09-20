@@ -30,7 +30,7 @@ import {formatTimestampCompact} from '../../utils/format.js';
 import type {RtcToolCallCard} from './rtc-toolcall-card.js';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('RtcToolCallReply');
+const log = createLogger('ToolCallReply');
 
 /**
  * Parsed tool call data from output message.

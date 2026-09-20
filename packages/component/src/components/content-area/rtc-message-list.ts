@@ -41,7 +41,7 @@ import type {Message, MessageState} from '../../types/index.js';
 import './rtc-message.js';
 import {createLogger} from '@rtc-agent/client';
 
-const log = createLogger('RtcMessageList');
+const log = createLogger('MessageList');
 
 import './rtc-user-message.js';
 import './rtc-toolcall-card.js';

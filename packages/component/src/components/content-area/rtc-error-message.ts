@@ -31,7 +31,7 @@ import type {Message} from '../../types/index.js';
 import {formatTimestampCompact} from '../../utils/format.js';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('RtcErrorMessage');
+const log = createLogger('ErrorMessage');
 
 /**
  * Category-specific configuration for icon, color, and label.

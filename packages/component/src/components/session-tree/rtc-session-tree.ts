@@ -33,7 +33,7 @@ import './rtc-session-tree-item.js';
 import type {RtcSessionTreeItem} from './rtc-session-tree-item.js';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('RtcSessionTree');
+const log = createLogger('SessionTree');
 
 @localized()
 @customElement('rtc-session-tree')

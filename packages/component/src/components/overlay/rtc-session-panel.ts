@@ -22,7 +22,7 @@ import type {Session} from '../../types/index.js';
 import {editIcon, deleteIcon, checkIcon, closeIcon} from '../../icons/index.js';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('RtcSessionPanel');
+const log = createLogger('SessionPanel');
 
 @localized()
 @customElement('rtc-session-panel')

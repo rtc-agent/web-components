@@ -51,7 +51,7 @@ import {extractTextContent} from '../../utils/format.js';
 import './rtc-message-more-menu.js';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('RtcUserMessage');
+const log = createLogger('UserMessage');
 
 @localized()
 @customElement('rtc-user-message')

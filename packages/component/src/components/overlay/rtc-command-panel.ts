@@ -19,7 +19,7 @@ import {styles} from './rtc-command-panel.styles.js';
 import {gearIcon, clockIcon, checklistIcon} from '../../icons/index.js';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('RtcCommandPanel');
+const log = createLogger('CommandPanel');
 
 /** Command configuration */
 export interface CommandConfig {

@@ -24,7 +24,7 @@ import type {SyncStatus} from '../../types/index.js';
 import {formatTimestampCompact} from '../../utils/format.js';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('RtcMessageMoreMenu');
+const log = createLogger('MessageMoreMenu');
 
 @localized()
 @customElement('rtc-message-more-menu')

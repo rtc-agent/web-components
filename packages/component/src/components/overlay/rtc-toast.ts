@@ -31,7 +31,7 @@ import {consume} from '@lit/context';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('RtcToast');
+const log = createLogger('Toast');
 
 export type ToastType = 'success' | 'error' | 'info';
 

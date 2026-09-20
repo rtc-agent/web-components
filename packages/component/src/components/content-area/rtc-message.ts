@@ -37,7 +37,7 @@ import {copyToClipboard} from '../../utils/clipboard.js';
 import {formatTimestampCompact, extractTextContent} from '../../utils/format.js';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('RtcMessage');
+const log = createLogger('Message');
 
 @localized()
 @customElement('rtc-message')

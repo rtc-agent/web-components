@@ -36,7 +36,7 @@ import {copyToClipboard} from '../../utils/clipboard.js';
 import {formatTimestampCompact} from '../../utils/format.js';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('RtcToolCallCard');
+const log = createLogger('ToolCallCard');
 
 /**
  * A paired tool call: input is always present, output arrives later.

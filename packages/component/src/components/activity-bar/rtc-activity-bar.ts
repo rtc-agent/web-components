@@ -28,7 +28,7 @@ import {
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('ActivityIndicator');
+const log = createLogger('ActivityBar');
 
 /** 可聚焦的活动列表（顺序：files → chat → settings） */
 const ACTIVITY_LIST: Activity[] = ['files', 'chat', 'settings'];

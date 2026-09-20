@@ -21,7 +21,7 @@ import {styles} from './rtc-session-tab.styles.js';
 import type {SessionStatus} from '../../types/index.js';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('RtcSessionTab');
+const log = createLogger('SessionTab');
 
 // 内联 close SVG（与 rtc-editor-tab 保持一致）
 const closeSvg = svg`<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">

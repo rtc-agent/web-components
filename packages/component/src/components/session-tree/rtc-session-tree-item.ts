@@ -36,7 +36,7 @@ import {formatRelativeTime} from '../../utils/relative-time.js';
 import type {SessionTreeNode} from '../../types/index.js';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('RtcSessionTreeItem');
+const log = createLogger('SessionTreeItem');
 
 // 内联 chevron SVG（与 rtc-file-tree-item 保持一致）
 const chevronSvg = svg`<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">

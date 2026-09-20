@@ -19,7 +19,7 @@ import {MODE_CONFIGS} from '../../contexts/mode.js';
 import {handIcon, codeIcon, planIcon, zapIcon, gearIcon, checkIcon} from '../../icons/index.js';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('RtcModePanel');
+const log = createLogger('ModePanel');
 
 const MODE_ICONS: Record<string, ReturnType<typeof html>> = {
     manual: handIcon,
