@@ -540,6 +540,15 @@ export class RtcAgent extends LitElement {
     /** Error message when connection failed. */
     @state() private _connectionError = '';
 
+    /**
+     * In-flight connection promise — prevents concurrent _connectWithRetry calls
+     * from racing (e.g. connectedCallback + onLogin firing in quick succession).
+     *
+     * Without this guard, concurrent calls would create duplicate RTC processors,
+     * duplicate connection listeners, and race on session list loading.
+     */
+    private _connecting?: Promise<void>;
+
     /** Tracks the last mode we applied DOM side-effects for, to avoid redundant work. */
     private _appliedMode: WindowMode = 'normal';
 
@@ -594,6 +603,9 @@ export class RtcAgent extends LitElement {
         // Clean up existing state.
         this._fork.actions.clearFork();
         this._rtcProcessor = undefined;
+        // Clear any in-flight connection to prevent stale promises from blocking
+        // the next login attempt.
+        this._connecting = undefined;
         void this._persistence.disconnect();
         this._session.actions.reset();
         this._message.actions.clearMessages();
@@ -631,7 +643,8 @@ export class RtcAgent extends LitElement {
     private _boundOnKeydown = (e: KeyboardEvent) => {
         if (e.key === 'Escape' && this._fork.isActive) {
             this._fork.actions.clearFork();
-            this._inputArea?.clearValue();
+            // 派发事件由 chat-layout 监听并清空输入框（事件驱动，避免跨 shadow DOM 查询）
+            this.dispatchEvent(new CustomEvent('rtc-clear-active-input'));
             return;
         }
 
@@ -923,34 +936,6 @@ export class RtcAgent extends LitElement {
         return this._connectionError;
     }
 
-    /* ── Component References ── */
-
-    /** Get reference to rtc-input-area (piercing shadow DOM). */
-    private get _inputArea(): HTMLElement & { setValue: (v: string) => void; clearValue: () => void } | undefined {
-        // Chat mode: rtc-chat-layout > .content-area > rtc-input-area
-        const chatLayout = this.shadowRoot?.querySelector('rtc-chat-layout');
-        const inputArea = chatLayout?.shadowRoot?.querySelector('rtc-input-area');
-        if (inputArea) {
-            return inputArea as HTMLElement & { setValue: (v: string) => void; clearValue: () => void };
-        }
-        // Legacy fallback: rtc-content-wrapper > rtc-input-area
-        const wrapper = this.shadowRoot?.querySelector('rtc-content-wrapper');
-        return wrapper?.shadowRoot?.querySelector('rtc-input-area') as HTMLElement & { setValue: (v: string) => void; clearValue: () => void } | undefined;
-    }
-
-    /** Get reference to rtc-notice-bar (piercing shadow DOM). */
-    private get _noticeBar(): HTMLElement & { message: string } | undefined {
-        // Chat mode: rtc-chat-layout > .content-area > rtc-notice-bar
-        const chatLayout = this.shadowRoot?.querySelector('rtc-chat-layout');
-        const noticeBar = chatLayout?.shadowRoot?.querySelector('rtc-notice-bar');
-        if (noticeBar) {
-            return noticeBar as HTMLElement & { message: string };
-        }
-        // Legacy fallback: rtc-content-wrapper > rtc-notice-bar
-        const wrapper = this.shadowRoot?.querySelector('rtc-content-wrapper');
-        return wrapper?.shadowRoot?.querySelector('rtc-notice-bar') as HTMLElement & { message: string } | undefined;
-    }
-
     /* ── Context Providers ── */
 
     private _sessionProvider = new ContextProvider(this, {context: SessionContext, initialValue: this._session.value});
@@ -987,9 +972,7 @@ export class RtcAgent extends LitElement {
         // Wire ForkController dependencies
         this._fork.setDeps({
             clearMessages: () => this._message.actions.clearMessages(),
-            setInputValue: (v) => this._inputArea?.setValue(v),
-            setNoticeMessage: (msg) => { if (this._noticeBar) this._noticeBar.message = msg; },
-            clearNoticeMessage: () => { if (this._noticeBar) this._noticeBar.message = ''; },
+            clearTransientParams: (sessionId) => this._sessionTab.actions.clearTransientParams(sessionId),
             executeFork: (params) => this._message.actions.forkSession(params),
         });
 
@@ -997,6 +980,7 @@ export class RtcAgent extends LitElement {
         this._session.onSessionSwitch = () => {
             log.debug('onSessionSwitch currentSessionId:', this._session.value.state.currentSessionId);
             this._fork.actions.clearFork();  // Clear fork state when switching sessions.
+            // 注：tab transient params 的清除由 chat-layout._handleTabActivate 负责
             if (this._session.value.state.currentSessionId) {
                 log.debug('onSessionSwitch calling message.reload()');
                 void this._message.reload();
@@ -1217,41 +1201,59 @@ export class RtcAgent extends LitElement {
      * can see the error in the UI and manually retry.
      *
      * Delegates to connection-setup helper for the heavy orchestration.
+     *
+     * Concurrency guard: if a connection is already in-flight, returns the
+     * existing promise instead of starting a new one. This prevents duplicate
+     * initialization when connectedCallback and onLogin fire in quick succession.
      */
-    private async _connectWithRetry(): Promise<void> {
-        this._connectionFailed = false;
-        this._connectionError = '';
-
-        const result = await connectWithRetry({
-            persistence: this._persistence as unknown as Parameters<typeof connectWithRetry>[0]['persistence'],
-            message: this._message as unknown as Parameters<typeof connectWithRetry>[0]['message'],
-            session: this._session as unknown as Parameters<typeof connectWithRetry>[0]['session'],
-            notification: this._notification as unknown as Parameters<typeof connectWithRetry>[0]['notification'],
-            activity: this._activity,
-            fileExplorer: this._fileExplorer as unknown as Parameters<typeof connectWithRetry>[0]['fileExplorer'],
-            toast: this._toast.actions,
-            skill: this._skill as unknown as Parameters<typeof connectWithRetry>[0]['skill'],
-            mode: this._mode,
-            scenariosURL: this._scenariosURL,
-            loadFileTree: () => this._loadFileTree(),
-            restoreEditorAreaContent: () => this._restoreEditorAreaContent(),
-            showToolConfirm: (rtc) => this._showToolConfirm(rtc),
-            showAskUser: (rtc) => this._showAskUser(rtc),
-            loadSessions: () => { void this._loadSessions(); },
-            onConnectionStateChange: (state) => { this._connectionState = state; },
-            logger: log,
-        });
-
-        this._connectionFailed = result.connectionFailed;
-        this._connectionError = result.connectionError;
-        if (result.rtcProcessor) {
-            this._rtcProcessor = result.rtcProcessor;
+    private _connectWithRetry(): Promise<void> {
+        if (this._connecting) {
+            log.debug('_connectWithRetry already in-flight, reusing existing promise');
+            return this._connecting;
         }
-        if (result.unsubConnection) {
-            this._unsubConnection?.();
-            this._unsubConnection = result.unsubConnection;
+
+        this._connecting = this._doConnectWithRetry();
+        return this._connecting;
+    }
+
+    private async _doConnectWithRetry(): Promise<void> {
+        try {
+            this._connectionFailed = false;
+            this._connectionError = '';
+
+            const result = await connectWithRetry({
+                persistence: this._persistence as unknown as Parameters<typeof connectWithRetry>[0]['persistence'],
+                message: this._message as unknown as Parameters<typeof connectWithRetry>[0]['message'],
+                session: this._session as unknown as Parameters<typeof connectWithRetry>[0]['session'],
+                notification: this._notification as unknown as Parameters<typeof connectWithRetry>[0]['notification'],
+                activity: this._activity,
+                fileExplorer: this._fileExplorer as unknown as Parameters<typeof connectWithRetry>[0]['fileExplorer'],
+                toast: this._toast.actions,
+                skill: this._skill as unknown as Parameters<typeof connectWithRetry>[0]['skill'],
+                mode: this._mode,
+                scenariosURL: this._scenariosURL,
+                loadFileTree: () => this._loadFileTree(),
+                restoreEditorAreaContent: () => this._restoreEditorAreaContent(),
+                showToolConfirm: (rtc) => this._showToolConfirm(rtc),
+                showAskUser: (rtc) => this._showAskUser(rtc),
+                loadSessions: () => { void this._loadSessions(); },
+                onConnectionStateChange: (state) => { this._connectionState = state; },
+                logger: log,
+            });
+
+            this._connectionFailed = result.connectionFailed;
+            this._connectionError = result.connectionError;
+            if (result.rtcProcessor) {
+                this._rtcProcessor = result.rtcProcessor;
+            }
+            if (result.unsubConnection) {
+                this._unsubConnection?.();
+                this._unsubConnection = result.unsubConnection;
+            }
+            this._connectionState = result.connectionState;
+        } finally {
+            this._connecting = undefined;
         }
-        this._connectionState = result.connectionState;
     }
 
     /** Show tool confirmation dialog (delegated to dialog-helpers). */

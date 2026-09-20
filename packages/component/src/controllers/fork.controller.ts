@@ -40,12 +40,8 @@ export interface ForkActions {
 export interface ForkDeps {
     /** Clear messages in the message list (switch to blank state). */
     clearMessages: () => void;
-    /** Set the input area value (pre-fill with forked content). */
-    setInputValue: (value: string) => void;
-    /** Set the notice bar hint message. */
-    setNoticeMessage: (message: string) => void;
-    /** Clear the notice bar. */
-    clearNoticeMessage: () => void;
+    /** Clear transient UI params (initialInputValue, noticeMessage) from the tab. */
+    clearTransientParams: (sessionId: string) => void;
     /** Execute the fork via MessageController. */
     executeFork: (params: {
         oldSessionClientId: string;
@@ -89,8 +85,8 @@ export class ForkController implements ReactiveController {
     hostConnected() {}
     hostDisconnected() {}
 
-    private _requestFork(oldSessionClientId: string, oldMessageClientId: string, newSessionClientId: string, content: string) {
-        const truncatedContent = content.length > 30 ? content.slice(0, 30) + '...' : content;
+    private _requestFork(oldSessionClientId: string, oldMessageClientId: string, newSessionClientId: string, _content: string) {
+        const truncatedContent = _content.length > 30 ? _content.slice(0, 30) + '...' : _content;
 
         this._state = {
             oldSessionClientId,
@@ -100,12 +96,11 @@ export class ForkController implements ReactiveController {
         };
         this._host.requestUpdate();
 
-        // Immediately clear messages (switch to "new session blank state")
+        // 清空消息列表（唯一需要的命令式操作）
+        // input value 和 notice message 已通过 tab transient params 传递（由 chat-layout 设置）
+        // Lit 渲染时通过 property binding 自动传递给 input-area / notice-bar
         this._deps?.clearMessages();
-        // Pre-fill input with the forked content
-        this._deps?.setInputValue(content);
-        // Show hint in notice bar
-        this._deps?.setNoticeMessage(this._state.hintMessage);
+        log.debug('_requestFork: state set, transient params handled by tab property binding');
     }
 
     private async _submitFork(content: ContentData) {
@@ -129,8 +124,11 @@ export class ForkController implements ReactiveController {
     }
 
     private _clearFork() {
+        if (this._state) {
+            // 清除 tab 上的 transient params（input value + notice message）
+            this._deps?.clearTransientParams(this._state.newSessionClientId);
+        }
         this._state = null;
-        this._deps?.clearNoticeMessage();
         this._host.requestUpdate();
     }
 }

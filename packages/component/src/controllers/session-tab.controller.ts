@@ -34,7 +34,7 @@ export class SessionTabController implements ReactiveController {
         this.host = host;
         this.host.addController(this);
         this.actions = {
-            openOrActivate: (sessionId: string, title: string, options?: { isUnsaved?: boolean }) =>
+            openOrActivate: (sessionId: string, title: string, options?: { isUnsaved?: boolean; activate?: boolean; skipPersist?: boolean; initialInputValue?: string; noticeMessage?: string }) =>
                 this._openOrActivate(sessionId, title, options),
             closeTab: (sessionId: string) => this._closeTab(sessionId),
             setActiveTab: (sessionId: string | null) =>
@@ -50,6 +50,10 @@ export class SessionTabController implements ReactiveController {
                 this._updateTabStatus(sessionId, status),
             restoreActiveFromStorage: () => this._restoreActiveFromStorage(),
             getStoredActiveSessionId: () => this._getStoredActiveSessionId(),
+            setTransientParams: (sessionId: string, params: { initialInputValue?: string; noticeMessage?: string }) =>
+                this._setTransientParams(sessionId, params),
+            clearTransientParams: (sessionId: string) =>
+                this._clearTransientParams(sessionId),
         };
     }
 
@@ -165,7 +169,9 @@ export class SessionTabController implements ReactiveController {
     /** 将指定 tab 标记为已保存。 */
     private _markSaved(sessionId: string): void {
         const tab = this._state.tabs.find(t => t.sessionId === sessionId);
-        if (!tab || tab.isUnsaved !== true) return;
+        if (!tab || tab.isUnsaved !== true) {
+            return;
+        }
         const tabs = this._state.tabs.map(t =>
             t.sessionId === sessionId ? {...t, isUnsaved: false} : t
         );
@@ -186,13 +192,16 @@ export class SessionTabController implements ReactiveController {
         this.host.requestUpdate();
     }
 
-    private _openOrActivate(sessionId: string, title: string, options?: { isUnsaved?: boolean; activate?: boolean; skipPersist?: boolean }) {
+    private _openOrActivate(sessionId: string, title: string, options?: { isUnsaved?: boolean; activate?: boolean; skipPersist?: boolean; initialInputValue?: string; noticeMessage?: string }) {
         log.debug('openOrActivate sessionId:', sessionId, 'title:', `"${title}"`);
         log.debug('openOrActivate current tabs:', this._state.tabs.map(t => `${t.sessionId}="${t.title}"(isDefault=${t.isDefault})`));
 
         const isPlaceholder = this._isPlaceholderTitle(title);
         const shouldActivate = options?.activate ?? true; // 默认激活
         const skipPersist = options?.skipPersist ?? false;
+        const transientParams = (options?.initialInputValue !== undefined || options?.noticeMessage !== undefined)
+            ? { initialInputValue: options?.initialInputValue, noticeMessage: options?.noticeMessage }
+            : undefined;
         const existingIndex = this._state.tabs.findIndex(
             t => t.sessionId === sessionId
         );
@@ -210,11 +219,16 @@ export class SessionTabController implements ReactiveController {
                 }
                 return;
             }
-            const tabs = this._state.tabs.map((t, i) =>
-                i === existingIndex
-                    ? {...t, title, isDefault: isPlaceholder ? true : false}
-                    : t
-            );
+            const tabs = this._state.tabs.map((t, i) => {
+                if (i !== existingIndex) return t;
+                const updated = {...t, title, isDefault: isPlaceholder ? true : false};
+                if (transientParams) {
+                    updated.initialInputValue = transientParams.initialInputValue;
+                    updated.noticeMessage = transientParams.noticeMessage;
+                    updated.initialValueVersion = (t.initialValueVersion ?? 0) + 1;
+                }
+                return updated;
+            });
             const newActiveId = shouldActivate ? sessionId : this._state.activeSessionId;
             this._state = {tabs, activeSessionId: newActiveId};
             if (shouldActivate && !skipPersist) {
@@ -226,6 +240,11 @@ export class SessionTabController implements ReactiveController {
                 title,
                 isDefault: isPlaceholder ? true : false,
                 isUnsaved: options?.isUnsaved ?? false,
+                ...(transientParams ? {
+                    initialInputValue: transientParams.initialInputValue,
+                    noticeMessage: transientParams.noticeMessage,
+                    initialValueVersion: 1,
+                } : {}),
             };
             const tabs = [...this._state.tabs, newTab];
             const newActiveId = shouldActivate ? sessionId : this._state.activeSessionId;
@@ -314,6 +333,43 @@ export class SessionTabController implements ReactiveController {
         } catch {
             return null;
         }
+    }
+
+    /**
+     * 设置指定 tab 的瞬态 UI 参数（initialInputValue, noticeMessage）
+     *
+     * 同时递增 initialValueVersion，确保即使新旧值相同，
+     * input-area 的 updated() 也能被触发（防御 Lit 脏检查跳过）。
+     */
+    private _setTransientParams(sessionId: string, params: { initialInputValue?: string; noticeMessage?: string }): void {
+        const tab = this._state.tabs.find(t => t.sessionId === sessionId);
+        if (!tab) return;
+        const tabs = this._state.tabs.map(t =>
+            t.sessionId === sessionId
+                ? {
+                    ...t,
+                    initialInputValue: params.initialInputValue,
+                    noticeMessage: params.noticeMessage,
+                    initialValueVersion: (t.initialValueVersion ?? 0) + 1,
+                }
+                : t
+        );
+        this._state = {...this._state, tabs};
+        this.host.requestUpdate();
+    }
+
+    /** 清除指定 tab 的瞬态 UI 参数。 */
+    private _clearTransientParams(sessionId: string): void {
+        const tab = this._state.tabs.find(t => t.sessionId === sessionId);
+        if (!tab) return;
+        if (tab.initialInputValue === undefined && tab.noticeMessage === undefined) return;
+        const tabs = this._state.tabs.map(t =>
+            t.sessionId === sessionId
+                ? {...t, initialInputValue: undefined, noticeMessage: undefined}
+                : t
+        );
+        this._state = {...this._state, tabs};
+        this.host.requestUpdate();
     }
 
     /**

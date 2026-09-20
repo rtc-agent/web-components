@@ -40,6 +40,7 @@ export interface ConnectionDeps {
     showToolConfirm: (rtc: LocalRtc) => Promise<boolean>;
     showAskUser: (rtc: LocalRtc) => Promise<unknown>;
     loadSessions: () => void;
+    onConnectionStateChange?: (state: ConnectionState) => void;
     logger: Logger;
 }
 
@@ -226,6 +227,8 @@ async function setupConnectionListener(
     let currentState = connectionState;
     const unsubConnection = deps.persistence.onConnectionStateChange((event) => {
         currentState = event.state;
+        // Notify the component to update its UI state
+        deps.onConnectionStateChange?.(event.state);
     });
 
     return { unsubConnection, connectionState: currentState };

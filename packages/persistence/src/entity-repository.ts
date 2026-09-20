@@ -100,10 +100,13 @@ function safeClone<T>(obj: T): T {
  * EntityRepository: handles entity CRUD and sync status management.
  */
 export class EntityRepository {
-  /** Current device ID, used to filter non-local-device RTCs on write */
+  /** Current device ID, used to filter non-local-device RTCs at execution time */
   private deviceId: string;
 
   constructor(deviceId: string) {
+    if (!deviceId) {
+      throw new Error('[EntityRepository] deviceId is required, got empty value');
+    }
     this.deviceId = deviceId;
   }
 
@@ -439,6 +442,7 @@ export class EntityRepository {
         client_id: rtc.client_id || '',
         server_id: rtc.server_id,
         session_client_id: rtc.session_client_id || '',
+        session_device_id: rtc.session_device_id,
         turn_id: rtc.turn_id || '',
         offset: rtc.offset || 0,
         tool_name: rtc.tool_name || '',
@@ -473,15 +477,25 @@ export class EntityRepository {
    *
    * Note: status='pending' means the tool has not been executed yet, regardless of sync_status.
    *
+   * Device ID filtering is done at execution time: only RTCs whose session_device_id matches
+   * this.deviceId are returned. RTCs with empty session_device_id are allowed (lenient mode).
+   *
    * @param sessionClientId Optional session filter
    */
   async getNextRtcToProcess(sessionClientId?: string): Promise<LocalRtc | undefined> {
     const db = getDatabase();
 
-    // Non-local-device RTCs are already filtered at write time; here we only filter by session
+    // Filter by session (optional)
     const matchesSession = (rtc: LocalRtc): boolean => {
       if (!sessionClientId) return true;
       return rtc.session_client_id === sessionClientId;
+    };
+
+    // Filter by device ID (execution-time filtering).
+    // Lenient mode: RTCs with empty/undefined session_device_id are allowed.
+    const matchesDevice = (rtc: LocalRtc): boolean => {
+      if (!rtc.session_device_id) return true;
+      return rtc.session_device_id === this.deviceId;
     };
 
     // 1. First look for sync_status = 'failed' (need retry submission)
@@ -490,7 +504,7 @@ export class EntityRepository {
       .equals('failed')
       .sortBy('offset');
 
-    const matchFailed = failed.find(r => matchesSession(r));
+    const matchFailed = failed.find(r => matchesSession(r) && matchesDevice(r));
     if (matchFailed) {
       return matchFailed;
     }
@@ -501,7 +515,7 @@ export class EntityRepository {
       .filter(r => r.status === 'pending')
       .sortBy('offset');
 
-    return allPending.find(r => matchesSession(r));
+    return allPending.find(r => matchesSession(r) && matchesDevice(r));
   }
 
   /**
@@ -624,7 +638,7 @@ export class EntityRepository {
           if (parentMsg) {
             mapped.parent_client_id = parentMsg.client_id;
           } else {
-            log.warn(` Message ${raw.client_id || raw.id} references unknown parent ${raw.parent_message_id}`);
+            log.warn(`[applyUpdateItem:message] Message ${raw.client_id || raw.id} references unknown parent ${raw.parent_message_id}`);
           }
         }
         delete (mapped as Record<string, unknown>)['parent_message_id'];
@@ -634,18 +648,17 @@ export class EntityRepository {
       case 'rtc': {
         const raw = data as Rtc;
         // session_id -> session_client_id: resolve session's client_id
+        // Also extract session.device_id for redundant storage (used in execution-time filtering)
         let sessionClientId: string | undefined;
+        let sessionDeviceId: string | undefined;
         if (raw.session_id) {
           const session = await this.getSessionByServerId(raw.session_id);
           if (session) {
-            // Write-time filter: skip RTCs whose session belongs to a different device
-            if (session.device_id && session.device_id !== this.deviceId) {
-              log.debug(`Skipping RTC ${raw.client_id || raw.id} - session belongs to different device`);
-              return;
-            }
             sessionClientId = session.client_id;
+            sessionDeviceId = session.device_id;
           } else {
-            log.warn(` Rtc ${raw.client_id || raw.id} references unknown session ${raw.session_id}`);
+            // Lenient mode: session not found, still write RTC but log warning
+            log.warn(`RTC ${raw.client_id || raw.id} references unknown session ${raw.session_id}`);
             sessionClientId = raw.session_id;
           }
         }
@@ -655,6 +668,7 @@ export class EntityRepository {
           server_id: raw.id,
           client_id: raw.client_id || raw.id,
           session_client_id: sessionClientId || '',
+          session_device_id: sessionDeviceId,
         } as Partial<LocalRtc>;
         delete (mapped as Record<string, unknown>)['id'];
         delete (mapped as Record<string, unknown>)['session_id'];
@@ -675,7 +689,7 @@ let entityRepositoryInstance: EntityRepository | null = null;
  * Initialize the EntityRepository singleton.
  *
  * Must be called once at application startup with the current device's Device ID.
- * The Device ID is used to filter non-local-device RTCs on write.
+ * The Device ID is used to filter non-local-device RTCs at execution time.
  */
 export function initEntityRepository(deviceId: string): void {
   if (entityRepositoryInstance) {

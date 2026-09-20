@@ -83,6 +83,35 @@ function idToColorVar(id: string): string {
 }
 
 /**
+ * Try to parse a string as JSON, handling double-serialization.
+ * Returns the parsed value, or the original string if parsing fails.
+ *
+ * Examples:
+ * - '"hello"' → 'hello' (single-serialized string)
+ * - '"\"hello\""' → 'hello' (double-serialized string)
+ * - '{"a":1}' → {a: 1} (JSON object)
+ * - 'plain text' → 'plain text' (not JSON)
+ */
+function tryParseJson(value: string): unknown {
+    try {
+        let parsed = JSON.parse(value);
+        // Handle double-serialization: if result is a string, try parsing again
+        while (typeof parsed === 'string') {
+            try {
+                const next = JSON.parse(parsed);
+                if (typeof next === 'string' && next === parsed) break; // No progress, stop
+                parsed = next;
+            } catch {
+                break; // Not JSON, return current value
+            }
+        }
+        return parsed;
+    } catch {
+        return value; // Not JSON, return as-is
+    }
+}
+
+/**
  * Parse tool call data from output message's content.
  */
 function parseOutputToolCall(message: Message): OutputToolCallData | null {
@@ -93,6 +122,10 @@ function parseOutputToolCall(message: Message): OutputToolCallData | null {
         let tc: any;
         if (typeof data === 'string') {
             tc = JSON.parse(data);
+            // Handle double-serialization
+            if (typeof tc === 'string') {
+                tc = JSON.parse(tc);
+            }
         } else if (typeof data === 'object') {
             tc = data;
         } else {
@@ -102,11 +135,45 @@ function parseOutputToolCall(message: Message): OutputToolCallData | null {
         if (tc?.data?.tool_name) tc = tc.data;
         if (!tc?.tool_name) return null;
 
+        // Parse input (handle double-serialization)
+        let input = tc.input;
+        if (typeof input === 'string') {
+            try {
+                input = JSON.parse(input);
+                // Handle double-serialized input
+                if (typeof input === 'string') {
+                    try {
+                        input = JSON.parse(input);
+                    } catch {
+                        // Keep the string as-is
+                    }
+                }
+            } catch {
+                // Keep the string as-is
+            }
+        }
+
+        // Parse output (handle double-serialization)
+        let output = tc.output;
+        if (typeof output === 'string') {
+            const parsed = tryParseJson(output);
+            // If it's a complex object, stringify it; otherwise keep as string
+            if (typeof parsed === 'object' && parsed !== null) {
+                output = JSON.stringify(parsed, null, 2);
+            } else if (typeof parsed === 'string') {
+                output = parsed;
+            }
+        } else if (typeof output === 'object' && output !== null) {
+            output = JSON.stringify(output, null, 2);
+        } else {
+            output = String(output ?? '');
+        }
+
         return {
             id: tc.id || '',
             tool_name: tc.tool_name,
-            input: typeof tc.input === 'string' ? tc.input : JSON.stringify(tc.input || {}),
-            output: typeof tc.output === 'string' ? tc.output : JSON.stringify(tc.output || ''),
+            input: typeof input === 'string' ? input : JSON.stringify(input || {}),
+            output,
             status: tc.status,
         };
     } catch {
@@ -116,38 +183,99 @@ function parseOutputToolCall(message: Message): OutputToolCallData | null {
 
 /**
  * Parse script tool output.
- * Handles two formats:
+ * Handles multiple formats:
  * 1. ToolResult wrapper: { success, data: { logs, warnings, errors, duration_ms } }
  * 2. Direct data: { logs, warnings, errors, duration_ms }
+ * 3. Double-serialized JSON (string containing JSON string)
+ *
+ * Also handles logs/warnings/errors arrays containing JSON strings (each entry
+ * is a serialized object that should be pretty-printed).
  */
 function parseScriptOutput(outputStr: string): ScriptOutputData | null {
     try {
-        const parsed = JSON.parse(outputStr);
+        let parsed = JSON.parse(outputStr);
+
+        // Handle double-serialized JSON: if parsed is a string, try parsing again
+        if (typeof parsed === 'string') {
+            try {
+                parsed = JSON.parse(parsed);
+            } catch {
+                // Not double-serialized, continue with the string
+                return null;
+            }
+        }
+
         if (typeof parsed !== 'object' || parsed === null) return null;
 
         // Format 1: ToolResult wrapper with 'success' field
         if ('success' in parsed) {
+            // Normalize logs/warnings/errors: parse JSON strings and format them
+            normalizeScriptData(parsed.data);
             return parsed as ScriptOutputData;
         }
 
         // Format 2: Direct data (no wrapper) — check if it has script-like fields
         if ('logs' in parsed || 'duration_ms' in parsed || 'warnings' in parsed || 'errors' in parsed) {
+            const data = {
+                logs: parsed.logs,
+                warnings: parsed.warnings,
+                errors: parsed.errors,
+                duration_ms: parsed.duration_ms,
+                result: parsed.result,
+                name: parsed.name,
+            };
+            normalizeScriptData(data);
             return {
                 success: true,
-                data: {
-                    logs: parsed.logs,
-                    warnings: parsed.warnings,
-                    errors: parsed.errors,
-                    duration_ms: parsed.duration_ms,
-                    result: parsed.result,
-                    name: parsed.name,
-                },
+                data,
             };
         }
 
         return null;
     } catch {
         return null;
+    }
+}
+
+/**
+ * Normalize script output data: parse JSON strings in logs/warnings/errors arrays
+ * and format them as pretty-printed JSON.
+ */
+function normalizeScriptData(data: ScriptOutputData['data'] | undefined): void {
+    if (!data) return;
+
+    // Helper to format a single log entry
+    const formatEntry = (entry: unknown): string => {
+        if (typeof entry !== 'string') {
+            // Not a string, stringify it
+            return JSON.stringify(entry, null, 2);
+        }
+        // Try to parse as JSON and pretty-print
+        try {
+            const parsed = JSON.parse(entry);
+            if (typeof parsed === 'object' && parsed !== null) {
+                return JSON.stringify(parsed, null, 2);
+            }
+            return entry;
+        } catch {
+            // Not JSON, return as-is
+            return entry;
+        }
+    };
+
+    // Normalize logs
+    if (Array.isArray(data.logs)) {
+        data.logs = data.logs.map(formatEntry);
+    }
+
+    // Normalize warnings
+    if (Array.isArray(data.warnings)) {
+        data.warnings = data.warnings.map(formatEntry);
+    }
+
+    // Normalize errors
+    if (Array.isArray(data.errors)) {
+        data.errors = data.errors.map(formatEntry);
     }
 }
 

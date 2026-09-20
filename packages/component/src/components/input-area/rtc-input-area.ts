@@ -65,6 +65,22 @@ export class RtcInputArea extends LitElement {
     sessionId: string | null = null;
 
     /**
+     * Transient initial value for the input area.
+     * Set by tab's initialInputValue via property binding (e.g., fork content).
+     * Consumed in updated() and synced to internal _value.
+     */
+    @property({type: String})
+    initialValue: string | undefined = undefined;
+
+    /**
+     * Version counter incremented on each setTransientParams call.
+     * Monitored in updated() to force-sync initialValue even when value is unchanged
+     * (defends against Lit dirty-check skipping same-value updates).
+     */
+    @property({type: Number})
+    initialValueVersion = 0;
+
+    /**
      * Returns the effective session ID:
      * - sessionId property if explicitly set
      * - Otherwise, falls back to SessionContext.currentSessionId
@@ -805,6 +821,18 @@ export class RtcInputArea extends LitElement {
             this._draft = '';
             // 更新 token 显示（从 SessionContext 中提取当前 session 的数据）
             this._updateTokenDisplay();
+        }
+        // 当 initialValueVersion 变化时，强制同步 initialValue 到 _value
+        // 使用 version 而非直接监听 initialValue，防御同值重复设置被 Lit 跳过
+        if (changed.has('initialValueVersion') && this.initialValue !== undefined) {
+            this._value = this.initialValue;
+            this.updateComplete.then(() => {
+                const textarea = this._textarea;
+                if (textarea) {
+                    textarea.value = this.initialValue ?? '';
+                    textarea.focus();
+                }
+            });
         }
     }
 

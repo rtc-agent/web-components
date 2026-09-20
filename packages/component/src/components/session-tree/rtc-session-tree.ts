@@ -314,6 +314,11 @@ export class RtcSessionTree extends LitElement {
     }
 
     private _renderTree() {
+        // Defense-in-depth: guard against undefined context (should not happen with proper initialValue)
+        if (!this._treeCtx?.state) {
+            log.warn('_renderTree: treeCtx or state is undefined, rendering empty state');
+            return this._renderEmptyState();
+        }
         const {rootNodes} = this._treeCtx.state;
         if (rootNodes.length === 0) return this._renderEmptyState();
 

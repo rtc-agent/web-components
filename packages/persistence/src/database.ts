@@ -49,6 +49,8 @@ export interface LocalRtc extends Omit<Rtc, 'id' | 'session_id'> {
   server_id?: string;
   /** References session's client_id */
   session_client_id: string;
+  /** Redundant copy of session.device_id, used for execution-time filtering */
+  session_device_id?: string;
   sync_status: SyncStatus;
 }
 
@@ -244,6 +246,29 @@ export class RTCAgentDatabase extends Dexie {
       rtcs: 'client_id, server_id, sync_status, session_client_id, turn_id, status, offset',
       offsets: 'channel',
       fileSystemEntries: 'path, type, metadata.group, *metadata.tags',
+    });
+
+    // v8: Add session_device_id index for RTC execution-time filtering.
+    // Move Device ID filtering from write-time to execution-time.
+    // Backfill existing RTC records: look up session.device_id via session_client_id.
+    this.version(8).stores({
+      sessions: 'client_id, server_id, sync_status, owner_ref_id, status, updated_at, device_id',
+      turns: 'client_id, server_id, sync_status, session_client_id, status',
+      messages: 'client_id, server_id, sync_status, session_client_id, turn_id, global_offset, created_at',
+      rtcs: 'client_id, server_id, sync_status, session_client_id, turn_id, status, offset, session_device_id',
+      offsets: 'channel',
+      fileSystemEntries: 'path, type, metadata.group, *metadata.tags',
+    }).upgrade(async (tx) => {
+      // Backfill session_device_id for existing RTC records
+      const rtcs = await tx.table('rtcs').toArray();
+      for (const rtc of rtcs) {
+        if (rtc.session_client_id && !rtc.session_device_id) {
+          const session = await tx.table('sessions').get(rtc.session_client_id);
+          if (session?.device_id) {
+            await tx.table('rtcs').update(rtc.client_id, { session_device_id: session.device_id });
+          }
+        }
+      }
     });
   }
 }

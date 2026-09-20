@@ -60,7 +60,7 @@ export interface MasterLike {
  * - Optional `MasterLike` injection: in multi-Tab scenarios only the Master Tab executes tools
  *   (when not injected, treated as always being Master)
  *
- * Device ID filtering is done at write time (EntityRepository); not handled here.
+ * Device ID filtering is done at execution time (EntityRepository.getNextRtcToProcess); not handled here.
  */
 export class RtcProcessor {
   private persistence: PersistenceLayer;

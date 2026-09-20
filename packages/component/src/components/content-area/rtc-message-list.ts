@@ -196,6 +196,7 @@ export class RtcMessageList extends LitElement {
     }
 
     firstUpdated() {
+        console.log(`[TAB-DEBUG] firstUpdated called: sessionId=${this.sessionId}`);
         this._scrollEl = this.shadowRoot!.querySelector('.message-list-scroll') as HTMLElement;
         const innerEl = this.shadowRoot!.querySelector('.message-list-inner') as HTMLElement;
 
@@ -276,6 +277,8 @@ export class RtcMessageList extends LitElement {
     private _subscribeToSession() {
         if (!this.sessionId || !this.messageController) return;
 
+        console.log(`[TAB-DEBUG] _subscribeToSession called: sessionId=${this.sessionId}`);
+
         // Unsubscribe from previous session
         this._subscription?.();
         this._subscription = undefined;
@@ -289,6 +292,7 @@ export class RtcMessageList extends LitElement {
             this._subscription = this.messageController.repository.subscribe(
                 this.sessionId,
                 (data: MessageState) => {
+                    console.log(`[TAB-DEBUG] subscription callback: sessionId=${this.sessionId}, messageCount=${data.messages.length}`);
                     this._handleMessagesUpdate(data);
                 },
             );
@@ -302,11 +306,18 @@ export class RtcMessageList extends LitElement {
 
     /**
      * Handle messages update from repository subscription.
-     * Converts repository changes to virtual scroll operations.
+     * Simplified: just call setItems, which handles all diff logic internally.
      */
     private _handleMessagesUpdate(data: MessageState) {
         const oldMessages = this._messages;
         const newMessages = data.messages;
+
+        console.log(`[TAB-DEBUG] _handleMessagesUpdate: sessionId=${this.sessionId}, oldCount=${oldMessages.length}, newCount=${newMessages.length}`);
+
+        log.debug('_handleMessagesUpdate: old=', oldMessages.length,
+            'new=', newMessages.length,
+            'lastId=', newMessages[newMessages.length - 1]?.clientId?.slice(0, 8),
+            'lastStatus=', newMessages[newMessages.length - 1]?.syncStatus);
 
         if (!this._virtualScroll) {
             this._messages = newMessages;
@@ -318,60 +329,24 @@ export class RtcMessageList extends LitElement {
         // _renderMessageElement can correctly determine isLast
         this._messages = newMessages;
 
-        if (oldMessages.length === 0 && newMessages.length > 0) {
-            // Initial load
-            this._isVirtualScrollOperation = true;
-            this._virtualScroll.setItems(newMessages);
-            if (this._shouldAutoScroll) {
-                this._virtualScroll.scrollToBottom();
-            }
-            this._isVirtualScrollOperation = false;
-        } else if (newMessages.length !== oldMessages.length) {
-            // Detect changes: prepend, append, or both
-            const oldSet = new Set(oldMessages.map(m => m.clientId));
+        // Mark as virtual scroll operation to prevent auto-scroll interference
+        this._isVirtualScrollOperation = true;
 
-            // Find prepended messages (in new but before old first)
-            const prepended: Message[] = [];
-            const appended: Message[] = [];
+        // Smart setItems handles all diff logic internally:
+        // - Detects prepend/append/update/middle-insert/removal
+        // - Applies optimal DOM operations with scroll compensation
+        // - No need for complex change detection here!
+        this._virtualScroll.setItems(newMessages);
 
-            const oldFirstId = oldMessages[0]?.clientId;
-            const oldLastId = oldMessages[oldMessages.length - 1]?.clientId;
-
-            for (const m of newMessages) {
-                if (!oldSet.has(m.clientId)) {
-                    // Check if it's before old first or after old last
-                    const newIdx = newMessages.indexOf(m);
-                    const oldFirstIdx = oldFirstId ? newMessages.findIndex(nm => nm.clientId === oldFirstId) : -1;
-                    const oldLastIdx = oldLastId ? newMessages.findIndex(nm => nm.clientId === oldLastId) : -1;
-
-                    if (oldFirstIdx === -1 || newIdx < oldFirstIdx) {
-                        prepended.push(m);
-                    } else if (oldLastIdx === -1 || newIdx > oldLastIdx) {
-                        appended.push(m);
-                    }
-                }
-            }
-
-            if (prepended.length > 0 || appended.length > 0) {
-                this._isVirtualScrollOperation = true;
-                if (prepended.length > 0) {
-                    this._virtualScroll.prependItems(prepended);
-                }
-                if (appended.length > 0) {
-                    this._virtualScroll.appendItems(appended);
-                }
-                // Delay reset to allow ResizeObserver to fire and be ignored
-                setTimeout(() => {
-                    this._isVirtualScrollOperation = false;
-                }, 50);
-            }
-
-            // Also update items that changed in place (e.g., status: syncing → synced)
-            this._virtualScroll.updateItems(newMessages);
-        } else {
-            // Same length - check if any items changed (e.g., status update)
-            this._virtualScroll.updateItems(newMessages);
+        // Auto-scroll only on initial load (empty → items)
+        if (oldMessages.length === 0 && newMessages.length > 0 && this._shouldAutoScroll) {
+            this._virtualScroll.scrollToBottom();
         }
+
+        // Reset flag after a short delay to allow ResizeObserver to fire and be ignored
+        setTimeout(() => {
+            this._isVirtualScrollOperation = false;
+        }, 50);
 
         this._hasMore = data.hasMore;
 
@@ -437,6 +412,7 @@ export class RtcMessageList extends LitElement {
 
         // --- Session switch: clear virtual scroll, re-subscribe, scroll to bottom ---
         if (changed.has('sessionId')) {
+            console.log(`[TAB-DEBUG] updated: sessionId changed to ${this.sessionId}`);
             this._virtualScroll?.clear();
             this._subscribeToSession();
             this._shouldAutoScroll = true;
@@ -699,16 +675,31 @@ export class RtcMessageList extends LitElement {
 
         // Toolcall output → reply (with clickable jump to input)
         if (msg.content?.type === 'toolcall_output') {
-            // Orphaned output (no parentClientId): render as plain message
-            if (!msg.parentClientId) {
-                const el = document.createElement('rtc-message');
-                el.setAttribute('data-client-id', msg.clientId);
-                (el as any).message = msg;
-                return el;
+            // If no parentClientId, try to find the input message by tool call ID
+            // Search backwards from current position, limit to 5 messages for efficiency
+            let parentClientId = msg.parentClientId;
+            if (!parentClientId) {
+                const toolCallId = (msg.content.data as any)?.id;
+                if (toolCallId) {
+                    // Find current message index and search backwards (max 5)
+                    const currentIndex = this._messages.findIndex(m => m.clientId === msg.clientId);
+                    const startIndex = Math.max(0, currentIndex - 5);
+                    for (let i = currentIndex - 1; i >= startIndex; i--) {
+                        const m = this._messages[i];
+                        if (m.content?.type === 'toolcall_input' && (m.content.data as any)?.id === toolCallId) {
+                            parentClientId = m.clientId;
+                            break;
+                        }
+                    }
+                }
             }
+
+            // Always render as rtc-toolcall-reply (even without parentClientId)
+            // This ensures proper formatting with max-height constraint and scrolling
             const el = document.createElement('rtc-toolcall-reply');
             el.setAttribute('data-client-id', msg.clientId);
-            (el as any).message = msg;
+            // Create a new message object with the resolved parentClientId (may be undefined)
+            (el as any).message = { ...msg, parentClientId };
             return el;
         }
 

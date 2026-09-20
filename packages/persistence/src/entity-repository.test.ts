@@ -32,7 +32,7 @@ describe('entity-repository', () => {
 
     // Collect UIUpdateBus events for assertions
     collectedEvents = [];
-    getUIUpdateBus().subscribe((e) => collectedEvents.push(e));
+    getUIUpdateBus().subscribe((e) => { collectedEvents.push(e); });
   });
 
   afterEach(async () => {
@@ -438,10 +438,11 @@ describe('entity-repository', () => {
 
   describe('getNextRtcToProcess', () => {
     beforeEach(async () => {
-      // Insert RTCs with various states
+      // Insert RTCs with various states (all with session_device_id = TEST_DEVICE_ID for local device)
       await repo.upsertRtc({
         client_id: 'r1',
         session_client_id: 's1',
+        session_device_id: TEST_DEVICE_ID,
         offset: 1,
         status: 'pending',
         sync_status: 'synced',
@@ -449,6 +450,7 @@ describe('entity-repository', () => {
       await repo.upsertRtc({
         client_id: 'r2',
         session_client_id: 's1',
+        session_device_id: TEST_DEVICE_ID,
         offset: 2,
         status: 'pending',
         sync_status: 'failed',
@@ -456,6 +458,7 @@ describe('entity-repository', () => {
       await repo.upsertRtc({
         client_id: 'r3',
         session_client_id: 's1',
+        session_device_id: TEST_DEVICE_ID,
         offset: 0,
         status: 'pending',
         sync_status: 'synced',
@@ -498,6 +501,58 @@ describe('entity-repository', () => {
       }
       const next = await repo.getNextRtcToProcess('s1');
       expect(next).toBeUndefined();
+    });
+
+    it('should filter by device_id at execution time', async () => {
+      // r1 belongs to local device, r-other belongs to different device
+      await repo.upsertRtc({
+        client_id: 'r1',
+        session_client_id: 's1',
+        session_device_id: TEST_DEVICE_ID,
+        offset: 1,
+        status: 'pending',
+      }, 'failed');
+      await repo.upsertRtc({
+        client_id: 'r-other',
+        session_client_id: 's1',
+        session_device_id: 'other-device',
+        offset: 0, // Smaller offset, but belongs to different device
+        status: 'pending',
+      }, 'failed');
+
+      const next = await repo.getNextRtcToProcess('s1');
+      // Should return r1 (local device), not r-other (different device)
+      expect(next?.client_id).toBe('r1');
+    });
+
+    it('should allow RTC with empty session_device_id (lenient mode)', async () => {
+      // r1 has empty session_device_id (e.g., session query failed)
+      await repo.upsertRtc({
+        client_id: 'r1',
+        session_client_id: 's1',
+        session_device_id: '', // Empty
+        offset: 1,
+        status: 'pending',
+      }, 'failed');
+
+      const next = await repo.getNextRtcToProcess('s1');
+      // Should be allowed in lenient mode
+      expect(next?.client_id).toBe('r1');
+    });
+
+    it('should allow RTC with undefined session_device_id (lenient mode)', async () => {
+      // r1 has undefined session_device_id
+      await repo.upsertRtc({
+        client_id: 'r1',
+        session_client_id: 's1',
+        // session_device_id not set (undefined)
+        offset: 1,
+        status: 'pending',
+      }, 'failed');
+
+      const next = await repo.getNextRtcToProcess('s1');
+      // Should be allowed in lenient mode
+      expect(next?.client_id).toBe('r1');
     });
   });
 
@@ -657,7 +712,7 @@ describe('entity-repository', () => {
       expect(m!.parent_client_id).toBe('parent-msg');
     });
 
-    it('should skip RTC for a different device', async () => {
+    it('should write RTC with session_device_id even for a different device', async () => {
       // Create a session belonging to a different device
       await repo.upsertSession({
         client_id: 's-other',
@@ -690,8 +745,12 @@ describe('entity-repository', () => {
 
       await repo.applyUpdate(update);
 
+      // RTC should be written (lenient mode), with session_device_id stored
       const r = await repo.getClientRtc('c-r1');
-      expect(r).toBeUndefined();
+      expect(r).toBeDefined();
+      expect(r!.session_client_id).toBe('s-other');
+      expect(r!.session_device_id).toBe('other-device');
+      expect(r!.sync_status).toBe('pending');
     });
 
     it('should apply RTC for local device with sync_status=pending', async () => {
@@ -730,6 +789,7 @@ describe('entity-repository', () => {
       expect(r).toBeDefined();
       expect(r!.sync_status).toBe('pending');
       expect(r!.session_client_id).toBe('s1');
+      expect(r!.session_device_id).toBe(TEST_DEVICE_ID);
     });
 
     it('should skip items without data_list entry', async () => {

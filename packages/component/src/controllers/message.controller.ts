@@ -39,6 +39,13 @@ export class MessageController implements ReactiveController {
     /** Session controller — injected by root component after construction. */
     private _sessionController?: SessionController;
 
+    /**
+     * Per-session promise chain to serialize updateMessageFromBus calls.
+     * Prevents race condition when multiple messages arrive concurrently from UIUpdateBus.
+     * Key: sessionClientId, Value: pending promise chain for that session.
+     */
+    private _sessionUpdateChains = new Map<string, Promise<void>>();
+
     readonly actions: MessageActions;
 
     /** Setter for persistence injection (avoids circular deps). */
@@ -204,12 +211,15 @@ export class MessageController implements ReactiveController {
      *
      * Handles both existing messages (patch) and new messages (append).
      *
+     * Uses per-session promise chain to serialize updates and prevent race conditions
+     * when multiple messages arrive concurrently from UIUpdateBus.
+     *
      * @param entityId - Message client ID
      */
     async updateMessageFromBus(entityId: string): Promise<void> {
         if (!this._persistence || !this._repository) return;
 
-        // Get the message from DB to find its session
+        // Get the message from DB to find its session (read-only, no race)
         const localMsg = await this._persistence.getMessage(entityId);
         if (!localMsg) {
             log.debug(`message not found in DB: ${entityId}`);
@@ -222,6 +232,37 @@ export class MessageController implements ReactiveController {
             return;
         }
 
+
+        // Serialize the read-modify-write part per session to prevent race conditions.
+        // Multiple concurrent calls for the same session must not interleave.
+        const prev = this._sessionUpdateChains.get(messageSessionId) ?? Promise.resolve();
+        const next = prev.then(
+            () => {
+                this._applyBusUpdate(messageSessionId, entityId, localMsg);
+            },
+            () => {
+                this._applyBusUpdate(messageSessionId, entityId, localMsg);
+            }
+        );
+        this._sessionUpdateChains.set(messageSessionId, next);
+
+        // Clean up the chain when it settles
+        next.finally(() => {
+            if (this._sessionUpdateChains.get(messageSessionId) === next) {
+                this._sessionUpdateChains.delete(messageSessionId);
+            }
+        });
+
+        return next;
+    }
+
+    /**
+     * Apply a single UIUpdateBus update to repository and legacy state.
+     * Called within the per-session promise chain to ensure serialization.
+     */
+    private _applyBusUpdate(messageSessionId: string, entityId: string, localMsg: LocalMessage): void {
+        if (!this._repository) return;
+
         // Convert DB message to UI format
         const newMsg = this._localMessageToUI(localMsg);
 
@@ -232,6 +273,7 @@ export class MessageController implements ReactiveController {
             const current = this._repository.getSessionState(messageSessionId);
             const messages = [...current.messages, newMsg].sort((a, b) => a.timestamp - b.timestamp);
             this._repository.updateMessages(messageSessionId, messages);
+        } else {
         }
 
         // Also update legacy state if this is the current session
@@ -432,6 +474,7 @@ export class MessageController implements ReactiveController {
             return;
         }
 
+
         // Call persistence layer's forkSession
         const result = await this._persistence.forkSession({
             oldSessionClientId: params.oldSessionClientId,
@@ -441,6 +484,7 @@ export class MessageController implements ReactiveController {
             content: params.content,
             limit: params.limit,
         });
+
 
         // Add new session to sessions list and set as currentSession
         // (consistent with _sendMessage, so _ensureTabForSession can locate it immediately)
@@ -458,6 +502,7 @@ export class MessageController implements ReactiveController {
         // Reload the new session's message list
         await this._reloadFromDB(result.session.client_id);
 
+
         // Notify external listeners
         this.host.dispatchEvent(
             new CustomEvent('rtc-message-sent', {
@@ -471,11 +516,13 @@ export class MessageController implements ReactiveController {
     private async _reloadFromDB(sessionClientId: string) {
         if (!this._persistence) return;
 
+
         // Load the latest messages (backward = from newest)
         const localMessages = await this._persistence.listMessages(
             sessionClientId, undefined, MESSAGE_PAGE_SIZE, 'backward'
         );
         const messages = localMessages.map((m) => this._localMessageToUI(m));
+
 
         // Track pagination state using (created_at, client_id) composite cursor
         const hasMore = localMessages.length >= MESSAGE_PAGE_SIZE;

@@ -139,6 +139,13 @@ export interface SessionTab {
     isUnsaved?: boolean;
     /** Session 运行状态：active（agent 生成中）/ idle（等待输入）/ closed（已关闭） */
     status?: SessionStatus;
+    // ── Transient UI params（不持久化，消费后清除）──
+    /** 预填到 input-area 的初始值 */
+    initialInputValue?: string;
+    /** notice-bar 显示的提示消息 */
+    noticeMessage?: string;
+    /** 每次 setTransientParams 递增，防御 Lit 脏检查跳过 */
+    initialValueVersion?: number;
 }
 
 export interface SessionTabState {
@@ -149,8 +156,8 @@ export interface SessionTabState {
 }
 
 export interface SessionTabActions {
-    /** 打开或切换到指定 session 的 tab。`options.isUnsaved` 用于新建 unsaved draft tab。`options.skipPersist` 用于批量恢复时跳过 localStorage 写入。 */
-    openOrActivate(sessionId: string, title: string, options?: { isUnsaved?: boolean; activate?: boolean; skipPersist?: boolean }): void;
+    /** 打开或切换到指定 session 的 tab。`options.isUnsaved` 用于新建 unsaved draft tab。`options.skipPersist` 用于批量恢复时跳过 localStorage 写入。`options.initialInputValue` / `options.noticeMessage` 用于传递瞬态 UI 参数。 */
+    openOrActivate(sessionId: string, title: string, options?: { isUnsaved?: boolean; activate?: boolean; skipPersist?: boolean; initialInputValue?: string; noticeMessage?: string }): void;
     /** 关闭指定 tab。若关闭的是活动 tab，自动激活相邻 tab。 */
     closeTab(sessionId: string): void;
     /** 设置活动 tab */
@@ -182,6 +189,10 @@ export interface SessionTabActions {
      * 如果 localStorage 为空或不可用，返回 null。
      */
     getStoredActiveSessionId(): string | null;
+    /** 设置指定 tab 的瞬态 UI 参数（initialInputValue, noticeMessage），同时递增 initialValueVersion。 */
+    setTransientParams(sessionId: string, params: { initialInputValue?: string; noticeMessage?: string }): void;
+    /** 清除指定 tab 的瞬态 UI 参数。 */
+    clearTransientParams(sessionId: string): void;
 }
 
 /* ── Modes ── */

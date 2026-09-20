@@ -139,6 +139,8 @@ export class RtcChatLayout extends LitElement {
         // 监听 rtc-session-tree-new：捕获 session-header "+" 按钮冒泡上来的事件
         // （Phase 6 改 session-header 后生效；Phase 3 先接好监听）
         this.addEventListener('rtc-session-tree-new', this._handleSessionTreeNew);
+        // 监听 rtc-clear-active-input：Escape 键取消 fork 时由 rtc-agent 派发
+        this.addEventListener('rtc-clear-active-input', this._boundOnClearActiveInput);
     }
 
     disconnectedCallback() {
@@ -146,6 +148,24 @@ export class RtcChatLayout extends LitElement {
         document.removeEventListener('rtc-message-sent', this._boundOnMessageSent);
         this.removeEventListener('rtc-fork-requested', this._boundOnForkRequested);
         this.removeEventListener('rtc-session-tree-new', this._handleSessionTreeNew);
+        this.removeEventListener('rtc-clear-active-input', this._boundOnClearActiveInput);
+    }
+
+    /** 清空当前活动 tab 的输入框（供 Escape 键等场景调用） */
+    private _boundOnClearActiveInput = () => this.clearActiveInput();
+
+    /** 清空当前活动 tab 的输入框 */
+    public clearActiveInput(): void {
+        const activeId = this._tabCtx.state.activeSessionId;
+        if (!activeId) return;
+        for (const el of Array.from(
+            this.shadowRoot?.querySelectorAll('rtc-input-area') ?? []
+        )) {
+            if ((el as HTMLElement & { sessionId: string | null }).sessionId === activeId) {
+                (el as HTMLElement & { clearValue: () => void }).clearValue();
+                break;
+            }
+        }
     }
 
     /**

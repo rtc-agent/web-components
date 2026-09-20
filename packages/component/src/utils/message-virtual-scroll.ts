@@ -146,15 +146,279 @@ export class MessageVirtualScroll<T> {
     }
 
     /**
-     * Set initial items (e.g., latest messages).
-     * Called on first load - scrolls to bottom.
+     * Declarative API: Set items and automatically apply optimal DOM operations.
+     *
+     * This is the main entry point for consumers. It internally diffs old vs new items
+     * and applies the minimal DOM operations:
+     * - Empty → items: Full render with scroll to bottom (initial load)
+     * - Items → empty: Clear all
+     * - Items changed: Detect prepend/append/update/middle-insert and apply optimal operations
+     *
+     * Scroll compensation is handled automatically via ScrollSaver.
      */
-    setItems(items: T[]) {
-        this._items = [...items];
-        // Initially: there may be more messages above, we're at the bottom
-        this._loadedTop = false;
-        this._loadedBottom = true;
-        this._renderAll();
+    setItems(newItems: T[]) {
+        const oldItems = this._items;
+
+        // Case 1: Empty → items (initial load)
+        if (oldItems.length === 0 && newItems.length > 0) {
+            this._items = [...newItems];
+            this._loadedTop = false;
+            this._loadedBottom = true;
+            this._renderAll();
+            return;
+        }
+
+        // Case 2: Items → empty
+        if (oldItems.length > 0 && newItems.length === 0) {
+            this.clear();
+            return;
+        }
+
+        // Case 3: Both empty - nothing to do
+        if (oldItems.length === 0 && newItems.length === 0) {
+            return;
+        }
+
+        // Case 4: Compute diff and apply optimal operations
+        const diff = this._computeDiff(oldItems, newItems);
+
+        console.log(
+            `[TAB-DEBUG] setItems diff: oldCount=${oldItems.length}, newCount=${newItems.length}, ` +
+            `prepended=${diff.prepended.length}, appended=${diff.appended.length}, ` +
+            `middleInserted=${diff.middleInserted.length}, hasUpdates=${diff.hasUpdates}, hasRemovals=${diff.hasRemovals}`
+        );
+
+        // Optimization: if no changes at all, return early without updating _items
+        // This prevents unnecessary array reference changes during tab switching
+        if (diff.prepended.length === 0 &&
+            diff.appended.length === 0 &&
+            diff.middleInserted.length === 0 &&
+            !diff.hasUpdates &&
+            !diff.hasRemovals) {
+            log.debug('setItems: no changes detected, skipping update');
+            return;
+        }
+
+        log.debug(
+            `setItems diff: prepended=${diff.prepended.length}, ` +
+            `appended=${diff.appended.length}, middleInserted=${diff.middleInserted.length}, ` +
+            `updated=${diff.hasUpdates}`
+        );
+
+        // Apply operations
+        if (diff.middleInserted.length > 0 || diff.hasRemovals) {
+            // Middle insert or removal: full re-render with scroll compensation
+            // This is rare (e.g., fork with historical messages), so acceptable
+            const scrollSaver = new ScrollSaver(this._scrollContainer, this._query, true);
+            scrollSaver.save();
+            this._items = [...newItems];
+            this._renderAll();
+            scrollSaver.restore();
+        } else {
+            // Incremental updates: prepend → append → update
+            if (diff.prepended.length > 0) {
+                this._prependToDom(diff.prepended);
+            }
+            if (diff.appended.length > 0) {
+                this._appendToDom(diff.appended);
+            }
+            if (diff.hasUpdates) {
+                this._updateInPlace(newItems);
+            }
+            // Always sync _items to match newItems
+            this._items = [...newItems];
+        }
+
+        this._rebuildIdToIndex();
+    }
+
+    /**
+     * Compute diff between old and new items.
+     * Detects: prepended (before old first), appended (after old last),
+     * middleInserted (between old first and last), removals, and content updates.
+     */
+    private _computeDiff(oldItems: T[], newItems: T[]): {
+        prepended: T[];
+        appended: T[];
+        middleInserted: T[];
+        hasUpdates: boolean;
+        hasRemovals: boolean;
+    } {
+        const oldIdSet = new Set(oldItems.map(item => this._getItemId(item)));
+        const newIdSet = new Set(newItems.map(item => this._getItemId(item)));
+
+        // Find prepended items (new items before old first)
+        const oldFirstId = oldItems.length > 0 ? this._getItemId(oldItems[0]) : undefined;
+        const oldFirstNewIdx = oldFirstId
+            ? newItems.findIndex(item => this._getItemId(item) === oldFirstId)
+            : -1;
+        const prepended = oldFirstNewIdx > 0 ? newItems.slice(0, oldFirstNewIdx) : [];
+
+        // Find appended items (new items after old last)
+        const oldLastId = oldItems.length > 0 ? this._getItemId(oldItems[oldItems.length - 1]) : undefined;
+        const oldLastNewIdx = oldLastId
+            ? newItems.findIndex(item => this._getItemId(item) === oldLastId)
+            : -1;
+        const appended =
+            oldLastNewIdx >= 0 && oldLastNewIdx < newItems.length - 1
+                ? newItems.slice(oldLastNewIdx + 1)
+                : [];
+
+        // Find middle inserted items (new items between old first and last that are not in old)
+        const middleInserted: T[] = [];
+        if (oldFirstNewIdx >= 0 && oldLastNewIdx >= 0) {
+            for (let i = oldFirstNewIdx + 1; i < oldLastNewIdx; i++) {
+                const item = newItems[i];
+                if (!oldIdSet.has(this._getItemId(item))) {
+                    middleInserted.push(item);
+                }
+            }
+        }
+
+        // Check for removals (items in old but not in new)
+        const hasRemovals = oldItems.some(item => !newIdSet.has(this._getItemId(item)));
+
+        // Check for content updates (items in both but content changed)
+        const oldItemsById = new Map<string, T>();
+        oldItems.forEach(item => {
+            oldItemsById.set(this._getItemId(item), item);
+        });
+
+        let hasUpdates = false;
+        for (const newItem of newItems) {
+            const oldItem = oldItemsById.get(this._getItemId(newItem));
+            if (oldItem && !this._itemsEqual(oldItem, newItem)) {
+                hasUpdates = true;
+                break;
+            }
+        }
+
+        return {prepended, appended, middleInserted, hasUpdates, hasRemovals};
+    }
+
+    /**
+     * Prepend items to DOM without updating _items.
+     * Used internally by setItems.
+     */
+    private _prependToDom(items: T[]): void {
+        if (items.length === 0) return;
+
+        // Save scroll state
+        const scrollSaver = new ScrollSaver(this._scrollContainer, this._query, true);
+        scrollSaver.save();
+
+        // Re-index existing elements (indices shift after prepend)
+        const existingElements = Array.from(this._innerContainer.children) as HTMLElement[];
+        for (const el of existingElements) {
+            const oldIndex = parseInt(el.dataset.messageIndex || '-1', 10);
+            if (oldIndex >= 0) {
+                el.dataset.messageIndex = String(oldIndex + items.length);
+            }
+        }
+
+        // Insert new elements at the beginning
+        const fragment = document.createDocumentFragment();
+        items.forEach((item, index) => {
+            const el = this._renderItem(item, index);
+            el.dataset.messageIndex = String(index);
+            fragment.appendChild(el);
+        });
+
+        if (this._innerContainer.firstChild) {
+            this._innerContainer.insertBefore(fragment, this._innerContainer.firstChild);
+        } else {
+            this._innerContainer.appendChild(fragment);
+        }
+
+        // Re-index existing elements in _elementMap
+        const newElementMap = new Map<number, HTMLElement>();
+        this._elementMap.forEach((el, oldIndex) => {
+            newElementMap.set(oldIndex + items.length, el);
+        });
+        this._elementMap = newElementMap;
+
+        // Add new elements to _elementMap
+        items.forEach((_item, index) => {
+            const el = this._innerContainer.children[index] as HTMLElement;
+            this._elementMap.set(index, el);
+        });
+
+        // Restore scroll position
+        scrollSaver.restore();
+
+        this._onSizeChange?.();
+    }
+
+    /**
+     * Append items to DOM without updating _items.
+     * Used internally by setItems.
+     */
+    private _appendToDom(items: T[]): void {
+        if (items.length === 0) return;
+
+        // Save scroll state
+        const scrollSaver = new ScrollSaver(this._scrollContainer, this._query, false);
+        scrollSaver.save();
+
+        const startIndex = this._items.length;
+
+        // Render new items
+        this._renderNewItems(items, startIndex);
+
+        // Restore scroll position
+        scrollSaver.restore();
+
+        this._onSizeChange?.();
+    }
+
+    /**
+     * Update existing items in place.
+     * Only re-renders items that have changed and are currently in the DOM.
+     */
+    private _updateInPlace(newItems: T[]): void {
+        // Build a map of old items by ID
+        const oldItemsById = new Map<string, {index: number; item: T}>();
+        this._items.forEach((item, index) => {
+            oldItemsById.set(this._getItemId(item), {index, item});
+        });
+
+        // Update _items
+        this._items = [...newItems];
+
+        // Find and re-render changed items
+        newItems.forEach((newItem, newIndex) => {
+            const itemId = this._getItemId(newItem);
+            const oldEntry = oldItemsById.get(itemId);
+
+            if (!oldEntry) {
+                // New item - should have been handled by prepend/append
+                return;
+            }
+
+            // Deep compare: if content is identical, skip re-render
+            if (this._itemsEqual(oldEntry.item, newItem)) {
+                return;
+            }
+
+            // Item changed - check if it's currently rendered
+            const element = this._elementMap.get(oldEntry.index);
+            if (!element || !element.isConnected) {
+                return;
+            }
+
+            // In-place update
+            if (this._updateItemElement) {
+                this._updateItemElement(element, newItem, newIndex);
+            } else {
+                // Fallback: destroy and rebuild
+                const newElement = this._renderItem(newItem, newIndex);
+                newElement.dataset.messageIndex = String(newIndex);
+                this._elementMap.set(newIndex, newElement);
+                element.replaceWith(newElement);
+            }
+
+            this._onSizeChange?.();
+        });
     }
 
     /**

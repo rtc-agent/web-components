@@ -30,7 +30,7 @@ export interface PersistenceConfig {
   client: RTCAgentClientOptions;
   /** Database name (default: 'rtc-agent') */
   databaseName?: string;
-  /** Device ID for filtering non-local-device RTCs on write */
+  /** Device ID for filtering non-local-device RTCs at execution time */
   deviceId: string;
 }
 
@@ -171,8 +171,8 @@ export class PersistenceLayer {
   /**
    * Get the next RTC to process.
    *
-   * Device ID filtering is already done at write time (EntityRepository.applyUpdateItem);
-   * here we only optionally filter by session.
+   * Device ID filtering is done at execution time (EntityRepository.getNextRtcToProcess);
+   * only RTCs whose session_device_id matches the current device are returned.
    *
    * @param sessionClientId Optional session filter
    */
@@ -724,9 +724,7 @@ export class PersistenceLayer {
         client_id: newMessageClientId,
         session_client_id: newSession.client_id,
         role: 'user',
-        content: typeof content.data === 'string'
-          ? content.data
-          : JSON.stringify(content.data),
+        content: JSON.stringify(content),
         streaming_status: 'completed',
         created_at: now,
         updated_at: now,
