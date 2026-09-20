@@ -57,6 +57,15 @@ export const styles = css`
     transition: none !important;
   }
 
+  /* Disable text selection during drag/resize (scoped to window element, not entire document) */
+  :host(.dragging),
+  :host(.resizing) {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+  }
+
   /* Drag visual feedback */
   :host(.dragging) {
     box-shadow: var(--rtc-shadow-drag);

@@ -1680,7 +1680,6 @@ export class RtcAgent extends LitElement {
 
         const sessions = await this._persistence.layer.listSessions();
         console.log('[rtc-agent._loadSessions] Loaded sessions from DB:', sessions.length);
-        sessions.forEach(s => console.log(`  - ${s.client_id}: title="${s.title || ''}", root=${s.root_client_session_id || 'null'}`));
 
         const uiSessions: Session[] = sessions.map(s => ({
             clientId: s.client_id,

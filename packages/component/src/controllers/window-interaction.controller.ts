@@ -67,28 +67,24 @@ export class WindowInteractionController implements ReactiveController {
   };
 
   private _isEnabled = false;
-  private _prefersReducedMotion: boolean;
-  private _boundHandleMotionPreference: (e: MediaQueryListEvent) => void;
 
   /** 窗口配置 */
   private _draggable = true;
   private _resizable = true;
 
-  /** selectstart 事件拦截器（防止拖动/缩放时选中文本） */
-  private _boundOnSelectStart = (e: Event) => {
-    if (this._state.isDragging || this._state.isResizing) {
-      e.preventDefault();
-    }
-  };
+  /** Ghost 预览元素（拖动/缩放期间的轻量级视觉反馈） */
+  private _ghostElement?: HTMLElement;
+  /** Ghost 起始状态（用于计算 delta） */
+  private _ghostStartRect?: { left: number; top: number; width: number; height: number };
+  /** 累计拖动偏移（drag 期间） */
+  private _ghostDragOffset = { x: 0, y: 0 };
+  /** 缓存的 margin 值（拖动/缩放期间复用，避免重复调用 getComputedStyle） */
+  private _cachedMargin = 20;
 
   constructor(host: ReactiveControllerHost, config?: { draggable?: boolean; resizable?: boolean }) {
     this._host = host;
     this._draggable = config?.draggable ?? true;
     this._resizable = config?.resizable ?? true;
-    this._prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    this._boundHandleMotionPreference = (e: MediaQueryListEvent) => {
-      this._prefersReducedMotion = e.matches;
-    };
 
     // selectstart 事件拦截在 enable 时注册
 
@@ -103,8 +99,9 @@ export class WindowInteractionController implements ReactiveController {
       },
     };
 
-    // Listen for reduced motion preference changes
-    window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', this._boundHandleMotionPreference);
+    // Listen for reduced motion preference changes — currently unused since
+    // ghost preview disables inertia unconditionally, but kept as a hook for
+    // future animation tuning.
   }
 
   /** 更新配置 */
@@ -151,14 +148,13 @@ export class WindowInteractionController implements ReactiveController {
   }
 
   hostDisconnected(): void {
-    window.matchMedia('(prefers-reduced-motion: reduce)').removeEventListener('change', this._boundHandleMotionPreference);
-    // Ensure selectstart listener is cleaned up
-    document.removeEventListener('selectstart', this._boundOnSelectStart);
+    // 确保 ghost 元素被清理（防止组件被动态移除时泄漏）
+    this._destroyGhostElement();
     this.destroy();
   }
 
   /**
-   * Cleanup interact.js instances.
+   * Cleanup interact.js instances and ghost element.
    */
   destroy(): void {
     if (this._windowElement) {
@@ -167,6 +163,8 @@ export class WindowInteractionController implements ReactiveController {
     if (this._titleBarElement) {
       interact(this._titleBarElement).unset();
     }
+    // 清理 ghost 元素
+    this._destroyGhostElement();
     this._isEnabled = false;
   }
 
@@ -210,7 +208,8 @@ export class WindowInteractionController implements ReactiveController {
         end: () => this._onDragEnd(),
       },
       // Removed allowFrom — title bar element is directly draggable
-      inertia: !this._prefersReducedMotion,
+      // Ghost 预览模式下禁用 inertia，避免 ghost 销毁后仍有 move/end 事件
+      inertia: false,
     });
   }
 
@@ -236,7 +235,8 @@ export class WindowInteractionController implements ReactiveController {
           },
         }),
       ],
-      inertia: !this._prefersReducedMotion,
+      // Ghost 预览模式下禁用 inertia
+      inertia: false,
     });
   }
 
@@ -309,105 +309,132 @@ export class WindowInteractionController implements ReactiveController {
     this._host.requestUpdate();
   }
 
-  /**
-   * 禁用文本选中（拖动/缩放期间调用）
-   *
-   * 通过 selectstart 事件拦截来防止拖动操作意外选中文字。
-   * 相比全局 CSS（body.rtc-interacting * { user-select: none }），
-   * 事件拦截不会触发全文档样式重计算，性能更好。
-   */
-  private _disableTextSelection(): void {
-    document.addEventListener('selectstart', this._boundOnSelectStart);
-  }
-
-  /**
-   * 恢复文本选中（拖动/缩放结束后调用）
-   */
-  private _restoreTextSelection(): void {
-    document.removeEventListener('selectstart', this._boundOnSelectStart);
-  }
-
   private _onDragStart(): void {
     this._state = { ...this._state, isDragging: true };
     this._windowElement?.classList.add('dragging');
-    this._disableTextSelection();
-    this._host.requestUpdate();
+
+    // 缓存 margin（避免在 move 期间重复调用 getComputedStyle）
+    this._cachedMargin = this._getMargin();
+
+    // 同步创建 ghost 预览元素（确保不丢失后续 move 事件的 dx/dy）
+    this._createGhostElement();
+    // 重置累计偏移
+    this._ghostDragOffset = { x: 0, y: 0 };
+
+    // 延迟 Lit 渲染到下一帧，避免与 ghost 创建在同一帧内竞争
+    requestAnimationFrame(() => this._host.requestUpdate());
   }
 
   private _onDragMove(event: InteractEvent): void {
-    if (!this._windowElement) return;
+    if (!this._windowElement || !this._ghostElement || !this._ghostStartRect) return;
 
-    const margin = this._getMargin();
+    const margin = this._cachedMargin;
     const viewport = { width: window.innerWidth, height: window.innerHeight };
-    const rect = this._windowElement.getBoundingClientRect();
 
-    // Calculate new position
-    let x = rect.left + event.dx;
-    let y = rect.top + event.dy;
+    // 累计偏移
+    this._ghostDragOffset.x += event.dx;
+    this._ghostDragOffset.y += event.dy;
 
-    // Constrain to viewport
-    x = Math.max(margin, Math.min(x, viewport.width - rect.width - margin));
-    y = Math.max(margin, Math.min(y, viewport.height - rect.height - margin));
+    // 计算约束后的偏移
+    let offsetX = this._ghostDragOffset.x;
+    let offsetY = this._ghostDragOffset.y;
 
-    // Delegate to WindowStateController via callback
-    this.onPositionChange?.(x, y);
+    const { left, top, width, height } = this._ghostStartRect;
+    const newLeft = left + offsetX;
+    const newTop = top + offsetY;
+
+    // 约束到视口
+    const clampedLeft = Math.max(margin, Math.min(newLeft, viewport.width - width - margin));
+    const clampedTop = Math.max(margin, Math.min(newTop, viewport.height - height - margin));
+
+    // 更新累计偏移为约束后的值（防止超出后继续累加）
+    this._ghostDragOffset.x = clampedLeft - left;
+    this._ghostDragOffset.y = clampedTop - top;
+
+    // 只更新 ghost 的 CSS transform（GPU 加速，零渲染开销）
+    this._ghostElement.style.transform = `translate3d(${this._ghostDragOffset.x}px, ${this._ghostDragOffset.y}px, 0)`;
   }
 
   private _onDragEnd(): void {
     this._state = { ...this._state, isDragging: false };
     this._windowElement?.classList.remove('dragging');
-    this._restoreTextSelection();
+
+    // 提交最终位置（恰好一次 Lit 渲染）
+    if (this._ghostStartRect && this._ghostElement) {
+      const finalX = this._ghostStartRect.left + this._ghostDragOffset.x;
+      const finalY = this._ghostStartRect.top + this._ghostDragOffset.y;
+      this.onPositionChange?.(finalX, finalY);
+    }
+
+    // 销毁 ghost
+    this._destroyGhostElement();
     this._host.requestUpdate();
   }
 
   private _onResizeStart(): void {
     this._state = { ...this._state, isResizing: true };
     this._windowElement?.classList.add('resizing');
-    this._disableTextSelection();
-    this._host.requestUpdate();
+
+    // 缓存 margin（避免在 move 期间重复调用 getComputedStyle）
+    this._cachedMargin = this._getMargin();
+
+    // 同步创建 ghost 预览元素
+    this._createGhostElement();
+
+    // 延迟 Lit 渲染到下一帧，避免与 ghost 创建在同一帧内竞争
+    requestAnimationFrame(() => this._host.requestUpdate());
   }
 
   private _onResizeMove(event: ResizeEvent): void {
-    if (!this._windowElement) return;
+    if (!this._windowElement || !this._ghostElement || !this._ghostStartRect) return;
 
     const { width, height } = event.rect;
-    const margin = this._getMargin();
-
-    // When resizing from left/top edges, we must also update position so the
-    // opposite edge stays fixed. interact.js adjusts event.rect but does NOT
-    // move the element in the DOM — we have to do it ourselves.
+    const margin = this._cachedMargin;
     const edges = event.edges;
-    if (edges?.left || edges?.top) {
-      const rect = this._windowElement.getBoundingClientRect();
-      // event.rect.left/top represent the absolute position the resized element
-      // should occupy (computed from the initial rect + accumulated deltas).
-      const newLeft = edges.left
-        ? event.rect.left
-        : rect.left;
-      const newTop = edges.top
-        ? event.rect.top
-        : rect.top;
 
-      // Clamp position to viewport
+    // 计算 ghost 的位置偏移（left/top 边缘 resize 时位置也会变化）
+    let offsetX = 0;
+    let offsetY = 0;
+
+    if (edges?.left || edges?.top) {
+      const newLeft = edges.left ? event.rect.left : this._ghostStartRect.left;
+      const newTop = edges.top ? event.rect.top : this._ghostStartRect.top;
+
+      // 约束到视口
       const clampedLeft = Math.max(margin, Math.min(newLeft, window.innerWidth - width - margin));
       const clampedTop = Math.max(margin, Math.min(newTop, window.innerHeight - height - margin));
 
-      // Apply position to the DOM element directly so the left/top edge
-      // follows the cursor during the drag.
-      this._windowElement.style.left = `${clampedLeft}px`;
-      this._windowElement.style.top = `${clampedTop}px`;
-
-      // Notify state controller
-      this.onPositionChange?.(clampedLeft, clampedTop);
+      offsetX = clampedLeft - this._ghostStartRect.left;
+      offsetY = clampedTop - this._ghostStartRect.top;
     }
 
-    this.onSizeChange?.(width, height);
+    // 更新 ghost 尺寸和位置（GPU 加速）
+    this._ghostElement.style.width = `${width}px`;
+    this._ghostElement.style.height = `${height}px`;
+    this._ghostElement.style.transform = `translate3d(${offsetX}px, ${offsetY}px, 0)`;
   }
 
   private _onResizeEnd(): void {
     this._state = { ...this._state, isResizing: false };
     this._windowElement?.classList.remove('resizing');
-    this._restoreTextSelection();
+
+    // 提交最终尺寸和位置（恰好一次 Lit 渲染）
+    if (this._ghostElement && this._ghostStartRect) {
+      const ghostRect = this._ghostElement.getBoundingClientRect();
+      const finalWidth = this._ghostElement.offsetWidth;
+      const finalHeight = this._ghostElement.offsetHeight;
+      const finalX = ghostRect.left;
+      const finalY = ghostRect.top;
+
+      // 先提交位置（如果有变化），再提交尺寸
+      if (finalX !== this._ghostStartRect.left || finalY !== this._ghostStartRect.top) {
+        this.onPositionChange?.(finalX, finalY);
+      }
+      this.onSizeChange?.(finalWidth, finalHeight);
+    }
+
+    // 销毁 ghost
+    this._destroyGhostElement();
     this._host.requestUpdate();
   }
 
@@ -425,5 +452,60 @@ export class WindowInteractionController implements ReactiveController {
       width: parseInt(styles.getPropertyValue('--rtc-window-min-width')) || 350,
       height: parseInt(styles.getPropertyValue('--rtc-window-min-height')) || 520,
     };
+  }
+
+  /**
+   * 创建 Ghost 预览元素
+   *
+   * 在 document.body 中创建一个轻量级的虚线边框元素，
+   * 用于在拖动/缩放期间提供视觉反馈，避免触发 Lit 重渲染。
+   */
+  private _createGhostElement(): void {
+    if (!this._windowElement) return;
+
+    // 清理可能存在的旧 ghost（防御性编程）
+    this._destroyGhostElement();
+
+    const rect = this._windowElement.getBoundingClientRect();
+    const styles = getComputedStyle(this._windowElement);
+
+    this._ghostStartRect = {
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+    };
+
+    const ghost = document.createElement('div');
+    ghost.className = 'rtc-window-ghost';
+    ghost.style.cssText = `
+      position: fixed;
+      left: ${rect.left}px;
+      top: ${rect.top}px;
+      width: ${rect.width}px;
+      height: ${rect.height}px;
+      border: 2px dashed ${styles.borderColor || 'var(--rtc-color-primary, #007acc)'};
+      border-radius: ${styles.borderRadius || '8px'};
+      background: transparent;
+      pointer-events: none;
+      z-index: ${styles.zIndex || '9999'};
+      box-sizing: border-box;
+      will-change: transform, width, height;
+    `;
+
+    document.body.appendChild(ghost);
+    this._ghostElement = ghost;
+  }
+
+  /**
+   * 销毁 Ghost 预览元素
+   */
+  private _destroyGhostElement(): void {
+    if (this._ghostElement) {
+      this._ghostElement.remove();
+      this._ghostElement = undefined;
+    }
+    this._ghostStartRect = undefined;
+    this._ghostDragOffset = { x: 0, y: 0 };
   }
 }
