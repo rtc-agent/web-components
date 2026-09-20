@@ -234,7 +234,7 @@ export class PersistenceLayer {
     } else {
       // Generate session title from first message content (first line, max 50 chars)
       const generatedTitle = this._generateSessionTitle(content);
-      log.info('sendMessage] New session created, generated title:', `"${generatedTitle}"`);
+      log.info('sendMessage: New session created, generated title:', `"${generatedTitle}"`);
 
       const result = await this.entityRepository.upsertSession(
         { client_id: sessionClientId, status: 'active', agent_prompt: agentPrompt, title: generatedTitle },
@@ -243,7 +243,7 @@ export class PersistenceLayer {
       );
       session = result.after;
       isNewSession = true;
-      log.info('sendMessage] Session after upsert:', { client_id: session.client_id, title: session.title });
+      log.info('sendMessage: Session after upsert:', { client_id: session.client_id, title: session.title });
     }
 
     // 4. Write message
@@ -563,7 +563,7 @@ export class PersistenceLayer {
           return attempt(retries + 1);
         }
         // Exceeded retry limit: mark as failed
-        log.error(` ${action}Session RPC failed after ${PersistenceLayer.SYNC_MAX_RETRIES} attempts:`, err);
+        log.error(`${action}Session RPC failed after ${PersistenceLayer.SYNC_MAX_RETRIES} attempts:`, err);
         await this._markSessionSyncFailed(serverId);
       }
     };

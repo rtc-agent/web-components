@@ -44,7 +44,7 @@ export class WorkerCore implements WorkerPersistenceCore {
    */
   async init(config: PersistenceConfig): Promise<void> {
     if (this.layer) {
-      log.warn(' already initialized, ignoring init()');
+      log.warn('already initialized, ignoring init()');
       return;
     }
 
@@ -95,14 +95,14 @@ export class WorkerCore implements WorkerPersistenceCore {
   // ========== Connection ==========
 
   async connect(): Promise<void> {
-    log.debug(' connect() called');
+    log.debug('connect() called');
     const layer = this.ensureLayer();
-    log.debug(' calling layer.connect()');
+    log.debug('calling layer.connect()');
     await layer.connect();
-    log.debug(' layer.connect() returned, client state:', layer.getClient().getConnectionState());
+    log.debug('layer.connect() returned, client state:', layer.getClient().getConnectionState());
     // Subscribe to RTCAgentClient connection state changes and broadcast to all Tabs
     this._subscribeConnectionState(layer);
-    log.debug(' connection state subscribed, returning from connect()');
+    log.debug('connection state subscribed, returning from connect()');
   }
 
   disconnect(): void {
@@ -270,7 +270,7 @@ export class WorkerCore implements WorkerPersistenceCore {
       tags: string[];
     }>;
   }>): Promise<void> {
-    log.debug(' batchWriteFiles called, files count:', files.length);
+    log.debug('batchWriteFiles called, files count:', files.length);
     for (const file of files) {
       // Determine write mode based on file path:
       // - /AGENT.md and /scenarios/*.md: use 'create-new' (do not overwrite existing files)
@@ -278,7 +278,7 @@ export class WorkerCore implements WorkerPersistenceCore {
       const mode = this._getWriteModeForPath(file.path);
       await virtualFS.write(file.path, file.content, mode, file.metadata);
     }
-    log.debug(' batchWriteFiles completed');
+    log.debug('batchWriteFiles completed');
     // Single broadcast for batch write to avoid per-file notifications
     this.broadcastUIUpdate({
       entity: 'file',
@@ -403,7 +403,7 @@ export class WorkerCore implements WorkerPersistenceCore {
       try {
         cb.onUIUpdate(event);
       } catch (err) {
-        log.error(' onUIUpdate callback error:', err);
+        log.error('onUIUpdate callback error:', err);
       }
     }
   }
@@ -419,7 +419,7 @@ export class WorkerCore implements WorkerPersistenceCore {
       try {
         return await cb.requestToken();
       } catch (err) {
-        log.warn(' requestToken failed, trying next:', err);
+        log.warn('requestToken failed, trying next:', err);
       }
     }
     throw new Error('[WorkerCore] no callback available to provide token');
@@ -437,7 +437,7 @@ export class WorkerCore implements WorkerPersistenceCore {
       try {
         return await cb.requestTokenRefresh();
       } catch (err) {
-        log.warn(' requestTokenRefresh failed, trying next:', err);
+        log.warn('requestTokenRefresh failed, trying next:', err);
       }
     }
     return 'relogin';
@@ -459,9 +459,9 @@ export class WorkerCore implements WorkerPersistenceCore {
   private _subscribeConnectionState(layer: PersistenceLayer): void {
     this._unsubscribeConnectionState();
     const client = layer.getClient();
-    log.debug(' subscribing to connection state changes');
+    log.debug('subscribing to connection state changes');
     this.unsubscribeConnection = client.on('connection', (event: ConnectionStateEvent) => {
-      log.debug(' connection state changed:', event.state, 'reason:', event.reason);
+      log.debug('connection state changed:', event.state, 'reason:', event.reason);
       this.broadcastConnectionState(event);
     });
   }
@@ -484,7 +484,7 @@ export class WorkerCore implements WorkerPersistenceCore {
       try {
         cb.onConnectionStateChange(event);
       } catch (err) {
-        log.error(' onConnectionStateChange callback error:', err);
+        log.error('onConnectionStateChange callback error:', err);
       }
     }
   }

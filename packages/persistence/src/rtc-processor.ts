@@ -126,7 +126,7 @@ export class RtcProcessor {
    * If already processing, sets pendingCheck so the current loop will re-check.
    */
   async onRtcUpdate() {
-    log.debug(' onRtcUpdate called, processing:', this.processing);
+    log.debug('onRtcUpdate called, processing:', this.processing);
     if (this.processing) {
       this.pendingCheck = true;
       return;
@@ -138,12 +138,12 @@ export class RtcProcessor {
     // Non-master Tab skips tool execution (proposal section 4.2)
     // Does not set the processing flag, to avoid blocking future Master upgrade processing
     if (!this._isMasterAllowed()) {
-      log.debug(' processLoop: not master, skipping');
+      log.debug('processLoop: not master, skipping');
       return;
     }
 
     this.processing = true;
-    log.debug(' processLoop started');
+    log.debug('processLoop started');
 
     try {
       while (true) {
@@ -151,23 +151,23 @@ export class RtcProcessor {
 
         const rtc = await this.persistence.getNextRtcToProcess(undefined);
         if (!rtc) {
-          log.debug(' processLoop: no more RTC to process, exiting');
+          log.debug('processLoop: no more RTC to process, exiting');
           if (this.pendingCheck) {
             continue;
           }
           break;
         }
 
-        log.debug(' processing RTC:', rtc.client_id, 'tool:', rtc.tool_name, 'sync_status:', rtc.sync_status);
+        log.debug('processing RTC:', rtc.client_id, 'tool:', rtc.tool_name, 'sync_status:', rtc.sync_status);
         try {
           await this.processOne(rtc);
-          log.debug(' processOne completed successfully');
+          log.debug('processOne completed successfully');
         } catch (err) {
-          log.error(' processOne failed:', err);
+          log.error('processOne failed:', err);
           // If it's a connection error, exit the loop and wait for connection recovery
           const errMsg = err instanceof Error ? err.message : String(err);
           if (errMsg.includes('connection') || errMsg.includes('disconnected')) {
-            log.warn(' connection error detected, exiting processLoop');
+            log.warn('connection error detected, exiting processLoop');
             break;
           }
           // For other errors, wait briefly before retrying to avoid tight loops
@@ -176,7 +176,7 @@ export class RtcProcessor {
       }
     } finally {
       this.processing = false;
-      log.debug(' processLoop finished');
+      log.debug('processLoop finished');
     }
   }
 
@@ -227,7 +227,7 @@ export class RtcProcessor {
             error: 'User denied',
           });
         } catch (err) {
-          log.error(' submitRtcResult (denied) failed:', err);
+          log.error('submitRtcResult (denied) failed:', err);
         }
         return;
       }
@@ -258,7 +258,7 @@ export class RtcProcessor {
           error: errorMsg,
         });
       } catch (err) {
-        log.error(' submitRtcResult failed:', err);
+        log.error('submitRtcResult failed:', err);
       }
     }
   }
@@ -272,7 +272,7 @@ export class RtcProcessor {
    */
   private async processAskUser(rtc: LocalRtc): Promise<void> {
     if (!this.askUserDialog) {
-      log.warn(' askUserDialog not set, defaulting to reject');
+      log.warn('askUserDialog not set, defaulting to reject');
       try {
         await this.persistence.submitRtcResult({
           rtcClientId: rtc.client_id,
@@ -280,7 +280,7 @@ export class RtcProcessor {
           error: 'User declined to answer questions',
         });
       } catch (err) {
-        log.error(' submitRtcResult (ask_user no dialog) failed:', err);
+        log.error('submitRtcResult (ask_user no dialog) failed:', err);
       }
       return;
     }
@@ -289,7 +289,7 @@ export class RtcProcessor {
     try {
       payload = await this.askUserDialog(rtc);
     } catch (err) {
-      log.error(' askUserDialog threw:', err);
+      log.error('askUserDialog threw:', err);
       try {
         await this.persistence.submitRtcResult({
           rtcClientId: rtc.client_id,
@@ -297,7 +297,7 @@ export class RtcProcessor {
           error: err instanceof Error ? err.message : String(err),
         });
       } catch (submitErr) {
-        log.error(' submitRtcResult (ask_user error) failed:', submitErr);
+        log.error('submitRtcResult (ask_user error) failed:', submitErr);
       }
       return;
     }
@@ -317,7 +317,7 @@ export class RtcProcessor {
         });
       }
     } catch (err) {
-      log.error(' submitRtcResult (ask_user) failed:', err);
+      log.error('submitRtcResult (ask_user) failed:', err);
     }
   }
 
@@ -340,7 +340,7 @@ export class RtcProcessor {
    */
   private async showConfirmDialog(rtc: LocalRtc): Promise<boolean> {
     if (!this.confirmDialog) {
-      log.warn(' confirmDialog not set, defaulting to reject');
+      log.warn('confirmDialog not set, defaulting to reject');
       return false;
     }
     return this.confirmDialog(rtc);

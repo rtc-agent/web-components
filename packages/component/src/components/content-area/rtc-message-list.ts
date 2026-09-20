@@ -655,7 +655,7 @@ export class RtcMessageList extends LitElement {
         if (msg.content?.type === 'error') {
             const el = document.createElement('rtc-error-message');
             el.setAttribute('data-client-id', msg.clientId);
-            (el as any).message = msg;
+            el.message = msg;
             return el;
         }
 
@@ -668,7 +668,7 @@ export class RtcMessageList extends LitElement {
             const output = this._messages.find(
                 m => m.content?.type === 'toolcall_output' && m.parentClientId === msg.clientId
             );
-            (el as any).pair = { input: msg, output };
+            el.pair = { input: msg, output };
             if (isLast) el.setAttribute('is-last', '');
             return el;
         }
@@ -699,7 +699,7 @@ export class RtcMessageList extends LitElement {
             const el = document.createElement('rtc-toolcall-reply');
             el.setAttribute('data-client-id', msg.clientId);
             // Create a new message object with the resolved parentClientId (may be undefined)
-            (el as any).message = { ...msg, parentClientId };
+            el.message = { ...msg, parentClientId };
             return el;
         }
 
@@ -707,14 +707,14 @@ export class RtcMessageList extends LitElement {
         if (msg.role === 'user') {
             const el = document.createElement('rtc-user-message');
             el.setAttribute('data-client-id', msg.clientId);
-            (el as any).message = msg;
+            el.message = msg;
             return el;
         }
 
         // Assistant messages
         const el = document.createElement('rtc-message');
         el.setAttribute('data-client-id', msg.clientId);
-        (el as any).message = msg;
+        el.message = msg;
         if (isLast) {
             el.setAttribute('is-last', '');
         }
@@ -736,10 +736,10 @@ export class RtcMessageList extends LitElement {
             const output = this._messages.find(
                 m => m.content?.type === 'toolcall_output' && m.parentClientId === msg.clientId
             );
-            (el as any).pair = { input: msg, output };
+            (el as HTMLElementTagNameMap['rtc-toolcall-card']).pair = { input: msg, output };
         } else {
             // rtc-message, rtc-error-message, rtc-user-message, rtc-toolcall-reply: all have `message`
-            (el as any).message = msg;
+            (el as HTMLElement & { message: Message }).message = msg;
         }
 
         // Update is-last attribute (may have changed if messages were added/removed)

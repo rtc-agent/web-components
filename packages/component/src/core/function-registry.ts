@@ -258,7 +258,7 @@ export class FunctionRegistry {
       if (this.config.onError) {
         this.config.onError(error, 'Failed to regenerate all docs');
       } else {
-        log.error(' Failed to regenerate all docs:', err);
+        log.error('Failed to regenerate all docs:', err);
       }
     }
   }
@@ -273,7 +273,7 @@ export class FunctionRegistry {
    */
   generateAllDocsContent(scenarioCount = 0): Array<{path: string; content: string}> {
     const files: Array<{path: string; content: string}> = [];
-    log.info(' generateAllDocsContent called, functions count:', this.functions.size);
+    log.info('generateAllDocsContent called, functions count:', this.functions.size);
 
     // 生成所有 function 文档
     for (const funcDef of this.functions.values()) {
