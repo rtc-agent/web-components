@@ -458,7 +458,9 @@ export class RTCAgentClient implements IRTCAgentClient {
         // Delayed reconnect to avoid rapid retry loops.
         setTimeout(() => {
           if (this.shouldReconnect) {
-            this.reconnect();
+            this.reconnect().catch(err => {
+              log.error('reconnect after token refresh failed:', err);
+            });
           }
         }, 1000);
       }
