@@ -1,6 +1,9 @@
 import { configureLocalization } from '@lit/localize';
 import { createContext } from '@lit/context';
 import type { LocaleModule } from '@lit/localize';
+import {createLogger} from '@rtc-agent/client';
+
+const log = createLogger('I18n');
 
 // 1. 语言代码
 export const sourceLocale = 'zh-CN' as const;
@@ -62,8 +65,9 @@ function getInitialLocale(): SupportedLocale {
     if (saved && isValidLocale(saved)) {
       return saved;
     }
-  } catch {
+  } catch (err) {
     // localStorage unavailable — fall through to browser language
+    log.debug('localStorage unavailable for reading locale:', err);
   }
   const browserLang = navigator.language;
   if (isValidLocale(browserLang)) {
@@ -84,8 +88,9 @@ export async function initLocale(): Promise<void> {
 export function persistLocale(locale: SupportedLocale): void {
   try {
     localStorage.setItem(STORAGE_KEY, locale);
-  } catch {
+  } catch (err) {
     // localStorage may be unavailable (private browsing, quota exceeded)
+    log.debug('localStorage unavailable for persisting locale:', err);
   }
 }
 

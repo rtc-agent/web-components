@@ -543,11 +543,13 @@ export class RtcInputArea extends LitElement {
         } else {
             this._stopPositioning();
         }
+        this._syncDocClickListener();
     }
 
     private _closeModePanel() {
         this._showModePanel = false;
         this._stopPositioning();
+        this._syncDocClickListener();
     }
 
     private async _startPositioning() {
@@ -604,11 +606,13 @@ export class RtcInputArea extends LitElement {
         } else {
             this._stopCommandPositioning();
         }
+        this._syncDocClickListener();
     }
 
     private _closeCommandPanel() {
         this._showCommandPanel = false;
         this._stopCommandPositioning();
+        this._syncDocClickListener();
     }
 
     private async _startCommandPositioning() {
@@ -693,11 +697,13 @@ export class RtcInputArea extends LitElement {
         } else {
             this._stopScenarioPositioning();
         }
+        this._syncDocClickListener();
     }
 
     private _closeScenarioPanel() {
         this._showScenarioPanel = false;
         this._stopScenarioPositioning();
+        this._syncDocClickListener();
     }
 
     private async _startScenarioPositioning() {
@@ -760,6 +766,23 @@ export class RtcInputArea extends LitElement {
         this._closeScenarioPanel();
     }
 
+    /**
+     * Synchronize the document-level mousedown listener with panel state.
+     *
+     * Attaches the listener when any panel is open (so outside clicks dismiss it),
+     * and detaches it when all panels are closed (avoiding unnecessary work on every
+     * mousedown when no panel needs outside-click dismissal).
+     */
+    private _syncDocClickListener() {
+        const anyPanelOpen = this._showModePanel || this._showCommandPanel || this._showScenarioPanel;
+        if (anyPanelOpen) {
+            // Use capture phase so we see the event before any stopPropagation() in the panel
+            document.addEventListener('mousedown', this._onDocClick, true);
+        } else {
+            document.removeEventListener('mousedown', this._onDocClick, true);
+        }
+    }
+
     private _onDocClick = (e: MouseEvent) => {
         const path = e.composedPath();
 
@@ -790,7 +813,9 @@ export class RtcInputArea extends LitElement {
 
     connectedCallback() {
         super.connectedCallback();
-        document.addEventListener('mousedown', this._onDocClick, true);
+        // NOTE: document mousedown listener is attached lazily by _syncDocClickListener()
+        // only when a panel is open, not unconditionally here. This avoids firing a
+        // no-op callback on every mousedown when no panels need outside-click dismissal.
 
         // 订阅 UIUpdateBus：收到当前 session 的用户消息时清空历史缓存，下次导航时重新加载
         const bus = getUIUpdateBus();
@@ -807,6 +832,7 @@ export class RtcInputArea extends LitElement {
 
     disconnectedCallback() {
         super.disconnectedCallback();
+        // Always remove the listener in case a panel was open at disconnect time
         document.removeEventListener('mousedown', this._onDocClick, true);
         this._stopPositioning();
         this._stopCommandPositioning();

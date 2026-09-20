@@ -3,7 +3,10 @@
  *
  * Utilities for generating and persisting device identifiers.
  */
+import {createLogger} from '@rtc-agent/client';
 import {STORAGE_KEYS} from '../config/auth.js';
+
+const log = createLogger('Device');
 
 /**
  * Get or create a Device ID.
@@ -25,8 +28,9 @@ export function getOrCreateDeviceId(): string {
         }
 
         return deviceId;
-    } catch {
+    } catch (err) {
         // localStorage unavailable — return ephemeral UUID
+        log.debug('localStorage unavailable for deviceId, using ephemeral UUID:', err);
         return crypto.randomUUID();
     }
 }
@@ -40,8 +44,9 @@ export function getDeviceName(): string {
     try {
         const stored = localStorage.getItem(STORAGE_KEYS.deviceName);
         if (stored) return stored;
-    } catch {
+    } catch (err) {
         // localStorage unavailable
+        log.debug('localStorage unavailable for reading deviceName:', err);
     }
 
     return getDefaultDeviceName();
@@ -53,8 +58,9 @@ export function getDeviceName(): string {
 export function setDeviceName(name: string): void {
     try {
         localStorage.setItem(STORAGE_KEYS.deviceName, name);
-    } catch {
+    } catch (err) {
         // localStorage may be unavailable (private browsing, quota exceeded)
+        log.debug('localStorage unavailable for writing deviceName:', err);
     }
 }
 

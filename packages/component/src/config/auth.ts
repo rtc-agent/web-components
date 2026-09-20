@@ -4,6 +4,10 @@
  * Centralized configuration for OAuth2 authentication flow.
  */
 
+import {createLogger} from '@rtc-agent/client';
+
+const log = createLogger('AuthConfig');
+
 /**
  * Runtime-overridable server URL.
  *
@@ -57,8 +61,9 @@ function getServerUrl(): string {
     try {
         const env = import.meta.env;
         if (env?.VITE_SERVER_URL) return env.VITE_SERVER_URL;
-    } catch {
-        // ignore
+    } catch (err) {
+        // import.meta.env may not be available in all contexts (e.g., tests, non-Vite builds)
+        log.debug('import.meta.env not available, using default server URL:', err);
     }
     return 'http://localhost:28080';
 }
