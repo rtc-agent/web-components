@@ -27,6 +27,7 @@ export const styles = css`
     /* ── Tabs 可滚动区域 ── */
     .tabs-scroll {
         display: flex;
+        flex-wrap: nowrap;
         align-items: center;
         flex: 1;
         min-width: 0;
