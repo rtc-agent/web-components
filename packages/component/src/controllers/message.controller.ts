@@ -268,33 +268,8 @@ export class MessageController implements ReactiveController {
     private _applyBusUpdate(messageSessionId: string, entityId: string, localMsg: LocalMessage): void {
         if (!this._repository) return;
 
-        // Convert DB message to UI format
         const newMsg = this._localMessageToUI(localMsg);
-
-        // Try to patch existing message, or append if new
-        const patched = this._repository.patchMessage(messageSessionId, entityId, () => newMsg);
-        if (!patched) {
-            // Message not in repository yet - append it
-            const current = this._repository.getSessionState(messageSessionId);
-            const messages = [...current.messages, newMsg].sort((a, b) => a.timestamp - b.timestamp);
-            this._repository.updateMessages(messageSessionId, messages);
-        }
-
-        // Also update legacy state if this is the current session
-        const currentSessionId = this._sessionController?.value.state.currentSessionId;
-        if (messageSessionId === currentSessionId) {
-            const index = this._state.messages.findIndex(m => m.clientId === entityId);
-            if (index !== -1) {
-                const newMessages = [...this._state.messages];
-                newMessages[index] = newMsg;
-                this._state = {...this._state, messages: newMessages};
-            } else {
-                // New message - append to legacy state
-                const messages = [...this._state.messages, newMsg].sort((a, b) => a.timestamp - b.timestamp);
-                this._state = {...this._state, messages};
-            }
-        }
-
+        this._upsertMessage(messageSessionId, entityId, newMsg);
         this.host.requestUpdate();
     }
 
@@ -310,48 +285,55 @@ export class MessageController implements ReactiveController {
         if (entityId) {
             const localMsg = await this._persistence.getMessage(entityId);
             if (localMsg) {
-                // Update the repository for the session this message actually belongs to
-                // (not just currentSessionId - supports multi-instance where multiple
-                // rtc-message-list components can be active simultaneously)
                 const messageSessionId = localMsg.session_client_id;
-
-                const newMsg = this._localMessageToUI(localMsg);
-
-                // Update repository state for this message's session
-                if (this._repository && messageSessionId) {
-                    const currentState = this._repository.getSessionState(messageSessionId);
-                    const existed = currentState.messages.some((m) => m.clientId === entityId);
-                    let messages: Message[];
-                    if (existed) {
-                        messages = currentState.messages.map((m) => m.clientId === entityId ? newMsg : m);
-                    } else {
-                        // Append new message and sort by time
-                        messages = [...currentState.messages, newMsg].sort((a, b) => a.timestamp - b.timestamp);
-                    }
-                    this._repository.updateMessages(messageSessionId, messages);
+                if (messageSessionId) {
+                    const newMsg = this._localMessageToUI(localMsg);
+                    this._upsertMessage(messageSessionId, entityId, newMsg);
+                    this.host.requestUpdate();
                 }
-
-                // Also update legacy state if this is the current session
-                // (for MessageContext consumers like rtc-input-area)
-                const currentSessionId = this._sessionController?.value.state.currentSessionId;
-                if (messageSessionId === currentSessionId) {
-                    const existed = this._state.messages.some((m) => m.clientId === entityId);
-                    let messages: Message[];
-                    if (existed) {
-                        messages = this._state.messages.map((m) => m.clientId === entityId ? newMsg : m);
-                    } else {
-                        messages = [...this._state.messages, newMsg].sort((a, b) => a.timestamp - b.timestamp);
-                    }
-                    this._state = {messages, hasMore: this._state.hasMore, isLoadingMore: this._state.isLoadingMore};
-                }
-
-                this.host.requestUpdate();
             }
         } else {
             const currentSessionId =
                 this._sessionController?.value.state.currentSessionId;
             if (currentSessionId) {
                 await this._reloadFromDB(currentSessionId);
+            }
+        }
+    }
+
+    /**
+     * Upsert a single message into both the repository and legacy state.
+     *
+     * Shared by `reload(entityId)` and `_applyBusUpdate()` to eliminate duplication.
+     * Repository is updated via patchMessage (O(1) for existing messages) with fallback
+     * to append+sort for new messages. Legacy state is updated only when the message
+     * belongs to the currently active session.
+     */
+    private _upsertMessage(sessionId: string, messageId: string, newMsg: Message): void {
+        // Update repository state for this message's session.
+        // Supports multi-instance: repository tracks all active sessions,
+        // not just the currently visible one.
+        if (this._repository) {
+            const patched = this._repository.patchMessage(sessionId, messageId, () => newMsg);
+            if (!patched) {
+                const current = this._repository.getSessionState(sessionId);
+                const messages = [...current.messages, newMsg].sort((a, b) => a.timestamp - b.timestamp);
+                this._repository.updateMessages(sessionId, messages);
+            }
+        }
+
+        // Update legacy state if this is the current session
+        // (for MessageContext consumers like rtc-input-area)
+        const currentSessionId = this._sessionController?.value.state.currentSessionId;
+        if (sessionId === currentSessionId) {
+            const index = this._state.messages.findIndex(m => m.clientId === messageId);
+            if (index !== -1) {
+                const newMessages = [...this._state.messages];
+                newMessages[index] = newMsg;
+                this._state = {...this._state, messages: newMessages};
+            } else {
+                const messages = [...this._state.messages, newMsg].sort((a, b) => a.timestamp - b.timestamp);
+                this._state = {...this._state, messages};
             }
         }
     }
@@ -740,11 +722,16 @@ export class MessageController implements ReactiveController {
 
     private _clearMessages() {
         this._state = {messages: [], hasMore: false, isLoadingMore: false};
+        this._oldestLoadedCursor = undefined;
 
-        // Update repository for the current session
+        // Reset repository state for the current session.
+        // Must clear hasMore and cursors alongside the messages array to prevent
+        // stale pagination state from triggering loadMore on an empty session.
         const currentSessionId = this._sessionController?.value.state.currentSessionId;
         if (this._repository && currentSessionId) {
             this._repository.updateMessages(currentSessionId, []);
+            this._repository.setHasMore(currentSessionId, false);
+            this._repository.setHasMoreNewer(currentSessionId, false);
         }
 
         this.host.requestUpdate();

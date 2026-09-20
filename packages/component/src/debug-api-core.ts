@@ -126,14 +126,30 @@ export function buildCoreAPI(): Pick<
                 sessionStorage.clear();
 
                 // Step 4: Delete IndexedDB databases.
+                // deleteDatabase() is event-based (not Promise-returning), so we wrap it
+                // to ensure each database is fully deleted before resolving. Without awaiting,
+                // the caller may proceed while deletions are still in-flight, causing race
+                // conditions in tests that seed data immediately after clearData().
                 if (typeof indexedDB !== 'undefined' && indexedDB.databases) {
                     const dbs = await indexedDB.databases();
-                    for (const dbInfo of dbs) {
-                        if (dbInfo.name) {
-                            indexedDB.deleteDatabase(dbInfo.name);
-                            log.info(`Deleted IndexedDB: ${dbInfo.name}`);
-                        }
-                    }
+                    await Promise.all(dbs.map(dbInfo => {
+                        if (!dbInfo.name) return Promise.resolve();
+                        return new Promise<void>((resolve) => {
+                            const request = indexedDB.deleteDatabase(dbInfo.name!);
+                            request.onsuccess = () => {
+                                log.info(`Deleted IndexedDB: ${dbInfo.name}`);
+                                resolve();
+                            };
+                            request.onerror = () => {
+                                log.warn(`Failed to delete IndexedDB: ${dbInfo.name}`);
+                                resolve(); // Resolve anyway to not block cleanup
+                            };
+                            request.onblocked = () => {
+                                log.warn(`IndexedDB deletion blocked: ${dbInfo.name}`);
+                                resolve(); // Resolve anyway to not block cleanup
+                            };
+                        });
+                    }));
                 }
 
                 log.info('All persistent data cleared');

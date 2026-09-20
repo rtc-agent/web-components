@@ -493,12 +493,21 @@ export class RTCAgentClient implements IRTCAgentClient {
   private _isTokenExpired(token: string): boolean {
     try {
       const parts = token.split('.');
-      if (parts.length !== 3) return false;
+      if (parts.length !== 3) {
+        log.debug('_isTokenExpired: token does not have 3 parts, treating as not expired');
+        return false;
+      }
       const payload = JSON.parse(atob(parts[1]));
-      if (typeof payload.exp !== 'number') return false;
-      return payload.exp * 1000 < Date.now();
-    } catch {
+      if (typeof payload.exp !== 'number') {
+        log.debug('_isTokenExpired: payload.exp is not a number, treating as not expired');
+        return false;
+      }
+      const expired = payload.exp * 1000 < Date.now();
+      log.debug('_isTokenExpired: exp=', payload.exp, 'expired=', expired);
+      return expired;
+    } catch (err) {
       // JWT parse failed — don't block the connection.
+      log.debug('_isTokenExpired: failed to parse JWT, treating as not expired:', err);
       return false;
     }
   }
