@@ -239,9 +239,11 @@ export class RtcUserMessage extends LitElement {
     private async _teleportMenu() {
         if (!this.shadowRoot || this._moreMenuEl) return;
 
-        const menu = document.createElement('rtc-message-more-menu') as HTMLElement;
-        (menu as unknown as {syncStatus: string}).syncStatus = this.message.syncStatus;
-        (menu as unknown as {timestamp: number}).timestamp = this.message.timestamp;
+        // HTMLElementTagNameMap declaration in rtc-message-more-menu.ts ensures
+        // createElement returns the correctly typed RtcMessageMoreMenu — no unsafe cast needed.
+        const menu = document.createElement('rtc-message-more-menu');
+        menu.syncStatus = this.message.syncStatus;
+        menu.timestamp = this.message.timestamp;
         menu.addEventListener('rtc-message-more-menu-select', this._boundOnMenuSelect);
 
         this.shadowRoot.appendChild(menu);

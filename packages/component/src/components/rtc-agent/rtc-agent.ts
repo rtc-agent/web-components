@@ -1178,14 +1178,14 @@ export class RtcAgent extends LitElement {
             this._connectionError = '';
 
             const result = await connectWithRetry({
-                persistence: this._persistence as unknown as Parameters<typeof connectWithRetry>[0]['persistence'],
-                message: this._message as unknown as Parameters<typeof connectWithRetry>[0]['message'],
-                session: this._session as unknown as Parameters<typeof connectWithRetry>[0]['session'],
-                notification: this._notification as unknown as Parameters<typeof connectWithRetry>[0]['notification'],
+                persistence: this._persistence,
+                message: this._message,
+                session: this._session,
+                notification: this._notification,
                 activity: this._activity,
-                fileExplorer: this._fileExplorer as unknown as Parameters<typeof connectWithRetry>[0]['fileExplorer'],
+                fileExplorer: this._fileExplorer,
                 toast: this._toast.actions,
-                skill: this._skill as unknown as Parameters<typeof connectWithRetry>[0]['skill'],
+                skill: this._skill,
                 mode: this._mode,
                 scenariosURL: this._scenariosURL,
                 loadFileTree: () => this._loadFileTree(),

@@ -186,9 +186,7 @@ async function initRtcProcessor(deps: ConnectionDeps): Promise<RtcProcessor> {
     // Inject MasterLock.
     const masterLock = deps.persistence.masterLock;
     if (masterLock) {
-        rtcProcessor.setMaster(
-            masterLock as unknown as Parameters<typeof rtcProcessor.setMaster>[0],
-        );
+        rtcProcessor.setMaster(masterLock);
         // When this tab becomes Master, trigger RTC processing (handles crash recovery).
         const prevOnAcquire = masterLock.onAcquire;
         masterLock.onAcquire = () => {
