@@ -18,10 +18,6 @@
   <source>Loading...</source>
   <target>Loading...</target>
 </trans-unit>
-<trans-unit id="s8626a54775ae59c0">
-  <source>↑ Load earlier messages</source>
-  <target>↑ Load earlier messages</target>
-</trans-unit>
 <trans-unit id="sad864ecd84596f7c">
   <source>↓ New messages</source>
   <target>↓ New messages</target>
@@ -202,14 +198,6 @@
   <source>即将自动关闭...</source>
   <target>Auto-closing soon...</target>
 </trans-unit>
-<trans-unit id="s787365cbdb27ad0b">
-  <source>授权页面</source>
-  <target>Authorization page</target>
-</trans-unit>
-<trans-unit id="sc49f3731be3e5066">
-  <source>获取授权 URL 失败: <x id="0" equiv-text="${response.status}"/></source>
-  <target>Failed to get authorization URL: <x id="0" equiv-text="${response.status}"/></target>
-</trans-unit>
 <trans-unit id="sba8df9c0de68d224">
   <source>未知错误</source>
   <target>Unknown error</target>
@@ -218,10 +206,6 @@
   <source>State 校验失败，请重试</source>
   <target>State validation failed, please retry</target>
 </trans-unit>
-<trans-unit id="s32a563a1015bfd96">
-  <source>Token 交换失败: <x id="0" equiv-text="${response.status}"/></source>
-  <target>Token exchange failed: <x id="0" equiv-text="${response.status}"/></target>
-</trans-unit>
 <trans-unit id="sebe7fcdde2daf169">
   <source>Sign in to continue</source>
   <target>Sign in to continue</target>
@@ -229,10 +213,6 @@
 <trans-unit id="s2603d59558584677">
   <source>Authorizing...</source>
   <target>Authorizing...</target>
-</trans-unit>
-<trans-unit id="sc8da3cc71de63832">
-  <source>Login</source>
-  <target>Login</target>
 </trans-unit>
 <trans-unit id="sfba237d3fcfe2d80">
   <source>渲染失败: <x id="0" equiv-text="${err instanceof Error ? err.message : String(err)}"/></source>
@@ -421,10 +401,6 @@
 <trans-unit id="sdce945c24ad44e16">
   <source>新建会话</source>
   <target>New session</target>
-</trans-unit>
-<trans-unit id="s3e6962be7add59b4">
-  <source>删除当前会话</source>
-  <target>Delete current session</target>
 </trans-unit>
 <trans-unit id="s38a3347d83d583d3">
   <source>会话树</source>
@@ -721,6 +697,102 @@
 <trans-unit id="s7a3a550815a6de71">
   <source>查看</source>
   <target>View</target>
+</trans-unit>
+<trans-unit id="sbfd8fcb2d22028e7">
+  <source>原始错误</source>
+<target>Original error</target>
+</trans-unit>
+<trans-unit id="se4942c4f67e726d9">
+  <source>点击跳转到工具调用</source>
+<target>Click to jump to tool call</target>
+</trans-unit>
+<trans-unit id="sac9eec7e70455963">
+  <source>(无输出)</source>
+<target>(no output)</target>
+</trans-unit>
+<trans-unit id="sbf9c5c5a8e5efad4">
+  <source>Failed</source>
+<target>Failed</target>
+</trans-unit>
+<trans-unit id="s5e5e22d7f8a24fb3">
+  <source>复制输出</source>
+<target>Copy output</target>
+</trans-unit>
+<trans-unit id="s58001194e857ab9e">
+  <source>发送中</source>
+<target>Sending</target>
+</trans-unit>
+<trans-unit id="see0ed65dc7b709d4">
+  <source>Scenarios</source>
+<target>Scenarios</target>
+</trans-unit>
+<trans-unit id="sd32c4c18db924931">
+  <source>请在弹出的窗口中完成授权</source>
+<target>Complete authorization in the popup window</target>
+</trans-unit>
+<trans-unit id="s222bafc5622c3fd0">
+  <source>重新打开授权窗口</source>
+<target>Reopen authorization window</target>
+</trans-unit>
+<trans-unit id="s9fc52a10331a5b74">
+  <source>授权已取消</source>
+<target>Authorization cancelled</target>
+</trans-unit>
+<trans-unit id="sdf816e2fe9bb4f8a">
+  <source>No login providers available</source>
+<target>No login providers available</target>
+</trans-unit>
+<trans-unit id="sbbc9aad55ce12ead">
+  <source>Sign in with</source>
+<target>Sign in with</target>
+</trans-unit>
+<trans-unit id="sec6e6ce73af02035">
+  <source>加载中...</source>
+<target>Loading...</target>
+</trans-unit>
+<trans-unit id="sec24c2a678528b50">
+  <source>暂无场景</source>
+<target>No scenarios</target>
+</trans-unit>
+<trans-unit id="s9d7c935caf176b46">
+  <source>连接失败: <x id="0" equiv-text="${errorMessage}"/></source>
+  <target>Connection failed: <x id="0" equiv-text="${errorMessage}"/></target>
+</trans-unit>
+<trans-unit id="sc78f100857f6faef">
+  <source>确认</source>
+<target>Confirm</target>
+</trans-unit>
+<trans-unit id="s234934e1656e53a4">
+  <source>确认重命名</source>
+<target>Confirm rename</target>
+</trans-unit>
+<trans-unit id="s1031140894dad7d3">
+  <source>取消</source>
+<target>Cancel</target>
+</trans-unit>
+<trans-unit id="sd3263a7a96df83b8">
+  <source>取消重命名</source>
+<target>Cancel rename</target>
+</trans-unit>
+<trans-unit id="s3bf2e6dab30ef3f6">
+  <source>重命名</source>
+<target>Rename</target>
+</trans-unit>
+<trans-unit id="sdf952bbbf2d2e586">
+  <source>连接失败</source>
+<target>Connection failed</target>
+</trans-unit>
+<trans-unit id="s6c43bf7ffc56685f">
+  <source>点击重试</source>
+<target>Click to retry</target>
+</trans-unit>
+<trans-unit id="s1b8b53f0f6b4d555">
+  <source>重新连接</source>
+<target>Reconnect</target>
+</trans-unit>
+<trans-unit id="s6e6fcdcdc7f1d8ed">
+  <source>点击重新连接</source>
+<target>Click to reconnect</target>
 </trans-unit>
 </body>
 </file>

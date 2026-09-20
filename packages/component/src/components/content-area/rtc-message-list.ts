@@ -153,6 +153,12 @@ export class RtcMessageList extends LitElement {
     private _resizeObserver?: ResizeObserver;
     private _resizeDebounceTimer?: number;
 
+    /** Tracked short-lived timers — cleared in disconnectedCallback to prevent leaks. */
+    private _virtualScrollOpTimer?: number;
+    private _scrollGuardTimer?: number;
+    private _smoothScrollTimer?: number;
+    private _highlightTimer?: number;
+
     /** Virtual scroll instance for efficient rendering */
     private _virtualScroll?: MessageVirtualScroll<Message>;
 
@@ -340,7 +346,8 @@ export class RtcMessageList extends LitElement {
         }
 
         // Reset flag after a short delay to allow ResizeObserver to fire and be ignored
-        setTimeout(() => {
+        clearTimeout(this._virtualScrollOpTimer);
+        this._virtualScrollOpTimer = window.setTimeout(() => {
             this._isVirtualScrollOperation = false;
         }, 50);
 
@@ -431,6 +438,10 @@ export class RtcMessageList extends LitElement {
         this._scrollEl?.removeEventListener('scroll', this._onScroll);
         this._resizeObserver?.disconnect();
         clearTimeout(this._resizeDebounceTimer);
+        clearTimeout(this._virtualScrollOpTimer);
+        clearTimeout(this._scrollGuardTimer);
+        clearTimeout(this._smoothScrollTimer);
+        clearTimeout(this._highlightTimer);
         document.removeEventListener('visibilitychange', this._boundOnVisibilityChange);
         this.removeEventListener('rtc-toolcall-jump', this._handleToolcallJump as EventListener);
         this._subscription?.();
@@ -489,7 +500,8 @@ export class RtcMessageList extends LitElement {
         // Decrement after a short delay to cover async scroll events.
         // scrollTo({behavior: 'auto'}) typically fires scroll events synchronously,
         // but some browsers may defer them. 50ms covers layout/scroll batching.
-        window.setTimeout(() => { this._programmaticScrollCount--; }, PROGRAMMATIC_SCROLL_GUARD_MS);
+        clearTimeout(this._scrollGuardTimer);
+        this._scrollGuardTimer = window.setTimeout(() => { this._programmaticScrollCount--; }, PROGRAMMATIC_SCROLL_GUARD_MS);
         // NOTE: _scrollToBottom() does NOT set _shouldAutoScroll.
         // System actions (auto-scroll) should not change user intent.
         // Only user actions (_onScroll, _handleNewBtnClick, session switch) set it.
@@ -757,7 +769,8 @@ export class RtcMessageList extends LitElement {
             this._programmaticScrollCount++;
             this._scrollEl.scrollTo({top: this._scrollEl.scrollHeight, behavior: 'smooth'});
             // Decrement counter after animation completes
-            window.setTimeout(() => { this._programmaticScrollCount--; }, SMOOTH_SCROLL_ANIMATION_MS);
+            clearTimeout(this._smoothScrollTimer);
+            this._smoothScrollTimer = window.setTimeout(() => { this._programmaticScrollCount--; }, SMOOTH_SCROLL_ANIMATION_MS);
         }
         // User explicitly clicked "New messages" → enable follow mode.
         this._shouldAutoScroll = true;
@@ -784,7 +797,8 @@ export class RtcMessageList extends LitElement {
 
         // Brief highlight animation
         el.classList.add('highlight');
-        window.setTimeout(() => el.classList.remove('highlight'), HIGHLIGHT_ANIMATION_MS);
+        clearTimeout(this._highlightTimer);
+        this._highlightTimer = window.setTimeout(() => el.classList.remove('highlight'), HIGHLIGHT_ANIMATION_MS);
     };
 
     render() {

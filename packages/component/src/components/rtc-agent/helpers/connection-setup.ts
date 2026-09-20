@@ -4,7 +4,7 @@
  * Encapsulates the connection retry logic and connection state listener setup.
  * Extracted from rtc-agent.ts to keep the root component lean.
  */
-import { msg } from '@lit/localize';
+import { msg, str } from '@lit/localize';
 import { loadScenariosContent } from '../../../core/scenario-loader.js';
 import { RtcProcessor } from '@rtc-agent/persistence';
 import type { PersistenceLayer, LocalRtc } from '@rtc-agent/persistence';
@@ -164,7 +164,7 @@ export async function connectWithRetry(
         const errorMessage = err instanceof Error ? err.message : String(err);
         deps.logger.error("Connection failed:", errorMessage);
 
-        deps.toast.show(msg(`连接失败: ${errorMessage}`), "error");
+        deps.toast.show(msg(str`连接失败: ${errorMessage}`), "error");
 
         return {
             connectionFailed: true,
