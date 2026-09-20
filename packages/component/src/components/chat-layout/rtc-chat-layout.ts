@@ -398,6 +398,7 @@ export class RtcChatLayout extends LitElement {
                         <rtc-content-area
                             theme=${this.theme}
                             .sessionId=${tab.sessionId}
+                            ?is-unsaved=${tab.isUnsaved}
                             .messageController=${this.messageController}
                         ></rtc-content-area>
                         <rtc-notice-bar></rtc-notice-bar>

@@ -31,16 +31,25 @@ export class RtcContentArea extends LitElement {
     @property({attribute: false})
     messageController?: MessageController;
 
+    /**
+     * Whether this tab is unsaved (draft session not yet persisted to DB).
+     * Unsaved sessions have no messages and should show empty state.
+     */
+    @property({type: Boolean, attribute: 'is-unsaved'})
+    isUnsaved: boolean = false;
+
     render() {
+        // Show empty state when no sessionId OR when tab is unsaved (draft)
+        const showEmptyState = !this.sessionId || this.isUnsaved;
         return html`
       <div class="content-container" part="container">
         ${cache(
-            this.sessionId
-                ? html`<rtc-message-list
+            showEmptyState
+                ? html`<rtc-empty-state theme=${this.theme}></rtc-empty-state>`
+                : html`<rtc-message-list
                     .sessionId=${this.sessionId}
                     .messageController=${this.messageController}
                   ></rtc-message-list>`
-                : html`<rtc-empty-state theme=${this.theme}></rtc-empty-state>`
         )}
       </div>
     `;
