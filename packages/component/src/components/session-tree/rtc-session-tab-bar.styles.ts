@@ -11,6 +11,7 @@ import {css} from 'lit';
 export const styles = css`
     :host {
         display: block;
+        width: 100%;
         flex-shrink: 0;
         min-width: 0;
     }
@@ -19,6 +20,7 @@ export const styles = css`
     .tab-bar-wrapper {
         display: flex;
         align-items: center;
+        width: 100%;
         height: 36px;
         background: var(--rtc-color-bg-tertiary);
         border-bottom: 1px solid var(--rtc-color-border);
