@@ -312,7 +312,7 @@ export class MessageVirtualScroll<T> {
 
         const scrollTopAfter = this._scrollContainer.scrollTop;
 
-        console.log(
+        console.debug(
             `[VirtualScroll] appendItems: ` +
             `items=${items.length}, scrollHeight: ${scrollHeightBefore} → ${scrollHeightAfter}, ` +
             `scrollTop: ${scrollTopBefore} → ${scrollTopAfter}, ` +
@@ -655,6 +655,7 @@ export class MessageVirtualScroll<T> {
             const el = this._renderItem(item, index);
             el.dataset.messageIndex = String(index);
             this._elementMap.set(index, el);
+            this._idToIndex.set(this._getItemId(item), index);
             fragment.appendChild(el);
         });
         this._innerContainer.appendChild(fragment);

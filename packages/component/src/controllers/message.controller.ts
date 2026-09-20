@@ -199,6 +199,8 @@ export class MessageController implements ReactiveController {
      * Update a single message field from UIUpdateBus event.
      * More efficient than reload() for streaming updates.
      *
+     * Handles both existing messages (patch) and new messages (append).
+     *
      * @param entityId - Message client ID
      */
     async updateMessageFromBus(entityId: string): Promise<void> {
@@ -214,8 +216,14 @@ export class MessageController implements ReactiveController {
         // Convert DB message to UI format
         const newMsg = this._localMessageToUI(localMsg);
 
-        // Use patchMessage for efficient single-message update
-        this._repository.patchMessage(messageSessionId, entityId, () => newMsg);
+        // Try to patch existing message, or append if new
+        const patched = this._repository.patchMessage(messageSessionId, entityId, () => newMsg);
+        if (!patched) {
+            // Message not in repository yet - append it
+            const current = this._repository.getSessionState(messageSessionId);
+            const messages = [...current.messages, newMsg].sort((a, b) => a.timestamp - b.timestamp);
+            this._repository.updateMessages(messageSessionId, messages);
+        }
 
         // Also update legacy state if this is the current session
         const currentSessionId = this._sessionController?.value.state.currentSessionId;
@@ -225,6 +233,10 @@ export class MessageController implements ReactiveController {
                 const newMessages = [...this._state.messages];
                 newMessages[index] = newMsg;
                 this._state = {...this._state, messages: newMessages};
+            } else {
+                // New message - append to legacy state
+                const messages = [...this._state.messages, newMsg].sort((a, b) => a.timestamp - b.timestamp);
+                this._state = {...this._state, messages};
             }
         }
 
