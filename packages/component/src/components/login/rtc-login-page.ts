@@ -93,6 +93,15 @@ export class RtcLoginPage extends LitElement {
         this._loadProviders();
     }
 
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        // Release OAuth2Client reference so it can be garbage-collected promptly.
+        // OAuth2Client holds no long-lived resources (timers/subscriptions),
+        // but nulling the reference follows the connectedCallback/disconnectedCallback
+        // symmetry principle from the Web Components development standards.
+        this._oauth2Client = null;
+    }
+
     private async _loadProviders() {
         if (!this._oauth2Client) return;
 

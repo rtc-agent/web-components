@@ -368,10 +368,13 @@ export class RtcToolCallReply extends LitElement {
     @property({type: Object})
     message!: Message;
 
-    connectedCallback() {
-        super.connectedCallback();
+    firstUpdated() {
+        // Set initial status attribute after first render.
         this._updateStatus();
-        // Fix: notify the corresponding input card that output has arrived
+        // Notify the corresponding input card that output has arrived.
+        // Using firstUpdated (instead of connectedCallback) ensures the input card
+        // is already rendered in the DOM when we traverse to find it, preventing
+        // a race condition where the card hasn't been mounted yet.
         this._notifyInputCard();
     }
 

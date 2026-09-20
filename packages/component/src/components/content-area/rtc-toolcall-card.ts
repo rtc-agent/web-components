@@ -188,8 +188,10 @@ export class RtcToolCallCard extends LitElement {
     @property({type: Boolean, attribute: 'is-last'})
     isLast = false;
 
-    connectedCallback() {
-        super.connectedCallback();
+    firstUpdated() {
+        // Set initial data attribute after first render.
+        // Using firstUpdated instead of connectedCallback ensures this runs once
+        // (not on every reconnect) and after the shadow DOM is ready.
         this._updateStatus();
     }
 
