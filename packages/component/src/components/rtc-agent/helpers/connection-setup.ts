@@ -128,7 +128,7 @@ export async function connectWithRetry(
             }
 
             // Initialize RTC processor and resume pending tasks.
-            const rtcProcessor = await initRtcProcessor(deps);
+            const rtcProcessor = await initRtcProcessor(deps.persistence.layer, deps);
 
             // Listen for connection state changes.
             const { unsubConnection, connectionState } =
@@ -170,8 +170,11 @@ export async function connectWithRetry(
  *
  * Auto-injects MasterLock and triggers processLoop when becoming Master.
  */
-async function initRtcProcessor(deps: ConnectionDeps): Promise<RtcProcessor> {
-    const rtcProcessor = new RtcProcessor(deps.persistence.layer!);
+async function initRtcProcessor(
+    layer: PersistenceLayer,
+    deps: ConnectionDeps,
+): Promise<RtcProcessor> {
+    const rtcProcessor = new RtcProcessor(layer);
     rtcProcessor.setConfirmDialog((rtc) => deps.showToolConfirm(rtc));
     rtcProcessor.setAskUserDialog(
         (rtc) =>

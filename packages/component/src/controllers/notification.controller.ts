@@ -173,8 +173,14 @@ export class NotificationController implements ReactiveController {
         const audio = new Audio();
         audio.preload = 'auto';
 
+        // Guard: only register the sound if the controller is still connected.
+        // Without this, hostDisconnected → _sounds.clear() can be followed by
+        // a late canplaythrough event that re-populates the map with a stale
+        // reference that will never be cleaned up.
         audio.addEventListener('canplaythrough', () => {
-            this._sounds.set(type, audio);
+            if (this.host.isConnected) {
+                this._sounds.set(type, audio);
+            }
         }, {once: true});
 
         audio.addEventListener('error', () => {
