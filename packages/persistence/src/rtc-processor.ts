@@ -12,6 +12,15 @@ const log = createLogger('RtcProcessor');
 const ERROR_RETRY_DELAY_MS = 1000;
 
 /**
+ * Maximum retry count for failed RTC result submissions.
+ *
+ * When exceeded, the RTC is abandoned (logged as error) to prevent infinite
+ * retry loops. The retryCountMap entry is cleared, so the next onRtcUpdate
+ * call will start fresh (useful for transient failures that resolve later).
+ */
+const MAX_SUBMIT_RETRY_COUNT = 10;
+
+/**
  * Confirm dialog callback type.
  *
  * Implemented by the component layer and injected into RtcProcessor.
@@ -76,6 +85,11 @@ export class RtcProcessor {
   private askUserDialog?: AskUserDialogFn;
   /** Master eligibility check (optional, injected in multi-Tab scenarios) */
   private master?: MasterLike;
+  /**
+   * Set by processOne when it silently skips an RTC (max retries exceeded).
+   * processLoop checks this to detect "no progress" and break the loop.
+   */
+  private _lastSilentlySkippedRtcId?: string;
 
   constructor(persistence: PersistenceLayer) {
     this.persistence = persistence;
@@ -145,6 +159,9 @@ export class RtcProcessor {
     this.processing = true;
     log.debug('processLoop started');
 
+    // Reset silent-skip tracker at the start of each loop.
+    this._lastSilentlySkippedRtcId = undefined;
+
     try {
       while (true) {
         this.pendingCheck = false;
@@ -155,6 +172,15 @@ export class RtcProcessor {
           if (this.pendingCheck) {
             continue;
           }
+          break;
+        }
+
+        // Detect "no progress" — same RTC returned again after a silent skip means
+        // processOne gave up (max retries exceeded). Break to prevent infinite loop.
+        if (rtc.client_id === this._lastSilentlySkippedRtcId) {
+          log.warn(
+            `processLoop: RTC ${rtc.client_id} returned again after silent skip, exiting loop to prevent infinite retry`,
+          );
           break;
         }
 
@@ -184,6 +210,22 @@ export class RtcProcessor {
     if (rtc.sync_status === 'failed') {
       // Retry: exponential backoff based on retry count
       const retryCount = this.retryCountMap.get(rtc.client_id) || 0;
+
+      // Guard: if max retries exceeded, abandon this RTC to prevent infinite retry loops.
+      // The retryCountMap entry is cleared, so the next onRtcUpdate will start fresh
+      // (useful for transient failures that resolve later, e.g., server was temporarily down).
+      if (retryCount >= MAX_SUBMIT_RETRY_COUNT) {
+        log.error(
+          `RTC ${rtc.client_id} exceeded max submit retry count (${MAX_SUBMIT_RETRY_COUNT}), abandoning. ` +
+          `The RTC remains in sync_status='failed' and will be retried on the next onRtcUpdate cycle.`,
+        );
+        this.retryCountMap.delete(rtc.client_id);
+        // Signal to processLoop that this RTC was silently skipped (no progress made).
+        // processLoop will detect this on the next iteration and break to prevent infinite loop.
+        this._lastSilentlySkippedRtcId = rtc.client_id;
+        return;
+      }
+
       const delay = this.calculateBackoff(retryCount);
       await this.sleep(delay);
 
