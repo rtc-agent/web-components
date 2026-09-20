@@ -621,6 +621,10 @@ export class RtcAgent extends LitElement {
         // Clean up existing state.
         this._fork.actions.clearFork();
         this._rtcProcessor = undefined;
+        // Unsubscribe connection state listener before disconnecting,
+        // so disconnect-triggered state changes don't fire on a torn-down bridge.
+        this._unsubConnection?.();
+        this._unsubConnection = undefined;
         // Invalidate any in-flight connection attempt: bumping the generation counter
         // causes the stale Promise's `finally` block to skip clearing `_connecting`,
         // so a subsequent login can safely start a fresh attempt without the old
@@ -1512,15 +1516,22 @@ export class RtcAgent extends LitElement {
             this._turnCountProvider.setValue(DEFAULT_TURN_COUNT);
             return;
         }
-        const session = await this._persistence.layer.getSession(currentId);
-        if (!session) {
+        try {
+            const session = await this._persistence.layer.getSession(currentId);
+            if (!session) {
+                this._turnCountProvider.setValue(DEFAULT_TURN_COUNT);
+                return;
+            }
+            this._turnCountProvider.setValue({
+                pendingTurnCount: session.pending_turn_count,
+                runningTurnCount: session.running_turn_count,
+            });
+        } catch (err) {
+            // getSession() can throw if Worker/IndexedDB communication fails.
+            // Degrade gracefully: reset to defaults instead of unhandled rejection.
+            log.warn('Failed to refresh turn counts:', err);
             this._turnCountProvider.setValue(DEFAULT_TURN_COUNT);
-            return;
         }
-        this._turnCountProvider.setValue({
-            pendingTurnCount: session.pending_turn_count,
-            runningTurnCount: session.running_turn_count,
-        });
     }
 
     /**
@@ -1528,14 +1539,20 @@ export class RtcAgent extends LitElement {
      * On initial load (after refresh), auto-selects the most recently updated session if none selected.
      */
     private async _loadSessions() {
-        const result = await sessionLoadSessions(this._initialSessionLoadDone, {
-            persistenceLayer: this._persistence.layer,
-            session: this._session,
-            sessionTree: this._sessionTree,
-            sessionTab: this._sessionTab,
-            logger: log,
-        });
-        this._initialSessionLoadDone = result;
+        try {
+            const result = await sessionLoadSessions(this._initialSessionLoadDone, {
+                persistenceLayer: this._persistence.layer,
+                session: this._session,
+                sessionTree: this._sessionTree,
+                sessionTab: this._sessionTab,
+                logger: log,
+            });
+            this._initialSessionLoadDone = result;
+        } catch (err) {
+            // listSessions() can throw if DB access fails.
+            // Log and continue — the user can retry by switching sessions.
+            log.warn('Failed to load sessions:', err);
+        }
     }
 
     /* ── Slash Command Handling ── */

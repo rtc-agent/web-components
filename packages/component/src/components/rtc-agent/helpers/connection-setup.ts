@@ -20,6 +20,9 @@ export interface ConnectionDeps {
     persistence: {
         layer: PersistenceLayer | undefined;
         masterLock: { isMaster: boolean; onAcquire?: () => void } | undefined;
+        workerBridge?: {
+            core: { batchWriteFiles(files: Array<{ path: string; content: string }>): Promise<void> };
+        };
         connect(): Promise<void>;
         getConnectionState(): Promise<ConnectionState>;
         onConnectionStateChange(
@@ -100,15 +103,8 @@ export async function connectWithRetry(
             deps.logger.debug("After connect, registry:", registry ? "set" : "null");
             if (registry?.generateAllDocsContent) {
                 const files = registry.generateAllDocsContent(0);
-                if (files.length > 0) {
-                    const workerBridge = (
-                        deps.persistence as unknown as {
-                            workerBridge: {
-                                core: { batchWriteFiles(files: unknown[]): Promise<void> };
-                            };
-                        }
-                    ).workerBridge;
-                    await workerBridge.core.batchWriteFiles(files);
+                if (files.length > 0 && deps.persistence.workerBridge) {
+                    await deps.persistence.workerBridge.core.batchWriteFiles(files);
                     deps.logger.debug("batchWriteFiles completed");
                 }
             }
@@ -117,14 +113,9 @@ export async function connectWithRetry(
             if (deps.scenariosURL) {
                 try {
                     const files = await loadScenariosContent(deps.scenariosURL);
-                    const workerBridge = (
-                        deps.persistence as unknown as {
-                            workerBridge: {
-                                core: { batchWriteFiles(files: unknown[]): Promise<void> };
-                            };
-                        }
-                    ).workerBridge;
-                    await workerBridge.core.batchWriteFiles(files);
+                    if (deps.persistence.workerBridge) {
+                        await deps.persistence.workerBridge.core.batchWriteFiles(files);
+                    }
                     deps.logger.info(
                         `Re-loaded ${files.length} scenarios from ${deps.scenariosURL}`,
                     );
