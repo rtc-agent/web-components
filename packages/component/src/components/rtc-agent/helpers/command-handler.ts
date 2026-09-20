@@ -4,7 +4,7 @@
  * Extracted from rtc-agent.ts to keep the root component lean.
  * Each command is a pure async function that takes its dependencies explicitly.
  */
-import { msg } from '@lit/localize';
+import { msg, str } from '@lit/localize';
 import type { PersistenceLayer } from '@rtc-agent/persistence';
 import type { Logger } from '@rtc-agent/client';
 import type { ToastActions } from '../../../controllers/toast.controller.js';
@@ -36,7 +36,7 @@ export async function handleCommand(
             await handleCompactCommand(args, deps);
             break;
         default:
-            deps.toast.show(`未知命令: /${name}`, "error");
+            deps.toast.show(msg(str`未知命令: /${name}`), "error");
             break;
     }
 }

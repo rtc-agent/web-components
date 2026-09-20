@@ -5,7 +5,7 @@
  * editor content restoration, cross-tab file change handling).
  * Extracted from rtc-agent.ts to keep the root component lean.
  */
-import { msg } from '@lit/localize';
+import { msg, str } from '@lit/localize';
 import { virtualFS } from '@rtc-agent/persistence';
 import type { Logger } from '@rtc-agent/client';
 import type { FileNode } from '../../../types/index.js';
@@ -272,14 +272,14 @@ export async function handleFileChange(
                 // Read failed — keep current content.
             }
         } else if (tab?.isDirty) {
-            deps.toast.show(`文件 ${filePath} 被其他标签页修改`, "info");
+            deps.toast.show(msg(str`文件 ${filePath} 被其他标签页修改`), "info");
         }
     } else if (field === "delete") {
         // File deleted: close tab if open.
         const tab = deps.editorArea.tabs.find((t) => t.filePath === filePath);
         if (tab) {
             deps.editorArea.actions.closeFile(filePath);
-            deps.toast.show(`文件 ${filePath} 已被删除`, "info");
+            deps.toast.show(msg(str`文件 ${filePath} 已被删除`), "info");
         }
     }
 }

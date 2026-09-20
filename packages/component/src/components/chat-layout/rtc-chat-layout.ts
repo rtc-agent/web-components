@@ -24,7 +24,7 @@ import {LitElement, html} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
 import {repeat} from 'lit/directives/repeat.js';
 import {consume} from '@lit/context';
-import {localized, msg} from '@lit/localize';
+import {localized, msg, str} from '@lit/localize';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {createLogger} from '@rtc-agent/client';
 
@@ -215,7 +215,7 @@ export class RtcChatLayout extends LitElement {
         const truncatedContent = content.length > 30 ? content.slice(0, 30) + '...' : content;
         const newSessionClientId = this._ensureUnsavedSession({
             initialInputValue: content,
-            noticeMessage: `🔀 从「${truncatedContent}」分叉`,
+            noticeMessage: msg(str`🔀 从「${truncatedContent}」分叉`),
         });
         this.dispatchEvent(
             new CustomEvent('rtc-fork-initiated', {
