@@ -190,6 +190,9 @@ const MODE_ANNOUNCEMENTS: Record<WindowMode, string> = {
 /** Debounce delay (ms) for auto-save after content changes. */
 const AUTO_SAVE_DEBOUNCE_MS = 1000;
 
+/** Margin (px) from viewport edge for initial window position in {@link RtcAgent.firstUpdated}. */
+const INITIAL_POSITION_MARGIN_PX = 20;
+
 @customElement('rtc-agent')
 export class RtcAgent extends LitElement {
     static styles = [tokens, lightTheme, darkTheme, baseStyles, styles];
@@ -849,8 +852,11 @@ export class RtcAgent extends LitElement {
      * Supports both vertical and horizontal scroll containers.
      */
     private _boundOnWheel = (e: WheelEvent) => {
-        const target = e.composedPath()[0] as Element;
-        const scrollable = this._findScrollableParent(target);
+        const rawTarget = e.composedPath()[0];
+        // Guard: composedPath()[0] may be a Text node (e.g. wheel over plain text);
+        // getComputedStyle requires an Element — skip non-Element targets.
+        const target = rawTarget instanceof Element ? rawTarget : null;
+        const scrollable = target ? this._findScrollableParent(target) : null;
 
         // No scrollable container found — prevent all wheel events from reaching host page
         if (!scrollable) {
@@ -1369,11 +1375,10 @@ export class RtcAgent extends LitElement {
     firstUpdated() {
         // Set initial position only when no persisted state exists
         if (!this._windowState.restored) {
-            const margin = 20;
             const defaultWidth = parseInt(getComputedStyle(this).getPropertyValue('--rtc-window-default-width')) || 420;
             const defaultHeight = parseInt(getComputedStyle(this).getPropertyValue('--rtc-window-default-height')) || 640;
-            const initialX = window.innerWidth - defaultWidth - margin;
-            const initialY = window.innerHeight - defaultHeight - margin;
+            const initialX = window.innerWidth - defaultWidth - INITIAL_POSITION_MARGIN_PX;
+            const initialY = window.innerHeight - defaultHeight - INITIAL_POSITION_MARGIN_PX;
             this._windowState.actions.setPosition({x: initialX, y: initialY});
         }
 
