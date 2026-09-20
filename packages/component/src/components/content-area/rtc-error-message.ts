@@ -54,19 +54,23 @@ interface CategoryConfig {
  *   - permission: red (auth/access)
  *   - stream: gray (transport)
  *   - tool: gray (tool execution)
+ *
+ * Note: labels are resolved via `_getCategoryLabel()` at render time so that
+ * lit-localize can track them for i18n. Keeping them out of this static map
+ * avoids the "msg() outside reactive context" pitfall.
  */
-const CATEGORY_CONFIG: Record<ErrorCategory, CategoryConfig> = {
-    api: {icon: '⚠️', color: '#2563eb', label: 'API 错误'},
-    timeout: {icon: '⏰', color: '#ca8a04', label: '超时'},
-    system: {icon: '❌', color: '#dc2626', label: '系统错误'},
-    context: {icon: '\u{1F4E6}', color: '#ea580c', label: '上下文错误'},
-    network: {icon: '\u{1F310}', color: '#7c3aed', label: '网络错误'},
-    permission: {icon: '\u{1F512}', color: '#dc2626', label: '权限错误'},
-    stream: {icon: '\u{1F4E1}', color: '#6b7280', label: '流错误'},
-    tool: {icon: '\u{1F527}', color: '#6b7280', label: '工具错误'},
+const CATEGORY_CONFIG: Record<ErrorCategory, Omit<CategoryConfig, 'label'>> = {
+    api: {icon: '⚠️', color: '#2563eb'},
+    timeout: {icon: '⏰', color: '#ca8a04'},
+    system: {icon: '❌', color: '#dc2626'},
+    context: {icon: '\u{1F4E6}', color: '#ea580c'},
+    network: {icon: '\u{1F310}', color: '#7c3aed'},
+    permission: {icon: '\u{1F512}', color: '#dc2626'},
+    stream: {icon: '\u{1F4E1}', color: '#6b7280'},
+    tool: {icon: '\u{1F527}', color: '#6b7280'},
 };
 
-const DEFAULT_CONFIG: CategoryConfig = {icon: '⚠️', color: '#6b7280', label: '错误'};
+const DEFAULT_CONFIG: Omit<CategoryConfig, 'label'> = {icon: '⚠️', color: '#6b7280'};
 
 @localized()
 @customElement('rtc-error-message')
@@ -245,12 +249,36 @@ export class RtcErrorMessage extends LitElement {
 
     /**
      * Look up the visual configuration for the current error category.
+     *
+     * Labels are resolved through lit-localize's `msg()` so they update when
+     * the user switches locale. Each case is a separate `msg()` call so the
+     * extractor can pick them up as translation keys.
      */
     private _getCategoryConfig(category: string | undefined): CategoryConfig {
-        if (category && category in CATEGORY_CONFIG) {
-            return CATEGORY_CONFIG[category as ErrorCategory];
+        const base = (category && category in CATEGORY_CONFIG)
+            ? CATEGORY_CONFIG[category as ErrorCategory]
+            : DEFAULT_CONFIG;
+        return {...base, label: this._getCategoryLabel(category)};
+    }
+
+    /**
+     * Resolve the localized label for an error category.
+     *
+     * A switch with one `msg()` per case is required: lit-localize's extractor
+     * needs static string arguments and cannot follow dynamic lookups.
+     */
+    private _getCategoryLabel(category: string | undefined): string {
+        switch (category) {
+            case 'api': return msg('API 错误');
+            case 'timeout': return msg('超时');
+            case 'system': return msg('系统错误');
+            case 'context': return msg('上下文错误');
+            case 'network': return msg('网络错误');
+            case 'permission': return msg('权限错误');
+            case 'stream': return msg('流错误');
+            case 'tool': return msg('工具错误');
+            default: return msg('错误');
         }
-        return DEFAULT_CONFIG;
     }
 
     private _toggleRawError() {

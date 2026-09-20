@@ -24,7 +24,7 @@ import {LitElement, html} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
 import {repeat} from 'lit/directives/repeat.js';
 import {consume} from '@lit/context';
-import {localized} from '@lit/localize';
+import {localized, msg} from '@lit/localize';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {createLogger} from '@rtc-agent/client';
 
@@ -298,7 +298,7 @@ export class RtcChatLayout extends LitElement {
                     bubbles: true,
                     composed: true,
                     detail: {
-                        message: '重新打开会话失败，请重试',
+                        message: msg('重新打开会话失败，请重试'),
                         type: 'error',
                     },
                 }));

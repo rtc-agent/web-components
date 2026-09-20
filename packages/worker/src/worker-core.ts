@@ -10,6 +10,7 @@ import {
   type LocalSession,
   type LocalMessage,
   type LocalRtc,
+  type FileSystemEntryType,
 } from '@rtc-agent/persistence';
 import type { ContentData } from '@rtc-agent/protocol';
 import type { ConnectionState, ConnectionStateEvent, TokenExpiredAction } from '@rtc-agent/client';
@@ -373,7 +374,14 @@ export class WorkerCore implements WorkerPersistenceCore {
       updatedAt: Date;
     };
   }>> {
-    return virtualFS.queryByType(type as any) as any;
+    // Validate the incoming string against the known FileSystemEntryType union
+    // to avoid passing an arbitrary string into virtualFS.queryByType.
+    const validTypes: ReadonlyArray<FileSystemEntryType> = ['function', 'scenario', 'script', 'index'];
+    if (!validTypes.includes(type as FileSystemEntryType)) {
+      log.warn(`virtualFSQueryByType: unknown type "${type}", falling back to empty result`);
+      return [];
+    }
+    return virtualFS.queryByType(type as FileSystemEntryType);
   }
 
   async virtualFSExists(path: string): Promise<boolean> {

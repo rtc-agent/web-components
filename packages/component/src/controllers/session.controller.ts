@@ -17,6 +17,7 @@ import type {SessionContextValue} from '../contexts/session.js';
 import {DEFAULT_SESSION_STATE} from '../contexts/session.js';
 import type {PersistenceLayer} from '@rtc-agent/persistence';
 import {createLogger} from '@rtc-agent/client';
+import {msg} from '@lit/localize';
 
 const log = createLogger('SessionController');
 
@@ -107,7 +108,7 @@ export class SessionController implements ReactiveController {
                 await this.persistence.updateSessionTitle(id, title);
             } catch (err) {
                 log.error('persistence rename failed:', err);
-                return {ok: false, error: '重命名失败，请稍后重试'};
+                return {ok: false, error: msg('重命名失败，请稍后重试')};
             }
         }
 
@@ -137,7 +138,7 @@ export class SessionController implements ReactiveController {
                 log.debug('persistence.deleteSession completed');
             } catch (err) {
                 log.error('persistence delete failed:', err);
-                return {ok: false, error: '删除失败，请稍后重试'};
+                return {ok: false, error: msg('删除失败，请稍后重试')};
             }
         } else {
             log.warn('NO persistence layer, doing in-memory only delete');
