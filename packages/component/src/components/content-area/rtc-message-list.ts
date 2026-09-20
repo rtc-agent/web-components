@@ -290,7 +290,12 @@ export class RtcMessageList extends LitElement {
 
         // Clear virtual scroll for new session
         this._virtualScroll?.clear();
-        this._messages = [];
+        // Only assign a new empty array if current _messages is non-empty.
+        // Avoids creating a new reference (and triggering @state change detection)
+        // when _messages is already empty.
+        if (this._messages.length > 0) {
+            this._messages = [];
+        }
 
         try {
             // Subscribe to repository for this session
@@ -416,11 +421,17 @@ export class RtcMessageList extends LitElement {
         // --- Session switch: clear virtual scroll, re-subscribe, scroll to bottom ---
         if (changed.has('sessionId')) {
             this._virtualScroll?.clear();
-            this._subscribeToSession();
-            this._shouldAutoScroll = true;
-            this._virtualScroll?.scrollToBottom();
-            this._userAtBottom = true;
-            this._showNewBtn = false;
+            // Defer subscription and @state mutations to avoid Lit "change-in-update" warning.
+            // _subscribeToSession() sets @state _messages and the subscription callback
+            // sets @state _messages/_hasMore — doing this synchronously inside updated()
+            // triggers requestUpdate() during the active update cycle.
+            queueMicrotask(() => {
+                this._subscribeToSession();
+                this._shouldAutoScroll = true;
+                this._virtualScroll?.scrollToBottom();
+                this._userAtBottom = true;
+                this._showNewBtn = false;
+            });
         }
 
         // --- Messages changed: scroll if following ---

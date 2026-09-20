@@ -1322,17 +1322,24 @@ export class RtcAgent extends LitElement {
         // No need to duplicate logic in every tab-close handler.
         // Note: skip auto-creation before initial load completes (_initialSessionLoadDone === false)
         // to avoid racing with _loadSessions' restore logic and polluting localStorage.
+        //
+        // Deferred via queueMicrotask to avoid Lit "change-in-update" warning:
+        // createSession/switchSession/openOrActivate mutate controller state which
+        // calls host.requestUpdate() — doing this synchronously inside updated()
+        // would schedule a re-render during the active update cycle.
         const tabCount = this._sessionTab.value.state.tabs.length;
         if (tabCount === 0 && !this._creatingUnsavedTab && this._initialSessionLoadDone) {
             log.debug('No tabs left, auto-creating unsaved tab');
             this._creatingUnsavedTab = true;
-            try {
-                const newId = this._session.actions.createSession();
-                this._session.actions.switchSession(newId);
-                this._sessionTab.actions.openOrActivate(newId, 'Untitled', {isUnsaved: true});
-            } finally {
-                this._creatingUnsavedTab = false;
-            }
+            queueMicrotask(() => {
+                try {
+                    const newId = this._session.actions.createSession();
+                    this._session.actions.switchSession(newId);
+                    this._sessionTab.actions.openOrActivate(newId, 'Untitled', {isUnsaved: true});
+                } finally {
+                    this._creatingUnsavedTab = false;
+                }
+            });
         }
 
         // Sync work mode to RtcProcessor

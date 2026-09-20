@@ -844,11 +844,17 @@ export class RtcInputArea extends LitElement {
     updated(changed: Map<string | number | symbol, unknown>) {
         // Session 切换时清空历史缓存，下次导航时重新加载
         if (changed.has('_sessionCtx') || changed.has('sessionId')) {
-            this._userMessageHistory = [];
-            this._historyIndex = -1;
-            this._draft = '';
-            // 更新 token 显示（从 SessionContext 中提取当前 session 的数据）
-            this._updateTokenDisplay();
+            // Defer @state mutations to avoid "change-in-update" warning.
+            // _updateTokenDisplay() sets multiple @state properties (_tokenEstimatedNext,
+            // _tokenTotalTokens, etc.) and the history resets set @state _userMessageHistory
+            // and _historyIndex — all of which trigger requestUpdate() if done synchronously
+            // inside updated(). queueMicrotask defers them to after the current update cycle.
+            queueMicrotask(() => {
+                this._userMessageHistory = [];
+                this._historyIndex = -1;
+                this._draft = '';
+                this._updateTokenDisplay();
+            });
         }
         // 当 initialValueVersion 变化时，强制同步 initialValue 到 _value
         // 使用 version 而非直接监听 initialValue，防御同值重复设置被 Lit 跳过
