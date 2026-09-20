@@ -137,19 +137,19 @@ import '../login/rtc-login-page.js';
 import '../login/rtc-login-dialog.js';
 import '../overlay/rtc-toast.js';
 
-// VS Code 风格布局组件（Phase 3）
+// VS Code-style layout components (Phase 3)
 import '../activity-bar/rtc-activity-bar.js';
 import '../file-explorer/rtc-file-explorer.js';
 import '../editor-area/rtc-editor-area.js';
 import '../status-bar/rtc-status-bar.js';
 
-// Chat Layout 组件（对话页面改造）
+// Chat Layout component (conversation page refactor)
 import '../chat-layout/rtc-chat-layout.js';
 
-// Settings Layout 组件
+// Settings Layout component
 import '../settings-layout/rtc-settings-layout.js';
 
-// Drawer 组件（overlay 抽屉面板）
+// Drawer component (overlay slide-out panel)
 import '../drawer/rtc-drawer.js';
 
 // Toast types (re-exported from ToastController)
@@ -187,13 +187,13 @@ export class RtcAgent extends LitElement {
     bubbleIcon = '';
 
     /**
-     * FunctionRegistry 实例（宿主应用注入，高级用法）
+     * FunctionRegistry instance (host-app injection, advanced usage).
      *
-     * 设置后自动：
-     * 1. 将 registry 注入 SkillController（供 UI 使用）
-     * 2. 创建 rtcAgentAPI Proxy 并注入 ToolRegistry（供 script 工具使用）
+     * On set, automatically:
+     * 1. Injects the registry into SkillController (for UI use).
+     * 2. Creates an rtcAgentAPI Proxy and injects it into ToolRegistry (for script tools).
      *
-     * 对于简单场景，推荐使用 `agentConfig` 属性替代（声明式 API）。
+     * For simpler scenarios, prefer the `agentConfig` property (declarative API).
      */
     @property({attribute: false})
     set registry(value: FunctionRegistry | null) {
@@ -201,8 +201,8 @@ export class RtcAgent extends LitElement {
             console.log('[rtc-agent] registry setter called, isConnected:', this._persistence.isConnected);
             this._skill.actions.setRegistry(value);
 
-            // 如果 persistence 已连接（数据库就绪），立即生成文档
-            // 解决时序问题：connectedCallback() 可能在 registry 设置前就运行
+            // If persistence is connected (DB ready), generate docs immediately.
+            // This handles a timing issue: connectedCallback() may run before the registry is set.
             if (this._persistence.isConnected && this._persistence.layer) {
                 void this._regenerateDocsAfterRegistrySet();
             }
@@ -213,11 +213,11 @@ export class RtcAgent extends LitElement {
     }
 
     /**
-     * registry 属性设置后生成文档
+     * Generate docs after the registry property is set.
      *
-     * 解决时序问题：connectedCallback() 可能在 registry 注入前就完成 connect()，
-     * 此时 generateAllDocsContent() 返回空数组。当 registry 稍后被设置时，
-     * 需要重新生成文档。
+     * Handles a timing issue: connectedCallback() may complete connect() before
+     * the registry is injected, causing generateAllDocsContent() to return an empty
+     * array. When the registry is set later, docs need to be regenerated.
      */
     private async _regenerateDocsAfterRegistrySet(): Promise<void> {
         const registry = this._skill.actions.getRegistry();
@@ -227,7 +227,7 @@ export class RtcAgent extends LitElement {
             const files = registry.generateAllDocsContent(0);
             await this._persistence.workerBridge!.core.batchWriteFiles(files);
 
-            // 如果 scenariosURL 已设置但 scenarios 还未加载，现在加载
+            // If scenariosURL was set but scenarios haven't loaded yet, load them now.
             if (this._scenariosURL) {
                 await this._loadScenarios(this._scenariosURL);
             }
@@ -237,14 +237,15 @@ export class RtcAgent extends LitElement {
     }
 
     /**
-     * Agent 声明式配置（推荐的宿主集成方式）
+     * Declarative agent configuration (recommended host integration approach).
      *
-     * 设置后组件内部自动：
-     * 1. 基于配置构建 FunctionRegistry（含 persona / groups / functions）
-     * 2. 将 registry 注入 SkillController
-     * 3. 桥接 rtcAgent API 到 ToolRegistry（供 script 工具使用）
+     * After setting, the component automatically:
+     * 1. Builds a FunctionRegistry from config (with persona / groups / functions).
+     * 2. Injects the registry into SkillController.
+     * 3. Bridges the rtcAgent API to ToolRegistry (for script tool use).
      *
-     * 宿主应用无需了解 FunctionRegistry / toolRegistry 等内部概念。
+     * Host applications don't need to understand internal concepts like
+     * FunctionRegistry / toolRegistry.
      *
      * @example
      * ```ts
@@ -311,10 +312,10 @@ export class RtcAgent extends LitElement {
     private _redirectURI = '';
 
     /**
-     * 场景文档 URL（可选）
+     * Scenario documents URL (optional).
      *
-     * 设置后自动从指定 URL 加载场景文档到 VirtualFS。
-     * URL 应指向包含 manifest.json 的目录。
+     * When set, automatically loads scenario documents from the specified URL into VirtualFS.
+     * The URL should point to a directory containing manifest.json.
      *
      * @example
      * <rtc-agent scenarios-url="./scenarios/"></rtc-agent>
@@ -323,12 +324,12 @@ export class RtcAgent extends LitElement {
     set scenariosURL(value: string) {
         this._scenariosURL = value;
         if (value) {
-            // 如果 persistence 已连接，立即加载 scenarios
+            // If persistence is connected, load scenarios immediately.
             if (this._persistence.isConnected && this._persistence.layer) {
                 void this._loadScenarios(value);
             }
-            // 否则 scenariosURL 会被 _scenariosURL 保存，
-            // 在 connectedCallback 或 registry setter 中后续加载
+            // Otherwise, scenariosURL is stored in _scenariosURL and loaded later
+            // in connectedCallback or the registry setter.
         }
     }
     get scenariosURL(): string {
@@ -337,15 +338,15 @@ export class RtcAgent extends LitElement {
     private _scenariosURL = '';
 
     /**
-     * 窗口配置（可选）
+     * Window configuration (optional).
      *
-     * 控制窗口的默认状态、尺寸、位置、交互限制等。
+     * Controls the window's default state, dimensions, position, interaction limits, etc.
      *
      * @example
      * ```ts
      * agent.windowConfig = {
      *   defaultMode: 'maximized',
-     *   embedded: true,  // 禁用所有窗口交互
+     *   embedded: true,  // Disable all window interactions
      *   showMinimize: false,
      *   showMaximize: false,
      * };
@@ -357,14 +358,14 @@ export class RtcAgent extends LitElement {
         const resolved = resolveWindowConfig(value ?? undefined);
         this._resolvedWindowConfig = resolved;
 
-        // 更新控制器配置
+        // Update controller configuration.
         this._windowState.setConfig(resolved);
         this._interaction.setConfig({
             draggable: resolved.draggable,
             resizable: resolved.resizable,
         });
 
-        // 触发重新渲染
+        // Trigger re-render.
         this.requestUpdate();
     }
     get windowConfig(): WindowConfig | null {
@@ -373,15 +374,15 @@ export class RtcAgent extends LitElement {
     private _windowConfig: WindowConfig | null = null;
 
     /**
-     * Activity Bar 配置（可选）
+     * Activity Bar configuration (optional).
      *
-     * 控制 Activity Bar 中各活动按钮的显隐。
-     * 注意：chat 按钮始终显示，不可隐藏。
+     * Controls visibility of activity buttons in the Activity Bar.
+     * Note: the chat button is always visible and cannot be hidden.
      *
      * @example
      * ```ts
      * agent.activityBarConfig = {
-     *   disabledActivities: ['files', 'settings'],  // 只显示 chat
+     *   disabledActivities: ['files', 'settings'],  // Only show chat
      *   defaultActivity: 'chat',
      * };
      * ```
@@ -391,13 +392,13 @@ export class RtcAgent extends LitElement {
         this._activityBarConfig = value;
         this._resolvedActivityBarConfig = resolveActivityBarConfig(value ?? undefined);
 
-        // 如果当前活动被禁用，切换到默认活动
+        // If the current activity is disabled, switch to the default activity.
         const disabled = this._resolvedActivityBarConfig.disabledActivities;
         if (disabled.includes(this._activity.active as 'files' | 'settings')) {
             this._activity.actions.setActivity(this._resolvedActivityBarConfig.defaultActivity);
         }
 
-        // 触发重新渲染
+        // Trigger re-render.
         this.requestUpdate();
     }
     get activityBarConfig(): ActivityBarConfig | null {
@@ -407,9 +408,9 @@ export class RtcAgent extends LitElement {
     private _resolvedActivityBarConfig: ResolvedActivityBarConfig = resolveActivityBarConfig();
 
     /**
-     * 加载 scenarios 到 VirtualFS
+     * Load scenarios into VirtualFS.
      *
-     * 通过 WorkerBridge 写入 Worker 内的 VirtualFS
+     * Writes to the Worker's VirtualFS via WorkerBridge.
      */
     private async _loadScenarios(baseURL: string): Promise<void> {
         const files = await loadScenariosContent(baseURL);
@@ -418,12 +419,12 @@ export class RtcAgent extends LitElement {
     }
 
     /**
-     * 基于 AgentConfig 构建 FunctionRegistry（内部使用）
+     * Build a FunctionRegistry from AgentConfig (internal use).
      *
-     * 流程：
-     * 1. 使用 config.name / description / persona 创建 FunctionRegistry
-     * 2. 按 config.groups 依次创建分组并注册函数
-     * 3. 若有 config.functions（平铺），自动放入 'default' 分组
+     * Flow:
+     * 1. Create FunctionRegistry using config.name / description / persona.
+     * 2. Create groups from config.groups and register functions in each.
+     * 3. If config.functions (flat) exists, auto-place them in a 'default' group.
      */
     private _buildRegistryFromConfig(config: AgentConfig): FunctionRegistry {
         const registry = defineRegistry({
@@ -433,7 +434,7 @@ export class RtcAgent extends LitElement {
             onError: config.onError,
         });
 
-        // 处理分组
+        // Process groups.
         for (const groupConfig of config.groups ?? []) {
             const group = registry.createGroup({
                 name: groupConfig.name,
@@ -444,7 +445,7 @@ export class RtcAgent extends LitElement {
             }
         }
 
-        // 处理平铺函数（放入 default 分组）
+        // Process flat functions (place in default group).
         if (config.functions && config.functions.length > 0) {
             const defaultGroup = registry.createGroup({
                 name: 'default',
@@ -460,7 +461,7 @@ export class RtcAgent extends LitElement {
 
     /* ── Reactive Controllers ── */
 
-    /** 解析后的窗口配置 */
+    /** Resolved window configuration. */
     private _resolvedWindowConfig = resolveWindowConfig();
 
     private _windowState = new WindowStateController(this, this._resolvedWindowConfig);
@@ -477,7 +478,7 @@ export class RtcAgent extends LitElement {
     private _skill = new SkillController(this, {
         onToast: (message, type) => this._toast.actions.show(message, type as ToastType),
         onConfirmRequest: (requestId, _path, message) => {
-            // 使用 window.confirm 作为简单 UI（SkillController 5 秒后也有 fallback）
+            // Use window.confirm as a simple UI (SkillController also has a fallback after 5s).
             const confirmed = window.confirm(message);
             this._skill.respondToConfirm(requestId, confirmed);
         },
@@ -493,7 +494,7 @@ export class RtcAgent extends LitElement {
     private _settings = new SettingsController(this);
     private _notification = new NotificationController(this);
 
-    /** 文件树是否已加载过（首次进入 files 活动时加载一次） */
+    /** Whether the file tree has been loaded (loaded once on first entry to files activity). */
     private _fileTreeLoaded = false;
 
     /* ── Internal State ── */
@@ -507,16 +508,16 @@ export class RtcAgent extends LitElement {
     /** Selected OAuth2 provider for login dialog */
     @state() private _selectedProvider = 'mock';
 
-    /** 连接状态 */
+    /** Connection state. */
     @state() private _connectionState: ConnectionState = 'disconnected';
 
-    /** 连接状态 unsub 函数 */
+    /** Connection state unsubscribe function. */
     private _unsubConnection?: () => void;
 
-    /** 连接是否失败（用于显示重试按钮） */
+    /** Whether connection failed (used to show retry button). */
     @state() private _connectionFailed = false;
 
-    /** 连接失败时的错误信息 */
+    /** Error message when connection failed. */
     @state() private _connectionError = '';
 
     /** Tracks the last mode we applied DOM side-effects for, to avoid redundant work. */
@@ -546,30 +547,31 @@ export class RtcAgent extends LitElement {
     private _boundOnLoginRequested = (event: Event) => this._handleLoginRequested(event);
     private _boundOnNewSession = () => {
         this._fork.actions.clearFork();
-        // 不清空消息：_handleNewSession 已通过 createSession() 创建了新 session
-        // 并切换了 currentSessionId，消息列表已由 reload() 设为空（新 session 无消息）
-        // 仅在 legacy 场景（关闭最后一个 Tab 后发消息）需要清空，但此时 currentSessionId 为 null
+        // Don't clear messages: _handleNewSession already created a new session via createSession()
+        // and switched currentSessionId; the message list has been emptied by reload()
+        // (new session has no messages). Only in the legacy scenario (sending after closing
+        // the last tab) would we need to clear, but currentSessionId would be null then.
         if (!this._session.value.state.currentSessionId) {
             this._message.actions.clearMessages();
         }
     };
     private _boundOnLogout = () => {
-        // 清理自动保存定时器
+        // Clear auto-save timers.
         for (const timer of this._autoSaveTimers.values()) {
             clearTimeout(timer);
         }
         this._autoSaveTimers.clear();
 
-        // 重置状态标志，确保重新登录后重新加载
+        // Reset state flags to ensure reload after re-login.
         this._fileTreeLoaded = false;
         this._initialSessionLoadDone = false;
 
-        // 重置 UI 状态
+        // Reset UI state.
         this._editorArea.actions.closeAll();
         this._sessionTab.actions.clearAll();
         this._activity.actions.setActivity('chat');
 
-        // 清理现有状态
+        // Clean up existing state.
         this._fork.actions.clearFork();
         this._rtcProcessor = undefined;
         void this._persistence.disconnect();
@@ -578,19 +580,19 @@ export class RtcAgent extends LitElement {
     };
     private _boundOnInputSubmit = async (e: Event) => {
         const detail = (e as CustomEvent).detail;
-        // 直接使用 rtc-input-area 传来的 contentData
+        // Use contentData directly from rtc-input-area.
         const content: ContentData = detail.contentData;
 
         try {
             if (this._fork.isActive) {
-                // Fork 模式：调用 forkSession
+                // Fork mode: call forkSession.
                 await this._fork.actions.submitFork(content);
             } else {
-                // 普通模式：调用 sendMessage
+                // Normal mode: call sendMessage.
                 await this._message.actions.sendMessage(content);
             }
 
-            // 发送成功后，把当前 unsaved tab 晋升为 saved
+            // After successful send, promote the current unsaved tab to saved.
             const currentId = this._session.value.state.currentSessionId;
             if (currentId) {
                 this._sessionTab.actions.markSaved(currentId);
@@ -613,20 +615,20 @@ export class RtcAgent extends LitElement {
             return;
         }
 
-        // 全局快捷键（仅 files 模式下生效）
+        // Global shortcuts (only active in files mode).
         if (this._activity.active !== 'files') return;
         const mod = e.metaKey || e.ctrlKey;
         if (!mod) return;
 
         if (e.key === 's' || e.key === 'S') {
-            // Ctrl/⌘+S：保存当前文件
+            // Ctrl/Cmd+S: save current file.
             const activePath = this._editorArea.state.activeFilePath;
             if (activePath) {
                 e.preventDefault();
                 void this._handleEditorSave(activePath);
             }
         } else if (e.key === 'w' || e.key === 'W') {
-            // Ctrl/⌘+W：关闭当前标签
+            // Ctrl/Cmd+W: close current tab.
             const activePath = this._editorArea.state.activeFilePath;
             if (activePath) {
                 e.preventDefault();
@@ -650,10 +652,10 @@ export class RtcAgent extends LitElement {
     private _boundOnSessionDeleteRequested = async (e: Event) => {
         const {sessionId} = (e as CustomEvent).detail;
         console.log('[rtc-agent] session delete requested:', sessionId);
-        // 确认弹窗
+        // Confirmation dialog.
         // const current = this._session.value.state.sessions.find(s => s.clientId === sessionId);
-        // const title = current?.title ?? '此会话';
-        // const confirmed = confirm(`确定要删除「${title}」吗？删除后可从服务端恢复。`);
+        // const title = current?.title ?? 'This session';
+        // const confirmed = confirm(`Delete "${title}"? It can be recovered from the server.`);
         // if (!confirmed) return;
 
         const result = await this._session.actions.deleteSession(sessionId);
@@ -665,10 +667,10 @@ export class RtcAgent extends LitElement {
     };
     private _boundOnSessionRenameRequested = async (e: Event) => {
         const {sessionId} = (e as CustomEvent).detail;
-        // 简单 prompt 交互：生产环境可替换为内联编辑或模态框
+        // Simple prompt interaction: in production, replace with inline editing or a modal.
         const current = this._session.value.state.sessions.find(s => s.clientId === sessionId);
         const title = prompt('重命名会话', current?.title ?? '');
-        if (title === null) return; // 用户取消
+        if (title === null) return; // User cancelled.
         if (!title.trim()) {
             this._toast.actions.show(msg('标题不能为空'), 'info');
             return;
@@ -680,7 +682,7 @@ export class RtcAgent extends LitElement {
     };
     private _boundOnSessionRenameConfirmed = async (e: Event) => {
         const {sessionId, title} = (e as CustomEvent).detail;
-        // 内联编辑已确认，直接调用 renameSession
+        // Inline edit confirmed — call renameSession directly.
         if (!title.trim()) return;
         const result = await this._session.actions.renameSession(sessionId, title.trim());
         if (!result.ok) {
@@ -705,12 +707,12 @@ export class RtcAgent extends LitElement {
             toggleSidebar: boolean;
         };
         if (toggleSidebar) {
-            // 点击当前活动 → toggle sidebar
+            // Clicked current activity -> toggle sidebar.
             this._activity.actions.toggleSidebar();
         } else {
-            // 切换到不同活动
+            // Switch to a different activity.
             this._activity.actions.setActivity(activity);
-            // 首次进入 files 活动时加载文件树
+            // Load file tree on first entry to files activity.
             if (activity === 'files' && !this._fileTreeLoaded && this._persistence.isConnected) {
                 void this._loadFileTree();
             }
@@ -722,8 +724,8 @@ export class RtcAgent extends LitElement {
     };
     private _boundOnFolderToggle = (e: Event) => {
         const {path} = (e as CustomEvent).detail as {path: string};
-        // 如果是展开状态且尚未加载子节点，触发懒加载
-        // 注意：toggleNode 已经在 file-tree-item 中调用，这里不再重复调用
+        // If expanded and children not yet loaded, trigger lazy load.
+        // Note: toggleNode is already called in file-tree-item; not called here to avoid duplication.
         if (this._fileExplorer.value.isExpanded(path)) {
             console.log('[rtc-agent] _boundOnFolderToggle: loading children for', path);
             void this._loadFolderChildren(path);
@@ -771,7 +773,7 @@ export class RtcAgent extends LitElement {
         void this._loadFileTree();
     };
     private _boundOnChatLayoutSessionSelect = (e: Event) => {
-        // ChatLayout 内部已调用 switchSession，此处仅作日志/扩展点
+        // ChatLayout internally already calls switchSession; this is just a log/extension point.
         const {sessionId} = (e as CustomEvent).detail as {sessionId: string};
         console.log('[rtc-agent] chat-layout session selected:', sessionId);
     };
@@ -840,7 +842,7 @@ export class RtcAgent extends LitElement {
     /** UIUpdateBus unsubscribe reference (set in connectedCallback, cleared in disconnectedCallback). */
     private _busUnsubMessage?: () => void;
 
-    /** RTC 处理器（persistence connect 后实例化） */
+    /** RTC processor (instantiated after persistence connect). */
     private _rtcProcessor?: RtcProcessor;
 
     /* ── Public Controller Accessors ──
@@ -871,10 +873,10 @@ export class RtcAgent extends LitElement {
     /* ── Public Methods ── */
 
     /**
-     * 连接失败时手动重连
+     * Manually reconnect when connection fails.
      *
-     * 当 SharedWorker 初始化失败或 WebSocket 连接无法建立时，
-     * 可以调用此方法尝试重新连接。
+     * Call this when SharedWorker initialization fails or WebSocket connection
+     * cannot be established.
      */
     async reconnect(): Promise<void> {
         if (this._persistence.isConnected) {
@@ -885,16 +887,16 @@ export class RtcAgent extends LitElement {
     }
 
     /**
-     * 连接是否失败
+     * Whether connection has failed.
      *
-     * 用于 UI 组件显示重试按钮或错误信息。
+     * Used by UI components to show retry button or error message.
      */
     get connectionFailed(): boolean {
         return this._connectionFailed;
     }
 
     /**
-     * 连接失败的错误信息
+     * Error message when connection failed.
      */
     get connectionError(): string {
         return this._connectionError;
@@ -902,9 +904,9 @@ export class RtcAgent extends LitElement {
 
     /* ── Component References ── */
 
-    /** 获取 rtc-input-area 的引用（穿透 shadow DOM） */
+    /** Get reference to rtc-input-area (piercing shadow DOM). */
     private get _inputArea(): HTMLElement & { setValue: (v: string) => void; clearValue: () => void } | undefined {
-        // Chat 模式：rtc-chat-layout > .content-area > rtc-input-area
+        // Chat mode: rtc-chat-layout > .content-area > rtc-input-area
         const chatLayout = this.shadowRoot?.querySelector('rtc-chat-layout');
         const inputArea = chatLayout?.shadowRoot?.querySelector('rtc-input-area');
         if (inputArea) {
@@ -915,9 +917,9 @@ export class RtcAgent extends LitElement {
         return wrapper?.shadowRoot?.querySelector('rtc-input-area') as HTMLElement & { setValue: (v: string) => void; clearValue: () => void } | undefined;
     }
 
-    /** 获取 rtc-notice-bar 的引用（穿透 shadow DOM） */
+    /** Get reference to rtc-notice-bar (piercing shadow DOM). */
     private get _noticeBar(): HTMLElement & { message: string } | undefined {
-        // Chat 模式：rtc-chat-layout > .content-area > rtc-notice-bar
+        // Chat mode: rtc-chat-layout > .content-area > rtc-notice-bar
         const chatLayout = this.shadowRoot?.querySelector('rtc-chat-layout');
         const noticeBar = chatLayout?.shadowRoot?.querySelector('rtc-notice-bar');
         if (noticeBar) {
@@ -973,23 +975,23 @@ export class RtcAgent extends LitElement {
         // Cross-controller wiring: session switch -> reload messages for the new session
         this._session.onSessionSwitch = () => {
             console.log('[rtc-agent.onSessionSwitch] currentSessionId:', this._session.value.state.currentSessionId);
-            this._fork.actions.clearFork();  // 切换 session 时清理 fork 状态
+            this._fork.actions.clearFork();  // Clear fork state when switching sessions.
             if (this._session.value.state.currentSessionId) {
                 console.log('[rtc-agent.onSessionSwitch] Calling message.reload()');
                 void this._message.reload();
             } else {
-                // currentSessionId 为 null（如关闭最后一个 Tab）→ 清空消息
+                // currentSessionId is null (e.g. after closing the last Tab) -> clear messages.
                 console.log('[rtc-agent.onSessionSwitch] Clearing messages (no current session)');
                 this._message.actions.clearMessages();
             }
-            // 切换 session 时立即同步 turn count 到新 session 的值
+            // Immediately sync turn count to new session's value on session switch.
             void this._refreshTurnCounts();
         };
 
         // Inject persistence layer and session controller into MessageController
         if (this._persistence.layer) {
             this._message.persistence = this._persistence.layer;
-            // 注入 persistence 到 SessionController（用于 rename/delete 持久化）
+            // Inject persistence into SessionController (for rename/delete persistence).
             this._session.persistence = this._persistence.layer;
         }
         this._message.sessionController = this._session;
@@ -1045,7 +1047,7 @@ export class RtcAgent extends LitElement {
         // Listen for command requested (from input area slash commands)
         this.addEventListener('rtc-command-requested', this._boundOnCommandRequested);
 
-        // Listen for VS Code 风格布局事件（Phase 3）
+        // Listen for VS Code-style layout events (Phase 3).
         this.addEventListener('activity-change', this._boundOnActivityChange);
         this.addEventListener('file-select', this._boundOnFileSelect);
         this.addEventListener('folder-toggle', this._boundOnFolderToggle);
@@ -1057,12 +1059,12 @@ export class RtcAgent extends LitElement {
         this.addEventListener('editor-area-cursor-move', this._boundOnEditorAreaCursorMove);
         this.addEventListener('refresh-requested', this._boundOnFileExplorerRefresh);
 
-        // Chat Layout 事件
+        // Chat Layout events.
         this.addEventListener('rtc-chat-layout-session-select', this._boundOnChatLayoutSessionSelect);
         this.addEventListener('rtc-chat-layout-tab-activate', this._boundOnChatLayoutTabActivate);
         this.addEventListener('rtc-chat-layout-tab-close', this._boundOnChatLayoutTabClose);
 
-        // Drawer 关闭事件（来自任何子组件中的 rtc-drawer）
+        // Drawer close event (from any rtc-drawer in child components).
         this.addEventListener('rtc-drawer-close', this._boundOnDrawerClose);
 
         // Listen for Escape key to cancel fork mode
@@ -1089,35 +1091,35 @@ export class RtcAgent extends LitElement {
                 if (event.action === 'created' || !event.field || SESSION_STRUCTURAL_FIELDS.has(event.field)) {
                     void this._loadSessions();
                 }
-                // status 变动 → 同步到 SessionTab（active/idle/closed 切换驱动 dot 动画）
+                // Status change -> sync to SessionTab (active/idle/closed drives dot animation).
                 if (event.field === 'status') {
                     const oldStatus = event.oldValue as SessionStatus | undefined;
                     const newStatus = event.newValue as SessionStatus | undefined;
                     const sessionId = event.entityId;
 
                     if (newStatus) {
-                        // 场景 1：session 被关闭（open → closed）→ 关闭 Tab
-                        // Tab 数量监测和自动创建 unsaved tab 由 updated() 生命周期统一处理
+                        // Scenario 1: session closed (open -> closed) -> close tab.
+                        // Tab count monitoring and unsaved tab auto-creation are handled by updated() lifecycle.
                         if (newStatus === 'closed') {
                             console.log('[rtc-agent] Session closed, closing tab:', sessionId);
                             this._sessionTab.actions.closeTab(sessionId);
                         }
-                        // 场景 2：session 被重新打开（closed → idle）→ 创建 Tab 但不选中
+                        // Scenario 2: session reopened (closed -> idle) -> create tab but don't activate.
                         else if (oldStatus === 'closed' && (newStatus === 'idle' || newStatus === 'active')) {
                             console.log('[rtc-agent] Session reopened, creating tab:', sessionId);
-                            // 从 session 列表获取标题
+                            // Get title from session list.
                             const session = this._session.value.state.sessions.find(s => s.clientId === sessionId);
                             const title = session?.title || 'Untitled';
                             this._sessionTab.actions.openOrActivate(sessionId, title, {activate: false});
-                            // 注意：不调用 switchSession，保持当前 activeSessionId 不变
+                            // Note: don't call switchSession, keep current activeSessionId unchanged.
                         }
-                        // 其他状态变化 → 只更新 status dot
+                        // Other status changes -> only update status dot.
                         else {
                             this._sessionTab.actions.updateTabStatus(sessionId, newStatus);
                         }
                     }
                 }
-                // todo_list 变动 → 插入本地 markdown 消息，让对话流展示 todo 历史
+                // todo_list change -> insert local markdown message to show todo history in conversation.
                 // if (event.field === 'todo_list') {
                 //     const newTodoList = event.newValue as TodoItem[] | undefined;
                 //     if (newTodoList?.length) {
@@ -1125,7 +1127,7 @@ export class RtcAgent extends LitElement {
                 //         void this._insertTodoListMessage(event.entityId, markdown);
                 //     }
                 // }
-                // Turn count 字段变化 → 把当前 session 的活跃 turn 数量推入 context
+                // Turn count field changed -> push active turn count for current session into context.
                 if (
                     event.field === 'pending_turn_count' ||
                     event.field === 'running_turn_count'
@@ -1133,14 +1135,14 @@ export class RtcAgent extends LitElement {
                     void this._refreshTurnCounts();
                 }
             } else if (event.entity === 'rtc') {
-                // RTC 更新：仅 Master Tab 触发 RtcProcessor 处理循环
-                // masterLock 存在且 isMaster=false 时跳过
+                // RTC update: only Master Tab triggers RtcProcessor processing loop.
+                // Skip when masterLock exists and isMaster=false.
                 if (this._persistence.masterLock?.isMaster === false) {
                     return;
                 }
                 this._rtcProcessor?.onRtcUpdate();
             } else if (event.entity === 'file') {
-                // VFS 文件变更（来自其他标签页的写入/删除）
+                // VFS file change (from write/delete in other tabs).
                 void this._handleFileChange(event.entityId, event.field);
             }
         });
@@ -1180,10 +1182,10 @@ export class RtcAgent extends LitElement {
     }
 
     /**
-     * 连接 persistence 层，带错误处理和重试
+     * Connect to the persistence layer with error handling and retry.
      *
-     * 如果连接失败，会设置 _connectionFailed 状态，
-     * 用户可以在 UI 中看到错误信息并手动重试。
+     * If the connection fails, sets _connectionFailed state so the user
+     * can see the error in the UI and manually retry.
      */
     private async _connectWithRetry(): Promise<void> {
         this._connectionFailed = false;
@@ -1197,23 +1199,23 @@ export class RtcAgent extends LitElement {
                 this._session.persistence = this._persistence.layer;
                 this._notification.persistence = this._persistence.layer;
 
-                // 注：AGENT.md 由 FunctionRegistry.generateAllDocsContent() 首次写入（含 persona），
-                // 不再调用 initializeVirtualFS() 写入默认 AGENT.md，
-                // 否则后续的 batchWriteFiles 因 'create-new' 模式无法覆盖默认文件。
+                // Note: AGENT.md is written by FunctionRegistry.generateAllDocsContent() (includes persona).
+                // We no longer call initializeVirtualFS() to write a default AGENT.md,
+                // because subsequent batchWriteFiles would fail with 'create-new' mode (can't overwrite).
 
-                // 如果恢复后活动是 'files'，自动加载文件树
-                // （正常流程中文件树在 activity-change 事件中按需加载，
-                //  但刷新后不会触发 activity-change，需要手动触发一次）
+                // If the active activity is 'files' after restore, auto-load the file tree.
+                // (In normal flow, the file tree loads on activity-change events,
+                //  but a page refresh won't trigger activity-change, so we trigger it manually.)
                 if (this._activity.active === 'files' && !this._fileTreeLoaded) {
                     await this._loadFileTree();
                 }
 
-                // 刷新后恢复 Editor Area 已打开文件的内容
-                // （tab 元数据在 EditorAreaController 构造时已从 localStorage 恢复，
-                //  这里从 VFS 重新加载每个 tab 的文件内容）
+                // Restore Editor Area content for already-open files after refresh.
+                // (Tab metadata was restored from localStorage in EditorAreaController constructor;
+                //  here we reload each tab's file content from VFS.)
                 await this._restoreEditorAreaContent();
 
-                // 主线程生成文档内容，通过 batchWriteFiles 发送到 Worker
+                // Main thread generates doc content, sends to Worker via batchWriteFiles.
                 const registry = this._skill.actions.getRegistry();
                 console.log('[rtc-agent] After connect, registry:', registry ? 'set' : 'null');
                 if (registry && typeof registry.generateAllDocsContent === 'function') {
@@ -1224,7 +1226,7 @@ export class RtcAgent extends LitElement {
                     }
                 }
 
-                // 重新加载 scenarios（如果在数据库初始化前设置过 scenariosURL）
+                // Reload scenarios (if scenariosURL was set before DB initialization).
                 if (this._scenariosURL) {
                     try {
                         const files = await loadScenariosContent(this._scenariosURL);
@@ -1235,13 +1237,13 @@ export class RtcAgent extends LitElement {
                     }
                 }
 
-                // 初始化 RTC 处理器并恢复未完成的任务
+                // Initialize RTC processor and resume pending tasks.
                 await this._initRtcProcessor();
 
-                // 监听连接状态变化
+                // Listen for connection state changes.
                 this._setupConnectionListener();
             }
-            // Load sessions from DB so the panel isn't empty after refresh
+            // Load sessions from DB so the panel isn't empty after refresh.
             void this._loadSessions();
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : String(err);
@@ -1249,7 +1251,7 @@ export class RtcAgent extends LitElement {
             this._connectionFailed = true;
             this._connectionError = errorMessage;
 
-            // 显示错误 Toast
+            // Show error toast.
             this._toast.actions.show(
                 msg(`连接失败: ${errorMessage}`),
                 'error'
@@ -1257,7 +1259,7 @@ export class RtcAgent extends LitElement {
         }
     }
 
-    /** 显示工具确认弹窗 */
+    /** Show tool confirmation dialog. */
     private _showToolConfirm(rtc: LocalRtc): Promise<boolean> {
         return new Promise((resolve) => {
             const el = document.createElement('rtc-tool-confirm');
@@ -1287,15 +1289,15 @@ export class RtcAgent extends LitElement {
             el.addEventListener('rtc-tool-call-approved', onApproved);
             el.addEventListener('rtc-tool-call-denied', onDenied);
 
-            // 添加到 shadowRoot 内，保持样式继承
+            // Append to shadowRoot to maintain style inheritance.
             this.shadowRoot!.appendChild(el);
         });
     }
 
     /**
-     * 显示 AskUser 多选对话框
+     * Show AskUser multi-select dialog.
      *
-     * 返回用户答案 dict（{answers, annotations?, metadata?}）或 null 表示拒绝。
+     * Returns the user's answer dict ({answers, annotations?, metadata?}) or null if dismissed.
      */
     private _showAskUser(rtc: LocalRtc): Promise<{
         answers: Record<string, string>;
@@ -1338,17 +1340,17 @@ export class RtcAgent extends LitElement {
     }
 
     /**
-     * 设置连接状态监听
+     * Set up connection state listener.
      *
-     * 通过 PersistenceController.onConnectionStateChange 获取连接状态变更事件。
+     * Uses PersistenceController.onConnectionStateChange to get connection state change events.
      */
     private async _setupConnectionListener() {
         this._unsubConnection?.();
 
-        // 使用统一接口获取初始连接状态
+        // Use unified API to get initial connection state.
         this._connectionState = await this._persistence.getConnectionState();
 
-        // 使用统一接口监听连接状态变更
+        // Use unified API to listen for connection state changes.
         this._unsubConnection = this._persistence.onConnectionStateChange((event) => {
             this._connectionState = event.state;
         });
@@ -1424,11 +1426,11 @@ export class RtcAgent extends LitElement {
             });
         });
 
-        // 监测 Tab 数量：当所有 Tab 关闭时，自动创建新的 unsaved Tab
-        // 这是响应式的设计：通过 Lit 的 updated() 生命周期监听 state 变化
-        // 无需在每个关闭 Tab 的地方重复逻辑
-        // 注意：首次加载完成前（_initialSessionLoadDone === false）不自动创建，
-        // 避免和 _loadSessions 的恢复逻辑竞争，导致 localStorage 被污染
+        // Monitor tab count: when all tabs are closed, auto-create a new unsaved tab.
+        // This is a reactive design: listens to state changes via Lit's updated() lifecycle.
+        // No need to duplicate logic in every tab-close handler.
+        // Note: skip auto-creation before initial load completes (_initialSessionLoadDone === false)
+        // to avoid racing with _loadSessions' restore logic and polluting localStorage.
         const tabCount = this._sessionTab.value.state.tabs.length;
         if (tabCount === 0 && !this._creatingUnsavedTab && this._initialSessionLoadDone) {
             console.log('[rtc-agent.updated] No tabs left, auto-creating unsaved tab');
@@ -1500,10 +1502,10 @@ export class RtcAgent extends LitElement {
     /* ── Connection Retry Handler ── */
 
     /**
-     * 处理用户点击重试按钮
+     * Handle user clicking the retry button.
      *
-     * 当 SharedWorker 初始化失败或 WebSocket 连接无法建立时，
-     * 用户可以在 title bar 中点击重试按钮触发此方法。
+     * When SharedWorker initialization fails or WebSocket connection cannot be established,
+     * the user can click the retry button in the title bar to trigger this method.
      */
     private _handleConnectionRetry() {
         console.log('[rtc-agent] Connection retry requested by user');
@@ -1524,7 +1526,7 @@ export class RtcAgent extends LitElement {
             }
         });
 
-        // 从最小化恢复时，清除通知动画和未读计数
+        // When restoring from minimized, clear notification animation and unread count.
         if (this._appliedMode === 'minimized' && mode !== 'minimized') {
             this._notification.actions.markAsRead();
         }
@@ -1537,7 +1539,7 @@ export class RtcAgent extends LitElement {
 
     private _handleBubbleClick() {
         this._windowState.actions.restore();
-        // 恢复窗口时清除通知动画和未读计数
+        // Clear notification animation and unread count when restoring from minimized.
         this._notification.actions.markAsRead();
     }
 
@@ -1620,13 +1622,13 @@ export class RtcAgent extends LitElement {
     /* ── Session & Turn Count ── */
 
     /**
-     * 从 persistence 层读取当前 session 的 pending_turn_count / running_turn_count，
-     * 写入 TurnCountContext，供 <rtc-input-area> 渲染 send/stop 按钮。
+     * Read current session's pending_turn_count / running_turn_count from persistence,
+     * write to TurnCountContext for <rtc-input-area> to render send/stop buttons.
      *
-     * 没有 currentSessionId 或 persistence 未就绪时，推送零值。
+     * Pushes zero values when there's no currentSessionId or persistence isn't ready.
      */
     /**
-     * 将 TodoItem[] 格式化为 markdown checkbox 列表
+     * Format TodoItem[] as a markdown checkbox list.
      */
     // private _formatTodoListAsMarkdown(todoList: TodoItem[]): string {
     //     return todoList.map(item => {
@@ -1637,7 +1639,7 @@ export class RtcAgent extends LitElement {
     // }
 
     /**
-     * 插入 todo_list 变动的本地消息到对话中
+     * Insert a local message for todo_list changes into the conversation.
      */
     // private async _insertTodoListMessage(sessionClientId: string, markdown: string): Promise<void> {
     //     try {
@@ -1692,7 +1694,7 @@ export class RtcAgent extends LitElement {
             todoList: s.todo_list,
             rootClientSessionId: s.root_client_session_id,
             status: s.status as SessionStatus | undefined,
-            // Token 用量字段（后端 session.updated 推送后自动填充）
+            // Token usage fields (auto-populated after backend session.updated push).
             totalInputTokens: s.total_input_tokens,
             totalOutputTokens: s.total_output_tokens,
             totalTokens: s.total_tokens,
@@ -1702,7 +1704,7 @@ export class RtcAgent extends LitElement {
             totalReasoningTokens: s.total_reasoning_tokens,
             totalCostUsd: s.total_cost_usd,
             lastTokenUpdateAt: s.last_token_update_at,
-            // Token 预估字段（后端实时计算，通过 session.updated 推送）
+            // Token estimation fields (real-time computed by backend, pushed via session.updated).
             compressionThreshold: s.compression_threshold,
             compressionProgress: s.compression_progress,
             roundsUntilCompression: s.rounds_until_compression,
@@ -1710,22 +1712,22 @@ export class RtcAgent extends LitElement {
         }));
         this._session.actions.setSessions(uiSessions);
 
-        // 同步到 SessionTreeController（构建层级树）
+        // Sync to SessionTreeController (build hierarchical tree).
         this._sessionTree.actions.rebuildTree(uiSessions);
 
-        // ── 首次加载时从 DB 恢复 Tabs（替代 localStorage） ──
-        // 放在 rebuildTree 之后、filterInvalidTabs 之前。
-        // 恢复的 tabs 会被后续的 filterInvalidTabs/updateTabTitles/syncTabStatuses 立即处理。
+        // ── Restore tabs from DB on initial load (replaces localStorage) ──
+        // Placed after rebuildTree and before filterInvalidTabs.
+        // Restored tabs will be immediately processed by filterInvalidTabs/updateTabTitles/syncTabStatuses.
         if (!this._initialSessionLoadDone) {
             const openSessions = uiSessions
                 .filter(s => s.status !== 'closed')
                 .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
 
-            // 从 localStorage 读取上次 active tab，决定恢复时哪个 tab 应该 activate: true
+            // Read the last active tab from localStorage to decide which tab to activate on restore.
             const storedActiveId = this._sessionTab.actions.getStoredActiveSessionId();
 
-            // 批量恢复时 skipPersist: true，避免循环 N 次覆盖 localStorage
-            // 只有匹配 storedActiveId 的 tab 传 activate: true，其他传 activate: false
+            // Use skipPersist: true for batch restore to avoid N localStorage overwrites in a loop.
+            // Only the tab matching storedActiveId gets activate: true; others get activate: false.
             for (const session of openSessions) {
                 const title = session.title || 'Untitled';
                 const shouldActivate = session.clientId === storedActiveId;
@@ -1736,8 +1738,8 @@ export class RtcAgent extends LitElement {
             }
             console.log('[rtc-agent._loadSessions] Restored tabs from DB:', openSessions.length, 'storedActiveId:', storedActiveId);
 
-            // 兜底：如果 storedActiveId 不在 tabs 中（或 localStorage 为空），activeSessionId 会是 null
-            // 此时激活第一个 tab，保证至少有一个 active
+            // Fallback: if storedActiveId isn't in tabs (or localStorage is empty), activeSessionId is null.
+            // Activate the first tab to ensure at least one active tab exists.
             if (this._sessionTab.value.state.activeSessionId === null && openSessions.length > 0) {
                 const fallbackId = openSessions[0].clientId;
                 console.log('[rtc-agent._loadSessions] Active tab is null, falling back to first tab:', fallbackId);
@@ -1745,15 +1747,15 @@ export class RtcAgent extends LitElement {
             }
         }
 
-        // 过滤无效的 Tab（session 已被删除的从持久化中清理）
+        // Filter invalid tabs (clean up tabs whose sessions have been deleted from persistence).
         const validIds = new Set(uiSessions.map(s => s.clientId));
         const hadInvalidTabs = this._sessionTab.filterInvalidTabs(validIds);
         console.log('[rtc-agent._loadSessions] filterInvalidTabs:', hadInvalidTabs ? 'removed some' : 'none removed');
         console.log('[rtc-agent._loadSessions] Tabs after filter:', this._sessionTab.value.state.tabs.map(t => `${t.sessionId}="${t.title}"`));
         console.log('[rtc-agent._loadSessions] activeSessionId:', this._sessionTab.value.state.activeSessionId);
 
-        // 同步 SessionController.currentSessionId 与 Tab 的 activeSessionId
-        // 当活动 Tab 被过滤掉时，需要切换 session 以触发消息清理
+        // Sync SessionController.currentSessionId with Tab's activeSessionId.
+        // When the active tab is filtered out, switch session to trigger message cleanup.
         const newActiveId = this._sessionTab.value.state.activeSessionId;
         const currentId = this._session.value.state.currentSessionId;
         if (currentId !== newActiveId) {
@@ -1765,14 +1767,15 @@ export class RtcAgent extends LitElement {
             }
         }
 
-        // 用 sessions 中的最新标题同步已有 Tab 的标题
-        // 修复：新建会话发送消息时 Tab 以空标题创建，server 返回真实标题后需同步更新
+        // Sync existing tab titles with the latest titles from sessions.
+        // Fix: new session tabs created with empty titles need updating when the server
+        // returns the real title.
         const titleMap = new Map(uiSessions.map(s => [s.clientId, s.title]));
         const titlesUpdated = this._sessionTab.updateTabTitles(titleMap);
         console.log('[rtc-agent._loadSessions] updateTabTitles:', titlesUpdated ? 'updated' : 'no change');
         console.log('[rtc-agent._loadSessions] Tabs after title sync:', this._sessionTab.value.state.tabs.map(t => `${t.sessionId}="${t.title}"`));
 
-        // 用 sessions 中的最新 status 同步已有 Tab 的 status（驱动 status dot 显示）
+        // Sync existing tabs' status with latest status from sessions (drives status dot display).
         const statusMap = new Map(
             uiSessions.filter(s => s.status).map(s => [s.clientId, s.status!])
         );
@@ -1788,8 +1791,8 @@ export class RtcAgent extends LitElement {
             const hasOpenTabs = this._sessionTab.value.state.tabs.length > 0;
             console.log('[rtc-agent._loadSessions] Initial load: hasOpenTabs=', hasOpenTabs, 'currentSessionId=', this._session.value.state.currentSessionId);
             if (hasOpenTabs && !this._session.value.state.currentSessionId) {
-                // 优先恢复 Tab 栏的活动 tab（即使其 session 不在 DB，如 unsaved tab）
-                // 其次选择最近更新的 session（仅在无活动 tab 时）
+                // Prefer restoring the Tab bar's active tab (even if its session isn't in DB, e.g. unsaved tab).
+                // Fall back to the most recently updated session (only when no active tab exists).
                 const activeTabId = this._sessionTab.value.state.activeSessionId;
                 const targetId = activeTabId
                     ?? (uiSessions.length > 0
@@ -1803,13 +1806,13 @@ export class RtcAgent extends LitElement {
         }
     }
 
-    /* ── Slash 命令处理 ── */
+    /* ── Slash Command Handling ── */
 
     /**
-     * 处理 slash 命令
+     * Handle slash commands.
      *
-     * 当前支持的命令：
-     * - /compact [custom_instruction]：压缩当前会话上下文
+     * Currently supported commands:
+     * - /compact [custom_instruction]: compress current session context
      */
     private async _handleCommand(name: string, args?: string): Promise<void> {
         switch (name) {
@@ -1823,11 +1826,11 @@ export class RtcAgent extends LitElement {
     }
 
     /**
-     * 处理 /compact 命令
+     * Handle the /compact command.
      *
-     * 调用服务端 RPC 压缩当前会话上下文。
-     * 成功后不立即显示成功 Toast（等待 Live 推送更新 session 状态）。
-     * 失败时显示错误 Toast。
+     * Calls the server RPC to compress the current session context.
+     * Does not show a success toast immediately (waits for Live push to update session state).
+     * Shows an error toast on failure.
      */
     private async _handleCompactCommand(customInstruction?: string): Promise<void> {
         const sessionId = this._session.value.state.currentSessionId;
@@ -1845,7 +1848,7 @@ export class RtcAgent extends LitElement {
 
         try {
             await this._persistence.layer.compactSession(sessionId, customInstruction);
-            // 成功：不立即显示成功 Toast，等待 Live 推送 session 更新
+            // Success: don't show toast immediately, wait for Live push to update session.
         } catch (err) {
             console.error('[rtc-agent] /compact failed:', err);
             const message = err instanceof Error ? err.message : msg('压缩上下文失败');
@@ -1853,13 +1856,14 @@ export class RtcAgent extends LitElement {
         }
     }
 
-    /* ── RTC 处理器初始化 ── */
+    /* ── RTC Processor Initialization ── */
 
     /**
-     * 初始化 RTC 处理器并恢复未完成的任务
+     * Initialize the RTC processor and resume pending tasks.
      *
-     * 抽取为私有方法，避免 connectedCallback 与 _handleLoginComplete 重复。
-     * 自动注入 MasterLock，并在升级为 Master 时触发 processLoop。
+     * Extracted as a private method to avoid duplication between
+     * connectedCallback and _handleLoginComplete.
+     * Auto-injects MasterLock and triggers processLoop when becoming Master.
      */
     private async _initRtcProcessor(): Promise<void> {
         if (!this._persistence.layer) return;
@@ -1869,11 +1873,11 @@ export class RtcAgent extends LitElement {
         this._rtcProcessor.setAskUserDialog((rtc) => this._showAskUser(rtc));
         this._rtcProcessor.setMode(this._mode.value.state.currentMode);
 
-        // 注入 MasterLock
+        // Inject MasterLock.
         const masterLock = this._persistence.masterLock;
         if (masterLock) {
             this._rtcProcessor.setMaster(masterLock);
-            // 当本 Tab 升级为 Master 时，触发 RTC 处理（恢复崩溃恢复场景）
+            // When this tab becomes Master, trigger RTC processing (handles crash recovery).
             const prevOnAcquire = masterLock.onAcquire;
             masterLock.onAcquire = () => {
                 prevOnAcquire?.();
@@ -1886,12 +1890,12 @@ export class RtcAgent extends LitElement {
         await this._rtcProcessor.onRtcUpdate();
     }
 
-    /* ── VFS 集成（Phase 3/4） ── */
+    /* ── VFS Integration (Phase 3/4) ── */
 
     /**
-     * 从 virtualFS 加载文件树（根目录一级）
+     * Load file tree from virtualFS (root directory, first level only).
      *
-     * Phase 4 改为仅加载根目录的一级子项，子目录按需懒加载。
+     * Phase 4: only loads the root's immediate children; subdirectories are lazy-loaded on demand.
      */
     private async _loadFileTree(): Promise<void> {
         if (!this._persistence.isConnected) return;
@@ -1906,46 +1910,46 @@ export class RtcAgent extends LitElement {
     }
 
     /**
-     * 浅构建 FileNode：只加载指定目录的一级子项
+     * Shallow-build a FileNode: only load the immediate children of a directory.
      *
-     * 子目录的 children 为 undefined（未加载），
-     * 用户展开时由 _loadFolderChildren 按需加载。
+     * Subdirectory children are left as undefined (not loaded);
+     * they are loaded on demand by _loadFolderChildren when the user expands them.
      */
     private async _buildFileNodeShallow(path: string): Promise<FileNode> {
         const name = path === '/' ? '/' : path.split('/').pop()!;
         const isRoot = path === '/';
 
-        // 如果路径在 VFS 中有记录 → 文件
+        // If the path exists in VFS -> file.
         if (!isRoot && await virtualFS.exists(path)) {
             return {path, name, type: 'file'};
         }
 
-        // 否则视为目录，ls 获取一级子条目
+        // Otherwise treat as directory; ls to get immediate children.
         const children: FileNode[] = [];
         try {
             const entries = await virtualFS.ls(path);
             for (const entry of entries) {
                 const childPath = isRoot ? `/${entry}` : `${path}/${entry}`;
-                // 判断子条目是文件还是目录
+                // Determine if child entry is a file or directory.
                 if (await virtualFS.exists(childPath)) {
                     children.push({path: childPath, name: entry, type: 'file'});
                 } else {
-                    // 目录：children 留空（未加载），展开时懒加载
+                    // Directory: children left empty (not loaded), lazy-loaded on expand.
                     children.push({path: childPath, name: entry, type: 'folder'});
                 }
             }
         } catch {
-            // ls 失败 → 空目录
+            // ls failed -> empty directory.
         }
 
         return {path, name, type: 'folder', children};
     }
 
     /**
-     * 懒加载指定目录的子项
+     * Lazy-load children of a directory.
      *
-     * 由 folder-toggle 事件触发（首次展开时）。
-     * 加载完成后通过 controller.updateChildren 更新文件树。
+     * Triggered by folder-toggle event (on first expand).
+     * Updates the file tree via controller.updateChildren after loading completes.
      */
     private async _loadFolderChildren(path: string): Promise<void> {
         if (!this._persistence.isConnected) return;
@@ -1974,7 +1978,7 @@ export class RtcAgent extends LitElement {
     }
 
     /**
-     * 打开文件：从 VFS 读取内容并在编辑器中打开
+     * Open a file: read content from VFS and open in editor.
      */
     private async _handleFileOpen(filePath: string): Promise<void> {
         try {
@@ -1989,12 +1993,12 @@ export class RtcAgent extends LitElement {
     }
 
     /**
-     * 刷新后恢复 Editor Area 已打开文件的内容
+     * Restore Editor Area content for open files after page refresh.
      *
-     * tab 元数据（filePath、viewMode、cursorPosition、activeFilePath）
-     * 在 EditorAreaController 构造时已从 localStorage 恢复，但 content 为空。
-     * 该方法在 VFS 就绪后遍历所有已恢复的 tab，从 VFS 读取内容并填充。
-     * 读取失败（文件已不存在）的 tab 会被自动关闭。
+     * Tab metadata (filePath, viewMode, cursorPosition, activeFilePath) was already
+     * restored from localStorage in EditorAreaController constructor, but content is empty.
+     * This method iterates all restored tabs after VFS is ready, reads content from VFS,
+     * and fills it in. Tabs that fail to read (file no longer exists) are auto-closed.
      */
     private async _restoreEditorAreaContent(): Promise<void> {
         const tabs = [...this._editorArea.tabs];
@@ -2007,21 +2011,21 @@ export class RtcAgent extends LitElement {
                 const content = await virtualFS.read(tab.filePath);
                 this._editorArea.actions.loadContent(tab.filePath, content);
             } catch {
-                // 文件在 VFS 中已不存在（例如被其他客户端删除），关闭该 tab
+                // File no longer exists in VFS (e.g. deleted by another client), close the tab.
                 console.warn('[rtc-agent] Restored tab file not found in VFS, closing:', tab.filePath);
                 this._editorArea.actions.closeFile(tab.filePath);
             }
         }
 
-        // 文件树已加载的前提下，选中当前活动文件
-        // （文件树在调用本方法之前已按需加载，保证节点已渲染）
+        // If file tree is loaded, select the currently active file.
+        // (File tree is loaded on demand before this method is called, ensuring nodes are rendered.)
         if (activeFilePath && this._fileTreeLoaded) {
             this._fileExplorer.actions.selectNode(activeFilePath);
         }
     }
 
     /**
-     * 保存文件：将编辑器内容写入 VFS
+     * Save file: write editor content to VFS.
      */
     private async _handleEditorSave(filePath: string): Promise<void> {
         // Clear auto-save timer if exists
@@ -2045,7 +2049,7 @@ export class RtcAgent extends LitElement {
     }
 
     /**
-     * 调度自动保存（防抖）
+     * Schedule auto-save (debounced).
      */
     private _scheduleAutoSave(filePath: string): void {
         // Clear existing timer for this file
@@ -2064,26 +2068,26 @@ export class RtcAgent extends LitElement {
     }
 
     /**
-     * 处理来自其他标签页的文件变更事件
+     * Handle file change events from other tabs.
      *
-     * - write/create：刷新文件树父目录；如果文件已打开且未修改，重新加载内容
-     * - delete：刷新文件树父目录；如果文件已打开，关闭标签
-     * - batch：全量刷新文件树
+     * - write/create: refresh parent dir in file tree; if file is open and unmodified, reload content.
+     * - delete: refresh parent dir in file tree; if file is open, close the tab.
+     * - batch: full refresh of file tree.
      */
     private async _handleFileChange(filePath: string, field: string): Promise<void> {
         if (field === 'batch') {
-            // 批量写入：全量刷新文件树
+            // Batch write: full refresh of file tree.
             if (this._fileTreeLoaded) {
                 void this._loadFileTree();
             }
             return;
         }
 
-        // 推导父目录路径
+        // Derive parent directory path.
         const lastSlash = filePath.lastIndexOf('/');
         const parentPath = lastSlash <= 0 ? '/' : filePath.substring(0, lastSlash);
 
-        // 刷新文件树中父目录的子项
+        // Refresh parent directory's children in the file tree.
         if (this._fileTreeLoaded) {
             if (parentPath === '/') {
                 void this._loadFileTree();
@@ -2093,20 +2097,20 @@ export class RtcAgent extends LitElement {
         }
 
         if (field === 'write' || field === 'create') {
-            // 如果该文件已打开且未修改，静默重新加载内容
+            // If the file is open and unmodified, silently reload content.
             const tab = this._editorArea.tabs.find(t => t.filePath === filePath);
             if (tab && !tab.isDirty) {
                 try {
                     const content = await virtualFS.read(filePath);
                     this._editorArea.actions.openFile(filePath, content);
                 } catch {
-                    // 读取失败，保留当前内容
+                    // Read failed — keep current content.
                 }
             } else if (tab?.isDirty) {
                 this._toast.actions.show(`文件 ${filePath} 被其他标签页修改`, 'info');
             }
         } else if (field === 'delete') {
-            // 文件被删除：如果已打开，关闭标签
+            // File deleted: close tab if open.
             const tab = this._editorArea.tabs.find(t => t.filePath === filePath);
             if (tab) {
                 this._editorArea.actions.closeFile(filePath);
@@ -2142,7 +2146,7 @@ export class RtcAgent extends LitElement {
             // so the async overhead is negligible. For hot paths, cache the result.
             return html`<span class="bubble-icon" .innerHTML=${this._sanitizedBubbleIcon}></span>`;
         }
-        // 默认使用产品 logo 的简化版本
+        // Default: use a simplified version of the product logo.
         return html`<span class="bubble-logo">${renderBubbleLogo(this.theme === 'dark')}</span>`;
     }
 
@@ -2203,13 +2207,13 @@ export class RtcAgent extends LitElement {
     }
 
     /**
-     * 渲染主布局（登录后）
+     * Render the main layout (after login).
      *
-     * 聊天模式：Activity Bar + Chat Layout（内含 drawer + Tab + 聊天）
-     * 文件模式：Activity Bar + [Drawer(文件树)] + Editor Area + Status Bar
-     * 设置模式：Activity Bar + Settings Layout（内含 drawer + 设置内容）
+     * Chat mode: Activity Bar + Chat Layout (containing drawer + Tab + chat).
+     * Files mode: Activity Bar + [Drawer(file tree)] + Editor Area + Status Bar.
+     * Settings mode: Activity Bar + Settings Layout (containing drawer + settings content).
      *
-     * 所有侧边面板统一使用 <rtc-drawer> overlay 抽屉，不挤压主内容区。
+     * All side panels use <rtc-drawer> overlay drawers uniformly, without squeezing the main content area.
      */
     private _renderMainLayout(active: Activity, sidebarVisible: boolean) {
         const isFiles = active === 'files';
