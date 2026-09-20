@@ -29,6 +29,9 @@ import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import interact from 'interactjs';
 import type { InteractEvent } from '@interactjs/core/InteractEvent';
 import type { ResizeEvent } from '@interactjs/actions/resize/plugin';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('WindowInteraction');
 
 export interface InteractionState {
   isDragging: boolean;
@@ -81,6 +84,9 @@ export class WindowInteractionController implements ReactiveController {
   /** 缓存的 margin 值（拖动/缩放期间复用，避免重复调用 getComputedStyle） */
   private _cachedMargin = 20;
 
+  /** Bound keydown handler — stored so it can be removed on cleanup. */
+  private _boundOnKeydown = (event: KeyboardEvent) => this._handleKeydown(event);
+
   constructor(host: ReactiveControllerHost, config?: { draggable?: boolean; resizable?: boolean }) {
     this._host = host;
     this._draggable = config?.draggable ?? true;
@@ -108,6 +114,7 @@ export class WindowInteractionController implements ReactiveController {
   setConfig(config: { draggable?: boolean; resizable?: boolean }): void {
     this._draggable = config.draggable ?? true;
     this._resizable = config.resizable ?? true;
+    log.debug('setConfig:', {draggable: this._draggable, resizable: this._resizable});
 
     // 先销毁现有的 interact 实例
     if (this._windowElement) {
@@ -161,6 +168,7 @@ export class WindowInteractionController implements ReactiveController {
       interact(this._windowElement).unset();
     }
     if (this._titleBarElement) {
+      this._titleBarElement.removeEventListener('keydown', this._boundOnKeydown);
       interact(this._titleBarElement).unset();
     }
     // 清理 ghost 元素
@@ -181,6 +189,7 @@ export class WindowInteractionController implements ReactiveController {
       interact(this._windowElement).unset();
     }
     if (this._titleBarElement) {
+      this._titleBarElement.removeEventListener('keydown', this._boundOnKeydown);
       interact(this._titleBarElement).unset();
     }
   }
@@ -243,53 +252,64 @@ export class WindowInteractionController implements ReactiveController {
   private _initKeyboard(): void {
     if (!this._titleBarElement) return;
 
-    this._titleBarElement.addEventListener('keydown', (event: KeyboardEvent) => {
-      // Enter/Space to activate move mode
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        this._enterMoveMode();
-        return;
+    // Remove previous listener to prevent stacking on re-init (setConfig / enable)
+    this._titleBarElement.removeEventListener('keydown', this._boundOnKeydown);
+    this._titleBarElement.addEventListener('keydown', this._boundOnKeydown);
+  }
+
+  /**
+   * Keyboard handler for title bar interactions.
+   *
+   * - Enter/Space: activate move mode
+   * - Arrow keys (in move mode): nudge window position
+   * - Escape: exit interaction mode
+   */
+  private _handleKeydown(event: KeyboardEvent): void {
+    // Enter/Space to activate move mode
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      this._enterMoveMode();
+      return;
+    }
+
+    // Arrow keys in move mode
+    if (this._state.interactionMode === 'move') {
+      const step = event.shiftKey ? 20 : 10;
+      let dx = 0;
+      let dy = 0;
+
+      switch (event.key) {
+        case 'ArrowUp':
+          dy = -step;
+          break;
+        case 'ArrowDown':
+          dy = step;
+          break;
+        case 'ArrowLeft':
+          dx = -step;
+          break;
+        case 'ArrowRight':
+          dx = step;
+          break;
+        case 'Escape':
+          event.preventDefault();
+          this._exitInteractionMode();
+          return;
+        default:
+          return;
       }
 
-      // Arrow keys in move mode
-      if (this._state.interactionMode === 'move') {
-        const step = event.shiftKey ? 20 : 10;
-        let dx = 0;
-        let dy = 0;
+      event.preventDefault(); // Prevent page scroll
 
-        switch (event.key) {
-          case 'ArrowUp':
-            dy = -step;
-            break;
-          case 'ArrowDown':
-            dy = step;
-            break;
-          case 'ArrowLeft':
-            dx = -step;
-            break;
-          case 'ArrowRight':
-            dx = step;
-            break;
-          case 'Escape':
-            event.preventDefault();
-            this._exitInteractionMode();
-            return;
-          default:
-            return;
-        }
+      const windowElement = this._windowElement;
+      if (!windowElement) return;
+      const rect = windowElement.getBoundingClientRect();
+      const margin = this._getMargin();
+      const newX = Math.max(margin, Math.min(rect.left + dx, window.innerWidth - rect.width - margin));
+      const newY = Math.max(margin, Math.min(rect.top + dy, window.innerHeight - rect.height - margin));
 
-        event.preventDefault(); // Prevent page scroll
-
-        const windowElement = this._windowElement;
-        if (!windowElement) return;
-        const rect = windowElement.getBoundingClientRect();
-        const margin = this._getMargin();
-        const newX = Math.max(margin, Math.min(rect.left + dx, window.innerWidth - rect.width - margin));
-        const newY = Math.max(margin, Math.min(rect.top + dy, window.innerHeight - rect.height - margin));
-
-        this.onPositionChange?.(newX, newY);
-      }
-    });
+      this.onPositionChange?.(newX, newY);
+    }
   }
 
   private _enterMoveMode(): void {

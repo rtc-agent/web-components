@@ -13,6 +13,9 @@ import type {Mode, ModeState, ModeActions} from '../types/index.js';
 import type {ModeContextValue} from '../contexts/mode.js';
 import {DEFAULT_MODE_STATE} from '../contexts/mode.js';
 import {STORAGE_KEYS} from '../config/auth.js';
+import {createLogger} from '@rtc-agent/client';
+
+const log = createLogger('ModeController');
 
 /** Valid mode values for validation of localStorage data */
 const VALID_MODES: ReadonlySet<string> = new Set(['manual', 'edit', 'plan', 'auto', 'bypass']);
@@ -53,8 +56,9 @@ export class ModeController implements ReactiveController {
             if (stored && isValidMode(stored)) {
                 this._state = {currentMode: stored};
             }
-        } catch {
+        } catch (e) {
             // localStorage may be unavailable
+            log.debug('Failed to restore mode:', e);
         }
     }
 
@@ -65,8 +69,9 @@ export class ModeController implements ReactiveController {
         // Persist to localStorage
         try {
             localStorage.setItem(STORAGE_KEYS.mode, mode);
-        } catch {
+        } catch (e) {
             // localStorage may be unavailable
+            log.debug('Failed to persist mode:', e);
         }
     }
 }

@@ -16,6 +16,9 @@ import type {Activity} from '../types/index.js';
 import type {ActivityState, ActivityActions, ActivityContextValue} from '../contexts/activity.js';
 import {DEFAULT_ACTIVITY_STATE} from '../contexts/activity.js';
 import {STORAGE_KEYS} from '../config/auth.js';
+import {createLogger} from '@rtc-agent/client';
+
+const log = createLogger('ActivityController');
 
 // Re-export types for convenience
 export type {ActivityState, ActivityActions};
@@ -74,16 +77,18 @@ export class ActivityController implements ReactiveController {
                         : DEFAULT_ACTIVITY_STATE.sidebarVisible,
                 };
             }
-        } catch {
+        } catch (e) {
             // localStorage may be unavailable or data corrupted
+            log.debug('Failed to restore activity state:', e);
         }
     }
 
     private _persist() {
         try {
             localStorage.setItem(STORAGE_KEYS.activityBar, JSON.stringify(this._state));
-        } catch {
+        } catch (e) {
             // localStorage may be unavailable
+            log.debug('Failed to persist activity state:', e);
         }
     }
 

@@ -17,6 +17,9 @@ import type {
 } from '../contexts/settings.js';
 import {DEFAULT_SETTINGS_STATE} from '../contexts/settings.js';
 import {STORAGE_KEYS} from '../config/auth.js';
+import {createLogger} from '@rtc-agent/client';
+
+const log = createLogger('SettingsController');
 
 export class SettingsController implements ReactiveController {
     host: ReactiveControllerHost & HTMLElement;
@@ -100,8 +103,9 @@ export class SettingsController implements ReactiveController {
                 files: {...DEFAULT_SETTINGS_STATE.files, ...saved.files},
                 notifications: {...DEFAULT_SETTINGS_STATE.notifications, ...saved.notifications},
             };
-        } catch {
+        } catch (e) {
             // localStorage may be unavailable or data corrupted
+            log.debug('Failed to restore settings:', e);
         }
     }
 
@@ -133,8 +137,9 @@ export class SettingsController implements ReactiveController {
     private _persist() {
         try {
             localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(this._state));
-        } catch {
+        } catch (e) {
             // localStorage may be unavailable
+            log.debug('Failed to persist settings:', e);
         }
     }
 

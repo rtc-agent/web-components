@@ -18,6 +18,9 @@ import type {WindowStateContextValue} from '../contexts/window-state.js';
 import {DEFAULT_WINDOW_STATE} from '../contexts/window-state.js';
 import {STORAGE_KEYS} from '../config/auth.js';
 import type {ResolvedWindowConfig} from '../types/window-config.js';
+import {createLogger} from '@rtc-agent/client';
+
+const log = createLogger('WindowStateController');
 
 /** 序列化窗口状态时剔除 transient 字段（lastState 在 restore 后无意义） */
 type PersistedWindowState = Omit<WindowState, 'lastState'>;
@@ -189,8 +192,9 @@ export class WindowStateController implements ReactiveController {
                 // 保存的状态无效，应用默认模式
                 this._state = {...this._state, mode: this._config.defaultMode};
             }
-        } catch {
+        } catch (e) {
             // localStorage may be unavailable or data corrupted
+            log.debug('Failed to restore window state:', e);
             this._state = {...this._state, mode: this._config.defaultMode};
         }
     }
@@ -228,8 +232,9 @@ export class WindowStateController implements ReactiveController {
             const {mode, position, size} = this._state;
             const persisted: PersistedWindowState = {mode, position, size};
             localStorage.setItem(STORAGE_KEYS.windowState, JSON.stringify(persisted));
-        } catch {
+        } catch (e) {
             // localStorage may be unavailable
+            log.debug('Failed to persist window state:', e);
         }
     }
 

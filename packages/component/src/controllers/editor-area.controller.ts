@@ -23,6 +23,9 @@
 import type {ReactiveController, ReactiveControllerHost} from 'lit';
 import type {EditorTab, EditorViewMode} from '../types/index.js';
 import {STORAGE_KEYS} from '../config/auth.js';
+import {createLogger} from '@rtc-agent/client';
+
+const log = createLogger('EditorAreaController');
 
 /** 持久化的 Tab 数据（不含 content） */
 interface PersistedTabMeta {
@@ -130,8 +133,9 @@ export class EditorAreaController implements ReactiveController {
             // activeFilePath 必须在恢复后的 tabs 中存在
             const activeExists = this._tabs.some(t => t.filePath === saved.activeFilePath);
             this._activeFilePath = activeExists ? saved.activeFilePath : (this._tabs[0]?.filePath ?? '');
-        } catch {
+        } catch (e) {
             // localStorage may be unavailable or data corrupted
+            log.debug('Failed to restore editor area state:', e);
         }
     }
 
@@ -150,8 +154,9 @@ export class EditorAreaController implements ReactiveController {
                 activeFilePath: this._activeFilePath,
             };
             localStorage.setItem(STORAGE_KEYS.editorArea, JSON.stringify(data));
-        } catch {
+        } catch (e) {
             // localStorage may be unavailable
+            log.debug('Failed to persist editor area state:', e);
         }
     }
 
