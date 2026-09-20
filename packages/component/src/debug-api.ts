@@ -100,9 +100,16 @@ export interface RtcAgentDebugAPI {
     // ── Data Manipulation ──
 
     /**
-     * Clear all persistent data: IndexedDB databases, localStorage, sessionStorage.
+     * Clear all persistent data and disconnect live connections.
      *
-     * After calling, a page reload is recommended to reset all in-memory state.
+     * Performs a full teardown in the correct order:
+     * 1. Disconnect persistence layer (closes SharedWorker, Centrifuge WS, WorkerBridge)
+     * 2. Reset auth state (clears tokens, stops refresh timers)
+     * 3. Clear localStorage, sessionStorage, and all IndexedDB databases
+     *
+     * This ensures no stale async callbacks (e.g., Centrifuge token expiry -> handleTokenExpired
+     * -> _logout) can corrupt state after clearing. After calling, the component is in a clean
+     * initial state and ready for re-login without requiring a page reload.
      */
     clearData(): Promise<void>;
 
@@ -341,11 +348,33 @@ export function installDebugAPI(): void {
 
         async clearData(): Promise<void> {
             try {
-                // Clear localStorage and sessionStorage.
+                const el = getAgentElement();
+
+                // Step 1: Disconnect persistence layer FIRST.
+                // This closes the SharedWorker's Centrifuge WS and WorkerBridge,
+                // preventing stale async callbacks (token expiry -> handleTokenExpired
+                // -> _logout) from corrupting state after storage is cleared.
+                if (el?.persistenceController?.isConnected) {
+                    try {
+                        await el.persistenceController.disconnect();
+                        log.info('Persistence layer disconnected');
+                    } catch (err) {
+                        log.warn('Persistence disconnect error (non-fatal):', err);
+                    }
+                }
+
+                // Step 2: Reset auth state (clear tokens, stop refresh timers).
+                // This ensures no pending token refresh can interfere.
+                if (el?.authController?.state.isLoggedIn) {
+                    el.authController.logout();
+                    log.info('Auth state reset');
+                }
+
+                // Step 3: Clear localStorage and sessionStorage.
                 localStorage.clear();
                 sessionStorage.clear();
 
-                // Close and delete IndexedDB databases.
+                // Step 4: Close and delete IndexedDB databases.
                 if (typeof indexedDB !== 'undefined' && 'databases' in indexedDB) {
                     const dbs = await (indexedDB as any).databases();
                     for (const dbInfo of dbs) {

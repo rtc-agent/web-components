@@ -734,7 +734,7 @@ test.describe('Business Flow - Error Recovery', () => {
         expect(fileContent).toBe('');
     });
 
-    test('clearData then reload starts with clean state', async ({page}) => {
+    test('clearData gives clean state without reload', async ({page}) => {
         await page.goto(DEBUG_PAGE);
         await waitForDebugAPI(page);
 
@@ -747,24 +747,20 @@ test.describe('Business Flow - Error Recovery', () => {
             el.sessionController.value.actions.createSession();
         });
 
-        // Clear all data
+        // Clear all data (now disconnects SharedWorker + resets auth, no stale callbacks)
         await evalInPage(page, async () => {
             const api = (window as any).rtcAgentDebug;
             await api.clearData();
         });
 
-        // Reload page to get a clean component (clears SharedWorker stale connections)
-        await page.reload();
-        await waitForDebugAPI(page);
-
-        // After reload: auth should be clean (localStorage was cleared)
+        // No reload needed: clearData properly tears down persistence and auth.
         const auth = await evalInPage(page, () => {
             const api = (window as any).rtcAgentDebug;
             return api.getState().auth as Record<string, unknown>;
         });
         expect(auth.isLoggedIn).toBe(false);
 
-        // Now re-login works cleanly on fresh page
+        // Re-login works cleanly without page reload
         await evalInPage(page, async () => {
             const api = (window as any).rtcAgentDebug;
             api.loginAs('recovery-user-2');
@@ -780,12 +776,7 @@ test.describe('Business Flow - Error Recovery', () => {
     });
 
     test('rapid login/logout does not corrupt auth state', async ({page}) => {
-        // Navigate and reload to ensure clean SharedWorker state from prior tests.
-        // (clearData tests leave stale persistence connections in the SharedWorker
-        // that may asynchronously fire handleTokenExpired → _logout on the new page.)
         await page.goto(DEBUG_PAGE);
-        await waitForDebugAPI(page);
-        await page.reload();
         await waitForDebugAPI(page);
 
         const result = await evalInPage(page, async () => {
