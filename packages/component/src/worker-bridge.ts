@@ -46,6 +46,15 @@ const log = createLogger('WorkerBridge');
 import workerFactory from '../../worker/src/shared-worker.ts?sharedworker';
 
 /**
+ * Vite's ?sharedworker import type definition.
+ *
+ * Vite's type definition for ?sharedworker imports marks it as a constructor with options,
+ * but at runtime it is a plain function that returns a SharedWorker instance.
+ * This type correctly represents the runtime behavior.
+ */
+type WorkerFactoryFunction = () => SharedWorker;
+
+/**
  * Extract the worker chunk URL from a Vite-generated worker factory function source.
  *
  * Vite generates different factory function formats depending on the mode:
@@ -195,7 +204,9 @@ export class WorkerBridge {
         let workerOrigin: string;
         try {
             workerOrigin = new URL(workerUrl).origin;
-        } catch {
+        } catch (err) {
+            // Malformed URL — assume same-origin as fallback
+            log.debug('Failed to parse worker URL origin, assuming same-origin:', err);
             workerOrigin = pageOrigin;
         }
         const isCrossOrigin = workerOrigin !== pageOrigin;
@@ -211,8 +222,9 @@ export class WorkerBridge {
             // Same-origin: use the factory function directly (simplest, most reliable).
             // Used for local dev and same-origin deployments.
             // Vite's type definition is incorrect (marks ?sharedworker import as a constructor);
-            // at runtime it is a plain function.
-            this._worker = new (workerFactory as any)();
+            // at runtime it is a plain function that returns a SharedWorker instance.
+            // Call it without 'new' since it's a factory function, not a constructor.
+            this._worker = (workerFactory as unknown as WorkerFactoryFunction)();
         } else {
             // Cross-origin (CDN deployment): fetch worker script -> create same-origin blob: URL
             // -> construct SharedWorker.
