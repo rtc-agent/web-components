@@ -239,7 +239,7 @@ export class RtcSessionTreeItem extends LitElement {
                     : html`
                         <span class="label">${node.session.title || msg('Untitled')}</span>
                         ${node.session.updatedAt
-                            ? html`<span class="timestamp">${formatRelativeTime(node.session.updatedAt)}</span>`
+                            ? html`<span class="timestamp">${formatRelativeTime(node.session.updatedAt, this._localeCtx.locale)}</span>`
                             : nothing}
                         <span class="actions">
                             <button

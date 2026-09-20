@@ -5,6 +5,10 @@
  * 优先使用 navigator.clipboard API，降级到 execCommand。
  */
 
+import {createLogger} from '@rtc-agent/client';
+
+const log = createLogger('Clipboard');
+
 /**
  * 复制文本到剪贴板
  *
@@ -19,8 +23,9 @@ export async function copyToClipboard(text: string): Promise<boolean> {
     try {
       await navigator.clipboard.writeText(text);
       return true;
-    } catch {
+    } catch (err) {
       // 降级到 execCommand
+      log.debug('Clipboard API failed, falling back to execCommand:', err);
     }
   }
 
@@ -35,8 +40,12 @@ export async function copyToClipboard(text: string): Promise<boolean> {
     textarea.select();
     const success = document.execCommand('copy');
     document.body.removeChild(textarea);
+    if (!success) {
+      log.warn('execCommand copy returned false');
+    }
     return success;
-  } catch {
+  } catch (err) {
+    log.warn('execCommand copy failed:', err);
     return false;
   }
 }

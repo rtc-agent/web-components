@@ -1,5 +1,6 @@
 // Utility functions module
 import { createLogger } from '@rtc-agent/client';
+import { getLocale } from './core/i18n.js';
 
 const log = createLogger('Utils');
 
@@ -27,7 +28,7 @@ export function escapeHtml(text: string): string {
 
 export function formatDate(dateStr: string): string {
     const date = new Date(dateStr);
-    return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+    return date.toLocaleDateString(getLocale(), { month: 'short', day: 'numeric' });
 }
 
 export function showToast(message: string, type: 'info' | 'success' | 'error' = 'info'): void {

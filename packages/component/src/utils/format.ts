@@ -7,6 +7,7 @@
  */
 
 import type {ContentData} from '../types/index.js';
+import {getLocale} from '../core/i18n.js';
 
 /**
  * Format a timestamp (ms since epoch) into a compact MM-DD HH:mm string.
@@ -43,7 +44,7 @@ export function extractTextContent(content: ContentData | undefined | null): str
     case 'thinking':
       return typeof content.data === 'string' ? content.data : JSON.stringify(content.data);
     case 'summary':
-      return '[消息已被压缩]';
+      return getLocale() === 'en-US' ? '[Messages compressed]' : '[消息已被压缩]';
     case 'user_message': {
       const data = content.data as {text?: string; scenarios?: Array<{title: string}>};
       let result = data?.text ?? '';
