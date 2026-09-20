@@ -296,48 +296,6 @@ export class RtcMessageList extends LitElement {
             return;
         }
 
-        // Optimization: detect which messages changed and only update those
-        // This avoids checking all messages when only one changed (e.g., streaming)
-        const changedMessageIds: string[] = [];
-
-        if (oldMessages.length === newMessages.length) {
-            // Same length - check which messages changed
-            for (let i = 0; i < oldMessages.length; i++) {
-                const oldMsg = oldMessages[i];
-                const newMsg = newMessages[i];
-                if (oldMsg.clientId !== newMsg.clientId ||
-                    oldMsg.timestamp !== newMsg.timestamp ||
-                    oldMsg.syncStatus !== newMsg.syncStatus ||
-                    !this._contentEquals(oldMsg.content, newMsg.content)) {
-                    changedMessageIds.push(newMsg.clientId);
-                }
-            }
-
-            // If no messages changed, skip update
-            if (changedMessageIds.length === 0) {
-                this._hasMore = data.hasMore;
-                return;
-            }
-
-            // If only a few messages changed, use targeted update
-            if (changedMessageIds.length <= 3) {
-                this._messages = newMessages;
-                this._isVirtualScrollOperation = true;
-                for (const msgId of changedMessageIds) {
-                    const newMsg = newMessages.find(m => m.clientId === msgId);
-                    if (newMsg) {
-                        this._virtualScroll.updateItemById(msgId, newMsg);
-                    }
-                }
-                setTimeout(() => {
-                    this._isVirtualScrollOperation = false;
-                }, 50);
-                this._hasMore = data.hasMore;
-                return;
-            }
-        }
-
-        // Fall back to full update for large changes or length mismatch
         // Update _messages BEFORE virtual scroll operations so that
         // _renderMessageElement can correctly determine isLast
         this._messages = newMessages;
@@ -790,19 +748,6 @@ export class RtcMessageList extends LitElement {
         el.classList.add('highlight');
         window.setTimeout(() => el.classList.remove('highlight'), 2000);
     };
-
-    /**
-     * Deep compare two ContentData objects for equality.
-     * Used to detect if messages have actually changed.
-     */
-    private _contentEquals(a: any, b: any): boolean {
-        if (a === b) return true;
-        if (!a || !b) return false;
-        if (a.type !== b.type) return false;
-        if (a.data !== b.data) return false;
-        // For complex content types, compare JSON serialization
-        return JSON.stringify(a) === JSON.stringify(b);
-    }
 
     render() {
         void this._localeCtx.locale;
