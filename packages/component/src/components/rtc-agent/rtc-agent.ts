@@ -187,6 +187,9 @@ const MODE_ANNOUNCEMENTS: Record<WindowMode, string> = {
     minimized: 'Window minimized',
 };
 
+/** Debounce delay (ms) for auto-save after content changes. */
+const AUTO_SAVE_DEBOUNCE_MS = 1000;
+
 @customElement('rtc-agent')
 export class RtcAgent extends LitElement {
     static styles = [tokens, lightTheme, darkTheme, baseStyles, styles];
@@ -1638,11 +1641,11 @@ export class RtcAgent extends LitElement {
             clearTimeout(existingTimer);
         }
 
-        // Schedule new save after 1 second of inactivity
+        // Schedule new save after AUTO_SAVE_DEBOUNCE_MS of inactivity
         const timer = setTimeout(() => {
             this._autoSaveTimers.delete(filePath);
             void this._handleEditorSave(filePath);
-        }, 1000);
+        }, AUTO_SAVE_DEBOUNCE_MS);
 
         this._autoSaveTimers.set(filePath, timer);
     }

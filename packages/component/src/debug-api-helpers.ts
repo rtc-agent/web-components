@@ -56,11 +56,13 @@ function formatLogEntry(level: string, args: unknown[]): string {
  * Install log capture: wraps console.debug/info/warn/error to also push
  * entries into the log buffer.
  *
- * Safe to call multiple times (idempotent via a flag on window).
+ * Safe to call multiple times (idempotent via module-level guard).
  */
+let _logCaptureInstalled = false;
+
 export function installLogCapture(): void {
-    if ((window as any).__rtcDebugLogCaptured) return;
-    (window as any).__rtcDebugLogCaptured = true;
+    if (_logCaptureInstalled) return;
+    _logCaptureInstalled = true;
 
     const levels = ['debug', 'info', 'warn', 'error'] as const;
     for (const level of levels) {

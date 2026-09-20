@@ -356,7 +356,6 @@ export function buildCoreAPI(): Pick<
             if (el.persistenceController.isConnected) return true;
 
             return new Promise<boolean>((resolve) => {
-                const timer = setTimeout(() => resolve(false), timeoutMs);
                 const interval = setInterval(() => {
                     if (el.persistenceController.isConnected) {
                         clearInterval(interval);
@@ -364,6 +363,10 @@ export function buildCoreAPI(): Pick<
                         resolve(true);
                     }
                 }, 200);
+                const timer = setTimeout(() => {
+                    clearInterval(interval);
+                    resolve(false);
+                }, timeoutMs);
             });
         },
 
