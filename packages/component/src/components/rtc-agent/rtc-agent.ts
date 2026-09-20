@@ -438,9 +438,14 @@ export class RtcAgent extends LitElement {
      * Writes to the Worker's VirtualFS via WorkerBridge.
      */
     private async _loadScenarios(baseURL: string): Promise<void> {
-        const files = await loadScenariosContent(baseURL);
-        await this._persistence.workerBridge!.core.batchWriteFiles(files);
-        log.info(`Loaded ${files.length} scenarios from ${baseURL}`);
+        try {
+            const files = await loadScenariosContent(baseURL);
+            await this._persistence.workerBridge!.core.batchWriteFiles(files);
+            log.info(`Loaded ${files.length} scenarios from ${baseURL}`);
+        } catch (err) {
+            log.error('Failed to load scenarios:', err);
+            throw err;  // Re-throw so caller can handle if needed
+        }
     }
 
     /**

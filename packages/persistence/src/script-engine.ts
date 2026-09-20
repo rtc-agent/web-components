@@ -186,17 +186,17 @@ export function createSandbox(
     console: {
       log: (...args) => {
         const msg = formatArgs(args);
-        console.log(prefix, msg);
+        log.info(prefix, msg);
         if (output) output.logs.push(msg);
       },
       warn: (...args) => {
         const msg = formatArgs(args);
-        console.warn(prefix, msg);
+        log.warn(prefix, msg);
         if (output) output.warns.push(msg);
       },
       error: (...args) => {
         const msg = formatArgs(args);
-        console.error(prefix, msg);
+        log.error(prefix, msg);
         if (output) output.errors.push(msg);
       },
     },
