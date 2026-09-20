@@ -196,6 +196,42 @@ export class MessageController implements ReactiveController {
     }
 
     /**
+     * Update a single message field from UIUpdateBus event.
+     * More efficient than reload() for streaming updates.
+     *
+     * @param entityId - Message client ID
+     */
+    async updateMessageFromBus(entityId: string): Promise<void> {
+        if (!this._persistence || !this._repository) return;
+
+        // Get the message from DB to find its session
+        const localMsg = await this._persistence.getMessage(entityId);
+        if (!localMsg) return;
+
+        const messageSessionId = localMsg.session_client_id;
+        if (!messageSessionId) return;
+
+        // Convert DB message to UI format
+        const newMsg = this._localMessageToUI(localMsg);
+
+        // Use patchMessage for efficient single-message update
+        this._repository.patchMessage(messageSessionId, entityId, () => newMsg);
+
+        // Also update legacy state if this is the current session
+        const currentSessionId = this._sessionController?.value.state.currentSessionId;
+        if (messageSessionId === currentSessionId) {
+            const index = this._state.messages.findIndex(m => m.clientId === entityId);
+            if (index !== -1) {
+                const newMessages = [...this._state.messages];
+                newMessages[index] = newMsg;
+                this._state = {...this._state, messages: newMessages};
+            }
+        }
+
+        this.host.requestUpdate();
+    }
+
+    /**
      * Reload messages from persistence. Public method for UIUpdateBus / root wiring.
      *
      * - With entityId: immutable single-message update (replace matching clientId).

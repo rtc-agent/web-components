@@ -290,22 +290,18 @@ export class RtcMessageList extends LitElement {
         const oldMessages = this._messages;
         const newMessages = data.messages;
 
-        // Debug: log all message IDs and statuses for filtering
-        console.log(`[rtc-message-list] _handleMessagesUpdate called: sessionId=${this.sessionId}, messageCount=${newMessages.length}`);
-        console.log(`[rtc-message-list] Messages:`, newMessages.map(m => ({id: m.clientId, status: m.syncStatus})));
-
         if (!this._virtualScroll) {
             this._messages = newMessages;
             this._hasMore = data.hasMore;
             return;
         }
 
-        // Optimization: if messages haven't changed (same content),
-        // skip expensive DOM operations. Tab switching may trigger reload() which
-        // returns new array references but identical content.
-        // Compare key fields: clientId, content, status, timestamp.
-        let messagesUnchanged = oldMessages.length === newMessages.length;
-        if (messagesUnchanged) {
+        // Optimization: detect which messages changed and only update those
+        // This avoids checking all messages when only one changed (e.g., streaming)
+        const changedMessageIds: string[] = [];
+
+        if (oldMessages.length === newMessages.length) {
+            // Same length - check which messages changed
             for (let i = 0; i < oldMessages.length; i++) {
                 const oldMsg = oldMessages[i];
                 const newMsg = newMessages[i];
@@ -313,17 +309,35 @@ export class RtcMessageList extends LitElement {
                     oldMsg.timestamp !== newMsg.timestamp ||
                     oldMsg.syncStatus !== newMsg.syncStatus ||
                     !this._contentEquals(oldMsg.content, newMsg.content)) {
-                    messagesUnchanged = false;
-                    break;
+                    changedMessageIds.push(newMsg.clientId);
                 }
+            }
+
+            // If no messages changed, skip update
+            if (changedMessageIds.length === 0) {
+                this._hasMore = data.hasMore;
+                return;
+            }
+
+            // If only a few messages changed, use targeted update
+            if (changedMessageIds.length <= 3) {
+                this._messages = newMessages;
+                this._isVirtualScrollOperation = true;
+                for (const msgId of changedMessageIds) {
+                    const newMsg = newMessages.find(m => m.clientId === msgId);
+                    if (newMsg) {
+                        this._virtualScroll.updateItemById(msgId, newMsg);
+                    }
+                }
+                setTimeout(() => {
+                    this._isVirtualScrollOperation = false;
+                }, 50);
+                this._hasMore = data.hasMore;
+                return;
             }
         }
 
-        if (messagesUnchanged) {
-            this._hasMore = data.hasMore;
-            return;
-        }
-
+        // Fall back to full update for large changes or length mismatch
         // Update _messages BEFORE virtual scroll operations so that
         // _renderMessageElement can correctly determine isLast
         this._messages = newMessages;

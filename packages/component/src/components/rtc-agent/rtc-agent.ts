@@ -1060,9 +1060,9 @@ export class RtcAgent extends LitElement {
         // Subscribe to UIUpdateBus for persistence-driven UI refreshes
         const bus = getUIUpdateBus();
         this._busUnsubMessage = bus.subscribe((event) => {
-            console.log('[rtc-agent] UIUpdateBus event:', event.entity, event.field, event.entityId);
             if (event.entity === 'message') {
-                void this._message.reload(event.entityId);
+                // Use efficient single-message update instead of full reload
+                void this._message.updateMessageFromBus(event.entityId);
             } else if (event.entity === 'session') {
                 // Session update: reload sessions list from DB, but preserve currentSessionId
                 console.log('[rtc-agent] session update detected, calling _loadSessions');

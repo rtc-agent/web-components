@@ -93,6 +93,8 @@ export class MessageVirtualScroll<T> {
     private _items: T[] = [];
     /** Map from item index to DOM element */
     private _elementMap: Map<number, HTMLElement> = new Map();
+    /** Map from item ID to index for O(1) lookup */
+    private _idToIndex: Map<string, number> = new Map();
 
     /**
      * loadedTop = true means "no more messages above the current window"
@@ -265,6 +267,16 @@ export class MessageVirtualScroll<T> {
             this._innerContainer.appendChild(fragment);
         }
 
+        // Re-index existing elements in _elementMap (indices shift after prepend)
+        const newElementMap = new Map<number, HTMLElement>();
+        this._elementMap.forEach((el, oldIndex) => {
+            newElementMap.set(oldIndex + items.length, el);
+        });
+        this._elementMap = newElementMap;
+
+        // Rebuild ID-to-index mapping
+        this._rebuildIdToIndex();
+
         // Restore scroll position using Telegram's algorithm
         scrollSaver.restore();
 
@@ -310,9 +322,48 @@ export class MessageVirtualScroll<T> {
         this._onSizeChange?.();
     }
 
+    /**
+     * Update a single item by ID.
+     * O(1) lookup using _idToIndex map.
+     *
+     * @param itemId - The ID of the item to update
+     * @param newItem - The new item data
+     * @returns true if the item was found and updated, false otherwise
+     */
+    updateItemById(itemId: string, newItem: T): boolean {
+        const index = this._idToIndex.get(itemId);
+        if (index === undefined) return false;
+
+        const element = this._elementMap.get(index);
+        if (!element || !element.isConnected) return false;
+
+        // Check if content actually changed
+        const oldItem = this._items[index];
+        if (this._itemsEqual(oldItem, newItem)) {
+            return true; // No change, but item exists
+        }
+
+        // Update items array
+        this._items[index] = newItem;
+
+        // Re-render this item
+        const newElement = this._renderItem(newItem, index);
+        newElement.dataset.messageIndex = String(index);
+        this._elementMap.set(index, newElement);
+
+        // Replace old element with new one
+        element.replaceWith(newElement);
+
+        // Notify size change (height might have changed)
+        this._onSizeChange?.();
+
+        return true;
+    }
+
     clear() {
         this._items = [];
         this._elementMap.clear();
+        this._idToIndex.clear();
         this._innerContainer.innerHTML = '';
         this._loadedTop = true;
         this._loadedBottom = true;
@@ -542,6 +593,19 @@ export class MessageVirtualScroll<T> {
         const visibleIndices = new Set(slice.visible.map(p => p.index));
         this._items = this._items.filter((_, i) => visibleIndices.has(i));
 
+        // Rebuild _elementMap with new indices
+        const newElementMap = new Map<number, HTMLElement>();
+        let newIndex = 0;
+        slice.visible.forEach(part => {
+            newElementMap.set(newIndex, part.element);
+            part.element.dataset.messageIndex = String(newIndex);
+            newIndex++;
+        });
+        this._elementMap = newElementMap;
+
+        // Rebuild ID-to-index mapping
+        this._rebuildIdToIndex();
+
         // Restore scroll position
         scrollSaver.restore();
 
@@ -559,16 +623,29 @@ export class MessageVirtualScroll<T> {
     private _renderAll() {
         this._innerContainer.innerHTML = '';
         this._elementMap.clear();
+        this._idToIndex.clear();
 
         const fragment = document.createDocumentFragment();
         this._items.forEach((item, index) => {
             const el = this._renderItem(item, index);
             el.dataset.messageIndex = String(index);
             this._elementMap.set(index, el);
+            this._idToIndex.set(this._getItemId(item), index);
             fragment.appendChild(el);
         });
 
         this._innerContainer.appendChild(fragment);
+    }
+
+    /**
+     * Rebuild the ID-to-index mapping from current _items array.
+     * Called after operations that change item indices (prepend, slice, etc.)
+     */
+    private _rebuildIdToIndex() {
+        this._idToIndex.clear();
+        this._items.forEach((item, index) => {
+            this._idToIndex.set(this._getItemId(item), index);
+        });
     }
 
     private _renderNewItems(items: T[], startIndex: number) {

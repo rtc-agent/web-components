@@ -151,6 +151,37 @@ export class MessageRepository {
     }
 
     /**
+     * Update a single message in place using an updater function.
+     *
+     * More efficient than updateMessages() for single-message changes (e.g., streaming).
+     * Only the specified message is replaced in the array, avoiding full array copies.
+     *
+     * @param sessionId - Session ID
+     * @param messageId - Message client ID to update
+     * @param updater - Function that receives the current message and returns the updated message
+     * @returns true if the message was found and updated, false otherwise
+     */
+    patchMessage(
+        sessionId: string,
+        messageId: string,
+        updater: (msg: Message) => Message
+    ): boolean {
+        const current = this._getState(sessionId);
+        const index = current.messages.findIndex(m => m.clientId === messageId);
+        if (index === -1) return false;
+
+        const updatedMessage = updater(current.messages[index]);
+        const newMessages = [...current.messages];
+        newMessages[index] = updatedMessage;
+
+        this._setState(sessionId, {
+            ...current,
+            messages: newMessages,
+        });
+        return true;
+    }
+
+    /**
      * Load older messages for a session (backward pagination).
      *
      * Concurrent calls for the same session are de-duplicated: if a load is
