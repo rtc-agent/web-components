@@ -5,6 +5,9 @@ import { getOffsetManager } from './offset-manager.js';
 import { initEntityRepository, getEntityRepository } from './entity-repository.js';
 import { nowRFC3339 } from './time-utils.js';
 import { virtualFS } from './virtual-fs.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('PersistenceLayer');
 
 export * from './database.js';
 export * from './offset-manager.js';
@@ -231,7 +234,7 @@ export class PersistenceLayer {
     } else {
       // 从第一条消息内容生成会话标题（取首行，最多 50 字符）
       const generatedTitle = this._generateSessionTitle(content);
-      console.log('[PersistenceLayer.sendMessage] New session created, generated title:', `"${generatedTitle}"`);
+      log.info('sendMessage] New session created, generated title:', `"${generatedTitle}"`);
 
       const result = await this.entityRepository.upsertSession(
         { client_id: sessionClientId, status: 'active', agent_prompt: agentPrompt, title: generatedTitle },
@@ -240,7 +243,7 @@ export class PersistenceLayer {
       );
       session = result.after;
       isNewSession = true;
-      console.log('[PersistenceLayer.sendMessage] Session after upsert:', { client_id: session.client_id, title: session.title });
+      log.info('sendMessage] Session after upsert:', { client_id: session.client_id, title: session.title });
     }
 
     // 4. 写入 message
@@ -266,7 +269,7 @@ export class PersistenceLayer {
     // 5. 立即返回
     // 6. fire-and-forget 异步同步
     this._syncToServer(message, session, content, isNewSession, agentPrompt).catch(err => {
-      console.error('[PersistenceLayer] _syncToServer failed:', err);
+      log.error('_syncToServer failed:', err);
     });
 
     return { session, message };
@@ -380,7 +383,7 @@ export class PersistenceLayer {
       }
     } catch (err) {
       // 4. 失败时
-      console.error('[PersistenceLayer] _syncToServer RPC failed:', err);
+      log.error('_syncToServer RPC failed:', err);
 
       await this.entityRepository.upsertMessage(
         { client_id: message.client_id },
@@ -557,7 +560,7 @@ export class PersistenceLayer {
           return attempt(retries + 1);
         }
         // 超限后标记 failed
-        console.error(`[PersistenceLayer] ${action}Session RPC failed after ${PersistenceLayer.SYNC_MAX_RETRIES} attempts:`, err);
+        log.error(` ${action}Session RPC failed after ${PersistenceLayer.SYNC_MAX_RETRIES} attempts:`, err);
         await this._markSessionSyncFailed(serverId);
       }
     };
@@ -621,7 +624,7 @@ export class PersistenceLayer {
       try {
         const resultStr = JSON.stringify(result);
         if (resultStr.length > MAX_RESULT_SIZE) {
-          console.warn('[PersistenceLayer] result too large:', resultStr.length, 'bytes, truncating to', MAX_RESULT_SIZE, 'bytes');
+          log.warn('result too large:', resultStr.length, 'bytes, truncating to', MAX_RESULT_SIZE, 'bytes');
           truncated = true;
           // 截断策略：保留开头和结尾，中间用省略号
           const keepStart = Math.floor(MAX_RESULT_SIZE * 0.8);
@@ -637,7 +640,7 @@ export class PersistenceLayer {
           }
         }
       } catch (err) {
-        console.warn('[PersistenceLayer] failed to check result size:', err);
+        log.warn('failed to check result size:', err);
       }
 
       const response = await this.client.submitRtcResult(
@@ -655,7 +658,7 @@ export class PersistenceLayer {
       await this.entityRepository.upsertRtc({ client_id: rtcClientId }, 'synced');
     } catch (err) {
       // 任何异常（本地写入或 RPC）：标记 failed，等待下次 getNextRtcToProcess 重试
-      console.error('[PersistenceLayer] submitRtcResult failed:', err);
+      log.error('submitRtcResult failed:', err);
       await this.entityRepository.upsertRtc({ client_id: rtcClientId }, 'failed');
       throw err;
     }
@@ -739,7 +742,7 @@ export class PersistenceLayer {
       content,
       limit,
     }).catch(err => {
-      console.error('[PersistenceLayer] _syncForkToServer failed:', err);
+      log.error('_syncForkToServer failed:', err);
     });
 
     return { session: newSession, message: newMessage };
@@ -801,7 +804,7 @@ export class PersistenceLayer {
       }
     } catch (err) {
       // 4. 失败时
-      console.error('[PersistenceLayer] _syncForkToServer RPC failed:', err);
+      log.error('_syncForkToServer RPC failed:', err);
 
       await this.entityRepository.upsertMessage(
         { client_id: newMessage.client_id },

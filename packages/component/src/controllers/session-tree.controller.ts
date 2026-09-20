@@ -13,6 +13,9 @@
 import type {ReactiveController, ReactiveControllerHost} from 'lit';
 import type {Session, SessionTreeNode, SessionTreeState, SessionTreeActions} from '../types/index.js';
 import {STORAGE_KEYS} from '../config/auth.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('SessionTreeController');
 
 /** Expanded state: sessionId → isExpanded */
 type ExpandedMap = Record<string, boolean>;
@@ -107,10 +110,10 @@ export class SessionTreeController implements ReactiveController {
     }
 
     private _buildTree(sessions: Session[]) {
-        console.log('[SessionTreeController._buildTree] Building tree from', sessions.length, 'sessions');
+        log.debug('Building tree from', sessions.length, 'sessions');
         // 1. 分类：root sessions vs child sessions
         const rootSessions = sessions.filter(s => !s.rootClientSessionId);
-        console.log('[SessionTreeController._buildTree] Root sessions:', rootSessions.length);
+        log.debug('Root sessions:', rootSessions.length);
         const childMap = new Map<string, Session[]>();
         for (const s of sessions) {
             if (s.rootClientSessionId) {
@@ -119,7 +122,7 @@ export class SessionTreeController implements ReactiveController {
                 childMap.set(s.rootClientSessionId, children);
             }
         }
-        console.log('[SessionTreeController._buildTree] Child sessions grouped:', childMap.size, 'groups');
+        log.debug('Child sessions grouped:', childMap.size, 'groups');
 
         // 2. 构建树，保留已有展开状态
         const rootNodes: SessionTreeNode[] = rootSessions.map(s =>
@@ -131,7 +134,7 @@ export class SessionTreeController implements ReactiveController {
 
         this._state = {rootNodes};
         this.host.requestUpdate();
-        console.log('[SessionTreeController._buildTree] Tree built, rootNodes:', rootNodes.length);
+        log.debug('Tree built, rootNodes:', rootNodes.length);
     }
 
     private _buildNode(session: Session, childMap: Map<string, Session[]>): SessionTreeNode {

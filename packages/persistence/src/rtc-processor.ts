@@ -4,6 +4,9 @@ import type { Mode } from './permission.js';
 import { permissionChecker } from './permission.js';
 import { toolRegistry } from './tools/index.js';
 import type { ToolName, ToolParams } from './tools/types.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('RtcProcessor');
 
 /**
  * 确认对话框回调类型
@@ -119,7 +122,7 @@ export class RtcProcessor {
    * 如果已经在处理，标记 pendingCheck，当前循环会检查
    */
   async onRtcUpdate() {
-    console.log('[RtcProcessor] onRtcUpdate called, processing:', this.processing);
+    log.debug(' onRtcUpdate called, processing:', this.processing);
     if (this.processing) {
       this.pendingCheck = true;
       return;
@@ -131,12 +134,12 @@ export class RtcProcessor {
     // 非 Master Tab 跳过工具执行（proposal §4.2）
     // 不设置 processing 标志，避免阻塞未来 Master 升级后的处理
     if (!this._isMasterAllowed()) {
-      console.log('[RtcProcessor] processLoop: not master, skipping');
+      log.debug(' processLoop: not master, skipping');
       return;
     }
 
     this.processing = true;
-    console.log('[RtcProcessor] processLoop started');
+    log.debug(' processLoop started');
 
     try {
       while (true) {
@@ -144,23 +147,23 @@ export class RtcProcessor {
 
         const rtc = await this.persistence.getNextRtcToProcess(undefined);
         if (!rtc) {
-          console.log('[RtcProcessor] processLoop: no more RTC to process, exiting');
+          log.debug(' processLoop: no more RTC to process, exiting');
           if (this.pendingCheck) {
             continue;
           }
           break;
         }
 
-        console.log('[RtcProcessor] processing RTC:', rtc.client_id, 'tool:', rtc.tool_name, 'sync_status:', rtc.sync_status);
+        log.debug(' processing RTC:', rtc.client_id, 'tool:', rtc.tool_name, 'sync_status:', rtc.sync_status);
         try {
           await this.processOne(rtc);
-          console.log('[RtcProcessor] processOne completed successfully');
+          log.debug(' processOne completed successfully');
         } catch (err) {
-          console.error('[RtcProcessor] processOne failed:', err);
+          log.error(' processOne failed:', err);
           // 如果是连接错误，退出循环，等待连接恢复
           const errMsg = err instanceof Error ? err.message : String(err);
           if (errMsg.includes('connection') || errMsg.includes('disconnected')) {
-            console.warn('[RtcProcessor] connection error detected, exiting processLoop');
+            log.warn(' connection error detected, exiting processLoop');
             break;
           }
           // 其他错误，等待一下再重试，避免快速循环
@@ -169,7 +172,7 @@ export class RtcProcessor {
       }
     } finally {
       this.processing = false;
-      console.log('[RtcProcessor] processLoop finished');
+      log.debug(' processLoop finished');
     }
   }
 
@@ -220,7 +223,7 @@ export class RtcProcessor {
             error: 'User denied',
           });
         } catch (err) {
-          console.error('[RtcProcessor] submitRtcResult (denied) failed:', err);
+          log.error(' submitRtcResult (denied) failed:', err);
         }
         return;
       }
@@ -251,7 +254,7 @@ export class RtcProcessor {
           error: errorMsg,
         });
       } catch (err) {
-        console.error('[RtcProcessor] submitRtcResult failed:', err);
+        log.error(' submitRtcResult failed:', err);
       }
     }
   }
@@ -264,7 +267,7 @@ export class RtcProcessor {
    */
   private async processAskUser(rtc: LocalRtc): Promise<void> {
     if (!this.askUserDialog) {
-      console.warn('[RtcProcessor] askUserDialog not set, defaulting to reject');
+      log.warn(' askUserDialog not set, defaulting to reject');
       try {
         await this.persistence.submitRtcResult({
           rtcClientId: rtc.client_id,
@@ -272,7 +275,7 @@ export class RtcProcessor {
           error: 'User declined to answer questions',
         });
       } catch (err) {
-        console.error('[RtcProcessor] submitRtcResult (ask_user no dialog) failed:', err);
+        log.error(' submitRtcResult (ask_user no dialog) failed:', err);
       }
       return;
     }
@@ -281,7 +284,7 @@ export class RtcProcessor {
     try {
       payload = await this.askUserDialog(rtc);
     } catch (err) {
-      console.error('[RtcProcessor] askUserDialog threw:', err);
+      log.error(' askUserDialog threw:', err);
       try {
         await this.persistence.submitRtcResult({
           rtcClientId: rtc.client_id,
@@ -289,7 +292,7 @@ export class RtcProcessor {
           error: err instanceof Error ? err.message : String(err),
         });
       } catch (submitErr) {
-        console.error('[RtcProcessor] submitRtcResult (ask_user error) failed:', submitErr);
+        log.error(' submitRtcResult (ask_user error) failed:', submitErr);
       }
       return;
     }
@@ -309,7 +312,7 @@ export class RtcProcessor {
         });
       }
     } catch (err) {
-      console.error('[RtcProcessor] submitRtcResult (ask_user) failed:', err);
+      log.error(' submitRtcResult (ask_user) failed:', err);
     }
   }
 
@@ -332,7 +335,7 @@ export class RtcProcessor {
    */
   private async showConfirmDialog(rtc: LocalRtc): Promise<boolean> {
     if (!this.confirmDialog) {
-      console.warn('[RtcProcessor] confirmDialog not set, defaulting to reject');
+      log.warn(' confirmDialog not set, defaulting to reject');
       return false;
     }
     return this.confirmDialog(rtc);

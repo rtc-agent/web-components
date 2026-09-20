@@ -13,7 +13,10 @@ import {
 } from '@rtc-agent/persistence';
 import type { ContentData } from '@rtc-agent/protocol';
 import type { ConnectionState, ConnectionStateEvent, TokenExpiredAction } from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/client';
 import type { WorkerCallbacks, WorkerPersistenceCore } from './core-interface.js';
+
+const log = createLogger('WorkerCore');
 
 type PersistenceLayer = ReturnType<typeof createPersistenceLayer>;
 
@@ -41,7 +44,7 @@ export class WorkerCore implements WorkerPersistenceCore {
    */
   async init(config: PersistenceConfig): Promise<void> {
     if (this.layer) {
-      console.warn('[WorkerCore] already initialized, ignoring init()');
+      log.warn(' already initialized, ignoring init()');
       return;
     }
 
@@ -92,14 +95,14 @@ export class WorkerCore implements WorkerPersistenceCore {
   // ========== 连接 ==========
 
   async connect(): Promise<void> {
-    console.log('[WorkerCore] connect() called');
+    log.debug(' connect() called');
     const layer = this.ensureLayer();
-    console.log('[WorkerCore] calling layer.connect()');
+    log.debug(' calling layer.connect()');
     await layer.connect();
-    console.log('[WorkerCore] layer.connect() returned, client state:', layer.getClient().getConnectionState());
+    log.debug(' layer.connect() returned, client state:', layer.getClient().getConnectionState());
     // 订阅 RTCAgentClient 连接状态变更，广播给所有 Tab
     this._subscribeConnectionState(layer);
-    console.log('[WorkerCore] connection state subscribed, returning from connect()');
+    log.debug(' connection state subscribed, returning from connect()');
   }
 
   disconnect(): void {
@@ -267,7 +270,7 @@ export class WorkerCore implements WorkerPersistenceCore {
       tags: string[];
     }>;
   }>): Promise<void> {
-    console.log('[WorkerCore] batchWriteFiles called, files count:', files.length);
+    log.debug(' batchWriteFiles called, files count:', files.length);
     for (const file of files) {
       // 根据文件路径决定写入模式
       // - /AGENT.md 和 /scenarios/*.md：使用 'create-new'（文件存在时不覆盖）
@@ -275,7 +278,7 @@ export class WorkerCore implements WorkerPersistenceCore {
       const mode = this._getWriteModeForPath(file.path);
       await virtualFS.write(file.path, file.content, mode, file.metadata);
     }
-    console.log('[WorkerCore] batchWriteFiles completed');
+    log.debug(' batchWriteFiles completed');
     // 批量写入只发一次广播，避免逐文件通知
     this.broadcastUIUpdate({
       entity: 'file',
@@ -400,7 +403,7 @@ export class WorkerCore implements WorkerPersistenceCore {
       try {
         cb.onUIUpdate(event);
       } catch (err) {
-        console.error('[WorkerCore] onUIUpdate callback error:', err);
+        log.error(' onUIUpdate callback error:', err);
       }
     }
   }
@@ -416,7 +419,7 @@ export class WorkerCore implements WorkerPersistenceCore {
       try {
         return await cb.requestToken();
       } catch (err) {
-        console.warn('[WorkerCore] requestToken failed, trying next:', err);
+        log.warn(' requestToken failed, trying next:', err);
       }
     }
     throw new Error('[WorkerCore] no callback available to provide token');
@@ -434,7 +437,7 @@ export class WorkerCore implements WorkerPersistenceCore {
       try {
         return await cb.requestTokenRefresh();
       } catch (err) {
-        console.warn('[WorkerCore] requestTokenRefresh failed, trying next:', err);
+        log.warn(' requestTokenRefresh failed, trying next:', err);
       }
     }
     return 'relogin';
@@ -456,9 +459,9 @@ export class WorkerCore implements WorkerPersistenceCore {
   private _subscribeConnectionState(layer: PersistenceLayer): void {
     this._unsubscribeConnectionState();
     const client = layer.getClient();
-    console.log('[WorkerCore] subscribing to connection state changes');
+    log.debug(' subscribing to connection state changes');
     this.unsubscribeConnection = client.on('connection', (event: ConnectionStateEvent) => {
-      console.log('[WorkerCore] connection state changed:', event.state, 'reason:', event.reason);
+      log.debug(' connection state changed:', event.state, 'reason:', event.reason);
       this.broadcastConnectionState(event);
     });
   }
@@ -481,7 +484,7 @@ export class WorkerCore implements WorkerPersistenceCore {
       try {
         cb.onConnectionStateChange(event);
       } catch (err) {
-        console.error('[WorkerCore] onConnectionStateChange callback error:', err);
+        log.error(' onConnectionStateChange callback error:', err);
       }
     }
   }

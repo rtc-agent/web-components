@@ -21,6 +21,9 @@ import {
     checklistIcon,
     codeIcon,
 } from '../../icons/index.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('settings-nav');
 
 /** 设置分类 */
 export type SettingsCategory = 'appearance' | 'chat' | 'files' | 'notifications' | 'account' | 'about';
@@ -66,7 +69,7 @@ export class RtcSettingsNav extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[rtc-settings-nav] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };

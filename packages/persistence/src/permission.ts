@@ -5,6 +5,9 @@
  */
 
 import type { ToolName } from './tools/types.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('PermissionChecker');
 
 /** 工作模式（与 component 包的 Mode 类型保持一致） */
 export type Mode = 'manual' | 'edit' | 'plan' | 'auto' | 'bypass';
@@ -48,7 +51,7 @@ export class PermissionChecker {
     const rule = PERMISSION_RULES[toolName];
     if (!rule) {
       // 未知工具默认需要确认
-      console.warn(`[PermissionChecker] Unknown tool: ${toolName}, requiring confirm`);
+      log.warn(`Unknown tool: ${toolName}, requiring confirm`);
       return 'confirm';
     }
     return rule[mode];

@@ -28,6 +28,9 @@ import {lightTheme} from '../../styles/themes/light.js';
 import {darkTheme} from '../../styles/themes/dark.js';
 import {baseStyles} from '../../styles/base.js';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('status-bar');
 
 @localized()
 @customElement('rtc-status-bar')
@@ -54,7 +57,7 @@ export class RtcStatusBar extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[rtc-status-bar] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };

@@ -21,6 +21,9 @@ import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} fro
 import type {PropertyValues} from 'lit';
 import {styles} from './rtc-ask-user.styles.js';
 import type {LocalRtc} from '@rtc-agent/persistence';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('ask-user');
 
 export interface AskUserQuestion {
   question: string;
@@ -54,7 +57,7 @@ export class RtcAskUser extends LitElement {
   private _localeCtx: LocaleContextValue = {
     locale: sourceLocale,
     setLocale: async () => {
-      console.warn('[rtc-ask-user] Locale context not initialized');
+      log.warn('Locale context not initialized');
     },
     locales: [sourceLocale, ...targetLocales],
   };

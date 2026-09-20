@@ -12,6 +12,9 @@ import {localized, msg} from '@lit/localize';
 import {consume} from '@lit/context';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {styles} from './rtc-notice-bar.styles.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('notice-bar');
 
 @localized()
 @customElement('rtc-notice-bar')
@@ -23,7 +26,7 @@ export class RtcNoticeBar extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[rtc-notice-bar] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };

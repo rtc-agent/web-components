@@ -19,6 +19,9 @@ import {darkTheme} from '../../styles/themes/dark.js';
 import {baseStyles} from '../../styles/base.js';
 import {styles} from './rtc-session-tab.styles.js';
 import type {SessionStatus} from '../../types/index.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('RtcSessionTab');
 
 // 内联 close SVG（与 rtc-editor-tab 保持一致）
 const closeSvg = svg`<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
@@ -35,7 +38,7 @@ export class RtcSessionTab extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[RtcSessionTab] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };

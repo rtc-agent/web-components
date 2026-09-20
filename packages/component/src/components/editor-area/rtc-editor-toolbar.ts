@@ -42,6 +42,9 @@ import {tokens} from '../../styles/tokens.js';
 import {lightTheme} from '../../styles/themes/light.js';
 import {darkTheme} from '../../styles/themes/dark.js';
 import {baseStyles} from '../../styles/base.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('editor-toolbar');
 
 /** 格式化类型 */
 type FormatType = 'bold' | 'italic' | 'code' | 'link';
@@ -58,7 +61,7 @@ export class RtcEditorToolbar extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[rtc-editor-toolbar] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };

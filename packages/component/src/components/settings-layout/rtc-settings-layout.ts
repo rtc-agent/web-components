@@ -32,6 +32,9 @@ import '../drawer/rtc-drawer.js';
 
 // 导入类型（仅用于 TypeScript）
 import type {SettingsState} from '../../contexts/settings.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('settings-layout');
 
 /** 面板标题映射 */
 function panelTitle(category: SettingsCategory): string {
@@ -90,7 +93,7 @@ export class RtcSettingsLayout extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[rtc-settings-layout] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };

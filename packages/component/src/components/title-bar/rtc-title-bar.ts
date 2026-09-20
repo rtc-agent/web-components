@@ -24,6 +24,9 @@ import type {WindowMode} from '../../types/index.js';
 import type {ConnectionState} from '@rtc-agent/client';
 import {minimizeIcon, maximizeIcon, restoreIcon, retryIcon} from '../../icons/index.js';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('title-bar');
 
 @localized()
 @customElement('rtc-title-bar')
@@ -60,7 +63,7 @@ export class RtcTitleBar extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[rtc-title-bar] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };

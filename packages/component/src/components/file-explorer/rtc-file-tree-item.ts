@@ -33,6 +33,9 @@ import {tokens} from '../../styles/tokens.js';
 import {lightTheme} from '../../styles/themes/light.js';
 import {darkTheme} from '../../styles/themes/dark.js';
 import {baseStyles} from '../../styles/base.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('file-tree-item');
 
 /**
  * Chevron 右箭头 SVG（内联，无依赖）
@@ -55,7 +58,7 @@ export class RtcFileTreeItem extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[rtc-file-tree-item] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };

@@ -1,4 +1,7 @@
 // 工具函数模块
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('Utils');
 
 export function generateUUID(): string {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
@@ -20,10 +23,10 @@ export function formatDate(dateStr: string): string {
 }
 
 export function showToast(message: string, type: 'info' | 'success' | 'error' = 'info'): void {
-    console.log('[showToast] Called with:', message, type);
+    log.debug('showToast called:', message, type);
     const toast = document.getElementById('toast');
     if (!toast) {
-        console.error('[showToast] Toast element not found!');
+        log.error('Toast element not found!');
         return;
     }
     toast.textContent = message;

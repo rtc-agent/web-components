@@ -14,6 +14,9 @@ import { transformSync } from '@babel/core';
 import presetTypescript from '@babel/preset-typescript';
 import type { TransformOptions } from '@babel/core';
 import { virtualFS } from './virtual-fs.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('ScriptEngine');
 
 // ============================================================
 // Custom Error Classes (MD2)
@@ -464,7 +467,7 @@ export function parseScriptContent(content: string): {
   }
 
   if (codeBlocks.length > 1) {
-    console.warn(`[ScriptEngine] Found ${codeBlocks.length} code blocks in script, concatenating all.`);
+    log.warn(`Found ${codeBlocks.length} code blocks in script, concatenating all.`);
   }
 
   const code = codeBlocks.join('\n\n');

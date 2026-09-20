@@ -26,6 +26,9 @@ import {
     gearIcon,
 } from '../../icons/index.js';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('activity-bar');
 
 /** 可聚焦的活动列表（顺序：files → chat → settings） */
 const ACTIVITY_LIST: Activity[] = ['files', 'chat', 'settings'];
@@ -52,7 +55,7 @@ export class RtcActivityBar extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[rtc-activity-bar] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };

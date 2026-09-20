@@ -22,6 +22,9 @@ import {localized, msg} from '@lit/localize';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import type {SyncStatus} from '../../types/index.js';
 import {formatTimestampCompact} from '../../utils/format.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('RtcMessageMoreMenu');
 
 @localized()
 @customElement('rtc-message-more-menu')
@@ -85,7 +88,7 @@ export class RtcMessageMoreMenu extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[RtcMessageMoreMenu] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };

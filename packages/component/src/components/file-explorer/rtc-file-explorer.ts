@@ -30,6 +30,9 @@ import {refreshIcon} from '../../icons/index.js';
 // 子组件（副作用导入）
 import './rtc-file-tree-item.js';
 import type {RtcFileTreeItem} from './rtc-file-tree-item.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('file-explorer');
 
 @localized()
 @customElement('rtc-file-explorer')
@@ -43,7 +46,7 @@ export class RtcFileExplorer extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[rtc-file-explorer] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };

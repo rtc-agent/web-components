@@ -47,6 +47,9 @@ import '../token-usage/rtc-token-usage.js';
 
 // UIUpdateBus 用于监听新消息事件
 import {getUIUpdateBus, type UIUpdateEvent} from '@rtc-agent/persistence';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('input-area');
 
 @localized()
 @customElement('rtc-input-area')
@@ -77,7 +80,7 @@ export class RtcInputArea extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[rtc-input-area] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };
@@ -440,7 +443,7 @@ export class RtcInputArea extends LitElement {
         try {
             this._userMessageHistory = await fn.call(this._messageCtx, sessionId);
         } catch (error) {
-            console.warn('[rtc-input-area] _loadUserMessageHistory failed:', error);
+            log.warn('_loadUserMessageHistory failed:', error);
         }
     }
 

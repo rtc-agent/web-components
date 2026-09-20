@@ -14,6 +14,9 @@ import type { FunctionRegistry } from '../core/function-registry.js';
 import { eventBus } from '../core/event-bus.js';
 import type { SkillContextValue } from '../contexts/skill.js';
 import { toolRegistry, virtualFS } from '@rtc-agent/persistence';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('SkillController');
 
 /**
  * SkillController actions
@@ -103,7 +106,7 @@ export class SkillController implements ReactiveController {
     });
 
     toolRegistry.setRtcAgent(rtcAgentAPI);
-    console.log('[SkillController] rtcAgent API bridged to ToolRegistry');
+    log.info('rtcAgent API bridged to ToolRegistry');
   }
 
   /**

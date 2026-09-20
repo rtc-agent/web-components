@@ -31,6 +31,9 @@ import {tokens} from '../../styles/tokens.js';
 import {lightTheme} from '../../styles/themes/light.js';
 import {darkTheme} from '../../styles/themes/dark.js';
 import {baseStyles} from '../../styles/base.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('markdown-editor');
 
 @localized()
 @customElement('rtc-markdown-editor')
@@ -42,7 +45,7 @@ export class RtcMarkdownEditor extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[rtc-markdown-editor] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };
@@ -159,7 +162,7 @@ export class RtcMarkdownEditor extends LitElement {
 
             this._renderedHtml = cleanHtml;
         } catch (err) {
-            console.error('[rtc-markdown-editor] Failed to parse markdown:', err);
+            log.error('Failed to parse markdown:', err);
             this._renderedHtml = `<p style="color: var(--rtc-color-error);">${msg(str`渲染失败: ${err instanceof Error ? err.message : String(err)}`)}</p>`;
         }
     }

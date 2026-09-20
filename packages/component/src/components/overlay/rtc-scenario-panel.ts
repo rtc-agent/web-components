@@ -16,6 +16,9 @@ import {localized, msg} from '@lit/localize';
 import {styles} from './rtc-scenario-panel.styles.js';
 import {virtualFS, type FileSystemEntry} from '@rtc-agent/persistence';
 import type {ScenarioRef} from '../../types/index.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('ScenarioPanel');
 
 /** Scenario item from VirtualFS (mapped from FileSystemEntry) */
 interface ScenarioItem {
@@ -83,7 +86,7 @@ export class RtcScenarioPanel extends LitElement {
                 tags: entry.metadata?.tags,
             }));
         } catch (err) {
-            console.warn('[RtcScenarioPanel] Failed to load scenarios:', err);
+            log.warn('Failed to load scenarios:', err);
         } finally {
             this._loading = false;
         }
@@ -128,7 +131,7 @@ export class RtcScenarioPanel extends LitElement {
                     })
                 );
             } catch (err) {
-                console.warn('[RtcScenarioPanel] Failed to read scenario content:', err);
+                log.warn('Failed to read scenario content:', err);
             }
         }
     }

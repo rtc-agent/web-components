@@ -35,6 +35,9 @@ import {styles} from './rtc-message.styles.js';
 import type {Message} from '../../types/index.js';
 import {copyToClipboard} from '../../utils/clipboard.js';
 import {formatTimestampCompact, extractTextContent} from '../../utils/format.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('RtcMessage');
 
 @localized()
 @customElement('rtc-message')
@@ -46,7 +49,7 @@ export class RtcMessage extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[RtcMessage] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };
@@ -151,7 +154,7 @@ export class RtcMessage extends LitElement {
         try {
             rawHtml = (marked.parse(content) as string) ?? '';
         } catch (err) {
-            console.error('[rtc-message] marked.parse failed:', err);
+            log.error('marked.parse failed:', err);
             rawHtml = '';
         }
 

@@ -14,6 +14,9 @@ import {consume} from '@lit/context';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {styles} from './rtc-empty-state.styles.js';
 import {renderLogo} from '../../icons/logo.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('empty-state');
 
 @localized()
 @customElement('rtc-empty-state')
@@ -25,7 +28,7 @@ export class RtcEmptyState extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[rtc-empty-state] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };

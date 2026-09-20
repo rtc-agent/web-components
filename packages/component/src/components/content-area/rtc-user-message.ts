@@ -49,6 +49,9 @@ import type {Message, UserMessageContent} from '../../types/index.js';
 import {copyToClipboard} from '../../utils/clipboard.js';
 import {extractTextContent} from '../../utils/format.js';
 import './rtc-message-more-menu.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('RtcUserMessage');
 
 @localized()
 @customElement('rtc-user-message')
@@ -60,7 +63,7 @@ export class RtcUserMessage extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[RtcUserMessage] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };

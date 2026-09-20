@@ -5,6 +5,10 @@
  * Uses thumb + thumbContainer pattern.
  */
 
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('CustomScrollbar');
+
 export class CustomScrollbar {
     private _container: HTMLElement;
     private _thumbContainer: HTMLElement;
@@ -57,12 +61,12 @@ export class CustomScrollbar {
         const b = scrollPosition / (scrollSize - clientSize);
         const maxValue = clientSize - thumbSize;
 
-        console.log(`[CustomScrollbar] scrollPosition=${scrollPosition}, scrollSize=${scrollSize}, clientSize=${clientSize}, thumbSize=${thumbSize}, value=${value}, b=${b}, maxValue=${maxValue}`);
+        log.debug(`scrollPosition=${scrollPosition}, scrollSize=${scrollSize}, clientSize=${clientSize}, thumbSize=${thumbSize}, value=${value}, b=${b}, maxValue=${maxValue}`);
 
         if (clientSize < scrollSize) {
             this._thumb.style.height = `${thumbSize}px`;
             this._thumb.style.transform = `translateY(${Math.min(maxValue, value - thumbSize * b)}px)`;
-            console.log(`[CustomScrollbar] Applied transform: translateY(${Math.min(maxValue, value - thumbSize * b)}px)`);
+            log.debug(`Applied transform: translateY(${Math.min(maxValue, value - thumbSize * b)}px)`);
         } else {
             this._thumb.style.height = '0px';
         }

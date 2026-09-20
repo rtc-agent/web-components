@@ -18,6 +18,9 @@ import type {AuthState} from '../types/index.js';
 import type {AuthContextValue} from '../contexts/auth.js';
 import {DEFAULT_AUTH_STATE} from '../contexts/auth.js';
 import {AUTH_CONFIG, STORAGE_KEYS} from '../config/auth.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('AuthController');
 
 interface StoredTokens {
     accessToken: string;
@@ -276,7 +279,7 @@ export class AuthController implements ReactiveController {
                 expiresAt,
             };
         } catch (error) {
-            console.error('[AuthController] Token refresh failed:', error);
+            log.error('Token refresh failed:', error);
             return {success: false};
         }
     }

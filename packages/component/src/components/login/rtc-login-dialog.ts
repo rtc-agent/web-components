@@ -18,6 +18,9 @@ import {AUTH_CONFIG, STORAGE_KEYS} from '../../config/auth.js';
 import {getOrCreateDeviceId, getDeviceName} from '../../utils/device.js';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {OAuth2Client} from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('login-dialog');
 
 type LoginStatus = 'opening' | 'waiting' | 'exchanging' | 'success' | 'error';
 
@@ -39,7 +42,7 @@ export class RtcLoginDialog extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[rtc-login-dialog] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };

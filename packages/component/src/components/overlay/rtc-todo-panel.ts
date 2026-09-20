@@ -14,6 +14,9 @@ import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} fro
 import {repeat} from 'lit/directives/repeat.js';
 import {styles} from './rtc-todo-panel.styles.js';
 import type {TodoItem} from '../../types/index.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('todo-panel');
 
 /**
  * Deep comparison for TodoItem arrays to avoid unnecessary re-renders.
@@ -39,7 +42,7 @@ export class RtcTodoPanel extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[rtc-todo-panel] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };

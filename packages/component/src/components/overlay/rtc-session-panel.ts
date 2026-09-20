@@ -19,6 +19,9 @@ import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} fro
 import {styles} from './rtc-session-panel.styles.js';
 import type {Session} from '../../types/index.js';
 import {editIcon, deleteIcon} from '../../icons/index.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('RtcSessionPanel');
 
 @localized()
 @customElement('rtc-session-panel')
@@ -30,7 +33,7 @@ export class RtcSessionPanel extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[RtcSessionPanel] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };

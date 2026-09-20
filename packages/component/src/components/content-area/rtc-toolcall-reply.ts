@@ -28,6 +28,9 @@ import type {Message} from '../../types/index.js';
 import {copyToClipboard} from '../../utils/clipboard.js';
 import {formatTimestampCompact} from '../../utils/format.js';
 import type {RtcToolCallCard} from './rtc-toolcall-card.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('RtcToolCallReply');
 
 /**
  * Parsed tool call data from output message.
@@ -206,7 +209,7 @@ export class RtcToolCallReply extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[RtcToolCallReply] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };
@@ -264,7 +267,7 @@ export class RtcToolCallReply extends LitElement {
     private _handleHeaderClick() {
         const targetClientId = this.message.parentClientId;
         if (!targetClientId) {
-            console.warn('[rtc-toolcall-reply] No parentClientId for jump');
+            log.warn('No parentClientId for jump');
             return;
         }
 

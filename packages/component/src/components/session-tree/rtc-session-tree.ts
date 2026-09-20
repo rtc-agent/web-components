@@ -31,6 +31,9 @@ import {plusIcon, refreshIcon} from '../../icons/index.js';
 // 子组件（副作用导入）
 import './rtc-session-tree-item.js';
 import type {RtcSessionTreeItem} from './rtc-session-tree-item.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('RtcSessionTree');
 
 @localized()
 @customElement('rtc-session-tree')
@@ -42,7 +45,7 @@ export class RtcSessionTree extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[RtcSessionTree] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };

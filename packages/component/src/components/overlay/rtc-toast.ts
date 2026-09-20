@@ -29,6 +29,9 @@ import {repeat} from 'lit/directives/repeat.js';
 import {localized, msg} from '@lit/localize';
 import {consume} from '@lit/context';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('RtcToast');
 
 export type ToastType = 'success' | 'error' | 'info';
 
@@ -202,7 +205,7 @@ export class RtcToast extends LitElement {
   private _localeCtx: LocaleContextValue = {
       locale: sourceLocale,
       setLocale: async () => {
-          console.warn('[RtcToast] Locale context not initialized');
+          log.warn('Locale context not initialized');
       },
       locales: [sourceLocale, ...targetLocales],
   };

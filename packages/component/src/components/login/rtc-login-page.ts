@@ -21,6 +21,9 @@ import {styles} from './rtc-login-page.styles.js';
 import {renderLogo} from '../../icons/logo.js';
 import {AUTH_CONFIG} from '../../config/auth.js';
 import {OAuth2Client} from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('login-page');
 
 /** Provider 配置 */
 interface ProviderConfig {
@@ -59,7 +62,7 @@ export class RtcLoginPage extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[rtc-login-page] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };
@@ -111,7 +114,7 @@ export class RtcLoginPage extends LitElement {
                 })
                 .filter(p => p.name);
         } catch (err) {
-            console.error('[rtc-login-page] Failed to load providers:', err);
+            log.error('Failed to load providers:', err);
             // 回退到默认 mock provider
             this._providers = [{
                 name: 'mock',

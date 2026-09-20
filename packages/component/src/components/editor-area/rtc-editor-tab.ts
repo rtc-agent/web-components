@@ -34,6 +34,9 @@ import {tokens} from '../../styles/tokens.js';
 import {lightTheme} from '../../styles/themes/light.js';
 import {darkTheme} from '../../styles/themes/dark.js';
 import {baseStyles} from '../../styles/base.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('editor-tab');
 
 @localized()
 @customElement('rtc-editor-tab')
@@ -47,7 +50,7 @@ export class RtcEditorTab extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[rtc-editor-tab] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };

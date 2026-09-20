@@ -17,6 +17,9 @@ import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} fro
 import {styles} from './rtc-mode-panel.styles.js';
 import {MODE_CONFIGS} from '../../contexts/mode.js';
 import {handIcon, codeIcon, planIcon, zapIcon, gearIcon, checkIcon} from '../../icons/index.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('RtcModePanel');
 
 const MODE_ICONS: Record<string, ReturnType<typeof html>> = {
     manual: handIcon,
@@ -36,7 +39,7 @@ export class RtcModePanel extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[RtcModePanel] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };

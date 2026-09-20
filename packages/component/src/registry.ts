@@ -2,6 +2,9 @@
 import { defineRegistry } from './index.js';
 import { loadTasks, saveTasks, type Task } from './storage.js';
 import { generateUUID, showToast } from './utils.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('Registry');
 
 export const registry = defineRegistry({
     name: 'TaskManager',
@@ -50,10 +53,10 @@ taskGroup.register({
     },
     hooks: {
         onStart: (params) => {
-            console.log('[task.list] Fetching tasks with filter:', params.filter);
+            log.debug('Fetching tasks with filter:', params.filter);
         },
         onSuccess: (result) => {
-            console.log('[task.list] Success:', (result as Task[]).length, 'tasks');
+            log.info('Success:', (result as Task[]).length, 'tasks');
         }
     },
     handler: async (params) => {
@@ -150,7 +153,7 @@ taskGroup.register({
     },
     hooks: {
         onSuccess: () => {
-            console.log('[registry] task.create onSuccess hook triggered');
+            log.info('task.create onSuccess hook triggered');
             showToast('Task created successfully', 'success');
         }
     },

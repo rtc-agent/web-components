@@ -5,6 +5,9 @@
  */
 
 import { virtualFS } from './virtual-fs.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('VirtualFS');
 
 /**
  * AGENT.md 模板配置
@@ -75,10 +78,10 @@ export async function initializeVirtualFS(config: AgentMdConfig = {}): Promise<v
       // 创建基础 AGENT.md
       const agentContent = generateAgentMd(config);
       await virtualFS.write('/AGENT.md', agentContent, 'overwrite');
-      console.log('[VirtualFS] Initialized: AGENT.md created');
+      log.info('Initialized: AGENT.md created');
     }
   } catch (err) {
-    console.error('[VirtualFS] Failed to initialize:', err);
+    log.error('Failed to initialize:', err);
     throw err;
   }
 }

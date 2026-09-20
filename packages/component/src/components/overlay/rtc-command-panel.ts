@@ -17,6 +17,9 @@ import {consume} from '@lit/context';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {styles} from './rtc-command-panel.styles.js';
 import {gearIcon, clockIcon, checklistIcon} from '../../icons/index.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('RtcCommandPanel');
 
 /** Command configuration */
 export interface CommandConfig {
@@ -67,7 +70,7 @@ export class RtcCommandPanel extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[RtcCommandPanel] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };

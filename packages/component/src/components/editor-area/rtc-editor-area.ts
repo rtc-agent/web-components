@@ -49,6 +49,9 @@ import {baseStyles} from '../../styles/base.js';
 import './rtc-editor-tab.js';
 import './rtc-editor-toolbar.js';
 import '../markdown-editor/rtc-markdown-editor.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('editor-area');
 
 /** 格式化类型（与 toolbar 一致） */
 type FormatType = 'bold' | 'italic' | 'code' | 'link';
@@ -65,7 +68,7 @@ export class RtcEditorArea extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[rtc-editor-area] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };

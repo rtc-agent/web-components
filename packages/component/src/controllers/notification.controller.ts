@@ -26,6 +26,9 @@ import type {WindowStateController} from './window-state.controller.js';
 import type {PersistenceLayer} from '@rtc-agent/persistence';
 import {getUIUpdateBus} from '@rtc-agent/persistence';
 import type {UIUpdateEvent} from '@rtc-agent/persistence';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('NotificationController');
 
 // 音效资源 URL：Vite 的 `?url` 后缀在 dev/build 时都会解析为正确可访问的 URL
 // （dev: dev server 路径；build: dist 下的 hashed 路径），无论组件部署在根路径、
@@ -137,7 +140,7 @@ export class NotificationController implements ReactiveController {
 
         audio.addEventListener('error', () => {
             // 音效文件可能不存在或加载失败，降级处理：不播放该音效
-            console.warn(`[NotificationController] 音频加载失败（文件可能不存在）: ${url}`);
+            log.warn(`音频加载失败（文件可能不存在）: ${url}`);
             this._sounds.delete(type);
         }, {once: true});
 
@@ -156,9 +159,9 @@ export class NotificationController implements ReactiveController {
         sound.play().catch((error) => {
             // 浏览器自动播放策略限制（需用户首次交互后才启用）
             if (error.name === 'NotAllowedError') {
-                console.warn('[NotificationController] 音频播放被浏览器阻止，需要用户交互');
+                log.warn('音频播放被浏览器阻止，需要用户交互');
             } else {
-                console.warn('[NotificationController] 播放失败:', error);
+                log.warn('播放失败:', error);
             }
         });
     }
@@ -201,7 +204,7 @@ export class NotificationController implements ReactiveController {
             this._lastNotifyTime = now;
             this._triggerNotification(event, sessionId);
         } catch (error) {
-            console.error('[NotificationController] 处理消息失败:', error);
+            log.error('处理消息失败:', error);
             // 不中断订阅流，继续处理后续消息
         }
     }

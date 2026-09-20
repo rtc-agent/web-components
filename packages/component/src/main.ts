@@ -4,7 +4,10 @@ import { registry } from './registry.js';
 import { escapeHtml, formatDate } from './utils.js';
 import type { Task } from './storage.js';
 import { toolRegistry, virtualFS } from '@rtc-agent/persistence';
+import { createLogger } from '@rtc-agent/client';
 import type { RtcAgent } from './components/rtc-agent/rtc-agent.js';
+
+const log = createLogger('TaskManager');
 
 // Expose to window for Playwright E2E tests and debug access
 declare global {
@@ -35,7 +38,7 @@ customElements.whenDefined('rtc-agent').then(() => {
         // (enables script tool to call rtcAgent.task.create() etc.)
         (rtcAgentEl as RtcAgent).registry = registry;
         (rtcAgentEl as RtcAgent).scenariosURL = './scenarios/';
-        console.log('[TaskManager] Registry connected to <rtc-agent>');
+        log.info('Registry connected to <rtc-agent>');
     }
 });
 
@@ -47,14 +50,14 @@ let currentFilter = 'all';
 
 // Refresh task list when data-modifying functions succeed
 eventBus.on('function:success', (event) => {
-    console.log(`[EventBus] ${event.path} succeeded`);
+    log.info(`${event.path} succeeded`);
     if (['task.create', 'task.update', 'task.delete'].includes(event.path)) {
         renderTasks();
     }
 });
 
 eventBus.on('function:error', (event) => {
-    console.error(`[EventBus] ${event.path} failed:`, event.error);
+    log.error(`${event.path} failed:`, event.error);
 });
 
 // Render the task list UI

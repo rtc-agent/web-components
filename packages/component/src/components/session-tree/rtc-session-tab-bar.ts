@@ -25,6 +25,9 @@ import {plusIcon} from '../../icons/index.js';
 
 // 子组件（副作用导入）
 import './rtc-session-tab.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('RtcSessionTabBar');
 
 @localized()
 @customElement('rtc-session-tab-bar')
@@ -36,7 +39,7 @@ export class RtcSessionTabBar extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[RtcSessionTabBar] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };

@@ -12,6 +12,9 @@
 import type {ReactiveController, ReactiveControllerHost} from 'lit';
 import {msg, str} from '@lit/localize';
 import type {ContentData} from '../types/index.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('ForkController');
 
 /** Fork state: set when user initiates a fork, cleared on submit or cancel. */
 export interface ForkState {
@@ -119,7 +122,7 @@ export class ForkController implements ReactiveController {
                 content,
             });
         } catch (err) {
-            console.error('[ForkController] forkSession failed:', err);
+            log.error('forkSession failed:', err);
         }
 
         this._clearFork();

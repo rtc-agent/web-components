@@ -34,6 +34,9 @@ import {styles} from './rtc-toolcall-card.styles.js';
 import type {Message} from '../../types/index.js';
 import {copyToClipboard} from '../../utils/clipboard.js';
 import {formatTimestampCompact} from '../../utils/format.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('RtcToolCallCard');
 
 /**
  * A paired tool call: input is always present, output arrives later.
@@ -173,7 +176,7 @@ export class RtcToolCallCard extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[RtcToolCallCard] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };

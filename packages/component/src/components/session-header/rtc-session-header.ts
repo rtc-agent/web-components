@@ -26,6 +26,9 @@ import {clockIcon, plusIcon, checklistIcon} from '../../icons/index.js';
 import '../overlay/rtc-session-panel.js';
 import '../overlay/rtc-todo-panel.js';
 import type {Session, TodoItem} from '../../types/index.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('session-header');
 
 @localized()
 @customElement('rtc-session-header')
@@ -37,7 +40,7 @@ export class RtcSessionHeader extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[rtc-session-header] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };

@@ -3,6 +3,9 @@ import { getUIUpdateBus } from './ui-update-bus.js';
 import { nowRFC3339 } from './time-utils.js';
 import type { Session, Turn, Message, Rtc, Update, UpdateItem, UpdateEntity, UpdateAction } from '@rtc-agent/protocol';
 import diff from 'microdiff';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('EntityRepository');
 
 /**
  * upsert 选项
@@ -87,7 +90,7 @@ function safeClone<T>(obj: T): T {
     return JSON.parse(JSON.stringify(obj));
   } catch {
     // 序列化失败（如循环引用），返回空对象
-    console.warn('[safeClone] failed to clone object, returning empty object');
+    log.warn('safeClone: failed to clone object, returning empty object');
     return {} as T;
   }
 }
@@ -119,7 +122,7 @@ export class EntityRepository {
       existing = await db.sessions.where('client_id').equals(session.client_id).first();
     }
 
-    console.log('[EntityRepository.upsertSession]', existing ? 'UPDATE' : 'CREATE', 'client_id:', session.client_id, 'title:', session.title);
+    log.debug('upsertSession]', existing ? 'UPDATE' : 'CREATE', 'client_id:', session.client_id, 'title:', session.title);
 
     let result: UpsertResult<LocalSession>;
     let action: UpdateAction;
@@ -134,7 +137,7 @@ export class EntityRepository {
       await db.sessions.put(updated);
       result = { before, after: updated };
       action = 'updated';
-      console.log('[EntityRepository.upsertSession] After update - title:', updated.title);
+      log.debug('upsertSession] After update - title:', updated.title);
     } else {
       const newSession: LocalSession = {
         client_id: session.client_id || '',
@@ -153,7 +156,7 @@ export class EntityRepository {
       await db.sessions.put(newSession);
       result = { before: undefined, after: newSession };
       action = 'created';
-      console.log('[EntityRepository.upsertSession] After create - title:', newSession.title);
+      log.debug('upsertSession] After create - title:', newSession.title);
     }
 
     if (!options?.silent) {
@@ -186,10 +189,10 @@ export class EntityRepository {
     const db = getDatabase();
     const query = db.sessions.orderBy('updated_at').reverse();
     const all = await query.toArray();
-    console.log(`[EntityRepository.listSessions] total=${all.length}, with deleted_at=${all.filter(s => s.deleted_at).length}`);
+    log.debug(`listSessions] total=${all.length}, with deleted_at=${all.filter(s => s.deleted_at).length}`);
     // 过滤软删除项（deleted_at 非空表示已删除）
     const active = all.filter(s => !s.deleted_at);
-    console.log(`[EntityRepository.listSessions] after filter=${active.length}`);
+    log.debug(`listSessions] after filter=${active.length}`);
     // cursor 为上一页最后一条的 client_id，从该 ID 之后开始返回
     if (cursor) {
       const startIdx = active.findIndex(s => s.client_id === cursor);
@@ -211,7 +214,7 @@ export class EntityRepository {
       throw new Error(`[EntityRepository] softDeleteSession: session not found: ${clientId}`);
     }
     const now = nowRFC3339();
-    console.log(`[EntityRepository.softDeleteSession] setting deleted_at=${now} for ${clientId}`);
+    log.debug(`softDeleteSession] setting deleted_at=${now} for ${clientId}`);
     const result = await this.upsertSession(
       {
         client_id: clientId,
@@ -220,7 +223,7 @@ export class EntityRepository {
       },
       'pending',
     );
-    console.log(`[EntityRepository.softDeleteSession] after upsert, deleted_at=${result.after.deleted_at}`);
+    log.debug(`softDeleteSession] after upsert, deleted_at=${result.after.deleted_at}`);
     return result;
   }
 
@@ -548,7 +551,7 @@ export class EntityRepository {
     if (session) {
       return session.client_id;
     }
-    console.warn(`[EntityRepository] ${entityType} ${entityId} references unknown session ${serverSessionId}`);
+    log.warn(` ${entityType} ${entityId} references unknown session ${serverSessionId}`);
     return serverSessionId;
   }
 
@@ -618,7 +621,7 @@ export class EntityRepository {
           if (parentMsg) {
             mapped.parent_client_id = parentMsg.client_id;
           } else {
-            console.warn(`[EntityRepository] Message ${raw.client_id || raw.id} references unknown parent ${raw.parent_message_id}`);
+            log.warn(` Message ${raw.client_id || raw.id} references unknown parent ${raw.parent_message_id}`);
           }
         }
         delete (mapped as Record<string, unknown>)['parent_message_id'];
@@ -634,12 +637,12 @@ export class EntityRepository {
           if (session) {
             // 写入时过滤：不是本设备 Session 的 RTC，跳过写入
             if (session.device_id && session.device_id !== this.deviceId) {
-              console.log(`[EntityRepository] Skipping RTC ${raw.client_id || raw.id} - session belongs to different device`);
+              log.debug(`Skipping RTC ${raw.client_id || raw.id} - session belongs to different device`);
               return;
             }
             sessionClientId = session.client_id;
           } else {
-            console.warn(`[EntityRepository] Rtc ${raw.client_id || raw.id} references unknown session ${raw.session_id}`);
+            log.warn(` Rtc ${raw.client_id || raw.id} references unknown session ${raw.session_id}`);
             sessionClientId = raw.session_id;
           }
         }
@@ -672,7 +675,7 @@ let entityRepositoryInstance: EntityRepository | null = null;
  */
 export function initEntityRepository(deviceId: string): void {
   if (entityRepositoryInstance) {
-    console.warn('[EntityRepository] Already initialized, ignoring re-init');
+    log.warn('Already initialized, ignoring re-init');
     return;
   }
   entityRepositoryInstance = new EntityRepository(deviceId);

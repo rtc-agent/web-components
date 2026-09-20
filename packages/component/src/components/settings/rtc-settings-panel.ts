@@ -18,6 +18,9 @@ import {darkTheme} from '../../styles/themes/dark.js';
 import {baseStyles} from '../../styles/base.js';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import '../settings-layout/rtc-settings-layout.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('settings-panel');
 
 @localized()
 @customElement('rtc-settings-panel')
@@ -29,7 +32,7 @@ export class RtcSettingsPanel extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[rtc-settings-panel] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };

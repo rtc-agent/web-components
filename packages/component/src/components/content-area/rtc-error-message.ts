@@ -29,6 +29,9 @@ import {timelineStyles} from './timeline.styles.js';
 import type {ErrorContent, ErrorCategory} from '@rtc-agent/protocol';
 import type {Message} from '../../types/index.js';
 import {formatTimestampCompact} from '../../utils/format.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('RtcErrorMessage');
 
 /**
  * Category-specific configuration for icon, color, and label.
@@ -210,7 +213,7 @@ export class RtcErrorMessage extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[RtcErrorMessage] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };

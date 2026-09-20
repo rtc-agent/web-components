@@ -1,4 +1,7 @@
 import type { UpdateEntity, UpdateAction } from '@rtc-agent/protocol';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('UIUpdateBus');
 
 /**
  * UI 更新事件：描述持久化层中某条实体的某个字段的真实变化
@@ -78,7 +81,7 @@ export class UIUpdateBus {
       try {
         listener(event);
       } catch (err) {
-        console.error('[UIUpdateBus] listener error:', err);
+        log.error('listener error:', err);
       }
     }
     // 按 entity 订阅者
@@ -88,7 +91,7 @@ export class UIUpdateBus {
         try {
           listener(event);
         } catch (err) {
-          console.error('[UIUpdateBus] listener error:', err);
+          log.error('listener error:', err);
         }
       }
     }

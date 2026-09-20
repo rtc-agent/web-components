@@ -34,6 +34,9 @@ import {
 } from '../../icons/index.js';
 import {formatRelativeTime} from '../../utils/relative-time.js';
 import type {SessionTreeNode} from '../../types/index.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('RtcSessionTreeItem');
 
 // 内联 chevron SVG（与 rtc-file-tree-item 保持一致）
 const chevronSvg = svg`<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
@@ -50,7 +53,7 @@ export class RtcSessionTreeItem extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[RtcSessionTreeItem] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };

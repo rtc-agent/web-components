@@ -17,6 +17,9 @@ import {localized, msg} from '@lit/localize';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {styles} from './rtc-tool-confirm.styles.js';
 import type {ToolCall} from '../../types/index.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('tool-confirm');
 
 @localized()
 @customElement('rtc-tool-confirm')
@@ -28,7 +31,7 @@ export class RtcToolConfirm extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[rtc-tool-confirm] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };
