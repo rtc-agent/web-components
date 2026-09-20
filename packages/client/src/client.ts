@@ -62,6 +62,9 @@ export class RTCAgentClient implements IRTCAgentClient {
   /** Pending reconnect timer (cleared on explicit disconnect to prevent zombie reconnects). */
   private _reconnectTimer?: ReturnType<typeof setTimeout>;
 
+  /** Delay (ms) before reconnecting after "message size limit exceeded" rejection. */
+  private static readonly RECONNECT_AFTER_SIZE_LIMIT_DELAY_MS = 3000;
+
   constructor(options: RTCAgentClientOptions) {
     this.options = options;
   }
@@ -144,7 +147,7 @@ export class RTCAgentClient implements IRTCAgentClient {
               log.error('reconnect failed:', err);
             });
           }
-        }, 3000);
+        }, RTCAgentClient.RECONNECT_AFTER_SIZE_LIMIT_DELAY_MS);
       }
 
       this.setConnectionState('disconnected', ctx?.reason);

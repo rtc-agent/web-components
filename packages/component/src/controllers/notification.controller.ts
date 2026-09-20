@@ -66,6 +66,10 @@ export class NotificationController implements ReactiveController {
     /** 通知节流：防止快速连续通知导致 UI 卡顿 */
     private _lastNotifyTime = 0;
     private static readonly NOTIFY_THROTTLE_MS = 300;
+    /** Fallback delay (ms) when `requestIdleCallback` is available but hasn't fired yet. */
+    private static readonly IDLE_FALLBACK_DELAY_MS = 2000;
+    /** Delay (ms) for deferred sound loading when `requestIdleCallback` is not available. */
+    private static readonly DEFERRED_SOUND_DELAY_MS = 500;
 
     constructor(host: ReactiveControllerHost & HTMLElement) {
         this.host = host;
@@ -121,28 +125,28 @@ export class NotificationController implements ReactiveController {
             error: errorSoundUrl,
         };
 
-        if ('requestIdleCallback' in window) {
-            const idleId = requestIdleCallback(() => {
+        /** Load deferred sounds and clear any pending fallback timer. */
+        const loadDeferred = () => {
+            // Clear fallback timer if it hasn't fired yet (prevents duplicate loading
+            // when requestIdleCallback fires before the setTimeout fallback).
+            if (this._deferredSoundTimer !== undefined) {
+                clearTimeout(this._deferredSoundTimer);
                 this._deferredSoundTimer = undefined;
-                for (const [type, url] of Object.entries(deferredSounds)) {
-                    this._loadSound(type, url);
-                }
-            });
-            // Fallback: if idle callback doesn't fire within 2s, load manually.
+            }
+            for (const [type, url] of Object.entries(deferredSounds)) {
+                this._loadSound(type, url);
+            }
+        };
+
+        if ('requestIdleCallback' in window) {
+            const idleId = requestIdleCallback(loadDeferred);
+            // Fallback: if idle callback doesn't fire within IDLE_FALLBACK_DELAY_MS, load manually.
             this._deferredSoundTimer = setTimeout(() => {
                 cancelIdleCallback(idleId);
-                this._deferredSoundTimer = undefined;
-                for (const [type, url] of Object.entries(deferredSounds)) {
-                    this._loadSound(type, url);
-                }
-            }, 2000);
+                loadDeferred();
+            }, NotificationController.IDLE_FALLBACK_DELAY_MS);
         } else {
-            this._deferredSoundTimer = setTimeout(() => {
-                this._deferredSoundTimer = undefined;
-                for (const [type, url] of Object.entries(deferredSounds)) {
-                    this._loadSound(type, url);
-                }
-            }, 500);
+            this._deferredSoundTimer = setTimeout(loadDeferred, NotificationController.DEFERRED_SOUND_DELAY_MS);
         }
     }
 
