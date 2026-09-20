@@ -12,8 +12,8 @@
  *    - If `_shouldAutoScroll` is true, scroll to bottom.
  *
  * 2. **`_onScroll` tracks user intent** — purely based on scroll position:
- *    - `distanceFromBottom < 60` → following (matches "new messages" button zone)
- *    - `distanceFromBottom ≥ 60` → not following
+ *    - `distanceFromBottom < AT_BOTTOM_THRESHOLD_PX` → following (matches "new messages" button zone)
+ *    - `distanceFromBottom ≥ AT_BOTTOM_THRESHOLD_PX` → not following
  *    Programmatic scrolls are guarded by `_programmaticScrollCount` to prevent
  *    sub-pixel rounding from incorrectly disabling follow intent.
  *
@@ -42,11 +42,21 @@ import './rtc-message.js';
 import {createLogger} from '@rtc-agent/client';
 
 const log = createLogger('rtc-message-list');
+
 import './rtc-user-message.js';
 import './rtc-toolcall-card.js';
 import './rtc-toolcall-reply.js';
 import './rtc-error-message.js';
 import {MessageVirtualScroll, type WindowBoundary} from '../../utils/message-virtual-scroll.js';
+
+/** Delay for programmatic scroll event guard (auto scroll, covers layout batching). */
+const PROGRAMMATIC_SCROLL_GUARD_MS = 50;
+/** Duration of smooth scroll animation for "new messages" button click. */
+const SMOOTH_SCROLL_ANIMATION_MS = 500;
+/** Duration of toolcall jump highlight animation. */
+const HIGHLIGHT_ANIMATION_MS = 2000;
+/** Distance from bottom threshold for "at bottom" detection (px). */
+const AT_BOTTOM_THRESHOLD_PX = 60;
 
 @localized()
 @customElement('rtc-message-list')
@@ -508,7 +518,7 @@ export class RtcMessageList extends LitElement {
         // Decrement after a short delay to cover async scroll events.
         // scrollTo({behavior: 'auto'}) typically fires scroll events synchronously,
         // but some browsers may defer them. 50ms covers layout/scroll batching.
-        window.setTimeout(() => { this._programmaticScrollCount--; }, 50);
+        window.setTimeout(() => { this._programmaticScrollCount--; }, PROGRAMMATIC_SCROLL_GUARD_MS);
         // NOTE: _scrollToBottom() does NOT set _shouldAutoScroll.
         // System actions (auto-scroll) should not change user intent.
         // Only user actions (_onScroll, _handleNewBtnClick, session switch) set it.
@@ -521,12 +531,12 @@ export class RtcMessageList extends LitElement {
         const {scrollHeight, scrollTop, clientHeight} = this._scrollEl;
         const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
 
-        // Button visibility: generous threshold (60px)
+        // Button visibility: generous threshold
         // Shows "new messages" button early so user can click before reaching absolute bottom
-        const atBottom = distanceFromBottom < 60;
+        const atBottom = distanceFromBottom < AT_BOTTOM_THRESHOLD_PX;
 
         // Follow intent: always update based on scroll position.
-        // The 60px threshold is large enough to be immune to sub-pixel rounding,
+        // The AT_BOTTOM_THRESHOLD_PX threshold is large enough to be immune to sub-pixel rounding,
         // so we don't need the _programmaticScrollCount guard here.
         // This ensures user scroll-up is immediately respected, even during
         // streaming when programmatic scrolls happen frequently.
@@ -756,7 +766,7 @@ export class RtcMessageList extends LitElement {
             this._programmaticScrollCount++;
             this._scrollEl.scrollTo({top: this._scrollEl.scrollHeight, behavior: 'smooth'});
             // Decrement counter after animation completes
-            window.setTimeout(() => { this._programmaticScrollCount--; }, 500);
+            window.setTimeout(() => { this._programmaticScrollCount--; }, SMOOTH_SCROLL_ANIMATION_MS);
         }
         // User explicitly clicked "New messages" → enable follow mode.
         this._shouldAutoScroll = true;
@@ -783,7 +793,7 @@ export class RtcMessageList extends LitElement {
 
         // Brief highlight animation
         el.classList.add('highlight');
-        window.setTimeout(() => el.classList.remove('highlight'), 2000);
+        window.setTimeout(() => el.classList.remove('highlight'), HIGHLIGHT_ANIMATION_MS);
     };
 
     render() {

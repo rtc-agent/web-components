@@ -8,6 +8,9 @@ import { createLogger } from '@rtc-agent/client';
 
 const log = createLogger('RtcProcessor');
 
+/** Delay before retrying after a non-connection error in the process loop (ms). */
+const ERROR_RETRY_DELAY_MS = 1000;
+
 /**
  * Confirm dialog callback type.
  *
@@ -168,7 +171,7 @@ export class RtcProcessor {
             break;
           }
           // For other errors, wait briefly before retrying to avoid tight loops
-          await this.sleep(1000);
+          await this.sleep(ERROR_RETRY_DELAY_MS);
         }
       }
     } finally {

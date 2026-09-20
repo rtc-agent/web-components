@@ -1,13 +1,13 @@
 /**
  * RTC Login Dialog Component
  *
- * 在对话框内的 iframe 中展示 OAuth2 授权页面。
- * 通过 postMessage 接收回调并交换授权码获取 token。
+ * Displays the OAuth2 authorization page inside an iframe within a dialog.
+ * Receives the callback via postMessage and exchanges the authorization code for tokens.
  *
  * @element rtc-login-dialog
- * @property {string} provider - OAuth2 Provider 名称（如 'github', 'google', 'mock'）
- * @fires rtc-login-complete - 登录成功，detail 包含 tokens
- * @fires rtc-login-dialog-close - 对话框关闭
+ * @property {string} provider - OAuth2 provider name (e.g. 'github', 'google', 'mock')
+ * @fires rtc-login-complete - Login succeeded; detail contains tokens
+ * @fires rtc-login-dialog-close - Dialog closed
  */
 import {LitElement, html, nothing} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
@@ -21,6 +21,9 @@ import {OAuth2Client} from '@rtc-agent/client';
 import { createLogger } from '@rtc-agent/client';
 
 const log = createLogger('login-dialog');
+
+/** Delay before auto-closing the dialog after successful login (ms). */
+const LOGIN_SUCCESS_CLOSE_DELAY_MS = 800;
 
 type LoginStatus = 'opening' | 'waiting' | 'exchanging' | 'success' | 'error';
 
@@ -135,7 +138,7 @@ export class RtcLoginDialog extends LitElement {
             return html`<div class="button-row"><span class="spinner"></span></div>`;
         }
 
-        // waiting state - 弹窗已打开，等待用户完成授权
+        // waiting state - popup opened, waiting for user to complete authorization
         if (this._status === 'waiting') {
             return html`
         <div class="waiting-container">
@@ -186,7 +189,7 @@ export class RtcLoginDialog extends LitElement {
             // 2. Save state for validation
             sessionStorage.setItem(STORAGE_KEYS.oauthState, authz.state);
 
-            // 3. 打开弹窗
+            // 3. Open popup window
             this._authUrl = authz.redirect_url;
             this._openPopup(authz.redirect_url);
 
@@ -203,12 +206,12 @@ export class RtcLoginDialog extends LitElement {
         }
     }
 
-    /** 打开授权弹窗 */
+    /** Open the authorization popup window. */
     private _openPopup(url: string) {
-        // 关闭已有弹窗
+        // Close any existing popup
         this._closePopup();
 
-        // 弹窗尺寸和位置
+        // Popup size and position
         const width = 500;
         const height = 600;
         const left = (window.screen.width - width) / 2;
@@ -220,11 +223,11 @@ export class RtcLoginDialog extends LitElement {
             `width=${width},height=${height},left=${left},top=${top},scrollbars=yes`
         );
 
-        // 检测弹窗关闭
+        // Detect popup close
         this._popupCheckInterval = setInterval(() => {
             if (this._popup?.closed) {
                 this._closePopup();
-                // 如果还在 waiting 状态，说明用户关闭了弹窗但没有完成授权
+                // Still in waiting state means user closed popup without completing auth
                 if (this._status === 'waiting') {
                     this._status = 'error';
                     this._errorMessage = msg('授权已取消');
@@ -234,7 +237,7 @@ export class RtcLoginDialog extends LitElement {
         }, 500);
     }
 
-    /** 关闭弹窗 */
+    /** Close the popup window. */
     private _closePopup() {
         if (this._popupCheckInterval) {
             clearInterval(this._popupCheckInterval);
@@ -246,7 +249,7 @@ export class RtcLoginDialog extends LitElement {
         this._popup = null;
     }
 
-    /** 重新打开授权弹窗 */
+    /** Re-open the authorization popup window. */
     private _reopenPopup() {
         if (this._authUrl) {
             this._openPopup(this._authUrl);
@@ -271,7 +274,7 @@ export class RtcLoginDialog extends LitElement {
 
         const {code, state, error} = event.data;
 
-        // 使用 try/finally 确保在所有路径中清理 message listener
+        // Use try/finally to ensure message listener cleanup on all paths
         try {
             // Handle error from callback page
             if (error) {
@@ -318,7 +321,7 @@ export class RtcLoginDialog extends LitElement {
             }));
 
             // Close after delay
-            setTimeout(() => this._close(), 800);
+            setTimeout(() => this._close(), LOGIN_SUCCESS_CLOSE_DELAY_MS);
 
         } catch (err) {
             this._status = 'error';

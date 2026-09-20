@@ -17,7 +17,7 @@ import type {MessageContextValue} from '../contexts/message.js';
 import type {PersistenceLayer, LocalMessage} from '@rtc-agent/persistence';
 import type {SessionController} from './session.controller.js';
 import type {Session} from '../types/index.js';
-import {MessageRepository} from '../repositories/index.js';
+import {MessageRepository, MESSAGE_PAGE_SIZE} from '../repositories/index.js';
 import {createLogger} from '@rtc-agent/client';
 
 const log = createLogger('MessageController');
@@ -49,7 +49,7 @@ export class MessageController implements ReactiveController {
             this._repository = new MessageRepository({
                 fetchMessages: async (sessionId: string) => {
                     if (!this._persistence) return [];
-                    const messages = await this._persistence.listMessages(sessionId, undefined, 50, 'backward');
+                    const messages = await this._persistence.listMessages(sessionId, undefined, MESSAGE_PAGE_SIZE, 'backward');
                     // Track pagination cursors using (created_at, client_id) composite key
                     if (messages.length > 0) {
                         this._repository?.setOldestOffset(sessionId, this._buildCursor(messages[0]));
@@ -59,7 +59,7 @@ export class MessageController implements ReactiveController {
                 },
                 fetchOlderMessages: async (sessionId: string, beforeCursor?: string) => {
                     if (!this._persistence) return [];
-                    const messages = await this._persistence.listMessages(sessionId, beforeCursor, 50, 'backward');
+                    const messages = await this._persistence.listMessages(sessionId, beforeCursor, MESSAGE_PAGE_SIZE, 'backward');
                     // Update pagination cursor
                     if (messages.length > 0) {
                         this._repository?.setOldestOffset(sessionId, this._buildCursor(messages[0]));
@@ -68,7 +68,7 @@ export class MessageController implements ReactiveController {
                 },
                 fetchNewerMessages: async (sessionId: string, afterCursor?: string) => {
                     if (!this._persistence) return [];
-                    const messages = await this._persistence.listMessages(sessionId, afterCursor, 50, 'forward');
+                    const messages = await this._persistence.listMessages(sessionId, afterCursor, MESSAGE_PAGE_SIZE, 'forward');
                     // Update pagination cursor
                     if (messages.length > 0) {
                         this._repository?.setNewestOffset(sessionId, this._buildCursor(messages[messages.length - 1]));
@@ -279,7 +279,7 @@ export class MessageController implements ReactiveController {
                     if (existed) {
                         messages = currentState.messages.map((m) => m.clientId === entityId ? newMsg : m);
                     } else {
-                        // 添加新消息并按时间排序
+                        // Append new message and sort by time
                         messages = [...currentState.messages, newMsg].sort((a, b) => a.timestamp - b.timestamp);
                     }
                     this._repository.updateMessages(messageSessionId, messages);
@@ -377,7 +377,7 @@ export class MessageController implements ReactiveController {
     }
 
     /**
-     * 重新发送失败的消息（保留原 client_id 实现幂等重试）
+     * Re-send a failed message (preserves original client_id for idempotent retry).
      */
     private async _resendMessage(messageClientId: string, content: ContentData) {
         if (!this._persistence) {
@@ -385,21 +385,21 @@ export class MessageController implements ReactiveController {
             return;
         }
 
-        // 必须使用当前 session（重发必须在已有 session 中）
+        // Must use current session (resend always happens within an existing session)
         const sessionClientId = this._sessionController?.value.state.currentSessionId;
         if (!sessionClientId) {
             log.error('cannot resend: no current session');
             return;
         }
 
-        // 使用相同的 messageClientId 调用 persistence（幂等重试）
+        // Re-use the same messageClientId when calling persistence (idempotent retry)
         const result = await this._persistence.sendMessage({
             content,
             messageClientId,
             sessionClientId,
         });
 
-        // 重新加载消息列表以反映状态变化
+        // Reload message list to reflect the state change
         await this._reloadFromDB(sessionClientId);
 
         // Notify external listeners.
@@ -413,11 +413,11 @@ export class MessageController implements ReactiveController {
     }
 
     /**
-     * 分叉对话：基于旧消息创建新 session
+     * Fork a conversation: create a new session based on an existing message.
      *
-     * 注意：与 _sendMessage 一样，fork 完成后需要调用 setCurrentSession
-     * 将新 session 加入 sessions 列表，否则 _ensureTabForSession 无法
-     * 立即找到该 session 来获取真实标题。
+     * Note: After forking, setCurrentSession must be called to add the new
+     * session to the sessions list, otherwise _ensureTabForSession cannot
+     * immediately locate the session to fetch its real title.
      */
     private async _forkSession(params: {
         oldSessionClientId: string;
@@ -432,7 +432,7 @@ export class MessageController implements ReactiveController {
             return;
         }
 
-        // 调用 persistence 层的 forkSession
+        // Call persistence layer's forkSession
         const result = await this._persistence.forkSession({
             oldSessionClientId: params.oldSessionClientId,
             oldMessageClientId: params.oldMessageClientId,
@@ -442,8 +442,8 @@ export class MessageController implements ReactiveController {
             limit: params.limit,
         });
 
-        // 将新 session 加入 sessions 列表并设为 currentSession
-        // （与 _sendMessage 保持一致，确保 _ensureTabForSession 能立即找到）
+        // Add new session to sessions list and set as currentSession
+        // (consistent with _sendMessage, so _ensureTabForSession can locate it immediately)
         if (this._sessionController) {
             const uiSession: Session = {
                 clientId: result.session.client_id,
@@ -455,7 +455,7 @@ export class MessageController implements ReactiveController {
             this._sessionController.actions.setCurrentSession(uiSession);
         }
 
-        // 重新加载新 session 的消息列表
+        // Reload the new session's message list
         await this._reloadFromDB(result.session.client_id);
 
         // Notify external listeners
@@ -471,15 +471,14 @@ export class MessageController implements ReactiveController {
     private async _reloadFromDB(sessionClientId: string) {
         if (!this._persistence) return;
 
-        // Load the latest 50 messages (backward = from newest)
-        const PAGE_SIZE = 50;
+        // Load the latest messages (backward = from newest)
         const localMessages = await this._persistence.listMessages(
-            sessionClientId, undefined, PAGE_SIZE, 'backward'
+            sessionClientId, undefined, MESSAGE_PAGE_SIZE, 'backward'
         );
         const messages = localMessages.map((m) => this._localMessageToUI(m));
 
         // Track pagination state using (created_at, client_id) composite cursor
-        const hasMore = localMessages.length >= PAGE_SIZE;
+        const hasMore = localMessages.length >= MESSAGE_PAGE_SIZE;
         this._oldestLoadedCursor = localMessages.length > 0
             ? this._buildCursor(localMessages[0])
             : undefined;
@@ -527,11 +526,10 @@ export class MessageController implements ReactiveController {
         this.host.requestUpdate();
 
         try {
-            const PAGE_SIZE = 50;
             const olderMessages = await this._persistence.listMessages(
                 currentSessionId,
                 this._oldestLoadedCursor,
-                PAGE_SIZE,
+                MESSAGE_PAGE_SIZE,
                 'backward'
             );
 
@@ -541,7 +539,7 @@ export class MessageController implements ReactiveController {
             const allMessages = [...newMessages, ...this._state.messages];
 
             // Update pagination state
-            const hasMore = olderMessages.length >= PAGE_SIZE;
+            const hasMore = olderMessages.length >= MESSAGE_PAGE_SIZE;
             if (olderMessages.length > 0) {
                 this._oldestLoadedCursor = this._buildCursor(olderMessages[0]);
             }
@@ -560,10 +558,10 @@ export class MessageController implements ReactiveController {
     }
 
     /**
-     * 获取当前 session 的用户消息历史（用于输入框上下箭头导航）
+     * Get user message history for the current session (used for up/down arrow navigation in input).
      *
-     * 返回纯文本内容数组，按时间倒序（最新消息在前）。
-     * 通过 PersistenceLayer 查询。
+     * Returns an array of plain text content in reverse chronological order (newest first).
+     * Queried via PersistenceLayer.
      */
     async getUserMessageHistory(sessionId: string, limit = 200): Promise<string[]> {
         if (!this._persistence) return [];
@@ -584,29 +582,29 @@ export class MessageController implements ReactiveController {
     }
 
     /**
-     * 从消息 content 中提取纯文本
+     * Extract plain text from a message's content field.
      *
-     * content 存储格式：
-     * - 新格式（修复后）：完整的 ContentData JSON，如 '{"type":"user_message","data":{"text":"..."}}'
-     * - 旧格式（历史数据）：纯文本字符串或只有 data 的对象，如 '{"text":"..."}'
-     * - 纯文本：直接返回
+     * Content storage formats:
+     * - Current format (post-fix): full ContentData JSON, e.g. '{"type":"user_message","data":{"text":"..."}}'
+     * - Legacy format (historical data): plain text string or object with data only, e.g. '{"text":"..."}'
+     * - Plain text: returned as-is
      */
     private _extractTextFromContent(content: string | undefined): string {
         if (!content) return '';
         try {
             const parsed = JSON.parse(content);
             if (parsed && typeof parsed === 'object') {
-                // 新格式：完整的 ContentData（包含 type 字段）
+                // Current format: full ContentData (contains type field)
                 if ('type' in parsed) {
                     if (parsed.type === 'text' || parsed.type === 'markdown' || parsed.type === 'thinking') {
                         return parsed.data ?? '';
                     } else if (parsed.type === 'user_message') {
-                        // user_message 类型：从 data.text 中提取
+                        // user_message type: extract from data.text
                         return parsed.data?.text ?? '';
                     }
                 } else {
-                    // 旧格式：没有 type 字段，尝试从常见字段提取
-                    // 兼容历史 user_message 数据：{"text":"...","scenarios":[...]}
+                    // Legacy format: no type field, attempt to extract from known fields
+                    // Compatible with historical user_message data: {"text":"...","scenarios":[...]}
                     if ('text' in parsed && typeof parsed.text === 'string') {
                         return parsed.text;
                     }

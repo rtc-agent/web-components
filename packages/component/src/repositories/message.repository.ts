@@ -41,8 +41,8 @@ export interface MessageApi {
 /** Callback signature for session data subscriptions. */
 export type SessionDataCallback = (data: MessageState) => void;
 
-/** Page size for backward pagination. */
-const PAGE_SIZE = 50;
+/** Page size for message pagination (backward and forward). */
+export const MESSAGE_PAGE_SIZE = 50;
 
 /** Default session state for uninitialized sessions. */
 const DEFAULT_STATE: MessageState = {
@@ -242,7 +242,7 @@ export class MessageRepository {
 
             const beforeState = this._getState(sessionId);
             const allMessages = [...olderMessages, ...beforeState.messages];
-            const hasMore = olderMessages.length >= PAGE_SIZE;
+            const hasMore = olderMessages.length >= MESSAGE_PAGE_SIZE;
 
             this._setState(sessionId, {
                 messages: allMessages,
@@ -297,7 +297,7 @@ export class MessageRepository {
 
             const beforeState = this._getState(sessionId);
             const allMessages = [...beforeState.messages, ...newerMessages];
-            const hasMoreNewer = newerMessages.length >= PAGE_SIZE;
+            const hasMoreNewer = newerMessages.length >= MESSAGE_PAGE_SIZE;
 
             this._setState(sessionId, {
                 messages: allMessages,
@@ -324,12 +324,12 @@ export class MessageRepository {
     /**
      * Fetch messages for a session (initial load).
      *
-     * Sets `hasMore` based on whether the API returned PAGE_SIZE messages.
+     * Sets `hasMore` based on whether the API returned MESSAGE_PAGE_SIZE messages.
      * Returns the fetched messages.
      */
     async fetchMessages(sessionId: string): Promise<Message[]> {
         const messages = await this._api.fetchMessages(sessionId);
-        const hasMore = messages.length >= PAGE_SIZE;
+        const hasMore = messages.length >= MESSAGE_PAGE_SIZE;
 
         this._setState(sessionId, {
             messages: [...messages],

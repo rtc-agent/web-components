@@ -1,7 +1,10 @@
-// 工具函数模块
+// Utility functions module
 import { createLogger } from '@rtc-agent/client';
 
 const log = createLogger('Utils');
+
+/** How long toast messages remain visible before fading out (ms). */
+const TOAST_DISPLAY_DURATION_MS = 3000;
 
 export function generateUUID(): string {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
@@ -33,5 +36,5 @@ export function showToast(message: string, type: 'info' | 'success' | 'error' = 
     toast.className = `toast ${type} show`;
     setTimeout(() => {
         toast.classList.remove('show');
-    }, 3000);
+    }, TOAST_DISPLAY_DURATION_MS);
 }

@@ -91,6 +91,8 @@ export class WorkerBridge {
 
     private static readonly MAX_INIT_RETRIES = 3;
     private static readonly INIT_RETRY_DELAY_MS = 1000;
+    /** Timeout for worker liveness verification (ping/pong). */
+    private static readonly VERIFICATION_TIMEOUT_MS = 5000;
 
     constructor(private readonly _auth: AuthController) {
         // 1. Prepare callbacks (registered in the Worker during init()).
@@ -278,7 +280,7 @@ export class WorkerBridge {
 
         // Timeout: if the Worker doesn't respond within 5 seconds, consider it failed.
         const timeoutPromise = new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error('Worker verification timed out')), 5000);
+            setTimeout(() => reject(new Error('Worker verification timed out')), WorkerBridge.VERIFICATION_TIMEOUT_MS);
         });
 
         try {
