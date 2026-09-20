@@ -22,6 +22,7 @@
  */
 import {LitElement, html} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
+import {repeat} from 'lit/directives/repeat.js';
 import {consume} from '@lit/context';
 import {localized} from '@lit/localize';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
@@ -117,6 +118,8 @@ export class RtcChatLayout extends LitElement {
             markSaved: () => {},
             findUnsavedTab: () => undefined,
             updateTabStatus: () => {},
+            setTransientParams: () => {},
+            clearTransientParams: () => {},
             restoreActiveFromStorage: () => false,
             getStoredActiveSessionId: () => null,
         },
@@ -153,10 +156,16 @@ export class RtcChatLayout extends LitElement {
      *
      * 同步方法（无 await），保证双击 "+" 幂等：
      * 第二次调用时 findUnsavedTab 立即返回已有 tab。
+     *
+     * @param params 可选的瞬态 UI 参数（fork 内容、notice 提示等）
      */
-    private _ensureUnsavedSession(): string {
+    private _ensureUnsavedSession(params?: { initialInputValue?: string; noticeMessage?: string }): string {
         const existing = this._tabCtx.actions.findUnsavedTab();
         if (existing) {
+            // 复用：更新 transient params
+            if (params) {
+                this._tabCtx.actions.setTransientParams(existing.sessionId, params);
+            }
             this._sessionCtx.actions.switchSession(existing.sessionId);
             this._tabCtx.actions.setActiveTab(existing.sessionId);
             log.debug('Reusing unsaved tab:', existing.sessionId);
@@ -167,22 +176,27 @@ export class RtcChatLayout extends LitElement {
         // 关键：触发 onSessionSwitch 以加载新 session 的消息（空）并清理旧消息
         // createSession 本身不调用 onSessionSwitch，需要手动 switchSession 触发
         this._sessionCtx.actions.switchSession(newId);
-        this._tabCtx.actions.openOrActivate(newId, 'Untitled', {isUnsaved: true});
+        this._tabCtx.actions.openOrActivate(newId, 'Untitled', {isUnsaved: true, ...params});
         log.debug('Created new unsaved tab:', newId);
         return newId;
     }
 
     private _boundOnForkRequested = (e: Event) => {
         // Fork 流程：用户提交了分叉对话的消息
-        // 1. 通过 _ensureUnsavedSession 复用/新建 unsaved tab
+        // 1. 通过 _ensureUnsavedSession 复用/新建 unsaved tab，传入 fork 内容作为 transient params
         // 2. 派发 rtc-fork-initiated 携带完整分叉元数据，由 rtc-agent 接线到 ForkController
+        // 3. Lit 渲染时通过 property binding 将 transient params 传递给 input-area / notice-bar
         const {oldMessageClientId, content} = (e as CustomEvent).detail ?? {};
         const oldSessionClientId = this._sessionCtx?.state?.currentSessionId;
         if (!oldSessionClientId) {
             log.warn('No current session, ignoring fork');
             return;
         }
-        const newSessionClientId = this._ensureUnsavedSession();
+        const truncatedContent = content.length > 30 ? content.slice(0, 30) + '...' : content;
+        const newSessionClientId = this._ensureUnsavedSession({
+            initialInputValue: content,
+            noticeMessage: `🔀 从「${truncatedContent}」分叉`,
+        });
         this.dispatchEvent(
             new CustomEvent('rtc-fork-initiated', {
                 bubbles: true,
@@ -315,6 +329,11 @@ export class RtcChatLayout extends LitElement {
      */
     private _handleTabActivate(e: CustomEvent) {
         const {sessionId} = e.detail;
+        const oldSessionId = this._sessionCtx?.state?.currentSessionId;
+        // 清除旧 tab 的 transient params（防止 notice bar 残留）
+        if (oldSessionId && oldSessionId !== sessionId) {
+            this._tabCtx.actions.clearTransientParams(oldSessionId);
+        }
         this._sessionCtx.actions.switchSession(sessionId);
 
         this.dispatchEvent(
@@ -396,9 +415,11 @@ export class RtcChatLayout extends LitElement {
 
         // Render all open tabs, each with its own content-area instance
         // Non-active tabs use content-visibility: hidden to preserve state
+        // Use repeat() directive to ensure stable identity for each tab-content
+        // This prevents DOM recycling issues when tabs array changes (e.g., closing a tab)
         return html`
             <div class="tab-content-wrapper">
-                ${tabs.map(tab => html`
+                ${repeat(tabs, tab => tab.sessionId, tab => html`
                     <div class="tab-content ${tab.sessionId === activeSessionId ? 'active' : ''}">
                         <rtc-content-area
                             theme=${this.theme}
@@ -406,9 +427,13 @@ export class RtcChatLayout extends LitElement {
                             ?is-unsaved=${tab.isUnsaved}
                             .messageController=${this.messageController}
                         ></rtc-content-area>
-                        <rtc-notice-bar></rtc-notice-bar>
+                        <rtc-notice-bar
+                            .message=${tab.noticeMessage ?? ''}
+                        ></rtc-notice-bar>
                         <rtc-input-area
                             .sessionId=${tab.sessionId}
+                            .initialValue=${tab.initialInputValue}
+                            .initialValueVersion=${tab.initialValueVersion ?? 0}
                         ></rtc-input-area>
                         <rtc-overlay-manager></rtc-overlay-manager>
                     </div>

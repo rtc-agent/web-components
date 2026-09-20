@@ -71,6 +71,8 @@ export class RtcSessionTabBar extends LitElement {
             markSaved: () => {},
             findUnsavedTab: () => undefined,
             updateTabStatus: () => {},
+            setTransientParams: () => {},
+            clearTransientParams: () => {},
             restoreActiveFromStorage: () => false,
             getStoredActiveSessionId: () => null,
         },
