@@ -14,6 +14,7 @@ export const styles = css`
         display: flex;
         height: 100%;
         width: 100%;
+        min-width: 0;
         overflow: hidden;
         background: var(--rtc-color-bg);
         position: relative;
@@ -31,6 +32,7 @@ export const styles = css`
     /* ── Tab 栏 ── */
     .tab-bar {
         flex-shrink: 0;
+        overflow: hidden;
     }
 
     /* ── Tab 内容容器 ── */
