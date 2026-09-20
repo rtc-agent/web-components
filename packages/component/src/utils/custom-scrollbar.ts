@@ -51,25 +51,34 @@ export class CustomScrollbar {
 
     /**
      * Update thumb position and size based on scroll position.
+     *
+     * Guards against zero-dimension containers (before layout) where divisions
+     * would produce NaN/Infinity.
      */
     updateThumb(scrollPosition: number = this._container.scrollTop) {
         const scrollSize = this._container.scrollHeight;
         const clientSize = this._container.clientHeight;
+
+        // Early return when the container has no visible area yet (before layout)
+        // or content fits entirely — avoids NaN/Infinity in scroll math below.
+        if (clientSize <= 0) return;
+        if (clientSize >= scrollSize) {
+            this._thumb.style.height = '0px';
+            return;
+        }
+
+        const scrollRange = scrollSize - clientSize; // guaranteed > 0 by the guard above
         const divider = scrollSize / clientSize / 0.75;
         const thumbSize = Math.max(20, clientSize / divider);
-        const value = (scrollPosition / (scrollSize - clientSize)) * clientSize;
-        const b = scrollPosition / (scrollSize - clientSize);
+        const value = (scrollPosition / scrollRange) * clientSize;
+        const b = scrollPosition / scrollRange;
         const maxValue = clientSize - thumbSize;
 
         log.debug(`scrollPosition=${scrollPosition}, scrollSize=${scrollSize}, clientSize=${clientSize}, thumbSize=${thumbSize}, value=${value}, b=${b}, maxValue=${maxValue}`);
 
-        if (clientSize < scrollSize) {
-            this._thumb.style.height = `${thumbSize}px`;
-            this._thumb.style.transform = `translateY(${Math.min(maxValue, value - thumbSize * b)}px)`;
-            log.debug(`Applied transform: translateY(${Math.min(maxValue, value - thumbSize * b)}px)`);
-        } else {
-            this._thumb.style.height = '0px';
-        }
+        this._thumb.style.height = `${thumbSize}px`;
+        this._thumb.style.transform = `translateY(${Math.min(maxValue, value - thumbSize * b)}px)`;
+        log.debug(`Applied transform: translateY(${Math.min(maxValue, value - thumbSize * b)}px)`);
     }
 
     /**
@@ -80,13 +89,17 @@ export class CustomScrollbar {
     }
 
     /**
-     * Clean up event listeners.
+     * Clean up event listeners and visual state.
+     *
+     * Removes the `is-focused` class that may remain if destroy() is called
+     * during an active drag (before _handleMouseUp fires).
      */
     destroy() {
         this._thumb.removeEventListener('mousedown', this._onMouseDown);
         this._container.removeEventListener('scroll', this._onScroll);
         window.removeEventListener('mousemove', this._onMouseMove);
         window.removeEventListener('mouseup', this._onMouseUp);
+        this._thumb.classList.remove('is-focused');
     }
 
     private _handleScroll() {
@@ -111,6 +124,9 @@ export class CustomScrollbar {
         const scrollbarSize = this._thumb.offsetHeight;
         const maxScrollTop = contentHeight - viewportHeight;
         const maxScrollbarOffset = viewportHeight - scrollbarSize;
+
+        // Guard: if thumb fills the entire track, there is no scroll range to map to.
+        if (maxScrollbarOffset <= 0) return;
 
         const deltaY = e.clientY - this._startMousePosition;
         const scrollAmount = (deltaY / maxScrollbarOffset) * maxScrollTop;
