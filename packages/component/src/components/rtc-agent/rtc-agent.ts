@@ -706,32 +706,12 @@ export class RtcAgent extends LitElement {
     private _boundOnSessionDeleteRequested = async (e: Event) => {
         const {sessionId} = (e as CustomEvent).detail;
         log.debug('session delete requested:', sessionId);
-        // Confirmation dialog.
-        // const current = this._session.value.state.sessions.find(s => s.clientId === sessionId);
-        // const title = current?.title ?? 'This session';
-        // const confirmed = confirm(`Delete "${title}"? It can be recovered from the server.`);
-        // if (!confirmed) return;
 
         const result = await this._session.actions.deleteSession(sessionId);
         if (result.ok) {
             this._toast.actions.show(msg('会话已删除'), 'success');
         } else {
             this._toast.actions.show(result.error ?? msg('删除失败'), 'error');
-        }
-    };
-    private _boundOnSessionRenameRequested = async (e: Event) => {
-        const {sessionId} = (e as CustomEvent).detail;
-        // Simple prompt interaction: in production, replace with inline editing or a modal.
-        const current = this._session.value.state.sessions.find(s => s.clientId === sessionId);
-        const title = prompt('重命名会话', current?.title ?? '');
-        if (title === null) return; // User cancelled.
-        if (!title.trim()) {
-            this._toast.actions.show(msg('标题不能为空'), 'info');
-            return;
-        }
-        const result = await this._session.actions.renameSession(sessionId, title.trim());
-        if (!result.ok) {
-            this._toast.actions.show(result.error ?? msg('重命名失败'), 'error');
         }
     };
     private _boundOnSessionRenameConfirmed = async (e: Event) => {
@@ -1055,10 +1035,9 @@ export class RtcAgent extends LitElement {
         // Listen for resend message (from user message resend button)
         this.addEventListener('rtc-user-message-resend', this._boundOnResendMessage);
 
-        // Listen for session delete / rename requests (from sidebar or session panel)
+        // Listen for session delete requests (from sidebar or session panel)
         this.addEventListener('rtc-session-delete-requested', this._boundOnSessionDeleteRequested);
-        this.addEventListener('rtc-session-rename-requested', this._boundOnSessionRenameRequested);
-        // Listen for inline rename confirmation (from session tree item)
+        // Listen for inline rename confirmation (from session tree item or session panel)
         this.addEventListener('rtc-session-rename-confirmed', this._boundOnSessionRenameConfirmed);
 
         // Listen for fork initiated (from chat-layout after unsaved tab orchestration)
@@ -1264,7 +1243,6 @@ export class RtcAgent extends LitElement {
         this.removeEventListener('rtc-user-message-resend', this._boundOnResendMessage);
         this.removeEventListener('rtc-fork-initiated', this._boundOnForkInitiated);
         this.removeEventListener('rtc-session-delete-requested', this._boundOnSessionDeleteRequested);
-        this.removeEventListener('rtc-session-rename-requested', this._boundOnSessionRenameRequested);
         this.removeEventListener('rtc-session-rename-confirmed', this._boundOnSessionRenameConfirmed);
         this.removeEventListener('rtc-toast-requested', this._boundOnToastRequested);
         this.removeEventListener('rtc-toast-close', this._boundOnToastClose);
