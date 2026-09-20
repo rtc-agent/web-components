@@ -24,13 +24,7 @@ import {customElement, property, state, query} from 'lit/decorators.js';
 import {consume} from '@lit/context';
 import {localized, msg} from '@lit/localize';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
-import {
-    computePosition,
-    flip,
-    shift,
-    offset,
-    autoUpdate,
-} from '@floating-ui/dom';
+import {FloatingPanelController} from '../../utils/floating-panel-controller.js';
 import {styles} from './rtc-input-area.styles.js';
 import {ModeContext, type ModeContextValue} from '../../contexts/mode.js';
 import {SessionContext, type SessionContextValue} from '../../contexts/session.js';
@@ -281,9 +275,24 @@ export class RtcInputArea extends LitElement {
     @query('rtc-scenario-panel')
     private _scenarioPanel?: HTMLElement;
 
-    private _cleanupPosition: (() => void) | null = null;
-    private _cleanupCommandPosition: (() => void) | null = null;
-    private _cleanupScenarioPosition: (() => void) | null = null;
+    private _modePanelCtrl = new FloatingPanelController({
+        host: this,
+        getButton: () => this._modeBtn,
+        getPanel: () => this._modePanel,
+        placement: 'top-end',
+    });
+    private _commandPanelCtrl = new FloatingPanelController({
+        host: this,
+        getButton: () => this._commandBtn,
+        getPanel: () => this._commandPanel,
+        placement: 'top-start',
+    });
+    private _scenarioPanelCtrl = new FloatingPanelController({
+        host: this,
+        getButton: () => this._scenarioBtn,
+        getPanel: () => this._scenarioPanel,
+        placement: 'top-end',
+    });
 
     private get _textarea(): HTMLTextAreaElement | null {
         return this.shadowRoot?.querySelector('.input-textarea') ?? null;
@@ -539,54 +548,17 @@ export class RtcInputArea extends LitElement {
     private _handleModeToggle() {
         this._showModePanel = !this._showModePanel;
         if (this._showModePanel) {
-            this._startPositioning();
+            this._modePanelCtrl.startPositioning();
         } else {
-            this._stopPositioning();
+            this._modePanelCtrl.stopPositioning();
         }
         this._syncDocClickListener();
     }
 
     private _closeModePanel() {
         this._showModePanel = false;
-        this._stopPositioning();
+        this._modePanelCtrl.stopPositioning();
         this._syncDocClickListener();
-    }
-
-    private async _startPositioning() {
-        // Wait for render so rtc-mode-panel exists in DOM
-        await this.updateComplete;
-        const btn = this._modeBtn;
-        const panel = this._modePanel;
-        if (!btn || !panel) return;
-
-        this._cleanupPosition?.();
-        this._cleanupPosition = autoUpdate(btn, panel, () => this._updatePosition());
-    }
-
-    private async _updatePosition() {
-        await this.updateComplete;
-        const btn = this._modeBtn;
-        const panel = this._modePanel;
-        if (!btn || !panel) return;
-
-        const {x, y} = await computePosition(btn, panel, {
-            placement: 'top-end',
-            strategy: 'absolute',
-            middleware: [
-                offset(6),
-                flip({padding: 8}),
-                shift({padding: 8}),
-            ],
-        });
-        Object.assign(panel.style, {
-            left: `${x}px`,
-            top: `${y}px`,
-        });
-    }
-
-    private _stopPositioning() {
-        this._cleanupPosition?.();
-        this._cleanupPosition = null;
     }
 
     private _handleModeSelected(e: Event) {
@@ -602,54 +574,17 @@ export class RtcInputArea extends LitElement {
     private _handleCommandToggle() {
         this._showCommandPanel = !this._showCommandPanel;
         if (this._showCommandPanel) {
-            this._startCommandPositioning();
+            this._commandPanelCtrl.startPositioning();
         } else {
-            this._stopCommandPositioning();
+            this._commandPanelCtrl.stopPositioning();
         }
         this._syncDocClickListener();
     }
 
     private _closeCommandPanel() {
         this._showCommandPanel = false;
-        this._stopCommandPositioning();
+        this._commandPanelCtrl.stopPositioning();
         this._syncDocClickListener();
-    }
-
-    private async _startCommandPositioning() {
-        // Wait for render so rtc-command-panel exists in DOM
-        await this.updateComplete;
-        const btn = this._commandBtn;
-        const panel = this._commandPanel;
-        if (!btn || !panel) return;
-
-        this._cleanupCommandPosition?.();
-        this._cleanupCommandPosition = autoUpdate(btn, panel, () => this._updateCommandPosition());
-    }
-
-    private async _updateCommandPosition() {
-        await this.updateComplete;
-        const btn = this._commandBtn;
-        const panel = this._commandPanel;
-        if (!btn || !panel) return;
-
-        const {x, y} = await computePosition(btn, panel, {
-            placement: 'top-start',
-            strategy: 'absolute',
-            middleware: [
-                offset(6),
-                flip({padding: 8}),
-                shift({padding: 8}),
-            ],
-        });
-        Object.assign(panel.style, {
-            left: `${x}px`,
-            top: `${y}px`,
-        });
-    }
-
-    private _stopCommandPositioning() {
-        this._cleanupCommandPosition?.();
-        this._cleanupCommandPosition = null;
     }
 
     private _handleCommandSelected(e: Event) {
@@ -693,53 +628,17 @@ export class RtcInputArea extends LitElement {
     private _handleScenarioToggle() {
         this._showScenarioPanel = !this._showScenarioPanel;
         if (this._showScenarioPanel) {
-            this._startScenarioPositioning();
+            this._scenarioPanelCtrl.startPositioning();
         } else {
-            this._stopScenarioPositioning();
+            this._scenarioPanelCtrl.stopPositioning();
         }
         this._syncDocClickListener();
     }
 
     private _closeScenarioPanel() {
         this._showScenarioPanel = false;
-        this._stopScenarioPositioning();
+        this._scenarioPanelCtrl.stopPositioning();
         this._syncDocClickListener();
-    }
-
-    private async _startScenarioPositioning() {
-        await this.updateComplete;
-        const btn = this._scenarioBtn;
-        const panel = this._scenarioPanel;
-        if (!btn || !panel) return;
-
-        this._cleanupScenarioPosition?.();
-        this._cleanupScenarioPosition = autoUpdate(btn, panel, () => this._updateScenarioPosition());
-    }
-
-    private async _updateScenarioPosition() {
-        await this.updateComplete;
-        const btn = this._scenarioBtn;
-        const panel = this._scenarioPanel;
-        if (!btn || !panel) return;
-
-        const {x, y} = await computePosition(btn, panel, {
-            placement: 'top-end',
-            strategy: 'absolute',
-            middleware: [
-                offset(6),
-                flip({padding: 8}),
-                shift({padding: 8}),
-            ],
-        });
-        Object.assign(panel.style, {
-            left: `${x}px`,
-            top: `${y}px`,
-        });
-    }
-
-    private _stopScenarioPositioning() {
-        this._cleanupScenarioPosition?.();
-        this._cleanupScenarioPosition = null;
     }
 
     private _handleScenarioSelected(e: Event) {
@@ -834,9 +733,9 @@ export class RtcInputArea extends LitElement {
         super.disconnectedCallback();
         // Always remove the listener in case a panel was open at disconnect time
         document.removeEventListener('mousedown', this._onDocClick, true);
-        this._stopPositioning();
-        this._stopCommandPositioning();
-        this._stopScenarioPositioning();
+        this._modePanelCtrl.stopPositioning();
+        this._commandPanelCtrl.stopPositioning();
+        this._scenarioPanelCtrl.stopPositioning();
         this._busUnsub?.();
         this._busUnsub = undefined;
     }
