@@ -243,6 +243,14 @@ export class PersistenceController implements ReactiveController {
     private _workerBridge?: WorkerBridge;
     private _masterLock?: MasterLock;
 
+    /**
+     * In-flight connection promise — prevents concurrent `connect()` calls from
+     * racing to create multiple SharedWorker / Centrifuge connections.
+     *
+     * Cleared on success (layer is set) or failure (so a retry can proceed).
+     */
+    private _connecting?: Promise<void>;
+
     private static readonly MAX_CONNECT_RETRIES = 2;
     private static readonly CONNECT_RETRY_DELAY_MS = 2000;
 
@@ -301,6 +309,10 @@ export class PersistenceController implements ReactiveController {
      */
     async connect(): Promise<void> {
         if (this._layer) return;
+        if (this._connecting) {
+            log.debug('connect() called while already connecting, awaiting existing attempt');
+            return this._connecting;
+        }
 
         const deviceId = getOrCreateDeviceId();
         const userId = this._auth.state.userId;
@@ -328,7 +340,10 @@ export class PersistenceController implements ReactiveController {
             },
         };
 
-        await this._connectWorker(config);
+        this._connecting = this._connectWorker(config).finally(() => {
+            this._connecting = undefined;
+        });
+        return this._connecting;
     }
 
     /**

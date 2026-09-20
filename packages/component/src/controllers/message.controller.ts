@@ -135,7 +135,12 @@ export class MessageController implements ReactiveController {
     }
 
     hostConnected() {}
-    hostDisconnected() {}
+    hostDisconnected() {
+        // Clear pending update chains to prevent stale promises from referencing
+        // disconnected host. Without this, in-flight UIUpdateBus updates for
+        // sessions that were evicted could still call host.requestUpdate().
+        this._sessionUpdateChains.clear();
+    }
 
     /**
      * Add a mock assistant message (demo page only).

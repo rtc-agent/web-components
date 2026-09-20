@@ -7,6 +7,8 @@
  */
 import type {RtcAgentDebugAPI} from './debug-api-types.js';
 import type {ToolCall} from './types/index.js';
+import type {SettingsState} from './contexts/settings.js';
+import type {Activity} from './types/index.js';
 import {
     log,
     logBuffer,
@@ -215,16 +217,16 @@ export function buildExtAPI(): Pick<
             const actions = el.settingsController.actions;
             switch (section) {
                 case 'appearance':
-                    actions.updateAppearance(patch as any);
+                    actions.updateAppearance(patch as Partial<SettingsState['appearance']>);
                     break;
                 case 'chat':
-                    actions.updateChat(patch as any);
+                    actions.updateChat(patch as Partial<SettingsState['chat']>);
                     break;
                 case 'files':
-                    actions.updateFiles(patch as any);
+                    actions.updateFiles(patch as Partial<SettingsState['files']>);
                     break;
                 case 'notifications':
-                    actions.updateNotifications(patch as any);
+                    actions.updateNotifications(patch as Partial<SettingsState['notifications']>);
                     break;
                 default:
                     log.warn(`updateSettings: unknown section "${section}"`);
@@ -240,7 +242,12 @@ export function buildExtAPI(): Pick<
                 log.error('setActivity: rtc-agent element not found');
                 return;
             }
-            el.activityController.actions.setActivity(activity as any);
+            const validActivities: Activity[] = ['files', 'chat', 'settings'];
+            if (!validActivities.includes(activity as Activity)) {
+                log.warn(`setActivity: invalid activity "${activity}", expected one of: ${validActivities.join(', ')}`);
+                return;
+            }
+            el.activityController.actions.setActivity(activity as Activity);
             log.info(`setActivity: ${activity}`);
         },
 

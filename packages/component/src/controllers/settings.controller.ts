@@ -172,7 +172,9 @@ export class SettingsController implements ReactiveController {
         // Find rtc-agent element (host itself or closest ancestor)
         const rtcAgent = this.host.closest('rtc-agent') || this.host;
         if ('theme' in rtcAgent) {
-            (rtcAgent as any).theme = theme;
+            // 'theme' in rtcAgent confirms the property exists at runtime;
+            // cast to the known property shape rather than `as any`.
+            (rtcAgent as {theme: string}).theme = theme;
         }
     }
 
