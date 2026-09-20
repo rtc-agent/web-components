@@ -215,6 +215,10 @@ export class RtcMessageList extends LitElement {
                     timestamp: msg.timestamp,
                     streaming: msg.streaming,  // Streaming state affects timeline-dot animation
                 }),
+                // In-place update: preserve DOM state (rendered Markdown) during streaming.
+                // Without this, each streaming token would destroy-rebuild the element,
+                // causing flicker and breaking auto-scroll.
+                updateItemElement: (el, msg, index) => this._updateMessageElement(el, msg, index),
             });
         }
 
@@ -711,6 +715,35 @@ export class RtcMessageList extends LitElement {
             el.setAttribute('is-last', '');
         }
         return el;
+    }
+
+    /**
+     * Update a message element in-place with new data.
+     * Preserves DOM state (rendered Markdown) to prevent flicker during streaming.
+     * Lit's property setter triggers requestUpdate() → lit-html diffing for efficient updates.
+     */
+    private _updateMessageElement(el: HTMLElement, msg: Message, index: number) {
+        const isLast = index === this._messages.length - 1;
+        const tagName = el.tagName.toLowerCase();
+
+        // Update the appropriate property based on element type
+        if (tagName === 'rtc-toolcall-card') {
+            // Toolcall card: update the pair (input + output)
+            const output = this._messages.find(
+                m => m.content?.type === 'toolcall_output' && m.parentClientId === msg.clientId
+            );
+            (el as any).pair = { input: msg, output };
+        } else {
+            // rtc-message, rtc-error-message, rtc-user-message, rtc-toolcall-reply: all have `message`
+            (el as any).message = msg;
+        }
+
+        // Update is-last attribute (may have changed if messages were added/removed)
+        if (isLast) {
+            el.setAttribute('is-last', '');
+        } else {
+            el.removeAttribute('is-last');
+        }
     }
 
     private _handleNewBtnClick = () => {

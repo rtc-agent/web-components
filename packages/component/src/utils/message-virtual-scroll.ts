@@ -68,6 +68,17 @@ export interface MessageVirtualScrollOptions<T> {
      * If not provided, falls back to JSON.stringify comparison.
      */
     getChangeableContent?: (item: T) => unknown;
+
+    /**
+     * Update an existing element in-place with new item data.
+     * If provided, updateItemById and updateItems will call this instead of
+     * destroying and recreating the element. This preserves DOM state
+     * (e.g., rendered Markdown) and prevents visual flicker during streaming.
+     *
+     * The callback should update the element's properties to reflect the new item.
+     * If not provided, falls back to destroy-rebuild pattern.
+     */
+    updateItemElement?: (element: HTMLElement, item: T, index: number) => void;
 }
 
 interface ViewportSlicePart<T> {
@@ -85,6 +96,7 @@ export class MessageVirtualScroll<T> {
     private _onLoadMore?: (direction: 'top' | 'bottom', boundary: WindowBoundary) => Promise<T[]>;
     private _onSizeChange?: () => void;
     private _getChangeableContent?: (item: T) => unknown;
+    private _updateItemElement?: (element: HTMLElement, item: T, index: number) => void;
     private _query: string;
     private _preloadThreshold: number;
     private _bufferMessages: number;
@@ -120,6 +132,7 @@ export class MessageVirtualScroll<T> {
         this._onLoadMore = options.onLoadMore;
         this._onSizeChange = options.onSizeChange;
         this._getChangeableContent = options.getChangeableContent;
+        this._updateItemElement = options.updateItemElement;
         this._query = options.query ?? '.message';
         this._preloadThreshold = options.preloadThreshold ?? 300;
         this._bufferMessages = options.bufferMessages ?? 20;
@@ -183,13 +196,16 @@ export class MessageVirtualScroll<T> {
                 return; // Not in DOM
             }
 
-            // Re-render this item
-            const newElement = this._renderItem(newItem, newIndex);
-            newElement.dataset.messageIndex = String(newIndex);
-            this._elementMap.set(newIndex, newElement);
-
-            // Replace old element with new one
-            element.replaceWith(newElement);
+            // In-place update: preserve DOM state (e.g., rendered Markdown)
+            if (this._updateItemElement) {
+                this._updateItemElement(element, newItem, newIndex);
+            } else {
+                // Fallback: destroy and rebuild
+                const newElement = this._renderItem(newItem, newIndex);
+                newElement.dataset.messageIndex = String(newIndex);
+                this._elementMap.set(newIndex, newElement);
+                element.replaceWith(newElement);
+            }
 
             // Notify size change (height might have changed)
             this._onSizeChange?.();
@@ -346,13 +362,16 @@ export class MessageVirtualScroll<T> {
         // Update items array
         this._items[index] = newItem;
 
-        // Re-render this item
-        const newElement = this._renderItem(newItem, index);
-        newElement.dataset.messageIndex = String(index);
-        this._elementMap.set(index, newElement);
-
-        // Replace old element with new one
-        element.replaceWith(newElement);
+        // In-place update: preserve DOM state (e.g., rendered Markdown)
+        if (this._updateItemElement) {
+            this._updateItemElement(element, newItem, index);
+        } else {
+            // Fallback: destroy and rebuild
+            const newElement = this._renderItem(newItem, index);
+            newElement.dataset.messageIndex = String(index);
+            this._elementMap.set(index, newElement);
+            element.replaceWith(newElement);
+        }
 
         // Notify size change (height might have changed)
         this._onSizeChange?.();
