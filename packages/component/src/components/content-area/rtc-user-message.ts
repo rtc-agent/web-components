@@ -93,6 +93,9 @@ export class RtcUserMessage extends LitElement {
     private _textEl?: HTMLElement;
     private _cleanupPosition: (() => void) | null = null;
 
+    /** Bound event handler for menu select (stored for clean removal). */
+    private _boundOnMenuSelect = (e: Event) => this._handleMenuSelect(e as CustomEvent);
+
     private _onDocClick = (e: MouseEvent) => {
         if (!this._showMoreMenu) return;
         const path = e.composedPath();
@@ -239,9 +242,7 @@ export class RtcUserMessage extends LitElement {
         const menu = document.createElement('rtc-message-more-menu') as HTMLElement;
         (menu as unknown as {syncStatus: string}).syncStatus = this.message.syncStatus;
         (menu as unknown as {timestamp: number}).timestamp = this.message.timestamp;
-        menu.addEventListener('rtc-message-more-menu-select', ((e: Event) => {
-            this._handleMenuSelect(e as CustomEvent);
-        }) as EventListener);
+        menu.addEventListener('rtc-message-more-menu-select', this._boundOnMenuSelect);
 
         this.shadowRoot.appendChild(menu);
         this._moreMenuEl = menu;
@@ -256,6 +257,7 @@ export class RtcUserMessage extends LitElement {
     private _removeMenu() {
         this._stopPositioning();
         if (this._moreMenuEl) {
+            this._moreMenuEl.removeEventListener('rtc-message-more-menu-select', this._boundOnMenuSelect);
             this._moreMenuEl.remove();
             this._moreMenuEl = null;
         }
