@@ -33,7 +33,7 @@ import {darkTheme} from '../../styles/themes/dark.js';
 import {baseStyles} from '../../styles/base.js';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('markdown-editor');
+const log = createLogger('MarkdownEditor');
 
 @localized()
 @customElement('rtc-markdown-editor')

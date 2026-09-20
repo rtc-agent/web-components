@@ -36,7 +36,7 @@ import {darkTheme} from '../../styles/themes/dark.js';
 import {baseStyles} from '../../styles/base.js';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('editor-tab');
+const log = createLogger('EditorTab');
 
 @localized()
 @customElement('rtc-editor-tab')

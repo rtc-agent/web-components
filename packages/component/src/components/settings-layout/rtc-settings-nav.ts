@@ -23,7 +23,7 @@ import {
 } from '../../icons/index.js';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('settings-nav');
+const log = createLogger('SettingsNav');
 
 /** 设置分类 */
 export type SettingsCategory = 'appearance' | 'chat' | 'files' | 'notifications' | 'account' | 'about';

@@ -61,8 +61,8 @@ export class NotificationController implements ReactiveController {
     // ─── 私有字段 ─────────────────────────────────────────
     private _busUnsubscribe?: () => void;
     private _sounds = new Map<string, HTMLAudioElement>();
-    /** 通知动画自动清除定时器 */
-    private _animationTimer?: ReturnType<typeof setTimeout>;
+    /** 延迟加载音效的定时器（非关键音效，组件卸载时需清理） */
+    private _deferredSoundTimer?: ReturnType<typeof setTimeout>;
     /** 通知节流：防止快速连续通知导致 UI 卡顿 */
     private _lastNotifyTime = 0;
     private static readonly NOTIFY_THROTTLE_MS = 300;
@@ -86,7 +86,11 @@ export class NotificationController implements ReactiveController {
     hostDisconnected(): void {
         this._busUnsubscribe?.();
         this._sounds.clear();
-        this._clearAnimation();
+        if (this._deferredSoundTimer) {
+            clearTimeout(this._deferredSoundTimer);
+            this._deferredSoundTimer = undefined;
+        }
+        this.host.removeAttribute('data-notification');
     }
 
     // ─── 音频管理 ─────────────────────────────────────────
@@ -118,13 +122,23 @@ export class NotificationController implements ReactiveController {
         };
 
         if ('requestIdleCallback' in window) {
-            requestIdleCallback(() => {
+            const idleId = requestIdleCallback(() => {
+                this._deferredSoundTimer = undefined;
                 for (const [type, url] of Object.entries(deferredSounds)) {
                     this._loadSound(type, url);
                 }
             });
+            // Fallback: if idle callback doesn't fire within 2s, load manually.
+            this._deferredSoundTimer = setTimeout(() => {
+                cancelIdleCallback(idleId);
+                this._deferredSoundTimer = undefined;
+                for (const [type, url] of Object.entries(deferredSounds)) {
+                    this._loadSound(type, url);
+                }
+            }, 2000);
         } else {
-            setTimeout(() => {
+            this._deferredSoundTimer = setTimeout(() => {
+                this._deferredSoundTimer = undefined;
                 for (const [type, url] of Object.entries(deferredSounds)) {
                     this._loadSound(type, url);
                 }
@@ -329,10 +343,6 @@ export class NotificationController implements ReactiveController {
     }
 
     private _clearAnimation(): void {
-        if (this._animationTimer) {
-            clearTimeout(this._animationTimer);
-            this._animationTimer = undefined;
-        }
         this.host.removeAttribute('data-notification');
     }
 

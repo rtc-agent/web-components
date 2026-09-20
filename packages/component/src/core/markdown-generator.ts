@@ -9,7 +9,7 @@ import type { FunctionDef, FunctionGroupDef, RegistryConfig, OpenAPISchema, Para
 import { zodToParams } from '../validation/zod-to-openapi.js';
 import {createLogger} from '@rtc-agent/client';
 
-const log = createLogger('markdown-generator');
+const log = createLogger('MarkdownGenerator');
 
 /**
  * 将 OpenAPI Schema 转换为可读的类型字符串

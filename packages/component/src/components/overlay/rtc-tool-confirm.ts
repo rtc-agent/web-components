@@ -19,7 +19,7 @@ import {styles} from './rtc-tool-confirm.styles.js';
 import type {ToolCall} from '../../types/index.js';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('tool-confirm');
+const log = createLogger('ToolConfirm');
 
 @localized()
 @customElement('rtc-tool-confirm')

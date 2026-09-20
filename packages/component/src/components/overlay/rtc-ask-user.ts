@@ -23,7 +23,7 @@ import {styles} from './rtc-ask-user.styles.js';
 import type {LocalRtc} from '@rtc-agent/persistence';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('ask-user');
+const log = createLogger('AskUser');
 
 export interface AskUserQuestion {
   question: string;

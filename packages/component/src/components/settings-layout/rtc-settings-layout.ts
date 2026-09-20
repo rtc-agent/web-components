@@ -34,7 +34,7 @@ import '../drawer/rtc-drawer.js';
 import type {SettingsState} from '../../contexts/settings.js';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('settings-layout');
+const log = createLogger('SettingsLayout');
 
 /** 面板标题映射 */
 function panelTitle(category: SettingsCategory): string {

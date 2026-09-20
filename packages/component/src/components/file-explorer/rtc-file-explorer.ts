@@ -32,7 +32,7 @@ import './rtc-file-tree-item.js';
 import type {RtcFileTreeItem} from './rtc-file-tree-item.js';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('file-explorer');
+const log = createLogger('FileExplorer');
 
 @localized()
 @customElement('rtc-file-explorer')

@@ -20,7 +20,7 @@ import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} fro
 import '../settings-layout/rtc-settings-layout.js';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('settings-panel');
+const log = createLogger('SettingsPanel');
 
 @localized()
 @customElement('rtc-settings-panel')

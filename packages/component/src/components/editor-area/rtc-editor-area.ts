@@ -51,7 +51,7 @@ import './rtc-editor-toolbar.js';
 import '../markdown-editor/rtc-markdown-editor.js';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('editor-area');
+const log = createLogger('EditorArea');
 
 /** 格式化类型（与 toolbar 一致） */
 type FormatType = 'bold' | 'italic' | 'code' | 'link';

@@ -179,7 +179,7 @@ import type {ConnectionState} from '@rtc-agent/client';
 import {createLogger} from '@rtc-agent/client';
 
 // Aria-live announcements per mode transition
-const log = createLogger('rtc-agent');
+const log = createLogger('RtcAgent');
 
 const MODE_ANNOUNCEMENTS: Record<WindowMode, string> = {
     normal: 'Window restored',

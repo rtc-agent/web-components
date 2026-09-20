@@ -16,7 +16,7 @@ import {styles} from './rtc-empty-state.styles.js';
 import {renderLogo} from '../../icons/logo.js';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('empty-state');
+const log = createLogger('EmptyState');
 
 @localized()
 @customElement('rtc-empty-state')

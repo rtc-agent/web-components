@@ -23,7 +23,7 @@ import {AUTH_CONFIG} from '../../config/auth.js';
 import {OAuth2Client} from '@rtc-agent/client';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('login-page');
+const log = createLogger('LoginPage');
 
 /** Provider 配置 */
 interface ProviderConfig {

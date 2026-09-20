@@ -16,7 +16,7 @@ import {styles} from './rtc-todo-panel.styles.js';
 import type {TodoItem} from '../../types/index.js';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('todo-panel');
+const log = createLogger('TodoPanel');
 
 /**
  * Deep comparison for TodoItem arrays to avoid unnecessary re-renders.

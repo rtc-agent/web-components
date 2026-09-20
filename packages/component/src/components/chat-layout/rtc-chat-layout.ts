@@ -28,7 +28,7 @@ import {localized} from '@lit/localize';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {createLogger} from '@rtc-agent/client';
 
-const log = createLogger('chat-layout');
+const log = createLogger('ChatLayout');
 import {styles} from './rtc-chat-layout.styles.js';
 import {tokens} from '../../styles/tokens.js';
 import {lightTheme} from '../../styles/themes/light.js';

@@ -44,7 +44,7 @@ import {darkTheme} from '../../styles/themes/dark.js';
 import {baseStyles} from '../../styles/base.js';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('editor-toolbar');
+const log = createLogger('EditorToolbar');
 
 /** 格式化类型 */
 type FormatType = 'bold' | 'italic' | 'code' | 'link';

@@ -20,7 +20,7 @@ import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} fro
 import {OAuth2Client} from '@rtc-agent/client';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('login-dialog');
+const log = createLogger('LoginDialog');
 
 /** Delay before auto-closing the dialog after successful login (ms). */
 const LOGIN_SUCCESS_CLOSE_DELAY_MS = 800;

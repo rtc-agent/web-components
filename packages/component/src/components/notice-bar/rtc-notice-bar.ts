@@ -14,7 +14,7 @@ import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} fro
 import {styles} from './rtc-notice-bar.styles.js';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('notice-bar');
+const log = createLogger('NoticeBar');
 
 @localized()
 @customElement('rtc-notice-bar')

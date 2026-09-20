@@ -35,7 +35,7 @@ import {darkTheme} from '../../styles/themes/dark.js';
 import {baseStyles} from '../../styles/base.js';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('file-tree-item');
+const log = createLogger('FileTreeItem');
 
 /**
  * Chevron 右箭头 SVG（内联，无依赖）

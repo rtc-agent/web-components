@@ -30,7 +30,7 @@ import {baseStyles} from '../../styles/base.js';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('status-bar');
+const log = createLogger('StatusBar');
 
 @localized()
 @customElement('rtc-status-bar')

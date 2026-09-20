@@ -26,7 +26,7 @@ import {minimizeIcon, maximizeIcon, restoreIcon, retryIcon} from '../../icons/in
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('title-bar');
+const log = createLogger('TitleBar');
 
 @localized()
 @customElement('rtc-title-bar')

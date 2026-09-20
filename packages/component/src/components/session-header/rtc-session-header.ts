@@ -28,7 +28,7 @@ import '../overlay/rtc-todo-panel.js';
 import type {Session, TodoItem} from '../../types/index.js';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('session-header');
+const log = createLogger('SessionHeader');
 
 @localized()
 @customElement('rtc-session-header')

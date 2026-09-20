@@ -49,7 +49,7 @@ import '../token-usage/rtc-token-usage.js';
 import {getUIUpdateBus, type UIUpdateEvent} from '@rtc-agent/persistence';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('input-area');
+const log = createLogger('InputArea');
 
 @localized()
 @customElement('rtc-input-area')
