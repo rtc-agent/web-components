@@ -181,6 +181,99 @@ describe('MessageRepository', () => {
         });
     });
 
+    // ── Basic: patchMessage ──
+
+    describe('patchMessage', () => {
+        it('returns false when message not found', () => {
+            repo.updateMessages('s1', [createMessage({clientId: 'a'})]);
+            const result = repo.patchMessage('s1', 'nonexistent', m => m);
+            expect(result).toBe(false);
+        });
+
+        it('returns false when session is empty', () => {
+            const result = repo.patchMessage('s1', 'any', m => m);
+            expect(result).toBe(false);
+        });
+
+        it('updates a message in place and returns true', () => {
+            const original = createMessage({clientId: 'target', role: 'user'});
+            repo.updateMessages('s1', [
+                createMessage({clientId: 'other'}),
+                original,
+            ]);
+
+            const result = repo.patchMessage('s1', 'target', m => ({
+                ...m,
+                role: 'assistant',
+            }));
+
+            expect(result).toBe(true);
+            const msgs = repo.getSessionState('s1').messages;
+            expect(msgs[1].role).toBe('assistant');
+            expect(msgs[0].clientId).toBe('other'); // unchanged
+        });
+
+        it('preserves immutability of prior state', () => {
+            const msg = createMessage({clientId: 'x'});
+            repo.updateMessages('s1', [msg]);
+            const stateBefore = repo.getSessionState('s1');
+
+            repo.patchMessage('s1', 'x', m => ({...m, streaming: true}));
+
+            // Prior state reference should not be mutated
+            expect(stateBefore.messages[0].streaming).toBeUndefined();
+        });
+
+        it('notifies subscribers with updated state', () => {
+            const cb = vi.fn();
+            repo.updateMessages('s1', [createMessage({clientId: 'm1'})]);
+            repo.subscribe('s1', cb);
+            cb.mockClear();
+
+            repo.patchMessage('s1', 'm1', m => ({...m, syncStatus: 'pending'}));
+
+            expect(cb).toHaveBeenCalledOnce();
+            expect(cb).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    messages: expect.arrayContaining([
+                        expect.objectContaining({clientId: 'm1', syncStatus: 'pending'}),
+                    ]),
+                }),
+            );
+        });
+
+        it('returns false and does not notify when updater throws', () => {
+            const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+            const cb = vi.fn();
+            repo.updateMessages('s1', [createMessage({clientId: 'm1'})]);
+            repo.subscribe('s1', cb);
+            cb.mockClear();
+
+            const result = repo.patchMessage('s1', 'm1', () => {
+                throw new Error('updater boom');
+            });
+
+            expect(result).toBe(false);
+            expect(cb).not.toHaveBeenCalled();
+            expect(consoleSpy).toHaveBeenCalled();
+            consoleSpy.mockRestore();
+        });
+
+        it('updates the first matching message when duplicates exist', () => {
+            // Edge case: multiple messages with same clientId
+            repo.updateMessages('s1', [
+                createMessage({clientId: 'dup', role: 'user'}),
+                createMessage({clientId: 'dup', role: 'assistant'}),
+            ]);
+
+            repo.patchMessage('s1', 'dup', m => ({...m, streaming: true}));
+
+            const msgs = repo.getSessionState('s1').messages;
+            expect(msgs[0].streaming).toBe(true);
+            expect(msgs[1].streaming).toBeUndefined(); // second one unchanged
+        });
+    });
+
     // ── Basic: evictSession ──
 
     describe('evictSession', () => {
@@ -541,6 +634,178 @@ describe('MessageRepository', () => {
         });
     });
 
+    // ── Async: loadNewer ──
+
+    describe('loadNewer', () => {
+        /** Helper: seed a session with hasMoreNewer=true. */
+        async function seedHasMoreNewer(sessionId = 's1'): Promise<Message[]> {
+            const msgs = Array.from({length: PAGE_SIZE}, (_, i) =>
+                createMessage({clientId: `seed-${i}`}),
+            );
+            repo.updateMessages(sessionId, msgs);
+            repo.setHasMoreNewer(sessionId, true);
+            return msgs;
+        }
+
+        it('returns empty array for uninitialized session without calling API', async () => {
+            const result = await repo.loadNewer('nonexistent');
+
+            expect(result).toEqual([]);
+            expect(mockApi.fetchNewerMessages).not.toHaveBeenCalled();
+        });
+
+        it('returns current messages when hasMoreNewer is false', async () => {
+            const msgs = [createMessage()];
+            repo.updateMessages('s1', msgs);
+
+            const result = await repo.loadNewer('s1');
+
+            expect(result).toEqual(msgs);
+            expect(mockApi.fetchNewerMessages).not.toHaveBeenCalled();
+        });
+
+        it('calls API and appends newer messages when hasMoreNewer is true', async () => {
+            const initialMsgs = await seedHasMoreNewer();
+
+            const newerMsgs = [
+                createMessage({clientId: 'newer-1'}),
+                createMessage({clientId: 'newer-2'}),
+            ];
+            mockApi.fetchNewerMessages.mockResolvedValueOnce(newerMsgs);
+
+            const result = await repo.loadNewer('s1');
+
+            expect(mockApi.fetchNewerMessages).toHaveBeenCalledWith('s1', undefined);
+            expect(result).toEqual([...initialMsgs, ...newerMsgs]);
+            expect(repo.getSessionState('s1').messages).toEqual([...initialMsgs, ...newerMsgs]);
+        });
+
+        it('sets isLoadingNewer=true during API call', async () => {
+            await seedHasMoreNewer();
+
+            const states: boolean[] = [];
+            repo.subscribe('s1', (data) => {
+                states.push(data.isLoadingNewer ?? false);
+            });
+
+            let resolveApi!: (v: Message[]) => void;
+            const apiPromise = new Promise<Message[]>((resolve) => { resolveApi = resolve; });
+            mockApi.fetchNewerMessages.mockReturnValueOnce(apiPromise);
+
+            const loadPromise = repo.loadNewer('s1');
+            expect(states).toContain(true);
+
+            resolveApi([createMessage()]);
+            await loadPromise;
+
+            expect(states[states.length - 1]).toBe(false);
+        });
+
+        it('prevents concurrent loadNewer calls (dedup)', async () => {
+            await seedHasMoreNewer();
+
+            let resolveApi!: (v: Message[]) => void;
+            const apiPromise = new Promise<Message[]>((resolve) => { resolveApi = resolve; });
+            mockApi.fetchNewerMessages.mockReturnValueOnce(apiPromise);
+
+            const p1 = repo.loadNewer('s1');
+            const p2 = repo.loadNewer('s1');
+
+            expect(mockApi.fetchNewerMessages).toHaveBeenCalledTimes(1);
+
+            resolveApi([createMessage()]);
+            await Promise.all([p1, p2]);
+        });
+
+        it('resets isLoadingNewer=false on API failure', async () => {
+            const msgs = await seedHasMoreNewer();
+            mockApi.fetchNewerMessages.mockRejectedValueOnce(new Error('timeout'));
+            const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+            const result = await repo.loadNewer('s1');
+
+            expect(repo.getSessionState('s1').isLoadingNewer).toBe(false);
+            expect(result).toEqual(msgs);
+            expect(consoleSpy).toHaveBeenCalled();
+            consoleSpy.mockRestore();
+        });
+
+        it('sets hasMoreNewer=false when newer messages < PAGE_SIZE', async () => {
+            await seedHasMoreNewer();
+            mockApi.fetchNewerMessages.mockResolvedValueOnce([createMessage()]);
+
+            await repo.loadNewer('s1');
+
+            expect(repo.getSessionState('s1').hasMoreNewer).toBe(false);
+        });
+
+        it('keeps hasMoreNewer=true when newer messages === PAGE_SIZE', async () => {
+            await seedHasMoreNewer();
+            const newerMsgs = Array.from({length: PAGE_SIZE}, (_, i) =>
+                createMessage({clientId: `newer-${i}`}),
+            );
+            mockApi.fetchNewerMessages.mockResolvedValueOnce(newerMsgs);
+
+            await repo.loadNewer('s1');
+
+            expect(repo.getSessionState('s1').hasMoreNewer).toBe(true);
+        });
+
+        it('preserves hasMore and isLoadingMore from existing state', async () => {
+            await seedHasMoreNewer();
+            repo.setHasMore('s1', true);
+
+            mockApi.fetchNewerMessages.mockResolvedValueOnce([createMessage()]);
+            await repo.loadNewer('s1');
+
+            const state = repo.getSessionState('s1');
+            expect(state.hasMore).toBe(true);
+            expect(state.isLoadingMore).toBe(false);
+        });
+
+        it('notifies subscribers during loadNewer lifecycle', async () => {
+            await seedHasMoreNewer();
+
+            const cb = vi.fn();
+            repo.subscribe('s1', cb);
+            cb.mockClear();
+
+            mockApi.fetchNewerMessages.mockResolvedValueOnce([createMessage()]);
+            await repo.loadNewer('s1');
+
+            expect(cb.mock.calls.length).toBeGreaterThanOrEqual(2);
+            expect(cb.mock.calls[0][0].isLoadingNewer).toBe(true);
+            const lastCall = cb.mock.calls[cb.mock.calls.length - 1][0];
+            expect(lastCall.isLoadingNewer).toBe(false);
+        });
+
+        it('allows new loadNewer after previous one completes', async () => {
+            await seedHasMoreNewer();
+
+            // First loadNewer
+            mockApi.fetchNewerMessages.mockResolvedValueOnce([createMessage()]);
+            await repo.loadNewer('s1');
+
+            // Need to set hasMoreNewer again for second call
+            repo.setHasMoreNewer('s1', true);
+            mockApi.fetchNewerMessages.mockResolvedValueOnce([createMessage()]);
+            await repo.loadNewer('s1');
+
+            expect(mockApi.fetchNewerMessages).toHaveBeenCalledTimes(2);
+        });
+
+        it('passes newest cursor to API', async () => {
+            await seedHasMoreNewer();
+            const cursor = '9999999999|msg-999';
+            repo.setNewestOffset('s1', cursor);
+
+            mockApi.fetchNewerMessages.mockResolvedValueOnce([]);
+            await repo.loadNewer('s1');
+
+            expect(mockApi.fetchNewerMessages).toHaveBeenCalledWith('s1', cursor);
+        });
+    });
+
     // ── Cursor management ──
 
     describe('cursor management', () => {
@@ -554,11 +819,119 @@ describe('MessageRepository', () => {
             expect(repo.getOldestOffset('s1')).toBe(cursor);
         });
 
-        it('evictSession clears cursor', () => {
+        it('evictSession clears oldest cursor', () => {
             const cursor = '1234567890|msg-001';
             repo.setOldestOffset('s1', cursor);
             repo.evictSession('s1');
             expect(repo.getOldestOffset('s1')).toBeUndefined();
+        });
+
+        it('getNewestOffset returns undefined for uninitialized session', () => {
+            expect(repo.getNewestOffset('unknown')).toBeUndefined();
+        });
+
+        it('setNewestOffset and getNewestOffset work correctly', () => {
+            const cursor = '9999999999|msg-999';
+            repo.setNewestOffset('s1', cursor);
+            expect(repo.getNewestOffset('s1')).toBe(cursor);
+        });
+
+        it('evictSession clears newest cursor', () => {
+            const cursor = '9999999999|msg-999';
+            repo.setNewestOffset('s1', cursor);
+            repo.evictSession('s1');
+            expect(repo.getNewestOffset('s1')).toBeUndefined();
+        });
+
+        it('oldest and newest cursors are independent per session', () => {
+            repo.setOldestOffset('s1', 'oldest-s1');
+            repo.setNewestOffset('s1', 'newest-s1');
+            repo.setOldestOffset('s2', 'oldest-s2');
+
+            expect(repo.getOldestOffset('s1')).toBe('oldest-s1');
+            expect(repo.getNewestOffset('s1')).toBe('newest-s1');
+            expect(repo.getOldestOffset('s2')).toBe('oldest-s2');
+            expect(repo.getNewestOffset('s2')).toBeUndefined();
+        });
+
+        it('setOldestOffset overwrites previous value', () => {
+            repo.setOldestOffset('s1', 'first');
+            repo.setOldestOffset('s1', 'second');
+            expect(repo.getOldestOffset('s1')).toBe('second');
+        });
+    });
+
+    // ── Pagination flags: setHasMore / setHasMoreNewer ──
+
+    describe('setHasMore / setHasMoreNewer', () => {
+        it('setHasMore updates hasMore and notifies subscribers', () => {
+            const cb = vi.fn();
+            repo.updateMessages('s1', [createMessage()]);
+            repo.subscribe('s1', cb);
+            cb.mockClear();
+
+            repo.setHasMore('s1', true);
+
+            expect(repo.getSessionState('s1').hasMore).toBe(true);
+            expect(cb).toHaveBeenCalledOnce();
+            expect(cb).toHaveBeenCalledWith(
+                expect.objectContaining({hasMore: true}),
+            );
+        });
+
+        it('setHasMore works on uninitialized session (creates state)', () => {
+            repo.setHasMore('new-session', true);
+            expect(repo.getSessionState('new-session').hasMore).toBe(true);
+            // Messages should be empty default
+            expect(repo.getSessionState('new-session').messages).toEqual([]);
+        });
+
+        it('setHasMoreNewer updates hasMoreNewer and notifies subscribers', () => {
+            const cb = vi.fn();
+            repo.updateMessages('s1', [createMessage()]);
+            repo.subscribe('s1', cb);
+            cb.mockClear();
+
+            repo.setHasMoreNewer('s1', true);
+
+            expect(repo.getSessionState('s1').hasMoreNewer).toBe(true);
+            expect(cb).toHaveBeenCalledOnce();
+            expect(cb).toHaveBeenCalledWith(
+                expect.objectContaining({hasMoreNewer: true}),
+            );
+        });
+
+        it('setHasMoreNewer works on uninitialized session', () => {
+            repo.setHasMoreNewer('new-session', true);
+            expect(repo.getSessionState('new-session').hasMoreNewer).toBe(true);
+        });
+
+        it('setHasMore does not affect other state fields', () => {
+            const msgs = [createMessage()];
+            repo.updateMessages('s1', msgs);
+            repo.setHasMore('s1', true);
+
+            const state = repo.getSessionState('s1');
+            expect(state.messages).toEqual(msgs);
+            expect(state.isLoadingMore).toBe(false);
+        });
+
+        it('setHasMoreNewer does not affect other state fields', () => {
+            const msgs = [createMessage()];
+            repo.updateMessages('s1', msgs);
+            repo.setHasMore('s1', true);
+            repo.setHasMoreNewer('s1', true);
+
+            const state = repo.getSessionState('s1');
+            expect(state.messages).toEqual(msgs);
+            expect(state.hasMore).toBe(true); // unchanged
+            expect(state.isLoadingMore).toBe(false);
+        });
+
+        it('setHasMore to false resets the flag', () => {
+            repo.setHasMore('s1', true);
+            repo.setHasMore('s1', false);
+            expect(repo.getSessionState('s1').hasMore).toBe(false);
         });
     });
 
