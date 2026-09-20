@@ -304,7 +304,7 @@ const sandboxPlugin = {
       isReferencedIdentifier: () => boolean;
       node: { name: string };
       parent: { type: string };
-      scope: { hasBinding: (name: string) => boolean };
+      scope: { hasBinding: (name: string, opts?: { noGlobals?: boolean }) => boolean };
       buildCodeFrameError: (msg: string) => Error;
     }) {
       if (!path.isReferencedIdentifier()) return;
@@ -313,7 +313,8 @@ const sandboxPlugin = {
       if (!BLOCKED_GLOBALS.has(name)) return;
 
       // Has local binding (variable declaration / function parameter etc.) -- allow
-      if (path.scope.hasBinding(name)) return;
+      // Use { noGlobals: true } to exclude built-in globals like `eval`, `Function`, etc.
+      if (path.scope.hasBinding(name, { noGlobals: true })) return;
 
       // Skip TypeScript type positions (type annotations are not value references)
       if (path.parent.type.startsWith('TS')) return;
@@ -345,12 +346,24 @@ const sandboxPlugin = {
     },
 
     // 3. Block dynamic import()
+    // Note: Babel may parse import() as ImportExpression or as CallExpression
+    // with callee.type === 'Import', depending on parser configuration.
     ImportExpression(path: {
       buildCodeFrameError: (msg: string) => Error;
     }) {
       throw path.buildCodeFrameError(
         'Dynamic import() is not allowed in scripts.',
       );
+    },
+    CallExpression(path: {
+      node: { callee: { type: string } };
+      buildCodeFrameError: (msg: string) => Error;
+    }) {
+      if (path.node.callee.type === 'Import') {
+        throw path.buildCodeFrameError(
+          'Dynamic import() is not allowed in scripts.',
+        );
+      }
     },
 
     // 4. Loop guard
@@ -395,17 +408,24 @@ export function transformTypeScript(code: string, name?: string): string {
       presets: cachedPresets,
       filename,
       plugins: [sandboxPlugin],
+      // Allow top-level `return` so scripts can produce values.
+      // The transformed code is later wrapped in an async IIFE by _executeCode,
+      // where the `return` becomes a valid return inside the arrow function.
+      parserOpts: {
+        allowReturnOutsideFunction: true,
+      },
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     throw new ScriptCompileError(`Babel transformation failed for '${filename}': ${msg}`, name);
   }
 
-  if (!result || !result.code) {
+  if (!result) {
     throw new ScriptCompileError('Babel transformation failed: no output', name);
   }
 
-  return result.code;
+  // Empty code produces empty output -- this is valid (no-op script)
+  return result.code ?? '';
 }
 
 // ============================================================
