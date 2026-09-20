@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ToolCall Pairing + Virtual Scroll Debug</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a1a;
+            color: #eee;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .toolbar {
+            padding: 12px;
+            background: #2a2a2a;
+            border-bottom: 1px solid #3a3a3a;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .toolbar button {
+            padding: 8px 16px;
+            background: #4a4a4a;
+            border: none;
+            border-radius: 4px;
+            color: #eee;
+            cursor: pointer;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+
+        .toolbar button:hover { background: #5a5a5a; }
+        .toolbar button.danger { background: #5a3a3a; }
+        .toolbar button.success { background: #3a5a3a; }
+
+        .toolbar .separator {
+            width: 1px;
+            height: 28px;
+            background: #3a3a3a;
+            margin: 0 4px;
+        }
+
+        .toolbar .label {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .chat-container {
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .message-list-scroll {
+            height: 100%;
+            overflow-y: auto;
+            padding: 16px;
+            scrollbar-width: none;
+        }
+        .message-list-scroll::-webkit-scrollbar { display: none; }
+
+        .message-list-inner {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        /* ── Message styles ── */
+        .msg {
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 14px;
+            line-height: 1.5;
+            position: relative;
+        }
+
+        .msg.user {
+            background: #3a3a5a;
+            margin-left: 15%;
+        }
+
+        .msg.assistant {
+            background: #2a2a4a;
+            margin-right: 15%;
+        }
+
+        .msg-meta {
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 2px;
+        }
+
+        /* ── Toolcall pair card ── */
+        .toolcall-card {
+            border: 1px solid #3a3a3a;
+            border-radius: 8px;
+            background: #252535;
+            overflow: hidden;
+        }
+
+        .toolcall-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: #2a2a4a;
+            border-bottom: 1px solid #3a3a3a;
+            font-size: 13px;
+        }
+
+        .toolcall-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .toolcall-dot.running {
+            background: #f59e0b;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        .toolcall-dot.done {
+            background: #22c55e;
+        }
+
+        .toolcall-dot.error {
+            background: #ef4444;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .toolcall-name {
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            color: #7aa2f7;
+            font-weight: 600;
+        }
+
+        .toolcall-summary {
+            color: #888;
+            font-size: 12px;
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .toolcall-body {
+            padding: 8px 12px;
+        }
+
+        .toolcall-section {
+            padding: 6px 0;
+            font-size: 12px;
+        }
+
+        .toolcall-section + .toolcall-section {
+            border-top: 1px solid #2a2a2a;
+        }
+
+        .toolcall-section-label {
+            font-size: 10px;
+            font-weight: 700;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 4px;
+        }
+
+        .toolcall-section-content {
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            font-size: 12px;
+            color: #bbb;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 80px;
+            overflow-y: auto;
+        }
+
+        .toolcall-footer {
+            padding: 6px 12px;
+            border-top: 1px solid #3a3a3a;
+            font-size: 11px;
+            color: #666;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* ── Status bar ── */
+        .status-bar {
+            padding: 8px 12px;
+            background: #2a2a2a;
+            border-top: 1px solid #3a3a3a;
+            font-size: 12px;
+            color: #aaa;
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .status-item {
+            display: flex;
+            gap: 4px;
+        }
+
+        .status-label { color: #888; }
+        .status-value { color: #4a9eff; font-weight: 600; }
+
+        .log-panel {
+            max-height: 120px;
+            overflow-y: auto;
+            padding: 8px 12px;
+            background: #111;
+            border-top: 1px solid #3a3a3a;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 11px;
+            color: #888;
+        }
+
+        .log-entry { padding: 1px 0; }
+        .log-entry.info { color: #7aa2f7; }
+        .log-entry.success { color: #22c55e; }
+        .log-entry.warn { color: #f59e0b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="toolbar">
+            <button id="btn-init" class="success">Init (30 msgs + 5 pairs)</button>
+            <div class="separator"></div>
+            <button id="btn-add-input">Add toolcall_input</button>
+            <button id="btn-add-output">Add matching output (delayed)</button>
+            <button id="btn-add-pair">Add complete pair</button>
+            <div class="separator"></div>
+            <button id="btn-load-more">Load More (older)</button>
+            <button id="btn-append-text">Append text msg</button>
+            <div class="separator"></div>
+            <button id="btn-slice" class="danger">Manual Slice</button>
+            <button id="btn-scroll-top">Scroll Top</button>
+            <button id="btn-scroll-bottom">Scroll Bottom</button>
+            <button id="btn-clear" class="danger">Clear</button>
+            <div class="separator"></div>
+            <span class="label" id="info-label">Ready</span>
+        </div>
+
+        <div class="chat-container">
+            <div class="message-list-scroll" id="scroll-container">
+                <div class="message-list-inner" id="inner-container"></div>
+            </div>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-item">
+                <span class="status-label">Messages:</span>
+                <span class="status-value" id="stat-messages">0</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Units:</span>
+                <span class="status-value" id="stat-units">0</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Rendered:</span>
+                <span class="status-value" id="stat-rendered">0</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Window:</span>
+                <span class="status-value" id="stat-window">[0, 0)</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">ScrollTop:</span>
+                <span class="status-value" id="stat-scrolltop">0</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Loaded:</span>
+                <span class="status-value" id="stat-loaded">T:1 B:1</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Pairs:</span>
+                <span class="status-value" id="stat-pairs">0/0</span>
+            </div>
+        </div>
+
+        <div class="log-panel" id="log-panel"></div>
+    </div>
+
+    <script type="module" src="./toolcall-pairing-virtual.debug.ts"></script>
+</body>
+</html>

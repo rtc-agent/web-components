@@ -206,6 +206,14 @@ export class RtcMessageList extends LitElement {
                 preloadThreshold: 300, // Telegram uses 300px
                 bufferMessages: 20,
                 sliceInterval: 3000,
+                // Extract only the fields that affect rendering for efficient comparison.
+                // Tab switching returns new array references with identical content;
+                // comparing only these fields avoids unnecessary Markdown DOM recreation.
+                getChangeableContent: (msg) => ({
+                    content: msg.content,
+                    status: msg.syncStatus,
+                    timestamp: msg.timestamp,
+                }),
             });
         }
 
@@ -282,8 +290,36 @@ export class RtcMessageList extends LitElement {
         const oldMessages = this._messages;
         const newMessages = data.messages;
 
+        // Debug: log all message IDs and statuses for filtering
+        console.log(`[rtc-message-list] _handleMessagesUpdate called: sessionId=${this.sessionId}, messageCount=${newMessages.length}`);
+        console.log(`[rtc-message-list] Messages:`, newMessages.map(m => ({id: m.clientId, status: m.syncStatus})));
+
         if (!this._virtualScroll) {
             this._messages = newMessages;
+            this._hasMore = data.hasMore;
+            return;
+        }
+
+        // Optimization: if messages haven't changed (same content),
+        // skip expensive DOM operations. Tab switching may trigger reload() which
+        // returns new array references but identical content.
+        // Compare key fields: clientId, content, status, timestamp.
+        let messagesUnchanged = oldMessages.length === newMessages.length;
+        if (messagesUnchanged) {
+            for (let i = 0; i < oldMessages.length; i++) {
+                const oldMsg = oldMessages[i];
+                const newMsg = newMessages[i];
+                if (oldMsg.clientId !== newMsg.clientId ||
+                    oldMsg.timestamp !== newMsg.timestamp ||
+                    oldMsg.syncStatus !== newMsg.syncStatus ||
+                    !this._contentEquals(oldMsg.content, newMsg.content)) {
+                    messagesUnchanged = false;
+                    break;
+                }
+            }
+        }
+
+        if (messagesUnchanged) {
             this._hasMore = data.hasMore;
             return;
         }
@@ -740,6 +776,19 @@ export class RtcMessageList extends LitElement {
         el.classList.add('highlight');
         window.setTimeout(() => el.classList.remove('highlight'), 2000);
     };
+
+    /**
+     * Deep compare two ContentData objects for equality.
+     * Used to detect if messages have actually changed.
+     */
+    private _contentEquals(a: any, b: any): boolean {
+        if (a === b) return true;
+        if (!a || !b) return false;
+        if (a.type !== b.type) return false;
+        if (a.data !== b.data) return false;
+        // For complex content types, compare JSON serialization
+        return JSON.stringify(a) === JSON.stringify(b);
+    }
 
     render() {
         void this._localeCtx.locale;

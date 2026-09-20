@@ -56,6 +56,18 @@ export interface MessageVirtualScrollOptions<T> {
 
     /** Callback when content size changes (for custom scrollbar) */
     onSizeChange?: () => void;
+
+    /**
+     * Extract the "changeable content" from an item for comparison.
+     * Only the returned value is compared to detect changes.
+     * This is more efficient than JSON.stringify on the entire item.
+     *
+     * Example: For messages, return {content, status, timestamp} to ignore
+     * internal fields that don't affect rendering.
+     *
+     * If not provided, falls back to JSON.stringify comparison.
+     */
+    getChangeableContent?: (item: T) => unknown;
 }
 
 interface ViewportSlicePart<T> {
@@ -72,6 +84,7 @@ export class MessageVirtualScroll<T> {
     private _getItemId: (item: T) => string;
     private _onLoadMore?: (direction: 'top' | 'bottom', boundary: WindowBoundary) => Promise<T[]>;
     private _onSizeChange?: () => void;
+    private _getChangeableContent?: (item: T) => unknown;
     private _query: string;
     private _preloadThreshold: number;
     private _bufferMessages: number;
@@ -104,6 +117,7 @@ export class MessageVirtualScroll<T> {
         this._getItemId = options.getItemId;
         this._onLoadMore = options.onLoadMore;
         this._onSizeChange = options.onSizeChange;
+        this._getChangeableContent = options.getChangeableContent;
         this._query = options.query ?? '.message';
         this._preloadThreshold = options.preloadThreshold ?? 300;
         this._bufferMessages = options.bufferMessages ?? 20;
@@ -129,6 +143,10 @@ export class MessageVirtualScroll<T> {
      * Update items in place (e.g., when message status changes from 'syncing' to 'synced').
      * Only re-renders items that have changed and are currently in the DOM.
      * More efficient than setItems() which re-renders everything.
+     *
+     * Uses ID-based lookup + deep content comparison to avoid unnecessary DOM recreation.
+     * This is critical for preserving Markdown DOM when tab switching triggers reload()
+     * which returns new array references but identical content.
      */
     updateItems(items: T[]) {
         // Build a map of old items by ID for quick lookup
@@ -150,8 +168,10 @@ export class MessageVirtualScroll<T> {
                 return;
             }
 
-            // Check if item has changed (simple reference check)
-            if (oldEntry.item === newItem) {
+            // Deep compare: if content is identical, skip re-render
+            // This prevents Markdown DOM destruction when tab switching returns
+            // new array references with identical content
+            if (this._itemsEqual(oldEntry.item, newItem)) {
                 return; // No change
             }
 
@@ -172,6 +192,22 @@ export class MessageVirtualScroll<T> {
             // Notify size change (height might have changed)
             this._onSizeChange?.();
         });
+    }
+
+    /**
+     * Deep compare two items for equality.
+     * If getChangeableContent is provided, only compares the extracted content.
+     * Otherwise, falls back to JSON.stringify comparison.
+     */
+    protected _itemsEqual(a: T, b: T): boolean {
+        if (this._getChangeableContent) {
+            // Compare only the changeable content (more efficient)
+            const contentA = this._getChangeableContent(a);
+            const contentB = this._getChangeableContent(b);
+            return JSON.stringify(contentA) === JSON.stringify(contentB);
+        }
+        // Fallback: compare entire items
+        return JSON.stringify(a) === JSON.stringify(b);
     }
 
     /**
@@ -452,9 +488,21 @@ export class MessageVirtualScroll<T> {
     /**
      * Slice viewport: destroy off-screen messages, mark loaded flags.
      * Mirrors Telegram's deleteViewportSlice (bubbles.ts:12390).
+     *
+     * IMPORTANT: Skip slicing if container is hidden (content-visibility: hidden).
+     * When hidden, getBoundingClientRect() returns zeros, causing all elements
+     * to be misclassified and destroyed. ScrollSaver also fails with zero rects.
      */
     private _sliceViewport() {
         if (this._elementMap.size === 0) return;
+
+        // Check if container is visible (not hidden by content-visibility)
+        const containerRect = this._scrollContainer.getBoundingClientRect();
+        const isContainerVisible = containerRect.width > 0 && containerRect.height > 0;
+        if (!isContainerVisible) {
+            console.log('[VirtualScroll] Skipping _sliceViewport: container is hidden (content-visibility: hidden)');
+            return;
+        }
 
         const slice = this._getViewportSlice();
         const {invisibleTop, invisibleBottom} = slice;

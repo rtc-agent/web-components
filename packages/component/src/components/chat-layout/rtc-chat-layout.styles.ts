@@ -52,11 +52,12 @@ export const styles = css`
         overflow: hidden;
     }
 
-    /* ── 非活动 Tab：使用 content-visibility: hidden 保留状态 ── */
-    /* 保留 DOM 和状态（滚动位置、输入内容等），只是不渲染到屏幕 */
+    /* ── 非活动 Tab：使用 visibility: hidden 保留状态 ── */
+    /* visibility: hidden 保留 DOM 渲染和布局状态（滚动位置、输入内容等），
+       但不可见、不可交互。与 content-visibility: hidden 不同，它不会暂停渲染管线，
+       避免 Markdown 异步渲染在 hidden 期间被延迟导致切回时位置突变。 */
     .tab-content:not(.active) {
-        content-visibility: hidden;
-        contain-intrinsic-size: 0 500px;
+        visibility: hidden;
         pointer-events: none;
     }
 

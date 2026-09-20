@@ -373,17 +373,6 @@ export class EntityRepository {
 
     allMessages.sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
 
-    // Debug: log cursor and message count
-    console.log(
-      `[listMessagesBySession] session=${sessionClientId}, cursor=${cursor ?? 'none'}, ` +
-      `direction=${direction}, totalMessages=${allMessages.length}`
-    );
-    if (allMessages.length > 0 && cursor) {
-      console.log(
-        `[listMessagesBySession] DB range: [${sortKey(allMessages[0])}, ${sortKey(allMessages[allMessages.length - 1])}]`
-      );
-    }
-
     // 解析游标：格式为 "${timestamp}|${clientId}"
     let cursorKey: string | null = null;
     if (cursor) {
@@ -397,7 +386,6 @@ export class EntityRepository {
         // 严格小于游标（开区间），确保不重复
         filtered = allMessages.filter(m => sortKey(m) < cursorKey!);
       }
-      console.log(`[listMessagesBySession] backward: filtered=${filtered.length}`);
       // 取最后 limit 条（最新的），升序返回
       const sliced = filtered.slice(-limit);
       return sliced;
@@ -407,7 +395,6 @@ export class EntityRepository {
     if (cursorKey) {
       // 严格大于游标（开区间），确保不重复
       const filtered = allMessages.filter(m => sortKey(m) > cursorKey!);
-      console.log(`[listMessagesBySession] forward: filtered=${filtered.length}`);
       return filtered.slice(0, limit);
     }
     return allMessages.slice(0, limit);
