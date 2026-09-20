@@ -213,6 +213,7 @@ export class RtcMessageList extends LitElement {
                     content: msg.content,
                     status: msg.syncStatus,
                     timestamp: msg.timestamp,
+                    streaming: msg.streaming,  // Streaming state affects timeline-dot animation
                 }),
             });
         }

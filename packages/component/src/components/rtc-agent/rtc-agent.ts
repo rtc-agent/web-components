@@ -1064,9 +1064,16 @@ export class RtcAgent extends LitElement {
                 // Use efficient single-message update instead of full reload
                 void this._message.updateMessageFromBus(event.entityId);
             } else if (event.entity === 'session') {
-                // Session update: reload sessions list from DB, but preserve currentSessionId
-                console.log('[rtc-agent] session update detected, calling _loadSessions');
-                void this._loadSessions();
+                // Session updates: distinguish structural changes from lightweight field changes.
+                // Structural changes (title, status, deleted_at) require full session list reload.
+                // Lightweight changes (turn counts, token stats) are handled by dedicated handlers below.
+                const SESSION_STRUCTURAL_FIELDS = new Set([
+                    'title', 'status', 'deleted_at', 'root_client_session_id',
+                    'created_at', 'updated_at',
+                ]);
+                if (event.action === 'created' || !event.field || SESSION_STRUCTURAL_FIELDS.has(event.field)) {
+                    void this._loadSessions();
+                }
                 // status 变动 → 同步到 SessionTab（active/idle/closed 切换驱动 dot 动画）
                 if (event.field === 'status') {
                     const oldStatus = event.oldValue as SessionStatus | undefined;
