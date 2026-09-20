@@ -1,32 +1,32 @@
 import Dexie, { type Table } from 'dexie';
 import type { Session, Turn, Message, Rtc } from '@rtc-agent/protocol';
 
-/** 数据库名称必须此前缀开头，确保按用户隔离 */
+/** Database names must start with this prefix to ensure per-user isolation */
 export const DB_NAME_PREFIX = 'rtc-agent-';
 
-// ========== 同步状态 ==========
+// ========== Sync status ==========
 
 export type SyncStatus = 'pending' | 'synced' | 'failed';
 
-// ========== 本地实体（client_id 为主键，server_id 为服务端 UUID） ==========
+// ========== Local entities (client_id as primary key, server_id as server UUID) ==========
 
 export interface LocalSession extends Omit<Session, 'id'> {
-  /** 主键：客户端生成的幂等 ID */
+  /** Primary key: client-generated idempotent ID */
   client_id: string;
-  /** 服务端 ID（UUID），服务端返回后填充 */
+  /** Server ID (UUID), populated after server response */
   server_id?: string;
-  /** 同步状态 */
+  /** Sync status */
   sync_status: SyncStatus;
-  /** 当前会话中 status='pending' 的 turn 数量（写时聚合） */
+  /** Count of turns with status='pending' in this session (aggregated at write time) */
   pending_turn_count: number;
-  /** 当前会话中 status='running' 的 turn 数量（写时聚合） */
+  /** Count of turns with status='running' in this session (aggregated at write time) */
   running_turn_count: number;
 }
 
 export interface LocalTurn extends Omit<Turn, 'id' | 'session_id'> {
   client_id: string;
   server_id?: string;
-  /** 指向 session 的 client_id */
+  /** References session's client_id */
   session_client_id: string;
   sync_status: SyncStatus;
 }
@@ -34,12 +34,12 @@ export interface LocalTurn extends Omit<Turn, 'id' | 'session_id'> {
 export interface LocalMessage extends Omit<Message, 'id' | 'session_id'> {
   client_id: string;
   server_id?: string;
-  /** 指向 session 的 client_id */
+  /** References session's client_id */
   session_client_id: string;
   sync_status: SyncStatus;
   /**
-   * 父消息的 client_id（由 parent_message_id 解析而来）。
-   * toolcall_output 通过此字段指向对应的 toolcall_input。
+   * Parent message's client_id (resolved from parent_message_id).
+   * toolcall_output uses this to reference the corresponding toolcall_input.
    */
   parent_client_id?: string;
 }
@@ -47,55 +47,55 @@ export interface LocalMessage extends Omit<Message, 'id' | 'session_id'> {
 export interface LocalRtc extends Omit<Rtc, 'id' | 'session_id'> {
   client_id: string;
   server_id?: string;
-  /** 指向 session 的 client_id */
+  /** References session's client_id */
   session_client_id: string;
   sync_status: SyncStatus;
 }
 
-// ========== Offset 持久化 ==========
+// ========== Offset persistence ==========
 
 export interface OffsetRecord {
-  /** 主键：频道名称，如 'topic:u=xxx' */
+  /** Primary key: channel name, e.g. 'topic:u=xxx' */
   channel: string;
-  /** 当前已处理的 offset */
+  /** Current processed offset */
   offset: number;
-  /** 当前 epoch */
+  /** Current epoch */
   epoch: string;
-  /** 最后更新时间 */
+  /** Last update time */
   updatedAt: number;
 }
 
-// ========== 虚拟文件系统 ==========
+// ========== Virtual file system ==========
 
 export type FileSystemEntryType = 'function' | 'scenario' | 'script' | 'index';
 
 export interface FileSystemEntryMetadata {
-  /** 文件名（不含路径） */
+  /** File name (without path) */
   name: string;
-  /** 文件描述 */
+  /** File description */
   description: string;
-  /** 标签列表 */
+  /** Tag list */
   tags?: string[];
-  /** 所属分组（仅 function 类型） */
+  /** Group (function type only) */
   group?: string;
-  /** 创建时间 */
+  /** Creation time */
   createdAt: Date;
-  /** 更新时间 */
+  /** Last update time */
   updatedAt: Date;
 }
 
 export interface FileSystemEntry {
-  /** 主键：文件路径，如 '/functions/user/register.md' */
+  /** Primary key: file path, e.g. '/functions/user/register.md' */
   path: string;
-  /** 文件类型 */
+  /** File type */
   type: FileSystemEntryType;
-  /** 文件内容 */
+  /** File content */
   content: string;
-  /** 元数据 */
+  /** Metadata */
   metadata: FileSystemEntryMetadata;
 }
 
-// ========== 数据库定义 ==========
+// ========== Database definition ==========
 
 export class RTCAgentDatabase extends Dexie {
   sessions!: Table<LocalSession, string>;
@@ -113,7 +113,7 @@ export class RTCAgentDatabase extends Dexie {
     }
     super(databaseName);
 
-    // v1: 旧 schema，以 id（服务端 UUID）为主键
+    // v1: Legacy schema, using id (server UUID) as primary key
     this.version(1).stores({
       sessions: 'id, &client_id, sync_status, owner_ref_id, status',
       turns: 'id, &client_id, sync_status, session_id, status',
@@ -122,10 +122,10 @@ export class RTCAgentDatabase extends Dexie {
       offsets: 'channel',
     });
 
-    // v2: 迁移到 client_id 为主键，新增 server_id 字段
+    // v2: Migrate to client_id as primary key, add server_id field
     this.version(2)
       .stores({
-        // 主键：client_id，索引：server_id, sync_status 等
+        // Primary key: client_id; indexes: server_id, sync_status, etc.
         sessions: 'client_id, server_id, sync_status, owner_ref_id, status',
         turns: 'client_id, server_id, sync_status, session_client_id, status',
         messages: 'client_id, server_id, sync_status, session_client_id, turn_id, global_offset',
@@ -133,17 +133,17 @@ export class RTCAgentDatabase extends Dexie {
         offsets: 'channel',
       })
       .upgrade(async (tx) => {
-        // 数据迁移：v1 PK 为 id（服务端 UUID），v2 PK 改为 client_id。
-        // 由于 update(key, changes) 会按新 PK 查找，旧记录可能没有 client_id，
-        // 导致 update 找不到目标行、迁移静默失败。改用 clear + add 模式。
+        // Data migration: v1 PK was id (server UUID), v2 PK is client_id.
+        // Since update(key, changes) looks up by the new PK, old records may lack client_id,
+        // causing update to find no target row and silently fail. Use clear + add instead.
 
-        // 1. 先迁移 sessions 表，建立 server_id → client_id 映射
-        //    （其他表需要按 session 的 client_id 关联）
+        // 1. Migrate sessions table first, building server_id -> client_id mapping
+        //    (other tables need to reference session by client_id)
         const sessionsTable = tx.table('sessions');
         const allSessions = await sessionsTable.toArray();
         await sessionsTable.clear();
 
-        const sessionIdMap = new Map<string, string>(); // server_id → client_id
+        const sessionIdMap = new Map<string, string>(); // server_id -> client_id
 
         for (const row of allSessions) {
           const r = row as Record<string, unknown>;
@@ -163,7 +163,7 @@ export class RTCAgentDatabase extends Dexie {
           await sessionsTable.add(newRow);
         }
 
-        // 2. 迁移其他表（turns/messages/rtcs）
+        // 2. Migrate other tables (turns/messages/rtcs)
         for (const name of ['turns', 'messages', 'rtcs'] as const) {
           const table = tx.table(name);
           const allRows = await table.toArray();
@@ -177,13 +177,13 @@ export class RTCAgentDatabase extends Dexie {
 
             const newRow: Record<string, unknown> = { ...r };
 
-            // client_id 优先沿用旧值，兜底用 crypto.randomUUID() 避免空 PK 冲突
+            // client_id: prefer old value, fall back to crypto.randomUUID() to avoid empty PK collision
             newRow['client_id'] = oldClientId || oldId || crypto.randomUUID();
-            // server_id 保存旧的服务端 UUID
+            // server_id: preserve old server UUID
             newRow['server_id'] = oldId;
             delete newRow['id'];
 
-            // session_id → session_client_id：通过映射查找 session 的 client_id
+            // session_id -> session_client_id: resolve via session mapping
             if (oldSessionId) {
               const sessionClientId = sessionIdMap.get(oldSessionId);
               newRow['session_client_id'] = sessionClientId || oldSessionId;
@@ -197,7 +197,7 @@ export class RTCAgentDatabase extends Dexie {
         }
       });
 
-    // v3: 添加 updated_at 索引用于排序
+    // v3: Add updated_at index for sorting
     this.version(3).stores({
       sessions: 'client_id, server_id, sync_status, owner_ref_id, status, updated_at',
       turns: 'client_id, server_id, sync_status, session_client_id, status',
@@ -206,7 +206,7 @@ export class RTCAgentDatabase extends Dexie {
       offsets: 'channel',
     });
 
-    // v4: 添加 created_at 索引用于消息排序
+    // v4: Add created_at index for message ordering
     this.version(4).stores({
       sessions: 'client_id, server_id, sync_status, owner_ref_id, status, updated_at',
       turns: 'client_id, server_id, sync_status, session_client_id, status',
@@ -215,7 +215,7 @@ export class RTCAgentDatabase extends Dexie {
       offsets: 'channel',
     });
 
-    // v5: 添加 offset 索引用于 RTC 排序
+    // v5: Add offset index for RTC ordering
     this.version(5).stores({
       sessions: 'client_id, server_id, sync_status, owner_ref_id, status, updated_at',
       turns: 'client_id, server_id, sync_status, session_client_id, status',
@@ -224,19 +224,19 @@ export class RTCAgentDatabase extends Dexie {
       offsets: 'channel',
     });
 
-    // v6: 添加虚拟文件系统 fileSystemEntries 表
+    // v6: Add virtual file system fileSystemEntries table
     this.version(6).stores({
       sessions: 'client_id, server_id, sync_status, owner_ref_id, status, updated_at',
       turns: 'client_id, server_id, sync_status, session_client_id, status',
       messages: 'client_id, server_id, sync_status, session_client_id, turn_id, global_offset, created_at',
       rtcs: 'client_id, server_id, sync_status, session_client_id, turn_id, status, offset',
       offsets: 'channel',
-      // fileSystemEntries: 主键 path，索引 type/metadata.group/metadata.tags
-      // *metadata.tags 是多值索引，支持数组字段的查询
+      // fileSystemEntries: primary key path; indexes: type / metadata.group / metadata.tags
+      // *metadata.tags is a multi-valued index, supporting array field queries
       fileSystemEntries: 'path, type, metadata.group, *metadata.tags',
     });
 
-    // v7: 添加 device_id 索引用于 RTC Device ID 过滤
+    // v7: Add device_id index for RTC Device ID filtering
     this.version(7).stores({
       sessions: 'client_id, server_id, sync_status, owner_ref_id, status, updated_at, device_id',
       turns: 'client_id, server_id, sync_status, session_client_id, status',
@@ -248,13 +248,13 @@ export class RTCAgentDatabase extends Dexie {
   }
 }
 
-// ========== 单例 ==========
+// ========== Singleton ==========
 
 let dbInstance: RTCAgentDatabase | null = null;
 let dbInstanceName: string | null = null;
 
 export function getDatabase(databaseName?: string): RTCAgentDatabase {
-  // 已有实例时直接返回（无参调用仅作为单例访问入口）
+  // Return existing instance directly (no-arg call is just singleton access)
   if (databaseName === undefined) {
     if (dbInstance) {
       return dbInstance;
@@ -291,7 +291,7 @@ export async function closeDatabase(): Promise<void> {
 }
 
 /**
- * 清空所有数据（用于开发/测试）
+ * Flush all data (for development/testing).
  */
 export async function flushAll(): Promise<void> {
   const db = getDatabase();

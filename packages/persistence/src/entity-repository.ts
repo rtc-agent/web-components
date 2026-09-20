@@ -8,16 +8,15 @@ import { createLogger } from '@rtc-agent/client';
 const log = createLogger('EntityRepository');
 
 /**
- * upsert 选项
+ * Upsert options.
  */
 export interface UpsertOptions {
-  /** 为 true 时不向 UIUpdateBus 发布更新事件 */
+  /** When true, does not publish update events to UIUpdateBus */
   silent?: boolean;
 }
 
 /**
- * upsert 结果：包含写入前（before）和写入后（after）的快照，
- * 用于在 UIUpdateBus 中发布字段级差异事件。
+ * Upsert result: contains before/after snapshots for field-level diff emission via UIUpdateBus.
  */
 export interface UpsertResult<T> {
   before: T | undefined;
@@ -25,16 +24,17 @@ export interface UpsertResult<T> {
 }
 
 /**
- * 将 microdiff 的 path 数组拼成点号分隔的字段路径字符串。
- * 数组下标也会被当作路径段，例如 ['content', 0, 'text'] -> 'content.0.text'。
+ * Join microdiff's path array into a dot-separated field path string.
+ * Array indices are treated as path segments, e.g. ['content', 0, 'text'] -> 'content.0.text'.
  */
 function formatField(path: (string | number)[]): string {
   return path.join('.');
 }
 
 /**
- * 基于 before / after 快照，向 UIUpdateBus 发布字段级更新事件。
- * 如果 before 为 undefined，视为整条实体新增；否则按 microdiff 的差异逐字段发布。
+ * Emit field-level update events to UIUpdateBus based on before/after snapshots.
+ * If before is undefined, the entire entity is treated as newly created; otherwise
+ * field-level diffs are computed via microdiff and published per-field.
  */
 function emitUIUpdates(
   entity: UpdateEntity,
@@ -45,13 +45,13 @@ function emitUIUpdates(
 ): void {
   const bus = getUIUpdateBus();
 
-  // 深拷贝，确保数据可结构化克隆（通过 Comlink postMessage 传递）
-  // 避免不可克隆的对象（如循环引用、DOM 元素、函数等）导致 DataCloneError
+  // Deep clone to ensure data is structurally cloneable (for Comlink postMessage transport).
+  // Avoids DataCloneError from non-cloneable objects (circular references, DOM elements, functions, etc.)
   const cloneableAfter = safeClone(after);
   const cloneableBefore = before ? safeClone(before) : undefined;
 
   if (!cloneableBefore) {
-    // 新增：把 after 中每个顶层字段都发一条 CREATE 事件
+    // Create: emit a CREATE event for each top-level field in after
     for (const [field, newValue] of Object.entries(cloneableAfter)) {
       bus.publish({
         entity,
@@ -65,7 +65,7 @@ function emitUIUpdates(
     return;
   }
 
-  // 已存在：按 microdiff 差异逐字段发布
+  // Update: publish per-field diffs from microdiff
   const changes = diff(cloneableBefore, cloneableAfter);
   for (const change of changes) {
     bus.publish({
@@ -80,26 +80,27 @@ function emitUIUpdates(
 }
 
 /**
- * 安全克隆对象，确保可通过 structured clone 算法序列化
+ * Safely clone an object to ensure it is serializable via the structured clone algorithm.
  *
- * 使用 JSON 序列化/反序列化来移除不可克隆的对象（如函数、DOM 元素、循环引用等）。
- * 如果序列化失败，返回空对象以避免 DataCloneError。
+ * Uses JSON serialize/deserialize to strip non-cloneable objects (functions, DOM elements,
+ * circular references, etc.). Returns an empty object if serialization fails to avoid
+ * DataCloneError.
  */
 function safeClone<T>(obj: T): T {
   try {
     return JSON.parse(JSON.stringify(obj));
   } catch {
-    // 序列化失败（如循环引用），返回空对象
+    // Serialization failed (e.g. circular reference); return empty object
     log.warn('safeClone: failed to clone object, returning empty object');
     return {} as T;
   }
 }
 
 /**
- * 实体仓储：负责实体的 CRUD 和同步状态管理
+ * EntityRepository: handles entity CRUD and sync status management.
  */
 export class EntityRepository {
-  /** 当前设备的 Device ID，用于写入时过滤非本设备的 RTC */
+  /** Current device ID, used to filter non-local-device RTCs on write */
   private deviceId: string;
 
   constructor(deviceId: string) {
@@ -116,7 +117,7 @@ export class EntityRepository {
     const db = getDatabase();
     const now = nowRFC3339();
 
-    // 通过 client_id 查找
+    // Look up by client_id
     let existing: LocalSession | undefined;
     if (session.client_id) {
       existing = await db.sessions.where('client_id').equals(session.client_id).first();
@@ -190,10 +191,10 @@ export class EntityRepository {
     const query = db.sessions.orderBy('updated_at').reverse();
     const all = await query.toArray();
     log.debug(`listSessions] total=${all.length}, with deleted_at=${all.filter(s => s.deleted_at).length}`);
-    // 过滤软删除项（deleted_at 非空表示已删除）
+    // Filter soft-deleted items (deleted_at non-empty means deleted)
     const active = all.filter(s => !s.deleted_at);
     log.debug(`listSessions] after filter=${active.length}`);
-    // cursor 为上一页最后一条的 client_id，从该 ID 之后开始返回
+    // Cursor is the client_id of the last item on the previous page; return items after it
     if (cursor) {
       const startIdx = active.findIndex(s => s.client_id === cursor);
       if (startIdx === -1) return active.slice(0, limit);
@@ -203,10 +204,10 @@ export class EntityRepository {
   }
 
   /**
-   * 软删除会话：设置 deleted_at + updated_at，标记 sync_status='pending'
+   * Soft-delete a session: sets deleted_at + updated_at, marks sync_status='pending'.
    *
-   * 不直接删除 IndexedDB 行，保留数据供同步使用。
-   * listSessions 会自动过滤 deleted_at 非空的记录。
+   * Does not directly delete the IndexedDB row; data is preserved for sync purposes.
+   * listSessions automatically filters out records with non-empty deleted_at.
    */
   async softDeleteSession(clientId: string): Promise<UpsertResult<LocalSession>> {
     const existing = await this.getClientSession(clientId);
@@ -281,13 +282,14 @@ export class EntityRepository {
   }
 
   /**
-   * 一次性统计某 session 下 pending / running 的 turn 数量。
-   * 用于写时聚合：在 turn 行的写操作完成后把计数回写到 session 行。
+   * Count pending/running turns for a session in a single pass.
+   * Used for write-time aggregation: after writing turn rows, the counts are written
+   * back to the session row.
    */
   async countActiveTurns(sessionClientId: string): Promise<{ pending: number; running: number }> {
     const db = getDatabase();
     const base = db.turns.where('session_client_id').equals(sessionClientId);
-    // Dexie 不支持同一条查询链上多个 where()，分别计数后合并。
+    // Dexie does not support multiple where() calls on the same query chain; count separately and merge
     const [pending, running] = await Promise.all([
       base.filter(t => t.status === 'pending').count(),
       db.turns.where('session_client_id').equals(sessionClientId).filter(t => t.status === 'running').count(),
@@ -367,8 +369,8 @@ export class EntityRepository {
     const query = db.messages.where('session_client_id').equals(sessionClientId);
     const allMessages = await query.toArray();
 
-    // 排序策略：先用 created_at，相同则用 client_id（客户端ID主键）
-    // 这确保排序是确定性的，即使多条消息同一时间创建
+    // Sort strategy: first by created_at, then by client_id (client ID primary key) for ties.
+    // This ensures deterministic ordering even when multiple messages are created at the same time.
     const sortKey = (m: LocalMessage) => {
       const ts = new Date(m.created_at).getTime();
       return `${ts}|${m.client_id}`;
@@ -376,27 +378,27 @@ export class EntityRepository {
 
     allMessages.sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
 
-    // 解析游标：格式为 "${timestamp}|${clientId}"
+    // Parse cursor: format is "${timestamp}|${clientId}"
     let cursorKey: string | null = null;
     if (cursor) {
       cursorKey = cursor;
     }
 
     if (direction === 'backward') {
-      // 向后分页：获取比 cursor 更旧的消息
+      // Backward pagination: get messages older than the cursor
       let filtered = allMessages;
       if (cursorKey) {
-        // 严格小于游标（开区间），确保不重复
+        // Strictly less than cursor (open interval) to prevent duplicates
         filtered = allMessages.filter(m => sortKey(m) < cursorKey!);
       }
-      // 取最后 limit 条（最新的），升序返回
+      // Take the last `limit` items (newest) and return in ascending order
       const sliced = filtered.slice(-limit);
       return sliced;
     }
 
-    // 向前分页：获取比 cursor 更新的消息
+    // Forward pagination: get messages newer than the cursor
     if (cursorKey) {
-      // 严格大于游标（开区间），确保不重复
+      // Strictly greater than cursor (open interval) to prevent duplicates
       const filtered = allMessages.filter(m => sortKey(m) > cursorKey!);
       return filtered.slice(0, limit);
     }
@@ -464,25 +466,24 @@ export class EntityRepository {
   }
 
   /**
-   * 获取下一个需要处理的 RTC
-   * 优先级：sync_status='failed'（重试）> status='pending'（待执行）
-   * 排序：按 offset 正序
+   * Get the next RTC to process.
+   * Priority: sync_status='failed' (retry) > status='pending' (awaiting execution).
+   * Ordering: ascending by offset.
    *
-   * 注意：status='pending' 表示工具尚未执行，无论 sync_status 是什么
+   * Note: status='pending' means the tool has not been executed yet, regardless of sync_status.
    *
-   * @param sessionClientId 可选，限定某个 session 的 RTC
-   * @param deviceId 必填，只返回 Session.device_id 匹配的 RTC
+   * @param sessionClientId Optional session filter
    */
   async getNextRtcToProcess(sessionClientId?: string): Promise<LocalRtc | undefined> {
     const db = getDatabase();
 
-    // 写入时已过滤非本设备的 RTC，此处只需按 session 过滤
+    // Non-local-device RTCs are already filtered at write time; here we only filter by session
     const matchesSession = (rtc: LocalRtc): boolean => {
       if (!sessionClientId) return true;
       return rtc.session_client_id === sessionClientId;
     };
 
-    // 1. 先查 sync_status = 'failed' 的（需要重试上报）
+    // 1. First look for sync_status = 'failed' (need retry submission)
     const failed = await db.rtcs
       .where('sync_status')
       .equals('failed')
@@ -493,8 +494,8 @@ export class EntityRepository {
       return matchFailed;
     }
 
-    // 2. 再查 status = 'pending' 的（待执行的新任务）
-    // 无论 sync_status 是什么，只要 status='pending' 就说明还没执行
+    // 2. Then look for status = 'pending' (new tasks awaiting execution)
+    // Regardless of sync_status, status='pending' means not yet executed
     const allPending = await db.rtcs
       .filter(r => r.status === 'pending')
       .sortBy('offset');
@@ -503,7 +504,7 @@ export class EntityRepository {
   }
 
   /**
-   * 列出某个 session 的 RTC（按 offset 正序）
+   * List RTCs for a session (ascending by offset).
    */
   async listRtcBySession(
     sessionClientId: string,
@@ -522,12 +523,13 @@ export class EntityRepository {
     return sorted.slice(start, start + limit);
   }
 
-  // ========== Update 处理 ==========
+  // ========== Update processing ==========
 
   /**
-   * 处理 Update 事件（从 Publication 或 RPC 响应）
+   * Process an Update event (from Publication or RPC response).
    *
-   * 每个 item 写入 IndexedDB 后，会同步向 UIUpdateBus 发布字段级的更新事件。
+   * After each item is written to IndexedDB, field-level update events are
+   * synchronously published to UIUpdateBus.
    */
   async applyUpdate(update: Update): Promise<void> {
     for (let i = 0; i < update.items.length; i++) {
@@ -564,7 +566,7 @@ export class EntityRepository {
           server_id: raw.id,
           client_id: raw.client_id || raw.id,
         };
-        // 删除协议层的 id 字段（Local 类型没有 id）
+        // Remove protocol-layer id field (Local types do not have id)
         delete (mapped as Record<string, unknown>)['id'];
 
         await this.upsertSession(mapped, 'synced');
@@ -584,8 +586,8 @@ export class EntityRepository {
         delete (mapped as Record<string, unknown>)['session_id'];
         await this.upsertTurn(mapped, 'synced');
 
-        // 写时聚合：把当前 session 的 pending/running turn 数量回写到 session 行。
-        // upsertSession 的 diff + emitUIUpdates 会自动发布 session.updated 事件。
+        // Write-time aggregation: write pending/running turn counts back to the session row.
+        // upsertSession's diff + emitUIUpdates will automatically publish session.updated events.
         const sessionClientId = mapped.session_client_id;
         if (sessionClientId) {
           const { pending, running } = await this.countActiveTurns(sessionClientId);
@@ -615,7 +617,7 @@ export class EntityRepository {
           mapped.session_client_id = await this._resolveSessionClientId(raw.session_id, 'Message', raw.client_id || raw.id);
         }
         delete (mapped as Record<string, unknown>)['session_id'];
-        // parent_message_id → parent_client_id：查找父消息的 client_id
+        // parent_message_id -> parent_client_id: resolve parent message's client_id
         if (raw.parent_message_id) {
           const parentMsg = await this.getMessageByServerId(raw.parent_message_id);
           if (parentMsg) {
@@ -630,12 +632,12 @@ export class EntityRepository {
       }
       case 'rtc': {
         const raw = data as Rtc;
-        // session_id → session_client_id：查找 session 的 client_id
+        // session_id -> session_client_id: resolve session's client_id
         let sessionClientId: string | undefined;
         if (raw.session_id) {
           const session = await this.getSessionByServerId(raw.session_id);
           if (session) {
-            // 写入时过滤：不是本设备 Session 的 RTC，跳过写入
+            // Write-time filter: skip RTCs whose session belongs to a different device
             if (session.device_id && session.device_id !== this.deviceId) {
               log.debug(`Skipping RTC ${raw.client_id || raw.id} - session belongs to different device`);
               return;
@@ -655,8 +657,9 @@ export class EntityRepository {
         } as Partial<LocalRtc>;
         delete (mapped as Record<string, unknown>)['id'];
         delete (mapped as Record<string, unknown>)['session_id'];
-        // RTC 从服务端推送来时，数据已同步（synced），但需要客户端执行后上报结果
-        // sync_status 表示"执行结果是否已上报"，初始应为 pending
+        // When RTC is pushed from the server, data is already synced, but the client must
+        // execute it and report results. sync_status represents "whether the execution result
+        // has been reported"; it should start as 'pending'.
         await this.upsertRtc(mapped, 'pending');
         break;
       }
@@ -664,14 +667,14 @@ export class EntityRepository {
   }
 }
 
-// 单例
+// Singleton
 let entityRepositoryInstance: EntityRepository | null = null;
 
 /**
- * 初始化 EntityRepository 单例
+ * Initialize the EntityRepository singleton.
  *
- * 必须在应用启动时调用一次，传入当前设备的 Device ID。
- * Device ID 用于写入时过滤非本设备的 RTC。
+ * Must be called once at application startup with the current device's Device ID.
+ * The Device ID is used to filter non-local-device RTCs on write.
  */
 export function initEntityRepository(deviceId: string): void {
   if (entityRepositoryInstance) {
@@ -682,9 +685,9 @@ export function initEntityRepository(deviceId: string): void {
 }
 
 /**
- * 获取 EntityRepository 单例
+ * Get the EntityRepository singleton.
  *
- * 必须先调用 initEntityRepository(deviceId)。
+ * initEntityRepository(deviceId) must be called first.
  */
 export function getEntityRepository(): EntityRepository {
   if (!entityRepositoryInstance) {

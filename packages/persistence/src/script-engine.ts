@@ -1,13 +1,13 @@
 /**
  * Script Engine
  *
- * 脚本执行引擎：保存、转换、执行 LLM 生成的脚本
+ * Save, transform, and execute LLM-generated scripts.
  *
- * 设计原则：
- * - 沙箱限制"副作用"（存储/网络/DOM），不限制"表达力"（语言/数据结构/逻辑）
- * - 使用 Babel AST 转换在编译期阻断危险 API 访问（存储、网络、DOM、原型链逃逸）
- * - 使用 new Function() 执行，配合 "use strict" + fn.call(undefined) 防止 this 逃逸
- * - LLM 的创造力在逻辑层——开放完整的纯计算标准库 + rtcAgent API
+ * Design principles:
+ * - Sandbox restricts "side effects" (storage/network/DOM) but preserves "expressiveness" (language/data structures/logic)
+ * - Uses Babel AST transforms to block dangerous API access at compile time (storage, network, DOM, prototype chain escape)
+ * - Uses new Function() for execution, with "use strict" + fn.call(undefined) to prevent this escape
+ * - LLM creativity lives in the logic layer -- full pure-computation standard library + rtcAgent API are exposed
  */
 
 import { transformSync } from '@babel/core';
@@ -23,7 +23,7 @@ const log = createLogger('ScriptEngine');
 // ============================================================
 
 /**
- * ScriptTimeoutError - 脚本执行超时
+ * ScriptTimeoutError - script execution timed out
  */
 export class ScriptTimeoutError extends Error {
   readonly isScriptTimeout = true;
@@ -34,7 +34,7 @@ export class ScriptTimeoutError extends Error {
 }
 
 /**
- * ScriptCompileError - 脚本编译（Babel 转换）失败
+ * ScriptCompileError - script compilation (Babel transform) failed
  */
 export class ScriptCompileError extends Error {
   readonly isScriptCompileError = true;
@@ -49,41 +49,43 @@ export class ScriptCompileError extends Error {
 // ============================================================
 
 /**
- * RtcAgentAPI - 脚本中可用的 rtcAgent 最小接口
+ * RtcAgentAPI - minimal rtcAgent interface available inside scripts.
  *
- * 定义脚本沙箱中 rtcAgent 对象暴露的最小 API 表面。
- * 实际传入的对象可以包含更多方法，但脚本中只能安全使用此接口定义的方法。
+ * Defines the minimum API surface exposed by the rtcAgent object in the script sandbox.
+ * The actual injected object may contain additional methods, but only the methods defined
+ * in this interface can be safely used within scripts.
  */
 export interface RtcAgentAPI {
-  /** 调用已注册的 function */
+  /** Call a registered function */
   callFunction?: (path: string, params: Record<string, unknown>) => Promise<unknown>;
-  /** 读取文件 */
+  /** Read a file */
   readFile?: (path: string) => Promise<string>;
-  /** 写入文件 */
+  /** Write a file */
   writeFile?: (path: string, content: string) => Promise<void>;
-  /** 列出目录 */
+  /** List directory contents */
   listDir?: (path: string) => Promise<string[]>;
 }
 
 /**
- * 脚本执行沙箱中可用的 API
+ * APIs available inside the script execution sandbox.
  *
- * 沙箱策略：开放纯计算标准库 + 阻断副作用 API（存储/网络/DOM）
- * LLM 的创造力在逻辑层（数据处理、控制流、rtcAgent 调用组合），这一层完全敞开。
+ * Sandbox strategy: expose pure-computation standard library + block side-effect APIs (storage/network/DOM).
+ * LLM creativity lives in the logic layer (data processing, control flow, rtcAgent call composition) --
+ * this layer is fully open.
  */
 export interface ScriptSandbox {
-  /** rtcAgent 宿主 API（见 RtcAgentAPI 接口定义） */
+  /** rtcAgent host API (see RtcAgentAPI interface definition) */
   rtcAgent: RtcAgentAPI;
-  /** 劫持的 console（输出同时收集到 ConsoleOutput） */
+  /** Hijacked console (output simultaneously collected to ConsoleOutput) */
   console: {
     log: (...args: unknown[]) => void;
     warn: (...args: unknown[]) => void;
     error: (...args: unknown[]) => void;
   };
-  /** 脚本调用参数 */
+  /** Script invocation parameters */
   params: Record<string, unknown>;
 
-  // === 语言构造器与内置对象 ===
+  // === Language constructors and built-in objects ===
   Promise: PromiseConstructor;
   Date: DateConstructor;
   Math: typeof Math;
@@ -95,7 +97,7 @@ export interface ScriptSandbox {
   Boolean: BooleanConstructor;
   Error: ErrorConstructor;
 
-  // 数据结构
+  // Data structures
   Map: MapConstructor;
   Set: SetConstructor;
   WeakMap: WeakMapConstructor;
@@ -104,7 +106,7 @@ export interface ScriptSandbox {
   Symbol: SymbolConstructor;
   BigInt: BigIntConstructor;
 
-  // Error 子类（结构兼容 ErrorConstructor）
+  // Error subclasses (structurally compatible with ErrorConstructor)
   TypeError: ErrorConstructor;
   RangeError: ErrorConstructor;
   ReferenceError: ErrorConstructor;
@@ -112,7 +114,7 @@ export interface ScriptSandbox {
   URIError: ErrorConstructor;
   AggregateError: ErrorConstructor;
 
-  // === 解析与编码函数 ===
+  // === Parsing and encoding functions ===
   parseInt: typeof parseInt;
   parseFloat: typeof parseFloat;
   isNaN: typeof isNaN;
@@ -124,21 +126,21 @@ export interface ScriptSandbox {
   atob: typeof atob;
   btoa: typeof btoa;
 
-  // === 工具函数 ===
+  // === Utility functions ===
   structuredClone: typeof structuredClone;
 
-  // === 特殊值 ===
+  // === Special values ===
   NaN: number;
   Infinity: number;
   undefined: undefined;
 
-  // === URL 解析（纯数据操作，无网络） ===
+  // === URL parsing (pure data operations, no network) ===
   URL: typeof URL;
   URLSearchParams: typeof URLSearchParams;
 }
 
 /**
- * 控制台输出收集器
+ * Console output collector.
  */
 export interface ConsoleOutput {
   logs: string[];
@@ -147,17 +149,18 @@ export interface ConsoleOutput {
 }
 
 /**
- * 创建默认沙箱
+ * Create the default sandbox.
  *
- * 注入三类内容：
- * 1. rtcAgent / params — 宿主 API 与调用参数（非全局对象）
- * 2. console — 劫持版（输出同时收集到 ConsoleOutput）
- * 3. 纯计算标准库 — Map/Set/RegExp/parseInt/structuredClone 等
- *    （这些在浏览器主线程已存在，显式注入使 API 表面清晰可审计）
+ * Injects three categories of content:
+ * 1. rtcAgent / params -- host API and invocation parameters (not global objects)
+ * 2. console -- hijacked version (output simultaneously collected to ConsoleOutput)
+ * 3. Pure-computation standard library -- Map/Set/RegExp/parseInt/structuredClone etc.
+ *    (These already exist in the browser main thread; explicit injection makes the API
+ *    surface clearly auditable)
  *
- * @param rtcAgent - 宿主 API
- * @param params - 脚本参数
- * @param output - 可选的输出收集器，用于捕获 console 输出
+ * @param rtcAgent - Host API
+ * @param params - Script parameters
+ * @param output - Optional output collector for capturing console output
  */
 export function createSandbox(
   rtcAgent: RtcAgentAPI,
@@ -198,24 +201,24 @@ export function createSandbox(
       },
     },
     params,
-    // 语言构造器
+    // Language constructors
     Promise, Date, Math, JSON, Array, Object, String, Number, Boolean, Error,
-    // 数据结构
+    // Data structures
     Map, Set, WeakMap, WeakSet, RegExp, Symbol, BigInt,
-    // Error 子类
+    // Error subclasses
     TypeError: TypeError as unknown as ErrorConstructor,
     RangeError: RangeError as unknown as ErrorConstructor,
     ReferenceError: ReferenceError as unknown as ErrorConstructor,
     SyntaxError: SyntaxError as unknown as ErrorConstructor,
     URIError: URIError as unknown as ErrorConstructor,
     AggregateError: AggregateError as unknown as ErrorConstructor,
-    // 解析与编码
+    // Parsing and encoding
     parseInt, parseFloat, isNaN, isFinite,
     encodeURIComponent, decodeURIComponent, encodeURI, decodeURI,
     atob, btoa,
-    // 工具
+    // Utilities
     structuredClone,
-    // 特殊值
+    // Special values
     NaN, Infinity, undefined,
     // URL
     URL, URLSearchParams,
@@ -223,48 +226,49 @@ export function createSandbox(
 }
 
 // ============================================================
-// Babel Transform — Sandbox Plugin (MD2, 安全加固)
+// Babel Transform -- Sandbox Plugin (MD2, security hardening)
 // ============================================================
 
 /**
- * 缓存 Babel preset 对象，避免每次 transform 都重新构造 (M2)
+ * Cached Babel preset to avoid reconstructing on every transform (M2).
  */
 const cachedPresets = [presetTypescript] as NonNullable<TransformOptions['presets']>;
 
 /**
- * 禁止在脚本中直接访问的全局标识符（副作用 API）
+ * Global identifiers blocked from direct script access (side-effect APIs).
  *
- * 沙箱策略：限制"副作用"（存储/网络/DOM），不限制"表达力"（语言/数据结构/逻辑）。
- * 脚本的创造力应在逻辑层——数据处理、控制流、rtcAgent 调用组合。
- * 平台 API 应通过 rtcAgent.callFunction 间接访问。
+ * Sandbox strategy: restrict "side effects" (storage/network/DOM), not "expressiveness"
+ * (language/data structures/logic). Script creativity should focus on the logic layer --
+ * data processing, control flow, rtcAgent call composition. Platform APIs should be
+ * accessed indirectly via rtcAgent.callFunction.
  *
- * 以下分类列出被阻断的全局标识符：
+ * Blocked global identifiers by category:
  */
 const BLOCKED_GLOBALS: ReadonlySet<string> = new Set([
-  // 存储 API — 脚本应通过 rtcAgent.readFile/writeFile 访问文件
+  // Storage APIs -- scripts should use rtcAgent.readFile/writeFile for file access
   'localStorage', 'sessionStorage', 'indexedDB', 'caches', 'cookieStore',
-  // 网络 API — 脚本应通过 rtcAgent.callFunction 调用外部服务
+  // Network APIs -- scripts should use rtcAgent.callFunction for external services
   'fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource', 'BroadcastChannel',
-  // DOM / 浏览器环境 — 脚本应通过 rtcAgent 操作 UI
+  // DOM / browser environment -- scripts should use rtcAgent for UI manipulation
   'window', 'self', 'document', 'navigator', 'location', 'history',
   'screen', 'alert', 'confirm', 'prompt', 'open', 'close', 'print',
   'postMessage', 'frames', 'parent', 'top', 'opener',
-  // 元编程 / 逃逸 — 防止突破沙箱
+  // Metaprogramming / escape -- prevent sandbox breakout
   'eval', 'Function', 'globalThis', 'global',
-  // Worker — 防止创建新的执行上下文
+  // Worker -- prevent creating new execution contexts
   'Worker', 'SharedWorker', 'ServiceWorker', 'importScripts',
-  // 定时器 — 防止逃逸超时控制（应使用 rtcAgent.delay 等包装版本）
+  // Timers -- prevent escaping timeout control (should use rtcAgent.delay wrappers)
   'setTimeout', 'setInterval',
-  // 共享内存
+  // Shared memory
   'SharedArrayBuffer', 'Atomics',
-  // Node.js 兼容 — 防止 bundler 注入的 CJS 全局
+  // Node.js compatibility -- prevent bundler-injected CJS globals
   'require', 'module', 'exports', '__dirname', '__filename',
 ]);
 
 /**
- * 禁止通过 MemberExpression 访问的属性名
+ * Property names blocked from MemberExpression access.
  *
- * 防止原型链逃逸：
+ * Prevents prototype chain escape:
  * - `x.constructor.constructor('return this')()`
  * - `x.__proto__`
  */
@@ -274,28 +278,28 @@ const BLOCKED_MEMBER_PROPERTIES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * 沙箱安全插件
+ * Sandbox security plugin.
  *
- * 在 Babel 转换阶段静态阻断以下类别的语法：
+ * Statically blocks the following categories of syntax at Babel transform time:
  *
- * 1. 危险全局标识符（BLOCKED_GLOBALS）
- *    - 阻断对存储/网络/DOM/元编程等副作用 API 的直接访问
- *    - 如果标识符有本地绑定（变量声明/函数参数），允许（用户自己声明的同名变量）
- *    - 跳过 TypeScript 类型位置（type annotation 不触发阻断）
+ * 1. Dangerous global identifiers (BLOCKED_GLOBALS)
+ *    - Blocks direct access to side-effect APIs (storage/network/DOM/metaprogramming)
+ *    - If the identifier has a local binding (variable declaration/function parameter), it is allowed
+ *    - TypeScript type positions are skipped (type annotations are not value references)
  *
- * 2. 原型链逃逸属性（BLOCKED_MEMBER_PROPERTIES）
- *    - 阻断 `.constructor` / `.__proto__` 访问（包括字符串索引形式 `['constructor']`）
+ * 2. Prototype chain escape properties (BLOCKED_MEMBER_PROPERTIES)
+ *    - Blocks `.constructor` / `.__proto__` access (including string-indexed form `['constructor']`)
  *
- * 3. 动态 import()
- *    - 阻断 `import(...)` 语法，防止加载远程代码
+ * 3. Dynamic import()
+ *    - Blocks `import(...)` syntax to prevent loading remote code
  *
- * 4. 危险循环语法（原有 loopGuardPlugin 逻辑）
- *    - `while` / `do...while` / `for(;;)` — 没有可预见的终止条件
- *    - 允许：`for...of` / `for...in` / 有界 `for` / Array 迭代方法
+ * 4. Dangerous loop constructs (original loopGuardPlugin logic)
+ *    - `while` / `do...while` / `for(;;)` -- no foreseeable termination condition
+ *    - Allowed: `for...of` / `for...in` / bounded `for` / Array iteration methods
  */
 const sandboxPlugin = {
   visitor: {
-    // 1. 阻断危险全局标识符
+    // 1. Block dangerous global identifiers
     Identifier(path: {
       isReferencedIdentifier: () => boolean;
       node: { name: string };
@@ -308,10 +312,10 @@ const sandboxPlugin = {
       const name = path.node.name;
       if (!BLOCKED_GLOBALS.has(name)) return;
 
-      // 有本地绑定（变量声明/函数参数等），允许
+      // Has local binding (variable declaration / function parameter etc.) -- allow
       if (path.scope.hasBinding(name)) return;
 
-      // 跳过 TypeScript 类型位置（type annotation 不是值引用）
+      // Skip TypeScript type positions (type annotations are not value references)
       if (path.parent.type.startsWith('TS')) return;
 
       throw path.buildCodeFrameError(
@@ -319,7 +323,7 @@ const sandboxPlugin = {
       );
     },
 
-    // 2. 阻断原型链逃逸
+    // 2. Block prototype chain escape
     MemberExpression(path: {
       node: { property: { type: string; name?: string; value?: string }; computed: boolean };
       buildCodeFrameError: (msg: string) => Error;
@@ -340,7 +344,7 @@ const sandboxPlugin = {
       }
     },
 
-    // 3. 阻断动态 import()
+    // 3. Block dynamic import()
     ImportExpression(path: {
       buildCodeFrameError: (msg: string) => Error;
     }) {
@@ -349,7 +353,7 @@ const sandboxPlugin = {
       );
     },
 
-    // 4. 循环守卫
+    // 4. Loop guard
     WhileStatement(path: { buildCodeFrameError: (msg: string) => Error }) {
       throw path.buildCodeFrameError(
         '`while` loops are not allowed. Use `for...of` or Array iteration methods (forEach/map/filter/reduce) instead.',
@@ -361,7 +365,7 @@ const sandboxPlugin = {
       );
     },
     ForStatement(path: { node: { test: unknown }; buildCodeFrameError: (msg: string) => Error }) {
-      // 仅拦截 for(;;)：test 为 null 表示没有终止条件
+      // Only intercept for(;;): test === null means no termination condition
       if (path.node.test === null) {
         throw path.buildCodeFrameError(
           '`for(;;)` infinite loops are not allowed. Use a bounded `for` loop or `for...of` instead.',
@@ -372,15 +376,15 @@ const sandboxPlugin = {
 };
 
 /**
- * 使用 Babel 转换 TypeScript 语法并应用沙箱安全检查
+ * Transform TypeScript syntax using Babel and apply sandbox security checks.
  *
- * 转换流程：
- * 1. TypeScript 类型擦除（preset-typescript）
- * 2. 沙箱安全插件（阻断危险 API、原型链逃逸、动态 import、无限循环）
+ * Transform pipeline:
+ * 1. TypeScript type erasure (preset-typescript)
+ * 2. Sandbox security plugin (blocks dangerous APIs, prototype chain escape, dynamic import, infinite loops)
  *
- * @param code - TypeScript 源代码
- * @param name - 脚本名称，用于错误定位 (MD1)
- * @throws ScriptCompileError 当 Babel 转换失败或检测到危险语法/API 访问时
+ * @param code - TypeScript source code
+ * @param name - Script name for error location reporting (MD1)
+ * @throws ScriptCompileError when Babel transform fails or detects dangerous syntax/API access
  */
 export function transformTypeScript(code: string, name?: string): string {
   const filename = name ? `${name}.ts` : 'script.ts';
@@ -409,19 +413,19 @@ export function transformTypeScript(code: string, name?: string): string {
 // ============================================================
 
 /**
- * 解析脚本文件内容（frontmatter + 代码块）
+ * Parse script file content (frontmatter + code blocks).
  *
- * YAML 解析限制 (M3)：
- * - 仅支持简单的 key: value 键值对
- * - 不支持多行值、数组、嵌套对象
- * - 值两端的双引号会被自动移除
- * - 如需复杂配置，请在脚本代码内部处理
+ * YAML parsing limitations (M3):
+ * - Only supports simple key: value pairs
+ * - Does not support multi-line values, arrays, or nested objects
+ * - Surrounding double quotes on values are automatically removed
+ * - For complex configuration, handle it within the script code itself
  */
 export function parseScriptContent(content: string): {
   metadata: Record<string, string>;
   code: string;
 } {
-  // 解析 frontmatter
+  // Parse frontmatter
   const frontmatterMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
   if (!frontmatterMatch) {
     throw new Error('Invalid script format: missing frontmatter');
@@ -430,11 +434,11 @@ export function parseScriptContent(content: string): {
   const yamlStr = frontmatterMatch[1];
   const body = frontmatterMatch[2];
 
-  // 解析 YAML（简化版 - 仅支持简单 key: value，不支持多行/数组/嵌套，见 M3）
+  // Parse YAML (simplified -- only simple key: value, no multi-line/array/nesting; see M3)
   const metadata: Record<string, string> = {};
   const lines = yamlStr.split(/\r?\n/);
   for (const line of lines) {
-    // 跳过空行和注释
+    // Skip empty lines and comments
     if (!line.trim() || line.trim().startsWith('#')) continue;
 
     const colonIndex = line.indexOf(':');
@@ -443,7 +447,7 @@ export function parseScriptContent(content: string): {
     const key = line.substring(0, colonIndex).trim();
     let value = line.substring(colonIndex + 1).trim();
 
-    // 移除引号
+    // Strip quotes
     if (value.startsWith('"') && value.endsWith('"')) {
       value = value.slice(1, -1);
     }
@@ -453,7 +457,7 @@ export function parseScriptContent(content: string): {
     }
   }
 
-  // 提取所有代码块（M4：支持多个代码块，拼接所有内容）
+  // Extract all code blocks (M4: support multiple blocks, concatenate all content)
   const codeBlockRegex = /```(?:typescript|javascript|ts|js)?\r?\n?([\s\S]*?)\r?\n?```/g;
   const codeBlocks: string[] = [];
   let match: RegExpExecArray | null;
@@ -462,7 +466,7 @@ export function parseScriptContent(content: string): {
   }
 
   if (codeBlocks.length === 0) {
-    // 如果没有代码块，直接使用 body（假设是纯代码）
+    // No code blocks found: use body directly (assumed to be pure code)
     return { metadata, code: body.trim() };
   }
 
@@ -475,7 +479,7 @@ export function parseScriptContent(content: string): {
 }
 
 /**
- * 生成脚本文件内容（frontmatter + 代码块）
+ * Generate script file content (frontmatter + code block).
  */
 export function generateScriptContent(
   name: string,
@@ -503,17 +507,18 @@ export function generateScriptContent(
 // ============================================================
 
 /**
- * 执行脚本代码的核心逻辑（MD5：抽取公共逻辑）
+ * Core logic for executing script code (MD5: extracted common logic).
  *
- * 超时说明 (B1)：
- * - 超时仅放弃等待（reject Promise），不会终止正在执行的脚本。
- * - 脚本仍在后台运行直至完成，但调用方会收到 ScriptTimeoutError。
- * - 如需真正终止脚本，请使用 Worker 或子进程。
+ * Timeout behavior (B1):
+ * - Timeout only abandons the wait (rejects the Promise); the running script is not terminated.
+ * - The script continues running in the background until completion, but the caller receives
+ *   a ScriptTimeoutError.
+ * - To truly terminate a script, use a Worker or child process.
  *
- * @param code - 要执行的代码（TypeScript 或 JavaScript）
- * @param sandbox - 沙箱环境
- * @param timeoutMs - 超时时间（毫秒）
- * @param scriptName - 脚本名称，用于错误定位
+ * @param code - Code to execute (TypeScript or JavaScript)
+ * @param sandbox - Sandbox environment
+ * @param timeoutMs - Timeout in milliseconds
+ * @param scriptName - Script name for error location reporting
  */
 export async function _executeCode(
   code: string,
@@ -521,16 +526,16 @@ export async function _executeCode(
   timeoutMs: number,
   scriptName?: string
 ): Promise<unknown> {
-  // 转换 TypeScript 语法（传入 name 用于错误定位，MD1）
+  // Transform TypeScript syntax (pass name for error location, MD1)
   const jsCode = transformTypeScript(code, scriptName);
 
-  // 创建沙箱键值对
+  // Create sandbox key-value pairs
   const keys = Object.keys(sandbox);
   const values = keys.map(k => sandbox[k as keyof ScriptSandbox]);
 
-  // 使用 Function 构造器执行
-  // 包装成 async IIFE 以支持 await
-  // M1: 添加 "use strict" 防止 this 逃逸到 globalThis
+  // Use Function constructor for execution
+  // Wrap in async IIFE to support await
+  // M1: Add "use strict" to prevent this escape to globalThis
   const wrappedCode = `
     "use strict";
     return (async () => {
@@ -538,10 +543,10 @@ export async function _executeCode(
     })();
   `;
 
-  // 创建函数
+  // Create function
   const fn = new Function(...keys, wrappedCode);
 
-  // 执行并设置超时
+  // Execute with timeout
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   const timeoutPromise = new Promise<never>((_, reject) => {
@@ -551,11 +556,11 @@ export async function _executeCode(
   });
 
   try {
-    // M1: 使用 fn.call(undefined, ...) 将 this 绑定到 undefined（严格模式下）
+    // M1: Use fn.call(undefined, ...) to bind this to undefined (strict mode)
     const executionPromise = fn.call(undefined, ...values);
     return await Promise.race([executionPromise, timeoutPromise]);
   } finally {
-    // B1: 清除超时定时器，避免内存泄漏
+    // B1: Clear timeout timer to avoid memory leaks
     if (timer !== undefined) {
       clearTimeout(timer);
     }
@@ -563,11 +568,12 @@ export async function _executeCode(
 }
 
 /**
- * 执行脚本代码（公开 API）
+ * Execute script code (public API).
  *
- * 超时说明 (B1)：
- * - 超时仅放弃等待，不终止正在执行的脚本。
- * - 脚本仍在后台运行直至完成，但调用方会收到 ScriptTimeoutError。
+ * Timeout behavior (B1):
+ * - Timeout only abandons the wait, does not terminate the running script.
+ * - The script continues running in the background until completion, but the caller
+ *   receives a ScriptTimeoutError.
  */
 export async function executeScriptCode(
   code: string,
@@ -578,7 +584,7 @@ export async function executeScriptCode(
 }
 
 /**
- * 保存脚本到虚拟文件系统
+ * Save a script to the virtual file system.
  */
 export async function saveScript(
   name: string,
@@ -592,7 +598,7 @@ export async function saveScript(
 }
 
 /**
- * 从虚拟文件系统加载并执行脚本
+ * Load and execute a script from the virtual file system.
  */
 export async function loadAndExecuteScript(
   name: string,

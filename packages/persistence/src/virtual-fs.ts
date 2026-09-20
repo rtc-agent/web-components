@@ -1,19 +1,20 @@
 /**
  * Virtual File System
  *
- * 基于 IndexedDB 的虚拟文件系统，为 LLM 提供文件操作接口。
+ * IndexedDB-based virtual file system providing file operation APIs for LLM.
  *
- * 设计要点：
- * - 路径规范化：统一为绝对路径，禁止 .. 路径遍历
- * - 目录自动创建：写入文件时自动创建父目录（逻辑目录，不存储）
- * - 索引支持：通过 IndexedDB 索引加速查询
- * - 使用类结构（而非模块级函数）：便于未来注入不同数据库实例或配置
+ * Design highlights:
+ * - Path normalization: unified absolute paths, .. traversal is forbidden
+ * - Auto directory creation: parent directories are auto-created on write (logical directories, not stored)
+ * - Index support: queries accelerated via IndexedDB indexes
+ * - Class-based structure (rather than module-level functions): facilitates injecting different
+ *   database instances or configurations in the future
  */
 
 import { getDatabase, type FileSystemEntry, type FileSystemEntryType, type FileSystemEntryMetadata } from './database.js';
 
 /**
- * 路径错误
+ * Path-related error.
  */
 export class PathError extends Error {
   constructor(
@@ -26,12 +27,12 @@ export class PathError extends Error {
 }
 
 /**
- * 规范化路径
+ * Normalize a path.
  *
- * - 转换为绝对路径（添加前导 /）
- * - 移除多余的 /
- * - 禁止 .. 路径遍历
- * - 移除尾部的 /（根目录除外）
+ * - Convert to absolute path (add leading /)
+ * - Remove redundant /
+ * - Forbid .. path traversal
+ * - Remove trailing / (except for root)
  */
 export function normalizePath(path: string): string {
   if (!path || typeof path !== 'string') {
@@ -58,7 +59,7 @@ export function normalizePath(path: string): string {
 }
 
 /**
- * 获取父路径
+ * Get the parent path.
  */
 export function getParentPath(path: string): string {
   const normalized = normalizePath(path);
@@ -70,7 +71,7 @@ export function getParentPath(path: string): string {
 }
 
 /**
- * 获取文件名（不含路径）
+ * Get the file name (without path).
  */
 export function getFileName(path: string): string {
   const normalized = normalizePath(path);
@@ -79,7 +80,7 @@ export function getFileName(path: string): string {
 }
 
 /**
- * 检查路径是否是指定目录的子路径
+ * Check whether a path is a child of the specified directory.
  */
 export function isChildPath(parent: string, child: string): boolean {
   const normalizedParent = normalizePath(parent);
@@ -93,19 +94,20 @@ export function isChildPath(parent: string, child: string): boolean {
 }
 
 /**
- * 简单的 glob pattern 匹配
+ * Simple glob pattern matching.
  *
- * 支持：
- * - * 匹配任意字符（不含 /）
- * - ? 匹配单个字符
+ * Supports:
+ * - * matches any character (not /)
+ * - ? matches a single character
  *
- * 不支持：
- * - ** 递归匹配（v1 限制，TODO: 未来版本支持）
+ * Does not support:
+ * - ** recursive matching (v1 limitation, TODO: support in future version)
  *
- * 注意：RegExp 字符类中的 `/` 必须转义为 `\/`，否则某些引擎（如 Safari
- * 旧版本）会将 `[^/]` 中的 `/` 解析为正则字面量的结束符，导致 `*` 错误地
- * 匹配路径分隔符，破坏目录边界隔离。同时必须转义 `+` 等 RegExp 元字符，
- * 避免 `a+b` 被解释为"一个或多个 a 后跟 b"。
+ * Note: `/` inside RegExp character classes must be escaped as `\/`, otherwise some engines
+ * (e.g. older Safari) interpret the `/` in `[^/]` as the end of the regex literal, causing
+ * `*` to incorrectly match the path separator and break directory boundary isolation.
+ * RegExp metacharacters like `+` must also be escaped to avoid `a+b` being interpreted as
+ * "one or more a followed by b".
  */
 export function matchGlob(pattern: string, path: string): boolean {
   const regexStr = pattern
@@ -118,18 +120,19 @@ export function matchGlob(pattern: string, path: string): boolean {
 }
 
 /**
- * 虚拟文件系统
+ * Virtual file system.
  *
- * 使用类结构而非模块级函数，便于未来注入不同数据库实例或配置
+ * Uses class structure rather than module-level functions to facilitate injecting
+ * different database instances or configurations in the future.
  */
 export class VirtualFS {
   /**
-   * 读取文件内容
+   * Read file content.
    *
-   * @param path 文件路径
-   * @param offset 起始位置（字符位置，非字节）
-   * @param limit 最大读取字符数
-   * @throws PathError ENOENT 文件不存在
+   * @param path File path
+   * @param offset Starting position (character position, not byte)
+   * @param limit Maximum number of characters to read
+   * @throws PathError ENOENT if file does not exist
    */
   async read(path: string, offset?: number, limit?: number): Promise<string> {
     const normalizedPath = normalizePath(path);
@@ -152,13 +155,13 @@ export class VirtualFS {
   }
 
   /**
-   * 写入文件
+   * Write a file.
    *
-   * @param path 文件路径
-   * @param content 文件内容
-   * @param mode 写入模式：overwrite（覆盖）、append（追加）或 create-new（仅创建，文件存在则跳过）
-   * @param metadataOverride 可选的元数据覆盖（部分字段）
-   * @returns 写入后的文件总字符数，create-new 模式下文件已存在时返回现有文件字符数
+   * @param path File path
+   * @param content File content
+   * @param mode Write mode: overwrite, append, or create-new (skip if file exists)
+   * @param metadataOverride Optional partial metadata override
+   * @returns Total character count of the file after write; in create-new mode returns existing file length if file already exists
    */
   async write(
     path: string,
@@ -172,7 +175,7 @@ export class VirtualFS {
     const type = this.inferFileType(normalizedPath);
     const existing = await db.fileSystemEntries.get(normalizedPath);
 
-    // create-new 模式：文件已存在则跳过写入
+    // create-new mode: skip write if file already exists
     if (mode === 'create-new' && existing) {
       return existing.content.length;
     }
@@ -217,10 +220,10 @@ export class VirtualFS {
   }
 
   /**
-   * 列出目录内容
+   * List directory contents.
    *
-   * @param path 目录路径（默认根目录）
-   * @returns 文件名列表（不含完整路径）
+   * @param path Directory path (default: root)
+   * @returns File name list (without full paths)
    */
   async ls(path: string = '/'): Promise<string[]> {
     const normalizedPath = normalizePath(path);
@@ -255,11 +258,11 @@ export class VirtualFS {
   }
 
   /**
-   * 按文件名搜索
+   * Search by file name pattern.
    *
-   * @param pattern glob pattern（支持 * 和 ?）
-   * @param path 搜索范围（默认根目录）
-   * @returns 匹配的文件路径列表
+   * @param pattern Glob pattern (supports * and ?)
+   * @param path Search scope (default: root)
+   * @returns Matching file path list
    */
   async find(pattern: string, path: string = '/'): Promise<string[]> {
     const normalizedPath = normalizePath(path);
@@ -292,13 +295,13 @@ export class VirtualFS {
   }
 
   /**
-   * 按内容搜索
+   * Search by content.
    *
-   * @param pattern 正则表达式
-   * @param path 搜索范围（默认根目录）
-   * @param caseSensitive 是否大小写敏感（默认 false）
-   * @param maxResults 最大返回结果数（默认 100，防止大文件扫描导致性能问题）
-   * @returns 匹配结果列表
+   * @param pattern Regular expression
+   * @param path Search scope (default: root)
+   * @param caseSensitive Whether case-sensitive (default: false)
+   * @param maxResults Maximum result count (default: 100, prevents performance issues from large file scans)
+   * @returns Matching result list
    */
   async grep(
     pattern: string,
@@ -353,10 +356,10 @@ export class VirtualFS {
   }
 
   /**
-   * 查询指定类型的文件
+   * Query files by type.
    *
-   * @param type 文件类型
-   * @returns 文件条目列表
+   * @param type File type
+   * @returns File entry list
    */
   async queryByType(type: FileSystemEntryType): Promise<FileSystemEntry[]> {
     const db = getDatabase();
@@ -364,7 +367,7 @@ export class VirtualFS {
   }
 
   /**
-   * 检查文件是否存在
+   * Check if a file exists.
    */
   async exists(path: string): Promise<boolean> {
     const normalizedPath = normalizePath(path);
@@ -374,7 +377,7 @@ export class VirtualFS {
   }
 
   /**
-   * 删除文件
+   * Delete a file.
    */
   async remove(path: string): Promise<void> {
     const normalizedPath = normalizePath(path);
@@ -389,10 +392,10 @@ export class VirtualFS {
   }
 
   /**
-   * 推断文件类型
+   * Infer file type from path.
    *
-   * 基于路径前缀推断文件用途，用于索引和查询。
-   * 默认返回 'index' 作为通用文档类型。
+   * Determines file purpose based on path prefix, used for indexing and queries.
+   * Defaults to 'index' as the generic document type.
    */
   private inferFileType(path: string): FileSystemEntryType {
     if (path.startsWith('/functions/')) {
@@ -404,18 +407,18 @@ export class VirtualFS {
     if (path.startsWith('/scripts/')) {
       return 'script';
     }
-    // INDEX.md 和 AGENT.md 是索引文件
+    // INDEX.md and AGENT.md are index files
     if (path.endsWith('/INDEX.md') || path === '/AGENT.md') {
       return 'index';
     }
-    // 其他 Markdown 或文本文件归为 index（通用文档）
+    // Other Markdown or text files are classified as index (generic documents)
     return 'index';
   }
 
   /**
-   * 从路径提取分组名称
+   * Extract group name from path.
    *
-   * 例如：/functions/user/register.md -> 'user'
+   * Example: /functions/user/register.md -> 'user'
    */
   private extractGroupFromPath(path: string): string | undefined {
     const parts = path.split('/').filter(Boolean);
@@ -427,6 +430,6 @@ export class VirtualFS {
 }
 
 /**
- * 全局 VirtualFS 实例
+ * Global VirtualFS singleton instance.
  */
 export const virtualFS = new VirtualFS();

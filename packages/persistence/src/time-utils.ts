@@ -1,20 +1,21 @@
 /**
- * 时间格式化工具
+ * Time formatting utilities
  *
- * 用于生成与 Go 服务器一致的 RFC3339 格式时间戳
- * 服务器格式示例：2026-09-02T17:55:13.228132+08:00
+ * Generates RFC3339 timestamps consistent with the Go server.
+ * Server format example: 2026-09-02T17:55:13.228132+08:00
  */
 
 /**
- * 生成 RFC3339 格式的当前时间戳
+ * Generate an RFC3339-formatted timestamp for the given date.
  *
- * 格式：YYYY-MM-DDTHH:mm:ss.SSS+08:00
- * 注意：JavaScript 只能精确到毫秒（3位），服务器使用微秒（6位）
- * 但毫秒精度对于排序已经足够
+ * Format: YYYY-MM-DDTHH:mm:ss.SSS+08:00
+ * Note: JavaScript only supports millisecond precision (3 digits),
+ * while the server uses microsecond precision (6 digits).
+ * Millisecond precision is sufficient for ordering purposes.
  */
 export function formatRFC3339(date: Date = new Date()): string {
-  // 转换为本地时区的 RFC3339 格式
-  // RFC3339: 2026-09-02T17:55:13.228+08:00 (本地时区)
+  // Convert to local-timezone RFC3339 format
+  // RFC3339: 2026-09-02T17:55:13.228+08:00 (local timezone)
 
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -24,7 +25,7 @@ export function formatRFC3339(date: Date = new Date()): string {
   const seconds = String(date.getSeconds()).padStart(2, '0');
   const milliseconds = String(date.getMilliseconds()).padStart(3, '0');
 
-  // 获取时区偏移
+  // Get timezone offset
   const timezoneOffset = -date.getTimezoneOffset();
   const offsetHours = String(Math.floor(Math.abs(timezoneOffset) / 60)).padStart(2, '0');
   const offsetMinutes = String(Math.abs(timezoneOffset) % 60).padStart(2, '0');
@@ -34,7 +35,7 @@ export function formatRFC3339(date: Date = new Date()): string {
 }
 
 /**
- * 获取当前时间的 RFC3339 格式字符串
+ * Get the current time as an RFC3339-formatted string.
  */
 export function nowRFC3339(): string {
   return formatRFC3339(new Date());

@@ -1,7 +1,7 @@
 /**
- * VirtualFS 初始化逻辑
+ * VirtualFS initialization logic
  *
- * 提供 AGENT.md 模板和初始化函数
+ * Provides AGENT.md template and initialization function.
  */
 
 import { virtualFS } from './virtual-fs.js';
@@ -10,19 +10,19 @@ import { createLogger } from '@rtc-agent/client';
 const log = createLogger('VirtualFS');
 
 /**
- * AGENT.md 模板配置
+ * AGENT.md template configuration.
  */
 export interface AgentMdConfig {
-  /** 应用名称 */
+  /** Application name */
   name?: string;
-  /** 应用描述 */
+  /** Application description */
   description?: string;
-  /** AI 人设 */
+  /** AI persona */
   persona?: string;
 }
 
 /**
- * 生成 AGENT.md 内容
+ * Generate AGENT.md content from configuration.
  */
 export function generateAgentMd(config: AgentMdConfig = {}): string {
   const { name = 'RTC Agent', description = 'Your AI-powered assistant', persona = '' } = config;
@@ -64,18 +64,18 @@ For business workflows, check \`/scenarios/\` directory.
 }
 
 /**
- * 初始化虚拟文件系统
+ * Initialize the virtual file system.
  *
- * 创建基础的 AGENT.md 文件（如果不存在）
+ * Creates the base AGENT.md file if it does not already exist.
  *
- * @param config AGENT.md 配置
+ * @param config AGENT.md configuration
  */
 export async function initializeVirtualFS(config: AgentMdConfig = {}): Promise<void> {
   try {
-    // 检查 AGENT.md 是否存在
+    // Check whether AGENT.md already exists
     const exists = await virtualFS.exists('/AGENT.md');
     if (!exists) {
-      // 创建基础 AGENT.md
+      // Create the base AGENT.md
       const agentContent = generateAgentMd(config);
       await virtualFS.write('/AGENT.md', agentContent, 'overwrite');
       log.info('Initialized: AGENT.md created');

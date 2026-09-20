@@ -4,12 +4,12 @@ import type { PersistenceConfig, AgentMdConfig } from '@rtc-agent/persistence';
 import type { UIUpdateEvent, LocalSession, LocalMessage, LocalRtc } from '@rtc-agent/persistence';
 
 /**
- * Worker 侧回调：每个连入的 Tab 各自注册一份
+ * Worker-side callbacks: each connected Tab registers its own set.
  *
- * - onUIUpdate：Worker 收到实体变更时广播到该 Tab
- * - requestToken：Centrifuge 需要 token 时向任意 Tab 请求
- * - requestTokenRefresh：Centrifuge 检测到 token 过期时向任意 Tab 请求刷新
- * - onConnectionStateChange：Worker 中 RTCAgentClient 连接状态变更时广播到该 Tab
+ * - onUIUpdate: Worker broadcasts entity changes to this Tab
+ * - requestToken: Centrifuge requests a token from any Tab when needed
+ * - requestTokenRefresh: Centrifuge requests a token refresh from any Tab when expired
+ * - onConnectionStateChange: Worker broadcasts RTCAgentClient connection state changes to this Tab
  */
 export interface WorkerCallbacks {
   onUIUpdate: (event: UIUpdateEvent) => void;
@@ -19,34 +19,35 @@ export interface WorkerCallbacks {
 }
 
 /**
- * WorkerPersistenceCore：Worker 侧对外暴露的接口
+ * WorkerPersistenceCore: the interface exposed by the Worker side.
  *
- * - init()：初始化共享状态（仅首个 Tab 真正执行，后续调用幂等）
- * - registerCallback / unregisterCallback：管理每个 Tab 的回调
- * - 其他方法透传 PersistenceLayer
+ * - init(): Initialize shared state (only the first Tab actually executes; subsequent calls are idempotent)
+ * - registerCallback / unregisterCallback: manage per-Tab callbacks
+ * - Other methods pass through to PersistenceLayer
  */
 export interface WorkerPersistenceCore {
   init(config: PersistenceConfig): Promise<void>;
 
-  /** 注册一个 Tab 的回调（onconnect 时由 facade 调用） */
+  /** Register a Tab's callbacks (called by facade on connect) */
   registerCallback(cb: WorkerCallbacks): void;
-  /** 取消注册一个 Tab 的回调 */
+  /** Unregister a Tab's callbacks */
   unregisterCallback(cb: WorkerCallbacks): void;
 
   /**
-   * 健康检查：验证 Worker 是否正在运行
+   * Health check: verify the Worker is running.
    *
-   * 不需要 init() 就能工作，用于主线程验证 SharedWorker 是否成功启动。
+   * Works without init(); used by the main thread to verify that the
+   * SharedWorker started successfully.
    */
   ping(): string;
 
-  // ========== 连接 ==========
+  // ========== Connection ==========
   connect(): Promise<void>;
   disconnect(): void;
   reconnect(): Promise<void>;
   getConnectionState(): Promise<ConnectionState>;
 
-  // ========== 查询 ==========
+  // ========== Queries ==========
   listSessions(cursor?: string, limit?: number): Promise<LocalSession[]>;
   getSession(clientId: string): Promise<LocalSession | undefined>;
   listMessages(
@@ -63,14 +64,14 @@ export interface WorkerPersistenceCore {
   ): Promise<LocalRtc[]>;
   getNextRtcToProcess(sessionClientId?: string): Promise<LocalRtc | undefined>;
 
-  // ========== 操作 ==========
+  // ========== Operations ==========
   sendMessage(params: {
     content: ContentData;
     messageClientId: string;
     sessionClientId: string;
   }): Promise<{ session: LocalSession; message: LocalMessage }>;
 
-  /** 插入本地消息（不发送到服务器） */
+  /** Insert a local message (not sent to server) */
   insertLocalMessage(params: {
     sessionClientId: string;
     role: 'user' | 'assistant' | 'tool' | 'system';
@@ -81,10 +82,10 @@ export interface WorkerPersistenceCore {
 
   stopTurn(sessionClientId: string): Promise<void>;
 
-  /** 关闭会话（通知后端停止 turn loop） */
+  /** Close session (notify backend to stop turn loop) */
   closeSession(sessionClientId: string): Promise<void>;
 
-  /** 重新打开已关闭的会话 */
+  /** Reopen a closed session */
   openSession(sessionClientId: string): Promise<void>;
 
   compactSession(sessionClientId: string, customInstruction?: string): Promise<void>;
@@ -105,31 +106,32 @@ export interface WorkerPersistenceCore {
     limit?: number;
   }): Promise<{ session: LocalSession; message: LocalMessage }>;
 
-  /** 软删除会话（本地乐观更新 + 异步 RPC 同步） */
+  /** Soft-delete session (local optimistic update + async RPC sync) */
   deleteSession(sessionClientId: string): Promise<void>;
 
-  /** 更新会话标题（本地乐观更新 + 异步 RPC 同步） */
+  /** Update session title (local optimistic update + async RPC sync) */
   updateSessionTitle(sessionClientId: string, title: string): Promise<void>;
 
-  // ========== 生命周期 ==========
+  // ========== Lifecycle ==========
   close(): Promise<void>;
   flushAll(): Promise<void>;
 
-  // ========== 额外能力 ==========
+  // ========== Additional capabilities ==========
 
   /**
-   * 初始化虚拟文件系统（AGENT.md）
+   * Initialize the virtual file system (AGENT.md).
    *
-   * VirtualFS 运行在 Worker 内（共享同一 IndexedDB），
-   * 因此需要通过 Comlink 调用，而非在主线程直接调用 initializeVirtualFS。
+   * VirtualFS runs inside the Worker (sharing the same IndexedDB),
+   * so it must be invoked via Comlink rather than calling initializeVirtualFS
+   * directly on the main thread.
    */
   initializeVirtualFS(config?: AgentMdConfig): Promise<void>;
 
   /**
-   * 批量写入虚拟文件系统
+   * Batch-write files to the virtual file system.
    *
-   * 主线程无法直接访问 Worker 内的 VirtualFS/IndexedDB，
-   * 通过此方法将文件内容发送到 Worker 内写入。
+   * The main thread cannot directly access Worker-internal VirtualFS/IndexedDB;
+   * this method sends file content to the Worker for writing.
    */
   batchWriteFiles(files: Array<{
     path: string;
@@ -142,25 +144,25 @@ export interface WorkerPersistenceCore {
   }>): Promise<void>;
 
   /**
-   * 重置 OffsetManager 缓存（等价于 getOffsetManager().reset()）
+   * Reset OffsetManager cache (equivalent to getOffsetManager().reset()).
    *
-   * 主线程无法访问 Worker 内的 OffsetManager，
-   * 通过此方法透传 reset 调用。
+   * The main thread cannot access Worker-internal OffsetManager;
+   * this method passes the reset call through.
    */
   resetOffset(): Promise<void>;
 
-  // ========== virtualFS 代理（主线程 → Worker） ==========
+  // ========== virtualFS proxy (main thread -> Worker) ==========
 
   /**
-   * 读取虚拟文件（Worker 内执行 getDatabase + 读取）
+   * Read a virtual file (executed inside Worker: getDatabase + read).
    *
-   * 主线程不可直接访问 IndexedDB，
-   * 通过此方法将 virtualFS.read 调用代理到 Worker。
+   * The main thread cannot directly access IndexedDB;
+   * this method proxies virtualFS.read calls into the Worker.
    */
   virtualFSRead(path: string, offset?: number, limit?: number): Promise<string>;
 
   /**
-   * 写入虚拟文件（Worker 内执行）
+   * Write a virtual file (executed inside Worker).
    */
   virtualFSWrite(
     path: string,
@@ -174,17 +176,17 @@ export interface WorkerPersistenceCore {
   ): Promise<number>;
 
   /**
-   * 列出目录内容（Worker 内执行）
+   * List directory contents (executed inside Worker).
    */
   virtualFSLs(path?: string): Promise<string[]>;
 
   /**
-   * 按文件名搜索（Worker 内执行）
+   * Search by file name (executed inside Worker).
    */
   virtualFSFind(pattern: string, path?: string): Promise<string[]>;
 
   /**
-   * 搜索文件内容（Worker 内执行）
+   * Search file contents (executed inside Worker).
    */
   virtualFSGrep(
     pattern: string,
@@ -194,10 +196,10 @@ export interface WorkerPersistenceCore {
   ): Promise<Array<{ file: string; line: string; lineNumber: number }>>;
 
   /**
-   * 按类型查询文件（Worker 内执行）
+   * Query files by type (executed inside Worker).
    *
-   * 返回值类型与 persistence 包的 FileSystemEntry 一致，
-   * 通过 Comlink 传输时 Date 字段保留为 Date 实例。
+   * Return type matches persistence package's FileSystemEntry;
+   * Date fields are preserved as Date instances during Comlink transport.
    */
   virtualFSQueryByType(type: string): Promise<Array<{
     path: string;
@@ -214,12 +216,12 @@ export interface WorkerPersistenceCore {
   }>>;
 
   /**
-   * 检查文件是否存在（Worker 内执行）
+   * Check if a file exists (executed inside Worker).
    */
   virtualFSExists(path: string): Promise<boolean>;
 
   /**
-   * 删除文件（Worker 内执行）
+   * Delete a file (executed inside Worker).
    */
   virtualFSRemove(path: string): Promise<void>;
 }

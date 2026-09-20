@@ -21,26 +21,26 @@ const log = createLogger('WorkerCore');
 type PersistenceLayer = ReturnType<typeof createPersistenceLayer>;
 
 /**
- * WorkerPersistenceCore 实现
+ * WorkerPersistenceCore implementation.
  *
- * - 包装 PersistenceLayer，透传所有查询/操作方法
- * - 订阅 UIUpdateBus，把事件广播给所有已注册的 Tab 回调
- * - Token 请求：转发给任一已注册的 requestToken 回调
+ * - Wraps PersistenceLayer, passing through all query/operation methods
+ * - Subscribes to UIUpdateBus, broadcasting events to all registered Tab callbacks
+ * - Token requests: forwarded to any registered requestToken callback
  */
 export class WorkerCore implements WorkerPersistenceCore {
   private layer: PersistenceLayer | null = null;
   private unsubscribeBus: (() => void) | null = null;
   private unsubscribeConnection: (() => void) | null = null;
 
-  /** 所有连入 Tab 的回调集合 */
+  /** Callback sets for all connected Tabs */
   private callbacks = new Set<WorkerCallbacks>();
 
   /**
-   * 初始化共享状态
+   * Initialize shared state.
    *
-   * - 创建 PersistenceLayer（内部持有 RTCAgentClient + IndexedDB + EntityRepository）
-   * - 订阅 UIUpdateBus，用于向所有 Tab 广播
-   * - 重复调用幂等（忽略后续 init）
+   * - Creates PersistenceLayer (internally holds RTCAgentClient + IndexedDB + EntityRepository)
+   * - Subscribes to UIUpdateBus for broadcasting to all Tabs
+   * - Idempotent (subsequent init calls are ignored)
    */
   async init(config: PersistenceConfig): Promise<void> {
     if (this.layer) {
@@ -48,8 +48,8 @@ export class WorkerCore implements WorkerPersistenceCore {
       return;
     }
 
-    // 把 RTCAgentClient 的 getToken / onTokenExpired 桥接到 callbacks
-    // 注意：此时 callbacks 还是空的，但回调会在 connect() 时才被调用
+    // Bridge RTCAgentClient's getToken / onTokenExpired to callbacks.
+    // Note: callbacks is still empty at this point, but they are only invoked during connect().
     const bridgedConfig: PersistenceConfig = {
       ...config,
       client: {
@@ -61,7 +61,7 @@ export class WorkerCore implements WorkerPersistenceCore {
 
     this.layer = createPersistenceLayer(bridgedConfig);
 
-    // 订阅 UIUpdateBus，把事件广播给所有注册的回调
+    // Subscribe to UIUpdateBus to broadcast events to all registered callbacks
     const bus = getUIUpdateBus();
     this.unsubscribeBus = bus.subscribe((event: UIUpdateEvent) => {
       this.broadcastUIUpdate(event);
@@ -69,30 +69,30 @@ export class WorkerCore implements WorkerPersistenceCore {
   }
 
   /**
-   * 注册一个 Tab 的回调
+   * Register a Tab's callbacks.
    */
   registerCallback(cb: WorkerCallbacks): void {
     this.callbacks.add(cb);
   }
 
   /**
-   * 取消注册一个 Tab 的回调
+   * Unregister a Tab's callbacks.
    */
   unregisterCallback(cb: WorkerCallbacks): void {
     this.callbacks.delete(cb);
   }
 
   /**
-   * 健康检查：验证 Worker 是否正在运行
+   * Health check: verify the Worker is running.
    *
-   * 这个方法不需要 init() 就能工作，用于主线程验证
-   * SharedWorker 是否成功启动并可响应消息。
+   * Works without init(); used by the main thread to verify that the
+   * SharedWorker started successfully and can respond to messages.
    */
   ping(): string {
     return 'pong';
   }
 
-  // ========== 连接 ==========
+  // ========== Connection ==========
 
   async connect(): Promise<void> {
     log.debug(' connect() called');
@@ -100,7 +100,7 @@ export class WorkerCore implements WorkerPersistenceCore {
     log.debug(' calling layer.connect()');
     await layer.connect();
     log.debug(' layer.connect() returned, client state:', layer.getClient().getConnectionState());
-    // 订阅 RTCAgentClient 连接状态变更，广播给所有 Tab
+    // Subscribe to RTCAgentClient connection state changes and broadcast to all Tabs
     this._subscribeConnectionState(layer);
     log.debug(' connection state subscribed, returning from connect()');
   }
@@ -121,7 +121,7 @@ export class WorkerCore implements WorkerPersistenceCore {
     return layer.getClient().getConnectionState();
   }
 
-  // ========== 查询 ==========
+  // ========== Queries ==========
 
   async listSessions(cursor?: string, limit?: number): Promise<LocalSession[]> {
     const layer = this.ensureLayer();
@@ -162,7 +162,7 @@ export class WorkerCore implements WorkerPersistenceCore {
     return layer.getNextRtcToProcess(sessionClientId);
   }
 
-  // ========== 操作 ==========
+  // ========== Operations ==========
 
   async sendMessage(params: {
     content: ContentData;
@@ -236,7 +236,7 @@ export class WorkerCore implements WorkerPersistenceCore {
     return layer.updateSessionTitle(sessionClientId, title);
   }
 
-  // ========== 生命周期 ==========
+  // ========== Lifecycle ==========
 
   async close(): Promise<void> {
     if (this.unsubscribeBus) {
@@ -257,7 +257,7 @@ export class WorkerCore implements WorkerPersistenceCore {
   }
 
   async initializeVirtualFS(config: AgentMdConfig = {}): Promise<void> {
-    // virtualFS 内部通过 getDatabase() 访问同一 IndexedDB（Worker 内共享）
+    // virtualFS internally accesses the same IndexedDB via getDatabase() (shared within Worker)
     await initializeVirtualFS(config);
   }
 
@@ -272,14 +272,14 @@ export class WorkerCore implements WorkerPersistenceCore {
   }>): Promise<void> {
     log.debug(' batchWriteFiles called, files count:', files.length);
     for (const file of files) {
-      // 根据文件路径决定写入模式
-      // - /AGENT.md 和 /scenarios/*.md：使用 'create-new'（文件存在时不覆盖）
-      // - /functions/*.md 和其他文件：使用 'overwrite'（总是覆盖）
+      // Determine write mode based on file path:
+      // - /AGENT.md and /scenarios/*.md: use 'create-new' (do not overwrite existing files)
+      // - /functions/*.md and other files: use 'overwrite' (always overwrite)
       const mode = this._getWriteModeForPath(file.path);
       await virtualFS.write(file.path, file.content, mode, file.metadata);
     }
     log.debug(' batchWriteFiles completed');
-    // 批量写入只发一次广播，避免逐文件通知
+    // Single broadcast for batch write to avoid per-file notifications
     this.broadcastUIUpdate({
       entity: 'file',
       action: 'updated',
@@ -291,22 +291,22 @@ export class WorkerCore implements WorkerPersistenceCore {
   }
 
   /**
-   * 根据文件路径决定写入模式
+   * Determine write mode based on file path.
    *
-   * - /AGENT.md：使用 'create-new'（保护用户编辑的内容）
-   * - /scenarios/*.md：使用 'create-new'（保护用户编辑的内容）
-   * - /functions/*.md 和其他文件：使用 'overwrite'（总是覆盖，保持最新）
+   * - /AGENT.md: 'create-new' (protect user-edited content)
+   * - /scenarios/*.md: 'create-new' (protect user-edited content)
+   * - /functions/*.md and other files: 'overwrite' (always overwrite to stay current)
    */
   private _getWriteModeForPath(path: string): 'overwrite' | 'append' | 'create-new' {
     // /AGENT.md
     if (path === '/AGENT.md') {
       return 'create-new';
     }
-    // /scenarios/*.md（但不包括 /scenarios/INDEX.md）
+    // /scenarios/*.md (excluding /scenarios/INDEX.md)
     if (path.startsWith('/scenarios/') && path !== '/scenarios/INDEX.md') {
       return 'create-new';
     }
-    // 其他文件（包括 /functions/*.md 和索引文件）
+    // Other files (including /functions/*.md and index files)
     return 'overwrite';
   }
 
@@ -314,7 +314,7 @@ export class WorkerCore implements WorkerPersistenceCore {
     await getOffsetManager().reset();
   }
 
-  // ========== virtualFS 代理（主线程 → Worker） ==========
+  // ========== virtualFS proxy (main thread -> Worker) ==========
 
   async virtualFSRead(path: string, offset?: number, limit?: number): Promise<string> {
     return virtualFS.read(path, offset, limit);
@@ -331,7 +331,7 @@ export class WorkerCore implements WorkerPersistenceCore {
     }>,
   ): Promise<number> {
     const result = await virtualFS.write(path, content, mode, metadataOverride);
-    // 广播文件变更事件给所有标签页
+    // Broadcast file change event to all Tabs
     this.broadcastUIUpdate({
       entity: 'file',
       action: 'updated',
@@ -382,7 +382,7 @@ export class WorkerCore implements WorkerPersistenceCore {
 
   async virtualFSRemove(path: string): Promise<void> {
     await virtualFS.remove(path);
-    // 广播文件删除事件给所有标签页
+    // Broadcast file delete event to all Tabs
     this.broadcastUIUpdate({
       entity: 'file',
       action: 'deleted',
@@ -393,10 +393,10 @@ export class WorkerCore implements WorkerPersistenceCore {
     });
   }
 
-  // ========== 内部 ==========
+  // ========== Internal ==========
 
   /**
-   * 把 UIUpdateEvent 广播给所有注册的 Tab 回调
+   * Broadcast a UIUpdateEvent to all registered Tab callbacks.
    */
   private broadcastUIUpdate(event: UIUpdateEvent): void {
     for (const cb of this.callbacks) {
@@ -409,10 +409,10 @@ export class WorkerCore implements WorkerPersistenceCore {
   }
 
   /**
-   * 获取 Token（供 RTCAgentClient 回调使用）
+   * Request a token (used as RTCAgentClient callback).
    *
-   * - 选择任一已注册的 requestToken 回调
-   * - 失败时尝试下一个
+   * - Picks any registered requestToken callback
+   * - On failure, tries the next one
    */
   private async requestToken(): Promise<string> {
     for (const cb of this.callbacks) {
@@ -426,11 +426,11 @@ export class WorkerCore implements WorkerPersistenceCore {
   }
 
   /**
-   * 请求 Token 刷新（供 RTCAgentClient 的 onTokenExpired 回调使用）
+   * Request a token refresh (used as RTCAgentClient's onTokenExpired callback).
    *
-   * - 选择任一已注册的 requestTokenRefresh 回调
-   * - 失败时尝试下一个
-   * - 所有回调都失败时返回 'relogin'（要求用户重新登录）
+   * - Picks any registered requestTokenRefresh callback
+   * - On failure, tries the next one
+   * - When all callbacks fail, returns 'relogin' (requires user to log in again)
    */
   private async requestTokenRefresh(): Promise<TokenExpiredAction> {
     for (const cb of this.callbacks) {
@@ -451,10 +451,10 @@ export class WorkerCore implements WorkerPersistenceCore {
   }
 
   /**
-   * 订阅 RTCAgentClient 连接状态变更
+   * Subscribe to RTCAgentClient connection state changes.
    *
-   * connect() 后调用，将连接状态变更广播给所有注册的 Tab 回调。
-   * 替代 主线程无法直接访问 getClient() 的问题。
+   * Called after connect(); broadcasts connection state changes to all registered Tab callbacks.
+   * Solves the problem that the main thread cannot directly access getClient().
    */
   private _subscribeConnectionState(layer: PersistenceLayer): void {
     this._unsubscribeConnectionState();
@@ -467,7 +467,7 @@ export class WorkerCore implements WorkerPersistenceCore {
   }
 
   /**
-   * 取消订阅连接状态变更
+   * Unsubscribe from connection state changes.
    */
   private _unsubscribeConnectionState(): void {
     if (this.unsubscribeConnection) {
@@ -477,7 +477,7 @@ export class WorkerCore implements WorkerPersistenceCore {
   }
 
   /**
-   * 把连接状态变更广播给所有注册的 Tab 回调
+   * Broadcast a connection state change to all registered Tab callbacks.
    */
   private broadcastConnectionState(event: ConnectionStateEvent): void {
     for (const cb of this.callbacks) {

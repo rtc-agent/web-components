@@ -1,7 +1,7 @@
 /**
  * Permission System
  *
- * 根据工具名称和模式，决定是否需要用户确认
+ * Determines whether user confirmation is required based on tool name and mode.
  */
 
 import type { ToolName } from './tools/types.js';
@@ -9,21 +9,22 @@ import { createLogger } from '@rtc-agent/client';
 
 const log = createLogger('PermissionChecker');
 
-/** 工作模式（与 component 包的 Mode 类型保持一致） */
+/** Working mode (kept consistent with the Mode type in the component package) */
 export type Mode = 'manual' | 'edit' | 'plan' | 'auto' | 'bypass';
 
-/** 权限动作 */
+/** Permission action result */
 export type PermissionAction =
-  | 'allow'   // 自动通过，无需确认
-  | 'confirm' // 需要用户确认
-  | 'deny';   // 禁止执行
+  | 'allow'   // Auto-approved, no confirmation needed
+  | 'confirm' // Requires user confirmation
+  | 'deny';   // Execution denied
 
 /**
- * 权限规则表
+ * Permission rules table
  *
- * 扩展新工具时，在此添加对应的权限规则
+ * When adding new tools, add corresponding permission rules here.
  *
- * plan 和 auto 模式当前未启用，暂时使用与 edit 相同的规则
+ * Plan and auto modes are not yet enabled; they temporarily use
+ * the same rules as edit mode.
  */
 const PERMISSION_RULES: Record<ToolName, Record<Mode, PermissionAction>> = {
   ls:       { manual: 'allow',   edit: 'allow',   plan: 'allow',   auto: 'allow',   bypass: 'allow' },
@@ -38,19 +39,19 @@ const PERMISSION_RULES: Record<ToolName, Record<Mode, PermissionAction>> = {
 };
 
 /**
- * 权限检查器
+ * Permission checker: evaluates tool execution permissions.
  */
 export class PermissionChecker {
   /**
-   * 检查权限
-   * @param toolName 工具名称
-   * @param mode 当前模式
-   * @returns 权限动作
+   * Check permission for a tool in the given mode.
+   * @param toolName Tool name
+   * @param mode Current working mode
+   * @returns Permission action
    */
   check(toolName: ToolName, mode: Mode): PermissionAction {
     const rule = PERMISSION_RULES[toolName];
     if (!rule) {
-      // 未知工具默认需要确认
+      // Unknown tools default to requiring confirmation
       log.warn(`Unknown tool: ${toolName}, requiring confirm`);
       return 'confirm';
     }
@@ -58,19 +59,19 @@ export class PermissionChecker {
   }
 
   /**
-   * 是否需要用户确认
+   * Whether user confirmation is needed.
    */
   needsConfirm(toolName: ToolName, mode: Mode): boolean {
     return this.check(toolName, mode) === 'confirm';
   }
 
   /**
-   * 是否自动允许
+   * Whether the action is automatically allowed.
    */
   isAllowed(toolName: ToolName, mode: Mode): boolean {
     return this.check(toolName, mode) === 'allow';
   }
 }
 
-/** 全局权限检查器实例 */
+/** Global permission checker instance */
 export const permissionChecker = new PermissionChecker();

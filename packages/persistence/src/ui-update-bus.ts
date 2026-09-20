@@ -4,46 +4,46 @@ import { createLogger } from '@rtc-agent/client';
 const log = createLogger('UIUpdateBus');
 
 /**
- * UI 更新事件：描述持久化层中某条实体的某个字段的真实变化
+ * UI update event: describes an actual field change on a persisted entity.
  */
 export interface UIUpdateEvent {
-  /** 实体类型 */
+  /** Entity type */
   entity: UpdateEntity;
-  /** 操作类型（created / updated / deleted） */
+  /** Action type (created / updated / deleted) */
   action: UpdateAction;
-  /** 实体 ID（服务端主键） */
+  /** Entity ID (server primary key) */
   entityId: string;
-  /** 变更字段的点号路径，例如 "title"、"content.0.text" */
+  /** Dot-notation path of the changed field, e.g. "title", "content.0.text" */
   field: string;
-  /** 字段旧值（新增时为 undefined） */
+  /** Old field value (undefined on create) */
   oldValue: unknown;
-  /** 字段新值（删除时为 undefined） */
+  /** New field value (undefined on delete) */
   newValue: unknown;
 }
 
 /**
- * UI 更新订阅者
+ * UI update subscriber callback.
  */
 export type UIUpdateListener = (event: UIUpdateEvent) => void;
 
 /**
- * UIUpdateBus：单例发布 / 订阅总线
+ * UIUpdateBus: singleton publish/subscribe bus for UI updates.
  *
- * - 支持按 entity 过滤订阅
- * - 支持通配订阅（接收所有 entity 的事件）
+ * - Supports per-entity filtered subscriptions
+ * - Supports wildcard subscriptions (receive all entity events)
  */
 export class UIUpdateBus {
-  /** entity -> 订阅者集合 */
+  /** entity -> subscriber set */
   private entityListeners = new Map<UpdateEntity, Set<UIUpdateListener>>();
-  /** 通配订阅者（接收全部事件） */
+  /** Wildcard subscribers (receive all events) */
   private wildcardListeners = new Set<UIUpdateListener>();
 
   /**
-   * 订阅所有 UI 更新事件
+   * Subscribe to all UI update events.
    */
   subscribe(listener: UIUpdateListener): () => void;
   /**
-   * 订阅指定 entity 的 UI 更新事件
+   * Subscribe to UI update events for a specific entity.
    */
   subscribe(entity: UpdateEntity, listener: UIUpdateListener): () => void;
   subscribe(
@@ -73,10 +73,10 @@ export class UIUpdateBus {
   }
 
   /**
-   * 发布 UI 更新事件（仅由 persistence 内部调用）
+   * Publish a UI update event (called internally by persistence layer only).
    */
   publish(event: UIUpdateEvent): void {
-    // 通配订阅者
+    // Wildcard subscribers
     for (const listener of this.wildcardListeners) {
       try {
         listener(event);
@@ -84,7 +84,7 @@ export class UIUpdateBus {
         log.error('listener error:', err);
       }
     }
-    // 按 entity 订阅者
+    // Per-entity subscribers
     const set = this.entityListeners.get(event.entity);
     if (set) {
       for (const listener of set) {
@@ -98,7 +98,7 @@ export class UIUpdateBus {
   }
 
   /**
-   * 清除所有订阅（用于测试 / 关闭）
+   * Clear all subscriptions (used for testing / shutdown).
    */
   clear(): void {
     this.entityListeners.clear();
@@ -106,7 +106,7 @@ export class UIUpdateBus {
   }
 }
 
-// ========== 单例 ==========
+// ========== Singleton ==========
 
 let instance: UIUpdateBus | null = null;
 
@@ -118,7 +118,7 @@ export function getUIUpdateBus(): UIUpdateBus {
 }
 
 /**
- * 关闭并释放单例（用于测试 / 进程退出）
+ * Shut down and release the singleton (used for testing / process exit).
  */
 export function closeUIUpdateBus(): void {
   if (instance) {

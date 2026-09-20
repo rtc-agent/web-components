@@ -2,33 +2,33 @@
  * Tool System Types
  */
 
-/** 工具名称 */
+/** Tool name */
 export type ToolName = 'ls' | 'read' | 'write' | 'find' | 'grep' | 'script' | 'ask_user';
 
-/** 工具参数 */
+/** Tool parameters */
 export interface ToolParams {
   [key: string]: unknown;
 }
 
-/** 工具执行结果 */
+/** Tool execution result */
 export interface ToolResult {
   success: boolean;
   data?: unknown;
   error?: string;
 }
 
-/** 工具接口 */
+/** Tool interface */
 export interface Tool {
-  /** 工具名称 */
+  /** Tool name */
   readonly name: ToolName;
 
-  /** 工具描述 */
+  /** Tool description */
   readonly description: string;
 
   /**
-   * 执行工具
-   * @param params 工具参数
-   * @returns 执行结果
+   * Execute the tool.
+   * @param params Tool parameters
+   * @returns Execution result
    */
   execute(params: ToolParams): Promise<ToolResult>;
 }

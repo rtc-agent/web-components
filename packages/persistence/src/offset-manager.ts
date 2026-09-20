@@ -1,11 +1,11 @@
 import { getDatabase, type OffsetRecord } from './database.js';
 
 /**
- * Offset 管理器：负责 offset 和 epoch 的持久化
+ * OffsetManager: handles persistence of offset and epoch values.
  */
 export class OffsetManager {
   /**
-   * 获取指定频道的 offset 和 epoch
+   * Get the offset and epoch for a given channel.
    */
   async getPosition(channel: string): Promise<{ offset: number; epoch: string } | undefined> {
     const db = getDatabase();
@@ -17,7 +17,7 @@ export class OffsetManager {
   }
 
   /**
-   * 更新指定频道的 offset 和 epoch
+   * Update the offset and epoch for a given channel.
    */
   async updatePosition(channel: string, offset: number, epoch: string): Promise<void> {
     const db = getDatabase();
@@ -31,7 +31,7 @@ export class OffsetManager {
   }
 
   /**
-   * 清空指定频道的 offset（用于 epoch 变更时）
+   * Clear the offset for a specific channel (used on epoch change).
    */
   async clearPosition(channel: string): Promise<void> {
     const db = getDatabase();
@@ -39,7 +39,7 @@ export class OffsetManager {
   }
 
   /**
-   * 清空所有 offset 记录
+   * Clear all offset records.
    */
   async clearAll(): Promise<void> {
     const db = getDatabase();
@@ -47,14 +47,14 @@ export class OffsetManager {
   }
 
   /**
-   * 重置所有 offset（等同于 clearAll）
+   * Reset all offsets (equivalent to clearAll).
    */
   async reset(): Promise<void> {
     await this.clearAll();
   }
 }
 
-// 单例
+// Singleton
 let offsetManagerInstance: OffsetManager | null = null;
 
 export function getOffsetManager(): OffsetManager {

@@ -1,8 +1,8 @@
 /**
  * Built-in Tools
  *
- * 6 个基础工具：ls, read, write, find, grep, script
- * 基于 VirtualFS 实现文件操作
+ * 6 basic tools: ls, read, write, find, grep, script
+ * File operations are implemented on top of VirtualFS.
  */
 
 import type { Tool, ToolParams, ToolResult } from './types.js';
@@ -19,10 +19,10 @@ import {
 } from '../script-engine.js';
 
 /**
- * 共用的 FS 操作包装函数
- * 统一错误处理逻辑，避免每个 Tool 重复 try/catch
+ * Shared FS operation wrapper.
+ * Centralizes error handling to avoid duplicating try/catch in every Tool.
  *
- * M6: 添加兜底错误处理，不再 throw 未识别的错误类型
+ * M6: Added catch-all error handling; unrecognized error types are no longer thrown.
  */
 async function executeFS<T>(fn: () => Promise<T>): Promise<ToolResult> {
   try {
@@ -35,14 +35,14 @@ async function executeFS<T>(fn: () => Promise<T>): Promise<ToolResult> {
     if (err instanceof SyntaxError) {
       return { success: false, error: err.message };
     }
-    // M6: 兜底处理，不再 throw 未识别的错误
+    // M6: Catch-all handling; unrecognized errors are no longer thrown
     const msg = err instanceof Error ? err.message : String(err);
     return { success: false, error: msg };
   }
 }
 
 /**
- * 参数验证辅助函数
+ * String parameter validation helper.
  */
 function validateStringParam(params: ToolParams, name: string): string | null {
   const value = params[name];
@@ -56,7 +56,7 @@ function validateStringParam(params: ToolParams, name: string): string | null {
 }
 
 /**
- * M7: 数字参数验证（尝试类型转换）
+ * M7: Number parameter validation (with type coercion attempt).
  */
 function validateNumberParam(params: ToolParams, name: string): number | null {
   const value = params[name];
@@ -66,7 +66,7 @@ function validateNumberParam(params: ToolParams, name: string): number | null {
   if (typeof value === 'number' && !isNaN(value)) {
     return value;
   }
-  // 尝试从字符串转换
+  // Attempt string-to-number conversion
   if (typeof value === 'string') {
     const num = Number(value);
     if (!isNaN(num)) {
@@ -76,7 +76,7 @@ function validateNumberParam(params: ToolParams, name: string): number | null {
   throw new TypeError(`Parameter '${name}' must be a number, got ${typeof value}`);
 }
 
-/** write 工具的 mode 白名单 (MD4) */
+/** write tool mode whitelist (MD4) */
 const VALID_WRITE_MODES = ['overwrite', 'append', 'create-new'] as const;
 type WriteMode = typeof VALID_WRITE_MODES[number];
 
@@ -84,9 +84,9 @@ function isValidWriteMode(mode: unknown): mode is WriteMode {
   return typeof mode === 'string' && (VALID_WRITE_MODES as readonly string[]).includes(mode);
 }
 
-/** ls - 列出目录内容 */
+/** ls - list directory contents */
 export class LsTool implements Tool {
-  // m4: 移除多余的 `as const`
+  // m4: removed redundant `as const`
   readonly name = 'ls';
   readonly description = 'List directory contents';
 
@@ -96,7 +96,7 @@ export class LsTool implements Tool {
   }
 }
 
-/** read - 读取文件内容 */
+/** read - read file contents */
 export class ReadTool implements Tool {
   readonly name = 'read';
   readonly description = 'Read file contents';
@@ -112,7 +112,7 @@ export class ReadTool implements Tool {
   }
 }
 
-/** write - 写入文件 */
+/** write - write to file */
 export class WriteTool implements Tool {
   readonly name = 'write';
   readonly description = 'Write to file';
@@ -124,7 +124,7 @@ export class WriteTool implements Tool {
     }
     const content = (params.content as string) || '';
 
-    // MD4: mode 白名单校验
+    // MD4: mode whitelist validation
     const rawMode = params.mode ?? 'overwrite';
     if (!isValidWriteMode(rawMode)) {
       return { success: false, error: `Invalid mode '${rawMode}'. Must be one of: ${VALID_WRITE_MODES.join(', ')}` };
@@ -137,7 +137,7 @@ export class WriteTool implements Tool {
   }
 }
 
-/** find - 查找文件 */
+/** find - search for files by pattern */
 export class FindTool implements Tool {
   readonly name = 'find';
   readonly description = 'Find files by pattern';
@@ -152,7 +152,7 @@ export class FindTool implements Tool {
   }
 }
 
-/** grep - 搜索文件内容 */
+/** grep - search file contents */
 export class GrepTool implements Tool {
   readonly name = 'grep';
   readonly description = 'Search file contents';
@@ -170,9 +170,9 @@ export class GrepTool implements Tool {
 }
 
 /**
- * script - 保存或执行脚本
+ * script - save or execute scripts.
  *
- * M5: rtcAgent 通过构造函数注入，不再依赖全局可变状态
+ * M5: rtcAgent is injected via constructor, no longer relying on global mutable state.
  */
 export class ScriptTool implements Tool {
   readonly name = 'script';
@@ -181,7 +181,7 @@ export class ScriptTool implements Tool {
   private readonly rtcAgent: RtcAgentAPI | null;
 
   /**
-   * @param rtcAgent - 宿主 API，注入到脚本沙箱中（M5）
+   * @param rtcAgent - Host API, injected into the script sandbox (M5)
    */
   constructor(rtcAgent?: RtcAgentAPI) {
     this.rtcAgent = rtcAgent ?? null;
@@ -205,10 +205,11 @@ export class ScriptTool implements Tool {
   }
 
   /**
-   * 保存脚本到 /scripts/{name}.ts
+   * Save script to /scripts/{name}.ts.
    *
-   * 保存前先做语法检查（包括 loop guard），拒绝包含危险循环语法的脚本。
-   * 这样能避免在文件系统里留下"定时炸弹"——run 时才发现被拦。
+   * Performs syntax validation (including loop guard) before saving, rejecting
+   * scripts containing dangerous loop constructs. This prevents leaving
+   * "time bombs" in the file system that would only be caught at run time.
    */
   private async _saveScript(params: ToolParams): Promise<ToolResult> {
     const name = validateStringParam(params, 'name');
@@ -223,7 +224,7 @@ export class ScriptTool implements Tool {
 
     const description = validateStringParam(params, 'description') || undefined;
 
-    // 先做语法检查（触发 loopGuardPlugin），不通过则拒绝保存
+    // Run syntax check first (triggers loopGuardPlugin); reject save on failure
     try {
       transformTypeScript(code, name);
     } catch (err) {
@@ -241,14 +242,14 @@ export class ScriptTool implements Tool {
         data: { path, name },
       };
     } catch (err) {
-      // MD6: 正确处理 Error 对象
+      // MD6: Properly handle Error objects
       const msg = err instanceof Error ? err.message : String(err);
       return { success: false, error: `Failed to save script: ${msg}` };
     }
   }
 
   /**
-   * 执行已保存的脚本
+   * Execute a saved script.
    */
   private async _runScript(params: ToolParams): Promise<ToolResult> {
     const name = validateStringParam(params, 'name');
@@ -260,12 +261,12 @@ export class ScriptTool implements Tool {
     const timeout = validateNumberParam(params, 'timeout') ?? 30000;
     const title = validateStringParam(params, 'title') ?? undefined;
 
-    // MD5 + M5: 使用构造函数注入的 rtcAgent
+    // MD5 + M5: Use constructor-injected rtcAgent
     return this._executeCode(name, scriptParams, timeout, undefined, title);
   }
 
   /**
-   * 执行内联代码（不保存）
+   * Execute inline code (not saved).
    */
   private async _evalScript(params: ToolParams): Promise<ToolResult> {
     const code = validateStringParam(params, 'code');
@@ -277,17 +278,18 @@ export class ScriptTool implements Tool {
     const timeout = validateNumberParam(params, 'timeout') ?? 30000;
     const title = validateStringParam(params, 'title') ?? undefined;
 
-    // MD5 + M5: 使用构造函数注入的 rtcAgent
+    // MD5 + M5: Use constructor-injected rtcAgent
     return this._executeCode(undefined, scriptParams, timeout, code, title);
   }
 
   /**
-   * MD5: 抽取公共执行逻辑，避免 _runScript 和 _evalScript 重复代码
+   * MD5: Extracted common execution logic to avoid code duplication
+   * between _runScript and _evalScript.
    *
-   * @param name - 脚本名称（run 时提供，eval 时为 undefined）
-   * @param scriptParams - 传递给脚本的参数
-   * @param timeout - 超时时间（毫秒）
-   * @param inlineCode - 内联代码（eval 时提供）
+   * @param name - Script name (provided on run, undefined on eval)
+   * @param scriptParams - Parameters passed to the script
+   * @param timeout - Timeout in milliseconds
+   * @param inlineCode - Inline code (provided on eval)
    */
   private async _executeCode(
     name: string | undefined,
@@ -304,30 +306,30 @@ export class ScriptTool implements Tool {
       let code: string;
 
       if (inlineCode !== undefined) {
-        // eval 模式：直接使用内联代码
+        // Eval mode: use inline code directly
         code = inlineCode;
       } else {
-        // run 模式：从文件系统读取脚本
+        // Run mode: read script from file system
         const path = `/scripts/${name}.ts`;
         const content = await virtualFS.read(path);
         const parsed = parseScriptContent(content);
         code = parsed.code;
       }
 
-      // 创建输出收集器
+      // Create output collector
       const output = { logs: [], warns: [], errors: [] };
       const sandbox = createSandbox(this.rtcAgent, scriptParams, output, title || undefined);
 
-      // 计时：记录脚本执行耗时
+      // Timing: record script execution duration
       const startTime = performance.now();
       const result = await _executeCode(code, sandbox, timeout, name);
       const durationMs = Math.round(performance.now() - startTime);
 
-      // 构建返回数据
+      // Build return data
       const data: Record<string, unknown> = {};
       if (name) data.name = name;
       if (result !== undefined) data.result = result;
-      // 截断控制台输出（最多 100 条，避免超大输出撑爆数据库）
+      // Truncate console output (max 100 entries to prevent oversized data from bloating the database)
       const MAX_LOG_ENTRIES = 100;
       if (output.logs.length > 0) data.logs = output.logs.slice(0, MAX_LOG_ENTRIES);
       if (output.warns.length > 0) data.warnings = output.warns.slice(0, MAX_LOG_ENTRIES);
@@ -339,14 +341,14 @@ export class ScriptTool implements Tool {
         data,
       };
     } catch (err) {
-      // 利用自定义错误类提供更精确的错误信息 (MD2)
+      // Leverage custom error classes for more precise error information (MD2)
       if (err instanceof Error && 'isScriptTimeout' in err) {
         return { success: false, error: (err as ScriptTimeoutError).message };
       }
       if (err instanceof Error && 'isScriptCompileError' in err) {
         return { success: false, error: `Script compile error: ${(err as ScriptCompileError).message}` };
       }
-      // MD6: 正确处理 Error 对象
+      // MD6: Properly handle Error objects
       const msg = err instanceof Error ? err.message : String(err);
       return { success: false, error: `Script execution failed: ${msg}` };
     }
@@ -354,11 +356,11 @@ export class ScriptTool implements Tool {
 }
 
 /**
- * 创建内置工具实例列表
+ * Create built-in tool instance list.
  *
- * M5: rtcAgent 通过参数传入 ScriptTool，不再使用全局可变状态
+ * M5: rtcAgent is passed via parameter to ScriptTool instead of using global mutable state.
  *
- * @param rtcAgent - 可选的宿主 API，传递给 ScriptTool
+ * @param rtcAgent - Optional host API, passed to ScriptTool
  */
 export function createBuiltinTools(rtcAgent?: RtcAgentAPI): Tool[] {
   return [
@@ -372,9 +374,9 @@ export function createBuiltinTools(rtcAgent?: RtcAgentAPI): Tool[] {
 }
 
 /**
- * 默认内置工具实例列表（不含 rtcAgent）
+ * Default built-in tool instance list (without rtcAgent).
  *
- * 注意：如果需要使用 script 工具的 run/eval 功能，
- * 请使用 createBuiltinTools(rtcAgent) 并提供宿主 API。
+ * Note: To use the script tool's run/eval functionality, use
+ * createBuiltinTools(rtcAgent) and provide the host API.
  */
 export const builtinTools: Tool[] = createBuiltinTools();

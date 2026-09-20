@@ -9,23 +9,23 @@ import { createLogger } from '@rtc-agent/client';
 const log = createLogger('RtcProcessor');
 
 /**
- * 确认对话框回调类型
+ * Confirm dialog callback type.
  *
- * 由 component 层实现，注入到 RtcProcessor
- * @param rtc 待确认的 RTC
- * @returns 用户是否批准
+ * Implemented by the component layer and injected into RtcProcessor.
+ * @param rtc The RTC to confirm
+ * @returns Whether the user approved
  */
 export type ConfirmDialogFn = (rtc: LocalRtc) => Promise<boolean>;
 
 /**
- * AskUser 对话框回调类型
+ * AskUser dialog callback type.
  *
- * 由 component 层实现（<rtc-ask-user>），注入到 RtcProcessor。
- * 与普通 confirm 不同：ask_user 的"执行"就是收集用户选择，
- * 所以回调返回用户答案 dict（或 null 表示拒绝）。
+ * Implemented by the component layer (<rtc-ask-user>) and injected into RtcProcessor.
+ * Unlike a regular confirm: for ask_user the "execution" IS collecting user input,
+ * so the callback returns the user's answer dict (or null to indicate refusal).
  *
- * @param rtc 待回答的 RTC，parameters 内含 questions 数组
- * @returns 用户答案 { answers, annotations?, metadata? }，或 null 表示拒绝
+ * @param rtc The RTC to answer; parameters contain a questions array
+ * @returns User answers { answers, annotations?, metadata? }, or null to indicate refusal
  */
 export type AskUserDialogFn = (rtc: LocalRtc) => Promise<{
   answers: Record<string, string>;
@@ -34,92 +34,93 @@ export type AskUserDialogFn = (rtc: LocalRtc) => Promise<{
 } | null>;
 
 /**
- * Master 资格判断的最小接口
+ * Minimal interface for master eligibility check.
  *
- * 设计为最小 duck-type，以便 component 层的 MasterLock 或其他实现都能注入。
- * persistence 包不直接依赖 component 包的 MasterLock 类。
+ * Designed as a minimal duck-type so that the component layer's MasterLock or
+ * other implementations can be injected. The persistence package does not
+ * directly depend on the component package's MasterLock class.
  *
- * @see docs/shared-worker-proposal.md §4.2
+ * @see docs/shared-worker-proposal.md section 4.2
  */
 export interface MasterLike {
   readonly isMaster: boolean;
 }
 
 /**
- * RTC 处理器：串行处理 RTC，防止重入
+ * RtcProcessor: serially processes RTCs to prevent re-entrancy.
  *
- * 设计要点：
- * - processing 标志防止多个循环并发
- * - pendingCheck 确保不遗漏新推送
- * - 根据权限模式决定是否需要用户确认
- * - confirmDialog 由外部注入（component 层实现）
- * - 可选注入 MasterLike：多 Tab 场景下仅 Master Tab 执行工具
- *   （未注入时视为永远是 Master）
+ * Design highlights:
+ * - `processing` flag prevents concurrent loops
+ * - `pendingCheck` ensures new pushes are not missed
+ * - Permission mode determines whether user confirmation is required
+ * - `confirmDialog` is injected externally (implemented by the component layer)
+ * - Optional `MasterLike` injection: in multi-Tab scenarios only the Master Tab executes tools
+ *   (when not injected, treated as always being Master)
  *
- * Device ID 过滤在写入时完成（EntityRepository），此处无需关心。
+ * Device ID filtering is done at write time (EntityRepository); not handled here.
  */
 export class RtcProcessor {
   private persistence: PersistenceLayer;
   private processing = false;
   private pendingCheck = false;
-  /** 内存中的重试计数器：rtcClientId → 重试次数（刷新后清零） */
+  /** In-memory retry counter: rtcClientId -> retry count (reset on refresh) */
   private retryCountMap = new Map<string, number>();
-  /** 当前工作模式 */
+  /** Current working mode */
   private mode: Mode = 'edit';
-  /** 确认对话框（由 component 层注入） */
+  /** Confirm dialog (injected by the component layer) */
   private confirmDialog?: ConfirmDialogFn;
-  /** AskUser 对话框（由 component 层注入，专用于 ask_user RTC） */
+  /** AskUser dialog (injected by the component layer, dedicated to ask_user RTCs) */
   private askUserDialog?: AskUserDialogFn;
-  /** Master 资格判断（可选，多 Tab 场景注入） */
+  /** Master eligibility check (optional, injected in multi-Tab scenarios) */
   private master?: MasterLike;
 
   constructor(persistence: PersistenceLayer) {
     this.persistence = persistence;
   }
 
-  /** 设置工作模式 */
+  /** Set the working mode */
   setMode(mode: Mode): void {
     this.mode = mode;
   }
 
-  /** 获取当前模式 */
+  /** Get the current mode */
   getMode(): Mode {
     return this.mode;
   }
 
-  /** 设置确认对话框回调 */
+  /** Set the confirm dialog callback */
   setConfirmDialog(fn: ConfirmDialogFn): void {
     this.confirmDialog = fn;
   }
 
-  /** 设置 AskUser 对话框回调（专用于 ask_user RTC） */
+  /** Set the AskUser dialog callback (dedicated to ask_user RTCs) */
   setAskUserDialog(fn: AskUserDialogFn): void {
     this.askUserDialog = fn;
   }
 
   /**
-   * 设置 Master 资格判断
+   * Set master eligibility check.
    *
-   * 多 Tab 场景下由 component 层注入 MasterLock。
-   * 不设置时视为"永远是 Master"。
+   * In multi-Tab scenarios, the component layer injects MasterLock.
+   * When not set, treated as "always Master".
    */
   setMaster(master: MasterLike | undefined): void {
     this.master = master;
   }
 
   /**
-   * 判断当前 Tab 是否允许执行 RTC
+   * Check whether the current Tab is allowed to execute RTCs.
    *
-   * - 未注入 master → 视为 Master
-   * - 已注入 master → 按 master.isMaster 判断
+   * - No master injected -> treated as Master
+   * - Master injected -> determined by master.isMaster
    */
   private _isMasterAllowed(): boolean {
     return this.master === undefined || this.master.isMaster;
   }
 
   /**
-   * 收到 RTC 更新时调用
-   * 如果已经在处理，标记 pendingCheck，当前循环会检查
+   * Called when an RTC update is received.
+   * If already processing, sets pendingCheck so the current loop will re-check.
    */
   async onRtcUpdate() {
     log.debug(' onRtcUpdate called, processing:', this.processing);
@@ -131,8 +132,8 @@ export class RtcProcessor {
   }
 
   private async processLoop() {
-    // 非 Master Tab 跳过工具执行（proposal §4.2）
-    // 不设置 processing 标志，避免阻塞未来 Master 升级后的处理
+    // Non-master Tab skips tool execution (proposal section 4.2)
+    // Does not set the processing flag, to avoid blocking future Master upgrade processing
     if (!this._isMasterAllowed()) {
       log.debug(' processLoop: not master, skipping');
       return;
@@ -160,13 +161,13 @@ export class RtcProcessor {
           log.debug(' processOne completed successfully');
         } catch (err) {
           log.error(' processOne failed:', err);
-          // 如果是连接错误，退出循环，等待连接恢复
+          // If it's a connection error, exit the loop and wait for connection recovery
           const errMsg = err instanceof Error ? err.message : String(err);
           if (errMsg.includes('connection') || errMsg.includes('disconnected')) {
             log.warn(' connection error detected, exiting processLoop');
             break;
           }
-          // 其他错误，等待一下再重试，避免快速循环
+          // For other errors, wait briefly before retrying to avoid tight loops
           await this.sleep(1000);
         }
       }
@@ -178,7 +179,7 @@ export class RtcProcessor {
 
   private async processOne(rtc: LocalRtc) {
     if (rtc.sync_status === 'failed') {
-      // 重试：根据重试次数指数退避
+      // Retry: exponential backoff based on retry count
       const retryCount = this.retryCountMap.get(rtc.client_id) || 0;
       const delay = this.calculateBackoff(retryCount);
       await this.sleep(delay);
@@ -190,15 +191,15 @@ export class RtcProcessor {
           result: rtc.result,
           error: rtc.error_message,
         });
-        // 成功：清除重试计数
+        // Success: clear retry counter
         this.retryCountMap.delete(rtc.client_id);
       } catch (err) {
-        // 失败：递增重试计数
+        // Failure: increment retry counter
         this.retryCountMap.set(rtc.client_id, retryCount + 1);
         throw err;
       }
     } else {
-      // 新任务：检查权限
+      // New task: check permissions
       const toolName = rtc.tool_name as ToolName;
 
       // ask_user is a special case: its "execution" IS the user's input.
@@ -228,7 +229,7 @@ export class RtcProcessor {
         return;
       }
 
-      // 执行工具
+      // Execute tool
       let result: unknown;
       let success = true;
       let errorMsg: string | undefined;
@@ -260,10 +261,11 @@ export class RtcProcessor {
   }
 
   /**
-   * 处理 ask_user RTC
+   * Process an ask_user RTC.
    *
-   * ask_user 与普通工具不同：没有"执行"阶段，用户的选择本身就是 RTC 结果。
-   * 通过专用的 askUserDialog 回调渲染多选 UI，收集答案后直接作为 result 提交。
+   * Unlike regular tools, ask_user has no "execution" phase; the user's selection
+   * IS the RTC result. The dedicated askUserDialog callback renders the multi-select
+   * UI, collects answers, and submits them directly as the result.
    */
   private async processAskUser(rtc: LocalRtc): Promise<void> {
     if (!this.askUserDialog) {
@@ -317,7 +319,7 @@ export class RtcProcessor {
   }
 
   /**
-   * 指数退避：1s, 2s, 4s, 8s, 16s, 30s（封顶）
+   * Exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s (capped).
    */
   private calculateBackoff(retryCount: number): number {
     return Math.min(1000 * Math.pow(2, retryCount), 30000);
@@ -328,10 +330,10 @@ export class RtcProcessor {
   }
 
   /**
-   * 显示确认对话框
+   * Show the confirm dialog.
    *
-   * 使用注入的 confirmDialog 回调。
-   * 如果未设置回调，默认返回 false（拒绝）。
+   * Uses the injected confirmDialog callback.
+   * If no callback is set, defaults to false (reject).
    */
   private async showConfirmDialog(rtc: LocalRtc): Promise<boolean> {
     if (!this.confirmDialog) {
