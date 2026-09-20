@@ -1410,6 +1410,8 @@ export class RtcAgent extends LitElement {
                 const titleBar = this.shadowRoot?.querySelector<HTMLElement>('rtc-title-bar');
                 titleBar?.focus();
             }
+        }).catch(err => {
+            log.error('Mode transition focus failed:', err);
         });
 
         // When restoring from minimized, clear notification animation and unread count.

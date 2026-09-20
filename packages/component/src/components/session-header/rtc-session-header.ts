@@ -108,7 +108,9 @@ export class RtcSessionHeader extends LitElement {
                 this._showTodoPanel = true;
                 this._isFadingOut = false;
                 this._scheduleAutoClose();
-                this.updateComplete.then(() => this._startTodoPositioning());
+                this.updateComplete.then(() => this._startTodoPositioning()).catch(err => {
+                    log.error('Todo positioning after update failed:', err);
+                });
                 this._prevTodoList = todoList;
             }
         }

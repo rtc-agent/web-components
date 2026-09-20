@@ -78,6 +78,8 @@ export class RtcSessionPanel extends LitElement {
             const input = this.shadowRoot?.querySelector<HTMLInputElement>('.rename-input');
             input?.focus();
             input?.select();
+        }).catch(err => {
+            log.error('Rename input focus after update failed:', err);
         });
     }
 

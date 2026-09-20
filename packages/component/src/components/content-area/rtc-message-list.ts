@@ -488,6 +488,8 @@ export class RtcMessageList extends LitElement {
             // up while we were waiting for updateComplete.
             if (!this._shouldAutoScroll) return;
             this._scrollToBottom();
+        }).catch(err => {
+            log.error('Scheduled scroll after update failed:', err);
         });
     }
 

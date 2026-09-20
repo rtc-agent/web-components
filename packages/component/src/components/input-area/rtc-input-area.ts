@@ -308,6 +308,8 @@ export class RtcInputArea extends LitElement {
                 textarea.focus();
                 // 不调整高度，保持 CSS 控制的固定高度，内容超出时用滚动条
             }
+        }).catch(err => {
+            log.error('setValue: focus after update failed:', err);
         });
     }
 
@@ -832,6 +834,8 @@ export class RtcInputArea extends LitElement {
                     textarea.value = this.initialValue ?? '';
                     textarea.focus();
                 }
+            }).catch(err => {
+                log.error('initialValue sync: focus after update failed:', err);
             });
         }
     }
