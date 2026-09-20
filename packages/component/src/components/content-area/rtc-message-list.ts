@@ -691,14 +691,16 @@ export class RtcMessageList extends LitElement {
             // Search backwards from current position, limit to 5 messages for efficiency
             let parentClientId = msg.parentClientId;
             if (!parentClientId) {
-                const toolCallId = (msg.content.data as any)?.id;
+                const toolCallData = msg.content.data as { id?: string } | undefined;
+                const toolCallId = toolCallData?.id;
                 if (toolCallId) {
                     // Find current message index and search backwards (max 5)
                     const currentIndex = this._messages.findIndex(m => m.clientId === msg.clientId);
                     const startIndex = Math.max(0, currentIndex - 5);
                     for (let i = currentIndex - 1; i >= startIndex; i--) {
                         const m = this._messages[i];
-                        if (m.content?.type === 'toolcall_input' && (m.content.data as any)?.id === toolCallId) {
+                        const inputData = m.content?.data as { id?: string } | undefined;
+                        if (m.content?.type === 'toolcall_input' && inputData?.id === toolCallId) {
                             parentClientId = m.clientId;
                             break;
                         }

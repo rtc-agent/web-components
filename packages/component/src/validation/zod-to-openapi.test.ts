@@ -12,8 +12,7 @@ describe('zodToParams', () => {
     });
 
     const params = zodToParams(schema);
-    console.log('Params:', JSON.stringify(params, null, 2));
-    
+
     expect(params).toHaveLength(2);
     expect(params[0].name).toBe('id');
     expect(params[0].required).toBe(true);

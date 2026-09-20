@@ -21,7 +21,6 @@ describe('generateFunctionMd with zodSchema', () => {
     };
 
     const md = generateFunctionMd(funcDef, 'liuyao');
-    console.log('Generated Markdown:\n', md);
 
     expect(md).toContain('## Parameters');
     expect(md).toContain('| id |');

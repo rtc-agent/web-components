@@ -341,11 +341,11 @@ export class RtcMessage extends LitElement {
      *   - 旧格式：SummaryItem[]（无 metadata，返回全 0）
      */
     private _extractSummaryStats() {
-        const contentData = this.message?.content?.data as any;
-        let metadata: any = null;
+        const contentData = this.message?.content?.data as Record<string, unknown> | undefined;
+        let metadata: Record<string, number> | null = null;
 
         if (contentData && typeof contentData === 'object' && !Array.isArray(contentData)) {
-            metadata = contentData.metadata || null;
+            metadata = (contentData.metadata as Record<string, number>) || null;
         }
 
         return {
