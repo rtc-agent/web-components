@@ -279,8 +279,12 @@ export class WorkerBridge {
         }
 
         // Timeout: if the Worker doesn't respond within 5 seconds, consider it failed.
+        // The timer MUST be cleared in finally to prevent:
+        // 1. Unhandled rejection when ping() wins the race (timer fires reject() on settled Promise)
+        // 2. Useless timer occupying the event loop for 5s after successful verification
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
         const timeoutPromise = new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error('Worker verification timed out')), WorkerBridge.VERIFICATION_TIMEOUT_MS);
+            timeoutId = setTimeout(() => reject(new Error('Worker verification timed out')), WorkerBridge.VERIFICATION_TIMEOUT_MS);
         });
 
         try {
@@ -296,6 +300,10 @@ export class WorkerBridge {
             throw new Error(
                 `[WorkerBridge] Worker verification failed: ${err instanceof Error ? err.message : 'unknown error'}`
             );
+        } finally {
+            if (timeoutId !== undefined) {
+                clearTimeout(timeoutId);
+            }
         }
     }
 
