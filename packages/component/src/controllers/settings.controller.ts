@@ -52,6 +52,10 @@ export class SettingsController implements ReactiveController {
     }
 
     hostConnected() {
+        // Clean up listeners from a previous connect cycle (disconnect → reconnect)
+        // to prevent leaked event listeners accumulating on window / media query.
+        this._removeGlobalListeners();
+
         // Check if the user explicitly set the theme attribute before applying settings
         const rtcAgent = this.host.closest('rtc-agent') || this.host;
         const userSetTheme = rtcAgent.hasAttribute('theme');
@@ -77,14 +81,21 @@ export class SettingsController implements ReactiveController {
     }
 
     hostDisconnected() {
+        this._removeGlobalListeners();
+        // Clean up font size override
+        document.documentElement.style.removeProperty('--rtc-font-size-user');
+    }
+
+    /** Remove all global event listeners (safe to call even if nothing was added). */
+    private _removeGlobalListeners(): void {
         if (this._storageListener) {
             window.removeEventListener('storage', this._storageListener);
+            this._storageListener = undefined;
         }
         if (this._themeMediaQuery && this._themeMediaListener) {
             this._themeMediaQuery.removeEventListener('change', this._themeMediaListener);
+            this._themeMediaListener = undefined;
         }
-        // Clean up font size override
-        document.documentElement.style.removeProperty('--rtc-font-size-user');
     }
 
     /** Restore settings from localStorage with validation */

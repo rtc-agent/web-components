@@ -100,6 +100,8 @@ export class NotificationController implements ReactiveController {
      * 注意：音效文件路径在构建时应确保存在，运行时加载失败会降级处理。
      */
     private _preloadSounds(): void {
+        // Clear previously loaded sounds to avoid duplicates on reconnect cycles.
+        this._sounds.clear();
         // 直接使用 Vite 解析好的资源 URL，无需运行时拼接
         const soundUrls: Record<string, string> = {
             message: messageSoundUrl,
@@ -175,6 +177,10 @@ export class NotificationController implements ReactiveController {
      * 仅监听 content 字段的 created 事件（消息内容首次写入时触发）。
      */
     private _subscribeToMessages(): void {
+        // Guard against re-entrant calls: unsubscribe previous listener before
+        // creating a new one. Without this, disconnect → reconnect cycles leak
+        // the old bus subscription (the unsubscribe reference is overwritten).
+        this._busUnsubscribe?.();
         const bus = getUIUpdateBus();
         this._busUnsubscribe = bus.subscribe('message', (event: UIUpdateEvent) => {
             if (event.action === 'created' && event.field === 'content') {

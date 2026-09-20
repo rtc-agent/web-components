@@ -139,6 +139,13 @@ export class SkillController implements ReactiveController {
    * 订阅 eventBus 事件
    */
   private _subscribeEvents(): void {
+    // Guard: unsubscribe previous listeners before re-subscribing.
+    // Without this, disconnect → reconnect cycles accumulate duplicate handlers.
+    for (const unsub of this._unsubscribes) {
+      unsub();
+    }
+    this._unsubscribes = [];
+
     // 订阅 ui:toast 事件
     const unsubToast = eventBus.on('ui:toast', (event: { message: string; type: string }) => {
       if (this._config.onToast) {
