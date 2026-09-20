@@ -155,6 +155,9 @@ import '../drawer/rtc-drawer.js';
 // Toast types (re-exported from ToastController)
 import type {ToastType} from '../overlay/rtc-toast.js';
 
+// Debug API (dev/test only)
+import {installDebugAPI} from '../../debug-api.js';
+
 // Connection state type
 import type {ConnectionState} from '@rtc-agent/client';
 import {createLogger} from '@rtc-agent/client';
@@ -1181,6 +1184,11 @@ export class RtcAgent extends LitElement {
         // but onLogin callback will trigger connection when refresh completes.
         if (this._auth.state.isLoggedIn) {
             void this._connectWithRetry();
+        }
+
+        // Install debug API in dev/test builds (exposes window.rtcAgentDebug for E2E tests).
+        if (import.meta.env.DEV || import.meta.env.MODE === 'test') {
+            installDebugAPI();
         }
     }
 
@@ -2263,5 +2271,17 @@ export class RtcAgent extends LitElement {
 declare global {
     interface HTMLElementTagNameMap {
         'rtc-agent': RtcAgent;
+    }
+
+    /**
+     * Debug API available in dev/test builds.
+     *
+     * Provides state inspection, data manipulation, auth bypass, event simulation,
+     * VirtualFS access, and UI control for Playwright E2E tests.
+     *
+     * Only present when import.meta.env.DEV or import.meta.env.MODE === 'test'.
+     */
+    interface Window {
+        rtcAgentDebug?: import('../../debug-api.js').RtcAgentDebugAPI;
     }
 }
