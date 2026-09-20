@@ -18,6 +18,9 @@ import type {PersistenceLayer, LocalMessage} from '@rtc-agent/persistence';
 import type {SessionController} from './session.controller.js';
 import type {Session} from '../types/index.js';
 import {MessageRepository} from '../repositories/index.js';
+import {createLogger} from '@rtc-agent/client';
+
+const log = createLogger('MessageController');
 
 export class MessageController implements ReactiveController {
     host: ReactiveControllerHost & EventTarget;
@@ -209,13 +212,13 @@ export class MessageController implements ReactiveController {
         // Get the message from DB to find its session
         const localMsg = await this._persistence.getMessage(entityId);
         if (!localMsg) {
-            console.debug(`[MessageController.updateMessageFromBus] message not found in DB: ${entityId}`);
+            log.debug(`message not found in DB: ${entityId}`);
             return;
         }
 
         const messageSessionId = localMsg.session_client_id;
         if (!messageSessionId) {
-            console.debug(`[MessageController.updateMessageFromBus] message has no session_client_id: ${entityId}`);
+            log.debug(`message has no session_client_id: ${entityId}`);
             return;
         }
 
@@ -309,7 +312,7 @@ export class MessageController implements ReactiveController {
 
     private async _sendMessage(content: ContentData) {
         if (!this._persistence) {
-            console.error('[MessageController] persistence not set');
+            log.error('persistence not set');
             return;
         }
 
@@ -320,12 +323,12 @@ export class MessageController implements ReactiveController {
         if (this._sessionController) {
             const currentSessionId =
                 this._sessionController.value.state.currentSessionId;
-            console.log('[MessageController._sendMessage] currentSessionId before:', currentSessionId);
+            log.debug('currentSessionId before:', currentSessionId);
             sessionClientId = currentSessionId ?? crypto.randomUUID();
-            console.log('[MessageController._sendMessage] sessionClientId to use:', sessionClientId, currentSessionId ? '(existing)' : '(NEW)');
+            log.debug('sessionClientId to use:', sessionClientId, currentSessionId ? '(existing)' : '(NEW)');
         } else {
             sessionClientId = crypto.randomUUID();
-            console.log('[MessageController._sendMessage] No sessionController, created new sessionClientId:', sessionClientId);
+            log.debug('No sessionController, created new sessionClientId:', sessionClientId);
         }
 
         // Write to persistence (local-first + background sync).
@@ -334,16 +337,17 @@ export class MessageController implements ReactiveController {
             messageClientId,
             sessionClientId,
         });
-        console.log('[MessageController._sendMessage] persistence.sendMessage returned:');
-        console.log('  session.client_id:', result.session.client_id);
-        console.log('  message.session_client_id:', result.message.session_client_id);
+        log.debug('persistence.sendMessage returned:', {
+            sessionClientId: result.session.client_id,
+            messageSessionClientId: result.message.session_client_id,
+        });
 
         // Update session in SessionController (upsert + select).
         // Only update if the user hasn't moved to a different session in the meantime.
         if (this._sessionController) {
             const currentSessionId =
                 this._sessionController.value.state.currentSessionId;
-            console.log('[MessageController._sendMessage] currentSessionId after persistence:', currentSessionId, 'result.session.client_id:', result.session.client_id);
+            log.debug('currentSessionId after persistence:', currentSessionId, 'result.session.client_id:', result.session.client_id);
             // Only set if: no current session, or current session matches what we're updating
             if (!currentSessionId || currentSessionId === result.session.client_id) {
                 const uiSession: Session = {
@@ -353,12 +357,12 @@ export class MessageController implements ReactiveController {
                     updatedAt: new Date(result.session.updated_at).getTime(),
                     todoList: result.session.todo_list,
                 };
-                console.log('[MessageController._sendMessage] setCurrentSession:', uiSession.clientId, 'title:', `"${uiSession.title}"`);
+                log.debug('setCurrentSession:', uiSession.clientId, 'title:', `"${uiSession.title}"`);
                 this._sessionController.actions.setCurrentSession(uiSession);
 
                 // Reload messages from DB to reflect the just-written message.
                 await this._reloadFromDB(result.session.client_id);
-                console.log('[MessageController._sendMessage] _reloadFromDB completed');
+                log.debug('_reloadFromDB completed');
             }
         }
 
@@ -377,14 +381,14 @@ export class MessageController implements ReactiveController {
      */
     private async _resendMessage(messageClientId: string, content: ContentData) {
         if (!this._persistence) {
-            console.error('[MessageController] persistence not set');
+            log.error('persistence not set');
             return;
         }
 
         // 必须使用当前 session（重发必须在已有 session 中）
         const sessionClientId = this._sessionController?.value.state.currentSessionId;
         if (!sessionClientId) {
-            console.error('[MessageController] cannot resend: no current session');
+            log.error('cannot resend: no current session');
             return;
         }
 
@@ -424,7 +428,7 @@ export class MessageController implements ReactiveController {
         limit?: number;
     }) {
         if (!this._persistence) {
-            console.error('[MessageController] persistence not set');
+            log.error('persistence not set');
             return;
         }
 
@@ -549,7 +553,7 @@ export class MessageController implements ReactiveController {
             };
             this.host.requestUpdate();
         } catch (error) {
-            console.error('[MessageController] loadMore failed:', error);
+            log.error('loadMore failed:', error);
             this._state = {...this._state, isLoadingMore: false};
             this.host.requestUpdate();
         }
@@ -574,7 +578,7 @@ export class MessageController implements ReactiveController {
                 .reverse()
                 .map(m => this._extractTextFromContent(m.content));
         } catch (error) {
-            console.warn('[MessageController] getUserMessageHistory failed:', error);
+            log.warn('getUserMessageHistory failed:', error);
             return [];
         }
     }

@@ -16,6 +16,9 @@ import type {Session, SessionState, SessionActions} from '../types/index.js';
 import type {SessionContextValue} from '../contexts/session.js';
 import {DEFAULT_SESSION_STATE} from '../contexts/session.js';
 import type {PersistenceLayer} from '@rtc-agent/persistence';
+import {createLogger} from '@rtc-agent/client';
+
+const log = createLogger('SessionController');
 
 export class SessionController implements ReactiveController {
     host: ReactiveControllerHost & EventTarget;
@@ -83,7 +86,7 @@ export class SessionController implements ReactiveController {
     }
 
     private _switchSession(id: string) {
-        console.log('[SessionController._switchSession] Switching to session:', id);
+        log.debug('Switching to session:', id);
         this._state = {...this._state, currentSessionId: id};
         this.host.requestUpdate();
         // Clear messages for new session — delegate to root via callback
@@ -103,7 +106,7 @@ export class SessionController implements ReactiveController {
             try {
                 await this.persistence.updateSessionTitle(id, title);
             } catch (err) {
-                console.error('[SessionController._renameSession] persistence failed:', err);
+                log.error('persistence rename failed:', err);
                 return {ok: false, error: '重命名失败，请稍后重试'};
             }
         }
@@ -125,19 +128,19 @@ export class SessionController implements ReactiveController {
     }
 
     private async _deleteSession(id: string): Promise<{ok: boolean; error?: string}> {
-        console.log('[SessionController._deleteSession] id:', id, 'persistence:', !!this.persistence);
+        log.debug('deleteSession id:', id, 'persistence:', !!this.persistence);
         // 1. Persist + sync (fire-and-forget the RPC, but await the local write)
         if (this.persistence) {
             try {
-                console.log('[SessionController._deleteSession] calling persistence.deleteSession');
+                log.debug('calling persistence.deleteSession');
                 await this.persistence.deleteSession(id);
-                console.log('[SessionController._deleteSession] persistence.deleteSession completed');
+                log.debug('persistence.deleteSession completed');
             } catch (err) {
-                console.error('[SessionController._deleteSession] persistence failed:', err);
+                log.error('persistence delete failed:', err);
                 return {ok: false, error: '删除失败，请稍后重试'};
             }
         } else {
-            console.warn('[SessionController._deleteSession] NO persistence layer, doing in-memory only');
+            log.warn('NO persistence layer, doing in-memory only delete');
         }
 
         // 2. Update in-memory state
@@ -182,7 +185,7 @@ export class SessionController implements ReactiveController {
      */
     private async _closeSession(id: string): Promise<{ok: boolean; error?: Error}> {
         if (!this.persistence) {
-            console.warn('[SessionController._closeSession] No persistence layer, skipping');
+            log.warn('No persistence layer, skipping close');
             return {ok: true};
         }
 
@@ -197,7 +200,7 @@ export class SessionController implements ReactiveController {
             await this.persistence.closeSession(id);
             return {ok: true};
         } catch (err) {
-            console.error('[SessionController._closeSession] Failed to close session:', err);
+            log.error('Failed to close session:', err);
             return {ok: false, error: err instanceof Error ? err : new Error(String(err))};
         }
     }
@@ -210,7 +213,7 @@ export class SessionController implements ReactiveController {
      */
     private async _reopenSession(id: string): Promise<{ok: boolean; error?: Error}> {
         if (!this.persistence) {
-            console.error('[SessionController._reopenSession] No persistence layer');
+            log.error('No persistence layer for reopen');
             return {ok: false, error: new Error('Persistence layer not available')};
         }
 
@@ -218,7 +221,7 @@ export class SessionController implements ReactiveController {
             await this.persistence.openSession(id);
             return {ok: true};
         } catch (err) {
-            console.error('[SessionController._reopenSession] Failed to reopen session:', err);
+            log.error('Failed to reopen session:', err);
             return {ok: false, error: err instanceof Error ? err : new Error(String(err))};
         }
     }
@@ -236,7 +239,7 @@ export class SessionController implements ReactiveController {
     }
 
     private _setCurrentSession(session: Session) {
-        console.log('[SessionController._setCurrentSession] Setting session:', session.clientId, 'title:', `"${session.title}"`);
+        log.debug('Setting session:', session.clientId, 'title:', `"${session.title}"`);
         const existingIndex = this._state.sessions.findIndex(
             (s) => s.clientId === session.clientId
         );

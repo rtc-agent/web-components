@@ -7,6 +7,9 @@
 
 import type { FunctionDef, FunctionGroupDef, RegistryConfig, OpenAPISchema, ParameterDef } from '../types/skill.js';
 import { zodToParams } from '../validation/zod-to-openapi.js';
+import {createLogger} from '@rtc-agent/client';
+
+const log = createLogger('markdown-generator');
 
 /**
  * 将 OpenAPI Schema 转换为可读的类型字符串
@@ -138,7 +141,7 @@ export function generateFunctionMd(funcDef: FunctionDef, groupName?: string): st
     try {
       parameters = zodToParams(funcDef.zodSchema);
     } catch (err) {
-      console.warn(`[markdown-generator] Failed to convert zodSchema to parameters for ${funcDef.name}:`, err);
+      log.warn(`Failed to convert zodSchema to parameters for ${funcDef.name}:`, err);
     }
   }
 

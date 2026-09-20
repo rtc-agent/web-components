@@ -157,8 +157,11 @@ import type {ToastType} from '../overlay/rtc-toast.js';
 
 // Connection state type
 import type {ConnectionState} from '@rtc-agent/client';
+import {createLogger} from '@rtc-agent/client';
 
 // Aria-live announcements per mode transition
+const log = createLogger('rtc-agent');
+
 const MODE_ANNOUNCEMENTS: Record<WindowMode, string> = {
     normal: 'Window restored',
     maximized: 'Window maximized',
@@ -198,7 +201,7 @@ export class RtcAgent extends LitElement {
     @property({attribute: false})
     set registry(value: FunctionRegistry | null) {
         if (value) {
-            console.log('[rtc-agent] registry setter called, isConnected:', this._persistence.isConnected);
+            log.info('registry setter called, isConnected:', this._persistence.isConnected);
             this._skill.actions.setRegistry(value);
 
             // If persistence is connected (DB ready), generate docs immediately.
@@ -232,7 +235,7 @@ export class RtcAgent extends LitElement {
                 await this._loadScenarios(this._scenariosURL);
             }
         } catch (err) {
-            console.warn('[rtc-agent] Failed to regenerate docs after registry set:', err);
+            log.warn('Failed to regenerate docs after registry set:', err);
         }
     }
 
@@ -415,7 +418,7 @@ export class RtcAgent extends LitElement {
     private async _loadScenarios(baseURL: string): Promise<void> {
         const files = await loadScenariosContent(baseURL);
         await this._persistence.workerBridge!.core.batchWriteFiles(files);
-        console.log(`[rtc-agent] Loaded ${files.length} scenarios from ${baseURL}`);
+        log.info(`Loaded ${files.length} scenarios from ${baseURL}`);
     }
 
     /**
@@ -598,7 +601,7 @@ export class RtcAgent extends LitElement {
                 this._sessionTab.actions.markSaved(currentId);
             }
         } catch (err) {
-            console.error('[rtc-agent] message submit failed:', err);
+            log.error('message submit failed:', err);
         }
     };
     private _boundOnForkInitiated = (e: Event) => {
@@ -651,7 +654,7 @@ export class RtcAgent extends LitElement {
     };
     private _boundOnSessionDeleteRequested = async (e: Event) => {
         const {sessionId} = (e as CustomEvent).detail;
-        console.log('[rtc-agent] session delete requested:', sessionId);
+        log.debug('session delete requested:', sessionId);
         // Confirmation dialog.
         // const current = this._session.value.state.sessions.find(s => s.clientId === sessionId);
         // const title = current?.title ?? 'This session';
@@ -727,7 +730,7 @@ export class RtcAgent extends LitElement {
         // If expanded and children not yet loaded, trigger lazy load.
         // Note: toggleNode is already called in file-tree-item; not called here to avoid duplication.
         if (this._fileExplorer.value.isExpanded(path)) {
-            console.log('[rtc-agent] _boundOnFolderToggle: loading children for', path);
+            log.debug('_boundOnFolderToggle: loading children for', path);
             void this._loadFolderChildren(path);
         }
     };
@@ -775,15 +778,15 @@ export class RtcAgent extends LitElement {
     private _boundOnChatLayoutSessionSelect = (e: Event) => {
         // ChatLayout internally already calls switchSession; this is just a log/extension point.
         const {sessionId} = (e as CustomEvent).detail as {sessionId: string};
-        console.log('[rtc-agent] chat-layout session selected:', sessionId);
+        log.debug('chat-layout session selected:', sessionId);
     };
     private _boundOnChatLayoutTabActivate = (e: Event) => {
         const {sessionId} = (e as CustomEvent).detail as {sessionId: string};
-        console.log('[rtc-agent] chat-layout tab activated:', sessionId);
+        log.debug('chat-layout tab activated:', sessionId);
     };
     private _boundOnChatLayoutTabClose = (e: Event) => {
         const {sessionId} = (e as CustomEvent).detail as {sessionId: string};
-        console.log('[rtc-agent] chat-layout tab closed:', sessionId);
+        log.debug('chat-layout tab closed:', sessionId);
     };
     private _boundOnDrawerClose = () => {
         this._activity.actions.hideSidebar();
@@ -880,7 +883,7 @@ export class RtcAgent extends LitElement {
      */
     async reconnect(): Promise<void> {
         if (this._persistence.isConnected) {
-            console.warn('[rtc-agent] Already connected');
+            log.warn('Already connected');
             return;
         }
         await this._connectWithRetry();
@@ -974,14 +977,14 @@ export class RtcAgent extends LitElement {
 
         // Cross-controller wiring: session switch -> reload messages for the new session
         this._session.onSessionSwitch = () => {
-            console.log('[rtc-agent.onSessionSwitch] currentSessionId:', this._session.value.state.currentSessionId);
+            log.debug('onSessionSwitch currentSessionId:', this._session.value.state.currentSessionId);
             this._fork.actions.clearFork();  // Clear fork state when switching sessions.
             if (this._session.value.state.currentSessionId) {
-                console.log('[rtc-agent.onSessionSwitch] Calling message.reload()');
+                log.debug('onSessionSwitch calling message.reload()');
                 void this._message.reload();
             } else {
                 // currentSessionId is null (e.g. after closing the last Tab) -> clear messages.
-                console.log('[rtc-agent.onSessionSwitch] Clearing messages (no current session)');
+                log.debug('onSessionSwitch clearing messages (no current session)');
                 this._message.actions.clearMessages();
             }
             // Immediately sync turn count to new session's value on session switch.
@@ -1101,12 +1104,12 @@ export class RtcAgent extends LitElement {
                         // Scenario 1: session closed (open -> closed) -> close tab.
                         // Tab count monitoring and unsaved tab auto-creation are handled by updated() lifecycle.
                         if (newStatus === 'closed') {
-                            console.log('[rtc-agent] Session closed, closing tab:', sessionId);
+                            log.debug('Session closed, closing tab:', sessionId);
                             this._sessionTab.actions.closeTab(sessionId);
                         }
                         // Scenario 2: session reopened (closed -> idle) -> create tab but don't activate.
                         else if (oldStatus === 'closed' && (newStatus === 'idle' || newStatus === 'active')) {
-                            console.log('[rtc-agent] Session reopened, creating tab:', sessionId);
+                            log.debug('Session reopened, creating tab:', sessionId);
                             // Get title from session list.
                             const session = this._session.value.state.sessions.find(s => s.clientId === sessionId);
                             const title = session?.title || 'Untitled';
@@ -1217,12 +1220,12 @@ export class RtcAgent extends LitElement {
 
                 // Main thread generates doc content, sends to Worker via batchWriteFiles.
                 const registry = this._skill.actions.getRegistry();
-                console.log('[rtc-agent] After connect, registry:', registry ? 'set' : 'null');
+                log.debug('After connect, registry:', registry ? 'set' : 'null');
                 if (registry && typeof registry.generateAllDocsContent === 'function') {
                     const files = registry.generateAllDocsContent(0);
                     if (files.length > 0) {
                         await this._persistence.workerBridge!.core.batchWriteFiles(files);
-                        console.log('[rtc-agent] batchWriteFiles completed');
+                        log.debug('batchWriteFiles completed');
                     }
                 }
 
@@ -1231,9 +1234,9 @@ export class RtcAgent extends LitElement {
                     try {
                         const files = await loadScenariosContent(this._scenariosURL);
                         await this._persistence.workerBridge!.core.batchWriteFiles(files);
-                        console.log(`[rtc-agent] Re-loaded ${files.length} scenarios from ${this._scenariosURL}`);
+                        log.info(`Re-loaded ${files.length} scenarios from ${this._scenariosURL}`);
                     } catch (err) {
-                        console.warn(`[rtc-agent] Failed to re-load scenarios from ${this._scenariosURL}:`, err);
+                        log.warn(`Failed to re-load scenarios from ${this._scenariosURL}:`, err);
                     }
                 }
 
@@ -1247,7 +1250,7 @@ export class RtcAgent extends LitElement {
             void this._loadSessions();
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : String(err);
-            console.error('[rtc-agent] Connection failed:', errorMessage);
+            log.error('Connection failed:', errorMessage);
             this._connectionFailed = true;
             this._connectionError = errorMessage;
 
@@ -1433,7 +1436,7 @@ export class RtcAgent extends LitElement {
         // to avoid racing with _loadSessions' restore logic and polluting localStorage.
         const tabCount = this._sessionTab.value.state.tabs.length;
         if (tabCount === 0 && !this._creatingUnsavedTab && this._initialSessionLoadDone) {
-            console.log('[rtc-agent.updated] No tabs left, auto-creating unsaved tab');
+            log.debug('No tabs left, auto-creating unsaved tab');
             this._creatingUnsavedTab = true;
             try {
                 const newId = this._session.actions.createSession();
@@ -1508,7 +1511,7 @@ export class RtcAgent extends LitElement {
      * the user can click the retry button in the title bar to trigger this method.
      */
     private _handleConnectionRetry() {
-        console.log('[rtc-agent] Connection retry requested by user');
+        log.info('Connection retry requested by user');
         void this.reconnect();
     }
 
@@ -1654,7 +1657,7 @@ export class RtcAgent extends LitElement {
     //             creatorRefId: 'todo_list_update',
     //         });
     //     } catch (err) {
-    //         console.error('[rtc-agent] Failed to insert todo_list message:', err);
+    //         log.error('Failed to insert todo_list message:', err);
     //     }
     // }
 
@@ -1683,7 +1686,7 @@ export class RtcAgent extends LitElement {
         if (!this._persistence.layer) return;
 
         const sessions = await this._persistence.layer.listSessions();
-        console.log('[rtc-agent._loadSessions] Loaded sessions from DB:', sessions.length);
+        log.debug('Loaded sessions from DB:', sessions.length);
 
         const uiSessions: Session[] = sessions.map(s => ({
             clientId: s.client_id,
@@ -1736,13 +1739,13 @@ export class RtcAgent extends LitElement {
                     skipPersist: true,
                 });
             }
-            console.log('[rtc-agent._loadSessions] Restored tabs from DB:', openSessions.length, 'storedActiveId:', storedActiveId);
+            log.debug('Restored tabs from DB:', openSessions.length, 'storedActiveId:', storedActiveId);
 
             // Fallback: if storedActiveId isn't in tabs (or localStorage is empty), activeSessionId is null.
             // Activate the first tab to ensure at least one active tab exists.
             if (this._sessionTab.value.state.activeSessionId === null && openSessions.length > 0) {
                 const fallbackId = openSessions[0].clientId;
-                console.log('[rtc-agent._loadSessions] Active tab is null, falling back to first tab:', fallbackId);
+                log.debug('Active tab is null, falling back to first tab:', fallbackId);
                 this._sessionTab.actions.setActiveTab(fallbackId);
             }
         }
@@ -1750,16 +1753,16 @@ export class RtcAgent extends LitElement {
         // Filter invalid tabs (clean up tabs whose sessions have been deleted from persistence).
         const validIds = new Set(uiSessions.map(s => s.clientId));
         const hadInvalidTabs = this._sessionTab.filterInvalidTabs(validIds);
-        console.log('[rtc-agent._loadSessions] filterInvalidTabs:', hadInvalidTabs ? 'removed some' : 'none removed');
-        console.log('[rtc-agent._loadSessions] Tabs after filter:', this._sessionTab.value.state.tabs.map(t => `${t.sessionId}="${t.title}"`));
-        console.log('[rtc-agent._loadSessions] activeSessionId:', this._sessionTab.value.state.activeSessionId);
+        log.debug('filterInvalidTabs:', hadInvalidTabs ? 'removed some' : 'none removed');
+        log.debug('Tabs after filter:', this._sessionTab.value.state.tabs.map(t => `${t.sessionId}="${t.title}"`));
+        log.debug('activeSessionId:', this._sessionTab.value.state.activeSessionId);
 
         // Sync SessionController.currentSessionId with Tab's activeSessionId.
         // When the active tab is filtered out, switch session to trigger message cleanup.
         const newActiveId = this._sessionTab.value.state.activeSessionId;
         const currentId = this._session.value.state.currentSessionId;
         if (currentId !== newActiveId) {
-            console.log('[rtc-agent._loadSessions] Syncing currentSessionId:', currentId, '->', newActiveId);
+            log.debug('Syncing currentSessionId:', currentId, '->', newActiveId);
             if (newActiveId) {
                 this._session.actions.switchSession(newActiveId);
             } else {
@@ -1772,8 +1775,8 @@ export class RtcAgent extends LitElement {
         // returns the real title.
         const titleMap = new Map(uiSessions.map(s => [s.clientId, s.title]));
         const titlesUpdated = this._sessionTab.updateTabTitles(titleMap);
-        console.log('[rtc-agent._loadSessions] updateTabTitles:', titlesUpdated ? 'updated' : 'no change');
-        console.log('[rtc-agent._loadSessions] Tabs after title sync:', this._sessionTab.value.state.tabs.map(t => `${t.sessionId}="${t.title}"`));
+        log.debug('updateTabTitles:', titlesUpdated ? 'updated' : 'no change');
+        log.debug('Tabs after title sync:', this._sessionTab.value.state.tabs.map(t => `${t.sessionId}="${t.title}"`));
 
         // Sync existing tabs' status with latest status from sessions (drives status dot display).
         const statusMap = new Map(
@@ -1789,7 +1792,7 @@ export class RtcAgent extends LitElement {
         if (!this._initialSessionLoadDone) {
             this._initialSessionLoadDone = true;
             const hasOpenTabs = this._sessionTab.value.state.tabs.length > 0;
-            console.log('[rtc-agent._loadSessions] Initial load: hasOpenTabs=', hasOpenTabs, 'currentSessionId=', this._session.value.state.currentSessionId);
+            log.debug('Initial load: hasOpenTabs=', hasOpenTabs, 'currentSessionId=', this._session.value.state.currentSessionId);
             if (hasOpenTabs && !this._session.value.state.currentSessionId) {
                 // Prefer restoring the Tab bar's active tab (even if its session isn't in DB, e.g. unsaved tab).
                 // Fall back to the most recently updated session (only when no active tab exists).
@@ -1799,7 +1802,7 @@ export class RtcAgent extends LitElement {
                         ? uiSessions.reduce((a, b) => a.updatedAt > b.updatedAt ? a : b).clientId
                         : null);
                 if (targetId) {
-                    console.log('[rtc-agent._loadSessions] Auto-selecting session:', targetId, '(from activeTabId:', activeTabId, ')');
+                    log.debug('Auto-selecting session:', targetId, '(from activeTabId:', activeTabId, ')');
                     this._session.actions.switchSession(targetId);
                 }
             }
@@ -1850,7 +1853,7 @@ export class RtcAgent extends LitElement {
             await this._persistence.layer.compactSession(sessionId, customInstruction);
             // Success: don't show toast immediately, wait for Live push to update session.
         } catch (err) {
-            console.error('[rtc-agent] /compact failed:', err);
+            log.error('/compact failed:', err);
             const message = err instanceof Error ? err.message : msg('压缩上下文失败');
             this._toast.actions.show(message, 'error');
         }
@@ -1882,7 +1885,7 @@ export class RtcAgent extends LitElement {
             masterLock.onAcquire = () => {
                 prevOnAcquire?.();
                 this._rtcProcessor?.onRtcUpdate().catch(err => {
-                    console.error('[rtc-agent] onRtcUpdate on master acquire failed:', err);
+                    log.error('onRtcUpdate on master acquire failed:', err);
                 });
             };
         }
@@ -1905,7 +1908,7 @@ export class RtcAgent extends LitElement {
             this._fileExplorer.actions.setRoot(root);
             this._fileTreeLoaded = true;
         } catch (err) {
-            console.error('[rtc-agent] Failed to load file tree:', err);
+            log.error('Failed to load file tree:', err);
         }
     }
 
@@ -1954,11 +1957,11 @@ export class RtcAgent extends LitElement {
     private async _loadFolderChildren(path: string): Promise<void> {
         if (!this._persistence.isConnected) return;
 
-        console.log('[rtc-agent] _loadFolderChildren called for:', path);
+        log.debug('_loadFolderChildren called for:', path);
         this._fileExplorer.actions.setLoading(path, true);
         try {
             const entries = await virtualFS.ls(path);
-            console.log('[rtc-agent] ls entries:', entries);
+            log.debug('ls entries:', entries);
             const children: FileNode[] = [];
             for (const entry of entries) {
                 const childPath = path === '/' ? `/${entry}` : `${path}/${entry}`;
@@ -1968,10 +1971,10 @@ export class RtcAgent extends LitElement {
                     children.push({path: childPath, name: entry, type: 'folder'});
                 }
             }
-            console.log('[rtc-agent] loaded children:', children);
+            log.debug('loaded children:', children);
             this._fileExplorer.actions.updateChildren(path, children);
         } catch (err) {
-            console.error('[rtc-agent] Failed to load folder children:', path, err);
+            log.error('Failed to load folder children:', path, err);
         } finally {
             this._fileExplorer.actions.setLoading(path, false);
         }
@@ -1987,7 +1990,7 @@ export class RtcAgent extends LitElement {
             this._editorArea.actions.openFile(filePath, content, defaultViewMode);
             this._fileExplorer.actions.selectNode(filePath);
         } catch (err) {
-            console.error('[rtc-agent] Failed to open file:', filePath, err);
+            log.error('Failed to open file:', filePath, err);
             this._toast.actions.show(msg('打开文件失败'), 'error');
         }
     }
@@ -2005,14 +2008,14 @@ export class RtcAgent extends LitElement {
         if (tabs.length === 0) return;
 
         const activeFilePath = this._editorArea.activeFilePath;
-        console.log('[rtc-agent] Restoring editor area content for', tabs.length, 'tabs');
+        log.debug('Restoring editor area content for', tabs.length, 'tabs');
         for (const tab of tabs) {
             try {
                 const content = await virtualFS.read(tab.filePath);
                 this._editorArea.actions.loadContent(tab.filePath, content);
             } catch {
                 // File no longer exists in VFS (e.g. deleted by another client), close the tab.
-                console.warn('[rtc-agent] Restored tab file not found in VFS, closing:', tab.filePath);
+                log.warn('Restored tab file not found in VFS, closing:', tab.filePath);
                 this._editorArea.actions.closeFile(tab.filePath);
             }
         }
@@ -2043,7 +2046,7 @@ export class RtcAgent extends LitElement {
             this._editorArea.actions.saveFile(filePath);
             this._toast.actions.show(msg('已保存'), 'success');
         } catch (err) {
-            console.error('[rtc-agent] Failed to save file:', filePath, err);
+            log.error('Failed to save file:', filePath, err);
             this._toast.actions.show(msg('保存文件失败'), 'error');
         }
     }

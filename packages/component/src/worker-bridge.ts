@@ -18,8 +18,11 @@ import {wrap, proxy, type Remote} from 'comlink';
 import {getUIUpdateBus, virtualFS} from '@rtc-agent/persistence';
 import type {PersistenceConfig, UIUpdateEvent} from '@rtc-agent/persistence';
 import type {ConnectionState, ConnectionStateEvent} from '@rtc-agent/client';
+import {createLogger} from '@rtc-agent/client';
 import type {WorkerPersistenceCore, WorkerCallbacks} from '@rtc-agent/worker';
 import type {AuthController} from './controllers/auth.controller.js';
+
+const log = createLogger('WorkerBridge');
 
 // Worker script loading strategy
 //
@@ -116,7 +119,7 @@ export class WorkerBridge {
                     try {
                         listener(event);
                     } catch (err) {
-                        console.error('[WorkerBridge] connection listener error:', err);
+                        log.error('connection listener error:', err);
                     }
                 }
             },
@@ -150,7 +153,7 @@ export class WorkerBridge {
         for (let attempt = 0; attempt <= WorkerBridge.MAX_INIT_RETRIES; attempt++) {
             try {
                 if (attempt > 0) {
-                    console.warn(`[WorkerBridge] Retrying worker initialization (attempt ${attempt + 1}/${WorkerBridge.MAX_INIT_RETRIES + 1})...`);
+                    log.warn(`Retrying worker initialization (attempt ${attempt + 1}/${WorkerBridge.MAX_INIT_RETRIES + 1})...`);
                     await this._delay(WorkerBridge.INIT_RETRY_DELAY_MS * attempt);
                 }
 
@@ -161,7 +164,7 @@ export class WorkerBridge {
                 return;
             } catch (err) {
                 lastError = err instanceof Error ? err : new Error(String(err));
-                console.error(`[WorkerBridge] Worker initialization attempt ${attempt + 1} failed:`, lastError.message);
+                log.error(`Worker initialization attempt ${attempt + 1} failed:`, lastError.message);
 
                 // Clean up the failed Worker instance.
                 this._cleanupFailedWorker();
@@ -195,7 +198,7 @@ export class WorkerBridge {
         }
         const isCrossOrigin = workerOrigin !== pageOrigin;
 
-        console.info('[WorkerBridge] worker init:', {
+        log.info('worker init:', {
             workerUrl,
             pageOrigin,
             workerOrigin,
@@ -247,7 +250,7 @@ export class WorkerBridge {
 
         // 5. Error handling.
         this._worker!.onerror = (event) => {
-            console.error('[WorkerBridge] SharedWorker error:', {
+            log.error('SharedWorker error:', {
                 message: event.message,
                 filename: event.filename,
                 lineno: event.lineno,
@@ -257,7 +260,7 @@ export class WorkerBridge {
         };
 
         this._worker!.port.onmessageerror = (event) => {
-            console.error('[WorkerBridge] port message error:', event);
+            log.error('port message error:', event);
         };
     }
 
@@ -286,7 +289,7 @@ export class WorkerBridge {
             if (result !== 'pong') {
                 throw new Error(`Unexpected ping response: ${result}`);
             }
-            console.info('[WorkerBridge] Worker verification successful');
+            log.info('Worker verification successful');
         } catch (err) {
             throw new Error(
                 `[WorkerBridge] Worker verification failed: ${err instanceof Error ? err.message : 'unknown error'}`
@@ -340,7 +343,7 @@ export class WorkerBridge {
      */
     async init(config: PersistenceConfig): Promise<void> {
         if (this._initialized) {
-            console.warn('[WorkerBridge] already initialized');
+            log.warn('already initialized');
             return;
         }
         if (!this._worker || !this._core) {
@@ -377,7 +380,7 @@ export class WorkerBridge {
         try {
             await this._core.unregisterCallback(this._proxiedCallbacks);
         } catch (err) {
-            console.warn('[WorkerBridge] unregisterCallback failed:', err);
+            log.warn('unregisterCallback failed:', err);
         }
 
         this._connectionListeners.clear();

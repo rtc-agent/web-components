@@ -9,6 +9,10 @@
  * - 宿主应用（Flutter）监听事件并通过 postMessage 转发
  */
 
+import {createLogger} from '@rtc-agent/client';
+
+const log = createLogger('EventBus');
+
 /**
  * 事件处理器类型
  */
@@ -98,7 +102,7 @@ export class EventBus<TEventMap extends DefaultEventMap = DefaultEventMap> {
       try {
         handler(data);
       } catch (err) {
-        console.error(`[EventBus] Handler error for event '${event}':`, err);
+        log.error(`Handler error for event '${event}':`, err);
       }
     }
   }
@@ -122,7 +126,7 @@ export class EventBus<TEventMap extends DefaultEventMap = DefaultEventMap> {
     for (const handler of snapshot) {
       promises.push(
         Promise.resolve(handler(data)).catch(err => {
-          console.error(`[EventBus] Async handler error for event '${event}':`, err);
+          log.error(`Async handler error for event '${event}':`, err);
         })
       );
     }

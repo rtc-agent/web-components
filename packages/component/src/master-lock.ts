@@ -21,6 +21,10 @@
  */
 
 /** MasterLock 事件回调 */
+import {createLogger} from '@rtc-agent/client';
+
+const log = createLogger('MasterLock');
+
 export interface MasterLockCallbacks {
     /** 获得锁 → 成为 Master */
     onAcquire?: () => void;
@@ -69,14 +73,14 @@ export class MasterLock {
      */
     async acquire(): Promise<void> {
         if (this._controlled) {
-            console.warn('[MasterLock] already acquiring/acquired, ignoring');
+            log.warn(' already acquiring/acquired, ignoring');
             return;
         }
 
         if (!this._isWebLocksAvailable()) {
             // Web Locks 不可用 → 直接降级为"总是 Master"
             // 兼容旧浏览器或特殊环境（如隐私模式）
-            console.warn('[MasterLock] Web Locks API not available, acting as always-master');
+            log.warn(' Web Locks API not available, acting as always-master');
             this._isMaster = true;
             this._controlled = true;
             this.onAcquire?.();
@@ -96,7 +100,7 @@ export class MasterLock {
             async () => {
                 // 获得锁 → 成为 Master
                 this._isMaster = true;
-                console.info('[MasterLock] acquired lock → became Master');
+                log.info(' acquired lock → became Master');
                 this.onAcquire?.();
 
                 // 永不 resolve → 锁一直被持有
@@ -108,7 +112,7 @@ export class MasterLock {
 
                 // 释放锁后 → 降级
                 this._isMaster = false;
-                console.info('[MasterLock] released lock → lost Master');
+                log.info(' released lock → lost Master');
                 this.onRelease?.();
             },
         ).catch((err: unknown) => {
@@ -116,7 +120,7 @@ export class MasterLock {
             if (err instanceof DOMException && err.name === 'AbortError') {
                 return;
             }
-            console.error('[MasterLock] lock request error:', err);
+            log.error(' lock request error:', err);
         });
     }
 

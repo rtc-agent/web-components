@@ -25,6 +25,9 @@ import {customElement, property, state} from 'lit/decorators.js';
 import {consume} from '@lit/context';
 import {localized} from '@lit/localize';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
+import {createLogger} from '@rtc-agent/client';
+
+const log = createLogger('chat-layout');
 import {styles} from './rtc-chat-layout.styles.js';
 import {tokens} from '../../styles/tokens.js';
 import {lightTheme} from '../../styles/themes/light.js';
@@ -57,7 +60,7 @@ export class RtcChatLayout extends LitElement {
     private _localeCtx: LocaleContextValue = {
         locale: sourceLocale,
         setLocale: async () => {
-            console.warn('[RtcChatLayout] Locale context not initialized');
+            log.warn('Locale context not initialized');
         },
         locales: [sourceLocale, ...targetLocales],
     };
@@ -156,7 +159,7 @@ export class RtcChatLayout extends LitElement {
         if (existing) {
             this._sessionCtx.actions.switchSession(existing.sessionId);
             this._tabCtx.actions.setActiveTab(existing.sessionId);
-            console.log('[chat-layout._ensureUnsavedSession] Reusing unsaved tab:', existing.sessionId);
+            log.debug('Reusing unsaved tab:', existing.sessionId);
             return existing.sessionId;
         }
         // createSession 同步返回新 ID（规避 context 异步传播读不到新 currentSessionId 的问题）
@@ -165,7 +168,7 @@ export class RtcChatLayout extends LitElement {
         // createSession 本身不调用 onSessionSwitch，需要手动 switchSession 触发
         this._sessionCtx.actions.switchSession(newId);
         this._tabCtx.actions.openOrActivate(newId, 'Untitled', {isUnsaved: true});
-        console.log('[chat-layout._ensureUnsavedSession] Created new unsaved tab:', newId);
+        log.debug('Created new unsaved tab:', newId);
         return newId;
     }
 
@@ -176,7 +179,7 @@ export class RtcChatLayout extends LitElement {
         const {oldMessageClientId, content} = (e as CustomEvent).detail ?? {};
         const oldSessionClientId = this._sessionCtx?.state?.currentSessionId;
         if (!oldSessionClientId) {
-            console.warn('[chat-layout._boundOnForkRequested] No current session, ignoring fork');
+            log.warn('No current session, ignoring fork');
             return;
         }
         const newSessionClientId = this._ensureUnsavedSession();
@@ -192,7 +195,7 @@ export class RtcChatLayout extends LitElement {
                 },
             })
         );
-        console.log('[chat-layout._boundOnForkRequested] Dispatched rtc-fork-initiated, newSession=', newSessionClientId);
+        log.debug('Dispatched rtc-fork-initiated, newSession=', newSessionClientId);
     };
 
     private _boundOnMessageSent = (e: Event) => {
@@ -209,7 +212,7 @@ export class RtcChatLayout extends LitElement {
 
     /** session-header / session-tree "+" 按钮事件透传到 _handleNewSession */
     private _handleSessionTreeNew = () => {
-        console.log('[chat-layout._handleSessionTreeNew] Event received, calling _handleNewSession');
+        log.debug('Event received, calling _handleNewSession');
         this._handleNewSession();
     };
 
@@ -226,7 +229,7 @@ export class RtcChatLayout extends LitElement {
         );
         const title = session?.title || 'Untitled';
         this._tabCtx.actions.openOrActivate(sessionId, title);
-        console.log('[chat-layout._ensureTabForSession] Opened tab:', sessionId, 'title:', `"${title}"`);
+        log.debug('Opened tab:', sessionId, 'title:', `"${title}"`);
     }
 
     /* ── Event Handlers ── */
@@ -343,7 +346,7 @@ export class RtcChatLayout extends LitElement {
         if (closedTab && !closedTab.isUnsaved) {
             // fire-and-forget：不阻塞 Tab 关闭 UI，失败仅 log
             void this._sessionCtx.actions.closeSession(sessionId).catch(err => {
-                console.error('[chat-layout] closeSession failed (non-fatal):', err);
+                log.error('closeSession failed (non-fatal):', err);
             });
         }
 

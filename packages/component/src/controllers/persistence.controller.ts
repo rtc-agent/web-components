@@ -25,9 +25,12 @@ import {
 } from '@rtc-agent/persistence';
 import type {ContentData} from '@rtc-agent/protocol';
 import type {ConnectionState, ConnectionStateEvent} from '@rtc-agent/client';
+import {createLogger} from '@rtc-agent/client';
 import type {WorkerPersistenceCore} from '@rtc-agent/worker';
 import type {AuthController} from './auth.controller.js';
 import {AUTH_CONFIG} from '../config/auth.js';
+
+const log = createLogger('PersistenceController');
 import {getOrCreateDeviceId} from '../utils/device.js';
 import {WorkerBridge} from '../worker-bridge.js';
 import {MasterLock} from '../master-lock.js';
@@ -66,9 +69,9 @@ class WorkerPersistenceAdapter {
     // ========== 连接 ==========
 
     async connect(): Promise<void> {
-        console.log('[PersistenceController] connect() called');
+        log.info('connect() called');
         await this._core.connect();
-        console.log('[PersistenceController] connect() completed, worker state:', await this._core.getConnectionState());
+        log.info('connect() completed, worker state:', await this._core.getConnectionState());
     }
 
     disconnect(): void {
@@ -314,7 +317,7 @@ export class PersistenceController implements ReactiveController {
                 getToken: () => {
                     const token = this._auth.getAccessToken();
                     if (!token) {
-                        console.warn('[PersistenceController] getToken → no access token available');
+                        log.warn('getToken: no access token available');
                         throw new Error('No access token available');
                     }
                     return token;
@@ -342,7 +345,7 @@ export class PersistenceController implements ReactiveController {
         for (let attempt = 0; attempt <= PersistenceController.MAX_CONNECT_RETRIES; attempt++) {
             try {
                 if (attempt > 0) {
-                    console.warn(`[PersistenceController] Retrying connection (attempt ${attempt + 1}/${PersistenceController.MAX_CONNECT_RETRIES + 1})...`);
+                    log.warn(`Retrying connection (attempt ${attempt + 1}/${PersistenceController.MAX_CONNECT_RETRIES + 1})...`);
                     await this._delay(PersistenceController.CONNECT_RETRY_DELAY_MS * attempt);
                 }
 
@@ -350,7 +353,7 @@ export class PersistenceController implements ReactiveController {
                 return;
             } catch (err) {
                 lastError = err instanceof Error ? err : new Error(String(err));
-                console.error(`[PersistenceController] Connection attempt ${attempt + 1} failed:`, lastError.message);
+                log.error(`Connection attempt ${attempt + 1} failed:`, lastError.message);
 
                 // 清理失败的连接
                 await this._cleanupFailedConnection();
@@ -403,10 +406,10 @@ export class PersistenceController implements ReactiveController {
         if (userId) {
             this._masterLock = new MasterLock(userId);
             this._masterLock.onAcquire = () => {
-                console.info('[PersistenceController] this Tab became Master');
+                log.info('this Tab became Master');
             };
             this._masterLock.onRelease = () => {
-                console.info('[PersistenceController] this Tab lost Master');
+                log.info('this Tab lost Master');
             };
             // 开始尝试获取锁（可能排队）
             void this._masterLock.acquire();
@@ -451,7 +454,7 @@ export class PersistenceController implements ReactiveController {
                 // 关闭 WS + DB（通过 adapter 委托到 core.close()）
                 await this._layer.close();
             } catch (err) {
-                console.error('[PersistenceController] disconnect error:', err);
+                log.error('disconnect error:', err);
             }
             this._layer = undefined;
         }
@@ -463,7 +466,7 @@ export class PersistenceController implements ReactiveController {
             try {
                 await this._workerBridge.destroy();
             } catch (err) {
-                console.error('[PersistenceController] WorkerBridge disconnect error:', err);
+                log.error('WorkerBridge disconnect error:', err);
             }
             this._workerBridge = undefined;
         }

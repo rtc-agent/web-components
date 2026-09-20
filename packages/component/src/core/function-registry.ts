@@ -1,3 +1,6 @@
+import {createLogger} from '@rtc-agent/client';
+const log = createLogger('FunctionRegistry');
+
 /**
  * Function Registry
  *
@@ -196,7 +199,7 @@ export class FunctionRegistry {
       await virtualFS.remove(docPath);
     } catch (err) {
       // 文件可能不存在，忽略错误
-      console.warn(`[FunctionRegistry] Failed to remove doc file ${docPath}:`, err);
+      log.warn(` Failed to remove doc file ${docPath}:`, err);
     }
 
     // 更新索引
@@ -255,7 +258,7 @@ export class FunctionRegistry {
       if (this.config.onError) {
         this.config.onError(error, 'Failed to regenerate all docs');
       } else {
-        console.error('[FunctionRegistry] Failed to regenerate all docs:', err);
+        log.error(' Failed to regenerate all docs:', err);
       }
     }
   }
@@ -270,7 +273,7 @@ export class FunctionRegistry {
    */
   generateAllDocsContent(scenarioCount = 0): Array<{path: string; content: string}> {
     const files: Array<{path: string; content: string}> = [];
-    console.log('[FunctionRegistry] generateAllDocsContent called, functions count:', this.functions.size);
+    log.info(' generateAllDocsContent called, functions count:', this.functions.size);
 
     // 生成所有 function 文档
     for (const funcDef of this.functions.values()) {
@@ -369,7 +372,7 @@ export class FunctionRegistry {
         Promise.resolve()
           .then(() => hooks.onSuccess!(result))
           .catch(err => {
-            console.error(`[FunctionRegistry] onSuccess hook failed for ${path}:`, err);
+            log.error(` onSuccess hook failed for ${path}:`, err);
           });
       }
 
@@ -386,7 +389,7 @@ export class FunctionRegistry {
         Promise.resolve()
           .then(() => hooks.onError!(err))
           .catch(hookErr => {
-            console.error(`[FunctionRegistry] onError hook failed for ${path}:`, hookErr);
+            log.error(` onError hook failed for ${path}:`, hookErr);
           });
       }
 
@@ -457,7 +460,7 @@ export class FunctionRegistry {
       if (this.config.onError) {
         this.config.onError(error, `Failed to update documentation for function: ${funcDef.name}`);
       } else {
-        console.error(`[FunctionRegistry] Failed to update documentation for ${funcDef.name}:`, err);
+        log.error(` Failed to update documentation for ${funcDef.name}:`, err);
       }
     }
   }

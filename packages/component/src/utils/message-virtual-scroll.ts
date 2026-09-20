@@ -16,6 +16,9 @@
  */
 
 import {ScrollSaver} from './scroll-saver.js';
+import {createLogger} from '@rtc-agent/client';
+
+const log = createLogger('VirtualScroll');
 
 export interface WindowBoundary {
     /** First item's ID in current window (undefined if empty) */
@@ -328,8 +331,8 @@ export class MessageVirtualScroll<T> {
 
         const scrollTopAfter = this._scrollContainer.scrollTop;
 
-        console.debug(
-            `[VirtualScroll] appendItems: ` +
+        log.debug(
+            `appendItems: ` +
             `items=${items.length}, scrollHeight: ${scrollHeightBefore} → ${scrollHeightAfter}, ` +
             `scrollTop: ${scrollTopBefore} → ${scrollTopAfter}, ` +
             `diff=${scrollTopAfter - scrollTopBefore}`
@@ -429,8 +432,8 @@ export class MessageVirtualScroll<T> {
         const distanceFromTop = scrollTop;
         const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
 
-        console.debug(
-            `[VirtualScroll] _onScroll: scrollTop=${scrollTop}, scrollHeight=${scrollHeight}, clientHeight=${clientHeight}, ` +
+        log.debug(
+            `_onScroll: scrollTop=${scrollTop}, scrollHeight=${scrollHeight}, clientHeight=${clientHeight}, ` +
             `distanceFromTop=${distanceFromTop}, distanceFromBottom=${distanceFromBottom}, ` +
             `loadedTop=${this._loadedTop}, loadedBottom=${this._loadedBottom}, ` +
             `isLoadingTop=${this._isLoading.top}, isLoadingBottom=${this._isLoading.bottom}`
@@ -446,35 +449,35 @@ export class MessageVirtualScroll<T> {
         }, this._sliceDebounceDelay);
 
         if (!this._onLoadMore) {
-            console.debug('[VirtualScroll] _onScroll: no onLoadMore callback');
+            log.debug('_onScroll: no onLoadMore callback');
             return;
         }
 
         const boundary = this._getWindowBoundary();
-        console.debug(`[VirtualScroll] _onScroll: boundary=${JSON.stringify(boundary)}`);
+        log.debug(`_onScroll: boundary=${JSON.stringify(boundary)}`);
 
         // Load more top: near top AND not fully loaded in that direction
         // Telegram uses onScrollOffset = 300px for early triggering
         if (distanceFromTop < this._preloadThreshold && !this._loadedTop && !this._isLoading.top) {
-            console.debug(`[VirtualScroll] Triggering loadMore(top), distanceFromTop=${distanceFromTop}, threshold=${this._preloadThreshold}, boundary.firstId=${boundary.firstId}`);
+            log.debug(`Triggering loadMore(top), distanceFromTop=${distanceFromTop}, threshold=${this._preloadThreshold}, boundary.firstId=${boundary.firstId}`);
             this._isLoading.top = true;
             this._onLoadMore('top', boundary)
                 .then(items => {
-                    console.debug(`[VirtualScroll] loadMore(top) returned ${items.length} items`);
+                    log.debug(`loadMore(top) returned ${items.length} items`);
                     if (items.length > 0) {
                         return this.prependItems(items);
                     }
                     // No more messages returned directly - but DO NOT auto-mark as fully loaded.
                     // Consumer controls _loadedTop via setFullyLoaded() based on repository's hasMore.
                     // (loadMore may be async; actual items arrive via subscription updates.)
-                    console.debug('[VirtualScroll] loadMore(top) returned 0 items; consumer should update loadedTop via setFullyLoaded()');
+                    log.debug('loadMore(top) returned 0 items; consumer should update loadedTop via setFullyLoaded()');
                 })
                 .finally(() => {
                     this._isLoading.top = false;
                 });
         } else {
-            console.debug(
-                `[VirtualScroll] loadMore(top) NOT triggered: ` +
+            log.debug(
+                `loadMore(top) NOT triggered: ` +
                 `distanceFromTop=${distanceFromTop} >= threshold=${this._preloadThreshold}? ${distanceFromTop >= this._preloadThreshold}, ` +
                 `loadedTop=${this._loadedTop}, isLoadingTop=${this._isLoading.top}`
             );
@@ -482,17 +485,17 @@ export class MessageVirtualScroll<T> {
 
         // Load more bottom: near bottom AND not fully loaded in that direction
         if (distanceFromBottom < this._preloadThreshold && !this._loadedBottom && !this._isLoading.bottom) {
-            console.debug(`[VirtualScroll] Triggering loadMore(bottom), distanceFromBottom=${distanceFromBottom}, threshold=${this._preloadThreshold}, boundary.lastId=${boundary.lastId}`);
+            log.debug(`Triggering loadMore(bottom), distanceFromBottom=${distanceFromBottom}, threshold=${this._preloadThreshold}, boundary.lastId=${boundary.lastId}`);
             this._isLoading.bottom = true;
             this._onLoadMore('bottom', boundary)
                 .then(items => {
-                    console.debug(`[VirtualScroll] loadMore(bottom) returned ${items.length} items`);
+                    log.debug(`loadMore(bottom) returned ${items.length} items`);
                     if (items.length > 0) {
                         return this.appendItems(items);
                     }
                     // No more messages returned directly - but DO NOT auto-mark as fully loaded.
                     // Consumer controls _loadedBottom via setFullyLoaded() based on repository's hasMore.
-                    console.debug('[VirtualScroll] loadMore(bottom) returned 0 items; consumer should update loadedBottom via setFullyLoaded()');
+                    log.debug('loadMore(bottom) returned 0 items; consumer should update loadedBottom via setFullyLoaded()');
                 })
                 .finally(() => {
                     this._isLoading.bottom = false;
@@ -570,7 +573,7 @@ export class MessageVirtualScroll<T> {
         const containerRect = this._scrollContainer.getBoundingClientRect();
         const isContainerVisible = containerRect.width > 0 && containerRect.height > 0;
         if (!isContainerVisible) {
-            console.debug('[VirtualScroll] Skipping _sliceViewport: container is hidden');
+            log.debug('Skipping _sliceViewport: container is hidden');
             return;
         }
 
@@ -579,8 +582,8 @@ export class MessageVirtualScroll<T> {
 
         if (invisibleTop.length === 0 && invisibleBottom.length === 0) return;
 
-        console.debug(
-            `[VirtualScroll] Slicing viewport: invisibleTop=${invisibleTop.length}, ` +
+        log.debug(
+            `Slicing viewport: invisibleTop=${invisibleTop.length}, ` +
             `visible=${slice.visible.length}, invisibleBottom=${invisibleBottom.length}`
         );
 
@@ -631,8 +634,8 @@ export class MessageVirtualScroll<T> {
         // Notify size change
         this._onSizeChange?.();
 
-        console.debug(
-            `[VirtualScroll] After slice: items=${this._items.length}, ` +
+        log.debug(
+            `After slice: items=${this._items.length}, ` +
             `loadedTop=${this._loadedTop}, loadedBottom=${this._loadedBottom}`
         );
     }

@@ -8,6 +8,10 @@
  * 3. restore(): Find anchor element, calculate position delta, adjust scrollTop
  */
 
+import {createLogger} from '@rtc-agent/client';
+
+const log = createLogger('ScrollSaver');
+
 export class ScrollSaver {
     private _container: HTMLElement;
     private _query: string;
@@ -42,7 +46,7 @@ export class ScrollSaver {
         if (this._elements.length === 0) {
             // No elements saved, scroll to end or start
             this._container.scrollTop = this._reverse ? scrollHeight : 0;
-            console.log(`[ScrollSaver] restore: no elements, scrollTop → ${this._container.scrollTop}`);
+            log.debug(`restore: no elements, scrollTop → ${this._container.scrollTop}`);
             return;
         }
 
@@ -52,7 +56,7 @@ export class ScrollSaver {
             // Anchor removed, fallback to height delta
             const delta = scrollHeight - this._scrollHeight;
             this._container.scrollTop = this._scrollTop + delta;
-            console.log(`[ScrollSaver] restore: anchor removed, fallback delta=${delta}, scrollTop → ${this._container.scrollTop}`);
+            log.debug(`restore: anchor removed, fallback delta=${delta}, scrollTop → ${this._container.scrollTop}`);
             return;
         }
 
@@ -73,8 +77,8 @@ export class ScrollSaver {
         const newPosition = newRect[positionKey];
         const position = rect[positionKey];
 
-        console.log(
-            `[ScrollSaver] restore: reverse=${this._reverse}, anchor=${element.dataset?.messageIndex ?? '?'}, ` +
+        log.debug(
+            `restore: reverse=${this._reverse}, anchor=${element.dataset?.messageIndex ?? '?'}, ` +
             `positionKey=${positionKey}, position=${position}, newPosition=${newPosition}, ` +
             `diff=${newPosition - position}`
         );
@@ -86,7 +90,7 @@ export class ScrollSaver {
         const diff = newPosition - position;
         if (Math.abs(diff) > 0.5) {
             this._container.scrollTop = scrollTop + diff;
-            console.log(`[ScrollSaver] restore: adjusted scrollTop to ${this._container.scrollTop}`);
+            log.debug(`restore: adjusted scrollTop to ${this._container.scrollTop}`);
         }
     }
 

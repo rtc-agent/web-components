@@ -7,6 +7,9 @@
 import type { ScenarioManifest } from '../types/skill.js';
 import { virtualFS, type FileSystemEntryMetadata } from '@rtc-agent/persistence';
 import { generateScenariosIndex } from './markdown-generator.js';
+import {createLogger} from '@rtc-agent/client';
+
+const log = createLogger('ScenarioLoader');
 
 /**
  * 解析 YAML frontmatter
@@ -144,9 +147,9 @@ export async function loadScenariosFromURL(baseURL: string, timeoutMs: number = 
     }
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
-      console.warn('[ScenarioLoader] manifest.json fetch timeout');
+      log.warn('manifest.json fetch timeout');
     } else {
-      console.warn('[ScenarioLoader] manifest.json not found, will try to scan directory');
+      log.warn('manifest.json not found, will try to scan directory');
     }
   }
 
@@ -158,7 +161,7 @@ export async function loadScenariosFromURL(baseURL: string, timeoutMs: number = 
   } else {
     // 如果没有 manifest，尝试扫描目录（假设有一个列表接口）
     // 这里简化处理：要求宿主应用提供文件列表或使用 manifest
-    console.warn('[ScenarioLoader] No manifest.json found. Please provide manifest.json or use writeScenario() API.');
+    log.warn('No manifest.json found. Please provide manifest.json or use writeScenario() API.');
     return 0;
   }
 
@@ -171,7 +174,7 @@ export async function loadScenariosFromURL(baseURL: string, timeoutMs: number = 
       const response = await fetchWithTimeout(url, timeoutMs);
 
       if (!response.ok) {
-        console.warn(`[ScenarioLoader] Failed to load ${file}: ${response.statusText}`);
+        log.warn(`Failed to load ${file}: ${response.statusText}`);
         continue;
       }
 
@@ -194,15 +197,15 @@ export async function loadScenariosFromURL(baseURL: string, timeoutMs: number = 
       await virtualFS.write(path, content, 'overwrite', metadata);
 
       loadedCount++;
-      console.log(`[ScenarioLoader] Loaded: ${file}`);
+      log.info(`Loaded: ${file}`);
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
-        console.error(`[ScenarioLoader] Timeout loading ${file}`);
+        log.error(`Timeout loading ${file}`);
       } else if (err instanceof Error && err.message.includes('getDatabase() called without a name')) {
         // 数据库尚未初始化——预期的时序问题，后续 connectedCallback 会重新加载
         continue;
       } else {
-        console.error(`[ScenarioLoader] Error loading ${file}:`, err);
+        log.error(`Error loading ${file}:`, err);
       }
     }
   }
@@ -212,7 +215,7 @@ export async function loadScenariosFromURL(baseURL: string, timeoutMs: number = 
     await updateScenariosIndex();
   }
 
-  console.log(`[ScenarioLoader] Loaded ${loadedCount} scenarios`);
+  log.info(`Loaded ${loadedCount} scenarios`);
   return loadedCount;
 }
 
@@ -246,14 +249,14 @@ export async function loadScenariosContent(
     }
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
-      console.warn('[ScenarioLoader] manifest.json fetch timeout');
+      log.warn('manifest.json fetch timeout');
     } else {
-      console.warn('[ScenarioLoader] manifest.json not found');
+      log.warn('manifest.json not found');
     }
   }
 
   if (!manifest || !manifest.scenarios) {
-    console.warn('[ScenarioLoader] No manifest.json found.');
+    log.warn('No manifest.json found.');
     return [];
   }
 
@@ -266,7 +269,7 @@ export async function loadScenariosContent(
       const response = await fetchWithTimeout(url, timeoutMs);
 
       if (!response.ok) {
-        console.warn(`[ScenarioLoader] Failed to load ${file}: ${response.statusText}`);
+        log.warn(`Failed to load ${file}: ${response.statusText}`);
         continue;
       }
 
@@ -284,9 +287,9 @@ export async function loadScenariosContent(
       files.push({path, content, metadata});
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
-        console.error(`[ScenarioLoader] Timeout loading ${file}`);
+        log.error(`Timeout loading ${file}`);
       } else {
-        console.error(`[ScenarioLoader] Error loading ${file}:`, err);
+        log.error(`Error loading ${file}:`, err);
       }
     }
   }

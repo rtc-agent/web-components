@@ -13,6 +13,9 @@
  */
 import type {ReactiveController, ReactiveControllerHost} from 'lit';
 import type {SessionTab, SessionTabState, SessionTabActions, SessionStatus} from '../types/index.js';
+import {createLogger} from '@rtc-agent/client';
+
+const log = createLogger('SessionTabController');
 
 const ACTIVE_TAB_STORAGE_KEY = 'rtc:active-tab';
 
@@ -67,13 +70,13 @@ export class SessionTabController implements ReactiveController {
         );
         let activeSessionId = this._state.activeSessionId;
 
-        console.log('[SessionTabController.filterInvalidTabs] before:', before, 'after:', tabs.length);
-        console.log('[SessionTabController.filterInvalidTabs] activeSessionId:', activeSessionId);
+        log.debug('filterInvalidTabs before:', before, 'after:', tabs.length);
+        log.debug('filterInvalidTabs activeSessionId:', activeSessionId);
 
         // 如果活动 Tab 被过滤掉了（且不属于保留的 unsaved tab），激活第一个可用的
         if (activeSessionId && !tabs.some(t => t.sessionId === activeSessionId)) {
             activeSessionId = tabs.length > 0 ? tabs[0].sessionId : null;
-            console.log('[SessionTabController.filterInvalidTabs] activeTab filtered out, new activeSessionId:', activeSessionId);
+            log.debug('activeTab filtered out, new activeSessionId:', activeSessionId);
         }
 
         if (tabs.length !== before) {
@@ -97,7 +100,7 @@ export class SessionTabController implements ReactiveController {
      * - DB 标题与 Tab 当前标题完全相同（无变化）
      */
     updateTabTitles(sessionTitleMap: Map<string, string>): boolean {
-        console.log('[SessionTabController.updateTabTitles] Called with', sessionTitleMap.size, 'titles');
+        log.debug('updateTabTitles called with', sessionTitleMap.size, 'titles');
         let changed = false;
         const tabs = this._state.tabs.map(t => {
             const newTitle = sessionTitleMap.get(t.sessionId);
@@ -109,7 +112,7 @@ export class SessionTabController implements ReactiveController {
                 newTitle.trim() !== '' &&
                 newTitle !== t.title;
             if (shouldUpdate) {
-                console.log('[SessionTabController.updateTabTitles] Updating tab', t.sessionId, ':', `"${t.title}"`, '->', `"${newTitle}"`);
+                log.debug('Updating tab', t.sessionId, ':', `"${t.title}"`, '->', `"${newTitle}"`);
                 changed = true;
                 return {...t, title: newTitle, isDefault: false, isUnsaved: false};
             }
@@ -184,8 +187,8 @@ export class SessionTabController implements ReactiveController {
     }
 
     private _openOrActivate(sessionId: string, title: string, options?: { isUnsaved?: boolean; activate?: boolean; skipPersist?: boolean }) {
-        console.log('[SessionTabController._openOrActivate] sessionId:', sessionId, 'title:', `"${title}"`);
-        console.log('[SessionTabController._openOrActivate] Current tabs:', this._state.tabs.map(t => `${t.sessionId}="${t.title}"(isDefault=${t.isDefault})`));
+        log.debug('openOrActivate sessionId:', sessionId, 'title:', `"${title}"`);
+        log.debug('openOrActivate current tabs:', this._state.tabs.map(t => `${t.sessionId}="${t.title}"(isDefault=${t.isDefault})`));
 
         const isPlaceholder = this._isPlaceholderTitle(title);
         const shouldActivate = options?.activate ?? true; // 默认激活
@@ -198,7 +201,7 @@ export class SessionTabController implements ReactiveController {
             const existing = this._state.tabs[existingIndex];
             // 保护已有真实标题的 Tab 不被占位标题覆盖
             if (isPlaceholder && !existing.isDefault && existing.title !== title) {
-                console.log('[SessionTabController._openOrActivate] Protected tab title:', existing.title);
+                log.debug('Protected tab title:', existing.title);
                 // 仅在需要激活时更新 activeSessionId
                 if (shouldActivate && this._state.activeSessionId !== sessionId) {
                     this._state = {...this._state, activeSessionId: sessionId};
@@ -232,7 +235,7 @@ export class SessionTabController implements ReactiveController {
             }
         }
 
-        console.log('[SessionTabController._openOrActivate] Final tabs:', this._state.tabs.map(t => `${t.sessionId}="${t.title}"(isDefault=${t.isDefault})`));
+        log.debug('openOrActivate final tabs:', this._state.tabs.map(t => `${t.sessionId}="${t.title}"(isDefault=${t.isDefault})`));
 
         this.host.requestUpdate();
     }
@@ -324,14 +327,14 @@ export class SessionTabController implements ReactiveController {
         if (!stored) return false;
         // 仅在存储的 tab 仍存在于当前 tabs 列表中时恢复
         if (!this._state.tabs.some(t => t.sessionId === stored)) {
-            console.log('[SessionTabController._restoreActiveFromStorage] Stored id not in tabs:', stored);
+            log.debug('Stored id not in tabs:', stored);
             return false;
         }
         if (this._state.activeSessionId === stored) {
-            console.log('[SessionTabController._restoreActiveFromStorage] Already active:', stored);
+            log.debug('Already active:', stored);
             return false;
         }
-        console.log('[SessionTabController._restoreActiveFromStorage] Restoring active tab:', stored);
+        log.debug('Restoring active tab:', stored);
         this._state = {...this._state, activeSessionId: stored};
         this.host.requestUpdate();
         return true;

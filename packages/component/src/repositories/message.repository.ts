@@ -16,6 +16,9 @@
  */
 
 import type {Message, MessageState} from '../types/index.js';
+import {createLogger} from '@rtc-agent/client';
+
+const log = createLogger('MessageRepository');
 
 /**
  * API contract for message fetching.
@@ -92,8 +95,8 @@ export class MessageRepository {
         try {
             callback(this._getState(sessionId));
         } catch (error) {
-            console.error(
-                `[MessageRepository] subscriber callback error for session ${sessionId}:`,
+            log.error(
+                `subscriber callback error for session ${sessionId}:`,
                 error,
             );
         }
@@ -174,8 +177,8 @@ export class MessageRepository {
         try {
             updatedMessage = updater(current.messages[index]);
         } catch (error) {
-            console.error(
-                `[MessageRepository] patchMessage updater threw for session=${sessionId}, messageId=${messageId}:`,
+            log.error(
+                `patchMessage updater threw for session=${sessionId}, messageId=${messageId}:`,
                 error,
             );
             return false;
@@ -204,27 +207,27 @@ export class MessageRepository {
     async loadMore(sessionId: string): Promise<Message[]> {
         const current = this._getState(sessionId);
 
-        console.debug(
-            `[MessageRepository] loadMore(${sessionId}) called: hasMore=${current.hasMore}, ` +
+        log.debug(
+            `loadMore(${sessionId}) called: hasMore=${current.hasMore}, ` +
             `isLoading=${this._loadingSessions.has(sessionId)}, cachedMessages=${current.messages.length}`
         );
 
         // Nothing to load
         if (!current.hasMore) {
-            console.debug(`[MessageRepository] loadMore(${sessionId}): early return - hasMore=false`);
+            log.debug(`loadMore(${sessionId}): early return - hasMore=false`);
             return current.messages;
         }
 
         // Already loading — return current state
         if (this._loadingSessions.has(sessionId)) {
-            console.debug(`[MessageRepository] loadMore(${sessionId}): early return - already loading`);
+            log.debug(`loadMore(${sessionId}): early return - already loading`);
             return current.messages;
         }
 
         const oldestCursor = this._oldestCursors.get(sessionId);
 
-        console.debug(
-            `[MessageRepository] loadMore(${sessionId}): oldestCursor=${oldestCursor ?? 'none'}`
+        log.debug(
+            `loadMore(${sessionId}): oldestCursor=${oldestCursor ?? 'none'}`
         );
 
         // Mark loading
@@ -249,7 +252,7 @@ export class MessageRepository {
 
             return allMessages;
         } catch (error) {
-            console.error(`[MessageRepository] loadMore(${sessionId}) failed:`, error);
+            log.error(`loadMore(${sessionId}) failed:`, error);
 
             // Reset loading state on failure
             const failedState = this._getState(sessionId);
@@ -306,7 +309,7 @@ export class MessageRepository {
 
             return allMessages;
         } catch (error) {
-            console.error(`[MessageRepository] loadNewer(${sessionId}) failed:`, error);
+            log.error(`loadNewer(${sessionId}) failed:`, error);
 
             // Reset loading state on failure
             const failedState = this._getState(sessionId);
@@ -445,8 +448,8 @@ export class MessageRepository {
             try {
                 callback(state);
             } catch (error) {
-                console.error(
-                    `[MessageRepository] subscriber callback error for session ${sessionId}:`,
+                log.error(
+                    `subscriber callback error for session ${sessionId}:`,
                     error,
                 );
             }
