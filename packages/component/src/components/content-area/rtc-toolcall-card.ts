@@ -105,19 +105,20 @@ interface ScriptInput {
 function parseScriptInput(toolData: ToolCallData): ScriptInput | null {
     if (toolData.tool_name !== 'script') return null;
     try {
-        let input: any;
+        let raw: unknown;
         if (typeof toolData.input === 'string') {
-            input = JSON.parse(toolData.input);
+            raw = JSON.parse(toolData.input);
         } else if (typeof toolData.input === 'object' && toolData.input !== null) {
-            input = toolData.input;
+            raw = toolData.input;
         } else {
             return null;
         }
+        const input = raw as Record<string, unknown>;
         return {
-            title: input.title || '',
-            action: input.action || 'eval',
-            name: input.name,
-            code: input.code,
+            title: (input.title as string) || '',
+            action: ((input.action as string) || 'eval') as ScriptInput['action'],
+            name: input.name as string | undefined,
+            code: input.code as string | undefined,
         };
     } catch {
         return null;
@@ -291,36 +292,36 @@ export class RtcToolCallCard extends LitElement {
         if (!toolData) return toolName;
 
         // Parse input params
-        let input: any = {};
+        let input: Record<string, unknown> = {};
         try {
             const raw = toolData.input;
             if (typeof raw === 'string') input = JSON.parse(raw);
-            else if (typeof raw === 'object' && raw !== null) input = raw;
-        } catch { /* ignore */ }
+            else if (typeof raw === 'object' && raw !== null) input = raw as Record<string, unknown>;
+        } catch { /* malformed JSON — input stays as {} */ }
 
         switch (toolName) {
             case 'script': {
-                const title = input.title;
+                const title = input.title as string | undefined;
                 return title ? `script ${title}` : 'script';
             }
             case 'read': {
-                const path = input.path || '';
+                const path = (input.path as string) || '';
                 return `read ${path}`;
             }
             case 'ls': {
-                const path = input.path || '/';
+                const path = (input.path as string) || '/';
                 return `ls ${path}`;
             }
             case 'write': {
-                const path = input.path || '';
+                const path = (input.path as string) || '';
                 return `write ${path}`;
             }
             case 'grep': {
-                const pattern = input.pattern || '';
+                const pattern = (input.pattern as string) || '';
                 return `grep ${pattern}`;
             }
             case 'find': {
-                const pattern = input.pattern || '';
+                const pattern = (input.pattern as string) || '';
                 return `find ${pattern}`;
             }
             default:

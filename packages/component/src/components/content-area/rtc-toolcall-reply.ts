@@ -112,6 +112,21 @@ function tryParseJson(value: string): unknown {
 }
 
 /**
+ * Raw shape of a tool call as parsed from message content before type normalization.
+ *
+ * Used internally by `parseOutputToolCall` to safely navigate the parsed JSON
+ * structure without `any` casts.
+ */
+interface RawToolCall {
+    id?: string;
+    tool_name?: string;
+    input?: unknown;
+    output?: unknown;
+    status?: string;
+    data?: RawToolCall;
+}
+
+/**
  * Parse tool call data from output message's content.
  */
 function parseOutputToolCall(message: Message): OutputToolCallData | null {
@@ -119,24 +134,28 @@ function parseOutputToolCall(message: Message): OutputToolCallData | null {
         const data = message.content?.data;
         if (!data) return null;
 
-        let tc: any;
+        let raw: unknown;
         if (typeof data === 'string') {
-            tc = JSON.parse(data);
+            raw = JSON.parse(data);
             // Handle double-serialization
-            if (typeof tc === 'string') {
-                tc = JSON.parse(tc);
+            if (typeof raw === 'string') {
+                raw = JSON.parse(raw);
             }
         } else if (typeof data === 'object') {
-            tc = data;
+            raw = data;
         } else {
             return null;
         }
 
-        if (tc?.data?.tool_name) tc = tc.data;
-        if (!tc?.tool_name) return null;
+        // Unwrap: if nested under .data, use that
+        let tc = raw as RawToolCall;
+        if (tc.data?.tool_name) {
+            tc = tc.data;
+        }
+        if (!tc.tool_name) return null;
 
         // Parse input (handle double-serialization)
-        let input = tc.input;
+        let input: unknown = tc.input;
         if (typeof input === 'string') {
             try {
                 input = JSON.parse(input);
@@ -154,25 +173,28 @@ function parseOutputToolCall(message: Message): OutputToolCallData | null {
         }
 
         // Parse output (handle double-serialization)
-        let output = tc.output;
-        if (typeof output === 'string') {
-            const parsed = tryParseJson(output);
+        const rawOutput = tc.output;
+        let output: string;
+        if (typeof rawOutput === 'string') {
+            const parsed = tryParseJson(rawOutput);
             // If it's a complex object, stringify it; otherwise keep as string
             if (typeof parsed === 'object' && parsed !== null) {
                 output = JSON.stringify(parsed, null, 2);
             } else if (typeof parsed === 'string') {
                 output = parsed;
+            } else {
+                output = String(parsed ?? '');
             }
-        } else if (typeof output === 'object' && output !== null) {
-            output = JSON.stringify(output, null, 2);
+        } else if (typeof rawOutput === 'object' && rawOutput !== null) {
+            output = JSON.stringify(rawOutput, null, 2);
         } else {
-            output = String(output ?? '');
+            output = String(rawOutput ?? '');
         }
 
         return {
             id: tc.id || '',
             tool_name: tc.tool_name,
-            input: typeof input === 'string' ? input : JSON.stringify(input || {}),
+            input: typeof input === 'string' ? input : JSON.stringify(input ?? {}),
             output,
             status: tc.status,
         };
