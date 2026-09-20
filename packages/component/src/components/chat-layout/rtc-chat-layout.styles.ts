@@ -31,7 +31,6 @@ export const styles = css`
     /* ── Tab 栏 ── */
     .tab-bar {
         flex-shrink: 0;
-        width: 100%;
     }
 
     /* ── Tab 内容容器 ── */
