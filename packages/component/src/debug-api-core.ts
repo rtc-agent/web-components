@@ -126,8 +126,8 @@ export function buildCoreAPI(): Pick<
                 sessionStorage.clear();
 
                 // Step 4: Delete IndexedDB databases.
-                if (typeof indexedDB !== 'undefined' && 'databases' in indexedDB) {
-                    const dbs = await (indexedDB as any).databases();
+                if (typeof indexedDB !== 'undefined' && indexedDB.databases) {
+                    const dbs = await indexedDB.databases();
                     for (const dbInfo of dbs) {
                         if (dbInfo.name) {
                             indexedDB.deleteDatabase(dbInfo.name);

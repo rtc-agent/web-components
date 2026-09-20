@@ -9,6 +9,22 @@ import type {RtcAgentDebugAPI} from './debug-api-types.js';
 import type {ToolCall} from './types/index.js';
 import type {SettingsState} from './contexts/settings.js';
 import type {Activity} from './types/index.js';
+
+// ── Non-standard API type augmentations ──
+
+/**
+ * Chrome-only `performance.memory` extension.
+ * Not part of the standard Performance API or TypeScript DOM lib.
+ */
+interface PerformanceMemory {
+    usedJSHeapSize: number;
+    totalJSHeapSize: number;
+    jsHeapSizeLimit: number;
+}
+
+interface PerformanceWithMemory extends Performance {
+    memory?: PerformanceMemory;
+}
 import {
     log,
     logBuffer,
@@ -272,8 +288,9 @@ export function buildExtAPI(): Pick<
             };
 
             // Memory (Chrome only)
-            if ((performance as any).memory) {
-                const mem = (performance as any).memory;
+            const perfWithMemory = performance as PerformanceWithMemory;
+            if (perfWithMemory.memory) {
+                const mem = perfWithMemory.memory;
                 metrics.memory = {
                     usedJSHeapSize: mem.usedJSHeapSize,
                     totalJSHeapSize: mem.totalJSHeapSize,
@@ -342,21 +359,80 @@ export function buildExtAPI(): Pick<
                 );
             }) as typeof fetch;
 
-            // Block WebSocket with a stub that fires error immediately.
+            // Block WebSocket with a stub that simulates an immediate connection failure.
+            // Implements the full WebSocket interface so code that inspects readyState,
+            // calls send()/close(), or reads url/protocol before the error event fires
+            // does not throw a TypeError — the simulation behaves like a real WebSocket
+            // that fails to connect.
             const OfflineWebSocket = function(this: WebSocket, url: string | URL, _protocols?: string | string[]) {
-                log.info(`simulateOffline: blocked WebSocket to ${url}`);
-                const ws = new EventTarget() as unknown as WebSocket;
+                const resolvedUrl = typeof url === 'string' ? url : url.href;
+                log.info(`simulateOffline: blocked WebSocket to ${resolvedUrl}`);
+
+                // Use EventTarget as the base and augment with WebSocket-shaped properties.
+                const target = new EventTarget();
+                const ws = Object.create(target) as WebSocket;
+
+                // Read-only connection metadata.
+                Object.defineProperty(ws, 'url', {value: resolvedUrl, enumerable: true});
+                Object.defineProperty(ws, 'protocol', {value: '', enumerable: true});
+                Object.defineProperty(ws, 'extensions', {value: '', enumerable: true});
+                Object.defineProperty(ws, 'bufferedAmount', {value: 0, enumerable: true});
+                Object.defineProperty(ws, 'binaryType', {value: 'blob' as BinaryType, writable: true, enumerable: true});
+
+                // readyState starts at CONNECTING, transitions to CLOSED after the error.
+                let state: number = WebSocket.CONNECTING;
+                Object.defineProperty(ws, 'readyState', {
+                    get: () => state,
+                    enumerable: true,
+                });
+
+                // Event handler properties (required by the WebSocket interface).
+                ws.onopen = null;
+                ws.onmessage = null;
+                ws.onerror = null;
+                ws.onclose = null;
+
+                // send(): if the connection is not OPEN, follow the spec and throw.
+                ws.send = (() => {
+                    if (state !== WebSocket.OPEN) {
+                        throw new DOMException(
+                            `WebSocket is not open (readyState=${state})`,
+                            'InvalidStateError',
+                        );
+                    }
+                }) as WebSocket['send'];
+
+                // close(): transition to CLOSED and fire the close event.
+                ws.close = ((code?: number, reason?: string) => {
+                    if (state === WebSocket.CLOSED || state === WebSocket.CLOSING) return;
+                    state = WebSocket.CLOSING;
+                    // Schedule close event to match async WebSocket semantics.
+                    setTimeout(() => {
+                        state = WebSocket.CLOSED;
+                        ws.dispatchEvent(new CloseEvent('close', {
+                            code: code ?? 1006,
+                            reason: reason ?? 'Simulated offline',
+                            wasClean: code === undefined || code === 1000,
+                        }));
+                    }, 0);
+                }) as WebSocket['close'];
+
+                // Simulate the connection failure asynchronously so handlers
+                // registered after construction still fire.
                 setTimeout(() => {
+                    state = WebSocket.CLOSED;
                     ws.dispatchEvent(new Event('error'));
                     ws.dispatchEvent(new CloseEvent('close', {code: 1006, reason: 'Simulated offline'}));
                 }, 0);
+
                 return ws;
             } as unknown as typeof WebSocket;
 
-            (OfflineWebSocket as any).CONNECTING = 0;
-            (OfflineWebSocket as any).OPEN = 1;
-            (OfflineWebSocket as any).CLOSING = 2;
-            (OfflineWebSocket as any).CLOSED = 3;
+            // Static constants required by the WebSocket interface.
+            (OfflineWebSocket as unknown as Record<string, number>).CONNECTING = 0;
+            (OfflineWebSocket as unknown as Record<string, number>).OPEN = 1;
+            (OfflineWebSocket as unknown as Record<string, number>).CLOSING = 2;
+            (OfflineWebSocket as unknown as Record<string, number>).CLOSED = 3;
 
             window.WebSocket = OfflineWebSocket;
             _isOffline = true;

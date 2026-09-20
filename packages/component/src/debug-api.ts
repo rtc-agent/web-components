@@ -30,7 +30,7 @@ export type {RtcAgentDebugAPI} from './debug-api-types.js';
  */
 export function installDebugAPI(): void {
     if (typeof window === 'undefined') return;
-    if ((window as any).rtcAgentDebug) {
+    if (window.rtcAgentDebug) {
         log.warn('Debug API already installed, skipping');
         return;
     }
