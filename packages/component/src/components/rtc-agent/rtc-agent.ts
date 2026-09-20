@@ -6,8 +6,10 @@
  * value to a @lit/context provider, and renders the top-level shell UI.
  *
  * All state logic (session, message, tool call, auth, mode, window state,
- * toast, fork) is delegated to controllers in `src/controllers/`. This keeps
- * the root component lean and well within the 300-line limit.
+ * toast, fork) is delegated to controllers in `src/controllers/`. The root
+ * component handles cross-controller coordination, event routing, and
+ * lifecycle management. Complex subscription logic (e.g., UIUpdateBus handling)
+ * is extracted to `helpers/` for maintainability.
  *
  * @element rtc-agent
  *
@@ -53,7 +55,7 @@ import {LitElement, html, nothing} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
 import {ContextProvider} from '@lit/context';
 import {styles} from './rtc-agent.styles.js';
-import type {WindowMode, ContentData, SessionStatus, Activity} from '../../types/index.js';
+import type {WindowMode, ContentData, Activity} from '../../types/index.js';
 
 // Styles
 import {tokens} from '../../styles/tokens.js';
@@ -170,6 +172,7 @@ import {
 } from './helpers/vfs-operations.js';
 import {loadSessions as sessionLoadSessions} from './helpers/session-loader.js';
 import {connectWithRetry} from './helpers/connection-setup.js';
+import {handleBusEvent, type BusHandlerDeps} from './helpers/bus-handler.js';
 
 // Connection state type
 import type {ConnectionState} from '@rtc-agent/client';
@@ -1097,73 +1100,21 @@ export class RtcAgent extends LitElement {
         // don't propagate wheel event to host page
         this.addEventListener('wheel', this._boundOnWheel, {passive: false});
 
-        // Subscribe to UIUpdateBus for persistence-driven UI refreshes
+        // Subscribe to UIUpdateBus for persistence-driven UI refreshes (delegated to bus-handler).
         const bus = getUIUpdateBus();
-        this._busUnsubMessage = bus.subscribe((event) => {
-            if (event.entity === 'message') {
-                // Use efficient single-message update instead of full reload.
-                // Return the Promise so UIUpdateBus can queue events for the same
-                // messageId, preventing race conditions where stale DB reads
-                // overwrite newer state (e.g., streaming content or sync_status).
-                return this._message.updateMessageFromBus(event.entityId);
-            } else if (event.entity === 'session') {
-                // Session updates: distinguish structural changes from lightweight field changes.
-                // Structural changes (title, status, deleted_at) require full session list reload.
-                // Lightweight changes (turn counts, token stats) are handled by dedicated handlers below.
-                const SESSION_STRUCTURAL_FIELDS = new Set([
-                    'title', 'status', 'deleted_at', 'root_client_session_id',
-                    'created_at', 'updated_at',
-                ]);
-                if (event.action === 'created' || !event.field || SESSION_STRUCTURAL_FIELDS.has(event.field)) {
-                    void this._loadSessions();
-                }
-                // Status change -> sync to SessionTab (active/idle/closed drives dot animation).
-                if (event.field === 'status') {
-                    const oldStatus = event.oldValue as SessionStatus | undefined;
-                    const newStatus = event.newValue as SessionStatus | undefined;
-                    const sessionId = event.entityId;
-
-                    if (newStatus) {
-                        // Scenario 1: session closed (open -> closed) -> close tab.
-                        // Tab count monitoring and unsaved tab auto-creation are handled by updated() lifecycle.
-                        if (newStatus === 'closed') {
-                            log.debug('Session closed, closing tab:', sessionId);
-                            this._sessionTab.actions.closeTab(sessionId);
-                        }
-                        // Scenario 2: session reopened (closed -> idle) -> create tab but don't activate.
-                        else if (oldStatus === 'closed' && (newStatus === 'idle' || newStatus === 'active')) {
-                            log.debug('Session reopened, creating tab:', sessionId);
-                            // Get title from session list.
-                            const session = this._session.value.state.sessions.find(s => s.clientId === sessionId);
-                            const title = session?.title || 'Untitled';
-                            this._sessionTab.actions.openOrActivate(sessionId, title, {activate: false});
-                            // Note: don't call switchSession, keep current activeSessionId unchanged.
-                        }
-                        // Other status changes -> only update status dot.
-                        else {
-                            this._sessionTab.actions.updateTabStatus(sessionId, newStatus);
-                        }
-                    }
-                }
-                // Turn count field changed -> push active turn count for current session into context.
-                if (
-                    event.field === 'pending_turn_count' ||
-                    event.field === 'running_turn_count'
-                ) {
-                    void this._refreshTurnCounts();
-                }
-            } else if (event.entity === 'rtc') {
-                // RTC update: only Master Tab triggers RtcProcessor processing loop.
-                // Skip when masterLock exists and isMaster=false.
-                if (this._persistence.masterLock?.isMaster === false) {
-                    return;
-                }
-                this._rtcProcessor?.onRtcUpdate();
-            } else if (event.entity === 'file') {
-                // VFS file change (from write/delete in other tabs).
-                void this._handleFileChange(event.entityId, event.field);
-            }
-        });
+        const busDeps: BusHandlerDeps = {
+            message: this._message,
+            session: this._session,
+            sessionTab: this._sessionTab,
+            sessionTree: this._sessionTree,
+            persistence: this._persistence,
+            getRtcProcessor: () => this._rtcProcessor,
+            loadSessions: () => this._loadSessions(),
+            refreshTurnCounts: () => this._refreshTurnCounts(),
+            handleFileChange: (entityId, field) => this._handleFileChange(entityId, field),
+            log,
+        };
+        this._busUnsubMessage = bus.subscribe((event) => handleBusEvent(event, busDeps));
 
         // Window interaction callbacks — delegate to WindowStateController
         this._interaction.onPositionChange = (x, y) => {
