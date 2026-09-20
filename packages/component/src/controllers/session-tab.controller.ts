@@ -14,6 +14,8 @@
 import type {ReactiveController, ReactiveControllerHost} from 'lit';
 import type {SessionTab, SessionTabState, SessionTabActions, SessionStatus} from '../types/index.js';
 
+const ACTIVE_TAB_STORAGE_KEY = 'rtc:active-tab';
+
 export class SessionTabController implements ReactiveController {
     host: ReactiveControllerHost;
 
@@ -43,6 +45,8 @@ export class SessionTabController implements ReactiveController {
             findUnsavedTab: () => this._findUnsavedTab(),
             updateTabStatus: (sessionId: string, status) =>
                 this._updateTabStatus(sessionId, status),
+            restoreActiveFromStorage: () => this._restoreActiveFromStorage(),
+            getStoredActiveSessionId: () => this._getStoredActiveSessionId(),
         };
     }
 
@@ -179,12 +183,13 @@ export class SessionTabController implements ReactiveController {
         this.host.requestUpdate();
     }
 
-    private _openOrActivate(sessionId: string, title: string, options?: { isUnsaved?: boolean; activate?: boolean }) {
+    private _openOrActivate(sessionId: string, title: string, options?: { isUnsaved?: boolean; activate?: boolean; skipPersist?: boolean }) {
         console.log('[SessionTabController._openOrActivate] sessionId:', sessionId, 'title:', `"${title}"`);
         console.log('[SessionTabController._openOrActivate] Current tabs:', this._state.tabs.map(t => `${t.sessionId}="${t.title}"(isDefault=${t.isDefault})`));
 
         const isPlaceholder = this._isPlaceholderTitle(title);
         const shouldActivate = options?.activate ?? true; // 默认激活
+        const skipPersist = options?.skipPersist ?? false;
         const existingIndex = this._state.tabs.findIndex(
             t => t.sessionId === sessionId
         );
@@ -197,7 +202,7 @@ export class SessionTabController implements ReactiveController {
                 // 仅在需要激活时更新 activeSessionId
                 if (shouldActivate && this._state.activeSessionId !== sessionId) {
                     this._state = {...this._state, activeSessionId: sessionId};
-
+                    if (!skipPersist) this._persistActiveSessionId(sessionId);
                     this.host.requestUpdate();
                 }
                 return;
@@ -207,7 +212,11 @@ export class SessionTabController implements ReactiveController {
                     ? {...t, title, isDefault: isPlaceholder ? true : false}
                     : t
             );
-            this._state = {tabs, activeSessionId: shouldActivate ? sessionId : this._state.activeSessionId};
+            const newActiveId = shouldActivate ? sessionId : this._state.activeSessionId;
+            this._state = {tabs, activeSessionId: newActiveId};
+            if (shouldActivate && !skipPersist) {
+                this._persistActiveSessionId(newActiveId);
+            }
         } else {
             const newTab: SessionTab = {
                 sessionId,
@@ -216,7 +225,11 @@ export class SessionTabController implements ReactiveController {
                 isUnsaved: options?.isUnsaved ?? false,
             };
             const tabs = [...this._state.tabs, newTab];
-            this._state = {tabs, activeSessionId: shouldActivate ? sessionId : this._state.activeSessionId};
+            const newActiveId = shouldActivate ? sessionId : this._state.activeSessionId;
+            this._state = {tabs, activeSessionId: newActiveId};
+            if (shouldActivate && !skipPersist) {
+                this._persistActiveSessionId(newActiveId);
+            }
         }
 
         console.log('[SessionTabController._openOrActivate] Final tabs:', this._state.tabs.map(t => `${t.sessionId}="${t.title}"(isDefault=${t.isDefault})`));
@@ -241,6 +254,7 @@ export class SessionTabController implements ReactiveController {
                 const nextIndex = Math.min(tabIndex, tabs.length - 1);
                 activeSessionId = tabs[nextIndex].sessionId;
             }
+            this._persistActiveSessionId(activeSessionId);
         }
 
         this._state = {tabs, activeSessionId};
@@ -251,18 +265,75 @@ export class SessionTabController implements ReactiveController {
     private _setActiveTab(sessionId: string | null) {
         if (sessionId !== null && sessionId !== this._state.activeSessionId) {
             this._state = {...this._state, activeSessionId: sessionId};
-
+            this._persistActiveSessionId(sessionId);
             this.host.requestUpdate();
         } else if (sessionId === null && this._state.activeSessionId !== null) {
             this._state = {...this._state, activeSessionId: null};
-
+            this._persistActiveSessionId(null);
             this.host.requestUpdate();
         }
     }
 
     private _clearAll() {
         this._state = {tabs: [], activeSessionId: null};
-
+        this._persistActiveSessionId(null);
         this.host.requestUpdate();
+    }
+
+    /**
+     * 把 activeSessionId 写入 localStorage
+     *
+     * 仅在浏览器环境下执行（SSR 安全）；任何异常静默忽略（如隐私模式配额为 0）。
+     */
+    private _persistActiveSessionId(sessionId: string | null): void {
+        try {
+            if (typeof window === 'undefined' || !window.localStorage) return;
+            if (sessionId === null) {
+                window.localStorage.removeItem(ACTIVE_TAB_STORAGE_KEY);
+            } else {
+                window.localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, sessionId);
+            }
+        } catch {
+            // localStorage 不可用（隐私模式/配额满），忽略
+        }
+    }
+
+    /**
+     * 从 localStorage 读取上次活动 Tab 的 sessionId
+     *
+     * 用于恢复 tabs 循环时决定哪个 tab 应该 activate: true。
+     * 如果 localStorage 为空或不可用，返回 null。
+     */
+    private _getStoredActiveSessionId(): string | null {
+        try {
+            if (typeof window === 'undefined' || !window.localStorage) return null;
+            return window.localStorage.getItem(ACTIVE_TAB_STORAGE_KEY);
+        } catch {
+            return null;
+        }
+    }
+
+    /**
+     * 从 localStorage 恢复活动 Tab
+     *
+     * 仅当存储的 sessionId 在当前 tabs 列表中时才恢复，否则保持不变。
+     * 用于浏览器刷新后恢复用户上次的活动 tab。
+     */
+    private _restoreActiveFromStorage(): boolean {
+        const stored = this._getStoredActiveSessionId();
+        if (!stored) return false;
+        // 仅在存储的 tab 仍存在于当前 tabs 列表中时恢复
+        if (!this._state.tabs.some(t => t.sessionId === stored)) {
+            console.log('[SessionTabController._restoreActiveFromStorage] Stored id not in tabs:', stored);
+            return false;
+        }
+        if (this._state.activeSessionId === stored) {
+            console.log('[SessionTabController._restoreActiveFromStorage] Already active:', stored);
+            return false;
+        }
+        console.log('[SessionTabController._restoreActiveFromStorage] Restoring active tab:', stored);
+        this._state = {...this._state, activeSessionId: stored};
+        this.host.requestUpdate();
+        return true;
     }
 }

@@ -149,8 +149,8 @@ export interface SessionTabState {
 }
 
 export interface SessionTabActions {
-    /** 打开或切换到指定 session 的 tab。`options.isUnsaved` 用于新建 unsaved draft tab。 */
-    openOrActivate(sessionId: string, title: string, options?: { isUnsaved?: boolean; activate?: boolean }): void;
+    /** 打开或切换到指定 session 的 tab。`options.isUnsaved` 用于新建 unsaved draft tab。`options.skipPersist` 用于批量恢复时跳过 localStorage 写入。 */
+    openOrActivate(sessionId: string, title: string, options?: { isUnsaved?: boolean; activate?: boolean; skipPersist?: boolean }): void;
     /** 关闭指定 tab。若关闭的是活动 tab，自动激活相邻 tab。 */
     closeTab(sessionId: string): void;
     /** 设置活动 tab */
@@ -167,6 +167,21 @@ export interface SessionTabActions {
     findUnsavedTab(): SessionTab | undefined;
     /** 更新指定 tab 的 session 运行状态。 */
     updateTabStatus(sessionId: string, status: SessionStatus): void;
+    /**
+     * 从 localStorage 恢复活动 Tab
+     *
+     * 仅在首次加载后调用：把上次浏览器关闭前的 activeSessionId 重新设为活动。
+     * 若存储的 id 不在当前 tabs 中，则保持不变。
+     * 返回 true 表示 active 发生了变化。
+     */
+    restoreActiveFromStorage(): boolean;
+    /**
+     * 从 localStorage 读取上次活动 Tab 的 sessionId
+     *
+     * 用于恢复 tabs 循环时决定哪个 tab 应该 activate: true。
+     * 如果 localStorage 为空或不可用，返回 null。
+     */
+    getStoredActiveSessionId(): string | null;
 }
 
 /* ── Modes ── */

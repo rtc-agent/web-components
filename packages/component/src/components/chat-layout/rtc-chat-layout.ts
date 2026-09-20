@@ -114,6 +114,8 @@ export class RtcChatLayout extends LitElement {
             markSaved: () => {},
             findUnsavedTab: () => undefined,
             updateTabStatus: () => {},
+            restoreActiveFromStorage: () => false,
+            getStoredActiveSessionId: () => null,
         },
     };
 

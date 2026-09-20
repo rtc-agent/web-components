@@ -1427,8 +1427,10 @@ export class RtcAgent extends LitElement {
         // 监测 Tab 数量：当所有 Tab 关闭时，自动创建新的 unsaved Tab
         // 这是响应式的设计：通过 Lit 的 updated() 生命周期监听 state 变化
         // 无需在每个关闭 Tab 的地方重复逻辑
+        // 注意：首次加载完成前（_initialSessionLoadDone === false）不自动创建，
+        // 避免和 _loadSessions 的恢复逻辑竞争，导致 localStorage 被污染
         const tabCount = this._sessionTab.value.state.tabs.length;
-        if (tabCount === 0 && !this._creatingUnsavedTab) {
+        if (tabCount === 0 && !this._creatingUnsavedTab && this._initialSessionLoadDone) {
             console.log('[rtc-agent.updated] No tabs left, auto-creating unsaved tab');
             this._creatingUnsavedTab = true;
             try {
@@ -1719,11 +1721,28 @@ export class RtcAgent extends LitElement {
                 .filter(s => s.status !== 'closed')
                 .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
 
+            // 从 localStorage 读取上次 active tab，决定恢复时哪个 tab 应该 activate: true
+            const storedActiveId = this._sessionTab.actions.getStoredActiveSessionId();
+
+            // 批量恢复时 skipPersist: true，避免循环 N 次覆盖 localStorage
+            // 只有匹配 storedActiveId 的 tab 传 activate: true，其他传 activate: false
             for (const session of openSessions) {
                 const title = session.title || 'Untitled';
-                this._sessionTab.actions.openOrActivate(session.clientId, title);
+                const shouldActivate = session.clientId === storedActiveId;
+                this._sessionTab.actions.openOrActivate(session.clientId, title, {
+                    activate: shouldActivate,
+                    skipPersist: true,
+                });
             }
-            console.log('[rtc-agent._loadSessions] Restored tabs from DB:', openSessions.length);
+            console.log('[rtc-agent._loadSessions] Restored tabs from DB:', openSessions.length, 'storedActiveId:', storedActiveId);
+
+            // 兜底：如果 storedActiveId 不在 tabs 中（或 localStorage 为空），activeSessionId 会是 null
+            // 此时激活第一个 tab，保证至少有一个 active
+            if (this._sessionTab.value.state.activeSessionId === null && openSessions.length > 0) {
+                const fallbackId = openSessions[0].clientId;
+                console.log('[rtc-agent._loadSessions] Active tab is null, falling back to first tab:', fallbackId);
+                this._sessionTab.actions.setActiveTab(fallbackId);
+            }
         }
 
         // 过滤无效的 Tab（session 已被删除的从持久化中清理）
