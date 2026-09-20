@@ -365,6 +365,9 @@ export class RtcUserMessage extends LitElement {
         const userData = this._getUserMessageData();
         const text = userData?.text ?? this._getTextContent();
 
+        // Guard against undefined message (should not happen, but defensive)
+        const syncStatus = this.message?.syncStatus ?? 'synced';
+
         return html`
       <div class="user-message-wrapper" part="wrapper">
         <div class="user-message" part="bubble">
@@ -391,6 +394,13 @@ export class RtcUserMessage extends LitElement {
             title="More"
             @click=${this._handleMoreClick}
           >⋯</button>
+
+          ${syncStatus === 'pending' ? html`
+            <div class="sync-indicator" aria-hidden="true">
+              <span class="sync-indicator-dot"></span>
+              <span class="sync-indicator-text">${msg('发送中')}</span>
+            </div>
+          ` : ''}
         </div>
       </div>
     `;

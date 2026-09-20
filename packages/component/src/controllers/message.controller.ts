@@ -273,7 +273,6 @@ export class MessageController implements ReactiveController {
             const current = this._repository.getSessionState(messageSessionId);
             const messages = [...current.messages, newMsg].sort((a, b) => a.timestamp - b.timestamp);
             this._repository.updateMessages(messageSessionId, messages);
-        } else {
         }
 
         // Also update legacy state if this is the current session

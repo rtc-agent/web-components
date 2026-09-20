@@ -127,6 +127,10 @@ export class MessageVirtualScroll<T> {
     private _sliceDebounceTimer: number | null = null;
     private _sliceDebounceDelay: number;
 
+    /** User interaction state for distinguishing user vs programmatic scrolls */
+    private _isUserInteracting = false;
+    private _interactionCleanup: (() => void) | null = null;
+
     constructor(options: MessageVirtualScrollOptions<T>) {
         this._scrollContainer = options.scrollContainer;
         this._innerContainer = options.innerContainer;
@@ -143,6 +147,9 @@ export class MessageVirtualScroll<T> {
 
         this._scrollHandler = () => this._onScroll();
         this._scrollContainer.addEventListener('scroll', this._scrollHandler, {passive: true});
+
+        // Setup user interaction tracking to distinguish user vs programmatic scrolls
+        this._setupInteractionTracking();
     }
 
     /**
@@ -181,12 +188,6 @@ export class MessageVirtualScroll<T> {
 
         // Case 4: Compute diff and apply optimal operations
         const diff = this._computeDiff(oldItems, newItems);
-
-        console.log(
-            `[TAB-DEBUG] setItems diff: oldCount=${oldItems.length}, newCount=${newItems.length}, ` +
-            `prepended=${diff.prepended.length}, appended=${diff.appended.length}, ` +
-            `middleInserted=${diff.middleInserted.length}, hasUpdates=${diff.hasUpdates}, hasRemovals=${diff.hasRemovals}`
-        );
 
         // Optimization: if no changes at all, return early without updating _items
         // This prevents unnecessary array reference changes during tab switching
@@ -659,12 +660,59 @@ export class MessageVirtualScroll<T> {
         this._scrollContainer.scrollTop = this._scrollContainer.scrollHeight;
     }
 
+    /**
+     * Setup user interaction tracking to distinguish user vs programmatic scrolls.
+     * Tracks pointer (mouse/touch) and keyboard interactions on the scroll container.
+     * This allows _onScroll to skip viewport slicing for programmatic scrolls (auto-scroll).
+     */
+    private _setupInteractionTracking() {
+        const container = this._scrollContainer;
+
+        const onPointerDown = () => {
+            this._isUserInteracting = true;
+        };
+
+        const onPointerUp = () => {
+            this._isUserInteracting = false;
+        };
+
+        const onKeyDown = (e: KeyboardEvent) => {
+            // Only track scroll-related keys
+            const scrollKeys = ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '];
+            if (scrollKeys.includes(e.key)) {
+                this._isUserInteracting = true;
+            }
+        };
+
+        const onKeyUp = () => {
+            this._isUserInteracting = false;
+        };
+
+        container.addEventListener('pointerdown', onPointerDown, {passive: true});
+        container.addEventListener('pointerup', onPointerUp, {passive: true});
+        container.addEventListener('pointercancel', onPointerUp, {passive: true});
+        container.addEventListener('keydown', onKeyDown, {passive: true});
+        container.addEventListener('keyup', onKeyUp, {passive: true});
+
+        // Store cleanup function
+        this._interactionCleanup = () => {
+            container.removeEventListener('pointerdown', onPointerDown);
+            container.removeEventListener('pointerup', onPointerUp);
+            container.removeEventListener('pointercancel', onPointerUp);
+            container.removeEventListener('keydown', onKeyDown);
+            container.removeEventListener('keyup', onKeyUp);
+        };
+    }
+
     dispose() {
         if (this._scrollHandler) {
             this._scrollContainer.removeEventListener('scroll', this._scrollHandler);
         }
         if (this._sliceDebounceTimer) {
             clearTimeout(this._sliceDebounceTimer);
+        }
+        if (this._interactionCleanup) {
+            this._interactionCleanup();
         }
     }
 
@@ -704,13 +752,18 @@ export class MessageVirtualScroll<T> {
         );
 
         // Debounced viewport slicing (like Telegram's sliceViewportDebounced)
-        // Reset timer on each scroll event, execute after user stops scrolling
-        if (this._sliceDebounceTimer) {
-            clearTimeout(this._sliceDebounceTimer);
+        // Only trigger on user-initiated scrolls, not programmatic scrolls (auto-scroll).
+        // This prevents flickering during high-frequency message updates.
+        if (this._isUserInteracting) {
+            if (this._sliceDebounceTimer) {
+                clearTimeout(this._sliceDebounceTimer);
+            }
+            this._sliceDebounceTimer = window.setTimeout(() => {
+                this._sliceViewport();
+            }, this._sliceDebounceDelay);
+        } else {
+            log.debug('_onScroll: skipping slice timer (programmatic scroll)');
         }
-        this._sliceDebounceTimer = window.setTimeout(() => {
-            this._sliceViewport();
-        }, this._sliceDebounceDelay);
 
         if (!this._onLoadMore) {
             log.debug('_onScroll: no onLoadMore callback');

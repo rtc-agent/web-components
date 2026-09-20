@@ -125,6 +125,50 @@ export const styles = css`
     border-color: var(--rtc-user-message-glow-color, var(--rtc-color-primary, #0066ff));
   }
 
+  /* ── Pending sync indicator ── */
+  @keyframes rtc-sync-indicator-pulse {
+    0%, 100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.5;
+      transform: scale(0.8);
+    }
+  }
+
+  .sync-indicator {
+    position: absolute;
+    top: var(--rtc-spacing-xs, 4px);
+    right: var(--rtc-spacing-xs, 4px);
+    display: flex;
+    align-items: center;
+    gap: var(--rtc-spacing-xs, 4px);
+    font-size: var(--rtc-font-size-xs, 12px);
+    color: var(--rtc-color-primary, #0066ff);
+    opacity: 0;
+    transition: opacity var(--rtc-transition-duration) var(--rtc-transition-timing);
+    pointer-events: none;
+    z-index: var(--rtc-z-local-3, 3);
+  }
+
+  :host([data-sync-status="pending"]) .sync-indicator {
+    opacity: 1;
+  }
+
+  .sync-indicator-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--rtc-color-primary, #0066ff);
+    animation: rtc-sync-indicator-pulse 1.5s ease-in-out infinite;
+  }
+
+  .sync-indicator-text {
+    font-family: var(--rtc-font-family-base);
+    line-height: var(--rtc-line-height-tight, 1.4);
+  }
+
   /* ── Failed border ── */
   :host([data-sync-status="failed"]) .user-message {
     border-color: var(--rtc-user-message-error-color, var(--rtc-color-error, #dc2626));

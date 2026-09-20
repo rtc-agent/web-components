@@ -57,6 +57,8 @@ const SMOOTH_SCROLL_ANIMATION_MS = 500;
 const HIGHLIGHT_ANIMATION_MS = 2000;
 /** Distance from bottom threshold for "at bottom" detection (px). */
 const AT_BOTTOM_THRESHOLD_PX = 60;
+/** Exit threshold for disabling auto-scroll (hysteresis, px). */
+const EXIT_AUTO_SCROLL_THRESHOLD_PX = AT_BOTTOM_THRESHOLD_PX * 2; // 120px
 
 @localized()
 @customElement('rtc-message-list')
@@ -196,7 +198,6 @@ export class RtcMessageList extends LitElement {
     }
 
     firstUpdated() {
-        console.log(`[TAB-DEBUG] firstUpdated called: sessionId=${this.sessionId}`);
         this._scrollEl = this.shadowRoot!.querySelector('.message-list-scroll') as HTMLElement;
         const innerEl = this.shadowRoot!.querySelector('.message-list-inner') as HTMLElement;
 
@@ -219,7 +220,7 @@ export class RtcMessageList extends LitElement {
                 query: '[data-client-id]',
                 preloadThreshold: 300, // Telegram uses 300px
                 bufferMessages: 20,
-                sliceInterval: 3000,
+                sliceInterval: 600000, // 10 minutes - only slice on user scroll, not auto-scroll
                 // Extract only the fields that affect rendering for efficient comparison.
                 // Tab switching returns new array references with identical content;
                 // comparing only these fields avoids unnecessary Markdown DOM recreation.
@@ -277,8 +278,6 @@ export class RtcMessageList extends LitElement {
     private _subscribeToSession() {
         if (!this.sessionId || !this.messageController) return;
 
-        console.log(`[TAB-DEBUG] _subscribeToSession called: sessionId=${this.sessionId}`);
-
         // Unsubscribe from previous session
         this._subscription?.();
         this._subscription = undefined;
@@ -292,7 +291,6 @@ export class RtcMessageList extends LitElement {
             this._subscription = this.messageController.repository.subscribe(
                 this.sessionId,
                 (data: MessageState) => {
-                    console.log(`[TAB-DEBUG] subscription callback: sessionId=${this.sessionId}, messageCount=${data.messages.length}`);
                     this._handleMessagesUpdate(data);
                 },
             );
@@ -311,8 +309,6 @@ export class RtcMessageList extends LitElement {
     private _handleMessagesUpdate(data: MessageState) {
         const oldMessages = this._messages;
         const newMessages = data.messages;
-
-        console.log(`[TAB-DEBUG] _handleMessagesUpdate: sessionId=${this.sessionId}, oldCount=${oldMessages.length}, newCount=${newMessages.length}`);
 
         log.debug('_handleMessagesUpdate: old=', oldMessages.length,
             'new=', newMessages.length,
@@ -412,7 +408,6 @@ export class RtcMessageList extends LitElement {
 
         // --- Session switch: clear virtual scroll, re-subscribe, scroll to bottom ---
         if (changed.has('sessionId')) {
-            console.log(`[TAB-DEBUG] updated: sessionId changed to ${this.sessionId}`);
             this._virtualScroll?.clear();
             this._subscribeToSession();
             this._shouldAutoScroll = true;
@@ -511,12 +506,17 @@ export class RtcMessageList extends LitElement {
         // Shows "new messages" button early so user can click before reaching absolute bottom
         const atBottom = distanceFromBottom < AT_BOTTOM_THRESHOLD_PX;
 
-        // Follow intent: always update based on scroll position.
-        // The AT_BOTTOM_THRESHOLD_PX threshold is large enough to be immune to sub-pixel rounding,
-        // so we don't need the _programmaticScrollCount guard here.
-        // This ensures user scroll-up is immediately respected, even during
-        // streaming when programmatic scrolls happen frequently.
-        this._shouldAutoScroll = atBottom;
+        // Follow intent: use hysteresis to prevent state dithering during async content rendering.
+        // - Enter follow mode when distanceFromBottom < AT_BOTTOM_THRESHOLD_PX (60px)
+        // - Exit follow mode only when distanceFromBottom > EXIT_AUTO_SCROLL_THRESHOLD_PX (120px)
+        // - In the hysteresis band (60-120px), preserve the current _shouldAutoScroll state
+        // _programmaticScrollCount guard prevents sub-pixel rounding from incorrectly triggering exit.
+        // This ensures stable follow behavior during streaming when scrollHeight changes asynchronously.
+        if (distanceFromBottom > EXIT_AUTO_SCROLL_THRESHOLD_PX && this._programmaticScrollCount === 0) {
+            this._shouldAutoScroll = false;
+        } else if (atBottom) {
+            this._shouldAutoScroll = true;
+        }
 
         // UI state (_userAtBottom, _showNewBtn): guarded by _programmaticScrollCount
         // to prevent sub-pixel rounding from causing flicker during programmatic scrolls.
