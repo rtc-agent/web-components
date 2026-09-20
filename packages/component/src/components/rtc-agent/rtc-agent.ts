@@ -791,11 +791,14 @@ export class RtcAgent extends LitElement {
      * Wheel event handler to prevent scroll chaining to host page.
      *
      * When a scrollable container inside the shadow DOM reaches its boundary
-     * (top or bottom), continuing to scroll would propagate the wheel event
-     * to the host page, causing it to scroll. This handler:
+     * (top/bottom for vertical, left/right for horizontal), continuing to scroll
+     * would propagate the wheel event to the host page, causing it to scroll.
+     * This handler:
      * 1. If a scrollable parent exists and is at its boundary, prevents propagation
      * 2. If no scrollable parent exists, always prevents propagation (wheel events
      *    inside the component should never affect the host page)
+     *
+     * Supports both vertical and horizontal scroll containers.
      */
     private _boundOnWheel = (e: WheelEvent) => {
         const target = e.composedPath()[0] as Element;
@@ -808,15 +811,27 @@ export class RtcAgent extends LitElement {
             return;
         }
 
-        const {scrollTop, scrollHeight, clientHeight} = scrollable;
+        const {scrollTop, scrollHeight, clientHeight, scrollLeft, scrollWidth, clientWidth} = scrollable;
+
+        // ── Vertical axis ──
         const atTop = scrollTop <= 0;
         const atBottom = Math.ceil(scrollTop + clientHeight) >= scrollHeight;
-
         const scrollingUp = e.deltaY < 0;
         const scrollingDown = e.deltaY > 0;
+        const isVertScrollable = scrollHeight > clientHeight;
+
+        // ── Horizontal axis ──
+        const atLeft = scrollLeft <= 0;
+        const atRight = Math.ceil(scrollLeft + clientWidth) >= scrollWidth;
+        const scrollingLeft = e.deltaX < 0 || (e.shiftKey && e.deltaY < 0);
+        const scrollingRight = e.deltaX > 0 || (e.shiftKey && e.deltaY > 0);
+        const isHorizScrollable = scrollWidth > clientWidth;
 
         // If at boundary and continuing to scroll in that direction, prevent propagation
-        if ((atTop && scrollingUp) || (atBottom && scrollingDown)) {
+        const atVerticalBoundary = isVertScrollable && ((atTop && scrollingUp) || (atBottom && scrollingDown));
+        const atHorizontalBoundary = isHorizScrollable && ((atLeft && scrollingLeft) || (atRight && scrollingRight));
+
+        if (atVerticalBoundary || atHorizontalBoundary) {
             e.preventDefault();
             e.stopPropagation();
         }
@@ -1545,9 +1560,14 @@ export class RtcAgent extends LitElement {
         while (current && current !== this) {
             const style = getComputedStyle(current);
             const overflowY = style.overflowY;
+            const overflowX = style.overflowX;
 
-            if ((overflowY === 'auto' || overflowY === 'scroll') &&
-                current.scrollHeight > current.clientHeight) {
+            const isVertScrollable = (overflowY === 'auto' || overflowY === 'scroll') &&
+                current.scrollHeight > current.clientHeight;
+            const isHorizScrollable = (overflowX === 'auto' || overflowX === 'scroll') &&
+                current.scrollWidth > current.clientWidth;
+
+            if (isVertScrollable || isHorizScrollable) {
                 return current;
             }
 
