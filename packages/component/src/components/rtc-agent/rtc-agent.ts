@@ -53,7 +53,7 @@ import {LitElement, html, nothing} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
 import {ContextProvider} from '@lit/context';
 import {styles} from './rtc-agent.styles.js';
-import type {WindowMode, ContentData, Session, SessionStatus, Activity, FileNode} from '../../types/index.js';
+import type {WindowMode, ContentData, SessionStatus, Activity} from '../../types/index.js';
 
 // Styles
 import {tokens} from '../../styles/tokens.js';
@@ -124,7 +124,7 @@ import {resolveActivityBarConfig, type ResolvedActivityBarConfig} from '../../ty
 import '../../types/events.js';
 
 // UIUpdateBus (persistence-layer singleton for driving UI refreshes)
-import {getUIUpdateBus, RtcProcessor, virtualFS} from '@rtc-agent/persistence';
+import {getUIUpdateBus, RtcProcessor} from '@rtc-agent/persistence';
 import type {LocalRtc} from '@rtc-agent/persistence';
 
 // Tool confirm dialog
@@ -157,6 +157,20 @@ import type {ToastType} from '../overlay/rtc-toast.js';
 
 // Debug API (dev/test only)
 import {installDebugAPI} from '../../debug-api.js';
+
+// Extracted helpers (keep rtc-agent.ts lean — business logic lives in helpers/)
+import {handleCommand as dispatchCommand} from './helpers/command-handler.js';
+import {showToolConfirmDialog, showAskUserDialog} from './helpers/dialog-helpers.js';
+import {
+    loadFileTree as vfsLoadFileTree,
+    loadFolderChildren as vfsLoadFolderChildren,
+    handleFileOpen as vfsHandleFileOpen,
+    restoreEditorAreaContent as vfsRestoreEditorAreaContent,
+    handleEditorSave as vfsHandleEditorSave,
+    handleFileChange as vfsHandleFileChange,
+} from './helpers/vfs-operations.js';
+import {loadSessions as sessionLoadSessions} from './helpers/session-loader.js';
+import {connectWithRetry} from './helpers/connection-setup.js';
 
 // Connection state type
 import type {ConnectionState} from '@rtc-agent/client';
@@ -1197,116 +1211,51 @@ export class RtcAgent extends LitElement {
      *
      * If the connection fails, sets _connectionFailed state so the user
      * can see the error in the UI and manually retry.
+     *
+     * Delegates to connection-setup helper for the heavy orchestration.
      */
     private async _connectWithRetry(): Promise<void> {
         this._connectionFailed = false;
         this._connectionError = '';
 
-        try {
-            await this._persistence.connect();
+        const result = await connectWithRetry({
+            persistence: this._persistence as unknown as Parameters<typeof connectWithRetry>[0]['persistence'],
+            message: this._message as unknown as Parameters<typeof connectWithRetry>[0]['message'],
+            session: this._session as unknown as Parameters<typeof connectWithRetry>[0]['session'],
+            notification: this._notification as unknown as Parameters<typeof connectWithRetry>[0]['notification'],
+            activity: this._activity,
+            fileExplorer: this._fileExplorer as unknown as Parameters<typeof connectWithRetry>[0]['fileExplorer'],
+            toast: this._toast.actions,
+            skill: this._skill as unknown as Parameters<typeof connectWithRetry>[0]['skill'],
+            mode: this._mode,
+            scenariosURL: this._scenariosURL,
+            loadFileTree: () => this._loadFileTree(),
+            restoreEditorAreaContent: () => this._restoreEditorAreaContent(),
+            showToolConfirm: (rtc) => this._showToolConfirm(rtc),
+            showAskUser: (rtc) => this._showAskUser(rtc),
+            loadSessions: () => { void this._loadSessions(); },
+            logger: log,
+        });
 
-            if (this._persistence.layer) {
-                this._message.persistence = this._persistence.layer;
-                this._session.persistence = this._persistence.layer;
-                this._notification.persistence = this._persistence.layer;
-
-                // Note: AGENT.md is written by FunctionRegistry.generateAllDocsContent() (includes persona).
-                // We no longer call initializeVirtualFS() to write a default AGENT.md,
-                // because subsequent batchWriteFiles would fail with 'create-new' mode (can't overwrite).
-
-                // If the active activity is 'files' after restore, auto-load the file tree.
-                // (In normal flow, the file tree loads on activity-change events,
-                //  but a page refresh won't trigger activity-change, so we trigger it manually.)
-                if (this._activity.active === 'files' && !this._fileTreeLoaded) {
-                    await this._loadFileTree();
-                }
-
-                // Restore Editor Area content for already-open files after refresh.
-                // (Tab metadata was restored from localStorage in EditorAreaController constructor;
-                //  here we reload each tab's file content from VFS.)
-                await this._restoreEditorAreaContent();
-
-                // Main thread generates doc content, sends to Worker via batchWriteFiles.
-                const registry = this._skill.actions.getRegistry();
-                log.debug('After connect, registry:', registry ? 'set' : 'null');
-                if (registry && typeof registry.generateAllDocsContent === 'function') {
-                    const files = registry.generateAllDocsContent(0);
-                    if (files.length > 0) {
-                        await this._persistence.workerBridge!.core.batchWriteFiles(files);
-                        log.debug('batchWriteFiles completed');
-                    }
-                }
-
-                // Reload scenarios (if scenariosURL was set before DB initialization).
-                if (this._scenariosURL) {
-                    try {
-                        const files = await loadScenariosContent(this._scenariosURL);
-                        await this._persistence.workerBridge!.core.batchWriteFiles(files);
-                        log.info(`Re-loaded ${files.length} scenarios from ${this._scenariosURL}`);
-                    } catch (err) {
-                        log.warn(`Failed to re-load scenarios from ${this._scenariosURL}:`, err);
-                    }
-                }
-
-                // Initialize RTC processor and resume pending tasks.
-                await this._initRtcProcessor();
-
-                // Listen for connection state changes.
-                this._setupConnectionListener();
-            }
-            // Load sessions from DB so the panel isn't empty after refresh.
-            void this._loadSessions();
-        } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : String(err);
-            log.error('Connection failed:', errorMessage);
-            this._connectionFailed = true;
-            this._connectionError = errorMessage;
-
-            // Show error toast.
-            this._toast.actions.show(
-                msg(`连接失败: ${errorMessage}`),
-                'error'
-            );
+        this._connectionFailed = result.connectionFailed;
+        this._connectionError = result.connectionError;
+        if (result.rtcProcessor) {
+            this._rtcProcessor = result.rtcProcessor;
         }
+        if (result.unsubConnection) {
+            this._unsubConnection?.();
+            this._unsubConnection = result.unsubConnection;
+        }
+        this._connectionState = result.connectionState;
     }
 
-    /** Show tool confirmation dialog. */
+    /** Show tool confirmation dialog (delegated to dialog-helpers). */
     private _showToolConfirm(rtc: LocalRtc): Promise<boolean> {
-        return new Promise((resolve) => {
-            const el = document.createElement('rtc-tool-confirm');
-            el.toolCall = {
-                id: rtc.client_id,
-                toolName: rtc.tool_name,
-                parameters: rtc.parameters as Record<string, unknown> | undefined,
-                status: 'pending',
-            };
-
-            const cleanup = () => {
-                el.removeEventListener('rtc-tool-call-approved', onApproved);
-                el.removeEventListener('rtc-tool-call-denied', onDenied);
-                el.remove();
-            };
-
-            const onApproved = () => {
-                cleanup();
-                resolve(true);
-            };
-
-            const onDenied = () => {
-                cleanup();
-                resolve(false);
-            };
-
-            el.addEventListener('rtc-tool-call-approved', onApproved);
-            el.addEventListener('rtc-tool-call-denied', onDenied);
-
-            // Append to shadowRoot to maintain style inheritance.
-            this.shadowRoot!.appendChild(el);
-        });
+        return showToolConfirmDialog(rtc, this.shadowRoot!);
     }
 
     /**
-     * Show AskUser multi-select dialog.
+     * Show AskUser multi-select dialog (delegated to dialog-helpers).
      *
      * Returns the user's answer dict ({answers, annotations?, metadata?}) or null if dismissed.
      */
@@ -1315,56 +1264,11 @@ export class RtcAgent extends LitElement {
         annotations?: Record<string, { preview?: string; notes?: string }>;
         metadata?: { source?: string };
     } | null> {
-        return new Promise((resolve) => {
-            const el = document.createElement('rtc-ask-user');
-            el.rtc = rtc;
-
-            const cleanup = () => {
-                el.removeEventListener('rtc-ask-user-submit', onSubmit);
-                el.removeEventListener('rtc-ask-user-dismiss', onDismiss);
-                el.remove();
-            };
-
-            const onSubmit = (e: Event) => {
-                const detail = (e as CustomEvent).detail as {
-                    clientId: string;
-                    payload: {
-                        answers: Record<string, string>;
-                        annotations?: Record<string, { preview?: string; notes?: string }>;
-                        metadata?: { source?: string };
-                    };
-                };
-                cleanup();
-                resolve(detail.payload);
-            };
-
-            const onDismiss = () => {
-                cleanup();
-                resolve(null);
-            };
-
-            el.addEventListener('rtc-ask-user-submit', onSubmit);
-            el.addEventListener('rtc-ask-user-dismiss', onDismiss);
-
-            this.shadowRoot!.appendChild(el);
-        });
-    }
-
-    /**
-     * Set up connection state listener.
-     *
-     * Uses PersistenceController.onConnectionStateChange to get connection state change events.
-     */
-    private async _setupConnectionListener() {
-        this._unsubConnection?.();
-
-        // Use unified API to get initial connection state.
-        this._connectionState = await this._persistence.getConnectionState();
-
-        // Use unified API to listen for connection state changes.
-        this._unsubConnection = this._persistence.onConnectionStateChange((event) => {
-            this._connectionState = event.state;
-        });
+        return showAskUserDialog(rtc, this.shadowRoot!) as Promise<{
+            answers: Record<string, string>;
+            annotations?: Record<string, { preview?: string; notes?: string }>;
+            metadata?: { source?: string };
+        } | null>;
     }
 
     disconnectedCallback() {
@@ -1687,356 +1591,82 @@ export class RtcAgent extends LitElement {
     }
 
     /**
-     * Load sessions list from persistence and sync into SessionController.
+     * Load sessions list from persistence and sync into SessionController (delegated to session-loader).
      * On initial load (after refresh), auto-selects the most recently updated session if none selected.
      */
     private async _loadSessions() {
-        if (!this._persistence.layer) return;
-
-        const sessions = await this._persistence.layer.listSessions();
-        log.debug('Loaded sessions from DB:', sessions.length);
-
-        const uiSessions: Session[] = sessions.map(s => ({
-            clientId: s.client_id,
-            deviceId: s.device_id,
-            title: s.title || '',
-            createdAt: new Date(s.created_at).getTime(),
-            updatedAt: new Date(s.updated_at).getTime(),
-            todoList: s.todo_list,
-            rootClientSessionId: s.root_client_session_id,
-            status: s.status as SessionStatus | undefined,
-            // Token usage fields (auto-populated after backend session.updated push).
-            totalInputTokens: s.total_input_tokens,
-            totalOutputTokens: s.total_output_tokens,
-            totalTokens: s.total_tokens,
-            currentContextTokens: s.current_context_tokens,
-            totalCachedReadTokens: s.total_cached_read_tokens,
-            totalCachedWriteTokens: s.total_cached_write_tokens,
-            totalReasoningTokens: s.total_reasoning_tokens,
-            totalCostUsd: s.total_cost_usd,
-            lastTokenUpdateAt: s.last_token_update_at,
-            // Token estimation fields (real-time computed by backend, pushed via session.updated).
-            compressionThreshold: s.compression_threshold,
-            compressionProgress: s.compression_progress,
-            roundsUntilCompression: s.rounds_until_compression,
-            estimatedNextRoundTokens: s.estimated_next_round_tokens,
-        }));
-        this._session.actions.setSessions(uiSessions);
-
-        // Sync to SessionTreeController (build hierarchical tree).
-        this._sessionTree.actions.rebuildTree(uiSessions);
-
-        // ── Restore tabs from DB on initial load (replaces localStorage) ──
-        // Placed after rebuildTree and before filterInvalidTabs.
-        // Restored tabs will be immediately processed by filterInvalidTabs/updateTabTitles/syncTabStatuses.
-        if (!this._initialSessionLoadDone) {
-            const openSessions = uiSessions
-                .filter(s => s.status !== 'closed')
-                .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
-
-            // Read the last active tab from localStorage to decide which tab to activate on restore.
-            const storedActiveId = this._sessionTab.actions.getStoredActiveSessionId();
-
-            // Use skipPersist: true for batch restore to avoid N localStorage overwrites in a loop.
-            // Only the tab matching storedActiveId gets activate: true; others get activate: false.
-            for (const session of openSessions) {
-                const title = session.title || 'Untitled';
-                const shouldActivate = session.clientId === storedActiveId;
-                this._sessionTab.actions.openOrActivate(session.clientId, title, {
-                    activate: shouldActivate,
-                    skipPersist: true,
-                });
-            }
-            log.debug('Restored tabs from DB:', openSessions.length, 'storedActiveId:', storedActiveId);
-
-            // Fallback: if storedActiveId isn't in tabs (or localStorage is empty), activeSessionId is null.
-            // Activate the first tab to ensure at least one active tab exists.
-            if (this._sessionTab.value.state.activeSessionId === null && openSessions.length > 0) {
-                const fallbackId = openSessions[0].clientId;
-                log.debug('Active tab is null, falling back to first tab:', fallbackId);
-                this._sessionTab.actions.setActiveTab(fallbackId);
-            }
-        }
-
-        // Filter invalid tabs (clean up tabs whose sessions have been deleted from persistence).
-        const validIds = new Set(uiSessions.map(s => s.clientId));
-        const hadInvalidTabs = this._sessionTab.filterInvalidTabs(validIds);
-        log.debug('filterInvalidTabs:', hadInvalidTabs ? 'removed some' : 'none removed');
-        log.debug('Tabs after filter:', this._sessionTab.value.state.tabs.map(t => `${t.sessionId}="${t.title}"`));
-        log.debug('activeSessionId:', this._sessionTab.value.state.activeSessionId);
-
-        // Sync SessionController.currentSessionId with Tab's activeSessionId.
-        // When the active tab is filtered out, switch session to trigger message cleanup.
-        const newActiveId = this._sessionTab.value.state.activeSessionId;
-        const currentId = this._session.value.state.currentSessionId;
-        if (currentId !== newActiveId) {
-            log.debug('Syncing currentSessionId:', currentId, '->', newActiveId);
-            if (newActiveId) {
-                this._session.actions.switchSession(newActiveId);
-            } else {
-                this._session.actions.clearCurrentSession();
-            }
-        }
-
-        // Sync existing tab titles with the latest titles from sessions.
-        // Fix: new session tabs created with empty titles need updating when the server
-        // returns the real title.
-        const titleMap = new Map(uiSessions.map(s => [s.clientId, s.title]));
-        const titlesUpdated = this._sessionTab.updateTabTitles(titleMap);
-        log.debug('updateTabTitles:', titlesUpdated ? 'updated' : 'no change');
-        log.debug('Tabs after title sync:', this._sessionTab.value.state.tabs.map(t => `${t.sessionId}="${t.title}"`));
-
-        // Sync existing tabs' status with latest status from sessions (drives status dot display).
-        const statusMap = new Map(
-            uiSessions.filter(s => s.status).map(s => [s.clientId, s.status!])
-        );
-        if (statusMap.size > 0) {
-            this._sessionTab.actions.syncTabStatuses(statusMap);
-        }
-
-        // Auto-select on initial load only (e.g. after refresh)
-        // Don't auto-select on subsequent session updates (user may have clicked + to clear selection)
-        // Only auto-select if there are open tabs (avoid selecting session when all tabs were closed)
-        if (!this._initialSessionLoadDone) {
-            this._initialSessionLoadDone = true;
-            const hasOpenTabs = this._sessionTab.value.state.tabs.length > 0;
-            log.debug('Initial load: hasOpenTabs=', hasOpenTabs, 'currentSessionId=', this._session.value.state.currentSessionId);
-            if (hasOpenTabs && !this._session.value.state.currentSessionId) {
-                // Prefer restoring the Tab bar's active tab (even if its session isn't in DB, e.g. unsaved tab).
-                // Fall back to the most recently updated session (only when no active tab exists).
-                const activeTabId = this._sessionTab.value.state.activeSessionId;
-                const targetId = activeTabId
-                    ?? (uiSessions.length > 0
-                        ? uiSessions.reduce((a, b) => a.updatedAt > b.updatedAt ? a : b).clientId
-                        : null);
-                if (targetId) {
-                    log.debug('Auto-selecting session:', targetId, '(from activeTabId:', activeTabId, ')');
-                    this._session.actions.switchSession(targetId);
-                }
-            }
-        }
+        const result = await sessionLoadSessions(this._initialSessionLoadDone, {
+            persistenceLayer: this._persistence.layer,
+            session: this._session,
+            sessionTree: this._sessionTree,
+            sessionTab: this._sessionTab,
+            logger: log,
+        });
+        this._initialSessionLoadDone = result;
     }
 
     /* ── Slash Command Handling ── */
 
     /**
-     * Handle slash commands.
+     * Handle slash commands (delegated to command-handler helper).
      *
      * Currently supported commands:
      * - /compact [custom_instruction]: compress current session context
      */
     private async _handleCommand(name: string, args?: string): Promise<void> {
-        switch (name) {
-            case 'compact':
-                await this._handleCompactCommand(args);
-                break;
-            default:
-                this._toast.actions.show(`未知命令: /${name}`, 'error');
-                break;
-        }
-    }
-
-    /**
-     * Handle the /compact command.
-     *
-     * Calls the server RPC to compress the current session context.
-     * Does not show a success toast immediately (waits for Live push to update session state).
-     * Shows an error toast on failure.
-     */
-    private async _handleCompactCommand(customInstruction?: string): Promise<void> {
-        const sessionId = this._session.value.state.currentSessionId;
-        if (!sessionId) {
-            this._toast.actions.show(msg('没有活动的会话'), 'error');
-            return;
-        }
-
-        if (!this._persistence.layer) {
-            this._toast.actions.show(msg('服务未连接'), 'error');
-            return;
-        }
-
-        this._toast.actions.show(msg('正在压缩上下文...'), 'info');
-
-        try {
-            await this._persistence.layer.compactSession(sessionId, customInstruction);
-            // Success: don't show toast immediately, wait for Live push to update session.
-        } catch (err) {
-            log.error('/compact failed:', err);
-            const message = err instanceof Error ? err.message : msg('压缩上下文失败');
-            this._toast.actions.show(message, 'error');
-        }
-    }
-
-    /* ── RTC Processor Initialization ── */
-
-    /**
-     * Initialize the RTC processor and resume pending tasks.
-     *
-     * Extracted as a private method to avoid duplication between
-     * connectedCallback and _handleLoginComplete.
-     * Auto-injects MasterLock and triggers processLoop when becoming Master.
-     */
-    private async _initRtcProcessor(): Promise<void> {
-        if (!this._persistence.layer) return;
-
-        this._rtcProcessor = new RtcProcessor(this._persistence.layer);
-        this._rtcProcessor.setConfirmDialog((rtc) => this._showToolConfirm(rtc));
-        this._rtcProcessor.setAskUserDialog((rtc) => this._showAskUser(rtc));
-        this._rtcProcessor.setMode(this._mode.value.state.currentMode);
-
-        // Inject MasterLock.
-        const masterLock = this._persistence.masterLock;
-        if (masterLock) {
-            this._rtcProcessor.setMaster(masterLock);
-            // When this tab becomes Master, trigger RTC processing (handles crash recovery).
-            const prevOnAcquire = masterLock.onAcquire;
-            masterLock.onAcquire = () => {
-                prevOnAcquire?.();
-                this._rtcProcessor?.onRtcUpdate().catch(err => {
-                    log.error('onRtcUpdate on master acquire failed:', err);
-                });
-            };
-        }
-
-        await this._rtcProcessor.onRtcUpdate();
+        await dispatchCommand(name, args, {
+            persistenceLayer: this._persistence.layer,
+            currentSessionId: this._session.value.state.currentSessionId,
+            toast: this._toast.actions,
+            logger: log,
+        });
     }
 
     /* ── VFS Integration (Phase 3/4) ── */
 
+    /** VFS dependency adapter (created lazily, reused across calls). */
+    private get _vfsDeps() {
+        return {
+            persistenceIsConnected: this._persistence.isConnected,
+            fileExplorer: this._fileExplorer,
+            editorArea: this._editorArea,
+            toast: this._toast.actions,
+            settingsDefaultViewMode: this._settings.value.state.files.defaultViewMode,
+            logger: log,
+        };
+    }
+
     /**
-     * Load file tree from virtualFS (root directory, first level only).
-     *
-     * Phase 4: only loads the root's immediate children; subdirectories are lazy-loaded on demand.
+     * Load file tree from virtualFS (delegated to vfs-operations helper).
      */
     private async _loadFileTree(): Promise<void> {
-        if (!this._persistence.isConnected) return;
-
-        try {
-            const root = await this._buildFileNodeShallow('/');
-            this._fileExplorer.actions.setRoot(root);
-            this._fileTreeLoaded = true;
-        } catch (err) {
-            log.error('Failed to load file tree:', err);
-        }
+        const success = await vfsLoadFileTree(this._vfsDeps);
+        if (success) this._fileTreeLoaded = true;
     }
 
     /**
-     * Shallow-build a FileNode: only load the immediate children of a directory.
-     *
-     * Subdirectory children are left as undefined (not loaded);
-     * they are loaded on demand by _loadFolderChildren when the user expands them.
-     */
-    private async _buildFileNodeShallow(path: string): Promise<FileNode> {
-        const name = path === '/' ? '/' : path.split('/').pop()!;
-        const isRoot = path === '/';
-
-        // If the path exists in VFS -> file.
-        if (!isRoot && await virtualFS.exists(path)) {
-            return {path, name, type: 'file'};
-        }
-
-        // Otherwise treat as directory; ls to get immediate children.
-        const children: FileNode[] = [];
-        try {
-            const entries = await virtualFS.ls(path);
-            for (const entry of entries) {
-                const childPath = isRoot ? `/${entry}` : `${path}/${entry}`;
-                // Determine if child entry is a file or directory.
-                if (await virtualFS.exists(childPath)) {
-                    children.push({path: childPath, name: entry, type: 'file'});
-                } else {
-                    // Directory: children left empty (not loaded), lazy-loaded on expand.
-                    children.push({path: childPath, name: entry, type: 'folder'});
-                }
-            }
-        } catch {
-            // ls failed -> empty directory.
-        }
-
-        return {path, name, type: 'folder', children};
-    }
-
-    /**
-     * Lazy-load children of a directory.
-     *
-     * Triggered by folder-toggle event (on first expand).
-     * Updates the file tree via controller.updateChildren after loading completes.
+     * Lazy-load children of a directory (delegated to vfs-operations helper).
      */
     private async _loadFolderChildren(path: string): Promise<void> {
-        if (!this._persistence.isConnected) return;
-
-        log.debug('_loadFolderChildren called for:', path);
-        this._fileExplorer.actions.setLoading(path, true);
-        try {
-            const entries = await virtualFS.ls(path);
-            log.debug('ls entries:', entries);
-            const children: FileNode[] = [];
-            for (const entry of entries) {
-                const childPath = path === '/' ? `/${entry}` : `${path}/${entry}`;
-                if (await virtualFS.exists(childPath)) {
-                    children.push({path: childPath, name: entry, type: 'file'});
-                } else {
-                    children.push({path: childPath, name: entry, type: 'folder'});
-                }
-            }
-            log.debug('loaded children:', children);
-            this._fileExplorer.actions.updateChildren(path, children);
-        } catch (err) {
-            log.error('Failed to load folder children:', path, err);
-        } finally {
-            this._fileExplorer.actions.setLoading(path, false);
-        }
+        await vfsLoadFolderChildren(path, this._vfsDeps);
     }
 
     /**
-     * Open a file: read content from VFS and open in editor.
+     * Open a file: read content from VFS and open in editor (delegated to vfs-operations).
      */
     private async _handleFileOpen(filePath: string): Promise<void> {
-        try {
-            const content = await virtualFS.read(filePath);
-            const defaultViewMode = this._settings.value.state.files.defaultViewMode;
-            this._editorArea.actions.openFile(filePath, content, defaultViewMode);
-            this._fileExplorer.actions.selectNode(filePath);
-        } catch (err) {
-            log.error('Failed to open file:', filePath, err);
-            this._toast.actions.show(msg('打开文件失败'), 'error');
-        }
+        await vfsHandleFileOpen(filePath, this._vfsDeps);
     }
 
     /**
-     * Restore Editor Area content for open files after page refresh.
-     *
-     * Tab metadata (filePath, viewMode, cursorPosition, activeFilePath) was already
-     * restored from localStorage in EditorAreaController constructor, but content is empty.
-     * This method iterates all restored tabs after VFS is ready, reads content from VFS,
-     * and fills it in. Tabs that fail to read (file no longer exists) are auto-closed.
+     * Restore Editor Area content for open files after page refresh (delegated to vfs-operations).
      */
     private async _restoreEditorAreaContent(): Promise<void> {
-        const tabs = [...this._editorArea.tabs];
-        if (tabs.length === 0) return;
-
-        const activeFilePath = this._editorArea.activeFilePath;
-        log.debug('Restoring editor area content for', tabs.length, 'tabs');
-        for (const tab of tabs) {
-            try {
-                const content = await virtualFS.read(tab.filePath);
-                this._editorArea.actions.loadContent(tab.filePath, content);
-            } catch {
-                // File no longer exists in VFS (e.g. deleted by another client), close the tab.
-                log.warn('Restored tab file not found in VFS, closing:', tab.filePath);
-                this._editorArea.actions.closeFile(tab.filePath);
-            }
-        }
-
-        // If file tree is loaded, select the currently active file.
-        // (File tree is loaded on demand before this method is called, ensuring nodes are rendered.)
-        if (activeFilePath && this._fileTreeLoaded) {
-            this._fileExplorer.actions.selectNode(activeFilePath);
-        }
+        await vfsRestoreEditorAreaContent(this._fileTreeLoaded, this._vfsDeps);
     }
 
     /**
-     * Save file: write editor content to VFS.
+     * Save file: write editor content to VFS (delegated to vfs-operations).
      */
     private async _handleEditorSave(filePath: string): Promise<void> {
         // Clear auto-save timer if exists
@@ -2045,18 +1675,7 @@ export class RtcAgent extends LitElement {
             clearTimeout(timer);
             this._autoSaveTimers.delete(filePath);
         }
-
-        const tab = this._editorArea.tabs.find(t => t.filePath === filePath);
-        if (!tab) return;
-
-        try {
-            await virtualFS.write(filePath, tab.content, 'overwrite');
-            this._editorArea.actions.saveFile(filePath);
-            this._toast.actions.show(msg('已保存'), 'success');
-        } catch (err) {
-            log.error('Failed to save file:', filePath, err);
-            this._toast.actions.show(msg('保存文件失败'), 'error');
-        }
+        await vfsHandleEditorSave(filePath, this._vfsDeps);
     }
 
     /**
@@ -2079,55 +1698,17 @@ export class RtcAgent extends LitElement {
     }
 
     /**
-     * Handle file change events from other tabs.
-     *
-     * - write/create: refresh parent dir in file tree; if file is open and unmodified, reload content.
-     * - delete: refresh parent dir in file tree; if file is open, close the tab.
-     * - batch: full refresh of file tree.
+     * Handle file change events from other tabs (delegated to vfs-operations).
      */
     private async _handleFileChange(filePath: string, field: string): Promise<void> {
-        if (field === 'batch') {
-            // Batch write: full refresh of file tree.
-            if (this._fileTreeLoaded) {
-                void this._loadFileTree();
-            }
-            return;
-        }
-
-        // Derive parent directory path.
-        const lastSlash = filePath.lastIndexOf('/');
-        const parentPath = lastSlash <= 0 ? '/' : filePath.substring(0, lastSlash);
-
-        // Refresh parent directory's children in the file tree.
-        if (this._fileTreeLoaded) {
-            if (parentPath === '/') {
-                void this._loadFileTree();
-            } else {
-                void this._loadFolderChildren(parentPath);
-            }
-        }
-
-        if (field === 'write' || field === 'create') {
-            // If the file is open and unmodified, silently reload content.
-            const tab = this._editorArea.tabs.find(t => t.filePath === filePath);
-            if (tab && !tab.isDirty) {
-                try {
-                    const content = await virtualFS.read(filePath);
-                    this._editorArea.actions.openFile(filePath, content);
-                } catch {
-                    // Read failed — keep current content.
-                }
-            } else if (tab?.isDirty) {
-                this._toast.actions.show(`文件 ${filePath} 被其他标签页修改`, 'info');
-            }
-        } else if (field === 'delete') {
-            // File deleted: close tab if open.
-            const tab = this._editorArea.tabs.find(t => t.filePath === filePath);
-            if (tab) {
-                this._editorArea.actions.closeFile(filePath);
-                this._toast.actions.show(`文件 ${filePath} 已被删除`, 'info');
-            }
-        }
+        await vfsHandleFileChange(
+            filePath,
+            field,
+            this._fileTreeLoaded,
+            this._vfsDeps,
+            () => this._loadFileTree(),
+            (path) => this._loadFolderChildren(path),
+        );
     }
 
     /* ── Render ── */
