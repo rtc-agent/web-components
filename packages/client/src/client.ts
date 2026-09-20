@@ -64,6 +64,8 @@ export class RTCAgentClient implements IRTCAgentClient {
 
   /** Delay (ms) before reconnecting after "message size limit exceeded" rejection. */
   private static readonly RECONNECT_AFTER_SIZE_LIMIT_DELAY_MS = 3000;
+  /** Delay (ms) before reconnecting after a successful token refresh. */
+  private static readonly RECONNECT_AFTER_TOKEN_REFRESH_DELAY_MS = 1000;
 
   constructor(options: RTCAgentClientOptions) {
     this.options = options;
@@ -474,7 +476,7 @@ export class RTCAgentClient implements IRTCAgentClient {
               log.error('reconnect after token refresh failed:', err);
             });
           }
-        }, 1000);
+        }, RTCAgentClient.RECONNECT_AFTER_TOKEN_REFRESH_DELAY_MS);
       }
     } catch (err) {
       log.error('handleInvalidToken failed:', err);

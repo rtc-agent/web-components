@@ -63,6 +63,8 @@ export class NotificationController implements ReactiveController {
     private _sounds = new Map<string, HTMLAudioElement>();
     /** 延迟加载音效的定时器（非关键音效，组件卸载时需清理） */
     private _deferredSoundTimer?: ReturnType<typeof setTimeout>;
+    /** requestIdleCallback 返回的句柄，hostDisconnected 时用于取消尚未触发的 idle 回调。 */
+    private _idleCallbackId?: number;
     /** 通知节流：防止快速连续通知导致 UI 卡顿 */
     private _lastNotifyTime = 0;
     private static readonly NOTIFY_THROTTLE_MS = 300;
@@ -93,6 +95,11 @@ export class NotificationController implements ReactiveController {
         if (this._deferredSoundTimer) {
             clearTimeout(this._deferredSoundTimer);
             this._deferredSoundTimer = undefined;
+        }
+        // Cancel any pending idle callback to prevent loading sounds after disconnect.
+        if (this._idleCallbackId !== undefined) {
+            cancelIdleCallback(this._idleCallbackId);
+            this._idleCallbackId = undefined;
         }
         this.host.removeAttribute('data-notification');
     }
@@ -133,16 +140,28 @@ export class NotificationController implements ReactiveController {
                 clearTimeout(this._deferredSoundTimer);
                 this._deferredSoundTimer = undefined;
             }
+            // Clear idle callback reference — it has now fired.
+            this._idleCallbackId = undefined;
             for (const [type, url] of Object.entries(deferredSounds)) {
                 this._loadSound(type, url);
             }
         };
 
+        // Cancel any previously pending idle callback (handles reconnect cycles
+        // where hostConnected fires multiple times without a disconnect in between).
+        if (this._idleCallbackId !== undefined) {
+            cancelIdleCallback(this._idleCallbackId);
+            this._idleCallbackId = undefined;
+        }
+
         if ('requestIdleCallback' in window) {
-            const idleId = requestIdleCallback(loadDeferred);
+            this._idleCallbackId = requestIdleCallback(loadDeferred);
             // Fallback: if idle callback doesn't fire within IDLE_FALLBACK_DELAY_MS, load manually.
             this._deferredSoundTimer = setTimeout(() => {
-                cancelIdleCallback(idleId);
+                if (this._idleCallbackId !== undefined) {
+                    cancelIdleCallback(this._idleCallbackId);
+                    this._idleCallbackId = undefined;
+                }
                 loadDeferred();
             }, NotificationController.IDLE_FALLBACK_DELAY_MS);
         } else {
