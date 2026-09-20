@@ -170,7 +170,17 @@ export class MessageRepository {
         const index = current.messages.findIndex(m => m.clientId === messageId);
         if (index === -1) return false;
 
-        const updatedMessage = updater(current.messages[index]);
+        let updatedMessage: Message;
+        try {
+            updatedMessage = updater(current.messages[index]);
+        } catch (error) {
+            console.error(
+                `[MessageRepository] patchMessage updater threw for session=${sessionId}, messageId=${messageId}:`,
+                error,
+            );
+            return false;
+        }
+
         const newMessages = [...current.messages];
         newMessages[index] = updatedMessage;
 
@@ -194,26 +204,26 @@ export class MessageRepository {
     async loadMore(sessionId: string): Promise<Message[]> {
         const current = this._getState(sessionId);
 
-        console.log(
+        console.debug(
             `[MessageRepository] loadMore(${sessionId}) called: hasMore=${current.hasMore}, ` +
             `isLoading=${this._loadingSessions.has(sessionId)}, cachedMessages=${current.messages.length}`
         );
 
         // Nothing to load
         if (!current.hasMore) {
-            console.log(`[MessageRepository] loadMore(${sessionId}): early return - hasMore=false`);
+            console.debug(`[MessageRepository] loadMore(${sessionId}): early return - hasMore=false`);
             return current.messages;
         }
 
         // Already loading — return current state
         if (this._loadingSessions.has(sessionId)) {
-            console.log(`[MessageRepository] loadMore(${sessionId}): early return - already loading`);
+            console.debug(`[MessageRepository] loadMore(${sessionId}): early return - already loading`);
             return current.messages;
         }
 
         const oldestCursor = this._oldestCursors.get(sessionId);
 
-        console.log(
+        console.debug(
             `[MessageRepository] loadMore(${sessionId}): oldestCursor=${oldestCursor ?? 'none'}`
         );
 

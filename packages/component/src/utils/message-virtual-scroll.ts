@@ -427,7 +427,7 @@ export class MessageVirtualScroll<T> {
         }, this._sliceDebounceDelay);
 
         if (!this._onLoadMore) {
-            console.log('[VirtualScroll] _onScroll: no onLoadMore callback');
+            console.debug('[VirtualScroll] _onScroll: no onLoadMore callback');
             return;
         }
 
@@ -612,7 +612,7 @@ export class MessageVirtualScroll<T> {
         // Notify size change
         this._onSizeChange?.();
 
-        console.log(
+        console.debug(
             `[VirtualScroll] After slice: items=${this._items.length}, ` +
             `loadedTop=${this._loadedTop}, loadedBottom=${this._loadedBottom}`
         );

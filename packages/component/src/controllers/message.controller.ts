@@ -208,10 +208,16 @@ export class MessageController implements ReactiveController {
 
         // Get the message from DB to find its session
         const localMsg = await this._persistence.getMessage(entityId);
-        if (!localMsg) return;
+        if (!localMsg) {
+            console.debug(`[MessageController.updateMessageFromBus] message not found in DB: ${entityId}`);
+            return;
+        }
 
         const messageSessionId = localMsg.session_client_id;
-        if (!messageSessionId) return;
+        if (!messageSessionId) {
+            console.debug(`[MessageController.updateMessageFromBus] message has no session_client_id: ${entityId}`);
+            return;
+        }
 
         // Convert DB message to UI format
         const newMsg = this._localMessageToUI(localMsg);

@@ -357,7 +357,7 @@ export class RtcMessageList extends LitElement {
 
         this._hasMore = data.hasMore;
 
-        console.log(
+        console.debug(
             `[rtc-message-list] _handleMessagesUpdate: ` +
             `oldCount=${oldMessages.length}, newCount=${newMessages.length}, ` +
             `hasMore=${data.hasMore}`
@@ -585,7 +585,7 @@ export class RtcMessageList extends LitElement {
                 if (firstRenderedIndex > 0) {
                     // Repository has messages before the current window — return from cache
                     const cachedOlder = repoState.messages.slice(0, firstRenderedIndex);
-                    console.log(`[rtc-message-list] loadMore(top): returning ${cachedOlder.length} messages from repository cache`);
+                    console.debug(`[rtc-message-list] loadMore(top): returning ${cachedOlder.length} messages from repository cache`);
                     return cachedOlder;
                 }
 
@@ -598,7 +598,7 @@ export class RtcMessageList extends LitElement {
                 const repoStateAfter = this.messageController.repository.getSessionState(this.sessionId);
                 const repoFirstId = repoStateAfter.messages.length > 0 ? repoStateAfter.messages[0].clientId : undefined;
                 if (!repoStateAfter.hasMore && boundary.firstId === repoFirstId) {
-                    console.log('[rtc-message-list] loadMore(top): hasMore=false and aligned, marking loadedTop=true');
+                    console.debug('[rtc-message-list] loadMore(top): hasMore=false and aligned, marking loadedTop=true');
                     this._virtualScroll?.setFullyLoaded('top', true);
                 }
             } else {
@@ -616,7 +616,7 @@ export class RtcMessageList extends LitElement {
                 if (lastRenderedIndex >= 0 && lastRenderedIndex < repoState.messages.length - 1) {
                     // Repository has messages after the current window — return from cache
                     const cachedNewer = repoState.messages.slice(lastRenderedIndex + 1);
-                    console.log(`[rtc-message-list] loadMore(bottom): returning ${cachedNewer.length} messages from repository cache`);
+                    console.debug(`[rtc-message-list] loadMore(bottom): returning ${cachedNewer.length} messages from repository cache`);
                     return cachedNewer;
                 }
 
@@ -635,7 +635,7 @@ export class RtcMessageList extends LitElement {
                         ? repoState.messages[repoState.messages.length - 1].clientId
                         : undefined;
                     if (!repoState.hasMoreNewer && boundary.lastId === repoLastId) {
-                        console.log('[rtc-message-list] loadMore(bottom): hasMoreNewer=false and aligned, marking loadedBottom=true');
+                        console.debug('[rtc-message-list] loadMore(bottom): hasMoreNewer=false and aligned, marking loadedBottom=true');
                         this._virtualScroll?.setFullyLoaded('bottom', true);
                     }
                 }
