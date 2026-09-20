@@ -71,6 +71,9 @@ export class RtcSessionHeader extends LitElement {
     /** Timer for auto-close after 3 seconds. */
     private _autoCloseTimer?: ReturnType<typeof setTimeout>;
 
+    /** Timer for fade-out animation completion (inner timer, tracked separately). */
+    private _fadeOutTimer?: ReturnType<typeof setTimeout>;
+
     @query('[data-action="history"]')
     private _historyBtn!: HTMLElement;
 
@@ -136,6 +139,7 @@ export class RtcSessionHeader extends LitElement {
         this._stopSessionPositioning();
         this._stopTodoPositioning();
         clearTimeout(this._autoCloseTimer);
+        clearTimeout(this._fadeOutTimer);
     }
 
     /* ── Helpers ── */
@@ -274,14 +278,17 @@ export class RtcSessionHeader extends LitElement {
      */
     private _scheduleAutoClose() {
         clearTimeout(this._autoCloseTimer);
+        clearTimeout(this._fadeOutTimer);
         this._autoCloseTimer = setTimeout(() => {
             this._isFadingOut = true;
             // Wait for fade-out animation (300ms) before hiding
-            setTimeout(() => {
+            this._fadeOutTimer = setTimeout(() => {
                 this._showTodoPanel = false;
                 this._isFadingOut = false;
                 this._stopTodoPositioning();
+                this._fadeOutTimer = undefined;
             }, 300);
+            this._autoCloseTimer = undefined;
         }, 3000);
     }
 
@@ -292,6 +299,7 @@ export class RtcSessionHeader extends LitElement {
      */
     private _onTodoPanelMouseEnter() {
         clearTimeout(this._autoCloseTimer);
+        clearTimeout(this._fadeOutTimer);
         if (this._isFadingOut) {
             this._isFadingOut = false;
         }

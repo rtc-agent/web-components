@@ -1344,6 +1344,8 @@ export class RtcAgent extends LitElement {
                 setLocale: switchLocale,
                 locales: [sourceLocale, ...targetLocales],
             });
+        }).catch(err => {
+            log.error('Context provider sync failed:', err);
         });
 
         // Monitor tab count: when all tabs are closed, auto-create a new unsaved tab.
@@ -1756,6 +1758,9 @@ export class RtcAgent extends LitElement {
             void this._sanitizeBubbleIcon(this.bubbleIcon).then(sanitized => {
                 this._sanitizedBubbleIcon = sanitized;
                 this.requestUpdate();
+            }).catch(err => {
+                log.error('Bubble icon sanitization failed:', err);
+                this._sanitizedBubbleIcon = '';
             });
         }
     }

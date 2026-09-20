@@ -55,6 +55,8 @@ export class RtcLoginDialog extends LitElement {
     private _loginStarted = false;
     private _popup: Window | null = null;
     private _popupCheckInterval: ReturnType<typeof setInterval> | null = null;
+    /** Timer for auto-closing after successful login (cleared on disconnect to prevent stale execution). */
+    private _closeTimer?: ReturnType<typeof setTimeout>;
 
     connectedCallback() {
         super.connectedCallback();
@@ -320,8 +322,11 @@ export class RtcLoginDialog extends LitElement {
                 composed: true,
             }));
 
-            // Close after delay
-            setTimeout(() => this._close(), LOGIN_SUCCESS_CLOSE_DELAY_MS);
+            // Close after delay (tracked so disconnectedCallback can cancel it)
+            this._closeTimer = setTimeout(() => {
+                this._closeTimer = undefined;
+                this._close();
+            }, LOGIN_SUCCESS_CLOSE_DELAY_MS);
 
         } catch (err) {
             this._status = 'error';
@@ -336,6 +341,10 @@ export class RtcLoginDialog extends LitElement {
         if (this._messageHandler) {
             window.removeEventListener('message', this._messageHandler);
             this._messageHandler = null;
+        }
+        if (this._closeTimer) {
+            clearTimeout(this._closeTimer);
+            this._closeTimer = undefined;
         }
         this._closePopup();
     }

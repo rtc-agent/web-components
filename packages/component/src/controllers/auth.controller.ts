@@ -199,6 +199,10 @@ export class AuthController implements ReactiveController {
                     } else {
                         localStorage.removeItem(STORAGE_KEYS.tokens);
                     }
+                }).catch(err => {
+                    // Guard against unhandled rejection (e.g. localStorage quota exceeded).
+                    log.error('Token refresh post-processing failed:', err);
+                    localStorage.removeItem(STORAGE_KEYS.tokens);
                 });
             } else {
                 this._state = {

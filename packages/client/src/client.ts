@@ -59,6 +59,8 @@ export class RTCAgentClient implements IRTCAgentClient {
   private readonly subscriptions = new Map<string, ReturnType<Centrifuge['newSubscription']>>();
   /** Cached epoch per channel. */
   private readonly epochCache = new Map<string, string>();
+  /** Pending reconnect timer (cleared on explicit disconnect to prevent zombie reconnects). */
+  private _reconnectTimer?: ReturnType<typeof setTimeout>;
 
   constructor(options: RTCAgentClientOptions) {
     this.options = options;
@@ -134,7 +136,8 @@ export class RTCAgentClient implements IRTCAgentClient {
       if (ctx?.reason === 'message size limit exceeded') {
         log.warn('message size limit exceeded, will retry connection after delay');
         // Delay reconnect to give the server some buffer time.
-        setTimeout(() => {
+        this._reconnectTimer = setTimeout(() => {
+          this._reconnectTimer = undefined;
           if (this.shouldReconnect && this.connectionState === 'disconnected') {
             log.debug('attempting reconnect after message size limit error');
             this.reconnect().catch(err => {
@@ -159,6 +162,11 @@ export class RTCAgentClient implements IRTCAgentClient {
   disconnect(): void {
     this.shouldReconnect = false;
     this.wasConnected = false;
+    // Clear any pending reconnect timer to prevent zombie reconnects after explicit disconnect.
+    if (this._reconnectTimer) {
+      clearTimeout(this._reconnectTimer);
+      this._reconnectTimer = undefined;
+    }
     this.centrifuge?.disconnect();
     this.centrifuge = null;
     // Clear old subscriptions: they are bound to the destroyed Centrifuge instance
@@ -456,7 +464,8 @@ export class RTCAgentClient implements IRTCAgentClient {
         // action === 'refresh' — token refreshed, attempt reconnect.
         log.debug('token refreshed, attempting to reconnect');
         // Delayed reconnect to avoid rapid retry loops.
-        setTimeout(() => {
+        this._reconnectTimer = setTimeout(() => {
+          this._reconnectTimer = undefined;
           if (this.shouldReconnect) {
             this.reconnect().catch(err => {
               log.error('reconnect after token refresh failed:', err);
