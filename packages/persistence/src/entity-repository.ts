@@ -140,18 +140,19 @@ export class EntityRepository {
       action = 'updated';
       log.debug('upsertSession] After update - title:', updated.title);
     } else {
+      // Spread session first to preserve all optional fields (device_id, todo_list, token counters, etc.),
+      // then override required fields with safe defaults when caller omits them.
       const newSession: LocalSession = {
+        ...session,
         client_id: session.client_id || '',
-        server_id: session.server_id,
         owner_kind: session.owner_kind || '',
         owner_ref_id: session.owner_ref_id || '',
-        title: session.title,
         status: session.status || 'active',
         created_at: session.created_at || now,
         updated_at: session.updated_at || now,
-        sync_status: syncStatus,
-        pending_turn_count: 0,
-        running_turn_count: 0,
+        sync_status: session.sync_status || syncStatus,
+        pending_turn_count: session.pending_turn_count ?? 0,
+        running_turn_count: session.running_turn_count ?? 0,
         agent_prompt: session.agent_prompt || '',
       };
       await db.sessions.put(newSession);
@@ -263,7 +264,7 @@ export class EntityRepository {
         session_client_id: turn.session_client_id || '',
         status: turn.status || 'pending',
         created_at: turn.created_at || now,
-        sync_status: syncStatus,
+        sync_status: turn.sync_status || syncStatus,
       };
       await db.turns.put(newTurn);
       result = { before: undefined, after: newTurn };
@@ -340,7 +341,7 @@ export class EntityRepository {
         creator_ref_id: message.creator_ref_id || '',
         created_at: message.created_at || now,
         updated_at: message.updated_at || now,
-        sync_status: syncStatus,
+        sync_status: message.sync_status || syncStatus,
         parent_client_id: message.parent_client_id,
       };
       await db.messages.put(newMessage);
@@ -447,7 +448,7 @@ export class EntityRepository {
         error_message: rtc.error_message,
         created_at: rtc.created_at || now,
         updated_at: rtc.updated_at || now,
-        sync_status: syncStatus,
+        sync_status: rtc.sync_status || syncStatus,
       };
       await db.rtcs.put(newRtc);
       result = { before: undefined, after: newRtc };
