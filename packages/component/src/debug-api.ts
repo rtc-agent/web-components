@@ -7,11 +7,35 @@
  * This module is only injected in dev/test builds (guarded by import.meta.env.DEV).
  * It MUST NOT be included in production bundles.
  */
-import {virtualFS} from '@rtc-agent/persistence';
+import {virtualFS, getDatabase} from '@rtc-agent/persistence';
 import {createLogger} from '@rtc-agent/client';
 import type {RtcAgent} from './components/rtc-agent/rtc-agent.js';
 
 const log = createLogger('DebugAPI');
+
+/** Default database name used by the debug API when persistence is not connected. */
+const DEBUG_DB_NAME = 'rtc-agent-debug';
+
+/**
+ * Ensure the database singleton is initialized before VirtualFS operations.
+ *
+ * VirtualFS methods call `getDatabase()` without a name, which fails if no
+ * database has been opened yet. This helper lazily opens a debug-specific
+ * database so that VirtualFS operations work even when persistence is not
+ * connected (e.g., standalone debug pages without a server).
+ *
+ * Safe to call multiple times (idempotent).
+ */
+function ensureDatabase(): void {
+    try {
+        // getDatabase() without args returns the existing singleton if present.
+        getDatabase();
+    } catch {
+        // No database yet — open the debug database.
+        log.info(`Initializing debug database: ${DEBUG_DB_NAME}`);
+        getDatabase(DEBUG_DB_NAME);
+    }
+}
 
 /**
  * Ring buffer that captures recent log entries for replay in tests.
@@ -355,6 +379,7 @@ export function installDebugAPI(): void {
             }
 
             if (data.files) {
+                ensureDatabase();
                 const files = data.files as Array<{ path: string; content: string }>;
                 for (const file of files) {
                     await virtualFS.write(file.path, file.content, 'overwrite');
@@ -409,6 +434,7 @@ export function installDebugAPI(): void {
         // ── VirtualFS ──
 
         async listFiles(path = '/'): Promise<string[]> {
+            ensureDatabase();
             try {
                 const entries = await virtualFS.ls(path);
                 return entries;
@@ -419,6 +445,7 @@ export function installDebugAPI(): void {
         },
 
         async readFile(path: string): Promise<string> {
+            ensureDatabase();
             try {
                 return await virtualFS.read(path);
             } catch (err) {
@@ -428,11 +455,13 @@ export function installDebugAPI(): void {
         },
 
         async writeFile(path: string, content: string): Promise<void> {
+            ensureDatabase();
             await virtualFS.write(path, content, 'overwrite');
             log.info(`writeFile: ${path}`);
         },
 
         async deleteFile(path: string): Promise<void> {
+            ensureDatabase();
             await virtualFS.remove(path);
             log.info(`deleteFile: ${path}`);
         },

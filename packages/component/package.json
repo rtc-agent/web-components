@@ -25,6 +25,7 @@
     "pretypecheck": "lit-localize build",
     "test": "vitest run --passWithNoTests",
     "pretest": "lit-localize build",
+    "test:e2e": "playwright test",
     "i18n:extract": "lit-localize extract",
     "i18n:build": "lit-localize build",
     "i18n:lint": "lit-localize lint"
