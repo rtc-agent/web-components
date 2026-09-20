@@ -839,5 +839,24 @@ describe('RtcProcessor', () => {
       // submitRtcResult called twice: first failed, then succeeded
       expect(mockPersistence.submitRtcResult).toHaveBeenCalledTimes(2);
     });
+
+    it('should abandon RTC after MAX_SUBMIT_RETRY_COUNT and break loop', async () => {
+      const rtc = createMockRtc({ client_id: 'rtc-stuck', sync_status: 'failed', status: 'completed' });
+
+      // getNextRtcToProcess always returns the same RTC (simulating a permanently failed RTC)
+      mockPersistence.getNextRtcToProcess.mockResolvedValue(rtc);
+      // submitRtcResult always fails
+      mockPersistence.submitRtcResult.mockRejectedValue(new Error('permanent failure'));
+
+      await runWithTimers(processor.onRtcUpdate());
+
+      // Should have tried exactly 10 times (MAX_SUBMIT_RETRY_COUNT), then given up.
+      // After the 10th failure, processOne silently skips (no throw), processLoop detects
+      // the same RTC returned again and breaks.
+      expect(mockPersistence.submitRtcResult).toHaveBeenCalledTimes(10);
+      // getNextRtcToProcess called 12 times: 10 for retries + 1 where processOne silently
+      // skips + 1 that returns the same RTC after the silent skip, triggering the break.
+      expect(mockPersistence.getNextRtcToProcess).toHaveBeenCalledTimes(12);
+    });
   });
 });
