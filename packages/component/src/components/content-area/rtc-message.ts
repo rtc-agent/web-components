@@ -98,6 +98,16 @@ export class RtcMessage extends LitElement implements StatefulComponent {
     }> | null = null;
 
     /**
+     * Last parsed content string — used to detect if content actually changed.
+     * This prevents unnecessary re-parsing when:
+     * 1. Component is restored from skeleton (content unchanged, use cached HTML)
+     * 2. Other message fields change (syncStatus, streaming) but content is same
+     *
+     * Only when content.data changes (streaming updates) do we need to re-parse.
+     */
+    private _lastParsedContent: string = '';
+
+    /**
      * 只在 message 变化时重新解析 Markdown。
      *
      * 为什么不监听所有属性？
@@ -116,18 +126,25 @@ export class RtcMessage extends LitElement implements StatefulComponent {
 
         if (!contentData) {
             this._renderedHtml = '';
-            return;
-        }
-
-        // Phase 2: Skip parsing if we already have cached HTML (from state injection)
-        // This happens when the component is restored from a skeleton placeholder
-        if (this._renderedHtml) {
+            this._lastParsedContent = '';
             return;
         }
 
         // Handle different content types — uses shared utility for consistency
         // with clipboard copy operations across message components
         const content = extractTextContent(contentData);
+
+        // Skip parsing if content hasn't changed.
+        // This handles two scenarios:
+        // 1. Component restored from skeleton: content same as cached, skip re-parse
+        // 2. Streaming update: content changed, need to re-parse
+        // Without this check, cached _renderedHtml would block streaming updates.
+        if (this._renderedHtml && this._lastParsedContent === content) {
+            return;
+        }
+
+        // Content changed (or first parse), update tracking
+        this._lastParsedContent = content;
 
         /*
          * 懒加载 marked + DOMPurify + highlight.js 三件套（首次异步，之后复用）。
