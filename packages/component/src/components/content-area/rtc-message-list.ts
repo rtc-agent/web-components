@@ -142,6 +142,7 @@ export class RtcMessageList extends LitElement {
     private _virtualScrollOpTimer?: number;
     private _highlightTimer?: number;
     private _scrollToMessageTimer?: number;
+    private _scrollToBottomTimer?: number;
 
     /** Virtual scroll instance for efficient rendering */
     private _virtualScroll?: MessageVirtualScroll<Message>;
@@ -485,6 +486,7 @@ export class RtcMessageList extends LitElement {
         clearTimeout(this._virtualScrollOpTimer);
         clearTimeout(this._highlightTimer);
         clearTimeout(this._scrollToMessageTimer);
+        clearTimeout(this._scrollToBottomTimer);
         document.removeEventListener('visibilitychange', this._boundOnVisibilityChange);
         this.removeEventListener('rtc-toolcall-jump', this._handleToolcallJump as EventListener);
         this._subscription?.();
@@ -594,6 +596,13 @@ export class RtcMessageList extends LitElement {
 
     private _onScroll = () => {
         if (!this._scrollEl) return;
+
+        // Guard: during programmatic scroll-to-bottom (smooth scroll from button click),
+        // skip intent tracking. Without this, _onScroll fires mid-animation, sees
+        // distanceFromBottom > 120px, and resets _shouldAutoScroll to false — breaking
+        // the ResizeObserver safety net that compensates for skeleton height changes.
+        if (this._scrollingToBottom) return;
+
         const {scrollHeight, scrollTop, clientHeight} = this._scrollEl;
         const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
 
@@ -844,18 +853,38 @@ export class RtcMessageList extends LitElement {
         }
     }
 
+    /**
+     * Guard: prevents _onScroll from modifying _shouldAutoScroll during programmatic
+     * scroll-to-bottom (smooth scroll initiated by _handleNewBtnClick).
+     * Without this, _onScroll fires mid-animation, sees distanceFromBottom > 120px,
+     * and overrides _shouldAutoScroll to false — breaking the ResizeObserver safety net.
+     */
+    private _scrollingToBottom = false;
+
     private _handleNewBtnClick = () => {
-        if (this._scrollEl) {
-            // Smooth scroll to bottom
-            // Note: smooth scroll will trigger _onScroll multiple times during animation,
-            // but that's OK because we set _shouldAutoScroll = true below,
-            // and _onScroll only sets it to false when distanceFromBottom > 120px.
-            this._scrollEl.scrollTo({top: this._scrollEl.scrollHeight, behavior: 'smooth'});
-        }
-        // User explicitly clicked "New messages" → enable follow mode.
+        // Set intent FIRST (before scroll), so ResizeObserver safety net stays active
         this._shouldAutoScroll = true;
         this._userAtBottom = true;
         this._showNewBtn = false;
+
+        if (this._scrollEl) {
+            // 1. Synchronously restore all skeletons → scrollHeight becomes stable.
+            //    Without this, smooth scroll targets a stale scrollHeight (captured at T0)
+            //    while skeletons are being restored mid-animation, causing the scroll
+            //    to stop short of the actual bottom.
+            this._virtualScroll?.restoreAll();
+
+            // 2. Now scrollHeight reflects the true bottom.
+            //    Use _scrollingToBottom guard to prevent _onScroll from overriding intent.
+            this._scrollingToBottom = true;
+            this._scrollEl.scrollTo({top: this._scrollEl.scrollHeight, behavior: 'smooth'});
+
+            // 3. Release guard after animation completes (~500ms)
+            clearTimeout(this._scrollToBottomTimer);
+            this._scrollToBottomTimer = window.setTimeout(() => {
+                this._scrollingToBottom = false;
+            }, 600);
+        }
     };
 
     /**

@@ -976,6 +976,35 @@ export class MessageVirtualScroll<T> {
     }
 
     /**
+     * Synchronously restore ALL skeleton placeholders.
+     *
+     * This stabilizes scrollHeight before programmatic scrolls (e.g., scrollToBottom),
+     * preventing the "scroll target drift" bug where smooth scroll targets a stale
+     * scrollHeight while skeletons are being restored mid-animation.
+     *
+     * Call this BEFORE any scrollTo/scrollIntoView to ensure the scroll target is real.
+     */
+    restoreAll(): void {
+        if (this._placeholderItemIds.size === 0) return;
+
+        log.debug(`restoreAll: restoring ${this._placeholderItemIds.size} skeletons`);
+
+        // Restore top-to-bottom for deterministic scroll adjustment
+        const entries = [...this._placeholderPositions].sort((a, b) => a.y - b.y);
+
+        for (const entry of entries) {
+            const index = this._findIndexByItemId(entry.itemId);
+            if (index >= 0) {
+                const skeleton = this._elementMap.get(index);
+                if (skeleton) {
+                    const h = skeleton.getBoundingClientRect().height;
+                    this._restoreSkeleton(entry.itemId, index, h);
+                }
+            }
+        }
+    }
+
+    /**
      * Setup user interaction tracking to distinguish user vs programmatic scrolls.
      * Tracks pointer (mouse/touch) and keyboard interactions on the scroll container.
      * This allows _onScroll to skip viewport slicing for programmatic scrolls (auto-scroll).
