@@ -1911,9 +1911,9 @@ export class MessageVirtualScroll<T> {
      * This keeps the hot window small for fast iteration while retaining recent
      * history for quick access without repository round-trips.
      *
-     * Note: This only affects the data layer. The DOM layer (_elementMap) already
-     * only tracks visible elements via skeleton placeholders, so settlement has
-     * no visual impact.
+     * IMPORTANT: After splicing _items, this method also synchronizes all index
+     * structures (_idToIndex, _elementMap, dataset.messageIndex) and removes
+     * orphaned DOM elements to prevent index drift.
      */
     private _settleData(): void {
         if (this._items.length <= this.MAX_HOT_ITEMS) return;
@@ -1922,11 +1922,33 @@ export class MessageVirtualScroll<T> {
         const toSettle = this._items.splice(0, settleCount);
         this._coldItems.push(...toSettle);
 
-        // Clean up caches for settled items
+        // Clean up caches and index entries for settled items
         for (const item of toSettle) {
             const itemId = this._getItemId(item);
             this._heightCache.delete(itemId);
             this._componentStateCache.delete(itemId);
+            this._idToIndex.delete(itemId);
+        }
+
+        // Rebuild _idToIndex: all remaining items' indices shifted by -settleCount
+        this._rebuildIdToIndex();
+
+        // Re-key _elementMap and update DOM dataset.messageIndex to match new indices.
+        // Remove orphaned DOM elements for settled items.
+        if (settleCount > 0) {
+            const newElementMap = new Map<number, HTMLElement>();
+            for (const [oldIdx, el] of this._elementMap) {
+                const newIdx = oldIdx - settleCount;
+                if (newIdx >= 0) {
+                    newElementMap.set(newIdx, el);
+                    el.dataset.messageIndex = String(newIdx);
+                } else {
+                    // Settled element: remove from DOM and stop observing
+                    el.remove();
+                    this._itemResizeObserver?.unobserve(el);
+                }
+            }
+            this._elementMap = newElementMap;
         }
 
         log.debug(`Settled ${settleCount} items to cold storage (hot=${this._items.length}, cold=${this._coldItems.length})`);
