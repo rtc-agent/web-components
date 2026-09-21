@@ -685,6 +685,11 @@ export class RtcInputArea extends LitElement {
         const path = e.composedPath();
 
         // Mode panel: 点击 mode panel 外部时关闭
+        // Note: We intentionally don't check if the toggle button is in the path.
+        // The button's click handler (_handleModeToggle) handles the toggle logic.
+        // Since Lit renders are async, the panel remains in DOM briefly after
+        // _closeModePanel sets the state to false, so path.includes(panel) correctly
+        // prevents _onDocClick from interfering with the button's toggle.
         if (this._showModePanel) {
             const modePanel = this._modePanel;
             if (modePanel && !path.includes(modePanel)) {

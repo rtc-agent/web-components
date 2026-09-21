@@ -119,10 +119,9 @@ export class ScrollSaver {
 
             if (isVisible) {
                 this._elements.push({element, rect});
-            } else if (this._elements.length > 0) {
-                // We've passed the visible region, stop
-                break;
             }
+            // Note: no early break — elements may not be in strict visual order
+            // when positioned with absolute/negative margins or CSS transforms.
         }
 
         // Fallback: if no visible elements, use first element
