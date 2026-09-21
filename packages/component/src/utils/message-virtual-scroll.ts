@@ -360,7 +360,6 @@ export class MessageVirtualScroll<T> {
             diff.middleInserted.length === 0 &&
             !diff.hasUpdates &&
             !diff.hasRemovals) {
-            log.debug('setItems: no changes detected, skipping update');
             return;
         }
 
@@ -1213,6 +1212,8 @@ export class MessageVirtualScroll<T> {
         const restoreTop = scrollTop - PRELOAD_DISTANCE;
         const restoreBottom = scrollTop + clientHeight + PRELOAD_DISTANCE;
 
+        log.debug(`_restoreSkeletonsInRange: scrollTop=${scrollTop}, clientHeight=${clientHeight}, placeholders=${this._placeholderItemIds.size}, range=[${restoreTop}, ${restoreBottom}]`);
+
         // Find placeholders where ANY part is in range (not just the top position)
         // This is critical for tall skeletons where the top may be far from the visible portion
         const placeholdersInRange = this._placeholderPositions.filter(entry => {
@@ -1228,7 +1229,12 @@ export class MessageVirtualScroll<T> {
                    (entry.y < restoreTop && skeletonBottom > restoreBottom); // skeleton fully contains range
         });
 
-        if (placeholdersInRange.length === 0) return;
+        if (placeholdersInRange.length === 0) {
+            log.debug(`_restoreSkeletonsInRange: no placeholders in range`);
+            return;
+        }
+
+        log.debug(`_restoreSkeletonsInRange: found ${placeholdersInRange.length} placeholders in range`);
 
         // Sort by scroll direction for natural restoration order
         const direction = this._getScrollDirection();
@@ -1444,8 +1450,20 @@ export class MessageVirtualScroll<T> {
         log.debug(
             `Slicing viewport: stableTop=${stableInvisibleTop.length}, ` +
             `stableBottom=${stableInvisibleBottom.length}, ` +
-            `visible=${slice.visible.length}`
+            `visible=${slice.visible.length}` +
+            `, scrollTop=${this._scrollContainer.scrollTop}` +
+            `, scrollHeight=${this._scrollContainer.scrollHeight}`
         );
+
+        // Log which items are being skeletonized
+        if (stableInvisibleTop.length > 0) {
+            const topIds = stableInvisibleTop.map(p => this._getItemId(p.item)).join(', ');
+            log.debug(`Will skeletonize top items: ${topIds}`);
+        }
+        if (stableInvisibleBottom.length > 0) {
+            const bottomIds = stableInvisibleBottom.map(p => this._getItemId(p.item)).join(', ');
+            log.debug(`Will skeletonize bottom items: ${bottomIds}`);
+        }
 
         // Mark as not fully loaded (like Telegram's setLoaded)
         if (stableInvisibleTop.length > 0) {
@@ -1458,6 +1476,7 @@ export class MessageVirtualScroll<T> {
         // Save scroll state
         const scrollSaver = new ScrollSaver(this._scrollContainer, this._query, stableInvisibleTop.length > 0);
         scrollSaver.save();
+        const savedScrollTop = this._scrollContainer.scrollTop;
 
         // Replace top invisible elements with skeleton placeholders
         for (const part of stableInvisibleTop) {
@@ -1471,6 +1490,8 @@ export class MessageVirtualScroll<T> {
 
         // Restore scroll position
         scrollSaver.restore();
+        const restoredScrollTop = this._scrollContainer.scrollTop;
+        log.debug(`Scroll position: saved=${savedScrollTop}, restored=${restoredScrollTop}, diff=${restoredScrollTop - savedScrollTop}`);
 
         // Notify size change
         this._onSizeChange?.();

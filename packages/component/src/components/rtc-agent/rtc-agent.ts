@@ -1000,9 +1000,18 @@ export class RtcAgent extends LitElement {
             log.debug('onSessionSwitch currentSessionId:', this._session.value.state.currentSessionId);
             this._fork.actions.clearFork();  // Clear fork state when switching sessions.
             // 注：tab transient params 的清除由 chat-layout._handleTabActivate 负责
-            if (this._session.value.state.currentSessionId) {
-                log.debug('onSessionSwitch calling message.reload()');
-                void this._message.reload();
+            const sessionId = this._session.value.state.currentSessionId;
+            if (sessionId) {
+                const repoState = this._message.repository.getSessionState(sessionId);
+                if (repoState.messages.length === 0) {
+                    // First load or session was evicted: repository has no data, fetch from DB
+                    log.debug('onSessionSwitch calling message.reload() (empty repository)');
+                    void this._message.reload();
+                } else {
+                    // Repository already has data (kept in sync via WebSocket), skip reload
+                    // This avoids unnecessary DB queries and DOM updates
+                    log.debug(`onSessionSwitch skipping reload (repo has ${repoState.messages.length} messages)`);
+                }
             } else {
                 // currentSessionId is null (e.g. after closing the last Tab) -> clear messages.
                 log.debug('onSessionSwitch clearing messages (no current session)');

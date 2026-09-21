@@ -15,7 +15,6 @@ describe('MessageContext', () => {
             appendToLastMessage: () => {},
             finalizeLastMessage: () => {},
             clearMessages: () => {},
-            loadMore: async () => {},
         };
         expect(typeof actions.sendMessage).toBe('function');
         expect(typeof actions.clearMessages).toBe('function');

@@ -25,11 +25,6 @@ const log = createLogger('MessageController');
 export class MessageController implements ReactiveController {
     host: ReactiveControllerHost & EventTarget;
 
-    private _state: MessageState = {messages: [], hasMore: false, isLoadingMore: false};
-
-    /** Oldest loaded cursor for backward pagination. Format: "${timestamp}|${clientId}" */
-    private _oldestLoadedCursor?: string;
-
     /** Message repository for multi-session support. */
     private _repository?: MessageRepository;
 
@@ -95,6 +90,17 @@ export class MessageController implements ReactiveController {
         return `${ts}|${msg.client_id}`;
     }
 
+    /**
+     * Build pagination cursor from a UI Message.
+     *
+     * UI Message.timestamp = new Date(created_at).getTime(), which is the same
+     * numeric value that _buildCursor produces from LocalMessage.created_at.
+     * So "${msg.timestamp}|${msg.clientId}" produces an identical cursor string.
+     */
+    private _buildCursorFromUI(msg: Message): string {
+        return `${msg.timestamp}|${msg.clientId}`;
+    }
+
     /** Get the message repository for multi-session support. */
     get repository(): MessageRepository {
         if (!this._repository) {
@@ -109,8 +115,21 @@ export class MessageController implements ReactiveController {
     }
 
     get value(): MessageContextValue {
+        const currentSessionId = this._sessionController?.value.state.currentSessionId;
+        // Derive state from repository (single source of truth), return shallow copy to prevent external mutation
+        const source = currentSessionId && this._repository
+            ? this._repository.getSessionState(currentSessionId)
+            : {messages: [], hasMore: false, isLoadingMore: false};
+        const state: MessageState = {
+            messages: [...source.messages],
+            hasMore: source.hasMore,
+            isLoadingMore: source.isLoadingMore,
+            hasMoreNewer: source.hasMoreNewer,
+            isLoadingNewer: source.isLoadingNewer,
+        };
+
         return {
-            state: this._state,
+            state,
             actions: this.actions,
             getUserMessageHistory: (sessionId: string, limit?: number) =>
                 this.getUserMessageHistory(sessionId, limit),
@@ -130,7 +149,6 @@ export class MessageController implements ReactiveController {
                 this._appendToLastMessage(chunk),
             finalizeLastMessage: () => this._finalizeLastMessage(),
             clearMessages: () => this._clearMessages(),
-            loadMore: async () => { await this.loadMore(); },
         };
     }
 
@@ -157,7 +175,6 @@ export class MessageController implements ReactiveController {
             timestamp: Date.now(),
             syncStatus: 'synced',
         };
-        this._state = {messages: [...this._state.messages, msg], hasMore: this._state.hasMore, isLoadingMore: this._state.isLoadingMore};
 
         // Update repository for the current session
         const currentSessionId = this._sessionController?.value.state.currentSessionId;
@@ -302,12 +319,11 @@ export class MessageController implements ReactiveController {
     }
 
     /**
-     * Upsert a single message into both the repository and legacy state.
+     * Upsert a single message into the repository.
      *
      * Shared by `reload(entityId)` and `_applyBusUpdate()` to eliminate duplication.
      * Repository is updated via patchMessage (O(1) for existing messages) with fallback
-     * to append+sort for new messages. Legacy state is updated only when the message
-     * belongs to the currently active session.
+     * to append+sort for new messages.
      */
     private _upsertMessage(sessionId: string, messageId: string, newMsg: Message): void {
         // Update repository state for this message's session.
@@ -317,23 +333,12 @@ export class MessageController implements ReactiveController {
             const patched = this._repository.patchMessage(sessionId, messageId, () => newMsg);
             if (!patched) {
                 const current = this._repository.getSessionState(sessionId);
-                const messages = [...current.messages, newMsg].sort((a, b) => a.timestamp - b.timestamp);
+                const messages = [...current.messages, newMsg].sort((a, b) => {
+                    const tsDiff = a.timestamp - b.timestamp;
+                    if (tsDiff !== 0) return tsDiff;
+                    return a.clientId < b.clientId ? -1 : a.clientId > b.clientId ? 1 : 0;
+                });
                 this._repository.updateMessages(sessionId, messages);
-            }
-        }
-
-        // Update legacy state if this is the current session
-        // (for MessageContext consumers like rtc-input-area)
-        const currentSessionId = this._sessionController?.value.state.currentSessionId;
-        if (sessionId === currentSessionId) {
-            const index = this._state.messages.findIndex(m => m.clientId === messageId);
-            if (index !== -1) {
-                const newMessages = [...this._state.messages];
-                newMessages[index] = newMsg;
-                this._state = {...this._state, messages: newMessages};
-            } else {
-                const messages = [...this._state.messages, newMsg].sort((a, b) => a.timestamp - b.timestamp);
-                this._state = {...this._state, messages};
             }
         }
     }
@@ -502,39 +507,61 @@ export class MessageController implements ReactiveController {
     private async _reloadFromDB(sessionClientId: string) {
         if (!this._persistence) return;
 
+        const existing = this._repository?.getSessionState(sessionClientId);
+        const existingMessages = existing?.messages ?? [];
 
         // Load the latest messages (backward = from newest)
         const localMessages = await this._persistence.listMessages(
             sessionClientId, undefined, MESSAGE_PAGE_SIZE, 'backward'
         );
-        const messages = localMessages.map((m) => this._localMessageToUI(m));
+        const freshMessages = localMessages.map((m) => this._localMessageToUI(m));
 
+        // Merge: preserve existing messages not in fresh batch
+        const merged = this._mergeMessages(existingMessages, freshMessages);
 
-        // Track pagination state using (created_at, client_id) composite cursor
-        const hasMore = localMessages.length >= MESSAGE_PAGE_SIZE;
-        this._oldestLoadedCursor = localMessages.length > 0
-            ? this._buildCursor(localMessages[0])
-            : undefined;
+        // ── Cursor logic (critical fix) ──
+        //
+        // Cursor must point to the oldest/newest message in the MERGED array,
+        // not the fresh batch from DB. Otherwise loadMore will use a wrong cursor
+        // and return duplicate messages.
+        //
+        // Example:
+        //   existing = [msg1..msg69], fresh = [msg20..msg69] (DB's latest 50)
+        //   merged = [msg1..msg69]
+        //   ❌ old: oldestCursor = cursor(msg20) → loadMore returns msg1..msg19 → duplicates!
+        //   ✅ new: oldestCursor = cursor(msg1)  → loadMore requests before msg1 → no duplicates
 
-        // Update legacy state (for MessageContext consumers like rtc-input-area)
-        this._state = {messages, hasMore, isLoadingMore: false};
+        if (merged.length > 0) {
+            const oldestInMerged = merged[0];
+            const newestInMerged = merged[merged.length - 1];
 
-        // Update repository (for rtc-message-list subscription)
-        // IMPORTANT: Must set hasMore explicitly — updateMessages only replaces messages array.
-        // Without this, repository keeps hasMore=false (from DEFAULT_STATE), and
-        // rtc-message-list won't trigger loadMore when user scrolls to top.
-        if (this._repository) {
-            this._repository.updateMessages(sessionClientId, messages);
-            this._repository.setHasMore(sessionClientId, hasMore);
-            if (this._oldestLoadedCursor !== undefined) {
-                this._repository.setOldestOffset(sessionClientId, this._oldestLoadedCursor);
-            }
-            // Also set newestOffset so forward pagination cursor is correct
-            if (localMessages.length > 0) {
+            // hasMore logic:
+            // - If merged[0] came from existing (preserved older loaded messages),
+            //   inherit existing.hasMore (that question was already answered)
+            // - If merged[0] came from fresh (no older messages preserved),
+            //   use standard check: did DB return a full page?
+            const freshClientIds = new Set(freshMessages.map(m => m.clientId));
+            const hasMore = freshClientIds.has(oldestInMerged.clientId)
+                ? (localMessages.length >= MESSAGE_PAGE_SIZE)
+                : (existing?.hasMore ?? (localMessages.length >= MESSAGE_PAGE_SIZE));
+
+            if (this._repository) {
+                this._repository.updateMessages(sessionClientId, merged);
+                this._repository.setHasMore(sessionClientId, hasMore);
+                this._repository.setOldestOffset(
+                    sessionClientId,
+                    this._buildCursorFromUI(oldestInMerged)
+                );
                 this._repository.setNewestOffset(
                     sessionClientId,
-                    this._buildCursor(localMessages[localMessages.length - 1])
+                    this._buildCursorFromUI(newestInMerged)
                 );
+            }
+        } else {
+            // Merged is empty (both existing and fresh are empty)
+            if (this._repository) {
+                this._repository.updateMessages(sessionClientId, []);
+                this._repository.setHasMore(sessionClientId, false);
             }
         }
 
@@ -542,52 +569,28 @@ export class MessageController implements ReactiveController {
     }
 
     /**
-     * Load older messages (backward pagination).
-     * Prepends older messages to the existing list.
+     * Merge existing messages with freshly fetched messages.
+     *
+     * Strategy: Pure clientId deduplication.
+     * - Put existing first, then overwrite with fresh for same clientId (fresh is newer version)
+     * - Sort by (timestamp, clientId) composite key, matching persistence layer sorting
+     *
+     * Why not timestamp-based partitioning?
+     * - Timestamps are not unique (multiple messages can be created in the same millisecond)
+     * - clientId is the unique business identifier, deduplication by it is unambiguous
      */
-    async loadMore(): Promise<void> {
-        if (!this._persistence || !this._state.hasMore || this._state.isLoadingMore) {
-            return;
-        }
-
-        const currentSessionId = this._sessionController?.value.state.currentSessionId;
-        if (!currentSessionId || this._oldestLoadedCursor === undefined) {
-            return;
-        }
-
-        this._state = {...this._state, isLoadingMore: true};
-        this.host.requestUpdate();
-
-        try {
-            const olderMessages = await this._persistence.listMessages(
-                currentSessionId,
-                this._oldestLoadedCursor,
-                MESSAGE_PAGE_SIZE,
-                'backward'
-            );
-
-            const newMessages = olderMessages.map((m) => this._localMessageToUI(m));
-
-            // Prepend older messages
-            const allMessages = [...newMessages, ...this._state.messages];
-
-            // Update pagination state
-            const hasMore = olderMessages.length >= MESSAGE_PAGE_SIZE;
-            if (olderMessages.length > 0) {
-                this._oldestLoadedCursor = this._buildCursor(olderMessages[0]);
-            }
-
-            this._state = {
-                messages: allMessages,
-                hasMore,
-                isLoadingMore: false,
-            };
-            this.host.requestUpdate();
-        } catch (error) {
-            log.error('loadMore failed:', error);
-            this._state = {...this._state, isLoadingMore: false};
-            this.host.requestUpdate();
-        }
+    private _mergeMessages(existing: Message[], fresh: Message[]): Message[] {
+        const map = new Map<string, Message>();
+        for (const msg of existing) map.set(msg.clientId, msg);
+        for (const msg of fresh) map.set(msg.clientId, msg); // fresh overwrites existing
+        // Composite sort (timestamp, clientId) to match persistence layer (entity-repository.ts)
+        // Sorting by timestamp alone is non-deterministic when timestamps are equal
+        // (e.g., toolcall_input/output pairs created in the same millisecond)
+        return [...map.values()].sort((a, b) => {
+            const tsDiff = a.timestamp - b.timestamp;
+            if (tsDiff !== 0) return tsDiff;
+            return a.clientId < b.clientId ? -1 : a.clientId > b.clientId ? 1 : 0;
+        });
     }
 
     /**
@@ -678,52 +681,44 @@ export class MessageController implements ReactiveController {
     }
 
     private _appendToLastMessage(chunk: string) {
-        const messages = [...this._state.messages];
-        if (messages.length === 0) return;
-        const last = messages[messages.length - 1];
-        // Append chunk to the ContentData's data field (text type uses string data)
-        const newData = typeof last.content.data === 'string'
-            ? (last.content.data as string) + chunk
-            : JSON.stringify(last.content.data) + chunk;
-        messages[messages.length - 1] = {
-            ...last,
-            content: {...last.content, data: newData},
-            streaming: true,
-        };
-        this._state = {messages, hasMore: this._state.hasMore, isLoadingMore: this._state.isLoadingMore};
-
-        // Update repository for the current session
         const currentSessionId = this._sessionController?.value.state.currentSessionId;
-        if (this._repository && currentSessionId) {
-            this._repository.updateMessages(currentSessionId, messages);
-        }
+        if (!this._repository || !currentSessionId) return;
+
+        const state = this._repository.getSessionState(currentSessionId);
+        const lastMsg = state.messages[state.messages.length - 1];
+        if (!lastMsg) return;
+
+        // Append chunk to the ContentData's data field (text type uses string data)
+        const newData = typeof lastMsg.content.data === 'string'
+            ? (lastMsg.content.data as string) + chunk
+            : JSON.stringify(lastMsg.content.data) + chunk;
+
+        this._repository.patchMessage(currentSessionId, lastMsg.clientId, (msg) => ({
+            ...msg,
+            content: {...msg.content, data: newData},
+            streaming: true,
+        }));
 
         this.host.requestUpdate();
     }
 
     private _finalizeLastMessage() {
-        const messages = [...this._state.messages];
-        if (messages.length === 0) return;
-        const last = messages[messages.length - 1];
-        messages[messages.length - 1] = {
-            ...last,
-            streaming: false,
-        };
-        this._state = {messages, hasMore: this._state.hasMore, isLoadingMore: this._state.isLoadingMore};
-
-        // Update repository for the current session
         const currentSessionId = this._sessionController?.value.state.currentSessionId;
-        if (this._repository && currentSessionId) {
-            this._repository.updateMessages(currentSessionId, messages);
-        }
+        if (!this._repository || !currentSessionId) return;
+
+        const state = this._repository.getSessionState(currentSessionId);
+        const lastMsg = state.messages[state.messages.length - 1];
+        if (!lastMsg) return;
+
+        this._repository.patchMessage(currentSessionId, lastMsg.clientId, (msg) => ({
+            ...msg,
+            streaming: false,
+        }));
 
         this.host.requestUpdate();
     }
 
     private _clearMessages() {
-        this._state = {messages: [], hasMore: false, isLoadingMore: false};
-        this._oldestLoadedCursor = undefined;
-
         // Reset repository state for the current session.
         // Must clear hasMore and cursors alongside the messages array to prevent
         // stale pagination state from triggering loadMore on an empty session.
@@ -732,6 +727,9 @@ export class MessageController implements ReactiveController {
             this._repository.updateMessages(currentSessionId, []);
             this._repository.setHasMore(currentSessionId, false);
             this._repository.setHasMoreNewer(currentSessionId, false);
+            // Clear residual cursors to maintain state consistency
+            this._repository.setOldestOffset(currentSessionId, '');
+            this._repository.setNewestOffset(currentSessionId, '');
         }
 
         this.host.requestUpdate();

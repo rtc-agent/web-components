@@ -334,9 +334,6 @@ export interface MessageActions {
 
     /** 清空所有消息。Session 切换时调用，也可作为用户主动操作。 */
     clearMessages(): void;
-
-    /** 加载更多历史消息（向上翻页） */
-    loadMore(): Promise<void>;
 }
 
 /* ── Mode Actions ── */

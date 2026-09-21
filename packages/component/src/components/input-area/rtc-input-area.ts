@@ -135,7 +135,6 @@ export class RtcInputArea extends LitElement {
             appendToLastMessage: () => {},
             finalizeLastMessage: () => {},
             clearMessages: () => {},
-            loadMore: async () => {},
         },
     };
 
