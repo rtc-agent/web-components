@@ -117,6 +117,13 @@ export interface RTCAgentClientOptions {
 
 // ========== Event Map ==========
 
+/** Emitted when gap fill fails and application-level sync is required. */
+export interface SyncRequiredEvent {
+  reason: string;
+  lastKnownOffset?: number;
+  serverOffset?: number;
+}
+
 export interface RTCAgentClientEvents {
   connection: ConnectionStateEvent;
   /** Events pushed by the backend via user_updates channel (multi-device sync). */
@@ -129,6 +136,8 @@ export interface RTCAgentClientEvents {
   'stream:end': StreamEnd;
   /** Error event. */
   error: Error;
+  /** Gap fill failed — application must perform full sync. */
+  syncRequired: SyncRequiredEvent;
 }
 
 export type EventName = keyof RTCAgentClientEvents;
@@ -191,7 +200,7 @@ export interface IRTCAgentClient {
    *
    * Both Publication events and RPC responses should call this method.
    */
-  applyUpdates(updates: Update[]): Promise<void>;
+  applyUpdates(updates: Update[], callback?: () => Promise<void>): Promise<void>;
 }
 
 // Re-export protocol types for single-import convenience.

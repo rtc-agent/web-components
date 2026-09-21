@@ -19,6 +19,7 @@ export type {
   RTCAgentClientEvents,
   PublicationEvent,
   TokenExpiredAction,
+  SyncRequiredEvent,
 } from './types.js';
 
 // Re-export protocol for downstream single-import convenience.
