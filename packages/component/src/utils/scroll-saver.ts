@@ -38,6 +38,11 @@ export class ScrollSaver {
 
     /**
      * Restore scroll position after DOM changes.
+     *
+     * Fallback chain (matching Telegram Web's algorithm):
+     * 1. Try the saved anchor element
+     * 2. If anchor disconnected → re-query visible elements, pick new anchor
+     * 3. If still no anchor → fall back to scrollHeight delta
      */
     restore() {
         const scrollTop = this._container.scrollTop;
@@ -46,17 +51,25 @@ export class ScrollSaver {
         if (this._elements.length === 0) {
             // No elements saved, scroll to end or start
             this._container.scrollTop = this._reverse ? scrollHeight : 0;
-            log.debug(`restore: no elements, scrollTop → ${this._container.scrollTop}`);
+            log.debug(`restore: no elements saved, scrollTop → ${this._container.scrollTop}`);
             return;
         }
 
-        // Get anchor element (first if reverse, last if not)
-        const anchor = this._getAnchor();
+        // Level 1: Try the saved anchor
+        let anchor = this._getAnchor();
+
+        // Level 2: If anchor disconnected, re-query and try to find a new anchor
         if (!anchor || !anchor.element.isConnected) {
-            // Anchor removed, fallback to height delta
+            log.debug('restore: anchor disconnected, re-querying visible elements');
+            this._findElements();
+            anchor = this._getAnchor();
+        }
+
+        // Level 3: Still no anchor → fall back to scrollHeight delta
+        if (!anchor || !anchor.element.isConnected) {
             const delta = scrollHeight - this._scrollHeight;
             this._container.scrollTop = this._scrollTop + delta;
-            log.debug(`restore: anchor removed, fallback delta=${delta}, scrollTop → ${this._container.scrollTop}`);
+            log.debug(`restore: no anchor after re-query, fallback delta=${delta}, scrollTop → ${this._container.scrollTop}`);
             return;
         }
 
@@ -78,7 +91,7 @@ export class ScrollSaver {
         const position = rect[positionKey];
 
         log.debug(
-            `restore: reverse=${this._reverse}, anchor=${element.dataset?.messageIndex ?? '?'}, ` +
+            `restore: reverse=${this._reverse}, anchor=${element.dataset?.messageIndex ?? element.dataset?.clientId ?? '?'}, ` +
             `positionKey=${positionKey}, position=${position}, newPosition=${newPosition}, ` +
             `diff=${newPosition - position}`
         );
