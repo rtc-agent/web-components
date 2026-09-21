@@ -329,6 +329,17 @@ export class WindowStateController implements ReactiveController {
             // Clear bottom/right (set by CSS defaults)
             el.style.bottom = '';
             el.style.right = '';
+            // Clear bubble inline styles (set during minimized) so CSS can take over
+            const bubble = el.shadowRoot?.querySelector<HTMLElement>('.bubble');
+            if (bubble) {
+                bubble.style.removeProperty('position');
+                bubble.style.removeProperty('left');
+                bubble.style.removeProperty('top');
+                bubble.style.removeProperty('width');
+                bubble.style.removeProperty('height');
+                bubble.style.removeProperty('right');
+                bubble.style.removeProperty('bottom');
+            }
         } else if (mode === 'minimized') {
             // Clear inline width/height so CSS :host([data-mode='minimized']) can
             // apply the bubble size (40×40). Inline styles would otherwise win.
@@ -383,6 +394,23 @@ export class WindowStateController implements ReactiveController {
             // Clear bottom/right
             el.style.bottom = '';
             el.style.right = '';
+
+            // Also position the .bubble element directly via position:fixed.
+            // The .bubble inside shadow DOM cannot rely on `position:absolute; inset:0`
+            // because the shadow DOM layout may be offset from the host's visual position
+            // (the host's static position in document flow differs from its fixed position).
+            // By using position:fixed on the .bubble itself, it positions relative to the
+            // viewport — same as the host — ensuring correct visual alignment.
+            const bubble = el.shadowRoot?.querySelector<HTMLElement>('.bubble');
+            if (bubble) {
+                bubble.style.setProperty('position', 'fixed', 'important');
+                bubble.style.setProperty('left', `${bubbleX}px`, 'important');
+                bubble.style.setProperty('top', `${bubbleY}px`, 'important');
+                bubble.style.setProperty('width', `${bubbleSize}px`, 'important');
+                bubble.style.setProperty('height', `${bubbleSize}px`, 'important');
+                bubble.style.setProperty('right', 'auto', 'important');
+                bubble.style.setProperty('bottom', 'auto', 'important');
+            }
         } else {
             // 'maximized' — clear inline geometry, let CSS inset:0 take over
             el.style.width = '';
@@ -391,6 +419,17 @@ export class WindowStateController implements ReactiveController {
             el.style.top = '';
             el.style.bottom = '';
             el.style.right = '';
+            // Clear bubble inline styles (set during minimized) so CSS can take over
+            const bubble = el.shadowRoot?.querySelector<HTMLElement>('.bubble');
+            if (bubble) {
+                bubble.style.removeProperty('position');
+                bubble.style.removeProperty('left');
+                bubble.style.removeProperty('top');
+                bubble.style.removeProperty('width');
+                bubble.style.removeProperty('height');
+                bubble.style.removeProperty('right');
+                bubble.style.removeProperty('bottom');
+            }
         }
     }
 }
