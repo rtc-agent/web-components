@@ -35,6 +35,7 @@ import {consume} from '@lit/context';
 import {localized, msg} from '@lit/localize';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {styles} from './rtc-message-list.styles.js';
+import {skeletonStyles} from './rtc-message-list.skeleton-styles.js';
 import {SettingsContext, type SettingsContextValue} from '../../contexts/settings.js';
 import type {MessageController} from '../../controllers/message.controller.js';
 import type {Message, MessageState} from '../../types/index.js';
@@ -48,6 +49,7 @@ import './rtc-toolcall-card.js';
 import './rtc-toolcall-reply.js';
 import './rtc-error-message.js';
 import {MessageVirtualScroll, type WindowBoundary} from '../../utils/message-virtual-scroll.js';
+import {MessageSkeletonGenerator} from '../../utils/message-skeleton.js';
 
 /** Delay for programmatic scroll event guard (auto scroll, covers layout batching). */
 const PROGRAMMATIC_SCROLL_GUARD_MS = 50;
@@ -63,7 +65,7 @@ const EXIT_AUTO_SCROLL_THRESHOLD_PX = AT_BOTTOM_THRESHOLD_PX * 2; // 120px
 @localized()
 @customElement('rtc-message-list')
 export class RtcMessageList extends LitElement {
-    static styles = styles;
+    static styles = [styles, skeletonStyles];
 
     /** Session ID for this message list instance. */
     @property({type: String})
@@ -226,7 +228,7 @@ export class RtcMessageList extends LitElement {
                 query: '[data-client-id]',
                 preloadThreshold: 300, // Telegram uses 300px
                 bufferMessages: 20,
-                sliceInterval: 600000, // 10 minutes - only slice on user scroll, not auto-scroll
+                sliceInterval: 5000, // 5 seconds - hybrid timer + scroll-debounce approach
                 // Extract only the fields that affect rendering for efficient comparison.
                 // Tab switching returns new array references with identical content;
                 // comparing only these fields avoids unnecessary Markdown DOM recreation.
@@ -240,6 +242,29 @@ export class RtcMessageList extends LitElement {
                 // Without this, each streaming token would destroy-rebuild the element,
                 // causing flicker and breaking auto-scroll.
                 updateItemElement: (el, msg, index) => this._updateMessageElement(el, msg, index),
+                // Phase 1+2: Create skeleton placeholder using MessageSkeletonGenerator
+                createPlaceholder: (msg, height) => MessageSkeletonGenerator.create(msg, height),
+                // Phase 2: Extract component state before skeletonization
+                extractComponentState: (_msg, el) => {
+                    if ('getState' in el && typeof el.getState === 'function') {
+                        return (el as {getState: () => Record<string, unknown>}).getState();
+                    }
+                    return null;
+                },
+                // Phase 2: Inject component state after restoration
+                injectComponentState: (_msg, el, state) => {
+                    if ('setState' in el && typeof el.setState === 'function') {
+                        (el as {setState: (state: Record<string, unknown>) => void}).setState(state);
+                    }
+                },
+                // Phase 2: Check if item is stable (safe to skeletonize)
+                isItemStable: (msg) => {
+                    // Streaming messages are unstable - content is actively changing
+                    if (msg.streaming) return false;
+                    // All other messages are stable - Markdown rendering is fast (50-200ms)
+                    // and will complete before the next slice check (3s+ idle)
+                    return true;
+                },
             });
         }
 

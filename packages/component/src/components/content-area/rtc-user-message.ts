@@ -50,12 +50,13 @@ import {copyToClipboard} from '../../utils/clipboard.js';
 import {extractTextContent} from '../../utils/format.js';
 import './rtc-message-more-menu.js';
 import { createLogger } from '@rtc-agent/client';
+import type {StatefulComponent} from '../../utils/message-virtual-scroll.js';
 
 const log = createLogger('UserMessage');
 
 @localized()
 @customElement('rtc-user-message')
-export class RtcUserMessage extends LitElement {
+export class RtcUserMessage extends LitElement implements StatefulComponent {
     static styles = styles;
 
     @consume({context: localeContext, subscribe: true})
@@ -152,6 +153,49 @@ export class RtcUserMessage extends LitElement {
             this.setAttribute('data-sync-status', this.message.syncStatus);
             // Re-check overflow on message change
             this._checkOverflow();
+        }
+    }
+
+    // ── StatefulComponent Interface (Phase 2) ──
+
+    /**
+     * Extract component state for preservation across virtualization.
+     * Called by MessageVirtualScroll before destroying the element.
+     *
+     * Preserved state:
+     * - expanded: User's expand/collapse preference for long messages
+     * - isOverflowing: Whether text overflows (affects show-more button visibility)
+     */
+    getState(): Record<string, unknown> {
+        return {
+            expanded: this._expanded,
+            isOverflowing: this._isOverflowing,
+        };
+    }
+
+    /**
+     * Inject cached state after restoring from skeleton placeholder.
+     * Called synchronously before first render to avoid flicker.
+     *
+     * @param state - Previously extracted state from getState()
+     */
+    setState(state: Record<string, unknown>): void {
+        if (state.expanded !== undefined) {
+            this._expanded = state.expanded as boolean;
+            // Reflect attribute for CSS
+            if (this._expanded) {
+                this.setAttribute('data-expanded', '');
+            } else {
+                this.removeAttribute('data-expanded');
+            }
+        }
+        if (state.isOverflowing !== undefined) {
+            this._isOverflowing = state.isOverflowing as boolean;
+            if (this._isOverflowing) {
+                this.setAttribute('data-overflow', '');
+            } else {
+                this.removeAttribute('data-overflow');
+            }
         }
     }
 

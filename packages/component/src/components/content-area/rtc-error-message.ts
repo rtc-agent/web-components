@@ -30,6 +30,7 @@ import type {ErrorContent, ErrorCategory} from '@rtc-agent/protocol';
 import type {Message} from '../../types/index.js';
 import {formatTimestampCompact} from '../../utils/format.js';
 import { createLogger } from '@rtc-agent/client';
+import type {StatefulComponent} from '../../utils/message-virtual-scroll.js';
 
 const log = createLogger('ErrorMessage');
 
@@ -74,7 +75,7 @@ const DEFAULT_CONFIG: Omit<CategoryConfig, 'label'> = {icon: '⚠️', color: '#
 
 @localized()
 @customElement('rtc-error-message')
-export class RtcErrorMessage extends LitElement {
+export class RtcErrorMessage extends LitElement implements StatefulComponent {
     static styles = [
         timelineStyles,
         css`
@@ -291,6 +292,33 @@ export class RtcErrorMessage extends LitElement {
             composed: true,
             detail: {clientId: this.message.clientId},
         }));
+    }
+
+    // ── StatefulComponent Interface (Phase 2) ──
+
+    /**
+     * Extract component state for preservation across virtualization.
+     * Called by MessageVirtualScroll before destroying the element.
+     *
+     * Preserved state:
+     * - rawErrorExpanded: User's expand/collapse preference for raw error details
+     */
+    getState(): Record<string, unknown> {
+        return {
+            rawErrorExpanded: this._rawErrorExpanded,
+        };
+    }
+
+    /**
+     * Inject cached state after restoring from skeleton placeholder.
+     * Called synchronously before first render to avoid flicker.
+     *
+     * @param state - Previously extracted state from getState()
+     */
+    setState(state: Record<string, unknown>): void {
+        if (state.rawErrorExpanded !== undefined) {
+            this._rawErrorExpanded = state.rawErrorExpanded as boolean;
+        }
     }
 
     render() {

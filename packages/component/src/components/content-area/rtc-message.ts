@@ -36,12 +36,13 @@ import type {Message} from '../../types/index.js';
 import {copyToClipboard} from '../../utils/clipboard.js';
 import {formatTimestampCompact, extractTextContent} from '../../utils/format.js';
 import { createLogger } from '@rtc-agent/client';
+import type {StatefulComponent} from '../../utils/message-virtual-scroll.js';
 
 const log = createLogger('Message');
 
 @localized()
 @customElement('rtc-message')
-export class RtcMessage extends LitElement {
+export class RtcMessage extends LitElement implements StatefulComponent {
     static styles = styles;
 
     @consume({context: localeContext, subscribe: true})
@@ -115,6 +116,12 @@ export class RtcMessage extends LitElement {
 
         if (!contentData) {
             this._renderedHtml = '';
+            return;
+        }
+
+        // Phase 2: Skip parsing if we already have cached HTML (from state injection)
+        // This happens when the component is restored from a skeleton placeholder
+        if (this._renderedHtml) {
             return;
         }
 
@@ -210,6 +217,38 @@ export class RtcMessage extends LitElement {
 
     private _toggleThinking() {
         this._thinkingExpanded = !this._thinkingExpanded;
+    }
+
+    // ── StatefulComponent Interface (Phase 2) ──
+
+    /**
+     * Extract component state for preservation across virtualization.
+     * Called by MessageVirtualScroll before destroying the element.
+     *
+     * Preserved state:
+     * - renderedHtml: Cached Markdown HTML (avoids re-parsing on restore)
+     * - thinkingExpanded: User's expand/collapse preference for thinking blocks
+     */
+    getState(): Record<string, unknown> {
+        return {
+            renderedHtml: this._renderedHtml,
+            thinkingExpanded: this._thinkingExpanded,
+        };
+    }
+
+    /**
+     * Inject cached state after restoring from skeleton placeholder.
+     * Called synchronously before first render to avoid flicker.
+     *
+     * @param state - Previously extracted state from getState()
+     */
+    setState(state: Record<string, unknown>): void {
+        if (state.renderedHtml !== undefined) {
+            this._renderedHtml = state.renderedHtml as string;
+        }
+        if (state.thinkingExpanded !== undefined) {
+            this._thinkingExpanded = state.thinkingExpanded as boolean;
+        }
     }
 
     /**

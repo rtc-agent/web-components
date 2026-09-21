@@ -16,9 +16,19 @@
  */
 
 import {ScrollSaver} from './scroll-saver.js';
+import {MessageSkeletonGenerator} from './message-skeleton.js';
 import {createLogger} from '@rtc-agent/client';
 
 const log = createLogger('VirtualScroll');
+
+/**
+ * Stateful component interface - components can implement this to preserve state
+ * across virtualization (destroy/restore cycles).
+ */
+export interface StatefulComponent {
+    getState(): Record<string, unknown>;
+    setState(state: Record<string, unknown>): void;
+}
 
 export interface WindowBoundary {
     /** First item's ID in current window (undefined if empty) */
@@ -54,7 +64,11 @@ export interface MessageVirtualScrollOptions<T> {
     /** Messages to keep as buffer on each side of viewport (default: 20) */
     bufferMessages?: number;
 
-    /** Interval for viewport slicing check in ms (default: 3000, like Telegram) */
+    /**
+     * Interval for periodic viewport slicing timer in ms (default: 5000).
+     * This controls how often the timer checks for idle off-screen elements.
+     * Note: Scroll-debounce delay is fixed at 3000ms (not configurable).
+     */
     sliceInterval?: number;
 
     /** Callback when content size changes (for custom scrollbar) */
@@ -82,6 +96,30 @@ export interface MessageVirtualScrollOptions<T> {
      * If not provided, falls back to destroy-rebuild pattern.
      */
     updateItemElement?: (element: HTMLElement, item: T, index: number) => void;
+
+    /**
+     * Create a skeleton placeholder element for an item being virtualized.
+     * If not provided, uses MessageSkeletonGenerator to create default skeletons.
+     */
+    createPlaceholder?: (item: T, height: number) => HTMLElement;
+
+    /**
+     * Extract component state before destroying an element (for state preservation).
+     * Called during viewport slicing before replacing with skeleton.
+     */
+    extractComponentState?: (item: T, element: HTMLElement) => Record<string, unknown> | null;
+
+    /**
+     * Inject component state after restoring an element from skeleton.
+     * Called synchronously before first render to avoid flicker.
+     */
+    injectComponentState?: (item: T, element: HTMLElement, state: Record<string, unknown>) => void;
+
+    /**
+     * Check if an item is stable (safe to virtualize).
+     * Unstable items (e.g., streaming messages) are not replaced with skeletons.
+     */
+    isItemStable?: (item: T) => boolean;
 }
 
 interface ViewportSlicePart<T> {
@@ -131,6 +169,84 @@ export class MessageVirtualScroll<T> {
     private _isUserInteracting = false;
     private _interactionCleanup: (() => void) | null = null;
 
+    // ── Phase 1: Skeleton Placeholder Properties ──
+
+    /** New callback options for skeleton placeholder support */
+    private _createPlaceholder?: (item: T, height: number) => HTMLElement;
+    private _extractComponentState?: (item: T, element: HTMLElement) => Record<string, unknown> | null;
+    private _injectComponentState?: (
+        item: T,
+        element: HTMLElement,
+        state: Record<string, unknown>
+    ) => void;
+    private _isItemStable?: (item: T) => boolean;
+
+    /** Placeholder item IDs (ID-based tracking, immune to index remapping) */
+    private _placeholderItemIds: Set<string> = new Set();
+
+    /** Height cache: itemId → last known height */
+    private _heightCache: Map<string, number> = new Map();
+
+    /** Component state cache: itemId → state object */
+    private _componentStateCache: Map<string, Record<string, unknown>> = new Map();
+
+    /** Placeholder position index: sorted array (by Y coordinate) for O(log n) lookup */
+    private _placeholderPositions: Array<{itemId: string; y: number}> = [];
+
+    /** Reverse index: itemId → array index for O(1) lookup */
+    private _placeholderIndexMap: Map<string, number> = new Map();
+
+    /** Element height tracker using ResizeObserver */
+    private _itemResizeObserver?: ResizeObserver;
+
+    /** Capacity limit for component state cache */
+    private readonly MAX_STATE_CACHE = 200;
+
+    /** S5: Capacity limit for height cache (larger since entries are smaller) */
+    private readonly MAX_HEIGHT_CACHE = 500;
+
+    // ── Phase 2: Skeleton Restoration State ──
+
+    /** Pending restoration queue */
+    private _pendingRestorations: Array<{itemId: string; index: number; y: number}> = [];
+
+    /** Whether a batch restoration is already scheduled */
+    private _restorationScheduled: boolean = false;
+
+    /** IDs currently in pending restoration queue (dedup) */
+    private _pendingRestorationIds: Set<string> = new Set();
+
+    /** Last scroll top for direction detection */
+    private _lastScrollTop: number = 0;
+
+    /** Maximum restorations per frame */
+    private readonly MAX_RESTORATIONS_PER_FRAME = 10;
+
+    // ── Hybrid Slicing: Timer + Scroll-debounce ──
+
+    /** Periodic timer for idle slicing (fallback) */
+    private _sliceTimer?: number;
+
+    /** Timer interval in ms (default: 5000) */
+    private _sliceInterval: number;
+
+    /** Timestamp of last user scroll activity */
+    private _lastScrollTime: number = 0;
+
+    /** Minimum idle time before timer-triggered slicing (ms) */
+    private readonly IDLE_THRESHOLD = 3000;
+
+    /** Timestamp of last _sliceViewport call (prevents double invocation) */
+    private _lastSliceTime: number = 0;
+
+    /** Minimum interval between _sliceViewport calls (ms) */
+    private readonly MIN_SLICE_INTERVAL = 2000;
+
+    // ── Visibility API (Phase 4 preparation) ──
+
+    /** Explicit visibility state - controlled by setVisibility() */
+    private _isVisible: boolean = true;
+
     constructor(options: MessageVirtualScrollOptions<T>) {
         this._scrollContainer = options.scrollContainer;
         this._innerContainer = options.innerContainer;
@@ -143,10 +259,40 @@ export class MessageVirtualScroll<T> {
         this._query = options.query ?? '.message';
         this._preloadThreshold = options.preloadThreshold ?? 300;
         this._bufferMessages = options.bufferMessages ?? 20;
-        this._sliceDebounceDelay = options.sliceInterval ?? 3000;
+        this._sliceDebounceDelay = 3000; // Fixed 3s scroll-debounce delay
+
+        // Phase 1: Hybrid slicing - periodic timer + scroll-debounce
+        // sliceInterval controls the timer interval (default: 5000ms)
+        this._sliceInterval = options.sliceInterval ?? 5000;
+        this._lastScrollTime = Date.now();
+
+        // Phase 1: Initialize skeleton placeholder callbacks
+        this._createPlaceholder = options.createPlaceholder;
+        this._extractComponentState = options.extractComponentState;
+        this._injectComponentState = options.injectComponentState;
+        this._isItemStable = options.isItemStable;
 
         this._scrollHandler = () => this._onScroll();
         this._scrollContainer.addEventListener('scroll', this._scrollHandler, {passive: true});
+
+        // Phase 1: Setup element height tracker using ResizeObserver
+        // S2: Guard against tracking skeleton heights (only track real elements)
+        this._itemResizeObserver = new ResizeObserver(entries => {
+            for (const entry of entries) {
+                const el = entry.target as HTMLElement;
+                const itemId = el.dataset.itemId;
+                // Skip skeleton placeholders - they have fixed height
+                if (itemId && el.dataset.isSkeleton !== 'true') {
+                    this._setHeightCache(itemId, entry.contentRect.height);
+                }
+            }
+        });
+
+        // Phase 1: Start periodic slicing timer (hybrid approach)
+        // This ensures off-screen elements are skeletonized even when user is idle
+        this._sliceTimer = window.setInterval(() => {
+            this._onSliceTimer();
+        }, this._sliceInterval);
 
         // Setup user interaction tracking to distinguish user vs programmatic scrolls
         this._setupInteractionTracking();
@@ -321,7 +467,12 @@ export class MessageVirtualScroll<T> {
         const fragment = document.createDocumentFragment();
         items.forEach((item, index) => {
             const el = this._renderItem(item, index);
+            const itemId = this._getItemId(item);
             el.dataset.messageIndex = String(index);
+            el.dataset.itemId = itemId;
+            el.dataset.isSkeleton = 'false';
+            // Start tracking height
+            this._itemResizeObserver?.observe(el);
             fragment.appendChild(el);
         });
 
@@ -373,10 +524,10 @@ export class MessageVirtualScroll<T> {
     }
 
     /**
-     * Update existing items in place.
-     * Only re-renders items that have changed and are currently in the DOM.
+     * Shared logic for updating items in place.
+     * Used by both updateItems() and _updateInPlace().
      */
-    private _updateInPlace(newItems: T[]): void {
+    private _applyItemUpdates(newItems: T[]): void {
         // Build a map of old items by ID
         const oldItemsById = new Map<string, {index: number; item: T}>();
         this._items.forEach((item, index) => {
@@ -397,65 +548,18 @@ export class MessageVirtualScroll<T> {
             }
 
             // Deep compare: if content is identical, skip re-render
-            if (this._itemsEqual(oldEntry.item, newItem)) {
-                return;
-            }
-
-            // Item changed - check if it's currently rendered
-            const element = this._elementMap.get(oldEntry.index);
-            if (!element || !element.isConnected) {
-                return;
-            }
-
-            // In-place update
-            if (this._updateItemElement) {
-                this._updateItemElement(element, newItem, newIndex);
-            } else {
-                // Fallback: destroy and rebuild
-                const newElement = this._renderItem(newItem, newIndex);
-                newElement.dataset.messageIndex = String(newIndex);
-                this._elementMap.set(newIndex, newElement);
-                element.replaceWith(newElement);
-            }
-
-            this._onSizeChange?.();
-        });
-    }
-
-    /**
-     * Update items in place (e.g., when message status changes from 'syncing' to 'synced').
-     * Only re-renders items that have changed and are currently in the DOM.
-     * More efficient than setItems() which re-renders everything.
-     *
-     * Uses ID-based lookup + deep content comparison to avoid unnecessary DOM recreation.
-     * This is critical for preserving Markdown DOM when tab switching triggers reload()
-     * which returns new array references but identical content.
-     */
-    updateItems(items: T[]) {
-        // Build a map of old items by ID for quick lookup
-        const oldItemsById = new Map<string, { index: number; item: T }>();
-        this._items.forEach((item, index) => {
-            oldItemsById.set(this._getItemId(item), { index, item });
-        });
-
-        // Update items array
-        this._items = [...items];
-
-        // Find and re-render changed items
-        items.forEach((newItem, newIndex) => {
-            const itemId = this._getItemId(newItem);
-            const oldEntry = oldItemsById.get(itemId);
-
-            if (!oldEntry) {
-                // New item (shouldn't happen in updateItems, but handle gracefully)
-                return;
-            }
-
-            // Deep compare: if content is identical, skip re-render
             // This prevents Markdown DOM destruction when tab switching returns
             // new array references with identical content
             if (this._itemsEqual(oldEntry.item, newItem)) {
-                return; // No change
+                return;
+            }
+
+            // Phase 2: If item is a placeholder, invalidate cached state and skip DOM update
+            // The skeleton can't be updated in-place; restoration will use latest data
+            if (this._placeholderItemIds.has(itemId)) {
+                this._componentStateCache.delete(itemId);
+                log.debug(`Invalidated cached state for ${itemId} (content changed while placeholder)`);
+                return;
             }
 
             // Item changed - check if it's currently rendered
@@ -471,13 +575,39 @@ export class MessageVirtualScroll<T> {
                 // Fallback: destroy and rebuild
                 const newElement = this._renderItem(newItem, newIndex);
                 newElement.dataset.messageIndex = String(newIndex);
+                newElement.dataset.itemId = itemId;
+                newElement.dataset.isSkeleton = 'false';
                 this._elementMap.set(newIndex, newElement);
+                // Stop tracking old element, start tracking new
+                this._itemResizeObserver?.unobserve(element);
+                this._itemResizeObserver?.observe(newElement);
                 element.replaceWith(newElement);
             }
 
-            // Notify size change (height might have changed)
             this._onSizeChange?.();
         });
+    }
+
+    /**
+     * Update existing items in place.
+     * Only re-renders items that have changed and are currently in the DOM.
+     * Called internally by setItems() during incremental updates.
+     */
+    private _updateInPlace(newItems: T[]): void {
+        this._applyItemUpdates(newItems);
+    }
+
+    /**
+     * Update items in place (e.g., when message status changes from 'syncing' to 'synced').
+     * Only re-renders items that have changed and are currently in the DOM.
+     * More efficient than setItems() which re-renders everything.
+     *
+     * Uses ID-based lookup + deep content comparison to avoid unnecessary DOM recreation.
+     * This is critical for preserving Markdown DOM when tab switching triggers reload()
+     * which returns new array references but identical content.
+     */
+    updateItems(items: T[]) {
+        this._applyItemUpdates(items);
     }
 
     /**
@@ -539,8 +669,13 @@ export class MessageVirtualScroll<T> {
         const fragment = document.createDocumentFragment();
         items.forEach((item, index) => {
             const el = this._renderItem(item, index);
+            const itemId = this._getItemId(item);
             el.dataset.messageIndex = String(index);
+            el.dataset.itemId = itemId;
+            el.dataset.isSkeleton = 'false';
             this._elementMap.set(index, el);
+            // Start tracking height
+            this._itemResizeObserver?.observe(el);
             fragment.appendChild(el);
         });
 
@@ -560,6 +695,23 @@ export class MessageVirtualScroll<T> {
 
         // Rebuild ID-to-index mapping
         this._rebuildIdToIndex();
+
+        // I2: Update placeholder Y coordinates (all existing elements shift down)
+        // Calculate total height of prepended elements
+        let prependHeight = 0;
+        for (let i = 0; i < items.length; i++) {
+            const el = this._innerContainer.children[i] as HTMLElement;
+            if (el) {
+                prependHeight += el.getBoundingClientRect().height;
+            }
+        }
+        // Add prepend height to all placeholder positions
+        if (prependHeight > 0 && this._placeholderPositions.length > 0) {
+            for (const entry of this._placeholderPositions) {
+                entry.y += prependHeight;
+            }
+            log.debug(`Updated ${this._placeholderPositions.length} placeholder positions by +${prependHeight}px`);
+        }
 
         // Restore scroll position using Telegram's algorithm
         scrollSaver.restore();
@@ -637,7 +789,12 @@ export class MessageVirtualScroll<T> {
             // Fallback: destroy and rebuild
             const newElement = this._renderItem(newItem, index);
             newElement.dataset.messageIndex = String(index);
+            newElement.dataset.itemId = itemId;
+            newElement.dataset.isSkeleton = 'false';
             this._elementMap.set(index, newElement);
+            // Stop tracking old element, start tracking new
+            this._itemResizeObserver?.unobserve(element);
+            this._itemResizeObserver?.observe(newElement);
             element.replaceWith(newElement);
         }
 
@@ -654,6 +811,45 @@ export class MessageVirtualScroll<T> {
         this._innerContainer.innerHTML = '';
         this._loadedTop = true;
         this._loadedBottom = true;
+
+        // Phase 1: Cleanup placeholder tracking structures
+        this._placeholderItemIds.clear();
+        this._placeholderPositions = [];
+        this._placeholderIndexMap.clear();
+        this._heightCache.clear();
+        this._componentStateCache.clear();
+
+        // Phase 2: Cleanup restoration state
+        this._pendingRestorations = [];
+        this._pendingRestorationIds.clear();
+    }
+
+    /**
+     * Explicit visibility API - called by parent component.
+     * Replaces unreliable getBoundingClientRect() detection for visibility: hidden.
+     *
+     * When hidden, _sliceViewport is skipped to prevent incorrect skeletonization
+     * of elements in a hidden container (e.g., inactive tab).
+     *
+     * @param visible - Whether the container is currently visible
+     */
+    setVisibility(visible: boolean): void {
+        const changed = this._isVisible !== visible;
+        this._isVisible = visible;
+        if (changed) {
+            log.debug(`Visibility changed: ${visible}`);
+            if (visible) {
+                // When becoming visible, trigger a slice check
+                this._sliceViewport();
+            }
+        }
+    }
+
+    /**
+     * Get current visibility state.
+     */
+    isVisible(): boolean {
+        return this._isVisible;
     }
 
     scrollToBottom() {
@@ -713,9 +909,19 @@ export class MessageVirtualScroll<T> {
             clearTimeout(this._sliceDebounceTimer);
             this._sliceDebounceTimer = null;
         }
+        // Phase 1: Cleanup periodic slicing timer
+        if (this._sliceTimer) {
+            clearInterval(this._sliceTimer);
+            this._sliceTimer = undefined;
+        }
         if (this._interactionCleanup) {
             this._interactionCleanup();
             this._interactionCleanup = null;
+        }
+        // Phase 1: Cleanup ResizeObserver
+        if (this._itemResizeObserver) {
+            this._itemResizeObserver.disconnect();
+            this._itemResizeObserver = undefined;
         }
         // Release internal references to allow GC of items and DOM elements.
         // Without this, the scroll container's parent may hold the virtual scroll
@@ -724,12 +930,24 @@ export class MessageVirtualScroll<T> {
         this._items = [];
         this._elementMap.clear();
         this._idToIndex.clear();
+
+        // Phase 1: Cleanup placeholder tracking structures
+        this._placeholderItemIds.clear();
+        this._placeholderPositions = [];
+        this._placeholderIndexMap.clear();
+        this._heightCache.clear();
+        this._componentStateCache.clear();
+
+        // Phase 2: Cleanup restoration state
+        this._pendingRestorations = [];
+        this._pendingRestorationIds.clear();
     }
 
     getStats() {
         return {
             totalItems: this._items.length,
             renderedItems: this._elementMap.size,
+            placeholderCount: this._placeholderItemIds.size,
             loadedTop: this._loadedTop,
             loadedBottom: this._loadedBottom,
             firstId: this._items.length > 0 ? this._getItemId(this._items[0]) : undefined,
@@ -757,6 +975,11 @@ export class MessageVirtualScroll<T> {
         // NOTE: avoid per-event debug logging here — scroll fires at 60fps+ and
         // would fill the 500-entry logBuffer in seconds, drowning other log output.
         // Only log when a meaningful action is triggered (loadMore, slice).
+
+        // Track last scroll time for hybrid slicing timer
+        if (this._isUserInteracting) {
+            this._lastScrollTime = Date.now();
+        }
 
         // Debounced viewport slicing (like Telegram's sliceViewportDebounced)
         // Only trigger on user-initiated scrolls, not programmatic scrolls (auto-scroll).
@@ -821,6 +1044,141 @@ export class MessageVirtualScroll<T> {
                     this._isLoading.bottom = false;
                 });
         }
+
+        // Phase 2: Restore skeletons in preload range
+        this._restoreSkeletonsInRange(scrollTop, clientHeight);
+    }
+
+    /**
+     * Phase 2: Find and schedule restoration for skeletons in the preload range.
+     * Uses fixed 2× viewport preload distance for simplicity.
+     */
+    private _restoreSkeletonsInRange(scrollTop: number, clientHeight: number): void {
+        if (this._placeholderItemIds.size === 0) return;
+
+        // Fixed preload distance: 2× viewport height
+        const PRELOAD_DISTANCE = clientHeight * 2;
+
+        // Restore range: absolute coordinates (consistent with _placeholderPositions storage)
+        const restoreTop = scrollTop - PRELOAD_DISTANCE;
+        const restoreBottom = scrollTop + clientHeight + PRELOAD_DISTANCE;
+
+        // Find placeholders in range using binary search - O(log n + k)
+        const placeholdersInRange = this._findPlaceholdersInRange(restoreTop, restoreBottom);
+
+        if (placeholdersInRange.length === 0) return;
+
+        // Sort by scroll direction for natural restoration order
+        const direction = this._getScrollDirection();
+        if (direction === 'down') {
+            placeholdersInRange.sort((a, b) => a.y - b.y);
+        } else {
+            placeholdersInRange.sort((a, b) => b.y - a.y);
+        }
+
+        // Add to pending restoration queue (with dedup)
+        for (const entry of placeholdersInRange) {
+            if (!this._pendingRestorationIds.has(entry.itemId)) {
+                const index = this._findIndexByItemId(entry.itemId);
+                if (index >= 0) {
+                    this._pendingRestorations.push({
+                        itemId: entry.itemId,
+                        index,
+                        y: entry.y,
+                    });
+                    this._pendingRestorationIds.add(entry.itemId);
+                }
+            }
+        }
+
+        // Schedule batch restoration
+        this._scheduleBatchRestoration();
+    }
+
+    /**
+     * Detect scroll direction (up/down) based on last scroll position.
+     */
+    private _getScrollDirection(): 'down' | 'up' {
+        const currentTop = this._scrollContainer.scrollTop;
+        const direction = currentTop >= this._lastScrollTop ? 'down' : 'up';
+        this._lastScrollTop = currentTop;
+        return direction;
+    }
+
+    /**
+     * Find placeholders in Y coordinate range using binary search.
+     * O(log n) search + O(k) collection where k is result count.
+     */
+    private _findPlaceholdersInRange(yMin: number, yMax: number): Array<{itemId: string; y: number}> {
+        const result: Array<{itemId: string; y: number}> = [];
+
+        // Binary search for first y >= yMin - O(log n)
+        const startIdx = this._binarySearchLowerBound(yMin);
+
+        // Linear scan from startIdx until y > yMax - O(k)
+        for (let i = startIdx; i < this._placeholderPositions.length; i++) {
+            const entry = this._placeholderPositions[i];
+            if (entry.y > yMax) break;
+            result.push(entry);
+        }
+
+        return result;
+    }
+
+    /**
+     * Binary search: find first index where y >= target.
+     */
+    private _binarySearchLowerBound(target: number): number {
+        let lo = 0;
+        let hi = this._placeholderPositions.length;
+
+        while (lo < hi) {
+            const mid = (lo + hi) >>> 1;
+            if (this._placeholderPositions[mid].y < target) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+
+        return lo;
+    }
+
+    /**
+     * Schedule batch restoration with frame limit.
+     * Uses requestAnimationFrame for smooth rendering.
+     */
+    private _scheduleBatchRestoration(): void {
+        if (this._restorationScheduled || this._pendingRestorations.length === 0) return;
+
+        this._restorationScheduled = true;
+
+        requestAnimationFrame(() => {
+            this._restorationScheduled = false;
+
+            // Process up to MAX_RESTORATIONS_PER_FRAME items
+            const batch = this._pendingRestorations.splice(0, this.MAX_RESTORATIONS_PER_FRAME);
+
+            // Batch read heights (avoid layout thrashing)
+            const heights = new Map<string, number>();
+            for (const {itemId} of batch) {
+                const skeleton = this._findElementByItemId(itemId);
+                if (skeleton) {
+                    heights.set(itemId, skeleton.getBoundingClientRect().height);
+                }
+            }
+
+            // Batch restore (write to DOM)
+            for (const {itemId, index} of batch) {
+                const skeletonHeight = heights.get(itemId) ?? 0;
+                this._restoreSkeleton(itemId, index, skeletonHeight);
+            }
+
+            // Continue if more pending
+            if (this._pendingRestorations.length > 0) {
+                this._scheduleBatchRestoration();
+            }
+        });
     }
 
     // ── Viewport Slicing (Telegram-style) ──
@@ -878,75 +1236,105 @@ export class MessageVirtualScroll<T> {
         return {invisibleTop, visible, invisibleBottom};
     }
 
+    // ── Viewport Slicing (Hybrid: Timer + Scroll-debounce) ──
+
     /**
-     * Slice viewport: destroy off-screen messages, mark loaded flags.
-     * Mirrors Telegram's deleteViewportSlice (bubbles.ts:12390).
+     * Periodic timer callback for idle slicing.
+     * Only executes if user has been idle for IDLE_THRESHOLD ms.
+     * This ensures off-screen elements are skeletonized even when user stops scrolling.
+     */
+    private _onSliceTimer(): void {
+        const timeSinceLastScroll = Date.now() - this._lastScrollTime;
+
+        // Only slice if user has been idle for at least IDLE_THRESHOLD
+        if (timeSinceLastScroll < this.IDLE_THRESHOLD) {
+            log.debug(`Slice timer skipped: user active ${timeSinceLastScroll}ms ago`);
+            return;
+        }
+
+        log.debug(`Slice timer triggered: idle for ${timeSinceLastScroll}ms`);
+        this._sliceViewport();
+    }
+
+    /**
+     * Slice viewport: replace off-screen messages with skeleton placeholders.
+     *
+     * Phase 1: Instead of destroying elements, we replace them with skeleton
+     * placeholders that maintain the scroll height. This provides visual continuity
+     * and prevents scroll position jumps.
      *
      * IMPORTANT: Skip slicing if container is hidden (visibility: hidden).
-     * When hidden, getBoundingClientRect() returns zeros, causing all elements
-     * to be misclassified and destroyed. ScrollSaver also fails with zero rects.
+     * Uses explicit _isVisible flag (set via setVisibility()) as primary check,
+     * with getBoundingClientRect() as additional safety net for display: none.
+     *
+     * I3: Also checks _lastSliceTime to prevent double invocation from
+     * both scroll-debounce and periodic timer firing close together.
      */
     private _sliceViewport() {
         if (this._elementMap.size === 0) return;
 
-        // Check if container is visible (not hidden by content-visibility)
+        // I1: Check explicit visibility flag (primary check)
+        if (!this._isVisible) {
+            log.debug('Skipping _sliceViewport: container is not visible (explicit API)');
+            return;
+        }
+
+        // I3: Prevent rapid re-slicing (e.g., timer + scroll-debounce both firing)
+        const now = Date.now();
+        if (now - this._lastSliceTime < this.MIN_SLICE_INTERVAL) {
+            log.debug(`Skipping _sliceViewport: last slice was ${now - this._lastSliceTime}ms ago`);
+            return;
+        }
+
+        // Additional safety net: check if container has zero dimensions (display: none)
         const containerRect = this._scrollContainer.getBoundingClientRect();
         const isContainerVisible = containerRect.width > 0 && containerRect.height > 0;
         if (!isContainerVisible) {
-            log.debug('Skipping _sliceViewport: container is hidden');
+            log.debug('Skipping _sliceViewport: container has zero dimensions');
             return;
         }
+
+        // Record slice time for double-invocation guard
+        this._lastSliceTime = Date.now();
 
         const slice = this._getViewportSlice();
         const {invisibleTop, invisibleBottom} = slice;
 
         if (invisibleTop.length === 0 && invisibleBottom.length === 0) return;
 
+        // Filter out unstable items (streaming, recently arrived, etc.)
+        const stableInvisibleTop = invisibleTop.filter(part => this._checkItemStable(part.item));
+        const stableInvisibleBottom = invisibleBottom.filter(part => this._checkItemStable(part.item));
+
+        if (stableInvisibleTop.length === 0 && stableInvisibleBottom.length === 0) return;
+
         log.debug(
-            `Slicing viewport: invisibleTop=${invisibleTop.length}, ` +
-            `visible=${slice.visible.length}, invisibleBottom=${invisibleBottom.length}`
+            `Slicing viewport: stableTop=${stableInvisibleTop.length}, ` +
+            `stableBottom=${stableInvisibleBottom.length}, ` +
+            `visible=${slice.visible.length}`
         );
 
         // Mark as not fully loaded (like Telegram's setLoaded)
-        if (invisibleTop.length > 0) {
+        if (stableInvisibleTop.length > 0) {
             this._loadedTop = false;
         }
-        if (invisibleBottom.length > 0) {
+        if (stableInvisibleBottom.length > 0) {
             this._loadedBottom = false;
         }
 
         // Save scroll state
-        const scrollSaver = new ScrollSaver(this._scrollContainer, this._query, invisibleTop.length > 0);
+        const scrollSaver = new ScrollSaver(this._scrollContainer, this._query, stableInvisibleTop.length > 0);
         scrollSaver.save();
 
-        // Remove invisible top elements
-        for (const part of invisibleTop) {
-            part.element.remove();
-            this._elementMap.delete(part.index);
+        // Replace top invisible elements with skeleton placeholders
+        for (const part of stableInvisibleTop) {
+            this._replaceWithSkeleton(part.index, part.element, part.item);
         }
 
-        // Remove invisible bottom elements
-        for (const part of invisibleBottom) {
-            part.element.remove();
-            this._elementMap.delete(part.index);
+        // Replace bottom invisible elements with skeleton placeholders
+        for (const part of stableInvisibleBottom) {
+            this._replaceWithSkeleton(part.index, part.element, part.item);
         }
-
-        // Remove items from _items array (keep only visible items)
-        const visibleIndices = new Set(slice.visible.map(p => p.index));
-        this._items = this._items.filter((_, i) => visibleIndices.has(i));
-
-        // Rebuild _elementMap with new indices
-        const newElementMap = new Map<number, HTMLElement>();
-        let newIndex = 0;
-        slice.visible.forEach(part => {
-            newElementMap.set(newIndex, part.element);
-            part.element.dataset.messageIndex = String(newIndex);
-            newIndex++;
-        });
-        this._elementMap = newElementMap;
-
-        // Rebuild ID-to-index mapping
-        this._rebuildIdToIndex();
 
         // Restore scroll position
         scrollSaver.restore();
@@ -955,9 +1343,351 @@ export class MessageVirtualScroll<T> {
         this._onSizeChange?.();
 
         log.debug(
-            `After slice: items=${this._items.length}, ` +
+            `After slice: placeholders=${this._placeholderItemIds.size}, ` +
             `loadedTop=${this._loadedTop}, loadedBottom=${this._loadedBottom}`
         );
+    }
+
+    /**
+     * Replace real element with skeleton placeholder.
+     *
+     * This is the core of Phase 1: instead of destroying off-screen elements,
+     * we replace them with skeleton placeholders that maintain the scroll height.
+     *
+     * Steps:
+     * 1. Extract component state (if supported)
+     * 2. Cache the element height
+     * 3. Create skeleton placeholder
+     * 4. Replace DOM element
+     * 5. Track placeholder in _placeholderItemIds and _placeholderPositions
+     * 6. Stop tracking height for this element (skeleton height is fixed)
+     */
+    private _replaceWithSkeleton(index: number, element: HTMLElement, item: T): void {
+        const itemId = this._getItemId(item);
+
+        // Skip if already a placeholder
+        if (this._placeholderItemIds.has(itemId)) return;
+
+        // Step 1: Extract component state before destroying
+        if (this._extractComponentState) {
+            const state = this._extractComponentState(item, element);
+            if (state) {
+                this._cacheComponentState(itemId, state);
+            }
+        }
+
+        // Step 2: Get height (prefer cached height from ResizeObserver)
+        const cachedHeight = this._heightCache.get(itemId);
+        const height = cachedHeight ?? element.getBoundingClientRect().height;
+
+        // Step 3: Create skeleton placeholder
+        const skeleton = this._createPlaceholder
+            ? this._createPlaceholder(item, height)
+            : this._createDefaultSkeleton(item, height);
+
+        // Set dataset attributes for identification
+        skeleton.dataset.itemId = itemId;
+        skeleton.dataset.messageIndex = String(index);
+        skeleton.dataset.isSkeleton = 'true';
+
+        // Step 4: Calculate absolute Y position (relative to scroll container)
+        const containerRect = this._scrollContainer.getBoundingClientRect();
+        const elementRect = element.getBoundingClientRect();
+        const absoluteY = elementRect.top - containerRect.top + this._scrollContainer.scrollTop;
+
+        // Step 5: Replace element with skeleton in DOM
+        element.replaceWith(skeleton);
+        this._elementMap.set(index, skeleton);
+
+        // Step 6: Track placeholder using ID (not index)
+        this._placeholderItemIds.add(itemId);
+        this._addPlaceholderPosition(itemId, absoluteY);
+
+        // Step 7: Stop tracking height for old element, start for skeleton (no-op for skeleton)
+        this._itemResizeObserver?.unobserve(element);
+
+        log.debug(`Replaced item ${itemId} with skeleton (height=${height}px)`);
+    }
+
+    /**
+     * Phase 2: Restore a skeleton placeholder to a real element.
+     *
+     * This is the inverse of _replaceWithSkeleton:
+     * 1. Render the real element from item data
+     * 2. Inject cached state synchronously (before first render to avoid flicker)
+     * 3. Replace skeleton with real element in DOM
+     * 4. Start tracking height for the new element
+     * 5. Adjust scroll position if needed (for elements above viewport)
+     *
+     * @param itemId - Stable ID of the item (immune to index shifts from prepend/append)
+     * @param _index - Index at scheduling time (unused; resolved via _idToIndex for correctness)
+     * @param skeletonHeight - Height of the skeleton placeholder (for scroll adjustment)
+     */
+    private _restoreSkeleton(itemId: string, _index: number, skeletonHeight: number): void {
+        // Skip if not actually a placeholder (may have been restored already)
+        if (!this._placeholderItemIds.has(itemId)) return;
+
+        // Resolve current index: the provided index may be stale due to concurrent
+        // _items modifications (e.g., prependItems shifting indices). Use _idToIndex
+        // for O(1) lookup, falling back to elementMap scan.
+        let actualIndex = this._idToIndex.get(itemId);
+        if (actualIndex === undefined) {
+            // Fallback: scan _elementMap for the skeleton with matching itemId
+            for (const [idx, el] of this._elementMap) {
+                if (el.dataset.isSkeleton === 'true' && el.dataset.itemId === itemId) {
+                    actualIndex = idx;
+                    break;
+                }
+            }
+        }
+
+        if (actualIndex === undefined) {
+            log.debug(`Skipping restore: index not found for ${itemId}`);
+            return;
+        }
+
+        const item = this._items[actualIndex];
+        if (!item) {
+            log.warn(`Item not found at index ${actualIndex} for ${itemId}`);
+            return;
+        }
+
+        const skeleton = this._elementMap.get(actualIndex);
+        if (!skeleton) return;
+
+        // ===== SNAPSHOT PHASE: Capture all needed state before mutation =====
+        const snapshot = {
+            itemId,
+            index: actualIndex,
+            skeletonHeight,
+            skeletonY: this._getPlaceholderY(itemId),
+            cachedState: this._componentStateCache.get(itemId),
+        };
+
+        // ===== MUTATION PHASE: Safely modify data structures =====
+        // Render real content
+        const el = this._renderItem(item, actualIndex);
+        el.dataset.itemId = snapshot.itemId;
+        el.dataset.messageIndex = String(snapshot.index);
+        el.dataset.isSkeleton = 'false';
+
+        // Inject cached state (synchronous, before first render, avoids flicker)
+        if (snapshot.cachedState && this._injectComponentState) {
+            this._injectComponentState(item, el, snapshot.cachedState);
+        }
+
+        // Start tracking height for new element
+        this._itemResizeObserver?.observe(el);
+
+        // Replace skeleton with real content in DOM
+        skeleton.replaceWith(el);
+        this._elementMap.set(snapshot.index, el);
+
+        // Cleanup placeholder tracking
+        this._placeholderItemIds.delete(snapshot.itemId);
+        this._removePlaceholderPosition(snapshot.itemId);
+        this._componentStateCache.delete(snapshot.itemId);
+        this._pendingRestorationIds.delete(snapshot.itemId);
+
+        // ===== POST-MUTATION PHASE: Adjust scroll position if needed =====
+        requestAnimationFrame(() => {
+            const actualHeight = el.getBoundingClientRect().height;
+            const heightDiff = actualHeight - snapshot.skeletonHeight;
+
+            // Only adjust if height difference is significant
+            if (Math.abs(heightDiff) > 5) {
+                const viewportTop = this._scrollContainer.scrollTop;
+
+                // Only adjust if restored element is above current viewport
+                // (to avoid viewport jumping for elements user can see)
+                if (snapshot.skeletonY < viewportTop) {
+                    this._scrollContainer.scrollTop += heightDiff;
+                    log.debug(`Adjusted scroll position by ${heightDiff}px after restoring ${snapshot.itemId}`);
+                }
+            }
+        });
+
+        log.debug(`Restored skeleton for item ${snapshot.itemId}`);
+    }
+
+    /**
+     * Create default skeleton using MessageSkeletonGenerator.
+     * Called when createPlaceholder callback is not provided.
+     */
+    private _createDefaultSkeleton(item: T, height: number): HTMLElement {
+        const type = this._getSkeletonType(item);
+        const htmlContent = MessageSkeletonGenerator.generate(type, height);
+
+        const skeleton = document.createElement('div');
+        skeleton.className = `message-skeleton message-skeleton-${type}`;
+        skeleton.style.height = `${height}px`;
+        skeleton.innerHTML = htmlContent;
+        return skeleton;
+    }
+
+    /**
+     * Determine skeleton type based on item content.
+     * Uses type guard for safe property access on generic T.
+     *
+     * NOTE: This is a fallback method. In production, `createPlaceholder` callback
+     * is always provided by the consumer (rtc-message-list.ts), which uses
+     * MessageSkeletonGenerator.create() with full type information.
+     * This method is only used if createPlaceholder is not provided.
+     */
+    private _getSkeletonType(item: T): 'user' | 'assistant' | 'toolcall' | 'toolcall-reply' | 'error' {
+        // Type guard for safe property access
+        const hasRole = (obj: unknown): obj is {role: unknown} =>
+            typeof obj === 'object' && obj !== null && 'role' in obj;
+        const hasContent = (obj: unknown): obj is {content: unknown} =>
+            typeof obj === 'object' && obj !== null && 'content' in obj;
+
+        const role = hasRole(item) ? item.role : undefined;
+        const content = hasContent(item) ? item.content : undefined;
+        const contentType =
+            typeof content === 'object' && content !== null && 'type' in content
+                ? (content as {type: unknown}).type
+                : undefined;
+
+        if (role === 'user') return 'user';
+        if (role === 'error' || contentType === 'error') return 'error';
+        if (contentType === 'toolcall_output') return 'toolcall-reply';
+        if (contentType === 'toolcall_input') return 'toolcall';
+        return 'assistant';
+    }
+
+    /**
+     * Cache component state with capacity limit.
+     * When cache exceeds MAX_STATE_CACHE, removes oldest half.
+     * Uses Map iterator for O(1) key access without allocation.
+     */
+    private _cacheComponentState(itemId: string, state: Record<string, unknown>): void {
+        this._componentStateCache.set(itemId, state);
+
+        // Evict oldest half when over capacity
+        if (this._componentStateCache.size > this.MAX_STATE_CACHE) {
+            const iterator = this._componentStateCache.keys();
+            const removeCount = Math.floor(this._componentStateCache.size / 2);
+            for (let i = 0; i < removeCount; i++) {
+                const result = iterator.next();
+                if (!result.done) {
+                    this._componentStateCache.delete(result.value);
+                }
+            }
+            log.debug(`Evicted ${removeCount} entries from state cache`);
+        }
+    }
+
+    /**
+     * S5: Set height cache with capacity limit.
+     * When cache exceeds MAX_HEIGHT_CACHE, removes oldest half.
+     * Uses Map iterator for O(1) key access without allocation.
+     */
+    private _setHeightCache(itemId: string, height: number): void {
+        this._heightCache.set(itemId, height);
+
+        // Evict oldest half when over capacity
+        if (this._heightCache.size > this.MAX_HEIGHT_CACHE) {
+            const iterator = this._heightCache.keys();
+            const removeCount = Math.floor(this._heightCache.size / 2);
+            for (let i = 0; i < removeCount; i++) {
+                const result = iterator.next();
+                if (!result.done) {
+                    this._heightCache.delete(result.value);
+                }
+            }
+            log.debug(`Evicted ${removeCount} entries from height cache`);
+        }
+    }
+
+    /**
+     * Add placeholder position to sorted array (maintains Y-coordinate order).
+     * Uses binary search to find insertion point - O(log n) search + O(n) splice.
+     */
+    private _addPlaceholderPosition(itemId: string, y: number): void {
+        // Binary search for insertion point
+        let lo = 0;
+        let hi = this._placeholderPositions.length;
+        while (lo < hi) {
+            const mid = (lo + hi) >>> 1;
+            if (this._placeholderPositions[mid].y < y) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+
+        // Insert at lo position to maintain sorted order
+        this._placeholderPositions.splice(lo, 0, {itemId, y});
+
+        // Update reverse index map (all entries at or after lo shift by 1)
+        for (const [key, idx] of this._placeholderIndexMap) {
+            if (idx >= lo) this._placeholderIndexMap.set(key, idx + 1);
+        }
+        this._placeholderIndexMap.set(itemId, lo);
+    }
+
+    /**
+     * Check if an item is stable (safe to virtualize).
+     * Unstable items should not be replaced with skeletons.
+     */
+    private _checkItemStable(item: T): boolean {
+        // Use external callback if provided
+        if (this._isItemStable) {
+            return this._isItemStable(item);
+        }
+        // Default: all items are stable
+        return true;
+    }
+
+    /**
+     * Find placeholder Y coordinate from reverse index map - O(1).
+     */
+    protected _getPlaceholderY(itemId: string): number {
+        const idx = this._placeholderIndexMap.get(itemId);
+        if (idx === undefined) return 0;
+        return this._placeholderPositions[idx]?.y ?? 0;
+    }
+
+    /**
+     * Remove placeholder position from sorted array.
+     * Updates reverse index map for all subsequent entries.
+     */
+    protected _removePlaceholderPosition(itemId: string): void {
+        const idx = this._placeholderIndexMap.get(itemId);
+        if (idx === undefined) return;
+
+        this._placeholderPositions.splice(idx, 1);
+        this._placeholderIndexMap.delete(itemId);
+
+        // Update reverse index (all entries after idx shift by -1)
+        for (const [key, mapIdx] of this._placeholderIndexMap) {
+            if (mapIdx > idx) this._placeholderIndexMap.set(key, mapIdx - 1);
+        }
+    }
+
+    /**
+     * S3: Find element by itemId using O(1) map lookup.
+     * Falls back to DOM query only if not found in maps.
+     * Used for placeholder restoration and scroll-to-message.
+     */
+    protected _findElementByItemId(itemId: string): HTMLElement | null {
+        // Try O(1) lookup via _idToIndex + _elementMap first
+        const index = this._idToIndex.get(itemId);
+        if (index !== undefined) {
+            const el = this._elementMap.get(index);
+            if (el && el.isConnected) {
+                return el;
+            }
+        }
+        // Fallback to DOM query (for cases where index mapping is stale)
+        return this._innerContainer.querySelector(`[data-item-id="${itemId}"]`);
+    }
+
+    /**
+     * Find item index by itemId using _idToIndex map - O(1).
+     */
+    protected _findIndexByItemId(itemId: string): number {
+        return this._idToIndex.get(itemId) ?? -1;
     }
 
     // ── Rendering ──
@@ -970,9 +1700,14 @@ export class MessageVirtualScroll<T> {
         const fragment = document.createDocumentFragment();
         this._items.forEach((item, index) => {
             const el = this._renderItem(item, index);
+            const itemId = this._getItemId(item);
             el.dataset.messageIndex = String(index);
+            el.dataset.itemId = itemId;
+            el.dataset.isSkeleton = 'false';
             this._elementMap.set(index, el);
-            this._idToIndex.set(this._getItemId(item), index);
+            this._idToIndex.set(itemId, index);
+            // Start tracking height
+            this._itemResizeObserver?.observe(el);
             fragment.appendChild(el);
         });
 
@@ -995,9 +1730,14 @@ export class MessageVirtualScroll<T> {
         items.forEach((item, i) => {
             const index = startIndex + i;
             const el = this._renderItem(item, index);
+            const itemId = this._getItemId(item);
             el.dataset.messageIndex = String(index);
+            el.dataset.itemId = itemId;
+            el.dataset.isSkeleton = 'false';
             this._elementMap.set(index, el);
-            this._idToIndex.set(this._getItemId(item), index);
+            this._idToIndex.set(itemId, index);
+            // Start tracking height
+            this._itemResizeObserver?.observe(el);
             fragment.appendChild(el);
         });
         this._innerContainer.appendChild(fragment);
