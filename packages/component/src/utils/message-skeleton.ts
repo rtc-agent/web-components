@@ -26,16 +26,24 @@ export class MessageSkeletonGenerator {
 
     /**
      * Create a skeleton placeholder for a message (convenience method)
+     * Uses inline styles to bypass Lit's style scoping issues with dynamic DOM insertion.
      */
     static create(msg: Message, height: number): HTMLElement {
         const skeletonType = this._getSkeletonType(msg);
 
         const skeleton = document.createElement('div');
-        skeleton.className = `message-skeleton message-skeleton-${skeletonType}`;
-        skeleton.style.height = `${height}px`;
+        // Use inline styles for the container
+        skeleton.style.cssText = `
+            display: flex;
+            gap: 12px;
+            padding: 12px;
+            position: relative;
+            overflow: hidden;
+            height: ${height}px;
+        `;
         skeleton.setAttribute('data-client-id', msg.clientId);
 
-        // Generate internal structure based on type
+        // Generate internal structure with inline styles
         skeleton.innerHTML = this.generate(skeletonType, height);
 
         return skeleton;
@@ -56,6 +64,7 @@ export class MessageSkeletonGenerator {
 
     /**
      * Render skeleton content based on type
+     * All styles are inline to bypass Lit's style scoping issues.
      */
     private static _renderSkeletonContent(type: string, height: number): string {
         // Visual bounds: prevent excessive line count
@@ -70,30 +79,33 @@ export class MessageSkeletonGenerator {
         // At least 1 line
         const finalLineCount = Math.max(1, lineCount);
 
+        // Inline styles
+        const avatarStyle = 'width: 36px; height: 36px; border-radius: 50%; background: #e0e0e0; flex-shrink: 0;';
+
         switch (type) {
             case 'user':
                 return `
-                    <div class="skeleton-avatar"></div>
-                    <div class="skeleton-bubble">
+                    <div style="${avatarStyle}"></div>
+                    <div style="flex: 1; background: #e8e8e8; border-radius: 12px; padding: 12px; margin-left: auto; max-width: 70%;">
                         ${this._renderSkeletonLines(finalLineCount, 'right')}
                     </div>
                 `;
 
             case 'assistant':
                 return `
-                    <div class="skeleton-avatar"></div>
-                    <div class="skeleton-content">
+                    <div style="${avatarStyle}"></div>
+                    <div style="flex: 1; max-width: calc(100% - 48px);">
                         ${this._renderSkeletonLines(finalLineCount, 'left')}
                     </div>
                 `;
 
             case 'toolcall':
                 return `
-                    <div class="skeleton-avatar"></div>
-                    <div class="skeleton-toolcall">
-                        <div class="skeleton-toolcall-header">
-                            <div class="skeleton-icon"></div>
-                            <div class="skeleton-title"></div>
+                    <div style="${avatarStyle}"></div>
+                    <div style="flex: 1; background: #f5f5f5; border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                            <div style="width: 20px; height: 20px; border-radius: 4px; background: #d0d0d0;"></div>
+                            <div style="height: 16px; width: 120px; background: #d0d0d0; border-radius: 4px;"></div>
                         </div>
                         ${this._renderSkeletonLines(Math.min(5, finalLineCount), 'left')}
                     </div>
@@ -101,11 +113,11 @@ export class MessageSkeletonGenerator {
 
             case 'toolcall-reply':
                 return `
-                    <div class="skeleton-avatar"></div>
-                    <div class="skeleton-toolcall-reply">
-                        <div class="skeleton-reply-header">
-                            <div class="skeleton-icon"></div>
-                            <div class="skeleton-title"></div>
+                    <div style="${avatarStyle}"></div>
+                    <div style="flex: 1; background: #f0f8ff; border: 1px solid #d0e8ff; border-radius: 8px; padding: 12px;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                            <div style="width: 20px; height: 20px; border-radius: 4px; background: #d0d0d0;"></div>
+                            <div style="height: 16px; width: 120px; background: #d0d0d0; border-radius: 4px;"></div>
                         </div>
                         ${this._renderSkeletonLines(Math.min(3, finalLineCount), 'left')}
                     </div>
@@ -113,9 +125,9 @@ export class MessageSkeletonGenerator {
 
             case 'error':
                 return `
-                    <div class="skeleton-avatar"></div>
-                    <div class="skeleton-error">
-                        <div class="skeleton-error-icon"></div>
+                    <div style="${avatarStyle}"></div>
+                    <div style="flex: 1; background: #fff5f5; border: 1px solid #ffd0d0; border-radius: 8px; padding: 12px; display: flex; align-items: center; gap: 8px;">
+                        <div style="width: 24px; height: 24px; border-radius: 50%; background: #ffcccc; flex-shrink: 0;"></div>
                         ${this._renderSkeletonLines(Math.min(2, finalLineCount), 'left')}
                     </div>
                 `;
@@ -127,6 +139,7 @@ export class MessageSkeletonGenerator {
 
     /**
      * Render skeleton lines with varying widths
+     * All styles are inline to bypass Lit's style scoping issues.
      */
     private static _renderSkeletonLines(count: number, align: 'left' | 'right'): string {
         const widths =
@@ -134,9 +147,11 @@ export class MessageSkeletonGenerator {
                 ? [80, 60, 70, 50, 90] // User messages right-aligned
                 : [90, 75, 85, 65, 80]; // Assistant messages left-aligned
 
+        const lineStyle = 'height: 12px; background: #d0d0d0; border-radius: 6px; margin-bottom: 8px;';
+
         return Array.from({length: count}, (_, i) => {
             const width = widths[i % widths.length];
-            return `<div class="skeleton-line" style="width: ${width}%"></div>`;
+            return `<div style="${lineStyle} width: ${width}%;"></div>`;
         }).join('');
     }
 }

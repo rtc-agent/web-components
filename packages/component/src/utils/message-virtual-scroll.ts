@@ -1188,6 +1188,10 @@ export class MessageVirtualScroll<T> {
     /**
      * Phase 2: Find and schedule restoration for skeletons in the preload range.
      * Uses fixed 2× viewport preload distance for simplicity.
+     *
+     * IMPORTANT: For tall skeletons, we check if ANY part of the skeleton is in range,
+     * not just the top position. This ensures tall skeletons (e.g., 7000px) are restored
+     * when the user scrolls to their visible portion.
      */
     private _restoreSkeletonsInRange(scrollTop: number, clientHeight: number): void {
         if (this._placeholderItemIds.size === 0) return;
@@ -1199,8 +1203,20 @@ export class MessageVirtualScroll<T> {
         const restoreTop = scrollTop - PRELOAD_DISTANCE;
         const restoreBottom = scrollTop + clientHeight + PRELOAD_DISTANCE;
 
-        // Find placeholders in range using binary search - O(log n + k)
-        const placeholdersInRange = this._findPlaceholdersInRange(restoreTop, restoreBottom);
+        // Find placeholders where ANY part is in range (not just the top position)
+        // This is critical for tall skeletons where the top may be far from the visible portion
+        const placeholdersInRange = this._placeholderPositions.filter(entry => {
+            const skeleton = this._findElementByItemId(entry.itemId);
+            if (!skeleton) return false;
+
+            const skeletonHeight = skeleton.getBoundingClientRect().height;
+            const skeletonBottom = entry.y + skeletonHeight;
+
+            // Check if any part of the skeleton is in the restore range
+            return (entry.y >= restoreTop && entry.y <= restoreBottom) || // top in range
+                   (skeletonBottom >= restoreTop && skeletonBottom <= restoreBottom) || // bottom in range
+                   (entry.y < restoreTop && skeletonBottom > restoreBottom); // skeleton fully contains range
+        });
 
         if (placeholdersInRange.length === 0) return;
 
@@ -1239,45 +1255,6 @@ export class MessageVirtualScroll<T> {
         const direction = currentTop >= this._lastScrollTop ? 'down' : 'up';
         this._lastScrollTop = currentTop;
         return direction;
-    }
-
-    /**
-     * Find placeholders in Y coordinate range using binary search.
-     * O(log n) search + O(k) collection where k is result count.
-     */
-    private _findPlaceholdersInRange(yMin: number, yMax: number): Array<{itemId: string; y: number}> {
-        const result: Array<{itemId: string; y: number}> = [];
-
-        // Binary search for first y >= yMin - O(log n)
-        const startIdx = this._binarySearchLowerBound(yMin);
-
-        // Linear scan from startIdx until y > yMax - O(k)
-        for (let i = startIdx; i < this._placeholderPositions.length; i++) {
-            const entry = this._placeholderPositions[i];
-            if (entry.y > yMax) break;
-            result.push(entry);
-        }
-
-        return result;
-    }
-
-    /**
-     * Binary search: find first index where y >= target.
-     */
-    private _binarySearchLowerBound(target: number): number {
-        let lo = 0;
-        let hi = this._placeholderPositions.length;
-
-        while (lo < hi) {
-            const mid = (lo + hi) >>> 1;
-            if (this._placeholderPositions[mid].y < target) {
-                lo = mid + 1;
-            } else {
-                hi = mid;
-            }
-        }
-
-        return lo;
     }
 
     /**
