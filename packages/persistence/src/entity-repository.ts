@@ -126,7 +126,7 @@ export class EntityRepository {
       existing = await db.sessions.where('client_id').equals(session.client_id).first();
     }
 
-    log.debug('upsertSession]', existing ? 'UPDATE' : 'CREATE', 'client_id:', session.client_id, 'title:', session.title);
+    log.debug('upsertSession:', existing ? 'UPDATE' : 'CREATE', 'client_id:', session.client_id, 'title:', session.title);
 
     let result: UpsertResult<LocalSession>;
     let action: UpdateAction;
@@ -141,7 +141,7 @@ export class EntityRepository {
       await db.sessions.put(updated);
       result = { before, after: updated };
       action = 'updated';
-      log.debug('upsertSession] After update - title:', updated.title);
+      log.debug('upsertSession: After update - title:', updated.title);
     } else {
       // Spread session first to preserve all optional fields (device_id, todo_list, token counters, etc.),
       // then override required fields with safe defaults when caller omits them.
@@ -161,7 +161,7 @@ export class EntityRepository {
       await db.sessions.put(newSession);
       result = { before: undefined, after: newSession };
       action = 'created';
-      log.debug('upsertSession] After create - title:', newSession.title);
+      log.debug('upsertSession: After create - title:', newSession.title);
     }
 
     if (!options?.silent) {
@@ -189,10 +189,10 @@ export class EntityRepository {
     const db = getDatabase();
     const query = db.sessions.orderBy('updated_at').reverse();
     const all = await query.toArray();
-    log.debug(`listSessions] total=${all.length}, with deleted_at=${all.filter(s => s.deleted_at).length}`);
+    log.debug(`listSessions: total=${all.length}, with deleted_at=${all.filter(s => s.deleted_at).length}`);
     // Filter soft-deleted items (deleted_at non-empty means deleted)
     const active = all.filter(s => !s.deleted_at);
-    log.debug(`listSessions] after filter=${active.length}`);
+    log.debug(`listSessions: after filter=${active.length}`);
     // Cursor is the client_id of the last item on the previous page; return items after it
     if (cursor) {
       const startIdx = active.findIndex(s => s.client_id === cursor);
@@ -214,7 +214,7 @@ export class EntityRepository {
       throw new Error(`[EntityRepository] softDeleteSession: session not found: ${clientId}`);
     }
     const now = nowRFC3339();
-    log.debug(`softDeleteSession] setting deleted_at=${now} for ${clientId}`);
+    log.debug(`softDeleteSession: setting deleted_at=${now} for ${clientId}`);
     const result = await this.upsertSession(
       {
         client_id: clientId,
@@ -223,7 +223,7 @@ export class EntityRepository {
       },
       'pending',
     );
-    log.debug(`softDeleteSession] after upsert, deleted_at=${result.after.deleted_at}`);
+    log.debug(`softDeleteSession: after upsert, deleted_at=${result.after.deleted_at}`);
     return result;
   }
 
@@ -563,7 +563,7 @@ export class EntityRepository {
     if (session) {
       return session.client_id;
     }
-    log.warn(` ${entityType} ${entityId} references unknown session ${serverSessionId}`);
+    log.warn(`${entityType} ${entityId} references unknown session ${serverSessionId}`);
     return serverSessionId;
   }
 
