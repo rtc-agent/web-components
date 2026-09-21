@@ -726,7 +726,11 @@ export class RtcAgent extends LitElement {
         if (result.ok) {
             this._toast.actions.show(msg('会话已删除'), 'success');
         } else {
-            this._toast.actions.show(result.error ?? msg('删除失败'), 'error');
+            // Map error codes to localized messages in reactive context
+            const errorMap: Record<string, string> = {
+                'delete-failed': msg('删除失败，请稍后重试'),
+            };
+            this._toast.actions.show(errorMap[result.error ?? ''] ?? result.error ?? msg('删除失败'), 'error');
         }
     };
     private _boundOnSessionRenameConfirmed = async (e: Event) => {
@@ -735,7 +739,11 @@ export class RtcAgent extends LitElement {
         if (!title.trim()) return;
         const result = await this._session.actions.renameSession(sessionId, title.trim());
         if (!result.ok) {
-            this._toast.actions.show(result.error ?? msg('重命名失败'), 'error');
+            // Map error codes to localized messages in reactive context
+            const errorMap: Record<string, string> = {
+                'rename-failed': msg('重命名失败，请稍后重试'),
+            };
+            this._toast.actions.show(errorMap[result.error ?? ''] ?? result.error ?? msg('重命名失败'), 'error');
         }
     };
     private _boundOnToastRequested = (e: Event) => {

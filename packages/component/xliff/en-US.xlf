@@ -342,10 +342,6 @@
   <source>删除失败</source>
   <target>Delete failed</target>
 </trans-unit>
-<trans-unit id="s4c68ea778c075cf4">
-  <source>标题不能为空</source>
-  <target>Title cannot be empty</target>
-</trans-unit>
 <trans-unit id="sa33d70ea05452700">
   <source>重命名失败</source>
   <target>Rename failed</target>
@@ -793,6 +789,54 @@
 <trans-unit id="s6e6fcdcdc7f1d8ed">
   <source>点击重新连接</source>
 <target>Click to reconnect</target>
+</trans-unit>
+<trans-unit id="sfea2ebf059badaef">
+  <source>重新打开会话失败，请重试</source>
+</trans-unit>
+<trans-unit id="s137c22eb354da646">
+  <source>Open a session to get started</source>
+</trans-unit>
+<trans-unit id="s517d88be67d6e3a1">
+  <source>API 错误</source>
+</trans-unit>
+<trans-unit id="se258c00947dff962">
+  <source>超时</source>
+</trans-unit>
+<trans-unit id="s40ed993dc74df287">
+  <source>系统错误</source>
+</trans-unit>
+<trans-unit id="seac90f283e7fd6c7">
+  <source>上下文错误</source>
+</trans-unit>
+<trans-unit id="s9f4bc4c7ab86563c">
+  <source>网络错误</source>
+</trans-unit>
+<trans-unit id="sa0ed14fd850830c6">
+  <source>权限错误</source>
+</trans-unit>
+<trans-unit id="sf9233eede445eae0">
+  <source>流错误</source>
+</trans-unit>
+<trans-unit id="s6d4e9348f09b8cd1">
+  <source>工具错误</source>
+</trans-unit>
+<trans-unit id="sfb96d9095ccbf1e1">
+  <source>错误</source>
+</trans-unit>
+<trans-unit id="s013e9b380fa77bee">
+  <source>未知命令: /<x id="0" equiv-text="${name}"/></source>
+</trans-unit>
+<trans-unit id="s21bea120f4f64d80">
+  <source>文件 <x id="0" equiv-text="${filePath}"/> 被其他标签页修改</source>
+</trans-unit>
+<trans-unit id="sdd5a7cb7d074a219">
+  <source>文件 <x id="0" equiv-text="${filePath}"/> 已被删除</source>
+</trans-unit>
+<trans-unit id="s814dfb26b607cdf3">
+  <source>删除失败，请稍后重试</source>
+</trans-unit>
+<trans-unit id="s999e1da626842b8c">
+  <source>重命名失败，请稍后重试</source>
 </trans-unit>
 </body>
 </file>
