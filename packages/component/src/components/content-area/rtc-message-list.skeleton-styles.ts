@@ -3,6 +3,8 @@
  *
  * Provides shimmer animation and visual structure for skeleton screens.
  * Imported and applied by rtc-message-list component.
+ *
+ * Phase 4 (I3 fix): Theme-aware colors using CSS custom properties.
  */
 
 import {css} from 'lit';
@@ -11,6 +13,34 @@ import {css} from 'lit';
  * Skeleton screen CSS styles
  */
 export const skeletonStyles = css`
+    /* Theme-aware skeleton colors */
+    :host {
+        --skeleton-bg-primary: #e0e0e0;
+        --skeleton-bg-secondary: #e8e8e8;
+        --skeleton-bg-tertiary: #d0d0d0;
+        --skeleton-bg-toolcall: #f5f5f5;
+        --skeleton-bg-toolcall-reply: #f0f8ff;
+        --skeleton-bg-error: #fff5f5;
+        --skeleton-border-toolcall: #e0e0e0;
+        --skeleton-border-toolcall-reply: #d0e8ff;
+        --skeleton-border-error: #ffd0d0;
+        --skeleton-icon-error: #ffcccc;
+    }
+
+    /* Dark theme overrides */
+    :host([theme='dark']) {
+        --skeleton-bg-primary: #3a3a3a;
+        --skeleton-bg-secondary: #4a4a4a;
+        --skeleton-bg-tertiary: #555555;
+        --skeleton-bg-toolcall: #2a2a2a;
+        --skeleton-bg-toolcall-reply: #1a2a3a;
+        --skeleton-bg-error: #3a1a1a;
+        --skeleton-border-toolcall: #4a4a4a;
+        --skeleton-border-toolcall-reply: #2a4a6a;
+        --skeleton-border-error: #5a2a2a;
+        --skeleton-icon-error: #5a3a3a;
+    }
+
     /* Base skeleton style */
     .message-skeleton {
         display: flex;
@@ -54,14 +84,14 @@ export const skeletonStyles = css`
         width: 36px;
         height: 36px;
         border-radius: 50%;
-        background: #e0e0e0;
+        background: var(--skeleton-bg-primary);
         flex-shrink: 0;
     }
 
     /* Message bubble skeleton (user messages - right aligned) */
     .skeleton-bubble {
         flex: 1;
-        background: #e8e8e8;
+        background: var(--skeleton-bg-secondary);
         border-radius: 12px;
         padding: 12px;
         margin-left: auto;
@@ -77,7 +107,7 @@ export const skeletonStyles = css`
     /* Skeleton lines (text line placeholders) */
     .skeleton-line {
         height: 12px;
-        background: #d0d0d0;
+        background: var(--skeleton-bg-tertiary);
         border-radius: 6px;
         margin-bottom: 8px;
         animation: skeleton-pulse 1.5s infinite ease-in-out;
@@ -104,8 +134,8 @@ export const skeletonStyles = css`
     /* Tool call skeleton */
     .skeleton-toolcall {
         flex: 1;
-        background: #f5f5f5;
-        border: 1px solid #e0e0e0;
+        background: var(--skeleton-bg-toolcall);
+        border: 1px solid var(--skeleton-border-toolcall);
         border-radius: 8px;
         padding: 12px;
     }
@@ -121,21 +151,21 @@ export const skeletonStyles = css`
         width: 20px;
         height: 20px;
         border-radius: 4px;
-        background: #d0d0d0;
+        background: var(--skeleton-bg-tertiary);
     }
 
     .skeleton-title {
         height: 16px;
         width: 120px;
-        background: #d0d0d0;
+        background: var(--skeleton-bg-tertiary);
         border-radius: 4px;
     }
 
     /* Tool call reply skeleton */
     .skeleton-toolcall-reply {
         flex: 1;
-        background: #f0f8ff;
-        border: 1px solid #d0e8ff;
+        background: var(--skeleton-bg-toolcall-reply);
+        border: 1px solid var(--skeleton-border-toolcall-reply);
         border-radius: 8px;
         padding: 12px;
     }
@@ -150,8 +180,8 @@ export const skeletonStyles = css`
     /* Error skeleton */
     .skeleton-error {
         flex: 1;
-        background: #fff5f5;
-        border: 1px solid #ffd0d0;
+        background: var(--skeleton-bg-error);
+        border: 1px solid var(--skeleton-border-error);
         border-radius: 8px;
         padding: 12px;
         display: flex;
@@ -163,7 +193,7 @@ export const skeletonStyles = css`
         width: 24px;
         height: 24px;
         border-radius: 50%;
-        background: #ffcccc;
+        background: var(--skeleton-icon-error);
         flex-shrink: 0;
     }
 `;

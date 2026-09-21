@@ -48,7 +48,7 @@ import './rtc-user-message.js';
 import './rtc-toolcall-card.js';
 import './rtc-toolcall-reply.js';
 import './rtc-error-message.js';
-import {MessageVirtualScroll, type WindowBoundary} from '../../utils/message-virtual-scroll.js';
+import {MessageVirtualScroll, type WindowBoundary, type StatefulComponent} from '../../utils/message-virtual-scroll.js';
 import {MessageSkeletonGenerator} from '../../utils/message-skeleton.js';
 
 /** Delay for programmatic scroll event guard (auto scroll, covers layout batching). */
@@ -160,6 +160,7 @@ export class RtcMessageList extends LitElement {
     private _scrollGuardTimer?: number;
     private _smoothScrollTimer?: number;
     private _highlightTimer?: number;
+    private _scrollToMessageTimer?: number;
 
     /** Virtual scroll instance for efficient rendering */
     private _virtualScroll?: MessageVirtualScroll<Message>;
@@ -194,9 +195,29 @@ export class RtcMessageList extends LitElement {
     /**
      * Public API: scroll to a specific message by clientId.
      * Called by parent components to navigate to a particular message.
+     *
+     * Phase 5 (I3): Enhanced with debounce and skeleton awareness.
+     * - Debounces rapid successive calls (100ms)
+     * - If target is a skeleton placeholder, sync-restores it first
+     * - Falls back to DOM query if virtual scroll is not initialized
      */
-    scrollToMessage(clientId: string) {
+    scrollToMessage(clientId: string): void {
+        // Debounce: prevent rapid successive calls from blocking main thread
+        clearTimeout(this._scrollToMessageTimer);
+        this._scrollToMessageTimer = window.setTimeout(() => {
+            this._doScrollToMessage(clientId);
+        }, 100);
+    }
+
+    private _doScrollToMessage(clientId: string): void {
         if (!this._scrollEl) return;
+
+        // Phase 5 (I3): If virtual scroll has the item as a skeleton, sync-restore it first
+        if (this._virtualScroll?.isPlaceholder(clientId)) {
+            this._virtualScroll.syncRestorePlaceholder(clientId);
+        }
+
+        // Try to find the element (may have just been restored from skeleton)
         const el = this._scrollEl.querySelector(`[data-client-id="${clientId}"]`) as HTMLElement | null;
         if (el) {
             el.scrollIntoView({behavior: 'smooth', block: 'center'});
@@ -246,23 +267,29 @@ export class RtcMessageList extends LitElement {
                 createPlaceholder: (msg, height) => MessageSkeletonGenerator.create(msg, height),
                 // Phase 2: Extract component state before skeletonization
                 extractComponentState: (_msg, el) => {
-                    if ('getState' in el && typeof el.getState === 'function') {
-                        return (el as {getState: () => Record<string, unknown>}).getState();
+                    if ('getState' in el && typeof (el as unknown as StatefulComponent).getState === 'function') {
+                        return (el as unknown as StatefulComponent).getState();
                     }
                     return null;
                 },
                 // Phase 2: Inject component state after restoration
                 injectComponentState: (_msg, el, state) => {
-                    if ('setState' in el && typeof el.setState === 'function') {
-                        (el as {setState: (state: Record<string, unknown>) => void}).setState(state);
+                    if ('setState' in el && typeof (el as unknown as StatefulComponent).setState === 'function') {
+                        (el as unknown as StatefulComponent).setState(state);
                     }
                 },
-                // Phase 2: Check if item is stable (safe to skeletonize)
+                // Phase 2+4: Check if item is stable (safe to skeletonize)
                 isItemStable: (msg) => {
                     // Streaming messages are unstable - content is actively changing
                     if (msg.streaming) return false;
-                    // All other messages are stable - Markdown rendering is fast (50-200ms)
-                    // and will complete before the next slice check (3s+ idle)
+
+                    // Recently arrived messages (< 2s) are unstable - Markdown may still be rendering
+                    if (msg.timestamp) {
+                        const age = Date.now() - new Date(msg.timestamp).getTime();
+                        if (age < 2000) return false;
+                    }
+
+                    // All other messages are stable
                     return true;
                 },
             });
@@ -478,12 +505,27 @@ export class RtcMessageList extends LitElement {
         clearTimeout(this._scrollGuardTimer);
         clearTimeout(this._smoothScrollTimer);
         clearTimeout(this._highlightTimer);
+        clearTimeout(this._scrollToMessageTimer);
         document.removeEventListener('visibilitychange', this._boundOnVisibilityChange);
         this.removeEventListener('rtc-toolcall-jump', this._handleToolcallJump as EventListener);
         this._subscription?.();
         this._subscription = undefined;
         this._virtualScroll?.dispose();
         this._virtualScroll = undefined;
+    }
+
+    /**
+     * Tab visibility handler - called by parent component when tab switches.
+     * Phase 4: Explicit visibility API integration.
+     *
+     * When hidden, virtual scroll skips viewport slicing to prevent incorrect
+     * skeletonization of elements in a hidden container (inactive tab).
+     * When visible again, triggers a slice check to skeletonize off-screen elements.
+     *
+     * @param visible - Whether the tab is currently visible
+     */
+    onTabVisibilityChange(visible: boolean): void {
+        this._virtualScroll?.setVisibility(visible);
     }
 
     /**

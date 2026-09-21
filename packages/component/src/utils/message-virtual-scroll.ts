@@ -242,10 +242,33 @@ export class MessageVirtualScroll<T> {
     /** Minimum interval between _sliceViewport calls (ms) */
     private readonly MIN_SLICE_INTERVAL = 2000;
 
-    // ── Visibility API (Phase 4 preparation) ──
+    // ── Visibility API (Phase 4) ──
 
     /** Explicit visibility state - controlled by setVisibility() */
     private _isVisible: boolean = true;
+
+    // ── Stream Awareness (Phase 4) ──
+
+    /** Active streaming item IDs - prevents skeletonization during streaming */
+    private _activeStreams: Set<string> = new Set();
+
+    // ── Container Resize Observer (Phase 5, I4) ──
+
+    /** ResizeObserver for scroll container - rebuilds placeholder positions on resize */
+    private _containerResizeObserver?: ResizeObserver;
+
+    // ── Hot/Cold Data Separation (Phase 5, I2) ──
+
+    /**
+     * Cold storage: historical messages that have been settled out of the hot window.
+     * Items are moved here when _items exceeds MAX_HOT_ITEMS.
+     * The repository serves as the authoritative external cache; _coldItems is a
+     * secondary buffer for quick access without repository round-trips.
+     */
+    private _coldItems: T[] = [];
+
+    /** Maximum items in hot storage before settling to cold */
+    private readonly MAX_HOT_ITEMS = 500;
 
     constructor(options: MessageVirtualScrollOptions<T>) {
         this._scrollContainer = options.scrollContainer;
@@ -296,6 +319,13 @@ export class MessageVirtualScroll<T> {
 
         // Setup user interaction tracking to distinguish user vs programmatic scrolls
         this._setupInteractionTracking();
+
+        // Phase 5 (I4): Setup container resize observer
+        // Rebuilds placeholder positions when the scroll container resizes (e.g., window resize)
+        this._containerResizeObserver = new ResizeObserver(() => {
+            this._onContainerResize();
+        });
+        this._containerResizeObserver.observe(this._scrollContainer);
     }
 
     /**
@@ -318,6 +348,8 @@ export class MessageVirtualScroll<T> {
             this._loadedTop = false;
             this._loadedBottom = true;
             this._renderAll();
+            // Phase 5 (I2): Settle excess items to cold storage
+            this._settleData();
             return;
         }
 
@@ -377,6 +409,9 @@ export class MessageVirtualScroll<T> {
         }
 
         this._rebuildIdToIndex();
+
+        // Phase 5 (I2): Settle excess items to cold storage
+        this._settleData();
     }
 
     /**
@@ -755,12 +790,20 @@ export class MessageVirtualScroll<T> {
             `diff=${scrollTopAfter - scrollTopBefore}`
         );
 
+        // Phase 5 (I2): Settle excess items to cold storage
+        this._settleData();
+
         this._onSizeChange?.();
     }
 
     /**
      * Update a single item by ID.
      * O(1) lookup using _idToIndex map.
+     *
+     * Phase 5: Correctly handles placeholder state:
+     * - Always updates data model
+     * - If placeholder and content changed, invalidates cached state
+     * - If not placeholder, updates DOM
      *
      * @param itemId - The ID of the item to update
      * @param newItem - The new item data
@@ -770,17 +813,30 @@ export class MessageVirtualScroll<T> {
         const index = this._idToIndex.get(itemId);
         if (index === undefined) return false;
 
-        const element = this._elementMap.get(index);
-        if (!element || !element.isConnected) return false;
-
         // Check if content actually changed
         const oldItem = this._items[index];
-        if (this._itemsEqual(oldItem, newItem)) {
-            return true; // No change, but item exists
+        const contentChanged = !this._itemsEqual(oldItem, newItem);
+
+        // 1. Always update data in _items
+        this._items[index] = newItem;
+
+        // 2. If placeholder and content changed, invalidate cached state
+        if (this._placeholderItemIds.has(itemId) && contentChanged) {
+            this._componentStateCache.delete(itemId);
+            log.debug(`Invalidated cached state for ${itemId} (content changed while placeholder)`);
+            return true; // Data updated, DOM will be updated on restoration
         }
 
-        // Update items array
-        this._items[index] = newItem;
+        // 3. If component exists (not a placeholder), update DOM
+        const element = this._elementMap.get(index);
+        if (!element || !element.isConnected) {
+            return true; // Data updated but not in DOM
+        }
+
+        // Skip DOM update if content unchanged
+        if (!contentChanged) {
+            return true;
+        }
 
         // In-place update: preserve DOM state (e.g., rendered Markdown)
         if (this._updateItemElement) {
@@ -822,6 +878,12 @@ export class MessageVirtualScroll<T> {
         // Phase 2: Cleanup restoration state
         this._pendingRestorations = [];
         this._pendingRestorationIds.clear();
+
+        // Phase 4: Cleanup stream tracking
+        this._activeStreams.clear();
+
+        // Phase 5 (I2): Cleanup cold storage
+        this._coldItems = [];
     }
 
     /**
@@ -850,6 +912,63 @@ export class MessageVirtualScroll<T> {
      */
     isVisible(): boolean {
         return this._isVisible;
+    }
+
+    /**
+     * Mark an item as actively streaming.
+     * Prevents skeletonization during streaming output.
+     * Call this when WebSocket stream starts for a message.
+     */
+    markStreamStart(itemId: string): void {
+        this._activeStreams.add(itemId);
+        log.debug(`Stream started for ${itemId}`);
+    }
+
+    /**
+     * Mark an item's streaming as ended.
+     * Allows skeletonization after streaming completes.
+     * Call this when WebSocket stream ends for a message.
+     */
+    markStreamEnd(itemId: string): void {
+        this._activeStreams.delete(itemId);
+        log.debug(`Stream ended for ${itemId}`);
+        // Trigger a slice check so the item can be skeletonized if off-screen
+        this._sliceViewport();
+    }
+
+    /**
+     * Check if an item is currently streaming.
+     */
+    isStreaming(itemId: string): boolean {
+        return this._activeStreams.has(itemId);
+    }
+
+    /**
+     * Check if an item is currently a skeleton placeholder.
+     * Used by scrollToMessage to determine if sync restoration is needed.
+     */
+    isPlaceholder(itemId: string): boolean {
+        return this._placeholderItemIds.has(itemId);
+    }
+
+    /**
+     * Synchronously restore a skeleton placeholder to a real element.
+     * Used by scrollToMessage to ensure the target is visible before scrolling.
+     *
+     * Unlike batch restoration (which uses requestAnimationFrame), this runs
+     * synchronously so the caller can immediately scroll to the restored element.
+     */
+    syncRestorePlaceholder(itemId: string): void {
+        if (!this._placeholderItemIds.has(itemId)) return;
+
+        const index = this._findIndexByItemId(itemId);
+        if (index === -1) return;
+
+        const skeleton = this._elementMap.get(index);
+        if (!skeleton) return;
+
+        const skeletonHeight = skeleton.getBoundingClientRect().height;
+        this._restoreSkeleton(itemId, index, skeletonHeight);
     }
 
     scrollToBottom() {
@@ -923,6 +1042,11 @@ export class MessageVirtualScroll<T> {
             this._itemResizeObserver.disconnect();
             this._itemResizeObserver = undefined;
         }
+        // Phase 5 (I4): Cleanup container resize observer
+        if (this._containerResizeObserver) {
+            this._containerResizeObserver.disconnect();
+            this._containerResizeObserver = undefined;
+        }
         // Release internal references to allow GC of items and DOM elements.
         // Without this, the scroll container's parent may hold the virtual scroll
         // object alive long after disconnection, keeping large item arrays and
@@ -941,6 +1065,12 @@ export class MessageVirtualScroll<T> {
         // Phase 2: Cleanup restoration state
         this._pendingRestorations = [];
         this._pendingRestorationIds.clear();
+
+        // Phase 4: Cleanup stream tracking
+        this._activeStreams.clear();
+
+        // Phase 5 (I2): Cleanup cold storage
+        this._coldItems = [];
     }
 
     getStats() {
@@ -952,6 +1082,12 @@ export class MessageVirtualScroll<T> {
             loadedBottom: this._loadedBottom,
             firstId: this._items.length > 0 ? this._getItemId(this._items[0]) : undefined,
             lastId: this._items.length > 0 ? this._getItemId(this._items[this._items.length - 1]) : undefined,
+            // Phase 5 (S2): Extended metrics for monitoring and debugging
+            heightCacheSize: this._heightCache.size,
+            stateCacheSize: this._componentStateCache.size,
+            activeStreamCount: this._activeStreams.size,
+            pendingRestorationCount: this._pendingRestorations.length,
+            isVisible: this._isVisible,
         };
     }
 
@@ -1155,6 +1291,12 @@ export class MessageVirtualScroll<T> {
 
         requestAnimationFrame(() => {
             this._restorationScheduled = false;
+
+            // Phase 4: Skip restoration if container is not visible (e.g., tab switched away)
+            if (!this._isVisible) {
+                log.debug('Skipping batch restoration: container is not visible');
+                return;
+            }
 
             // Process up to MAX_RESTORATIONS_PER_FRAME items
             const batch = this._pendingRestorations.splice(0, this.MAX_RESTORATIONS_PER_FRAME);
@@ -1368,6 +1510,13 @@ export class MessageVirtualScroll<T> {
         // Skip if already a placeholder
         if (this._placeholderItemIds.has(itemId)) return;
 
+        // Phase 4 (I7 fix): Skip if element has been disconnected from DOM
+        // (e.g., by concurrent clear() or session switch)
+        if (!element.isConnected) {
+            log.debug(`Skipping skeleton replacement for ${itemId}: element not connected`);
+            return;
+        }
+
         // Step 1: Extract component state before destroying
         if (this._extractComponentState) {
             const state = this._extractComponentState(item, element);
@@ -1432,7 +1581,8 @@ export class MessageVirtualScroll<T> {
         // for O(1) lookup, falling back to elementMap scan.
         let actualIndex = this._idToIndex.get(itemId);
         if (actualIndex === undefined) {
-            // Fallback: scan _elementMap for the skeleton with matching itemId
+            // _idToIndex is stale — fall back to elementMap scan
+            log.debug(`_idToIndex stale for ${itemId}, falling back to elementMap scan`);
             for (const [idx, el] of this._elementMap) {
                 if (el.dataset.isSkeleton === 'true' && el.dataset.itemId === itemId) {
                     actualIndex = idx;
@@ -1620,6 +1770,7 @@ export class MessageVirtualScroll<T> {
         this._placeholderPositions.splice(lo, 0, {itemId, y});
 
         // Update reverse index map (all entries at or after lo shift by 1)
+        // Safe: Map.set() during iteration updates existing keys without affecting iteration order
         for (const [key, idx] of this._placeholderIndexMap) {
             if (idx >= lo) this._placeholderIndexMap.set(key, idx + 1);
         }
@@ -1631,10 +1782,18 @@ export class MessageVirtualScroll<T> {
      * Unstable items should not be replaced with skeletons.
      */
     private _checkItemStable(item: T): boolean {
+        const itemId = this._getItemId(item);
+
+        // Phase 4: Check active streams first (explicit stream marking)
+        if (this._activeStreams.has(itemId)) {
+            return false;
+        }
+
         // Use external callback if provided
         if (this._isItemStable) {
             return this._isItemStable(item);
         }
+
         // Default: all items are stable
         return true;
     }
@@ -1660,6 +1819,7 @@ export class MessageVirtualScroll<T> {
         this._placeholderIndexMap.delete(itemId);
 
         // Update reverse index (all entries after idx shift by -1)
+        // Safe: Map.set() during iteration updates existing keys without affecting iteration order
         for (const [key, mapIdx] of this._placeholderIndexMap) {
             if (mapIdx > idx) this._placeholderIndexMap.set(key, mapIdx - 1);
         }
@@ -1688,6 +1848,76 @@ export class MessageVirtualScroll<T> {
      */
     protected _findIndexByItemId(itemId: string): number {
         return this._idToIndex.get(itemId) ?? -1;
+    }
+
+    // ── Container Resize Handling (Phase 5, I4) ──
+
+    /**
+     * Handle scroll container resize (e.g., window resize).
+     * Rebuilds all placeholder Y positions since cached coordinates become stale.
+     */
+    private _onContainerResize(): void {
+        if (this._placeholderPositions.length === 0) return;
+        this._rebuildPlaceholderPositions();
+        // Schedule a debounced slice check after position rebuild
+        if (this._sliceDebounceTimer) {
+            clearTimeout(this._sliceDebounceTimer);
+        }
+        this._sliceDebounceTimer = window.setTimeout(() => {
+            this._sliceViewport();
+        }, this._sliceDebounceDelay);
+    }
+
+    /**
+     * Rebuild all placeholder positions from current DOM state.
+     * Called when the scroll container resizes and cached Y coordinates become stale.
+     */
+    private _rebuildPlaceholderPositions(): void {
+        this._placeholderPositions = [];
+        this._placeholderIndexMap.clear();
+
+        const containerRect = this._scrollContainer.getBoundingClientRect();
+        for (const itemId of this._placeholderItemIds) {
+            const element = this._findElementByItemId(itemId);
+            if (element) {
+                const rect = element.getBoundingClientRect();
+                const absoluteY = rect.top - containerRect.top + this._scrollContainer.scrollTop;
+                this._addPlaceholderPosition(itemId, absoluteY);
+            }
+        }
+
+        log.debug(`Rebuilt ${this._placeholderPositions.length} placeholder positions after container resize`);
+    }
+
+    // ── Hot/Cold Data Settlement (Phase 5, I2) ──
+
+    /**
+     * Settle excess hot items to cold storage.
+     * Called after items are added to prevent unbounded memory growth.
+     *
+     * When _items exceeds MAX_HOT_ITEMS, the oldest items are moved to _coldItems.
+     * This keeps the hot window small for fast iteration while retaining recent
+     * history for quick access without repository round-trips.
+     *
+     * Note: This only affects the data layer. The DOM layer (_elementMap) already
+     * only tracks visible elements via skeleton placeholders, so settlement has
+     * no visual impact.
+     */
+    private _settleData(): void {
+        if (this._items.length <= this.MAX_HOT_ITEMS) return;
+
+        const settleCount = this._items.length - this.MAX_HOT_ITEMS;
+        const toSettle = this._items.splice(0, settleCount);
+        this._coldItems.push(...toSettle);
+
+        // Clean up caches for settled items
+        for (const item of toSettle) {
+            const itemId = this._getItemId(item);
+            this._heightCache.delete(itemId);
+            this._componentStateCache.delete(itemId);
+        }
+
+        log.debug(`Settled ${settleCount} items to cold storage (hot=${this._items.length}, cold=${this._coldItems.length})`);
     }
 
     // ── Rendering ──

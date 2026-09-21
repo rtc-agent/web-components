@@ -141,6 +141,14 @@ export class RtcChatLayout extends LitElement {
         this.addEventListener('rtc-session-tree-new', this._handleSessionTreeNew);
         // 监听 rtc-clear-active-input：Escape 键取消 fork 时由 rtc-agent 派发
         this.addEventListener('rtc-clear-active-input', this._boundOnClearActiveInput);
+
+        // Phase 4: Set initial visibility for tabs after first render
+        this.updateComplete.then(() => {
+            const activeSessionId = this._tabCtx?.state?.activeSessionId;
+            if (activeSessionId) {
+                this._updateTabVisibility(activeSessionId);
+            }
+        });
     }
 
     disconnectedCallback() {
@@ -356,6 +364,10 @@ export class RtcChatLayout extends LitElement {
         }
         this._sessionCtx.actions.switchSession(sessionId);
 
+        // Phase 4: Notify message lists of visibility changes
+        // This prevents skeletonization in hidden tabs and triggers slice checks in visible tabs
+        this._updateTabVisibility(sessionId);
+
         this.dispatchEvent(
             new CustomEvent('rtc-chat-layout-tab-activate', {
                 bubbles: true,
@@ -363,6 +375,34 @@ export class RtcChatLayout extends LitElement {
                 detail: {sessionId},
             })
         );
+    }
+
+    /**
+     * Phase 4: Update visibility state for all tab message lists.
+     * Called when tab switches to notify virtual scroll of visibility changes.
+     *
+     * @param activeSessionId - The newly activated tab's session ID
+     */
+    private _updateTabVisibility(activeSessionId: string): void {
+        if (!this.shadowRoot) return;
+
+        // Find all tab-content elements and update their message list visibility
+        const tabContents = this.shadowRoot.querySelectorAll('.tab-content');
+        for (const tabContent of Array.from(tabContents)) {
+            const contentArea = tabContent.querySelector('rtc-content-area') as HTMLElement & {
+                sessionId?: string | null;
+            } | null;
+            if (!contentArea) continue;
+
+            const messageList = contentArea.shadowRoot?.querySelector('rtc-message-list') as HTMLElement & {
+                onTabVisibilityChange?: (visible: boolean) => void;
+            } | null;
+
+            if (messageList && typeof messageList.onTabVisibilityChange === 'function') {
+                const isVisible = contentArea.sessionId === activeSessionId;
+                messageList.onTabVisibilityChange(isVisible);
+            }
+        }
     }
 
     /**
