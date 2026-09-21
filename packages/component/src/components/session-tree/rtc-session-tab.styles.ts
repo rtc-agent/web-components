@@ -140,6 +140,7 @@ export const styles = css`
     .tab-close svg {
         width: 14px;
         height: 14px;
+        fill: currentColor;
     }
 
     /* ── 暗色主题适配 ── */

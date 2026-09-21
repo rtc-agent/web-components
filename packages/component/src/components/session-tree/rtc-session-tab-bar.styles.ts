@@ -76,6 +76,7 @@ export const styles = css`
     .tab-add svg {
         width: 16px;
         height: 16px;
+        fill: currentColor;
     }
 
     /* ── 暗色主题适配 ── */

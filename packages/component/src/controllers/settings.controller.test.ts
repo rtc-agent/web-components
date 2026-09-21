@@ -13,6 +13,20 @@ class MockHost {
     hasAttribute(_name: string) { return false; }
 }
 
+class MockHostWithRtcAgent {
+    updateCount = 0;
+    rtcAgent = { theme: 'light', hasAttribute: (_name: string) => false };
+    requestUpdate() {
+        this.updateCount++;
+    }
+    addController(_c: unknown) {}
+    closest(selector: string) {
+        if (selector === 'rtc-agent') return this.rtcAgent;
+        return null;
+    }
+    hasAttribute(_name: string) { return false; }
+}
+
 describe('SettingsController', () => {
     let host: MockHost;
     let ctrl: SettingsController;
@@ -286,6 +300,121 @@ describe('SettingsController', () => {
                 '--rtc-font-size-user',
                 '24px'
             );
+        });
+    });
+
+    describe('system theme resolution', () => {
+        it('should resolve system to dark when OS is dark', () => {
+            const mockMediaQuery = {
+                matches: true,
+                addEventListener: vi.fn(),
+                removeEventListener: vi.fn(),
+            };
+            vi.spyOn(window, 'matchMedia').mockReturnValue(mockMediaQuery as any);
+
+            const host = new MockHostWithRtcAgent();
+            const newCtrl = new SettingsController(host as any);
+            newCtrl.hostConnected(); // Initialize _themeMediaQuery first
+            newCtrl.actions.updateAppearance({theme: 'system'});
+
+            expect(host.rtcAgent.theme).toBe('dark');
+        });
+
+        it('should resolve system to light when OS is light', () => {
+            const mockMediaQuery = {
+                matches: false,
+                addEventListener: vi.fn(),
+                removeEventListener: vi.fn(),
+            };
+            vi.spyOn(window, 'matchMedia').mockReturnValue(mockMediaQuery as any);
+
+            const host = new MockHostWithRtcAgent();
+            const newCtrl = new SettingsController(host as any);
+            newCtrl.hostConnected();
+            newCtrl.actions.updateAppearance({theme: 'system'});
+
+            expect(host.rtcAgent.theme).toBe('light');
+        });
+
+        it('should apply light directly without resolution', () => {
+            const mockMediaQuery = {
+                matches: true, // OS is dark, but user chose light
+                addEventListener: vi.fn(),
+                removeEventListener: vi.fn(),
+            };
+            vi.spyOn(window, 'matchMedia').mockReturnValue(mockMediaQuery as any);
+
+            const host = new MockHostWithRtcAgent();
+            const newCtrl = new SettingsController(host as any);
+            newCtrl.hostConnected();
+            newCtrl.actions.updateAppearance({theme: 'light'});
+
+            expect(host.rtcAgent.theme).toBe('light');
+        });
+
+        it('should apply dark directly without resolution', () => {
+            const mockMediaQuery = {
+                matches: false, // OS is light, but user chose dark
+                addEventListener: vi.fn(),
+                removeEventListener: vi.fn(),
+            };
+            vi.spyOn(window, 'matchMedia').mockReturnValue(mockMediaQuery as any);
+
+            const host = new MockHostWithRtcAgent();
+            const newCtrl = new SettingsController(host as any);
+            newCtrl.hostConnected();
+            newCtrl.actions.updateAppearance({theme: 'dark'});
+
+            expect(host.rtcAgent.theme).toBe('dark');
+        });
+
+        it('should re-apply theme when OS changes and state is system', () => {
+            let listener: (() => void) | undefined;
+            const mockMediaQuery = {
+                matches: false, // Start with light OS
+                addEventListener: vi.fn((_event: string, cb: () => void) => { listener = cb; }),
+                removeEventListener: vi.fn(),
+            };
+            vi.spyOn(window, 'matchMedia').mockReturnValue(mockMediaQuery as any);
+
+            const host = new MockHostWithRtcAgent();
+            const newCtrl = new SettingsController(host as any);
+            newCtrl.hostConnected();
+            newCtrl.actions.updateAppearance({theme: 'system'});
+
+            // Initial: OS is light, so theme should be light
+            expect(host.rtcAgent.theme).toBe('light');
+
+            // Simulate OS theme change to dark
+            mockMediaQuery.matches = true;
+            listener?.();
+
+            // Theme should now be dark
+            expect(host.rtcAgent.theme).toBe('dark');
+        });
+
+        it('should not re-apply theme when OS changes and state is not system', () => {
+            let listener: (() => void) | undefined;
+            const mockMediaQuery = {
+                matches: false,
+                addEventListener: vi.fn((_event: string, cb: () => void) => { listener = cb; }),
+                removeEventListener: vi.fn(),
+            };
+            vi.spyOn(window, 'matchMedia').mockReturnValue(mockMediaQuery as any);
+
+            const host = new MockHostWithRtcAgent();
+            const newCtrl = new SettingsController(host as any);
+            newCtrl.hostConnected();
+            newCtrl.actions.updateAppearance({theme: 'light'}); // User explicitly chose light
+
+            expect(host.rtcAgent.theme).toBe('light');
+
+            // Simulate OS theme change to dark
+            mockMediaQuery.matches = true;
+            listener?.();
+
+            // Theme should still be light (user's choice)
+            expect(host.rtcAgent.theme).toBe('light');
         });
     });
 

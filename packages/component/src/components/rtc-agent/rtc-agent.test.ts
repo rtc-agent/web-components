@@ -21,9 +21,11 @@ describe('<rtc-agent>', () => {
         expect(el.shadowRoot).not.toBeNull();
     });
 
-    it('should have default theme "system"', async () => {
+    it('should resolve default theme "system" to light or dark', async () => {
         const el = await fixture<RtcAgent>(html`<rtc-agent></rtc-agent>`);
-        expect(el.getAttribute('theme')).toBe('system');
+        // SettingsController resolves 'system' to 'light' or 'dark' based on OS preference
+        const theme = el.getAttribute('theme');
+        expect(theme === 'light' || theme === 'dark').toBe(true);
     });
 
     it('should accept theme attribute', async () => {

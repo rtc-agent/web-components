@@ -59,7 +59,11 @@ export function isValidLocale(value: string): value is SupportedLocale {
 // 6. 持久化
 const STORAGE_KEY = 'rtc-agent-locale';
 
-function getInitialLocale(): SupportedLocale {
+function getInitialLocale(hostLang?: string): SupportedLocale {
+  // 1. 宿主应用的 HTML 属性（最高优先级）
+  if (hostLang && isValidLocale(hostLang)) {
+    return hostLang;
+  }
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved && isValidLocale(saved)) {
@@ -76,8 +80,8 @@ function getInitialLocale(): SupportedLocale {
   return sourceLocale;
 }
 
-export async function initLocale(): Promise<void> {
-  const initial = getInitialLocale();
+export async function initLocale(hostLang?: string): Promise<void> {
+  const initial = getInitialLocale(hostLang);
   if (initial !== sourceLocale) {
     await _setLocale(initial);
   }

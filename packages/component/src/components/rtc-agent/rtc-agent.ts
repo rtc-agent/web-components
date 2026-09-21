@@ -110,7 +110,7 @@ import type {FunctionRegistry} from '../../core/function-registry.js';
 import {_markReady} from '../../core/ready.js';
 
 // i18n
-import {initLocale, getLocale, localeContext, type LocaleContextValue, sourceLocale, targetLocales, switchLocale} from '../../core/i18n.js';
+import {initLocale, getLocale, localeContext, type LocaleContextValue, sourceLocale, targetLocales, switchLocale, isValidLocale, type SupportedLocale} from '../../core/i18n.js';
 import {msg} from '@lit/localize';
 
 // Logo
@@ -201,6 +201,41 @@ export class RtcAgent extends LitElement {
 
     @property({type: String, reflect: true})
     theme: 'light' | 'dark' | 'system' = 'system';
+
+    /**
+     * Language/locale for the component UI.
+     *
+     * Priority: HTML attribute > localStorage > browser language > default (zh-CN).
+     *
+     * Host applications can set this attribute declaratively:
+     * ```html
+     * <rtc-agent lang="en-US"></rtc-agent>
+     * ```
+     *
+     * Or update dynamically:
+     * ```js
+     * rtcAgentEl.lang = 'en-US';
+     * ```
+     */
+    @property({type: String, attribute: 'lang'})
+    set lang(value: string) {
+        const oldLang = this._lang;
+        if (value && isValidLocale(value) && value !== oldLang) {
+            this._lang = value;
+            // Sync to i18n system (async, fire-and-forget)
+            void switchLocale(value);
+            // Update context provider
+            this._localeProvider.setValue({
+                locale: value as SupportedLocale,
+                setLocale: switchLocale,
+                locales: [sourceLocale, ...targetLocales],
+            });
+        }
+    }
+    get lang(): string {
+        return this._lang || getLocale();
+    }
+    private _lang = '';
 
     @property({type: String, attribute: 'app-label'})
     appLabel = 'RTC Agent';
@@ -1009,10 +1044,10 @@ export class RtcAgent extends LitElement {
     connectedCallback() {
         super.connectedCallback();
 
-        // Initialize i18n locale (once)
+        // Initialize i18n locale (once), passing host's lang attribute if set
         if (!this._localeInitialized) {
             this._localeInitialized = true;
-            void initLocale();
+            void initLocale(this._lang || undefined);
         }
 
         // Wire ForkController dependencies

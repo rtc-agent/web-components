@@ -263,6 +263,18 @@
             </button>
         </div>
 
+        <h4>Language / 语言</h4>
+        <div class="debug-grid">
+            <button class="debug-btn active" data-config="lang-zh" onclick="setLanguage('zh-CN')">
+                🇨🇳 中文
+                <span>zh-CN</span>
+            </button>
+            <button class="debug-btn" data-config="lang-en" onclick="setLanguage('en-US')">
+                🇺🇸 English
+                <span>en-US</span>
+            </button>
+        </div>
+
         <div class="debug-status" id="debugStatus">
             Current: <code>default</code>
         </div>
@@ -289,6 +301,8 @@
 
         let currentBubbleCorner = 'bottom-right';
         const bubbleOffset = 20; // distance from edges
+
+        let currentLanguage = 'zh-CN';
 
         function toggleDebugPanel() {
             const panel = document.getElementById('debugPanel');
@@ -378,6 +392,15 @@
             updateButtonStates();
         }
 
+        function setLanguage(lang) {
+            currentLanguage = lang;
+            const agent = document.querySelector('rtc-agent');
+            if (agent) {
+                agent.lang = lang;
+            }
+            updateButtonStates();
+        }
+
         function getBubblePosition(corner) {
             // Cartesian coordinate system: x right positive, y up positive
             // offset represents the bubble's corner closest to the origin
@@ -443,6 +466,13 @@
             document.querySelectorAll('[data-config^="corner-"]').forEach(btn => {
                 const corner = btn.dataset.config.replace('corner-', '');
                 btn.classList.toggle('active', corner === currentBubbleCorner);
+            });
+
+            // Language
+            document.querySelectorAll('[data-config^="lang-"]').forEach(btn => {
+                const lang = btn.dataset.config.replace('lang-', '');
+                const fullLang = lang === 'zh' ? 'zh-CN' : 'en-US';
+                btn.classList.toggle('active', fullLang === currentLanguage);
             });
         }
 

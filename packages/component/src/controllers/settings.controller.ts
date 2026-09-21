@@ -56,6 +56,15 @@ export class SettingsController implements ReactiveController {
         // to prevent leaked event listeners accumulating on window / media query.
         this._removeGlobalListeners();
 
+        // Initialize theme media query BEFORE _applyTheme() (needed for 'system' resolution)
+        this._themeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        this._themeMediaListener = () => {
+            if (this._state.appearance.theme === 'system') {
+                this._applyTheme();
+            }
+        };
+        this._themeMediaQuery.addEventListener('change', this._themeMediaListener);
+
         // Check if the user explicitly set the theme attribute before applying settings
         const rtcAgent = this.host.closest('rtc-agent') || this.host;
         const userSetTheme = rtcAgent.hasAttribute('theme');
@@ -69,15 +78,6 @@ export class SettingsController implements ReactiveController {
         // Listen for multi-tab synchronization
         this._storageListener = () => this._handleStorageChange();
         window.addEventListener('storage', this._storageListener);
-
-        // Listen for system theme changes
-        this._themeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-        this._themeMediaListener = () => {
-            if (this._state.appearance.theme === 'system') {
-                this._applyTheme();
-            }
-        };
-        this._themeMediaQuery.addEventListener('change', this._themeMediaListener);
     }
 
     hostDisconnected() {
@@ -169,12 +169,17 @@ export class SettingsController implements ReactiveController {
     /** Apply theme to rtc-agent element's theme attribute */
     private _applyTheme() {
         const theme = this._state.appearance.theme;
+        // Resolve 'system' to 'light' or 'dark' based on OS preference
+        const resolvedTheme =
+            theme === 'system'
+                ? (this._themeMediaQuery?.matches ? 'dark' : 'light')
+                : theme;
         // Find rtc-agent element (host itself or closest ancestor)
         const rtcAgent = this.host.closest('rtc-agent') || this.host;
         if ('theme' in rtcAgent) {
             // 'theme' in rtcAgent confirms the property exists at runtime;
             // cast to the known property shape rather than `as any`.
-            (rtcAgent as {theme: string}).theme = theme;
+            (rtcAgent as {theme: string}).theme = resolvedTheme;
         }
     }
 
