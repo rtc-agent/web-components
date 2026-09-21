@@ -129,8 +129,7 @@ export class RtcMessageList extends LitElement {
      * It is NOT set by `_scrollToBottom()` — system actions don't change intent.
      * This separation prevents async code from overwriting user intent.
      *
-     * Consumed by: `updated()`, `_scheduleScroll()` callback, ResizeObserver,
-     * `_onVisibilityChange`.
+     * Consumed by: `updated()`, `_scheduleScroll()` callback, ResizeObserver.
      */
     private _shouldAutoScroll = true;
 
@@ -149,9 +148,6 @@ export class RtcMessageList extends LitElement {
 
     /** Flag to prevent ResizeObserver feedback loop during virtual scroll operations */
     private _isVirtualScrollOperation = false;
-
-    /** Bound visibilitychange handler for cleanup. */
-    private _boundOnVisibilityChange = this._onVisibilityChange.bind(this);
 
     /**
      * Monotonically increasing version counter for scroll debouncing.
@@ -303,11 +299,6 @@ export class RtcMessageList extends LitElement {
             });
             this._resizeObserver.observe(innerEl);
         }
-
-        // Visibility change: when the page becomes visible again (e.g., user switches
-        // back to this browser tab), scroll to bottom if following. This handles the
-        // case where the user was away and content may have changed.
-        document.addEventListener('visibilitychange', this._boundOnVisibilityChange);
 
         // Listen for toolcall jump events (from rtc-toolcall-reply)
         this.addEventListener('rtc-toolcall-jump', this._handleToolcallJump as EventListener);
@@ -498,7 +489,6 @@ export class RtcMessageList extends LitElement {
         clearTimeout(this._highlightTimer);
         clearTimeout(this._scrollToMessageTimer);
         clearTimeout(this._scrollToBottomTimer);
-        document.removeEventListener('visibilitychange', this._boundOnVisibilityChange);
         this.removeEventListener('rtc-toolcall-jump', this._handleToolcallJump as EventListener);
         this._subscription?.();
         this._subscription = undefined;
@@ -650,25 +640,6 @@ export class RtcMessageList extends LitElement {
         this._userAtBottom = atBottom;
         this._showNewBtn = !atBottom;
     };
-
-    /**
-     * Visibility change handler.
-     *
-     * When the page becomes visible again (e.g., user switches back to this browser
-     * tab after looking at other tabs or applications), scroll to bottom if the user
-     * intends to follow. This ensures the latest content is visible when the user
-     * returns, especially after content may have changed while the page was hidden.
-     */
-    private _onVisibilityChange() {
-        if (document.visibilityState === 'visible' && this._shouldAutoScroll) {
-            // Delay slightly to allow any pending renders to complete
-            requestAnimationFrame(() => {
-                if (this._shouldAutoScroll) {
-                    this._scrollToBottom();
-                }
-            });
-        }
-    }
 
     /**
      * Handle virtual scroll's onLoadMore callback.
