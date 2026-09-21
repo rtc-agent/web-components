@@ -276,8 +276,11 @@ export class RtcMessageList extends LitElement {
             });
         }
 
-        // Subscribe to repository for this session
-        this._subscribeToSession();
+        // NOTE: _subscribeToSession() is NOT called here intentionally.
+        // It is called from updated() when sessionId is in the changed set,
+        // which includes the first render cycle. Calling it from both
+        // firstUpdated() and updated() would cause a redundant subscribe +
+        // fetchInitialMessages on initial mount.
 
         // ResizeObserver: safety net for post-render content growth.
         // Fires when inner container size changes (streaming chunks, late Markdown,
@@ -591,8 +594,10 @@ export class RtcMessageList extends LitElement {
         this._scrollEl.removeEventListener('scroll', this._onScroll);
 
         // 2. Insert one-time listener to swallow the scroll event
+        let swallowFired = false;
         const swallowHandler = (e: Event) => {
             e.stopImmediatePropagation();
+            swallowFired = true;
             // 3. Re-add normal scroll listener
             this._scrollEl?.addEventListener('scroll', this._onScroll, {passive: true});
         };
@@ -600,6 +605,17 @@ export class RtcMessageList extends LitElement {
 
         // 4. Set scroll position
         this._scrollEl.scrollTop = value;
+
+        // Fallback: if no scroll event fired (value === current scrollTop),
+        // the swallowHandler never executes and _onScroll is never re-added.
+        // Re-add unconditionally on the next microtask; addEventListener is
+        // idempotent when the same reference is already registered.
+        queueMicrotask(() => {
+            if (!swallowFired) {
+                this._scrollEl?.removeEventListener('scroll', swallowHandler);
+                this._scrollEl?.addEventListener('scroll', this._onScroll, {passive: true});
+            }
+        });
     }
 
     private _onScroll = () => {

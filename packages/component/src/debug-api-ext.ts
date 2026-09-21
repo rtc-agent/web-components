@@ -425,27 +425,34 @@ export function buildExtAPI(): Pick<
                     }
                 }) as WebSocket['send'];
 
+                // Guard against duplicate close events: close() and the
+                // constructor's async-failure setTimeout can both fire.
+                let closeEventFired = false;
+                const fireCloseEvent = (code?: number, reason?: string) => {
+                    if (closeEventFired) return;
+                    closeEventFired = true;
+                    state = WebSocket.CLOSED;
+                    ws.dispatchEvent(new CloseEvent('close', {
+                        code: code ?? 1006,
+                        reason: reason ?? 'Simulated offline',
+                        wasClean: code === undefined || code === 1000,
+                    }));
+                };
+
                 // close(): transition to CLOSED and fire the close event.
                 ws.close = ((code?: number, reason?: string) => {
                     if (state === WebSocket.CLOSED || state === WebSocket.CLOSING) return;
                     state = WebSocket.CLOSING;
                     // Schedule close event to match async WebSocket semantics.
-                    setTimeout(() => {
-                        state = WebSocket.CLOSED;
-                        ws.dispatchEvent(new CloseEvent('close', {
-                            code: code ?? 1006,
-                            reason: reason ?? 'Simulated offline',
-                            wasClean: code === undefined || code === 1000,
-                        }));
-                    }, 0);
+                    setTimeout(() => fireCloseEvent(code, reason), 0);
                 }) as WebSocket['close'];
 
                 // Simulate the connection failure asynchronously so handlers
                 // registered after construction still fire.
                 setTimeout(() => {
-                    state = WebSocket.CLOSED;
+                    if (closeEventFired) return; // close() already handled it
                     ws.dispatchEvent(new Event('error'));
-                    ws.dispatchEvent(new CloseEvent('close', {code: 1006, reason: 'Simulated offline'}));
+                    fireCloseEvent(1006, 'Simulated offline');
                 }, 0);
 
                 return ws;

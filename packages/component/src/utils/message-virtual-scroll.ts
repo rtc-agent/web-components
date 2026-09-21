@@ -249,10 +249,10 @@ export class MessageVirtualScroll<T> {
     /**
      * Cold storage: historical messages that have been settled out of the hot window.
      * Items are moved here when _items exceeds MAX_HOT_ITEMS.
-     * The repository serves as the authoritative external cache; _coldItems is a
-     * secondary buffer for quick access without repository round-trips.
+     * The repository serves as the authoritative external cache; we only track a
+     * settled counter for logging — no secondary buffer, to avoid memory leaks.
      */
-    private _coldItems: T[] = [];
+    private _settledCount = 0;
 
     /** Maximum items in hot storage before settling to cold */
     private readonly MAX_HOT_ITEMS = 500;
@@ -269,7 +269,7 @@ export class MessageVirtualScroll<T> {
         this._query = options.query ?? '.message';
         this._preloadThreshold = options.preloadThreshold ?? 300;
         this._bufferMessages = options.bufferMessages ?? 20;
-        this._sliceDebounceDelay = 3000; // Fixed 3s scroll-debounce delay
+        this._sliceDebounceDelay = 1500; // 1.5s scroll-debounce: balances responsiveness vs. slice churn
 
         // Phase 1: Initialize skeleton placeholder callbacks
         this._createPlaceholder = options.createPlaceholder;
@@ -632,7 +632,9 @@ export class MessageVirtualScroll<T> {
 
     /**
      * Deep compare two items for equality.
-     * If getChangeableContent is provided, only compares the extracted content.
+     * If getChangeableContent is provided, only compares the extracted content
+     * using shallow equality (own-property reference check) — avoids the cost
+     * and key-order fragility of JSON.stringify.
      * Otherwise, falls back to JSON.stringify comparison.
      */
     protected _itemsEqual(a: T, b: T): boolean {
@@ -640,10 +642,32 @@ export class MessageVirtualScroll<T> {
             // Compare only the changeable content (more efficient)
             const contentA = this._getChangeableContent(a);
             const contentB = this._getChangeableContent(b);
-            return JSON.stringify(contentA) === JSON.stringify(contentB);
+            return this._shallowEqual(contentA, contentB);
         }
         // Fallback: compare entire items
         return JSON.stringify(a) === JSON.stringify(b);
+    }
+
+    /**
+     * Shallow equality for plain objects: same own keys, same values (by reference).
+     * Falls back to JSON.stringify for non-object / null values.
+     */
+    private _shallowEqual(a: unknown, b: unknown): boolean {
+        if (a === b) return true;
+        if (a == null || b == null) return false;
+        if (typeof a !== 'object' || typeof b !== 'object') return JSON.stringify(a) === JSON.stringify(b);
+
+        const keysA = Object.keys(a as Record<string, unknown>);
+        const keysB = Object.keys(b as Record<string, unknown>);
+        if (keysA.length !== keysB.length) return false;
+
+        const objA = a as Record<string, unknown>;
+        const objB = b as Record<string, unknown>;
+        for (const key of keysA) {
+            if (!Object.prototype.hasOwnProperty.call(objB, key)) return false;
+            if (objA[key] !== objB[key]) return false;
+        }
+        return true;
     }
 
     /**
@@ -867,8 +891,8 @@ export class MessageVirtualScroll<T> {
         // Phase 4: Cleanup stream tracking
         this._activeStreams.clear();
 
-        // Phase 5 (I2): Cleanup cold storage
-        this._coldItems = [];
+        // Phase 5 (I2): Cleanup cold storage counter
+        this._settledCount = 0;
     }
 
     /**
@@ -1107,8 +1131,8 @@ export class MessageVirtualScroll<T> {
         // Phase 4: Cleanup stream tracking
         this._activeStreams.clear();
 
-        // Phase 5 (I2): Cleanup cold storage
-        this._coldItems = [];
+        // Phase 5 (I2): Cleanup cold storage counter
+        this._settledCount = 0;
     }
 
     getStats() {
@@ -1965,9 +1989,10 @@ export class MessageVirtualScroll<T> {
      * Settle excess hot items to cold storage.
      * Called after items are added to prevent unbounded memory growth.
      *
-     * When _items exceeds MAX_HOT_ITEMS, the oldest items are moved to _coldItems.
-     * This keeps the hot window small for fast iteration while retaining recent
-     * history for quick access without repository round-trips.
+     * When _items exceeds MAX_HOT_ITEMS, the oldest items are evicted and a
+     * settled counter is incremented for logging.
+     * This keeps the hot window small for fast iteration while relying on the
+     * repository as the authoritative cache for older history.
      *
      * IMPORTANT: After splicing _items, this method also synchronizes all index
      * structures (_idToIndex, _elementMap, dataset.messageIndex) and removes
@@ -1978,7 +2003,7 @@ export class MessageVirtualScroll<T> {
 
         const settleCount = this._items.length - this.MAX_HOT_ITEMS;
         const toSettle = this._items.splice(0, settleCount);
-        this._coldItems.push(...toSettle);
+        this._settledCount += toSettle.length;
 
         // Clean up caches and index entries for settled items
         for (const item of toSettle) {
@@ -2009,7 +2034,7 @@ export class MessageVirtualScroll<T> {
             this._elementMap = newElementMap;
         }
 
-        log.debug(`Settled ${settleCount} items to cold storage (hot=${this._items.length}, cold=${this._coldItems.length})`);
+        log.debug(`Settled ${settleCount} items to cold storage (hot=${this._items.length}, settled=${this._settledCount})`);
     }
 
     // ── Rendering ──
