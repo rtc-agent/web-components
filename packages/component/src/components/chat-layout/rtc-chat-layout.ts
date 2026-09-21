@@ -48,6 +48,7 @@ import '../input-area/rtc-input-area.js';
 import type {MessageController} from '../../controllers/message.controller.js';
 import '../overlay/rtc-overlay-manager.js';
 import '../drawer/rtc-drawer.js';
+import '../empty-state/rtc-empty-state.js';
 
 @localized()
 @customElement('rtc-chat-layout')
@@ -468,10 +469,24 @@ export class RtcChatLayout extends LitElement {
     private _renderChatContent() {
         // Guard: wait for tab context to be available
         if (!this._tabCtx?.state) {
-            return html`<div class="tab-content-wrapper"></div>`;
+            return html`
+                <div class="tab-content-wrapper">
+                    <rtc-empty-state theme=${this.theme}></rtc-empty-state>
+                </div>
+            `;
         }
 
         const {tabs, activeSessionId} = this._tabCtx.state;
+
+        // 当没有打开的 tab 时（理论上不会出现，因为全部关闭会自动创建新 tab）
+        // 显示引导页
+        if (tabs.length === 0) {
+            return html`
+                <div class="tab-content-wrapper">
+                    <rtc-empty-state theme=${this.theme}></rtc-empty-state>
+                </div>
+            `;
+        }
 
         // Render all open tabs, each with its own content-area instance
         // Non-active tabs use content-visibility: hidden to preserve state
