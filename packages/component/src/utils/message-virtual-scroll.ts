@@ -967,6 +967,11 @@ export class MessageVirtualScroll<T> {
      * preventing the "scroll target drift" bug where smooth scroll targets a stale
      * scrollHeight while skeletons are being restored mid-animation.
      *
+     * Uses cumulative scroll adjustment to prevent compound drift when multiple
+     * skeletons are restored: captures viewport position once before any DOM mutations,
+     * then adjusts scrollTop by the total height difference of all elements restored
+     * above the viewport in a single operation.
+     *
      * Call this BEFORE any scrollTo/scrollIntoView to ensure the scroll target is real.
      */
     restoreAll(): void {
@@ -974,18 +979,37 @@ export class MessageVirtualScroll<T> {
 
         log.debug(`restoreAll: restoring ${this._placeholderItemIds.size} skeletons`);
 
-        // Restore top-to-bottom for deterministic scroll adjustment
+        // Capture viewport position BEFORE any DOM mutations
+        const viewportTop = this._scrollContainer.scrollTop;
+        let totalHeightDiffAbove = 0;
+
+        // Restore top-to-bottom for deterministic processing
         const entries = [...this._placeholderPositions].sort((a, b) => a.y - b.y);
 
         for (const entry of entries) {
-            const index = this._findIndexByItemId(entry.itemId);
-            if (index >= 0) {
-                const skeleton = this._elementMap.get(index);
-                if (skeleton) {
-                    const h = skeleton.getBoundingClientRect().height;
-                    this._restoreSkeleton(entry.itemId, index, h);
-                }
+            const skeleton = this._findElementByItemId(entry.itemId);
+            if (!skeleton) continue;
+
+            const oldHeight = skeleton.getBoundingClientRect().height;
+
+            // Restore without individual scroll adjustment
+            const result = this._restoreSkeletonInternal(entry.itemId, oldHeight);
+            if (!result) continue;
+
+            // Measure actual height and accumulate diff for elements above viewport
+            const newHeight = result.element.getBoundingClientRect().height;
+            const heightDiff = newHeight - oldHeight;
+
+            // Use the captured viewportTop (not current scrollTop) for judgment
+            if (Math.abs(heightDiff) > 5 && entry.y < viewportTop) {
+                totalHeightDiffAbove += heightDiff;
             }
+        }
+
+        // Single scroll adjustment for all restorations above viewport
+        if (Math.abs(totalHeightDiffAbove) > 5) {
+            this._scrollContainer.scrollTop += totalHeightDiffAbove;
+            log.debug(`Adjusted scroll position by ${totalHeightDiffAbove}px after batch restore`);
         }
     }
 
@@ -1276,6 +1300,10 @@ export class MessageVirtualScroll<T> {
     /**
      * Schedule batch restoration with frame limit.
      * Uses requestAnimationFrame for smooth rendering.
+     *
+     * Uses cumulative scroll adjustment: captures viewport position once before
+     * the batch, then adjusts scrollTop by the total height difference of all
+     * elements restored above the viewport in a single operation.
      */
     private _scheduleBatchRestoration(): void {
         if (this._restorationScheduled || this._pendingRestorations.length === 0) return;
@@ -1294,6 +1322,10 @@ export class MessageVirtualScroll<T> {
             // Process up to MAX_RESTORATIONS_PER_FRAME items
             const batch = this._pendingRestorations.splice(0, this.MAX_RESTORATIONS_PER_FRAME);
 
+            // Capture viewport position BEFORE any DOM mutations
+            const viewportTop = this._scrollContainer.scrollTop;
+            let totalHeightDiffAbove = 0;
+
             // Batch read heights (avoid layout thrashing)
             const heights = new Map<string, number>();
             for (const {itemId} of batch) {
@@ -1303,10 +1335,26 @@ export class MessageVirtualScroll<T> {
                 }
             }
 
-            // Batch restore (write to DOM)
-            for (const {itemId, index} of batch) {
+            // Batch restore (write to DOM) with cumulative scroll adjustment
+            for (const {itemId, y} of batch) {
                 const skeletonHeight = heights.get(itemId) ?? 0;
-                this._restoreSkeleton(itemId, index, skeletonHeight);
+                const result = this._restoreSkeletonInternal(itemId, skeletonHeight);
+                if (!result) continue;
+
+                // Measure actual height and accumulate diff for elements above viewport
+                const newHeight = result.element.getBoundingClientRect().height;
+                const heightDiff = newHeight - skeletonHeight;
+
+                // Use the captured viewportTop (not current scrollTop) for judgment
+                if (Math.abs(heightDiff) > 5 && y < viewportTop) {
+                    totalHeightDiffAbove += heightDiff;
+                }
+            }
+
+            // Single scroll adjustment for all restorations above viewport
+            if (Math.abs(totalHeightDiffAbove) > 5) {
+                this._scrollContainer.scrollTop += totalHeightDiffAbove;
+                log.debug(`Adjusted scroll position by ${totalHeightDiffAbove}px after batch restoration`);
             }
 
             // Continue if more pending
@@ -1585,15 +1633,49 @@ export class MessageVirtualScroll<T> {
      * @param skeletonHeight - Height of the skeleton placeholder (for scroll adjustment)
      */
     private _restoreSkeleton(itemId: string, _index: number, skeletonHeight: number): void {
-        // Skip if not actually a placeholder (may have been restored already)
-        if (!this._placeholderItemIds.has(itemId)) return;
+        const result = this._restoreSkeletonInternal(itemId, skeletonHeight);
+        if (!result) return;
 
-        // Resolve current index: the provided index may be stale due to concurrent
-        // _items modifications (e.g., prependItems shifting indices). Use _idToIndex
-        // for O(1) lookup, falling back to elementMap scan.
+        // Schedule scroll adjustment for single restoration
+        const { element, skeletonY, skeletonHeight: oldHeight } = result;
+        requestAnimationFrame(() => {
+            const actualHeight = element.getBoundingClientRect().height;
+            const heightDiff = actualHeight - oldHeight;
+
+            // Only adjust if height difference is significant
+            if (Math.abs(heightDiff) > 5) {
+                const viewportTop = this._scrollContainer.scrollTop;
+
+                // Only adjust if restored element is above current viewport
+                // (to avoid viewport jumping for elements user can see)
+                if (skeletonY < viewportTop) {
+                    this._scrollContainer.scrollTop += heightDiff;
+                    log.debug(`Adjusted scroll position by ${heightDiff}px after restoring ${itemId}`);
+                }
+            }
+        });
+
+        log.debug(`Restored skeleton for item ${itemId}`);
+    }
+
+    /**
+     * Internal skeleton restoration without scroll adjustment.
+     * Returns height diff info for batch scroll adjustment.
+     *
+     * @param itemId - Stable ID of the item
+     * @param skeletonHeight - Height of the skeleton placeholder
+     * @returns Restoration result or null if skipped
+     */
+    private _restoreSkeletonInternal(
+        itemId: string,
+        skeletonHeight: number
+    ): { element: HTMLElement; skeletonY: number; skeletonHeight: number } | null {
+        // Skip if not actually a placeholder (may have been restored already)
+        if (!this._placeholderItemIds.has(itemId)) return null;
+
+        // Resolve current index: use _idToIndex for O(1) lookup, falling back to elementMap scan
         let actualIndex = this._idToIndex.get(itemId);
         if (actualIndex === undefined) {
-            // _idToIndex is stale — fall back to elementMap scan
             log.debug(`_idToIndex stale for ${itemId}, falling back to elementMap scan`);
             for (const [idx, el] of this._elementMap) {
                 if (el.dataset.isSkeleton === 'true' && el.dataset.itemId === itemId) {
@@ -1605,37 +1687,31 @@ export class MessageVirtualScroll<T> {
 
         if (actualIndex === undefined) {
             log.debug(`Skipping restore: index not found for ${itemId}`);
-            return;
+            return null;
         }
 
         const item = this._items[actualIndex];
         if (!item) {
             log.warn(`Item not found at index ${actualIndex} for ${itemId}`);
-            return;
+            return null;
         }
 
         const skeleton = this._elementMap.get(actualIndex);
-        if (!skeleton) return;
+        if (!skeleton) return null;
 
-        // ===== SNAPSHOT PHASE: Capture all needed state before mutation =====
-        const snapshot = {
-            itemId,
-            index: actualIndex,
-            skeletonHeight,
-            skeletonY: this._getPlaceholderY(itemId),
-            cachedState: this._componentStateCache.get(itemId),
-        };
+        // Capture position before mutation (critical for batch scroll adjustment)
+        const skeletonY = this._getPlaceholderY(itemId);
+        const cachedState = this._componentStateCache.get(itemId);
 
-        // ===== MUTATION PHASE: Safely modify data structures =====
         // Render real content
         const el = this._renderItem(item, actualIndex);
-        el.dataset.itemId = snapshot.itemId;
-        el.dataset.messageIndex = String(snapshot.index);
+        el.dataset.itemId = itemId;
+        el.dataset.messageIndex = String(actualIndex);
         el.dataset.isSkeleton = 'false';
 
         // Inject cached state (synchronous, before first render, avoids flicker)
-        if (snapshot.cachedState && this._injectComponentState) {
-            this._injectComponentState(item, el, snapshot.cachedState);
+        if (cachedState && this._injectComponentState) {
+            this._injectComponentState(item, el, cachedState);
         }
 
         // Start tracking height for new element
@@ -1643,33 +1719,15 @@ export class MessageVirtualScroll<T> {
 
         // Replace skeleton with real content in DOM
         skeleton.replaceWith(el);
-        this._elementMap.set(snapshot.index, el);
+        this._elementMap.set(actualIndex, el);
 
         // Cleanup placeholder tracking
-        this._placeholderItemIds.delete(snapshot.itemId);
-        this._removePlaceholderPosition(snapshot.itemId);
-        this._componentStateCache.delete(snapshot.itemId);
-        this._pendingRestorationIds.delete(snapshot.itemId);
+        this._placeholderItemIds.delete(itemId);
+        this._removePlaceholderPosition(itemId);
+        this._componentStateCache.delete(itemId);
+        this._pendingRestorationIds.delete(itemId);
 
-        // ===== POST-MUTATION PHASE: Adjust scroll position if needed =====
-        requestAnimationFrame(() => {
-            const actualHeight = el.getBoundingClientRect().height;
-            const heightDiff = actualHeight - snapshot.skeletonHeight;
-
-            // Only adjust if height difference is significant
-            if (Math.abs(heightDiff) > 5) {
-                const viewportTop = this._scrollContainer.scrollTop;
-
-                // Only adjust if restored element is above current viewport
-                // (to avoid viewport jumping for elements user can see)
-                if (snapshot.skeletonY < viewportTop) {
-                    this._scrollContainer.scrollTop += heightDiff;
-                    log.debug(`Adjusted scroll position by ${heightDiff}px after restoring ${snapshot.itemId}`);
-                }
-            }
-        });
-
-        log.debug(`Restored skeleton for item ${snapshot.itemId}`);
+        return { element: el, skeletonY, skeletonHeight };
     }
 
     /**
