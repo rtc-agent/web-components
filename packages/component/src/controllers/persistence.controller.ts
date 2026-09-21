@@ -431,17 +431,13 @@ export class PersistenceController implements ReactiveController {
      * 清理失败的连接
      */
     private async _cleanupFailedConnection(): Promise<void> {
-        const bridge = this._workerBridge;
-        if (bridge) {
-            // Only clear if the bridge hasn't been replaced by a new connection
-            if (this._workerBridge === bridge) {
-                this._workerBridge = undefined;
-            }
+        if (this._workerBridge) {
             try {
-                await bridge.destroy();
+                await this._workerBridge.destroy();
             } catch (err) {
                 log.debug('Cleanup after failed connection (non-critical):', err);
             }
+            this._workerBridge = undefined;
         }
         this._layer = undefined;
     }
@@ -462,40 +458,28 @@ export class PersistenceController implements ReactiveController {
      * Call this on logout or when auth is lost.
      */
     async disconnect(): Promise<void> {
-        // Capture references BEFORE any async work.
-        // This prevents a race where connectedCallback (e.g. from Astro transition:persist
-        // moveBefore) creates a new WorkerBridge while this disconnect() is still running —
-        // without this guard, the `this._workerBridge = undefined` at the end would overwrite
-        // the new bridge, causing "Cannot read properties of undefined (reading 'init')".
-        const layer = this._layer;
-        const bridge = this._workerBridge;
-        const lock = this._masterLock;
-
-        if (layer) {
-            this._layer = undefined;
+        if (this._layer) {
             try {
                 // 重置 offset（通过 adapter shim 透传到 core.resetOffset()）
-                await layer.getOffsetManager().reset();
+                await this._layer.getOffsetManager().reset();
                 // 关闭 WS + DB（通过 adapter 委托到 core.close()）
-                await layer.close();
+                await this._layer.close();
             } catch (err) {
                 log.error('disconnect error:', err);
             }
+            this._layer = undefined;
         }
 
         // 额外清理
-        if (bridge) {
-            lock?.release();
+        if (this._workerBridge) {
+            this._masterLock?.release();
             this._masterLock = undefined;
             try {
-                await bridge.destroy();
+                await this._workerBridge.destroy();
             } catch (err) {
                 log.error('WorkerBridge disconnect error:', err);
             }
-            // Only clear if the bridge hasn't been replaced by a new connection
-            if (this._workerBridge === bridge) {
-                this._workerBridge = undefined;
-            }
+            this._workerBridge = undefined;
         }
     }
 
