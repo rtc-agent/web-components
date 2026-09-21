@@ -56,13 +56,16 @@ function formatLogEntry(level: string, args: unknown[]): string {
  * Install log capture: wraps console.debug/info/warn/error to also push
  * entries into the log buffer.
  *
- * Safe to call multiple times (idempotent via module-level guard).
+ * Safe to call multiple times (idempotent via globalThis guard).
+ * Uses globalThis instead of module-level state so the guard survives
+ * Vite HMR module reloads — without this, each HMR cycle wraps console
+ * again, causing duplicate log buffer entries.
  */
-let _logCaptureInstalled = false;
+const LOG_CAPTURE_GUARD_KEY = '__rtcLogCaptureInstalled';
 
 export function installLogCapture(): void {
-    if (_logCaptureInstalled) return;
-    _logCaptureInstalled = true;
+    if ((globalThis as Record<string, unknown>)[LOG_CAPTURE_GUARD_KEY]) return;
+    (globalThis as Record<string, unknown>)[LOG_CAPTURE_GUARD_KEY] = true;
 
     const levels = ['debug', 'info', 'warn', 'error'] as const;
     for (const level of levels) {

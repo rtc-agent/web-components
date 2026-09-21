@@ -33,9 +33,19 @@ import {
 } from './debug-api-helpers.js';
 
 // Re-export mutable state setters for the network simulation
-let _originalFetch: typeof fetch | null = null;
-let _originalWebSocket: typeof WebSocket | null = null;
-let _isOffline = false;
+// Encapsulated in a single object for better cohesion and to survive HMR
+// (module-level variables reset to null/false on HMR reload, but window.fetch/
+// WebSocket remain monkey-patched — with a single object the state is at least
+// logically grouped; full HMR safety would require storing originals on globalThis).
+const _networkState: {
+    originalFetch: typeof fetch | null;
+    originalWebSocket: typeof WebSocket | null;
+    isOffline: boolean;
+} = {
+    originalFetch: null,
+    originalWebSocket: null,
+    isOffline: false,
+};
 
 /**
  * Build extended debug API methods.
@@ -344,13 +354,13 @@ export function buildExtAPI(): Pick<
         // ── Network Simulation ──
 
         simulateOffline(): void {
-            if (_isOffline) {
+            if (_networkState.isOffline) {
                 log.warn('simulateOffline: already offline');
                 return;
             }
 
-            _originalFetch = window.fetch;
-            _originalWebSocket = window.WebSocket;
+            _networkState.originalFetch = window.fetch;
+            _networkState.originalWebSocket = window.WebSocket;
 
             // Block fetch with a rejecting stub.
             window.fetch = (() => {
@@ -364,6 +374,13 @@ export function buildExtAPI(): Pick<
             // calls send()/close(), or reads url/protocol before the error event fires
             // does not throw a TypeError — the simulation behaves like a real WebSocket
             // that fails to connect.
+            //
+            // NOTE: `instanceof WebSocket` returns false for OfflineWebSocket instances
+            // because the mock is constructed via Object.create(new EventTarget()), not
+            // by extending WebSocket. Libraries that rely on instanceof checks (e.g.,
+            // Centrifuge) will not recognize these as real WebSocket instances. This is
+            // acceptable for E2E test use — document this limitation if extending to
+            // production scenarios.
             const OfflineWebSocket = function(this: WebSocket, url: string | URL, _protocols?: string | string[]) {
                 const resolvedUrl = typeof url === 'string' ? url : url.href;
                 log.info(`simulateOffline: blocked WebSocket to ${resolvedUrl}`);
@@ -465,30 +482,30 @@ export function buildExtAPI(): Pick<
             (OfflineWebSocket as unknown as Record<string, number>).CLOSED = 3;
 
             window.WebSocket = OfflineWebSocket;
-            _isOffline = true;
+            _networkState.isOffline = true;
             log.info('simulateOffline: network simulation active (fetch + WebSocket blocked)');
         },
 
         restoreNetwork(): void {
-            if (!_isOffline) {
+            if (!_networkState.isOffline) {
                 log.warn('restoreNetwork: not currently offline');
                 return;
             }
 
-            if (_originalFetch) {
-                window.fetch = _originalFetch;
-                _originalFetch = null;
+            if (_networkState.originalFetch) {
+                window.fetch = _networkState.originalFetch;
+                _networkState.originalFetch = null;
             }
-            if (_originalWebSocket) {
-                window.WebSocket = _originalWebSocket;
-                _originalWebSocket = null;
+            if (_networkState.originalWebSocket) {
+                window.WebSocket = _networkState.originalWebSocket;
+                _networkState.originalWebSocket = null;
             }
-            _isOffline = false;
+            _networkState.isOffline = false;
             log.info('restoreNetwork: normal network behavior restored');
         },
 
         get isOffline(): boolean {
-            return _isOffline;
+            return _networkState.isOffline;
         },
     };
 }
