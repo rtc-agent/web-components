@@ -43,7 +43,7 @@ export function installDebugAPI(): void {
     // We cannot use simple spread because `isOffline` and `logs` are getters
     // that must remain dynamic — spreading evaluates them once and copies static values.
     // Strategy: destructure to exclude getter properties, spread the rest, then
-    // re-attach the getters as live accessor properties via Object.defineProperty.
+    // re-attach the getters inline so TypeScript can verify structural completeness.
     const coreAPI = buildCoreAPI();
     const extAPI = buildExtAPI();
 
@@ -53,25 +53,13 @@ export function installDebugAPI(): void {
     const {logs: _logsValue, clearLogs, ...coreWithoutLogs} = coreAPI;
     const {isOffline: _isOfflineValue, ...extWithoutOffline} = extAPI;
 
-    const api: RtcAgentDebugAPI = {
+    const api = {
         ...coreWithoutLogs,
         clearLogs,
         ...extWithoutOffline,
-    } as RtcAgentDebugAPI;
-
-    // Re-attach `logs` as a dynamic getter that delegates to the core API's getter.
-    Object.defineProperty(api, 'logs', {
-        get: () => coreAPI.logs,
-        enumerable: true,
-        configurable: false,
-    });
-
-    // Re-attach `isOffline` as a dynamic getter that delegates to the ext API's getter.
-    Object.defineProperty(api, 'isOffline', {
-        get: () => extAPI.isOffline,
-        enumerable: true,
-        configurable: false,
-    });
+        get logs() { return coreAPI.logs; },
+        get isOffline() { return extAPI.isOffline; },
+    } satisfies RtcAgentDebugAPI;
 
     Object.defineProperty(window, 'rtcAgentDebug', {
         value: api,
