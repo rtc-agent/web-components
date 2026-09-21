@@ -50,6 +50,10 @@ const log = createLogger('InputArea');
 export class RtcInputArea extends LitElement {
     static styles = styles;
 
+    /** Theme mode */
+    @property({ type: String, reflect: true })
+    theme: 'light' | 'dark' | 'system' = 'system';
+
     /**
      * Optional session ID override.
      * When provided, this takes precedence over SessionContext.currentSessionId.
@@ -798,6 +802,7 @@ export class RtcInputArea extends LitElement {
           <button class="toolbar-btn scenario-btn" title=${msg('Scenarios')} @click=${this._handleScenarioToggle}>${checklistIcon}</button>
           <div class="toolbar-divider"></div>
           <rtc-token-usage
+              theme=${this.theme}
               .estimatedNext=${this._tokenEstimatedNext}
               .totalTokens=${this._tokenTotalTokens}
               .totalCostUsd=${this._tokenTotalCostUsd}

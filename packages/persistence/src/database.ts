@@ -4,7 +4,7 @@ import { createLogger } from '@rtc-agent/client';
 
 const log = createLogger('Database');
 
-/** Database names must start with this prefix to ensure per-user isolation */
+/** Default database name prefix. Custom prefixes are allowed via database-name attribute. */
 export const DB_NAME_PREFIX = 'rtc-agent-';
 
 // ========== Sync status ==========
@@ -111,9 +111,9 @@ export class RTCAgentDatabase extends Dexie {
   fileSystemEntries!: Table<FileSystemEntry, string>;
 
   constructor(databaseName: string) {
-    if (!databaseName.startsWith(DB_NAME_PREFIX)) {
+    if (!databaseName) {
       throw new Error(
-        `[RTCAgentDatabase] databaseName must start with "${DB_NAME_PREFIX}", got "${databaseName}"`
+        `[RTCAgentDatabase] databaseName must not be empty`
       );
     }
     log.info('Initializing database:', databaseName);
@@ -291,13 +291,13 @@ export function getDatabase(databaseName?: string): RTCAgentDatabase {
     }
     throw new Error(
       `[RTCAgentDatabase] getDatabase() called without a name before any database was initialized. ` +
-      `Pass a databaseName starting with "${DB_NAME_PREFIX}".`
+      `Pass a databaseName.`
     );
   }
 
-  if (!databaseName.startsWith(DB_NAME_PREFIX)) {
+  if (!databaseName) {
     throw new Error(
-      `[RTCAgentDatabase] databaseName must start with "${DB_NAME_PREFIX}", got "${databaseName}"`
+      `[RTCAgentDatabase] databaseName must not be empty`
     );
   }
 

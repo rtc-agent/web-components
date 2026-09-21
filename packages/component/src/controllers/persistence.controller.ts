@@ -238,6 +238,7 @@ export class PersistenceController implements ReactiveController {
     private _auth: AuthController;
     private _workerBridge?: WorkerBridge;
     private _masterLock?: MasterLock;
+    private _databaseNameOverride?: string;
 
     /**
      * In-flight connection promise — prevents concurrent `connect()` calls from
@@ -250,9 +251,17 @@ export class PersistenceController implements ReactiveController {
     private static readonly MAX_CONNECT_RETRIES = 2;
     private static readonly CONNECT_RETRY_DELAY_MS = 2000;
 
-    constructor(host: {addController(c: ReactiveController): void}, auth: AuthController) {
+    constructor(
+        host: {addController(c: ReactiveController): void},
+        auth: AuthController,
+    ) {
         this._auth = auth;
         host.addController(this);
+    }
+
+    /** Set custom database name prefix. Must be called before connect(). */
+    set databaseName(value: string | undefined) {
+        this._databaseNameOverride = value;
     }
 
     /** The PersistenceLayer instance. Only available after connect(). */
@@ -318,7 +327,9 @@ export class PersistenceController implements ReactiveController {
         }
 
         const config = {
-            databaseName: `rtc-agent-${userId}`,
+            databaseName: this._databaseNameOverride
+                ? `${this._databaseNameOverride}-${userId}`
+                : `rtc-agent-${userId}`,
             deviceId,
             client: {
                 endpoint: AUTH_CONFIG.wsEndpoint,

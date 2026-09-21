@@ -55,24 +55,24 @@ export class RtcTokenUsage extends LitElement {
 
             .circle-bg {
                 fill: none;
-                stroke: var(--rtc-color-bg-tertiary, #e8e8e8);
+                stroke: var(--rtc-color-bg-tertiary);
                 stroke-width: 3;
             }
 
             .circle-progress {
                 fill: none;
-                stroke: var(--rtc-color-primary, #2741FE);
+                stroke: var(--rtc-color-primary);
                 stroke-width: 3;
                 stroke-linecap: round;
                 transition: stroke-dashoffset 0.3s ease, stroke 0.3s ease;
             }
 
             .circle-progress.warning {
-                stroke: var(--rtc-color-warning, #F97802);
+                stroke: var(--rtc-color-warning);
             }
 
             .circle-progress.danger {
-                stroke: var(--rtc-color-error, #F44336);
+                stroke: var(--rtc-color-error);
             }
 
             /* Hover 面板 */
@@ -84,14 +84,14 @@ export class RtcTokenUsage extends LitElement {
                 transform: translateX(-50%);
                 min-width: 200px;
                 padding: 12px;
-                background: var(--rtc-color-bg, #ffffff);
-                border: 1px solid var(--rtc-color-border, #e0e0e0);
-                border-radius: var(--rtc-border-radius-lg, 8px);
-                box-shadow: var(--rtc-shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.12));
-                z-index: var(--rtc-z-local-3, 10);
+                background: var(--rtc-color-bg);
+                border: 1px solid var(--rtc-color-border);
+                border-radius: var(--rtc-border-radius-lg);
+                box-shadow: var(--rtc-shadow-lg);
+                z-index: var(--rtc-z-local-3);
                 font-family: var(--rtc-font-family-base);
-                font-size: var(--rtc-font-size-xs, 12px);
-                color: var(--rtc-color-text, #1a1a2e);
+                font-size: var(--rtc-font-size-xs);
+                color: var(--rtc-color-text);
             }
 
             :host(:hover) .token-tooltip {
@@ -101,7 +101,7 @@ export class RtcTokenUsage extends LitElement {
             .tooltip-header {
                 font-weight: 600;
                 margin-bottom: 8px;
-                color: var(--rtc-color-text, #1a1a2e);
+                color: var(--rtc-color-text);
             }
 
             .tooltip-row {
@@ -109,11 +109,11 @@ export class RtcTokenUsage extends LitElement {
                 justify-content: space-between;
                 align-items: center;
                 padding: 4px 0;
-                color: var(--rtc-color-text-secondary, #555570);
+                color: var(--rtc-color-text-secondary);
             }
 
             .tooltip-row .label {
-                color: var(--rtc-color-text-tertiary, #8888a0);
+                color: var(--rtc-color-text-tertiary);
             }
 
             .tooltip-row .value {
@@ -123,7 +123,7 @@ export class RtcTokenUsage extends LitElement {
 
             .tooltip-divider {
                 height: 1px;
-                background: var(--rtc-color-border, #e0e0e0);
+                background: var(--rtc-color-border);
                 margin: 8px 0;
             }
 
@@ -131,25 +131,29 @@ export class RtcTokenUsage extends LitElement {
                 display: flex;
                 justify-content: space-between;
                 font-weight: 600;
-                color: var(--rtc-color-text, #1a1a2e);
+                color: var(--rtc-color-text);
             }
 
             .tooltip-compression {
                 margin-top: 8px;
                 padding: 6px 8px;
-                background: var(--rtc-color-bg-secondary, #f5f5f5);
-                border-radius: var(--rtc-border-radius-sm, 4px);
+                background: var(--rtc-color-bg-secondary);
+                border-radius: var(--rtc-border-radius-sm);
                 font-size: 11px;
-                color: var(--rtc-color-text-secondary, #555570);
+                color: var(--rtc-color-text-secondary);
             }
 
             .tooltip-compression.warning {
-                color: var(--rtc-color-warning, #F97802);
+                color: var(--rtc-color-warning);
             }
         `,
     ];
 
     /* ── Properties ── */
+
+    /** Theme mode */
+    @property({ type: String, reflect: true })
+    theme: 'light' | 'dark' | 'system' = 'system';
 
     /** 预估下一轮 token 数 */
     @property({ type: Number, attribute: false })

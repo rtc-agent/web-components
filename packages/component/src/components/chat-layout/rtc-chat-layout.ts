@@ -509,6 +509,7 @@ export class RtcChatLayout extends LitElement {
                             .message=${tab.noticeMessage ?? ''}
                         ></rtc-notice-bar>
                         <rtc-input-area
+                            theme=${this.theme}
                             .sessionId=${tab.sessionId}
                             .initialValue=${tab.initialInputValue}
                             .initialValueVersion=${tab.initialValueVersion ?? 0}

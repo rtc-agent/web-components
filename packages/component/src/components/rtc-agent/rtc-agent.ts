@@ -366,6 +366,25 @@ export class RtcAgent extends LitElement {
     private _scenariosURL = '';
 
     /**
+     * Custom database name prefix (optional).
+     *
+     * When set, the database name becomes `${databaseName}-${userId}` instead of `rtc-agent-${userId}`.
+     *
+     * @example
+     * <rtc-agent database-name="my-app"></rtc-agent>
+     * // Creates database: my-app-{userId}
+     */
+    @property({ type: String, attribute: 'database-name' })
+    set databaseName(value: string) {
+        this._databaseName = value;
+        this._persistence.databaseName = value || undefined;
+    }
+    get databaseName(): string {
+        return this._databaseName;
+    }
+    private _databaseName = '';
+
+    /**
      * Window configuration (optional).
      *
      * Controls the window's default state, dimensions, position, interaction limits, etc.

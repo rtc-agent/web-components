@@ -29,10 +29,14 @@ describe('database', () => {
             db.close();
         });
 
-        it('should throw for a name without the prefix', () => {
-            expect(() => new RTCAgentDatabase('invalid-name')).toThrow(
-                /must start with/
-            );
+        it('should accept a custom name without the prefix', () => {
+            const db = new RTCAgentDatabase('custom-name');
+            expect(db).toBeInstanceOf(RTCAgentDatabase);
+            db.close();
+        });
+
+        it('should throw for an empty name', () => {
+            expect(() => new RTCAgentDatabase('')).toThrow(/must not be empty/);
         });
     });
 
@@ -55,8 +59,8 @@ describe('database', () => {
             expect(db1).not.toBe(db2);
         });
 
-        it('should throw for invalid database name', () => {
-            expect(() => getDatabase('no-prefix')).toThrow(/must start with/);
+        it('should throw for empty database name', () => {
+            expect(() => getDatabase('')).toThrow(/must not be empty/);
         });
 
         it('should return same instance for same name', () => {
