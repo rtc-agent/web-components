@@ -231,7 +231,6 @@ export class RtcMessageList extends LitElement {
                 query: '[data-client-id]',
                 preloadThreshold: 300, // Telegram uses 300px
                 bufferMessages: 20,
-                sliceInterval: 5000, // 5 seconds - hybrid timer + scroll-debounce approach
                 // Extract only the fields that affect rendering for efficient comparison.
                 // Tab switching returns new array references with identical content;
                 // comparing only these fields avoids unnecessary Markdown DOM recreation.

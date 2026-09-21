@@ -64,13 +64,6 @@ export interface MessageVirtualScrollOptions<T> {
     /** Messages to keep as buffer on each side of viewport (default: 20) */
     bufferMessages?: number;
 
-    /**
-     * Interval for periodic viewport slicing timer in ms (default: 5000).
-     * This controls how often the timer checks for idle off-screen elements.
-     * Note: Scroll-debounce delay is fixed at 3000ms (not configurable).
-     */
-    sliceInterval?: number;
-
     /** Callback when content size changes (for custom scrollbar) */
     onSizeChange?: () => void;
 
@@ -222,30 +215,21 @@ export class MessageVirtualScroll<T> {
     /** Maximum restorations per frame */
     private readonly MAX_RESTORATIONS_PER_FRAME = 10;
 
-    // ── Hybrid Slicing: Timer + Scroll-debounce ──
-
-    /** Periodic timer for idle slicing (fallback) */
-    private _sliceTimer?: number;
-
-    /** Timer interval in ms (default: 5000) */
-    private _sliceInterval: number;
-
-    /** Timestamp of last user scroll activity */
-    private _lastScrollTime: number = 0;
-
-    /** Minimum idle time before timer-triggered slicing (ms) */
-    private readonly IDLE_THRESHOLD = 3000;
-
-    /** Timestamp of last _sliceViewport call (prevents double invocation) */
-    private _lastSliceTime: number = 0;
+    // ── Event-Driven Slicing ──
 
     /** Minimum interval between _sliceViewport calls (ms) */
     private readonly MIN_SLICE_INTERVAL = 2000;
+
+    /** Timestamp of last _sliceViewport call (prevents double invocation) */
+    private _lastSliceTime: number = 0;
 
     // ── Visibility API (Phase 4) ──
 
     /** Explicit visibility state - controlled by setVisibility() */
     private _isVisible: boolean = true;
+
+    /** Browser page visibility state - controlled by visibilitychange event */
+    private _pageVisible: boolean = true;
 
     // ── Stream Awareness (Phase 4) ──
 
@@ -256,6 +240,9 @@ export class MessageVirtualScroll<T> {
 
     /** ResizeObserver for scroll container - rebuilds placeholder positions on resize */
     private _containerResizeObserver?: ResizeObserver;
+
+    /** Event listener for visibilitychange - pauses slicing when tab is hidden */
+    private _visibilityChangeHandler?: () => void;
 
     // ── Hot/Cold Data Separation (Phase 5, I2) ──
 
@@ -284,11 +271,6 @@ export class MessageVirtualScroll<T> {
         this._bufferMessages = options.bufferMessages ?? 20;
         this._sliceDebounceDelay = 3000; // Fixed 3s scroll-debounce delay
 
-        // Phase 1: Hybrid slicing - periodic timer + scroll-debounce
-        // sliceInterval controls the timer interval (default: 5000ms)
-        this._sliceInterval = options.sliceInterval ?? 5000;
-        this._lastScrollTime = Date.now();
-
         // Phase 1: Initialize skeleton placeholder callbacks
         this._createPlaceholder = options.createPlaceholder;
         this._extractComponentState = options.extractComponentState;
@@ -311,11 +293,15 @@ export class MessageVirtualScroll<T> {
             }
         });
 
-        // Phase 1: Start periodic slicing timer (hybrid approach)
-        // This ensures off-screen elements are skeletonized even when user is idle
-        this._sliceTimer = window.setInterval(() => {
-            this._onSliceTimer();
-        }, this._sliceInterval);
+        // Event-driven slicing: no periodic timer.
+        // Slicing is triggered by scroll events (3s debounce) and container resize.
+        // This matches Telegram's architecture and avoids background-tab bugs.
+
+        // Page Visibility API: pause slicing when browser tab is hidden.
+        // This is a safety net - scroll events won't fire when hidden, but container
+        // resize may fire when the tab returns to foreground.
+        this._visibilityChangeHandler = () => this._onVisibilityChange();
+        document.addEventListener('visibilitychange', this._visibilityChangeHandler);
 
         // Setup user interaction tracking to distinguish user vs programmatic scrolls
         this._setupInteractionTracking();
@@ -1057,10 +1043,10 @@ export class MessageVirtualScroll<T> {
             clearTimeout(this._sliceDebounceTimer);
             this._sliceDebounceTimer = null;
         }
-        // Phase 1: Cleanup periodic slicing timer
-        if (this._sliceTimer) {
-            clearInterval(this._sliceTimer);
-            this._sliceTimer = undefined;
+        // Cleanup page visibility listener
+        if (this._visibilityChangeHandler) {
+            document.removeEventListener('visibilitychange', this._visibilityChangeHandler);
+            this._visibilityChangeHandler = undefined;
         }
         if (this._interactionCleanup) {
             this._interactionCleanup();
@@ -1140,11 +1126,6 @@ export class MessageVirtualScroll<T> {
         // NOTE: avoid per-event debug logging here — scroll fires at 60fps+ and
         // would fill the 500-entry logBuffer in seconds, drowning other log output.
         // Only log when a meaningful action is triggered (loadMore, slice).
-
-        // Track last scroll time for hybrid slicing timer
-        if (this._isUserInteracting) {
-            this._lastScrollTime = Date.now();
-        }
 
         // Debounced viewport slicing (like Telegram's sliceViewportDebounced)
         // Only trigger on user-initiated scrolls, not programmatic scrolls (auto-scroll).
@@ -1387,21 +1368,19 @@ export class MessageVirtualScroll<T> {
     // ── Viewport Slicing (Hybrid: Timer + Scroll-debounce) ──
 
     /**
-     * Periodic timer callback for idle slicing.
-     * Only executes if user has been idle for IDLE_THRESHOLD ms.
-     * This ensures off-screen elements are skeletonized even when user stops scrolling.
+     * Handle browser page visibility change.
+     * When the tab becomes hidden, set _pageVisible to false to prevent slicing.
+     * When the tab becomes visible again, set _pageVisible to true.
+     * This is a safety net - scroll events won't fire when hidden, but container
+     * resize may fire when the tab returns to foreground (browser re-layout).
      */
-    private _onSliceTimer(): void {
-        const timeSinceLastScroll = Date.now() - this._lastScrollTime;
+    private _onVisibilityChange(): void {
+        const wasVisible = this._pageVisible;
+        this._pageVisible = !document.hidden;
 
-        // Only slice if user has been idle for at least IDLE_THRESHOLD
-        if (timeSinceLastScroll < this.IDLE_THRESHOLD) {
-            log.debug(`Slice timer skipped: user active ${timeSinceLastScroll}ms ago`);
-            return;
+        if (wasVisible !== this._pageVisible) {
+            log.debug(`Page visibility changed: ${this._pageVisible ? 'visible' : 'hidden'}`);
         }
-
-        log.debug(`Slice timer triggered: idle for ${timeSinceLastScroll}ms`);
-        this._sliceViewport();
     }
 
     /**
@@ -1413,21 +1392,27 @@ export class MessageVirtualScroll<T> {
      *
      * IMPORTANT: Skip slicing if container is hidden (visibility: hidden).
      * Uses explicit _isVisible flag (set via setVisibility()) as primary check,
+     * _pageVisible flag (from visibilitychange event) as browser-level check,
      * with getBoundingClientRect() as additional safety net for display: none.
      *
-     * I3: Also checks _lastSliceTime to prevent double invocation from
-     * both scroll-debounce and periodic timer firing close together.
+     * I3: Also checks _lastSliceTime to prevent double invocation.
      */
     private _sliceViewport() {
         if (this._elementMap.size === 0) return;
 
-        // I1: Check explicit visibility flag (primary check)
+        // I1: Check explicit visibility flag (in-app tab switching)
         if (!this._isVisible) {
             log.debug('Skipping _sliceViewport: container is not visible (explicit API)');
             return;
         }
 
-        // I3: Prevent rapid re-slicing (e.g., timer + scroll-debounce both firing)
+        // Page visibility check (browser tab hidden/shown)
+        if (!this._pageVisible) {
+            log.debug('Skipping _sliceViewport: page is not visible (browser tab hidden)');
+            return;
+        }
+
+        // I3: Prevent rapid re-slicing
         const now = Date.now();
         if (now - this._lastSliceTime < this.MIN_SLICE_INTERVAL) {
             log.debug(`Skipping _sliceViewport: last slice was ${now - this._lastSliceTime}ms ago`);
