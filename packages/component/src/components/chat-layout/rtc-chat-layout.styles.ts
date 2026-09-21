@@ -94,4 +94,15 @@ export const styles = css`
     .empty-state-text {
         font-size: var(--rtc-font-size-sm);
     }
+
+    /* ── 无 Session 提示 ── */
+    .no-session-hint {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: var(--rtc-color-text-secondary);
+        font-size: var(--rtc-font-size-md);
+        user-select: none;
+    }
 `;
