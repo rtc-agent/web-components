@@ -14,12 +14,11 @@
  * 2. **`_onScroll` tracks user intent** — purely based on scroll position:
  *    - `distanceFromBottom < AT_BOTTOM_THRESHOLD_PX` → following (matches "new messages" button zone)
  *    - `distanceFromBottom ≥ AT_BOTTOM_THRESHOLD_PX` → not following
- *    Programmatic scrolls are guarded by `_programmaticScrollCount` to prevent
- *    sub-pixel rounding from incorrectly disabling follow intent.
+ *    Programmatic scrolls use `_setScrollPositionSilently()` to avoid triggering `_onScroll`.
  *
  * 3. **`overflow-anchor: none` (CSS)** — prevents the browser from adjusting
  *    scrollTop when content above changes. Ensures `_onScroll` only fires for
- *    user-initiated scrolls and programmatic `scrollTo()`.
+ *    user-initiated scrolls.
  *
  * 4. **ResizeObserver handles async content** — fires when inner container size
  *    changes (Markdown rendering, thinking expansion, tool-call cards). Scrolls
@@ -51,10 +50,6 @@ import './rtc-error-message.js';
 import {MessageVirtualScroll, type WindowBoundary, type StatefulComponent} from '../../utils/message-virtual-scroll.js';
 import {MessageSkeletonGenerator} from '../../utils/message-skeleton.js';
 
-/** Delay for programmatic scroll event guard (auto scroll, covers layout batching). */
-const PROGRAMMATIC_SCROLL_GUARD_MS = 50;
-/** Duration of smooth scroll animation for "new messages" button click. */
-const SMOOTH_SCROLL_ANIMATION_MS = 500;
 /** Duration of toolcall jump highlight animation. */
 const HIGHLIGHT_ANIMATION_MS = 2000;
 /** Distance from bottom threshold for "at bottom" detection (px). */
@@ -139,26 +134,12 @@ export class RtcMessageList extends LitElement {
      */
     private _shouldAutoScroll = true;
 
-    /**
-     * Guard counter: incremented during programmatic `scrollTo()` calls.
-     * When > 0, `_onScroll` skips updating `_shouldAutoScroll` to prevent
-     * sub-pixel rounding errors from incorrectly disabling follow intent.
-     *
-     * Uses a counter (not boolean) to handle multiple concurrent programmatic
-     * scrolls (e.g., from _scheduleScroll + ResizeObserver firing in quick succession).
-     * Each scroll increments; a 50ms timeout decrements. This covers async scroll
-     * events that might fire after `scrollTo()` returns.
-     */
-    private _programmaticScrollCount = 0;
-
     private _scrollEl?: HTMLElement;
     private _resizeObserver?: ResizeObserver;
     private _resizeDebounceTimer?: number;
 
     /** Tracked short-lived timers — cleared in disconnectedCallback to prevent leaks. */
     private _virtualScrollOpTimer?: number;
-    private _scrollGuardTimer?: number;
-    private _smoothScrollTimer?: number;
     private _highlightTimer?: number;
     private _scrollToMessageTimer?: number;
 
@@ -502,8 +483,6 @@ export class RtcMessageList extends LitElement {
         this._resizeObserver?.disconnect();
         clearTimeout(this._resizeDebounceTimer);
         clearTimeout(this._virtualScrollOpTimer);
-        clearTimeout(this._scrollGuardTimer);
-        clearTimeout(this._smoothScrollTimer);
         clearTimeout(this._highlightTimer);
         clearTimeout(this._scrollToMessageTimer);
         document.removeEventListener('visibilitychange', this._boundOnVisibilityChange);
@@ -573,20 +552,44 @@ export class RtcMessageList extends LitElement {
 
     private _scrollToBottom() {
         if (!this._scrollEl) return;
-        // Increment guard counter so _onScroll doesn't override _userAtBottom
-        // with a potentially incorrect value due to sub-pixel rounding.
-        this._programmaticScrollCount++;
-        this._scrollEl.scrollTo({top: this._scrollEl.scrollHeight, behavior: 'auto'});
-        // Decrement after a short delay to cover async scroll events.
-        // scrollTo({behavior: 'auto'}) typically fires scroll events synchronously,
-        // but some browsers may defer them. 50ms covers layout/scroll batching.
-        clearTimeout(this._scrollGuardTimer);
-        this._scrollGuardTimer = window.setTimeout(() => { this._programmaticScrollCount--; }, PROGRAMMATIC_SCROLL_GUARD_MS);
+        // Use silent scroll to avoid triggering _onScroll
+        // This is the key mechanism from Telegram Web's setScrollPositionSilently
+        this._setScrollPositionSilently(this._scrollEl.scrollHeight);
         // NOTE: _scrollToBottom() does NOT set _shouldAutoScroll.
         // System actions (auto-scroll) should not change user intent.
         // Only user actions (_onScroll, _handleNewBtnClick, session switch) set it.
         this._userAtBottom = true;
         this._showNewBtn = false;
+    }
+
+    /**
+     * Set scroll position silently without triggering _onScroll.
+     * Ported from Telegram Web's setScrollPositionSilently.
+     *
+     * How it works:
+     * 1. Temporarily remove scroll listener
+     * 2. Insert a one-time listener to swallow the scroll event
+     * 3. Set scrollTop
+     * 4. Re-add normal scroll listener
+     *
+     * Result: _onScroll callback never fires for programmatic scrolls.
+     */
+    private _setScrollPositionSilently(value: number) {
+        if (!this._scrollEl) return;
+
+        // 1. Remove normal scroll listener
+        this._scrollEl.removeEventListener('scroll', this._onScroll);
+
+        // 2. Insert one-time listener to swallow the scroll event
+        const swallowHandler = (e: Event) => {
+            e.stopImmediatePropagation();
+            // 3. Re-add normal scroll listener
+            this._scrollEl?.addEventListener('scroll', this._onScroll, {passive: true});
+        };
+        this._scrollEl.addEventListener('scroll', swallowHandler, {capture: true, passive: false, once: true});
+
+        // 4. Set scroll position
+        this._scrollEl.scrollTop = value;
     }
 
     private _onScroll = () => {
@@ -602,20 +605,17 @@ export class RtcMessageList extends LitElement {
         // - Enter follow mode when distanceFromBottom < AT_BOTTOM_THRESHOLD_PX (60px)
         // - Exit follow mode only when distanceFromBottom > EXIT_AUTO_SCROLL_THRESHOLD_PX (120px)
         // - In the hysteresis band (60-120px), preserve the current _shouldAutoScroll state
-        // _programmaticScrollCount guard prevents sub-pixel rounding from incorrectly triggering exit.
-        // This ensures stable follow behavior during streaming when scrollHeight changes asynchronously.
-        if (distanceFromBottom > EXIT_AUTO_SCROLL_THRESHOLD_PX && this._programmaticScrollCount === 0) {
+        // Note: Programmatic scrolls use _setScrollPositionSilently, so they don't trigger _onScroll.
+        // This means we don't need guards like _programmaticScrollCount anymore.
+        if (distanceFromBottom > EXIT_AUTO_SCROLL_THRESHOLD_PX) {
             this._shouldAutoScroll = false;
         } else if (atBottom) {
             this._shouldAutoScroll = true;
         }
 
-        // UI state (_userAtBottom, _showNewBtn): guarded by _programmaticScrollCount
-        // to prevent sub-pixel rounding from causing flicker during programmatic scrolls.
-        if (this._programmaticScrollCount === 0) {
-            this._userAtBottom = atBottom;
-            this._showNewBtn = !atBottom;
-        }
+        // UI state (_userAtBottom, _showNewBtn)
+        this._userAtBottom = atBottom;
+        this._showNewBtn = !atBottom;
     };
 
     /**
@@ -846,13 +846,11 @@ export class RtcMessageList extends LitElement {
 
     private _handleNewBtnClick = () => {
         if (this._scrollEl) {
-            // Smooth scroll is async (animation over ~500ms). Increment the guard
-            // counter to prevent _onScroll from disabling follow intent during the animation.
-            this._programmaticScrollCount++;
+            // Smooth scroll to bottom
+            // Note: smooth scroll will trigger _onScroll multiple times during animation,
+            // but that's OK because we set _shouldAutoScroll = true below,
+            // and _onScroll only sets it to false when distanceFromBottom > 120px.
             this._scrollEl.scrollTo({top: this._scrollEl.scrollHeight, behavior: 'smooth'});
-            // Decrement counter after animation completes
-            clearTimeout(this._smoothScrollTimer);
-            this._smoothScrollTimer = window.setTimeout(() => { this._programmaticScrollCount--; }, SMOOTH_SCROLL_ANIMATION_MS);
         }
         // User explicitly clicked "New messages" → enable follow mode.
         this._shouldAutoScroll = true;
