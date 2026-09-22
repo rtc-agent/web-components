@@ -79,6 +79,29 @@ describe('extractTextContent', () => {
         expect(extractTextContent(content)).toBe('[消息已被压缩]');
     });
 
+    // ── Prompt ──
+
+    it('should extract readable text from prompt content', () => {
+        const content: ContentData = {
+            type: 'prompt',
+            data: { name: 'scenarios', title: 'Task A, Task B', prompt: '# Task A\n\nContent A\n\n# Task B\n\nContent B' },
+        };
+        expect(extractTextContent(content)).toBe('[scenarios]\nTask A, Task B\n# Task A\n\nContent A\n\n# Task B\n\nContent B');
+    });
+
+    it('should handle prompt content without title', () => {
+        const content: ContentData = {
+            type: 'prompt',
+            data: { name: 'goal', prompt: 'Complete the task' },
+        };
+        expect(extractTextContent(content)).toBe('[goal]\nComplete the task');
+    });
+
+    it('should handle prompt content with null data', () => {
+        const content = { type: 'prompt' as const, data: null };
+        expect(extractTextContent(content)).toBe('');
+    });
+
     // ── User message ──
 
     it('should extract text from user_message without scenarios', () => {
@@ -113,17 +136,17 @@ describe('extractTextContent', () => {
     // ── Unknown/other types ──
 
     it('should extract string data from unknown type', () => {
-        const content = { type: 'error' as any, data: 'Error message' };
+        const content = { type: 'unknown_type' as any, data: 'Error message' };
         expect(extractTextContent(content)).toBe('Error message');
     });
 
     it('should JSON.stringify object data from unknown type', () => {
-        const content = { type: 'toolcall_input' as any, data: { key: 'value' } };
+        const content = { type: 'unknown_type' as any, data: { key: 'value' } };
         expect(extractTextContent(content)).toBe('{"key":"value"}');
     });
 
     it('should return empty string for null data in unknown type', () => {
-        const content = { type: 'error' as any, data: null };
+        const content = { type: 'unknown_type' as any, data: null };
         expect(extractTextContent(content)).toBe('');
     });
 });
