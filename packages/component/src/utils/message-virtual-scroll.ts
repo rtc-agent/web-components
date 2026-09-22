@@ -18,6 +18,8 @@
 import {ScrollSaver} from './scroll-saver.js';
 import {MessageSkeletonGenerator} from './message-skeleton.js';
 import {createLogger} from '@rtc-agent/client';
+import {VisibilityManager, VisibilityState} from './visibility-manager.js';
+import {SkeletonTracker} from './skeleton-tracker.js';
 
 const log = createLogger('VirtualScroll');
 
@@ -174,20 +176,11 @@ export class MessageVirtualScroll<T> {
     ) => void;
     private _isItemStable?: (item: T) => boolean;
 
-    /** Placeholder item IDs (ID-based tracking, immune to index remapping) */
-    private _placeholderItemIds: Set<string> = new Set();
-
     /** Height cache: itemId → last known height */
     private _heightCache: Map<string, number> = new Map();
 
     /** Component state cache: itemId → state object */
     private _componentStateCache: Map<string, Record<string, unknown>> = new Map();
-
-    /** Placeholder position index: sorted array (by Y coordinate) for O(log n) lookup */
-    private _placeholderPositions: Array<{itemId: string; y: number}> = [];
-
-    /** Reverse index: itemId → array index for O(1) lookup */
-    private _placeholderIndexMap: Map<string, number> = new Map();
 
     /** Element height tracker using ResizeObserver */
     private _itemResizeObserver?: ResizeObserver;
@@ -206,14 +199,19 @@ export class MessageVirtualScroll<T> {
     /** Whether a batch restoration is already scheduled */
     private _restorationScheduled: boolean = false;
 
-    /** IDs currently in pending restoration queue (dedup) */
-    private _pendingRestorationIds: Set<string> = new Set();
-
     /** Last scroll top for direction detection */
     private _lastScrollTop: number = 0;
 
     /** Maximum restorations per frame */
     private readonly MAX_RESTORATIONS_PER_FRAME = 10;
+
+    // ── Visibility State Machine (Architecture Redesign) ──
+
+    /** Visibility manager: tracks VISIBLE/HIDDEN/TRANSITIONING state */
+    private _visibilityManager: VisibilityManager;
+
+    /** Skeleton tracker: unified lifecycle management for placeholders */
+    private _skeletonTracker: SkeletonTracker;
 
     // ── Event-Driven Slicing ──
 
@@ -233,8 +231,11 @@ export class MessageVirtualScroll<T> {
     /** ResizeObserver for scroll container - rebuilds placeholder positions on resize */
     private _containerResizeObserver?: ResizeObserver;
 
-    /** Event listener for visibilitychange - pauses slicing when tab is hidden */
-    private _visibilityChangeHandler?: () => void;
+    /** Unsubscribe function for visibility manager state changes */
+    private _visibilityUnsubscribe?: () => void;
+
+    /** Cleanup for document visibilitychange listener */
+    private _documentVisibilityCleanup?: () => void;
 
     // ── Hot/Cold Data Separation (Phase 5, I2) ──
 
@@ -269,6 +270,15 @@ export class MessageVirtualScroll<T> {
         this._injectComponentState = options.injectComponentState;
         this._isItemStable = options.isItemStable;
 
+        // Architecture Redesign: Initialize visibility state machine and skeleton tracker
+        this._visibilityManager = new VisibilityManager();
+        this._skeletonTracker = new SkeletonTracker();
+
+        // Subscribe to visibility state changes
+        this._visibilityUnsubscribe = this._visibilityManager.onStateChange(state => {
+            this._onVisibilityStateChange(state);
+        });
+
         this._scrollHandler = () => this._onScroll();
         this._scrollContainer.addEventListener('scroll', this._scrollHandler, {passive: true});
 
@@ -289,11 +299,21 @@ export class MessageVirtualScroll<T> {
         // Slicing is triggered by scroll events (3s debounce) and container resize.
         // This matches Telegram's architecture and avoids background-tab bugs.
 
-        // Page Visibility API: pause slicing when browser tab is hidden.
-        // This is a safety net - scroll events won't fire when hidden, but container
-        // resize may fire when the tab returns to foreground.
-        this._visibilityChangeHandler = () => this._onVisibilityChange();
-        document.addEventListener('visibilitychange', this._visibilityChangeHandler);
+        // Page Visibility API: update visibility manager when browser tab visibility changes.
+        // The actual slicing/restoration logic now goes through the visibility state machine.
+        const onDocumentVisibilityChange = () => {
+            // Update visibility manager based on document.hidden
+            // The actual Tab visibility (app-level) is controlled via setVisibility() API
+            if (document.hidden) {
+                this._visibilityManager.update(false);
+            } else {
+                // Don't automatically set to visible - let the parent component
+                // control this via setVisibility() based on Tab active state
+                // Only update if we were previously hidden due to document.hidden
+                // This is a safety net for browser-level visibility
+            }
+        };
+        document.addEventListener('visibilitychange', onDocumentVisibilityChange);
 
         // Setup user interaction tracking to distinguish user vs programmatic scrolls
         this._setupInteractionTracking();
@@ -304,6 +324,11 @@ export class MessageVirtualScroll<T> {
             this._onContainerResize();
         });
         this._containerResizeObserver.observe(this._scrollContainer);
+
+        // Store cleanup for document visibility listener
+        this._documentVisibilityCleanup = () => {
+            document.removeEventListener('visibilitychange', onDocumentVisibilityChange);
+        };
     }
 
     /**
@@ -568,7 +593,7 @@ export class MessageVirtualScroll<T> {
 
             // Phase 2: If item is a placeholder, invalidate cached state and skip DOM update
             // The skeleton can't be updated in-place; restoration will use latest data
-            if (this._placeholderItemIds.has(itemId)) {
+            if (this._skeletonTracker.has(itemId)) {
                 this._componentStateCache.delete(itemId);
                 log.debug(`Invalidated cached state for ${itemId} (content changed while placeholder)`);
                 return;
@@ -741,12 +766,12 @@ export class MessageVirtualScroll<T> {
                 prependHeight += el.getBoundingClientRect().height;
             }
         }
-        // Add prepend height to all placeholder positions
-        if (prependHeight > 0 && this._placeholderPositions.length > 0) {
-            for (const entry of this._placeholderPositions) {
-                entry.y += prependHeight;
+        // Add prepend height to all skeleton positions
+        if (prependHeight > 0 && this._skeletonTracker.size > 0) {
+            for (const skeleton of this._skeletonTracker.getAll()) {
+                skeleton.y += prependHeight;
             }
-            log.debug(`Updated ${this._placeholderPositions.length} placeholder positions by +${prependHeight}px`);
+            log.debug(`Updated ${this._skeletonTracker.size} skeleton positions by +${prependHeight}px`);
         }
 
         // Restore scroll position using Telegram's algorithm
@@ -822,7 +847,7 @@ export class MessageVirtualScroll<T> {
         this._items[index] = newItem;
 
         // 2. If placeholder and content changed, invalidate cached state
-        if (this._placeholderItemIds.has(itemId) && contentChanged) {
+        if (this._skeletonTracker.has(itemId) && contentChanged) {
             this._componentStateCache.delete(itemId);
             log.debug(`Invalidated cached state for ${itemId} (content changed while placeholder)`);
             return true; // Data updated, DOM will be updated on restoration
@@ -869,16 +894,13 @@ export class MessageVirtualScroll<T> {
         this._loadedTop = true;
         this._loadedBottom = true;
 
-        // Phase 1: Cleanup placeholder tracking structures
-        this._placeholderItemIds.clear();
-        this._placeholderPositions = [];
-        this._placeholderIndexMap.clear();
+        // Cleanup skeleton tracking (consolidated via SkeletonTracker)
+        this._skeletonTracker.clear();
         this._heightCache.clear();
         this._componentStateCache.clear();
 
-        // Phase 2: Cleanup restoration state
+        // Cleanup restoration state
         this._pendingRestorations = [];
-        this._pendingRestorationIds.clear();
 
         // Phase 4: Cleanup stream tracking
         this._activeStreams.clear();
@@ -889,10 +911,36 @@ export class MessageVirtualScroll<T> {
 
     /**
      * Get current visibility state.
-     * @deprecated No longer needed - visibility is checked in real-time via _isContainerVisible()
+     * @deprecated Use visibilityManager.state instead
      */
     isVisible(): boolean {
-        return this._isContainerVisible();
+        return this._visibilityManager.isVisible();
+    }
+
+    /**
+     * Public API: Set visibility state.
+     * Called by parent component (rtc-message-list) when Tab visibility changes.
+     *
+     * This is the primary mechanism for the visibility state machine:
+     * - Tab switch → parent calls setVisibility(false/true)
+     * - Browser window blur/focus → parent calls setVisibility(false/true)
+     *
+     * The state machine ensures:
+     * - HIDDEN: pauses all skeletonize/restore operations
+     * - TRANSITIONING: gives browser one frame to stabilize layout
+     * - VISIBLE: synchronously restores visible skeletons before allowing interaction
+     *
+     * @param isVisible Whether the component is currently visible to the user
+     */
+    setVisibility(isVisible: boolean): void {
+        this._visibilityManager.update(isVisible);
+    }
+
+    /**
+     * Get the visibility manager (for advanced use cases).
+     */
+    get visibilityManager(): VisibilityManager {
+        return this._visibilityManager;
     }
 
     /**
@@ -929,7 +977,7 @@ export class MessageVirtualScroll<T> {
      * Used by scrollToMessage to determine if sync restoration is needed.
      */
     isPlaceholder(itemId: string): boolean {
-        return this._placeholderItemIds.has(itemId);
+        return this._skeletonTracker.has(itemId);
     }
 
     /**
@@ -940,7 +988,7 @@ export class MessageVirtualScroll<T> {
      * synchronously so the caller can immediately scroll to the restored element.
      */
     syncRestorePlaceholder(itemId: string): void {
-        if (!this._placeholderItemIds.has(itemId)) return;
+        if (!this._skeletonTracker.has(itemId)) return;
 
         const index = this._findIndexByItemId(itemId);
         if (index === -1) return;
@@ -971,25 +1019,25 @@ export class MessageVirtualScroll<T> {
      * Call this BEFORE any scrollTo/scrollIntoView to ensure the scroll target is real.
      */
     restoreAll(): void {
-        if (this._placeholderItemIds.size === 0) return;
+        if (this._skeletonTracker.size === 0) return;
 
-        log.debug(`restoreAll: restoring ${this._placeholderItemIds.size} skeletons`);
+        log.debug(`restoreAll: restoring ${this._skeletonTracker.size} skeletons`);
 
         // Capture viewport position BEFORE any DOM mutations
         const viewportTop = this._scrollContainer.scrollTop;
         let totalHeightDiffAbove = 0;
 
         // Restore top-to-bottom for deterministic processing
-        const entries = [...this._placeholderPositions].sort((a, b) => a.y - b.y);
+        const skeletons = this._skeletonTracker.getAll().sort((a, b) => a.y - b.y);
 
-        for (const entry of entries) {
-            const skeleton = this._findElementByItemId(entry.itemId);
-            if (!skeleton) continue;
+        for (const skeleton of skeletons) {
+            const skeletonEl = this._findElementByItemId(skeleton.itemId);
+            if (!skeletonEl) continue;
 
-            const oldHeight = skeleton.getBoundingClientRect().height;
+            const oldHeight = skeletonEl.getBoundingClientRect().height;
 
             // Restore without individual scroll adjustment
-            const result = this._restoreSkeletonInternal(entry.itemId, oldHeight);
+            const result = this._restoreSkeletonInternal(skeleton.itemId, oldHeight);
             if (!result) continue;
 
             // Measure actual height and accumulate diff for elements above viewport
@@ -997,7 +1045,7 @@ export class MessageVirtualScroll<T> {
             const heightDiff = newHeight - oldHeight;
 
             // Use the captured viewportTop (not current scrollTop) for judgment
-            if (Math.abs(heightDiff) > 5 && entry.y < viewportTop) {
+            if (Math.abs(heightDiff) > 5 && skeleton.y < viewportTop) {
                 totalHeightDiffAbove += heightDiff;
             }
         }
@@ -1062,11 +1110,17 @@ export class MessageVirtualScroll<T> {
             clearTimeout(this._sliceDebounceTimer);
             this._sliceDebounceTimer = null;
         }
-        // Cleanup page visibility listener
-        if (this._visibilityChangeHandler) {
-            document.removeEventListener('visibilitychange', this._visibilityChangeHandler);
-            this._visibilityChangeHandler = undefined;
+        // Cleanup document visibility listener
+        if (this._documentVisibilityCleanup) {
+            this._documentVisibilityCleanup();
+            this._documentVisibilityCleanup = undefined;
         }
+        // Cleanup visibility manager
+        if (this._visibilityUnsubscribe) {
+            this._visibilityUnsubscribe();
+            this._visibilityUnsubscribe = undefined;
+        }
+        this._visibilityManager.dispose();
         if (this._interactionCleanup) {
             this._interactionCleanup();
             this._interactionCleanup = null;
@@ -1089,16 +1143,13 @@ export class MessageVirtualScroll<T> {
         this._elementMap.clear();
         this._idToIndex.clear();
 
-        // Phase 1: Cleanup placeholder tracking structures
-        this._placeholderItemIds.clear();
-        this._placeholderPositions = [];
-        this._placeholderIndexMap.clear();
+        // Cleanup skeleton tracking (consolidated via SkeletonTracker)
+        this._skeletonTracker.clear();
         this._heightCache.clear();
         this._componentStateCache.clear();
 
-        // Phase 2: Cleanup restoration state
+        // Cleanup restoration state
         this._pendingRestorations = [];
-        this._pendingRestorationIds.clear();
 
         // Phase 4: Cleanup stream tracking
         this._activeStreams.clear();
@@ -1111,7 +1162,9 @@ export class MessageVirtualScroll<T> {
         return {
             totalItems: this._items.length,
             renderedItems: this._elementMap.size,
-            placeholderCount: this._placeholderItemIds.size,
+            placeholderCount: this._skeletonTracker.size,
+            pendingRestorationCount: this._pendingRestorations.length,
+            visibilityState: this._visibilityManager.state,
             loadedTop: this._loadedTop,
             loadedBottom: this._loadedBottom,
             firstId: this._items.length > 0 ? this._getItemId(this._items[0]) : undefined,
@@ -1120,7 +1173,6 @@ export class MessageVirtualScroll<T> {
             heightCacheSize: this._heightCache.size,
             stateCacheSize: this._componentStateCache.size,
             activeStreamCount: this._activeStreams.size,
-            pendingRestorationCount: this._pendingRestorations.length,
             isVisible: this._isContainerVisible(),
         };
     }
@@ -1218,64 +1270,63 @@ export class MessageVirtualScroll<T> {
      * Phase 2: Find and schedule restoration for skeletons in the preload range.
      * Uses fixed 2× viewport preload distance for simplicity.
      *
-     * IMPORTANT: For tall skeletons, we check if ANY part of the skeleton is in range,
-     * not just the top position. This ensures tall skeletons (e.g., 7000px) are restored
-     * when the user scrolls to their visible portion.
+     * Visibility check: Uses visibility state machine to ensure restoration only
+     * happens when VISIBLE. This prevents the bug where restoration would fail
+     * silently when the component was hidden.
+     *
+     * Skeleton lookup: Uses SkeletonTracker.getInRange() which handles the
+     * "any part in range" check internally (including tall skeletons).
+     *
+     * Dedup: Uses SkeletonTracker's isPendingRestoration flag instead of a
+     * separate _pendingRestorationIds set, avoiding the "dedup deadlock" bug
+     * where failed restorations would never be retried.
      */
     private _restoreSkeletonsInRange(scrollTop: number, clientHeight: number): void {
-        if (this._placeholderItemIds.size === 0) return;
+        // Visibility state machine check
+        if (!this._visibilityManager.shouldPerformOperations()) {
+            return;
+        }
+
+        if (this._skeletonTracker.size === 0) return;
 
         // Fixed preload distance: 2× viewport height
         const PRELOAD_DISTANCE = clientHeight * 2;
 
-        // Restore range: absolute coordinates (consistent with _placeholderPositions storage)
+        // Restore range: absolute coordinates
         const restoreTop = scrollTop - PRELOAD_DISTANCE;
         const restoreBottom = scrollTop + clientHeight + PRELOAD_DISTANCE;
 
-        log.debug(`_restoreSkeletonsInRange: scrollTop=${scrollTop}, clientHeight=${clientHeight}, placeholders=${this._placeholderItemIds.size}, range=[${restoreTop}, ${restoreBottom}]`);
+        log.debug(`_restoreSkeletonsInRange: scrollTop=${scrollTop}, clientHeight=${clientHeight}, skeletons=${this._skeletonTracker.size}, range=[${restoreTop}, ${restoreBottom}]`);
 
-        // Find placeholders where ANY part is in range (not just the top position)
-        // This is critical for tall skeletons where the top may be far from the visible portion
-        const placeholdersInRange = this._placeholderPositions.filter(entry => {
-            const skeleton = this._findElementByItemId(entry.itemId);
-            if (!skeleton) return false;
+        // Use SkeletonTracker to find skeletons in range
+        // This internally checks "any part in range" and filters out already-pending ones
+        const skeletonsInRange = this._skeletonTracker.getInRange(restoreTop, restoreBottom);
 
-            const skeletonHeight = skeleton.getBoundingClientRect().height;
-            const skeletonBottom = entry.y + skeletonHeight;
-
-            // Check if any part of the skeleton is in the restore range
-            return (entry.y >= restoreTop && entry.y <= restoreBottom) || // top in range
-                   (skeletonBottom >= restoreTop && skeletonBottom <= restoreBottom) || // bottom in range
-                   (entry.y < restoreTop && skeletonBottom > restoreBottom); // skeleton fully contains range
-        });
-
-        if (placeholdersInRange.length === 0) {
-            log.debug(`_restoreSkeletonsInRange: no placeholders in range`);
+        if (skeletonsInRange.length === 0) {
+            log.debug(`_restoreSkeletonsInRange: no skeletons in range`);
             return;
         }
 
-        log.debug(`_restoreSkeletonsInRange: found ${placeholdersInRange.length} placeholders in range`);
+        log.debug(`_restoreSkeletonsInRange: found ${skeletonsInRange.length} skeletons in range`);
 
         // Sort by scroll direction for natural restoration order
         const direction = this._getScrollDirection();
         if (direction === 'down') {
-            placeholdersInRange.sort((a, b) => a.y - b.y);
+            skeletonsInRange.sort((a, b) => a.y - b.y);
         } else {
-            placeholdersInRange.sort((a, b) => b.y - a.y);
+            skeletonsInRange.sort((a, b) => b.y - a.y);
         }
 
-        // Add to pending restoration queue (with dedup)
-        for (const entry of placeholdersInRange) {
-            if (!this._pendingRestorationIds.has(entry.itemId)) {
-                const index = this._findIndexByItemId(entry.itemId);
-                if (index >= 0) {
-                    this._pendingRestorations.push({
-                        itemId: entry.itemId,
-                        index,
-                        y: entry.y,
-                    });
-                    this._pendingRestorationIds.add(entry.itemId);
-                }
+        // Add to pending restoration queue and mark as pending in tracker
+        for (const skeleton of skeletonsInRange) {
+            const index = this._findIndexByItemId(skeleton.itemId);
+            if (index >= 0) {
+                this._pendingRestorations.push({
+                    itemId: skeleton.itemId,
+                    index,
+                    y: skeleton.y,
+                });
+                this._skeletonTracker.markPending(skeleton.itemId);
             }
         }
 
@@ -1300,6 +1351,10 @@ export class MessageVirtualScroll<T> {
      * Uses cumulative scroll adjustment: captures viewport position once before
      * the batch, then adjusts scrollTop by the total height difference of all
      * elements restored above the viewport in a single operation.
+     *
+     * Visibility check: Uses visibility state machine. If not VISIBLE, the batch
+     * is cancelled and pending items are unmarked so they can be retried later.
+     * This fixes the "dedup deadlock" bug where pending IDs would prevent retry.
      */
     private _scheduleBatchRestoration(): void {
         if (this._restorationScheduled || this._pendingRestorations.length === 0) return;
@@ -1309,9 +1364,14 @@ export class MessageVirtualScroll<T> {
         requestAnimationFrame(() => {
             this._restorationScheduled = false;
 
-            // Real-time visibility check before restoration
-            if (!this._isContainerVisible()) {
-                log.debug('Skipping batch restoration: container is not visible');
+            // Visibility state machine check
+            if (!this._visibilityManager.shouldPerformOperations()) {
+                log.debug(`Skipping batch restoration: visibility state is ${this._visibilityManager.state}`);
+                // Clear pending flags so items can be retried when visible again
+                for (const {itemId} of this._pendingRestorations) {
+                    this._skeletonTracker.clearPending(itemId);
+                }
+                // Keep items in queue for retry (don't discard)
                 return;
             }
 
@@ -1419,35 +1479,162 @@ export class MessageVirtualScroll<T> {
 
     /**
      * Check if the scroll container is currently visible.
-     * Real-time check using getBoundingClientRect() - single source of truth.
+     * Uses the visibility state machine as the single source of truth.
      *
-     * This replaces the previous _isVisible and _pageVisible state flags,
-     * eliminating state synchronization issues when tabs switch.
+     * The visibility state machine (VisibilityManager) tracks:
+     * - VISIBLE: component is visible and interactive
+     * - HIDDEN: component is not visible (Tab switch or browser window blur)
+     * - TRANSITIONING: component is transitioning from hidden to visible
+     *
+     * This replaces the previous ad-hoc checks that couldn't detect
+     * visibility: hidden CSS (which preserves layout dimensions).
      */
     private _isContainerVisible(): boolean {
-        // Check browser page visibility
-        if (document.hidden) {
-            return false;
-        }
-
-        // Check container dimensions (visibility: hidden preserves layout,
-        // but display: none or detached elements have zero dimensions)
-        const rect = this._scrollContainer.getBoundingClientRect();
-        return rect.width > 0 && rect.height > 0;
+        return this._visibilityManager.isVisible();
     }
 
     /**
-     * Handle browser page visibility change.
-     * When the tab becomes visible again, trigger a slice check to ensure
-     * skeleton positions are up-to-date.
+     * Handle visibility state machine transitions.
+     * Called by VisibilityManager when state changes.
+     *
+     * State transitions:
+     * - VISIBLE → HIDDEN: Pause all operations, cancel pending timers
+     * - HIDDEN → TRANSITIONING: Prepare for restore (wait one frame for layout)
+     * - TRANSITIONING → VISIBLE: Rebuild skeleton positions, restore visible skeletons
      */
-    private _onVisibilityChange(): void {
-        if (!document.hidden) {
-            log.debug('Page became visible, triggering slice check');
-            // Use setTimeout to ensure layout is stable after visibility change
-            setTimeout(() => {
-                this._sliceViewport();
-            }, 50);
+    private _onVisibilityStateChange(state: VisibilityState): void {
+        log.debug(`Visibility state changed: ${state}`);
+
+        switch (state) {
+            case VisibilityState.HIDDEN:
+                this._pauseOperations();
+                break;
+
+            case VisibilityState.TRANSITIONING:
+                // Wait for VISIBLE state (next frame)
+                break;
+
+            case VisibilityState.VISIBLE:
+                this._restoreState();
+                break;
+        }
+    }
+
+    /**
+     * Pause all virtual scroll operations when becoming hidden.
+     *
+     * This is the key mechanism that prevents the bug:
+     * - When Tab is hidden (visibility: hidden) or browser window loses focus,
+     *   all skeletonize/restore operations are paused
+     * - No new skeletons are created while hidden
+     * - Pending restoration timers are cancelled
+     * - When becoming visible again, state is rebuilt synchronously
+     */
+    private _pauseOperations(): void {
+        // Cancel pending slice timer
+        if (this._sliceDebounceTimer) {
+            clearTimeout(this._sliceDebounceTimer);
+            this._sliceDebounceTimer = null;
+        }
+
+        // Cancel pending restoration
+        this._restorationScheduled = false;
+
+        // Reset loading flags to prevent stuck state
+        this._isLoading = {top: false, bottom: false};
+
+        // Clear pending restorations (they will be re-queued when visible)
+        // This fixes the "pendingRestorationIds dedup deadlock" bug:
+        // IDs in _pendingRestorationIds would prevent retrying after failure.
+        // By clearing pending state on hide, we ensure fresh restore attempts on show.
+        for (const {itemId} of this._pendingRestorations) {
+            this._skeletonTracker.clearPending(itemId);
+        }
+        this._pendingRestorations = [];
+
+        log.debug('Paused all virtual scroll operations');
+    }
+
+    /**
+     * Restore state when becoming visible again.
+     *
+     * This runs synchronously when the state machine transitions to VISIBLE:
+     * 1. Rebuild skeleton Y positions (layout may have changed while hidden)
+     * 2. Synchronously restore all skeletons in the current viewport
+     * 3. Allow subsequent operations
+     *
+     * This fixes the "stale Y coordinates" bug:
+     * - While hidden, layout may change (new messages, container resize)
+     * - Old Y coordinates become stale
+     * - By rebuilding positions synchronously on restore, we ensure accuracy
+     */
+    private _restoreState(): void {
+        if (this._skeletonTracker.size === 0) {
+            log.debug('No skeletons to restore');
+            return;
+        }
+
+        log.debug(`Restoring state: ${this._skeletonTracker.size} skeletons`);
+
+        // Step 1: Rebuild skeleton positions based on current layout
+        this._skeletonTracker.rebuildPositions(this._scrollContainer, this._elementMap);
+
+        // Step 2: Synchronously restore all skeletons in the current viewport
+        // This is NOT limited by MAX_RESTORATIONS_PER_FRAME because we need
+        // to ensure all visible skeletons are restored before user interaction
+        this._restoreVisibleSkeletons();
+
+        log.debug('State restored');
+    }
+
+    /**
+     * Synchronously restore all skeletons in the current viewport.
+     *
+     * Called when transitioning from hidden to visible.
+     * Unlike _restoreSkeletonsInRange (which uses rAF), this runs synchronously
+     * to ensure all visible skeletons are restored before user can interact.
+     */
+    private _restoreVisibleSkeletons(): void {
+        const {scrollTop, clientHeight} = this._scrollContainer;
+
+        // Restore viewport + generous preload area
+        const PRELOAD_DISTANCE = clientHeight;
+        const restoreTop = scrollTop - PRELOAD_DISTANCE;
+        const restoreBottom = scrollTop + clientHeight + PRELOAD_DISTANCE;
+
+        const skeletonsInRange = this._skeletonTracker.getInRange(restoreTop, restoreBottom);
+
+        if (skeletonsInRange.length === 0) {
+            return;
+        }
+
+        log.debug(`Restoring ${skeletonsInRange.length} visible skeletons synchronously`);
+
+        // Capture viewport position BEFORE any DOM mutations
+        const viewportTop = this._scrollContainer.scrollTop;
+        let totalHeightDiffAbove = 0;
+
+        // Sort by Y for deterministic processing
+        skeletonsInRange.sort((a, b) => a.y - b.y);
+
+        for (const skeleton of skeletonsInRange) {
+            const skeletonHeight = skeleton.element.getBoundingClientRect().height;
+            const result = this._restoreSkeletonInternal(skeleton.itemId, skeletonHeight);
+            if (!result) continue;
+
+            // Measure actual height and accumulate diff for elements above viewport
+            const newHeight = result.element.getBoundingClientRect().height;
+            const heightDiff = newHeight - skeletonHeight;
+
+            if (Math.abs(heightDiff) > 5 && skeleton.y < viewportTop) {
+                totalHeightDiffAbove += heightDiff;
+            }
+        }
+
+        // Single scroll adjustment for all restorations above viewport
+        if (Math.abs(totalHeightDiffAbove) > 5) {
+            this._scrollContainer.scrollTop += totalHeightDiffAbove;
+            log.debug(`Adjusted scroll position by ${totalHeightDiffAbove}px after visible restore`);
         }
     }
 
@@ -1458,17 +1645,19 @@ export class MessageVirtualScroll<T> {
      * placeholders that maintain the scroll height. This provides visual continuity
      * and prevents scroll position jumps.
      *
-     * Uses real-time visibility check via _isContainerVisible() instead of
-     * maintaining _isVisible state, eliminating state synchronization issues.
+     * Visibility check: Uses the visibility state machine (shouldPerformOperations)
+     * to ensure slicing only happens when the component is VISIBLE. This prevents
+     * the bug where background tabs (visibility: hidden) would have skeletons
+     * created but never restored.
      *
      * I3: Also checks _lastSliceTime to prevent double invocation.
      */
     private _sliceViewport() {
         if (this._elementMap.size === 0) return;
 
-        // Real-time visibility check (single source of truth)
-        if (!this._isContainerVisible()) {
-            log.debug('Skipping _sliceViewport: container is not visible');
+        // Visibility state machine check: only perform operations when VISIBLE
+        if (!this._visibilityManager.shouldPerformOperations()) {
+            log.debug(`Skipping _sliceViewport: visibility state is ${this._visibilityManager.state}`);
             return;
         }
 
@@ -1543,7 +1732,7 @@ export class MessageVirtualScroll<T> {
         this._onSizeChange?.();
 
         log.debug(
-            `After slice: placeholders=${this._placeholderItemIds.size}, ` +
+            `After slice: skeletons=${this._skeletonTracker.size}, ` +
             `loadedTop=${this._loadedTop}, loadedBottom=${this._loadedBottom}`
         );
     }
@@ -1559,14 +1748,14 @@ export class MessageVirtualScroll<T> {
      * 2. Cache the element height
      * 3. Create skeleton placeholder
      * 4. Replace DOM element
-     * 5. Track placeholder in _placeholderItemIds and _placeholderPositions
+     * 5. Track placeholder via SkeletonTracker (unified lifecycle management)
      * 6. Stop tracking height for this element (skeleton height is fixed)
      */
     private _replaceWithSkeleton(index: number, element: HTMLElement, item: T): void {
         const itemId = this._getItemId(item);
 
         // Skip if already a placeholder
-        if (this._placeholderItemIds.has(itemId)) return;
+        if (this._skeletonTracker.has(itemId)) return;
 
         // Phase 4 (I7 fix): Skip if element has been disconnected from DOM
         // (e.g., by concurrent clear() or session switch)
@@ -1606,9 +1795,8 @@ export class MessageVirtualScroll<T> {
         element.replaceWith(skeleton);
         this._elementMap.set(index, skeleton);
 
-        // Step 6: Track placeholder using ID (not index)
-        this._placeholderItemIds.add(itemId);
-        this._addPlaceholderPosition(itemId, absoluteY);
+        // Step 6: Track placeholder via SkeletonTracker (replaces old _placeholderItemIds + _addPlaceholderPosition)
+        this._skeletonTracker.add(itemId, index, absoluteY, skeleton);
 
         // Step 7: Stop tracking height for old element, start for skeleton (no-op for skeleton)
         this._itemResizeObserver?.unobserve(element);
@@ -1669,7 +1857,8 @@ export class MessageVirtualScroll<T> {
         skeletonHeight: number
     ): { element: HTMLElement; skeletonY: number; skeletonHeight: number } | null {
         // Skip if not actually a placeholder (may have been restored already)
-        if (!this._placeholderItemIds.has(itemId)) return null;
+        const skeletonInfo = this._skeletonTracker.get(itemId);
+        if (!skeletonInfo) return null;
 
         // Resolve current index: use _idToIndex for O(1) lookup, falling back to elementMap scan
         let actualIndex = this._idToIndex.get(itemId);
@@ -1698,7 +1887,7 @@ export class MessageVirtualScroll<T> {
         if (!skeleton) return null;
 
         // Capture position before mutation (critical for batch scroll adjustment)
-        const skeletonY = this._getPlaceholderY(itemId);
+        const skeletonY = skeletonInfo.y;
         const cachedState = this._componentStateCache.get(itemId);
 
         // Render real content
@@ -1719,11 +1908,11 @@ export class MessageVirtualScroll<T> {
         skeleton.replaceWith(el);
         this._elementMap.set(actualIndex, el);
 
-        // Cleanup placeholder tracking
-        this._placeholderItemIds.delete(itemId);
-        this._removePlaceholderPosition(itemId);
+        // Cleanup placeholder tracking via SkeletonTracker
+        // This clears: _placeholderItemIds entry, _placeholderPositions entry,
+        // and _pendingRestorationIds entry (all consolidated in skeletonTracker)
+        this._skeletonTracker.remove(itemId);
         this._componentStateCache.delete(itemId);
-        this._pendingRestorationIds.delete(itemId);
 
         return { element: el, skeletonY, skeletonHeight };
     }
@@ -1818,34 +2007,6 @@ export class MessageVirtualScroll<T> {
     }
 
     /**
-     * Add placeholder position to sorted array (maintains Y-coordinate order).
-     * Uses binary search to find insertion point - O(log n) search + O(n) splice.
-     */
-    private _addPlaceholderPosition(itemId: string, y: number): void {
-        // Binary search for insertion point
-        let lo = 0;
-        let hi = this._placeholderPositions.length;
-        while (lo < hi) {
-            const mid = (lo + hi) >>> 1;
-            if (this._placeholderPositions[mid].y < y) {
-                lo = mid + 1;
-            } else {
-                hi = mid;
-            }
-        }
-
-        // Insert at lo position to maintain sorted order
-        this._placeholderPositions.splice(lo, 0, {itemId, y});
-
-        // Update reverse index map (all entries at or after lo shift by 1)
-        // Safe: Map.set() during iteration updates existing keys without affecting iteration order
-        for (const [key, idx] of this._placeholderIndexMap) {
-            if (idx >= lo) this._placeholderIndexMap.set(key, idx + 1);
-        }
-        this._placeholderIndexMap.set(itemId, lo);
-    }
-
-    /**
      * Check if an item is stable (safe to virtualize).
      * Unstable items should not be replaced with skeletons.
      */
@@ -1864,33 +2025,6 @@ export class MessageVirtualScroll<T> {
 
         // Default: all items are stable
         return true;
-    }
-
-    /**
-     * Find placeholder Y coordinate from reverse index map - O(1).
-     */
-    protected _getPlaceholderY(itemId: string): number {
-        const idx = this._placeholderIndexMap.get(itemId);
-        if (idx === undefined) return 0;
-        return this._placeholderPositions[idx]?.y ?? 0;
-    }
-
-    /**
-     * Remove placeholder position from sorted array.
-     * Updates reverse index map for all subsequent entries.
-     */
-    protected _removePlaceholderPosition(itemId: string): void {
-        const idx = this._placeholderIndexMap.get(itemId);
-        if (idx === undefined) return;
-
-        this._placeholderPositions.splice(idx, 1);
-        this._placeholderIndexMap.delete(itemId);
-
-        // Update reverse index (all entries after idx shift by -1)
-        // Safe: Map.set() during iteration updates existing keys without affecting iteration order
-        for (const [key, mapIdx] of this._placeholderIndexMap) {
-            if (mapIdx > idx) this._placeholderIndexMap.set(key, mapIdx - 1);
-        }
     }
 
     /**
@@ -1922,39 +2056,27 @@ export class MessageVirtualScroll<T> {
 
     /**
      * Handle scroll container resize (e.g., window resize).
-     * Rebuilds all placeholder Y positions since cached coordinates become stale.
+     * Rebuilds all skeleton Y positions via SkeletonTracker since cached coordinates become stale.
+     *
+     * Note: Only rebuilds positions when VISIBLE. When hidden, positions will be rebuilt
+     * by _restoreState() when transitioning back to visible.
      */
     private _onContainerResize(): void {
-        if (this._placeholderPositions.length === 0) return;
-        this._rebuildPlaceholderPositions();
-        // Schedule a debounced slice check after position rebuild
-        if (this._sliceDebounceTimer) {
-            clearTimeout(this._sliceDebounceTimer);
-        }
-        this._sliceDebounceTimer = window.setTimeout(() => {
-            this._sliceViewport();
-        }, this._sliceDebounceDelay);
-    }
+        if (this._skeletonTracker.size === 0) return;
 
-    /**
-     * Rebuild all placeholder positions from current DOM state.
-     * Called when the scroll container resizes and cached Y coordinates become stale.
-     */
-    private _rebuildPlaceholderPositions(): void {
-        this._placeholderPositions = [];
-        this._placeholderIndexMap.clear();
+        // Only rebuild positions when visible (state machine check)
+        if (this._visibilityManager.shouldPerformOperations()) {
+            this._skeletonTracker.rebuildPositions(this._scrollContainer, this._elementMap);
+            log.debug(`Rebuilt ${this._skeletonTracker.size} skeleton positions after container resize`);
 
-        const containerRect = this._scrollContainer.getBoundingClientRect();
-        for (const itemId of this._placeholderItemIds) {
-            const element = this._findElementByItemId(itemId);
-            if (element) {
-                const rect = element.getBoundingClientRect();
-                const absoluteY = rect.top - containerRect.top + this._scrollContainer.scrollTop;
-                this._addPlaceholderPosition(itemId, absoluteY);
+            // Schedule a debounced slice check after position rebuild
+            if (this._sliceDebounceTimer) {
+                clearTimeout(this._sliceDebounceTimer);
             }
+            this._sliceDebounceTimer = window.setTimeout(() => {
+                this._sliceViewport();
+            }, this._sliceDebounceDelay);
         }
-
-        log.debug(`Rebuilt ${this._placeholderPositions.length} placeholder positions after container resize`);
     }
 
     // ── Hot/Cold Data Settlement (Phase 5, I2) ──
@@ -2022,12 +2144,9 @@ export class MessageVirtualScroll<T> {
         // When re-rendering all items, the DOM is completely rebuilt, so any existing
         // skeleton placeholders are destroyed. We must clear the tracking state to
         // match the new DOM state.
-        this._placeholderItemIds.clear();
-        this._placeholderPositions = [];
-        this._placeholderIndexMap.clear();
+        this._skeletonTracker.clear();
         this._componentStateCache.clear();
         this._pendingRestorations = [];
-        this._pendingRestorationIds.clear();
 
         const fragment = document.createDocumentFragment();
         this._items.forEach((item, index) => {

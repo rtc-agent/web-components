@@ -137,6 +137,9 @@ export class RtcMessageList extends LitElement {
     private _resizeObserver?: ResizeObserver;
     private _resizeDebounceTimer?: number;
 
+    /** Document visibility change listener for browser window blur/focus */
+    private _documentVisibilityHandler?: () => void;
+
     /** Tracked short-lived timers — cleared in disconnectedCallback to prevent leaks. */
     private _virtualScrollOpTimer?: number;
     private _highlightTimer?: number;
@@ -302,6 +305,24 @@ export class RtcMessageList extends LitElement {
 
         // Listen for toolcall jump events (from rtc-toolcall-reply)
         this.addEventListener('rtc-toolcall-jump', this._handleToolcallJump as EventListener);
+
+        // Listen for browser window visibility changes (blur/focus)
+        // This works alongside Tab visibility (onTabVisibilityChange) to ensure
+        // the virtual scroll pauses when the user leaves the browser window
+        this._documentVisibilityHandler = () => {
+            // Only update if we have a virtual scroll and the Tab is currently active
+            // (Tab visibility is controlled by onTabVisibilityChange)
+            if (this._virtualScroll) {
+                // Check if this Tab is the active one
+                const tabContent = this.closest('.tab-content');
+                const isTabActive = tabContent?.classList.contains('active') ?? true;
+
+                // Update visibility: visible only if both document and Tab are visible
+                const isVisible = !document.hidden && isTabActive;
+                this._virtualScroll.setVisibility(isVisible);
+            }
+        };
+        document.addEventListener('visibilitychange', this._documentVisibilityHandler);
     }
 
     /**
@@ -490,6 +511,13 @@ export class RtcMessageList extends LitElement {
         clearTimeout(this._scrollToMessageTimer);
         clearTimeout(this._scrollToBottomTimer);
         this.removeEventListener('rtc-toolcall-jump', this._handleToolcallJump as EventListener);
+
+        // Cleanup document visibility listener
+        if (this._documentVisibilityHandler) {
+            document.removeEventListener('visibilitychange', this._documentVisibilityHandler);
+            this._documentVisibilityHandler = undefined;
+        }
+
         this._subscription?.();
         this._subscription = undefined;
         this._virtualScroll?.dispose();
@@ -499,17 +527,20 @@ export class RtcMessageList extends LitElement {
     /**
      * Tab visibility handler - called by parent component when tab switches.
      *
-     * @deprecated No longer needed. MessageVirtualScroll now uses real-time
-     * visibility checks via getBoundingClientRect() instead of maintaining
-     * explicit _isVisible state. This method is kept for backward compatibility
-     * but does nothing.
+     * This is the primary mechanism for the visibility state machine:
+     * - When Tab becomes active: setVisibility(true) → VISIBLE state
+     * - When Tab becomes inactive: setVisibility(false) → HIDDEN state
      *
-     * @param visible - Whether the tab is currently visible (ignored)
+     * The state machine ensures:
+     * - HIDDEN: pauses all skeletonize/restore operations (prevents bug)
+     * - VISIBLE: synchronously rebuilds skeleton positions and restores visible skeletons
+     *
+     * @param visible - Whether the tab is currently visible (active)
      */
-    onTabVisibilityChange(_visible: boolean): void {
-        // No-op: visibility is now checked in real-time by MessageVirtualScroll
-        // This method is kept for backward compatibility with parent components
-        // that may still call it.
+    onTabVisibilityChange(visible: boolean): void {
+        if (this._virtualScroll) {
+            this._virtualScroll.setVisibility(visible);
+        }
     }
 
     /**

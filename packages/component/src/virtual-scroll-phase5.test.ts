@@ -104,7 +104,7 @@ describe('MessageVirtualScroll - Phase 5: Update Handling', () => {
 
             // Manually mark as placeholder (simulating internal state)
             // @ts-ignore - accessing private for testing
-            virtualScroll._placeholderItemIds.add('2');
+            virtualScroll._skeletonTracker.add('2', 1, 100, placeholder);
             // @ts-ignore - accessing private for testing
             virtualScroll._componentStateCache.set('2', {expanded: true});
 
@@ -212,7 +212,7 @@ describe('MessageVirtualScroll - Phase 5: Update Handling', () => {
             originalElement.replaceWith(placeholder);
 
             // @ts-ignore - accessing private for testing
-            virtualScroll._placeholderItemIds.add('2');
+            virtualScroll._skeletonTracker.add('2', 1, 100, placeholder);
             // @ts-ignore - accessing private for testing
             virtualScroll._componentStateCache.set('2', {expanded: true});
 
@@ -366,7 +366,7 @@ describe('MessageVirtualScroll - Phase 5: Performance', () => {
             originalElement.replaceWith(placeholder);
 
             // @ts-ignore - accessing private for testing
-            virtualScroll._placeholderItemIds.add(`msg-${i}`);
+            virtualScroll._skeletonTracker.add(`msg-${i}`, i, i * 100, placeholder);
         }
 
         const startTime = performance.now();
@@ -601,7 +601,7 @@ describe('MessageVirtualScroll - Phase 5: User Experience', () => {
         originalElement.replaceWith(placeholder);
 
         // @ts-ignore - accessing private for testing
-        virtualScroll._placeholderItemIds.add('1');
+        virtualScroll._skeletonTracker.add('1', 0, 0, placeholder);
         // @ts-ignore - accessing private for testing
         virtualScroll._componentStateCache.set('1', {expanded: true});
 
@@ -642,7 +642,7 @@ describe('MessageVirtualScroll - Phase 5: User Experience', () => {
         originalElement.replaceWith(placeholder);
 
         // @ts-ignore - accessing private for testing
-        virtualScroll._placeholderItemIds.add('1');
+        virtualScroll._skeletonTracker.add('1', 0, 0, placeholder);
         // @ts-ignore - accessing private for testing
         virtualScroll._componentStateCache.set('1', {expanded: true});
 
@@ -654,7 +654,7 @@ describe('MessageVirtualScroll - Phase 5: User Experience', () => {
         expect(virtualScroll._componentStateCache.has('1')).toBe(true);
     });
 
-    it('should check visibility in real-time via _isContainerVisible', () => {
+    it('should check visibility via VisibilityManager', () => {
         const messages = [
             createMessage('1', 'Message 1'),
         ];
@@ -668,58 +668,18 @@ describe('MessageVirtualScroll - Phase 5: User Experience', () => {
 
         virtualScroll.setItems(messages);
 
-        // Mock document.hidden to be false (page is visible)
-        const hiddenDescriptor = Object.getOwnPropertyDescriptor(Document.prototype, 'hidden');
-        Object.defineProperty(document, 'hidden', {
-            value: false,
-            writable: true,
-            configurable: true,
-        });
+        // @ts-ignore - accessing private for testing
+        const isContainerVisible = virtualScroll._isContainerVisible.bind(virtualScroll);
 
-        try {
-            // @ts-ignore - accessing private for testing
-            const isContainerVisible = virtualScroll._isContainerVisible.bind(virtualScroll);
+        // Initially visible (default state)
+        expect(isContainerVisible()).toBe(true);
 
-            // Mock getBoundingClientRect to simulate visible container (has dimensions)
-            const originalGetBoundingClientRect = scrollContainer.getBoundingClientRect;
-            scrollContainer.getBoundingClientRect = () => ({
-                width: 800,
-                height: 600,
-                top: 0,
-                left: 0,
-                bottom: 600,
-                right: 800,
-                x: 0,
-                y: 0,
-                toJSON: () => ({}),
-            });
+        // Set visibility to false
+        virtualScroll.setVisibility(false);
+        expect(isContainerVisible()).toBe(false);
 
-            // Should return true for container with dimensions
-            expect(isContainerVisible()).toBe(true);
-
-            // Mock getBoundingClientRect to simulate hidden container (zero dimensions)
-            scrollContainer.getBoundingClientRect = () => ({
-                width: 0,
-                height: 0,
-                top: 0,
-                left: 0,
-                bottom: 0,
-                right: 0,
-                x: 0,
-                y: 0,
-                toJSON: () => ({}),
-            });
-
-            // Should return false for zero-dimension container
-            expect(isContainerVisible()).toBe(false);
-
-            // Restore original getBoundingClientRect
-            scrollContainer.getBoundingClientRect = originalGetBoundingClientRect;
-        } finally {
-            // Restore document.hidden
-            if (hiddenDescriptor) {
-                Object.defineProperty(Document.prototype, 'hidden', hiddenDescriptor);
-            }
-        }
+        // Set visibility to true
+        virtualScroll.setVisibility(true);
+        expect(isContainerVisible()).toBe(true);
     });
 });
