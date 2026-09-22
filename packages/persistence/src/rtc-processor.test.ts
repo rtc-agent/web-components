@@ -430,12 +430,12 @@ describe('RtcProcessor', () => {
   });
 
   // ============================================================
-  // ask_user processing
+  // askUser processing
   // ============================================================
 
-  describe('processOne - ask_user', () => {
+  describe('processOne - askUser', () => {
     it('should route to askUserDialog instead of tool execution', async () => {
-      const rtc = createMockRtc({ tool_name: 'ask_user' });
+      const rtc = createMockRtc({ tool_name: 'askUser' });
       mockPersistence.getNextRtcToProcess
         .mockResolvedValueOnce(rtc)
         .mockResolvedValueOnce(undefined);
@@ -456,7 +456,7 @@ describe('RtcProcessor', () => {
     });
 
     it('should submit declined when askUserDialog returns null', async () => {
-      const rtc = createMockRtc({ tool_name: 'ask_user' });
+      const rtc = createMockRtc({ tool_name: 'askUser' });
       mockPersistence.getNextRtcToProcess
         .mockResolvedValueOnce(rtc)
         .mockResolvedValueOnce(undefined);
@@ -474,7 +474,7 @@ describe('RtcProcessor', () => {
     });
 
     it('should default to reject when askUserDialog is not set', async () => {
-      const rtc = createMockRtc({ tool_name: 'ask_user' });
+      const rtc = createMockRtc({ tool_name: 'askUser' });
       mockPersistence.getNextRtcToProcess
         .mockResolvedValueOnce(rtc)
         .mockResolvedValueOnce(undefined);
@@ -490,7 +490,7 @@ describe('RtcProcessor', () => {
     });
 
     it('should submit error when askUserDialog throws', async () => {
-      const rtc = createMockRtc({ tool_name: 'ask_user' });
+      const rtc = createMockRtc({ tool_name: 'askUser' });
       mockPersistence.getNextRtcToProcess
         .mockResolvedValueOnce(rtc)
         .mockResolvedValueOnce(undefined);
@@ -508,7 +508,7 @@ describe('RtcProcessor', () => {
     });
 
     it('should not throw when askUserDialog throws and submitRtcResult also fails', async () => {
-      const rtc = createMockRtc({ tool_name: 'ask_user' });
+      const rtc = createMockRtc({ tool_name: 'askUser' });
       mockPersistence.getNextRtcToProcess
         .mockResolvedValueOnce(rtc)
         .mockResolvedValueOnce(undefined);
@@ -522,7 +522,7 @@ describe('RtcProcessor', () => {
     });
 
     it('should bypass permission check for ask_user', async () => {
-      const rtc = createMockRtc({ tool_name: 'ask_user' });
+      const rtc = createMockRtc({ tool_name: 'askUser' });
       mockPersistence.getNextRtcToProcess
         .mockResolvedValueOnce(rtc)
         .mockResolvedValueOnce(undefined);
@@ -532,7 +532,7 @@ describe('RtcProcessor', () => {
 
       await runWithTimers(processor.onRtcUpdate());
 
-      // ask_user bypasses permissionChecker entirely
+      // askUser bypasses permissionChecker entirely
       expect(mockNeedsConfirm).not.toHaveBeenCalled();
     });
   });

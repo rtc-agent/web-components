@@ -6,7 +6,7 @@ import type {RtcAskUser} from './rtc-ask-user.js';
 import type {LocalRtc} from '@rtc-agent/persistence';
 
 /**
- * Build a minimal LocalRtc-shaped mock with the ask_user parameters.
+ * Build a minimal LocalRtc-shaped mock with the askUser parameters.
  * Only the fields the component actually reads are set.
  */
 function makeRtc(questions: unknown[]): LocalRtc {
@@ -14,7 +14,7 @@ function makeRtc(questions: unknown[]): LocalRtc {
         client_id: 'rtc-ask-1',
         session_client_id: 'sess-1',
         sync_status: 'pending',
-        tool_name: 'ask_user',
+        tool_name: 'askUser',
         status: 'pending',
         turn_id: 'turn-1',
         offset: 0,

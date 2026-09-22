@@ -3,7 +3,7 @@
  */
 
 /** Tool name */
-export type ToolName = 'ls' | 'read' | 'write' | 'find' | 'grep' | 'script' | 'ask_user';
+export type ToolName = 'ls' | 'read' | 'write' | 'find' | 'grep' | 'script' | 'askUser';
 
 /** Tool parameters */
 export interface ToolParams {

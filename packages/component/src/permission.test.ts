@@ -2,31 +2,31 @@ import {describe, it, expect} from 'vitest';
 import {permissionChecker} from '@rtc-agent/persistence';
 
 /**
- * Permission tests for the ask_user tool.
+ * Permission tests for the askUser tool.
  *
- * ask_user is inherently interactive: the user's selection IS the tool result,
+ * askUser is inherently interactive: the user's selection IS the tool result,
  * so it always requires the ask-user dialog regardless of mode (except bypass).
  */
-describe('permissionChecker — ask_user rules', () => {
+describe('permissionChecker — askUser rules', () => {
   it('requires confirm in manual mode', () => {
-    expect(permissionChecker.needsConfirm('ask_user', 'manual')).toBe(true);
+    expect(permissionChecker.needsConfirm('askUser', 'manual')).toBe(true);
   });
 
   it('requires confirm in edit mode', () => {
-    expect(permissionChecker.needsConfirm('ask_user', 'edit')).toBe(true);
+    expect(permissionChecker.needsConfirm('askUser', 'edit')).toBe(true);
   });
 
   it('requires confirm in plan mode', () => {
-    expect(permissionChecker.needsConfirm('ask_user', 'plan')).toBe(true);
+    expect(permissionChecker.needsConfirm('askUser', 'plan')).toBe(true);
   });
 
   it('requires confirm in auto mode', () => {
-    expect(permissionChecker.needsConfirm('ask_user', 'auto')).toBe(true);
+    expect(permissionChecker.needsConfirm('askUser', 'auto')).toBe(true);
   });
 
   it('allows unconditionally in bypass mode', () => {
-    expect(permissionChecker.isAllowed('ask_user', 'bypass')).toBe(true);
-    expect(permissionChecker.needsConfirm('ask_user', 'bypass')).toBe(false);
+    expect(permissionChecker.isAllowed('askUser', 'bypass')).toBe(true);
+    expect(permissionChecker.needsConfirm('askUser', 'bypass')).toBe(false);
   });
 });
 

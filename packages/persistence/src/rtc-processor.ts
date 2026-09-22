@@ -33,7 +33,7 @@ export type ConfirmDialogFn = (rtc: LocalRtc) => Promise<boolean>;
  * AskUser dialog callback type.
  *
  * Implemented by the component layer (<rtc-ask-user>) and injected into RtcProcessor.
- * Unlike a regular confirm: for ask_user the "execution" IS collecting user input,
+ * Unlike a regular confirm: for askUser the "execution" IS collecting user input,
  * so the callback returns the user's answer dict (or null to indicate refusal).
  *
  * @param rtc The RTC to answer; parameters contain a questions array
@@ -247,9 +247,9 @@ export class RtcProcessor {
       // New task: check permissions
       const toolName = rtc.tool_name as ToolName;
 
-      // ask_user is a special case: its "execution" IS the user's input.
+      // askUser is a special case: its "execution" IS the user's input.
       // Route to the dedicated ask-user dialog instead of the generic confirm.
-      if (toolName === 'ask_user') {
+      if (toolName === 'askUser') {
         await this.processAskUser(rtc);
         return;
       }
