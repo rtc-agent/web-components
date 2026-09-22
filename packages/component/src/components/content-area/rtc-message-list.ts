@@ -498,16 +498,18 @@ export class RtcMessageList extends LitElement {
 
     /**
      * Tab visibility handler - called by parent component when tab switches.
-     * Phase 4: Explicit visibility API integration.
      *
-     * When hidden, virtual scroll skips viewport slicing to prevent incorrect
-     * skeletonization of elements in a hidden container (inactive tab).
-     * When visible again, triggers a slice check to skeletonize off-screen elements.
+     * @deprecated No longer needed. MessageVirtualScroll now uses real-time
+     * visibility checks via getBoundingClientRect() instead of maintaining
+     * explicit _isVisible state. This method is kept for backward compatibility
+     * but does nothing.
      *
-     * @param visible - Whether the tab is currently visible
+     * @param visible - Whether the tab is currently visible (ignored)
      */
-    onTabVisibilityChange(visible: boolean): void {
-        this._virtualScroll?.setVisibility(visible);
+    onTabVisibilityChange(_visible: boolean): void {
+        // No-op: visibility is now checked in real-time by MessageVirtualScroll
+        // This method is kept for backward compatibility with parent components
+        // that may still call it.
     }
 
     /**
@@ -809,7 +811,9 @@ export class RtcMessageList extends LitElement {
             return el;
         }
 
-        // Assistant messages
+        // Assistant/system messages (including prompt type) → rtc-message
+        // Prompt messages (role: system, type: prompt) fall through to here
+        // and are rendered by rtc-message's _renderPromptBlock().
         const el = document.createElement('rtc-message');
         el.setAttribute('data-client-id', msg.clientId);
         el.message = msg;

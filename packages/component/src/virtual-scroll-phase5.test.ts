@@ -654,7 +654,7 @@ describe('MessageVirtualScroll - Phase 5: User Experience', () => {
         expect(virtualScroll._componentStateCache.has('1')).toBe(true);
     });
 
-    it('should handle visibility changes gracefully', () => {
+    it('should check visibility in real-time via _isContainerVisible', () => {
         const messages = [
             createMessage('1', 'Message 1'),
         ];
@@ -668,14 +668,58 @@ describe('MessageVirtualScroll - Phase 5: User Experience', () => {
 
         virtualScroll.setItems(messages);
 
-        // Hide
-        virtualScroll.setVisibility(false);
-        // @ts-ignore - accessing private for testing
-        expect(virtualScroll._isVisible).toBe(false);
+        // Mock document.hidden to be false (page is visible)
+        const hiddenDescriptor = Object.getOwnPropertyDescriptor(Document.prototype, 'hidden');
+        Object.defineProperty(document, 'hidden', {
+            value: false,
+            writable: true,
+            configurable: true,
+        });
 
-        // Show
-        virtualScroll.setVisibility(true);
-        // @ts-ignore - accessing private for testing
-        expect(virtualScroll._isVisible).toBe(true);
+        try {
+            // @ts-ignore - accessing private for testing
+            const isContainerVisible = virtualScroll._isContainerVisible.bind(virtualScroll);
+
+            // Mock getBoundingClientRect to simulate visible container (has dimensions)
+            const originalGetBoundingClientRect = scrollContainer.getBoundingClientRect;
+            scrollContainer.getBoundingClientRect = () => ({
+                width: 800,
+                height: 600,
+                top: 0,
+                left: 0,
+                bottom: 600,
+                right: 800,
+                x: 0,
+                y: 0,
+                toJSON: () => ({}),
+            });
+
+            // Should return true for container with dimensions
+            expect(isContainerVisible()).toBe(true);
+
+            // Mock getBoundingClientRect to simulate hidden container (zero dimensions)
+            scrollContainer.getBoundingClientRect = () => ({
+                width: 0,
+                height: 0,
+                top: 0,
+                left: 0,
+                bottom: 0,
+                right: 0,
+                x: 0,
+                y: 0,
+                toJSON: () => ({}),
+            });
+
+            // Should return false for zero-dimension container
+            expect(isContainerVisible()).toBe(false);
+
+            // Restore original getBoundingClientRect
+            scrollContainer.getBoundingClientRect = originalGetBoundingClientRect;
+        } finally {
+            // Restore document.hidden
+            if (hiddenDescriptor) {
+                Object.defineProperty(Document.prototype, 'hidden', hiddenDescriptor);
+            }
+        }
     });
 });

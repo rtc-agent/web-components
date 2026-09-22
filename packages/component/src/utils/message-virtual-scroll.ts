@@ -223,14 +223,6 @@ export class MessageVirtualScroll<T> {
     /** Timestamp of last _sliceViewport call (prevents double invocation) */
     private _lastSliceTime: number = 0;
 
-    // ── Visibility API (Phase 4) ──
-
-    /** Explicit visibility state - controlled by setVisibility() */
-    private _isVisible: boolean = true;
-
-    /** Browser page visibility state - controlled by visibilitychange event */
-    private _pageVisible: boolean = true;
-
     // ── Stream Awareness (Phase 4) ──
 
     /** Active streaming item IDs - prevents skeletonization during streaming */
@@ -896,31 +888,11 @@ export class MessageVirtualScroll<T> {
     }
 
     /**
-     * Explicit visibility API - called by parent component.
-     * Replaces unreliable getBoundingClientRect() detection for visibility: hidden.
-     *
-     * When hidden, _sliceViewport is skipped to prevent incorrect skeletonization
-     * of elements in a hidden container (e.g., inactive tab).
-     *
-     * @param visible - Whether the container is currently visible
-     */
-    setVisibility(visible: boolean): void {
-        const changed = this._isVisible !== visible;
-        this._isVisible = visible;
-        if (changed) {
-            log.debug(`Visibility changed: ${visible}`);
-            if (visible) {
-                // When becoming visible, trigger a slice check
-                this._sliceViewport();
-            }
-        }
-    }
-
-    /**
      * Get current visibility state.
+     * @deprecated No longer needed - visibility is checked in real-time via _isContainerVisible()
      */
     isVisible(): boolean {
-        return this._isVisible;
+        return this._isContainerVisible();
     }
 
     /**
@@ -1149,7 +1121,7 @@ export class MessageVirtualScroll<T> {
             stateCacheSize: this._componentStateCache.size,
             activeStreamCount: this._activeStreams.size,
             pendingRestorationCount: this._pendingRestorations.length,
-            isVisible: this._isVisible,
+            isVisible: this._isContainerVisible(),
         };
     }
 
@@ -1337,8 +1309,8 @@ export class MessageVirtualScroll<T> {
         requestAnimationFrame(() => {
             this._restorationScheduled = false;
 
-            // Phase 4: Skip restoration if container is not visible (e.g., tab switched away)
-            if (!this._isVisible) {
+            // Real-time visibility check before restoration
+            if (!this._isContainerVisible()) {
                 log.debug('Skipping batch restoration: container is not visible');
                 return;
             }
@@ -1446,18 +1418,36 @@ export class MessageVirtualScroll<T> {
     // ── Viewport Slicing (Hybrid: Timer + Scroll-debounce) ──
 
     /**
+     * Check if the scroll container is currently visible.
+     * Real-time check using getBoundingClientRect() - single source of truth.
+     *
+     * This replaces the previous _isVisible and _pageVisible state flags,
+     * eliminating state synchronization issues when tabs switch.
+     */
+    private _isContainerVisible(): boolean {
+        // Check browser page visibility
+        if (document.hidden) {
+            return false;
+        }
+
+        // Check container dimensions (visibility: hidden preserves layout,
+        // but display: none or detached elements have zero dimensions)
+        const rect = this._scrollContainer.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+    }
+
+    /**
      * Handle browser page visibility change.
-     * When the tab becomes hidden, set _pageVisible to false to prevent slicing.
-     * When the tab becomes visible again, set _pageVisible to true.
-     * This is a safety net - scroll events won't fire when hidden, but container
-     * resize may fire when the tab returns to foreground (browser re-layout).
+     * When the tab becomes visible again, trigger a slice check to ensure
+     * skeleton positions are up-to-date.
      */
     private _onVisibilityChange(): void {
-        const wasVisible = this._pageVisible;
-        this._pageVisible = !document.hidden;
-
-        if (wasVisible !== this._pageVisible) {
-            log.debug(`Page visibility changed: ${this._pageVisible ? 'visible' : 'hidden'}`);
+        if (!document.hidden) {
+            log.debug('Page became visible, triggering slice check');
+            // Use setTimeout to ensure layout is stable after visibility change
+            setTimeout(() => {
+                this._sliceViewport();
+            }, 50);
         }
     }
 
@@ -1468,25 +1458,17 @@ export class MessageVirtualScroll<T> {
      * placeholders that maintain the scroll height. This provides visual continuity
      * and prevents scroll position jumps.
      *
-     * IMPORTANT: Skip slicing if container is hidden (visibility: hidden).
-     * Uses explicit _isVisible flag (set via setVisibility()) as primary check,
-     * _pageVisible flag (from visibilitychange event) as browser-level check,
-     * with getBoundingClientRect() as additional safety net for display: none.
+     * Uses real-time visibility check via _isContainerVisible() instead of
+     * maintaining _isVisible state, eliminating state synchronization issues.
      *
      * I3: Also checks _lastSliceTime to prevent double invocation.
      */
     private _sliceViewport() {
         if (this._elementMap.size === 0) return;
 
-        // I1: Check explicit visibility flag (in-app tab switching)
-        if (!this._isVisible) {
-            log.debug('Skipping _sliceViewport: container is not visible (explicit API)');
-            return;
-        }
-
-        // Page visibility check (browser tab hidden/shown)
-        if (!this._pageVisible) {
-            log.debug('Skipping _sliceViewport: page is not visible (browser tab hidden)');
+        // Real-time visibility check (single source of truth)
+        if (!this._isContainerVisible()) {
+            log.debug('Skipping _sliceViewport: container is not visible');
             return;
         }
 
@@ -1494,14 +1476,6 @@ export class MessageVirtualScroll<T> {
         const now = Date.now();
         if (now - this._lastSliceTime < this.MIN_SLICE_INTERVAL) {
             log.debug(`Skipping _sliceViewport: last slice was ${now - this._lastSliceTime}ms ago`);
-            return;
-        }
-
-        // Additional safety net: check if container has zero dimensions (display: none)
-        const containerRect = this._scrollContainer.getBoundingClientRect();
-        const isContainerVisible = containerRect.width > 0 && containerRect.height > 0;
-        if (!isContainerVisible) {
-            log.debug('Skipping _sliceViewport: container has zero dimensions');
             return;
         }
 
@@ -2043,6 +2017,17 @@ export class MessageVirtualScroll<T> {
         this._innerContainer.innerHTML = '';
         this._elementMap.clear();
         this._idToIndex.clear();
+
+        // Critical: Clear all skeleton tracking state to prevent "ghost" placeholders.
+        // When re-rendering all items, the DOM is completely rebuilt, so any existing
+        // skeleton placeholders are destroyed. We must clear the tracking state to
+        // match the new DOM state.
+        this._placeholderItemIds.clear();
+        this._placeholderPositions = [];
+        this._placeholderIndexMap.clear();
+        this._componentStateCache.clear();
+        this._pendingRestorations = [];
+        this._pendingRestorationIds.clear();
 
         const fragment = document.createDocumentFragment();
         this._items.forEach((item, index) => {
