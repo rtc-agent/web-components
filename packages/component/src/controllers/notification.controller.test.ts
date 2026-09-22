@@ -287,7 +287,7 @@ describe('NotificationController', () => {
     describe('_showToast', () => {
         it('should show toast with action when toast is enabled', () => {
             const event = {
-                newValue: 'Test message content',
+                newValue: { type: 'text', data: 'Test message content' },
             };
 
             (controller as any)._showToast(event, 'session-B');
@@ -306,7 +306,7 @@ describe('NotificationController', () => {
             mockSettingsController.value!.state.notifications.toastEnabled = false;
 
             const event = {
-                newValue: 'Test message',
+                newValue: { type: 'text', data: 'Test message' },
             };
 
             (controller as any)._showToast(event, 'session-B');
@@ -317,7 +317,7 @@ describe('NotificationController', () => {
         it('should pass full message content to toast (CSS handles truncation)', () => {
             const longMessage = 'A'.repeat(100);
             const event = {
-                newValue: longMessage,
+                newValue: { type: 'text', data: longMessage },
             };
 
             (controller as any)._showToast(event, 'session-B');

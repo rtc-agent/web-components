@@ -96,7 +96,7 @@ describe('Notification System Integration', () => {
             entityId: 'msg-123',
             field: 'content',
             oldValue: null,
-            newValue: 'Hello from session B',
+            newValue: { type: 'text', data: 'Hello from session B' },
         });
 
         // Wait for async handler
