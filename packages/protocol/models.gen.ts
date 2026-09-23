@@ -111,7 +111,7 @@ export interface components {
             refresh_token: string;
             /**
              * Format: int64
-             * @description access token 过期时间（秒），通常为 900（15 分钟）
+             * @description access token 过期时间（秒），通常为 3600（1 小时）
              */
             expires_in: number;
             /** @description 已认证用户的唯一 ID */
@@ -119,7 +119,7 @@ export interface components {
         };
         /** @description OAuth2 令牌刷新请求，使用 refresh_token 换取新的 access_token */
         OAuth2TokenRefreshRequest: {
-            /** @description refresh token，使用一次后即失效（rotation） */
+            /** @description refresh token，有效期内可多次使用 */
             refresh_token: string;
         };
         /** @description OAuth2 令牌刷新成功响应 */
