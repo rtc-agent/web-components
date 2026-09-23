@@ -16,7 +16,7 @@
  */
 import {wrap, proxy, type Remote} from 'comlink';
 import {getUIUpdateBus, virtualFS} from '@rtc-agent/persistence';
-import type {PersistenceConfig, UIUpdateEvent} from '@rtc-agent/persistence';
+import type {PersistenceConfig, UIUpdateEvent, FileSystemMetadataOverride} from '@rtc-agent/persistence';
 import type {ConnectionState, ConnectionStateEvent} from '@rtc-agent/client';
 import {createLogger} from '@rtc-agent/client';
 import type {WorkerPersistenceCore, WorkerCallbacks} from '@rtc-agent/worker';
@@ -459,7 +459,7 @@ export class WorkerBridge {
             path: string,
             content: string,
             mode: 'overwrite' | 'append' = 'overwrite',
-            metadataOverride?: Partial<{ name: string; description: string; tags: string[] }>,
+            metadataOverride?: FileSystemMetadataOverride,
         ) =>
             core.virtualFSWrite(path, content, mode, metadataOverride)) as typeof virtualFS.write;
 

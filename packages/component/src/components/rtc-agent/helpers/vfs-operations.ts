@@ -199,6 +199,8 @@ export async function restoreEditorAreaContent(
 
 /**
  * Save file: write editor content to VFS.
+ *
+ * Sets `editedByUser: true` in metadata to protect from system overwrites.
  */
 export async function handleEditorSave(
     filePath: string,
@@ -208,7 +210,9 @@ export async function handleEditorSave(
     if (!tab) return;
 
     try {
-        await virtualFS.write(filePath, tab.content, "overwrite");
+        await virtualFS.write(filePath, tab.content, "overwrite", {
+            editedByUser: true,
+        });
         deps.editorArea.actions.saveFile(filePath);
         deps.toast.show(msg("已保存"), "success");
     } catch (err) {
@@ -281,5 +285,106 @@ export async function handleFileChange(
             deps.editorArea.actions.closeFile(filePath);
             deps.toast.show(msg(str`文件 ${filePath} 已被删除`), "info");
         }
+    }
+}
+
+// ── Restore Default ──
+
+/**
+ * Dependencies for handleRestoreDefault.
+ */
+export interface RestoreDefaultDeps {
+    persistence: {
+        workerBridge?: {
+            core: {
+                virtualFSWrite(
+                    path: string,
+                    content: string,
+                    mode: 'overwrite' | 'append',
+                    metadataOverride?: Partial<{ editedByUser: boolean }>,
+                ): Promise<number>;
+            };
+        };
+    };
+    editorArea: {
+        actions: {
+            loadContent(path: string, content: string): void;
+        };
+    };
+    skill: {
+        actions: {
+            getRegistry(): {
+                generateAllDocsContent(scenarioCount?: number): Array<{path: string; content: string}>;
+            } | null;
+        };
+    };
+    scenariosURL: string;
+    toast: ToastActions;
+    logger: Logger;
+}
+
+/**
+ * Restore a file to its default (system-generated) content.
+ *
+ * For /AGENT.md and /functions/*.md: regenerates from the current registry.
+ * For /scenarios/*.md: reloads from the scenariosURL (if set).
+ *
+ * After restore, sets `editedByUser: false` to allow future system updates.
+ */
+export async function handleRestoreDefault(
+    filePath: string,
+    deps: RestoreDefaultDeps,
+): Promise<{success: boolean; error?: string}> {
+    const bridge = deps.persistence.workerBridge;
+    if (!bridge) {
+        return {success: false, error: 'Persistence not connected'};
+    }
+
+    try {
+        let defaultContent: string | null = null;
+
+        // Determine default content based on file path
+        if (filePath === '/AGENT.md' || filePath.startsWith('/functions/')) {
+            // Generate from registry
+            const registry = deps.skill.actions.getRegistry();
+            if (!registry) {
+                return {success: false, error: 'Registry not available'};
+            }
+            const files = registry.generateAllDocsContent(0);
+            const file = files.find(f => f.path === filePath);
+            if (file) {
+                defaultContent = file.content;
+            }
+        } else if (filePath.startsWith('/scenarios/')) {
+            // Reload from scenariosURL
+            if (!deps.scenariosURL) {
+                return {success: false, error: 'Scenarios URL not configured'};
+            }
+            // Import scenario-loader dynamically to avoid circular dependency
+            const {loadScenariosContent} = await import('../../../core/scenario-loader.js');
+            const files = await loadScenariosContent(deps.scenariosURL);
+            const file = files.find(f => f.path === filePath);
+            if (file) {
+                defaultContent = file.content;
+            }
+        }
+
+        if (defaultContent === null) {
+            return {success: false, error: 'Cannot determine default content for this file'};
+        }
+
+        // Write to VFS with editedByUser: false
+        await bridge.core.virtualFSWrite(filePath, defaultContent, 'overwrite', {
+            editedByUser: false,
+        });
+
+        // Update editor content (silent, no dirty flag)
+        deps.editorArea.actions.loadContent(filePath, defaultContent);
+
+        deps.logger.info('Restored file to default:', filePath);
+        return {success: true};
+    } catch (err) {
+        deps.logger.error('Failed to restore default:', filePath, err);
+        return {success: false, error: err instanceof Error ? err.message : String(err)};
     }
 }

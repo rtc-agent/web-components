@@ -339,7 +339,8 @@ export class EditorAreaController implements ReactiveController {
         if (existing) {
             this._tabs = this._tabs.map(t => {
                 if (t.filePath !== filePath) return t;
-                return {...t, content};
+                // Clear isDirty when loading content (e.g., after restore default)
+                return {...t, content, isDirty: false};
             });
             this._host.requestUpdate();
             return;

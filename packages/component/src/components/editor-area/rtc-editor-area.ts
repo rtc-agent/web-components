@@ -7,7 +7,7 @@
  * ┌──────────────────────────────────┐
  * │ Tabs (横向滚动，多标签)           │
  * ├──────────────────────────────────┤
- * │ Toolbar (保存/撤销/格式化/视图)   │
+ * │ Toolbar (保存/撤销/恢复/视图)     │
  * ├──────────────────────────────────┤
  * │ Editor Content (编辑/预览/分屏)   │
  * └──────────────────────────────────┘
@@ -28,6 +28,7 @@
  * @fires editor-area-tab-select - 切换标签 (detail: { filePath })
  * @fires editor-area-tab-close - 关闭标签 (detail: { filePath })
  * @fires editor-area-cursor-move - 光标移动 (detail: { line, column })
+ * @fires editor-area-restore-default - 恢复默认 (detail: { filePath })
  *
  * ## 样式
  * 使用项目 design tokens（--rtc-color-*），支持亮色/暗色主题。
@@ -97,6 +98,19 @@ export class RtcEditorArea extends LitElement {
     /** 保存按钮是否可用（有活动文件且有未保存修改） */
     private get _canSave(): boolean {
         return this._activeTab?.isDirty ?? false;
+    }
+
+    /**
+     * 恢复默认按钮是否可用（仅对系统生成的文件显示）
+     *
+     * 系统生成的文件：/AGENT.md, /functions/*.md, /scenarios/*.md
+     */
+    private get _canRestore(): boolean {
+        if (!this._activeTab) return false;
+        const path = this._activeTab.filePath;
+        return path === '/AGENT.md'
+            || path.startsWith('/functions/')
+            || path.startsWith('/scenarios/');
     }
 
     /* ── Event Handlers — Tabs ── */
@@ -180,6 +194,17 @@ export class RtcEditorArea extends LitElement {
         );
     }
 
+    private _handleRestoreDefault() {
+        if (!this._activeTab) return;
+        this.dispatchEvent(
+            new CustomEvent('editor-area-restore-default', {
+                bubbles: true,
+                composed: true,
+                detail: {filePath: this._activeTab.filePath},
+            })
+        );
+    }
+
     /* ── Event Handlers — Editor ── */
 
     private _handleContentChange(e: Event) {
@@ -239,6 +264,7 @@ export class RtcEditorArea extends LitElement {
                     ?can-save=${this._canSave}
                     ?can-undo=${false}
                     ?can-redo=${false}
+                    ?can-restore=${this._canRestore}
                     view-mode=${this._activeTab.viewMode}
                     theme=${this.theme}
                     @editor-save=${this._handleSave}
@@ -246,6 +272,7 @@ export class RtcEditorArea extends LitElement {
                     @editor-redo=${this._handleRedo}
                     @editor-format=${this._handleFormat}
                     @editor-view-mode-change=${this._handleViewModeChange}
+                    @editor-restore-default=${this._handleRestoreDefault}
                 ></rtc-editor-toolbar>
             </div>
         `;
@@ -312,5 +339,6 @@ declare global {
         'editor-area-tab-select': CustomEvent<{filePath: string}>;
         'editor-area-tab-close': CustomEvent<{filePath: string}>;
         'editor-area-cursor-move': CustomEvent<{line: number; column: number}>;
+        'editor-area-restore-default': CustomEvent<{filePath: string}>;
     }
 }

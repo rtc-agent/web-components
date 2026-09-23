@@ -4,6 +4,7 @@ import {
   getOffsetManager,
   initializeVirtualFS,
   virtualFS,
+  getDatabase,
   type PersistenceConfig,
   type AgentMdConfig,
   type UIUpdateEvent,
@@ -11,6 +12,7 @@ import {
   type LocalMessage,
   type LocalRtc,
   type FileSystemEntryType,
+  type FileSystemMetadataOverride,
 } from '@rtc-agent/persistence';
 import type { ContentData } from '@rtc-agent/protocol';
 import type { ConnectionState, ConnectionStateEvent, TokenExpiredAction } from '@rtc-agent/client';
@@ -265,19 +267,35 @@ export class WorkerCore implements WorkerPersistenceCore {
   async batchWriteFiles(files: Array<{
     path: string;
     content: string;
-    metadata?: Partial<{
-      name: string;
-      description: string;
-      tags: string[];
-    }>;
+    metadata?: FileSystemMetadataOverride;
   }>): Promise<void> {
     log.debug('batchWriteFiles called, files count:', files.length);
+    const db = getDatabase();
+
     for (const file of files) {
-      // Determine write mode based on file path:
-      // - /AGENT.md and /scenarios/*.md: use 'create-new' (do not overwrite existing files)
-      // - /functions/*.md and other files: use 'overwrite' (always overwrite)
-      const mode = this._getWriteModeForPath(file.path);
-      await virtualFS.write(file.path, file.content, mode, file.metadata);
+      // Check if this is a protected file path (/AGENT.md or /scenarios/*.md)
+      const isProtectedPath = this._isProtectedPath(file.path);
+
+      if (isProtectedPath) {
+        // Check if the file exists and has been edited by the user
+        const existing = await db.fileSystemEntries.get(file.path);
+        if (existing?.metadata?.editedByUser) {
+          log.debug('batchWriteFiles: skipping protected file edited by user:', file.path);
+          continue;
+        }
+      }
+
+      // For protected paths, use overwrite mode (since we've already checked editedByUser above)
+      // For other paths, always use overwrite mode
+      const mode: 'overwrite' | 'append' | 'create-new' = 'overwrite';
+
+      // Ensure editedByUser is set to false for system-generated files
+      const metadata = {
+        ...file.metadata,
+        editedByUser: false,
+      };
+
+      await virtualFS.write(file.path, file.content, mode, metadata);
     }
     log.debug('batchWriteFiles completed');
     // Single broadcast for batch write to avoid per-file notifications
@@ -292,23 +310,21 @@ export class WorkerCore implements WorkerPersistenceCore {
   }
 
   /**
-   * Determine write mode based on file path.
+   * Check if a file path is protected from system overwrites.
    *
-   * - /AGENT.md: 'create-new' (protect user-edited content)
-   * - /scenarios/*.md: 'create-new' (protect user-edited content)
-   * - /functions/*.md and other files: 'overwrite' (always overwrite to stay current)
+   * Protected files: /AGENT.md, /scenarios/*.md (excluding /scenarios/INDEX.md)
+   * These files can be edited by users, and system updates should not overwrite user edits.
    */
-  private _getWriteModeForPath(path: string): 'overwrite' | 'append' | 'create-new' {
+  private _isProtectedPath(path: string): boolean {
     // /AGENT.md
     if (path === '/AGENT.md') {
-      return 'create-new';
+      return true;
     }
     // /scenarios/*.md (excluding /scenarios/INDEX.md)
     if (path.startsWith('/scenarios/') && path !== '/scenarios/INDEX.md') {
-      return 'create-new';
+      return true;
     }
-    // Other files (including /functions/*.md and index files)
-    return 'overwrite';
+    return false;
   }
 
   async resetOffset(): Promise<void> {
@@ -325,11 +341,7 @@ export class WorkerCore implements WorkerPersistenceCore {
     path: string,
     content: string,
     mode: 'overwrite' | 'append' = 'overwrite',
-    metadataOverride?: Partial<{
-      name: string;
-      description: string;
-      tags: string[];
-    }>,
+    metadataOverride?: FileSystemMetadataOverride,
   ): Promise<number> {
     const result = await virtualFS.write(path, content, mode, metadataOverride);
     // Broadcast file change event to all Tabs

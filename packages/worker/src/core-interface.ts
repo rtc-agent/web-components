@@ -1,6 +1,6 @@
 import type { ContentData } from '@rtc-agent/protocol';
 import type { ConnectionState, ConnectionStateEvent } from '@rtc-agent/client';
-import type { PersistenceConfig, AgentMdConfig } from '@rtc-agent/persistence';
+import type { PersistenceConfig, AgentMdConfig, FileSystemMetadataOverride } from '@rtc-agent/persistence';
 import type { UIUpdateEvent, LocalSession, LocalMessage, LocalRtc } from '@rtc-agent/persistence';
 
 /**
@@ -136,11 +136,7 @@ export interface WorkerPersistenceCore {
   batchWriteFiles(files: Array<{
     path: string;
     content: string;
-    metadata?: Partial<{
-      name: string;
-      description: string;
-      tags: string[];
-    }>;
+    metadata?: FileSystemMetadataOverride;
   }>): Promise<void>;
 
   /**
@@ -168,11 +164,7 @@ export interface WorkerPersistenceCore {
     path: string,
     content: string,
     mode: 'overwrite' | 'append',
-    metadataOverride?: Partial<{
-      name: string;
-      description: string;
-      tags: string[];
-    }>,
+    metadataOverride?: FileSystemMetadataOverride,
   ): Promise<number>;
 
   /**

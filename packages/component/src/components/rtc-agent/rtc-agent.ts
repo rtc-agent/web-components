@@ -132,6 +132,7 @@ import type {LocalRtc} from '@rtc-agent/persistence';
 // Tool confirm dialog
 import '../overlay/rtc-tool-confirm.js';
 import '../overlay/rtc-ask-user.js';
+import '../overlay/rtc-restore-confirm.js';
 // Child component registrations (side-effect imports)
 import '../title-bar/rtc-title-bar.js';
 import '../login/rtc-login-page.js';
@@ -161,7 +162,7 @@ import {installDebugAPI} from '../../debug-api.js';
 
 // Extracted helpers (keep rtc-agent.ts lean — business logic lives in helpers/)
 import {handleCommand as dispatchCommand} from './helpers/command-handler.js';
-import {showToolConfirmDialog, showAskUserDialog} from './helpers/dialog-helpers.js';
+import {showToolConfirmDialog, showAskUserDialog, showRestoreConfirmDialog} from './helpers/dialog-helpers.js';
 import {
     loadFileTree as vfsLoadFileTree,
     loadFolderChildren as vfsLoadFolderChildren,
@@ -169,6 +170,7 @@ import {
     restoreEditorAreaContent as vfsRestoreEditorAreaContent,
     handleEditorSave as vfsHandleEditorSave,
     handleFileChange as vfsHandleFileChange,
+    handleRestoreDefault as vfsHandleRestoreDefault,
 } from './helpers/vfs-operations.js';
 import {loadSessions as sessionLoadSessions} from './helpers/session-loader.js';
 import {connectWithRetry} from './helpers/connection-setup.js';
@@ -880,6 +882,29 @@ export class RtcAgent extends LitElement {
             this._editorArea.actions.setCursorPosition(filePath, position);
         }
     };
+    private _boundOnEditorAreaRestoreDefault = async (e: Event) => {
+        const {filePath} = (e as CustomEvent).detail as {filePath: string};
+
+        // Show confirmation dialog
+        const confirmed = await showRestoreConfirmDialog(filePath, this.shadowRoot!);
+        if (!confirmed) return;
+
+        // Perform restore
+        const result = await vfsHandleRestoreDefault(filePath, {
+            persistence: this._persistence,
+            editorArea: this._editorArea,
+            skill: this._skill,
+            scenariosURL: this._scenariosURL,
+            toast: this._toast.actions,
+            logger: log,
+        });
+
+        if (result.success) {
+            this._toast.actions.show(msg('已恢复默认内容'), 'success');
+        } else {
+            this._toast.actions.show(result.error ?? msg('恢复失败'), 'error');
+        }
+    };
     private _boundOnFileExplorerRefresh = () => {
         void this._loadFileTree();
     };
@@ -1151,6 +1176,7 @@ export class RtcAgent extends LitElement {
         this.addEventListener('editor-area-content-change', this._boundOnEditorAreaContentChange);
         this.addEventListener('editor-area-view-mode-change', this._boundOnEditorAreaViewModeChange);
         this.addEventListener('editor-area-cursor-move', this._boundOnEditorAreaCursorMove);
+        this.addEventListener('editor-area-restore-default', this._boundOnEditorAreaRestoreDefault);
         this.addEventListener('refresh-requested', this._boundOnFileExplorerRefresh);
 
         // Chat Layout events.
@@ -1345,6 +1371,7 @@ export class RtcAgent extends LitElement {
         this.removeEventListener('editor-area-content-change', this._boundOnEditorAreaContentChange);
         this.removeEventListener('editor-area-view-mode-change', this._boundOnEditorAreaViewModeChange);
         this.removeEventListener('editor-area-cursor-move', this._boundOnEditorAreaCursorMove);
+        this.removeEventListener('editor-area-restore-default', this._boundOnEditorAreaRestoreDefault);
         this.removeEventListener('refresh-requested', this._boundOnFileExplorerRefresh);
         this.removeEventListener('rtc-chat-layout-session-select', this._boundOnChatLayoutSessionSelect);
         this.removeEventListener('rtc-chat-layout-tab-activate', this._boundOnChatLayoutTabActivate);

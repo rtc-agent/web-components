@@ -4,7 +4,7 @@
  * VS Code 风格编辑器工具栏。
  *
  * 布局：
- * [💾 保存] │ [↶] [↷] │ [B] [I] [</>] │ [flex spacer] │ [编辑|预览|分屏]
+ * [💾 保存] │ [↶] [↷] │ [flex spacer] │ [🔄 恢复默认] │ [编辑|预览|分屏]
  *
  * 纯 UI 组件：只发事件，不操作 VFS。状态由 EditorController 驱动。
  *
@@ -15,11 +15,12 @@
  * @fires editor-redo - 点击重做
  * @fires editor-format - 格式化操作 (detail: { format: 'bold' | 'italic' | 'code' | 'link' })
  * @fires editor-view-mode-change - 视图切换 (detail: { viewMode: EditorViewMode })
+ * @fires editor-restore-default - 点击恢复默认
  *
  * ## 样式
  * 使用项目 design tokens（--rtc-color-*），支持亮色/暗色主题。
  */
-import {LitElement, html} from 'lit';
+import {LitElement, html, nothing} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
 import {localized, msg, str} from '@lit/localize';
 import {consume} from '@lit/context';
@@ -37,6 +38,7 @@ import {
     eyeIcon,
     columnsIcon,
     editIcon,
+    refreshIcon,
 } from '../../icons/index.js';
 import {tokens} from '../../styles/tokens.js';
 import {lightTheme} from '../../styles/themes/light.js';
@@ -79,6 +81,10 @@ export class RtcEditorToolbar extends LitElement {
     /** 重做按钮是否可用 */
     @property({type: Boolean, attribute: 'can-redo'})
     canRedo = false;
+
+    /** 恢复默认按钮是否可用（仅对系统生成的文件显示） */
+    @property({type: Boolean, attribute: 'can-restore'})
+    canRestore = false;
 
     /** 当前视图模式 */
     @property({type: String, attribute: 'view-mode'})
@@ -137,6 +143,16 @@ export class RtcEditorToolbar extends LitElement {
                 bubbles: true,
                 composed: true,
                 detail: {viewMode: mode},
+            })
+        );
+    }
+
+    private _handleRestoreDefault() {
+        if (!this.canRestore) return;
+        this.dispatchEvent(
+            new CustomEvent('editor-restore-default', {
+                bubbles: true,
+                composed: true,
             })
         );
     }
@@ -209,6 +225,16 @@ export class RtcEditorToolbar extends LitElement {
                 <!-- 弹性空间 -->
                 <span class="spacer"></span>
 
+                <!-- 恢复默认（仅对系统生成的文件显示） -->
+                ${this.canRestore ? html`
+                    <button
+                        class="toolbar-btn"
+                        title=${msg('恢复默认内容')}
+                        aria-label=${msg('恢复默认')}
+                        @click=${this._handleRestoreDefault}
+                    >${refreshIcon}</button>
+                ` : nothing}
+
                 <!-- 视图切换 -->
                 <div class="view-toggle" role="group" aria-label=${msg('视图模式')}>
                     <button
@@ -249,5 +275,6 @@ declare global {
         'editor-redo': CustomEvent<void>;
         'editor-format': CustomEvent<{format: FormatType}>;
         'editor-view-mode-change': CustomEvent<{viewMode: EditorViewMode}>;
+        'editor-restore-default': CustomEvent<void>;
     }
 }

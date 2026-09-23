@@ -87,7 +87,22 @@ export interface FileSystemEntryMetadata {
   createdAt: Date;
   /** Last update time */
   updatedAt: Date;
+  /** Whether the file has been edited by the user (protects from system overwrites) */
+  editedByUser?: boolean;
 }
+
+/**
+ * Metadata fields that can be overridden when writing files.
+ *
+ * Used by batchWriteFiles, virtualFSWrite, and other file write operations
+ * to allow partial metadata updates without specifying all fields.
+ */
+export type FileSystemMetadataOverride = Partial<{
+  name: string;
+  description: string;
+  tags: string[];
+  editedByUser: boolean;
+}>;
 
 export interface FileSystemEntry {
   /** Primary key: file path, e.g. '/functions/user/register.md' */

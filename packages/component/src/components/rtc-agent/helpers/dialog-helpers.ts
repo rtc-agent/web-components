@@ -107,3 +107,46 @@ export function showAskUserDialog(
         host.appendChild(el);
     });
 }
+
+// ── Restore Confirm Dialog ──
+
+/**
+ * Show restore-to-default confirmation dialog.
+ *
+ * Creates an <rtc-restore-confirm> overlay, appends it to the host's shadowRoot,
+ * and returns a Promise that resolves to true (confirmed) or false (cancelled).
+ * The overlay is automatically removed after the user responds.
+ *
+ * @param filePath - The file path being restored.
+ * @param host - The shadow root host to append the dialog to.
+ */
+export function showRestoreConfirmDialog(
+    filePath: string,
+    host: ShadowRoot,
+): Promise<boolean> {
+    return new Promise((resolve) => {
+        const el = document.createElement("rtc-restore-confirm");
+        el.filePath = filePath;
+
+        const cleanup = () => {
+            el.removeEventListener("rtc-restore-confirmed", onConfirm);
+            el.removeEventListener("rtc-restore-cancelled", onCancel);
+            el.remove();
+        };
+
+        const onConfirm = () => {
+            cleanup();
+            resolve(true);
+        };
+
+        const onCancel = () => {
+            cleanup();
+            resolve(false);
+        };
+
+        el.addEventListener("rtc-restore-confirmed", onConfirm);
+        el.addEventListener("rtc-restore-cancelled", onCancel);
+
+        host.appendChild(el);
+    });
+}
