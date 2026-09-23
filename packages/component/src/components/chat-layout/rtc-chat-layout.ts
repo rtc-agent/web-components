@@ -141,6 +141,9 @@ export class RtcChatLayout extends LitElement {
         this.addEventListener('rtc-session-tree-new', this._handleSessionTreeNew);
         // 监听 rtc-clear-active-input：Escape 键取消 fork 时由 rtc-agent 派发
         this.addEventListener('rtc-clear-active-input', this._boundOnClearActiveInput);
+        // 监听 rtc-notification-click：事件从 rtc-agent（父组件）派发，
+        // 必须在 document 上监听（同 rtc-message-sent）
+        document.addEventListener('rtc-notification-click', this._handleNotificationClick);
 
         // Phase 4: Set initial visibility for tabs after first render
         this.updateComplete.then(() => {
@@ -157,6 +160,7 @@ export class RtcChatLayout extends LitElement {
         this.removeEventListener('rtc-fork-requested', this._boundOnForkRequested);
         this.removeEventListener('rtc-session-tree-new', this._handleSessionTreeNew);
         this.removeEventListener('rtc-clear-active-input', this._boundOnClearActiveInput);
+        document.removeEventListener('rtc-notification-click', this._handleNotificationClick);
     }
 
     /** 清空当前活动 tab 的输入框（供 Escape 键等场景调用） */
@@ -256,6 +260,14 @@ export class RtcChatLayout extends LitElement {
     private _handleSessionTreeNew = () => {
         log.debug('Event received, calling _handleNewSession');
         this._handleNewSession();
+    };
+
+    /** Toast 通知点击：跳转到对应 session（含 reopen 检查） */
+    private _handleNotificationClick = (e: Event) => {
+        const {sessionId} = (e as CustomEvent).detail;
+        if (sessionId) {
+            void this._openWithReopenCheck(sessionId);
+        }
     };
 
     /**

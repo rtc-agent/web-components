@@ -143,7 +143,7 @@ export interface components {
         /** @enum {string} */
         MessageStreamingStatus: "pending" | "streaming" | "completed" | "failed";
         /** @enum {string} */
-        ContentType: "markdown" | "summary" | "text" | "thinking" | "toolcall_input" | "toolcall_output" | "user_message" | "error";
+        ContentType: "markdown" | "summary" | "text" | "thinking" | "toolcall_input" | "toolcall_output" | "user_message" | "error" | "prompt";
         /** @enum {string} */
         ErrorCategory: "api" | "stream" | "tool" | "context" | "system" | "network" | "timeout" | "permission";
         ErrorContent: {
@@ -355,6 +355,7 @@ export interface components {
          *     - `toolcall_output`: Data 为 ToolCall 对象
          *     - `user_message`: Data 为 UserMessageContent 对象
          *     - `error`: Data 为 ErrorContent 对象
+         *     - `prompt`: Data 为 PromptContent 对象
          */
         ContentData: {
             type: components["schemas"]["ContentType"];
@@ -369,6 +370,20 @@ export interface components {
             files?: components["schemas"]["FileAttachment"][];
             /** @description 场景列表（包含完整内容，无需再读取文件） */
             scenarios?: components["schemas"]["ScenarioRef"][];
+        };
+        /** @description 系统提示词内容（用于持久化系统级指令） */
+        PromptContent: {
+            /** @description 提示词名称/命令名（如 "goal", "loop", "scenarios"） */
+            name: string;
+            /** @description 提示词标题（可为空，用于前端显示） */
+            title?: string;
+            /** @description 提示词完整内容 */
+            prompt: string;
+            /**
+             * @description 覆盖 message role，控制 LLM 上下文注入角色。缺省为 "system"，可设为 "user"（连续 user messages 会被合并）
+             * @enum {string}
+             */
+            role?: "system" | "user";
         };
         /** @description 文件附件（预留） */
         FileAttachment: {
@@ -599,8 +614,11 @@ export interface components {
             rtc_id: components["schemas"]["UUID"];
             /** @description 是否执行成功 */
             success: boolean;
-            /** @description 执行结果（成功时） */
-            result?: unknown;
+            /**
+             * Format: json
+             * @description 执行结果（成功时）。保留原始 JSON 字段顺序，确保 LLM 缓存命中。
+             */
+            result?: string;
             /** @description 错误信息（失败时） */
             error?: string;
             /** @description 客户端生成的幂等 ID */

@@ -322,25 +322,66 @@ export class MessageController implements ReactiveController {
      * Upsert a single message into the repository.
      *
      * Shared by `reload(entityId)` and `_applyBusUpdate()` to eliminate duplication.
-     * Repository is updated via patchMessage (O(1) for existing messages) with fallback
-     * to append+sort for new messages.
+     * Uses explicit clientId check + sorted insert to prevent duplicates and ensure correct ordering.
+     *
+     * Why not use sort()?
+     * - sort() relies on timestamp values, which may be inconsistent between client and server
+     * - Direct insertion at correct position maintains order incrementally
+     * - Prevents order flips that cause VirtualScroll diff to miscalculate prepend/append
      */
     private _upsertMessage(sessionId: string, messageId: string, newMsg: Message): void {
-        // Update repository state for this message's session.
-        // Supports multi-instance: repository tracks all active sessions,
-        // not just the currently visible one.
-        if (this._repository) {
-            const patched = this._repository.patchMessage(sessionId, messageId, () => newMsg);
-            if (!patched) {
-                const current = this._repository.getSessionState(sessionId);
-                const messages = [...current.messages, newMsg].sort((a, b) => {
-                    const tsDiff = a.timestamp - b.timestamp;
-                    if (tsDiff !== 0) return tsDiff;
-                    return a.clientId < b.clientId ? -1 : a.clientId > b.clientId ? 1 : 0;
-                });
-                this._repository.updateMessages(sessionId, messages);
+        if (!this._repository) return;
+
+        const current = this._repository.getSessionState(sessionId);
+        const existingIndex = current.messages.findIndex(m => m.clientId === messageId);
+
+        let messages: Message[];
+        if (existingIndex >= 0) {
+            // Existing message: update in place (no duplicate)
+            messages = [...current.messages];
+            messages[existingIndex] = newMsg;
+        } else {
+            // New message: insert at correct position (maintain sorted order)
+            messages = [...current.messages];
+            // Find the first message that should come AFTER newMsg
+            const insertIndex = messages.findIndex(m => this._compareMessages(newMsg, m) < 0);
+            if (insertIndex >= 0) {
+                messages.splice(insertIndex, 0, newMsg);
+            } else {
+                // newMsg should be at the end
+                messages.push(newMsg);
             }
         }
+
+        this._repository.updateMessages(sessionId, messages);
+    }
+
+    /**
+     * Compare two messages for sorting by (timestamp, role, clientId) composite key.
+     *
+     * Sorting priority:
+     * 1. timestamp (ascending) - primary sort by creation time
+     * 2. role priority (system < user < assistant) - ensures prompt messages appear before user messages
+     *    when timestamps are equal or very close
+     * 3. clientId (ascending) - final tiebreaker for deterministic ordering
+     *
+     * This matches the persistence layer (entity-repository.ts) and _mergeMessages() logic,
+     * with added role priority to handle the common case of prompt+user message pairs.
+     */
+    private _compareMessages(a: Message, b: Message): number {
+        // Primary: timestamp
+        const tsDiff = a.timestamp - b.timestamp;
+        if (tsDiff !== 0) return tsDiff;
+
+        // Secondary: role priority (system < user < assistant)
+        // This ensures prompt (system) messages appear before user messages when timestamps match
+        const rolePriority: Record<string, number> = { 'system': 0, 'user': 1, 'assistant': 2 };
+        const aPriority = rolePriority[a.role] ?? 1;
+        const bPriority = rolePriority[b.role] ?? 1;
+        if (aPriority !== bPriority) return aPriority - bPriority;
+
+        // Tertiary: clientId (deterministic tiebreaker)
+        return a.clientId < b.clientId ? -1 : a.clientId > b.clientId ? 1 : 0;
     }
 
     private async _sendMessage(content: ContentData) {
@@ -510,14 +551,43 @@ export class MessageController implements ReactiveController {
         const existing = this._repository?.getSessionState(sessionClientId);
         const existingMessages = existing?.messages ?? [];
 
+        // For new sessions: if messages already exist in repository (loaded by fetchInitialMessages
+        // or UIUpdateBus events), skip reload to avoid duplicate/overwrite issues.
+        // This prevents race conditions between _reloadFromDB and concurrent message loading.
+        if (existingMessages.length > 0) {
+            log.debug('_reloadFromDB skipped: repository already has messages', {
+                sessionId: sessionClientId.slice(0, 8),
+                existingCount: existingMessages.length,
+            });
+            return;
+        }
+
+        log.debug('_reloadFromDB before:', {
+            sessionId: sessionClientId.slice(0, 8),
+            existingCount: existingMessages.length,
+            existingIds: existingMessages.map(m => m.clientId.slice(0, 8)),
+        });
+
         // Load the latest messages (backward = from newest)
         const localMessages = await this._persistence.listMessages(
             sessionClientId, undefined, MESSAGE_PAGE_SIZE, 'backward'
         );
         const freshMessages = localMessages.map((m) => this._localMessageToUI(m));
 
+        log.debug('_reloadFromDB loaded:', {
+            sessionId: sessionClientId.slice(0, 8),
+            freshCount: freshMessages.length,
+            freshIds: freshMessages.map(m => m.clientId.slice(0, 8)),
+        });
+
         // Merge: preserve existing messages not in fresh batch
         const merged = this._mergeMessages(existingMessages, freshMessages);
+
+        log.debug('_reloadFromDB merged:', {
+            sessionId: sessionClientId.slice(0, 8),
+            mergedCount: merged.length,
+            mergedIds: merged.map(m => m.clientId.slice(0, 8)),
+        });
 
         // ── Cursor logic (critical fix) ──
         //
@@ -586,11 +656,7 @@ export class MessageController implements ReactiveController {
         // Composite sort (timestamp, clientId) to match persistence layer (entity-repository.ts)
         // Sorting by timestamp alone is non-deterministic when timestamps are equal
         // (e.g., toolcall_input/output pairs created in the same millisecond)
-        return [...map.values()].sort((a, b) => {
-            const tsDiff = a.timestamp - b.timestamp;
-            if (tsDiff !== 0) return tsDiff;
-            return a.clientId < b.clientId ? -1 : a.clientId > b.clientId ? 1 : 0;
-        });
+        return [...map.values()].sort(this._compareMessages);
     }
 
     /**

@@ -61,6 +61,7 @@ export type TodoItem = components['schemas']['TodoItem'];
 export type UserMessageContent = components['schemas']['UserMessageContent'];
 export type FileAttachment = components['schemas']['FileAttachment'];
 export type ScenarioRef = components['schemas']['ScenarioRef'];
+export type PromptContent = components['schemas']['PromptContent'];
 
 // Update
 export type UpdateItem = components['schemas']['UpdateItem'];

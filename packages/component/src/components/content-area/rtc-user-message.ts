@@ -419,13 +419,6 @@ export class RtcUserMessage extends LitElement implements StatefulComponent {
         return html`
       <div class="user-message-wrapper" part="wrapper">
         <div class="user-message" part="bubble">
-          ${userData?.scenarios?.length ? html`
-            <div class="scenario-tags" part="scenario-tags">
-              ${userData.scenarios.map(s => html`
-                <span class="scenario-tag" part="scenario-tag">#${s.title}</span>
-              `)}
-            </div>
-          ` : ''}
           <div class="user-message-text" part="text">${text}</div>
 
           ${this._isOverflowing

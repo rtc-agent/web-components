@@ -48,7 +48,7 @@ export const COMMAND_CONFIGS: CommandConfig[] = [
         name: 'loop',
         label: '/loop',
         description: '循环执行任务',
-        available: false,
+        available: true,
         icon: clockIcon,
     },
     {

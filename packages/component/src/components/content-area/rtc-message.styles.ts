@@ -462,5 +462,69 @@ export const styles = [
     .timeline-content tbody tr:last-child td {
       border-bottom: none;
     }
+
+    /*
+     * ── Prompt 内容块（不可折叠）────────────────────────────────
+     *
+     * 结构：
+     *   .prompt-block
+     *     ├── .prompt-header
+     *     │     ├── .prompt-name    ("SCENARIOS" 等，大写)
+     *     │     └── .prompt-title   (可选的标题)
+     *     └── pre.prompt-preview    (提示词预览，最多 3 行，<pre> 保留格式)
+     *
+     * 设计决策：
+     * - 使用左边框（border-left: 3px）而非全边框，视觉上更轻盈
+     *   （与 summary-block 的全边框形成视觉区分）
+     * - 预览区域限制为 3 行（通过 max-height + overflow: hidden）
+     * - 不支持展开（系统提示词用户无需阅读完整内容）
+     * - 自动支持暗色主题（使用 --rtc-* CSS 变量，由 light.ts/dark.ts 定义）
+     * - <pre> 重置字体为继承值，避免浏览器默认等宽字体
+     */
+    .prompt-block {
+      border-left: 3px solid var(--rtc-color-primary);
+      padding: var(--rtc-spacing-sm) var(--rtc-spacing-md);
+      background: var(--rtc-color-bg-secondary);
+      border-radius: var(--rtc-border-radius);
+      margin: var(--rtc-spacing-sm) 0;
+    }
+
+    .prompt-header {
+      display: flex;
+      align-items: baseline;
+      gap: var(--rtc-spacing-xs);
+      margin-bottom: var(--rtc-spacing-xs);
+    }
+
+    .prompt-name {
+      font-weight: var(--rtc-font-weight-bold);
+      font-size: var(--rtc-font-size-sm);
+      color: var(--rtc-color-primary);
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+
+    .prompt-title {
+      font-size: var(--rtc-font-size-sm);
+      color: var(--rtc-color-text-secondary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    pre.prompt-preview {
+      font-family: inherit;
+      font-size: var(--rtc-font-size-sm);
+      line-height: var(--rtc-line-height-base);
+      color: var(--rtc-color-text);
+      max-height: calc(3 * var(--rtc-line-height-base) * var(--rtc-font-size-sm));
+      overflow: hidden;
+      margin: 0;
+      padding: 0;
+      background: none;
+      border: none;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
   `,
 ];

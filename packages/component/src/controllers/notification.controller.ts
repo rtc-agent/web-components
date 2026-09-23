@@ -27,6 +27,8 @@ import type {PersistenceLayer} from '@rtc-agent/persistence';
 import {getUIUpdateBus} from '@rtc-agent/persistence';
 import type {UIUpdateEvent} from '@rtc-agent/persistence';
 import { createLogger } from '@rtc-agent/client';
+import { extractTextContent } from '../utils/format.js';
+import type {ContentData} from '../types/index.js';
 
 const log = createLogger('NotificationController');
 
@@ -318,8 +320,9 @@ export class NotificationController implements ReactiveController {
         const settings = this.settingsController?.value.state.notifications;
         if (!settings?.toastEnabled) return;
 
-        // 提取消息内容（CSS 处理截断，无需手动截断）
-        const content = String(event.newValue ?? '');
+        // 从 ContentData 对象提取可读文本（而不是直接 String() 转换）
+        const contentData = event.newValue as ContentData | undefined;
+        const content = extractTextContent(contentData);
 
         // 查找 session 标题
         const sessions = this.sessionController?.value.state.sessions ?? [];

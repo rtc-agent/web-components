@@ -487,10 +487,10 @@ export class RtcInputArea extends LitElement {
 
         // 检查是否为 slash 命令
         const parsed = parseCommand(text);
-        // /goal is NOT a front-end command — it's a plain message with a
-        // /goal prefix that the backend recognizes in loadMessages.
-        // Let it fall through to the rtc-input-submit path below.
-        if (parsed.isCommand && parsed.name && parsed.name !== 'goal') {
+        // /goal and /loop are NOT front-end commands — they are plain messages
+        // with a prefix that the backend recognizes. Let them fall through to
+        // the rtc-input-submit path below.
+        if (parsed.isCommand && parsed.name && parsed.name !== 'goal' && parsed.name !== 'loop') {
             this.dispatchEvent(
                 new CustomEvent('rtc-command-requested', {
                     bubbles: true,
@@ -594,19 +594,21 @@ export class RtcInputArea extends LitElement {
         const detail = (e as CustomEvent).detail;
         const commandName = detail.command;
 
-        // /goal is a draft-time command: prepend "/goal " to the textarea
-        // and let the user finish typing. Do NOT dispatch rtc-command-requested.
-        if (commandName === 'goal') {
+        // /goal and /loop are draft-time commands: prepend "/<cmd> " to the
+        // textarea and let the user finish typing. Do NOT dispatch
+        // rtc-command-requested — the backend recognizes the prefix in
+        // loadMessages / command handlers.
+        if (commandName === 'goal' || commandName === 'loop') {
             this._closeCommandPanel();
             const textarea = this._textarea;
             if (textarea) {
-                const prefix = '/goal ';
+                const prefix = `/${commandName} `;
                 const current = textarea.value;
                 const next = current.startsWith(prefix) ? current : prefix + current;
                 textarea.value = next;
                 this._value = next;
                 textarea.focus();
-                // Place caret at end of "/goal "
+                // Place caret at end of "/<cmd> "
                 const caret = prefix.length;
                 textarea.setSelectionRange(caret, caret);
             }

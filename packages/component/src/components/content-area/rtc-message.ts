@@ -32,7 +32,7 @@ import {localized, msg} from '@lit/localize';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {classMap} from 'lit/directives/class-map.js';
 import {styles} from './rtc-message.styles.js';
-import type {Message} from '../../types/index.js';
+import type {Message, PromptContent} from '../../types/index.js';
 import {copyToClipboard} from '../../utils/clipboard.js';
 import {formatTimestampCompact, extractTextContent} from '../../utils/format.js';
 import { createLogger } from '@rtc-agent/client';
@@ -116,7 +116,10 @@ export class RtcMessage extends LitElement implements StatefulComponent {
      */
     willUpdate(changed: Map<string, unknown>) {
         if (changed.has('message')) {
-            this._parseMarkdown();
+            // Prompt 类型不需要 Markdown 解析，跳过以节省 CPU
+            if (this.message.content?.type !== 'prompt') {
+                this._parseMarkdown();
+            }
         }
     }
 
@@ -125,6 +128,13 @@ export class RtcMessage extends LitElement implements StatefulComponent {
         const generation = ++this._parseGeneration;
 
         if (!contentData) {
+            this._renderedHtml = '';
+            this._lastParsedContent = '';
+            return;
+        }
+
+        // Prompt 类型不需要 Markdown 解析，直接跳过（防御性兜底）
+        if (contentData.type === 'prompt') {
             this._renderedHtml = '';
             this._lastParsedContent = '';
             return;
@@ -232,6 +242,14 @@ export class RtcMessage extends LitElement implements StatefulComponent {
         return this.message?.content?.type === 'summary';
     }
 
+    /**
+     * 当前消息是否是 prompt 类型（content.type === 'prompt'）。
+     * Prompt 消息渲染为特殊卡片，而非 Markdown。
+     */
+    private get _isPromptContent(): boolean {
+        return this.message?.content?.type === 'prompt';
+    }
+
     private _toggleThinking() {
         this._thinkingExpanded = !this._thinkingExpanded;
     }
@@ -291,6 +309,7 @@ export class RtcMessage extends LitElement implements StatefulComponent {
         const {message, isLast} = this;
         const isThinking = this._isThinkingContent;
         const isSummary = this._isSummaryContent;
+        const isPrompt = this._isPromptContent;
 
         /*
          * success 状态条件：
@@ -298,6 +317,7 @@ export class RtcMessage extends LitElement implements StatefulComponent {
          *   - !streaming：流式传输中不算完成
          *   - 思考类型消息不算"完成"（它是辅助信息，不是最终回复）
          *   - 压缩摘要不算"完成"（它是系统信息，不是最终回复）
+         *   - prompt 类型不算"完成"（它是系统提示词，不是最终回复）
          *   - !!content：必须有内容（空消息不算完成）
          */
         const classes = {
@@ -305,7 +325,8 @@ export class RtcMessage extends LitElement implements StatefulComponent {
             streaming: !!message.streaming,
             'thinking-content': isThinking,
             'summary-content': isSummary,
-            success: isLast && !message.streaming && !isThinking && !isSummary && !!message.content?.data,
+            'prompt-content': isPrompt,
+            success: isLast && !message.streaming && !isThinking && !isSummary && !isPrompt && !!message.content?.data,
         };
 
         return html`
@@ -321,15 +342,17 @@ export class RtcMessage extends LitElement implements StatefulComponent {
             ? this._renderThinkingBlock()
             : isSummary
               ? this._renderSummaryBlock()
-              /*
-               * 注意这一层额外的 <div> 包裹：
-               * 1. .innerHTML 必须挂在某个元素上，不能直接挂在 .timeline-content
-               *    上（否则会和 thinking 分支的结构冲突）
-               * 2. 这层包裹在 CSS 里被选择器穿透：
-               *    `.timeline-content > div > *:first-child { margin-top: 0 }`
-               *    用来清除 Markdown 渲染出的首个 <p> 的 UA 默认 margin
-               */
-              : html`<div .innerHTML=${this._renderedHtml}></div>`}
+              : isPrompt
+                ? this._renderPromptBlock()
+                /*
+                 * 注意这一层额外的 <div> 包裹：
+                 * 1. .innerHTML 必须挂在某个元素上，不能直接挂在 .timeline-content
+                 *    上（否则会和 thinking 分支的结构冲突）
+                 * 2. 这层包裹在 CSS 里被选择器穿透：
+                 *    `.timeline-content > div > *:first-child { margin-top: 0 }`
+                 *    用来清除 Markdown 渲染出的首个 <p> 的 UA 默认 margin
+                 */
+                : html`<div .innerHTML=${this._renderedHtml}></div>`}
         </div>
       </div>
     `;
@@ -386,6 +409,39 @@ export class RtcMessage extends LitElement implements StatefulComponent {
                 : null}
             </div>
           </div>
+        `;
+    }
+
+    /**
+     * 渲染 prompt 内容块（不可折叠）。
+     *
+     * 显示格式：
+     *   SCENARIOS  $title
+     *   [提示词预览 max-height:3行]
+     *
+     * 设计决策：
+     * - 不支持展开：系统提示词用户无需阅读完整内容
+     * - 使用左边框而非全边框：视觉上更轻盈（与 summary-block 的全边框区分）
+     * - 预览区域限制为 3 行：节省空间
+     * - 使用 <pre> 渲染 prompt 文本：保留原始格式（换行、缩进），
+     *   同时避免 HTML 注入（prompt 内容可能包含 < 和 > 字符）
+     * - 自动支持暗色主题（使用 --rtc-* CSS 变量）
+     */
+    private _renderPromptBlock() {
+        const contentData = this.message?.content?.data as PromptContent | undefined;
+        if (!contentData) return html``;
+
+        const {name, title, prompt} = contentData;
+        const displayName = name.toUpperCase();
+
+        return html`
+            <div class="prompt-block" part="prompt">
+                <div class="prompt-header">
+                    <span class="prompt-name">${displayName}</span>
+                    ${title ? html`<span class="prompt-title">${title}</span>` : null}
+                </div>
+                <pre class="prompt-preview">${prompt}</pre>
+            </div>
         `;
     }
 
