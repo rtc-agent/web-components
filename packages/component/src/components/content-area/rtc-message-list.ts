@@ -6,23 +6,23 @@
  * specific `sessionId`. This allows multiple instances to coexist (e.g. one per
  * open tab) without relying on a shared `MessageContext`.
  *
- * ## Auto-scroll mechanism
+ * ## Auto-scroll mechanism (Intent-Based Architecture)
  *
- * 1. **`updated()` reacts to message changes**:
- *    - If `_shouldAutoScroll` is true, scroll to bottom.
+ * Auto-scroll is controlled by a **computed property** `_shouldAutoScroll()` that
+ * combines geometric state (`_userAtBottom`) with behavioral intent (`_followInvalidatedUntil`):
  *
- * 2. **`_onScroll` tracks user intent** — purely based on scroll position:
- *    - `distanceFromBottom < AT_BOTTOM_THRESHOLD_PX` → following (matches "new messages" button zone)
- *    - `distanceFromBottom ≥ AT_BOTTOM_THRESHOLD_PX` → not following
- *    Programmatic scrolls use `_setScrollPositionSilently()` to avoid triggering `_onScroll`.
+ * 1. **`_userAtBottom`** (geometric, `@state`): updated by `_onScroll` on every scroll event.
+ *    `distanceFromBottom < AT_BOTTOM_THRESHOLD_PX (300)` → true.
  *
- * 3. **`overflow-anchor: none` (CSS)** — prevents the browser from adjusting
- *    scrollTop when content above changes. Ensures `_onScroll` only fires for
- *    user-initiated scrolls.
+ * 2. **`_followInvalidatedUntil`** (behavioral, plain field): set ONLY by user input events
+ *    (wheel, touchstart, pointerdown, keydown) to `Date.now() + 450ms`. Self-expires after
+ *    450ms of user inactivity. Programmatic scrolls do NOT modify this field.
  *
- * 4. **ResizeObserver handles async content** — fires when inner container size
- *    changes (Markdown rendering, thinking expansion, tool-call cards). Scrolls
- *    to bottom only if `_shouldAutoScroll` is true.
+ * 3. **`_shouldAutoScroll()`** = `_userAtBottom && Date.now() >= _followInvalidatedUntil`.
+ *    Called by `updated()`, `_scheduleScroll()`, ResizeObserver.
+ *
+ * 4. **ResizeObserver** handles async content (Markdown rendering, thinking expansion).
+ *    Scrolls to bottom only if `_shouldAutoScroll()` is true.
  *
  * @element rtc-message-list
  * @csspart scroll - The scroll container
@@ -52,10 +52,12 @@ import {MessageSkeletonGenerator} from '../../utils/message-skeleton.js';
 
 /** Duration of toolcall jump highlight animation. */
 const HIGHLIGHT_ANIMATION_MS = 2000;
-/** Distance from bottom threshold for "at bottom" detection (px). */
-const AT_BOTTOM_THRESHOLD_PX = 60;
-/** Exit threshold for disabling auto-scroll (hysteresis, px). */
-const EXIT_AUTO_SCROLL_THRESHOLD_PX = AT_BOTTOM_THRESHOLD_PX * 2; // 120px
+/** Distance from bottom threshold for "at bottom" detection (px). Matches Telegram's SCROLLED_DOWN_THRESHOLD. */
+const AT_BOTTOM_THRESHOLD_PX = 300;
+/** Duration of the follow-invalidation window after user input (ms). Matches Telegram's streamFollowInvalidatedUntil. */
+const FOLLOW_INVALIDATE_DURATION_MS = 450;
+/** Follow-invalidation duration for explicit navigation (scrollToMessage, toolcall jump). */
+const NAVIGATION_INVALIDATE_DURATION_MS = 2000;
 
 @localized()
 @customElement('rtc-message-list')
@@ -118,20 +120,21 @@ export class RtcMessageList extends LitElement {
     private _userAtBottom = true;
 
     /**
-     * Whether the user intends to follow new content ("follow mode").
+     * Follow-invalidation timestamp for auto-scroll.
      *
-     * This is a **mutable flag** representing user intent, NOT scroll position.
-     * It is set by:
-     * - `_onScroll` — when user scrolls to bottom → true, scrolls up → false
-     * - `_handleNewBtnClick` — user explicitly clicks "New messages" → true
-     * - Session switch — user expects to see latest messages → true
+     * **Behavioral intent**, NOT scroll position. Set ONLY by user input events
+     * (wheel, touchstart, pointerdown, keydown) via `_setupFollowInvalidation()`.
      *
-     * It is NOT set by `_scrollToBottom()` — system actions don't change intent.
-     * This separation prevents async code from overwriting user intent.
+     * When `Date.now() < _followInvalidatedUntil`, auto-scroll is suppressed.
+     * After 450ms of user inactivity, it self-expires — no "user stopped scrolling"
+     * detection needed.
      *
-     * Consumed by: `updated()`, `_scheduleScroll()` callback, ResizeObserver.
+     * This breaks the feedback loop: programmatic scrolls do NOT modify this field,
+     * so they cannot re-enable auto-scroll against user intent.
+     *
+     * Consumed by: `_shouldAutoScroll()` method (computed property).
      */
-    private _shouldAutoScroll = true;
+    private _followInvalidatedUntil = 0;
 
     private _scrollEl?: HTMLElement;
     private _resizeObserver?: ResizeObserver;
@@ -169,7 +172,7 @@ export class RtcMessageList extends LitElement {
      * Called by parent components (e.g., rtc-content-area) when needed.
      */
     scrollToBottom() {
-        this._shouldAutoScroll = true;
+        this._followInvalidatedUntil = 0;  // Resume follow intent
         this._scrollToBottom();
     }
 
@@ -202,8 +205,10 @@ export class RtcMessageList extends LitElement {
         const el = this._scrollEl.querySelector(`[data-client-id="${clientId}"]`) as HTMLElement | null;
         if (el) {
             el.scrollIntoView({behavior: 'smooth', block: 'center'});
-            // Disable follow mode since user is viewing a specific message
-            this._shouldAutoScroll = false;
+            // Brief follow invalidation: let the smooth scroll animation complete
+            // and give the user time to view the message. After 2s, if the user
+            // is still at bottom, auto-scroll resumes naturally via _userAtBottom.
+            this._followInvalidatedUntil = Date.now() + NAVIGATION_INVALIDATE_DURATION_MS;
         }
     }
 
@@ -215,9 +220,12 @@ export class RtcMessageList extends LitElement {
         // so the first `updated()` cycle can scroll cleanly to the bottom.
         if (this._scrollEl) {
             this._scrollEl.scrollTop = 0;
-            // Add scroll listener for UI state updates (button visibility, auto-scroll intent)
+            // Add scroll listener for UI state updates (button visibility, geometric state)
             this._scrollEl.addEventListener('scroll', this._onScroll, {passive: true});
         }
+
+        // Setup follow invalidation: user input events immediately suppress auto-scroll
+        this._setupFollowInvalidation();
 
         // Initialize virtual scroll
         if (this._scrollEl && innerEl) {
@@ -291,11 +299,11 @@ export class RtcMessageList extends LitElement {
                 // Ignore resizes from virtual scroll operations (prependItems/appendItems)
                 if (this._isVirtualScrollOperation) return;
 
-                if (!this._shouldAutoScroll) return;
+                if (!this._shouldAutoScroll()) return;
                 // Debounced compensation: handles late async renders (Markdown, etc.)
                 clearTimeout(this._resizeDebounceTimer);
                 this._resizeDebounceTimer = window.setTimeout(() => {
-                    if (this._shouldAutoScroll && !this._isVirtualScrollOperation) {
+                    if (this._shouldAutoScroll() && !this._isVirtualScrollOperation) {
                         this._scrollToBottom();
                     }
                 }, 100);
@@ -400,7 +408,7 @@ export class RtcMessageList extends LitElement {
         this._virtualScroll.setItems(newMessages);
 
         // Auto-scroll only on initial load (empty → items)
-        if (oldMessages.length === 0 && newMessages.length > 0 && this._shouldAutoScroll) {
+        if (oldMessages.length === 0 && newMessages.length > 0 && this._shouldAutoScroll()) {
             this._virtualScroll.scrollToBottom();
         }
 
@@ -484,7 +492,7 @@ export class RtcMessageList extends LitElement {
             // triggers requestUpdate() during the active update cycle.
             queueMicrotask(() => {
                 this._subscribeToSession();
-                this._shouldAutoScroll = true;
+                this._followInvalidatedUntil = 0;  // Reset behavioral intent: follow new session
                 this._virtualScroll?.scrollToBottom();
                 this._userAtBottom = true;
                 this._showNewBtn = false;
@@ -495,7 +503,7 @@ export class RtcMessageList extends LitElement {
         // Virtual scroll handles its own scroll preservation via ScrollSaver.
         // We only need to scroll to bottom for new messages (append).
         if (changed.has('_messages')) {
-            if (this._shouldAutoScroll) {
+            if (this._shouldAutoScroll()) {
                 this._scheduleScroll();
             }
         }
@@ -544,6 +552,19 @@ export class RtcMessageList extends LitElement {
     }
 
     /**
+     * Computed property: whether auto-scroll should fire.
+     *
+     * Combines geometric state (`_userAtBottom`) with behavioral intent
+     * (`_followInvalidatedUntil`). This is NOT a stored field — it's computed
+     * on every access, so there's no state to manage and no feedback loop possible.
+     *
+     * Architecture: mirrors Telegram's `scrolledDown && Date.now() >= streamFollowInvalidatedUntil`.
+     */
+    private _shouldAutoScroll(): boolean {
+        return this._userAtBottom && Date.now() >= this._followInvalidatedUntil;
+    }
+
+    /**
      * Schedule a scroll-to-bottom after the current render completes.
      *
      * Uses a version counter for clean debouncing:
@@ -579,7 +600,7 @@ export class RtcMessageList extends LitElement {
             if (version !== this._scrollVersion) return;
             // Re-check follow intent before scrolling — user may have scrolled
             // up while we were waiting for updateComplete.
-            if (!this._shouldAutoScroll) return;
+            if (!this._shouldAutoScroll()) return;
             this._scrollToBottom();
         }).catch(err => {
             log.error('Scheduled scroll after update failed:', err);
@@ -588,90 +609,79 @@ export class RtcMessageList extends LitElement {
 
     private _scrollToBottom() {
         if (!this._scrollEl) return;
-        // Use silent scroll to avoid triggering _onScroll
-        // This is the key mechanism from Telegram Web's setScrollPositionSilently
+        // Set scrollTop directly. _onScroll will fire and update geometric state
+        // (_userAtBottom = true, since distanceFromBottom ≈ 0). We also set it
+        // here for immediate UI feedback before the async scroll event fires.
         this._setScrollPositionSilently(this._scrollEl.scrollHeight);
-        // NOTE: _scrollToBottom() does NOT set _shouldAutoScroll.
-        // System actions (auto-scroll) should not change user intent.
-        // Only user actions (_onScroll, _handleNewBtnClick, session switch) set it.
         this._userAtBottom = true;
         this._showNewBtn = false;
+        // NOTE: This does NOT affect _followInvalidatedUntil (behavioral intent).
+        // Programmatic scrolls don't change user intent — only input events do.
     }
 
     /**
-     * Set scroll position silently without triggering _onScroll.
-     * Ported from Telegram Web's setScrollPositionSilently.
+     * Set scroll position. _onScroll always processes scroll events normally
+     * (geometric state update). After programmatic scroll to bottom, _onScroll
+     * calculates distanceFromBottom ≈ 0 and sets _userAtBottom = true — the same
+     * value _scrollToBottom() would set. No suppression needed.
      *
-     * How it works:
-     * 1. Temporarily remove scroll listener
-     * 2. Insert a one-time listener to swallow the scroll event
-     * 3. Set scrollTop
-     * 4. Re-add normal scroll listener
-     *
-     * Result: _onScroll callback never fires for programmatic scrolls.
+     * The virtual scroll's scroll handler may fire, but it has its own guards
+     * (1.5s debounce, stability checks, _isVirtualScrollOperation) so this is harmless.
      */
     private _setScrollPositionSilently(value: number) {
         if (!this._scrollEl) return;
-
-        // 1. Remove normal scroll listener
-        this._scrollEl.removeEventListener('scroll', this._onScroll);
-
-        // 2. Insert one-time listener to swallow the scroll event
-        let swallowFired = false;
-        const swallowHandler = (e: Event) => {
-            e.stopImmediatePropagation();
-            swallowFired = true;
-            // 3. Re-add normal scroll listener
-            this._scrollEl?.addEventListener('scroll', this._onScroll, {passive: true});
-        };
-        this._scrollEl.addEventListener('scroll', swallowHandler, {capture: true, passive: false, once: true});
-
-        // 4. Set scroll position
         this._scrollEl.scrollTop = value;
+    }
 
-        // Fallback: if no scroll event fired (value === current scrollTop),
-        // the swallowHandler never executes and _onScroll is never re-added.
-        // Re-add unconditionally on the next microtask; addEventListener is
-        // idempotent when the same reference is already registered.
-        queueMicrotask(() => {
-            if (!swallowFired) {
-                this._scrollEl?.removeEventListener('scroll', swallowHandler);
-                this._scrollEl?.addEventListener('scroll', this._onScroll, {passive: true});
-            }
-        });
+    /**
+     * Register user input event listeners to invalidate follow intent.
+     *
+     * Architecture: mirrors Telegram's `streamFollowInvalidatedUntil` pattern.
+     * Any user input (wheel, touchstart, pointerdown, keydown) extends the
+     * invalidation timestamp by 450ms. Every auto-scroll check reads
+     * `Date.now() < _followInvalidatedUntil` — if the user touched anything
+     * in the last 450ms, the follow is skipped.
+     *
+     * This is the key mechanism that breaks the feedback loop:
+     * - User intent is detected from INPUT EVENTS, not scroll position
+     * - Programmatic scrolls do NOT fire wheel/touchstart/pointerdown/keydown
+     * - Therefore programmatic scrolls cannot re-enable auto-scroll
+     */
+    private _setupFollowInvalidation() {
+        if (!this._scrollEl) return;
+
+        const invalidate = () => {
+            this._followInvalidatedUntil = Date.now() + FOLLOW_INVALIDATE_DURATION_MS;
+        };
+
+        for (const event of ['wheel', 'touchstart', 'pointerdown', 'keydown']) {
+            this._scrollEl.addEventListener(event, invalidate, {passive: true});
+        }
     }
 
     private _onScroll = () => {
         if (!this._scrollEl) return;
 
         // Guard: during programmatic scroll-to-bottom (smooth scroll from button click),
-        // skip intent tracking. Without this, _onScroll fires mid-animation, sees
-        // distanceFromBottom > 120px, and resets _shouldAutoScroll to false — breaking
-        // the ResizeObserver safety net that compensates for skeleton height changes.
+        // skip geometric state update to prevent UI flicker.
         if (this._scrollingToBottom) return;
 
         const {scrollHeight, scrollTop, clientHeight} = this._scrollEl;
         const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
 
-        // Button visibility: generous threshold
-        // Shows "new messages" button early so user can click before reaching absolute bottom
+        // Pure geometric state: is the user at the bottom?
+        // Threshold 300px (matches Telegram's SCROLLED_DOWN_THRESHOLD).
+        // No hysteresis needed — this is purely geometric, not behavioral.
         const atBottom = distanceFromBottom < AT_BOTTOM_THRESHOLD_PX;
 
-        // Follow intent: use hysteresis to prevent state dithering during async content rendering.
-        // - Enter follow mode when distanceFromBottom < AT_BOTTOM_THRESHOLD_PX (60px)
-        // - Exit follow mode only when distanceFromBottom > EXIT_AUTO_SCROLL_THRESHOLD_PX (120px)
-        // - In the hysteresis band (60-120px), preserve the current _shouldAutoScroll state
-        // Note: Programmatic scrolls use _setScrollPositionSilently, so they don't trigger _onScroll.
-        // This means we don't need guards like _programmaticScrollCount anymore.
-        if (distanceFromBottom > EXIT_AUTO_SCROLL_THRESHOLD_PX) {
-            this._shouldAutoScroll = false;
-        } else if (atBottom) {
-            this._shouldAutoScroll = true;
-        }
-
-        // UI state (_userAtBottom, _showNewBtn)
+        // UI state
         this._userAtBottom = atBottom;
         this._showNewBtn = !atBottom;
+
+        // NOTE: _onScroll does NOT modify _followInvalidatedUntil or _shouldAutoScroll().
+        // Behavioral intent is controlled exclusively by user input events
+        // (wheel/touchstart/pointerdown/keydown) via _setupFollowInvalidation().
+        // This breaks the feedback loop where programmatic scrolls could re-enable auto-scroll.
     };
 
     /**
@@ -884,16 +894,16 @@ export class RtcMessageList extends LitElement {
     }
 
     /**
-     * Guard: prevents _onScroll from modifying _shouldAutoScroll during programmatic
-     * scroll-to-bottom (smooth scroll initiated by _handleNewBtnClick).
-     * Without this, _onScroll fires mid-animation, sees distanceFromBottom > 120px,
-     * and overrides _shouldAutoScroll to false — breaking the ResizeObserver safety net.
+     * Guard: prevents _onScroll from modifying geometric state (_userAtBottom)
+     * during programmatic smooth scroll-to-bottom (initiated by _handleNewBtnClick).
+     * Without this, _onScroll fires mid-animation and may cause UI flicker
+     * (showNewBtn toggling) as the scroll position passes through non-bottom areas.
      */
     private _scrollingToBottom = false;
 
     private _handleNewBtnClick = () => {
         // Set intent FIRST (before scroll), so ResizeObserver safety net stays active
-        this._shouldAutoScroll = true;
+        this._followInvalidatedUntil = 0;  // Resume follow intent
         this._userAtBottom = true;
         this._showNewBtn = false;
 
@@ -933,6 +943,9 @@ export class RtcMessageList extends LitElement {
         }
 
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        // Brief follow invalidation for navigation
+        this._followInvalidatedUntil = Date.now() + NAVIGATION_INVALIDATE_DURATION_MS;
 
         // Brief highlight animation
         el.classList.add('highlight');
