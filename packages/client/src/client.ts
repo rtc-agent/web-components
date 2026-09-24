@@ -66,6 +66,22 @@ export class RTCAgentClient implements IRTCAgentClient {
   /** Whether gap fill processing is currently running. */
   private isGapFillProcessing = false;
 
+  // ========== Update Scheduler: 调度 → [缓冲区] → 阻塞执行器 ==========
+  /**
+   * Buffer for pending updates (deduplication happens here before enqueue).
+   * Publication callbacks fire-and-forget into this buffer; the executor
+   * drains it serially so Centrifuge callbacks never block on async work.
+   */
+  private readonly pendingUpdates: Update[] = [];
+  /** Whether the update executor is currently draining the buffer. */
+  private isUpdateProcessing = false;
+  /**
+   * Synchronous offset cache per channel — mirrors IndexedDB state so that
+   * scheduleUpdate can deduplicate expired/duplicate offsets without awaiting
+   * IndexedDB (which would re-introduce callback blocking).
+   */
+  private readonly lastOffsetCache = new Map<string, number>();
+
   /** Delay (ms) before reconnecting after "message size limit exceeded" rejection. */
   private static readonly RECONNECT_AFTER_SIZE_LIMIT_DELAY_MS = 3000;
   /** Delay (ms) before reconnecting after a successful token refresh. */
@@ -126,7 +142,13 @@ export class RTCAgentClient implements IRTCAgentClient {
       this.subscribeChannels();
     });
     this.centrifuge.on('disconnected', (ctx) => {
-      log.debug('centrifuge disconnected, reason:', ctx?.reason);
+      log.debug(
+        '[GAP_FILL_DEBUG] centrifuge disconnected, reason:', ctx?.reason,
+        '| code:', ctx?.code,
+        '| wasConnected:', this.wasConnected,
+        '| shouldReconnect:', this.shouldReconnect,
+        '| activeGapFills:', this.gapFillTasks.size
+      );
 
       // Detect server-side token rejection (e.g. "invalid token").
       // Even if the JWT is not expired, we need to trigger the refresh mechanism.
@@ -181,6 +203,10 @@ export class RTCAgentClient implements IRTCAgentClient {
     // Clear old subscriptions: they are bound to the destroyed Centrifuge instance
     // and must be rebuilt on reconnect.
     this.subscriptions.clear();
+    // Clear the update scheduler buffer and sync cache — they are tied to the
+    // previous connection's offset state and must be rebuilt on reconnect.
+    this.pendingUpdates.length = 0;
+    this.lastOffsetCache.clear();
     this.setConnectionState('disconnected');
   }
 
@@ -472,6 +498,97 @@ export class RTCAgentClient implements IRTCAgentClient {
     };
   }
 
+  // ========== Update Scheduler: 调度 → [缓冲区] → 阻塞执行器 ==========
+
+  /**
+   * Schedule an update for async serial processing (non-blocking).
+   *
+   * Pattern: scheduleGapFill — fire-and-forget into a buffer, the executor
+   * drains it serially. Deduplication happens at enqueue time using the
+   * synchronous lastOffsetCache (avoids awaiting IndexedDB in the callback).
+   *
+   * Why this matters: Centrifuge dispatches publication callbacks serially
+   * per subscription — if the callback awaits slow work (gap fill polling,
+   * IndexedDB, user's onPublication), new messages queue up behind it and
+   * Centrifuge's internal ping/pong can timeout.
+   */
+  private scheduleUpdate(update: Update): void {
+    const channel = `topic:u=${this.options.userId}`;
+
+    // 缓冲区去重 1: 过期消息 (offset <= 已处理的 lastOffset)
+    if (update.offset > 0) {
+      const cachedLastOffset = this.lastOffsetCache.get(channel);
+      if (cachedLastOffset !== undefined && update.offset <= cachedLastOffset) {
+        log.debug(
+          `scheduleUpdate: skip expired offset=${update.offset}, lastOffset=${cachedLastOffset}`,
+        );
+        return;
+      }
+    }
+
+    // 缓冲区去重 2: 队列中已有相同 offset
+    if (update.offset > 0 && this.pendingUpdates.some(u => u.offset === update.offset)) {
+      log.debug(`scheduleUpdate: skip duplicate in buffer offset=${update.offset}`);
+      return;
+    }
+
+    this.pendingUpdates.push(update);
+    void this.processUpdateQueue();
+  }
+
+  /**
+   * Executor: drain pendingUpdates serially.
+   *
+   * Each update goes through applyUpdates (which provides its own Promise-chain
+   * serialisation and integrates with gap fill / external RPC callers).
+   * The two-level serialisation (buffer loop + applyUpdates Promise chain) is
+   * intentional — the buffer deduplicates and decouples from Centrifuge,
+   * applyUpdates coordinates with external callers and gap fill.
+   */
+  private async processUpdateQueue(): Promise<void> {
+    if (this.isUpdateProcessing) return;
+    this.isUpdateProcessing = true;
+
+    try {
+      while (this.pendingUpdates.length > 0) {
+        const update = this.pendingUpdates.shift()!;
+        try {
+          await this.applyUpdates([update]);
+          // 成功后更新同步缓存（用于后续入队去重）
+          if (update.offset > 0) {
+            const channel = `topic:u=${this.options.userId}`;
+            this.lastOffsetCache.set(channel, update.offset);
+          }
+        } catch (err) {
+          log.error(`processUpdateQueue failed for offset ${update.offset}:`, err);
+          this.emit('error', err instanceof Error ? err : new Error(String(err)));
+
+          // 严重错误（如 gap fill 失败）→ 触发 reconnect，和原 publication 错误处理一致
+          if (this.shouldReconnect) {
+            this.centrifuge?.disconnect();
+            this.setConnectionState('disconnected', 'update processing failed');
+            this.emit('syncRequired', {
+              reason: 'gap_fill_failed',
+              lastKnownOffset: update.offset - 1,
+              serverOffset: update.offset,
+            });
+            this._reconnectTimer = setTimeout(() => {
+              this._reconnectTimer = undefined;
+              if (this.shouldReconnect && this.connectionState === 'disconnected') {
+                log.debug('attempting reconnect after update processing failure');
+                this.reconnect().catch(e => log.error('reconnect failed:', e));
+              }
+            }, RTCAgentClient.RECONNECT_AFTER_SIZE_LIMIT_DELAY_MS);
+          }
+          // 严重错误，停止处理剩余队列 — reconnect 会清空状态
+          break;
+        }
+      }
+    } finally {
+      this.isUpdateProcessing = false;
+    }
+  }
+
   // ========== Gap Fill Manager ==========
 
   /**
@@ -487,15 +604,18 @@ export class RTCAgentClient implements IRTCAgentClient {
   private scheduleGapFill(channel: string, targetOffset: number, epoch: string): void {
     const pending = this.gapFillTasks.get(channel);
     if (pending) {
-      // Merge: extend to the maximum range
+      // Merge: extend to the maximum range, no re-trigger needed.
       pending.targetOffset = Math.max(pending.targetOffset, targetOffset);
       pending.epoch = epoch;
+      log.debug(
+        `[GAP_FILL_DEBUG] scheduleGapFill merged: channel=${channel}, ` +
+        `targetOffset=${pending.targetOffset}, isProcessing=${this.isGapFillProcessing}`
+      );
     } else {
       this.gapFillTasks.set(channel, { targetOffset, epoch });
+      // Only trigger processing when there is no existing task (avoid duplicate loops).
+      void this.processGapFillQueue();
     }
-
-    // Trigger processing (non-blocking)
-    void this.processGapFillQueue();
   }
 
   /**
@@ -537,7 +657,14 @@ export class RTCAgentClient implements IRTCAgentClient {
       return;
     }
 
-    const BATCH_SIZE = 200;
+    // 调试日志：记录 gap fill 开始时的连接状态和 subscription 状态
+    log.debug(
+      `[GAP_FILL_DEBUG] runGapFill started: channel=${channel}, targetOffset=${targetOffset}, ` +
+      `connectionState=${this.connectionState}, centrifuge=${!!this.centrifuge}, ` +
+      `subState=${sub.state}`
+    );
+
+    const BATCH_SIZE = 10;
     // Only suspend UI updates for large gaps to prevent UI thrashing.
     // Small gaps (< 100) can update UI normally for real-time feedback.
     const SUSPEND_THRESHOLD = 100;
@@ -575,6 +702,13 @@ export class RTCAgentClient implements IRTCAgentClient {
           limit,
           reverse: false,
         };
+
+        // 调试日志：记录调用 history 前的连接状态
+        log.debug(
+          `[GAP_FILL_DEBUG] Calling sub.history(): offset=${offset}, limit=${limit}, ` +
+          `connectionState=${this.connectionState}, hasCentrifuge=${!!this.centrifuge}, ` +
+          `subState=${sub.state}`
+        );
 
         const historyResult = await sub.history(opts);
         const publications = historyResult.publications;
@@ -622,7 +756,15 @@ export class RTCAgentClient implements IRTCAgentClient {
         if (publications.length < limit) break;
       }
     } catch (err) {
-      log.error(`runGapFill failed for channel ${channel}:`, err);
+      // 调试日志：记录错误发生时的详细上下文
+      log.error(
+        `[GAP_FILL_DEBUG] runGapFill failed for channel ${channel}:`,
+        err,
+        `| connectionState=${this.connectionState}`,
+        `| hasCentrifuge=${!!this.centrifuge}`,
+        `| targetOffset=${targetOffset}`,
+        `| epoch=${epoch}`
+      );
       this.emit('error', err instanceof Error ? err : new Error(String(err)));
       this.emit('syncRequired', {
         reason: 'gap_fill_failed',
@@ -654,7 +796,11 @@ export class RTCAgentClient implements IRTCAgentClient {
   }
 
   private setConnectionState(state: ConnectionState, reason?: string): void {
-    log.debug('setConnectionState:', state, 'reason:', reason, 'previous:', this.connectionState);
+    log.debug(
+      '[GAP_FILL_DEBUG] setConnectionState:', state, 'reason:', reason,
+      '| previous:', this.connectionState,
+      '| timestamp:', new Date().toISOString()
+    );
     if (this.connectionState === state) return;
     this.connectionState = state;
     const event: ConnectionStateEvent = { state, reason };
@@ -771,52 +917,21 @@ export class RTCAgentClient implements IRTCAgentClient {
       const topicSub = this.centrifuge.newSubscription(topicChannel);
       this.subscriptions.set(topicChannel, topicSub);
 
-      topicSub.on('publication', async (ctx) => {
-        // Construct the Update object (assuming data is of Update type).
-        const update = ctx.data as Update;
-
-        // Process through applyUpdates (continuity detection + gap fill + serialisation).
-        // applyUpdates may throw (e.g. gap fill failure) — must catch to prevent
-        // unhandled promise rejection. An exception means offset continuity is broken
-        // and subsequent messages cannot be processed; reconnect or reset offset.
-        try {
-          await this.applyUpdates([update]);
-        } catch (err) {
-          log.error(
-            `applyUpdates failed for offset ${update.offset} on channel ${topicChannel}:`,
-            err,
-          );
-          this.emit('error', err instanceof Error ? err : new Error(String(err)));
-
-          // Critical fix: When gap fill fails during publication processing, disconnect
-          // and require manual sync. Otherwise, the next message will attempt the same
-          // gap fill again, creating a retry loop. This mirrors the error handling in
-          // the 'subscribed' handler.
-          this.centrifuge?.disconnect();
-          this.setConnectionState('disconnected', 'gap fill failed');
-          this.emit('syncRequired', {
-            reason: 'gap_fill_failed',
-            lastKnownOffset: update.offset - 1,
-            serverOffset: update.offset,
-          });
-
-          // Schedule reconnect to recover from gap fill failure.
-          // The reconnect will rebuild subscriptions and retry gap fill with fresh state.
-          if (this.shouldReconnect) {
-            this._reconnectTimer = setTimeout(() => {
-              this._reconnectTimer = undefined;
-              if (this.shouldReconnect && this.connectionState === 'disconnected') {
-                log.debug('attempting reconnect after gap fill failure');
-                this.reconnect().catch(err => {
-                  log.error('reconnect after gap fill failed:', err);
-                });
-              }
-            }, RTCAgentClient.RECONNECT_AFTER_SIZE_LIMIT_DELAY_MS);
-          }
-        }
+      // 调度 → [缓冲区] → 阻塞执行器
+      // 回调只投递到 pendingUpdates 缓冲区，立刻返回，不阻塞 Centrifuge。
+      // 去重、串行化、错误处理全部由 scheduleUpdate / processUpdateQueue 负责。
+      topicSub.on('publication', (ctx) => {
+        this.scheduleUpdate(ctx.data as Update);
       });
 
       topicSub.on('subscribed', async (ctx) => {
+        // 调试日志：记录 subscribed 事件触发
+        log.debug(
+          `[GAP_FILL_DEBUG] Subscription 'subscribed' event: channel=${topicChannel}, ` +
+          `serverOffset=${ctx.streamPosition?.offset}, epoch=${ctx.streamPosition?.epoch}, ` +
+          `connectionState=${this.connectionState}`
+        );
+
         // On successful subscription, detect offset continuity to prevent losing offline messages.
         if (ctx.streamPosition) {
           const epoch = ctx.streamPosition.epoch;
@@ -841,6 +956,7 @@ export class RTCAgentClient implements IRTCAgentClient {
           if (localOffset === undefined) {
             // No local record (first subscription) — use the server offset directly.
             await this.options.updateOffset?.(topicChannel, serverOffset, epoch);
+            localOffset = serverOffset;
           } else if (serverOffset <= localOffset) {
             // Server offset <= local offset: duplicate subscription or rollback — keep local.
           } else {
@@ -848,6 +964,12 @@ export class RTCAgentClient implements IRTCAgentClient {
             // The gap fill will fetch history in batches and process through applyUpdates.
             // Note: serverOffset + 1 because toOffset is exclusive.
             this.scheduleGapFill(topicChannel, serverOffset + 1, epoch);
+          }
+
+          // 同步更新 lastOffsetCache，供 scheduleUpdate 入队去重使用
+          // （避免入队时 await IndexedDB 重新阻塞回调）
+          if (localOffset !== undefined) {
+            this.lastOffsetCache.set(topicChannel, localOffset);
           }
         }
       });
@@ -861,13 +983,14 @@ export class RTCAgentClient implements IRTCAgentClient {
       const liveSub = this.centrifuge.newSubscription(liveChannel);
       this.subscriptions.set(liveChannel, liveSub);
 
-      liveSub.on('publication', async (ctx) => {
+      // Live channel: no offset continuity, but still fire-and-forget so slow
+      // onPublication callbacks don't block Centrifuge's internal processing.
+      liveSub.on('publication', (ctx) => {
         const event: PublicationEvent = {
           channel: liveChannel,
           data: ctx.data,
         };
-
-        await this.handlePublication(event, liveSub);
+        void this.handlePublication(event, liveSub);
       });
     }
     this.subscriptions.get(liveChannel)?.subscribe();
