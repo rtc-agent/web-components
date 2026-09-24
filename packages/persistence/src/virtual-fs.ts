@@ -100,11 +100,9 @@ export function isChildPath(parent: string, child: string): boolean {
  * Simple glob pattern matching.
  *
  * Supports:
- * - * matches any character (not /)
- * - ? matches a single character
- *
- * Does not support:
- * - ** recursive matching (v1 limitation, TODO: support in future version)
+ * - * matches any character except /
+ * - ** matches any character including / (recursive)
+ * - ? matches a single character except /
  *
  * Note: `/` inside RegExp character classes must be escaped as `\/`, otherwise some engines
  * (e.g. older Safari) interpret the `/` in `[^/]` as the end of the regex literal, causing
@@ -113,10 +111,16 @@ export function isChildPath(parent: string, child: string): boolean {
  * "one or more a followed by b".
  */
 export function matchGlob(pattern: string, path: string): boolean {
-  const regexStr = pattern
+  // First, handle ** (recursive matching) by replacing with a unique placeholder
+  const DOUBLE_STAR_PLACEHOLDER = '\0DOUBLESTAR\0';
+  let processed = pattern.replace(/\*\*/g, DOUBLE_STAR_PLACEHOLDER);
+
+  // Escape regex metacharacters (but not our placeholder)
+  const regexStr = processed
     .replace(/[.+^${}()|[\]\\/+]/g, '\\$&')
-    .replace(/\*/g, '[^\\/]*')
-    .replace(/\?/g, '[^\\/]');
+    .replace(new RegExp(DOUBLE_STAR_PLACEHOLDER, 'g'), '.*')  // ** matches anything including /
+    .replace(/\*/g, '[^\\/]*')   // * matches anything except /
+    .replace(/\?/g, '[^\\/]');   // ? matches single char except /
 
   const regex = new RegExp(`^${regexStr}$`);
   return regex.test(path);
@@ -313,23 +317,40 @@ export class VirtualFS {
    * @param pattern Regular expression
    * @param path Search scope (default: root)
    * @param caseSensitive Whether case-sensitive (default: false)
-   * @param maxResults Maximum result count (default: 100, prevents performance issues from large file scans)
-   * @returns Matching result list
+   * @param maxResults Maximum result count (default: 250, prevents performance issues from large file scans)
+   * @param offset Skip first N results (default: 0)
+   * @param contextBefore Lines of context before each match (default: 0)
+   * @param contextAfter Lines of context after each match (default: 0)
+   * @param showLineNumbers Show line numbers in output (default: true)
+   * @param outputMode Output mode: content, files_with_matches, count (default: files_with_matches)
+   * @param multiline Enable multiline matching (default: false)
+   * @param glob Glob pattern to filter files
+   * @param type File type to search
+   * @returns Search results based on output mode
    */
   async grep(
     pattern: string,
     path: string = '/',
     caseSensitive: boolean = false,
-    maxResults: number = 100
-  ): Promise<Array<{ file: string; line: string; lineNumber: number }>> {
+    maxResults: number = 250,
+    offset: number = 0,
+    contextBefore: number = 0,
+    contextAfter: number = 0,
+    showLineNumbers: boolean = true,
+    outputMode: 'content' | 'files_with_matches' | 'count' = 'files_with_matches',
+    multiline: boolean = false,
+    glob?: string,
+    type?: string
+  ): Promise<any> {
     const normalizedPath = normalizePath(path);
-    log.debug('grep: pattern:', pattern, 'path:', normalizedPath, 'caseSensitive:', caseSensitive);
+    log.debug('grep: pattern:', pattern, 'path:', normalizedPath, 'caseSensitive:', caseSensitive, 'outputMode:', outputMode);
     const db = getDatabase();
 
     let regex: RegExp;
     try {
       const flags = caseSensitive ? '' : 'i';
-      regex = new RegExp(pattern, flags);
+      const regexPattern = multiline ? pattern.replace(/\./g, '[\\s\\S]') : pattern;
+      regex = new RegExp(regexPattern, flags + (multiline ? 'm' : ''));
     } catch (err) {
       log.warn('grep: invalid regex pattern:', pattern, err);
       throw new SyntaxError(`Invalid regex pattern: ${pattern}`);
@@ -346,7 +367,83 @@ export class VirtualFS {
         .toArray();
     }
 
-    const results: Array<{ file: string; line: string; lineNumber: number }> = [];
+    // Filter by type if specified
+    if (type) {
+      entries = entries.filter(entry => {
+        const ext = entry.path.split('.').pop()?.toLowerCase();
+        return ext === type.toLowerCase();
+      });
+    }
+
+    // Filter by glob pattern if specified
+    if (glob) {
+      entries = entries.filter(entry => {
+        const filename = entry.path.split('/').pop() || '';
+        const relativePath = normalizedPath === '/'
+          ? entry.path.substring(1)
+          : entry.path.substring(normalizedPath.length + 1);
+        return matchGlob(glob, filename) || matchGlob(glob, relativePath) || matchGlob(glob, entry.path);
+      });
+    }
+
+    // Exclude VCS directories
+    const vcsDirs = ['.git', '.svn', '.hg', '.bzr', '.jj', '.sl'];
+    entries = entries.filter(entry => {
+      const pathParts = entry.path.split('/');
+      return !pathParts.some(part => vcsDirs.includes(part));
+    });
+
+    if (outputMode === 'files_with_matches') {
+      // Return list of matching file paths
+      const matchedFiles: string[] = [];
+
+      for (const entry of entries) {
+        if (regex.test(entry.content)) {
+          matchedFiles.push(entry.path);
+        }
+      }
+
+      // Apply offset and limit
+      const limitedFiles = matchedFiles.slice(offset, offset + (maxResults || matchedFiles.length));
+
+      return {
+        mode: 'files_with_matches',
+        filenames: limitedFiles,
+        numFiles: limitedFiles.length,
+        appliedLimit: maxResults && matchedFiles.length - offset > maxResults ? maxResults : undefined,
+        appliedOffset: offset > 0 ? offset : undefined,
+      };
+    }
+
+    if (outputMode === 'count') {
+      // Return match counts per file
+      const countResults: Array<{ file: string; count: number }> = [];
+      let totalMatches = 0;
+
+      for (const entry of entries) {
+        const matches = entry.content.match(regex);
+        const count = matches ? matches.length : 0;
+        if (count > 0) {
+          countResults.push({ file: entry.path, count });
+          totalMatches += count;
+        }
+      }
+
+      // Apply offset and limit
+      const limitedResults = countResults.slice(offset, offset + (maxResults || countResults.length));
+
+      return {
+        mode: 'count',
+        content: limitedResults.map(r => `${r.file}:${r.count}`).join('\n'),
+        numFiles: limitedResults.length,
+        numMatches: totalMatches,
+        appliedLimit: maxResults && countResults.length - offset > maxResults ? maxResults : undefined,
+        appliedOffset: offset > 0 ? offset : undefined,
+      };
+    }
+
+    // outputMode === 'content'
+    const contentResults: Array<{ file: string; lineNumber: number; line: string }> = [];
 
     for (const entry of entries) {
       const lines = entry.content.split('\n');
@@ -354,20 +451,39 @@ export class VirtualFS {
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         if (regex.test(line)) {
-          results.push({
-            file: entry.path,
-            line: line,
-            lineNumber: i + 1,
-          });
-          // Early termination to prevent unbounded scans on large datasets
-          if (results.length >= maxResults) {
-            return results;
+          // Add context lines
+          const startLine = Math.max(0, i - contextBefore);
+          const endLine = Math.min(lines.length - 1, i + contextAfter);
+
+          for (let j = startLine; j <= endLine; j++) {
+            contentResults.push({
+              file: entry.path,
+              lineNumber: j + 1,
+              line: lines[j],
+            });
           }
         }
       }
     }
 
-    return results;
+    // Apply offset and limit
+    const limitedResults = contentResults.slice(offset, offset + (maxResults || contentResults.length));
+
+    // Format output
+    const formattedLines = limitedResults.map(r => {
+      const lineNum = showLineNumbers ? `${r.lineNumber}:` : '';
+      return `${r.file}:${lineNum}${r.line}`;
+    });
+
+    return {
+      mode: 'content',
+      content: formattedLines.join('\n'),
+      numLines: formattedLines.length,
+      filenames: [],
+      numFiles: 0,
+      appliedLimit: maxResults && contentResults.length - offset > maxResults ? maxResults : undefined,
+      appliedOffset: offset > 0 ? offset : undefined,
+    };
   }
 
   /**

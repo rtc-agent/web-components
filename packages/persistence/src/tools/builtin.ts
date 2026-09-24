@@ -206,9 +206,89 @@ export class GrepTool implements Tool {
       return { success: false, error: 'pattern is required' };
     }
     const path = validateStringParam(params, 'path') || '/';
-    const caseSensitive = (params.case_sensitive as boolean) || false;
-    const maxResults = validateNumberParam(params, 'max_results') ?? 100;
-    return executeFS(() => virtualFS.grep(pattern, path, caseSensitive, maxResults));
+    const caseSensitive = (params['-i'] as boolean) ? false : ((params.case_sensitive as boolean) || false);
+    const headLimit = validateNumberParam(params, 'head_limit') ?? undefined;
+    const offset = validateNumberParam(params, 'offset') ?? 0;
+
+    // Context parameters for content mode
+    const contextBefore = validateNumberParam(params, '-B') ?? 0;
+    const contextAfter = validateNumberParam(params, '-A') ?? 0;
+    const context = validateNumberParam(params, '-C') ?? validateNumberParam(params, 'context') ?? 0;
+    const effectiveContextBefore = context > 0 ? context : contextBefore;
+    const effectiveContextAfter = context > 0 ? context : contextAfter;
+    const showLineNumbers = (params['-n'] as boolean) !== undefined ? (params['-n'] as boolean) : true;
+
+    // Output mode
+    const outputMode = (validateStringParam(params, 'output_mode') || 'files_with_matches') as 'content' | 'files_with_matches' | 'count';
+
+    // Multiline mode
+    const multiline = (params.multiline as boolean) || false;
+
+    // Glob pattern for filtering
+    const glob = validateStringParam(params, 'glob') || undefined;
+
+    // File type filter
+    const type = validateStringParam(params, 'type') || undefined;
+
+    return executeFS(async () => {
+      const result = await virtualFS.grep(
+        pattern,
+        path,
+        caseSensitive,
+        headLimit,
+        offset,
+        effectiveContextBefore,
+        effectiveContextAfter,
+        showLineNumbers,
+        outputMode,
+        multiline,
+        glob,
+        type
+      );
+
+      // Format result based on output mode
+      if (result.mode === 'files_with_matches') {
+        if (result.numFiles === 0) {
+          return 'No files found';
+        }
+        let output = `Found ${result.numFiles} file${result.numFiles !== 1 ? 's' : ''}`;
+        if (result.appliedLimit !== undefined) {
+          output += ` (limit: ${result.appliedLimit})`;
+        }
+        if (result.appliedOffset !== undefined) {
+          output += ` (offset: ${result.appliedOffset})`;
+        }
+        output += '\n' + result.filenames.join('\n');
+        return output;
+      }
+
+      if (result.mode === 'count') {
+        if (!result.content) {
+          return 'No matches found';
+        }
+        let output = result.content;
+        output += `\n\nFound ${result.numMatches} total ${result.numMatches !== 1 ? 'occurrences' : 'occurrence'} across ${result.numFiles} ${result.numFiles !== 1 ? 'files' : 'file'}`;
+        if (result.appliedLimit !== undefined || result.appliedOffset !== undefined) {
+          output += ' with pagination =';
+          if (result.appliedLimit !== undefined) output += ` limit: ${result.appliedLimit}`;
+          if (result.appliedOffset !== undefined) output += ` offset: ${result.appliedOffset}`;
+        }
+        return output;
+      }
+
+      // content mode
+      if (!result.content) {
+        return 'No matches found';
+      }
+      let output = result.content;
+      if (result.appliedLimit !== undefined || result.appliedOffset !== undefined) {
+        output += '\n\n[Showing results with pagination =';
+        if (result.appliedLimit !== undefined) output += ` limit: ${result.appliedLimit}`;
+        if (result.appliedOffset !== undefined) output += ` offset: ${result.appliedOffset}`;
+        output += ']';
+      }
+      return output;
+    });
   }
 }
 

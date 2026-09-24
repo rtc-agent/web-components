@@ -451,48 +451,40 @@ describe('virtual-fs', () => {
             await vfs.write('/file2.txt', 'Another file\nWith multiple lines\nTest content');
         });
 
-        it('should find lines matching pattern', async () => {
-            const results = await vfs.grep('Hello');
-            expect(results).toHaveLength(2);
-            expect(results[0]).toEqual({
-                file: '/file1.txt',
-                line: 'Hello World',
-                lineNumber: 1,
-            });
-            expect(results[1]).toEqual({
-                file: '/file1.txt',
-                line: 'Hello again',
-                lineNumber: 3,
-            });
+        it('should find files matching pattern (files_with_matches mode)', async () => {
+            const result = await vfs.grep('Hello', '/', false, 250, 0, 0, 0, true, 'files_with_matches');
+            expect(result.mode).toBe('files_with_matches');
+            expect(result.filenames).toHaveLength(1);
+            expect(result.filenames[0]).toBe('/file1.txt');
         });
 
         it('should be case-insensitive by default', async () => {
-            const results = await vfs.grep('hello');
-            expect(results).toHaveLength(2);
+            const result = await vfs.grep('hello', '/', false, 250, 0, 0, 0, true, 'content');
+            expect(result.numLines).toBeGreaterThan(0);
         });
 
         it('should support case-sensitive mode', async () => {
-            const results = await vfs.grep('Hello', '/', true);
-            expect(results).toHaveLength(2);
+            const result1 = await vfs.grep('Hello', '/', true, 250, 0, 0, 0, true, 'content');
+            expect(result1.numLines).toBeGreaterThan(0);
 
-            const results2 = await vfs.grep('hello', '/', true);
-            expect(results2).toHaveLength(0);
+            const result2 = await vfs.grep('hello', '/', true, 250, 0, 0, 0, true, 'files_with_matches');
+            expect(result2.numFiles).toBe(0);
         });
 
         it('should search within specified path', async () => {
             await vfs.write('/dir/file.txt', 'Hello in dir');
-            const results = await vfs.grep('Hello', '/dir');
-            expect(results).toHaveLength(1);
-            expect(results[0].file).toBe('/dir/file.txt');
+            const result = await vfs.grep('Hello', '/dir', false, 250, 0, 0, 0, true, 'files_with_matches');
+            expect(result.filenames).toHaveLength(1);
+            expect(result.filenames[0]).toBe('/dir/file.txt');
         });
 
-        it('should respect maxResults limit', async () => {
+        it('should respect headLimit limit', async () => {
             for (let i = 0; i < 20; i++) {
                 await vfs.write(`/file${i}.txt`, 'test line');
             }
 
-            const results = await vfs.grep('test', '/', false, 5);
-            expect(results.length).toBeLessThanOrEqual(5);
+            const result = await vfs.grep('test', '/', false, 5, 0, 0, 0, true, 'files_with_matches');
+            expect(result.filenames.length).toBeLessThanOrEqual(5);
         });
 
         it('should throw SyntaxError for invalid regex', async () => {
@@ -500,10 +492,45 @@ describe('virtual-fs', () => {
             await expect(vfs.grep('[invalid')).rejects.toThrow(/Invalid regex/);
         });
 
-        it('should return line numbers starting from 1', async () => {
+        it('should return content with line numbers in content mode', async () => {
             await vfs.write('/test.txt', 'line1\nline2\nline3');
-            const results = await vfs.grep('line2');
-            expect(results[0].lineNumber).toBe(2);
+            const result = await vfs.grep('line2', '/', false, 250, 0, 0, 0, true, 'content');
+            expect(result.mode).toBe('content');
+            expect(result.content).toContain('line2');
+            expect(result.content).toContain('2:');
+        });
+
+        it('should return count mode results', async () => {
+            await vfs.write('/test.txt', 'test test test\nanother line');
+            const result = await vfs.grep('test', '/', false, 250, 0, 0, 0, true, 'count');
+            expect(result.mode).toBe('count');
+            expect(result.numMatches).toBeGreaterThan(0);
+        });
+
+        it('should support context lines', async () => {
+            await vfs.write('/test.txt', 'line1\nline2\ntarget\nline4\nline5');
+            const result = await vfs.grep('target', '/', false, 250, 0, 1, 1, true, 'content');
+            expect(result.content).toContain('line2');
+            expect(result.content).toContain('target');
+            expect(result.content).toContain('line4');
+        });
+
+        it('should support glob filtering', async () => {
+            await vfs.write('/file.ts', 'test content');
+            await vfs.write('/file.js', 'test content');
+            const result = await vfs.grep('test', '/', false, 250, 0, 0, 0, true, 'files_with_matches', false, '*.ts');
+            expect(result.filenames).toHaveLength(1);
+            expect(result.filenames[0]).toBe('/file.ts');
+        });
+
+        it('should support ** recursive glob filtering', async () => {
+            await vfs.write('/src/a/b/c.ts', 'test content');
+            await vfs.write('/src/a/d.ts', 'test content');
+            await vfs.write('/src/e.js', 'test content');
+            const result = await vfs.grep('test', '/', false, 250, 0, 0, 0, true, 'files_with_matches', false, '**/*.ts');
+            expect(result.filenames).toHaveLength(2);
+            expect(result.filenames).toContain('/src/a/b/c.ts');
+            expect(result.filenames).toContain('/src/a/d.ts');
         });
     });
 
