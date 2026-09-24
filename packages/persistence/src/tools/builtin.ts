@@ -362,7 +362,7 @@ export class ScriptTool implements Tool {
       const path = await saveScript(name, code, description);
       return {
         success: true,
-        data: { path, name },
+        data: `Script saved successfully.\nPath: ${path}\nName: ${name}\n\nYou can now run this script using:\n- action: "run", name: "${name}"\n- Or reference it by path: ${path}`,
       };
     } catch (err) {
       // MD6: Properly handle Error objects

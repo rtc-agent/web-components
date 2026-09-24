@@ -961,3 +961,312 @@ describe('edge cases', () => {
     expect(result).toEqual({ isNaN: true, isInf: true });
   });
 });
+
+// ============================================================
+// Script Parameters
+// ============================================================
+
+describe('Script Parameters', () => {
+  let sandbox: ScriptSandbox;
+  let output: ConsoleOutput;
+
+  beforeEach(() => {
+    output = createOutput();
+  });
+
+  describe('Basic parameter access', () => {
+    it('should access string parameters', async () => {
+      sandbox = createSandbox(createMockRtcAgent(), { name: 'Alice' }, output);
+      const code = `return \`Hello, \${params.name}!\`;`;
+      const result = await _executeCode(code, sandbox, 5000);
+      expect(result).toBe('Hello, Alice!');
+    });
+
+    it('should access number parameters', async () => {
+      sandbox = createSandbox(createMockRtcAgent(), { count: 42 }, output);
+      const code = `return params.count * 2;`;
+      const result = await _executeCode(code, sandbox, 5000);
+      expect(result).toBe(84);
+    });
+
+    it('should access boolean parameters', async () => {
+      sandbox = createSandbox(createMockRtcAgent(), { flag: true }, output);
+      const code = `return params.flag ? 'yes' : 'no';`;
+      const result = await _executeCode(code, sandbox, 5000);
+      expect(result).toBe('yes');
+    });
+
+    it('should access object parameters', async () => {
+      sandbox = createSandbox(createMockRtcAgent(), { user: { name: 'Bob', age: 30 } }, output);
+      const code = `return \`\${params.user.name} is \${params.user.age} years old\`;`;
+      const result = await _executeCode(code, sandbox, 5000);
+      expect(result).toBe('Bob is 30 years old');
+    });
+
+    it('should access array parameters', async () => {
+      sandbox = createSandbox(createMockRtcAgent(), { items: [1, 2, 3] }, output);
+      const code = `return params.items.reduce((a, b) => a + b, 0);`;
+      const result = await _executeCode(code, sandbox, 5000);
+      expect(result).toBe(6);
+    });
+
+    it('should handle multiple parameters', async () => {
+      sandbox = createSandbox(createMockRtcAgent(), {
+        startDate: '2024-01-01',
+        endDate: '2024-12-31',
+        format: 'json'
+      }, output);
+      const code = `
+        const { startDate, endDate, format } = params;
+        return { range: \`\${startDate} to \${endDate}\`, outputFormat: format };
+      `;
+      const result = await _executeCode(code, sandbox, 5000);
+      expect(result).toEqual({
+        range: '2024-01-01 to 2024-12-31',
+        outputFormat: 'json'
+      });
+    });
+  });
+
+  describe('Default values and missing parameters', () => {
+    it('should handle missing parameters with default values', async () => {
+      sandbox = createSandbox(createMockRtcAgent(), {}, output);
+      const code = `
+        const { name = 'Guest', count = 0 } = params;
+        return \`\${name}: \${count}\`;
+      `;
+      const result = await _executeCode(code, sandbox, 5000);
+      expect(result).toBe('Guest: 0');
+    });
+
+    it('should handle undefined parameters', async () => {
+      sandbox = createSandbox(createMockRtcAgent(), { name: undefined }, output);
+      const code = `return params.name || 'default';`;
+      const result = await _executeCode(code, sandbox, 5000);
+      expect(result).toBe('default');
+    });
+
+    it('should handle null parameters', async () => {
+      sandbox = createSandbox(createMockRtcAgent(), { value: null }, output);
+      const code = `return params.value ?? 'fallback';`;
+      const result = await _executeCode(code, sandbox, 5000);
+      expect(result).toBe('fallback');
+    });
+
+    it('should use optional chaining for nested parameters', async () => {
+      sandbox = createSandbox(createMockRtcAgent(), { user: { name: 'Alice' } }, output);
+      const code = `return params.user?.age ?? 'unknown';`;
+      const result = await _executeCode(code, sandbox, 5000);
+      expect(result).toBe('unknown');
+    });
+  });
+
+  describe('Parameter types and validation', () => {
+    it('should preserve parameter types', async () => {
+      sandbox = createSandbox(createMockRtcAgent(), {
+        str: 'text',
+        num: 123,
+        bool: true,
+        obj: { key: 'value' },
+        arr: [1, 2, 3]
+      }, output);
+      const code = `
+        return {
+          strType: typeof params.str,
+          numType: typeof params.num,
+          boolType: typeof params.bool,
+          objType: typeof params.obj,
+          arrType: Array.isArray(params.arr)
+        };
+      `;
+      const result = await _executeCode(code, sandbox, 5000);
+      expect(result).toEqual({
+        strType: 'string',
+        numType: 'number',
+        boolType: 'boolean',
+        objType: 'object',
+        arrType: true
+      });
+    });
+
+    it('should handle complex nested structures', async () => {
+      sandbox = createSandbox(createMockRtcAgent(), {
+        data: {
+          users: [
+            { name: 'Alice', tags: ['admin', 'user'] },
+            { name: 'Bob', tags: ['user'] }
+          ],
+          metadata: { count: 2 }
+        }
+      }, output);
+      const code = `
+        return {
+          firstUser: params.data.users[0].name,
+          firstUserTags: params.data.users[0].tags,
+          totalUsers: params.data.metadata.count
+        };
+      `;
+      const result = await _executeCode(code, sandbox, 5000);
+      expect(result).toEqual({
+        firstUser: 'Alice',
+        firstUserTags: ['admin', 'user'],
+        totalUsers: 2
+      });
+    });
+  });
+
+  describe('Parameter usage patterns', () => {
+    it('should use params in loops', async () => {
+      sandbox = createSandbox(createMockRtcAgent(), { items: ['a', 'b', 'c'] }, output);
+      const code = `
+        const result = [];
+        for (const item of params.items) {
+          result.push(item.toUpperCase());
+        }
+        return result;
+      `;
+      const result = await _executeCode(code, sandbox, 5000);
+      expect(result).toEqual(['A', 'B', 'C']);
+    });
+
+    it('should use params in conditional logic', async () => {
+      sandbox = createSandbox(createMockRtcAgent(), { threshold: 10, value: 15 }, output);
+      const code = `
+        if (params.value > params.threshold) {
+          return 'above threshold';
+        } else {
+          return 'below threshold';
+        }
+      `;
+      const result = await _executeCode(code, sandbox, 5000);
+      expect(result).toBe('above threshold');
+    });
+
+    it('should use params in function calls', async () => {
+      sandbox = createSandbox(createMockRtcAgent(), { numbers: [1, 2, 3, 4, 5] }, output);
+      const code = `
+        function sum(arr) {
+          return arr.reduce((a, b) => a + b, 0);
+        }
+        return sum(params.numbers);
+      `;
+      const result = await _executeCode(code, sandbox, 5000);
+      expect(result).toBe(15);
+    });
+
+    it('should use params with async/await', async () => {
+      sandbox = createSandbox(createMockRtcAgent(), { items: [1, 2, 3] }, output);
+      const code = `
+        async function processItems(arr) {
+          const results = [];
+          for (const item of arr) {
+            results.push(item * 2);
+          }
+          return results;
+        }
+        return await processItems(params.items);
+      `;
+      const result = await _executeCode(code, sandbox, 5000);
+      expect(result).toEqual([2, 4, 6]);
+    });
+  });
+
+  describe('Parameter immutability', () => {
+    it('should allow modifying params object', async () => {
+      sandbox = createSandbox(createMockRtcAgent(), { count: 1 }, output);
+      const code = `
+        params.count += 1;
+        return params.count;
+      `;
+      const result = await _executeCode(code, sandbox, 5000);
+      expect(result).toBe(2);
+    });
+
+    it('should not leak param modifications between executions', async () => {
+      const params = { count: 1 };
+      sandbox = createSandbox(createMockRtcAgent(), params, output);
+
+      await _executeCode('params.count = 999;', sandbox, 5000);
+
+      // Create new sandbox with same params object
+      sandbox = createSandbox(createMockRtcAgent(), params, output);
+      const result = await _executeCode('return params.count;', sandbox, 5000);
+      expect(result).toBe(999); // Params object is shared, so modification persists
+    });
+  });
+
+  describe('Real-world scenarios', () => {
+    it('should handle data transformation with params', async () => {
+      sandbox = createSandbox(createMockRtcAgent(), {
+        data: [
+          { name: 'Alice', score: 85 },
+          { name: 'Bob', score: 92 },
+          { name: 'Charlie', score: 78 }
+        ],
+        minScore: 80
+      }, output);
+      const code = `
+        const { data, minScore } = params;
+        const passed = data.filter(student => student.score >= minScore);
+        return {
+          passed: passed.map(s => s.name),
+          average: passed.reduce((sum, s) => sum + s.score, 0) / passed.length
+        };
+      `;
+      const result = await _executeCode(code, sandbox, 5000);
+      expect(result.passed).toEqual(['Alice', 'Bob']);
+      expect(result.average).toBe(88.5);
+    });
+
+    it('should handle date range processing with params', async () => {
+      sandbox = createSandbox(createMockRtcAgent(), {
+        startDate: '2024-01-01',
+        endDate: '2024-01-31',
+        events: [
+          { date: '2024-01-05', title: 'Event 1' },
+          { date: '2024-01-15', title: 'Event 2' },
+          { date: '2024-02-05', title: 'Event 3' }
+        ]
+      }, output);
+      const code = `
+        const { startDate, endDate, events } = params;
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        const filtered = events.filter(e => {
+          const d = new Date(e.date);
+          return d >= start && d <= end;
+        });
+        return filtered;
+      `;
+      const result = await _executeCode(code, sandbox, 5000);
+      expect(result).toHaveLength(2);
+      expect(result[0].title).toBe('Event 1');
+      expect(result[1].title).toBe('Event 2');
+    });
+
+    it('should handle configuration-based processing', async () => {
+      sandbox = createSandbox(createMockRtcAgent(), {
+        config: {
+          enableLogging: true,
+          maxRetries: 3,
+          timeout: 5000
+        }
+      }, output);
+      const code = `
+        const { config } = params;
+        if (config.enableLogging) {
+          console.log('Processing with config:', JSON.stringify(config));
+        }
+        return {
+          retries: config.maxRetries,
+          timeout: config.timeout
+        };
+      `;
+      const result = await _executeCode(code, sandbox, 5000);
+      expect(result).toEqual({ retries: 3, timeout: 5000 });
+      expect(output.logs).toHaveLength(1);
+      expect(output.logs[0]).toContain('Processing with config');
+    });
+  });
+});
+
