@@ -42,7 +42,7 @@ describe('<rtc-session-panel>', () => {
     it('should show empty text when no sessions', async () => {
         const el = await fixture<HTMLElement>(html`<rtc-session-panel .sessions=${[]}></rtc-session-panel>`);
         await nextFrame();
-        expect(el.shadowRoot!.textContent).toContain('No sessions');
+        expect(el.shadowRoot!.textContent).toContain('暂无会话');
     });
 
     describe('inline rename', () => {

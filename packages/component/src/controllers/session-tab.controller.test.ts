@@ -58,21 +58,21 @@ describe('SessionTabController', () => {
 
         it('should not overwrite real title with placeholder', () => {
             ctrl.actions.openOrActivate('session-1', 'Real Title');
-            ctrl.actions.openOrActivate('session-1', 'Untitled');
+            ctrl.actions.openOrActivate('session-1', '未命名');
             expect(ctrl.value.state.tabs[0].title).toBe('Real Title');
         });
 
         it('should overwrite placeholder with real title', () => {
-            ctrl.actions.openOrActivate('session-1', 'Untitled');
+            ctrl.actions.openOrActivate('session-1', '未命名');
             ctrl.actions.openOrActivate('session-1', 'Real Title');
             expect(ctrl.value.state.tabs[0].title).toBe('Real Title');
         });
 
         it('should mark placeholder titles as isDefault', () => {
-            ctrl.actions.openOrActivate('session-1', 'Untitled');
+            ctrl.actions.openOrActivate('session-1', '未命名');
             expect(ctrl.value.state.tabs[0].isDefault).toBe(true);
 
-            ctrl.actions.openOrActivate('session-2', 'New Chat');
+            ctrl.actions.openOrActivate('session-2', '新聊天');
             expect(ctrl.value.state.tabs[1].isDefault).toBe(true);
 
             ctrl.actions.openOrActivate('session-3', 'Real Title');
@@ -289,7 +289,7 @@ describe('SessionTabController', () => {
         });
 
         it('should clear isDefault when title updated', () => {
-            ctrl.actions.openOrActivate('session-1', 'Untitled');
+            ctrl.actions.openOrActivate('session-1', '未命名');
             expect(ctrl.value.state.tabs[0].isDefault).toBe(true);
 
             const titleMap = new Map<string, string>([['session-1', 'Real Title']]);

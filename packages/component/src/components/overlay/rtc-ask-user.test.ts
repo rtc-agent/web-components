@@ -78,7 +78,7 @@ describe('<rtc-ask-user>', () => {
             html`<rtc-ask-user .rtc=${makeRtc(singleQ)}></rtc-ask-user>`
         );
         await nextFrame();
-        expect(el.shadowRoot!.querySelector('.dialog-title')!.textContent).toBe('Answer a question');
+        expect(el.shadowRoot!.querySelector('.dialog-title')!.textContent).toBe('回答问题');
     });
 
     it('shows "Answer N questions" (plural) for multiple questions', async () => {
@@ -86,7 +86,7 @@ describe('<rtc-ask-user>', () => {
             html`<rtc-ask-user .rtc=${makeRtc(multiQ)}></rtc-ask-user>`
         );
         await nextFrame();
-        expect(el.shadowRoot!.querySelector('.dialog-title')!.textContent).toBe('Answer 2 questions');
+        expect(el.shadowRoot!.querySelector('.dialog-title')!.textContent).toBe('回答 2 个问题');
     });
 
     // ──────────────────── Hybrid mode: tab vs no-tab ────────────────────
@@ -140,7 +140,7 @@ describe('<rtc-ask-user>', () => {
         expect(options.length).toBe(3);
         expect(otherWrapper).not.toBeNull();
         expect(otherWrapper!.querySelector('.option.other')).not.toBeNull();
-        expect(otherWrapper!.textContent).toContain('Other');
+        expect(otherWrapper!.textContent).toContain('其他');
     });
 
     it('renders the (Recommended) tag when present in description', async () => {
@@ -150,7 +150,7 @@ describe('<rtc-ask-user>', () => {
         await nextFrame();
         const rec = el.shadowRoot!.querySelector('.rec');
         expect(rec).not.toBeNull();
-        expect(rec!.textContent).toBe('(Recommended)');
+        expect(rec!.textContent).toBe('（推荐）');
     });
 
     // ──────────────────── Selection ────────────────────
@@ -356,10 +356,10 @@ describe('<rtc-ask-user>', () => {
         await nextFrame();
         const chips = el.shadowRoot!.querySelectorAll('.tab-chip');
         const progress = () => el.shadowRoot!.querySelector('.progress')!.textContent;
-        expect(progress()).toBe('Question 1 of 2');
+        expect(progress()).toBe('第 1 / 2 题');
         expect(chips[0].getAttribute('aria-selected')).toBe('true');
         await clickAndWait(el, chips[1]);
-        expect(progress()).toBe('Question 2 of 2');
+        expect(progress()).toBe('第 2 / 2 题');
         expect(chips[1].getAttribute('aria-selected')).toBe('true');
     });
 

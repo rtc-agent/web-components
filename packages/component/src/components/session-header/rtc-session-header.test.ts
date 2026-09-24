@@ -33,7 +33,7 @@ describe('<rtc-session-header>', () => {
         );
         await nextFrame();
         const title = el.shadowRoot!.querySelector('.session-title');
-        expect(title!.textContent!.trim()).toBe('Untitled');
+        expect(title!.textContent!.trim()).toBe('未命名');
     });
 
     it('should display provided session title', async () => {

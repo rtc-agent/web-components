@@ -65,7 +65,7 @@ describe('<rtc-login-page>', () => {
         await nextFrame();
         const loading = el.shadowRoot!.querySelector('.loading-text');
         expect(loading).not.toBeNull();
-        expect(loading!.textContent).toContain('Authorizing');
+        expect(loading!.textContent).toContain('授权中');
     });
 
     it('should show error message when error provided', async () => {
