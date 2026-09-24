@@ -109,4 +109,6 @@ export const STORAGE_KEYS = {
     editorArea: 'rtc_editor_area',
     /** 全局设置状态 */
     settings: 'rtc_settings',
+    /** Input Area 高度（resize handle 位置） */
+    inputAreaHeight: 'rtc_input_area_height',
 } as const;

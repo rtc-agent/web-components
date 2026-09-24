@@ -20,7 +20,7 @@
  * @fires rtc-fork-initiated - 分叉请求编排完成 (detail: { oldSessionClientId, oldMessageClientId, newSessionClientId, content })
  * @fires rtc-new-session - 新建会话（含全部关闭后自动创建）
  */
-import {LitElement, html} from 'lit';
+import {LitElement, html, type PropertyValues} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
 import {repeat} from 'lit/directives/repeat.js';
 import {consume} from '@lit/context';
@@ -34,6 +34,7 @@ import {tokens} from '../../styles/tokens.js';
 import {lightTheme} from '../../styles/themes/light.js';
 import {darkTheme} from '../../styles/themes/dark.js';
 import {baseStyles} from '../../styles/base.js';
+import {STORAGE_KEYS} from '../../config/auth.js';
 
 // Contexts
 import {SessionContext, type SessionContextValue} from '../../contexts/session.js';
@@ -83,6 +84,34 @@ export class RtcChatLayout extends LitElement {
     /** Message controller for repository access (passed to rtc-content-area). */
     @property({attribute: false})
     messageController?: MessageController;
+
+    /* ── Resize State ── */
+
+    /** 是否正在拖拽 resize handle */
+    private _isResizing = false;
+
+    /** 拖拽开始时的 Y 坐标 */
+    private _resizeStartY = 0;
+
+    /** 拖拽开始时的 input-area 高度 */
+    private _resizeStartHeight = 0;
+
+    /** 当前拖拽的 session ID */
+    private _resizeSessionId: string | null = null;
+
+    /** 最小 input-area 高度 */
+    private static readonly MIN_INPUT_HEIGHT = 80;
+
+    /** 最大 input-area 高度 */
+    private static readonly MAX_INPUT_HEIGHT = 400;
+
+    /**
+     * 已经应用过保存的高度的 session 集合
+     *
+     * 用于避免重复应用：每个 session 的 input-area 只在首次渲染时应用一次。
+     * 当 session 被新创建时（不在集合中），会应用保存的高度。
+     */
+    private _heightAppliedSessions = new Set<string>();
 
     /* ── Context ── */
 
@@ -144,6 +173,9 @@ export class RtcChatLayout extends LitElement {
         // 监听 rtc-notification-click：事件从 rtc-agent（父组件）派发，
         // 必须在 document 上监听（同 rtc-message-sent）
         document.addEventListener('rtc-notification-click', this._handleNotificationClick);
+        // 监听全局 mousemove/mouseup 用于 resize handle 拖拽
+        document.addEventListener('mousemove', this._boundOnResizeMouseMove);
+        document.addEventListener('mouseup', this._boundOnResizeMouseUp);
 
         // Phase 4: Set initial visibility for tabs after first render
         this.updateComplete.then(() => {
@@ -161,6 +193,39 @@ export class RtcChatLayout extends LitElement {
         this.removeEventListener('rtc-session-tree-new', this._handleSessionTreeNew);
         this.removeEventListener('rtc-clear-active-input', this._boundOnClearActiveInput);
         document.removeEventListener('rtc-notification-click', this._handleNotificationClick);
+        document.removeEventListener('mousemove', this._boundOnResizeMouseMove);
+        document.removeEventListener('mouseup', this._boundOnResizeMouseUp);
+    }
+
+    /**
+     * 组件更新后检查是否需要应用保存的 input-area 高度
+     *
+     * 每次更新后遍历所有 tab，对于尚未应用过高度的 session，
+     * 应用 localStorage 中保存的高度。这确保了：
+     * 1. 首次加载时，tabs 渲染后立即应用保存的高度
+     * 2. 新建 tab 时，也会应用保存的高度
+     * 3. 每个 session 只应用一次，避免覆盖用户的拖拽调整
+     */
+    protected updated(_changedProperties: PropertyValues): void {
+        super.updated(_changedProperties);
+
+        // 检查是否有 tabs 被渲染
+        const tabs = this._tabCtx?.state?.tabs;
+        if (!tabs || tabs.length === 0) return;
+
+        const savedHeight = this._loadInputAreaHeight();
+        if (savedHeight === null) return;
+
+        // 对每个未应用过高度的 session 应用保存的高度
+        for (const tab of tabs) {
+            if (this._heightAppliedSessions.has(tab.sessionId)) continue;
+
+            const inputArea = this._getInputAreaBySession(tab.sessionId);
+            if (inputArea) {
+                inputArea.style.height = `${savedHeight}px`;
+                this._heightAppliedSessions.add(tab.sessionId);
+            }
+        }
     }
 
     /** 清空当前活动 tab 的输入框（供 Escape 键等场景调用） */
@@ -178,6 +243,135 @@ export class RtcChatLayout extends LitElement {
                 break;
             }
         }
+    }
+
+    /* ── Resize Handle Methods ── */
+
+    /**
+     * 开始拖拽 resize handle
+     *
+     * 记录初始状态，设置拖拽标志。
+     */
+    private _handleResizeStart(e: MouseEvent, sessionId: string): void {
+        e.preventDefault();
+        const inputArea = this._getInputAreaBySession(sessionId);
+        if (!inputArea) return;
+
+        this._isResizing = true;
+        this._resizeStartY = e.clientY;
+        this._resizeStartHeight = inputArea.offsetHeight;
+        this._resizeSessionId = sessionId;
+
+        // 添加 dragging 样式
+        const handle = e.target as HTMLElement;
+        handle.classList.add('dragging');
+
+        // 设置全局样式
+        document.body.style.cursor = 'ns-resize';
+        document.body.style.userSelect = 'none';
+    }
+
+    /** 全局 mousemove 处理 */
+    private _boundOnResizeMouseMove = (e: MouseEvent): void => {
+        if (!this._isResizing || !this._resizeSessionId) return;
+
+        const inputArea = this._getInputAreaBySession(this._resizeSessionId);
+        if (!inputArea) return;
+
+        // 计算新高度：向上拖 = clientY 减小 = 高度增加
+        const deltaY = this._resizeStartY - e.clientY;
+        const newHeight = Math.max(
+            RtcChatLayout.MIN_INPUT_HEIGHT,
+            Math.min(RtcChatLayout.MAX_INPUT_HEIGHT, this._resizeStartHeight + deltaY)
+        );
+
+        inputArea.style.height = `${newHeight}px`;
+    };
+
+    /** 全局 mouseup 处理 */
+    private _boundOnResizeMouseUp = (): void => {
+        if (!this._isResizing) return;
+
+        // 保存高度到 localStorage
+        const inputArea = this._resizeSessionId
+            ? this._getInputAreaBySession(this._resizeSessionId)
+            : null;
+        if (inputArea) {
+            this._saveInputAreaHeight(inputArea.offsetHeight);
+        }
+
+        this._isResizing = false;
+        this._resizeSessionId = null;
+
+        // 移除 dragging 样式
+        const handles = this.shadowRoot?.querySelectorAll('.resize-handle.dragging');
+        handles?.forEach(h => h.classList.remove('dragging'));
+
+        // 恢复全局样式
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+    };
+
+    /**
+     * 保存 input-area 高度到 localStorage
+     *
+     * 高度是全局设置（所有 tab 共享），不区分 sessionId。
+     */
+    private _saveInputAreaHeight(height: number): void {
+        try {
+            if (typeof window === 'undefined' || !window.localStorage) return;
+            window.localStorage.setItem(STORAGE_KEYS.inputAreaHeight, String(height));
+        } catch {
+            // localStorage 不可用（隐私模式/配额满），忽略
+        }
+    }
+
+    /**
+     * 从 localStorage 加载 input-area 高度
+     *
+     * 返回 null 表示没有保存的高度，使用默认值。
+     */
+    private _loadInputAreaHeight(): number | null {
+        try {
+            if (typeof window === 'undefined' || !window.localStorage) return null;
+            const stored = window.localStorage.getItem(STORAGE_KEYS.inputAreaHeight);
+            if (!stored) return null;
+            const height = parseInt(stored, 10);
+            if (isNaN(height)) return null;
+            // 确保在有效范围内
+            return Math.max(
+                RtcChatLayout.MIN_INPUT_HEIGHT,
+                Math.min(RtcChatLayout.MAX_INPUT_HEIGHT, height)
+            );
+        } catch {
+            return null;
+        }
+    }
+
+    /**
+     * 应用保存的高度到指定 session 的 input-area
+     */
+    private _applyStoredHeight(sessionId: string): void {
+        const savedHeight = this._loadInputAreaHeight();
+        if (savedHeight === null) return;
+
+        const inputArea = this._getInputAreaBySession(sessionId);
+        if (inputArea) {
+            inputArea.style.height = `${savedHeight}px`;
+        }
+    }
+
+    /** 根据 sessionId 获取对应的 input-area 元素 */
+    private _getInputAreaBySession(sessionId: string): HTMLElement | null {
+        const inputAreas = this.shadowRoot?.querySelectorAll('rtc-input-area');
+        if (!inputAreas) return null;
+
+        for (const el of Array.from(inputAreas)) {
+            if ((el as HTMLElement & { sessionId: string | null }).sessionId === sessionId) {
+                return el as HTMLElement;
+            }
+        }
+        return null;
     }
 
     /**
@@ -380,6 +574,12 @@ export class RtcChatLayout extends LitElement {
         // This prevents skeletonization in hidden tabs and triggers slice checks in visible tabs
         this._updateTabVisibility(sessionId);
 
+        // Apply stored height to the newly activated tab
+        // Wait for DOM update to ensure input-area is rendered
+        this.updateComplete.then(() => {
+            this._applyStoredHeight(sessionId);
+        });
+
         this.dispatchEvent(
             new CustomEvent('rtc-chat-layout-tab-activate', {
                 bubbles: true,
@@ -520,6 +720,11 @@ export class RtcChatLayout extends LitElement {
                         <rtc-notice-bar
                             .message=${tab.noticeMessage ?? ''}
                         ></rtc-notice-bar>
+                        <div
+                            class="resize-handle"
+                            @mousedown=${(e: MouseEvent) => this._handleResizeStart(e, tab.sessionId)}
+                            title="Drag to resize"
+                        ></div>
                         <rtc-input-area
                             theme=${this.theme}
                             .sessionId=${tab.sessionId}

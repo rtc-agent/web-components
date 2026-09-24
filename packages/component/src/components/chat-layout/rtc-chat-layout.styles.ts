@@ -105,4 +105,38 @@ export const styles = css`
         font-size: var(--rtc-font-size-md);
         user-select: none;
     }
+
+    /* ── Resize Handle ── */
+    .resize-handle {
+        height: 8px;
+        background: var(--rtc-color-bg-secondary);
+        border-top: var(--rtc-border-width) solid var(--rtc-color-border);
+        border-bottom: var(--rtc-border-width) solid var(--rtc-color-border);
+        cursor: ns-resize;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        transition: background var(--rtc-transition-duration) var(--rtc-transition-timing);
+        position: relative;
+    }
+
+    .resize-handle:hover,
+    .resize-handle.dragging {
+        background: var(--rtc-color-bg-hover);
+    }
+
+    .resize-handle::before {
+        content: '';
+        width: 40px;
+        height: 4px;
+        background: var(--rtc-color-border-hover);
+        border-radius: var(--rtc-border-radius-sm);
+        transition: background var(--rtc-transition-duration) var(--rtc-transition-timing);
+    }
+
+    .resize-handle:hover::before,
+    .resize-handle.dragging::before {
+        background: var(--rtc-color-primary);
+    }
 `;

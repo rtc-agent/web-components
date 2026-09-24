@@ -14,17 +14,24 @@ export const styles = css`
   .input-inner {
     display: flex;
     flex-direction: column;
+    /* 当 host 有自定义高度时，让内部填满 */
+    height: 100%;
   }
 
   .textarea-container {
     position: relative;
+    /* 扩展以填充剩余空间 */
+    flex: 1;
+    min-height: 36px;
+    display: flex;
   }
 
   .input-textarea {
     display: block;
     width: 100%;
+    /* 填满容器，不再有固定 max-height */
+    height: 100%;
     min-height: 36px;
-    max-height: 200px;
     border: none;
     border-radius: var(--rtc-border-radius);
     background: var(--rtc-color-bg);
