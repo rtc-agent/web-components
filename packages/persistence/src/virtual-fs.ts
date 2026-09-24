@@ -113,14 +113,16 @@ export function isChildPath(parent: string, child: string): boolean {
 export function matchGlob(pattern: string, path: string): boolean {
   // First, handle ** (recursive matching) by replacing with a unique placeholder
   const DOUBLE_STAR_PLACEHOLDER = '\0DOUBLESTAR\0';
+  const DOT_STAR_PLACEHOLDER = '\0DOTSTAR\0';
   let processed = pattern.replace(/\*\*/g, DOUBLE_STAR_PLACEHOLDER);
 
   // Escape regex metacharacters (but not our placeholder)
   const regexStr = processed
     .replace(/[.+^${}()|[\]\\/+]/g, '\\$&')
-    .replace(new RegExp(DOUBLE_STAR_PLACEHOLDER, 'g'), '.*')  // ** matches anything including /
+    .replace(new RegExp(DOUBLE_STAR_PLACEHOLDER, 'g'), DOT_STAR_PLACEHOLDER)  // ** -> placeholder
     .replace(/\*/g, '[^\\/]*')   // * matches anything except /
-    .replace(/\?/g, '[^\\/]');   // ? matches single char except /
+    .replace(/\?/g, '[^\\/]')   // ? matches single char except /
+    .replace(new RegExp(DOT_STAR_PLACEHOLDER, 'g'), '.*');  // finally replace with .*
 
   const regex = new RegExp(`^${regexStr}$`);
   return regex.test(path);
