@@ -44,11 +44,12 @@ export const styles = [
       color: var(--rtc-color-primary);
     }
 
-    /* ── Section (IN / OUT) ── */
+    /* ─ Section (IN / OUT) ── */
     .toolcall-section {
       display: flex;
       align-items: flex-start;
       gap: var(--rtc-spacing-xs);
+      padding: var(--rtc-spacing-xs) var(--rtc-spacing-sm);
       font-size: var(--rtc-font-size-sm);
       line-height: var(--rtc-line-height-base);
       position: relative;
@@ -68,6 +69,11 @@ export const styles = [
       letter-spacing: 0.05em;
       padding-top: 1px;
       user-select: none;
+    }
+
+    .toolcall-section.in {
+      flex-direction: column;
+      align-items: stretch;
     }
 
     .toolcall-section.in .toolcall-label {
@@ -134,17 +140,17 @@ export const styles = [
     /* ── Script meta rows (name, action) ─ */
     .toolcall-script-meta {
       display: flex;
-      align-items: baseline;
-      gap: var(--rtc-spacing-xs);
-      padding: 2px 0;
+      flex-direction: column;
+      gap: 2px;
+      padding: 4px 0;
     }
 
     .toolcall-meta-label {
-      flex-shrink: 0;
       font-size: var(--rtc-font-size-xs);
       font-weight: var(--rtc-font-weight-bold);
       color: var(--rtc-color-text-tertiary);
-      min-width: 3em;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
 
     .toolcall-meta-value {

@@ -98,6 +98,7 @@ interface ScriptInput {
     action: 'eval' | 'run' | 'save';
     name?: string;
     code?: string;
+    params?: Record<string, unknown>;
 }
 
 /**
@@ -120,6 +121,7 @@ function parseScriptInput(toolData: ToolCallData): ScriptInput | null {
             action: ((input.action as string) || 'eval') as ScriptInput['action'],
             name: input.name as string | undefined,
             code: input.code as string | undefined,
+            params: input.params as Record<string, unknown> | undefined,
         };
     } catch {
         return null;
@@ -403,7 +405,7 @@ export class RtcToolCallCard extends LitElement {
             `;
         }
 
-        // run: show name + action (no code)
+        // run: show name + action + params
         return html`
           <div class="toolcall-section in" part="in">
             <div class="toolcall-script-meta">
@@ -414,6 +416,12 @@ export class RtcToolCallCard extends LitElement {
               <span class="toolcall-meta-label">Action</span>
               <span class="toolcall-meta-value">${script.action}</span>
             </div>
+            ${script.params ? html`
+            <div class="toolcall-script-meta">
+              <span class="toolcall-meta-label">Params</span>
+              <span class="toolcall-meta-value">${JSON.stringify(script.params)}</span>
+            </div>
+            ` : nothing}
           </div>
         `;
     }

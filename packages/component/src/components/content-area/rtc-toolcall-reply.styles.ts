@@ -27,13 +27,14 @@ export const styles = [
       display: flex;
       align-items: center;
       gap: var(--rtc-spacing-xs);
-      padding: var(--rpc-spacing-xs) var(--rtc-spacing-sm);
+      padding: var(--rtc-spacing-xs) var(--rtc-spacing-sm);
       cursor: pointer;
       user-select: none;
       border-bottom: 1px solid var(--rtc-color-border);
-      font-size: var(--rtc-font-size-xs);
-      color: var(--rtc-color-text-secondary);
-      transition: background var(--rpc-transition-duration) var(--rtc-transition-timing);
+      font-size: var(--rtc-font-size-sm);
+      font-weight: var(--rtc-font-weight-bold);
+      color: var(--rtc-color-text);
+      transition: background var(--rtc-transition-duration) var(--rtc-transition-timing);
     }
 
     .reply-header:hover {
@@ -84,7 +85,7 @@ export const styles = [
     }
 
     .reply-content {
-      padding: var(--rpc-spacing-xs) var(--rtc-spacing-sm);
+      padding: var(--rtc-spacing-xs) var(--rtc-spacing-sm);
       font-family: var(--rtc-font-family-mono);
       font-size: var(--rpc-font-size-xs);
       white-space: pre-wrap;
@@ -128,7 +129,7 @@ export const styles = [
       display: flex;
       align-items: center;
       gap: var(--rtc-spacing-sm);
-      padding: var(--rpc-spacing-xs) var(--rtc-spacing-sm);
+      padding: var(--rtc-spacing-xs) var(--rtc-spacing-sm);
       border-top: 1px solid var(--rtc-color-border);
       font-size: var(--rtc-font-size-xs);
       color: var(--rtc-color-text-tertiary);
