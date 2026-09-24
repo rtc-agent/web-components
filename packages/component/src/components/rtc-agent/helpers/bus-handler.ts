@@ -207,7 +207,7 @@ function handleSessionStatusChange(
         log.debug('Session reopened, creating tab:', sessionId);
         // Get title from session list.
         const sessionData = session.value.state.sessions.find(s => s.clientId === sessionId);
-        const title = sessionData?.title || msg('Untitled');
+        const title = sessionData?.title || msg('未命名');
         sessionTab.actions.openOrActivate(sessionId, title, {activate: false});
         // Note: don't call switchSession, keep current activeSessionId unchanged.
         return;

@@ -14,14 +14,6 @@
   <source>设置</source>
   <target>Settings</target>
 </trans-unit>
-<trans-unit id="s49730f3d5751a433">
-  <source>Loading...</source>
-  <target>Loading...</target>
-</trans-unit>
-<trans-unit id="sad864ecd84596f7c">
-  <source>↓ New messages</source>
-  <target>↓ New messages</target>
-</trans-unit>
 <trans-unit id="s30189008b07bb70a">
   <source>复制</source>
   <target>Copy</target>
@@ -130,10 +122,6 @@
   <source>分屏模式</source>
   <target>Split view</target>
 </trans-unit>
-<trans-unit id="se4952c108aaa10a6">
-  <source>Type /goal &lt;your objective&gt; — AI plans, executes, and self-checks until done.</source>
-  <target>Type /goal &lt;your objective&gt; — AI plans, executes, and self-checks until done.</target>
-</trans-unit>
 <trans-unit id="s756e3761c6bda497">
   <source>文件列表为空</source>
   <target>File list is empty</target>
@@ -149,26 +137,6 @@
 <trans-unit id="s2f834ec7550c9db3">
   <source>文件树</source>
   <target>File tree</target>
-</trans-unit>
-<trans-unit id="sf886a1d8bd2479a9">
-  <source>Voice input</source>
-  <target>Voice input</target>
-</trans-unit>
-<trans-unit id="sf18fdd3ba5f7797a">
-  <source>Attach file</source>
-  <target>Attach file</target>
-</trans-unit>
-<trans-unit id="sebf4dcb0999597b3">
-  <source>Commands</source>
-  <target>Commands</target>
-</trans-unit>
-<trans-unit id="sd9ad53251f2330a5">
-  <source>Stop</source>
-  <target>Stop</target>
-</trans-unit>
-<trans-unit id="s57adf424d57c8a0f">
-  <source>Send</source>
-  <target>Send</target>
 </trans-unit>
 <trans-unit id="s7b5aee7b6c940618">
   <source>登录成功</source>
@@ -206,14 +174,6 @@
   <source>State 校验失败，请重试</source>
   <target>State validation failed, please retry</target>
 </trans-unit>
-<trans-unit id="sebe7fcdde2daf169">
-  <source>Sign in to continue</source>
-  <target>Sign in to continue</target>
-</trans-unit>
-<trans-unit id="s2603d59558584677">
-  <source>Authorizing...</source>
-  <target>Authorizing...</target>
-</trans-unit>
 <trans-unit id="sfba237d3fcfe2d80">
   <source>渲染失败: <x id="0" equiv-text="${err instanceof Error ? err.message : String(err)}"/></source>
   <target>Render failed: <x id="0" equiv-text="${err instanceof Error ? err.message : String(err)}"/></target>
@@ -234,69 +194,13 @@
   <source>暂无内容</source>
   <target>No content yet</target>
 </trans-unit>
-<trans-unit id="s12d6dde9b30c3093">
-  <source>Dismiss</source>
-  <target>Dismiss</target>
-</trans-unit>
-<trans-unit id="s385560c07ab56134">
-  <source>Answer <x id="0" equiv-text="${questions.length}"/> questions</source>
-  <target>Answer <x id="0" equiv-text="${questions.length}"/> questions</target>
-</trans-unit>
-<trans-unit id="s20b474275affc7f0">
-  <source>Answer a question</source>
-  <target>Answer a question</target>
-</trans-unit>
-<trans-unit id="s8c8674f87c7198fe">
-  <source>Question <x id="0" equiv-text="${this._currentTab + 1}"/> of <x id="1" equiv-text="${questions.length}"/></source>
-  <target>Question <x id="0" equiv-text="${this._currentTab + 1}"/> of <x id="1" equiv-text="${questions.length}"/></target>
-</trans-unit>
-<trans-unit id="s417b90913e05bc17">
-  <source>Preview</source>
-  <target>Preview</target>
-</trans-unit>
 <trans-unit id="sc690d6763d9a9d82">
   <source> · <x id="0" equiv-text="${previewOpt.label}"/></source>
   <target> · <x id="0" equiv-text="${previewOpt.label}"/></target>
 </trans-unit>
-<trans-unit id="sb2ae2adbfc9627a1">
-  <source>(Recommended)</source>
-  <target>(Recommended)</target>
-</trans-unit>
-<trans-unit id="sc9e494c8346b7cb5">
-  <source>Other</source>
-  <target>Other</target>
-</trans-unit>
-<trans-unit id="sd11fb57c850fc938">
-  <source>Type your answer…</source>
-  <target>Type your answer…</target>
-</trans-unit>
-<trans-unit id="sc5f211aa0fe829a8">
-  <source>← Prev</source>
-  <target>← Prev</target>
-</trans-unit>
-<trans-unit id="s37cb5b4503fc7e1e">
-  <source>Next →</source>
-  <target>Next →</target>
-</trans-unit>
-<trans-unit id="sb3d4f79d9d8b71e5">
-  <source>Submit</source>
-  <target>Submit</target>
-</trans-unit>
-<trans-unit id="s2ceb11be2290bb1b">
-  <source>Cancel</source>
-  <target>Cancel</target>
-</trans-unit>
 <trans-unit id="scad05556becd2c42">
   <source>即将推出</source>
   <target>Coming soon</target>
-</trans-unit>
-<trans-unit id="scde53b78f6a826d1">
-  <source>No sessions yet</source>
-  <target>No sessions yet</target>
-</trans-unit>
-<trans-unit id="s927497135cdabe78">
-  <source>Untitled</source>
-  <target>Untitled</target>
 </trans-unit>
 <trans-unit id="sc992ab0858c53e28">
   <source>编辑</source>
@@ -309,30 +213,6 @@
 <trans-unit id="s15e8bb089a90e6bd">
   <source>关闭</source>
   <target>Close</target>
-</trans-unit>
-<trans-unit id="s9c4ab9eaf58d6c0a">
-  <source>No tasks yet</source>
-  <target>No tasks yet</target>
-</trans-unit>
-<trans-unit id="s9a923f7be53ec1ac">
-  <source>Task list</source>
-  <target>Task list</target>
-</trans-unit>
-<trans-unit id="s294eb06e0e6a9ef9">
-  <source>Allow this tool call?</source>
-  <target>Allow this tool call?</target>
-</trans-unit>
-<trans-unit id="s0116da495c2a975c">
-  <source>The AI wants to use a tool. Review the details below.</source>
-  <target>The AI wants to use a tool. Review the details below.</target>
-</trans-unit>
-<trans-unit id="scb489a1a173ac3f0">
-  <source>Yes</source>
-  <target>Yes</target>
-</trans-unit>
-<trans-unit id="s09205907b5b56cda">
-  <source>No</source>
-  <target>No</target>
 </trans-unit>
 <trans-unit id="s1e3b8c46001e3962">
   <source>会话已删除</source>
@@ -365,18 +245,6 @@
 <trans-unit id="s642cc600292d5ea7">
   <source>保存文件失败</source>
   <target>Failed to save file</target>
-</trans-unit>
-<trans-unit id="scb28f786166ab88f">
-  <source>Session history</source>
-  <target>Session history</target>
-</trans-unit>
-<trans-unit id="s3c0f26e08b2b5bfe">
-  <source>Toggle task list</source>
-  <target>Toggle task list</target>
-</trans-unit>
-<trans-unit id="s47e699a5378f8e6d">
-  <source>New session</source>
-  <target>New session</target>
 </trans-unit>
 <trans-unit id="sc653d15633466d0a">
   <source>会话列表已自动同步</source>
@@ -706,17 +574,9 @@
   <source>(无输出)</source>
 <target>(no output)</target>
 </trans-unit>
-<trans-unit id="sbf9c5c5a8e5efad4">
-  <source>Failed</source>
-<target>Failed</target>
-</trans-unit>
 <trans-unit id="s58001194e857ab9e">
   <source>发送中</source>
 <target>Sending</target>
-</trans-unit>
-<trans-unit id="see0ed65dc7b709d4">
-  <source>Scenarios</source>
-<target>Scenarios</target>
 </trans-unit>
 <trans-unit id="sd32c4c18db924931">
   <source>请在弹出的窗口中完成授权</source>
@@ -729,14 +589,6 @@
 <trans-unit id="s9fc52a10331a5b74">
   <source>授权已取消</source>
 <target>Authorization cancelled</target>
-</trans-unit>
-<trans-unit id="sdf816e2fe9bb4f8a">
-  <source>No login providers available</source>
-<target>No login providers available</target>
-</trans-unit>
-<trans-unit id="sbbc9aad55ce12ead">
-  <source>Sign in with</source>
-<target>Sign in with</target>
 </trans-unit>
 <trans-unit id="sec6e6ce73af02035">
   <source>加载中...</source>
@@ -788,84 +640,235 @@
 </trans-unit>
 <trans-unit id="sfea2ebf059badaef">
   <source>重新打开会话失败，请重试</source>
-</trans-unit>
-<trans-unit id="s137c22eb354da646">
-  <source>Open a session to get started</source>
+  <target>Failed to reopen session, please retry</target>
 </trans-unit>
 <trans-unit id="s517d88be67d6e3a1">
   <source>API 错误</source>
+  <target>API error</target>
 </trans-unit>
 <trans-unit id="se258c00947dff962">
   <source>超时</source>
+  <target>Timeout</target>
 </trans-unit>
 <trans-unit id="s40ed993dc74df287">
   <source>系统错误</source>
+  <target>System error</target>
 </trans-unit>
 <trans-unit id="seac90f283e7fd6c7">
   <source>上下文错误</source>
+  <target>Context error</target>
 </trans-unit>
 <trans-unit id="s9f4bc4c7ab86563c">
   <source>网络错误</source>
+  <target>Network error</target>
 </trans-unit>
 <trans-unit id="sa0ed14fd850830c6">
   <source>权限错误</source>
+  <target>Permission error</target>
 </trans-unit>
 <trans-unit id="sf9233eede445eae0">
   <source>流错误</source>
+  <target>Stream error</target>
 </trans-unit>
 <trans-unit id="s6d4e9348f09b8cd1">
   <source>工具错误</source>
+  <target>Tool error</target>
 </trans-unit>
 <trans-unit id="sfb96d9095ccbf1e1">
   <source>错误</source>
+  <target>Error</target>
 </trans-unit>
 <trans-unit id="s013e9b380fa77bee">
   <source>未知命令: /<x id="0" equiv-text="${name}"/></source>
+  <target>Unknown command: /<x id="0" equiv-text="${name}"/></target>
 </trans-unit>
 <trans-unit id="s21bea120f4f64d80">
   <source>文件 <x id="0" equiv-text="${filePath}"/> 被其他标签页修改</source>
+  <target>File <x id="0" equiv-text="${filePath}"/> was modified by another tab</target>
 </trans-unit>
 <trans-unit id="sdd5a7cb7d074a219">
   <source>文件 <x id="0" equiv-text="${filePath}"/> 已被删除</source>
+  <target>File <x id="0" equiv-text="${filePath}"/> has been deleted</target>
 </trans-unit>
 <trans-unit id="s814dfb26b607cdf3">
   <source>删除失败，请稍后重试</source>
+  <target>Delete failed, please retry later</target>
 </trans-unit>
 <trans-unit id="s999e1da626842b8c">
   <source>重命名失败，请稍后重试</source>
-</trans-unit>
-<trans-unit id="sa50a6326530d8a0d">
-  <source>Show less</source>
-</trans-unit>
-<trans-unit id="sb2c57b2d347203dd">
-  <source>Show more</source>
+  <target>Rename failed, please retry later</target>
 </trans-unit>
 <trans-unit id="sd3f11dfa2287048c">
   <source>恢复默认</source>
-</trans-unit>
-<trans-unit id="s56ab6bbd1efee1da">
-  <source>Ask anything...</source>
+  <target>Restore default</target>
 </trans-unit>
 <trans-unit id="se5cb1bbc318f7a36">
   <source>恢复默认内容</source>
+  <target>Restore default content</target>
 </trans-unit>
 <trans-unit id="s9c64cd14990ffc1d">
   <source>此操作将覆盖您的编辑，恢复为默认内容。此操作不可撤销。</source>
+  <target>This will overwrite your edits and restore default content. This action cannot be undone.</target>
 </trans-unit>
 <trans-unit id="s0293d842f6e611ae">
   <source>确认恢复</source>
+  <target>Confirm restore</target>
 </trans-unit>
 <trans-unit id="s028df6915f235766">
   <source>已恢复默认内容</source>
+  <target>Restore default</target>
 </trans-unit>
 <trans-unit id="s61b232fc4d1f652a">
   <source>恢复失败</source>
+  <target>Restore failed</target>
 </trans-unit>
-<trans-unit id="s034cddae5faf41b0">
-  <source>Syncing data...</source>
+<trans-unit id="sbc25ddf9669f1a6e">
+  <source>打开一个会话即可开始</source>
+  <target>Open a session to get started</target>
 </trans-unit>
-<trans-unit id="scac4c9636dbe7d3d">
-  <source>New Chat</source>
+<trans-unit id="seec4d689a0c51623">
+  <source>↓ 新消息</source>
+  <target>↓ New messages</target>
+</trans-unit>
+<trans-unit id="s30159f08b0b076bb">
+  <source>失败</source>
+  <target>Failed</target>
+</trans-unit>
+<trans-unit id="s7f7451081ab5965a">
+  <source>收起</source>
+  <target>Show less</target>
+</trans-unit>
+<trans-unit id="s42226a08bfe2c3f0">
+  <source>展开</source>
+  <target>Show more</target>
+</trans-unit>
+<trans-unit id="s85677cf9448ac90e">
+  <source>输入 /goal &lt;你的目标&gt; — AI 会自动规划、执行并自我检查直到完成</source>
+  <target>Type /goal &lt;your objective&gt; — AI plans, executes, and self-checks until done.</target>
+</trans-unit>
+<trans-unit id="scf9e1bf93156a843">
+  <source>随便问...</source>
+  <target>Ask anything...</target>
+</trans-unit>
+<trans-unit id="s3712d672f4315799">
+  <source>语音输入</source>
+  <target>Voice input</target>
+</trans-unit>
+<trans-unit id="s34169a7f5e3cb214">
+  <source>附加文件</source>
+  <target>Attach file</target>
+</trans-unit>
+<trans-unit id="s2611be08a7910384">
+  <source>命令</source>
+  <target>Commands</target>
+</trans-unit>
+<trans-unit id="s1b4a39089e8e0ba6">
+  <source>场景</source>
+  <target>Scenarios</target>
+</trans-unit>
+<trans-unit id="s19575e089d1dae1b">
+  <source>停止</source>
+  <target>Stop</target>
+</trans-unit>
+<trans-unit id="s1030030894d624c7">
+  <source>发送</source>
+  <target>Send</target>
+</trans-unit>
+<trans-unit id="s57fed4463f34bb30">
+  <source>登录以继续</source>
+  <target>Sign in to continue</target>
+</trans-unit>
+<trans-unit id="s48d771522e54d62f">
+  <source>授权中...</source>
+  <target>Authorizing...</target>
+</trans-unit>
+<trans-unit id="s486b44ffdbc324a4">
+  <source>暂无可用的登录方式</source>
+  <target>No login providers available</target>
+</trans-unit>
+<trans-unit id="s56afba1902e970ea">
+  <source>使用以下方式登录</source>
+  <target>Sign in with</target>
+</trans-unit>
+<trans-unit id="s4ac9679f256d437d">
+  <source>回答 <x id="0" equiv-text="${questions.length}"/> 个问题</source>
+  <target>Answer <x id="0" equiv-text="${questions.length}"/> questions</target>
+</trans-unit>
+<trans-unit id="sd1fbeecd54907e11">
+  <source>回答问题</source>
+  <target>Answer a question</target>
+</trans-unit>
+<trans-unit id="sa89c48e09a724a1a">
+  <source>第 <x id="0" equiv-text="${this._currentTab + 1}"/> / <x id="1" equiv-text="${questions.length}"/> 题</source>
+  <target>Question <x id="0" equiv-text="${this._currentTab + 1}"/> of <x id="1" equiv-text="${questions.length}"/></target>
+</trans-unit>
+<trans-unit id="scbbfbcbe4289d82a">
+  <source>（推荐）</source>
+  <target>(Recommended)</target>
+</trans-unit>
+<trans-unit id="s1513b208992f91ed">
+  <source>其他</source>
+  <target>Other</target>
+</trans-unit>
+<trans-unit id="sd14166351f66ba7a">
+  <source>请输入你的回答…</source>
+  <target>Type your answer…</target>
+</trans-unit>
+<trans-unit id="sa75dc5fb5e59f435">
+  <source>← 上一题</source>
+  <target>← Prev</target>
+</trans-unit>
+<trans-unit id="sce1b842370d4db0c">
+  <source>下一题 →</source>
+  <target>Next →</target>
+</trans-unit>
+<trans-unit id="s6d5204080aabb951">
+  <source>提交</source>
+  <target>Submit</target>
+</trans-unit>
+<trans-unit id="s9b36eca633645997">
+  <source>暂无任务</source>
+  <target>No tasks yet</target>
+</trans-unit>
+<trans-unit id="sd8bf93698cb1b49e">
+  <source>任务列表</source>
+  <target>Task list</target>
+</trans-unit>
+<trans-unit id="s956e8dd8b5855dee">
+  <source>是否允许此次工具调用？</source>
+  <target>Allow this tool call?</target>
+</trans-unit>
+<trans-unit id="s056efa20c6a8b2e7">
+  <source>AI 想使用一个工具，请查看以下详情。</source>
+  <target>The AI wants to use a tool. Review the details below.</target>
+</trans-unit>
+<trans-unit id="saf85a24c863b4ffe">
+  <source>是</source>
+  <target>Yes</target>
+</trans-unit>
+<trans-unit id="safb79b4c86903a19">
+  <source>否</source>
+  <target>No</target>
+</trans-unit>
+<trans-unit id="s099e7a9f8436eb13">
+  <source>同步数据中...</source>
+  <target>Syncing data...</target>
+</trans-unit>
+<trans-unit id="sfd3a5046f19f54d0">
+  <source>会话历史</source>
+  <target>Session history</target>
+</trans-unit>
+<trans-unit id="sa7aa088d79fc05bb">
+  <source>切换任务列表</source>
+  <target>Toggle task list</target>
+</trans-unit>
+<trans-unit id="sf48abfbac2896b17">
+  <source>未命名</source>
+  <target>Untitled</target>
+</trans-unit>
+<trans-unit id="s1cc47dc4d80a1842">
+  <source>新聊天</source>
+  <target>New Chat</target>
 </trans-unit>
 </body>
 </file>

@@ -151,12 +151,12 @@ export class RtcLoginPage extends LitElement {
       <div class="login-container" part="container">
         <div class="logo" part="logo">${renderLogo(this.theme === 'dark')}</div>
         <div class="app-name" part="app-name">${this.appName}</div>
-        <div class="app-desc">${msg('Sign in to continue')}</div>
+        <div class="app-desc">${msg('登录以继续')}</div>
         ${this.errorMessage
             ? html`<div class="error-text">${this.errorMessage}</div>`
             : nothing}
         ${this.loading
-            ? html`<div class="loading-text">${msg('Authorizing...')}</div>`
+            ? html`<div class="loading-text">${msg('授权中...')}</div>`
             : this._renderProviders()}
       </div>
     `;
@@ -164,11 +164,11 @@ export class RtcLoginPage extends LitElement {
 
     private _renderProviders() {
         if (this._loadingProviders) {
-            return html`<div class="loading-text">${msg('Loading...')}</div>`;
+            return html`<div class="loading-text">${msg('加载中...')}</div>`;
         }
 
         if (this._providers.length === 0) {
-            return html`<div class="error-text">${msg('No login providers available')}</div>`;
+            return html`<div class="error-text">${msg('暂无可用的登录方式')}</div>`;
         }
 
         // 如果只有一个 provider，直接显示一个按钮
@@ -182,7 +182,7 @@ export class RtcLoginPage extends LitElement {
                     @click=${() => this._handleProviderSelect(provider.name)}
                 >
                     <span class="provider-icon" .innerHTML=${provider.icon}></span>
-                    <span>${msg('Sign in with')} ${provider.label}</span>
+                    <span>${msg('使用以下方式登录')} ${provider.label}</span>
                 </button>
             `;
         }

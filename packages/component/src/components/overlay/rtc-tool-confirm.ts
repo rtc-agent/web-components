@@ -79,16 +79,16 @@ export class RtcToolConfirm extends LitElement {
         return html`
       <div class="backdrop" part="backdrop" @click=${this._onBackdropClick}></div>
       <div class="dialog" part="dialog" role="dialog" aria-modal="true">
-        <div class="dialog-title">${msg("Allow this tool call?")}</div>
-        <div class="dialog-desc">${msg("The AI wants to use a tool. Review the details below.")}</div>
+        <div class="dialog-title">${msg("是否允许此次工具调用？")}</div>
+        <div class="dialog-desc">${msg("AI 想使用一个工具，请查看以下详情。")}</div>
         <div class="tool-info">
           <div class="tool-name">${this.toolCall.toolName}</div>
           <div class="tool-params">${this._renderParams()}</div>
         </div>
         <div class="actions">
-          <button class="action-btn primary" data-action="yes" @click=${() => this._approve(false)}>${msg("Yes")}</button>
+          <button class="action-btn primary" data-action="yes" @click=${() => this._approve(false)}>${msg("是")}</button>
 <!--          <button class="action-btn" data-action="yes-allow">Yes, allow all</button>-->
-          <button class="action-btn danger" data-action="no" @click=${() => this._deny()}>${msg("No")}</button>
+          <button class="action-btn danger" data-action="no" @click=${() => this._deny()}>${msg("否")}</button>
         </div>
       </div>
     `;

@@ -1498,7 +1498,7 @@ export class RtcAgent extends LitElement {
                 try {
                     const newId = this._session.actions.createSession();
                     this._session.actions.switchSession(newId);
-                    this._sessionTab.actions.openOrActivate(newId, msg('Untitled'), {isUnsaved: true});
+                    this._sessionTab.actions.openOrActivate(newId, msg('未命名'), {isUnsaved: true});
                 } finally {
                     this._creatingUnsavedTab = false;
                 }
@@ -1913,7 +1913,7 @@ export class RtcAgent extends LitElement {
           <div class="syncing-overlay">
             <div class="syncing-content">
               <div class="syncing-spinner"></div>
-              <div class="syncing-text">${msg('Syncing data...')}</div>
+              <div class="syncing-text">${msg('同步数据中...')}</div>
             </div>
           </div>
         ` : null}

@@ -129,7 +129,7 @@ export class RtcSessionPanel extends LitElement {
     render() {
         void this._localeCtx.locale;
         if (this.sessions.length === 0) {
-            return html`<div class="empty-text">${msg('No sessions yet')}</div>`;
+            return html`<div class="empty-text">${msg('暂无会话')}</div>`;
         }
 
         return html`
@@ -164,7 +164,7 @@ export class RtcSessionPanel extends LitElement {
                     </div>`
                 : html`
                     <div class="session-text">
-                      <span class="session-title">${s.title || msg('Untitled')}</span>
+                      <span class="session-title">${s.title || msg('未命名')}</span>
                       <span class="session-time">${new Date(s.updatedAt).toLocaleString()}</span>
                     </div>
                     <div class="session-actions">

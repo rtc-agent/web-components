@@ -345,7 +345,7 @@ export class RtcSessionHeader extends LitElement {
         const currentSession = currentSessionId
             ? sessions.find(s => s.clientId === currentSessionId)
             : undefined;
-        const title = currentSession?.title || this.sessionTitle || msg('Untitled');
+        const title = currentSession?.title || this.sessionTitle || msg('未命名');
         const todoList: TodoItem[] = currentSession?.todoList ?? [];
 
         return html`
@@ -355,22 +355,22 @@ export class RtcSessionHeader extends LitElement {
           <button
             class="icon-btn"
             data-action="history"
-            title=${msg("Session history")}
-            aria-label=${msg("Session history")}
+            title=${msg("会话历史")}
+            aria-label=${msg("会话历史")}
             @click=${this._handleHistoryClick}
           >${clockIcon}</button>
           <button
             class="icon-btn"
             data-action="todo"
-            title=${msg("Task list")}
-            aria-label=${msg("Toggle task list")}
+            title=${msg("任务列表")}
+            aria-label=${msg("切换任务列表")}
             @click=${this._handleTodoClick}
           >${checklistIcon}</button>
           <button
             class="icon-btn"
             data-action="new-session"
-            title=${msg("New session")}
-            aria-label=${msg("New session")}
+            title=${msg("新建会话")}
+            aria-label=${msg("新建会话")}
             @click=${this._handleNewSession}
           >${plusIcon}</button>
         </div>

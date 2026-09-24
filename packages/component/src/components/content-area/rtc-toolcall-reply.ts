@@ -548,7 +548,7 @@ export class RtcToolCallReply extends LitElement {
 
                         <div class="reply-footer">
                             ${!isSuccess ? html`
-                                <span class="reply-status-label reply-status-failed">${msg('Failed')}</span>
+                                <span class="reply-status-label reply-status-failed">${msg('失败')}</span>
                             ` : nothing}
                             ${durationMs != null ? html`
                                 <span class="reply-duration">${durationMs}ms</span>

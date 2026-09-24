@@ -237,7 +237,7 @@ export class RtcSessionTreeItem extends LitElement {
                         </span>
                     `
                     : html`
-                        <span class="label">${node.session.title || msg('Untitled')}</span>
+                        <span class="label">${node.session.title || msg('未命名')}</span>
                         ${node.session.updatedAt
                             ? html`<span class="timestamp">${formatRelativeTime(node.session.updatedAt, this._localeCtx.locale)}</span>`
                             : nothing}

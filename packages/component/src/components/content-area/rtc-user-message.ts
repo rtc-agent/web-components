@@ -426,7 +426,7 @@ export class RtcUserMessage extends LitElement implements StatefulComponent {
                 class="show-more-btn"
                 part="show-more"
                 @click=${this._handleShowMore}
-              >${this._expanded ? msg('Show less') : msg('Show more')}</button>`
+              >${this._expanded ? msg('收起') : msg('展开')}</button>`
             : null}
 
           <button

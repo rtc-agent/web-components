@@ -790,18 +790,18 @@ export class RtcInputArea extends LitElement {
             class="input-textarea"
             part="textarea"
             .value=${this._value}
-            placeholder=${msg('Ask anything...')}
+            placeholder=${msg('随便问...')}
             @input=${this._handleInput}
             @keydown=${this._handleKeydown}
           ></textarea>
-          <button class="voice-btn" part="voice-btn" title=${msg('Voice input')} @click=${this._handleVoice}>
+          <button class="voice-btn" part="voice-btn" title=${msg('语音输入')} @click=${this._handleVoice}>
             ${micIcon}
           </button>
         </div>
         <div class="input-toolbar" part="toolbar">
-          <button class="toolbar-btn" title=${msg('Attach file')}>${attachIcon}</button>
-          <button class="toolbar-btn tool-btn" title=${msg('Commands')} @click=${this._handleCommandToggle}>${toolIcon}</button>
-          <button class="toolbar-btn scenario-btn" title=${msg('Scenarios')} @click=${this._handleScenarioToggle}>${checklistIcon}</button>
+          <button class="toolbar-btn" title=${msg('附加文件')}>${attachIcon}</button>
+          <button class="toolbar-btn tool-btn" title=${msg('命令')} @click=${this._handleCommandToggle}>${toolIcon}</button>
+          <button class="toolbar-btn scenario-btn" title=${msg('场景')} @click=${this._handleScenarioToggle}>${checklistIcon}</button>
           <div class="toolbar-divider"></div>
           <rtc-token-usage
               theme=${this.theme}
@@ -820,7 +820,7 @@ export class RtcInputArea extends LitElement {
           <button
             class="send-btn ${this._showStop ? 'send-btn--stop' : ''}"
             part="send-btn"
-            title=${this._showStop ? msg('Stop') : msg('Send')}
+            title=${this._showStop ? msg('停止') : msg('发送')}
             ?disabled=${!this._showStop && !this._hasContent}
             @click=${this._showStop ? this._handleStop : this._submit}
           >${this._showStop ? stopIcon : sendIcon}</button>

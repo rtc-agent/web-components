@@ -159,7 +159,7 @@ export class SessionTabController implements ReactiveController {
     /* ── Private ── */
 
     private _isPlaceholderTitle(title: string): boolean {
-        return !title || title === msg('Untitled') || title === msg('New Chat');
+        return !title || title === msg('未命名') || title === msg('新聊天');
     }
 
     /** 查找当前 unsaved tab，返回第一个 isUnsaved === true 的 tab。 */

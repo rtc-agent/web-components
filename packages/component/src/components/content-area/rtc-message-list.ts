@@ -970,7 +970,7 @@ export class RtcMessageList extends LitElement {
                 class="new-message-btn"
                 ?hidden=${!this._showNewBtn}
                 @click=${this._handleNewBtnClick}
-            >${msg('↓ New messages')}</button>
+            >${msg('↓ 新消息')}</button>
         `;
     }
 

@@ -65,11 +65,11 @@ export class RtcTodoPanel extends LitElement {
     render() {
         void this._localeCtx.locale;
         if (this.todoList.length === 0) {
-            return html`<div class="empty-text" aria-live="polite">${msg('No tasks yet')}</div>`;
+            return html`<div class="empty-text" aria-live="polite">${msg('暂无任务')}</div>`;
         }
 
         return html`
-      <div class="todo-list" part="list" role="list" aria-label="${msg('Task list')}">
+      <div class="todo-list" part="list" role="list" aria-label="${msg('任务列表')}">
         ${repeat(
             this.todoList,
             (_item, i) => `${i}-${_item.content}`,

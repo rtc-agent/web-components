@@ -116,7 +116,7 @@ export class RtcSessionTab extends LitElement {
                     })}
                     aria-hidden="true"
                 ></span>
-                <span class="tab-title">${this.title || msg('Untitled')}</span>
+                <span class="tab-title">${this.title || msg('未命名')}</span>
                 ${this.dirty
                     ? html`<span class="tab-dirty" aria-label="unsaved"></span>`
                     : ''}

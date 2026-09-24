@@ -51,7 +51,7 @@ export class RtcNoticeBar extends LitElement {
         return html`
       <div class="notice-bar">
         <span class="message">${this.message}</span>
-        <button class="close-btn" title=${msg('Dismiss')} @click=${this._handleClose}>&times;</button>
+        <button class="close-btn" title=${msg('关闭')} @click=${this._handleClose}>&times;</button>
       </div>
     `;
     }

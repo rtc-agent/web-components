@@ -34,7 +34,7 @@ export class RtcEmptyState extends LitElement {
     };
 
     @property({type: String, attribute: 'hint-text'})
-    hintText = msg('Type /goal <your objective> — AI plans, executes, and self-checks until done.');
+    hintText = msg('输入 /goal <你的目标> — AI 会自动规划、执行并自我检查直到完成');
 
     @property({type: String, attribute: 'theme'})
     theme = 'light';

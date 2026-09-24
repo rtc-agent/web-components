@@ -269,8 +269,8 @@ export class RtcAskUser extends LitElement {
 
     const multi = this._isMulti;
     const title = multi
-      ? msg(str`Answer ${questions.length} questions`)
-      : msg('Answer a question');
+      ? msg(str`回答 ${questions.length} 个问题`)
+      : msg('回答问题');
 
     return html`
       <div class="backdrop" @click=${this._dismiss}></div>
@@ -284,7 +284,7 @@ export class RtcAskUser extends LitElement {
         ${this._renderHeader(title)}
         ${multi ? this._renderTabBar() : nothing}
         ${multi ? this._renderTabContent() : this._renderQuestion(0)}
-        ${multi ? html`<div class="progress">${msg(str`Question ${this._currentTab + 1} of ${questions.length}`)}</div>` : nothing}
+        ${multi ? html`<div class="progress">${msg(str`第 ${this._currentTab + 1} / ${questions.length} 题`)}</div>` : nothing}
         ${this._renderActions()}
       </div>
     `;
@@ -355,7 +355,7 @@ export class RtcAskUser extends LitElement {
           ${this._renderOther(qIdx, inputType, indicatorClass, sel.has(OTHER_INDEX))}
         </div>
         ${previewOpt?.preview ? html`
-          <div class="preview-label">${msg("Preview")}${previewOpt.label ? msg(str` · ${previewOpt.label}`) : ''}</div>
+          <div class="preview-label">${msg("预览")}${previewOpt.label ? msg(str` · ${previewOpt.label}`) : ''}</div>
           <div class="preview-panel">${previewOpt.preview}</div>
         ` : nothing}
       </div>
@@ -386,7 +386,7 @@ export class RtcAskUser extends LitElement {
         <div class="option-body">
           <div class="option-label">
             ${opt.label}
-            ${recMatch ? html`<span class="rec">${msg("(Recommended)")}</span>` : nothing}
+            ${recMatch ? html`<span class="rec">${msg("（推荐）")}</span>` : nothing}
           </div>
           <div class="option-desc">${descWithoutRec}</div>
         </div>
@@ -411,14 +411,14 @@ export class RtcAskUser extends LitElement {
           <input type="${inputType}" name="q-${qIdx}-other" .checked=${selected}>
           <span class="indicator"></span>
           <div class="option-body">
-            <div class="option-label">${msg("Other")}</div>
+            <div class="option-label">${msg("其他")}</div>
           </div>
         </label>
         ${selected ? html`
           <input
             class="other-input"
             type="text"
-            placeholder=${msg("Type your answer…")}
+            placeholder=${msg("请输入你的回答…")}
             .value=${this._otherTexts[qIdx] || ''}
             @input=${(e: Event) => this._onOtherInput(qIdx, e)}
           >
@@ -439,29 +439,29 @@ export class RtcAskUser extends LitElement {
             class="action-btn ghost"
             ?disabled=${isFirst}
             @click=${() => this._goTab(this._currentTab - 1)}
-          >${msg("← Prev")}</button>
+          >${msg("← 上一题")}</button>
           <button
             class="action-btn ghost"
             style=${isLast ? 'visibility: hidden' : ''}
             @click=${() => this._goTab(this._currentTab + 1)}
-          >${msg("Next →")}</button>
+          >${msg("下一题 →")}</button>
           <button
             class="action-btn primary"
             ?disabled=${!this._canSubmit}
             @click=${this._submit}
-          >${msg("Submit")}</button>
+          >${msg("提交")}</button>
         </div>
       `;
     }
 
     return html`
       <div class="actions">
-        <button class="action-btn ghost" @click=${this._dismiss}>${msg("Cancel")}</button>
+        <button class="action-btn ghost" @click=${this._dismiss}>${msg("取消")}</button>
         <button
           class="action-btn primary"
           ?disabled=${!this._canSubmit}
           @click=${this._submit}
-        >${msg("Submit")}</button>
+        >${msg("提交")}</button>
       </div>
     `;
   }
