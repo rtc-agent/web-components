@@ -134,6 +134,16 @@ export class WorkerBridge {
                     }
                 }
             },
+            // Worker broadcasts gap fill state -> main-thread UIUpdateBus.emitGapFillStart/End().
+            onGapFillState: (isSyncing: boolean) => {
+                console.log('[BulkUpdate] WorkerBridge.onGapFillState called, isSyncing:', isSyncing);
+                const bus = getUIUpdateBus();
+                if (isSyncing) {
+                    bus.emitGapFillStart();
+                } else {
+                    bus.emitGapFillEnd();
+                }
+            },
         };
 
         // 2. Create Comlink-proxied callbacks (for cross-Worker transfer).

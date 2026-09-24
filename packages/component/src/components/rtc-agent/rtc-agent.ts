@@ -981,6 +981,15 @@ export class RtcAgent extends LitElement {
     /** UIUpdateBus unsubscribe reference (set in connectedCallback, cleared in disconnectedCallback). */
     private _busUnsubMessage?: () => void;
 
+    /** UIUpdateBus bulk update unsubscribe reference (set in connectedCallback, cleared in disconnectedCallback). */
+    private _busUnsubBulkUpdate?: () => void;
+
+    /** UIUpdateBus gap fill state unsubscribe reference (set in connectedCallback, cleared in disconnectedCallback). */
+    private _busUnsubGapFill?: () => void;
+
+    /** Whether gap fill syncing overlay is shown. */
+    private _isSyncing = false;
+
     /** RTC processor (instantiated after persistence connect). */
     private _rtcProcessor?: RtcProcessor;
 
@@ -1210,6 +1219,54 @@ export class RtcAgent extends LitElement {
         };
         this._busUnsubMessage = bus.subscribe((event) => handleBusEvent(event, busDeps));
 
+        // Subscribe to bulk updates (emitted after gap fill completes).
+        // Reload affected data sources based on entity types.
+        this._busUnsubBulkUpdate = bus.onBulkUpdate((event) => {
+            log.debug('[BulkUpdate] rtc-agent received bulk-update, entities:', Array.from(event.entities));
+            // Reload sessions if session entity was updated
+            if (event.entities.has('session')) {
+                void this._loadSessions();
+            }
+            // Reload messages if message entity was updated
+            if (event.entities.has('message')) {
+                const currentSessionId = this._session.value.state.currentSessionId;
+                if (currentSessionId) {
+                    void this._message.reload();
+                }
+            }
+            // Refresh turn counts if turn entity was updated
+            if (event.entities.has('turn')) {
+                void this._refreshTurnCounts();
+            }
+            // Reload file tree if file entity was updated
+            if (event.entities.has('file')) {
+                void this._loadFileTree();
+            }
+            // Always reload RTC if rtc entity was updated
+            if (event.entities.has('rtc')) {
+                this._rtcProcessor?.onRtcUpdate();
+            }
+        });
+
+        // Subscribe to gap fill state changes (show/hide syncing overlay).
+        this._busUnsubGapFill = bus.onGapFillState((isSyncing) => {
+            log.debug('[BulkUpdate] rtc-agent gap fill state:', isSyncing);
+            this._isSyncing = isSyncing;
+            this.requestUpdate();
+            // When gap fill ends, reload all data to ensure consistency
+            if (!isSyncing) {
+                log.debug('[BulkUpdate] gap fill ended, reloading all data');
+                void this._loadSessions();
+                const currentSessionId = this._session.value.state.currentSessionId;
+                if (currentSessionId) {
+                    void this._message.reload();
+                }
+                void this._refreshTurnCounts();
+                void this._loadFileTree();
+                this._rtcProcessor?.onRtcUpdate();
+            }
+        });
+
         // Window interaction callbacks — delegate to WindowStateController
         this._interaction.onPositionChange = (x, y) => {
             this._windowState.actions.setPosition({x, y});
@@ -1380,6 +1437,8 @@ export class RtcAgent extends LitElement {
         this.removeEventListener('keydown', this._boundOnKeydown);
         this.removeEventListener('wheel', this._boundOnWheel);
         this._busUnsubMessage?.();
+        this._busUnsubBulkUpdate?.();
+        this._busUnsubGapFill?.();
         this._rtcProcessor = undefined;
         this._unsubConnection?.();
         this._auth.onLogin = undefined;  // Clear auth callback to prevent leaks
@@ -1439,7 +1498,7 @@ export class RtcAgent extends LitElement {
                 try {
                     const newId = this._session.actions.createSession();
                     this._session.actions.switchSession(newId);
-                    this._sessionTab.actions.openOrActivate(newId, 'Untitled', {isUnsaved: true});
+                    this._sessionTab.actions.openOrActivate(newId, msg('Untitled'), {isUnsaved: true});
                 } finally {
                     this._creatingUnsavedTab = false;
                 }
@@ -1850,6 +1909,14 @@ export class RtcAgent extends LitElement {
           ? this._renderMainLayout(active, sidebarVisible)
           : html`<div class="content-area"><rtc-login-page theme=${this.theme}></rtc-login-page></div>`}
         <rtc-toast .toasts=${this._toast.toasts}></rtc-toast>
+        ${this._isSyncing ? html`
+          <div class="syncing-overlay">
+            <div class="syncing-content">
+              <div class="syncing-spinner"></div>
+              <div class="syncing-text">${msg('Syncing data...')}</div>
+            </div>
+          </div>
+        ` : null}
       </div>
       <div class="bubble"
           role="button"

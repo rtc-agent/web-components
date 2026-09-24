@@ -1,7 +1,7 @@
 /**
  * Built-in Tools
  *
- * 6 basic tools: ls, read, write, find, grep, script
+ * 7 basic tools: ls, read, write, edit, find, grep, script
  * File operations are implemented on top of VirtualFS.
  */
 
@@ -108,7 +108,20 @@ export class ReadTool implements Tool {
     }
     const offset = validateNumberParam(params, 'offset') ?? undefined;
     const limit = validateNumberParam(params, 'limit') ?? undefined;
-    return executeFS(() => virtualFS.read(path, offset, limit));
+
+    return executeFS(async () => {
+      // Read raw content using line-based offset
+      const content = await virtualFS.read(path, offset, limit);
+
+      // Format with line numbers (cat -n style) for LLM consumption
+      const lines = content.split('\n');
+      const startLine = offset !== undefined ? Math.max(1, offset) : 1;
+      const numbered = lines
+        .map((line, i) => `${String(startLine + i).padStart(6)}\t${line}`)
+        .join('\n');
+
+      return numbered;
+    });
   }
 }
 
@@ -133,6 +146,36 @@ export class WriteTool implements Tool {
     return executeFS(async () => {
       const totalChars = await virtualFS.write(path, content, rawMode);
       return { totalChars, path };
+    });
+  }
+}
+
+/** edit - make precise edits via string replacement */
+export class EditTool implements Tool {
+  readonly name = 'edit';
+  readonly description = 'Edit file via string replacement';
+
+  async execute(params: ToolParams): Promise<ToolResult> {
+    const path = validateStringParam(params, 'path');
+    if (!path) {
+      return { success: false, error: 'path is required' };
+    }
+
+    const oldString = validateStringParam(params, 'old_string');
+    if (oldString === null) {
+      return { success: false, error: 'old_string is required' };
+    }
+
+    const newString = validateStringParam(params, 'new_string');
+    if (newString === null) {
+      return { success: false, error: 'new_string is required' };
+    }
+
+    const replaceAll = (params.replace_all as boolean) ?? false;
+
+    return executeFS(async () => {
+      const result = await virtualFS.edit(path, oldString, newString, replaceAll);
+      return { path, ...result };
     });
   }
 }
@@ -367,6 +410,7 @@ export function createBuiltinTools(rtcAgent?: RtcAgentAPI): Tool[] {
     new LsTool(),
     new ReadTool(),
     new WriteTool(),
+    new EditTool(),
     new FindTool(),
     new GrepTool(),
     new ScriptTool(rtcAgent),

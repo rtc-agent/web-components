@@ -63,6 +63,10 @@ import linkSvg from './svg/link-16.svg?raw';
 import eyeSvg from './svg/eye-16.svg?raw';
 import columnsSvg from './svg/columns-16.svg?raw';
 
+// Scroll lock icons
+import lockSvg from './svg/lock-16.svg?raw';
+import unlockSvg from './svg/unlock-16.svg?raw';
+
 /**
  * Convert SVG string to Lit template using unsafeHTML
  */
@@ -136,6 +140,12 @@ export const eyeIcon = toLitTemplate(eyeSvg);
 // columnsIcon: Split-screen view toggle.
 export const columnsIcon = toLitTemplate(columnsSvg);
 
+// Scroll lock icons
+// lockIcon: Scroll locked state.
+export const lockIcon = toLitTemplate(lockSvg);
+// unlockIcon: Scroll unlocked state.
+export const unlockIcon = toLitTemplate(unlockSvg);
+
 /**
  * Icon name to template mapping
  */
@@ -182,6 +192,9 @@ export const icons = {
     link: linkIcon,
     eye: eyeIcon,
     columns: columnsIcon,
+    // Scroll lock icons
+    lock: lockIcon,
+    unlock: unlockIcon,
 } as const;
 
 export type IconName = keyof typeof icons;

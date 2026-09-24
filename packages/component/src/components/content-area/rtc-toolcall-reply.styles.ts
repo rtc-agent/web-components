@@ -44,13 +44,6 @@ export const styles = [
       background: var(--rtc-color-bg-active, var(--rtc-color-bg-hover));
     }
 
-    /* ── Jump icon ── */
-    .reply-jump-icon {
-      flex-shrink: 0;
-      font-size: 14px;
-      color: var(--rtc-color-text-tertiary);
-    }
-
     /* ── Tool name ── */
     .reply-tool-name {
       flex: 1;
@@ -101,6 +94,12 @@ export const styles = [
       margin: 0;
     }
 
+    /* When inside scroll container, let the container manage scroll */
+    rtc-scroll-container .reply-content {
+      max-height: none;
+      overflow: visible;
+    }
+
     /* Compact variant: smaller max-height (for read tool, file content) */
     .reply-card-compact .reply-content {
       max-height: var(--rtc-content-height-sm);
@@ -143,32 +142,6 @@ export const styles = [
     .reply-status-failed {
       color: var(--rtc-color-error, #dc322f);
       font-weight: var(--rtc-font-weight-bold);
-    }
-
-    /* ── Copy button ── */
-    .copy-btn {
-      position: absolute;
-      top: 1px;
-      right: 1px;
-      opacity: 0;
-      transition: opacity var(--rpc-transition-duration) var(--rtc-transition-timing);
-      background: var(--rtc-color-bg);
-      border: var(--rtc-border-width) solid var(--rtc-color-border);
-      border-radius: var(--rtc-border-radius-sm);
-      cursor: pointer;
-      font-size: var(--rpc-font-size-xs);
-      padding: var(--rpc-spacing-xs) var(--rpc-spacing-sm);
-      color: var(--rtc-color-text);
-      line-height: var(--rtc-line-height-tight);
-      z-index: var(--rtc-z-local-2);
-    }
-
-    .copy-btn:hover {
-      background: var(--rtc-color-bg-hover);
-    }
-
-    .reply-card:hover .copy-btn {
-      opacity: 1;
     }
 
     /* ── Highlight animation (for jump target) ── */

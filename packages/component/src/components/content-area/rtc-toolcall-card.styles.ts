@@ -49,7 +49,6 @@ export const styles = [
       display: flex;
       align-items: flex-start;
       gap: var(--rtc-spacing-xs);
-      padding: var(--rtc-spacing-xs) var(--rtc-spacing-sm);
       font-size: var(--rtc-font-size-sm);
       line-height: var(--rtc-line-height-base);
       position: relative;
@@ -91,6 +90,12 @@ export const styles = [
       margin: 0;
     }
 
+    /* When inside scroll container, let the container manage scroll */
+    rtc-scroll-container .toolcall-value {
+      max-height: none;
+      overflow: visible;
+    }
+
     /* ── OUT: scrollable, mono ─ */
     .toolcall-output-content {
       flex: 1;
@@ -120,6 +125,12 @@ export const styles = [
       border-radius: var(--rtc-border-radius-sm);
     }
 
+    /* When inside scroll container, let the container manage scroll */
+    rtc-scroll-container .toolcall-code-block {
+      max-height: none;
+      overflow: visible;
+    }
+
     /* ── Script meta rows (name, action) ─ */
     .toolcall-script-meta {
       display: flex;
@@ -140,34 +151,6 @@ export const styles = [
       font-family: var(--rtc-font-family-mono);
       font-size: var(--rtc-font-size-xs);
       color: var(--rtc-color-text);
-    }
-
-    /* ── Copy button (per-section) ── */
-    .copy-btn {
-      position: absolute;
-      top: 1px;
-      right: 1px;
-      opacity: 0;
-      transition: opacity var(--rtc-transition-duration) var(--rtc-transition-timing);
-      background: var(--rtc-color-bg);
-      border: var(--rtc-border-width) solid var(--rtc-color-border);
-      border-radius: var(--rtc-border-radius-sm);
-      cursor: pointer;
-      font-size: var(--rtc-font-size-xs);
-      padding: var(--rtc-spacing-xs) var(--rtc-spacing-sm);
-      color: var(--rtc-color-text);
-      line-height: var(--rtc-line-height-tight);
-      z-index: var(--rtc-z-local-2);
-    }
-
-    .copy-btn:hover {
-      background: var(--rtc-color-bg-hover);
-      color: var(--rtc-color-text);
-    }
-
-    /* Reveal on section hover */
-    .toolcall-section:hover .copy-btn {
-      opacity: 1;
     }
 
     /* ── Dot state: running (waiting for output) ── */

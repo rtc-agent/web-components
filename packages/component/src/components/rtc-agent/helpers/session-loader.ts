@@ -7,6 +7,7 @@
  *
  * Extracted from rtc-agent.ts to keep the root component lean.
  */
+import { msg } from '@lit/localize';
 import type { Logger } from '@rtc-agent/client';
 import type { PersistenceLayer } from '@rtc-agent/persistence';
 import type { Session, SessionStatus } from '../../../types/index.js';
@@ -126,7 +127,7 @@ export async function loadSessions(
         // Use skipPersist: true for batch restore to avoid N localStorage overwrites.
         // Only the tab matching storedActiveId gets activate: true; others get activate: false.
         for (const session of openSessions) {
-            const title = session.title || "Untitled";
+            const title = session.title || msg('Untitled');
             const shouldActivate = session.clientId === storedActiveId;
             deps.sessionTab.actions.openOrActivate(session.clientId, title, {
                 activate: shouldActivate,

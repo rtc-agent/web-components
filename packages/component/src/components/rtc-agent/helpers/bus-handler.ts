@@ -8,6 +8,7 @@
  * Module-level constants (like SESSION_STRUCTURAL_FIELDS) are defined here to
  * avoid recreation on every callback invocation (performance optimization).
  */
+import { msg } from '@lit/localize';
 import type {SessionStatus} from '../../../types/index.js';
 import type {UIUpdateEvent} from '@rtc-agent/persistence';
 import type {Logger} from '@rtc-agent/client';
@@ -206,7 +207,7 @@ function handleSessionStatusChange(
         log.debug('Session reopened, creating tab:', sessionId);
         // Get title from session list.
         const sessionData = session.value.state.sessions.find(s => s.clientId === sessionId);
-        const title = sessionData?.title || 'Untitled';
+        const title = sessionData?.title || msg('Untitled');
         sessionTab.actions.openOrActivate(sessionId, title, {activate: false});
         // Note: don't call switchSession, keep current activeSessionId unchanged.
         return;

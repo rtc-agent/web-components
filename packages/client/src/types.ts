@@ -113,6 +113,27 @@ export interface RTCAgentClientOptions {
    * - Caller branches on channel prefix (topic:/live:) to decide processing logic.
    */
   onPublication?: (event: PublicationEvent) => Promise<void> | void;
+  /**
+   * Optional: suspend UI update bus before batch operations (e.g., gap fill).
+   * When suspended, UI events are collected but not dispatched until resumeUIUpdates is called.
+   * This prevents UI thrashing when processing large batches of historical updates.
+   */
+  suspendUIUpdates?: () => void;
+  /**
+   * Optional: resume UI update bus after batch operations.
+   * Triggers a bulk-update event so UI can reload data.
+   */
+  resumeUIUpdates?: () => void;
+  /**
+   * Optional: called when gap fill starts (for large gaps).
+   * UI can show a syncing overlay to indicate background sync is in progress.
+   */
+  onGapFillStart?: () => void;
+  /**
+   * Optional: called when gap fill completes or fails.
+   * UI can hide the syncing overlay.
+   */
+  onGapFillEnd?: () => void;
 }
 
 // ========== Event Map ==========

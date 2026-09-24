@@ -35,6 +35,7 @@ import type {Message} from '../../types/index.js';
 import {copyToClipboard} from '../../utils/clipboard.js';
 import {formatTimestampCompact} from '../../utils/format.js';
 import { createLogger } from '@rtc-agent/client';
+import './rtc-scroll-container.js';
 
 const log = createLogger('ToolCallCard');
 
@@ -350,12 +351,9 @@ export class RtcToolCallCard extends LitElement {
         return html`
           <div class="toolcall-section in" part="in">
             <span class="toolcall-label">In</span>
-            <span class="toolcall-value" title=${params}>${params}</span>
-            <button
-              class="copy-btn"
-              @click=${() => this._handleCopy(this._inCopyText)}
-              title="Copy input"
-            >⧉</button>
+            <rtc-scroll-container style="--rtc-scroll-max-height-locked: var(--rtc-content-height-sm); --rtc-scroll-max-height-unlocked: var(--rtc-content-height-lg);">
+              <span class="toolcall-value" title=${params}>${params}</span>
+            </rtc-scroll-container>
           </div>
         `;
     }
@@ -371,7 +369,9 @@ export class RtcToolCallCard extends LitElement {
             return html`
               <div class="toolcall-section in" part="in">
                 <span class="toolcall-label">In</span>
-                <span class="toolcall-value">${params}</span>
+                <rtc-scroll-container style="--rtc-scroll-max-height-locked: var(--rtc-content-height-sm); --rtc-scroll-max-height-unlocked: var(--rtc-content-height-lg);">
+                  <span class="toolcall-value">${params}</span>
+                </rtc-scroll-container>
               </div>
             `;
         }
@@ -381,12 +381,9 @@ export class RtcToolCallCard extends LitElement {
             return html`
               <div class="toolcall-section in" part="in">
                 <span class="toolcall-label">Code</span>
-                <pre class="toolcall-code-block">${script.code || ''}</pre>
-                <button
-                  class="copy-btn"
-                  @click=${() => this._handleCopy(script.code || '')}
-                  title="Copy code"
-                >⧉</button>
+                <rtc-scroll-container style="--rtc-scroll-max-height-locked: var(--rtc-content-height-md); --rtc-scroll-max-height-unlocked: var(--rtc-content-height-xl);">
+                  <pre class="toolcall-code-block">${script.code || ''}</pre>
+                </rtc-scroll-container>
               </div>
             `;
         }
@@ -399,12 +396,9 @@ export class RtcToolCallCard extends LitElement {
                   <span class="toolcall-meta-label">Name</span>
                   <span class="toolcall-meta-value">${script.name || ''}</span>
                 </div>
-                <pre class="toolcall-code-block">${script.code || ''}</pre>
-                <button
-                  class="copy-btn"
-                  @click=${() => this._handleCopy(script.code || '')}
-                  title="Copy code"
-                >⧉</button>
+                <rtc-scroll-container style="--rtc-scroll-max-height-locked: var(--rtc-content-height-md); --rtc-scroll-max-height-unlocked: var(--rtc-content-height-xl);">
+                  <pre class="toolcall-code-block">${script.code || ''}</pre>
+                </rtc-scroll-container>
               </div>
             `;
         }

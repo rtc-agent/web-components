@@ -402,7 +402,7 @@ export class RtcChatLayout extends LitElement {
         // 关键：触发 onSessionSwitch 以加载新 session 的消息（空）并清理旧消息
         // createSession 本身不调用 onSessionSwitch，需要手动 switchSession 触发
         this._sessionCtx.actions.switchSession(newId);
-        this._tabCtx.actions.openOrActivate(newId, 'Untitled', {isUnsaved: true, ...params});
+        this._tabCtx.actions.openOrActivate(newId, msg('Untitled'), {isUnsaved: true, ...params});
         log.debug('Created new unsaved tab:', newId);
         return newId;
     }
@@ -475,7 +475,7 @@ export class RtcChatLayout extends LitElement {
         const session = this._sessionCtx?.state?.sessions.find(
             s => s.clientId === sessionId
         );
-        const title = session?.title || 'Untitled';
+        const title = session?.title || msg('Untitled');
         this._tabCtx.actions.openOrActivate(sessionId, title);
         log.debug('Opened tab:', sessionId, 'title:', `"${title}"`);
     }

@@ -59,6 +59,8 @@ export class WorkerCore implements WorkerPersistenceCore {
         ...config.client,
         getToken: () => this.requestToken(),
         onTokenExpired: () => this.requestTokenRefresh(),
+        onGapFillStart: () => this.broadcastGapFillState(true),
+        onGapFillEnd: () => this.broadcastGapFillState(false),
       },
     };
 
@@ -424,6 +426,20 @@ export class WorkerCore implements WorkerPersistenceCore {
         cb.onUIUpdate(event);
       } catch (err) {
         log.error('onUIUpdate callback error:', err);
+      }
+    }
+  }
+
+  /**
+   * Broadcast gap fill state change to all registered Tab callbacks.
+   */
+  private broadcastGapFillState(isSyncing: boolean): void {
+    console.log('[BulkUpdate] WorkerCore.broadcastGapFillState called, isSyncing:', isSyncing, 'callbacks:', this.callbacks.size);
+    for (const cb of this.callbacks) {
+      try {
+        cb.onGapFillState(isSyncing);
+      } catch (err) {
+        log.error('onGapFillState callback error:', err);
       }
     }
   }

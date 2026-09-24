@@ -262,4 +262,48 @@ export const styles = css`
     white-space: nowrap;
     border: 0;
   }
+
+  /* ── Syncing overlay ── */
+  .syncing-overlay {
+    position: absolute;
+    inset: 0;
+    background: var(--rtc-color-backdrop, rgba(0, 0, 0, 0.5));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    backdrop-filter: blur(4px);
+  }
+
+  .syncing-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 32px 48px;
+    background: var(--rtc-color-bg-secondary, #252526);
+    border-radius: 12px;
+    box-shadow: var(--rtc-shadow-xl, 0 20px 25px -5px rgb(0 0 0 / 0.1));
+  }
+
+  .syncing-spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid var(--rtc-color-border, #3c3c3c);
+    border-top-color: var(--rtc-color-primary, #007acc);
+    border-radius: 50%;
+    animation: rtc-syncing-spin 1s linear infinite;
+  }
+
+  @keyframes rtc-syncing-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .syncing-text {
+    color: var(--rtc-color-text, #ccc);
+    font-size: 16px;
+    font-weight: 500;
+  }
 `;

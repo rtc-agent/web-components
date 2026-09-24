@@ -11,6 +11,7 @@
  * 对应：`SessionTabContext`（contexts/session-tab.ts）
  * 消费方：<rtc-session-tab-bar>, <rtc-chat-layout>
  */
+import { msg } from '@lit/localize';
 import type {ReactiveController, ReactiveControllerHost} from 'lit';
 import type {SessionTab, SessionTabState, SessionTabActions, SessionStatus} from '../types/index.js';
 import {createLogger} from '@rtc-agent/client';
@@ -158,7 +159,7 @@ export class SessionTabController implements ReactiveController {
     /* ── Private ── */
 
     private _isPlaceholderTitle(title: string): boolean {
-        return !title || title === 'Untitled' || title === 'New Chat';
+        return !title || title === msg('Untitled') || title === msg('New Chat');
     }
 
     /** 查找当前 unsaved tab，返回第一个 isUnsaved === true 的 tab。 */

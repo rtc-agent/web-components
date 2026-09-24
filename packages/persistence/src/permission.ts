@@ -32,6 +32,7 @@ const PERMISSION_RULES: Record<ToolName, Record<Mode, PermissionAction>> = {
   find:     { manual: 'allow',   edit: 'allow',   plan: 'allow',   auto: 'allow',   bypass: 'allow' },
   grep:     { manual: 'allow',   edit: 'allow',   plan: 'allow',   auto: 'allow',   bypass: 'allow' },
   write:    { manual: 'confirm', edit: 'allow',   plan: 'allow',   auto: 'allow',   bypass: 'allow' },
+  edit:     { manual: 'confirm', edit: 'allow',   plan: 'allow',   auto: 'allow',   bypass: 'allow' },
   script:   { manual: 'confirm', edit: 'confirm', plan: 'confirm', auto: 'confirm', bypass: 'allow' },
   // askUser is inherently interactive: the "execution" IS the user's selection,
   // so it always requires the ask-user dialog regardless of mode.

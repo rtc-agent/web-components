@@ -59,7 +59,7 @@ export class RtcSessionHeader extends LitElement {
     };
 
     @property({type: String, attribute: 'session-title'})
-    sessionTitle = 'Untitled';
+    sessionTitle = '';
 
     @state()
     private _showSessionPanel = false;

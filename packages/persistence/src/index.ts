@@ -5,6 +5,7 @@ import { getOffsetManager } from './offset-manager.js';
 import { initEntityRepository, getEntityRepository } from './entity-repository.js';
 import { nowRFC3339 } from './time-utils.js';
 import { virtualFS } from './virtual-fs.js';
+import { getUIUpdateBus } from './ui-update-bus.js';
 import { createLogger } from '@rtc-agent/client';
 
 const log = createLogger('PersistenceLayer');
@@ -55,11 +56,27 @@ export class PersistenceLayer {
         return this.offsetManager.getPosition(channel);
       },
       updateOffset: async (channel: string, offset: number, epoch: string) => {
+        // Temporary debug log: track who sets offset to 20482
+        if (offset === 20482) {
+          console.warn(`[DEBUG] updateOffset called with 20482 for channel ${channel}`, new Error().stack);
+        }
         await this.offsetManager.updatePosition(channel, offset, epoch);
       },
       onPublication: async (event: PublicationEvent) => {
         await this.handlePublication(event);
       },
+      suspendUIUpdates: config.client.suspendUIUpdates ?? (() => {
+        getUIUpdateBus().suspend();
+      }),
+      resumeUIUpdates: config.client.resumeUIUpdates ?? (() => {
+        getUIUpdateBus().resume();
+      }),
+      onGapFillStart: config.client.onGapFillStart ?? (() => {
+        getUIUpdateBus().emitGapFillStart();
+      }),
+      onGapFillEnd: config.client.onGapFillEnd ?? (() => {
+        getUIUpdateBus().emitGapFillEnd();
+      }),
     };
 
     this.client = new RTCAgentClient(clientOptions);

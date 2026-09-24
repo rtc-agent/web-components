@@ -25,10 +25,10 @@ import {localized, msg} from '@lit/localize';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {styles} from './rtc-toolcall-reply.styles.js';
 import type {Message} from '../../types/index.js';
-import {copyToClipboard} from '../../utils/clipboard.js';
 import {formatTimestampCompact} from '../../utils/format.js';
 import type {RtcToolCallCard} from './rtc-toolcall-card.js';
 import { createLogger } from '@rtc-agent/client';
+import './rtc-scroll-container.js';
 
 const log = createLogger('ToolCallReply');
 
@@ -431,21 +431,6 @@ export class RtcToolCallReply extends LitElement {
         }));
     }
 
-    /**
-     * Handle copy button click.
-     */
-    private async _handleCopy(text: string) {
-        const success = await copyToClipboard(text);
-        this.dispatchEvent(new CustomEvent('rtc-toast-requested', {
-            bubbles: true,
-            composed: true,
-            detail: {
-                message: success ? msg('已复制到剪贴板') : msg('复制失败'),
-                type: success ? 'success' : 'error',
-            },
-        }));
-    }
-
     render() {
         void this._localeCtx.locale;
 
@@ -477,7 +462,9 @@ export class RtcToolCallReply extends LitElement {
                 <div class="timeline-dot" part="dot" data-timestamp=${this._formattedTimestamp}></div>
                 <div class="timeline-content" part="content">
                     <div class="reply-card" part="card">
-                        <pre class="reply-content" part="content">${this.message.content?.data || ''}</pre>
+                        <rtc-scroll-container style="--rtc-scroll-max-height-locked: var(--rtc-content-height-md); --rtc-scroll-max-height-unlocked: var(--rtc-content-height-xl);">
+                            <pre class="reply-content" part="content">${this.message.content?.data || ''}</pre>
+                        </rtc-scroll-container>
                     </div>
                 </div>
             </div>
@@ -504,10 +491,6 @@ export class RtcToolCallReply extends LitElement {
         const isSuccess = scriptOutput.success !== false;
         const errorMsg = scriptOutput.error;
 
-        // Combine all output lines for copy
-        const allLines = [...logs, ...warnings.map(w => `[WARN] ${w}`), ...errors.map(e => `[ERR] ${e}`)];
-        const copyText = allLines.join('\n') || tc.output;
-
         return html`
             <div class="timeline-item">
                 <div class="timeline-dot" part="dot" data-timestamp=${this._formattedTimestamp}></div>
@@ -519,38 +502,47 @@ export class RtcToolCallReply extends LitElement {
                             @click=${this._handleHeaderClick}
                             title=${msg('点击跳转到工具调用')}
                         >
-                            <span class="reply-jump-icon">↩</span>
                             <span class="reply-tool-name" style=${headerColor ? `color: ${headerColor}` : ''}>${title}</span>
                             <span class="reply-status-dot"></span>
                         </div>
 
                         ${logs.length > 0 ? html`
                             <div class="reply-section">
-                                <pre class="reply-content reply-logs">${logs.join('\n')}</pre>
+                                <rtc-scroll-container style="--rtc-scroll-max-height-locked: var(--rtc-content-height-md); --rtc-scroll-max-height-unlocked: var(--rtc-content-height-xl);">
+                                    <pre class="reply-content reply-logs">${logs.join('\n')}</pre>
+                                </rtc-scroll-container>
                             </div>
                         ` : nothing}
 
                         ${warnings.length > 0 ? html`
                             <div class="reply-section">
-                                <pre class="reply-content reply-warnings">${warnings.map(w => `[WARN] ${w}`).join('\n')}</pre>
+                                <rtc-scroll-container style="--rtc-scroll-max-height-locked: var(--rtc-content-height-md); --rtc-scroll-max-height-unlocked: var(--rtc-content-height-xl);">
+                                    <pre class="reply-content reply-warnings">${warnings.map(w => `[WARN] ${w}`).join('\n')}</pre>
+                                </rtc-scroll-container>
                             </div>
                         ` : nothing}
 
                         ${errors.length > 0 ? html`
                             <div class="reply-section">
-                                <pre class="reply-content reply-errors">${errors.map(e => `[ERR] ${e}`).join('\n')}</pre>
+                                <rtc-scroll-container style="--rtc-scroll-max-height-locked: var(--rtc-content-height-md); --rtc-scroll-max-height-unlocked: var(--rtc-content-height-xl);">
+                                    <pre class="reply-content reply-errors">${errors.map(e => `[ERR] ${e}`).join('\n')}</pre>
+                                </rtc-scroll-container>
                             </div>
                         ` : nothing}
 
                         ${errorMsg ? html`
                             <div class="reply-section">
-                                <pre class="reply-content reply-errors">${errorMsg}</pre>
+                                <rtc-scroll-container style="--rtc-scroll-max-height-locked: var(--rtc-content-height-md); --rtc-scroll-max-height-unlocked: var(--rtc-content-height-xl);">
+                                    <pre class="reply-content reply-errors">${errorMsg}</pre>
+                                </rtc-scroll-container>
                             </div>
                         ` : nothing}
 
                         ${logs.length === 0 && warnings.length === 0 && errors.length === 0 && !errorMsg ? html`
                             <div class="reply-section">
-                                <pre class="reply-content reply-empty">${msg('(无输出)')}</pre>
+                                <rtc-scroll-container style="--rtc-scroll-max-height-locked: var(--rtc-content-height-md); --rtc-scroll-max-height-unlocked: var(--rtc-content-height-xl);">
+                                    <pre class="reply-content reply-empty">${msg('(无输出)')}</pre>
+                                </rtc-scroll-container>
                             </div>
                         ` : nothing}
 
@@ -562,12 +554,6 @@ export class RtcToolCallReply extends LitElement {
                                 <span class="reply-duration">${durationMs}ms</span>
                             ` : nothing}
                         </div>
-
-                        <button
-                            class="copy-btn"
-                            @click=${() => this._handleCopy(copyText)}
-                            title=${msg('复制输出')}
-                        >⧉</button>
                     </div>
                 </div>
             </div>
@@ -598,16 +584,12 @@ export class RtcToolCallReply extends LitElement {
                             @click=${this._handleHeaderClick}
                             title=${msg('点击跳转到工具调用')}
                         >
-                            <span class="reply-jump-icon">↩</span>
                             <span class="reply-tool-name" style=${headerColor ? `color: ${headerColor}` : ''}>${title}</span>
                             <span class="reply-status-dot"></span>
                         </div>
-                        <pre class="reply-content" part="content">${content}</pre>
-                        <button
-                            class="copy-btn"
-                            @click=${() => this._handleCopy(content)}
-                            title=${msg('复制输出')}
-                        >⧉</button>
+                        <rtc-scroll-container style="--rtc-scroll-max-height-locked: var(--rtc-content-height-sm); --rtc-scroll-max-height-unlocked: var(--rtc-content-height-lg);">
+                            <pre class="reply-content" part="content">${content}</pre>
+                        </rtc-scroll-container>
                     </div>
                 </div>
             </div>
@@ -644,16 +626,12 @@ export class RtcToolCallReply extends LitElement {
                             @click=${this._handleHeaderClick}
                             title=${msg('点击跳转到工具调用')}
                         >
-                            <span class="reply-jump-icon">↩</span>
                             <span class="reply-tool-name" style=${headerColor ? `color: ${headerColor}` : ''}>${title}</span>
                             <span class="reply-status-dot"></span>
                         </div>
-                        <pre class="reply-content" part="content">${outputFormatted}</pre>
-                        <button
-                            class="copy-btn"
-                            @click=${() => this._handleCopy(tc.output)}
-                            title=${msg('复制输出')}
-                        >⧉</button>
+                        <rtc-scroll-container style="--rtc-scroll-max-height-locked: var(--rtc-content-height-md); --rtc-scroll-max-height-unlocked: var(--rtc-content-height-xl);">
+                            <pre class="reply-content" part="content">${outputFormatted}</pre>
+                        </rtc-scroll-container>
                     </div>
                 </div>
             </div>

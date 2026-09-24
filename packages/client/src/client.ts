@@ -61,6 +61,10 @@ export class RTCAgentClient implements IRTCAgentClient {
   private readonly epochCache = new Map<string, string>();
   /** Pending reconnect timer (cleared on explicit disconnect to prevent zombie reconnects). */
   private _reconnectTimer?: ReturnType<typeof setTimeout>;
+  /** Active gap fill tasks per channel (for deduplication and merging). */
+  private readonly gapFillTasks = new Map<string, { targetOffset: number; epoch: string }>();
+  /** Whether gap fill processing is currently running. */
+  private isGapFillProcessing = false;
 
   /** Delay (ms) before reconnecting after "message size limit exceeded" rejection. */
   private static readonly RECONNECT_AFTER_SIZE_LIMIT_DELAY_MS = 3000;
@@ -374,10 +378,13 @@ export class RTCAgentClient implements IRTCAgentClient {
       }
 
       if (lastOffset !== undefined && update.offset > lastOffset + 1) {
-        // Gap detected — fill history.
-        await this.fillOffsetGap(channel, lastOffset, lastEpoch, update.offset);
+        // Gap detected — schedule async gap fill and wait for completion.
+        this.scheduleGapFill(channel, update.offset, lastEpoch);
 
-        // Post-fill verification: did fillOffsetGap advance the offset to update.offset - 1?
+        // Wait for gap fill to catch up to this update's offset.
+        await this.waitForGapFill(channel, update.offset - 1);
+
+        // Post-fill verification: did gap fill advance the offset to update.offset - 1?
         const newPosition = await this.options.getLastOffset?.(channel);
         const newLastOffset = newPosition?.offset;
         const newLastEpoch = newPosition?.epoch;
@@ -421,6 +428,36 @@ export class RTCAgentClient implements IRTCAgentClient {
     }
   }
 
+  /**
+   * Wait for gap fill to reach the target offset.
+   * Polls the current offset until it reaches the target or gap fill completes.
+   */
+  private async waitForGapFill(channel: string, targetOffset: number): Promise<void> {
+    const MAX_WAIT_MS = 30000; // 30 seconds timeout
+    const POLL_INTERVAL_MS = 100;
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < MAX_WAIT_MS) {
+      const position = await this.options.getLastOffset?.(channel);
+      const currentOffset = position?.offset ?? 0;
+
+      if (currentOffset >= targetOffset) {
+        return; // Gap fill caught up
+      }
+
+      // Check if gap fill is still running for this channel
+      if (!this.gapFillTasks.has(channel) && !this.isGapFillProcessing) {
+        return; // Gap fill completed (or failed)
+      }
+
+      // Wait a bit before checking again
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+    }
+
+    // Timeout — gap fill didn't complete in time
+    log.warn(`waitForGapFill timeout: channel=${channel}, targetOffset=${targetOffset}`);
+  }
+
   // ========== Events ==========
 
   on<E extends EventName>(event: E, cb: EventCallback<E>): Unsubscribe {
@@ -433,6 +470,173 @@ export class RTCAgentClient implements IRTCAgentClient {
     return () => {
       set!.delete(cb as EventCallback<EventName>);
     };
+  }
+
+  // ========== Gap Fill Manager ==========
+
+  /**
+   * Schedule an async gap fill (non-blocking).
+   *
+   * Multiple calls for the same channel are automatically deduplicated:
+   * the targetOffset is merged to the maximum value.
+   *
+   * @param channel Channel name
+   * @param targetOffset Target offset to reach (exclusive)
+   * @param epoch Current epoch
+   */
+  private scheduleGapFill(channel: string, targetOffset: number, epoch: string): void {
+    const pending = this.gapFillTasks.get(channel);
+    if (pending) {
+      // Merge: extend to the maximum range
+      pending.targetOffset = Math.max(pending.targetOffset, targetOffset);
+      pending.epoch = epoch;
+    } else {
+      this.gapFillTasks.set(channel, { targetOffset, epoch });
+    }
+
+    // Trigger processing (non-blocking)
+    void this.processGapFillQueue();
+  }
+
+  /**
+   * Process all pending gap fill requests serially.
+   * Uses a loop that dynamically checks for new requests after each fill.
+   */
+  private async processGapFillQueue(): Promise<void> {
+    if (this.isGapFillProcessing) return;
+    this.isGapFillProcessing = true;
+
+    try {
+      while (this.gapFillTasks.size > 0) {
+        // Take the first pending channel
+        const [channel, { targetOffset, epoch }] = this.gapFillTasks.entries().next().value!;
+
+        // Run gap fill until caught up
+        await this.runGapFill(channel, targetOffset, epoch);
+
+        // Remove if no new requests arrived during fill
+        const current = this.gapFillTasks.get(channel);
+        if (current && current.targetOffset <= targetOffset) {
+          this.gapFillTasks.delete(channel);
+        }
+        // If targetOffset increased, loop continues to handle it
+      }
+    } finally {
+      this.isGapFillProcessing = false;
+    }
+  }
+
+  /**
+   * Run gap fill for a channel until reaching targetOffset.
+   * Fetches history in batches and processes through applyUpdates.
+   */
+  private async runGapFill(channel: string, targetOffset: number, epoch: string): Promise<void> {
+    const sub = this.subscriptions.get(channel);
+    if (!sub) {
+      log.warn(`runGapFill: subscription not found for channel ${channel}`);
+      return;
+    }
+
+    const BATCH_SIZE = 200;
+    // Only suspend UI updates for large gaps to prevent UI thrashing.
+    // Small gaps (< 100) can update UI normally for real-time feedback.
+    const SUSPEND_THRESHOLD = 100;
+
+    // Get current offset to determine gap size
+    const startPosition = await this.options.getLastOffset?.(channel);
+    const currentOffset = startPosition?.offset ?? 0;
+    const gapSize = targetOffset - currentOffset;
+
+    console.log(`[BulkUpdate] runGapFill: gapSize=${gapSize}, threshold=${SUSPEND_THRESHOLD}`);
+
+    // Notify UI that gap fill is starting (for large gaps)
+    if (gapSize > SUSPEND_THRESHOLD) {
+      console.log('[BulkUpdate] runGapFill: calling onGapFillStart');
+      this.options.onGapFillStart?.();
+      this.options.suspendUIUpdates?.();
+    }
+
+    try {
+      while (true) {
+        // Dynamically read current offset
+        const position = await this.options.getLastOffset?.(channel);
+        const offset = position?.offset ?? 0;
+
+        if (offset >= targetOffset - 1) {
+          break; // Already caught up
+        }
+
+        const remaining = targetOffset - offset - 1;
+        const limit = Math.min(BATCH_SIZE, remaining);
+        if (limit <= 0) break;
+
+        const opts: HistoryOptions = {
+          since: { offset, epoch },
+          limit,
+          reverse: false,
+        };
+
+        const historyResult = await sub.history(opts);
+        const publications = historyResult.publications;
+
+        if (publications.length === 0) break;
+
+        // Validate batch continuity using Publication.offset (not data.offset).
+        // Publication.offset is always set by Centrifuge; data.offset may be undefined
+        // for gap placeholder publications.
+        const firstOffset = publications[0].offset ?? 0;
+        if (firstOffset !== offset + 1) {
+          throw new Error(
+            `Gap fill missing messages: expected first offset ${offset + 1}, got ${firstOffset}`,
+          );
+        }
+
+        for (let i = 1; i < publications.length; i++) {
+          const prev = publications[i - 1].offset ?? 0;
+          const curr = publications[i].offset ?? 0;
+          if (curr !== prev + 1) {
+            throw new Error(`Gap fill non-continuous: offset jumped from ${prev} to ${curr}`);
+          }
+        }
+
+        // Process publications:
+        // - Gap placeholders (type === 'gap'): just update offset, skip onPublication
+        // - Real updates: process through applyUpdates
+        const realUpdates: Update[] = [];
+        for (const pub of publications) {
+          const data = pub.data as Record<string, unknown>;
+          const pubOffset = pub.offset ?? 0;
+          if (data?.type === 'gap') {
+            // Gap placeholder: just advance the offset
+            await this.options.updateOffset?.(channel, pubOffset, epoch);
+          } else {
+            realUpdates.push(pub.data as Update);
+          }
+        }
+
+        if (realUpdates.length > 0) {
+          await this.applyUpdates(realUpdates);
+        }
+
+        // If we got fewer publications than requested, we've reached the end
+        if (publications.length < limit) break;
+      }
+    } catch (err) {
+      log.error(`runGapFill failed for channel ${channel}:`, err);
+      this.emit('error', err instanceof Error ? err : new Error(String(err)));
+      this.emit('syncRequired', {
+        reason: 'gap_fill_failed',
+        lastKnownOffset: (await this.options.getLastOffset?.(channel))?.offset,
+        serverOffset: targetOffset,
+      });
+    } finally {
+      // Resume UI updates and notify UI only if we suspended
+      if (gapSize > SUSPEND_THRESHOLD) {
+        console.log('[BulkUpdate] runGapFill: calling resumeUIUpdates and onGapFillEnd');
+        this.options.resumeUIUpdates?.();
+        this.options.onGapFillEnd?.();
+      }
+    }
   }
 
   // ========== Internal ==========
@@ -583,6 +787,32 @@ export class RTCAgentClient implements IRTCAgentClient {
             err,
           );
           this.emit('error', err instanceof Error ? err : new Error(String(err)));
+
+          // Critical fix: When gap fill fails during publication processing, disconnect
+          // and require manual sync. Otherwise, the next message will attempt the same
+          // gap fill again, creating a retry loop. This mirrors the error handling in
+          // the 'subscribed' handler.
+          this.centrifuge?.disconnect();
+          this.setConnectionState('disconnected', 'gap fill failed');
+          this.emit('syncRequired', {
+            reason: 'gap_fill_failed',
+            lastKnownOffset: update.offset - 1,
+            serverOffset: update.offset,
+          });
+
+          // Schedule reconnect to recover from gap fill failure.
+          // The reconnect will rebuild subscriptions and retry gap fill with fresh state.
+          if (this.shouldReconnect) {
+            this._reconnectTimer = setTimeout(() => {
+              this._reconnectTimer = undefined;
+              if (this.shouldReconnect && this.connectionState === 'disconnected') {
+                log.debug('attempting reconnect after gap fill failure');
+                this.reconnect().catch(err => {
+                  log.error('reconnect after gap fill failed:', err);
+                });
+              }
+            }, RTCAgentClient.RECONNECT_AFTER_SIZE_LIMIT_DELAY_MS);
+          }
         }
       });
 
@@ -595,86 +825,29 @@ export class RTCAgentClient implements IRTCAgentClient {
           // Update epoch cache first (regardless of offset changes, epoch must be synced).
           this.epochCache.set(topicChannel, epoch);
 
-          // Declare localOffset outside callback so the catch block can access it.
+          // Detect offset continuity (fast, sync check).
+          const position = await this.options.getLastOffset?.(topicChannel);
           let localOffset: number | undefined;
 
-          try {
-            // Route gap fill through applyUpdates queue to serialise with publication events.
-            // This prevents race conditions where concurrent publication processing and
-            // subscribed gap fill could cause duplicate message processing or offset rollback.
-            await this.applyUpdates([], async () => {
-              // Detect offset continuity.
-              const position = await this.options.getLastOffset?.(topicChannel);
+          // Detect epoch change (e.g. server restart) and reset offset.
+          if (position && position.epoch !== epoch) {
+            log.warn(`Epoch changed: '${position.epoch}' -> '${epoch}', resetting offset to 0`);
+            await this.options.updateOffset?.(topicChannel, 0, epoch);
+            localOffset = 0;
+          } else {
+            localOffset = position?.offset;
+          }
 
-              // Fix 3: Detect epoch change (e.g. server restart) and reset offset.
-              // Without this, subsequent gap fills would use the old epoch and fail permanently,
-              // locking the client into a state where all future messages are rejected.
-              let epochChanged = false;
-              if (position && position.epoch !== epoch) {
-                log.warn(
-                  `Epoch changed: '${position.epoch}' -> '${epoch}', resetting offset to 0`,
-                );
-                await this.options.updateOffset?.(topicChannel, 0, epoch);
-                localOffset = 0;
-                epochChanged = true;
-              } else {
-                localOffset = position?.offset;
-              }
-
-              if (localOffset === undefined) {
-                // No local record (first subscription) — use the server offset directly.
-                await this.options.updateOffset?.(topicChannel, serverOffset, epoch);
-              } else if (serverOffset <= localOffset) {
-                // Server offset <= local offset: duplicate subscription or rollback — keep local.
-                // Don't overwrite to prevent re-processing messages after a rollback.
-              } else {
-                // serverOffset > localOffset: gap exists — fill history.
-                // Note: when serverOffset === localOffset + 1, the server has one new message
-                // (offset=serverOffset) that the client hasn't received yet — also needs filling.
-                // When epoch changed, use the new epoch; otherwise use the stored epoch.
-                const lastEpoch = epochChanged ? epoch : (position?.epoch ?? epoch);
-                // Fill range: (localOffset, serverOffset], i.e. localOffset+1 to serverOffset.
-                // fillOffsetGap's toOffset parameter is exclusive, so pass serverOffset + 1.
-                await this.fillOffsetGap(topicChannel, localOffset, lastEpoch, serverOffset + 1);
-
-                // Post-fill verification: offset should have advanced to serverOffset.
-                const newPosition = await this.options.getLastOffset?.(topicChannel);
-                const newOffset = newPosition?.offset;
-                const newEpoch = newPosition?.epoch;
-
-                if (newOffset === undefined || newOffset !== serverOffset) {
-                  throw new Error(
-                    `[RTCAgentClient] Offset gap fill failed on subscribe: expected ${serverOffset}, got ${newOffset}. ` +
-                      `Offline updates may be lost.`,
-                  );
-                }
-                if (newEpoch !== undefined && newEpoch !== epoch) {
-                  throw new Error(
-                    `[RTCAgentClient] Epoch mismatch after gap fill on subscribe: expected '${epoch}', got '${newEpoch}'. ` +
-                      `Server may have restarted.`,
-                  );
-                }
-
-                // Gap fill succeeded — update to the latest offset.
-                await this.options.updateOffset?.(topicChannel, serverOffset, epoch);
-              }
-            });
-          } catch (err) {
-            log.error(
-              `fillOffsetGap failed on subscribe for offset ${serverOffset}:`,
-              err,
-            );
-            this.emit('error', err instanceof Error ? err : new Error(String(err)));
-
-            // Fix 5: Enhanced error recovery — disconnect and notify application.
-            // Do NOT reset offset to 0; let the application decide how to recover.
-            this.centrifuge?.disconnect();
-            this.setConnectionState('disconnected', 'gap fill failed');
-            this.emit('syncRequired', {
-              reason: 'gap_fill_failed',
-              lastKnownOffset: localOffset,
-              serverOffset: serverOffset,
-            });
+          if (localOffset === undefined) {
+            // No local record (first subscription) — use the server offset directly.
+            await this.options.updateOffset?.(topicChannel, serverOffset, epoch);
+          } else if (serverOffset <= localOffset) {
+            // Server offset <= local offset: duplicate subscription or rollback — keep local.
+          } else {
+            // Gap exists — schedule async gap fill (non-blocking).
+            // The gap fill will fetch history in batches and process through applyUpdates.
+            // Note: serverOffset + 1 because toOffset is exclusive.
+            this.scheduleGapFill(topicChannel, serverOffset + 1, epoch);
           }
         }
       });
@@ -698,72 +871,6 @@ export class RTCAgentClient implements IRTCAgentClient {
       });
     }
     this.subscriptions.get(liveChannel)?.subscribe();
-  }
-
-  /**
-   * Fill historical messages for an offset gap.
-   *
-   * @param channel Channel name
-   * @param fromOffset Start offset (exclusive)
-   * @param epoch Start epoch
-   * @param toOffset Target offset (exclusive); undefined means fetch up to latest
-   */
-  private async fillOffsetGap(
-    channel: string,
-    fromOffset: number,
-    epoch: string,
-    toOffset?: number
-  ): Promise<void> {
-    const sub = this.subscriptions.get(channel);
-    if (!sub) {
-      log.warn(`fillOffsetGap: subscription not found for channel ${channel}`);
-      return;
-    }
-
-    let opts: HistoryOptions = {
-      since: { offset: fromOffset, epoch },
-      limit: undefined,
-      reverse: false, // Ascending order: old to new.
-    };
-    if (toOffset) {
-      const limit = toOffset - fromOffset - 1;
-      if (limit <= 0) return;
-      opts.limit = limit;
-    }
-
-    try {
-      const historyResult = await sub.history(opts);
-      const publications = historyResult.publications;
-
-      // Validate message continuity: history must be complete and start from fromOffset + 1.
-      // Note: we do NOT validate count because Centrifuge history has TTL — messages may expire.
-      if (toOffset !== undefined && publications.length > 0) {
-        const firstOffset = (publications[0].data as Update).offset;
-        if (firstOffset !== fromOffset + 1) {
-          throw new Error(
-            `Gap fill missing messages: expected first offset ${fromOffset + 1}, got ${firstOffset}`,
-          );
-        }
-        for (let i = 1; i < publications.length; i++) {
-          const prev = (publications[i - 1].data as Update).offset;
-          const curr = (publications[i].data as Update).offset;
-          if (curr !== prev + 1) {
-            throw new Error(`Gap fill non-continuous: offset jumped from ${prev} to ${curr}`);
-          }
-        }
-      }
-
-      // Process historical messages in order.
-      for (const pub of publications) {
-        const update = pub.data as Update;
-        await this.processUpdate(update);
-      }
-    } catch (err) {
-      // Re-throw so the caller (processUpdate) knows gap fill failed.
-      // The caller will reject subsequent updates to maintain strict +1 continuity.
-      log.error(`fillOffsetGap failed for channel ${channel}:`, err);
-      throw err;
-    }
   }
 
   /**

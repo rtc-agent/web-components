@@ -790,7 +790,7 @@ export class RtcInputArea extends LitElement {
             class="input-textarea"
             part="textarea"
             .value=${this._value}
-            placeholder="Ask anything..."
+            placeholder=${msg('Ask anything...')}
             @input=${this._handleInput}
             @keydown=${this._handleKeydown}
           ></textarea>

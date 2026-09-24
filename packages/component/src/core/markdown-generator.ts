@@ -336,7 +336,10 @@ export function generateScenariosIndex(scenarios: Array<{
 }
 
 /**
- * 生成 AGENT.md（符合设计文档的丰富格式）
+ * 生成 AGENT.md
+ *
+ * Agent Prompt 定义 Agent 的身份、工作流和能力。
+ * 前端生成此内容，Server 端有默认降级实现。
  */
 export function generateAgentMd(
   config: RegistryConfig,
@@ -344,39 +347,102 @@ export function generateAgentMd(
   groups: FunctionGroupDef[],
   scenarioCount: number
 ): string {
-  let md = `# ${config.name}\n\n`;
-  md += `${config.description}\n\n`;
+  const sections = [
+    generateAgentHeader(config),
+    generateAgentPersona(config),
+    generateAgentEnvironment(),
+    generateAgentTools(),
+    generateAgentFunctions(functions, groups),
+    generateAgentScenarios(scenarioCount),
+    generateAgentHowToCall(),
+    generateAgentFooter(),
+  ];
 
-  if (config.persona) {
-    md += `## Persona\n\n${config.persona}\n\n`;
-  }
+  return sections.filter(Boolean).join('\n');
+}
 
-  // Quick Navigation
-  md += `## Quick Navigation\n\n`;
-  md += `- [Available Functions](#available-functions)\n`;
-  md += `- [Business Scenarios](#business-scenarios)\n`;
-  md += `- [System Tools](#system-tools)\n\n`;
+/**
+ * Agent 标题和描述
+ */
+function generateAgentHeader(config: RegistryConfig): string {
+  return `# ${config.name}\n\n${config.description}\n\n`;
+}
 
-  // Available Functions (detailed listing)
-  md += `## Available Functions\n\n`;
+/**
+ * Agent Persona（可选）
+ */
+function generateAgentPersona(config: RegistryConfig): string {
+  if (!config.persona) return '';
+  return `## Persona\n\n${config.persona}\n\n`;
+}
 
-  if (groups.length > 0) {
-    for (const group of groups) {
-      const groupFunctions = functions.filter(f => f.name.startsWith(group.name + '.'));
+/**
+ * 运行环境上下文
+ */
+function generateAgentEnvironment(): string {
+  return `## Environment
 
-      if (groupFunctions.length > 0) {
-        md += `### ${group.name} - ${group.description}\n\n`;
+**Execution Context**: Browser-based sandbox environment
 
-        for (const func of groupFunctions) {
-          const funcName = func.name.split('.')[1];
-          md += `- **${funcName}**: ${func.description}\n`;
-        }
-        md += '\n';
-      }
+**Data Storage**:
+- All data is stored in IndexedDB (virtual file system)
+- Data stays local on the user's device
+- No data is uploaded to remote servers
+
+**Global Objects**:
+- \`rtcAgent\`: Pre-injected API object providing access to all registered functions
+- \`console.log()\`: Output is captured and returned to you
+
+**File System**:
+- \`/functions/\`: Auto-generated function documentation
+- \`/scenarios/\`: Business scenario documentation
+- \`/scripts/\`: Saved executable JavaScript
+
+`;
+}
+
+/**
+ * 可用工具列表
+ */
+function generateAgentTools(): string {
+  return `## Available Tools
+
+- **ls**: List directory contents
+- **read**: Read file contents
+- **write**: Write or create files
+- **edit**: Make precise edits to existing files using string replacement
+- **find**: Find files by name or pattern
+- **grep**: Search file contents
+- **script**: Execute JavaScript code (for calling business functions)
+- **todoWrite**: Track task progress
+- **askUser**: Request user input when needed
+
+`;
+}
+
+/**
+ * 可用函数列表（按分组组织）
+ */
+function generateAgentFunctions(functions: FunctionDef[], groups: FunctionGroupDef[]): string {
+  // Return empty if no functions at all
+  if (functions.length === 0) return '';
+
+  let md = '## Available Functions\n\n';
+
+  // 按分组列出
+  for (const group of groups) {
+    const groupFunctions = functions.filter(f => f.name.startsWith(group.name + '.'));
+    if (groupFunctions.length === 0) continue;
+
+    md += `### ${group.name} - ${group.description}\n\n`;
+    for (const func of groupFunctions) {
+      const funcName = func.name.split('.')[1];
+      md += `- **${funcName}**: ${func.description}\n`;
     }
+    md += '\n';
   }
 
-  // Ungrouped functions
+  // 未分组的函数
   const ungroupedFunctions = functions.filter(f => !f.name.includes('.'));
   if (ungroupedFunctions.length > 0) {
     md += `### General Functions\n\n`;
@@ -387,87 +453,66 @@ export function generateAgentMd(
   }
 
   md += `See \`/functions/INDEX.md\` for detailed documentation.\n\n`;
-
-  // Business Scenarios
-  if (scenarioCount > 0) {
-    md += `## Business Scenarios\n\n`;
-    md += `There are ${scenarioCount} business scenarios available.\n\n`;
-    md += `See \`/scenarios/INDEX.md\` for the full list.\n\n`;
-  }
-
-  // System Tools
-  md += `## System Tools\n\n`;
-  md += `- \`ls\`: List directory contents\n`;
-  md += `- \`read\`: Read file contents\n`;
-  md += `- \`write\`: Write or create files\n`;
-  md += `- \`find\`: Find files by pattern\n`;
-  md += `- \`grep\`: Search file contents\n`;
-  md += `- \`script\`: Execute JavaScript code (action: "eval") or save/run scripts\n\n`;
-
-  // How to Call Functions
-  md += `## How to Call Functions\n\n`;
-  md += `**Recommended**: Use the \`script\` tool with \`action: "eval"\` to execute JavaScript code.\n\n`;
-  md += `### Parameter Passing\n\n`;
-  md += `**Always pass parameters as an object** with named properties matching the function's parameter names:\n\n`;
-  md += `\`\`\`javascript\n`;
-  md += `// ✅ Correct - parameters as object\n`;
-  md += `rtcAgent.task.delete({ id: "561a70a1-21b4-4708-b6ff-d8512e1ae1cd" })\n`;
-  md += `rtcAgent.task.create({ title: "Buy groceries", priority: "high" })\n`;
-  md += `rtcAgent.task.update({ id: "123", completed: true })\n\n`;
-  md += `// ❌ Wrong - positional arguments\n`;
-  md += `rtcAgent.task.delete("561a70a1-21b4-4708-b6ff-d8512e1ae1cd")\n`;
-  md += `rtcAgent.task.create("Buy groceries", "high")\n`;
-  md += `\`\`\`\n\n`;
-  md += `Check each function's documentation in \`/functions/\` for the exact parameter names and types.\n\n`;
-  md += `### Syntax\n\n`;
-  md += `Use \`rtcAgent.groupName.funcName(params)\` and \`console.log()\` to output results:\n\n`;
-  md += `\`\`\`javascript\n`;
-  md += `// ✅ Create a task\n`;
-  md += `const task = await rtcAgent.task.create({ title: "Buy groceries", priority: "high" })\n`;
-  md += `console.log("Task created:", task)\n\n`;
-  md += `// ✅ Delete a task\n`;
-  md += `const result = await rtcAgent.task.delete({ id: "task-id-here" })\n`;
-  md += `console.log("Delete result:", result)\n\n`;
-  md += `// ✅ List tasks\n`;
-  md += `const tasks = await rtcAgent.task.list()\n`;
-  md += `console.log("Tasks:", tasks)\n\n`;
-  md += `// ✅ Filter and process\n`;
-  md += `const tasks = await rtcAgent.task.list()\n`;
-  md += `const active = tasks.filter(t => !t.completed)\n`;
-  md += `console.log("Active tasks:", active)\n\n`;
-  md += `// ❌ Wrong - missing rtcAgent prefix\n`;
-  md += `task.create({ title: "Buy groceries" })\n`;
-  md += `\`\`\`\n\n`;
-  md += `**Important**: Use \`console.log()\` to output results. The output will be captured and returned to you.\n\n`;
-  md += `### Script Tool Parameters\n\n`;
-  md += `\`\`\`json\n`;
-  md += `{\n`;
-  md += `  "action": "eval",\n`;
-  md += `  "code": "const tasks = await rtcAgent.task.list()\\nconsole.log(tasks)"\n`;
-  md += `}\n`;
-  md += `\`\`\`\n\n`;
-  md += `The \`rtcAgent\` object is available in the script sandbox and provides access to all registered functions.\n\n`;
-
-  // File System Structure
-  md += `## File System Structure\n\n`;
-  md += `- \`/functions/\`: Function documentation (auto-generated)\n`;
-  md += `- \`/scenarios/\`: Scenario documentation (business workflows)\n`;
-  md += `- \`/scripts/\`: Saved scripts (executable JavaScript)\n`;
-  md += `- \`/AGENT.md\`: This file (system entry point)\n\n`;
-
-  // Usage Suggestions
-  md += `## Usage Suggestions\n\n`;
-  md += `1. Start by reading this file (\`/AGENT.md\`) to understand the system\n`;
-  md += `2. Browse \`/functions/INDEX.md\` to see available functions\n`;
-  md += `3. Read specific function docs in \`/functions/{group}/{name}.md\`\n`;
-
-  if (scenarioCount > 0) {
-    md += `4. Review business scenarios in \`/scenarios/\` to understand workflows\n`;
-  }
-
-  md += `5. Use \`script\` tool with \`action: "eval"\` to call functions (see "How to Call Functions" above)\n\n`;
-
-  md += `---\n*Auto-generated. Do not edit manually.*\n`;
-
   return md;
+}
+
+/**
+ * 业务场景（可选）
+ */
+function generateAgentScenarios(scenarioCount: number): string {
+  if (scenarioCount === 0) return '';
+  return `## Business Scenarios
+
+There are ${scenarioCount} business scenarios available.
+
+See \`/scenarios/INDEX.md\` for the full list.
+
+`;
+}
+
+/**
+ * 函数调用说明
+ */
+function generateAgentHowToCall(): string {
+  return `## How to Call Functions
+
+Use the \`script\` tool with \`action: "eval"\` to execute JavaScript code.
+
+### Parameter Passing
+
+**Always pass parameters as an object** with named properties matching the function's parameter names:
+
+\`\`\`javascript
+// ✅ Correct - parameters as object
+rtcAgent.task.delete({ id: "561a70a1-21b4-4708-b6ff-d8512e1ae1cd" })
+rtcAgent.task.create({ title: "Buy groceries", priority: "high" })
+
+// ❌ Wrong - positional arguments
+rtcAgent.task.delete("561a70a1-21b4-4708-b6ff-d8512e1ae1cd")
+\`\`\`
+
+### Syntax
+
+Use \`rtcAgent.groupName.funcName(params)\` and \`console.log()\` to output results:
+
+\`\`\`javascript
+// Create a task
+const task = await rtcAgent.task.create({ title: "Buy groceries", priority: "high" })
+console.log("Task created:", task)
+
+// List tasks
+const tasks = await rtcAgent.task.list()
+console.log("Tasks:", tasks)
+\`\`\`
+
+**Important**: Use \`console.log()\` to output results. The output will be captured and returned to you.
+
+`;
+}
+
+/**
+ * 页脚标识
+ */
+function generateAgentFooter(): string {
+  return `---\n*Auto-generated. Do not edit manually.*\n`;
 }

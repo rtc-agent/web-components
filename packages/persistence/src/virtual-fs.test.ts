@@ -179,34 +179,34 @@ describe('virtual-fs', () => {
             expect(content).toBe('Hello, World!');
         });
 
-        it('should read with offset', async () => {
-            await vfs.write('/test.txt', 'Hello, World!');
-            const content = await vfs.read('/test.txt', 7);
-            expect(content).toBe('World!');
+        it('should read with offset (line-based, 1-indexed)', async () => {
+            await vfs.write('/test.txt', 'Line 1\nLine 2\nLine 3\nLine 4');
+            const content = await vfs.read('/test.txt', 3); // start from line 3
+            expect(content).toBe('Line 3\nLine 4');
         });
 
-        it('should read with limit', async () => {
-            await vfs.write('/test.txt', 'Hello, World!');
-            const content = await vfs.read('/test.txt', undefined, 5);
-            expect(content).toBe('Hello');
+        it('should read with limit (number of lines)', async () => {
+            await vfs.write('/test.txt', 'Line 1\nLine 2\nLine 3\nLine 4');
+            const content = await vfs.read('/test.txt', undefined, 2); // first 2 lines
+            expect(content).toBe('Line 1\nLine 2');
         });
 
         it('should read with offset and limit', async () => {
-            await vfs.write('/test.txt', 'Hello, World!');
-            const content = await vfs.read('/test.txt', 7, 5);
-            expect(content).toBe('World');
+            await vfs.write('/test.txt', 'Line 1\nLine 2\nLine 3\nLine 4');
+            const content = await vfs.read('/test.txt', 2, 2); // lines 2-3
+            expect(content).toBe('Line 2\nLine 3');
         });
 
         it('should handle offset beyond content length', async () => {
-            await vfs.write('/test.txt', 'Hello');
+            await vfs.write('/test.txt', 'Line 1\nLine 2');
             const content = await vfs.read('/test.txt', 100);
             expect(content).toBe('');
         });
 
-        it('should handle limit beyond content length', async () => {
-            await vfs.write('/test.txt', 'Hello');
-            const content = await vfs.read('/test.txt', 0, 100);
-            expect(content).toBe('Hello');
+        it('should handle limit beyond remaining lines', async () => {
+            await vfs.write('/test.txt', 'Line 1\nLine 2');
+            const content = await vfs.read('/test.txt', 1, 100);
+            expect(content).toBe('Line 1\nLine 2');
         });
 
         it('should throw PathError ENOENT for non-existent file', async () => {
@@ -218,6 +218,18 @@ describe('virtual-fs', () => {
             await vfs.write('/test.txt', 'content');
             const content = await vfs.read('test.txt');
             expect(content).toBe('content');
+        });
+
+        it('should return single-line file correctly with offset=1', async () => {
+            await vfs.write('/test.txt', 'Hello');
+            const content = await vfs.read('/test.txt', 1);
+            expect(content).toBe('Hello');
+        });
+
+        it('should handle empty file', async () => {
+            await vfs.write('/test.txt', '');
+            const content = await vfs.read('/test.txt');
+            expect(content).toBe('');
         });
     });
 
@@ -640,6 +652,72 @@ describe('virtual-fs', () => {
 
             const content = await vfs.read('/file.txt');
             expect(content).toBe('v3v4');
+        });
+    });
+
+    describe('edit', () => {
+        it('should replace exact string match', async () => {
+            await vfs.write('/test.txt', 'Hello World');
+            const result = await vfs.edit('/test.txt', 'World', 'Universe');
+            expect(result.replaced).toBe(1);
+            expect(await vfs.read('/test.txt')).toBe('Hello Universe');
+        });
+
+        it('should replace with multi-line content', async () => {
+            await vfs.write('/test.txt', 'Line 1\nLine 2\nLine 3');
+            await vfs.edit('/test.txt', 'Line 2', 'New Line 2');
+            expect(await vfs.read('/test.txt')).toBe('Line 1\nNew Line 2\nLine 3');
+        });
+
+        it('should throw when old_string not found', async () => {
+            await vfs.write('/test.txt', 'Hello World');
+            await expect(vfs.edit('/test.txt', 'Foo', 'Bar')).rejects.toThrow(/String to replace not found/);
+        });
+
+        it('should throw when old_string matches multiple times and replace_all is false', async () => {
+            await vfs.write('/test.txt', 'aaa bbb aaa');
+            await expect(vfs.edit('/test.txt', 'aaa', 'ccc')).rejects.toThrow(/Found 2 matches/);
+        });
+
+        it('should replace all occurrences when replace_all is true', async () => {
+            await vfs.write('/test.txt', 'aaa bbb aaa ccc aaa');
+            const result = await vfs.edit('/test.txt', 'aaa', 'xxx', true);
+            expect(result.replaced).toBe(3);
+            expect(await vfs.read('/test.txt')).toBe('xxx bbb xxx ccc xxx');
+        });
+
+        it('should throw when old_string equals new_string', async () => {
+            await vfs.write('/test.txt', 'Hello');
+            await expect(vfs.edit('/test.txt', 'Hello', 'Hello')).rejects.toThrow(/No changes to make/);
+        });
+
+        it('should throw when old_string is empty', async () => {
+            await vfs.write('/test.txt', 'Hello');
+            await expect(vfs.edit('/test.txt', '', 'New')).rejects.toThrow(/old_string must not be empty/);
+        });
+
+        it('should throw PathError ENOENT for non-existent file', async () => {
+            await expect(vfs.edit('/nonexistent.txt', 'old', 'new')).rejects.toThrow(PathError);
+        });
+
+        it('should allow new_string to be empty (deletion)', async () => {
+            await vfs.write('/test.txt', 'Hello World');
+            const result = await vfs.edit('/test.txt', ' World', '');
+            expect(result.replaced).toBe(1);
+            expect(await vfs.read('/test.txt')).toBe('Hello');
+        });
+
+        it('should preserve file metadata on edit', async () => {
+            await vfs.write('/file.txt', 'v1 content');
+            const db = getDatabase();
+            const entry1 = await db.fileSystemEntries.get('/file.txt');
+            const originalCreatedAt = entry1!.metadata.createdAt;
+
+            await vfs.edit('/file.txt', 'v1', 'v2');
+
+            const entry2 = await db.fileSystemEntries.get('/file.txt');
+            expect(entry2!.metadata.createdAt).toEqual(originalCreatedAt);
+            expect(entry2!.metadata.updatedAt.getTime()).toBeGreaterThanOrEqual(originalCreatedAt.getTime());
         });
     });
 

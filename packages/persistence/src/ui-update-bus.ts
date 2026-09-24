@@ -30,18 +30,44 @@ export interface UIUpdateEvent {
 export type UIUpdateListener = (event: UIUpdateEvent) => void | Promise<void>;
 
 /**
+ * Bulk update event: emitted when a batch of updates completes after suspend.
+ * UI components can use this to reload data instead of processing individual events.
+ */
+export interface BulkUpdateEvent {
+  /** Set of entity types that were updated */
+  entities: Set<UpdateEntity>;
+  /** Total number of events that were batched */
+  eventCount: number;
+}
+
+/**
+ * Bulk update subscriber callback.
+ */
+export type BulkUpdateListener = (event: BulkUpdateEvent) => void;
+
+/**
+ * Gap fill state listener callback.
+ */
+export type GapFillStateListener = (isSyncing: boolean) => void;
+
+/**
  * UIUpdateBus: singleton publish/subscribe bus for UI updates.
  *
  * - Supports per-entity filtered subscriptions
  * - Supports wildcard subscriptions (receive all entity events)
  * - Events for the same (entity, entityId) are queued per listener,
  *   ensuring sequential processing and preventing race conditions.
+ * - Supports suspend/resume for batch operations (prevents UI thrashing)
  */
 export class UIUpdateBus {
   /** entity -> subscriber set */
   private entityListeners = new Map<UpdateEntity, Set<UIUpdateListener>>();
   /** Wildcard subscribers (receive all events) */
   private wildcardListeners = new Set<UIUpdateListener>();
+  /** Bulk update subscribers (emitted after resume from suspend) */
+  private bulkUpdateListeners = new Set<BulkUpdateListener>();
+  /** Gap fill state subscribers (emitted when gap fill starts/ends) */
+  private gapFillListeners = new Set<GapFillStateListener>();
 
   /**
    * Per-(entity, entityId, listener) promise chains for sequential processing.
@@ -58,6 +84,13 @@ export class UIUpdateBus {
 
   /** Map from listener function to its unique ID (WeakMap for auto-cleanup) */
   private _listenerIds = new WeakMap<UIUpdateListener, number>();
+
+  /** Suspend state: when true, events are collected but not dispatched */
+  private _suspended = false;
+  /** Collected events during suspend */
+  private _suspendedEvents: UIUpdateEvent[] = [];
+  /** Track which entities were updated during suspend */
+  private _suspendedEntities = new Set<UpdateEntity>();
 
   /**
    * Get or create a unique ID for a listener.
@@ -151,8 +184,17 @@ export class UIUpdateBus {
    *
    * Events for the same (entity, entityId) are queued per listener,
    * ensuring sequential processing and preventing race conditions.
+   *
+   * When suspended, events are collected but not dispatched until resume() is called.
    */
   publish(event: UIUpdateEvent): void {
+    if (this._suspended) {
+      // Collect event for later bulk dispatch
+      this._suspendedEvents.push(event);
+      this._suspendedEntities.add(event.entity);
+      return;
+    }
+
     // Wildcard subscribers
     for (const listener of this.wildcardListeners) {
       this._dispatchToListener(listener, event);
@@ -167,12 +209,104 @@ export class UIUpdateBus {
   }
 
   /**
+   * Suspend event dispatching. Events will be collected until resume() is called.
+   * Use this for batch operations (e.g., gap fill) to prevent UI thrashing.
+   */
+  suspend(): void {
+    log.debug('[BulkUpdate] UIUpdateBus.suspend() called');
+    this._suspended = true;
+  }
+
+  /**
+   * Resume event dispatching and emit a bulk-update event if any events were collected.
+   * UI components should subscribe to bulk updates via onBulkUpdate() to reload data.
+   */
+  resume(): void {
+    this._suspended = false;
+    const eventCount = this._suspendedEvents.length;
+    log.debug('[BulkUpdate] UIUpdateBus.resume() called, eventCount:', eventCount);
+    if (eventCount > 0) {
+      const bulkEvent: BulkUpdateEvent = {
+        entities: new Set(this._suspendedEntities),
+        eventCount,
+      };
+      // Notify bulk update listeners
+      for (const listener of this.bulkUpdateListeners) {
+        try {
+          listener(bulkEvent);
+        } catch (err) {
+          log.error('bulk update listener error:', err);
+        }
+      }
+      // Clear collected events
+      this._suspendedEvents = [];
+      this._suspendedEntities.clear();
+    }
+  }
+
+  /**
+   * Subscribe to bulk update events (emitted after resume from suspend).
+   * Returns an unsubscribe function.
+   */
+  onBulkUpdate(listener: BulkUpdateListener): () => void {
+    this.bulkUpdateListeners.add(listener);
+    return () => {
+      this.bulkUpdateListeners.delete(listener);
+    };
+  }
+
+  /**
+   * Emit gap fill start event. UI can show a syncing overlay.
+   */
+  emitGapFillStart(): void {
+    console.log('[BulkUpdate] UIUpdateBus.emitGapFillStart() called');
+    for (const listener of this.gapFillListeners) {
+      try {
+        listener(true);
+      } catch (err) {
+        log.error('gap fill listener error:', err);
+      }
+    }
+  }
+
+  /**
+   * Emit gap fill end event. UI can hide the syncing overlay and reload data.
+   */
+  emitGapFillEnd(): void {
+    console.log('[BulkUpdate] UIUpdateBus.emitGapFillEnd() called');
+    for (const listener of this.gapFillListeners) {
+      try {
+        listener(false);
+      } catch (err) {
+        log.error('gap fill listener error:', err);
+      }
+    }
+  }
+
+  /**
+   * Subscribe to gap fill state changes (start/end).
+   * Returns an unsubscribe function.
+   */
+  onGapFillState(listener: GapFillStateListener): () => void {
+    this.gapFillListeners.add(listener);
+    return () => {
+      this.gapFillListeners.delete(listener);
+    };
+  }
+
+  /**
    * Clear all subscriptions and processing chains (used for testing / shutdown).
    */
   clear(): void {
     this.entityListeners.clear();
     this.wildcardListeners.clear();
+    this.bulkUpdateListeners.clear();
+    this.gapFillListeners.clear();
     this._processingChains.clear();
+    // Reset suspend state
+    this._suspended = false;
+    this._suspendedEvents = [];
+    this._suspendedEntities.clear();
     // Note: _listenerIds is a WeakMap, entries auto-clean when listeners are GC'd
   }
 }

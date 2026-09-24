@@ -133,8 +133,8 @@ export class VirtualFS {
    * Read file content.
    *
    * @param path File path
-   * @param offset Starting position (character position, not byte)
-   * @param limit Maximum number of characters to read
+   * @param offset Starting line number (1-indexed). Only provide if the file is too large to read at once.
+   * @param limit Maximum number of lines to read. Only provide if the file is too large to read at once.
    * @throws PathError ENOENT if file does not exist
    */
   async read(path: string, offset?: number, limit?: number): Promise<string> {
@@ -151,9 +151,11 @@ export class VirtualFS {
     let content = entry.content;
 
     if (offset !== undefined || limit !== undefined) {
-      const start = offset || 0;
-      const end = limit !== undefined ? start + limit : undefined;
-      content = content.substring(start, end);
+      const lines = content.split('\n');
+      // offset is 1-indexed, convert to 0-indexed
+      const startLine = offset !== undefined ? Math.max(0, offset - 1) : 0;
+      const endLine = limit !== undefined ? startLine + limit : lines.length;
+      content = lines.slice(startLine, endLine).join('\n');
     }
 
     log.debug('read: success, content length:', content.length);
@@ -377,6 +379,84 @@ export class VirtualFS {
   async queryByType(type: FileSystemEntryType): Promise<FileSystemEntry[]> {
     const db = getDatabase();
     return db.fileSystemEntries.where('type').equals(type).toArray();
+  }
+
+  /**
+   * Edit a file by exact string replacement.
+   *
+   * @param path File path
+   * @param oldString The text to replace
+   * @param newString The text to replace it with
+   * @param replaceAll Replace all occurrences (default: false)
+   * @throws PathError ENOENT if file does not exist
+   * @throws Error if oldString is not found, matches multiple times (with replaceAll=false),
+   *         or oldString equals newString
+   */
+  async edit(
+    path: string,
+    oldString: string,
+    newString: string,
+    replaceAll: boolean = false
+  ): Promise<{ replaced: number }> {
+    const normalizedPath = normalizePath(path);
+    log.debug('edit:', normalizedPath, 'replaceAll:', replaceAll);
+    const db = getDatabase();
+
+    if (oldString === '') {
+      throw new Error('old_string must not be empty');
+    }
+
+    if (oldString === newString) {
+      throw new Error('No changes to make: old_string and new_string are exactly the same');
+    }
+
+    const entry = await db.fileSystemEntries.get(normalizedPath);
+    if (!entry) {
+      throw new PathError('ENOENT', `File not found: ${normalizedPath}`);
+    }
+
+    const content = entry.content;
+
+    // Count matches
+    let matchCount = 0;
+    let idx = 0;
+    while (true) {
+      const pos = content.indexOf(oldString, idx);
+      if (pos === -1) break;
+      matchCount++;
+      idx = pos + oldString.length;
+    }
+
+    if (matchCount === 0) {
+      throw new Error(`String to replace not found in file.\nString: ${oldString}`);
+    }
+
+    if (matchCount > 1 && !replaceAll) {
+      throw new Error(
+        `Found ${matchCount} matches of the string to replace, but replace_all is false. ` +
+        `Either provide more context to make the match unique, or set replace_all to true.`
+      );
+    }
+
+    // Perform replacement
+    const newContent = replaceAll
+      ? content.split(oldString).join(newString)
+      : content.replace(oldString, newString);
+
+    // Write back
+    const metadata: FileSystemEntryMetadata = {
+      ...entry.metadata,
+      updatedAt: new Date(),
+    };
+
+    await db.fileSystemEntries.put({
+      ...entry,
+      content: newContent,
+      metadata,
+    });
+
+    log.debug('edit: success, replaced:', replaceAll ? matchCount : 1);
+    return { replaced: replaceAll ? matchCount : 1 };
   }
 
   /**

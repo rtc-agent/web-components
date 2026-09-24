@@ -59,8 +59,7 @@ export const timelineStyles = css`
 
   .timeline-dot:hover {
     transform: translateX(-50%) scale(2);
-    background: var(--rtc-color-bg-hover);
-    box-shadow: var(--rtc-shadow-sm);
+    box-shadow: 0 0 0 4px var(--rtc-color-border);
   }
 
   /* ── Timeline dot tooltip ────────────────────────────────────── */

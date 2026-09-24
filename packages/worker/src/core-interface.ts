@@ -10,12 +10,14 @@ import type { UIUpdateEvent, LocalSession, LocalMessage, LocalRtc } from '@rtc-a
  * - requestToken: Centrifuge requests a token from any Tab when needed
  * - requestTokenRefresh: Centrifuge requests a token refresh from any Tab when expired
  * - onConnectionStateChange: Worker broadcasts RTCAgentClient connection state changes to this Tab
+ * - onGapFillState: Worker broadcasts gap fill state changes (start/end) to this Tab
  */
 export interface WorkerCallbacks {
   onUIUpdate: (event: UIUpdateEvent) => void;
   requestToken: () => Promise<string>;
   requestTokenRefresh: () => Promise<'refresh' | 'relogin'>;
   onConnectionStateChange: (event: ConnectionStateEvent) => void;
+  onGapFillState: (isSyncing: boolean) => void;
 }
 
 /**
