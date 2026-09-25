@@ -416,6 +416,8 @@ function generateAgentTools(): string {
 - **script**: Execute JavaScript code (for calling business functions)
 - **todoWrite**: Track task progress
 - **askUser**: Request user input when needed
+- **webSearch**: Search the web for current information (when configured)
+- **webFetch**: Fetch and read web page content (when configured)
 
 `;
 }
