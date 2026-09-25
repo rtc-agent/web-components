@@ -1,5 +1,5 @@
 import {Centrifuge, HistoryOptions} from 'centrifuge';
-import {RpcMethod, SendMessageRequest, ForkSessionRequest, Update} from '@rtc-agent/protocol';
+import {RpcMethod, SendMessageRequest, ForkSessionRequest, Update, UpdateItem} from '@rtc-agent/protocol';
 import type {
   ListSessionsResponse,
   MessageListResponse,
@@ -648,7 +648,7 @@ export class RTCAgentClient implements IRTCAgentClient {
 
   /**
    * Run gap fill for a channel until reaching targetOffset.
-   * Fetches history in batches and processes through applyUpdates.
+   * Fetches history in batches, accumulates to 100+ updates, then deduplicates at item level.
    */
   private async runGapFill(channel: string, targetOffset: number, epoch: string): Promise<void> {
     const sub = this.subscriptions.get(channel);
@@ -664,7 +664,8 @@ export class RTCAgentClient implements IRTCAgentClient {
       `subState=${sub.state}`
     );
 
-    const BATCH_SIZE = 10;
+    const BATCH_SIZE = 10; // RPC 每次拉取的数量（避免返回内容过大）
+    const ACCUMULATE_THRESHOLD = 10000; // 累积到此数量后去重
     // Only suspend UI updates for large gaps to prevent UI thrashing.
     // Small gaps (< 100) can update UI normally for real-time feedback.
     const SUSPEND_THRESHOLD = 100;
@@ -683,79 +684,90 @@ export class RTCAgentClient implements IRTCAgentClient {
       this.options.suspendUIUpdates?.();
     }
 
+    // 缓冲区提升到 try 外面，断网时也能应用已拉取的内容
+    let buffer: Update[] = [];
+    let gapOffsets: number[] = [];
+    let offset = currentOffset;
+
     try {
-      while (true) {
-        // Dynamically read current offset
-        const position = await this.options.getLastOffset?.(channel);
-        const offset = position?.offset ?? 0;
+      // 外层循环：直到达到 targetOffset
+      while (offset < targetOffset - 1) {
+        buffer = [];
+        gapOffsets = [];
 
-        if (offset >= targetOffset - 1) {
-          break; // Already caught up
-        }
+        // 内层循环：分批拉取，累积到 ACCUMULATE_THRESHOLD+
+        while (buffer.length < ACCUMULATE_THRESHOLD && offset < targetOffset - 1) {
+          const remaining = targetOffset - offset - 1;
+          const limit = Math.min(BATCH_SIZE, remaining);
+          if (limit <= 0) break;
 
-        const remaining = targetOffset - offset - 1;
-        const limit = Math.min(BATCH_SIZE, remaining);
-        if (limit <= 0) break;
+          const opts: HistoryOptions = {
+            since: { offset, epoch },
+            limit,
+            reverse: false,
+          };
 
-        const opts: HistoryOptions = {
-          since: { offset, epoch },
-          limit,
-          reverse: false,
-        };
-
-        // 调试日志：记录调用 history 前的连接状态
-        log.debug(
-          `[GAP_FILL_DEBUG] Calling sub.history(): offset=${offset}, limit=${limit}, ` +
-          `connectionState=${this.connectionState}, hasCentrifuge=${!!this.centrifuge}, ` +
-          `subState=${sub.state}`
-        );
-
-        const historyResult = await sub.history(opts);
-        const publications = historyResult.publications;
-
-        if (publications.length === 0) break;
-
-        // Validate batch continuity using Publication.offset (not data.offset).
-        // Publication.offset is always set by Centrifuge; data.offset may be undefined
-        // for gap placeholder publications.
-        const firstOffset = publications[0].offset ?? 0;
-        if (firstOffset !== offset + 1) {
-          throw new Error(
-            `Gap fill missing messages: expected first offset ${offset + 1}, got ${firstOffset}`,
+          // 调试日志：记录调用 history 前的连接状态
+          log.debug(
+            `[GAP_FILL_DEBUG] Calling sub.history(): offset=${offset}, limit=${limit}, ` +
+            `connectionState=${this.connectionState}, hasCentrifuge=${!!this.centrifuge}, ` +
+            `subState=${sub.state}`
           );
-        }
 
-        for (let i = 1; i < publications.length; i++) {
-          const prev = publications[i - 1].offset ?? 0;
-          const curr = publications[i].offset ?? 0;
-          if (curr !== prev + 1) {
-            throw new Error(`Gap fill non-continuous: offset jumped from ${prev} to ${curr}`);
+          const historyResult = await sub.history(opts);
+          const publications = historyResult.publications;
+
+          if (publications.length === 0) break;
+
+          // Validate batch continuity using Publication.offset
+          const firstOffset = publications[0].offset ?? 0;
+          if (firstOffset !== offset + 1) {
+            throw new Error(
+              `Gap fill missing messages: expected first offset ${offset + 1}, got ${firstOffset}`,
+            );
           }
-        }
 
-        // Process publications:
-        // - Gap placeholders (type === 'gap'): just update offset, skip onPublication
-        // - Real updates: process through applyUpdates
-        const realUpdates: Update[] = [];
-        for (const pub of publications) {
-          const data = pub.data as Record<string, unknown>;
-          const pubOffset = pub.offset ?? 0;
-          if (data?.type === 'gap') {
-            // Gap placeholder: just advance the offset
-            await this.options.updateOffset?.(channel, pubOffset, epoch);
-          } else {
-            realUpdates.push(pub.data as Update);
+          for (let i = 1; i < publications.length; i++) {
+            const prev = publications[i - 1].offset ?? 0;
+            const curr = publications[i].offset ?? 0;
+            if (curr !== prev + 1) {
+              throw new Error(`Gap fill non-continuous: offset jumped from ${prev} to ${curr}`);
+            }
           }
+
+          // 分离 real updates 和 gap placeholders
+          for (const pub of publications) {
+            const data = pub.data as Record<string, unknown>;
+            const pubOffset = pub.offset ?? 0;
+            if (data?.type === 'gap') {
+              // Gap placeholder: 记录 offset，稍后批量处理
+              gapOffsets.push(pubOffset);
+            } else {
+              buffer.push(pub.data as Update);
+            }
+          }
+
+          // 更新 offset 为当前批次的最后一个
+          offset = publications[publications.length - 1].offset ?? offset;
+
+          // If we got fewer publications than requested, we've reached the end
+          if (publications.length < limit) break;
         }
 
-        if (realUpdates.length > 0) {
-          await this.applyUpdates(realUpdates);
-        }
-
-        // If we got fewer publications than requested, we've reached the end
-        if (publications.length < limit) break;
+        // 应用当前批次的缓冲区内容
+        await this.flushGapFillBuffer(channel, buffer, gapOffsets, epoch);
       }
     } catch (err) {
+      // 网络错误时，先应用缓冲区已拉取的内容
+      if (buffer.length > 0 || gapOffsets.length > 0) {
+        log.debug(`[GAP_FILL_DEBUG] Network error, flushing buffer before error handling: ${buffer.length} updates, ${gapOffsets.length} gap offsets`);
+        try {
+          await this.flushGapFillBuffer(channel, buffer, gapOffsets, epoch);
+        } catch (flushErr) {
+          log.error(`[GAP_FILL_DEBUG] Failed to flush buffer on error:`, flushErr);
+        }
+      }
+
       // 调试日志：记录错误发生时的详细上下文
       log.error(
         `[GAP_FILL_DEBUG] runGapFill failed for channel ${channel}:`,
@@ -778,6 +790,84 @@ export class RTCAgentClient implements IRTCAgentClient {
         this.options.resumeUIUpdates?.();
         this.options.onGapFillEnd?.();
       }
+    }
+  }
+
+  /**
+   * Deduplicate updates at item level.
+   * Key: `${entity}:${entity_id}`, keep the one with the smallest offset (first occurrence).
+   * Server returns the latest entity data in the first Update, so we keep the earliest one.
+   */
+  private deduplicateUpdates(updates: Update[]): Update[] {
+    const map = new Map<string, { item: UpdateItem; data: unknown; offset: number }>();
+
+    for (const update of updates) {
+      for (let i = 0; i < update.items.length; i++) {
+        const item = update.items[i];
+        const data = update.data_list?.[i];
+
+        if (!data) continue;
+
+        const key = `${item.entity}:${item.entity_id}`;
+        const existing = map.get(key);
+        if (!existing || update.offset < existing.offset) {
+          // Keep the first occurrence (smallest offset) - server already returns latest data
+          map.set(key, { item, data, offset: update.offset });
+        }
+      }
+    }
+
+    // Reconstruct as Update array (one item per Update), sorted by offset
+    const result: Update[] = [];
+    const byOffset = Array.from(map.values()).sort((a, b) => a.offset - b.offset);
+
+    for (const { item, data, offset } of byOffset) {
+      result.push({
+        id: '', // Original Update id is not preserved after deduplication
+        items: [item],
+        data_list: [data],
+        offset,
+      });
+    }
+
+    return result;
+  }
+
+  /**
+   * Flush gap fill buffer: process gap placeholders and deduplicated updates.
+   * Used both in normal flow and on network error to apply buffered content.
+   */
+  private async flushGapFillBuffer(
+    channel: string,
+    buffer: Update[],
+    gapOffsets: number[],
+    epoch: string
+  ): Promise<void> {
+    // 处理 gap placeholders：批量更新 offset
+    if (gapOffsets.length > 0) {
+      const maxGapOffset = Math.max(...gapOffsets);
+      await this.options.updateOffset?.(channel, maxGapOffset, epoch);
+    }
+
+    // 处理累积的 updates：去重后直接应用（不通过 applyUpdates，避免再次触发 gap fill）
+    if (buffer.length > 0) {
+      const deduplicated = this.deduplicateUpdates(buffer);
+
+      // 直接调用 onPublication，跳过 applyUpdates 的 gap 检测
+      for (const update of deduplicated) {
+        if (this.options.onPublication) {
+          const event: PublicationEvent = {
+            channel,
+            offset: update.offset,
+            data: update,
+          };
+          await this.options.onPublication(event);
+        }
+      }
+
+      // 全部成功后，更新 offset 到最大 offset
+      const maxOffset = Math.max(...buffer.map(u => u.offset));
+      await this.options.updateOffset?.(channel, maxOffset, epoch);
     }
   }
 
