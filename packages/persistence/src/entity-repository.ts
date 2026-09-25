@@ -25,9 +25,9 @@ export interface UpsertResult<T> {
 }
 
 /**
- * Batch upsert 中的单条数据（item + data 的捆绑）。
+ * Upsert item: single data item with its metadata.
  */
-interface BatchUpsertItem {
+interface UpsertItem {
   item: UpdateItem;
   data: unknown;
 }
@@ -587,14 +587,7 @@ export class EntityRepository {
    * synchronously published to UIUpdateBus.
    */
   async applyUpdate(update: Update): Promise<void> {
-    for (let i = 0; i < update.items.length; i++) {
-      const item = update.items[i];
-      const data = update.data_list?.[i];
-
-      if (!data) continue;
-
-      await this.applyUpdateItem(item, data);
-    }
+    return this.applyUpdates([update]);
   }
 
   /**
@@ -607,11 +600,16 @@ export class EntityRepository {
    * @param updates Array of Update events to process in a single batch
    */
   async applyUpdates(updates: Update[]): Promise<void> {
+    // Fast path: empty input
+    if (!updates || updates.length === 0) return;
+
+    // Fast path: single update, use original per-item logic
+    if (updates.length === 1) {
+      return this.applyUpdateOriginal(updates[0]);
+    }
+
     const db = getDatabase();
     const startTime = performance.now();
-
-    // 0. Fast path: empty input
-    if (!updates || updates.length === 0) return;
 
     // Count total items for logging
     let totalItems = 0;
@@ -696,14 +694,14 @@ export class EntityRepository {
   /**
    * Group items by entity type, separating upserts and deletes.
    *
-   * Uses Map<client_id, BatchUpsertItem> for automatic deduplication:
+   * Uses Map<client_id, UpsertItem> for automatic deduplication:
    * same client_id later occurrences override earlier ones (last wins).
    */
   private groupItemsByEntity(updates: Update[]): {
-    upserts: Map<UpdateEntity, BatchUpsertItem[]>;
+    upserts: Map<UpdateEntity, UpsertItem[]>;
     deletes: BatchDeletes;
   } {
-    const upserts = new Map<UpdateEntity, Map<string, BatchUpsertItem>>();
+    const upserts = new Map<UpdateEntity, Map<string, UpsertItem>>();
     const deletes: BatchDeletes = {
       sessions: [],
       turns: [],
@@ -749,7 +747,7 @@ export class EntityRepository {
     }
 
     // Convert Map back to array
-    const result = new Map<UpdateEntity, BatchUpsertItem[]>();
+    const result = new Map<UpdateEntity, UpsertItem[]>();
     for (const [entity, map] of upserts) {
       result.set(entity, [...map.values()]);
     }
@@ -761,7 +759,7 @@ export class EntityRepository {
    * Check if batch operation is empty (no valid operations).
    */
   private isBatchEmpty(
-    upserts: Map<UpdateEntity, BatchUpsertItem[]>,
+    upserts: Map<UpdateEntity, UpsertItem[]>,
     deletes: BatchDeletes
   ): boolean {
     for (const items of upserts.values()) {
@@ -801,7 +799,7 @@ export class EntityRepository {
    * Much more efficient than full table scan.
    */
   private async loadRequiredSessionMap(
-    upserts: Map<UpdateEntity, BatchUpsertItem[]>
+    upserts: Map<UpdateEntity, UpsertItem[]>
   ): Promise<Map<string, LocalSession>> {
     const db = getDatabase();
 
@@ -878,7 +876,7 @@ export class EntityRepository {
    * fills in default values for required fields, and removes protocol-layer fields.
    */
   private prepareEntitiesForBatch(
-    upserts: Map<UpdateEntity, BatchUpsertItem[]>,
+    upserts: Map<UpdateEntity, UpsertItem[]>,
     sessionMap: Map<string, LocalSession>
   ): BatchEntities {
     const result: BatchEntities = {
@@ -925,6 +923,7 @@ export class EntityRepository {
 
       const mapped: Partial<LocalTurn> = {
         // Defaults
+        session_client_id: '',
         status: 'pending',
         created_at: now,
         ...(raw as Partial<LocalTurn>),
@@ -953,6 +952,11 @@ export class EntityRepository {
 
       const mapped: Partial<LocalMessage> = {
         // Defaults
+        session_client_id: '',
+        role: 'user',
+        content: '',
+        turn_id: '',
+        turn_offset: 0,
         streaming_status: 'pending',
         creator_kind: 'user',
         creator_ref_id: '',
@@ -1004,21 +1008,29 @@ export class EntityRepository {
 
       const mapped: Partial<LocalRtc> = {
         // Defaults
+        session_client_id: '',
         turn_id: '',
         offset: 0,
         tool_name: '',
         status: 'pending',
+        parameters: undefined,
+        result: undefined,
+        error_message: undefined,
+        completed_at: undefined,
         created_at: now,
         updated_at: now,
         ...(raw as Partial<LocalRtc>),
         // Force override
         server_id: serverId,
         client_id: clientId,
-        session_client_id: sessionClientId || '',
         session_device_id: sessionDeviceId,
         // RTC special handling: sync_status should be 'pending'
         sync_status: 'pending',
       } as Partial<LocalRtc>;
+      // Field mapping: session_id → session_client_id
+      if (sessionClientId) {
+        mapped.session_client_id = sessionClientId;
+      }
       delete (mapped as Record<string, unknown>)['id'];
       delete (mapped as Record<string, unknown>)['session_id'];
       result.rtcs.push(mapped);
@@ -1170,7 +1182,7 @@ export class EntityRepository {
    * Only locks tables that have actual operations, reducing transaction conflicts.
    */
   private getTablesToLock(
-    upserts: Map<UpdateEntity, BatchUpsertItem[]>,
+    upserts: Map<UpdateEntity, UpsertItem[]>,
     deletes: BatchDeletes
   ): Table<any, string>[] {
     const db = getDatabase();
@@ -1410,6 +1422,15 @@ export class EntityRepository {
     }
     log.warn(`${entityType} ${entityId} references unknown session ${serverSessionId}`);
     return serverSessionId;
+  }
+
+  private async applyUpdateOriginal(update: Update): Promise<void> {
+    for (let i = 0; i < update.items.length; i++) {
+      const item = update.items[i];
+      const data = update.data_list?.[i];
+      if (!data) continue;
+      await this.applyUpdateItem(item, data);
+    }
   }
 
   private async applyUpdateItem(item: UpdateItem, data: unknown): Promise<void> {

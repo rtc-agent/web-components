@@ -135,4 +135,49 @@ describe('applyUpdates performance benchmark', () => {
     // Batch should be at least 2x faster for this size
     expect(batchTime).toBeLessThan(singleTime);
   });
+
+  it('benchmark: 10 sessions + 100 turns + 100 messages < 200ms (Section 9.2)', async () => {
+    const updates = generateUpdates(10, 10, 10); // 10 + 100 + 100 = 210 items
+    const totalItems = updates.reduce((sum, u) => sum + u.items.length, 0);
+
+    const start = performance.now();
+    await repo.applyUpdates(updates);
+    const elapsed = performance.now() - start;
+
+    console.log(`\n[Benchmark] ${totalItems} items in ${elapsed.toFixed(2)}ms`);
+    console.log(`  Per-item: ${(elapsed / totalItems).toFixed(3)}ms`);
+
+    // Hard assertion per Section 9.2
+    expect(elapsed).toBeLessThan(200);
+  });
+
+  it('benchmark: batch should be at least 2x faster than single for 100+ items (Section 9.2)', async () => {
+    const updates = generateUpdates(10, 3, 3); // ~70 items
+    const totalItems = updates.reduce((sum, u) => sum + u.items.length, 0);
+
+    // Batch
+    await flushAll();
+    repo = new EntityRepository(TEST_DEVICE_ID);
+    const batchStart = performance.now();
+    await repo.applyUpdates(updates);
+    const batchTime = performance.now() - batchStart;
+
+    // Single
+    await flushAll();
+    repo = new EntityRepository(TEST_DEVICE_ID);
+    const singleStart = performance.now();
+    for (const update of updates) {
+      await repo.applyUpdate(update);
+    }
+    const singleTime = performance.now() - singleStart;
+
+    const speedup = singleTime / batchTime;
+    console.log(`\n[Benchmark] ${totalItems} items:`);
+    console.log(`  Single (applyUpdate): ${singleTime.toFixed(2)}ms`);
+    console.log(`  Batch (applyUpdates): ${batchTime.toFixed(2)}ms`);
+    console.log(`  Speedup: ${speedup.toFixed(2)}x`);
+
+    // Hard assertion: batch should be at least 2x faster
+    expect(speedup).toBeGreaterThan(2);
+  });
 });
