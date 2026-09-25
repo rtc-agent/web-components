@@ -849,25 +849,43 @@ export class RTCAgentClient implements IRTCAgentClient {
       await this.options.updateOffset?.(channel, maxGapOffset, epoch);
     }
 
-    // 处理累积的 updates：去重后直接应用（不通过 applyUpdates，避免再次触发 gap fill）
+    // 处理累积的 updates：去重后批量应用
     if (buffer.length > 0) {
       const deduplicated = this.deduplicateUpdates(buffer);
 
-      // 直接调用 onPublication，跳过 applyUpdates 的 gap 检测
-      for (const update of deduplicated) {
-        if (this.options.onPublication) {
-          const event: PublicationEvent = {
+      // Suspend UI updates during batch processing
+      this.options.suspendUIUpdates?.();
+
+      try {
+        // Prefer batch callback for optimized processing
+        if (this.options.onPublications) {
+          const events = deduplicated.map(update => ({
             channel,
             offset: update.offset,
             data: update,
-          };
-          await this.options.onPublication(event);
+          }));
+          await this.options.onPublications(events);
+        } else {
+          // Fallback: per-item processing (backward compatible)
+          for (const update of deduplicated) {
+            if (this.options.onPublication) {
+              const event: PublicationEvent = {
+                channel,
+                offset: update.offset,
+                data: update,
+              };
+              await this.options.onPublication(event);
+            }
+          }
         }
-      }
 
-      // 全部成功后，更新 offset 到最大 offset
-      const maxOffset = Math.max(...buffer.map(u => u.offset));
-      await this.options.updateOffset?.(channel, maxOffset, epoch);
+        // Update offset to max offset after all updates processed successfully
+        const maxOffset = Math.max(...buffer.map(u => u.offset));
+        await this.options.updateOffset?.(channel, maxOffset, epoch);
+      } finally {
+        // Always resume UI updates, even if processing failed
+        this.options.resumeUIUpdates?.();
+      }
     }
   }
 

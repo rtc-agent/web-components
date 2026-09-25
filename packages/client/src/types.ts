@@ -114,6 +114,14 @@ export interface RTCAgentClientOptions {
    */
   onPublication?: (event: PublicationEvent) => Promise<void> | void;
   /**
+   * Optional: batch publication callback (for gap fill optimization).
+   * When provided, flushGapFillBuffer will call this instead of onPublication
+   * for each update, enabling batch IndexedDB operations.
+   *
+   * If not provided, falls back to calling onPublication for each update.
+   */
+  onPublications?: (events: PublicationEvent[]) => Promise<void> | void;
+  /**
    * Optional: suspend UI update bus before batch operations (e.g., gap fill).
    * When suspended, UI events are collected but not dispatched until resumeUIUpdates is called.
    * This prevents UI thrashing when processing large batches of historical updates.

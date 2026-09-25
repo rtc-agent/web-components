@@ -65,6 +65,9 @@ export class PersistenceLayer {
       onPublication: async (event: PublicationEvent) => {
         await this.handlePublication(event);
       },
+      onPublications: async (events: PublicationEvent[]) => {
+        await this.handlePublications(events);
+      },
       suspendUIUpdates: config.client.suspendUIUpdates ?? (() => {
         getUIUpdateBus().suspend();
       }),
@@ -136,6 +139,16 @@ export class PersistenceLayer {
 
     // Note: offset and epoch persistence is handled by the Client's updateOffset callback.
     // The Client calls updateOffset automatically after onPublication.
+  }
+
+  /**
+   * Handle batch Publication events (optimized for gap fill).
+   *
+   * Uses applyUpdates for batch IndexedDB operations instead of per-item processing.
+   */
+  private async handlePublications(events: PublicationEvent[]): Promise<void> {
+    const updates = events.map(e => e.data as Update);
+    await this.entityRepository.applyUpdates(updates);
   }
 
   // ========== Convenience methods ==========
