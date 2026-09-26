@@ -2138,8 +2138,8 @@ export class RtcAgent extends LitElement {
           .connectionState=${this._connectionState}
           ?connection-failed=${this._connectionFailed}
           connection-error=${this._connectionError}
-          ?show-minimize=${this._resolvedWindowConfig.showMinimize}
-          ?show-maximize=${this._resolvedWindowConfig.showMaximize}
+          .showMinimize=${this._resolvedWindowConfig.showMinimize}
+          .showMaximize=${this._resolvedWindowConfig.showMaximize}
           @rtc-connection-retry=${this._handleConnectionRetry}
         ></rtc-title-bar>
         ${isLoggedIn
