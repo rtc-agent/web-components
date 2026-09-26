@@ -44,6 +44,8 @@ export class AuthController implements ReactiveController {
     private _boundVisibilityHandler?: () => void;
     /** In-flight refresh guard — prevents concurrent refresh calls from racing. */
     private _refreshing?: Promise<boolean>;
+    /** Flag to indicate external token mode (skip localStorage persistence). */
+    private _externalTokens = false;
 
     /**
      * Callback fired when auth state transitions to logged-in.
@@ -137,6 +139,37 @@ export class AuthController implements ReactiveController {
         this.onLogin?.();
     }
 
+    /**
+     * Set tokens from external source (host application).
+     *
+     * Unlike regular `setTokens()`, this method:
+     * 1. Does NOT persist tokens to localStorage
+     * 2. Sets a flag to skip future persistence
+     * 3. Still triggers onLogin callback for WebSocket connection
+     *
+     * Use this when the host application manages token lifecycle
+     * (e.g. StaticTokenAuth mode from createRtcAgent factory).
+     */
+    setExternalTokens(params: SetTokensParams) {
+        this._externalTokens = true;
+
+        const expiresAt = Date.now() + params.expiresIn * 1000;
+
+        this._state = {
+            isLoggedIn: true,
+            accessToken: params.accessToken,
+            refreshToken: params.refreshToken,
+            userId: params.userId,
+            expiresAt,
+        };
+
+        // Skip _saveTokens() for external tokens — they are not persisted
+        this._scheduleRefresh(expiresAt);
+        this.host.requestUpdate();
+        // Notify rtc-agent to trigger WebSocket connection
+        this.onLogin?.();
+    }
+
     /** Get current access token (for API requests) */
     getAccessToken(): string | undefined {
         return this._state.accessToken;
@@ -152,7 +185,13 @@ export class AuthController implements ReactiveController {
 
     private _logout() {
         this._state = {isLoggedIn: false};
-        localStorage.removeItem(STORAGE_KEYS.tokens);
+
+        // Only clear localStorage if we are not in external token mode.
+        // External tokens were never persisted, so there is nothing to clean up.
+        if (!this._externalTokens) {
+            localStorage.removeItem(STORAGE_KEYS.tokens);
+        }
+        this._externalTokens = false;
 
         if (this._refreshTimer) {
             clearTimeout(this._refreshTimer);
@@ -347,17 +386,20 @@ export class AuthController implements ReactiveController {
         };
 
         // Update localStorage — merge with existing data to avoid overwriting
-        // fields written by other code paths (e.g. userId, refreshToken)
-        let stored: Record<string, unknown> = {};
-        try {
-            stored = JSON.parse(localStorage.getItem(STORAGE_KEYS.tokens) || '{}');
-        } catch (err) {
-            // Corrupted data; start fresh
-            log.debug('Stored token data corrupted, starting fresh:', err);
+        // fields written by other code paths (e.g. userId, refreshToken).
+        // Skip persistence for external tokens (host application manages them).
+        if (!this._externalTokens) {
+            let stored: Record<string, unknown> = {};
+            try {
+                stored = JSON.parse(localStorage.getItem(STORAGE_KEYS.tokens) || '{}');
+            } catch (err) {
+                // Corrupted data; start fresh
+                log.debug('Stored token data corrupted, starting fresh:', err);
+            }
+            stored.accessToken = newAccessToken;
+            stored.expiresAt = newExpiresAt;
+            localStorage.setItem(STORAGE_KEYS.tokens, JSON.stringify(stored));
         }
-        stored.accessToken = newAccessToken;
-        stored.expiresAt = newExpiresAt;
-        localStorage.setItem(STORAGE_KEYS.tokens, JSON.stringify(stored));
 
         // Schedule next refresh
         this._scheduleRefresh(newExpiresAt);

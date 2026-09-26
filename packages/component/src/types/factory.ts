@@ -9,6 +9,122 @@ import type { ActivityBarConfig } from './activity-bar-config.js';
 import type { AgentFunctionGroup } from './agent-config.js';
 import type { FunctionDef } from './skill.js';
 
+// ===== Authentication Configuration (Three Modes) =====
+
+/**
+ * Authentication configuration for the RTC Agent.
+ *
+ * Supports three modes:
+ * - StaticTokenAuth: Fixed token provided by host application
+ * - DynamicTokenAuth: Token retrieved via callback (recommended)
+ * - AuthProvider: Full authentication delegation to host application
+ */
+export type AuthConfig = StaticTokenAuth | DynamicTokenAuth | AuthProvider;
+
+/**
+ * Mode 1: Static Token Authentication
+ *
+ * The host application provides a fixed access token. The component will not
+ * attempt to refresh the token. Use this mode when:
+ * - The token is long-lived and doesn't expire
+ * - The host application handles token refresh externally
+ * - Simple integration is preferred over automatic token management
+ *
+ * @example
+ * ```ts
+ * const agent = createRtcAgent({
+ *   auth: {
+ *     accessToken: 'eyJhbGc...',
+ *     refreshToken: 'optional-refresh-token',
+ *     userId: 'user-123',
+ *     expiresIn: 3600, // optional, seconds
+ *   }
+ * });
+ * ```
+ */
+export interface StaticTokenAuth {
+  /** Access token for API requests */
+  accessToken: string;
+  /** Optional refresh token (not used in static mode, reserved for future) */
+  refreshToken?: string;
+  /** User ID associated with the token */
+  userId: string;
+  /** Token expiration time in seconds. If not set, no auto-refresh is attempted */
+  expiresIn?: number;
+}
+
+/**
+ * Mode 2: Dynamic Token Authentication (Recommended)
+ *
+ * The host application provides callbacks for token retrieval and refresh.
+ * The component calls these callbacks when needed. Use this mode when:
+ * - Tokens expire and need automatic refresh
+ * - Token management is handled by the host application
+ * - You want the component to automatically refresh tokens before expiration
+ *
+ * @example
+ * ```ts
+ * const agent = createRtcAgent({
+ *   auth: {
+ *     getToken: () => authService.getLatestToken(),
+ *     refreshToken: async () => {
+ *       const result = await authService.refresh();
+ *       return { accessToken: result.access, refreshToken: result.refresh };
+ *     },
+ *     userId: authService.getUserId(),
+ *   }
+ * });
+ * ```
+ */
+export interface DynamicTokenAuth {
+  /** Called each time a token is needed (e.g., WebSocket connection, API request) */
+  getToken: () => string | Promise<string>;
+  /** Called when the token expires and needs refresh */
+  refreshToken?: () => Promise<{
+    accessToken: string;
+    refreshToken?: string;
+    expiresIn?: number;
+  }>;
+  /** User ID associated with the authentication */
+  userId: string;
+}
+
+/**
+ * Mode 3: Auth Provider (Advanced)
+ *
+ * The host application provides a complete authentication provider interface.
+ * Use this mode for:
+ * - Multi-tenant applications
+ * - Custom token rotation strategies
+ * - Complex authentication flows
+ *
+ * @example
+ * ```ts
+ * const agent = createRtcAgent({
+ *   auth: {
+ *     getToken: () => authProvider.getAccessToken(),
+ *     refreshToken: () => authProvider.refreshAccessToken(),
+ *     isLoggedIn: () => authProvider.isAuthenticated(),
+ *     logout: () => authProvider.signOut(),
+ *   }
+ * });
+ * ```
+ */
+export interface AuthProvider {
+  /** Returns the current access token */
+  getToken(): string | Promise<string>;
+  /** Refreshes the access token */
+  refreshToken(): Promise<{
+    accessToken: string;
+    refreshToken?: string;
+    expiresIn?: number;
+  }>;
+  /** Returns whether the user is currently logged in */
+  isLoggedIn(): boolean;
+  /** Optional logout handler. If provided, component logout delegates to host */
+  logout?(): Promise<void>;
+}
+
 /**
  * Configuration for the `createRtcAgent` factory function.
  *
@@ -231,8 +347,21 @@ export interface RtcAgentConfig {
    */
   groups?: AgentFunctionGroup[];
 
+  // ── Authentication ──
+
+  /**
+   * Authentication configuration.
+   *
+   * Three modes are supported:
+   * - StaticTokenAuth: Fixed token (simplest)
+   * - DynamicTokenAuth: Token via callback (recommended)
+   * - AuthProvider: Full delegation (advanced)
+   *
+   * If not provided, the component uses its internal OAuth flow.
+   */
+  auth?: AuthConfig;
+
   // ── Reserved for future phases ──
-  // auth?: AuthConfig;            // Phase 2
   // on?: EventCallbacks;         // Phase 3
 }
 

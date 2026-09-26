@@ -45,6 +45,30 @@ export type {RtcAgentEventDetailMap} from './types/events.js';
  */
 import './elements.js';
 
+/**
+ * 工厂函数 — 声明式创建 <rtc-agent> 实例
+ *
+ * @example
+ * ```ts
+ * import { createRtcAgent } from '@rtc-agent/component';
+ *
+ * const agent = createRtcAgent({
+ *   appLabel: 'My Assistant',
+ *   auth: { accessToken: '...', userId: 'user-123' },
+ * });
+ * document.body.appendChild(agent);
+ * ```
+ */
+export { createRtcAgent } from './factory.js';
+export type {
+    RtcAgentConfig,
+    RtcAgentWithLifecycle,
+    AuthConfig,
+    StaticTokenAuth,
+    DynamicTokenAuth,
+    AuthProvider,
+} from './types/factory.js';
+
 // ===== Skill System (Advanced API) =====
 
 export { defineRegistry, FunctionRegistry, FunctionGroup } from './core/function-registry.js';

@@ -4,7 +4,7 @@
  * @module factory
  */
 
-import type { RtcAgentConfig, RtcAgentWithLifecycle } from './types/factory.js';
+import type { RtcAgentConfig, RtcAgentWithLifecycle, StaticTokenAuth } from './types/factory.js';
 import type { AgentConfig } from './types/agent-config.js';
 
 /**
@@ -158,17 +158,36 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
     element.agentConfig = agentConfig;
   }
 
+  // ── Authentication configuration ──
+
+  if (config.auth) {
+    // Detect auth mode by checking fields
+    if ('accessToken' in config.auth) {
+      // Mode 1: StaticTokenAuth
+      const staticAuth = config.auth as StaticTokenAuth;
+
+      // Store pending auth config — will be applied in connectedCallback
+      // after the element is mounted (controllers are initialized at that point).
+      element._pendingAuthConfig = staticAuth;
+    } else if ('getToken' in config.auth && !('isLoggedIn' in config.auth)) {
+      // Mode 2: DynamicTokenAuth
+      // TODO: Implement in iteration 6
+      throw new Error('DynamicTokenAuth not yet implemented');
+    } else if ('isLoggedIn' in config.auth) {
+      // Mode 3: AuthProvider
+      // TODO: Implement in iteration 7
+      throw new Error('AuthProvider not yet implemented');
+    }
+  }
+
   // ── Lifecycle management ──
   // Mount destroy() method for complete resource cleanup.
   element.destroy = () => {
     // 1. Remove element from DOM (triggers disconnectedCallback)
     element.remove();
 
-    // 2. Clear external token references (reserved for Phase 2)
-    // TODO: Implement after auth integration
-    // if (element.authController) {
-    //   element.authController.clearExternalTokens();
-    // }
+    // 2. Clear external token references
+    element._pendingAuthConfig = undefined;
 
     // 3. Cancel all EventBus subscriptions (reserved for Phase 3)
     // TODO: Implement after EventBus bridging
