@@ -2,6 +2,55 @@
 
 基于 Lit 的 Web Component 组件库，提供浮窗式 RTC Agent 交互界面。
 
+## 快速开始
+
+### 安装
+
+```bash
+pnpm add @rtc-agent/component
+```
+
+### 使用工厂函数（推荐）
+
+```ts
+import { createRtcAgent } from '@rtc-agent/component';
+
+const agent = createRtcAgent({
+  appLabel: 'My Assistant',
+  server: { url: 'https://api.example.com' },
+  auth: {
+    getToken: () => localStorage.getItem('token'),
+    refreshToken: async () => {
+      const res = await fetch('/api/refresh');
+      const data = await res.json();
+      return { accessToken: data.token };
+    },
+    userId: 'user-123',
+  },
+});
+
+document.body.appendChild(agent);
+
+// 销毁
+agent.destroy();
+```
+
+完整 API 文档见 [API.md](./API.md)，更多示例见 [EXAMPLES.md](./EXAMPLES.md)。
+
+### 使用 HTML 元素
+
+```html
+<script type="module">
+  import '@rtc-agent/component';
+</script>
+
+<rtc-agent
+  theme="system"
+  app-label="RTC Agent"
+  scenarios-url="./scenarios/"
+></rtc-agent>
+```
+
 ## 导出
 
 ### 组件
@@ -17,6 +66,17 @@
 import { RtcAgent } from '@rtc-agent/component';
 const agent = document.querySelector<RtcAgent>('rtc-agent')!;
 ```
+
+### 工厂函数
+
+- `createRtcAgent` — 声明式创建 `<rtc-agent>` 实例
+
+```ts
+import { createRtcAgent } from '@rtc-agent/component';
+const agent = createRtcAgent({ /* ... */ });
+```
+
+详细配置见 [API.md](./API.md)。
 
 ## 用法
 
