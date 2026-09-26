@@ -197,6 +197,8 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
       ['rtc-session-deleted', callbacks.sessionDeleted as EventListener | undefined],
       ['rtc-message-received', callbacks.messageReceived as EventListener | undefined],
       ['rtc-message-sent', callbacks.messageSent as EventListener | undefined],
+      ['rtc-connection-state-change', callbacks.connectionStateChange as EventListener | undefined],
+      ['rtc-auth-login', callbacks.authLogin as EventListener | undefined],
     ];
 
     // Register callbacks and store unsubscribe functions for cleanup

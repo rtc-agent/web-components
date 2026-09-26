@@ -174,6 +174,25 @@ export interface EventCallbacks {
   /** User logs out (maps to `rtc-auth-logout` event) */
   authLogout?: () => void;
 
+  /**
+   * Connection state change (maps to `rtc-connection-state-change` event).
+   *
+   * Fires when the persistence layer's connection state transitions
+   * (e.g. 'disconnected' -> 'connecting' -> 'connected').
+   */
+  connectionStateChange?: (detail: { state: import('@rtc-agent/client').ConnectionState }) => void;
+
+  /**
+   * Login successful (maps to `rtc-auth-login` event).
+   *
+   * Fires when authentication transitions to logged-in state. Covers all login paths:
+   * - Initial token load (valid tokens in localStorage)
+   * - Token refresh success (expired tokens refreshed on page load)
+   * - Login dialog completion (user explicitly logs in)
+   * - External token set (host application provides tokens via factory)
+   */
+  authLogin?: (detail: { userId: string }) => void;
+
   // ===== Session =====
 
   /** Session created (maps to `rtc-session-created` event) */

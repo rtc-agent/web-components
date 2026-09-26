@@ -1416,7 +1416,14 @@ export class RtcAgent extends LitElement {
                 showToolConfirm: (rtc) => this._showToolConfirm(rtc),
                 showAskUser: (rtc) => this._showAskUser(rtc),
                 loadSessions: () => { void this._loadSessions(); },
-                onConnectionStateChange: (state) => { this._connectionState = state; },
+                onConnectionStateChange: (state) => {
+                    this._connectionState = state;
+                    this.dispatchEvent(new CustomEvent('rtc-connection-state-change', {
+                        detail: { state },
+                        bubbles: true,
+                        composed: true,
+                    }));
+                },
                 logger: log,
             });
 

@@ -151,7 +151,7 @@ export class AuthController implements ReactiveController {
         this._scheduleRefresh(expiresAt);
         this.host.requestUpdate();
         // Notify rtc-agent to trigger WebSocket connection
-        this.onLogin?.();
+        this._fireLogin();
     }
 
     /**
@@ -182,7 +182,7 @@ export class AuthController implements ReactiveController {
         this._scheduleRefresh(expiresAt);
         this.host.requestUpdate();
         // Notify rtc-agent to trigger WebSocket connection
-        this.onLogin?.();
+        this._fireLogin();
     }
 
     /**
@@ -218,7 +218,7 @@ export class AuthController implements ReactiveController {
         };
 
         this.host.requestUpdate();
-        this.onLogin?.();
+        this._fireLogin();
     }
 
     /**
@@ -252,7 +252,7 @@ export class AuthController implements ReactiveController {
         this.host.requestUpdate();
 
         if (loggedIn) {
-            this.onLogin?.();
+            this._fireLogin();
         }
     }
 
@@ -360,7 +360,7 @@ export class AuthController implements ReactiveController {
                         this.host.requestUpdate();
                         // Notify rtc-agent to trigger WebSocket connection
                         // (fixes race condition: connectedCallback() ran before refresh completed)
-                        this.onLogin?.();
+                        this._fireLogin();
                     } else {
                         localStorage.removeItem(STORAGE_KEYS.tokens);
                     }
@@ -380,7 +380,7 @@ export class AuthController implements ReactiveController {
                 this._scheduleRefresh(tokens.expiresAt);
                 // Tokens were valid, but connection still needs to be triggered
                 // on initial load (connectedCallback may have already run)
-                this.onLogin?.();
+                this._fireLogin();
             }
         } catch (err) {
             log.warn('Failed to load/parse tokens from localStorage, clearing:', err);
@@ -629,5 +629,27 @@ export class AuthController implements ReactiveController {
                 void this.handleTokenExpired();
             }
         }
+    }
+
+    /**
+     * Fire login success side-effects: dispatch DOM event + invoke callback.
+     *
+     * Centralized to ensure both the `rtc-auth-login` DOM event and the
+     * `onLogin` callback fire together, covering all login paths:
+     * - setTokens (login dialog completion)
+     * - setExternalTokens (host app static tokens)
+     * - setDynamicTokenProvider (mode 2)
+     * - setAuthProvider (mode 3, when already logged in)
+     * - _loadTokens (valid tokens found or refresh succeeded)
+     */
+    private _fireLogin() {
+        this.host.dispatchEvent(
+            new CustomEvent('rtc-auth-login', {
+                detail: { userId: this._state.userId },
+                bubbles: true,
+                composed: true,
+            })
+        );
+        this._fireLogin();
     }
 }

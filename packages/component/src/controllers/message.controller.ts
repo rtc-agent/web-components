@@ -286,8 +286,22 @@ export class MessageController implements ReactiveController {
         if (!this._repository) return;
 
         const newMsg = this._localMessageToUI(localMsg);
+
+        // Check if this is a new message (for event dispatch)
+        const current = this._repository.getSessionState(messageSessionId);
+        const isNew = !current.messages.some(m => m.clientId === entityId);
+
         this._upsertMessage(messageSessionId, entityId, newMsg);
         this.host.requestUpdate();
+
+        // Dispatch rtc-message-received for new messages only (not updates)
+        if (isNew) {
+            this.host.dispatchEvent(new CustomEvent('rtc-message-received', {
+                detail: { message: newMsg },
+                bubbles: true,
+                composed: true,
+            }));
+        }
     }
 
     /**
