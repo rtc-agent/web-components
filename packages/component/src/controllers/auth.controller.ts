@@ -101,6 +101,15 @@ export class AuthController implements ReactiveController {
         document.addEventListener('visibilitychange', this._boundVisibilityHandler);
     }
 
+    /**
+     * ReactiveController lifecycle: host disconnected from DOM.
+     *
+     * Memory management: clears document-level listeners and timers that would
+     * otherwise prevent GC or fire on a detached element. Provider references
+     * (_dynamicTokenProvider, _authProvider) are intentionally NOT cleared here —
+     * they persist across temporary disconnects and are cleared by _performLogout()
+     * or when the controller is GC'd with the element.
+     */
     hostDisconnected() {
         if (this._boundVisibilityHandler) {
             document.removeEventListener('visibilitychange', this._boundVisibilityHandler);
@@ -306,6 +315,12 @@ export class AuthController implements ReactiveController {
 
     /**
      * Internal logout implementation.
+     *
+     * Memory management: clears all provider references and timers to prevent leaks.
+     * - `_dynamicTokenProvider`: released so the closure can be GC'd
+     * - `_authProvider`: released so the host app's provider can be GC'd
+     * - `_refreshTimer`: cleared to prevent orphaned setTimeout callbacks
+     * - `_externalTokens`: reset so next login cycle starts clean
      */
     private _performLogout() {
         this._state = {isLoggedIn: false};
@@ -641,6 +656,10 @@ export class AuthController implements ReactiveController {
      * - setDynamicTokenProvider (mode 2)
      * - setAuthProvider (mode 3, when already logged in)
      * - _loadTokens (valid tokens found or refresh succeeded)
+     *
+     * Memory note: `onLogin` callback is set by rtc-agent.ts in connectedCallback()
+     * and cleared in disconnectedCallback(). No leak risk — the callback reference
+     * is bounded to the host element's lifecycle.
      */
     private _fireLogin() {
         this.host.dispatchEvent(
@@ -650,6 +669,6 @@ export class AuthController implements ReactiveController {
                 composed: true,
             })
         );
-        this._fireLogin();
+        this.onLogin?.();
     }
 }

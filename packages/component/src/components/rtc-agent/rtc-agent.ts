@@ -1507,6 +1507,23 @@ export class RtcAgent extends LitElement {
         } | null>;
     }
 
+    /**
+     * Lifecycle: element disconnected from DOM.
+     *
+     * Memory management strategy:
+     * Performs comprehensive cleanup of all resources registered in connectedCallback():
+     * 1. Dispatch 'rtc-before-destroy' event (for external listeners)
+     * 2. Clear async hooks (_beforeMessageSendHook) to release captured closures
+     * 3. Remove all DOM event listeners (mirrors connectedCallback's addEventListener calls)
+     * 4. Unsubscribe all UIUpdateBus listeners (message, bulk update, gap fill)
+     * 5. Release RTC processor and connection state references
+     * 6. Clear auth onLogin callback (prevents closure leak to _connectWithRetry)
+     * 7. Invalidate in-flight connection attempts via generation counter
+     * 8. Clear all auto-save timers
+     *
+     * Note: disconnectedCallback may fire for temporary removal (e.g. DOM reordering).
+     * The factory's destroy() method provides permanent cleanup.
+     */
     disconnectedCallback() {
         // Dispatch beforeDestroy event before any cleanup logic.
         // Note: disconnectedCallback may fire for temporary removal (e.g. DOM reordering),

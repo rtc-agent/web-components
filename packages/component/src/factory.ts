@@ -231,6 +231,12 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
   // Bridge these to the corresponding callbacks so host applications can
   // observe tool call activity without importing the EventBus directly.
   //
+  // Memory safety: each handler closure captures `callbacks` (from config.on).
+  // These closures are stored in the EventBus's internal Map until destroy()
+  // calls the unsubscribe functions returned by eventBus.on(). After unsub,
+  // the closures become unreachable and are GC'd along with the captured
+  // `callbacks` object. No leak.
+  //
   // Perf note: Each callback is registered lazily — only when the user provides
   // it. This means zero overhead for unused callbacks. The EventBus uses a
   // Map<string, Set<EventHandler>> internally, so on() is O(1) amortized.
@@ -290,6 +296,20 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
 
   // ── Lifecycle management ──
   // Mount destroy() method for complete resource cleanup.
+  //
+  // Memory management strategy:
+  // destroy() follows a strict "release all references" pattern to help GC:
+  // 1. Remove element from DOM → breaks DOM tree references, triggers disconnectedCallback
+  //    (which clears DOM event listeners, bus subscriptions, auth callbacks, timers)
+  // 2. Clear pending auth references → releases factory-captured auth configs
+  // 3. Call all DOM event unsubscribe functions → releases addEventListener closures
+  // 4. Call all EventBus unsubscribe functions → releases EventBus handler closures
+  //    (which capture the `callbacks` object from config.on)
+  // 5. Set all arrays to undefined → releases the array objects themselves
+  //
+  // After destroy(), the element and all its captured closures become unreachable
+  // (assuming the caller drops their reference to the returned element), allowing
+  // the GC to reclaim the entire object graph in one pass.
   //
   // Perf note: destroy() is O(n) where n is the number of registered listeners.
   // For the current scale (~15 DOM events + ~4 EventBus listeners), this is
