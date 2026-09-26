@@ -69,6 +69,10 @@ export class RtcSettingsLayout extends LitElement {
     @property({type: String, reflect: true})
     theme: 'light' | 'dark' | 'system' = 'system';
 
+    /** 版本号（由父级传入） */
+    @property({type: String, attribute: 'version'})
+    version = '0.2.6';
+
     /**
      * 设置导航抽屉是否可见
      *
@@ -425,7 +429,7 @@ export class RtcSettingsLayout extends LitElement {
                     <label>${msg('版本号')}</label>
                 </div>
                 <div class="setting-control">
-                    <span class="info-value">0.1.0</span>
+                    <span class="info-value">${this.version}</span>
                 </div>
             </div>
             <div class="setting-row">
@@ -433,7 +437,9 @@ export class RtcSettingsLayout extends LitElement {
                     <label>${msg('文档')}</label>
                 </div>
                 <div class="setting-control">
-                    <span class="info-value">https://docs.rtc-agent.dev</span>
+                    <a href="https://rtc-agent.github.io/docs/" target="_blank" rel="noopener" class="info-value info-link">
+                        https://rtc-agent.github.io/docs/
+                    </a>
                 </div>
             </div>
         `;

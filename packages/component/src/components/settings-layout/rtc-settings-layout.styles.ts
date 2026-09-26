@@ -223,6 +223,15 @@ export const styles = css`
         font-family: var(--rtc-font-family-mono, monospace);
     }
 
+    .info-link {
+        color: var(--rtc-color-primary, #007acc);
+        text-decoration: none;
+    }
+
+    .info-link:hover {
+        text-decoration: underline;
+    }
+
     /* ── 按钮 ── */
 
     button.danger {

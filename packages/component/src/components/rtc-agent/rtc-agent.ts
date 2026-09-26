@@ -54,6 +54,7 @@
 import {LitElement, html, nothing} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
 import {ContextProvider} from '@lit/context';
+import {version} from '../../../package.json';
 import {styles} from './rtc-agent.styles.js';
 import type {WindowMode, ContentData, Activity} from '../../types/index.js';
 
@@ -903,6 +904,10 @@ export class RtcAgent extends LitElement {
         } else {
             // Switch to a different activity.
             this._activity.actions.setActivity(activity);
+            // When entering settings mode, auto-open the sidebar.
+            if (activity === 'settings') {
+                this._activity.actions.showSidebar();
+            }
             // Load file tree on first entry to files activity.
             if (activity === 'files' && !this._fileTreeLoaded && this._persistence.isConnected) {
                 void this._loadFileTree();
@@ -2204,7 +2209,7 @@ export class RtcAgent extends LitElement {
           : isChat
             ? html`<rtc-chat-layout theme=${this.theme} .sessionTreeVisible=${sidebarVisible} .messageController=${this._message}></rtc-chat-layout>`
             : isSettings
-              ? html`<rtc-settings-layout theme=${this.theme} .sidebarVisible=${sidebarVisible}></rtc-settings-layout>`
+              ? html`<rtc-settings-layout theme=${this.theme} .sidebarVisible=${sidebarVisible} version=${version}></rtc-settings-layout>`
               : nothing}
       </div>
     `;
