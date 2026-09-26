@@ -80,6 +80,39 @@ const agent = createRtcAgent({ /* ... */ });
 
 ## 用法
 
+### 工厂函数（推荐）
+
+```ts
+import { createRtcAgent } from '@rtc-agent/component';
+
+const agent = createRtcAgent({
+  appLabel: 'My Assistant',
+  server: { url: 'https://api.example.com' },
+  workerUrl: '/rtc-agent/shared-worker.js',
+  auth: {
+    getToken: () => localStorage.getItem('token'),
+    refreshToken: async () => {
+      const res = await fetch('/api/refresh');
+      const data = await res.json();
+      return { accessToken: data.token };
+    },
+    userId: 'user-123',
+  },
+  on: {
+    ready: () => console.log('RTC Agent ready'),
+    themeChange: ({ theme }) => console.log('Theme:', theme),
+    toolCallStart: ({ path, params }) => console.log('Tool call:', path),
+  },
+});
+
+document.body.appendChild(agent);
+
+// 不再需要时销毁
+agent.destroy();
+```
+
+### HTML 元素
+
 ```html
 <script type="module">
   import '@rtc-agent/component';
@@ -115,13 +148,33 @@ RTC Agent 使用 SharedWorker + Comlink 架构实现多 Tab 共享：
 
 ### 公开事件
 
-所有公开事件遵循 `rtc-<domain>-<action>-<past-tense>` 命名模式：
+所有公开事件遵循 `rtc-agent-<event>` 命名模式：
+
+**生命周期事件：**
 
 - `rtc-agent-ready` — 组件就绪
+- `rtc-agent-beforeDestroy` — 组件即将销毁
+- `rtc-agent-themeChange` — 主题变化
+
+**消息拦截事件：**
+
+- `rtc-agent-beforeMessageSend` — 消息发送前（可取消或修改）
+
+**工具调用事件：**
+
+- `rtc-agent-toolCallStart` — 工具调用开始
+- `rtc-agent-toolCallSuccess` — 工具调用成功
+- `rtc-agent-toolCallError` — 工具调用失败
+- `rtc-agent-toolCallProgress` — 工具调用进度
+
+**会话和消息事件：**
+
 - `rtc-session-created` / `rtc-session-switched`
 - `rtc-message-sent`
+
+**认证事件：**
+
 - `rtc-auth-login-requested`
-- `rtc-window-minimize` / `rtc-window-maximize` / `rtc-window-restore`
 
 ### 控制器访问
 

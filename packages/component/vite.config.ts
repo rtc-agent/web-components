@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import path from 'path';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
+import { visualizer } from 'rollup-plugin-visualizer';
 
 // Vite 构建配置：
 // - 入口：src/index.ts（注册所有 Web Components）
@@ -18,6 +19,12 @@ export default defineConfig({
         global: true,
         process: true,
       },
+    }),
+    visualizer({
+      filename: 'dist/stats.html',
+      template: 'treemap',
+      gzipSize: true,
+      brotliSize: true,
     }),
   ],
   define: {

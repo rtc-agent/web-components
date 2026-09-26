@@ -100,7 +100,7 @@ export class RtcMarkdownEditor extends LitElement {
     private _modulesPromise: Promise<{
         marked: typeof import('marked').marked;
         DOMPurify: typeof import('dompurify').default;
-        hljs: typeof import('highlight.js').default;
+        hljs: typeof import('../../utils/highlight-languages.js').default;
     }> | null = null;
 
     /** 防抖定时器 */
@@ -111,7 +111,7 @@ export class RtcMarkdownEditor extends LitElement {
             this._modulesPromise = Promise.all([
                 import('marked'),
                 import('dompurify'),
-                import('highlight.js'),
+                import('../../utils/highlight-languages.js'),
             ]).then(([markedMod, dompurifyMod, hljsMod]) => ({
                 marked: markedMod.marked,
                 DOMPurify: dompurifyMod.default,
@@ -170,7 +170,7 @@ export class RtcMarkdownEditor extends LitElement {
     /**
      * 对 Markdown 渲染出的所有 <pre><code> 块应用 highlight.js 语法高亮
      */
-    private _highlightCodeBlocks(html: string, hljs: typeof import('highlight.js').default): string {
+    private _highlightCodeBlocks(html: string, hljs: typeof import('../../utils/highlight-languages.js').default): string {
         if (!html.includes('<pre>')) return html;
 
         const doc = new DOMParser().parseFromString(html, 'text/html');

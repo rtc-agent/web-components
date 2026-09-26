@@ -94,7 +94,7 @@ export class RtcMessage extends LitElement implements StatefulComponent {
     private _modulesPromise: Promise<{
         marked: typeof import('marked').marked;
         DOMPurify: typeof import('dompurify').default;
-        hljs: typeof import('highlight.js').default;
+        hljs: typeof import('../../utils/highlight-languages.js').default;
     }> | null = null;
 
     /**
@@ -168,7 +168,7 @@ export class RtcMessage extends LitElement implements StatefulComponent {
             this._modulesPromise = Promise.all([
                 import('marked'),
                 import('dompurify'),
-                import('highlight.js'),
+                import('../../utils/highlight-languages.js'),
             ]).then(([markedMod, dompurifyMod, hljsMod]) => ({
                 marked: markedMod.marked,
                 DOMPurify: dompurifyMod.default,
@@ -217,7 +217,7 @@ export class RtcMessage extends LitElement implements StatefulComponent {
      *   - DOMParser 由浏览器原生实现，性能足够（代码块不会很大）
      *   - highlight.js 的官方 API 就是面向 DOM 元素的 highlightElement()
      */
-    private _highlightCodeBlocks(html: string, hljs: typeof import('highlight.js').default): string {
+    private _highlightCodeBlocks(html: string, hljs: typeof import('../../utils/highlight-languages.js').default): string {
         if (!html.includes('<pre>')) return html;
 
         const doc = new DOMParser().parseFromString(html, 'text/html');
