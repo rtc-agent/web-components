@@ -67,7 +67,30 @@ export type {
     StaticTokenAuth,
     DynamicTokenAuth,
     AuthProvider,
+    EventCallbacks,
 } from './types/factory.js';
+
+/**
+ * Session and Message types
+ *
+ * Needed for EventCallbacks — consumers use these to type callback parameters.
+ */
+export type { Session, Message } from './types/index.js';
+
+/**
+ * ConnectionState type
+ *
+ * Used by the `connectionStateChange` callback in EventCallbacks.
+ */
+export type { ConnectionState } from '@rtc-agent/client';
+
+/**
+ * Window and ActivityBar configuration types
+ *
+ * Used by `RtcAgentConfig.window` and `RtcAgentConfig.activityBar`.
+ */
+export type { WindowConfig } from './types/window-config.js';
+export type { ActivityBarConfig } from './types/activity-bar-config.js';
 
 // ===== Skill System (Advanced API) =====
 
