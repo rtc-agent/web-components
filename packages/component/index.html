@@ -119,9 +119,127 @@
         .debug-panel.hidden {
             display: none;
         }
+
+        /* ── Embedded Mode Demo Layout ──
+         *
+         * When embedded mode is active, the page switches to a flex row layout:
+         * - Left: main content area (5/8 of width)
+         * - Right: embedded container (3/8 of width) where the agent fills
+         *
+         * This visually demonstrates the difference between:
+         * - Default (position:fixed) → agent fills viewport
+         * - Embedded (position:relative) → agent fills its parent container
+         */
+        body.embedded-active {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        .rtc-embedded-demo {
+            display: none;
+            width: 100%;
+            height: 100vh;
+            height: 100dvh;
+        }
+
+        body.embedded-active .rtc-embedded-demo {
+            display: flex;
+        }
+
+        body.embedded-active > .container,
+        body.embedded-active > .modal,
+        body.embedded-active > .toast,
+        body.embedded-active > .debug-panel,
+        body.embedded-active > .debug-toggle {
+            display: none !important;
+        }
+
+        .rtc-embedded-main {
+            flex: 5;
+            min-width: 0;
+            padding: 40px;
+            background: #f5f5f5;
+            overflow-y: auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .rtc-embedded-main-content {
+            text-align: center;
+            color: #666;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        .rtc-embedded-main-content h2 {
+            font-size: 24px;
+            margin: 0 0 12px 0;
+            color: #333;
+        }
+
+        .rtc-embedded-main-content p {
+            font-size: 14px;
+            margin: 0 0 8px 0;
+        }
+
+        .rtc-embedded-side {
+            flex: 3;
+            min-width: 0;
+            height: 100%;
+            border-left: 2px solid #ddd;
+            background: #fff;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .rtc-embedded-header {
+            padding: 12px 16px;
+            background: #fafafa;
+            border-bottom: 1px solid #eee;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 13px;
+            color: #666;
+        }
+
+        .rtc-embedded-header strong {
+            color: #4ade80;
+        }
+
+        #rtc-embedded-slot {
+            flex: 1;
+            min-height: 0;
+            position: relative;
+        }
+
+        #rtc-embedded-slot rtc-agent {
+            width: 100%;
+            height: 100%;
+        }
     </style>
 </head>
 <body>
+    <!-- Embedded Mode Demo Layout ─
+         Hidden by default. When embedded mode is activated via debug panel,
+         the agent is moved into #rtc-embedded-slot and this layout becomes visible.
+         This demonstrates that the agent fills its parent container (not the viewport). -->
+    <div class="rtc-embedded-demo">
+        <div class="rtc-embedded-main">
+            <div class="rtc-embedded-main-content">
+                <h2>📋 Task Manager</h2>
+                <p>主内容区域 (flex: 5, 约 62.5% 宽度)</p>
+                <p style="color:#999;font-size:12px;">Embedded 模式下，RTC Agent 填充右侧面板而非覆盖整个视口。</p>
+                <p style="color:#999;font-size:12px;">点击 Debug 面板的 🔄 Reset to Default 可退出 Embedded 模式。</p>
+            </div>
+        </div>
+        <aside class="rtc-embedded-side">
+            <div class="rtc-embedded-header">
+                🤖 <strong>AI 助手面板</strong> (flex: 3, 约 37.5% 宽度) — Agent 填充此容器
+            </div>
+            <div id="rtc-embedded-slot"></div>
+        </aside>
+    </div>
+
     <div class="container">
         <h1>📋 Task Manager</h1>
 
@@ -312,6 +430,7 @@
         function setWindowMode(mode) {
             currentConfig.defaultMode = mode;
             currentConfig.embedded = false;
+            exitEmbeddedMode();
             applyConfig();
             updateButtonStates();
         }
@@ -327,6 +446,13 @@
                         resizable: false,
                         embedded: true,
                     };
+                    // Move agent into embedded container
+                    const embeddedSlot = document.getElementById('rtc-embedded-slot');
+                    const agent = document.querySelector('rtc-agent');
+                    if (embeddedSlot && agent) {
+                        embeddedSlot.appendChild(agent);
+                    }
+                    document.body.classList.add('embedded-active');
                     break;
                 case 'no-minimize':
                     currentConfig = {
@@ -337,6 +463,7 @@
                         resizable: true,
                         embedded: false,
                     };
+                    exitEmbeddedMode();
                     break;
                 case 'fixed':
                     currentConfig = {
@@ -347,6 +474,7 @@
                         resizable: false,
                         embedded: false,
                     };
+                    exitEmbeddedMode();
                     break;
                 case 'default':
                     currentConfig = {
@@ -357,10 +485,22 @@
                         resizable: true,
                         embedded: false,
                     };
+                    exitEmbeddedMode();
                     break;
             }
             applyConfig();
             updateButtonStates();
+        }
+
+        /**
+         * Exit embedded mode: move agent back to body and restore normal layout.
+         */
+        function exitEmbeddedMode() {
+            const agent = document.querySelector('rtc-agent');
+            if (agent && agent.parentElement !== document.body) {
+                document.body.appendChild(agent);
+            }
+            document.body.classList.remove('embedded-active');
         }
 
         function toggleButton(button) {

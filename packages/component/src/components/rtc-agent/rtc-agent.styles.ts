@@ -92,6 +92,30 @@ export const styles = css`
     right: 0;
   }
 
+  /* ── Embedded mode overrides ──
+   *
+   * When embedded, the component fills its parent container instead of the viewport.
+   * This uses position:relative so it participates in the parent's flex/grid layout,
+   * unlike the default position:fixed which fills the viewport.
+   */
+  :host([data-embedded]) {
+    position: relative !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    inset: auto !important;
+    left: auto !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    z-index: 0 !important;
+  }
+
   /* ── Minimized ── */
   :host([data-mode='minimized']) {
     /* 与 logo 同构的圆角方形：圆角比例 = 290/1250 = 23.2% */

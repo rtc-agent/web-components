@@ -1683,6 +1683,16 @@ export class RtcAgent extends LitElement {
             this._handleModeTransition(mode);
         }
 
+        // Reflect embedded state as data attribute for CSS targeting.
+        // When embedded, CSS uses position:relative to fill parent container
+        // instead of position:fixed which fills the viewport.
+        const isEmbedded = this._resolvedWindowConfig.embedded;
+        if (isEmbedded) {
+            this.setAttribute('data-embedded', '');
+        } else {
+            this.removeAttribute('data-embedded');
+        }
+
         // Sync interaction state with window mode
         if (mode !== 'normal') {
             this._interaction.value.actions.disable();

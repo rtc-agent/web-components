@@ -107,12 +107,15 @@ export class WindowStateController implements ReactiveController {
     /**
      * Handle viewport resize (e.g. DevTools open/close/resize).
      *
+     * - embedded: no action (fills parent container via CSS)
      * - minimized: recalculate bubble position from bubblePosition config + new viewport size
      * - normal: clamp position to keep window visible; auto-minimize if viewport too small
      * - maximized: no action needed (CSS inset:0 handles it)
      */
     private _handleViewportResize(): void {
         const { mode } = this._state;
+
+        if (this._config.embedded) return; // CSS handles layout
 
         if (mode === 'maximized') return; // CSS handles it
 
@@ -315,9 +318,24 @@ export class WindowStateController implements ReactiveController {
      * Inline styles override CSS rules (including :host([data-mode=...])),
      * so we clear them when leaving 'normal' mode to let CSS take over.
      *
+     * When the host has `data-embedded` attribute, skip all inline geometry —
+     * the component fills its parent container via CSS (position: relative).
+     *
      * @param el - The host element to apply geometry to (typically the root component).
      */
     applyGeometry(el: HTMLElement): void {
+        // Embedded mode: CSS handles layout (position: relative, width/height: 100%).
+        // Clear any residual inline geometry so CSS rules take effect.
+        if (el.hasAttribute('data-embedded')) {
+            el.style.width = '';
+            el.style.height = '';
+            el.style.left = '';
+            el.style.top = '';
+            el.style.bottom = '';
+            el.style.right = '';
+            return;
+        }
+
         const {position, size, mode} = this._state;
 
         if (mode === 'normal') {
