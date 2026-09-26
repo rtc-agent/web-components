@@ -38,14 +38,14 @@ function detectProjectType(cwd) {
     ...packageJson.devDependencies,
   };
 
-  // Detect Vite
-  if (allDeps?.vite) {
-    return 'vite';
-  }
-
-  // Detect SvelteKit (uses Vite internally)
+  // Detect SvelteKit first (more specific, also uses Vite)
   if (allDeps?.['@sveltejs/kit']) {
     return 'sveltekit';
+  }
+
+  // Detect Vite (generic)
+  if (allDeps?.vite) {
+    return 'vite';
   }
 
   // Detect Webpack
@@ -61,8 +61,11 @@ function detectProjectType(cwd) {
  */
 function getTargetDir(projectType, cwd) {
   switch (projectType) {
-    case 'vite':
     case 'sveltekit':
+      // SvelteKit uses 'static' directory for static assets
+      return join(cwd, 'static', 'rtc-agent');
+    case 'vite':
+      // Plain Vite projects typically use 'public' directory
       return join(cwd, 'public', 'rtc-agent');
     case 'webpack':
       return join(cwd, 'static', 'rtc-agent');
