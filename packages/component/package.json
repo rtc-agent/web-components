@@ -21,7 +21,7 @@
     "README.md"
   ],
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && tsc --emitDeclarationOnly --declaration --declarationMap",
     "prebuild": "lit-localize build",
     "dev": "vite",
     "predev": "lit-localize build",
