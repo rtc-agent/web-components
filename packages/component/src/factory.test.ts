@@ -255,4 +255,79 @@ describe('createRtcAgent', () => {
       }),
     ).not.toThrow();
   });
+
+  // ── Authentication modes ────────────────────────────────────────
+
+  describe('Authentication modes', () => {
+    it('should support StaticTokenAuth (mode 1)', () => {
+      const agent = createRtcAgent({
+        auth: {
+          accessToken: 'test-token',
+          refreshToken: 'test-refresh',
+          userId: 'user-123',
+          expiresIn: 3600,
+        },
+      });
+
+      expect(agent._pendingAuthConfig).toBeDefined();
+      expect(agent._pendingAuthConfig?.accessToken).toBe('test-token');
+      expect(agent._pendingAuthConfig?.userId).toBe('user-123');
+    });
+
+    it('should support DynamicTokenAuth (mode 2)', () => {
+      const getToken = () => 'dynamic-token';
+      const refreshToken = async () => ({
+        accessToken: 'new-token',
+        refreshToken: 'new-refresh',
+        expiresIn: 3600,
+      });
+
+      const agent = createRtcAgent({
+        auth: {
+          getToken,
+          refreshToken,
+          userId: 'user-456',
+        },
+      });
+
+      expect(agent._pendingDynamicAuth).toBeDefined();
+      expect(agent._pendingDynamicAuth?.getToken).toBe(getToken);
+      expect(agent._pendingDynamicAuth?.refreshToken).toBe(refreshToken);
+      expect(agent._pendingDynamicAuth?.userId).toBe('user-456');
+    });
+
+    it('should support AuthProvider (mode 3)', () => {
+      const provider = {
+        getToken: () => 'provider-token',
+        refreshToken: async () => ({
+          accessToken: 'new-token',
+          expiresIn: 3600,
+        }),
+        isLoggedIn: () => true,
+        logout: async () => {},
+      };
+
+      const agent = createRtcAgent({
+        auth: provider,
+      });
+
+      expect(agent._pendingAuthProvider).toBeDefined();
+      expect(agent._pendingAuthProvider?.getToken).toBe(provider.getToken);
+      expect(agent._pendingAuthProvider?.isLoggedIn).toBe(provider.isLoggedIn);
+    });
+
+    it('should clear pending auth config on destroy', () => {
+      const agent = createRtcAgent({
+        auth: {
+          accessToken: 'test-token',
+          userId: 'user-123',
+        },
+      });
+
+      document.body.appendChild(agent);
+      agent.destroy();
+
+      expect(agent._pendingAuthConfig).toBeUndefined();
+    });
+  });
 });
