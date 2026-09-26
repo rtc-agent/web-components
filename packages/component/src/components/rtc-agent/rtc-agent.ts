@@ -122,7 +122,7 @@ import type {WindowConfig} from '../../types/window-config.js';
 import {resolveWindowConfig} from '../../types/window-config.js';
 import type {ActivityBarConfig} from '../../types/activity-bar-config.js';
 import {resolveActivityBarConfig, type ResolvedActivityBarConfig} from '../../types/activity-bar-config.js';
-import type {StaticTokenAuth, DynamicTokenAuth} from '../../types/factory.js';
+import type {StaticTokenAuth, DynamicTokenAuth, AuthProvider} from '../../types/factory.js';
 // Side-effect import: extends HTMLElementEventMap with rtc-agent-ready event
 import '../../types/events.js';
 
@@ -510,6 +510,15 @@ export class RtcAgent extends LitElement {
      */
     @property({attribute: false})
     _pendingDynamicAuth?: DynamicTokenAuth;
+
+    /**
+     * @internal Pending auth provider configuration from factory function.
+     *
+     * Set by `createRtcAgent` factory when AuthProvider is provided.
+     * Applied in `connectedCallback` after controllers are initialized.
+     */
+    @property({attribute: false})
+    _pendingAuthProvider?: AuthProvider;
 
     /**
      * Load scenarios into VirtualFS.
@@ -1326,6 +1335,15 @@ export class RtcAgent extends LitElement {
                 userId: this._pendingDynamicAuth.userId,
             });
             this._pendingDynamicAuth = undefined;
+        } else if (this._pendingAuthProvider) {
+            // Mode 3: AuthProvider
+            this._auth.setAuthProvider({
+                getToken: this._pendingAuthProvider.getToken,
+                refreshToken: this._pendingAuthProvider.refreshToken,
+                isLoggedIn: this._pendingAuthProvider.isLoggedIn,
+                logout: this._pendingAuthProvider.logout,
+            });
+            this._pendingAuthProvider = undefined;
         }
 
         // Set auth login callback to trigger WebSocket connection.

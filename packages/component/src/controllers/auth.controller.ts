@@ -16,6 +16,7 @@ import type {ReactiveController, ReactiveControllerHost} from 'lit';
 import type {TokenExpiredAction} from '@rtc-agent/client';
 import type {AuthState} from '../types/index.js';
 import type {AuthContextValue} from '../contexts/auth.js';
+import type {AuthProvider} from '../types/factory.js';
 import {DEFAULT_AUTH_STATE} from '../contexts/auth.js';
 import {AUTH_CONFIG, STORAGE_KEYS} from '../config/auth.js';
 import { createLogger } from '@rtc-agent/client';
@@ -57,6 +58,9 @@ export class AuthController implements ReactiveController {
         }>;
         userId: string;
     };
+
+    /** Auth provider (mode 3) */
+    private _authProvider?: AuthProvider;
 
     /**
      * Callback fired when auth state transitions to logged-in.
@@ -217,6 +221,41 @@ export class AuthController implements ReactiveController {
         this.onLogin?.();
     }
 
+    /**
+     * Set auth provider for mode 3 authentication.
+     *
+     * The component delegates all authentication management to the provider.
+     * Use this for complex authentication flows, multi-tenant applications,
+     * or custom token rotation strategies.
+     *
+     * @param provider - The auth provider interface with getToken, refreshToken, isLoggedIn, and optional logout.
+     */
+    setAuthProvider(provider: AuthProvider) {
+        this._authProvider = provider;
+        this._externalTokens = true; // Skip localStorage persistence
+
+        // Set initial state based on provider's isLoggedIn()
+        const loggedIn = provider.isLoggedIn();
+
+        if (loggedIn) {
+            this._state = {
+                isLoggedIn: true,
+                accessToken: '', // Will be fetched on demand
+                refreshToken: '', // Not used in provider mode
+                userId: 'provider-managed', // Provider manages user identity
+                expiresAt: Infinity, // Provider controls expiration
+            };
+        } else {
+            this._state = { isLoggedIn: false };
+        }
+
+        this.host.requestUpdate();
+
+        if (loggedIn) {
+            this.onLogin?.();
+        }
+    }
+
     /** Get current access token (for API requests) */
     getAccessToken(): string | undefined {
         return this._state.accessToken;
@@ -225,13 +264,17 @@ export class AuthController implements ReactiveController {
     /**
      * Get the current access token, resolving it asynchronously if needed.
      *
-     * When a dynamic token provider is configured (Mode 2), calls the provider's
-     * `getToken()` to retrieve a fresh token. Otherwise, returns the stored
-     * synchronous token (Mode 1 / internal auth).
+     * Priority:
+     * 1. Auth provider (mode 3) - calls provider.getToken()
+     * 2. Dynamic token provider (mode 2) - calls provider.getToken()
+     * 3. Stored token (mode 1 / internal auth) - returns _state.accessToken
      *
      * @returns The access token string, or undefined if unavailable.
      */
     async getAccessTokenAsync(): Promise<string | undefined> {
+        if (this._authProvider) {
+            return await this._authProvider.getToken();
+        }
         if (this._dynamicTokenProvider) {
             return await this._dynamicTokenProvider.getToken();
         }
@@ -247,6 +290,24 @@ export class AuthController implements ReactiveController {
     }
 
     private _logout() {
+        // Auth provider (Mode 3): delegate logout to the provider
+        if (this._authProvider?.logout) {
+            void this._authProvider.logout().then(() => {
+                this._performLogout();
+            }).catch((error) => {
+                log.error('Auth provider logout failed:', error);
+                this._performLogout();
+            });
+            return;
+        }
+
+        this._performLogout();
+    }
+
+    /**
+     * Internal logout implementation.
+     */
+    private _performLogout() {
         this._state = {isLoggedIn: false};
 
         // Only clear localStorage if we are not in external token mode.
@@ -256,6 +317,7 @@ export class AuthController implements ReactiveController {
         }
         this._externalTokens = false;
         this._dynamicTokenProvider = undefined;
+        this._authProvider = undefined;
 
         if (this._refreshTimer) {
             clearTimeout(this._refreshTimer);
@@ -404,6 +466,22 @@ export class AuthController implements ReactiveController {
      * that could corrupt localStorage (parse-modify-write race).
      */
     async handleTokenExpired(): Promise<TokenExpiredAction> {
+        // Auth provider mode (Mode 3): delegate refresh to the provider
+        if (this._authProvider) {
+            if (this._refreshing) {
+                const success = await this._refreshing;
+                return success ? 'refresh' : 'relogin';
+            }
+
+            this._refreshing = this._doRefresh();
+            try {
+                const success = await this._refreshing;
+                return success ? 'refresh' : 'relogin';
+            } finally {
+                this._refreshing = undefined;
+            }
+        }
+
         // Dynamic token mode: delegate refresh to the provider
         if (this._dynamicTokenProvider?.refreshToken) {
             if (this._refreshing) {
@@ -445,6 +523,35 @@ export class AuthController implements ReactiveController {
      * Returns true on success, false on failure.
      */
     private async _doRefresh(): Promise<boolean> {
+        // Auth provider (Mode 3): delegate refresh to the provider.
+        if (this._authProvider) {
+            try {
+                const result = await this._authProvider.refreshToken();
+
+                const newExpiresAt = result.expiresIn
+                    ? Date.now() + result.expiresIn * 1000
+                    : Infinity;
+
+                this._state = {
+                    ...this._state,
+                    accessToken: result.accessToken,
+                    refreshToken: result.refreshToken ?? '',
+                    expiresAt: newExpiresAt,
+                };
+
+                // External tokens are not persisted to localStorage.
+                if (newExpiresAt !== Infinity) {
+                    this._scheduleRefresh(newExpiresAt);
+                }
+
+                this.host.requestUpdate();
+                return true;
+            } catch (error) {
+                log.error('Auth provider refresh failed:', error);
+                return false;
+            }
+        }
+
         // Dynamic token provider (Mode 2): delegate refresh to the provider.
         if (this._dynamicTokenProvider?.refreshToken) {
             try {
