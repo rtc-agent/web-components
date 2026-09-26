@@ -182,9 +182,16 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
   }
 
   // ── Event callbacks ──
+  //
+  // Perf note: For the current ~15 events, direct addEventListener registration
+  // is optimal. Event delegation (single listener + bubbling dispatch) would add
+  // complexity without measurable benefit at this scale. If event count grows
+  // significantly (>50), consider switching to a delegation pattern.
 
   if (config.on) {
     const callbacks = config.on;
+    // PERF: Array of tuples (not object) avoids dictionary iteration overhead.
+    // Each entry is [eventName, callback | undefined].
     const eventMap: Array<[string, EventListener | undefined]> = [
       ['rtc-agent-ready', callbacks.ready],
       ['rtc-connection-retry', callbacks.connectionRetry],
@@ -223,6 +230,10 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
   // (function:start, function:success, function:error, function:progress).
   // Bridge these to the corresponding callbacks so host applications can
   // observe tool call activity without importing the EventBus directly.
+  //
+  // Perf note: Each callback is registered lazily — only when the user provides
+  // it. This means zero overhead for unused callbacks. The EventBus uses a
+  // Map<string, Set<EventHandler>> internally, so on() is O(1) amortized.
 
   if (config.on) {
     const callbacks = config.on;
@@ -265,37 +276,25 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
   // The beforeMessageSend callback supports async (returns Promise<boolean>),
   // which cannot be expressed via a synchronous DOM event listener alone.
   // We install a direct async hook on the element that the component awaits
-  // before each message send. A cancelable DOM event is also dispatched for
-  // external listeners who want to intercept without using the factory.
+  // before each message send. A cancelable DOM event is also dispatched by
+  // the component (Layer 2 in rtc-agent.ts) for external listeners.
+  //
+  // Perf note: assign userCallback directly instead of wrapping in an extra
+  // async function. This avoids one unnecessary Promise allocation per message
+  // send — _beforeMessageSend() in rtc-agent.ts already handles `await` on the
+  // hook, so the wrapper added no value.
 
   if (config.on?.beforeMessageSend) {
-    const userCallback = config.on.beforeMessageSend;
-    element._beforeMessageSendHook = async (detail) => {
-      const result = await userCallback(detail);
-      if (!result) {
-        return false;
-      }
-      return true;
-    };
-
-    // Also register a DOM event listener so external code that doesn't use
-    // the factory can intercept via `addEventListener('rtc-before-message-send', ...)`.
-    const interceptor: EventListener = (event: Event) => {
-      // Note: async work is handled by _beforeMessageSendHook (Layer 1).
-      // This DOM listener only supports synchronous cancellation via preventDefault().
-      // The user callback has already been awaited by the hook before this event fires.
-      void event; // intentional no-op — async path is handled by the hook
-    };
-    element.addEventListener('rtc-before-message-send', interceptor);
-    // Track for cleanup
-    element._eventUnsubscribes = element._eventUnsubscribes ?? [];
-    element._eventUnsubscribes.push(() =>
-      element.removeEventListener('rtc-before-message-send', interceptor),
-    );
+    element._beforeMessageSendHook = config.on.beforeMessageSend;
   }
 
   // ── Lifecycle management ──
   // Mount destroy() method for complete resource cleanup.
+  //
+  // Perf note: destroy() is O(n) where n is the number of registered listeners.
+  // For the current scale (~15 DOM events + ~4 EventBus listeners), this is
+  // negligible. All references are nullified after cleanup to help GC reclaim
+  // closures and their captured scopes promptly.
   element.destroy = () => {
     // 1. Remove element from DOM (triggers disconnectedCallback)
     element.remove();

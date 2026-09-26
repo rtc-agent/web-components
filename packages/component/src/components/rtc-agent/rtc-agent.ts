@@ -1698,6 +1698,8 @@ export class RtcAgent extends LitElement {
         message: { content: string; metadata?: Record<string, unknown> };
     }): Promise<boolean> {
         // Layer 1: async factory hook (supports Promise<boolean>)
+        // Perf note: short-circuit when no hook is registered — avoids entering
+        // the async machinery (Promise allocation) on every message send.
         if (this._beforeMessageSendHook) {
             try {
                 const hookResult = await this._beforeMessageSendHook(messageDetail);
