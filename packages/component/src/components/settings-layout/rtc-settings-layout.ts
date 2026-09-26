@@ -25,7 +25,7 @@ import {SettingsContext} from '../../contexts/settings.js';
 import type {SettingsContextValue} from '../../contexts/settings.js';
 import {AuthContext} from '../../contexts/auth.js';
 import type {AuthContextValue} from '../../contexts/auth.js';
-import {renderLogo} from '../../icons/logo.js';
+import '../logo/rtc-logo.js';
 import type {SettingsCategory} from './rtc-settings-nav.js';
 import './rtc-settings-nav.js';
 import '../drawer/rtc-drawer.js';
@@ -421,7 +421,7 @@ export class RtcSettingsLayout extends LitElement {
         return html`
             <div class="panel-header" id="panel-header-about">${panelTitle('about')}</div>
             <div class="about-brand">
-                <div class="about-logo">${renderLogo(this.theme === 'dark')}</div>
+                <div class="about-logo"><rtc-logo theme=${this.theme}></rtc-logo></div>
                 <div class="about-name">RTC Agent</div>
             </div>
             <div class="setting-row">

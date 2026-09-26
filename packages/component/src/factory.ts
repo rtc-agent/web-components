@@ -89,6 +89,10 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
     element.bubbleIcon = config.bubbleIcon;
   }
 
+  if (config.logo !== undefined) {
+    element.logo = config.logo;
+  }
+
   // ── Server configuration ──
 
   if (config.server) {

@@ -79,6 +79,7 @@ import {ActivityContext} from '../../contexts/activity.js';
 import {FileExplorerContext} from '../../contexts/file-explorer.js';
 import {SettingsContext} from '../../contexts/settings.js';
 import {NotificationContext} from '../../contexts/notification.js';
+import {LogoContext, DEFAULT_LOGO} from '../../contexts/logo.js';
 
 // Controllers
 import {WindowStateController} from '../../controllers/window-state.controller.js';
@@ -155,6 +156,9 @@ import '../settings-layout/rtc-settings-layout.js';
 
 // Drawer component (overlay slide-out panel)
 import '../drawer/rtc-drawer.js';
+
+// Logo component (theme-aware, context-driven)
+import '../logo/rtc-logo.js';
 
 // Toast types (re-exported from ToastController)
 import type {ToastType} from '../overlay/rtc-toast.js';
@@ -252,6 +256,38 @@ export class RtcAgent extends LitElement {
     // for sanitizing it (e.g. via DOMPurify) BEFORE assignment.
     @property({type: String, attribute: 'bubble-icon'})
     bubbleIcon = '';
+
+    /**
+     * Custom logo for host application branding.
+     *
+     * When set, replaces the default RTC Agent logo everywhere it appears:
+     * login page, empty state, settings "about" section.
+     *
+     * Provide separate SVG/HTML strings for light and dark themes:
+     * ```ts
+     * agent.logo = {
+     *   light: '<svg>...</svg>',  // rendered in light theme
+     *   dark: '<svg>...</svg>',   // rendered in dark theme
+     * };
+     * ```
+     *
+     * Either field can be omitted; missing variants fall back to the default logo.
+     *
+     * **Security note**: Same as `bubbleIcon` — callers should sanitize input
+     * before assignment. The component does NOT sanitize this value.
+     */
+    @property({attribute: false})
+    set logo(value: { light?: string; dark?: string } | null) {
+        this._logo = value;
+        this._logoProvider.setValue({
+            light: value?.light ?? '',
+            dark: value?.dark ?? '',
+        });
+    }
+    get logo(): { light?: string; dark?: string } | null {
+        return this._logo;
+    }
+    private _logo: { light?: string; dark?: string } | null = null;
 
     /**
      * FunctionRegistry instance (host-app injection, advanced usage).
@@ -1163,6 +1199,7 @@ export class RtcAgent extends LitElement {
     private _sessionTabProvider = new ContextProvider(this, {context: SessionTabContext, initialValue: this._sessionTab.value});
     private _settingsProvider = new ContextProvider(this, {context: SettingsContext, initialValue: this._settings.value});
     private _notificationProvider = new ContextProvider(this, {context: NotificationContext, initialValue: this._notification.value});
+    private _logoProvider = new ContextProvider(this, {context: LogoContext, initialValue: DEFAULT_LOGO});
     private _localeProvider = new ContextProvider(this, {context: localeContext, initialValue: {
         locale: sourceLocale,
         setLocale: switchLocale,

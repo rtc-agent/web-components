@@ -13,7 +13,7 @@ import {localized, msg} from '@lit/localize';
 import {consume} from '@lit/context';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {styles} from './rtc-empty-state.styles.js';
-import {renderLogo} from '../../icons/logo.js';
+import '../logo/rtc-logo.js';
 import { createLogger } from '@rtc-agent/client';
 
 const log = createLogger('EmptyState');
@@ -42,7 +42,7 @@ export class RtcEmptyState extends LitElement {
     render() {
         void this._localeCtx.locale;
         return html`
-      <div class="logo-container" part="logo">${renderLogo(this.theme === 'dark')}</div>
+      <div class="logo-container" part="logo"><rtc-logo theme=${this.theme}></rtc-logo></div>
       <div class="empty-hint" part="hint">${this.hintText}</div>
     `;
     }

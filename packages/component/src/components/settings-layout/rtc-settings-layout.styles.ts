@@ -51,7 +51,7 @@ export const styles = css`
         margin: var(--rtc-spacing-xl, 32px) 0;
     }
 
-    .about-logo svg {
+    .about-logo rtc-logo {
         width: 72px;
         height: 72px;
     }

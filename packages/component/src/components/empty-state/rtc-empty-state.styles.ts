@@ -14,7 +14,7 @@ export const styles = css`
     margin-bottom: var(--rtc-spacing-lg);
   }
 
-  .logo-container svg {
+  .logo-container rtc-logo {
     width: 64px;
     height: 64px;
   }

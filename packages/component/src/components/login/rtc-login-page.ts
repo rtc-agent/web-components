@@ -18,7 +18,7 @@ import {localized, msg} from '@lit/localize';
 import {consume} from '@lit/context';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {styles} from './rtc-login-page.styles.js';
-import {renderLogo} from '../../icons/logo.js';
+import '../logo/rtc-logo.js';
 import {AUTH_CONFIG} from '../../config/auth.js';
 import {OAuth2Client} from '@rtc-agent/client';
 import { createLogger } from '@rtc-agent/client';
@@ -149,7 +149,7 @@ export class RtcLoginPage extends LitElement {
         void this._localeCtx.locale;
         return html`
       <div class="login-container" part="container">
-        <div class="logo" part="logo">${renderLogo(this.theme === 'dark')}</div>
+        <div class="logo" part="logo"><rtc-logo theme=${this.theme}></rtc-logo></div>
         <div class="app-name" part="app-name">${this.appName}</div>
         <div class="app-desc">${msg('登录以继续')}</div>
         ${this.errorMessage

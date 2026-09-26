@@ -407,6 +407,29 @@ export interface RtcAgentConfig {
    */
   bubbleIcon?: string;
 
+  /**
+   * Custom logo for host application branding.
+   *
+   * When set, replaces the default RTC Agent logo everywhere it appears:
+   * login page, empty state, settings "about" section.
+   *
+   * Provide separate SVG/HTML strings for light and dark themes:
+   * ```ts
+   * logo: {
+   *   light: '<svg>...</svg>',  // rendered in light theme
+   *   dark: '<svg>...</svg>',   // rendered in dark theme
+   * }
+   * ```
+   *
+   * Either field can be omitted; missing variants fall back to the default logo.
+   *
+   * **Security note**: Same as `bubbleIcon` — callers should sanitize input
+   * before assignment.
+   *
+   * Maps to `RtcAgent.logo`.
+   */
+  logo?: { light?: string; dark?: string };
+
   // ── Server configuration ──
 
   /**
