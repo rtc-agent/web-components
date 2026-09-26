@@ -393,6 +393,22 @@
             </button>
         </div>
 
+        <h4>Logo / 品牌 Logo</h4>
+        <div class="debug-grid debug-grid-single">
+            <button class="debug-btn active" data-config="logo-default" onclick="setLogo('default')">
+                🔄 Default Logo
+                <span>使用默认 Logo</span>
+            </button>
+            <button class="debug-btn" data-config="logo-test" onclick="setLogo('test')">
+                🎨 Test Logo (窥)
+                <span>中文 "窥" 字渐变圆</span>
+            </button>
+            <button class="debug-btn" data-config="logo-emoji" onclick="setLogo('emoji')">
+                🤖 Emoji Logo
+                <span>Robot emoji 亮/暗</span>
+            </button>
+        </div>
+
         <div class="debug-status" id="debugStatus">
             Current: <code>default</code>
         </div>
@@ -421,6 +437,21 @@
         const bubbleOffset = 20; // distance from edges
 
         let currentLanguage = 'zh-CN';
+
+        let currentLogo = 'default';
+
+        // Test logos for debug panel
+        const TEST_LOGOS = {
+            default: null,
+            test: {
+                light: '<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#2741FE"/><stop offset="100%" stop-color="#7b5cfa"/></linearGradient></defs><circle cx="40" cy="40" r="36" fill="url(#g1)"/><text x="40" y="54" text-anchor="middle" fill="white" font-size="34" font-weight="bold" font-family="serif">窥</text></svg>',
+                dark: '<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#1A7AB0"/><stop offset="100%" stop-color="#5c8cfa"/></linearGradient></defs><circle cx="40" cy="40" r="36" fill="url(#g2)"/><text x="40" y="54" text-anchor="middle" fill="white" font-size="34" font-weight="bold" font-family="serif">窥</text></svg>',
+            },
+            emoji: {
+                light: '<div style="width:64px;height:64px;display:flex;align-items:center;justify-content:center;font-size:48px;border-radius:50%;background:linear-gradient(135deg,#ff6b6b,#feca57);">🤖</div>',
+                dark: '<div style="width:64px;height:64px;display:flex;align-items:center;justify-content:center;font-size:48px;border-radius:50%;background:linear-gradient(135deg,#5f27cd,#341f97);">🤖</div>',
+            },
+        };
 
         function toggleDebugPanel() {
             const panel = document.getElementById('debugPanel');
@@ -541,6 +572,15 @@
             updateButtonStates();
         }
 
+        function setLogo(preset) {
+            currentLogo = preset;
+            const agent = document.querySelector('rtc-agent');
+            if (agent) {
+                agent.logo = TEST_LOGOS[preset] ?? null;
+            }
+            updateButtonStates();
+        }
+
         function getBubblePosition(corner) {
             // Cartesian coordinate system: x right positive, y up positive
             // offset represents the bubble's corner closest to the origin
@@ -614,6 +654,12 @@
                 const fullLang = lang === 'zh' ? 'zh-CN' : 'en-US';
                 btn.classList.toggle('active', fullLang === currentLanguage);
             });
+
+            // Logo
+            document.querySelectorAll('[data-config^="logo-"]').forEach(btn => {
+                const preset = btn.dataset.config.replace('logo-', '');
+                btn.classList.toggle('active', preset === currentLogo);
+            });
         }
 
         function updateStatus() {
@@ -629,6 +675,7 @@
                 parts.push(`no-${currentActivityBarConfig.disabledActivities.join(', no-')}`);
             }
             parts.push(`bubble: ${currentBubbleCorner}`);
+            if (currentLogo !== 'default') parts.push(`logo: ${currentLogo}`);
             status.innerHTML = `Current: <code>${parts.join(', ')}</code>`;
         }
 
