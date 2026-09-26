@@ -4,7 +4,7 @@
  * @module factory
  */
 
-import type { RtcAgentConfig, RtcAgentWithLifecycle, StaticTokenAuth } from './types/factory.js';
+import type { RtcAgentConfig, RtcAgentWithLifecycle, StaticTokenAuth, DynamicTokenAuth } from './types/factory.js';
 import type { AgentConfig } from './types/agent-config.js';
 
 /**
@@ -171,8 +171,8 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
       element._pendingAuthConfig = staticAuth;
     } else if ('getToken' in config.auth && !('isLoggedIn' in config.auth)) {
       // Mode 2: DynamicTokenAuth
-      // TODO: Implement in iteration 6
-      throw new Error('DynamicTokenAuth not yet implemented');
+      const dynamicAuth = config.auth as DynamicTokenAuth;
+      element._pendingDynamicAuth = dynamicAuth;
     } else if ('isLoggedIn' in config.auth) {
       // Mode 3: AuthProvider
       // TODO: Implement in iteration 7
@@ -188,6 +188,7 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
 
     // 2. Clear external token references
     element._pendingAuthConfig = undefined;
+    element._pendingDynamicAuth = undefined;
 
     // 3. Cancel all EventBus subscriptions (reserved for Phase 3)
     // TODO: Implement after EventBus bridging

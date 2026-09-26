@@ -47,6 +47,17 @@ export class AuthController implements ReactiveController {
     /** Flag to indicate external token mode (skip localStorage persistence). */
     private _externalTokens = false;
 
+    /** Dynamic token provider (mode 2) */
+    private _dynamicTokenProvider?: {
+        getToken: () => string | Promise<string>;
+        refreshToken?: () => Promise<{
+            accessToken: string;
+            refreshToken?: string;
+            expiresIn?: number;
+        }>;
+        userId: string;
+    };
+
     /**
      * Callback fired when auth state transitions to logged-in.
      *
@@ -170,8 +181,60 @@ export class AuthController implements ReactiveController {
         this.onLogin?.();
     }
 
+    /**
+     * Set the dynamic token provider (Mode 2: DynamicTokenAuth).
+     *
+     * Switches the controller into external-token mode: tokens are fetched
+     * on-demand from the provider instead of being stored in localStorage.
+     *
+     * The `_state` is set to logged-in with an empty `accessToken` (fetched
+     * lazily via `getAccessTokenAsync`) and `expiresAt = Infinity` (no
+     * scheduled refresh — the provider controls expiration).
+     *
+     * @param provider - The dynamic token provider callbacks and user ID.
+     */
+    setDynamicTokenProvider(provider: {
+        getToken: () => string | Promise<string>;
+        refreshToken?: () => Promise<{
+            accessToken: string;
+            refreshToken?: string;
+            expiresIn?: number;
+        }>;
+        userId: string;
+    }) {
+        this._dynamicTokenProvider = provider;
+        this._externalTokens = true;
+
+        this._state = {
+            isLoggedIn: true,
+            accessToken: '',
+            refreshToken: '',
+            userId: provider.userId,
+            expiresAt: Infinity,
+        };
+
+        this.host.requestUpdate();
+        this.onLogin?.();
+    }
+
     /** Get current access token (for API requests) */
     getAccessToken(): string | undefined {
+        return this._state.accessToken;
+    }
+
+    /**
+     * Get the current access token, resolving it asynchronously if needed.
+     *
+     * When a dynamic token provider is configured (Mode 2), calls the provider's
+     * `getToken()` to retrieve a fresh token. Otherwise, returns the stored
+     * synchronous token (Mode 1 / internal auth).
+     *
+     * @returns The access token string, or undefined if unavailable.
+     */
+    async getAccessTokenAsync(): Promise<string | undefined> {
+        if (this._dynamicTokenProvider) {
+            return await this._dynamicTokenProvider.getToken();
+        }
         return this._state.accessToken;
     }
 
@@ -192,6 +255,7 @@ export class AuthController implements ReactiveController {
             localStorage.removeItem(STORAGE_KEYS.tokens);
         }
         this._externalTokens = false;
+        this._dynamicTokenProvider = undefined;
 
         if (this._refreshTimer) {
             clearTimeout(this._refreshTimer);
@@ -340,6 +404,22 @@ export class AuthController implements ReactiveController {
      * that could corrupt localStorage (parse-modify-write race).
      */
     async handleTokenExpired(): Promise<TokenExpiredAction> {
+        // Dynamic token mode: delegate refresh to the provider
+        if (this._dynamicTokenProvider?.refreshToken) {
+            if (this._refreshing) {
+                const success = await this._refreshing;
+                return success ? 'refresh' : 'relogin';
+            }
+
+            this._refreshing = this._doRefresh();
+            try {
+                const success = await this._refreshing;
+                return success ? 'refresh' : 'relogin';
+            } finally {
+                this._refreshing = undefined;
+            }
+        }
+
         if (!this._state.refreshToken) {
             this._logout();
             return 'relogin';
@@ -365,6 +445,34 @@ export class AuthController implements ReactiveController {
      * Returns true on success, false on failure.
      */
     private async _doRefresh(): Promise<boolean> {
+        // Dynamic token provider (Mode 2): delegate refresh to the provider.
+        if (this._dynamicTokenProvider?.refreshToken) {
+            try {
+                const result = await this._dynamicTokenProvider.refreshToken();
+                const newExpiresAt = result.expiresIn
+                    ? Date.now() + result.expiresIn * 1000
+                    : Infinity;
+
+                this._state = {
+                    ...this._state,
+                    accessToken: result.accessToken,
+                    refreshToken: result.refreshToken ?? '',
+                    expiresAt: newExpiresAt,
+                };
+
+                // External tokens are not persisted to localStorage.
+                if (newExpiresAt !== Infinity) {
+                    this._scheduleRefresh(newExpiresAt);
+                }
+
+                this.host.requestUpdate();
+                return true;
+            } catch (error) {
+                log.error('Dynamic token refresh failed:', error);
+                return false;
+            }
+        }
+
         const result = await this._executeRefresh(this._state.refreshToken!);
 
         if (!result.success) {

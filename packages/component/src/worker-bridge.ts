@@ -111,9 +111,9 @@ export class WorkerBridge {
                 const bus = getUIUpdateBus();
                 bus.publish(event);
             },
-            // Worker requests token -> AuthController.getAccessToken().
+            // Worker requests token -> AuthController.getAccessTokenAsync().
             requestToken: async (): Promise<string> => {
-                const token = this._auth.getAccessToken();
+                const token = await this._auth.getAccessTokenAsync();
                 if (!token) {
                     throw new Error('[WorkerBridge] no access token available');
                 }

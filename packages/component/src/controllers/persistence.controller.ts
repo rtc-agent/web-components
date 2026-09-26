@@ -333,8 +333,8 @@ export class PersistenceController implements ReactiveController {
             deviceId,
             client: {
                 endpoint: AUTH_CONFIG.wsEndpoint,
-                getToken: () => {
-                    const token = this._auth.getAccessToken();
+                getToken: async () => {
+                    const token = await this._auth.getAccessTokenAsync();
                     if (!token) {
                         log.warn('getToken: no access token available');
                         throw new Error('No access token available');
