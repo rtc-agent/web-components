@@ -22,6 +22,47 @@ export {RtcAgent} from './components/rtc-agent/rtc-agent.js';
 export {whenReady} from './core/ready.js';
 
 /**
+ * 国际化 API — 运行时切换语言
+ *
+ * @example
+ * ```ts
+ * import { switchLocale, getLocale } from '@rtc-agent/component';
+ * await switchLocale('en-US');
+ * console.log(getLocale()); // 'en-US'
+ * ```
+ */
+export {
+  switchLocale,
+  initLocale,
+  getLocale,
+  persistLocale,
+  sourceLocale,
+  targetLocales,
+  localeContext,
+  isValidLocale,
+} from './core/i18n.js';
+export type { SupportedLocale, LocaleContextValue } from './core/i18n.js';
+
+/**
+ * 主题 API — 运行时切换主题
+ *
+ * @example
+ * ```ts
+ * import { switchTheme, getEffectiveTheme } from '@rtc-agent/component';
+ * switchTheme('dark');
+ * console.log(getEffectiveTheme()); // 'dark'
+ * ```
+ */
+export {
+  switchTheme,
+  initTheme,
+  getEffectiveTheme,
+  getStoredTheme,
+  persistTheme,
+} from './core/theme.js';
+export type { Theme } from './core/theme.js';
+
+/**
  * Agent 声明式配置类型
  *
  * 用于 <rtc-agent>.agentConfig 属性 —— 宿主应用的主要集成方式。
@@ -95,9 +136,10 @@ export type { ActivityBarConfig } from './types/activity-bar-config.js';
 // ===== Skill System (Advanced API) =====
 
 export { defineRegistry, FunctionRegistry, FunctionGroup } from './core/function-registry.js';
-export { loadScenariosFromURL, parseFrontmatter } from './core/scenario-loader.js';
-export { generateFunctionMd, generateFunctionsIndex, generateAgentMd } from './core/markdown-generator.js';
-export { EventBus, eventBus } from './core/event-bus.js';
+export { loadScenariosFromURL, loadScenariosContent, parseFrontmatter } from './core/scenario-loader.js';
+export { generateFunctionMd, generateFunctionsIndex, generateScenariosIndex, generateAgentMd } from './core/markdown-generator.js';
+export { EventBus, eventBus, createEventBus } from './core/event-bus.js';
+export type { EventHandler, DefaultEventMap, FunctionRegistryEventMap } from './core/event-bus.js';
 export { SkillController } from './controllers/skill.controller.js';
 export type { SkillActions, SkillControllerConfig } from './controllers/skill.controller.js';
 export { SkillContext, DEFAULT_SKILL_STATE } from './contexts/skill.js';
