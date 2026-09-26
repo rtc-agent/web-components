@@ -1,6 +1,6 @@
 {
   "name": "@rtc-agent/component",
-  "version": "0.2.6",
+  "version": "0.2.7-rc.1",
   "description": "RTC Agent Web Components（基于 Lit）",
   "type": "module",
   "main": "./dist/index.js",
