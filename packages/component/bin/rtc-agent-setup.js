@@ -16,7 +16,7 @@
  *   }
  */
 
-import { existsSync, mkdirSync, copyFileSync, readFileSync, readdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, copyFileSync, readFileSync, readdirSync, writeFileSync, unlinkSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -92,7 +92,23 @@ function copyWorkerFiles(targetDir) {
     console.log(`📁 Created directory: ${targetDir}`);
   }
 
-  // Find and copy shared-worker files
+  // Clean up old hashed worker files
+  const existingFiles = existsSync(targetDir) ? readdirSync(targetDir) : [];
+  const oldWorkerFiles = existingFiles.filter(
+    f => f.startsWith('shared-worker-') && f.endsWith('.js') && f !== 'shared-worker.js'
+  );
+
+  for (const oldFile of oldWorkerFiles) {
+    const oldPath = join(targetDir, oldFile);
+    try {
+      unlinkSync(oldPath);
+      console.log(`🗑️  Removed old: ${oldFile}`);
+    } catch (err) {
+      console.warn(`⚠️  Could not remove ${oldFile}: ${err.message}`);
+    }
+  }
+
+  // Find the main worker file in dist
   const distFiles = readdirSync(sourceDir);
   const workerFiles = distFiles.filter(f => f.startsWith('shared-worker') && f.endsWith('.js'));
 
@@ -102,28 +118,19 @@ function copyWorkerFiles(targetDir) {
     return 0;
   }
 
-  let copiedCount = 0;
-  let mainWorkerFile = null;
+  // Find the hashed worker file
+  const hashedWorkerFile = workerFiles.find(f => f !== 'shared-worker.js' && f.match(/shared-worker-[A-Za-z0-9]+\.js/));
 
-  for (const file of workerFiles) {
-    const sourcePath = join(sourceDir, file);
-    const targetPath = join(targetDir, file);
-    copyFileSync(sourcePath, targetPath);
-    console.log(`✅ Copied ${file} → ${targetDir}`);
-    copiedCount++;
-
-    // Track the main worker file (without .map or other extensions)
-    if (file.endsWith('.js') && !file.includes('.map')) {
-      mainWorkerFile = file;
-    }
+  if (!hashedWorkerFile) {
+    console.warn('⚠️  Warning: No hashed worker file found');
+    return 0;
   }
 
-  // Create a stable symlink or copy without hash for easy reference
-  if (mainWorkerFile && mainWorkerFile !== 'shared-worker.js') {
-    const stablePath = join(targetDir, 'shared-worker.js');
-    copyFileSync(join(targetDir, mainWorkerFile), stablePath);
-    console.log(`✅ Created stable link: shared-worker.js → ${mainWorkerFile}`);
-  }
+  // Copy as shared-worker.js (stable name, no hash)
+  const sourcePath = join(sourceDir, hashedWorkerFile);
+  const targetPath = join(targetDir, 'shared-worker.js');
+  copyFileSync(sourcePath, targetPath);
+  console.log(`✅ Copied ${hashedWorkerFile} → shared-worker.js`);
 
   // Create manifest.json with version info
   const packageJsonPath = join(__dirname, '..', 'package.json');
@@ -131,7 +138,7 @@ function copyWorkerFiles(targetDir) {
 
   const manifest = {
     version: packageJson.version,
-    workerFile: mainWorkerFile,
+    workerFile: 'shared-worker.js',
     stableWorkerUrl: '/rtc-agent/shared-worker.js',
     timestamp: new Date().toISOString(),
   };
@@ -142,7 +149,7 @@ function copyWorkerFiles(targetDir) {
   );
   console.log(`✅ Created manifest.json (version ${packageJson.version})`);
 
-  return copiedCount;
+  return 1;
 }
 
 /**
