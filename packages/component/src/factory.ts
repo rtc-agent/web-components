@@ -180,6 +180,38 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
     }
   }
 
+  // ── Event callbacks ──
+
+  if (config.on) {
+    const callbacks = config.on;
+    const eventMap: Array<[string, EventListener | undefined]> = [
+      ['rtc-agent-ready', callbacks.ready],
+      ['rtc-connection-retry', callbacks.connectionRetry],
+      ['rtc-auth-login-requested', callbacks.authLoginRequested],
+      ['rtc-auth-refresh-failed', callbacks.authError],
+      ['rtc-auth-logout', callbacks.authLogout],
+      ['rtc-session-created', callbacks.sessionCreated as EventListener | undefined],
+      ['rtc-session-switched', callbacks.sessionSwitched as EventListener | undefined],
+      ['rtc-session-renamed', callbacks.sessionRenamed as EventListener | undefined],
+      ['rtc-session-deleted', callbacks.sessionDeleted as EventListener | undefined],
+      ['rtc-message-received', callbacks.messageReceived as EventListener | undefined],
+      ['rtc-message-sent', callbacks.messageSent as EventListener | undefined],
+    ];
+
+    // Register callbacks and store unsubscribe functions for cleanup
+    const unsubscribes: Array<() => void> = [];
+
+    for (const [eventName, callback] of eventMap) {
+      if (callback) {
+        element.addEventListener(eventName, callback);
+        unsubscribes.push(() => element.removeEventListener(eventName, callback));
+      }
+    }
+
+    // Store unsubscribes for destroy() cleanup
+    element._eventUnsubscribes = unsubscribes;
+  }
+
   // ── Lifecycle management ──
   // Mount destroy() method for complete resource cleanup.
   element.destroy = () => {
@@ -191,11 +223,11 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
     element._pendingDynamicAuth = undefined;
     element._pendingAuthProvider = undefined;
 
-    // 3. Cancel all EventBus subscriptions (reserved for Phase 3)
-    // TODO: Implement after EventBus bridging
-    // if (eventBusUnsubscribes) {
-    //   eventBusUnsubscribes.forEach(unsub => unsub());
-    // }
+    // 3. Cancel all EventBus subscriptions
+    if (element._eventUnsubscribes) {
+      element._eventUnsubscribes.forEach(unsub => unsub());
+      element._eventUnsubscribes = undefined;
+    }
 
     // 4. Optionally clear localStorage tokens
     // TODO: Implement as needed

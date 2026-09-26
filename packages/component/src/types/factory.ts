@@ -8,6 +8,7 @@ import type { WindowConfig } from './window-config.js';
 import type { ActivityBarConfig } from './activity-bar-config.js';
 import type { AgentFunctionGroup } from './agent-config.js';
 import type { FunctionDef } from './skill.js';
+import type { Session, Message } from './index.js';
 
 // ===== Authentication Configuration (Three Modes) =====
 
@@ -123,6 +124,77 @@ export interface AuthProvider {
   isLoggedIn(): boolean;
   /** Optional logout handler. If provided, component logout delegates to host */
   logout?(): Promise<void>;
+}
+
+// ===== Event Callbacks (Phase 3) =====
+
+/**
+ * Event callbacks for the RTC Agent.
+ *
+ * Each callback maps to a corresponding DOM CustomEvent dispatched by the component.
+ * The factory function internally registers these callbacks via `addEventListener()`.
+ * Callbacks are automatically removed when `destroy()` is called.
+ *
+ * @example
+ * ```ts
+ * const agent = createRtcAgent({
+ *   on: {
+ *     ready: () => console.log('Agent ready'),
+ *     sessionCreated: ({ session }) => console.log('Session:', session.title),
+ *     messageReceived: ({ message }) => console.log('Message:', message.content),
+ *   }
+ * });
+ * ```
+ */
+export interface EventCallbacks {
+  // ===== Lifecycle =====
+
+  /** Component first render complete (maps to `rtc-agent-ready` event) */
+  ready?: () => void;
+
+  /**
+   * Component about to be removed from DOM
+   *
+   * Note: Web Component's `disconnectedCallback` may fire when element is temporarily
+   * removed, not necessarily "permanently destroyed". Use `destroy()` for permanent cleanup.
+   */
+  beforeDestroy?: () => void;
+
+  // ===== Connection / Auth =====
+
+  /** User clicks retry button (maps to `rtc-connection-retry` event) */
+  connectionRetry?: () => void;
+
+  /** User requests login (maps to `rtc-auth-login-requested` event) */
+  authLoginRequested?: () => void;
+
+  /** Authentication error (maps to `rtc-auth-refresh-failed` event) */
+  authError?: () => void;
+
+  /** User logs out (maps to `rtc-auth-logout` event) */
+  authLogout?: () => void;
+
+  // ===== Session =====
+
+  /** Session created (maps to `rtc-session-created` event) */
+  sessionCreated?: (detail: { session: Session }) => void;
+
+  /** Session switched (maps to `rtc-session-switched` event) */
+  sessionSwitched?: (detail: { id: string }) => void;
+
+  /** Session renamed (maps to `rtc-session-renamed` event) */
+  sessionRenamed?: (detail: { id: string; title: string }) => void;
+
+  /** Session deleted (maps to `rtc-session-deleted` event) */
+  sessionDeleted?: (detail: { id: string }) => void;
+
+  // ===== Message =====
+
+  /** Message received (maps to `rtc-message-received` event) */
+  messageReceived?: (detail: { message: Message }) => void;
+
+  /** Message sent (maps to `rtc-message-sent` event) */
+  messageSent?: (detail: { message: Message }) => void;
 }
 
 /**
@@ -361,8 +433,56 @@ export interface RtcAgentConfig {
    */
   auth?: AuthConfig;
 
-  // ── Reserved for future phases ──
-  // on?: EventCallbacks;         // Phase 3
+  /**
+   * Event callbacks for the agent.
+   *
+   * Each callback is automatically registered via `addEventListener()` on the component.
+   * Callbacks are removed when `destroy()` is called.
+   */
+  on?: EventCallbacks;
+}
+
+/**
+ * Event callbacks for the RTC Agent.
+ *
+ * Each callback maps to a corresponding DOM CustomEvent dispatched by the component.
+ * The factory function internally registers these callbacks via `addEventListener()`.
+ */
+export interface EventCallbacks {
+  // ===== 已有事件映射 =====
+
+  /** Component first render complete (maps to `rtc-agent-ready` event) */
+  ready?: () => void;
+
+  /** User clicks retry button (maps to `rtc-connection-retry` event) */
+  connectionRetry?: () => void;
+
+  /** User requests login (maps to `rtc-auth-login-requested` event) */
+  authLoginRequested?: () => void;
+
+  /** Authentication error (maps to `rtc-auth-refresh-failed` event) */
+  authError?: () => void;
+
+  /** User logs out (maps to `rtc-auth-logout` event) */
+  authLogout?: () => void;
+
+  /** Session created (maps to `rtc-session-created` event) */
+  sessionCreated?: (detail: { session: Session }) => void;
+
+  /** Session switched (maps to `rtc-session-switched` event) */
+  sessionSwitched?: (detail: { id: string }) => void;
+
+  /** Session renamed (maps to `rtc-session-renamed` event) */
+  sessionRenamed?: (detail: { id: string; title: string }) => void;
+
+  /** Session deleted (maps to `rtc-session-deleted` event) */
+  sessionDeleted?: (detail: { id: string }) => void;
+
+  /** Message received (maps to `rtc-message-received` event) */
+  messageReceived?: (detail: { message: Message }) => void;
+
+  /** Message sent (maps to `rtc-message-sent` event) */
+  messageSent?: (detail: { message: Message }) => void;
 }
 
 /**
@@ -380,6 +500,9 @@ export type RtcAgent = import('../components/rtc-agent/rtc-agent.js').RtcAgent;
  * Extends `RtcAgent` with a `destroy()` method for complete resource cleanup.
  */
 export interface RtcAgentWithLifecycle extends RtcAgent {
+  /** @internal Event callback unsubscribes for cleanup */
+  _eventUnsubscribes?: Array<() => void>;
+
   /**
    * Permanently destroy the agent instance.
    *
