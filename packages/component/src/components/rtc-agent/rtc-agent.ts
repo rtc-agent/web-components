@@ -734,15 +734,37 @@ export class RtcAgent extends LitElement {
     private _boundOnInputSubmit = async (e: Event) => {
         const detail = (e as CustomEvent).detail;
         // Use contentData directly from rtc-input-area.
-        const content: ContentData = detail.contentData;
+        // ContentData shape: { type: string, data: unknown }. For text messages, data is a string.
+        const contentData: ContentData = detail.contentData;
+
+        // Apply beforeMessageSend interception (async-aware, supports cancellation).
+        // Extract the text content from ContentData and expose a simplified interface
+        // { content: string; metadata?: Record<string, unknown> } to the callback.
+        const extractText = (data: unknown): string =>
+            typeof data === 'string' ? data : '';
+        const currentText = extractText(contentData.data);
+        const messageDetail = {
+            message: {
+                content: currentText,
+                metadata: undefined as Record<string, unknown> | undefined,
+            },
+        };
+        const shouldSend = await this._beforeMessageSend(messageDetail);
+        if (!shouldSend) {
+            return;
+        }
+        // Apply potential in-place modifications from the callback back to ContentData.
+        if (messageDetail.message.content !== currentText) {
+            contentData.data = messageDetail.message.content;
+        }
 
         try {
             if (this._fork.isActive) {
                 // Fork mode: call forkSession.
-                await this._fork.actions.submitFork(content);
+                await this._fork.actions.submitFork(contentData);
             } else {
                 // Normal mode: call sendMessage.
-                await this._message.actions.sendMessage(content);
+                await this._message.actions.sendMessage(contentData);
             }
 
             // After successful send, promote the current unsaved tab to saved.
@@ -1015,6 +1037,19 @@ export class RtcAgent extends LitElement {
 
     /** UIUpdateBus gap fill state unsubscribe reference (set in connectedCallback, cleared in disconnectedCallback). */
     private _busUnsubGapFill?: () => void;
+
+    /**
+     * @internal Async beforeMessageSend hook, set by the `createRtcAgent` factory
+     * when the `beforeMessageSend` callback is provided.
+     *
+     * Called before each message send. Returning `false` cancels the send.
+     * The hook may also mutate the message detail in place.
+     *
+     * Cleared in disconnectedCallback to prevent leaks.
+     */
+    _beforeMessageSendHook?: (detail: {
+        message: { content: string; metadata?: Record<string, unknown> };
+    }) => boolean | Promise<boolean>;
 
     /** Whether gap fill syncing overlay is shown. */
     private _isSyncing = false;
@@ -1473,6 +1508,17 @@ export class RtcAgent extends LitElement {
     }
 
     disconnectedCallback() {
+        // Dispatch beforeDestroy event before any cleanup logic.
+        // Note: disconnectedCallback may fire for temporary removal (e.g. DOM reordering),
+        // not just permanent destroy. Use factory's destroy() for permanent cleanup.
+        this.dispatchEvent(new CustomEvent('rtc-before-destroy', {
+            bubbles: true,
+            composed: true,
+        }));
+
+        // Clear async beforeMessageSend hook to prevent leaks
+        this._beforeMessageSendHook = undefined;
+
         super.disconnectedCallback();
         this.removeEventListener('rtc-window-minimize', this._boundOnMinimize);
         this.removeEventListener('rtc-window-maximize', this._boundOnMaximize);
@@ -1627,6 +1673,56 @@ export class RtcAgent extends LitElement {
             bubbles: true,
             composed: true,
         }));
+    }
+
+    /* ── Message Send Interception ── */
+
+    /**
+     * Run the beforeMessageSend interception pipeline.
+     *
+     * Two layers of interception:
+     * 1. **Factory hook** (`_beforeMessageSendHook`): async-aware, set by the
+     *    `createRtcAgent` factory when `on.beforeMessageSend` is provided.
+     *    Supports async callbacks (e.g. server-side validation).
+     * 2. **DOM event** (`rtc-before-message-send`): synchronous cancelable event,
+     *    allows external listeners (not registered via factory) to cancel the send
+     *    via `preventDefault()`.
+     *
+     * If either layer returns `false` / calls `preventDefault()`, the message is
+     * not sent. The callback may mutate `detail.message.content` / `detail.message.metadata`
+     * in place to modify the outgoing message.
+     *
+     * @returns `true` to proceed with send, `false` to cancel.
+     */
+    private async _beforeMessageSend(messageDetail: {
+        message: { content: string; metadata?: Record<string, unknown> };
+    }): Promise<boolean> {
+        // Layer 1: async factory hook (supports Promise<boolean>)
+        if (this._beforeMessageSendHook) {
+            try {
+                const hookResult = await this._beforeMessageSendHook(messageDetail);
+                if (hookResult === false) {
+                    return false;
+                }
+            } catch (err) {
+                log.error('beforeMessageSend hook failed:', err);
+                // Degrade gracefully: continue sending when hook throws
+            }
+        }
+
+        // Layer 2: synchronous cancelable DOM event
+        const event = new CustomEvent('rtc-before-message-send', {
+            detail: messageDetail,
+            bubbles: true,
+            composed: true,
+            cancelable: true,
+        });
+        const dispatched = this.dispatchEvent(event);
+        if (!dispatched) {
+            return false;
+        }
+
+        return true;
     }
 
     /* ── Connection Retry Handler ── */
@@ -1954,6 +2050,16 @@ export class RtcAgent extends LitElement {
                 log.error('Bubble icon sanitization failed:', err);
                 this._sanitizedBubbleIcon = '';
             });
+        }
+
+        // Dispatch rtc-theme-change when the theme property changes.
+        // Fires on both initial attribute set and subsequent mutations.
+        if (changed.has('theme')) {
+            this.dispatchEvent(new CustomEvent('rtc-theme-change', {
+                detail: { theme: this.theme },
+                bubbles: true,
+                composed: true,
+            }));
         }
     }
 

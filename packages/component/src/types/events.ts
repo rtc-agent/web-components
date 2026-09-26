@@ -32,11 +32,20 @@
 export interface RtcAgentEventDetailMap {
   /** 组件首次渲染完成，可以安全地设置 agentConfig / registry */
   'rtc-agent-ready': void;
+  /** 主题变化（属性变更或 system 跟随系统偏好变化时触发） */
+  'rtc-theme-change': { theme: 'light' | 'dark' | 'system' };
+  /** 组件即将从 DOM 移除（在 disconnectedCallback 清理逻辑之前触发） */
+  'rtc-before-destroy': void;
+  /** 消息发送前拦截（可通过 preventDefault() 取消发送，或修改 detail.message.content） */
+  'rtc-before-message-send': { message: { content: string; metadata?: Record<string, unknown> } };
 }
 
 // 全局扩展 HTMLElementEventMap，使 addEventListener 自动支持这些事件
 declare global {
   interface HTMLElementEventMap {
     'rtc-agent-ready': CustomEvent<RtcAgentEventDetailMap['rtc-agent-ready']>;
+    'rtc-theme-change': CustomEvent<RtcAgentEventDetailMap['rtc-theme-change']>;
+    'rtc-before-destroy': CustomEvent<RtcAgentEventDetailMap['rtc-before-destroy']>;
+    'rtc-before-message-send': CustomEvent<RtcAgentEventDetailMap['rtc-before-message-send']>;
   }
 }

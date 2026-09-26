@@ -199,6 +199,8 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
       ['rtc-message-sent', callbacks.messageSent as EventListener | undefined],
       ['rtc-connection-state-change', callbacks.connectionStateChange as EventListener | undefined],
       ['rtc-auth-login', callbacks.authLogin as EventListener | undefined],
+      ['rtc-theme-change', callbacks.themeChange as EventListener | undefined],
+      ['rtc-before-destroy', callbacks.beforeDestroy as EventListener | undefined],
     ];
 
     // Register callbacks and store unsubscribe functions for cleanup
@@ -256,6 +258,40 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
 
     // Store EventBus unsubscribes for destroy() cleanup
     element._eventBusUnsubscribes = eventBusUnsubscribes;
+  }
+
+  // ── beforeMessageSend async hook ──
+  //
+  // The beforeMessageSend callback supports async (returns Promise<boolean>),
+  // which cannot be expressed via a synchronous DOM event listener alone.
+  // We install a direct async hook on the element that the component awaits
+  // before each message send. A cancelable DOM event is also dispatched for
+  // external listeners who want to intercept without using the factory.
+
+  if (config.on?.beforeMessageSend) {
+    const userCallback = config.on.beforeMessageSend;
+    element._beforeMessageSendHook = async (detail) => {
+      const result = await userCallback(detail);
+      if (!result) {
+        return false;
+      }
+      return true;
+    };
+
+    // Also register a DOM event listener so external code that doesn't use
+    // the factory can intercept via `addEventListener('rtc-before-message-send', ...)`.
+    const interceptor: EventListener = (event: Event) => {
+      // Note: async work is handled by _beforeMessageSendHook (Layer 1).
+      // This DOM listener only supports synchronous cancellation via preventDefault().
+      // The user callback has already been awaited by the hook before this event fires.
+      void event; // intentional no-op — async path is handled by the hook
+    };
+    element.addEventListener('rtc-before-message-send', interceptor);
+    // Track for cleanup
+    element._eventUnsubscribes = element._eventUnsubscribes ?? [];
+    element._eventUnsubscribes.push(() =>
+      element.removeEventListener('rtc-before-message-send', interceptor),
+    );
   }
 
   // ── Lifecycle management ──

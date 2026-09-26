@@ -157,8 +157,21 @@ export interface EventCallbacks {
    *
    * Note: Web Component's `disconnectedCallback` may fire when element is temporarily
    * removed, not necessarily "permanently destroyed". Use `destroy()` for permanent cleanup.
+   *
+   * Dispatched in `disconnectedCallback` before any cleanup logic.
    */
   beforeDestroy?: () => void;
+
+  // ===== Theme =====
+
+  /**
+   * Theme changed
+   *
+   * Dispatched when theme changes (user toggle or programmatic update).
+   * The event fires after the `theme` property has been updated, both on
+   * initial attribute change and subsequent modifications.
+   */
+  themeChange?: (detail: { theme: 'light' | 'dark' | 'system' }) => void;
 
   // ===== Connection / Auth =====
 
@@ -214,6 +227,42 @@ export interface EventCallbacks {
 
   /** Message sent (maps to `rtc-message-sent` event) */
   messageSent?: (detail: { message: Message }) => void;
+
+  // ===== Message interception =====
+
+  /**
+   * Before message send - allows interception/modification/cancellation
+   *
+   * Called before a message is sent to the server. Supports both synchronous
+   * and asynchronous callbacks.
+   *
+   * Return `false` (or a `Promise` that resolves to `false`) to cancel the send.
+   * The callback may also mutate `detail.message.content` or `detail.message.metadata`
+   * to modify the outgoing message in-place.
+   *
+   * @example
+   * ```ts
+   * // Synchronous cancellation (profanity filter)
+   * beforeMessageSend: ({ message }) => {
+   *   return !FORBIDDEN_WORDS.some(w => message.content.includes(w));
+   * }
+   *
+   * // Async interception (server-side validation)
+   * beforeMessageSend: async ({ message }) => {
+   *   const ok = await validateMessage(message.content);
+   *   return ok;
+   * }
+   *
+   * // In-place modification
+   * beforeMessageSend: ({ message }) => {
+   *   message.content = message.content.trim();
+   *   return true;
+   * }
+   * ```
+   */
+  beforeMessageSend?: (detail: {
+    message: { content: string; metadata?: Record<string, unknown> };
+  }) => boolean | Promise<boolean>;
 
   // ===== Tool Call (EventBus bridging) =====
 
@@ -533,6 +582,17 @@ export interface RtcAgentWithLifecycle extends RtcAgent {
 
   /** @internal EventBus unsubscribes for cleanup */
   _eventBusUnsubscribes?: Array<() => void>;
+
+  /**
+   * @internal Async beforeMessageSend hook, set by the factory when the
+   * `beforeMessageSend` callback is provided.
+   *
+   * The component calls this hook before sending each message. If the hook
+   * returns `false`, the send is cancelled.
+   */
+  _beforeMessageSendHook?: (detail: {
+    message: { content: string; metadata?: Record<string, unknown> };
+  }) => boolean | Promise<boolean>;
 
   /**
    * Permanently destroy the agent instance.
