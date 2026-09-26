@@ -244,3 +244,23 @@ export interface RtcAgentConfig {
  * autocompletion when working with the factory return value.
  */
 export type RtcAgent = import('../components/rtc-agent/rtc-agent.js').RtcAgent;
+
+/**
+ * RTC Agent instance with lifecycle management.
+ *
+ * Extends `RtcAgent` with a `destroy()` method for complete resource cleanup.
+ */
+export interface RtcAgentWithLifecycle extends RtcAgent {
+  /**
+   * Permanently destroy the agent instance.
+   *
+   * Performs complete cleanup:
+   * 1. Removes element from DOM (triggers disconnectedCallback)
+   * 2. Clears external token references (added in Phase 2)
+   * 3. Cancels all EventBus subscriptions (added in Phase 3)
+   * 4. Optionally clears localStorage tokens
+   *
+   * After calling destroy(), the agent instance should not be reused.
+   */
+  destroy(): void;
+}
