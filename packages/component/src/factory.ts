@@ -108,6 +108,13 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
     element.databaseName = config.databaseName;
   }
 
+  // ── Worker configuration ──
+  // Must be set before the element is mounted to the DOM.
+
+  if (config.workerUrl !== undefined) {
+    element.workerUrl = config.workerUrl;
+  }
+
   // ── Scenario documents ──
 
   if (config.scenariosUrl !== undefined) {

@@ -423,6 +423,33 @@ export class RtcAgent extends LitElement {
     private _databaseName = '';
 
     /**
+     * Custom SharedWorker URL (optional).
+     *
+     * When the component is loaded from NPM, the worker file may not be accessible
+     * from the default location. Use this to specify a custom URL where the worker
+     * file is served (e.g., '/rtc-agent/shared-worker.js').
+     *
+     * Must be set before the element is mounted to the DOM.
+     *
+     * @example
+     * <rtc-agent worker-url="/rtc-agent/shared-worker.js"></rtc-agent>
+     *
+     * @example
+     * ```ts
+     * agent.workerUrl = '/rtc-agent/shared-worker.js';
+     * ```
+     */
+    @property({ type: String, attribute: 'worker-url' })
+    set workerUrl(value: string) {
+        this._workerUrl = value;
+        this._persistence.workerUrl = value || undefined;
+    }
+    get workerUrl(): string {
+        return this._workerUrl;
+    }
+    private _workerUrl = '';
+
+    /**
      * Window configuration (optional).
      *
      * Controls the window's default state, dimensions, position, interaction limits, etc.

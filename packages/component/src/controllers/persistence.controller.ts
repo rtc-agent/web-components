@@ -239,6 +239,7 @@ export class PersistenceController implements ReactiveController {
     private _workerBridge?: WorkerBridge;
     private _masterLock?: MasterLock;
     private _databaseNameOverride?: string;
+    private _workerUrl?: string;
 
     /**
      * In-flight connection promise — prevents concurrent `connect()` calls from
@@ -262,6 +263,19 @@ export class PersistenceController implements ReactiveController {
     /** Set custom database name prefix. Must be called before connect(). */
     set databaseName(value: string | undefined) {
         this._databaseNameOverride = value;
+    }
+
+    /**
+     * Set custom SharedWorker URL.
+     *
+     * When the component is loaded from NPM, the worker file may not be accessible
+     * from the default location. Use this to specify a custom URL where the worker
+     * file is served (e.g., '/rtc-agent/shared-worker.js').
+     *
+     * Must be called before connect().
+     */
+    set workerUrl(value: string | undefined) {
+        this._workerUrl = value;
     }
 
     /** The PersistenceLayer instance. Only available after connect(). */
@@ -392,7 +406,9 @@ export class PersistenceController implements ReactiveController {
      * 单次连接尝试
      */
     private async _connectWorkerOnce(config: PersistenceConfig): Promise<void> {
-        this._workerBridge = new WorkerBridge(this._auth);
+        this._workerBridge = new WorkerBridge(this._auth, {
+            workerUrl: this._workerUrl,
+        });
 
         // 异步加载 worker 脚本：从 Vite 工厂函数提取 URL → fetch → blob URL → SharedWorker
         // 这样 SharedWorker 继承页面 origin，避免 CDN 部署时的跨源错误。

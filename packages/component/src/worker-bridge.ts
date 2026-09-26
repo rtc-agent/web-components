@@ -87,6 +87,24 @@ function extractWorkerRelativePath(factory: Function): string {
     );
 }
 
+export interface WorkerBridgeConfig {
+    /**
+     * Custom SharedWorker URL.
+     *
+     * When not provided, uses Vite's factory function to determine the worker URL.
+     * This is useful when the component is loaded from NPM and the worker file
+     * needs to be served from a different location (e.g., /rtc-agent/shared-worker.js).
+     *
+     * @example
+     * ```ts
+     * new WorkerBridge(authController, {
+     *   workerUrl: '/rtc-agent/shared-worker.js'
+     * });
+     * ```
+     */
+    workerUrl?: string;
+}
+
 export class WorkerBridge {
     private _worker: SharedWorker | null = null;
     private _core: Remote<WorkerPersistenceCore> | null = null;
@@ -94,6 +112,7 @@ export class WorkerBridge {
     /** Comlink-proxied callbacks (for cross-Worker transfer). */
     private _proxiedCallbacks: WorkerCallbacks;
     private _initialized = false;
+    private _config: WorkerBridgeConfig;
 
     /** Connection state listeners (main-thread side). */
     private _connectionListeners = new Set<(event: ConnectionStateEvent) => void>();
@@ -103,7 +122,12 @@ export class WorkerBridge {
     /** Timeout for worker liveness verification (ping/pong). */
     private static readonly VERIFICATION_TIMEOUT_MS = 5000;
 
-    constructor(private readonly _auth: AuthController) {
+    constructor(
+        private readonly _auth: AuthController,
+        config: WorkerBridgeConfig = {}
+    ) {
+        this._config = config;
+
         // 1. Prepare callbacks (registered in the Worker during init()).
         this._callbacks = {
             // Worker broadcasts UIUpdateEvent -> main-thread UIUpdateBus.publish().
@@ -202,70 +226,79 @@ export class WorkerBridge {
      * Single Worker initialization attempt.
      */
     private async _initWorkerOnce(): Promise<void> {
-        // 1. Extract worker chunk path (from Vite factory function source).
-        const workerPath = extractWorkerRelativePath(workerFactory);
-
-        // 2. Resolve the worker's absolute URL.
-        const here = import.meta.url;
-        const workerUrl = new URL(workerPath, here).href;
-
-        // 3. Determine if cross-origin.
-        const pageOrigin = window.location.origin;
-        let workerOrigin: string;
-        try {
-            workerOrigin = new URL(workerUrl).origin;
-        } catch (err) {
-            // Malformed URL — assume same-origin as fallback
-            log.debug('Failed to parse worker URL origin, assuming same-origin:', err);
-            workerOrigin = pageOrigin;
-        }
-        const isCrossOrigin = workerOrigin !== pageOrigin;
-
-        log.info('worker init:', {
-            workerUrl,
-            pageOrigin,
-            workerOrigin,
-            isCrossOrigin,
-        });
-
-        if (!isCrossOrigin) {
-            // Same-origin: use the factory function directly (simplest, most reliable).
-            // Used for local dev and same-origin deployments.
-            // Vite's type definition is incorrect (marks ?sharedworker import as a constructor);
-            // at runtime it is a plain function that returns a SharedWorker instance.
-            // Call it without 'new' since it's a factory function, not a constructor.
-            this._worker = (workerFactory as unknown as WorkerFactoryFunction)();
+        // If custom workerUrl is provided, use it directly
+        if (this._config.workerUrl) {
+            log.info('Using custom workerUrl:', this._config.workerUrl);
+            this._worker = new SharedWorker(this._config.workerUrl, {
+                name: 'rtc-agent-worker',
+                type: 'module',
+            });
         } else {
-            // Cross-origin (CDN deployment): fetch worker script -> create same-origin blob: URL
-            // -> construct SharedWorker.
-            // CDN must return CORS headers (Access-Control-Allow-Origin) or fetch will fail.
-            let script: string;
+            // 1. Extract worker chunk path (from Vite factory function source).
+            const workerPath = extractWorkerRelativePath(workerFactory);
+
+            // 2. Resolve the worker's absolute URL.
+            const here = import.meta.url;
+            const workerUrl = new URL(workerPath, here).href;
+
+            // 3. Determine if cross-origin.
+            const pageOrigin = window.location.origin;
+            let workerOrigin: string;
             try {
-                const response = await fetch(workerUrl, {
-                    cache: 'no-store', // Avoid using stale cached scripts.
-                });
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status} ${response.statusText}`);
-                }
-                script = await response.text();
+                workerOrigin = new URL(workerUrl).origin;
             } catch (err) {
-                throw new Error(
-                    `[WorkerBridge] failed to fetch worker script from ${workerUrl}: ${err instanceof Error ? err.message : err}`
-                );
+                // Malformed URL — assume same-origin as fallback
+                log.debug('Failed to parse worker URL origin, assuming same-origin:', err);
+                workerOrigin = pageOrigin;
             }
+            const isCrossOrigin = workerOrigin !== pageOrigin;
 
-            const blob = new Blob([script], { type: 'application/javascript' });
-            const blobUrl = URL.createObjectURL(blob);
+            log.info('worker init:', {
+                workerUrl,
+                pageOrigin,
+                workerOrigin,
+                isCrossOrigin,
+            });
 
-            try {
-                this._worker = new SharedWorker(blobUrl, {
-                    name: 'rtc-agent-worker',
-                    type: 'module',
-                });
-            } finally {
-                // Blob URL has been passed to SharedWorker — can be revoked immediately
-                // (the worker already holds the script content).
-                URL.revokeObjectURL(blobUrl);
+            if (!isCrossOrigin) {
+                // Same-origin: use the factory function directly (simplest, most reliable).
+                // Used for local dev and same-origin deployments.
+                // Vite's type definition is incorrect (marks ?sharedworker import as a constructor);
+                // at runtime it is a plain function that returns a SharedWorker instance.
+                // Call it without 'new' since it's a factory function, not a constructor.
+                this._worker = (workerFactory as unknown as WorkerFactoryFunction)();
+            } else {
+                // Cross-origin (CDN deployment): fetch worker script -> create same-origin blob: URL
+                // -> construct SharedWorker.
+                // CDN must return CORS headers (Access-Control-Allow-Origin) or fetch will fail.
+                let script: string;
+                try {
+                    const response = await fetch(workerUrl, {
+                        cache: 'no-store', // Avoid using stale cached scripts.
+                    });
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status} ${response.statusText}`);
+                    }
+                    script = await response.text();
+                } catch (err) {
+                    throw new Error(
+                        `[WorkerBridge] failed to fetch worker script from ${workerUrl}: ${err instanceof Error ? err.message : err}`
+                    );
+                }
+
+                const blob = new Blob([script], { type: 'application/javascript' });
+                const blobUrl = URL.createObjectURL(blob);
+
+                try {
+                    this._worker = new SharedWorker(blobUrl, {
+                        name: 'rtc-agent-worker',
+                        type: 'module',
+                    });
+                } finally {
+                    // Blob URL has been passed to SharedWorker — can be revoked immediately
+                    // (the worker already holds the script content).
+                    URL.revokeObjectURL(blobUrl);
+                }
             }
         }
 

@@ -444,6 +444,31 @@ export interface RtcAgentConfig {
    */
   databaseName?: string;
 
+  // ── Worker configuration ──
+
+  /**
+   * Custom SharedWorker URL.
+   *
+   * When the component is loaded from NPM, the worker file may not be accessible
+   * from the default location. Use this to specify a custom URL where the worker
+   * file is served.
+   *
+   * **Important**: This property must be set before the element is mounted
+   * to the DOM.
+   *
+   * Maps to `RtcAgent.workerUrl`.
+   *
+   * @default undefined (uses Vite's factory function to determine worker URL)
+   *
+   * @example
+   * ```ts
+   * createRtcAgent({
+   *   workerUrl: '/rtc-agent/shared-worker.js'
+   * });
+   * ```
+   */
+  workerUrl?: string;
+
   // ── Scenario documents ──
 
   /**
