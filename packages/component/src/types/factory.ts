@@ -4,12 +4,16 @@
  * @module factory-types
  */
 
+import type { WindowConfig } from './window-config.js';
+import type { ActivityBarConfig } from './activity-bar-config.js';
+import type { AgentFunctionGroup } from './agent-config.js';
+import type { FunctionDef } from './skill.js';
+
 /**
  * Configuration for the `createRtcAgent` factory function.
  *
- * Only simple, direct-assignment properties are mapped in Phase 1.
- * Subsequent phases will add support for window, activityBar, functions,
- * groups, persona, auth, and event callbacks.
+ * Supports basic properties, server/database/scenario configuration,
+ * window layout, activity bar, and agent behavior (functions, groups, persona).
  *
  * @example
  * ```ts
@@ -23,6 +27,29 @@
  *   },
  *   databaseName: 'my-app',
  *   scenariosUrl: '/scenarios',
+ *   window: {
+ *     defaultMode: 'maximized',
+ *     embedded: true,
+ *   },
+ *   activityBar: {
+ *     disabledActivities: ['settings'],
+ *     defaultActivity: 'chat',
+ *   },
+ *   agentName: 'MyAgent',
+ *   agentDescription: 'A helpful assistant',
+ *   persona: 'You are a helpful AI assistant.',
+ *   functions: [
+ *     { name: 'greet', description: 'Say hello', handler: () => 'Hello!' },
+ *   ],
+ *   groups: [
+ *     {
+ *       name: 'editor',
+ *       description: 'Editor operations',
+ *       functions: [
+ *         { name: 'getCode', description: 'Get code', handler: () => '' },
+ *       ],
+ *     },
+ *   ],
  * });
  * document.body.appendChild(agent);
  * ```
@@ -121,12 +148,90 @@ export interface RtcAgentConfig {
    */
   scenariosUrl?: string;
 
+  // ── Window configuration ──
+
+  /**
+   * Window layout and behavior settings.
+   *
+   * Maps to `RtcAgent.windowConfig`.
+   *
+   * Controls default mode (normal/maximized/minimized), size, position,
+   * drag/resize behavior, button visibility, embedded mode, and bubble
+   * placement.
+   *
+   * @example
+   * ```ts
+   * window: {
+   *   defaultMode: 'maximized',
+   *   embedded: true,
+   * }
+   * ```
+   */
+  window?: WindowConfig;
+
+  // ── Activity Bar configuration ──
+
+  /**
+   * Activity Bar visibility and defaults.
+   *
+   * Maps to `RtcAgent.activityBarConfig`.
+   *
+   * Controls which activity tabs (files, settings) are hidden and which
+   * tab is shown by default. The chat tab is always visible.
+   *
+   * @example
+   * ```ts
+   * activityBar: {
+   *   disabledActivities: ['settings'],
+   *   defaultActivity: 'chat',
+   * }
+   * ```
+   */
+  activityBar?: ActivityBarConfig;
+
+  // ── Agent configuration ──
+
+  /**
+   * Agent name (used in system prompts, etc.).
+   *
+   * Maps to `AgentConfig.name`. Named `agentName` here to avoid collision
+   * with top-level config fields.
+   */
+  agentName?: string;
+
+  /**
+   * Agent description.
+   *
+   * Maps to `AgentConfig.description`. Named `agentDescription` here to
+   * avoid collision with top-level config fields.
+   */
+  agentDescription?: string;
+
+  /**
+   * AI persona (system prompt).
+   *
+   * Maps to `AgentConfig.persona`.
+   */
+  persona?: string;
+
+  /**
+   * Flat function list (auto-placed into a 'default' group).
+   *
+   * Maps to `AgentConfig.functions`.
+   *
+   * For simple scenarios; use `groups` for complex setups. Both can be
+   * used together: groups are registered first, then functions.
+   */
+  functions?: FunctionDef[];
+
+  /**
+   * Grouped function list.
+   *
+   * Maps to `AgentConfig.groups`.
+   */
+  groups?: AgentFunctionGroup[];
+
   // ── Reserved for future phases ──
-  // window?: WindowConfig;        // Phase 2
-  // activityBar?: ActivityBarConfig; // Phase 2
-  // functions?: FunctionConfig;   // Phase 2
-  // groups?: GroupConfig;         // Phase 2
-  // persona?: PersonaConfig;      // Phase 2
   // auth?: AuthConfig;            // Phase 2
   // on?: EventCallbacks;         // Phase 3
 }
