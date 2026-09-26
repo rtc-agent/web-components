@@ -6,6 +6,7 @@
 
 import type { RtcAgentConfig, RtcAgentWithLifecycle, StaticTokenAuth, DynamicTokenAuth, AuthProvider } from './types/factory.js';
 import type { AgentConfig } from './types/agent-config.js';
+import { eventBus } from './core/event-bus.js';
 
 /**
  * Create a pre-configured `<rtc-agent>` custom element.
@@ -212,6 +213,49 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
     element._eventUnsubscribes = unsubscribes;
   }
 
+  // ── EventBus bridging (tool call events) ──
+  //
+  // The component's internal EventBus dispatches function lifecycle events
+  // (function:start, function:success, function:error, function:progress).
+  // Bridge these to the corresponding callbacks so host applications can
+  // observe tool call activity without importing the EventBus directly.
+
+  if (config.on) {
+    const callbacks = config.on;
+    const eventBusUnsubscribes: Array<() => void> = [];
+
+    if (callbacks.toolCallStart) {
+      const unsub = eventBus.on('function:start', (detail) => {
+        callbacks.toolCallStart?.({ path: detail.path, params: detail.params });
+      });
+      eventBusUnsubscribes.push(unsub);
+    }
+
+    if (callbacks.toolCallSuccess) {
+      const unsub = eventBus.on('function:success', (detail) => {
+        callbacks.toolCallSuccess?.({ path: detail.path, result: detail.result });
+      });
+      eventBusUnsubscribes.push(unsub);
+    }
+
+    if (callbacks.toolCallError) {
+      const unsub = eventBus.on('function:error', (detail) => {
+        callbacks.toolCallError?.({ path: detail.path, error: detail.error });
+      });
+      eventBusUnsubscribes.push(unsub);
+    }
+
+    if (callbacks.toolCallProgress) {
+      const unsub = eventBus.on('function:progress', (detail) => {
+        callbacks.toolCallProgress?.({ path: detail.path, progress: detail.progress });
+      });
+      eventBusUnsubscribes.push(unsub);
+    }
+
+    // Store EventBus unsubscribes for destroy() cleanup
+    element._eventBusUnsubscribes = eventBusUnsubscribes;
+  }
+
   // ── Lifecycle management ──
   // Mount destroy() method for complete resource cleanup.
   element.destroy = () => {
@@ -223,13 +267,19 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
     element._pendingDynamicAuth = undefined;
     element._pendingAuthProvider = undefined;
 
-    // 3. Cancel all EventBus subscriptions
+    // 3. Cancel all DOM event subscriptions
     if (element._eventUnsubscribes) {
       element._eventUnsubscribes.forEach(unsub => unsub());
       element._eventUnsubscribes = undefined;
     }
 
-    // 4. Optionally clear localStorage tokens
+    // 4. Cancel all EventBus subscriptions
+    if (element._eventBusUnsubscribes) {
+      element._eventBusUnsubscribes.forEach(unsub => unsub());
+      element._eventBusUnsubscribes = undefined;
+    }
+
+    // 5. Optionally clear localStorage tokens
     // TODO: Implement as needed
   };
 

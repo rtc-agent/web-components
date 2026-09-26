@@ -195,6 +195,58 @@ export interface EventCallbacks {
 
   /** Message sent (maps to `rtc-message-sent` event) */
   messageSent?: (detail: { message: Message }) => void;
+
+  // ===== Tool Call (EventBus bridging) =====
+
+  /**
+   * Tool call started (bridged from EventBus `function:start`).
+   *
+   * Fires when a tool function begins execution. The `path` field contains
+   * the function path (e.g. `"myGroup/myFunction"`), and `params` contains
+   * the validated arguments passed to the handler.
+   */
+  toolCallStart?: (detail: {
+    /** Function path, e.g. "groupName/functionName" */
+    path: string;
+    /** Validated arguments passed to the handler */
+    params: Record<string, unknown>;
+  }) => void;
+
+  /**
+   * Tool call succeeded (bridged from EventBus `function:success`).
+   *
+   * Fires after the tool handler returns a value successfully.
+   */
+  toolCallSuccess?: (detail: {
+    /** Function path, e.g. "groupName/functionName" */
+    path: string;
+    /** Return value of the handler */
+    result: unknown;
+  }) => void;
+
+  /**
+   * Tool call failed (bridged from EventBus `function:error`).
+   *
+   * Fires when the tool handler throws an error.
+   */
+  toolCallError?: (detail: {
+    /** Function path, e.g. "groupName/functionName" */
+    path: string;
+    /** Error thrown by the handler */
+    error: Error;
+  }) => void;
+
+  /**
+   * Tool call progress (bridged from EventBus `function:progress`).
+   *
+   * Fires when the tool handler reports progress via the `onProgress` callback.
+   */
+  toolCallProgress?: (detail: {
+    /** Function path, e.g. "groupName/functionName" */
+    path: string;
+    /** Progress value reported by the handler (typically 0–100) */
+    progress: number;
+  }) => void;
 }
 
 /**
@@ -443,49 +495,6 @@ export interface RtcAgentConfig {
 }
 
 /**
- * Event callbacks for the RTC Agent.
- *
- * Each callback maps to a corresponding DOM CustomEvent dispatched by the component.
- * The factory function internally registers these callbacks via `addEventListener()`.
- */
-export interface EventCallbacks {
-  // ===== 已有事件映射 =====
-
-  /** Component first render complete (maps to `rtc-agent-ready` event) */
-  ready?: () => void;
-
-  /** User clicks retry button (maps to `rtc-connection-retry` event) */
-  connectionRetry?: () => void;
-
-  /** User requests login (maps to `rtc-auth-login-requested` event) */
-  authLoginRequested?: () => void;
-
-  /** Authentication error (maps to `rtc-auth-refresh-failed` event) */
-  authError?: () => void;
-
-  /** User logs out (maps to `rtc-auth-logout` event) */
-  authLogout?: () => void;
-
-  /** Session created (maps to `rtc-session-created` event) */
-  sessionCreated?: (detail: { session: Session }) => void;
-
-  /** Session switched (maps to `rtc-session-switched` event) */
-  sessionSwitched?: (detail: { id: string }) => void;
-
-  /** Session renamed (maps to `rtc-session-renamed` event) */
-  sessionRenamed?: (detail: { id: string; title: string }) => void;
-
-  /** Session deleted (maps to `rtc-session-deleted` event) */
-  sessionDeleted?: (detail: { id: string }) => void;
-
-  /** Message received (maps to `rtc-message-received` event) */
-  messageReceived?: (detail: { message: Message }) => void;
-
-  /** Message sent (maps to `rtc-message-sent` event) */
-  messageSent?: (detail: { message: Message }) => void;
-}
-
-/**
  * The RTC Agent component instance type.
  *
  * This is a convenience alias for the `RtcAgent` class exported from the
@@ -503,14 +512,18 @@ export interface RtcAgentWithLifecycle extends RtcAgent {
   /** @internal Event callback unsubscribes for cleanup */
   _eventUnsubscribes?: Array<() => void>;
 
+  /** @internal EventBus unsubscribes for cleanup */
+  _eventBusUnsubscribes?: Array<() => void>;
+
   /**
    * Permanently destroy the agent instance.
    *
    * Performs complete cleanup:
    * 1. Removes element from DOM (triggers disconnectedCallback)
    * 2. Clears external token references (added in Phase 2)
-   * 3. Cancels all EventBus subscriptions (added in Phase 3)
-   * 4. Optionally clears localStorage tokens
+   * 3. Cancels all DOM event subscriptions (added in Phase 3 part 1)
+   * 4. Cancels all EventBus subscriptions (added in Phase 3 part 2)
+   * 5. Optionally clears localStorage tokens
    *
    * After calling destroy(), the agent instance should not be reused.
    */
