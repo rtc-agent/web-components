@@ -237,20 +237,50 @@ export class EntityRepository {
     return db.messages.where('server_id').equals(serverId).first();
   }
 
-  async listSessions(cursor?: string, limit: number = 50): Promise<LocalSession[]> {
+  /**
+   * List all active sessions, ordered by updated_at descending.
+   *
+   * @param cursor - Optional cursor for pagination (client_id of the last item on the previous page).
+   *                 When omitted, returns all active sessions.
+   * @param limit - Maximum number of sessions to return. Defaults to 10000 (effectively unlimited).
+   *                Pass a smaller value for pagination scenarios.
+   *
+   * Performance notes:
+   * - This method loads all sessions from IndexedDB into memory, then filters and paginates.
+   * - For typical use cases (< 1000 sessions), performance is acceptable.
+   * - For larger datasets, consider implementing true cursor-based pagination at the database level.
+   * - UI layer (session-tree) does not use virtual scrolling yet; rendering > 1000 sessions may cause lag.
+   *
+   * @returns Array of active (non-deleted) sessions, ordered by updated_at descending.
+   */
+  async listSessions(cursor?: string, limit: number = 10000): Promise<LocalSession[]> {
     const db = getDatabase();
     const query = db.sessions.orderBy('updated_at').reverse();
     const all = await query.toArray();
-    log.debug(`listSessions: total=${all.length}, with deleted_at=${all.filter(s => s.deleted_at).length}`);
+
     // Filter soft-deleted items (deleted_at non-empty means deleted)
     const active = all.filter(s => !s.deleted_at);
-    log.debug(`listSessions: after filter=${active.length}`);
-    // Cursor is the client_id of the last item on the previous page; return items after it
+
+    log.debug(`listSessions: total=${all.length}, active=${active.length}, deleted=${all.length - active.length}`);
+
+    // Performance warning for large datasets
+    if (active.length > 1000) {
+      log.warn(
+        `listSessions: ${active.length} active sessions detected. ` +
+        `Consider implementing virtual scrolling in the UI layer if performance degrades.`
+      );
+    }
+
+    // Cursor pagination (for future distributed database scenarios)
     if (cursor) {
       const startIdx = active.findIndex(s => s.client_id === cursor);
-      if (startIdx === -1) return active.slice(0, limit);
+      if (startIdx === -1) {
+        log.warn(`listSessions: cursor ${cursor} not found, returning from start`);
+        return active.slice(0, limit);
+      }
       return active.slice(startIdx + 1, startIdx + 1 + limit);
     }
+
     return active.slice(0, limit);
   }
 

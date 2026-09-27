@@ -167,6 +167,20 @@ describe('entity-repository', () => {
       expect(list.map((s) => s.client_id)).toEqual(['s3', 's1']);
     });
 
+    it('should return all sessions by default (no limit)', async () => {
+      // Create 100 sessions
+      for (let i = 0; i < 100; i++) {
+        await repo.upsertSession({
+          client_id: `s-${i}`,
+          title: `Session ${i}`,
+          updated_at: new Date(Date.now() - i * 1000).toISOString(),
+        });
+      }
+
+      const list = await repo.listSessions();
+      expect(list.length).toBe(103); // 100 new + 3 existing
+    });
+
     it('should paginate with limit', async () => {
       const page1 = await repo.listSessions(undefined, 2);
       expect(page1).toHaveLength(2);

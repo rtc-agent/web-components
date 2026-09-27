@@ -82,6 +82,12 @@ export async function loadSessions(
 ): Promise<boolean> {
     if (!deps.persistenceLayer) return initialLoadDone;
 
+    // Load ALL sessions from DB (no limit).
+    // The persistence layer already filters out soft-deleted sessions.
+    // For typical use cases (< 1000 sessions), this is acceptable.
+    // If performance becomes an issue, consider:
+    // 1. Implementing virtual scrolling in session-tree component
+    // 2. Using cursor-based pagination with infinite scroll
     const sessions = await deps.persistenceLayer.listSessions();
     deps.logger.debug("Loaded sessions from DB:", sessions.length);
 
