@@ -14,6 +14,8 @@ const log = createLogger('EntityRepository');
 export interface UpsertOptions {
   /** When true, does not publish update events to UIUpdateBus */
   silent?: boolean;
+  /** When true, does not modify sync_status (for aggregation updates like turn counts) */
+  preserveSyncStatus?: boolean;
 }
 
 /**
@@ -165,54 +167,59 @@ export class EntityRepository {
     const db = getDatabase();
     const now = nowRFC3339();
 
-    // Look up by client_id
-    let existing: LocalSession | undefined;
-    if (session.client_id) {
-      existing = await db.sessions.where('client_id').equals(session.client_id).first();
-    }
+    // Wrap read-modify-write in transaction for atomicity.
+    // Dexie supports transaction nesting: if already inside a transaction, reuses parent.
+    return db.transaction('rw', db.sessions, async () => {
+      // Look up by client_id (inside transaction)
+      let existing: LocalSession | undefined;
+      if (session.client_id) {
+        existing = await db.sessions.where('client_id').equals(session.client_id).first();
+      }
 
-    log.debug('upsertSession:', existing ? 'UPDATE' : 'CREATE', 'client_id:', session.client_id, 'title:', session.title);
+      log.debug('upsertSession:', existing ? 'UPDATE' : 'CREATE', 'client_id:', session.client_id, 'title:', session.title);
 
-    let result: UpsertResult<LocalSession>;
-    let action: UpdateAction;
-    if (existing) {
-      const before: LocalSession = { ...existing };
-      const updated: LocalSession = {
-        ...existing,
-        ...session,
-        sync_status: syncStatus,
-        server_id: session.server_id || existing.server_id,
-      };
-      await db.sessions.put(updated);
-      result = { before, after: updated };
-      action = 'updated';
-      log.debug('upsertSession: After update - title:', updated.title);
-    } else {
-      // Spread session first to preserve all optional fields (device_id, todo_list, token counters, etc.),
-      // then override required fields with safe defaults when caller omits them.
-      const newSession: LocalSession = {
-        ...session,
-        client_id: session.client_id || '',
-        owner_kind: session.owner_kind || '',
-        owner_ref_id: session.owner_ref_id || '',
-        status: session.status || 'active',
-        created_at: session.created_at || now,
-        updated_at: session.updated_at || now,
-        sync_status: session.sync_status || syncStatus,
-        pending_turn_count: session.pending_turn_count ?? 0,
-        running_turn_count: session.running_turn_count ?? 0,
-        agent_prompt: session.agent_prompt || '',
-      };
-      await db.sessions.put(newSession);
-      result = { before: undefined, after: newSession };
-      action = 'created';
-      log.debug('upsertSession: After create - title:', newSession.title);
-    }
+      let result: UpsertResult<LocalSession>;
+      let action: UpdateAction;
+      if (existing) {
+        const before: LocalSession = { ...existing };
+        const updated: LocalSession = {
+          ...existing,
+          ...session,
+          // preserveSyncStatus: keep existing sync_status for aggregation updates (e.g. turn counts)
+          sync_status: options?.preserveSyncStatus ? existing.sync_status : syncStatus,
+          server_id: session.server_id || existing.server_id,
+        };
+        await db.sessions.put(updated);
+        result = { before, after: updated };
+        action = 'updated';
+        log.debug('upsertSession: After update - title:', updated.title);
+      } else {
+        // Spread session first to preserve all optional fields (device_id, todo_list, token counters, etc.),
+        // then override required fields with safe defaults when caller omits them.
+        const newSession: LocalSession = {
+          ...session,
+          client_id: session.client_id || '',
+          owner_kind: session.owner_kind || '',
+          owner_ref_id: session.owner_ref_id || '',
+          status: session.status || 'active',
+          created_at: session.created_at || now,
+          updated_at: session.updated_at || now,
+          sync_status: session.sync_status || syncStatus,
+          pending_turn_count: session.pending_turn_count ?? 0,
+          running_turn_count: session.running_turn_count ?? 0,
+          agent_prompt: session.agent_prompt || '',
+        };
+        await db.sessions.put(newSession);
+        result = { before: undefined, after: newSession };
+        action = 'created';
+        log.debug('upsertSession: After create - title:', newSession.title);
+      }
 
-    if (!options?.silent) {
-      emitUIUpdates('session', action, result.after.client_id, result.before as unknown as Record<string, unknown> | undefined, result.after as unknown as Record<string, unknown>);
-    }
-    return result;
+      if (!options?.silent) {
+        emitUIUpdates('session', action, result.after.client_id, result.before as unknown as Record<string, unknown> | undefined, result.after as unknown as Record<string, unknown>);
+      }
+      return result;
+    });
   }
 
   async getClientSession(clientId: string): Promise<LocalSession | undefined> {
@@ -282,42 +289,45 @@ export class EntityRepository {
     const db = getDatabase();
     const now = nowRFC3339();
 
-    let existing: LocalTurn | undefined;
-    if (turn.client_id) {
-      existing = await db.turns.where('client_id').equals(turn.client_id).first();
-    }
+    // Wrap read-modify-write in transaction for atomicity
+    return db.transaction('rw', db.turns, async () => {
+      let existing: LocalTurn | undefined;
+      if (turn.client_id) {
+        existing = await db.turns.where('client_id').equals(turn.client_id).first();
+      }
 
-    let result: UpsertResult<LocalTurn>;
-    let action: UpdateAction;
-    if (existing) {
-      const before: LocalTurn = { ...existing };
-      const updated: LocalTurn = {
-        ...existing,
-        ...turn,
-        sync_status: syncStatus,
-        server_id: turn.server_id || existing.server_id,
-      };
-      await db.turns.put(updated);
-      result = { before, after: updated };
-      action = 'updated';
-    } else {
-      const newTurn: LocalTurn = {
-        client_id: turn.client_id || '',
-        server_id: turn.server_id,
-        session_client_id: turn.session_client_id || '',
-        status: turn.status || 'pending',
-        created_at: turn.created_at || now,
-        sync_status: turn.sync_status || syncStatus,
-      };
-      await db.turns.put(newTurn);
-      result = { before: undefined, after: newTurn };
-      action = 'created';
-    }
+      let result: UpsertResult<LocalTurn>;
+      let action: UpdateAction;
+      if (existing) {
+        const before: LocalTurn = { ...existing };
+        const updated: LocalTurn = {
+          ...existing,
+          ...turn,
+          sync_status: options?.preserveSyncStatus ? existing.sync_status : syncStatus,
+          server_id: turn.server_id || existing.server_id,
+        };
+        await db.turns.put(updated);
+        result = { before, after: updated };
+        action = 'updated';
+      } else {
+        const newTurn: LocalTurn = {
+          client_id: turn.client_id || '',
+          server_id: turn.server_id,
+          session_client_id: turn.session_client_id || '',
+          status: turn.status || 'pending',
+          created_at: turn.created_at || now,
+          sync_status: turn.sync_status || syncStatus,
+        };
+        await db.turns.put(newTurn);
+        result = { before: undefined, after: newTurn };
+        action = 'created';
+      }
 
-    if (!options?.silent) {
-      emitUIUpdates('turn', action, result.after.client_id, result.before as unknown as Record<string, unknown> | undefined, result.after as unknown as Record<string, unknown>);
-    }
-    return result;
+      if (!options?.silent) {
+        emitUIUpdates('turn', action, result.after.client_id, result.before as unknown as Record<string, unknown> | undefined, result.after as unknown as Record<string, unknown>);
+      }
+      return result;
+    });
   }
 
   async getClientTurn(clientId: string): Promise<LocalTurn | undefined> {
@@ -351,51 +361,54 @@ export class EntityRepository {
     const db = getDatabase();
     const now = nowRFC3339();
 
-    let existing: LocalMessage | undefined;
-    if (message.client_id) {
-      existing = await db.messages.where('client_id').equals(message.client_id).first();
-    }
+    // Wrap read-modify-write in transaction for atomicity
+    return db.transaction('rw', db.messages, async () => {
+      let existing: LocalMessage | undefined;
+      if (message.client_id) {
+        existing = await db.messages.where('client_id').equals(message.client_id).first();
+      }
 
-    let result: UpsertResult<LocalMessage>;
-    let action: UpdateAction;
-    if (existing) {
-      const before: LocalMessage = { ...existing };
-      const updated: LocalMessage = {
-        ...existing,
-        ...message,
-        sync_status: syncStatus,
-        server_id: message.server_id || existing.server_id,
-      };
-      await db.messages.put(updated);
-      result = { before, after: updated };
-      action = 'updated';
-    } else {
-      const newMessage: LocalMessage = {
-        client_id: message.client_id || '',
-        server_id: message.server_id,
-        session_client_id: message.session_client_id || '',
-        turn_id: message.turn_id,
-        global_offset: message.global_offset || 0,
-        turn_offset: message.turn_offset,
-        role: message.role || 'user',
-        content: message.content,
-        streaming_status: message.streaming_status || 'pending',
-        creator_kind: message.creator_kind || 'user',
-        creator_ref_id: message.creator_ref_id || '',
-        created_at: message.created_at || now,
-        updated_at: message.updated_at || now,
-        sync_status: message.sync_status || syncStatus,
-        parent_client_id: message.parent_client_id,
-      };
-      await db.messages.put(newMessage);
-      result = { before: undefined, after: newMessage };
-      action = 'created';
-    }
+      let result: UpsertResult<LocalMessage>;
+      let action: UpdateAction;
+      if (existing) {
+        const before: LocalMessage = { ...existing };
+        const updated: LocalMessage = {
+          ...existing,
+          ...message,
+          sync_status: options?.preserveSyncStatus ? existing.sync_status : syncStatus,
+          server_id: message.server_id || existing.server_id,
+        };
+        await db.messages.put(updated);
+        result = { before, after: updated };
+        action = 'updated';
+      } else {
+        const newMessage: LocalMessage = {
+          client_id: message.client_id || '',
+          server_id: message.server_id,
+          session_client_id: message.session_client_id || '',
+          turn_id: message.turn_id,
+          global_offset: message.global_offset || 0,
+          turn_offset: message.turn_offset,
+          role: message.role || 'user',
+          content: message.content,
+          streaming_status: message.streaming_status || 'pending',
+          creator_kind: message.creator_kind || 'user',
+          creator_ref_id: message.creator_ref_id || '',
+          created_at: message.created_at || now,
+          updated_at: message.updated_at || now,
+          sync_status: message.sync_status || syncStatus,
+          parent_client_id: message.parent_client_id,
+        };
+        await db.messages.put(newMessage);
+        result = { before: undefined, after: newMessage };
+        action = 'created';
+      }
 
-    if (!options?.silent) {
-      emitUIUpdates('message', action, result.after.client_id, result.before as unknown as Record<string, unknown> | undefined, result.after as unknown as Record<string, unknown>);
-    }
-    return result;
+      if (!options?.silent) {
+        emitUIUpdates('message', action, result.after.client_id, result.before as unknown as Record<string, unknown> | undefined, result.after as unknown as Record<string, unknown>);
+      }
+      return result;
+    });
   }
 
   async getClientMessage(clientId: string): Promise<LocalMessage | undefined> {
@@ -459,50 +472,53 @@ export class EntityRepository {
     const db = getDatabase();
     const now = nowRFC3339();
 
-    let existing: LocalRtc | undefined;
-    if (rtc.client_id) {
-      existing = await db.rtcs.where('client_id').equals(rtc.client_id).first();
-    }
+    // Wrap read-modify-write in transaction for atomicity
+    return db.transaction('rw', db.rtcs, async () => {
+      let existing: LocalRtc | undefined;
+      if (rtc.client_id) {
+        existing = await db.rtcs.where('client_id').equals(rtc.client_id).first();
+      }
 
-    let result: UpsertResult<LocalRtc>;
-    let action: UpdateAction;
-    if (existing) {
-      const before: LocalRtc = { ...existing };
-      const updated: LocalRtc = {
-        ...existing,
-        ...rtc,
-        sync_status: syncStatus,
-        server_id: rtc.server_id || existing.server_id,
-      };
-      await db.rtcs.put(updated);
-      result = { before, after: updated };
-      action = 'updated';
-    } else {
-      const newRtc: LocalRtc = {
-        client_id: rtc.client_id || '',
-        server_id: rtc.server_id,
-        session_client_id: rtc.session_client_id || '',
-        session_device_id: rtc.session_device_id,
-        turn_id: rtc.turn_id || '',
-        offset: rtc.offset || 0,
-        tool_name: rtc.tool_name || '',
-        parameters: rtc.parameters,
-        status: rtc.status || 'pending',
-        result: rtc.result,
-        error_message: rtc.error_message,
-        created_at: rtc.created_at || now,
-        updated_at: rtc.updated_at || now,
-        sync_status: rtc.sync_status || syncStatus,
-      };
-      await db.rtcs.put(newRtc);
-      result = { before: undefined, after: newRtc };
-      action = 'created';
-    }
+      let result: UpsertResult<LocalRtc>;
+      let action: UpdateAction;
+      if (existing) {
+        const before: LocalRtc = { ...existing };
+        const updated: LocalRtc = {
+          ...existing,
+          ...rtc,
+          sync_status: options?.preserveSyncStatus ? existing.sync_status : syncStatus,
+          server_id: rtc.server_id || existing.server_id,
+        };
+        await db.rtcs.put(updated);
+        result = { before, after: updated };
+        action = 'updated';
+      } else {
+        const newRtc: LocalRtc = {
+          client_id: rtc.client_id || '',
+          server_id: rtc.server_id,
+          session_client_id: rtc.session_client_id || '',
+          session_device_id: rtc.session_device_id,
+          turn_id: rtc.turn_id || '',
+          offset: rtc.offset || 0,
+          tool_name: rtc.tool_name || '',
+          parameters: rtc.parameters,
+          status: rtc.status || 'pending',
+          result: rtc.result,
+          error_message: rtc.error_message,
+          created_at: rtc.created_at || now,
+          updated_at: rtc.updated_at || now,
+          sync_status: rtc.sync_status || syncStatus,
+        };
+        await db.rtcs.put(newRtc);
+        result = { before: undefined, after: newRtc };
+        action = 'created';
+      }
 
-    if (!options?.silent) {
-      emitUIUpdates('rtc', action, result.after.client_id, result.before as unknown as Record<string, unknown> | undefined, result.after as unknown as Record<string, unknown>);
-    }
-    return result;
+      if (!options?.silent) {
+        emitUIUpdates('rtc', action, result.after.client_id, result.before as unknown as Record<string, unknown> | undefined, result.after as unknown as Record<string, unknown>);
+      }
+      return result;
+    });
   }
 
   async getClientRtc(clientId: string): Promise<LocalRtc | undefined> {
@@ -1463,21 +1479,23 @@ export class EntityRepository {
         await this.upsertTurn(mapped, 'synced');
 
         // Write-time aggregation: write pending/running turn counts back to the session row.
-        // upsertSession's diff + emitUIUpdates will automatically publish session.updated events.
+        // Uses preserveSyncStatus to avoid reading existing session first, preventing
+        // both an extra DB query and a sync_status overwrite race.
         const sessionClientId = mapped.session_client_id;
         if (sessionClientId) {
           const { pending, running } = await this.countActiveTurns(sessionClientId);
-          const existingSession = await this.getClientSession(sessionClientId);
-          if (existingSession) {
-            await this.upsertSession(
-              {
-                client_id: sessionClientId,
-                pending_turn_count: pending,
-                running_turn_count: running,
-              },
-              existingSession.sync_status
-            );
-          }
+          await this.upsertSession(
+            {
+              client_id: sessionClientId,
+              pending_turn_count: pending,
+              running_turn_count: running,
+            },
+            'synced', // default, ignored due to preserveSyncStatus
+            {
+              silent: true, // upsertTurn already emitted UI updates for this turn
+              preserveSyncStatus: true, // don't overwrite sync_status with stale value
+            }
+          );
         }
         break;
       }
