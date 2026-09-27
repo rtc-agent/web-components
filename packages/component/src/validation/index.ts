@@ -64,7 +64,7 @@ export function formatValidationError(
     .map((e) => `  - ${e.field}: ${e.message}`)
     .join('\n');
 
-  return `参数校验失败：${groupName}.${functionName}\n\n错误详情：\n${errorDetails}\n\n请读取 /functions/INDEX.md 获取正确的参数格式和说明。`;
+  return `Parameter validation failed: ${groupName}.${functionName}\n\nError details:\n${errorDetails}\n\nPlease refer to \`/functions/INDEX.md\` for the correct parameter format and instructions.`;
 }
 
 /**
@@ -122,7 +122,7 @@ export function withValidation<TParams extends ZodType, TResult>(
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return {
-        error: `执行失败：${groupName}.${functionName}\n\n错误：${message}\n\n请检查参数是否正确，或读取 /functions/INDEX.md 获取帮助。`,
+        error: `Execution failed: ${groupName}.${functionName}\n\nError: ${message}\n\nPlease check if the parameters are correct, or read \`/functions/INDEX.md\` for help.`,
       };
     }
   };
