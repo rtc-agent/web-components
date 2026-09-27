@@ -198,26 +198,93 @@ export async function restoreEditorAreaContent(
 }
 
 /**
+ * Files currently being saved (per-file concurrency guard).
+ *
+ * Prevents overlapping writes to the same file, which could complete
+ * out of order and leave stale content in VFS.
+ */
+const _savingFiles = new Set<string>();
+
+/**
  * Save file: write editor content to VFS.
  *
  * Sets `editedByUser: true` in metadata to protect from system overwrites.
+ *
+ * Race-condition safety (loop-until-stable + per-file lock):
+ *
+ * 1. Concurrency guard: if a save is already in-flight for this file,
+ *    returns immediately. The in-flight save's loop will detect content
+ *    drift and re-write.
+ * 2. Snapshot comparison: captures content before each write; after write
+ *    completes, re-reads current tab content. If they differ, the user
+ *    typed during the write -- loop writes again with latest content.
+ * 3. The lock is held throughout the entire loop, preventing out-of-order
+ *    writes from concurrent save attempts (e.g. Ctrl+S during auto-save).
+ * 4. Loop naturally converges: user stops typing -> content stable ->
+ *    at most 1 extra iteration after drift detection.
  */
 export async function handleEditorSave(
     filePath: string,
     deps: VfsDeps,
 ): Promise<void> {
-    const tab = deps.editorArea.tabs.find((t) => t.filePath === filePath);
-    if (!tab) return;
+    // -- Concurrency guard --
+    if (_savingFiles.has(filePath)) {
+        return;  // In-flight save will handle drift via its loop.
+    }
+
+    _savingFiles.add(filePath);
+    let writeAttempted = false;
+    let lastWriteOk = false;
 
     try {
-        await virtualFS.write(filePath, tab.content, "overwrite", {
-            editedByUser: true,
-        });
-        deps.editorArea.actions.saveFile(filePath);
-        deps.toast.show(msg("已保存"), "success");
-    } catch (err) {
-        deps.logger.error("Failed to save file:", filePath, err);
-        deps.toast.show(msg("保存文件失败"), "error");
+        // Loop until content is stable (no drift detected after write).
+        // Typically 1 iteration; 2 if user typed during the save; rarely more.
+        while (true) {
+            const tab = deps.editorArea.tabs.find((t) => t.filePath === filePath);
+            if (!tab) break;  // Tab closed -- nothing to save.
+
+            writeAttempted = true;
+            const contentAtSave = tab.content;
+
+            try {
+                await virtualFS.write(filePath, contentAtSave, "overwrite", {
+                    editedByUser: true,
+                });
+                lastWriteOk = true;
+            } catch (err) {
+                deps.logger.error("Failed to save file:", filePath, err);
+                lastWriteOk = false;
+                break;
+            }
+
+            // -- Post-write consistency check --
+            const currentTab = deps.editorArea.tabs.find(
+                (t) => t.filePath === filePath,
+            );
+            if (!currentTab || currentTab.content === contentAtSave) {
+                break;  // Content stable -- save complete.
+            }
+            // Content drifted (user typed during write).
+            // Continue loop -- next iteration reads fresh content.
+            // No need to call updateContent: tab already has latest
+            // content and isDirty=true from the input event handler.
+        }
+
+        // Settle state: one saveFile + one toast for the entire loop.
+        // Only update UI state if tab still exists (user didn't close it).
+        const tabStillExists = deps.editorArea.tabs.some(
+            (t) => t.filePath === filePath
+        );
+
+        if (writeAttempted && lastWriteOk && tabStillExists) {
+            deps.editorArea.actions.saveFile(filePath);
+            deps.toast.show(msg("已保存"), "success");
+        } else if (writeAttempted && !lastWriteOk) {
+            deps.toast.show(msg("保存文件失败"), "error");
+        }
+        // else: tab was closed or never existed, do nothing
+    } finally {
+        _savingFiles.delete(filePath);
     }
 }
 
