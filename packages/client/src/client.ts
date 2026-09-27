@@ -836,6 +836,10 @@ export class RTCAgentClient implements IRTCAgentClient {
   /**
    * Flush gap fill buffer: process gap placeholders and deduplicated updates.
    * Used both in normal flow and on network error to apply buffered content.
+   *
+   * CRITICAL: Offset is only advanced AFTER all data is successfully persisted.
+   * This prevents data loss if applyUpdates fails — the offset stays behind,
+   * allowing retry to re-fetch the missing data.
    */
   private async flushGapFillBuffer(
     channel: string,
@@ -843,12 +847,6 @@ export class RTCAgentClient implements IRTCAgentClient {
     gapOffsets: number[],
     epoch: string
   ): Promise<void> {
-    // 处理 gap placeholders：批量更新 offset
-    if (gapOffsets.length > 0) {
-      const maxGapOffset = Math.max(...gapOffsets);
-      await this.options.updateOffset?.(channel, maxGapOffset, epoch);
-    }
-
     // 处理累积的 updates：去重后批量应用
     if (buffer.length > 0) {
       const deduplicated = this.deduplicateUpdates(buffer);
@@ -879,13 +877,19 @@ export class RTCAgentClient implements IRTCAgentClient {
           }
         }
 
-        // Update offset to max offset after all updates processed successfully
-        const maxOffset = Math.max(...buffer.map(u => u.offset));
+        // ✅ 关键修复：数据持久化成功后，一次性推进 offset 到 max(gapOffsets, buffer offsets)
+        // 这确保了 offset 不会在数据未持久化的情况下被推进
+        const allOffsets = [...gapOffsets, ...buffer.map(u => u.offset)];
+        const maxOffset = Math.max(...allOffsets);
         await this.options.updateOffset?.(channel, maxOffset, epoch);
       } finally {
         // Always resume UI updates, even if processing failed
         this.options.resumeUIUpdates?.();
       }
+    } else if (gapOffsets.length > 0) {
+      // ✅ 只有 gap placeholders（无真实数据），可以安全推进 offset
+      const maxGapOffset = Math.max(...gapOffsets);
+      await this.options.updateOffset?.(channel, maxGapOffset, epoch);
     }
   }
 
