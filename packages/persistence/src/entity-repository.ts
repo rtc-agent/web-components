@@ -1447,36 +1447,32 @@ export class EntityRepository {
     }
     if (affectedSessionIds.size === 0) return;
 
-    // Re-read latest sessions from DB (within transaction, ensures consistency)
-    const sessionIds = [...affectedSessionIds];
-    const sessions = await db.sessions.bulkGet(sessionIds);
-
     // Parallel calculate turn counts for all affected sessions
-    const countPromises = sessionIds.map(sessionId => this.countActiveTurns(sessionId));
-    const counts = await Promise.all(countPromises);
+    const sessionIds = [...affectedSessionIds];
 
-    // Build update array
-    const updates: LocalSession[] = [];
-    for (let i = 0; i < sessionIds.length; i++) {
-      const session = sessions[i];
-      if (!session) continue; // session doesn't exist (may have been deleted), skip
+    // Fix: Wrap each session's read-update in a transaction to prevent lost updates
+    // when concurrent writebackTurnCountsInTx calls interleave on the same session.
+    // Dexie's transaction isolation ensures that count + update happen atomically.
+    const updatePromises = sessionIds.map(async (sessionId) => {
+      await db.transaction('rw', db.sessions, db.turns, async () => {
+        // Re-count within transaction to see the latest turns (including those just written)
+        const { pending, running } = await this.countActiveTurns(sessionId);
 
-      const { pending, running } = counts[i];
+        // Read current session to check if counts actually changed
+        const session = await db.sessions.get(sessionId);
+        if (!session) return; // session doesn't exist (may have been deleted), skip
 
-      // Only update when count actually changed (reduce unnecessary writes)
-      if (session.pending_turn_count !== pending || session.running_turn_count !== running) {
-        updates.push({
-          ...session,
-          pending_turn_count: pending,
-          running_turn_count: running,
-          // Note: don't modify sync_status, keep original value
-        });
-      }
-    }
+        // Only update when count actually changed (reduce unnecessary writes)
+        if (session.pending_turn_count !== pending || session.running_turn_count !== running) {
+          await db.sessions.update(sessionId, {
+            pending_turn_count: pending,
+            running_turn_count: running,
+          });
+        }
+      });
+    });
 
-    if (updates.length > 0) {
-      await db.sessions.bulkPut(updates);
-    }
+    await Promise.all(updatePromises);
   }
 
   /**

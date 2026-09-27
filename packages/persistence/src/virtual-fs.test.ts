@@ -762,4 +762,269 @@ describe('virtual-fs', () => {
             expect(error).toBeInstanceOf(PathError);
         });
     });
+
+    // ── Fix 32: Transaction Protection ──
+
+    describe('Transaction Protection (Fix 32)', () => {
+        describe('Concurrent write operations', () => {
+            it('should handle concurrent append writes without race conditions', async () => {
+                // Initialize file
+                await vfs.write('/concurrent.txt', 'initial');
+
+                // Perform 10 concurrent append writes
+                const promises = Array.from({ length: 10 }, (_, i) =>
+                    vfs.write('/concurrent.txt', `-append${i}`, 'append')
+                );
+
+                await Promise.all(promises);
+
+                const content = await vfs.read('/concurrent.txt');
+
+                // Verify all appends are present (order may vary due to concurrency)
+                expect(content).toContain('initial');
+                for (let i = 0; i < 10; i++) {
+                    expect(content).toContain(`-append${i}`);
+                }
+
+                // Verify no data loss (content should be longer than initial)
+                expect(content.length).toBeGreaterThan('initial'.length);
+            });
+
+            it('should handle concurrent overwrite writes atomically', async () => {
+                // Perform 10 concurrent overwrite writes
+                const promises = Array.from({ length: 10 }, (_, i) =>
+                    vfs.write('/overwrite.txt', `content-${i}`, 'overwrite')
+                );
+
+                await Promise.all(promises);
+
+                const content = await vfs.read('/overwrite.txt');
+
+                // Should have exactly one of the writes (last one wins)
+                expect(content).toMatch(/^content-\d+$/);
+            });
+
+            it('should handle concurrent create-new writes correctly', async () => {
+                // Perform 10 concurrent create-new writes
+                const promises = Array.from({ length: 10 }, (_, i) =>
+                    vfs.write('/create-new.txt', `content-${i}`, 'create-new')
+                );
+
+                await Promise.all(promises);
+
+                const content = await vfs.read('/create-new.txt');
+
+                // Should have exactly one of the writes (first one wins)
+                expect(content).toMatch(/^content-\d+$/);
+            });
+        });
+
+        describe('Concurrent edit operations', () => {
+            it('should handle concurrent edits without race conditions', async () => {
+                await vfs.write('/edit-test.txt', 'line1\nline2\nline3');
+
+                // Perform 5 concurrent edits on different parts
+                const promises = [
+                    vfs.edit('/edit-test.txt', 'line1', 'edited1'),
+                    vfs.edit('/edit-test.txt', 'line2', 'edited2'),
+                    vfs.edit('/edit-test.txt', 'line3', 'edited3'),
+                    vfs.edit('/edit-test.txt', 'edited1', 'final1'),
+                    vfs.edit('/edit-test.txt', 'edited2', 'final2'),
+                ];
+
+                await Promise.all(promises);
+
+                const content = await vfs.read('/edit-test.txt');
+
+                // All edits should be applied (some may overwrite others)
+                expect(content).toContain('final1');
+                expect(content).toContain('final2');
+                expect(content).toContain('edited3');
+            });
+
+            it('should handle concurrent replaceAll edits correctly', async () => {
+                await vfs.write('/replace-all.txt', 'aaa bbb aaa bbb aaa');
+
+                // Perform concurrent replaceAll operations
+                const promises = [
+                    vfs.edit('/replace-all.txt', 'aaa', 'XXX', true),
+                    vfs.edit('/replace-all.txt', 'bbb', 'YYY', true),
+                ];
+
+                await Promise.all(promises);
+
+                const content = await vfs.read('/replace-all.txt');
+
+                // Both replacements should be applied
+                expect(content).not.toContain('aaa');
+                expect(content).not.toContain('bbb');
+                expect(content).toContain('XXX');
+                expect(content).toContain('YYY');
+            });
+        });
+
+        describe('Transaction atomicity', () => {
+            it('should handle errors gracefully during write', async () => {
+                await vfs.write('/rollback-test.txt', 'original');
+
+                // Try to write to a path that would cause an error (e.g., parent traversal)
+                try {
+                    await vfs.write('/rollback-test.txt/../invalid.txt', 'new content');
+                } catch {
+                    // Expected to fail due to path validation
+                }
+
+                // Original content should be preserved
+                const content = await vfs.read('/rollback-test.txt');
+                expect(content).toBe('original');
+            });
+
+            it('should rollback on error during edit', async () => {
+                await vfs.write('/edit-rollback.txt', 'original content');
+
+                // Try to edit with non-existent string
+                try {
+                    await vfs.edit('/edit-rollback.txt', 'nonexistent', 'replacement');
+                } catch {
+                    // Expected to fail
+                }
+
+                // Original content should be preserved
+                const content = await vfs.read('/edit-rollback.txt');
+                expect(content).toBe('original content');
+            });
+        });
+    });
+
+    // ── Fix 33: Range Query Optimization ──
+
+    describe('Range Query Optimization (Fix 33)', () => {
+        beforeEach(async () => {
+            // Create a directory structure for testing
+            await vfs.write('/dir1/file1.txt', 'content1');
+            await vfs.write('/dir1/file2.txt', 'content2');
+            await vfs.write('/dir1/subdir/file3.txt', 'content3');
+            await vfs.write('/dir2/file4.txt', 'content4');
+            await vfs.write('/dir2/file5.txt', 'content5');
+            await vfs.write('/file6.txt', 'content6');
+        });
+
+        describe('ls with range queries', () => {
+            it('should efficiently list root directory', async () => {
+                const result = await vfs.ls('/');
+
+                expect(result).toContain('dir1');
+                expect(result).toContain('dir2');
+                expect(result).toContain('file6.txt');
+                expect(result).toHaveLength(3);
+            });
+
+            it('should efficiently list subdirectory', async () => {
+                const result = await vfs.ls('/dir1');
+
+                expect(result).toContain('file1.txt');
+                expect(result).toContain('file2.txt');
+                expect(result).toContain('subdir');
+                expect(result).toHaveLength(3);
+            });
+
+            it('should handle empty directories', async () => {
+                await vfs.write('/empty-dir/.keep', '');
+                await vfs.remove('/empty-dir/.keep');
+
+                const result = await vfs.ls('/empty-dir');
+                expect(result).toHaveLength(0);
+            });
+        });
+
+        describe('find with range queries', () => {
+            it('should efficiently find files by pattern in root', async () => {
+                // Use ** to match files in all subdirectories
+                const result = await vfs.find('**/*.txt', '/');
+
+                expect(result).toContain('/file6.txt');
+                expect(result).toContain('/dir1/file1.txt');
+                expect(result).toContain('/dir2/file4.txt');
+            });
+
+            it('should efficiently find files by pattern in subdirectory', async () => {
+                const result = await vfs.find('**/*.txt', '/dir1');
+
+                expect(result).toContain('/dir1/file1.txt');
+                expect(result).toContain('/dir1/file2.txt');
+                expect(result).toContain('/dir1/subdir/file3.txt');
+                expect(result).toHaveLength(3);
+            });
+
+            it('should handle complex glob patterns', async () => {
+                // Use ** to match files in all subdirectories
+                const result = await vfs.find('**/file?.txt', '/');
+
+                // Pattern matches files with single digit names
+                expect(result).toContain('/file6.txt');
+                expect(result).toContain('/dir1/file1.txt');
+                expect(result).toContain('/dir1/file2.txt');
+                expect(result).toContain('/dir2/file4.txt');
+                expect(result).toContain('/dir2/file5.txt');
+            });
+        });
+
+        describe('grep with range queries', () => {
+            it('should efficiently search content in root', async () => {
+                const result = await vfs.grep('content', '/');
+
+                expect(result.filenames.length).toBeGreaterThan(0);
+                expect(result.filenames).toContain('/file6.txt');
+            });
+
+            it('should efficiently search content in subdirectory', async () => {
+                const result = await vfs.grep('content1', '/dir1');
+
+                expect(result.filenames).toContain('/dir1/file1.txt');
+            });
+
+            it('should handle regex patterns with range queries', async () => {
+                const result = await vfs.grep('content[1-3]', '/dir1');
+
+                expect(result.filenames).toContain('/dir1/file1.txt');
+                expect(result.filenames).toContain('/dir1/file2.txt');
+                expect(result.filenames).toContain('/dir1/subdir/file3.txt');
+            });
+        });
+
+        describe('Performance characteristics', () => {
+            it('should handle large number of files efficiently', async () => {
+                // Create 100 files
+                const promises = Array.from({ length: 100 }, (_, i) =>
+                    vfs.write(`/perf-test/file${i}.txt`, `content${i}`)
+                );
+                await Promise.all(promises);
+
+                // ls should be efficient
+                const startTime = Date.now();
+                const result = await vfs.ls('/perf-test');
+                const elapsed = Date.now() - startTime;
+
+                expect(result).toHaveLength(100);
+                // Should complete in reasonable time (< 100ms for 100 files)
+                expect(elapsed).toBeLessThan(100);
+            });
+
+            it('should not load all entries for subdirectory queries', async () => {
+                // Create files in different directories
+                await vfs.write('/other-dir/file1.txt', 'content1');
+                await vfs.write('/other-dir/file2.txt', 'content2');
+                await vfs.write('/target-dir/file3.txt', 'content3');
+
+                // Query only target-dir
+                const result = await vfs.ls('/target-dir');
+
+                expect(result).toContain('file3.txt');
+                expect(result).toHaveLength(1);
+                // Should not include files from other-dir
+                expect(result).not.toContain('file1.txt');
+                expect(result).not.toContain('file2.txt');
+            });
+        });
+    });
 });

@@ -188,52 +188,56 @@ export class VirtualFS {
     const db = getDatabase();
 
     const type = this.inferFileType(normalizedPath);
-    const existing = await db.fileSystemEntries.get(normalizedPath);
 
-    // create-new mode: skip write if file already exists
-    if (mode === 'create-new' && existing) {
-      log.debug('write: file already exists in create-new mode, skipping:', normalizedPath);
-      return existing.content.length;
-    }
+    // Wrap read-modify-write in transaction to prevent race conditions
+    return db.transaction('rw', db.fileSystemEntries, async () => {
+      const existing = await db.fileSystemEntries.get(normalizedPath);
 
-    let finalContent = content;
-    let metadata: FileSystemEntryMetadata;
+      // create-new mode: skip write if file already exists
+      if (mode === 'create-new' && existing) {
+        log.debug('write: file already exists in create-new mode, skipping:', normalizedPath);
+        return existing.content.length;
+      }
 
-    if (existing && mode === 'append') {
-      finalContent = existing.content + content;
-      metadata = {
-        ...existing.metadata,
-        ...metadataOverride,
-        updatedAt: new Date(),
-      };
-    } else {
-      const now = new Date();
-      metadata = {
-        name: getFileName(normalizedPath),
-        description: '',
-        createdAt: existing?.metadata.createdAt || now,
-        updatedAt: now,
-        ...metadataOverride,
-      };
+      let finalContent = content;
+      let metadata: FileSystemEntryMetadata;
 
-      if (type === 'function') {
-        const group = this.extractGroupFromPath(normalizedPath);
-        if (group) {
-          metadata.group = group;
+      if (existing && mode === 'append') {
+        finalContent = existing.content + content;
+        metadata = {
+          ...existing.metadata,
+          ...metadataOverride,
+          updatedAt: new Date(),
+        };
+      } else {
+        const now = new Date();
+        metadata = {
+          name: getFileName(normalizedPath),
+          description: '',
+          createdAt: existing?.metadata.createdAt || now,
+          updatedAt: now,
+          ...metadataOverride,
+        };
+
+        if (type === 'function') {
+          const group = this.extractGroupFromPath(normalizedPath);
+          if (group) {
+            metadata.group = group;
+          }
         }
       }
-    }
 
-    const entry: FileSystemEntry = {
-      path: normalizedPath,
-      type,
-      content: finalContent,
-      metadata,
-    };
+      const entry: FileSystemEntry = {
+        path: normalizedPath,
+        type,
+        content: finalContent,
+        metadata,
+      };
 
-    await db.fileSystemEntries.put(entry);
-    log.debug('write: success, final content length:', finalContent.length);
-    return finalContent.length;
+      await db.fileSystemEntries.put(entry);
+      log.debug('write: success, final content length:', finalContent.length);
+      return finalContent.length;
+    });
   }
 
   /**
@@ -250,7 +254,8 @@ export class VirtualFS {
     const children = new Set<string>();
 
     if (normalizedPath === '/') {
-      const allEntries = await db.fileSystemEntries.toArray();
+      // Use range query to get all entries efficiently
+      const allEntries = await db.fileSystemEntries.toCollection().toArray();
       for (const entry of allEntries) {
         const parts = entry.path.split('/').filter(Boolean);
         if (parts.length > 0) {
@@ -259,8 +264,10 @@ export class VirtualFS {
       }
     } else {
       const prefix = normalizedPath + '/';
+      // Use startsWith for efficient index-based query
       const entries = await db.fileSystemEntries
-        .filter(entry => entry.path.startsWith(prefix))
+        .where('path')
+        .startsWith(prefix)
         .toArray();
 
       for (const entry of entries) {
@@ -290,11 +297,13 @@ export class VirtualFS {
     let entries: FileSystemEntry[];
 
     if (normalizedPath === '/') {
-      entries = await db.fileSystemEntries.toArray();
+      entries = await db.fileSystemEntries.toCollection().toArray();
     } else {
       const prefix = normalizedPath + '/';
+      // Use startsWith for efficient index-based query
       entries = await db.fileSystemEntries
-        .filter(entry => entry.path.startsWith(prefix))
+        .where('path')
+        .startsWith(prefix)
         .toArray();
     }
 
@@ -361,11 +370,13 @@ export class VirtualFS {
     let entries: FileSystemEntry[];
 
     if (normalizedPath === '/') {
-      entries = await db.fileSystemEntries.toArray();
+      entries = await db.fileSystemEntries.toCollection().toArray();
     } else {
       const prefix = normalizedPath + '/';
+      // Use startsWith for efficient index-based query
       entries = await db.fileSystemEntries
-        .filter(entry => entry.path.startsWith(prefix))
+        .where('path')
+        .startsWith(prefix)
         .toArray();
     }
 
@@ -528,53 +539,56 @@ export class VirtualFS {
       throw new Error('No changes to make: old_string and new_string are exactly the same');
     }
 
-    const entry = await db.fileSystemEntries.get(normalizedPath);
-    if (!entry) {
-      throw new PathError('ENOENT', `File not found: ${normalizedPath}`);
-    }
+    // Wrap read-modify-write in transaction to prevent race conditions
+    return db.transaction('rw', db.fileSystemEntries, async () => {
+      const entry = await db.fileSystemEntries.get(normalizedPath);
+      if (!entry) {
+        throw new PathError('ENOENT', `File not found: ${normalizedPath}`);
+      }
 
-    const content = entry.content;
+      const content = entry.content;
 
-    // Count matches
-    let matchCount = 0;
-    let idx = 0;
-    while (true) {
-      const pos = content.indexOf(oldString, idx);
-      if (pos === -1) break;
-      matchCount++;
-      idx = pos + oldString.length;
-    }
+      // Count matches
+      let matchCount = 0;
+      let idx = 0;
+      while (true) {
+        const pos = content.indexOf(oldString, idx);
+        if (pos === -1) break;
+        matchCount++;
+        idx = pos + oldString.length;
+      }
 
-    if (matchCount === 0) {
-      throw new Error(`String to replace not found in file.\nString: ${oldString}`);
-    }
+      if (matchCount === 0) {
+        throw new Error(`String to replace not found in file.\nString: ${oldString}`);
+      }
 
-    if (matchCount > 1 && !replaceAll) {
-      throw new Error(
-        `Found ${matchCount} matches of the string to replace, but replace_all is false. ` +
-        `Either provide more context to make the match unique, or set replace_all to true.`
-      );
-    }
+      if (matchCount > 1 && !replaceAll) {
+        throw new Error(
+          `Found ${matchCount} matches of the string to replace, but replace_all is false. ` +
+          `Either provide more context to make the match unique, or set replace_all to true.`
+        );
+      }
 
-    // Perform replacement
-    const newContent = replaceAll
-      ? content.split(oldString).join(newString)
-      : content.replace(oldString, newString);
+      // Perform replacement
+      const newContent = replaceAll
+        ? content.split(oldString).join(newString)
+        : content.replace(oldString, newString);
 
-    // Write back
-    const metadata: FileSystemEntryMetadata = {
-      ...entry.metadata,
-      updatedAt: new Date(),
-    };
+      // Write back
+      const metadata: FileSystemEntryMetadata = {
+        ...entry.metadata,
+        updatedAt: new Date(),
+      };
 
-    await db.fileSystemEntries.put({
-      ...entry,
-      content: newContent,
-      metadata,
+      await db.fileSystemEntries.put({
+        ...entry,
+        content: newContent,
+        metadata,
+      });
+
+      log.debug('edit: success, replaced:', replaceAll ? matchCount : 1);
+      return { replaced: replaceAll ? matchCount : 1 };
     });
-
-    log.debug('edit: success, replaced:', replaceAll ? matchCount : 1);
-    return { replaced: replaceAll ? matchCount : 1 };
   }
 
   /**

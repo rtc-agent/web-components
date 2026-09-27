@@ -174,8 +174,41 @@ describe('ToastController', () => {
             // Advance time - no auto-dismiss should occur after disconnect
             vi.advanceTimersByTime(5000);
 
-            // Toasts list is not cleared, but timers are
+            // Toasts list should be cleared on disconnect
+            expect(controller.toasts).toHaveLength(0);
+        });
+
+        it('should clear toasts list on disconnect to avoid orphaned toasts', () => {
+            controller.actions.show('First', 'info');
+            controller.actions.show('Second', 'error');
+            controller.actions.show('Third', 'success');
+
             expect(controller.toasts).toHaveLength(3);
+
+            controller.hostDisconnected();
+
+            // All toasts should be cleared
+            expect(controller.toasts).toHaveLength(0);
+        });
+
+        it('should trigger requestUpdate when clearing toasts on disconnect', () => {
+            controller.actions.show('First', 'info');
+            controller.actions.show('Second', 'info');
+            const initialUpdateCount = host.updateCount;
+
+            controller.hostDisconnected();
+
+            // Should have called requestUpdate to clear the UI
+            expect(host.updateCount).toBe(initialUpdateCount + 1);
+        });
+
+        it('should not trigger requestUpdate if no toasts to clear', () => {
+            const initialUpdateCount = host.updateCount;
+
+            controller.hostDisconnected();
+
+            // Should not call requestUpdate if there were no toasts
+            expect(host.updateCount).toBe(initialUpdateCount);
         });
 
         it('should prevent memory leaks from pending timers', () => {
@@ -190,6 +223,20 @@ describe('ToastController', () => {
             expect(clearTimeoutSpy).toHaveBeenCalledTimes(2);
 
             clearTimeoutSpy.mockRestore();
+        });
+
+        it('should allow showing new toasts after reconnect', () => {
+            controller.actions.show('First', 'info');
+            controller.hostDisconnected();
+
+            expect(controller.toasts).toHaveLength(0);
+
+            // Simulate reconnect
+            controller.hostConnected();
+            controller.actions.show('Second', 'info');
+
+            expect(controller.toasts).toHaveLength(1);
+            expect(controller.toasts[0].message).toBe('Second');
         });
     });
 

@@ -21,7 +21,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@rtc-agent/client": "workspace:*",
@@ -30,6 +31,9 @@
     "comlink": "^4.4.2"
   },
   "devDependencies": {
-    "typescript": "^5.4.0"
+    "@vitest/coverage-v8": "^5.0.2",
+    "jsdom": "^30.0.1",
+    "typescript": "^5.4.0",
+    "vitest": "^2.0.0"
   }
 }

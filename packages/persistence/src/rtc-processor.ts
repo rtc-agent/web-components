@@ -12,6 +12,14 @@ const log = createLogger('RtcProcessor');
 const ERROR_RETRY_DELAY_MS = 1000;
 
 /**
+ * Timeout for RTC processing (ms).
+ *
+ * Fix 76: Prevents processOne from hanging indefinitely if tool execution
+ * or network operations stall. After this timeout, the RTC is marked as failed.
+ */
+const PROCESS_TIMEOUT_MS = 60_000;
+
+/**
  * Maximum retry count for failed RTC result submissions.
  *
  * When exceeded, the RTC is abandoned (logged as error) to prevent infinite
@@ -338,7 +346,18 @@ export class RtcProcessor {
             error: 'User denied',
           });
         } catch (err) {
-          log.error('submitRtcResult (denied) failed:', err);
+          log.error('submitRtcResult (denied) failed, marking as synced to prevent retry:', err);
+          // Fallback: directly mark as synced to prevent repeated prompts
+          try {
+            await this.persistence.getEntityRepository().upsertRtc(
+              { client_id: rtc.client_id },
+              'synced'
+            );
+          } catch (innerErr) {
+            log.error('Failed to mark RTC as synced:', innerErr);
+            // Last resort: set retry count to max to trigger give-up path
+            this.retryCountMap.set(rtc.client_id, MAX_SUBMIT_RETRY_COUNT);
+          }
         }
         return;
       }
@@ -350,7 +369,23 @@ export class RtcProcessor {
 
       try {
         const params = (rtc.parameters || {}) as ToolParams;
-        const toolResult = await toolRegistry.execute(toolName, params);
+
+        // Fix 76: Add timeout protection to prevent processOne from hanging indefinitely
+        // Fix: Clear timeout handle and catch late tool rejections to prevent unhandled rejections
+        const toolExecutionPromise = toolRegistry.execute(toolName, params);
+        let timeoutHandle: ReturnType<typeof setTimeout>;
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          timeoutHandle = setTimeout(() => reject(new Error(`Tool execution timeout after ${PROCESS_TIMEOUT_MS}ms`)), PROCESS_TIMEOUT_MS);
+        });
+
+        let toolResult;
+        try {
+          toolResult = await Promise.race([toolExecutionPromise, timeoutPromise]);
+        } finally {
+          clearTimeout(timeoutHandle!);
+        }
+        // Catch late tool rejections after timeout wins the race (prevents unhandled rejection)
+        toolExecutionPromise.catch(() => {});
         result = toolResult.data;
         if (!toolResult.success) {
           success = false;

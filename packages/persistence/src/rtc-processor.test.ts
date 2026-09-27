@@ -329,6 +329,67 @@ describe('RtcProcessor', () => {
       });
     });
 
+    it('should fallback to entityRepository.upsertRtc when submitRtcResult fails for denied RTC', async () => {
+      const rtc = createMockRtc({ tool_name: 'script' });
+      mockPersistence.getNextRtcToProcess
+        .mockResolvedValueOnce(rtc)
+        .mockResolvedValueOnce(undefined);
+      mockNeedsConfirm.mockReturnValue(true);
+
+      const confirmDialog: ConfirmDialogFn = vi.fn().mockResolvedValue(false);
+      processor.setConfirmDialog(confirmDialog);
+
+      // Mock submitRtcResult to fail
+      mockPersistence.submitRtcResult.mockRejectedValue(new Error('RPC failed'));
+
+      // Mock entityRepository.upsertRtc
+      const mockUpsertRtc = vi.fn().mockResolvedValue(undefined);
+      (mockPersistence as any).getEntityRepository = vi.fn().mockReturnValue({
+        upsertRtc: mockUpsertRtc,
+      });
+
+      await runWithTimers(processor.onRtcUpdate());
+
+      expect(mockPersistence.submitRtcResult).toHaveBeenCalledWith({
+        rtcClientId: 'rtc-001',
+        success: false,
+        error: 'User denied',
+      });
+      expect(mockUpsertRtc).toHaveBeenCalledWith(
+        { client_id: 'rtc-001' },
+        'synced'
+      );
+    });
+
+    it('should set retryCountMap to MAX when both submitRtcResult and entityRepository.upsertRtc fail', async () => {
+      const rtc = createMockRtc({ tool_name: 'script' });
+      mockPersistence.getNextRtcToProcess
+        .mockResolvedValueOnce(rtc)
+        .mockResolvedValueOnce(undefined);
+      mockNeedsConfirm.mockReturnValue(true);
+
+      const confirmDialog: ConfirmDialogFn = vi.fn().mockResolvedValue(false);
+      processor.setConfirmDialog(confirmDialog);
+
+      // Mock submitRtcResult to fail
+      mockPersistence.submitRtcResult.mockRejectedValue(new Error('RPC failed'));
+
+      // Mock entityRepository.upsertRtc to also fail
+      const mockUpsertRtc = vi.fn().mockRejectedValue(new Error('DB failed'));
+      (mockPersistence as any).getEntityRepository = vi.fn().mockReturnValue({
+        upsertRtc: mockUpsertRtc,
+      });
+
+      await runWithTimers(processor.onRtcUpdate());
+
+      expect(mockPersistence.submitRtcResult).toHaveBeenCalled();
+      expect(mockUpsertRtc).toHaveBeenCalled();
+
+      // Check that retryCountMap was set to MAX_SUBMIT_RETRY_COUNT (10)
+      // @ts-expect-error - accessing private field for testing
+      expect(processor.retryCountMap.get('rtc-001')).toBe(10);
+    });
+
     it('should default to reject when confirmDialog is not set', async () => {
       const rtc = createMockRtc({ tool_name: 'script' });
       mockPersistence.getNextRtcToProcess
@@ -426,6 +487,48 @@ describe('RtcProcessor', () => {
 
       // Loop should continue (not throw) and exit gracefully
       expect(mockPersistence.getNextRtcToProcess).toHaveBeenCalledTimes(2);
+    });
+
+    it('should timeout and mark as failed when tool execution exceeds PROCESS_TIMEOUT_MS', async () => {
+      const rtc = createMockRtc({ tool_name: 'slow_tool' });
+      mockPersistence.getNextRtcToProcess
+        .mockResolvedValueOnce(rtc)
+        .mockResolvedValueOnce(undefined);
+      mockNeedsConfirm.mockReturnValue(false);
+
+      // Mock tool execution to hang indefinitely
+      mockToolExecute.mockImplementation(() => new Promise(() => {}));
+
+      await runWithTimers(processor.onRtcUpdate());
+
+      // Should mark as failed with timeout error
+      expect(mockPersistence.submitRtcResult).toHaveBeenCalledWith({
+        rtcClientId: 'rtc-001',
+        success: false,
+        result: undefined,
+        error: expect.stringContaining('timeout'),
+      });
+    });
+
+    it('should complete normally when tool execution finishes before timeout', async () => {
+      const rtc = createMockRtc({ tool_name: 'fast_tool' });
+      mockPersistence.getNextRtcToProcess
+        .mockResolvedValueOnce(rtc)
+        .mockResolvedValueOnce(undefined);
+      mockNeedsConfirm.mockReturnValue(false);
+
+      // Mock tool execution to complete quickly
+      mockToolExecute.mockResolvedValue({ success: true, data: { result: 'done' } });
+
+      await runWithTimers(processor.onRtcUpdate());
+
+      // Should complete successfully
+      expect(mockPersistence.submitRtcResult).toHaveBeenCalledWith({
+        rtcClientId: 'rtc-001',
+        success: true,
+        result: { result: 'done' },
+        error: undefined,
+      });
     });
   });
 

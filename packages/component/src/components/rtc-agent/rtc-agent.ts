@@ -180,7 +180,7 @@ import {
 } from './helpers/vfs-operations.js';
 import {loadSessions as sessionLoadSessions} from './helpers/session-loader.js';
 import {connectWithRetry} from './helpers/connection-setup.js';
-import {handleBusEvent, type BusHandlerDeps} from './helpers/bus-handler.js';
+import {handleBusEvent, type BusHandlerDeps, DebouncedSessionLoader} from './helpers/bus-handler.js';
 
 // Connection state type
 import type {ConnectionState} from '@rtc-agent/client';
@@ -1109,6 +1109,9 @@ export class RtcAgent extends LitElement {
     /** UIUpdateBus gap fill state unsubscribe reference (set in connectedCallback, cleared in disconnectedCallback). */
     private _busUnsubGapFill?: () => void;
 
+    /** Debounced session loader to prevent multiple concurrent loadSessions calls (Fix 40). */
+    private _sessionLoader?: DebouncedSessionLoader;
+
     /**
      * @internal Async beforeMessageSend hook, set by the `createRtcAgent` factory
      * when the `beforeMessageSend` callback is provided.
@@ -1341,6 +1344,8 @@ export class RtcAgent extends LitElement {
 
         // Subscribe to UIUpdateBus for persistence-driven UI refreshes (delegated to bus-handler).
         const bus = getUIUpdateBus();
+        // Create debounced session loader to prevent multiple concurrent loadSessions calls (Fix 40).
+        this._sessionLoader = new DebouncedSessionLoader(() => this._loadSessions());
         const busDeps: BusHandlerDeps = {
             message: this._message,
             session: this._session,
@@ -1348,7 +1353,7 @@ export class RtcAgent extends LitElement {
             sessionTree: this._sessionTree,
             persistence: this._persistence,
             getRtcProcessor: () => this._rtcProcessor,
-            loadSessions: () => this._loadSessions(),
+            sessionLoader: this._sessionLoader,
             refreshTurnCounts: () => this._refreshTurnCounts(),
             handleFileChange: (entityId, field) => this._handleFileChange(entityId, field),
             log,
@@ -1644,6 +1649,9 @@ export class RtcAgent extends LitElement {
         this._busUnsubMessage?.();
         this._busUnsubBulkUpdate?.();
         this._busUnsubGapFill?.();
+        // Dispose debounced session loader to clear pending timer (Fix 40).
+        this._sessionLoader?.dispose();
+        this._sessionLoader = undefined;
         // FIX #61: Cancel any running processLoop before clearing reference.
         // Ensures the loop exits at the next iteration boundary when the component
         // is unmounted (e.g., React StrictMode double-mount, DOM reordering).

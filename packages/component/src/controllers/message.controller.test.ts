@@ -1,6 +1,7 @@
 import {describe, it, expect, vi} from 'vitest';
 import {MessageController} from './message.controller.js';
 import type {ContentData, Message} from '../types/index.js';
+import type {LocalMessage} from '@rtc-agent/persistence';
 
 class MockHost {
     updateCount = 0;
@@ -402,5 +403,390 @@ describe('MessageController merge semantics', () => {
 
         // hasMore should be preserved from existing state
         expect(ctrl.value.state.hasMore).toBe(true);
+    });
+});
+
+describe('MessageController - updateMessageFromBus (Fix 77)', () => {
+    function createBusTestDeps(ctrl: MessageController) {
+        const stored: Array<LocalMessage> = [];
+        let applyBusUpdateCallCount = 0;
+        let applyBusUpdateShouldThrow = false;
+
+        const persistence = {
+            getMessage: vi.fn(async (entityId: string) =>
+                stored.find(m => m.client_id === entityId) ?? null
+            ),
+            listMessages: vi.fn(async () => []),
+            sendMessage: vi.fn(async () => {
+                throw new Error('Not implemented');
+            }),
+        };
+
+        const sessionController = {
+            value: {state: {currentSessionId: 'test-session' as string | null}},
+            actions: {},
+        };
+
+        ctrl.persistence = persistence as any;
+        ctrl.sessionController = sessionController as any;
+
+        // Spy on _applyBusUpdate to track calls and simulate errors
+        const originalApplyBusUpdate = (ctrl as any)._applyBusUpdate.bind(ctrl);
+        vi.spyOn(ctrl as any, '_applyBusUpdate').mockImplementation((...args: any[]) => {
+            applyBusUpdateCallCount++;
+            if (applyBusUpdateShouldThrow) {
+                throw new Error('Simulated error in _applyBusUpdate');
+            }
+            return originalApplyBusUpdate(...args);
+        });
+
+        return {
+            persistence,
+            stored,
+            getApplyBusUpdateCallCount: () => applyBusUpdateCallCount,
+            setApplyBusUpdateShouldThrow: (shouldThrow: boolean) => {
+                applyBusUpdateShouldThrow = shouldThrow;
+            },
+            resetApplyBusUpdateCallCount: () => {
+                applyBusUpdateCallCount = 0;
+            },
+        };
+    }
+
+    it('should handle message not found gracefully', async () => {
+        const host = new MockHost();
+        const ctrl = new MessageController(host as any);
+        const {persistence} = createBusTestDeps(ctrl);
+
+        // Message not in DB
+        await ctrl.updateMessageFromBus('non-existent-id');
+
+        // Should not throw, should return early
+        expect(persistence.getMessage).toHaveBeenCalledWith('non-existent-id');
+    });
+
+    it('should handle message without session_client_id gracefully', async () => {
+        const host = new MockHost();
+        const ctrl = new MessageController(host as any);
+        const {persistence, stored} = createBusTestDeps(ctrl);
+
+        // Message without session_client_id
+        stored.push({
+            client_id: 'msg-no-session',
+            role: 'user',
+            content: '{"type":"text","data":"test"}',
+            created_at: new Date().toISOString(),
+            streaming_status: 'finalized',
+            sync_status: 'synced',
+            session_client_id: '', // Empty session ID
+        } as LocalMessage);
+
+        await ctrl.updateMessageFromBus('msg-no-session');
+
+        // Should not throw, should return early
+        expect(persistence.getMessage).toHaveBeenCalledWith('msg-no-session');
+    });
+
+    it('should process bus update successfully for existing message', async () => {
+        const host = new MockHost();
+        const ctrl = new MessageController(host as any);
+        const {stored} = createBusTestDeps(ctrl);
+
+        const sessionId = 'test-session';
+        const messageId = 'msg-1';
+
+        // Add message to DB
+        stored.push({
+            client_id: messageId,
+            role: 'user',
+            content: JSON.stringify({type: 'text', data: 'test'}),
+            created_at: new Date().toISOString(),
+            streaming_status: 'finalized',
+            sync_status: 'synced',
+            session_client_id: sessionId,
+        } as LocalMessage);
+
+        await ctrl.updateMessageFromBus(messageId);
+
+        // Should have processed the update
+        expect(host.updateCount).toBeGreaterThan(0);
+    });
+
+    it('should serialize concurrent updates for the same session', async () => {
+        const host = new MockHost();
+        const ctrl = new MessageController(host as any);
+        const {stored, getApplyBusUpdateCallCount} = createBusTestDeps(ctrl);
+
+        const sessionId = 'test-session';
+
+        // Add multiple messages to DB for the same session
+        for (let i = 1; i <= 3; i++) {
+            stored.push({
+                client_id: `msg-${i}`,
+                role: 'user',
+                content: JSON.stringify({type: 'text', data: `Message ${i}`}),
+                created_at: new Date(1000 + i).toISOString(),
+                streaming_status: 'finalized',
+                sync_status: 'synced',
+                session_client_id: sessionId,
+            } as LocalMessage);
+        }
+
+        // Fire multiple updates concurrently
+        const promises = [
+            ctrl.updateMessageFromBus('msg-1'),
+            ctrl.updateMessageFromBus('msg-2'),
+            ctrl.updateMessageFromBus('msg-3'),
+        ];
+
+        await Promise.all(promises);
+
+        // All updates should have been processed (serialized, not lost)
+        expect(getApplyBusUpdateCallCount()).toBe(3);
+    });
+
+    it('should maintain separate chains for different sessions', async () => {
+        const host = new MockHost();
+        const ctrl = new MessageController(host as any);
+        const {stored, getApplyBusUpdateCallCount} = createBusTestDeps(ctrl);
+
+        // Add messages for different sessions
+        stored.push(
+            {
+                client_id: 'msg-s1-1',
+                role: 'user',
+                content: JSON.stringify({type: 'text', data: 'Session 1'}),
+                created_at: new Date().toISOString(),
+                streaming_status: 'finalized',
+                sync_status: 'synced',
+                session_client_id: 'session-1',
+            } as LocalMessage,
+            {
+                client_id: 'msg-s2-1',
+                role: 'user',
+                content: JSON.stringify({type: 'text', data: 'Session 2'}),
+                created_at: new Date().toISOString(),
+                streaming_status: 'finalized',
+                sync_status: 'synced',
+                session_client_id: 'session-2',
+            } as LocalMessage
+        );
+
+        // Fire updates for different sessions concurrently
+        await Promise.all([
+            ctrl.updateMessageFromBus('msg-s1-1'),
+            ctrl.updateMessageFromBus('msg-s2-1'),
+        ]);
+
+        // Both should have been processed
+        expect(getApplyBusUpdateCallCount()).toBe(2);
+    });
+
+    it('should recover from errors and continue processing subsequent events', async () => {
+        const host = new MockHost();
+        const ctrl = new MessageController(host as any);
+        const {stored, getApplyBusUpdateCallCount, setApplyBusUpdateShouldThrow, resetApplyBusUpdateCallCount} = createBusTestDeps(ctrl);
+
+        const sessionId = 'test-session';
+
+        // Add messages to DB
+        for (let i = 1; i <= 3; i++) {
+            stored.push({
+                client_id: `msg-${i}`,
+                role: 'user',
+                content: JSON.stringify({type: 'text', data: `Message ${i}`}),
+                created_at: new Date(1000 + i).toISOString(),
+                streaming_status: 'finalized',
+                sync_status: 'synced',
+                session_client_id: sessionId,
+            } as LocalMessage);
+        }
+
+        // First update: should throw
+        setApplyBusUpdateShouldThrow(true);
+        await ctrl.updateMessageFromBus('msg-1');
+
+        // Error should have been caught, chain should not be broken
+        expect(getApplyBusUpdateCallCount()).toBe(1);
+
+        // Second update: should succeed (chain recovered)
+        resetApplyBusUpdateCallCount();
+        setApplyBusUpdateShouldThrow(false);
+        await ctrl.updateMessageFromBus('msg-2');
+
+        // Should have processed successfully
+        expect(getApplyBusUpdateCallCount()).toBe(1);
+
+        // Third update: should also succeed
+        resetApplyBusUpdateCallCount();
+        await ctrl.updateMessageFromBus('msg-3');
+        expect(getApplyBusUpdateCallCount()).toBe(1);
+    });
+
+    it('should not break chain when multiple errors occur in sequence', async () => {
+        const host = new MockHost();
+        const ctrl = new MessageController(host as any);
+        const {stored, getApplyBusUpdateCallCount, setApplyBusUpdateShouldThrow} = createBusTestDeps(ctrl);
+
+        const sessionId = 'test-session';
+
+        // Add messages to DB
+        for (let i = 1; i <= 5; i++) {
+            stored.push({
+                client_id: `msg-${i}`,
+                role: 'user',
+                content: JSON.stringify({type: 'text', data: `Message ${i}`}),
+                created_at: new Date(1000 + i).toISOString(),
+                streaming_status: 'finalized',
+                sync_status: 'synced',
+                session_client_id: sessionId,
+            } as LocalMessage);
+        }
+
+        // All updates should throw
+        setApplyBusUpdateShouldThrow(true);
+
+        // Fire multiple updates that will all fail
+        const promises = [
+            ctrl.updateMessageFromBus('msg-1'),
+            ctrl.updateMessageFromBus('msg-2'),
+            ctrl.updateMessageFromBus('msg-3'),
+        ];
+
+        // Should not throw even though all fail
+        await expect(Promise.all(promises)).resolves.not.toThrow();
+
+        // All should have been attempted (chain didn't break)
+        expect(getApplyBusUpdateCallCount()).toBe(3);
+    });
+
+    it('should clean up chain after successful completion', async () => {
+        const host = new MockHost();
+        const ctrl = new MessageController(host as any);
+        const {stored} = createBusTestDeps(ctrl);
+
+        const sessionId = 'test-session';
+        const messageId = 'msg-1';
+
+        stored.push({
+            client_id: messageId,
+            role: 'user',
+            content: JSON.stringify({type: 'text', data: 'test'}),
+            created_at: new Date().toISOString(),
+            streaming_status: 'finalized',
+            sync_status: 'synced',
+            session_client_id: sessionId,
+        } as LocalMessage);
+
+        await ctrl.updateMessageFromBus(messageId);
+
+        // Wait for chain cleanup (finally block)
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        // Chain should be cleaned up
+        const chains = (ctrl as any)._sessionUpdateChains as Map<string, Promise<void>>;
+        expect(chains.has(sessionId)).toBe(false);
+    });
+
+    it('should clean up chain after error recovery', async () => {
+        const host = new MockHost();
+        const ctrl = new MessageController(host as any);
+        const {stored, setApplyBusUpdateShouldThrow} = createBusTestDeps(ctrl);
+
+        const sessionId = 'test-session';
+        const messageId = 'msg-1';
+
+        stored.push({
+            client_id: messageId,
+            role: 'user',
+            content: JSON.stringify({type: 'text', data: 'test'}),
+            created_at: new Date().toISOString(),
+            streaming_status: 'finalized',
+            sync_status: 'synced',
+            session_client_id: sessionId,
+        } as LocalMessage);
+
+        setApplyBusUpdateShouldThrow(true);
+        await ctrl.updateMessageFromBus(messageId);
+
+        // Wait for chain cleanup
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        // Chain should still be cleaned up even after error
+        const chains = (ctrl as any)._sessionUpdateChains as Map<string, Promise<void>>;
+        expect(chains.has(sessionId)).toBe(false);
+    });
+
+    it('should clear pending chains on hostDisconnected', async () => {
+        const host = new MockHost();
+        const ctrl = new MessageController(host as any);
+        const {stored} = createBusTestDeps(ctrl);
+
+        const sessionId = 'test-session';
+
+        // Add messages to DB
+        for (let i = 1; i <= 3; i++) {
+            stored.push({
+                client_id: `msg-${i}`,
+                role: 'user',
+                content: JSON.stringify({type: 'text', data: `Message ${i}`}),
+                created_at: new Date(1000 + i).toISOString(),
+                streaming_status: 'finalized',
+                sync_status: 'synced',
+                session_client_id: sessionId,
+            } as LocalMessage);
+        }
+
+        // Start some updates (don't await them)
+        const promises = [
+            ctrl.updateMessageFromBus('msg-1'),
+            ctrl.updateMessageFromBus('msg-2'),
+        ];
+
+        // Simulate host disconnect
+        ctrl.hostDisconnected();
+
+        // Wait a bit for cleanup
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        // Chains should be cleared
+        const chains = (ctrl as any)._sessionUpdateChains as Map<string, Promise<void>>;
+        expect(chains.size).toBe(0);
+
+        // Clean up promises
+        await Promise.allSettled(promises);
+    });
+
+    it('should handle rapid successive updates without losing any', async () => {
+        const host = new MockHost();
+        const ctrl = new MessageController(host as any);
+        const {stored, getApplyBusUpdateCallCount} = createBusTestDeps(ctrl);
+
+        const sessionId = 'test-session';
+        const messageCount = 10;
+
+        // Add many messages to DB
+        for (let i = 1; i <= messageCount; i++) {
+            stored.push({
+                client_id: `msg-${i}`,
+                role: 'user',
+                content: JSON.stringify({type: 'text', data: `Message ${i}`}),
+                created_at: new Date(1000 + i).toISOString(),
+                streaming_status: 'finalized',
+                sync_status: 'synced',
+                session_client_id: sessionId,
+            } as LocalMessage);
+        }
+
+        // Fire all updates rapidly (not awaited individually)
+        const promises = [];
+        for (let i = 1; i <= messageCount; i++) {
+            promises.push(ctrl.updateMessageFromBus(`msg-${i}`));
+        }
+
+        await Promise.all(promises);
+
+        // All updates should have been processed (none lost)
+        expect(getApplyBusUpdateCallCount()).toBe(messageCount);
     });
 });

@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { RTCAgentClient } from './client.js';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { RTCAgentClient, GapFillTimeoutError } from './client.js';
 import type { RTCAgentClientOptions } from './types.js';
 import type { Update } from '@rtc-agent/protocol';
 
@@ -449,6 +449,472 @@ describe('Issue #234: flushGapFillBuffer offset advancement', () => {
       expect(mockUpdateOffset).not.toHaveBeenCalled();
 
       // This allows the retry to fetch from offset 1 again, maintaining continuity
+    });
+  });
+});
+
+/**
+ * Test suite for Fix 24: waitForGapFill timeout throws GapFillTimeoutError
+ *
+ * Tests the fix that ensures waitForGapFill throws an explicit error on timeout
+ * instead of silently returning, and that disconnect() properly aborts active waits.
+ */
+describe('Fix 24: waitForGapFill timeout and disconnect cleanup', () => {
+  let client: RTCAgentClient;
+  let mockOptions: RTCAgentClientOptions;
+  let mockGetLastOffset: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mockGetLastOffset = vi.fn();
+
+    mockOptions = {
+      endpoint: 'wss://test.example.com/connection',
+      getToken: () => 'test-token',
+      userId: 'test-user-id',
+      getLastOffset: mockGetLastOffset,
+    };
+
+    client = new RTCAgentClient(mockOptions);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    client.disconnect();
+  });
+
+  // Access private method for testing
+  const waitForGapFill = (channel: string, targetOffset: number) => {
+    // @ts-expect-error - accessing private method for testing
+    return client.waitForGapFill(channel, targetOffset);
+  };
+
+  describe('GapFillTimeoutError', () => {
+    it('should throw GapFillTimeoutError when timeout occurs', async () => {
+      const channel = 'topic:u=test-user-id';
+      const targetOffset = 100;
+
+      // Mock getLastOffset to always return offset less than target
+      mockGetLastOffset.mockResolvedValue({ offset: 50, epoch: 'test-epoch' });
+
+      // Mock gapFillTasks to keep gap fill "running"
+      // @ts-expect-error - accessing private field for testing
+      client.gapFillTasks.set(channel, { targetOffset: 100, epoch: 'test-epoch' });
+
+      const promise = waitForGapFill(channel, targetOffset);
+
+      // Catch the rejection immediately to avoid unhandled rejection
+      const resultPromise = promise.catch(err => err);
+
+      // Advance time past the 30 second timeout
+      await vi.advanceTimersByTimeAsync(31000);
+
+      const error = await resultPromise;
+      expect(error).toBeInstanceOf(GapFillTimeoutError);
+    });
+
+    it('should include correct channel, targetOffset, and elapsedMs in error', async () => {
+      const channel = 'topic:u=test-user-id';
+      const targetOffset = 100;
+
+      mockGetLastOffset.mockResolvedValue({ offset: 50, epoch: 'test-epoch' });
+      // @ts-expect-error - accessing private field for testing
+      client.gapFillTasks.set(channel, { targetOffset: 100, epoch: 'test-epoch' });
+
+      const promise = waitForGapFill(channel, targetOffset);
+
+      // Catch the rejection immediately
+      const resultPromise = promise.catch(err => err);
+
+      await vi.advanceTimersByTimeAsync(31000);
+
+      const error = await resultPromise;
+      expect(error).toBeInstanceOf(GapFillTimeoutError);
+      const gapFillError = error as GapFillTimeoutError;
+      expect(gapFillError.channel).toBe(channel);
+      expect(gapFillError.targetOffset).toBe(targetOffset);
+      expect(gapFillError.elapsedMs).toBeGreaterThanOrEqual(30000);
+      expect(gapFillError.message).toContain(channel);
+      expect(gapFillError.message).toContain(targetOffset.toString());
+    });
+
+    it('should return successfully when gap fill catches up before timeout', async () => {
+      const channel = 'topic:u=test-user-id';
+      const targetOffset = 100;
+
+      // Mock offset that catches up after 5 seconds
+      let callCount = 0;
+      mockGetLastOffset.mockImplementation(async () => {
+        callCount++;
+        if (callCount < 50) {
+          return { offset: 50, epoch: 'test-epoch' };
+        }
+        return { offset: 100, epoch: 'test-epoch' };
+      });
+
+      // @ts-expect-error - accessing private field for testing
+      client.gapFillTasks.set(channel, { targetOffset: 100, epoch: 'test-epoch' });
+
+      const promise = waitForGapFill(channel, targetOffset);
+
+      // Advance time to allow polling
+      await vi.advanceTimersByTimeAsync(5000);
+
+      await expect(promise).resolves.toBeUndefined();
+    });
+
+    it('should return successfully when gap fill task completes', async () => {
+      const channel = 'topic:u=test-user-id';
+      const targetOffset = 100;
+
+      mockGetLastOffset.mockResolvedValue({ offset: 50, epoch: 'test-epoch' });
+
+      // Start with gap fill task running
+      // @ts-expect-error - accessing private field for testing
+      client.gapFillTasks.set(channel, { targetOffset: 100, epoch: 'test-epoch' });
+
+      const promise = waitForGapFill(channel, targetOffset);
+
+      // Advance time a bit, then remove the task (simulating completion)
+      await vi.advanceTimersByTimeAsync(500);
+      // @ts-expect-error - accessing private field for testing
+      client.gapFillTasks.delete(channel);
+
+      // Flush promises and await
+      await vi.runAllTimersAsync();
+      await expect(promise).resolves.toBeUndefined();
+    });
+  });
+
+  describe('disconnect() cleanup', () => {
+    it('should abort active gap fill waits on disconnect', async () => {
+      const channel = 'topic:u=test-user-id';
+      const targetOffset = 100;
+
+      mockGetLastOffset.mockResolvedValue({ offset: 50, epoch: 'test-epoch' });
+      // @ts-expect-error - accessing private field for testing
+      client.gapFillTasks.set(channel, { targetOffset: 100, epoch: 'test-epoch' });
+
+      const promise = waitForGapFill(channel, targetOffset);
+      const resultPromise = promise.catch(err => err);
+
+      // Disconnect should abort the wait
+      client.disconnect();
+
+      // Flush promises
+      await vi.runAllTimersAsync();
+      const error = await resultPromise;
+      expect(error).toBeInstanceOf(Error);
+      expect(error.message).toMatch(/aborted/i);
+    });
+
+    it('should clear all gap fill abort controllers on disconnect', async () => {
+      const channel1 = 'topic:u=test-user-id';
+      const channel2 = 'topic:u=other-user-id';
+
+      mockGetLastOffset.mockResolvedValue({ offset: 50, epoch: 'test-epoch' });
+
+      // Start two gap fill waits
+      // @ts-expect-error - accessing private field for testing
+      client.gapFillTasks.set(channel1, { targetOffset: 100, epoch: 'test-epoch' });
+      // @ts-expect-error - accessing private field for testing
+      client.gapFillTasks.set(channel2, { targetOffset: 200, epoch: 'test-epoch' });
+
+      const promise1 = waitForGapFill(channel1, 100);
+      const promise2 = waitForGapFill(channel2, 200);
+
+      // Catch rejections immediately
+      const result1 = promise1.catch(err => err);
+      const result2 = promise2.catch(err => err);
+
+      // @ts-expect-error - accessing private field for testing
+      expect(client._gapFillAbortControllers.size).toBe(2);
+
+      client.disconnect();
+
+      // Flush promises
+      await vi.runAllTimersAsync();
+
+      // @ts-expect-error - accessing private field for testing
+      expect(client._gapFillAbortControllers.size).toBe(0);
+      await expect(result1).resolves.toBeTruthy();
+      await expect(result2).resolves.toBeTruthy();
+    });
+
+    it('should allow new gap fill waits after disconnect and reconnect', async () => {
+      const channel = 'topic:u=test-user-id';
+
+      // First disconnect
+      client.disconnect();
+
+      // Simulate reconnect by creating a new client
+      const newClient = new RTCAgentClient(mockOptions);
+
+      // @ts-expect-error - accessing private field for testing
+      newClient.gapFillTasks.set(channel, { targetOffset: 100, epoch: 'test-epoch' });
+      mockGetLastOffset.mockResolvedValue({ offset: 100, epoch: 'test-epoch' });
+
+      // @ts-expect-error - accessing private method for testing
+      const promise = newClient.waitForGapFill(channel, 100);
+
+      await vi.advanceTimersByTimeAsync(100);
+
+      await expect(promise).resolves.toBeUndefined();
+
+      newClient.disconnect();
+    });
+  });
+
+  describe('Edge cases', () => {
+    it('should handle timeout exactly at MAX_WAIT_MS boundary', async () => {
+      const channel = 'topic:u=test-user-id';
+      const targetOffset = 100;
+
+      mockGetLastOffset.mockResolvedValue({ offset: 50, epoch: 'test-epoch' });
+      // @ts-expect-error - accessing private field for testing
+      client.gapFillTasks.set(channel, { targetOffset: 100, epoch: 'test-epoch' });
+
+      const promise = waitForGapFill(channel, targetOffset);
+      const resultPromise = promise.catch(err => err);
+
+      // Advance to exactly 30 seconds
+      await vi.advanceTimersByTimeAsync(30000);
+
+      const error = await resultPromise;
+      // Should still throw (not return silently)
+      expect(error).toBeInstanceOf(GapFillTimeoutError);
+    });
+
+    it('should clean up abort controller after successful completion', async () => {
+      const channel = 'topic:u=test-user-id';
+      const targetOffset = 100;
+
+      mockGetLastOffset.mockResolvedValue({ offset: 100, epoch: 'test-epoch' });
+
+      const promise = waitForGapFill(channel, targetOffset);
+      await vi.advanceTimersByTimeAsync(100);
+
+      await promise;
+
+      // @ts-expect-error - accessing private field for testing
+      expect(client._gapFillAbortControllers.has(channel)).toBe(false);
+    });
+
+    it('should clean up abort controller after timeout', async () => {
+      const channel = 'topic:u=test-user-id';
+      const targetOffset = 100;
+
+      mockGetLastOffset.mockResolvedValue({ offset: 50, epoch: 'test-epoch' });
+      // @ts-expect-error - accessing private field for testing
+      client.gapFillTasks.set(channel, { targetOffset: 100, epoch: 'test-epoch' });
+
+      const promise = waitForGapFill(channel, targetOffset);
+      const resultPromise = promise.catch(() => {});
+
+      await vi.advanceTimersByTimeAsync(31000);
+      await resultPromise;
+
+      // @ts-expect-error - accessing private field for testing
+      expect(client._gapFillAbortControllers.has(channel)).toBe(false);
+    });
+
+    it('should clean up abort controller after abort', async () => {
+      const channel = 'topic:u=test-user-id';
+      const targetOffset = 100;
+
+      mockGetLastOffset.mockResolvedValue({ offset: 50, epoch: 'test-epoch' });
+      // @ts-expect-error - accessing private field for testing
+      client.gapFillTasks.set(channel, { targetOffset: 100, epoch: 'test-epoch' });
+
+      const promise = waitForGapFill(channel, targetOffset);
+      const resultPromise = promise.catch(() => {});
+
+      client.disconnect();
+
+      // Flush promises
+      await vi.runAllTimersAsync();
+      await resultPromise;
+
+      // @ts-expect-error - accessing private field for testing
+      expect(client._gapFillAbortControllers.has(channel)).toBe(false);
+    });
+  });
+});
+
+/**
+ * Test suite for Fix 25: disconnect() clears all timers and async state
+ *
+ * Tests that disconnect() properly cleans up all async state including
+ * gapFillTasks, processing flags, and other collections to prevent
+ * zombie timers and stale state after reconnect.
+ */
+describe('Fix 25: disconnect() comprehensive cleanup', () => {
+  let client: RTCAgentClient;
+  let mockOptions: RTCAgentClientOptions;
+
+  beforeEach(() => {
+    mockOptions = {
+      endpoint: 'wss://test.example.com/connection',
+      getToken: () => 'test-token',
+      userId: 'test-user-id',
+      getLastOffset: vi.fn().mockResolvedValue({ offset: 0, epoch: 'test-epoch' }),
+    };
+
+    client = new RTCAgentClient(mockOptions);
+  });
+
+  afterEach(() => {
+    client.disconnect();
+  });
+
+  describe('gapFillTasks cleanup', () => {
+    it('should clear gapFillTasks on disconnect', () => {
+      const channel = 'topic:u=test-user-id';
+
+      // Add some gap fill tasks
+      // @ts-expect-error - accessing private field for testing
+      client.gapFillTasks.set(channel, { targetOffset: 100, epoch: 'test-epoch' });
+      // @ts-expect-error - accessing private field for testing
+      expect(client.gapFillTasks.size).toBe(1);
+
+      client.disconnect();
+
+      // @ts-expect-error - accessing private field for testing
+      expect(client.gapFillTasks.size).toBe(0);
+    });
+
+    it('should clear multiple gap fill tasks on disconnect', () => {
+      // @ts-expect-error - accessing private field for testing
+      client.gapFillTasks.set('channel1', { targetOffset: 100, epoch: 'epoch1' });
+      // @ts-expect-error - accessing private field for testing
+      client.gapFillTasks.set('channel2', { targetOffset: 200, epoch: 'epoch2' });
+      // @ts-expect-error - accessing private field for testing
+      client.gapFillTasks.set('channel3', { targetOffset: 300, epoch: 'epoch3' });
+
+      // @ts-expect-error - accessing private field for testing
+      expect(client.gapFillTasks.size).toBe(3);
+
+      client.disconnect();
+
+      // @ts-expect-error - accessing private field for testing
+      expect(client.gapFillTasks.size).toBe(0);
+    });
+  });
+
+  describe('processing flags reset', () => {
+    it('should reset isGapFillProcessing flag on disconnect', () => {
+      // @ts-expect-error - accessing private field for testing
+      client.isGapFillProcessing = true;
+
+      client.disconnect();
+
+      // @ts-expect-error - accessing private field for testing
+      expect(client.isGapFillProcessing).toBe(false);
+    });
+
+    it('should reset isUpdateProcessing flag on disconnect', () => {
+      // @ts-expect-error - accessing private field for testing
+      client.isUpdateProcessing = true;
+
+      client.disconnect();
+
+      // @ts-expect-error - accessing private field for testing
+      expect(client.isUpdateProcessing).toBe(false);
+    });
+
+    it('should reset both processing flags on disconnect', () => {
+      // @ts-expect-error - accessing private fields for testing
+      client.isGapFillProcessing = true;
+      // @ts-expect-error - accessing private fields for testing
+      client.isUpdateProcessing = true;
+
+      client.disconnect();
+
+      // @ts-expect-error - accessing private fields for testing
+      expect(client.isGapFillProcessing).toBe(false);
+      // @ts-expect-error - accessing private fields for testing
+      expect(client.isUpdateProcessing).toBe(false);
+    });
+  });
+
+  describe('comprehensive cleanup verification', () => {
+    it('should clean up all async state in one disconnect call', () => {
+      const channel = 'topic:u=test-user-id';
+
+      // Set up various async state
+      // @ts-expect-error - accessing private fields for testing
+      client.gapFillTasks.set(channel, { targetOffset: 100, epoch: 'test-epoch' });
+      // @ts-expect-error - accessing private fields for testing
+      client.isGapFillProcessing = true;
+      // @ts-expect-error - accessing private fields for testing
+      client.isUpdateProcessing = true;
+      // @ts-expect-error - accessing private fields for testing
+      client.pendingUpdates.push({ id: '1', items: [], data_list: [], offset: 1 });
+      // @ts-expect-error - accessing private fields for testing
+      client.lastOffsetCache.set(channel, 50);
+
+      client.disconnect();
+
+      // Verify all state is cleaned up
+      // @ts-expect-error - accessing private fields for testing
+      expect(client.gapFillTasks.size).toBe(0);
+      // @ts-expect-error - accessing private fields for testing
+      expect(client.isGapFillProcessing).toBe(false);
+      // @ts-expect-error - accessing private fields for testing
+      expect(client.isUpdateProcessing).toBe(false);
+      // @ts-expect-error - accessing private fields for testing
+      expect(client.pendingUpdates.length).toBe(0);
+      // @ts-expect-error - accessing private fields for testing
+      expect(client.lastOffsetCache.size).toBe(0);
+      // @ts-expect-error - accessing private fields for testing
+      expect(client._gapFillAbortControllers.size).toBe(0);
+      // @ts-expect-error - accessing private fields for testing
+      expect(client.subscriptions.size).toBe(0);
+    });
+
+    it('should allow clean reconnect after disconnect with async state', () => {
+      const channel = 'topic:u=test-user-id';
+
+      // Simulate active async operations
+      // @ts-expect-error - accessing private fields for testing
+      client.gapFillTasks.set(channel, { targetOffset: 100, epoch: 'test-epoch' });
+      // @ts-expect-error - accessing private fields for testing
+      client.isGapFillProcessing = true;
+      // @ts-expect-error - accessing private fields for testing
+      client.isUpdateProcessing = true;
+
+      client.disconnect();
+
+      // Create new client to simulate reconnect
+      const newClient = new RTCAgentClient(mockOptions);
+
+      // New client should have clean state
+      // @ts-expect-error - accessing private fields for testing
+      expect(newClient.gapFillTasks.size).toBe(0);
+      // @ts-expect-error - accessing private fields for testing
+      expect(newClient.isGapFillProcessing).toBe(false);
+      // @ts-expect-error - accessing private fields for testing
+      expect(newClient.isUpdateProcessing).toBe(false);
+
+      newClient.disconnect();
+    });
+  });
+
+  describe('Edge cases', () => {
+    it('should handle disconnect when no async state exists', () => {
+      // Should not throw
+      expect(() => client.disconnect()).not.toThrow();
+    });
+
+    it('should handle multiple consecutive disconnect calls', () => {
+      // @ts-expect-error - accessing private field for testing
+      client.gapFillTasks.set('channel', { targetOffset: 100, epoch: 'epoch' });
+
+      client.disconnect();
+      client.disconnect(); // Second disconnect should be safe
+
+      // @ts-expect-error - accessing private field for testing
+      expect(client.gapFillTasks.size).toBe(0);
     });
   });
 });

@@ -42,6 +42,10 @@ export class PersistenceLayer {
   private client: RTCAgentClient;
   private offsetManager = getOffsetManager();
   private entityRepository;
+  /** Active sync tasks (tracked for graceful shutdown) */
+  private _activeSyncTasks = new Set<Promise<void>>();
+  /** Flag to prevent new sync tasks during shutdown */
+  private _closing = false;
 
   constructor(config: PersistenceConfig) {
     // Initialize EntityRepository singleton (device ID filtering on write)
@@ -206,8 +210,21 @@ export class PersistenceLayer {
 
   /**
    * Close the database.
+   * Waits for active sync tasks to complete (with timeout) before closing.
    */
   async close(): Promise<void> {
+    this._closing = true;
+
+    // Wait for active sync tasks to complete (max 5 seconds)
+    if (this._activeSyncTasks.size > 0) {
+      log.debug(`close: waiting for ${this._activeSyncTasks.size} active sync tasks`);
+      const timeout = new Promise<void>(resolve => setTimeout(resolve, 5000));
+      await Promise.race([
+        Promise.allSettled(Array.from(this._activeSyncTasks)),
+        timeout,
+      ]);
+    }
+
     this.disconnect();
     await closeDatabase();
   }
@@ -294,12 +311,25 @@ export class PersistenceLayer {
     const message = msgResult.after;
 
     // 5. Return immediately
-    // 6. Fire-and-forget async sync
-    this._syncToServer(message, session, content, isNewSession, agentPrompt).catch(err => {
-      log.error('_syncToServer failed:', err);
-    });
+    // 6. Fire-and-forget async sync (tracked for graceful shutdown)
+    if (this._closing) {
+      log.warn('sendMessage: sync skipped, persistence is closing');
+    } else {
+      const syncTask = this._syncToServer(message, session, content, isNewSession, agentPrompt).catch(err => {
+        log.error('_syncToServer failed:', err);
+      });
+      this._trackSyncTask(syncTask);
+    }
 
     return { session, message };
+  }
+
+  /**
+   * Track a sync task for graceful shutdown.
+   */
+  private _trackSyncTask(task: Promise<void>): void {
+    this._activeSyncTasks.add(task);
+    task.finally(() => this._activeSyncTasks.delete(task));
   }
 
   /**
@@ -416,8 +446,17 @@ export class PersistenceLayer {
       // 2. Call RPC
       const response = await this.client.sendMessage(req);
 
+      // Fix: Bail out if closing (prevent writes to closed database)
+      if (this._closing) {
+        log.warn('_syncToServer: persistence is closing, skipping DB updates');
+        return;
+      }
+
       // 3. On success: apply server-returned updates
       await this._applyResponseUpdates(response);
+
+      // Fix: Check again before each write
+      if (this._closing) return;
 
       // Fallback: ensure message sync_status is marked as synced
       await this.entityRepository.upsertMessage(
@@ -430,6 +469,7 @@ export class PersistenceLayer {
 
       // If this is a new session, update session as well
       if (isNewSession) {
+        if (this._closing) return; // Check again
         await this.entityRepository.upsertSession(
           {
             client_id: session.client_id,
@@ -442,12 +482,16 @@ export class PersistenceLayer {
       // 4. On failure
       log.error('_syncToServer RPC failed:', err);
 
+      // Fix: Don't write to DB if closing
+      if (this._closing) return;
+
       await this.entityRepository.upsertMessage(
         { client_id: message.client_id },
         'failed'
       );
 
       if (isNewSession && session.sync_status === 'pending') {
+        if (this._closing) return; // Check again
         await this.entityRepository.upsertSession(
           { client_id: session.client_id },
           'failed'

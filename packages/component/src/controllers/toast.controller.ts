@@ -45,6 +45,12 @@ export class ToastController implements ReactiveController {
             clearTimeout(timer);
         }
         this._timers.clear();
+
+        // Clear toast list to avoid orphaned toasts on reconnect
+        if (this._toasts.length > 0) {
+            this._toasts = [];
+            this._host.requestUpdate();
+        }
     }
 
     private _show(message: string, type: ToastType, action?: ToastAction) {

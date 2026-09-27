@@ -420,4 +420,166 @@ describe('NotificationController', () => {
             expect(timestamp).toBeLessThanOrEqual(after);
         });
     });
+
+    describe('AbortController (Fix 34)', () => {
+        it('should create AbortController on initialization', () => {
+            expect((controller as any)._abortController).toBeDefined();
+            expect((controller as any)._abortController.signal.aborted).toBe(false);
+        });
+
+        it('should abort AbortController on hostDisconnected', () => {
+            const abortController = (controller as any)._abortController;
+            expect(abortController.signal.aborted).toBe(false);
+
+            controller.hostDisconnected();
+
+            expect(abortController.signal.aborted).toBe(true);
+        });
+
+        it('should create new AbortController after hostDisconnected', () => {
+            const oldController = (controller as any)._abortController;
+            controller.hostDisconnected();
+            const newController = (controller as any)._abortController;
+
+            expect(newController).not.toBe(oldController);
+            expect(newController.signal.aborted).toBe(false);
+        });
+
+        it('should skip processing if aborted during getMessage await', async () => {
+            // Create a promise that we can control
+            let resolveGetMessage: (value: any) => void;
+            const getMessagePromise = new Promise(resolve => {
+                resolveGetMessage = resolve;
+            });
+            mockPersistence.getMessage.mockReturnValue(getMessagePromise);
+
+            // Start handling a message
+            const handlePromise = (controller as any)._handleNewMessage({
+                action: 'created',
+                field: 'content',
+                entityId: 'msg-1',
+            });
+
+            // Abort before getMessage resolves
+            controller.hostDisconnected();
+
+            // Now resolve the getMessage
+            resolveGetMessage!({session_client_id: 'session-B'});
+
+            // Wait for the handler to complete
+            await handlePromise;
+
+            // Should not have triggered notification because it was aborted
+            expect(mockToastController.actions.show).not.toHaveBeenCalled();
+        });
+
+        it('should process message normally when not aborted', async () => {
+            mockPersistence.getMessage.mockResolvedValue({
+                session_client_id: 'session-B',
+            });
+
+            await (controller as any)._handleNewMessage({
+                action: 'created',
+                field: 'content',
+                entityId: 'msg-1',
+            });
+
+            // Should have triggered notification
+            expect(mockToastController.actions.show).toHaveBeenCalled();
+        });
+
+        it('should handle AbortError gracefully', async () => {
+            // Mock getMessage to throw AbortError
+            mockPersistence.getMessage.mockRejectedValue(new DOMException('Aborted', 'AbortError'));
+
+            // Should not throw
+            await expect(
+                (controller as any)._handleNewMessage({
+                    action: 'created',
+                    field: 'content',
+                    entityId: 'msg-1',
+                })
+            ).resolves.not.toThrow();
+
+            // Should not have triggered notification
+            expect(mockToastController.actions.show).not.toHaveBeenCalled();
+        });
+
+        it('should handle other errors and continue', async () => {
+            // Mock getMessage to throw a regular error
+            const error = new Error('Database error');
+            mockPersistence.getMessage.mockRejectedValue(error);
+
+            // Should not throw
+            await expect(
+                (controller as any)._handleNewMessage({
+                    action: 'created',
+                    field: 'content',
+                    entityId: 'msg-1',
+                })
+            ).resolves.not.toThrow();
+
+            // Should not have triggered notification
+            expect(mockToastController.actions.show).not.toHaveBeenCalled();
+        });
+
+        it('should allow new operations after reconnect', async () => {
+            // First disconnect
+            controller.hostDisconnected();
+
+            // Reconnect
+            controller.hostConnected();
+
+            // New AbortController should be active
+            expect((controller as any)._abortController.signal.aborted).toBe(false);
+
+            // Should be able to process messages
+            mockPersistence.getMessage.mockResolvedValue({
+                session_client_id: 'session-B',
+            });
+
+            await (controller as any)._handleNewMessage({
+                action: 'created',
+                field: 'content',
+                entityId: 'msg-1',
+            });
+
+            expect(mockToastController.actions.show).toHaveBeenCalled();
+        });
+
+        it('should check abort signal after await', async () => {
+            // Track if notification was triggered
+            let notificationTriggered = false;
+            const originalTrigger = (controller as any)._triggerNotification;
+            (controller as any)._triggerNotification = function(...args: any[]) {
+                notificationTriggered = true;
+                return originalTrigger.apply(this, args);
+            };
+
+            // Create a delayed getMessage
+            let resolveGetMessage: (value: any) => void;
+            const getMessagePromise = new Promise(resolve => {
+                resolveGetMessage = resolve;
+            });
+            mockPersistence.getMessage.mockReturnValue(getMessagePromise);
+
+            // Start handling a message
+            const handlePromise = (controller as any)._handleNewMessage({
+                action: 'created',
+                field: 'content',
+                entityId: 'msg-1',
+            });
+
+            // Abort during the await
+            controller.hostDisconnected();
+
+            // Resolve after abort
+            resolveGetMessage!({session_client_id: 'session-B'});
+
+            await handlePromise;
+
+            // Should not have triggered notification
+            expect(notificationTriggered).toBe(false);
+        });
+    });
 });

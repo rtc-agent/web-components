@@ -48,6 +48,14 @@ export interface VfsDeps {
 // ── File Tree Loading ──
 
 /**
+ * Generation counter per path for detecting stale folder loads (Fix 42).
+ *
+ * When multiple loadFolderChildren calls happen concurrently for the same path,
+ * only the most recent one should update the UI. Earlier calls are discarded.
+ */
+const _folderLoadGenerations = new Map<string, number>();
+
+/**
  * Load file tree from virtualFS (root directory, first level only).
  *
  * Phase 4: only loads the root's immediate children;
@@ -108,6 +116,9 @@ export async function buildFileNodeShallow(path: string): Promise<FileNode> {
  *
  * Triggered by folder-toggle event (on first expand).
  * Updates the file tree via fileExplorer.actions.updateChildren after loading.
+ *
+ * Fix 42: Uses generation counter to detect stale results from concurrent loads.
+ * If a newer load starts for the same path, older loads are discarded.
  */
 export async function loadFolderChildren(
     path: string,
@@ -115,10 +126,21 @@ export async function loadFolderChildren(
 ): Promise<void> {
     if (!deps.persistenceIsConnected) return;
 
-    deps.logger.debug("loadFolderChildren called for:", path);
+    // Increment generation: invalidate any previous loads for this path
+    const myGeneration = (_folderLoadGenerations.get(path) ?? 0) + 1;
+    _folderLoadGenerations.set(path, myGeneration);
+
+    deps.logger.debug("loadFolderChildren called for:", path, "gen:", myGeneration);
     deps.fileExplorer.actions.setLoading(path, true);
     try {
         const entries = await virtualFS.ls(path);
+
+        // Checkpoint: if a newer load started during await, discard this result
+        if (_folderLoadGenerations.get(path) !== myGeneration) {
+            deps.logger.debug("loadFolderChildren: stale result, discarding");
+            return;
+        }
+
         const children: FileNode[] = [];
         for (const entry of entries) {
             const childPath = path === "/" ? `/${entry}` : `${path}/${entry}`;
@@ -128,11 +150,23 @@ export async function loadFolderChildren(
                 children.push({ path: childPath, name: entry, type: "folder" });
             }
         }
+
+        // Second checkpoint: check again after building children
+        if (_folderLoadGenerations.get(path) !== myGeneration) {
+            deps.logger.debug("loadFolderChildren: stale result after building children, discarding");
+            return;
+        }
+
         deps.fileExplorer.actions.updateChildren(path, children);
     } catch (err) {
         deps.logger.error("Failed to load folder children:", path, err);
     } finally {
-        deps.fileExplorer.actions.setLoading(path, false);
+        // Only clear loading state and cleanup if this generation is still current
+        if (_folderLoadGenerations.get(path) === myGeneration) {
+            deps.fileExplorer.actions.setLoading(path, false);
+            // Fix: Clean up the generation entry to prevent memory leak in long-running sessions
+            _folderLoadGenerations.delete(path);
+        }
     }
 }
 
@@ -180,14 +214,26 @@ export async function restoreEditorAreaContent(
     for (const tab of tabs) {
         try {
             const content = await virtualFS.read(tab.filePath);
+
+            // Checkpoint: tab may have been closed during await
+            const stillExists = deps.editorArea.tabs.some(t => t.filePath === tab.filePath);
+            if (!stillExists) {
+                deps.logger.debug('Tab was closed during restore, skipping:', tab.filePath);
+                continue;
+            }
+
             deps.editorArea.actions.loadContent(tab.filePath, content);
         } catch {
-            // File no longer exists in VFS (e.g. deleted by another client), close the tab.
-            deps.logger.warn(
-                "Restored tab file not found in VFS, closing:",
-                tab.filePath,
-            );
-            deps.editorArea.actions.closeFile(tab.filePath);
+            // Check if tab still exists before closing (avoid reviving closed tabs)
+            const stillExists = deps.editorArea.tabs.some(t => t.filePath === tab.filePath);
+            if (stillExists) {
+                // File no longer exists in VFS (e.g. deleted by another client), close the tab.
+                deps.logger.warn(
+                    "Restored tab file not found in VFS, closing:",
+                    tab.filePath,
+                );
+                deps.editorArea.actions.closeFile(tab.filePath);
+            }
         }
     }
 
@@ -338,7 +384,8 @@ export async function handleFileChange(
         if (tab && !tab.isDirty) {
             try {
                 const content = await virtualFS.read(filePath);
-                deps.editorArea.actions.openFile(filePath, content);
+                // Fix 48: Use loadContent instead of openFile to preserve viewMode and cursor position
+                deps.editorArea.actions.loadContent(filePath, content);
             } catch {
                 // Read failed — keep current content.
             }

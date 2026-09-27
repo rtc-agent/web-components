@@ -74,6 +74,8 @@ export class NotificationController implements ReactiveController {
     private static readonly IDLE_FALLBACK_DELAY_MS = 2000;
     /** Delay (ms) for deferred sound loading when `requestIdleCallback` is not available. */
     private static readonly DEFERRED_SOUND_DELAY_MS = 500;
+    /** AbortController for async operations, aborted on hostDisconnected to prevent stale operations */
+    private _abortController = new AbortController();
 
     constructor(host: ReactiveControllerHost & HTMLElement) {
         this.host = host;
@@ -103,6 +105,9 @@ export class NotificationController implements ReactiveController {
             cancelIdleCallback(this._idleCallbackId);
             this._idleCallbackId = undefined;
         }
+        // Abort any pending async operations to prevent stale operations after disconnect
+        this._abortController.abort();
+        this._abortController = new AbortController();
         this.host.removeAttribute('data-notification');
     }
 
@@ -242,10 +247,19 @@ export class NotificationController implements ReactiveController {
         }
 
         try {
+            // Capture abort signal before async operation to detect disconnection
+            const abortSignal = this._abortController.signal;
+
             // 查询消息所属 session
             const message = this.persistence
                 ? await this.persistence.getMessage(event.entityId)
                 : undefined;
+
+            // Check if aborted during await (e.g., host disconnected)
+            if (abortSignal.aborted) {
+                return;
+            }
+
             const sessionId = message?.session_client_id;
             if (!sessionId) return;
 
@@ -255,6 +269,10 @@ export class NotificationController implements ReactiveController {
             this._lastNotifyTime = now;
             this._triggerNotification(event, sessionId);
         } catch (error) {
+            // Ignore AbortError from disconnection
+            if (error instanceof Error && error.name === 'AbortError') {
+                return;
+            }
             log.error('处理消息失败:', error);
             // 不中断订阅流，继续处理后续消息
         }

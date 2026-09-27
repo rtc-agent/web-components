@@ -628,29 +628,77 @@ export class RtcChatLayout extends LitElement {
      * 因为 @consume 的 context 更新是异步的（等 Lit 下一轮渲染）。
      * 此处同步计算剩余 Tab 来判断下一步。
      */
-    private _handleTabClose(e: CustomEvent) {
+    /**
+     * Handle tab close event: close session on backend, switch to adjacent tab,
+     * or create new unsaved tab if no tabs remain.
+     *
+     * Fix 44: If closeSession fails, restore the tab and show error toast.
+     */
+    private async _handleTabClose(e: CustomEvent) {
         const {sessionId} = e.detail;
         const wasActive = this._sessionCtx?.state?.currentSessionId === sessionId;
 
+        // Save tab snapshot before closing (for potential restore on failure)
+        const tabSnapshot = this._tabCtx.state.tabs.find(t => t.sessionId === sessionId);
+
         // ── 通知后端关闭 session（仅对已保存的 session，unsaved tab 没有后端 session） ──
-        const closedTab = this._tabCtx.state.tabs.find(t => t.sessionId === sessionId);
-        if (closedTab && !closedTab.isUnsaved) {
-            // fire-and-forget：不阻塞 Tab 关闭 UI，失败仅 log
-            void this._sessionCtx.actions.closeSession(sessionId).catch(err => {
-                log.error('closeSession failed (non-fatal):', err);
-            });
+        if (tabSnapshot && !tabSnapshot.isUnsaved) {
+            // Close tab optimistically (UI updates immediately)
+            this.dispatchEvent(
+                new CustomEvent('rtc-chat-layout-tab-close', {
+                    bubbles: true,
+                    composed: true,
+                    detail: {sessionId},
+                })
+            );
+
+            // Notify MessageController to evict this session's cache (prevent memory leak)
+            this.messageController?.evictSession(sessionId);
+
+            try {
+                await this._sessionCtx.actions.closeSession(sessionId);
+            } catch (err) {
+                log.error('closeSession failed, restoring tab:', err);
+
+                // Fix: Wrap restore logic in try/catch to prevent unhandled rejection
+                // if the component unmounts during the await or restore fails
+                try {
+                    // Restore the tab
+                    if (tabSnapshot && this._tabCtx) {
+                        this._tabCtx.actions.openOrActivate(
+                            sessionId,
+                            tabSnapshot.title,
+                            { activate: true }
+                        );
+                    }
+
+                    // Notify user
+                    this.dispatchEvent(new CustomEvent('rtc-toast-requested', {
+                        bubbles: true,
+                        composed: true,
+                        detail: {
+                            message: msg('关闭会话失败，请重试'),
+                            type: 'error',
+                        },
+                    }));
+                } catch (restoreErr) {
+                    log.error('Failed to restore tab after closeSession error:', restoreErr);
+                }
+                return;
+            }
+        } else {
+            // Unsaved tab or no tab found - just close without backend call
+            this.dispatchEvent(
+                new CustomEvent('rtc-chat-layout-tab-close', {
+                    bubbles: true,
+                    composed: true,
+                    detail: {sessionId},
+                })
+            );
+
+            // Notify MessageController to evict this session's cache (prevent memory leak)
+            this.messageController?.evictSession(sessionId);
         }
-
-        this.dispatchEvent(
-            new CustomEvent('rtc-chat-layout-tab-close', {
-                bubbles: true,
-                composed: true,
-                detail: {sessionId},
-            })
-        );
-
-        // Notify MessageController to evict this session's cache (prevent memory leak)
-        this.messageController?.evictSession(sessionId);
 
         if (wasActive) {
             // 同步计算：关闭这个 Tab 后还剩几个

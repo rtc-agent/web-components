@@ -35,6 +35,20 @@ import {createLogger} from './logger.js';
 const log = createLogger('RTCAgentClient');
 
 /**
+ * Error thrown when gap fill operation times out.
+ */
+export class GapFillTimeoutError extends Error {
+  constructor(
+    readonly channel: string,
+    readonly targetOffset: number,
+    readonly elapsedMs: number
+  ) {
+    super(`Gap fill timeout after ${elapsedMs}ms: channel=${channel}, target=${targetOffset}`);
+    this.name = 'GapFillTimeoutError';
+  }
+}
+
+/**
  * RTCAgentClient implementation backed by Centrifuge WebSocket.
  *
  * Responsibilities:
@@ -65,6 +79,8 @@ export class RTCAgentClient implements IRTCAgentClient {
   private readonly gapFillTasks = new Map<string, { targetOffset: number; epoch: string }>();
   /** Whether gap fill processing is currently running. */
   private isGapFillProcessing = false;
+  /** AbortControllers for active gap fill waits (cleared on disconnect). */
+  private readonly _gapFillAbortControllers = new Map<string, AbortController>();
 
   // ========== Update Scheduler: 调度 → [缓冲区] → 阻塞执行器 ==========
   /**
@@ -198,6 +214,14 @@ export class RTCAgentClient implements IRTCAgentClient {
       clearTimeout(this._reconnectTimer);
       this._reconnectTimer = undefined;
     }
+    // Abort all active gap fill waits to prevent zombie timers
+    this._gapFillAbortControllers.forEach(controller => controller.abort());
+    this._gapFillAbortControllers.clear();
+    // Clear pending gap fill tasks to prevent stale tasks after reconnect
+    this.gapFillTasks.clear();
+    // Reset processing flags to ensure clean state
+    this.isGapFillProcessing = false;
+    this.isUpdateProcessing = false;
     this.centrifuge?.disconnect();
     this.centrifuge = null;
     // Clear old subscriptions: they are bound to the destroyed Centrifuge instance
@@ -457,31 +481,62 @@ export class RTCAgentClient implements IRTCAgentClient {
   /**
    * Wait for gap fill to reach the target offset.
    * Polls the current offset until it reaches the target or gap fill completes.
+   * @throws {GapFillTimeoutError} If gap fill doesn't complete within timeout
+   * @throws {Error} If wait is aborted (e.g., during disconnect)
    */
   private async waitForGapFill(channel: string, targetOffset: number): Promise<void> {
     const MAX_WAIT_MS = 30000; // 30 seconds timeout
     const POLL_INTERVAL_MS = 100;
     const startTime = Date.now();
 
-    while (Date.now() - startTime < MAX_WAIT_MS) {
-      const position = await this.options.getLastOffset?.(channel);
-      const currentOffset = position?.offset ?? 0;
+    // Create AbortController for this gap fill wait
+    const waitAbort = new AbortController();
+    const mapKey = `${channel}:${targetOffset}`;
+    this._gapFillAbortControllers.set(mapKey, waitAbort);
 
-      if (currentOffset >= targetOffset) {
-        return; // Gap fill caught up
+    try {
+      while (Date.now() - startTime < MAX_WAIT_MS) {
+        // Check if aborted (e.g., during disconnect) - MUST be first check
+        if (waitAbort.signal.aborted) {
+          throw new Error(`Gap fill aborted for channel ${channel}`);
+        }
+
+        const position = await this.options.getLastOffset?.(channel);
+        const currentOffset = position?.offset ?? 0;
+
+        if (currentOffset >= targetOffset) {
+          return; // Gap fill caught up
+        }
+
+        // Check again after await in case abort happened during getLastOffset
+        if (waitAbort.signal.aborted) {
+          throw new Error(`Gap fill aborted for channel ${channel}`);
+        }
+
+        // Check if gap fill is still running for this channel
+        if (!this.gapFillTasks.has(channel) && !this.isGapFillProcessing) {
+          return; // Gap fill completed (or failed)
+        }
+
+        // Wait a bit before checking again, but abortable
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(resolve, POLL_INTERVAL_MS);
+          waitAbort.signal.addEventListener('abort', () => {
+            clearTimeout(timer);
+            reject(new Error(`Gap fill aborted for channel ${channel}`));
+          }, { once: true });
+        });
       }
 
-      // Check if gap fill is still running for this channel
-      if (!this.gapFillTasks.has(channel) && !this.isGapFillProcessing) {
-        return; // Gap fill completed (or failed)
+      // Timeout — throw explicit error instead of silent return
+      const elapsedMs = Date.now() - startTime;
+      throw new GapFillTimeoutError(channel, targetOffset, elapsedMs);
+    } finally {
+      // Only delete if this controller is still the stored one (fix: concurrent calls don't clobber)
+      if (this._gapFillAbortControllers.get(mapKey) === waitAbort) {
+        this._gapFillAbortControllers.delete(mapKey);
       }
-
-      // Wait a bit before checking again
-      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
     }
-
-    // Timeout — gap fill didn't complete in time
-    log.warn(`waitForGapFill timeout: channel=${channel}, targetOffset=${targetOffset}`);
   }
 
   // ========== Events ==========

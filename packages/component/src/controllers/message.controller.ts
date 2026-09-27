@@ -258,14 +258,23 @@ export class MessageController implements ReactiveController {
         // Serialize the read-modify-write part per session to prevent race conditions.
         // Multiple concurrent calls for the same session must not interleave.
         const prev = this._sessionUpdateChains.get(messageSessionId) ?? Promise.resolve();
+        // Fix 77: Add catch handler to prevent chain breaking when _applyBusUpdate throws.
+        // Without this, an error in one update would break the chain for all subsequent updates.
         const next = prev.then(
             () => {
                 this._applyBusUpdate(messageSessionId, entityId, localMsg);
             },
-            () => {
+            (err) => {
+                // Log the error but continue processing to prevent chain breaking
+                // Fix: Correct misleading log - there is no automatic retry, just continue chain for future events
+                log.error('bus update chain error, continuing chain for future events:', err);
                 this._applyBusUpdate(messageSessionId, entityId, localMsg);
             }
-        );
+        ).catch((err) => {
+            // Catch any synchronous errors from _applyBusUpdate itself
+            log.error('bus update apply error, chain continues:', err);
+            // Don't re-throw: allow chain to continue for next event
+        });
         this._sessionUpdateChains.set(messageSessionId, next);
 
         // Clean up the chain when it settles

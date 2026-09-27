@@ -87,6 +87,14 @@ export class UIUpdateBus {
 
   /** Suspend state: when true, events are collected but not dispatched */
   private _suspended = false;
+  /** Suspend depth counter for reference counting */
+  private _suspendDepth = 0;
+  /** Safety timer to force resume if suspend exceeds timeout */
+  private _suspendSafetyTimer?: ReturnType<typeof setTimeout>;
+  /** Maximum suspend duration before force resume (30 seconds) */
+  private static readonly MAX_SUSPEND_MS = 30_000;
+  /** Timeout for Promise chain execution (10 seconds) */
+  private static readonly CHAIN_TIMEOUT_MS = 10_000;
   /** Collected events during suspend */
   private _suspendedEvents: UIUpdateEvent[] = [];
   /** Track which entities were updated during suspend */
@@ -121,6 +129,9 @@ export class UIUpdateBus {
    * Error handling: Both sync and async errors are caught by .catch() to
    * prevent the Promise chain from breaking. A broken chain would cause
    * all subsequent events for this (entity, entityId, listener) to be dropped.
+   *
+   * Timeout protection: If a listener Promise never resolves, the chain will
+   * timeout after CHAIN_TIMEOUT_MS to prevent permanent blocking.
    */
   private _dispatchToListener(listener: UIUpdateListener, event: UIUpdateEvent): void {
     const key = this._getChainKey(event.entity, event.entityId, listener);
@@ -129,7 +140,7 @@ export class UIUpdateBus {
     // Use .catch() at the end to handle both sync and async errors.
     // try-catch alone cannot catch rejected Promises returned by the listener.
     const next = prev
-      .then(() => listener(event))
+      .then(() => this._withTimeout(listener(event), UIUpdateBus.CHAIN_TIMEOUT_MS, key))
       .catch(err => {
         log.error('listener error:', err);
       });
@@ -143,6 +154,34 @@ export class UIUpdateBus {
         this._processingChains.delete(key);
       }
     });
+  }
+
+  /**
+   * Wrap a Promise with a timeout to prevent permanent blocking.
+   * If the Promise doesn't resolve within timeoutMs, it will be rejected.
+   */
+  private async _withTimeout<T>(
+    promise: Promise<T> | void,
+    timeoutMs: number,
+    contextKey: string
+  ): Promise<T | void> {
+    if (!promise) return;
+
+    let timeoutHandle: ReturnType<typeof setTimeout>;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutHandle = setTimeout(() => {
+        reject(new Error(`Listener chain timeout after ${timeoutMs}ms for ${contextKey}`));
+      }, timeoutMs);
+    });
+
+    try {
+      return await Promise.race([
+        promise,
+        timeoutPromise,
+      ]);
+    } finally {
+      clearTimeout(timeoutHandle!);
+    }
   }
 
   /**
@@ -211,26 +250,76 @@ export class UIUpdateBus {
   /**
    * Suspend event dispatching. Events will be collected until resume() is called.
    * Use this for batch operations (e.g., gap fill) to prevent UI thrashing.
+   *
+   * Uses reference counting: multiple suspend() calls require matching resume() calls.
+   * Safety timeout (30s) forces resume if suspend exceeds duration to prevent permanent blocking.
    */
   suspend(): void {
-    log.debug('[BulkUpdate] UIUpdateBus.suspend() called');
-    this._suspended = true;
+    this._suspendDepth++;
+    if (this._suspendDepth === 1) {
+      this._suspended = true;
+      // Start safety timer to prevent permanent suspend
+      this._suspendSafetyTimer = setTimeout(() => {
+        log.error('UIUpdateBus suspend exceeded safety timeout, forcing resume');
+        this._forceResume();
+      }, UIUpdateBus.MAX_SUSPEND_MS);
+    }
+    log.debug(`suspend: depth=${this._suspendDepth}`);
   }
 
   /**
    * Resume event dispatching and emit a bulk-update event if any events were collected.
    * UI components should subscribe to bulk updates via onBulkUpdate() to reload data.
+   *
+   * Uses reference counting: only actually resumes when depth reaches 0.
+   * Ignores resume() calls without matching suspend().
    */
   resume(): void {
+    if (this._suspendDepth === 0) {
+      log.warn('resume called without matching suspend, ignoring');
+      return;
+    }
+
+    this._suspendDepth--;
+
+    if (this._suspendDepth === 0) {
+      this._suspended = false;
+      // Clear safety timer
+      if (this._suspendSafetyTimer) {
+        clearTimeout(this._suspendSafetyTimer);
+        this._suspendSafetyTimer = undefined;
+      }
+      this._flushSuspendedEvents();
+    }
+    log.debug(`resume: depth=${this._suspendDepth}`);
+  }
+
+  /**
+   * Force resume: emergency recovery when suspend exceeds safety timeout or host disconnects.
+   * Resets depth counter, clears safety timer, and flushes events.
+   */
+  private _forceResume(): void {
+    this._suspendDepth = 0;
     this._suspended = false;
+    if (this._suspendSafetyTimer) {
+      clearTimeout(this._suspendSafetyTimer);
+      this._suspendSafetyTimer = undefined;
+    }
+    this._flushSuspendedEvents();
+    log.warn('Force resumed after safety timeout');
+  }
+
+  /**
+   * Flush collected suspended events as a bulk update event.
+   * Extracted for reuse between resume() and _forceResume().
+   */
+  private _flushSuspendedEvents(): void {
     const eventCount = this._suspendedEvents.length;
-    log.debug('[BulkUpdate] UIUpdateBus.resume() called, eventCount:', eventCount);
     if (eventCount > 0) {
       const bulkEvent: BulkUpdateEvent = {
         entities: new Set(this._suspendedEntities),
         eventCount,
       };
-      // Notify bulk update listeners
       for (const listener of this.bulkUpdateListeners) {
         try {
           listener(bulkEvent);
@@ -238,7 +327,6 @@ export class UIUpdateBus {
           log.error('bulk update listener error:', err);
         }
       }
-      // Clear collected events
       this._suspendedEvents = [];
       this._suspendedEntities.clear();
     }
@@ -303,8 +391,14 @@ export class UIUpdateBus {
     this.bulkUpdateListeners.clear();
     this.gapFillListeners.clear();
     this._processingChains.clear();
-    // Reset suspend state
+    // Reset suspend state and depth counter
     this._suspended = false;
+    this._suspendDepth = 0;
+    // Clear safety timer
+    if (this._suspendSafetyTimer) {
+      clearTimeout(this._suspendSafetyTimer);
+      this._suspendSafetyTimer = undefined;
+    }
     this._suspendedEvents = [];
     this._suspendedEntities.clear();
     // Note: _listenerIds is a WeakMap, entries auto-clean when listeners are GC'd

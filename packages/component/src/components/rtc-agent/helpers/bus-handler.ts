@@ -16,6 +16,7 @@ import type {Logger} from '@rtc-agent/client';
 // Controller type interfaces (minimal, to avoid circular imports)
 interface MessageControllerLike {
     updateMessageFromBus(entityId: string): Promise<void>;
+    evictSession(sessionId: string): void;
 }
 
 interface SessionControllerLike {
@@ -44,6 +45,71 @@ interface MasterLockLike {
 
 interface RtcProcessorLike {
     onRtcUpdate(): void;
+}
+
+/**
+ * Debounced session loader to prevent multiple concurrent loadSessions calls.
+ *
+ * When multiple session structural changes occur in quick succession (e.g., batch imports),
+ * this class ensures only one loadSessions call is made after a debounce period.
+ * It also serializes in-flight requests to prevent race conditions.
+ *
+ * Fix 40: Prevents IndexedDB query storms and UI jitter from rapid session events.
+ */
+export class DebouncedSessionLoader {
+    private _timer?: ReturnType<typeof setTimeout>;
+    private _inflight?: Promise<void>;
+    private readonly _debounceMs: number;
+    private readonly _loadSessions: () => Promise<void>;
+
+    constructor(
+        loadSessions: () => Promise<void>,
+        debounceMs: number = 50
+    ) {
+        this._loadSessions = loadSessions;
+        this._debounceMs = debounceMs;
+    }
+
+    /**
+     * Request a session reload. If called multiple times within the debounce period,
+     * only one actual loadSessions call will be made.
+     */
+    request(): void {
+        if (this._timer) {
+            clearTimeout(this._timer);
+        }
+        this._timer = setTimeout(() => {
+            this._timer = undefined;
+            // Catch errors to prevent unhandled rejections
+            this._execute().catch(() => {
+                // Error is already logged by the caller or will be handled gracefully
+            });
+        }, this._debounceMs);
+    }
+
+    /**
+     * Execute the actual loadSessions call, serializing with any in-flight request.
+     */
+    private async _execute(): Promise<void> {
+        // Serialize: if a previous load is still in progress, wait for it
+        if (this._inflight) {
+            await this._inflight;
+        }
+        this._inflight = this._loadSessions().finally(() => {
+            this._inflight = undefined;
+        });
+        await this._inflight;
+    }
+
+    /**
+     * Clean up pending timer on dispose.
+     */
+    dispose(): void {
+        if (this._timer) {
+            clearTimeout(this._timer);
+            this._timer = undefined;
+        }
+    }
 }
 
 /**
@@ -82,7 +148,8 @@ export interface BusHandlerDeps {
     };
     /** Getter for rtcProcessor - may be undefined initially, set after connection. */
     getRtcProcessor(): RtcProcessorLike | undefined;
-    loadSessions: () => Promise<void>;
+    /** Debounced session loader to prevent multiple concurrent loadSessions calls. */
+    sessionLoader: DebouncedSessionLoader;
     refreshTurnCounts: () => Promise<void>;
     handleFileChange: (entityId: string, field: string) => Promise<void>;
     log: Logger;
@@ -106,7 +173,7 @@ export function handleBusEvent(
     event: UIUpdateEvent,
     deps: BusHandlerDeps,
 ): void | Promise<void> {
-    const {message, session, sessionTab, persistence, getRtcProcessor, loadSessions, refreshTurnCounts, handleFileChange, log} = deps;
+    const {message, session, sessionTab, persistence, getRtcProcessor, sessionLoader, refreshTurnCounts, handleFileChange, log} = deps;
 
     if (event.entity === 'message') {
         // Use efficient single-message update instead of full reload.
@@ -117,7 +184,7 @@ export function handleBusEvent(
     }
 
     if (event.entity === 'session') {
-        handleSessionEvent(event, session, sessionTab, loadSessions, refreshTurnCounts, log);
+        handleSessionEvent(event, session, sessionTab, message, sessionLoader, refreshTurnCounts, log);
         return;
     }
 
@@ -142,7 +209,7 @@ export function handleBusEvent(
  * Handle session-related UIUpdateBus events.
  *
  * Distinguishes between:
- * - Structural changes: require full session list reload
+ * - Structural changes: require full session list reload (debounced)
  * - Status changes: sync to SessionTab (drives dot animation, tab close/reopen)
  * - Turn count changes: refresh turn count context
  */
@@ -150,23 +217,24 @@ function handleSessionEvent(
     event: UIUpdateEvent,
     session: SessionControllerLike,
     sessionTab: SessionTabControllerLike,
-    loadSessions: () => Promise<void>,
+    message: MessageControllerLike,
+    sessionLoader: DebouncedSessionLoader,
     refreshTurnCounts: () => Promise<void>,
     log: Logger,
 ): void {
-    // Structural changes require full session list reload.
+    // Structural changes require full session list reload (debounced).
     const isStructuralChange =
         event.action === 'created' ||
         !event.field ||
         SESSION_STRUCTURAL_FIELDS.has(event.field);
 
     if (isStructuralChange) {
-        void loadSessions();
+        sessionLoader.request();
     }
 
     // Status change -> sync to SessionTab (active/idle/closed drives dot animation).
     if (event.field === 'status') {
-        handleSessionStatusChange(event, session, sessionTab, log);
+        handleSessionStatusChange(event, session, sessionTab, message, log);
     }
 
     // Turn count field changed -> push active turn count for current session into context.
@@ -179,7 +247,7 @@ function handleSessionEvent(
  * Handle session status changes.
  *
  * Scenarios:
- * - Session closed (open -> closed): close the tab
+ * - Session closed (open -> closed): close the tab and evict message cache
  * - Session reopened (closed -> idle/active): create tab but don't activate
  * - Other status changes: only update status dot
  */
@@ -187,6 +255,7 @@ function handleSessionStatusChange(
     event: UIUpdateEvent,
     session: SessionControllerLike,
     sessionTab: SessionTabControllerLike,
+    message: MessageControllerLike,
     log: Logger,
 ): void {
     const oldStatus = event.oldValue as SessionStatus | undefined;
@@ -195,10 +264,12 @@ function handleSessionStatusChange(
 
     if (!newStatus) return;
 
-    // Scenario 1: session closed (open -> closed) -> close tab.
+    // Scenario 1: session closed (open -> closed) -> close tab and evict message cache.
     if (newStatus === 'closed') {
         log.debug('Session closed, closing tab:', sessionId);
         sessionTab.actions.closeTab(sessionId);
+        // Fix 45: Evict message cache to prevent memory leak
+        message.evictSession(sessionId);
         return;
     }
 

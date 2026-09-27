@@ -277,46 +277,51 @@ export class WorkerCore implements WorkerPersistenceCore {
     log.debug('batchWriteFiles called, files count:', files.length, 'deletePaths count:', deletePaths?.length ?? 0);
     const db = getDatabase();
 
-    for (const file of files) {
-      // Check if this is a protected file path (/AGENT.md or /scenarios/*.md)
-      const isProtectedPath = this._isProtectedPath(file.path);
+    // Fix 55: Wrap all writes operations in a single transaction to ensure atomicity.
+    // If any write fails, the entire batch is rolled back, preventing partial updates.
+    await db.transaction('rw', db.fileSystemEntries, async () => {
+      for (const file of files) {
+        // Check if this is a protected file path (/AGENT.md or /scenarios/*.md)
+        const isProtectedPath = this._isProtectedPath(file.path);
 
-      if (isProtectedPath) {
-        // Check if the file exists and has been edited by the user
-        const existing = await db.fileSystemEntries.get(file.path);
-        if (existing?.metadata?.editedByUser) {
-          log.debug('batchWriteFiles: skipping protected file edited by user:', file.path);
-          continue;
+        if (isProtectedPath) {
+          // Check if the file exists and has been edited by the user
+          const existing = await db.fileSystemEntries.get(file.path);
+          if (existing?.metadata?.editedByUser) {
+            log.debug('batchWriteFiles: skipping protected file edited by user:', file.path);
+            continue;
+          }
         }
+
+        // For protected paths, use overwrite mode (since we've already checked editedByUser above)
+        // For other paths, always use overwrite mode
+        const mode: 'overwrite' | 'append' | 'create-new' = 'overwrite';
+
+        // Ensure editedByUser is set to false for system-generated files
+        const metadata = {
+          ...file.metadata,
+          editedByUser: false,
+        };
+
+        await virtualFS.write(file.path, file.content, mode, metadata);
       }
 
-      // For protected paths, use overwrite mode (since we've already checked editedByUser above)
-      // For other paths, always use overwrite mode
-      const mode: 'overwrite' | 'append' | 'create-new' = 'overwrite';
-
-      // Ensure editedByUser is set to false for system-generated files
-      const metadata = {
-        ...file.metadata,
-        editedByUser: false,
-      };
-
-      await virtualFS.write(file.path, file.content, mode, metadata);
-    }
-
-    // Delete stale/orphan paths (doc reconciliation)
-    if (deletePaths && deletePaths.length > 0) {
-      for (const path of deletePaths) {
-        try {
-          await virtualFS.remove(path);
-          log.debug('batchWriteFiles: deleted orphan path:', path);
-        } catch (err) {
-          log.warn('batchWriteFiles: failed to delete orphan path:', path, err);
+      // Delete stale/orphan paths (doc reconciliation)
+      if (deletePaths && deletePaths.length > 0) {
+        for (const path of deletePaths) {
+          try {
+            await virtualFS.remove(path);
+            log.debug('batchWriteFiles: deleted orphan path:', path);
+          } catch (err) {
+            log.warn('batchWriteFiles: failed to delete orphan path:', path, err);
+          }
         }
       }
-    }
+    });
 
     log.debug('batchWriteFiles completed');
     // Single broadcast for batch write to avoid per-file notifications
+    // Fix 55: Broadcast only after transaction succeeds
     this.broadcastUIUpdate({
       entity: 'file',
       action: 'updated',

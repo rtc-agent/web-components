@@ -75,6 +75,9 @@ export class WindowInteractionController implements ReactiveController {
   private _draggable = true;
   private _resizable = true;
 
+  /** 延迟配置更新（交互进行中时缓存） */
+  private _pendingConfig?: { draggable?: boolean; resizable?: boolean };
+
   /** Ghost 预览元素（拖动/缩放期间的轻量级视觉反馈） */
   private _ghostElement?: HTMLElement;
   /** Ghost 起始状态（用于计算 delta） */
@@ -112,6 +115,21 @@ export class WindowInteractionController implements ReactiveController {
 
   /** 更新配置 */
   setConfig(config: { draggable?: boolean; resizable?: boolean }): void {
+    // Fix 53: 检查配置是否真的变化
+    const draggableChanged = config.draggable !== undefined && config.draggable !== this._draggable;
+    const resizableChanged = config.resizable !== undefined && config.resizable !== this._resizable;
+
+    if (!draggableChanged && !resizableChanged) {
+      return; // 无变化，跳过
+    }
+
+    // Fix 53: 如果正在进行交互，延迟到交互结束
+    if (this._state.isDragging || this._state.isResizing) {
+      log.debug('setConfig: interaction in progress, deferring');
+      this._pendingConfig = config;
+      return;
+    }
+
     this._draggable = config.draggable ?? true;
     this._resizable = config.resizable ?? true;
     log.debug('setConfig:', {draggable: this._draggable, resizable: this._resizable});
@@ -177,6 +195,11 @@ export class WindowInteractionController implements ReactiveController {
   }
 
   private _enable(): void {
+    // Fix 54: 幂等保护，避免重复创建 interact 实例
+    if (this._isEnabled) {
+      log.debug('enable: already enabled, skipping');
+      return;
+    }
     if (!this._windowElement || !this._titleBarElement) return;
     this._isEnabled = true;
     this._initInteractions();
@@ -389,6 +412,13 @@ export class WindowInteractionController implements ReactiveController {
     // 销毁 ghost
     this._destroyGhostElement();
     this._host.requestUpdate();
+
+    // Fix 53: 处理延迟的配置更新（仅当没有交互正在进行时）
+    if (this._pendingConfig && !this._state.isDragging && !this._state.isResizing) {
+      const config = this._pendingConfig;
+      this._pendingConfig = undefined;
+      this.setConfig(config);
+    }
   }
 
   private _onResizeStart(): void {
@@ -456,6 +486,13 @@ export class WindowInteractionController implements ReactiveController {
     // 销毁 ghost
     this._destroyGhostElement();
     this._host.requestUpdate();
+
+    // Fix 53: 处理延迟的配置更新（仅当没有交互正在进行时）
+    if (this._pendingConfig && !this._state.isDragging && !this._state.isResizing) {
+      const config = this._pendingConfig;
+      this._pendingConfig = undefined;
+      this.setConfig(config);
+    }
   }
 
   private _getMargin(): number {
