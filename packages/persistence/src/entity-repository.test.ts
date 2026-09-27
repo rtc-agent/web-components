@@ -913,4 +913,686 @@ describe('entity-repository', () => {
       expect(fields).not.toContain('client_id');
     });
   });
+
+  // ========== Issue 236: Streaming Status Monotonic Guard ==========
+
+  describe('Issue 236: streaming status monotonic guard', () => {
+    describe('upsertMessage: prevent regression from terminal states', () => {
+      it('should prevent streaming from overwriting completed', async () => {
+        // 1. Insert a completed message
+        await repo.upsertMessage({
+          client_id: 'msg-1',
+          streaming_status: 'completed',
+          content: 'full content',
+          updated_at: '2026-09-27T10:00:00Z',
+        });
+
+        // 2. Try to upsert a streaming version
+        await repo.upsertMessage({
+          client_id: 'msg-1',
+          streaming_status: 'streaming',
+          content: 'partial content',
+          updated_at: '2026-09-27T09:59:00Z',
+        });
+
+        // 3. Verify the completed version is preserved
+        const msg = await repo.getClientMessage('msg-1');
+        expect(msg?.streaming_status).toBe('completed');
+        expect(msg?.content).toBe('full content');
+      });
+
+      it('should prevent pending from overwriting completed', async () => {
+        await repo.upsertMessage({
+          client_id: 'msg-2',
+          streaming_status: 'completed',
+          content: 'final content',
+        });
+
+        await repo.upsertMessage({
+          client_id: 'msg-2',
+          streaming_status: 'pending',
+          content: 'initial content',
+        });
+
+        const msg = await repo.getClientMessage('msg-2');
+        expect(msg?.streaming_status).toBe('completed');
+        expect(msg?.content).toBe('final content');
+      });
+
+      it('should prevent streaming from overwriting failed', async () => {
+        await repo.upsertMessage({
+          client_id: 'msg-3',
+          streaming_status: 'failed',
+          content: 'error content',
+        });
+
+        await repo.upsertMessage({
+          client_id: 'msg-3',
+          streaming_status: 'streaming',
+          content: 'partial',
+        });
+
+        const msg = await repo.getClientMessage('msg-3');
+        expect(msg?.streaming_status).toBe('failed');
+        expect(msg?.content).toBe('error content');
+      });
+
+      it('should prevent pending from overwriting failed', async () => {
+        await repo.upsertMessage({
+          client_id: 'msg-4',
+          streaming_status: 'failed',
+          content: 'error content',
+        });
+
+        await repo.upsertMessage({
+          client_id: 'msg-4',
+          streaming_status: 'pending',
+          content: 'initial',
+        });
+
+        const msg = await repo.getClientMessage('msg-4');
+        expect(msg?.streaming_status).toBe('failed');
+        expect(msg?.content).toBe('error content');
+      });
+    });
+
+    describe('upsertMessage: allow forward transitions', () => {
+      it('should allow streaming to update streaming', async () => {
+        await repo.upsertMessage({
+          client_id: 'msg-5',
+          streaming_status: 'streaming',
+          content: 'hello',
+        });
+
+        await repo.upsertMessage({
+          client_id: 'msg-5',
+          streaming_status: 'streaming',
+          content: 'hello world',
+        });
+
+        const msg = await repo.getClientMessage('msg-5');
+        expect(msg?.streaming_status).toBe('streaming');
+        expect(msg?.content).toBe('hello world');
+      });
+
+      it('should allow streaming to transition to completed', async () => {
+        await repo.upsertMessage({
+          client_id: 'msg-6',
+          streaming_status: 'streaming',
+          content: 'hello',
+        });
+
+        await repo.upsertMessage({
+          client_id: 'msg-6',
+          streaming_status: 'completed',
+          content: 'hello world',
+        });
+
+        const msg = await repo.getClientMessage('msg-6');
+        expect(msg?.streaming_status).toBe('completed');
+        expect(msg?.content).toBe('hello world');
+      });
+
+      it('should allow streaming to transition to failed', async () => {
+        await repo.upsertMessage({
+          client_id: 'msg-7',
+          streaming_status: 'streaming',
+          content: 'partial',
+        });
+
+        await repo.upsertMessage({
+          client_id: 'msg-7',
+          streaming_status: 'failed',
+          content: 'error occurred',
+        });
+
+        const msg = await repo.getClientMessage('msg-7');
+        expect(msg?.streaming_status).toBe('failed');
+      });
+
+      it('should allow pending to transition to streaming', async () => {
+        await repo.upsertMessage({
+          client_id: 'msg-8',
+          streaming_status: 'pending',
+          content: 'initial',
+        });
+
+        await repo.upsertMessage({
+          client_id: 'msg-8',
+          streaming_status: 'streaming',
+          content: 'started',
+        });
+
+        const msg = await repo.getClientMessage('msg-8');
+        expect(msg?.streaming_status).toBe('streaming');
+      });
+
+      it('should allow completed to transition to completed (idempotent)', async () => {
+        await repo.upsertMessage({
+          client_id: 'msg-9',
+          streaming_status: 'completed',
+          content: 'final',
+          updated_at: '2026-09-27T10:00:00Z',
+        });
+
+        await repo.upsertMessage({
+          client_id: 'msg-9',
+          streaming_status: 'completed',
+          content: 'final',
+          updated_at: '2026-09-27T10:00:00Z',
+        });
+
+        const msg = await repo.getClientMessage('msg-9');
+        expect(msg?.streaming_status).toBe('completed');
+        expect(msg?.content).toBe('final');
+      });
+    });
+
+    describe('upsertMessage: edge cases with undefined status', () => {
+      it('should allow update when existing has no streaming_status', async () => {
+        await repo.upsertMessage({
+          client_id: 'msg-10',
+          content: 'initial',
+          // No streaming_status specified
+        });
+
+        await repo.upsertMessage({
+          client_id: 'msg-10',
+          streaming_status: 'completed',
+          content: 'final',
+        });
+
+        const msg = await repo.getClientMessage('msg-10');
+        expect(msg?.streaming_status).toBe('completed');
+        expect(msg?.content).toBe('final');
+      });
+
+      it('should allow update when incoming has no streaming_status', async () => {
+        await repo.upsertMessage({
+          client_id: 'msg-11',
+          streaming_status: 'completed',
+          content: 'final',
+        });
+
+        await repo.upsertMessage({
+          client_id: 'msg-11',
+          content: 'updated without status',
+          // No streaming_status specified
+        });
+
+        const msg = await repo.getClientMessage('msg-11');
+        expect(msg?.streaming_status).toBe('completed');
+        expect(msg?.content).toBe('updated without status');
+      });
+
+      it('should allow update when both have no streaming_status', async () => {
+        await repo.upsertMessage({
+          client_id: 'msg-12',
+          content: 'initial',
+        });
+
+        await repo.upsertMessage({
+          client_id: 'msg-12',
+          content: 'updated',
+        });
+
+        const msg = await repo.getClientMessage('msg-12');
+        expect(msg?.content).toBe('updated');
+      });
+    });
+
+    describe('upsertMessage: multiple rapid streaming updates', () => {
+      it('should handle multiple streaming updates correctly', async () => {
+        // Initial message
+        await repo.upsertMessage({
+          client_id: 'msg-13',
+          streaming_status: 'streaming',
+          content: 'chunk 1',
+        });
+
+        // Multiple streaming updates
+        await repo.upsertMessage({
+          client_id: 'msg-13',
+          streaming_status: 'streaming',
+          content: 'chunk 1 chunk 2',
+        });
+
+        await repo.upsertMessage({
+          client_id: 'msg-13',
+          streaming_status: 'streaming',
+          content: 'chunk 1 chunk 2 chunk 3',
+        });
+
+        // Final completed
+        await repo.upsertMessage({
+          client_id: 'msg-13',
+          streaming_status: 'completed',
+          content: 'full content',
+        });
+
+        // Late streaming update (should be blocked)
+        await repo.upsertMessage({
+          client_id: 'msg-13',
+          streaming_status: 'streaming',
+          content: 'late chunk',
+        });
+
+        const msg = await repo.getClientMessage('msg-13');
+        expect(msg?.streaming_status).toBe('completed');
+        expect(msg?.content).toBe('full content');
+      });
+    });
+
+    describe('upsertMessage: return value on regression', () => {
+      it('should return existing state unchanged when regression detected', async () => {
+        await repo.upsertMessage({
+          client_id: 'msg-14',
+          streaming_status: 'completed',
+          content: 'final',
+          server_id: 'srv-14',
+        });
+
+        const result = await repo.upsertMessage({
+          client_id: 'msg-14',
+          streaming_status: 'streaming',
+          content: 'partial',
+        });
+
+        // Should return the existing state, not the incoming
+        expect(result.after.streaming_status).toBe('completed');
+        expect(result.after.content).toBe('final');
+        expect(result.after.server_id).toBe('srv-14');
+        expect(result.before).toBeDefined();
+        expect(result.before?.streaming_status).toBe('completed');
+      });
+    });
+
+    describe('upsertMessage: extreme edge cases', () => {
+      it('should preserve other fields when regression detected', async () => {
+        await repo.upsertMessage({
+          client_id: 'msg-extreme-1',
+          streaming_status: 'completed',
+          content: 'final',
+          server_id: 'srv-1',
+          session_client_id: 'session-1',
+          turn_id: 'turn-1',
+          role: 'assistant',
+          creator_kind: 'ai',
+        });
+
+        // Try to regress with new server_id and other fields
+        await repo.upsertMessage({
+          client_id: 'msg-extreme-1',
+          streaming_status: 'streaming',
+          content: 'partial',
+          server_id: 'srv-2',
+          session_client_id: 'session-2',
+        });
+
+        const msg = await repo.getClientMessage('msg-extreme-1');
+        // All fields should be preserved from the completed state
+        expect(msg?.streaming_status).toBe('completed');
+        expect(msg?.content).toBe('final');
+        expect(msg?.server_id).toBe('srv-1');
+        expect(msg?.session_client_id).toBe('session-1');
+        expect(msg?.turn_id).toBe('turn-1');
+        expect(msg?.role).toBe('assistant');
+        expect(msg?.creator_kind).toBe('ai');
+      });
+
+      it('should handle empty string content with regression', async () => {
+        await repo.upsertMessage({
+          client_id: 'msg-extreme-2',
+          streaming_status: 'completed',
+          content: 'final content',
+        });
+
+        await repo.upsertMessage({
+          client_id: 'msg-extreme-2',
+          streaming_status: 'streaming',
+          content: '',
+        });
+
+        const msg = await repo.getClientMessage('msg-extreme-2');
+        expect(msg?.streaming_status).toBe('completed');
+        expect(msg?.content).toBe('final content');
+      });
+
+      it('should handle very long content with regression', async () => {
+        const longContent = 'a'.repeat(10000);
+        await repo.upsertMessage({
+          client_id: 'msg-extreme-3',
+          streaming_status: 'completed',
+          content: longContent,
+        });
+
+        const shortContent = 'short';
+        await repo.upsertMessage({
+          client_id: 'msg-extreme-3',
+          streaming_status: 'streaming',
+          content: shortContent,
+        });
+
+        const msg = await repo.getClientMessage('msg-extreme-3');
+        expect(msg?.streaming_status).toBe('completed');
+        expect(msg?.content).toBe(longContent);
+        expect(msg?.content?.length).toBe(10000);
+      });
+
+      it('should handle special characters in content with regression', async () => {
+        const specialContent = 'Hello 世界 🌍 \n\r\t "quotes" \\"escaped\\"\0null';
+        await repo.upsertMessage({
+          client_id: 'msg-extreme-4',
+          streaming_status: 'completed',
+          content: specialContent,
+        });
+
+        await repo.upsertMessage({
+          client_id: 'msg-extreme-4',
+          streaming_status: 'streaming',
+          content: 'simple',
+        });
+
+        const msg = await repo.getClientMessage('msg-extreme-4');
+        expect(msg?.streaming_status).toBe('completed');
+        expect(msg?.content).toBe(specialContent);
+      });
+
+      it('should handle concurrent upsertMessage calls correctly', async () => {
+        // Create initial completed message
+        await repo.upsertMessage({
+          client_id: 'msg-extreme-5',
+          streaming_status: 'completed',
+          content: 'final',
+        });
+
+        // Simulate concurrent streaming updates (race condition)
+        const promises = [];
+        for (let i = 0; i < 10; i++) {
+          promises.push(
+            repo.upsertMessage({
+              client_id: 'msg-extreme-5',
+              streaming_status: 'streaming',
+              content: `streaming ${i}`,
+            })
+          );
+        }
+
+        await Promise.all(promises);
+
+        const msg = await repo.getClientMessage('msg-extreme-5');
+        // Should still be completed (all regressions blocked)
+        expect(msg?.streaming_status).toBe('completed');
+        expect(msg?.content).toBe('final');
+      });
+
+      it('should handle rapid state transitions', async () => {
+        // pending → streaming → completed → streaming (blocked) → streaming (blocked)
+        await repo.upsertMessage({
+          client_id: 'msg-extreme-6',
+          streaming_status: 'pending',
+          content: 'initial',
+        });
+
+        await repo.upsertMessage({
+          client_id: 'msg-extreme-6',
+          streaming_status: 'streaming',
+          content: 'started',
+        });
+
+        await repo.upsertMessage({
+          client_id: 'msg-extreme-6',
+          streaming_status: 'completed',
+          content: 'done',
+        });
+
+        // These should all be blocked
+        await repo.upsertMessage({
+          client_id: 'msg-extreme-6',
+          streaming_status: 'streaming',
+          content: 'late 1',
+        });
+
+        await repo.upsertMessage({
+          client_id: 'msg-extreme-6',
+          streaming_status: 'streaming',
+          content: 'late 2',
+        });
+
+        await repo.upsertMessage({
+          client_id: 'msg-extreme-6',
+          streaming_status: 'pending',
+          content: 'very late',
+        });
+
+        const msg = await repo.getClientMessage('msg-extreme-6');
+        expect(msg?.streaming_status).toBe('completed');
+        expect(msg?.content).toBe('done');
+      });
+
+      it('should preserve sync_status when regression detected', async () => {
+        await repo.upsertMessage({
+          client_id: 'msg-extreme-7',
+          streaming_status: 'completed',
+          content: 'final',
+          sync_status: 'synced',
+        });
+
+        await repo.upsertMessage(
+          {
+            client_id: 'msg-extreme-7',
+            streaming_status: 'streaming',
+            content: 'partial',
+          },
+          'pending' // Try to change sync_status
+        );
+
+        const msg = await repo.getClientMessage('msg-extreme-7');
+        expect(msg?.streaming_status).toBe('completed');
+        expect(msg?.content).toBe('final');
+        // sync_status should be preserved from the completed state
+        expect(msg?.sync_status).toBe('synced');
+      });
+
+      it('should handle null content with regression', async () => {
+        await repo.upsertMessage({
+          client_id: 'msg-extreme-8',
+          streaming_status: 'completed',
+          content: 'final',
+        });
+
+        await repo.upsertMessage({
+          client_id: 'msg-extreme-8',
+          streaming_status: 'streaming',
+          content: null as any,
+        });
+
+        const msg = await repo.getClientMessage('msg-extreme-8');
+        expect(msg?.streaming_status).toBe('completed');
+        expect(msg?.content).toBe('final');
+      });
+
+      it('should handle multiple fields update with regression', async () => {
+        await repo.upsertMessage({
+          client_id: 'msg-extreme-9',
+          streaming_status: 'completed',
+          content: 'final',
+          server_id: 'srv-1',
+          updated_at: '2026-09-27T10:00:00Z',
+        });
+
+        // Try to update multiple fields along with regression
+        await repo.upsertMessage({
+          client_id: 'msg-extreme-9',
+          streaming_status: 'streaming',
+          content: 'partial',
+          server_id: 'srv-2',
+          updated_at: '2026-09-27T09:00:00Z',
+        });
+
+        const msg = await repo.getClientMessage('msg-extreme-9');
+        // All fields should remain from completed state
+        expect(msg?.streaming_status).toBe('completed');
+        expect(msg?.content).toBe('final');
+        expect(msg?.server_id).toBe('srv-1');
+        expect(msg?.updated_at).toBe('2026-09-27T10:00:00Z');
+      });
+    });
+  });
+
+  describe('Issue 236: batch merge streaming guard', () => {
+    it('should prevent streaming from overwriting completed in batch', async () => {
+      // Setup: completed message in DB
+      await repo.upsertMessage({
+        client_id: 'msg-batch-1',
+        streaming_status: 'completed',
+        content: 'final',
+        session_client_id: 'session-1',
+      });
+
+      // Simulate batch update with streaming data
+      await repo.applyUpdates([{
+        id: '',
+        items: [{
+          entity: 'message',
+          action: 'updated',
+          entity_id: 'server-msg-batch-1',
+        }],
+        data_list: [{
+          id: 'server-msg-batch-1',
+          client_id: 'msg-batch-1',
+          session_client_id: 'session-1',
+          streaming_status: 'streaming',
+          content: 'partial',
+        }],
+        offset: 1,
+      }]);
+
+      const msg = await repo.getClientMessage('msg-batch-1');
+      expect(msg?.streaming_status).toBe('completed');
+      expect(msg?.content).toBe('final');
+    });
+
+    it('should allow streaming to update streaming in batch', async () => {
+      await repo.upsertMessage({
+        client_id: 'msg-batch-2',
+        streaming_status: 'streaming',
+        content: 'chunk 1',
+        session_client_id: 'session-1',
+      });
+
+      await repo.applyUpdates([{
+        id: '',
+        items: [{
+          entity: 'message',
+          action: 'updated',
+          entity_id: 'server-msg-batch-2',
+        }],
+        data_list: [{
+          id: 'server-msg-batch-2',
+          client_id: 'msg-batch-2',
+          session_client_id: 'session-1',
+          streaming_status: 'streaming',
+          content: 'chunk 1 chunk 2',
+        }],
+        offset: 1,
+      }]);
+
+      const msg = await repo.getClientMessage('msg-batch-2');
+      expect(msg?.streaming_status).toBe('streaming');
+      expect(msg?.content).toBe('chunk 1 chunk 2');
+    });
+
+    it('should allow streaming to transition to completed in batch', async () => {
+      await repo.upsertMessage({
+        client_id: 'msg-batch-3',
+        streaming_status: 'streaming',
+        content: 'partial',
+        session_client_id: 'session-1',
+      });
+
+      await repo.applyUpdates([{
+        id: '',
+        items: [{
+          entity: 'message',
+          action: 'updated',
+          entity_id: 'server-msg-batch-3',
+        }],
+        data_list: [{
+          id: 'server-msg-batch-3',
+          client_id: 'msg-batch-3',
+          session_client_id: 'session-1',
+          streaming_status: 'completed',
+          content: 'full',
+        }],
+        offset: 1,
+      }]);
+
+      const msg = await repo.getClientMessage('msg-batch-3');
+      expect(msg?.streaming_status).toBe('completed');
+      expect(msg?.content).toBe('full');
+    });
+
+    it('should handle mixed batch with multiple messages', async () => {
+      // Setup: one completed, one streaming
+      await repo.upsertMessage({
+        client_id: 'msg-batch-4a',
+        streaming_status: 'completed',
+        content: 'final A',
+        session_client_id: 'session-1',
+      });
+
+      await repo.upsertMessage({
+        client_id: 'msg-batch-4b',
+        streaming_status: 'streaming',
+        content: 'partial B',
+        session_client_id: 'session-1',
+      });
+
+      // Batch update: try to regress 4a, advance 4b
+      await repo.applyUpdates([{
+        id: '',
+        items: [
+          {
+            entity: 'message',
+            action: 'updated',
+            entity_id: 'server-msg-batch-4a',
+          },
+          {
+            entity: 'message',
+            action: 'updated',
+            entity_id: 'server-msg-batch-4b',
+          },
+        ],
+        data_list: [
+          {
+            id: 'server-msg-batch-4a',
+            client_id: 'msg-batch-4a',
+            session_client_id: 'session-1',
+            streaming_status: 'streaming',
+            content: 'should be blocked',
+          },
+          {
+            id: 'server-msg-batch-4b',
+            client_id: 'msg-batch-4b',
+            session_client_id: 'session-1',
+            streaming_status: 'completed',
+            content: 'final B',
+          },
+        ],
+        offset: 1,
+      }]);
+
+      const msg4a = await repo.getClientMessage('msg-batch-4a');
+      const msg4b = await repo.getClientMessage('msg-batch-4b');
+
+      // 4a should remain completed (regression blocked)
+      expect(msg4a?.streaming_status).toBe('completed');
+      expect(msg4a?.content).toBe('final A');
+
+      // 4b should advance to completed
+      expect(msg4b?.streaming_status).toBe('completed');
+      expect(msg4b?.content).toBe('final B');
+    });
+  });
 });

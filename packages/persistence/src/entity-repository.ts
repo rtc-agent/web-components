@@ -71,6 +71,37 @@ interface ExistingData {
 }
 
 /**
+ * Check whether applying an incoming message's streaming_status would
+ * cause a state regression.
+ *
+ * The streaming_status lifecycle is one-directional:
+ *   pending → streaming → completed / failed
+ *
+ * Once a message reaches a terminal state (completed / failed),
+ * it must not revert to an earlier state (streaming / pending).
+ * This prevents live-channel streaming updates from overwriting
+ * the final completed content received via the topic channel.
+ *
+ * Same-state updates are always allowed:
+ * - streaming → streaming (newer streaming content replaces older)
+ * - completed → completed (idempotent)
+ */
+function isStreamingStatusRegression(
+  existingStatus: string | undefined,
+  incomingStatus: string | undefined
+): boolean {
+  if (!existingStatus || !incomingStatus) return false;
+  if (existingStatus === incomingStatus) return false; // Same state: always OK
+
+  // Terminal states must not regress to non-terminal states
+  if (existingStatus === 'completed' || existingStatus === 'failed') {
+    return incomingStatus === 'streaming' || incomingStatus === 'pending';
+  }
+
+  return false;
+}
+
+/**
  * Join microdiff's path array into a dot-separated field path string.
  * Array indices are treated as path segments, e.g. ['content', 0, 'text'] -> 'content.0.text'.
  */
@@ -402,6 +433,24 @@ export class EntityRepository {
       let action: UpdateAction;
       if (existing) {
         const before: LocalMessage = { ...existing };
+
+        // ── Streaming status monotonic guard (Issue 236) ──
+        // Prevent live-channel streaming updates from overwriting
+        // topic-channel completed/final state.
+        if (isStreamingStatusRegression(
+            existing.streaming_status,
+            message.streaming_status
+        )) {
+          log.debug(
+            'upsertMessage: skip streaming regression',
+            'client_id:', message.client_id,
+            'existing:', existing.streaming_status,
+            'incoming:', message.streaming_status
+          );
+          // Return existing state unchanged — the update is a no-op.
+          return { before, after: existing };
+        }
+
         const updated: LocalMessage = {
           ...existing,
           ...message,
@@ -1340,10 +1389,38 @@ export class EntityRepository {
       });
     };
 
+    // Message-specific merge with streaming status monotonic guard (Issue 236)
+    const mergeMessages = (
+      items: Partial<LocalMessage>[],
+      existingMap: Map<string, Partial<LocalMessage>>
+    ): Partial<LocalMessage>[] => {
+      return items.map(item => {
+        const cid = item.client_id!;
+        const prev = existingMap.get(cid);
+        if (prev) {
+          // Skip if applying this update would cause a streaming status regression
+          if (isStreamingStatusRegression(
+              prev.streaming_status,
+              item.streaming_status
+          )) {
+            log.debug(
+              'mergeMessages: skip streaming regression',
+              'client_id:', cid,
+              'existing:', prev.streaming_status,
+              'incoming:', item.streaming_status
+            );
+            return prev; // Keep existing record unchanged
+          }
+          return { ...prev, ...item } as Partial<LocalMessage>;
+        }
+        return item;
+      });
+    };
+
     return {
       sessions: merge(prepared.sessions, existing.sessions),
       turns: merge(prepared.turns, existing.turns),
-      messages: merge(prepared.messages, existing.messages),
+      messages: mergeMessages(prepared.messages, existing.messages),
       rtcs: merge(prepared.rtcs, existing.rtcs),
     };
   }
