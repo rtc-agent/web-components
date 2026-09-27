@@ -189,6 +189,7 @@ export function generateFunctionMd(funcDef: FunctionDef, groupName?: string): st
 
   // Example
   md += `## Example\n\n`;
+  md += `**You must use the \`script\`tool to execute the script below.**\n\n`;
   md += '```javascript\n';
   if (groupName) {
     // 链式调用示例
@@ -478,7 +479,7 @@ See \`/scenarios/INDEX.md\` for the full list.
 function generateAgentHowToCall(): string {
   return `## How to Call Functions
 
-Use the \`script\` tool with \`action: "eval"\` to execute JavaScript code.
+You are extremely cautious. You always read the \`/Function/INDEX.md\` document first and write the \`script\` based on it.
 
 ### Parameter Passing
 
