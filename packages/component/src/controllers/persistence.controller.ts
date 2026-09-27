@@ -249,6 +249,22 @@ export class PersistenceController implements ReactiveController {
      */
     private _connecting?: Promise<void>;
 
+    /**
+     * Connection generation counter for race-condition prevention.
+     *
+     * When disconnect() clears `_connecting` while the underlying Promise is still
+     * in-flight, a subsequent connect() can set a new `_connecting`. When the OLD
+     * Promise finally resolves, its `finally` block would wrongly clear the NEW
+     * `_connecting`, leaving the new connection attempt invisible to the concurrency
+     * guard — leading to duplicate connection attempts and inconsistent state.
+     *
+     * Fix: each connection attempt captures the current generation; in `finally`,
+     * we only clear `_connecting` if the generation still matches. Any code path
+     * that invalidates an in-flight connection (disconnect) bumps the generation
+     * instead of just clearing `_connecting`, so stale Promises self-inhibit.
+     */
+    private _connectGeneration = 0;
+
     private static readonly MAX_CONNECT_RETRIES = 2;
     private static readonly CONNECT_RETRY_DELAY_MS = 2000;
 
@@ -327,9 +343,17 @@ export class PersistenceController implements ReactiveController {
      * Safe to call multiple times — subsequent calls are no-ops.
      */
     async connect(): Promise<void> {
-        if (this._layer) return;
+        log.debug('[LIFECYCLE_DEBUG] connect() called');
+        log.debug('[LIFECYCLE_DEBUG] connect() this._layer exists?', !!this._layer);
+        log.debug('[LIFECYCLE_DEBUG] connect() this._connecting exists?', !!this._connecting);
+        log.debug('[LIFECYCLE_DEBUG] connect() current generation:', this._connectGeneration);
+
+        if (this._layer) {
+            log.debug('[LIFECYCLE_DEBUG] connect() Already connected, returning');
+            return;
+        }
         if (this._connecting) {
-            log.debug('connect() called while already connecting, awaiting existing attempt');
+            log.debug('[LIFECYCLE_DEBUG] connect() Already connecting, awaiting existing attempt');
             return this._connecting;
         }
 
@@ -361,9 +385,21 @@ export class PersistenceController implements ReactiveController {
             },
         };
 
+        // Capture the current generation so we can detect stale resolution
+        const gen = this._connectGeneration;
+        log.debug('[LIFECYCLE_DEBUG] connect() Creating _connecting promise with generation:', gen);
+
         this._connecting = this._connectWorker(config).finally(() => {
-            this._connecting = undefined;
+            log.debug('[LIFECYCLE_DEBUG] connect() _connecting promise finalized, generation:', gen, 'current:', this._connectGeneration);
+            // Only clear _connecting if no newer attempt has superseded us
+            if (this._connectGeneration === gen) {
+                log.debug('[LIFECYCLE_DEBUG] connect() Generation matches, clearing _connecting');
+                this._connecting = undefined;
+            } else {
+                log.debug('[LIFECYCLE_DEBUG] connect() Generation mismatch, stale promise, skipping cleanup');
+            }
         });
+        log.debug('[LIFECYCLE_DEBUG] connect() Returning _connecting promise');
         return this._connecting;
     }
 
@@ -406,14 +442,34 @@ export class PersistenceController implements ReactiveController {
      * 单次连接尝试
      */
     private async _connectWorkerOnce(config: PersistenceConfig): Promise<void> {
-        this._workerBridge = new WorkerBridge(this._auth, {
+        log.debug('[LIFECYCLE_DEBUG] _connectWorkerOnce() started');
+
+        // 使用本地变量捕获 bridge 实例，避免在 await 后访问可能被 disconnect() 修改的 this._workerBridge
+        const bridge = new WorkerBridge(this._auth, {
             workerUrl: this._workerUrl,
         });
+        log.debug('[LIFECYCLE_DEBUG] Created new WorkerBridge instance');
+
+        this._workerBridge = bridge;
+        log.debug('[LIFECYCLE_DEBUG] Set this._workerBridge = bridge');
 
         // 异步加载 worker 脚本：从 Vite 工厂函数提取 URL → fetch → blob URL → SharedWorker
         // 这样 SharedWorker 继承页面 origin，避免 CDN 部署时的跨源错误。
         // 详见 worker-bridge.ts 顶部注释。
-        await this._workerBridge.initWorker();
+        log.debug('[LIFECYCLE_DEBUG] Before await bridge.initWorker()');
+        await bridge.initWorker();
+        log.debug('[LIFECYCLE_DEBUG] After await bridge.initWorker()');
+
+        // 检查点：如果在 await 期间被 disconnect()，优雅退出
+        // disconnect() 会将 this._workerBridge 设为 undefined 或新的 bridge
+        log.debug('[LIFECYCLE_DEBUG] Checkpoint 1: this._workerBridge === bridge?', this._workerBridge === bridge);
+        if (this._workerBridge !== bridge) {
+            log.debug('[LIFECYCLE_DEBUG] Connection interrupted during initWorker(), cleaning up');
+            await bridge.destroy().catch(() => {}); // 忽略清理错误
+            log.debug('[LIFECYCLE_DEBUG] Cleanup after interruption completed, returning');
+            return;
+        }
+        log.debug('[LIFECYCLE_DEBUG] Checkpoint 1 passed, continuing');
 
         // 剥离不可序列化的回调函数（Structured Clone 不支持函数）。
         // Worker 侧会在 init() 中用自己的 requestToken 桥接替换 getToken，
@@ -425,23 +481,42 @@ export class PersistenceController implements ReactiveController {
         };
 
         // Initialize the Worker (creates PersistenceLayer inside Worker)
-        await this._workerBridge.init(workerConfig);
+        log.debug('[LIFECYCLE_DEBUG] Before await bridge.init(workerConfig)');
+        await bridge.init(workerConfig);
+        log.debug('[LIFECYCLE_DEBUG] After await bridge.init(workerConfig)');
+
+        // 检查点：如果在 await 期间被 disconnect()，优雅退出
+        log.debug('[LIFECYCLE_DEBUG] Checkpoint 2: this._workerBridge === bridge?', this._workerBridge === bridge);
+        if (this._workerBridge !== bridge) {
+            log.debug('[LIFECYCLE_DEBUG] Connection interrupted during init(), cleaning up');
+            await bridge.destroy().catch(() => {});
+            log.debug('[LIFECYCLE_DEBUG] Cleanup after interruption completed, returning');
+            return;
+        }
+        log.debug('[LIFECYCLE_DEBUG] Checkpoint 2 passed, continuing');
 
         // 将主线程的 virtualFS 方法替换为 Comlink 代理
         // 主线程不可直接访问 IndexedDB，
         // 所有 virtualFS 操作（工具执行、script 读取等）自动路由到 Worker
-        this._workerBridge.installVirtualFSProxy();
+        log.debug('[LIFECYCLE_DEBUG] Before bridge.installVirtualFSProxy()');
+        bridge.installVirtualFSProxy();
+        log.debug('[LIFECYCLE_DEBUG] After bridge.installVirtualFSProxy()');
 
         // Create adapter that wraps the Comlink proxy
         // 断言语义见 _asPersistenceLayer 顶部注释
-        this._layer = _asPersistenceLayer(new WorkerPersistenceAdapter(this._workerBridge.core));
+        log.debug('[LIFECYCLE_DEBUG] Creating WorkerPersistenceAdapter');
+        this._layer = _asPersistenceLayer(new WorkerPersistenceAdapter(bridge.core));
+        log.debug('[LIFECYCLE_DEBUG] this._layer created');
 
         // Connect (starts Centrifuge WebSocket inside Worker)
-        await this._workerBridge.core.connect();
+        log.debug('[LIFECYCLE_DEBUG] Before await bridge.core.connect()');
+        await bridge.core.connect();
+        log.debug('[LIFECYCLE_DEBUG] After await bridge.core.connect() - WebSocket should be connected now');
 
         // 创建 MasterLock 并开始选举
         const userId = this._auth.state.userId;
         if (userId) {
+            log.debug('[LIFECYCLE_DEBUG] Creating MasterLock for userId:', userId);
             this._masterLock = new MasterLock(userId);
             this._masterLock.onAcquire = () => {
                 log.info('this Tab became Master');
@@ -451,7 +526,10 @@ export class PersistenceController implements ReactiveController {
             };
             // 开始尝试获取锁（可能排队）
             void this._masterLock.acquire();
+            log.debug('[LIFECYCLE_DEBUG] MasterLock created and acquire started');
         }
+
+        log.debug('[LIFECYCLE_DEBUG] _connectWorkerOnce() completed successfully');
     }
 
     /**
@@ -479,35 +557,82 @@ export class PersistenceController implements ReactiveController {
     /**
      * Disconnect and tear down the PersistenceLayer.
      *
+     * - 递增 generation counter，使旧的 _connecting promise 的 finally 块失效
+     * - 清除 _connecting promise，允许新的连接尝试
      * - 先 reset offset，再 close layer
      * - 额外释放 MasterLock + 销毁 WorkerBridge
      *
      * Call this on logout or when auth is lost.
      */
     async disconnect(): Promise<void> {
-        if (this._layer) {
+        log.debug('[LIFECYCLE_DEBUG] disconnect() started');
+        log.debug('[LIFECYCLE_DEBUG] disconnect() this._layer exists?', !!this._layer);
+        log.debug('[LIFECYCLE_DEBUG] disconnect() this._workerBridge exists?', !!this._workerBridge);
+        log.debug('[LIFECYCLE_DEBUG] disconnect() this._connecting exists?', !!this._connecting);
+        log.debug('[LIFECYCLE_DEBUG] disconnect() current generation:', this._connectGeneration);
+
+        // 递增 generation counter，使旧的 _connecting promise 的 finally 块失效
+        // 这是关键：如果 disconnect() 打断了正在进行的连接，旧 promise 的 finally 块
+        // 不应该清除新的 _connecting
+        this._connectGeneration++;
+        log.debug('[LIFECYCLE_DEBUG] disconnect() Bumped generation to:', this._connectGeneration);
+
+        // 清除 _connecting promise，允许新的连接尝试
+        // 这是关键：如果 disconnect() 打断了正在进行的连接，后续的 connect() 应该创建新连接，
+        // 而不是等待已经被打断的旧 promise
+        if (this._connecting) {
+            log.debug('[LIFECYCLE_DEBUG] disconnect() Clearing _connecting promise');
+            this._connecting = undefined;
+        }
+
+        // 使用本地变量捕获 layer 和 workerBridge，避免在 await 期间清除新的实例
+        const layer = this._layer;
+        const workerBridge = this._workerBridge;
+
+        log.debug('[LIFECYCLE_DEBUG] disconnect() Captured layer and workerBridge in local variables');
+
+        if (layer) {
             try {
+                log.debug('[LIFECYCLE_DEBUG] disconnect() Before await layer.getOffsetManager().reset()');
                 // 重置 offset（通过 adapter shim 透传到 core.resetOffset()）
-                await this._layer.getOffsetManager().reset();
+                await layer.getOffsetManager().reset();
+                log.debug('[LIFECYCLE_DEBUG] disconnect() After reset()');
                 // 关闭 WS + DB（通过 adapter 委托到 core.close()）
-                await this._layer.close();
+                log.debug('[LIFECYCLE_DEBUG] disconnect() Before await layer.close()');
+                await layer.close();
+                log.debug('[LIFECYCLE_DEBUG] disconnect() After close()');
             } catch (err) {
                 log.error('disconnect error:', err);
             }
-            this._layer = undefined;
+            log.debug('[LIFECYCLE_DEBUG] disconnect() Setting this._layer = undefined (only if still the same)');
+            // 只有当 this._layer 还是我们捕获的 layer 时才清除
+            if (this._layer === layer) {
+                this._layer = undefined;
+            }
         }
 
         // 额外清理
-        if (this._workerBridge) {
+        if (workerBridge) {
+            log.debug('[LIFECYCLE_DEBUG] disconnect() Cleaning up workerBridge');
             this._masterLock?.release();
             this._masterLock = undefined;
             try {
-                await this._workerBridge.destroy();
+                log.debug('[LIFECYCLE_DEBUG] disconnect() Before await workerBridge.destroy()');
+                await workerBridge.destroy();
+                log.debug('[LIFECYCLE_DEBUG] disconnect() After destroy()');
             } catch (err) {
                 log.error('WorkerBridge disconnect error:', err);
             }
-            this._workerBridge = undefined;
+            log.debug('[LIFECYCLE_DEBUG] disconnect() Setting this._workerBridge = undefined (only if still the same)');
+            // 只有当 this._workerBridge 还是我们捕获的 workerBridge 时才清除
+            if (this._workerBridge === workerBridge) {
+                this._workerBridge = undefined;
+            } else {
+                log.debug('[LIFECYCLE_DEBUG] disconnect() this._workerBridge has been replaced, not clearing');
+            }
         }
+
+        log.debug('[LIFECYCLE_DEBUG] disconnect() completed');
     }
 
     // ========== 连接状态统一接口 ==========
