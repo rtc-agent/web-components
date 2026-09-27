@@ -52,7 +52,9 @@ export class PersistenceLayer {
     const clientOptions: RTCAgentClientOptions = {
       ...config.client,
       getLastOffset: (channel: string) => {
-        // Synchronous return (from memory cache or immediate query)
+        // OffsetManager uses write-through caching: first call may hit IndexedDB,
+        // but subsequent calls return from in-memory cache (effectively synchronous).
+        // This design prevents race conditions in scheduleUpdate's deduplication logic.
         return this.offsetManager.getPosition(channel);
       },
       updateOffset: async (channel: string, offset: number, epoch: string) => {
