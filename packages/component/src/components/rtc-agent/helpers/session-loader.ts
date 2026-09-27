@@ -30,7 +30,7 @@ export interface SessionLoaderDeps {
     sessionTab: {
         value: {
             state: {
-                tabs: ReadonlyArray<{ sessionId: string; title: string }>;
+                tabs: ReadonlyArray<{ sessionId: string; title: string; isUnsaved?: boolean }>;
                 activeSessionId: string | null;
             };
         };
@@ -45,6 +45,7 @@ export interface SessionLoaderDeps {
                     isUnsaved?: boolean;
                 },
             ): void;
+            closeTab(sessionId: string): void;
             setActiveTab(sessionId: string): void;
         };
         // Direct methods (not in actions interface but on the controller itself)
@@ -153,6 +154,11 @@ export async function loadSessions(
             );
             deps.sessionTab.actions.setActiveTab(fallbackId);
         }
+    } else {
+        // Non-initial load: reconcile tabs with current DB state.
+        // After gap fill / BulkUpdate, sessions may have been created, closed, or deleted
+        // on other tabs/clients. This incrementally patches the tab bar to match.
+        reconcileTabs(uiSessions, deps.sessionTab, deps.logger);
     }
 
     // Filter invalid tabs (clean up tabs whose sessions have been deleted from persistence).
@@ -246,4 +252,63 @@ export async function loadSessions(
     }
 
     return initialLoadDoneFlag;
+}
+
+// ── Tab Reconciliation ──
+
+/**
+ * 增量对账 tab 与 session 状态（非首次加载时调用）。
+ *
+ * Gap fill / BulkUpdate 后，DB 中的 session 列表可能已变化：
+ * - 其他 tab/client 创建了新 session → 需要开 tab
+ * - 其他 tab/client 关闭了 session → 需要关 tab
+ * - session 被删除 → 需要关 tab
+ *
+ * 与首次加载的 restoreTabsFromDB 区别：
+ * - restoreTabsFromDB 是全量恢复（按 updatedAt 排序，恢复 storedActiveId）
+ * - reconcileTabs 是增量修补（保留用户已有 tab 顺序和激活状态，新 tab 不激活）
+ *
+ * 幂等安全：多次调用无副作用，已存在的 tab 不会被重复打开或重排。
+ */
+function reconcileTabs(
+    uiSessions: Session[],
+    sessionTab: SessionLoaderDeps['sessionTab'],
+    logger: Logger,
+): void {
+    // 1. 计算应该开 tab 的 session 集合（open 且未删除）
+    const openSessions = uiSessions.filter(s => s.status !== 'closed');
+    const openIds = new Set(openSessions.map(s => s.clientId));
+
+    // 2. 关闭无效 tab（session 已 closed 或已删除，保留 unsaved draft）
+    const currentTabs = sessionTab.value.state.tabs;
+    const tabsToClose = currentTabs.filter(
+        t => !openIds.has(t.sessionId) && t.isUnsaved !== true
+    );
+    for (const tab of tabsToClose) {
+        logger.debug('[reconcileTabs] closing tab:', tab.sessionId);
+        sessionTab.actions.closeTab(tab.sessionId);
+    }
+
+    // 3. 为新增的 open session 开 tab（不激活，不打扰用户当前操作）
+    // Re-read tabs after closing, since closeTab mutates state synchronously.
+    const updatedTabs = sessionTab.value.state.tabs;
+    const currentTabIds = new Set(updatedTabs.map(t => t.sessionId));
+    const newSessions = openSessions
+        .filter(s => !currentTabIds.has(s.clientId))
+        .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+
+    for (const session of newSessions) {
+        logger.debug('[reconcileTabs] opening tab for new session:', session.clientId);
+        sessionTab.actions.openOrActivate(
+            session.clientId,
+            session.title || msg('未命名'),
+            { activate: false, skipPersist: true }
+        );
+    }
+
+    if (tabsToClose.length > 0 || newSessions.length > 0) {
+        logger.debug(
+            `[reconcileTabs] closed ${tabsToClose.length} tabs, opened ${newSessions.length} tabs`
+        );
+    }
 }
