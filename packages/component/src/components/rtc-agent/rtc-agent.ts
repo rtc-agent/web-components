@@ -780,6 +780,9 @@ export class RtcAgent extends LitElement {
 
         // Clean up existing state.
         this._fork.actions.clearFork();
+        // FIX #61: Cancel any running processLoop before clearing reference.
+        // Prevents RTC tool execution from continuing after logout.
+        this._rtcProcessor?.cancel();
         this._rtcProcessor = undefined;
         // Unsubscribe connection state listener before disconnecting,
         // so disconnect-triggered state changes don't fire on a torn-down bridge.
@@ -1641,6 +1644,10 @@ export class RtcAgent extends LitElement {
         this._busUnsubMessage?.();
         this._busUnsubBulkUpdate?.();
         this._busUnsubGapFill?.();
+        // FIX #61: Cancel any running processLoop before clearing reference.
+        // Ensures the loop exits at the next iteration boundary when the component
+        // is unmounted (e.g., React StrictMode double-mount, DOM reordering).
+        this._rtcProcessor?.cancel();
         this._rtcProcessor = undefined;
         this._unsubConnection?.();
         this._auth.onLogin = undefined;  // Clear auth callback to prevent leaks

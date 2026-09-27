@@ -68,6 +68,9 @@ export interface MasterLike {
  * - `confirmDialog` is injected externally (implemented by the component layer)
  * - Optional `MasterLike` injection: in multi-Tab scenarios only the Master Tab executes tools
  *   (when not injected, treated as always being Master)
+ * - Master status is checked on every loop iteration to detect mid-loop Master changes
+ * - `cancel()` method supports graceful shutdown (component unmount, logout, testing)
+ *   via AbortController — interrupts the loop at iteration boundaries and sleep checkpoints
  *
  * Device ID filtering is done at execution time (EntityRepository.getNextRtcToProcess); not handled here.
  */
@@ -90,6 +93,14 @@ export class RtcProcessor {
    * processLoop checks this to detect "no progress" and break the loop.
    */
   private _lastSilentlySkippedRtcId?: string;
+  /**
+   * AbortController for cancelling the current processLoop.
+   *
+   * Created at the start of processLoop, cleared in the finally block.
+   * cancel() calls abort() to signal the loop to exit at the next
+   * iteration boundary or sleep checkpoint.
+   */
+  private _abortController?: AbortController;
 
   constructor(persistence: PersistenceLayer) {
     this.persistence = persistence;
@@ -136,6 +147,27 @@ export class RtcProcessor {
   }
 
   /**
+   * Cancel the currently running processLoop (if any).
+   *
+   * Safe to call multiple times. If no processLoop is running, this is a no-op.
+   * After cancel() returns, the processLoop will exit at the next iteration
+   * boundary or sleep checkpoint. The `processing` flag is reset in the finally block.
+   *
+   * Use cases:
+   * - Component unmount (disconnectedCallback)
+   * - User logout
+   * - Testing (cleanup between test cases)
+   */
+  cancel(): void {
+    if (this._abortController) {
+      log.debug('cancel() called, aborting processLoop');
+      this._abortController.abort();
+    } else {
+      log.debug('cancel() called, but no processLoop is running');
+    }
+  }
+
+  /**
    * Called when an RTC update is received.
    * If already processing, sets pendingCheck so the current loop will re-check.
    */
@@ -156,6 +188,11 @@ export class RtcProcessor {
       return;
     }
 
+    // Create AbortController for this processLoop instance.
+    // Enables cancel() to interrupt the loop at iteration boundaries and sleep checkpoints.
+    this._abortController = new AbortController();
+    const abortSignal = this._abortController.signal;
+
     this.processing = true;
     log.debug('processLoop started');
 
@@ -164,6 +201,20 @@ export class RtcProcessor {
 
     try {
       while (true) {
+        // FIX #60: Check master status on every iteration.
+        // If this Tab lost Master status during the loop, exit immediately
+        // to prevent concurrent RTC execution with the new Master Tab.
+        if (!this._isMasterAllowed()) {
+          log.debug('processLoop: lost master status during loop, exiting');
+          break;
+        }
+
+        // FIX #61: Check if cancelled (e.g., component unmount, logout).
+        if (abortSignal.aborted) {
+          log.debug('processLoop: cancelled, exiting');
+          break;
+        }
+
         this.pendingCheck = false;
 
         const rtc = await this.persistence.getNextRtcToProcess(undefined);
@@ -189,6 +240,13 @@ export class RtcProcessor {
           await this.processOne(rtc);
           log.debug('processOne completed successfully');
         } catch (err) {
+          // If processOne's sleep was aborted by cancel(), the AbortError bubbles up here.
+          // Re-throw so the outer catch can handle it and exit the loop cleanly.
+          if (err instanceof DOMException && err.name === 'AbortError') {
+            log.debug('processOne: sleep aborted by cancel(), propagating');
+            throw err;
+          }
+
           log.error('processOne failed:', err);
           // If it's a connection error, exit the loop and wait for connection recovery
           const errMsg = err instanceof Error ? err.message : String(err);
@@ -196,12 +254,22 @@ export class RtcProcessor {
             log.warn('connection error detected, exiting processLoop');
             break;
           }
-          // For other errors, wait briefly before retrying to avoid tight loops
-          await this.sleep(ERROR_RETRY_DELAY_MS);
+          // For other errors, wait briefly before retrying to avoid tight loops.
+          // Pass abortSignal so sleep can be interrupted by cancel().
+          await this.sleep(ERROR_RETRY_DELAY_MS, abortSignal);
         }
+      }
+    } catch (err) {
+      // Catch AbortError from sleep() when cancelled during error-retry wait.
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        log.debug('processLoop: sleep aborted by cancel(), exiting');
+      } else {
+        // Re-throw unexpected errors
+        throw err;
       }
     } finally {
       this.processing = false;
+      this._abortController = undefined;
       log.debug('processLoop finished');
     }
   }
@@ -227,7 +295,8 @@ export class RtcProcessor {
       }
 
       const delay = this.calculateBackoff(retryCount);
-      await this.sleep(delay);
+      // Pass abortSignal so sleep can be interrupted by cancel()
+      await this.sleep(delay, this._abortController?.signal);
 
       try {
         await this.persistence.submitRtcResult({
@@ -370,8 +439,37 @@ export class RtcProcessor {
     return Math.min(1000 * Math.pow(2, retryCount), 30000);
   }
 
-  private sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+  /**
+   * Sleep for the specified duration, with optional abort signal support.
+   *
+   * If the abort signal is triggered during sleep, the Promise rejects immediately
+   * with a DOMException named 'AbortError'. The caller should catch this error
+   * and exit gracefully.
+   *
+   * @param ms Duration in milliseconds
+   * @param signal Optional AbortSignal to support cancellation
+   */
+  private sleep(ms: number, signal?: AbortSignal): Promise<void> {
+    return new Promise((resolve, reject) => {
+      // If already aborted, reject immediately without scheduling the timer
+      if (signal?.aborted) {
+        reject(new DOMException('Sleep aborted', 'AbortError'));
+        return;
+      }
+
+      const timer = setTimeout(() => {
+        signal?.removeEventListener('abort', onAbort);
+        resolve();
+      }, ms);
+
+      const onAbort = () => {
+        clearTimeout(timer);
+        signal?.removeEventListener('abort', onAbort);
+        reject(new DOMException('Sleep aborted', 'AbortError'));
+      };
+
+      signal?.addEventListener('abort', onAbort, { once: true });
+    });
   }
 
   /**
