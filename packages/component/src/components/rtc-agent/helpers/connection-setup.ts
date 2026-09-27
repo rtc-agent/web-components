@@ -21,7 +21,12 @@ export interface ConnectionDeps {
         layer: PersistenceLayer | undefined;
         masterLock: { isMaster: boolean; onAcquire?: () => void } | undefined;
         workerBridge?: {
-            core: { batchWriteFiles(files: Array<{ path: string; content: string }>): Promise<void> };
+            core: {
+                batchWriteFiles(
+                    files: Array<{ path: string; content: string }>,
+                    deletePaths?: string[],
+                ): Promise<void>;
+            };
         };
         connect(): Promise<void>;
         getConnectionState(): Promise<ConnectionState>;
@@ -98,26 +103,26 @@ export async function connectWithRetry(
             const registry = deps.skill.actions.getRegistry() as {
                 generateAllDocsContent?(
                     depth: number,
-                ): Array<{ path: string; content: string }>;
+                ): Promise<{ files: Array<{ path: string; content: string }>; deletePaths: string[] }>;
             } | null;
             deps.logger.debug("After connect, registry:", registry ? "set" : "null");
             if (registry?.generateAllDocsContent) {
-                const files = registry.generateAllDocsContent(0);
+                const { files, deletePaths } = await registry.generateAllDocsContent(0);
                 if (files.length > 0 && deps.persistence.workerBridge) {
-                    await deps.persistence.workerBridge.core.batchWriteFiles(files);
-                    deps.logger.debug("batchWriteFiles completed");
+                    await deps.persistence.workerBridge.core.batchWriteFiles(files, deletePaths);
+                    deps.logger.debug("batchWriteFiles completed, deleted orphans:", deletePaths.length);
                 }
             }
 
             // Reload scenarios (if scenariosURL was set before DB initialization).
             if (deps.scenariosURL) {
                 try {
-                    const files = await loadScenariosContent(deps.scenariosURL);
+                    const { files, deletePaths } = await loadScenariosContent(deps.scenariosURL);
                     if (deps.persistence.workerBridge) {
-                        await deps.persistence.workerBridge.core.batchWriteFiles(files);
+                        await deps.persistence.workerBridge.core.batchWriteFiles(files, deletePaths);
                     }
                     deps.logger.info(
-                        `Re-loaded ${files.length} scenarios from ${deps.scenariosURL}`,
+                        `Re-loaded ${files.length} scenarios from ${deps.scenariosURL}, deleted orphans: ${deletePaths.length}`,
                     );
                 } catch (err) {
                     deps.logger.warn(

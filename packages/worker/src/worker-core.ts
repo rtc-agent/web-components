@@ -266,12 +266,15 @@ export class WorkerCore implements WorkerPersistenceCore {
     await initializeVirtualFS(config);
   }
 
-  async batchWriteFiles(files: Array<{
-    path: string;
-    content: string;
-    metadata?: FileSystemMetadataOverride;
-  }>): Promise<void> {
-    log.debug('batchWriteFiles called, files count:', files.length);
+  async batchWriteFiles(
+    files: Array<{
+      path: string;
+      content: string;
+      metadata?: FileSystemMetadataOverride;
+    }>,
+    deletePaths?: string[],
+  ): Promise<void> {
+    log.debug('batchWriteFiles called, files count:', files.length, 'deletePaths count:', deletePaths?.length ?? 0);
     const db = getDatabase();
 
     for (const file of files) {
@@ -299,6 +302,19 @@ export class WorkerCore implements WorkerPersistenceCore {
 
       await virtualFS.write(file.path, file.content, mode, metadata);
     }
+
+    // Delete stale/orphan paths (doc reconciliation)
+    if (deletePaths && deletePaths.length > 0) {
+      for (const path of deletePaths) {
+        try {
+          await virtualFS.remove(path);
+          log.debug('batchWriteFiles: deleted orphan path:', path);
+        } catch (err) {
+          log.warn('batchWriteFiles: failed to delete orphan path:', path, err);
+        }
+      }
+    }
+
     log.debug('batchWriteFiles completed');
     // Single broadcast for batch write to avoid per-file notifications
     this.broadcastUIUpdate({

@@ -130,16 +130,22 @@ export interface WorkerPersistenceCore {
   initializeVirtualFS(config?: AgentMdConfig): Promise<void>;
 
   /**
-   * Batch-write files to the virtual file system.
+   * Batch-write files to the virtual file system, optionally deleting stale paths.
    *
    * The main thread cannot directly access Worker-internal VirtualFS/IndexedDB;
    * this method sends file content to the Worker for writing.
+   *
+   * When deletePaths is provided, those paths are removed after writing —
+   * used for doc reconciliation (cleaning up orphan function/scenario docs).
    */
-  batchWriteFiles(files: Array<{
-    path: string;
-    content: string;
-    metadata?: FileSystemMetadataOverride;
-  }>): Promise<void>;
+  batchWriteFiles(
+    files: Array<{
+      path: string;
+      content: string;
+      metadata?: FileSystemMetadataOverride;
+    }>,
+    deletePaths?: string[],
+  ): Promise<void>;
 
   /**
    * Reset OffsetManager cache (equivalent to getOffsetManager().reset()).

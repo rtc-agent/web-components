@@ -220,18 +220,22 @@ export async function loadScenariosFromURL(baseURL: string, timeoutMs: number = 
 }
 
 /**
- * 从 URL 加载 Scenarios 内容（不写入 VirtualFS）
+ * 从 URL 加载 Scenarios 内容（不写入 VirtualFS），并计算需要删除的孤儿路径
  *
  * 使用方式：主线程获取内容，通过 WorkerBridge.batchWriteFiles() 发送到 Worker 写入。
+ * 同时查询 VFS 中已有的 scenario 文件，计算不在 manifest 中的孤儿路径，一并传给 Worker 删除。
  *
  * @param baseURL Scenario 文件的基础 URL
  * @param timeoutMs 每个请求的超时时间
- * @returns 文件路径和内容数组
+ * @returns files: 要写入的文件列表, deletePaths: 要删除的孤儿路径
  */
 export async function loadScenariosContent(
   baseURL: string,
   timeoutMs: number = 10000
-): Promise<Array<{path: string; content: string; metadata: {name?: string; description?: string; tags?: string[]}}>> {
+): Promise<{
+  files: Array<{path: string; content: string; metadata: {name?: string; description?: string; tags?: string[]}}>
+  deletePaths: string[];
+}> {
   // 确保 baseURL 以 / 结尾
   if (!baseURL.endsWith('/')) {
     baseURL += '/';
@@ -257,7 +261,7 @@ export async function loadScenariosContent(
 
   if (!manifest || !manifest.scenarios) {
     log.warn('No manifest.json found.');
-    return [];
+    return { files: [], deletePaths: [] };
   }
 
   const filesToLoad = manifest.scenarios.map(s => s.file);
@@ -294,7 +298,22 @@ export async function loadScenariosContent(
     }
   }
 
-  return files;
+  // 计算孤儿路径：VFS 中已有的 scenario 文件，但不在当前 manifest 中
+  let deletePaths: string[] = [];
+  try {
+    const currentPaths = new Set(files.map(f => f.path));
+    const existingScenarios = await virtualFS.queryByType('scenario');
+    deletePaths = existingScenarios
+      .map(s => s.path)
+      .filter(p => p !== '/scenarios/INDEX.md' && !currentPaths.has(p));
+    if (deletePaths.length > 0) {
+      log.info('Found orphan scenario docs to delete:', deletePaths);
+    }
+  } catch (err) {
+    log.warn('Failed to query existing scenarios for reconciliation:', err);
+  }
+
+  return { files, deletePaths };
 }
 
 /**

@@ -327,8 +327,8 @@ export class RtcAgent extends LitElement {
         if (!registry) return;
 
         try {
-            const files = registry.generateAllDocsContent(0);
-            await this._persistence.workerBridge!.core.batchWriteFiles(files);
+            const { files, deletePaths } = await registry.generateAllDocsContent(0);
+            await this._persistence.workerBridge!.core.batchWriteFiles(files, deletePaths);
 
             // If scenariosURL was set but scenarios haven't loaded yet, load them now.
             if (this._scenariosURL) {
@@ -591,9 +591,9 @@ export class RtcAgent extends LitElement {
      */
     private async _loadScenarios(baseURL: string): Promise<void> {
         try {
-            const files = await loadScenariosContent(baseURL);
-            await this._persistence.workerBridge!.core.batchWriteFiles(files);
-            log.info(`Loaded ${files.length} scenarios from ${baseURL}`);
+            const { files, deletePaths } = await loadScenariosContent(baseURL);
+            await this._persistence.workerBridge!.core.batchWriteFiles(files, deletePaths);
+            log.info(`Loaded ${files.length} scenarios from ${baseURL}, deleted orphans: ${deletePaths.length}`);
         } catch (err) {
             log.error('Failed to load scenarios:', err);
             throw err;  // Re-throw so caller can handle if needed

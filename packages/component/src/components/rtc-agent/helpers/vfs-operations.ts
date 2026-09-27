@@ -314,7 +314,7 @@ export interface RestoreDefaultDeps {
     skill: {
         actions: {
             getRegistry(): {
-                generateAllDocsContent(scenarioCount?: number): Array<{path: string; content: string}>;
+                generateAllDocsContent(scenarioCount?: number): Promise<{files: Array<{path: string; content: string}>; deletePaths: string[]}>;
             } | null;
         };
     };
@@ -350,7 +350,7 @@ export async function handleRestoreDefault(
             if (!registry) {
                 return {success: false, error: 'Registry not available'};
             }
-            const files = registry.generateAllDocsContent(0);
+            const {files} = await registry.generateAllDocsContent(0);
             const file = files.find(f => f.path === filePath);
             if (file) {
                 defaultContent = file.content;
@@ -362,7 +362,7 @@ export async function handleRestoreDefault(
             }
             // Import scenario-loader dynamically to avoid circular dependency
             const {loadScenariosContent} = await import('../../../core/scenario-loader.js');
-            const files = await loadScenariosContent(deps.scenariosURL);
+            const {files} = await loadScenariosContent(deps.scenariosURL);
             const file = files.find(f => f.path === filePath);
             if (file) {
                 defaultContent = file.content;

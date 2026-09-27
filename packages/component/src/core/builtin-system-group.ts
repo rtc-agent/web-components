@@ -160,24 +160,54 @@ export const TIME_DEF: FunctionDef = {
   name: 'time',
   description: 'Get the current time as a formatted string.',
   zodSchema: z.object({
-    format: z.enum(['iso', 'locale', 'timestamp']).default('iso').describe('Output format'),
+    format: z.enum(['iso', 'locale', 'timestamp']).default('locale').describe('Output format'),
   }),
   returns: {
     schema: { type: 'string', description: 'Formatted time string' },
     description: 'Current time as a string',
   },
   handler: (params) => {
-    const format = (params.format as string) || 'iso';
+    const format = (params.format as string) || 'locale';
     const now = new Date();
     switch (format) {
-      case 'locale':
-        return now.toLocaleString();
+      case 'iso':
+        return now.toISOString();
       case 'timestamp':
         return String(Date.now());
-      case 'iso':
+      case 'locale':
       default:
-        return now.toISOString();
+        return now.toLocaleString();
     }
+  },
+};
+
+/**
+ * system.timezone() — Get local timezone information
+ *
+ * 返回本地时区的 IANA 名称（如 'Asia/Shanghai'）和当前 UTC 偏移量。
+ * 使用 Intl.DateTimeFormat API 获取，无需第三方库。
+ */
+export const TIMEZONE_DEF: FunctionDef = {
+  name: 'timezone',
+  description: 'Get the local timezone information, including the IANA timezone name and current UTC offset.',
+  returns: {
+    schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'IANA timezone name, e.g. "Asia/Shanghai"' },
+        offset: { type: 'string', description: 'UTC offset string, e.g. "+08:00"' },
+      },
+    },
+    description: 'Timezone name and UTC offset',
+  },
+  handler: () => {
+    const name = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const offsetMinutes = -(new Date().getTimezoneOffset());
+    const sign = offsetMinutes >= 0 ? '+' : '-';
+    const abs = Math.abs(offsetMinutes);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const offset = `${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
+    return { name, offset };
   },
 };
 
@@ -190,4 +220,5 @@ export const SYSTEM_FUNCTIONS: FunctionDef[] = [
   NOW_DEF,
   RANDOM_DEF,
   TIME_DEF,
+  TIMEZONE_DEF,
 ];

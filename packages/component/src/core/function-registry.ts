@@ -264,18 +264,23 @@ export class FunctionRegistry {
   }
 
   /**
-   * 生成所有文档内容（不写入 VirtualFS）
+   * 生成所有文档内容（不写入 VirtualFS），并计算需要删除的孤儿路径
    *
    * 使用方式：主线程生成内容，通过 WorkerBridge.batchWriteFiles() 发送到 Worker 写入。
+   * 同时查询 VFS 中已有的函数文档，计算不再注册的孤儿路径，一并传给 Worker 删除。
    *
    * @param scenarioCount scenario 数量（用于生成 AGENT.md）
-   * @returns 文件路径和内容数组
+   * @returns files: 要写入的文件列表, deletePaths: 要删除的孤儿路径
    */
-  generateAllDocsContent(scenarioCount = 0): Array<{path: string; content: string}> {
+  async generateAllDocsContent(scenarioCount = 0): Promise<{
+    files: Array<{path: string; content: string}>;
+    deletePaths: string[];
+  }> {
     const files: Array<{path: string; content: string}> = [];
     log.info('generateAllDocsContent called, functions count:', this.functions.size);
 
     // 生成所有 function 文档
+    const currentDocPaths = new Set<string>();
     for (const funcDef of this.functions.values()) {
       const parts = funcDef.name.split('.');
       const groupName = parts.length > 1 ? parts[0] : undefined;
@@ -284,13 +289,15 @@ export class FunctionRegistry {
         ? `/functions/${groupName}/${funcDef.name.split('.')[1]}.md`
         : `/functions/${funcDef.name}.md`;
       files.push({path, content: md});
+      currentDocPaths.add(path);
     }
 
     // 生成 functions 索引
     const functions = this.listFunctions();
     const groups = this.listGroups();
+    const indexPath = '/functions/INDEX.md';
     files.push({
-      path: '/functions/INDEX.md',
+      path: indexPath,
       content: generateFunctionsIndex(functions, groups),
     });
 
@@ -300,7 +307,21 @@ export class FunctionRegistry {
       content: generateAgentMd(this.config, functions, groups, scenarioCount),
     });
 
-    return files;
+    // 计算孤儿路径：VFS 中已有的函数文档，但不在当前注册列表中
+    let deletePaths: string[] = [];
+    try {
+      const existingFiles = await virtualFS.find('**', '/functions/');
+      deletePaths = existingFiles.filter(p =>
+        p !== indexPath && !currentDocPaths.has(p)
+      );
+      if (deletePaths.length > 0) {
+        log.info('Found orphan function docs to delete:', deletePaths);
+      }
+    } catch (err) {
+      log.warn('Failed to query existing function docs for reconciliation:', err);
+    }
+
+    return { files, deletePaths };
   }
 
   /**
