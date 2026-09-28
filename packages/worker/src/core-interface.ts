@@ -1,7 +1,7 @@
 import type { ContentData } from '@rtc-agent/protocol';
 import type { ConnectionState, ConnectionStateEvent } from '@rtc-agent/client';
 import type { PersistenceConfig, AgentMdConfig, FileSystemMetadataOverride } from '@rtc-agent/persistence';
-import type { UIUpdateEvent, LocalSession, LocalMessage, LocalRtc } from '@rtc-agent/persistence';
+import type { UIUpdateEvent, LocalSession, LocalMessage, LocalRtc, DebugHistoryItem, PagedResult } from '@rtc-agent/persistence';
 
 /**
  * Worker-side callbacks: each connected Tab registers its own set.
@@ -65,6 +65,17 @@ export interface WorkerPersistenceCore {
     limit?: number,
   ): Promise<LocalRtc[]>;
   getNextRtcToProcess(sessionClientId?: string): Promise<LocalRtc | undefined>;
+
+  // ========== Debug History ==========
+  addDebugHistoryItem(item: DebugHistoryItem): Promise<void>;
+  queryDebugHistory(
+    functionName?: string,
+    cursor?: string,
+    limit?: number
+  ): Promise<PagedResult<DebugHistoryItem>>;
+  countDebugHistory(functionName?: string): Promise<number>;
+  clearDebugHistory(): Promise<void>;
+  batchDeleteDebugHistory(ids: string[]): Promise<void>;
 
   // ========== Operations ==========
   sendMessage(params: {

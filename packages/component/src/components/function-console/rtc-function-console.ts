@@ -18,6 +18,7 @@ import {darkTheme} from '../../styles/themes/dark.js';
 import {baseStyles} from '../../styles/base.js';
 import {FunctionDebugContext, type FunctionDebugContextValue} from '../../contexts/function-debug.js';
 import type {LogEntry} from '../../types/functions-debug.js';
+import {copyToClipboard} from '../../utils/clipboard.js';
 import {createLogger} from '@rtc-agent/client';
 
 const log = createLogger('FunctionConsole');
@@ -90,6 +91,26 @@ export class RtcFunctionConsole extends LitElement {
         }
     }
 
+    /** Copy all log output to clipboard */
+    private async _copyLogs() {
+        const logs = this._debugCtx?.state.logs ?? [];
+        if (logs.length === 0) return;
+        const text = logs.map(entry => {
+            const time = formatTime(entry.timestamp);
+            const data = entry.data !== undefined ? `\n${this._formatData(entry.data)}` : '';
+            return `${time} [${entry.level}] ${entry.message}${data}`;
+        }).join('\n');
+        const success = await copyToClipboard(text);
+        this.dispatchEvent(new CustomEvent('rtc-toast-requested', {
+            bubbles: true,
+            composed: true,
+            detail: {
+                message: success ? msg('已复制到剪贴板') : msg('复制失败'),
+                type: success ? 'success' : 'error',
+            },
+        }));
+    }
+
     private _renderLogEntry(entry: LogEntry, index: number) {
         const hasData = entry.data !== undefined;
         const isExpanded = this._expandedData.has(index);
@@ -122,9 +143,14 @@ export class RtcFunctionConsole extends LitElement {
         return html`
             <div class="console-header">
                 <span class="console-label">${msg('控制台')}</span>
-                <button class="clear-btn" @click=${() => this._debugCtx?.actions.clearLogs()}>
-                    ${msg('清空')}
-                </button>
+                <div class="header-actions">
+                    <button class="clear-btn" @click=${this._copyLogs} title="${msg('复制全部日志')}">
+                        ${msg('复制')}
+                    </button>
+                    <button class="clear-btn" @click=${() => this._debugCtx?.actions.clearLogs()}>
+                        ${msg('清空')}
+                    </button>
+                </div>
             </div>
             <div class="console-body" ${((el: HTMLDivElement) => { this._consoleBody = el; }) as any}>
                 ${logs.length === 0

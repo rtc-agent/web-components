@@ -48,13 +48,8 @@ export class RtcFunctionParams extends LitElement {
     @state()
     private _isValid = true;
 
-    /** Line count for line numbers */
-    @state()
-    private _lineCount = 1;
-
     private _handleInput(e: Event) {
         const value = (e.target as HTMLTextAreaElement).value;
-        this._updateLineCount(value);
         this._validate(value);
 
         if (this._debugCtx) {
@@ -72,7 +67,6 @@ export class RtcFunctionParams extends LitElement {
                 const parsed = JSON.parse(value);
                 const formatted = JSON.stringify(parsed, null, 2);
                 textarea.value = formatted;
-                this._updateLineCount(formatted);
                 this._isValid = true;
 
                 if (this._debugCtx) {
@@ -95,7 +89,6 @@ export class RtcFunctionParams extends LitElement {
             const newValue = value.substring(0, start) + '  ' + value.substring(end);
             textarea.value = newValue;
             textarea.selectionStart = textarea.selectionEnd = start + 2;
-            this._updateLineCount(newValue);
 
             if (this._debugCtx) {
                 this._debugCtx.actions.updateParams(newValue);
@@ -116,15 +109,10 @@ export class RtcFunctionParams extends LitElement {
         }
     }
 
-    private _updateLineCount(value: string) {
-        this._lineCount = Math.max(1, value.split('\n').length);
-    }
-
     render() {
         void this._localeCtx.locale;
 
         const params = this._debugCtx?.state.currentParams ?? '{}';
-        const lineNumbers = Array.from({length: this._lineCount}, (_, i) => i + 1);
 
         return html`
             <div class="params-header">
@@ -132,9 +120,6 @@ export class RtcFunctionParams extends LitElement {
                 ${!this._isValid ? html`<span class="params-error">${msg('Invalid JSON')}</span>` : ''}
             </div>
             <div class="params-editor ${this._isValid ? '' : 'invalid'}">
-                <div class="line-numbers">
-                    ${lineNumbers.map(n => html`<span>${n}</span>`)}
-                </div>
                 <textarea
                     .value=${params}
                     @input=${this._handleInput}

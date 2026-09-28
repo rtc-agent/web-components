@@ -115,6 +115,75 @@ export interface FileSystemEntry {
   metadata: FileSystemEntryMetadata;
 }
 
+// ========== Debug history ==========
+
+/**
+ * Application-level debug history item (camelCase for UI consumption)
+ */
+export interface DebugHistoryItem {
+  /** Unique ID */
+  id: string;
+  /** Full function name (e.g. "user.register") */
+  functionName: string;
+  /** JSON string of the parameters used */
+  params: string;
+  /** Whether execution succeeded */
+  success: boolean;
+  /** Execution duration in ms */
+  durationMs: number;
+  /** Timestamp of execution */
+  timestamp: number;
+  /** Log entries captured during execution */
+  logs: LogEntry[];
+  /** Error message if failed */
+  errorMessage?: string;
+  /** Execution result (serialized) */
+  result?: unknown;
+}
+
+/**
+ * Log level for debug output
+ */
+export type LogLevel = 'info' | 'warn' | 'error' | 'debug';
+
+/**
+ * Log entry for debug output
+ */
+export interface LogEntry {
+  /** Timestamp (ms since epoch) */
+  timestamp: number;
+  /** Log level */
+  level: LogLevel;
+  /** Log message */
+  message: string;
+  /** Optional structured data */
+  data?: unknown;
+}
+
+/**
+ * Database row type (snake_case for IndexedDB storage)
+ */
+export interface LocalDebugHistoryItem {
+  /** Primary key: UUID */
+  id: string;
+  /** Function name (e.g. 'user.register') */
+  function_name: string;
+  /** Parameters as JSON string */
+  params: string;
+  /** Whether execution succeeded */
+  success: boolean;
+  /** Execution duration in milliseconds */
+  duration_ms: number;
+  /** Timestamp (used for sorting + cursor pagination) */
+  timestamp: number;
+  /** Logs as JSON string (avoids structured clone overhead) */
+  logs: string;
+  /** Error message (if failed) */
+  error_message?: string;
+  /** Result as JSON string (if succeeded) */
+  result?: string;
+}
+
 // ========== Database definition ==========
 
 export class RTCAgentDatabase extends Dexie {
@@ -124,6 +193,7 @@ export class RTCAgentDatabase extends Dexie {
   rtcs!: Table<LocalRtc, string>;
   offsets!: Table<OffsetRecord, string>;
   fileSystemEntries!: Table<FileSystemEntry, string>;
+  debugHistory!: Table<LocalDebugHistoryItem, string>;
 
   constructor(databaseName: string) {
     if (!databaseName) {
@@ -290,6 +360,22 @@ export class RTCAgentDatabase extends Dexie {
         }
       }
     });
+
+    // v9: Add debugHistory table for function debugger history persistence
+    this.version(9).stores({
+      sessions: 'client_id, server_id, sync_status, owner_ref_id, status, updated_at, device_id',
+      turns: 'client_id, server_id, sync_status, session_client_id, status',
+      messages: 'client_id, server_id, sync_status, session_client_id, turn_id, global_offset, created_at',
+      rtcs: 'client_id, server_id, sync_status, session_client_id, turn_id, status, offset, session_device_id',
+      offsets: 'channel',
+      fileSystemEntries: 'path, type, metadata.group, *metadata.tags',
+      debugHistory: 'id, function_name, timestamp',
+    });
+
+    // v10: Add compound index for efficient function_name + timestamp queries
+    this.version(10).stores({
+      debugHistory: 'id, function_name, timestamp, [function_name+timestamp]',
+    });
   }
 }
 
@@ -344,7 +430,15 @@ export async function closeDatabase(): Promise<void> {
 export async function flushAll(): Promise<void> {
   log.warn('flushAll: clearing all database tables');
   const db = getDatabase();
-  const tables = [db.sessions, db.turns, db.messages, db.rtcs, db.offsets, db.fileSystemEntries];
+  const tables = [
+    db.sessions,
+    db.turns,
+    db.messages,
+    db.rtcs,
+    db.offsets,
+    db.fileSystemEntries,
+    db.debugHistory,
+  ];
   await db.transaction('rw', tables, async () => {
     await db.sessions.clear();
     await db.turns.clear();
@@ -352,5 +446,6 @@ export async function flushAll(): Promise<void> {
     await db.rtcs.clear();
     await db.offsets.clear();
     await db.fileSystemEntries.clear();
+    await db.debugHistory.clear();
   });
 }

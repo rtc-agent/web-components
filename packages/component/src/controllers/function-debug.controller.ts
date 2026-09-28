@@ -2,7 +2,7 @@
  * Function Debug Controller
  *
  * Manages the function debugger state: selected function, params, logs, history.
- * Handles function execution with log capture and history persistence.
+ * Handles function execution with log capture and history persistence via IndexedDB.
  *
  * Consumed by: <rtc-function-tree>, <rtc-function-debugger>, <rtc-function-params>,
  *              <rtc-function-console>, <rtc-function-history>
@@ -21,21 +21,25 @@ import type {
     LogEntry,
     DebugHistoryItem,
     LogLevel,
+    HistoryPaginationState,
 } from '../types/functions-debug.js';
-import {STORAGE_KEYS} from '../config/auth.js';
+import type {WorkerBridge} from '../worker-bridge.js';
 import {getExampleValue} from '../core/markdown-generator.js';
 import {createLogger} from '@rtc-agent/client';
 
 const log = createLogger('FunctionDebugController');
 
-/** Maximum number of history items to retain */
-const MAX_HISTORY_ITEMS = 100;
+/** Default page size for history pagination */
+const PAGE_SIZE = 20;
 
 export class FunctionDebugController implements ReactiveController {
     host: ReactiveControllerHost;
 
     private _registry: FunctionRegistry | null = null;
+    private _workerBridge: WorkerBridge | null = null;
     private _state: FunctionDebugState = {...DEFAULT_FUNCTION_DEBUG_STATE};
+    /** Cursor cache for efficient pagination: page -> cursor */
+    private _cursorCache = new Map<number, string | undefined>();
 
     readonly actions: FunctionDebugActions;
 
@@ -54,16 +58,15 @@ export class FunctionDebugController implements ReactiveController {
             loadFromHistory: (item: DebugHistoryItem) => this._loadFromHistory(item),
             clearLogs: () => this._clearLogs(),
             clearHistory: () => this._clearHistory(),
-        };
-
-        // Restore history from localStorage
-        this._state = {
-            ...this._state,
-            history: this._restoreHistory(),
+            loadHistoryPage: (page: number) => this._loadHistoryPage(page),
+            setHistoryFilter: (functionName?: string) => this._setHistoryFilter(functionName),
         };
     }
 
-    hostConnected() {}
+    hostConnected() {
+        // History loading is triggered by workerBridge setter, not here
+    }
+
     hostDisconnected() {}
 
     /**
@@ -73,6 +76,26 @@ export class FunctionDebugController implements ReactiveController {
      */
     setRegistry(registry: FunctionRegistry | null) {
         this._registry = registry;
+    }
+
+    /**
+     * Set the worker bridge for IndexedDB access
+     *
+     * Called by <rtc-agent> when the worker bridge is available.
+     * Automatically loads the first page of history when bridge becomes available.
+     */
+    set workerBridge(bridge: WorkerBridge | null) {
+        this._workerBridge = bridge;
+        if (bridge) {
+            // Clear cursor cache when bridge changes
+            this._cursorCache.clear();
+            // Load first page of history
+            void this._loadHistoryPage(1);
+        }
+    }
+
+    get workerBridge(): WorkerBridge | null {
+        return this._workerBridge;
     }
 
     /* ── Actions ── */
@@ -89,6 +112,9 @@ export class FunctionDebugController implements ReactiveController {
             executionStatus: 'idle',
         };
         this.host.requestUpdate();
+
+        // Auto-set filter to the selected function's name
+        void this._setHistoryFilter(fn.name);
     }
 
     private _updateParams(params: string) {
@@ -146,7 +172,7 @@ export class FunctionDebugController implements ReactiveController {
             this.host.requestUpdate();
 
             // Record to history
-            this._addToHistory({
+            await this._addToHistory({
                 functionName: fn.name,
                 params: this._state.currentParams,
                 success: true,
@@ -167,7 +193,7 @@ export class FunctionDebugController implements ReactiveController {
             this.host.requestUpdate();
 
             // Record to history
-            this._addToHistory({
+            await this._addToHistory({
                 functionName: fn.name,
                 params: this._state.currentParams,
                 success: false,
@@ -223,10 +249,31 @@ export class FunctionDebugController implements ReactiveController {
         this.host.requestUpdate();
     }
 
-    private _clearHistory() {
-        this._state = {...this._state, history: []};
-        this._persistHistory();
+    private async _clearHistory() {
+        if (!this._workerBridge) return;
+
+        // Batch delete current page items by ID
+        const ids = this._state.historyPagination.items.map(item => item.id);
+        if (ids.length > 0) {
+            await this._workerBridge.core.batchDeleteDebugHistory(ids);
+        }
+
+        this._cursorCache.clear();
+        this._state = {
+            ...this._state,
+            history: [],
+            historyPagination: {
+                items: [],
+                page: 1,
+                totalPages: 0,
+                total: 0,
+                filterFunctionName: this._state.historyPagination.filterFunctionName,
+            },
+        };
         this.host.requestUpdate();
+
+        // Reload to reflect updated totals
+        await this._loadHistoryPage(1);
     }
 
     /* ── Log helpers ── */
@@ -245,47 +292,112 @@ export class FunctionDebugController implements ReactiveController {
         this.host.requestUpdate();
     }
 
-    /* ── History persistence ── */
+    /* ── History persistence via IndexedDB ── */
 
-    private _addToHistory(item: Omit<DebugHistoryItem, 'id' | 'timestamp'>) {
+    private async _addToHistory(item: Omit<DebugHistoryItem, 'id' | 'timestamp'>) {
+        if (!this._workerBridge) return;
+
         const historyItem: DebugHistoryItem = {
             ...item,
             id: crypto.randomUUID(),
             timestamp: Date.now(),
         };
 
-        // Prepend (most recent first) and cap at MAX_HISTORY_ITEMS
-        const history = [historyItem, ...this._state.history].slice(0, MAX_HISTORY_ITEMS);
+        await this._workerBridge.core.addDebugHistoryItem(historyItem);
 
-        this._state = {...this._state, history};
-        this._persistHistory();
-        this.host.requestUpdate();
+        // Reload first page to show the new item
+        await this._loadHistoryPage(1);
     }
 
-    private _persistHistory() {
-        try {
-            localStorage.setItem(
-                STORAGE_KEYS.functionDebugHistory,
-                JSON.stringify(this._state.history)
-            );
-        } catch (err) {
-            log.debug('Failed to persist debug history:', err);
-        }
-    }
+    private async _loadHistoryPage(page: number) {
+        if (!this._workerBridge) return;
 
-    private _restoreHistory(): DebugHistoryItem[] {
+        const {filterFunctionName} = this._state.historyPagination;
+
         try {
-            const raw = localStorage.getItem(STORAGE_KEYS.functionDebugHistory);
-            if (raw) {
-                const parsed = JSON.parse(raw);
-                if (Array.isArray(parsed)) {
-                    return parsed;
+            // Get total count
+            const total = await this._workerBridge.core.countDebugHistory(filterFunctionName);
+            const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+            // Clamp page to valid range
+            const validPage = Math.max(1, Math.min(page, totalPages));
+
+            // Use cursor cache for efficient pagination
+            // For page 1, no cursor needed
+            // For page N, we need the cursor from page N-1
+            let cursor: string | undefined;
+            if (validPage > 1) {
+                // Check if we have the cursor for the previous page cached
+                const prevPageCursor = this._cursorCache.get(validPage - 1);
+                if (prevPageCursor !== undefined) {
+                    cursor = prevPageCursor;
+                } else {
+                    // Cursor not cached, need to fetch it
+                    // This happens when jumping directly to a page without navigating through previous pages
+                    const skipCount = (validPage - 1) * PAGE_SIZE;
+                    const skipResult = await this._workerBridge.core.queryDebugHistory(
+                        filterFunctionName,
+                        undefined,
+                        skipCount
+                    );
+                    cursor = skipResult.nextCursor;
                 }
             }
+
+            // Fetch the target page
+            const result = await this._workerBridge.core.queryDebugHistory(
+                filterFunctionName,
+                cursor,
+                PAGE_SIZE
+            );
+
+            // Cache the cursor for the current page (used for next page navigation)
+            this._cursorCache.set(validPage, result.nextCursor);
+
+            // If filter changed, clear stale cache entries
+            if (filterFunctionName !== this._state.historyPagination.filterFunctionName) {
+                this._cursorCache.clear();
+            }
+
+            const pagination: HistoryPaginationState = {
+                items: result.items,
+                page: validPage,
+                totalPages,
+                total,
+                filterFunctionName,
+                error: undefined, // Clear any previous error
+            };
+
+            this._state = {
+                ...this._state,
+                history: result.items,
+                historyPagination: pagination,
+            };
+            this.host.requestUpdate();
         } catch (err) {
-            log.debug('Failed to restore debug history:', err);
+            log.error('Failed to load history page:', err);
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            this._state = {
+                ...this._state,
+                historyPagination: {
+                    ...this._state.historyPagination,
+                    error: errorMessage,
+                },
+            };
+            this.host.requestUpdate();
         }
-        return [];
+    }
+
+    private async _setHistoryFilter(functionName?: string) {
+        this._state = {
+            ...this._state,
+            historyPagination: {
+                ...this._state.historyPagination,
+                filterFunctionName: functionName,
+            },
+        };
+        // Reset to first page with new filter
+        await this._loadHistoryPage(1);
     }
 
     /* ── Default params generation ── */

@@ -30,6 +30,10 @@ export interface FunctionDebugActions {
     clearLogs: () => void;
     /** Clear all history */
     clearHistory: () => void;
+    /** Load a specific page of history */
+    loadHistoryPage: (page: number) => Promise<void>;
+    /** Set history filter by function name */
+    setHistoryFilter: (functionName?: string) => Promise<void>;
 }
 
 /**
@@ -48,6 +52,12 @@ export const DEFAULT_FUNCTION_DEBUG_STATE: FunctionDebugState = {
     currentParams: '{}',
     logs: [],
     history: [],
+    historyPagination: {
+        items: [],
+        page: 1,
+        totalPages: 0,
+        total: 0,
+    },
     executionStatus: 'idle',
 };
 

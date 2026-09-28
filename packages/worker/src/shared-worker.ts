@@ -42,6 +42,13 @@ sharedSelf.onconnect = (e: MessageEvent): void => {
     listRtc: (...args: Parameters<WorkerCore['listRtc']>) => core.listRtc(...args),
     getNextRtcToProcess: (...args: Parameters<WorkerCore['getNextRtcToProcess']>) => core.getNextRtcToProcess(...args),
 
+    // Debug History
+    addDebugHistoryItem: (...args: Parameters<WorkerCore['addDebugHistoryItem']>) => core.addDebugHistoryItem(...args),
+    queryDebugHistory: (...args: Parameters<WorkerCore['queryDebugHistory']>) => core.queryDebugHistory(...args),
+    countDebugHistory: (...args: Parameters<WorkerCore['countDebugHistory']>) => core.countDebugHistory(...args),
+    clearDebugHistory: () => core.clearDebugHistory(),
+    batchDeleteDebugHistory: (...args: Parameters<WorkerCore['batchDeleteDebugHistory']>) => core.batchDeleteDebugHistory(...args),
+
     // Operations
     sendMessage: (...args: Parameters<WorkerCore['sendMessage']>) => core.sendMessage(...args),
     insertLocalMessage: (...args: Parameters<WorkerCore['insertLocalMessage']>) => core.insertLocalMessage(...args),

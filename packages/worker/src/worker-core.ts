@@ -11,6 +11,8 @@ import {
   type LocalSession,
   type LocalMessage,
   type LocalRtc,
+  type DebugHistoryItem,
+  type PagedResult,
   type FileSystemEntryType,
   type FileSystemMetadataOverride,
 } from '@rtc-agent/persistence';
@@ -165,6 +167,37 @@ export class WorkerCore implements WorkerPersistenceCore {
   async getNextRtcToProcess(sessionClientId?: string): Promise<LocalRtc | undefined> {
     const layer = this.ensureLayer();
     return layer.getNextRtcToProcess(sessionClientId);
+  }
+
+  // ========== Debug History ==========
+
+  async addDebugHistoryItem(item: DebugHistoryItem): Promise<void> {
+    const layer = this.ensureLayer();
+    return layer.addDebugHistoryItem(item);
+  }
+
+  async queryDebugHistory(
+    functionName?: string,
+    cursor?: string,
+    limit?: number
+  ): Promise<PagedResult<DebugHistoryItem>> {
+    const layer = this.ensureLayer();
+    return layer.queryDebugHistory(functionName, cursor, limit);
+  }
+
+  async countDebugHistory(functionName?: string): Promise<number> {
+    const layer = this.ensureLayer();
+    return layer.countDebugHistory(functionName);
+  }
+
+  async clearDebugHistory(): Promise<void> {
+    const layer = this.ensureLayer();
+    return layer.clearDebugHistory();
+  }
+
+  async batchDeleteDebugHistory(ids: string[]): Promise<void> {
+    const layer = this.ensureLayer();
+    return layer.batchDeleteDebugHistory(ids);
   }
 
   // ========== Operations ==========

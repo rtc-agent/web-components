@@ -357,4 +357,80 @@ export const styles = css`
         font-size: var(--rtc-font-size-xs);
         font-style: italic;
     }
+
+    /* ── Filter Section ── */
+
+    .filter-section {
+        padding: var(--rtc-spacing-xs) var(--rtc-spacing-sm);
+        border-bottom: 1px solid var(--rtc-color-border);
+    }
+
+    .filter-input {
+        width: 100%;
+        padding: 4px var(--rtc-spacing-sm);
+        font-size: var(--rtc-font-size-xs);
+        color: var(--rtc-color-text);
+        background: var(--rtc-color-bg-primary);
+        border: 1px solid var(--rtc-color-border);
+        border-radius: var(--rtc-border-radius-sm);
+        outline: none;
+        transition: border-color var(--rtc-transition-duration) var(--rtc-transition-timing);
+    }
+
+    .filter-input:focus {
+        border-color: var(--rtc-color-primary);
+    }
+
+    .filter-input::placeholder {
+        color: var(--rtc-color-text-tertiary);
+    }
+
+    /* ── Pagination ── */
+
+    .pagination {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: var(--rtc-spacing-sm);
+        padding: var(--rtc-spacing-xs) var(--rtc-spacing-sm);
+        border-top: 1px solid var(--rtc-color-border);
+        background: var(--rtc-color-bg-secondary);
+    }
+
+    .pagination-btn {
+        background: none;
+        border: 1px solid var(--rtc-color-border);
+        color: var(--rtc-color-text-secondary);
+        font-size: var(--rtc-font-size-xs);
+        cursor: pointer;
+        padding: 2px var(--rtc-spacing-sm);
+        border-radius: var(--rtc-border-radius-sm);
+        transition: all var(--rtc-transition-duration) var(--rtc-transition-timing);
+    }
+
+    .pagination-btn:hover:not(:disabled) {
+        color: var(--rtc-color-text);
+        border-color: var(--rtc-color-border-hover);
+        background: var(--rtc-color-bg-hover);
+    }
+
+    .pagination-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+
+    .pagination-info {
+        font-size: var(--rtc-font-size-xs);
+        color: var(--rtc-color-text-tertiary);
+    }
+
+    /* ── Error Message ── */
+
+    .error-message {
+        padding: var(--rtc-spacing-sm);
+        color: var(--rtc-color-error);
+        font-size: var(--rtc-font-size-xs);
+        background: var(--rtc-color-bg-secondary);
+        border-bottom: 1px solid var(--rtc-color-border);
+    }
 `;

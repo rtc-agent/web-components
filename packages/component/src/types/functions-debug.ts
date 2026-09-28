@@ -2,29 +2,14 @@
  * Function Debugger Types
  *
  * Type definitions for the Function Debugger feature.
- * Includes debug state, log entries, execution history, and storage constants.
+ * DebugHistoryItem and LogEntry are now re-exported from @rtc-agent/persistence.
  */
 
-import type {FunctionDef} from './skill.js';
+import type { FunctionDef } from './skill.js';
+import type { DebugHistoryItem, LogEntry, LogLevel } from '@rtc-agent/persistence';
 
-/**
- * Log level for console output
- */
-export type LogLevel = 'info' | 'warn' | 'error' | 'debug';
-
-/**
- * A single log entry in the debugger console
- */
-export interface LogEntry {
-    /** Timestamp (ms since epoch) */
-    timestamp: number;
-    /** Log level */
-    level: LogLevel;
-    /** Log message */
-    message: string;
-    /** Optional structured data (e.g. function result) */
-    data?: unknown;
-}
+// Re-export for backward compatibility
+export type { DebugHistoryItem, LogEntry, LogLevel };
 
 /**
  * Execution status of a function call
@@ -32,47 +17,37 @@ export interface LogEntry {
 export type ExecutionStatus = 'idle' | 'running' | 'success' | 'error';
 
 /**
- * A single debug history record
+ * Pagination state for history
  */
-export interface DebugHistoryItem {
-    /** Unique ID */
-    id: string;
-    /** Full function name (e.g. "user.register") */
-    functionName: string;
-    /** JSON string of the parameters used */
-    params: string;
-    /** Whether execution succeeded */
-    success: boolean;
-    /** Execution duration in ms */
-    durationMs: number;
-    /** Timestamp of execution */
-    timestamp: number;
-    /** Log entries captured during execution */
-    logs: LogEntry[];
-    /** Error message if failed */
-    errorMessage?: string;
-    /** Execution result (serialized) */
-    result?: unknown;
+export interface HistoryPaginationState {
+  /** Items in current page */
+  items: DebugHistoryItem[];
+  /** Current page number (1-based) */
+  page: number;
+  /** Total number of pages */
+  totalPages: number;
+  /** Total record count */
+  total: number;
+  /** Filter by function name (optional) */
+  filterFunctionName?: string;
+  /** Error message if loading failed */
+  error?: string;
 }
 
 /**
  * Function debug state
  */
 export interface FunctionDebugState {
-    /** Currently selected function definition */
-    selectedFunction: FunctionDef | null;
-    /** Current parameter JSON string */
-    currentParams: string;
-    /** Console log entries */
-    logs: LogEntry[];
-    /** Debug history (most recent first) */
-    history: DebugHistoryItem[];
-    /** Current execution status */
-    executionStatus: ExecutionStatus;
+  /** Currently selected function definition */
+  selectedFunction: FunctionDef | null;
+  /** Current parameter JSON string */
+  currentParams: string;
+  /** Console log entries */
+  logs: LogEntry[];
+  /** Debug history (current page data, most recent first) */
+  history: DebugHistoryItem[];
+  /** History pagination state */
+  historyPagination: HistoryPaginationState;
+  /** Current execution status */
+  executionStatus: ExecutionStatus;
 }
-
-/** localStorage key for debug history */
-export const DEBUG_HISTORY_STORAGE_KEY = 'rtc_function_debug_history';
-
-/** Maximum number of history items to retain */
-export const MAX_HISTORY_ITEMS = 100;

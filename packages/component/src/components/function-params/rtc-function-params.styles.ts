@@ -39,6 +39,7 @@ export const styles = css`
         border: 1px solid var(--rtc-color-border);
         border-radius: var(--rtc-border-radius-sm);
         overflow: hidden;
+        max-height: 400px;
         transition: border-color var(--rtc-transition-duration) var(--rtc-transition-timing);
     }
 
@@ -48,25 +49,6 @@ export const styles = css`
 
     .params-editor.invalid {
         border-color: var(--rtc-color-error);
-    }
-
-    .line-numbers {
-        flex-shrink: 0;
-        padding: var(--rtc-spacing-sm) 0;
-        background: var(--rtc-color-bg-tertiary);
-        color: var(--rtc-color-text-tertiary);
-        font-family: var(--rtc-font-family-mono);
-        font-size: var(--rtc-font-size-sm);
-        line-height: var(--rtc-line-height-base);
-        text-align: right;
-        user-select: none;
-        min-width: 32px;
-        overflow: hidden;
-    }
-
-    .line-numbers span {
-        display: block;
-        padding: 0 var(--rtc-spacing-sm);
     }
 
     textarea {
@@ -80,8 +62,10 @@ export const styles = css`
         font-size: var(--rtc-font-size-sm);
         line-height: var(--rtc-line-height-base);
         resize: vertical;
+        height: 200px;
         min-height: 100px;
         max-height: 400px;
+        overflow-y: auto;
         tab-size: 2;
     }
 

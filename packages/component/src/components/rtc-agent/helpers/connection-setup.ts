@@ -8,6 +8,7 @@ import { msg, str } from '@lit/localize';
 import { loadScenariosContent } from '../../../core/scenario-loader.js';
 import { RtcProcessor } from '@rtc-agent/persistence';
 import type { PersistenceLayer, LocalRtc } from '@rtc-agent/persistence';
+import type { WorkerBridge } from '../../../worker-bridge.js';
 import type { ConnectionState } from '@rtc-agent/client';
 import type { Logger } from '@rtc-agent/client';
 import type { FileNode } from '../../../types/index.js';
@@ -20,14 +21,7 @@ export interface ConnectionDeps {
     persistence: {
         layer: PersistenceLayer | undefined;
         masterLock: { isMaster: boolean; onAcquire?: () => void } | undefined;
-        workerBridge?: {
-            core: {
-                batchWriteFiles(
-                    files: Array<{ path: string; content: string }>,
-                    deletePaths?: string[],
-                ): Promise<void>;
-            };
-        };
+        workerBridge?: WorkerBridge;
         connect(): Promise<void>;
         getConnectionState(): Promise<ConnectionState>;
         onConnectionStateChange(
@@ -37,6 +31,7 @@ export interface ConnectionDeps {
     message: { persistence?: PersistenceLayer };
     session: { persistence?: PersistenceLayer };
     notification: { persistence?: PersistenceLayer };
+    functionDebug: { workerBridge: WorkerBridge | null };
     activity: { active: string };
     fileExplorer: { actions: { setRoot(root: FileNode): void } };
     toast: ToastActions;
@@ -88,6 +83,11 @@ export async function connectWithRetry(
             deps.message.persistence = deps.persistence.layer;
             deps.session.persistence = deps.persistence.layer;
             deps.notification.persistence = deps.persistence.layer;
+
+            // Inject workerBridge into FunctionDebugController (for IndexedDB history persistence)
+            if (deps.persistence.workerBridge) {
+                deps.functionDebug.workerBridge = deps.persistence.workerBridge;
+            }
 
             // If the active activity is 'files' after restore, auto-load the file tree.
             // (In normal flow, the file tree loads on activity-change events,

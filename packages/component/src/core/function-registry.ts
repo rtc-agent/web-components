@@ -17,6 +17,7 @@ import type {
 import { virtualFS } from '@rtc-agent/persistence';
 import { generateFunctionMd, generateFunctionsIndex, generateAgentMd, generateScenariosIndex } from './markdown-generator.js';
 import { registerBuiltinSystemGroup } from './builtin-system-group.js';
+import { zodToParams } from '../validation/zod-to-openapi.js';
 import { eventBus, type FunctionStartEvent, type FunctionSuccessEvent, type FunctionErrorEvent, type FunctionProgressEvent } from './event-bus.js';
 import { buildValidator, validateParams, formatValidationError } from '../validation/index.js';
 
@@ -122,6 +123,9 @@ export class FunctionRegistry {
    * If you need to ensure the document is ready, manually call the virtual file system's read and wait.
    */
   register(funcDef: FunctionDef): FunctionDef {
+    // Normalize: derive parameters from zodSchema if not explicitly set
+    this._normalizeFunctionDef(funcDef);
+
     // Extract group name (if any)
     const parts = funcDef.name.split('.');
     const groupName = parts.length > 1 ? parts[0] : undefined;
@@ -143,10 +147,29 @@ export class FunctionRegistry {
    * M10: Same as register(), document generation is async fire-and-forget and may be delayed in becoming ready.
    */
   registerInternal(funcDef: FunctionDef, groupName: string): void {
+    // Normalize: derive parameters from zodSchema if not explicitly set
+    this._normalizeFunctionDef(funcDef);
+
     this.functions.set(funcDef.name, funcDef);
 
     // Auto-generate documentation
     void this._updateFunctionDoc(funcDef, groupName);
+  }
+
+  /**
+   * Normalize a FunctionDef by deriving parameters from zodSchema when parameters is not set.
+   *
+   * Ensures all downstream consumers (debugger, default params, markdown generator)
+   * can rely on `fn.parameters` being populated.
+   */
+  private _normalizeFunctionDef(funcDef: FunctionDef): void {
+    if (!funcDef.parameters && funcDef.zodSchema) {
+      try {
+        funcDef.parameters = zodToParams(funcDef.zodSchema);
+      } catch (err) {
+        log.warn(`Failed to convert zodSchema to parameters for ${funcDef.name}:`, err);
+      }
+    }
   }
 
   /**

@@ -936,6 +936,9 @@ export class RtcAgent extends LitElement {
         }
         this._message.sessionController = this._session;
 
+        // Note: workerBridge injection into FunctionDebugController is handled in connection-setup.ts
+        // after the connection is established, when workerBridge is confirmed to be available.
+
         // Inject dependencies into NotificationController
         this._notification.sessionController = this._session;
         this._notification.messageController = this._message;
@@ -1197,6 +1200,7 @@ export class RtcAgent extends LitElement {
                 message: this._message,
                 session: this._session,
                 notification: this._notification,
+                functionDebug: this._functionDebug,
                 activity: this._activity,
                 fileExplorer: this._fileExplorer,
                 toast: this._toast.actions,

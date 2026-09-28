@@ -1,8 +1,9 @@
 import { RTCAgentClient, type RTCAgentClientOptions, type PublicationEvent } from '@rtc-agent/client';
 import type { Update, ContentData, SendMessageRequest, ForkSessionRequest, CompactSessionRequest } from '@rtc-agent/protocol';
-import { getDatabase, closeDatabase, flushAll, type LocalSession, type LocalMessage, type LocalRtc } from './database.js';
+import { getDatabase, closeDatabase, flushAll, type LocalSession, type LocalMessage, type LocalRtc, type DebugHistoryItem } from './database.js';
 import { getOffsetManager } from './offset-manager.js';
 import { initEntityRepository, getEntityRepository } from './entity-repository.js';
+import { initDebugHistoryRepository, getDebugHistoryRepository, type PagedResult } from './debug-history-repository.js';
 import { nowRFC3339 } from './time-utils.js';
 import { virtualFS } from './virtual-fs.js';
 import { getUIUpdateBus } from './ui-update-bus.js';
@@ -13,6 +14,7 @@ const log = createLogger('PersistenceLayer');
 export * from './database.js';
 export * from './offset-manager.js';
 export * from './entity-repository.js';
+export * from './debug-history-repository.js';
 export * from './ui-update-bus.js';
 export * from './time-utils.js';
 export * from './permission.js';
@@ -42,6 +44,7 @@ export class PersistenceLayer {
   private client: RTCAgentClient;
   private offsetManager = getOffsetManager();
   private entityRepository;
+  private debugHistoryRepository;
   /** Active sync tasks (tracked for graceful shutdown) */
   private _activeSyncTasks = new Set<Promise<void>>();
   /** Flag to prevent new sync tasks during shutdown */
@@ -51,6 +54,10 @@ export class PersistenceLayer {
     // Initialize EntityRepository singleton (device ID filtering on write)
     initEntityRepository(config.deviceId);
     this.entityRepository = getEntityRepository();
+
+    // Initialize DebugHistoryRepository singleton
+    initDebugHistoryRepository();
+    this.debugHistoryRepository = getDebugHistoryRepository();
 
     // Create RTCAgentClient, injecting offset and publication callbacks
     const clientOptions: RTCAgentClientOptions = {
@@ -106,6 +113,13 @@ export class PersistenceLayer {
    */
   getEntityRepository() {
     return this.entityRepository;
+  }
+
+  /**
+   * Get the DebugHistoryRepository instance.
+   */
+  getDebugHistoryRepository() {
+    return this.debugHistoryRepository;
   }
 
   /**
@@ -202,6 +216,51 @@ export class PersistenceLayer {
    */
   async getNextRtcToProcess(sessionClientId?: string): Promise<LocalRtc | undefined> {
     return this.entityRepository.getNextRtcToProcess(sessionClientId);
+  }
+
+  // ========== Debug History ==========
+
+  /**
+   * Add a debug history item.
+   */
+  async addDebugHistoryItem(item: DebugHistoryItem): Promise<void> {
+    return this.debugHistoryRepository.add(item);
+  }
+
+  /**
+   * Query debug history with pagination.
+   *
+   * @param functionName Filter by function name (optional)
+   * @param cursor Pagination cursor in "${timestamp}|${id}" format
+   * @param limit Page size (default 20)
+   */
+  async queryDebugHistory(
+    functionName?: string,
+    cursor?: string,
+    limit?: number
+  ): Promise<PagedResult<DebugHistoryItem>> {
+    return this.debugHistoryRepository.query(functionName, cursor, limit);
+  }
+
+  /**
+   * Count debug history items.
+   */
+  async countDebugHistory(functionName?: string): Promise<number> {
+    return this.debugHistoryRepository.count(functionName);
+  }
+
+  /**
+   * Clear all debug history.
+   */
+  async clearDebugHistory(): Promise<void> {
+    return this.debugHistoryRepository.clear();
+  }
+
+  /**
+   * Batch delete debug history items by IDs.
+   */
+  async batchDeleteDebugHistory(ids: string[]): Promise<void> {
+    return this.debugHistoryRepository.batchDelete(ids);
   }
 
   /**

@@ -22,6 +22,12 @@ export const styles = css`
         flex-shrink: 0;
     }
 
+    .header-actions {
+        display: flex;
+        align-items: center;
+        gap: var(--rtc-spacing-xs);
+    }
+
     .console-label {
         font-size: var(--rtc-font-size-xs);
         font-weight: var(--rtc-font-weight-bold);

@@ -394,10 +394,7 @@ export type {
     ExecutionStatus,
     DebugHistoryItem,
     FunctionDebugState,
-} from './functions-debug.js';
-export {
-    DEBUG_HISTORY_STORAGE_KEY,
-    MAX_HISTORY_ITEMS,
+    HistoryPaginationState,
 } from './functions-debug.js';
 
 /* ── File Explorer & Editor (Phase 1) ── */

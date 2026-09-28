@@ -20,6 +20,7 @@ import {baseStyles} from '../../styles/base.js';
 import {FunctionDebugContext, type FunctionDebugContextValue} from '../../contexts/function-debug.js';
 import type {DebugHistoryItem, LogEntry} from '../../types/functions-debug.js';
 import {chevronRightIcon, chevronDownIcon} from '../../icons/index.js';
+import {copyToClipboard} from '../../utils/clipboard.js';
 import {createLogger} from '@rtc-agent/client';
 
 const log = createLogger('FunctionHistory');
@@ -71,6 +72,9 @@ export class RtcFunctionHistory extends LitElement {
     @state()
     private _expandedItems = new Set<string>();
 
+    /** Filter input debounce timer */
+    private _filterDebounce?: ReturnType<typeof setTimeout>;
+
     private _toggleDrawer() {
         this._drawerOpen = !this._drawerOpen;
     }
@@ -97,6 +101,47 @@ export class RtcFunctionHistory extends LitElement {
         if (this._debugCtx) {
             this._debugCtx.actions.loadFromHistory(item);
         }
+    }
+
+    private _handleFilterInput(e: InputEvent) {
+        e.stopPropagation();
+        const value = (e.target as HTMLInputElement).value.trim();
+        clearTimeout(this._filterDebounce);
+        this._filterDebounce = setTimeout(() => {
+            if (this._debugCtx) {
+                this._debugCtx.actions.setHistoryFilter(value || undefined);
+            }
+        }, 300);
+    }
+
+    private _loadPage(page: number) {
+        if (this._debugCtx) {
+            this._debugCtx.actions.loadHistoryPage(page);
+        }
+    }
+
+    /** Copy text to clipboard with toast feedback */
+    private async _copyToClipboard(text: string) {
+        const success = await copyToClipboard(text);
+        this.dispatchEvent(new CustomEvent('rtc-toast-requested', {
+            bubbles: true,
+            composed: true,
+            detail: {
+                message: success ? msg('已复制到剪贴板') : msg('复制失败'),
+                type: success ? 'success' : 'error',
+            },
+        }));
+    }
+
+    /** Format logs array to plain text */
+    private _formatLogsText(logs: LogEntry[]): string {
+        return logs.map(entry => {
+            const data = entry.data !== undefined
+                ? (typeof entry.data === 'string' ? entry.data : JSON.stringify(entry.data, null, 2))
+                : '';
+            const dataStr = data ? `\n${data}` : '';
+            return `${entry.level.toUpperCase()} ${entry.message}${dataStr}`;
+        }).join('\n');
     }
 
     /**
@@ -156,6 +201,14 @@ export class RtcFunctionHistory extends LitElement {
 
                 <!-- Actions -->
                 <div class="detail-actions">
+                    <button class="detail-btn" @click=${(e: Event) => { e.stopPropagation(); void this._copyToClipboard(item.params || '{}'); }}>
+                        ${msg('复制参数')}
+                    </button>
+                    ${item.logs && item.logs.length > 0 ? html`
+                        <button class="detail-btn" @click=${(e: Event) => { e.stopPropagation(); void this._copyToClipboard(this._formatLogsText(item.logs)); }}>
+                            ${msg('复制日志')}
+                        </button>
+                    ` : nothing}
                     <button class="detail-btn" @click=${(e: Event) => this._handleRestoreClick(e, item)}>
                         ${msg('恢复')}
                     </button>
@@ -194,8 +247,13 @@ export class RtcFunctionHistory extends LitElement {
     render() {
         void this._localeCtx.locale;
 
-        const history = this._debugCtx?.state.history ?? [];
-        const count = history.length;
+        const pagination = this._debugCtx?.state.historyPagination;
+        const items = pagination?.items ?? [];
+        const page = pagination?.page ?? 1;
+        const totalPages = pagination?.totalPages ?? 0;
+        const total = pagination?.total ?? 0;
+        const filterFunctionName = pagination?.filterFunctionName ?? '';
+        const error = pagination?.error;
 
         return html`
             <div class="history-drawer ${this._drawerOpen ? 'open' : ''}">
@@ -203,10 +261,10 @@ export class RtcFunctionHistory extends LitElement {
                     <span class="drawer-title">
                         <span class="chevron ${this._drawerOpen ? 'expanded' : ''}">${chevronRightIcon}</span>
                         ${msg('历史记录')}
-                        <span class="history-count">(${count})</span>
+                        ${total > 0 ? html`<span class="history-count">(${total})</span>` : nothing}
                     </span>
                     <div class="header-actions" @click=${(e: Event) => e.stopPropagation()}>
-                        ${count > 0 ? html`
+                        ${total > 0 ? html`
                             <button class="clear-btn" @click=${() => this._debugCtx?.actions.clearHistory()}>
                                 ${msg('清空')}
                             </button>
@@ -214,9 +272,50 @@ export class RtcFunctionHistory extends LitElement {
                     </div>
                 </div>
                 <div class="drawer-body">
-                    ${count === 0
+                    <!-- Filter input -->
+                    <div class="filter-section">
+                        <input
+                            type="text"
+                            class="filter-input"
+                            placeholder="${msg('按函数名过滤...')}"
+                            .value=${filterFunctionName}
+                            @input=${this._handleFilterInput}
+                            @click=${(e: Event) => e.stopPropagation()}
+                        />
+                    </div>
+
+                    <!-- Error message -->
+                    ${error ? html`
+                        <div class="error-message">${error}</div>
+                    ` : nothing}
+
+                    <!-- History items -->
+                    ${items.length === 0 && !error
                         ? html`<div class="empty-history">${msg('暂无历史记录')}</div>`
-                        : history.map(item => this._renderHistoryItem(item))}
+                        : items.map(item => this._renderHistoryItem(item))}
+
+                    <!-- Pagination controls -->
+                    ${totalPages > 1 ? html`
+                        <div class="pagination">
+                            <button
+                                class="pagination-btn"
+                                ?disabled=${page <= 1}
+                                @click=${() => this._loadPage(page - 1)}
+                            >
+                                ${msg('上一页')}
+                            </button>
+                            <span class="pagination-info">
+                                ${msg(`第 ${page} 页 / 共 ${totalPages} 页`)}
+                            </span>
+                            <button
+                                class="pagination-btn"
+                                ?disabled=${page >= totalPages}
+                                @click=${() => this._loadPage(page + 1)}
+                            >
+                                ${msg('下一页')}
+                            </button>
+                        </div>
+                    ` : nothing}
                 </div>
             </div>
         `;

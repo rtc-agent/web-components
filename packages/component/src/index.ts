@@ -203,8 +203,5 @@ export type {
     ExecutionStatus,
     DebugHistoryItem,
     FunctionDebugState,
-} from './types/functions-debug.js';
-export {
-    DEBUG_HISTORY_STORAGE_KEY,
-    MAX_HISTORY_ITEMS,
+    HistoryPaginationState,
 } from './types/functions-debug.js';

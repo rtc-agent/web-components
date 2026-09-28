@@ -68,6 +68,8 @@ export const styles = css`
     .info-body {
         padding: var(--rtc-spacing-sm);
         background: var(--rtc-color-bg-secondary);
+        max-height: 200px;
+        overflow-y: auto;
     }
 
     .info-name {
