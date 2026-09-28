@@ -24,14 +24,15 @@ import {
     filesIcon,
     chatIcon,
     gearIcon,
+    codeIcon,
 } from '../../icons/index.js';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import { createLogger } from '@rtc-agent/client';
 
 const log = createLogger('ActivityBar');
 
-/** Focusable activity list (order: files → chat → settings) */
-const ACTIVITY_LIST: Activity[] = ['files', 'chat', 'settings'];
+/** Focusable activity list (order: files → chat → functions → settings) */
+const ACTIVITY_LIST: Activity[] = ['files', 'chat', 'functions', 'settings'];
 
 @localized()
 @customElement('rtc-activity-bar')
@@ -49,6 +50,10 @@ export class RtcActivityBar extends LitElement {
     /** Whether to show the Settings button */
     @property({type: Boolean, attribute: 'show-settings'})
     showSettings = true;
+
+    /** Whether to show the Functions button */
+    @property({type: Boolean, attribute: 'show-functions'})
+    showFunctions = true;
 
     @consume({context: localeContext, subscribe: true})
     @state()
@@ -173,6 +178,19 @@ export class RtcActivityBar extends LitElement {
                     @click=${() => this._handleClick('files')}
                     @keydown=${(e: KeyboardEvent) => this._handleKeydown(e, 'files')}
             >${filesIcon}</div>
+            ` : nothing}
+            ${this.showFunctions ? html`
+            <div
+                    class="activity-icon ${this.active === 'functions' ? 'active' : ''}"
+                    data-activity="functions"
+                    role="tab"
+                    tabindex="${this._tabIndex('functions')}"
+                    aria-label=${msg('函数调试')}
+                    aria-selected="${this.active === 'functions'}"
+                    title=${msg('函数调试')}
+                    @click=${() => this._handleClick('functions')}
+                    @keydown=${(e: KeyboardEvent) => this._handleKeydown(e, 'functions')}
+            >${codeIcon}</div>
             ` : nothing}
 
             <!-- Spacer pushes settings to the bottom -->

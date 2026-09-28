@@ -80,6 +80,8 @@ import {FileExplorerContext} from '../../contexts/file-explorer.js';
 import {SettingsContext} from '../../contexts/settings.js';
 import {NotificationContext} from '../../contexts/notification.js';
 import {LogoContext, DEFAULT_LOGO} from '../../contexts/logo.js';
+import {FunctionsContext} from '../../contexts/functions.js';
+import {FunctionDebugContext} from '../../contexts/function-debug.js';
 
 // Controllers
 import {WindowStateController} from '../../controllers/window-state.controller.js';
@@ -102,6 +104,8 @@ import {SessionTabController} from '../../controllers/session-tab.controller.js'
 import {SettingsController} from '../../controllers/settings.controller.js';
 import {NotificationController} from '../../controllers/notification.controller.js';
 import {EventBindingController} from '../../controllers/event-binding.controller.js';
+import {FunctionsController} from '../../controllers/functions.controller.js';
+import {FunctionDebugController} from '../../controllers/function-debug.controller.js';
 
 // Scenario loading
 import {setServerUrl, setRedirectUri} from '../../config/auth.js';
@@ -154,6 +158,12 @@ import '../chat-layout/rtc-chat-layout.js';
 
 // Settings Layout component
 import '../settings-layout/rtc-settings-layout.js';
+
+// Function Tree component (Phase 3 - Function Debugger)
+import '../function-tree/rtc-function-tree.js';
+
+// Functions Layout component (Phase 4 - Function Debugger)
+import '../functions-layout/rtc-functions-layout.js';
 
 // Drawer component (overlay slide-out panel)
 import '../drawer/rtc-drawer.js';
@@ -304,12 +314,17 @@ export class RtcAgent extends LitElement {
         if (value) {
             log.info('registry setter called, isConnected:', this._persistence.isConnected);
             this._skill.actions.setRegistry(value);
+            this._functions.setRegistry(value);
+            this._functionDebug.setRegistry(value);
 
             // If persistence is connected (DB ready), generate docs immediately.
             // This handles a timing issue: connectedCallback() may run before the registry is set.
             if (this._persistence.isConnected && this._persistence.layer) {
                 void this._regenerateDocsAfterRegistrySet();
             }
+        } else {
+            this._functions.setRegistry(null);
+            this._functionDebug.setRegistry(null);
         }
     }
     get registry(): FunctionRegistry | null {
@@ -676,6 +691,8 @@ export class RtcAgent extends LitElement {
     private _sessionTab = new SessionTabController(this);
     private _settings = new SettingsController(this);
     private _notification = new NotificationController(this);
+    private _functions = new FunctionsController(this);
+    private _functionDebug = new FunctionDebugController(this);
 
     /** Whether the file tree has been loaded (loaded once on first entry to files activity). */
     private _fileTreeLoaded = false;
@@ -807,6 +824,8 @@ export class RtcAgent extends LitElement {
     get sessionTabController() { return this._sessionTab; }
     get settingsController() { return this._settings; }
     get notificationController() { return this._notification; }
+    get functionsController() { return this._functions; }
+    get functionDebugController() { return this._functionDebug; }
 
     /* ── Public Methods ── */
 
@@ -856,6 +875,8 @@ export class RtcAgent extends LitElement {
     private _sessionTabProvider = new ContextProvider(this, {context: SessionTabContext, initialValue: this._sessionTab.value});
     private _settingsProvider = new ContextProvider(this, {context: SettingsContext, initialValue: this._settings.value});
     private _notificationProvider = new ContextProvider(this, {context: NotificationContext, initialValue: this._notification.value});
+    private _functionsProvider = new ContextProvider(this, {context: FunctionsContext, initialValue: this._functions.value});
+    private _functionDebugProvider = new ContextProvider(this, {context: FunctionDebugContext, initialValue: this._functionDebug.value});
     private _logoProvider = new ContextProvider(this, {context: LogoContext, initialValue: DEFAULT_LOGO});
     private _localeProvider = new ContextProvider(this, {context: localeContext, initialValue: {
         locale: sourceLocale,
@@ -1320,6 +1341,8 @@ export class RtcAgent extends LitElement {
             this._sessionTabProvider.setValue(this._sessionTab.value);
             this._settingsProvider.setValue(this._settings.value);
             this._notificationProvider.setValue(this._notification.value);
+            this._functionsProvider.setValue(this._functions.value);
+            this._functionDebugProvider.setValue(this._functionDebug.value);
             this._localeProvider.setValue({
                 locale: getLocale() as typeof sourceLocale | typeof targetLocales[number],
                 setLocale: switchLocale,
@@ -1884,6 +1907,7 @@ export class RtcAgent extends LitElement {
      * Chat mode: Activity Bar + Chat Layout (containing drawer + Tab + chat).
      * Files mode: Activity Bar + [Drawer(file tree)] + Editor Area + Status Bar.
      * Settings mode: Activity Bar + Settings Layout (containing drawer + settings content).
+     * Functions mode: Activity Bar + Functions Layout (containing drawer + function tree + debugger).
      *
      * All side panels use <rtc-drawer> overlay drawers uniformly, without squeezing the main content area.
      */
@@ -1891,8 +1915,10 @@ export class RtcAgent extends LitElement {
         const isFiles = active === 'files';
         const isChat = active === 'chat';
         const isSettings = active === 'settings';
-        const showSidebar = sidebarVisible && (isFiles || isChat || isSettings);
+        const isFunctions = active === 'functions';
+        const showSidebar = sidebarVisible && (isFiles || isChat || isSettings || isFunctions);
         const disabled = this._resolvedActivityBarConfig.disabledActivities;
+        const enableFunctionDebugger = this._resolvedActivityBarConfig.enableFunctionDebugger;
 
         return html`
       <div class="main-layout">
@@ -1901,6 +1927,7 @@ export class RtcAgent extends LitElement {
           theme=${this.theme}
           ?show-files=${!disabled.includes('files')}
           ?show-settings=${!disabled.includes('settings')}
+          ?show-functions=${enableFunctionDebugger}
         ></rtc-activity-bar>
         ${isFiles
           ? html`<rtc-drawer ?open=${showSidebar} style="--rtc-drawer-left: 48px">
@@ -1923,7 +1950,9 @@ export class RtcAgent extends LitElement {
             ? html`<rtc-chat-layout theme=${this.theme} .sessionTreeVisible=${sidebarVisible} .messageController=${this._message}></rtc-chat-layout>`
             : isSettings
               ? html`<rtc-settings-layout theme=${this.theme} .sidebarVisible=${sidebarVisible} version=${version}></rtc-settings-layout>`
-              : nothing}
+              : isFunctions
+                ? html`<rtc-functions-layout theme=${this.theme} .sidebarVisible=${sidebarVisible}></rtc-functions-layout>`
+                : nothing}
       </div>
     `;
     }

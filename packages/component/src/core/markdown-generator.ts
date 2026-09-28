@@ -16,7 +16,7 @@ const log = createLogger('MarkdownGenerator');
  *
  * References openapi-markdown's dataTypes.js logic
  */
-function schemaToTypeString(schema: OpenAPISchema): string {
+export function schemaToTypeString(schema: OpenAPISchema): string {
   if (!schema) return 'unknown';
 
   // Reference type
@@ -262,7 +262,7 @@ export function generateFunctionMd(funcDef: FunctionDef, groupName?: string): st
 /**
  * Generate example value based on OpenAPI Schema
  */
-function getExampleValue(schema: OpenAPISchema): string {
+export function getExampleValue(schema: OpenAPISchema): string {
   if (!schema) return 'null';
 
   // Prefer explicitly specified example

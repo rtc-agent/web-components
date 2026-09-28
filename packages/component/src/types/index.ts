@@ -374,16 +374,33 @@ export type {
     ScenarioManifest,
 } from './skill.js';
 
-/* ── File Explorer & Editor (Phase 1) ── */
+/* ── Activity Bar Configuration ── */
 
-/**
- * Activity Bar activity types
- *
- * - files: File explorer (file tree + editor)
- * - chat: Chat mode (current main interface)
- * - settings: Settings (at the bottom)
- */
-export type Activity = 'files' | 'chat' | 'settings';
+export type {
+    Activity,
+    ActivityBarConfig,
+    ResolvedActivityBarConfig,
+} from './activity-bar-config.js';
+export {
+    DEFAULT_ACTIVITY_BAR_CONFIG,
+    resolveActivityBarConfig,
+} from './activity-bar-config.js';
+
+/* ── Function Debugger ── */
+
+export type {
+    LogLevel,
+    LogEntry,
+    ExecutionStatus,
+    DebugHistoryItem,
+    FunctionDebugState,
+} from './functions-debug.js';
+export {
+    DEBUG_HISTORY_STORAGE_KEY,
+    MAX_HISTORY_ITEMS,
+} from './functions-debug.js';
+
+/* ── File Explorer & Editor (Phase 1) ── */
 
 /**
  * File tree node (recursive structure)

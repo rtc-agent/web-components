@@ -8,7 +8,7 @@
 /**
  * Activity type
  */
-export type Activity = 'files' | 'chat' | 'settings';
+export type Activity = 'files' | 'chat' | 'settings' | 'functions';
 
 /**
  * Activity Bar configuration
@@ -21,6 +21,8 @@ export interface ActivityBarConfig {
     disabledActivities?: Array<'files' | 'settings'>;
     /** Default activity */
     defaultActivity?: Activity;
+    /** Whether to enable the Function Debugger tool (default: true) */
+    enableFunctionDebugger?: boolean;
 }
 
 /**
@@ -29,6 +31,7 @@ export interface ActivityBarConfig {
 export interface ResolvedActivityBarConfig {
     disabledActivities: Array<'files' | 'settings'>;
     defaultActivity: Activity;
+    enableFunctionDebugger: boolean;
 }
 
 /**
@@ -37,6 +40,7 @@ export interface ResolvedActivityBarConfig {
 export const DEFAULT_ACTIVITY_BAR_CONFIG: ResolvedActivityBarConfig = {
     disabledActivities: [],
     defaultActivity: 'chat',
+    enableFunctionDebugger: true,
 };
 
 /**
@@ -48,5 +52,6 @@ export function resolveActivityBarConfig(config?: ActivityBarConfig): ResolvedAc
     return {
         disabledActivities: config.disabledActivities ?? [...DEFAULT_ACTIVITY_BAR_CONFIG.disabledActivities],
         defaultActivity: config.defaultActivity ?? DEFAULT_ACTIVITY_BAR_CONFIG.defaultActivity,
+        enableFunctionDebugger: config.enableFunctionDebugger ?? DEFAULT_ACTIVITY_BAR_CONFIG.enableFunctionDebugger,
     };
 }

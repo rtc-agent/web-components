@@ -111,4 +111,10 @@ export const STORAGE_KEYS = {
     settings: 'rtc_settings',
     /** Input Area height (resize handle position) */
     inputAreaHeight: 'rtc_input_area_height',
+    /** Function debug history */
+    functionDebugHistory: 'rtc_function_debug_history',
+    /** Function tree expand state: nodeId → isExpanded */
+    functionTreeExpanded: 'rtc_function_tree_expanded',
+    /** Function tree active (selected) function name */
+    functionTreeActive: 'rtc_function_tree_active',
 } as const;

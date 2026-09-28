@@ -68,7 +68,7 @@ export class ActivityController implements ReactiveController {
             if (!raw) return;
             const saved = JSON.parse(raw);
             const isValidActivity = (v: unknown): v is Activity =>
-                v === 'files' || v === 'chat' || v === 'settings';
+                v === 'files' || v === 'chat' || v === 'settings' || v === 'functions';
             if (saved && typeof saved === 'object') {
                 this._state = {
                     active: isValidActivity(saved.active) ? saved.active : DEFAULT_ACTIVITY_STATE.active,

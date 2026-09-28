@@ -131,7 +131,15 @@ export type { ConnectionState } from '@rtc-agent/client';
  * Used by `RtcAgentConfig.window` and `RtcAgentConfig.activityBar`.
  */
 export type { WindowConfig } from './types/window-config.js';
-export type { ActivityBarConfig } from './types/activity-bar-config.js';
+export type {
+    ActivityBarConfig,
+    Activity,
+    ResolvedActivityBarConfig,
+} from './types/activity-bar-config.js';
+export {
+    DEFAULT_ACTIVITY_BAR_CONFIG,
+    resolveActivityBarConfig,
+} from './types/activity-bar-config.js';
 
 // ===== Skill System (Advanced API) =====
 
@@ -186,3 +194,17 @@ export type {
     ValidationError,
     ValidationResult,
 } from './validation/index.js';
+
+// ===== Function Debugger Types =====
+
+export type {
+    LogLevel,
+    LogEntry,
+    ExecutionStatus,
+    DebugHistoryItem,
+    FunctionDebugState,
+} from './types/functions-debug.js';
+export {
+    DEBUG_HISTORY_STORAGE_KEY,
+    MAX_HISTORY_ITEMS,
+} from './types/functions-debug.js';
