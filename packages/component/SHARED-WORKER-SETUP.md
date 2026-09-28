@@ -109,21 +109,15 @@ Vite 开发服务器会自动处理文件变化，无需特殊配置。
 # 创建目标目录
 mkdir -p public/rtc-agent
 
-# 复制 worker 文件
-cp node_modules/@rtc-agent/component/dist/assets/shared-worker*.js public/rtc-agent/
-
-# 创建稳定链接
-cd public/rtc-agent
-ln -sf shared-worker-*.js shared-worker.js
+# 查找带 hash 的 worker 文件并重命名复制
+cp node_modules/@rtc-agent/component/dist/assets/shared-worker-*.js public/rtc-agent/shared-worker.js
 ```
 
 ### Webpack
 
 ```bash
 mkdir -p static/rtc-agent
-cp node_modules/@rtc-agent/component/dist/assets/shared-worker*.js static/rtc-agent/
-cd static/rtc-agent
-ln -sf shared-worker-*.js shared-worker.js
+cp node_modules/@rtc-agent/component/dist/assets/shared-worker-*.js static/rtc-agent/shared-worker.js
 ```
 
 ### Windows 用户
@@ -137,7 +131,7 @@ pnpm add -D copyfiles
 ```json
 {
   "scripts": {
-    "postinstall": "copyfiles -f \"node_modules/@rtc-agent/component/dist/assets/shared-worker*.js\" public/rtc-agent/"
+    "postinstall": "copyfiles -f \"node_modules/@rtc-agent/component/dist/assets/shared-worker-*.js\" public/rtc-agent/"
   }
 }
 ```
@@ -163,17 +157,18 @@ pnpm add -D copyfiles
 ```
 public/
 └── rtc-agent/
-    ├── shared-worker-<hash>.js    # 原始 worker 文件
-    ├── shared-worker.js           # 稳定链接（指向带 hash 的文件）
+    ├── shared-worker.js           # 稳定文件名（从带 hash 的源文件重命名复制）
     └── manifest.json              # 版本信息
 ```
+
+> 💡 CLI 工具会自动清理旧版本的 `shared-worker-*.js` 文件，防止文件堆积。
 
 ## manifest.json 格式
 
 ```json
 {
-  "version": "0.1.0",
-  "workerFile": "shared-worker-DNuUtKfr.js",
+  "version": "0.2.7-rc.3",
+  "workerFile": "shared-worker.js",
   "stableWorkerUrl": "/rtc-agent/shared-worker.js",
   "timestamp": "2026-09-26T07:51:39.539Z"
 }
@@ -199,21 +194,14 @@ public/
 2. 清除浏览器缓存（硬刷新）
 3. 确认 manifest.json 版本号已更新
 
-### 问题：Windows 下符号链接失败
-
-**症状**：`ln -sf` 命令失败
-
-**解决**：
-使用 `copyfiles` 或直接复制文件，不使用符号链接。
-
 ## 技术细节
 
-### 为什么需要稳定文件名？
+### 为什么使用稳定文件名？
 
 - 原始 worker 文件名包含 hash（如 `shared-worker-DNuUtKfr.js`）
 - 每次构建 hash 都会变化
-- 使用稳定文件名 `shared-worker.js` 简化配置
-- 通过 manifest.json 追踪实际文件名
+- CLI 工具将带 hash 的文件复制为 `shared-worker.js`，简化配置
+- 升级时 CLI 工具会自动清理旧版本文件
 
 ### 为什么不使用 Blob URL？
 
