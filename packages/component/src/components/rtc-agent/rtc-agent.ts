@@ -1747,6 +1747,22 @@ export class RtcAgent extends LitElement {
     /* ── Render ── */
 
     /**
+     * Load DOMPurify with retry logic for stale chunk errors during development.
+     */
+    private async _loadDOMPurify(attempts = 2): Promise<typeof import('dompurify').default> {
+        try {
+            const {default: DOMPurify} = await import('dompurify');
+            return DOMPurify;
+        } catch (err) {
+            if (attempts > 0) {
+                console.warn('[rtc-agent] DOMPurify load failed, retrying...', err);
+                return this._loadDOMPurify(attempts - 1);
+            }
+            throw err;
+        }
+    }
+
+    /**
      * Sanitize and render bubble icon content.
      *
      * Uses DOMPurify (already loaded by rtc-message for Markdown) to strip
@@ -1755,7 +1771,7 @@ export class RtcAgent extends LitElement {
      */
     private async _sanitizeBubbleIcon(raw: string): Promise<string> {
         try {
-            const {default: DOMPurify} = await import('dompurify');
+            const DOMPurify = await this._loadDOMPurify();
             return DOMPurify.sanitize(raw, {ALLOWED_TAGS: ['svg', 'path', 'g', 'circle', 'rect', 'line', 'polyline', 'polygon', 'text', 'use'], ALLOWED_ATTR: ['viewBox', 'd', 'xmlns', 'fill', 'stroke', 'stroke-width', 'class', 'width', 'height', 'transform', 'cx', 'cy', 'r', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'points', 'dx', 'dy', 'text-anchor', 'font-size', 'href']});
         } catch {
             // DOMPurify not available — strip all tags as a safe fallback
