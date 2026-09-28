@@ -483,42 +483,28 @@ export class AuthController implements ReactiveController {
     async handleTokenExpired(): Promise<TokenExpiredAction> {
         // Auth provider mode (Mode 3): delegate refresh to the provider
         if (this._authProvider) {
-            if (this._refreshing) {
-                const success = await this._refreshing;
-                return success ? 'refresh' : 'relogin';
-            }
-
-            this._refreshing = this._doRefresh();
-            try {
-                const success = await this._refreshing;
-                return success ? 'refresh' : 'relogin';
-            } finally {
-                this._refreshing = undefined;
-            }
+            return this._executeRefreshWithGuard();
         }
 
         // Dynamic token mode: delegate refresh to the provider
         if (this._dynamicTokenProvider?.refreshToken) {
-            if (this._refreshing) {
-                const success = await this._refreshing;
-                return success ? 'refresh' : 'relogin';
-            }
-
-            this._refreshing = this._doRefresh();
-            try {
-                const success = await this._refreshing;
-                return success ? 'refresh' : 'relogin';
-            } finally {
-                this._refreshing = undefined;
-            }
+            return this._executeRefreshWithGuard();
         }
 
+        // Static token mode: use refreshToken from state
         if (!this._state.refreshToken) {
             this._logout();
             return 'relogin';
         }
 
-        // Guard: if a refresh is already in-flight, wait for it instead of racing.
+        return this._executeRefreshWithGuard();
+    }
+
+    /**
+     * Execute refresh with concurrency guard to prevent race conditions.
+     * If a refresh is already in-flight, wait for it; otherwise start a new one.
+     */
+    private async _executeRefreshWithGuard(): Promise<TokenExpiredAction> {
         if (this._refreshing) {
             const success = await this._refreshing;
             return success ? 'refresh' : 'relogin';
