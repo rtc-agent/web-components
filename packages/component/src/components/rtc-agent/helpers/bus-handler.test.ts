@@ -468,3 +468,83 @@ describe('handleBusEvent - Fix 45: Session close evicts message cache', () => {
         });
     });
 });
+
+describe('handleBusEvent - Turn events', () => {
+    const createDeps = () => {
+        const mockRefreshTurnCounts = vi.fn().mockResolvedValue(undefined);
+        return {
+            message: {
+                updateMessageFromBus: vi.fn().mockResolvedValue(undefined),
+                evictSession: vi.fn(),
+            },
+            session: {
+                value: { state: { sessions: [] } },
+            },
+            sessionTab: {
+                actions: {
+                    closeTab: vi.fn(),
+                    openOrActivate: vi.fn(),
+                    updateTabStatus: vi.fn(),
+                },
+            },
+            sessionTree: {},
+            persistence: {
+                layer: undefined,
+                masterLock: undefined,
+            },
+            getRtcProcessor: () => undefined,
+            sessionLoader: new DebouncedSessionLoader(vi.fn(), 50),
+            refreshTurnCounts: mockRefreshTurnCounts,
+            handleFileChange: vi.fn().mockResolvedValue(undefined),
+            log: {
+                debug: vi.fn(),
+                info: vi.fn(),
+                warn: vi.fn(),
+                error: vi.fn(),
+            },
+            _mockRefreshTurnCounts: mockRefreshTurnCounts,
+        };
+    };
+
+    it('should call refreshTurnCounts when turn entity is created', () => {
+        const deps = createDeps();
+        const event: UIUpdateEvent = {
+            entity: 'turn',
+            entityId: 'turn-1',
+            action: 'created',
+        };
+
+        handleBusEvent(event, deps);
+
+        expect(deps._mockRefreshTurnCounts).toHaveBeenCalledTimes(1);
+    });
+
+    it('should call refreshTurnCounts when turn entity is updated', () => {
+        const deps = createDeps();
+        const event: UIUpdateEvent = {
+            entity: 'turn',
+            entityId: 'turn-1',
+            field: 'status',
+            action: 'updated',
+            oldValue: 'pending',
+            newValue: 'running',
+        };
+
+        handleBusEvent(event, deps);
+
+        expect(deps._mockRefreshTurnCounts).toHaveBeenCalledTimes(1);
+    });
+
+    it('should call refreshTurnCounts when turn entity is deleted', () => {
+        const deps = createDeps();
+        const event: UIUpdateEvent = {
+            entity: 'turn',
+            entityId: 'turn-1',
+            action: 'deleted',
+        };
+
+        handleBusEvent(event, deps);
+
+        expect(deps._mockRefreshTurnCounts).toHaveBeenCalledTimes(1);
+    });
+});

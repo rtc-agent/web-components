@@ -385,6 +385,7 @@ export class EntityRepository {
       }
 
       if (!options?.silent) {
+        log.debug('[EntityRepository] Emitting turn UI update:', action, result.after.client_id, 'session:', result.after.session_client_id);
         emitUIUpdates('turn', action, result.after.client_id, result.before as unknown as Record<string, unknown> | undefined, result.after as unknown as Record<string, unknown>);
       }
       return result;
@@ -1489,6 +1490,8 @@ export class EntityRepository {
     const entityTypes = ['sessions', 'turns', 'messages', 'rtcs'] as const;
     const typeNames = ['session', 'turn', 'message', 'rtc'] as const;
 
+    log.debug('[EntityRepository] emitBatchUIUpdates: sessions:', merged.sessions.length, 'turns:', merged.turns.length, 'messages:', merged.messages.length, 'rtcs:', merged.rtcs.length);
+
     // 1. Emit upsert UI updates
     for (let idx = 0; idx < entityTypes.length; idx++) {
       const entities = merged[entityTypes[idx]];
@@ -1499,6 +1502,9 @@ export class EntityRepository {
         const key = `${typeName}:${clientId}`;
         const oldRecord = before.get(key);
         const action = oldRecord ? 'updated' : 'created';
+        if (typeName === 'turn') {
+          log.debug('[EntityRepository] Emitting batch turn UI update:', action, clientId, 'session:', (record as any).session_client_id);
+        }
         emitUIUpdates(
           typeName,
           action,

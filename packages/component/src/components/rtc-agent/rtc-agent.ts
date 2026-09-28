@@ -1971,15 +1971,18 @@ export class RtcAgent extends LitElement {
     private async _refreshTurnCounts() {
         const currentId = this._session.value.state.currentSessionId;
         if (!currentId || !this._persistence.layer) {
+            log.debug('[TurnCount] Resetting to default (no session or persistence not ready)');
             this._turnCountProvider.setValue(DEFAULT_TURN_COUNT);
             return;
         }
         try {
             const session = await this._persistence.layer.getSession(currentId);
             if (!session) {
+                log.debug('[TurnCount] Session not found in persistence, resetting to default');
                 this._turnCountProvider.setValue(DEFAULT_TURN_COUNT);
                 return;
             }
+            log.debug('[TurnCount] Refreshing for session', currentId, 'pending:', session.pending_turn_count, 'running:', session.running_turn_count);
             this._turnCountProvider.setValue({
                 pendingTurnCount: session.pending_turn_count,
                 runningTurnCount: session.running_turn_count,

@@ -203,6 +203,13 @@ export function handleBusEvent(
         void handleFileChange(event.entityId, event.field ?? '');
         return;
     }
+
+    if (event.entity === 'turn') {
+        // Turn created/updated/deleted: refresh turn counts for send/stop button state.
+        log.debug('[BusHandler] Turn event received, refreshing turn counts:', event.entityId, event.action);
+        void refreshTurnCounts();
+        return;
+    }
 }
 
 /**
