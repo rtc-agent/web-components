@@ -56,7 +56,7 @@ import {customElement, property, state} from 'lit/decorators.js';
 import {ContextProvider} from '@lit/context';
 import {version} from '../../../package.json';
 import {styles} from './rtc-agent.styles.js';
-import type {WindowMode, ContentData, Activity} from '../../types/index.js';
+import type {WindowMode, Activity} from '../../types/index.js';
 
 // Styles
 import {tokens} from '../../styles/tokens.js';
@@ -101,6 +101,7 @@ import {SessionTreeController} from '../../controllers/session-tree.controller.j
 import {SessionTabController} from '../../controllers/session-tab.controller.js';
 import {SettingsController} from '../../controllers/settings.controller.js';
 import {NotificationController} from '../../controllers/notification.controller.js';
+import {EventBindingController} from '../../controllers/event-binding.controller.js';
 
 // Scenario loading
 import {setServerUrl, setRedirectUri} from '../../config/auth.js';
@@ -747,358 +748,8 @@ export class RtcAgent extends LitElement {
     /** Auto-save debounce timers per file */
     private _autoSaveTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
-    /** Bound event handlers (stored so we can remove them in disconnectedCallback). */
-    private _boundOnMinimize = () => this._windowState.actions.minimize();
-    private _boundOnMaximize = () => this._windowState.actions.maximize();
-    private _boundOnRestore = () => this._windowState.actions.restore();
-    private _boundOnLoginRequested = (event: Event) => this._handleLoginRequested(event);
-    private _boundOnNewSession = () => {
-        this._fork.actions.clearFork();
-        // Don't clear messages: _handleNewSession already created a new session via createSession()
-        // and switched currentSessionId; the message list has been emptied by reload()
-        // (new session has no messages). Only in the legacy scenario (sending after closing
-        // the last tab) would we need to clear, but currentSessionId would be null then.
-        if (!this._session.value.state.currentSessionId) {
-            this._message.actions.clearMessages();
-        }
-    };
-    private _boundOnLogout = () => {
-        // Clear auto-save timers.
-        for (const timer of this._autoSaveTimers.values()) {
-            clearTimeout(timer);
-        }
-        this._autoSaveTimers.clear();
-
-        // Reset state flags to ensure reload after re-login.
-        this._fileTreeLoaded = false;
-        this._initialSessionLoadDone = false;
-
-        // Reset UI state.
-        this._editorArea.actions.closeAll();
-        this._sessionTab.actions.clearAll();
-        this._activity.actions.setActivity('chat');
-
-        // Clean up existing state.
-        this._fork.actions.clearFork();
-        // FIX #61: Cancel any running processLoop before clearing reference.
-        // Prevents RTC tool execution from continuing after logout.
-        this._rtcProcessor?.cancel();
-        this._rtcProcessor = undefined;
-        // Unsubscribe connection state listener before disconnecting,
-        // so disconnect-triggered state changes don't fire on a torn-down bridge.
-        this._unsubConnection?.();
-        this._unsubConnection = undefined;
-        // Invalidate any in-flight connection attempt: bumping the generation counter
-        // causes the stale Promise's `finally` block to skip clearing `_connecting`,
-        // so a subsequent login can safely start a fresh attempt without the old
-        // Promise wiping out the new `_connecting` reference on resolution.
-        this._connectGeneration++;
-        this._connecting = undefined;
-        void this._persistence.disconnect();
-        this._session.actions.reset();
-        this._message.actions.clearMessages();
-    };
-    private _boundOnInputSubmit = async (e: Event) => {
-        const detail = (e as CustomEvent).detail;
-        // Use contentData directly from rtc-input-area.
-        // ContentData shape: { type: string, data: unknown }. For text messages, data is a string.
-        const contentData: ContentData = detail.contentData;
-
-        // Apply beforeMessageSend interception (async-aware, supports cancellation).
-        // Extract the text content from ContentData and expose a simplified interface
-        // { content: string; metadata?: Record<string, unknown> } to the callback.
-        const extractText = (data: unknown): string =>
-            typeof data === 'string' ? data : '';
-        const currentText = extractText(contentData.data);
-        const messageDetail = {
-            message: {
-                content: currentText,
-                metadata: undefined as Record<string, unknown> | undefined,
-            },
-        };
-        const shouldSend = await this._beforeMessageSend(messageDetail);
-        if (!shouldSend) {
-            return;
-        }
-        // Apply potential in-place modifications from the callback back to ContentData.
-        if (messageDetail.message.content !== currentText) {
-            contentData.data = messageDetail.message.content;
-        }
-
-        try {
-            if (this._fork.isActive) {
-                // Fork mode: call forkSession.
-                await this._fork.actions.submitFork(contentData);
-            } else {
-                // Normal mode: call sendMessage.
-                await this._message.actions.sendMessage(contentData);
-            }
-
-            // After successful send, promote the current unsaved tab to saved.
-            const currentId = this._session.value.state.currentSessionId;
-            if (currentId) {
-                this._sessionTab.actions.markSaved(currentId);
-            }
-        } catch (err) {
-            log.error('message submit failed:', err);
-        }
-    };
-    private _boundOnForkInitiated = (e: Event) => {
-        const {oldSessionClientId, oldMessageClientId, newSessionClientId, content} =
-            (e as CustomEvent).detail;
-        this._fork.actions.requestFork(
-            oldSessionClientId, oldMessageClientId, newSessionClientId, content
-        );
-    };
-    private _boundOnKeydown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape' && this._fork.isActive) {
-            this._fork.actions.clearFork();
-            // Dispatch event for chat-layout to listen and clear input box (event-driven, avoids cross-shadow-DOM queries)
-            this.dispatchEvent(new CustomEvent('rtc-clear-active-input'));
-            return;
-        }
-
-        // Global shortcuts (only active in files mode).
-        if (this._activity.active !== 'files') return;
-        const mod = e.metaKey || e.ctrlKey;
-        if (!mod) return;
-
-        if (e.key === 's' || e.key === 'S') {
-            // Ctrl/Cmd+S: save current file.
-            const activePath = this._editorArea.state.activeFilePath;
-            if (activePath) {
-                e.preventDefault();
-                void this._handleEditorSave(activePath);
-            }
-        } else if (e.key === 'w' || e.key === 'W') {
-            // Ctrl/Cmd+W: close current tab.
-            const activePath = this._editorArea.state.activeFilePath;
-            if (activePath) {
-                e.preventDefault();
-                this._editorArea.actions.closeFile(activePath);
-            }
-        }
-    };
-    private _boundOnStopRequested = (e: Event) => {
-        const detail = (e as CustomEvent).detail;
-        if (this._persistence.layer) {
-            void this._persistence.layer.stopTurn(detail.sessionClientId);
-        }
-    };
-    private _boundOnResendMessage = (e: Event) => {
-        const detail = (e as CustomEvent).detail;
-        const message = detail.message;
-        if (message?.clientId && message?.content) {
-            void this._message.actions.resendMessage(message.clientId, message.content);
-        }
-    };
-    private _boundOnSessionDeleteRequested = async (e: Event) => {
-        const {sessionId} = (e as CustomEvent).detail;
-        log.debug('session delete requested:', sessionId);
-
-        const result = await this._session.actions.deleteSession(sessionId);
-        if (result.ok) {
-            this._toast.actions.show(msg('会话已删除'), 'success');
-        } else {
-            // Map error codes to localized messages in reactive context
-            const errorMap: Record<string, string> = {
-                'delete-failed': msg('删除失败，请稍后重试'),
-            };
-            this._toast.actions.show(errorMap[result.error ?? ''] ?? result.error ?? msg('删除失败'), 'error');
-        }
-    };
-    private _boundOnSessionRenameConfirmed = async (e: Event) => {
-        const {sessionId, title} = (e as CustomEvent).detail;
-        // Inline edit confirmed — call renameSession directly.
-        if (!title.trim()) return;
-        const result = await this._session.actions.renameSession(sessionId, title.trim());
-        if (!result.ok) {
-            // Map error codes to localized messages in reactive context
-            const errorMap: Record<string, string> = {
-                'rename-failed': msg('重命名失败，请稍后重试'),
-            };
-            this._toast.actions.show(errorMap[result.error ?? ''] ?? result.error ?? msg('重命名失败'), 'error');
-        }
-    };
-    private _boundOnToastRequested = (e: Event) => {
-        const detail = (e as CustomEvent).detail;
-        this._toast.actions.show(detail.message, detail.type);
-    };
-    private _boundOnToastClose = (e: Event) => {
-        const detail = (e as CustomEvent).detail;
-        this._toast.actions.remove(detail.id);
-    };
-    private _boundOnCommandRequested = (e: Event) => {
-        const detail = (e as CustomEvent).detail as { name: string; args?: string };
-        void this._handleCommand(detail.name, detail.args);
-    };
-    private _boundOnActivityChange = (e: Event) => {
-        const {activity, toggleSidebar} = (e as CustomEvent).detail as {
-            activity: Activity;
-            toggleSidebar: boolean;
-        };
-        if (toggleSidebar) {
-            // Clicked current activity -> toggle sidebar.
-            this._activity.actions.toggleSidebar();
-        } else {
-            // Switch to a different activity.
-            this._activity.actions.setActivity(activity);
-            // When entering settings mode, auto-open the sidebar.
-            if (activity === 'settings') {
-                this._activity.actions.showSidebar();
-            }
-            // Load file tree on first entry to files activity.
-            if (activity === 'files' && !this._fileTreeLoaded && this._persistence.isConnected) {
-                void this._loadFileTree();
-            }
-        }
-    };
-    private _boundOnFileSelect = (e: Event) => {
-        const {path} = (e as CustomEvent).detail as {path: string};
-        void this._handleFileOpen(path);
-    };
-    private _boundOnFolderToggle = (e: Event) => {
-        const {path} = (e as CustomEvent).detail as {path: string};
-        // If expanded and children not yet loaded, trigger lazy load.
-        // Note: toggleNode is already called in file-tree-item; not called here to avoid duplication.
-        if (this._fileExplorer.value.isExpanded(path)) {
-            log.debug('_boundOnFolderToggle: loading children for', path);
-            void this._loadFolderChildren(path);
-        }
-    };
-    private _boundOnEditorAreaSave = (e: Event) => {
-        const {filePath} = (e as CustomEvent).detail as {filePath: string};
-        void this._handleEditorSave(filePath);
-    };
-    private _boundOnEditorAreaTabClose = (e: Event) => {
-        const {filePath} = (e as CustomEvent).detail as {filePath: string};
-        // Clear auto-save timer if exists
-        const timer = this._autoSaveTimers.get(filePath);
-        if (timer) {
-            clearTimeout(timer);
-            this._autoSaveTimers.delete(filePath);
-        }
-        this._editorArea.actions.closeFile(filePath);
-    };
-    private _boundOnEditorAreaTabSelect = (e: Event) => {
-        const {filePath} = (e as CustomEvent).detail as {filePath: string};
-        this._editorArea.actions.switchTab(filePath);
-    };
-    private _boundOnEditorAreaContentChange = (e: Event) => {
-        const {filePath, content} = (e as CustomEvent).detail as {filePath: string; content: string};
-        this._editorArea.actions.updateContent(filePath, content);
-
-        // Auto-save if enabled
-        if (this._settings.value.state.files.autoSave) {
-            this._scheduleAutoSave(filePath);
-        }
-    };
-    private _boundOnEditorAreaViewModeChange = (e: Event) => {
-        const {filePath, viewMode} = (e as CustomEvent).detail as {filePath: string; viewMode: 'edit' | 'preview' | 'split'};
-        this._editorArea.actions.setViewMode(filePath, viewMode);
-    };
-    private _boundOnEditorAreaCursorMove = (e: Event) => {
-        const position = (e as CustomEvent).detail as {line: number; column: number};
-        const filePath = this._editorArea.activeFilePath;
-        if (filePath) {
-            this._editorArea.actions.setCursorPosition(filePath, position);
-        }
-    };
-    private _boundOnEditorAreaRestoreDefault = async (e: Event) => {
-        const {filePath} = (e as CustomEvent).detail as {filePath: string};
-
-        // Show confirmation dialog
-        const confirmed = await showRestoreConfirmDialog(filePath, this.shadowRoot!);
-        if (!confirmed) return;
-
-        // Perform restore
-        const result = await vfsHandleRestoreDefault(filePath, {
-            persistence: this._persistence,
-            editorArea: this._editorArea,
-            skill: this._skill,
-            scenariosURL: this._scenariosURL,
-            toast: this._toast.actions,
-            logger: log,
-        });
-
-        if (result.success) {
-            this._toast.actions.show(msg('已恢复默认内容'), 'success');
-        } else {
-            this._toast.actions.show(result.error ?? msg('恢复失败'), 'error');
-        }
-    };
-    private _boundOnFileExplorerRefresh = () => {
-        void this._loadFileTree();
-    };
-    private _boundOnChatLayoutSessionSelect = (e: Event) => {
-        // ChatLayout internally already calls switchSession; this is just a log/extension point.
-        const {sessionId} = (e as CustomEvent).detail as {sessionId: string};
-        log.debug('chat-layout session selected:', sessionId);
-    };
-    private _boundOnChatLayoutTabActivate = (e: Event) => {
-        const {sessionId} = (e as CustomEvent).detail as {sessionId: string};
-        log.debug('chat-layout tab activated:', sessionId);
-    };
-    private _boundOnChatLayoutTabClose = (e: Event) => {
-        const {sessionId} = (e as CustomEvent).detail as {sessionId: string};
-        log.debug('chat-layout tab closed:', sessionId);
-    };
-    private _boundOnDrawerClose = () => {
-        this._activity.actions.hideSidebar();
-    };
-
-    /**
-     * Wheel event handler to prevent scroll chaining to host page.
-     *
-     * When a scrollable container inside the shadow DOM reaches its boundary
-     * (top/bottom for vertical, left/right for horizontal), continuing to scroll
-     * would propagate the wheel event to the host page, causing it to scroll.
-     * This handler:
-     * 1. If a scrollable parent exists and is at its boundary, prevents propagation
-     * 2. If no scrollable parent exists, always prevents propagation (wheel events
-     *    inside the component should never affect the host page)
-     *
-     * Supports both vertical and horizontal scroll containers.
-     */
-    private _boundOnWheel = (e: WheelEvent) => {
-        const rawTarget = e.composedPath()[0];
-        // Guard: composedPath()[0] may be a Text node (e.g. wheel over plain text);
-        // getComputedStyle requires an Element — skip non-Element targets.
-        const target = rawTarget instanceof Element ? rawTarget : null;
-        const scrollable = target ? this._findScrollableParent(target) : null;
-
-        // No scrollable container found — prevent all wheel events from reaching host page
-        if (!scrollable) {
-            e.preventDefault();
-            e.stopPropagation();
-            return;
-        }
-
-        const {scrollTop, scrollHeight, clientHeight, scrollLeft, scrollWidth, clientWidth} = scrollable;
-
-        // ── Vertical axis ──
-        const atTop = scrollTop <= 0;
-        const atBottom = Math.ceil(scrollTop + clientHeight) >= scrollHeight;
-        const scrollingUp = e.deltaY < 0;
-        const scrollingDown = e.deltaY > 0;
-        const isVertScrollable = scrollHeight > clientHeight;
-
-        // ── Horizontal axis ──
-        const atLeft = scrollLeft <= 0;
-        const atRight = Math.ceil(scrollLeft + clientWidth) >= scrollWidth;
-        const scrollingLeft = e.deltaX < 0 || (e.shiftKey && e.deltaY < 0);
-        const scrollingRight = e.deltaX > 0 || (e.shiftKey && e.deltaY > 0);
-        const isHorizScrollable = scrollWidth > clientWidth;
-
-        // If at boundary and continuing to scroll in that direction, prevent propagation
-        const atVerticalBoundary = isVertScrollable && ((atTop && scrollingUp) || (atBottom && scrollingDown));
-        const atHorizontalBoundary = isHorizScrollable && ((atLeft && scrollingLeft) || (atRight && scrollingRight));
-
-        if (atVerticalBoundary || atHorizontalBoundary) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-    };
+    /** Event binding controller (manages all DOM event listeners). */
+    private _eventBindings!: EventBindingController;
 
     /** UIUpdateBus unsubscribe reference (set in connectedCallback, cleared in disconnectedCallback). */
     private _busUnsubMessage?: () => void;
@@ -1274,73 +925,73 @@ export class RtcAgent extends LitElement {
             this._notification.persistence = this._persistence.layer;
         }
 
-        // Listen for window-control events from <rtc-title-bar> (composed + bubbling).
-        this.addEventListener('rtc-window-minimize', this._boundOnMinimize);
-        this.addEventListener('rtc-window-maximize', this._boundOnMaximize);
-        this.addEventListener('rtc-window-restore', this._boundOnRestore);
+        // Initialize EventBindingController with all dependencies
+        this._eventBindings = new EventBindingController(this, {
+            // Controllers
+            windowState: this._windowState,
+            auth: this._auth,
+            session: this._session,
+            message: this._message,
+            toolCall: this._toolCall,
+            interaction: this._interaction,
+            persistence: this._persistence,
+            skill: this._skill,
+            toast: this._toast,
+            fork: this._fork,
+            activity: this._activity,
+            fileExplorer: this._fileExplorer,
+            editorArea: this._editorArea,
+            statusBar: this._statusBar,
+            sessionTree: this._sessionTree,
+            sessionTab: this._sessionTab,
+            settings: this._settings,
+            notification: this._notification,
+            // State accessors
+            autoSaveTimers: this._autoSaveTimers,
+            getRtcProcessor: () => this._rtcProcessor,
+            setRtcProcessor: (v) => { this._rtcProcessor = v; },
+            getUnsubConnection: () => this._unsubConnection,
+            setUnsubConnection: (v) => { this._unsubConnection = v; },
+            getConnectGeneration: () => this._connectGeneration,
+            bumpConnectGeneration: () => { this._connectGeneration++; },
+            getConnecting: () => this._connecting,
+            setConnecting: (v) => { this._connecting = v; },
+            // File tree state
+            fileTreeLoaded: () => this._fileTreeLoaded,
+            setFileTreeLoaded: (v) => { this._fileTreeLoaded = v; },
+            initialSessionLoadDone: () => this._initialSessionLoadDone,
+            setInitialSessionLoadDone: (v) => { this._initialSessionLoadDone = v; },
+            // Callbacks
+            loadFileTree: () => this._loadFileTree(),
+            loadFolderChildren: (path) => this._loadFolderChildren(path),
+            handleFileOpen: (path) => this._handleFileOpen(path),
+            handleEditorSave: (path) => this._handleEditorSave(path),
+            handleRestoreDefault: async (path) => {
+                const result = await vfsHandleRestoreDefault(path, {
+                    persistence: this._persistence,
+                    editorArea: this._editorArea,
+                    skill: this._skill,
+                    scenariosURL: this._scenariosURL,
+                    toast: this._toast.actions,
+                    logger: log,
+                });
+                return result;
+            },
+            loadSessions: () => this._loadSessions(),
+            handleCommand: (name, args) => this._handleCommand(name, args),
+            beforeMessageSend: (detail) => this._beforeMessageSend(detail),
+            showRestoreConfirmDialog: (path, root) => showRestoreConfirmDialog(path, root),
+            handleLoginRequested: (event) => this._handleLoginRequested(event),
+            dispatchClearActiveInput: () => this.dispatchEvent(new CustomEvent('rtc-clear-active-input')),
+            getShadowRoot: () => this.shadowRoot!,
+            findScrollableParent: (el) => this._findScrollableParent(el),
+            scheduleAutoSave: (filePath) => this._scheduleAutoSave(filePath),
+            // Logger
+            log,
+        });
 
-        // Listen for login requested (from login page button click)
-        this.addEventListener('rtc-login-requested', this._boundOnLoginRequested);
-
-        // Listen for new session requested (reset to initial state)
-        this.addEventListener('rtc-new-session', this._boundOnNewSession);
-
-        // Listen for logout (from AuthController when refresh fails or user logs out)
-        this.addEventListener('rtc-auth-logout', this._boundOnLogout);
-
-        // Listen for input submit (from input area send action)
-        this.addEventListener('rtc-input-submit', this._boundOnInputSubmit);
-
-        // Listen for stop requested (from input area stop button)
-        this.addEventListener('rtc-stop-requested', this._boundOnStopRequested);
-
-        // Listen for resend message (from user message resend button)
-        this.addEventListener('rtc-user-message-resend', this._boundOnResendMessage);
-
-        // Listen for session delete requests (from sidebar or session panel)
-        this.addEventListener('rtc-session-delete-requested', this._boundOnSessionDeleteRequested);
-        // Listen for inline rename confirmation (from session tree item or session panel)
-        this.addEventListener('rtc-session-rename-confirmed', this._boundOnSessionRenameConfirmed);
-
-        // Listen for fork initiated (from chat-layout after unsaved tab orchestration)
-        this.addEventListener('rtc-fork-initiated', this._boundOnForkInitiated);
-
-        // Listen for toast requested (from various components)
-        this.addEventListener('rtc-toast-requested', this._boundOnToastRequested);
-
-        // Listen for toast close (from toast component)
-        this.addEventListener('rtc-toast-close', this._boundOnToastClose);
-
-        // Listen for command requested (from input area slash commands)
-        this.addEventListener('rtc-command-requested', this._boundOnCommandRequested);
-
-        // Listen for VS Code-style layout events (Phase 3).
-        this.addEventListener('activity-change', this._boundOnActivityChange);
-        this.addEventListener('file-select', this._boundOnFileSelect);
-        this.addEventListener('folder-toggle', this._boundOnFolderToggle);
-        this.addEventListener('editor-area-save', this._boundOnEditorAreaSave);
-        this.addEventListener('editor-area-tab-close', this._boundOnEditorAreaTabClose);
-        this.addEventListener('editor-area-tab-select', this._boundOnEditorAreaTabSelect);
-        this.addEventListener('editor-area-content-change', this._boundOnEditorAreaContentChange);
-        this.addEventListener('editor-area-view-mode-change', this._boundOnEditorAreaViewModeChange);
-        this.addEventListener('editor-area-cursor-move', this._boundOnEditorAreaCursorMove);
-        this.addEventListener('editor-area-restore-default', this._boundOnEditorAreaRestoreDefault);
-        this.addEventListener('refresh-requested', this._boundOnFileExplorerRefresh);
-
-        // Chat Layout events.
-        this.addEventListener('rtc-chat-layout-session-select', this._boundOnChatLayoutSessionSelect);
-        this.addEventListener('rtc-chat-layout-tab-activate', this._boundOnChatLayoutTabActivate);
-        this.addEventListener('rtc-chat-layout-tab-close', this._boundOnChatLayoutTabClose);
-
-        // Drawer close event (from any rtc-drawer in child components).
-        this.addEventListener('rtc-drawer-close', this._boundOnDrawerClose);
-
-        // Listen for Escape key to cancel fork mode
-        this.addEventListener('keydown', this._boundOnKeydown);
-
-        // Prevent scroll chaining: when inner scrollable reaches boundary,
-        // don't propagate wheel event to host page
-        this.addEventListener('wheel', this._boundOnWheel, {passive: false});
+        // Bind all DOM event listeners via EventBindingController
+        this._eventBindings.bindEvents(this);
 
         // Subscribe to UIUpdateBus for persistence-driven UI refreshes (delegated to bus-handler).
         const bus = getUIUpdateBus();
@@ -1591,7 +1242,7 @@ export class RtcAgent extends LitElement {
      * Performs comprehensive cleanup of all resources registered in connectedCallback():
      * 1. Dispatch 'rtc-before-destroy' event (for external listeners)
      * 2. Clear async hooks (_beforeMessageSendHook) to release captured closures
-     * 3. Remove all DOM event listeners (mirrors connectedCallback's addEventListener calls)
+     * 3. Remove all DOM event listeners via EventBindingController.unbindEvents()
      * 4. Unsubscribe all UIUpdateBus listeners (message, bulk update, gap fill)
      * 5. Release RTC processor and connection state references
      * 6. Clear auth onLogin callback (prevents closure leak to _connectWithRetry)
@@ -1614,38 +1265,9 @@ export class RtcAgent extends LitElement {
         this._beforeMessageSendHook = undefined;
 
         super.disconnectedCallback();
-        this.removeEventListener('rtc-window-minimize', this._boundOnMinimize);
-        this.removeEventListener('rtc-window-maximize', this._boundOnMaximize);
-        this.removeEventListener('rtc-window-restore', this._boundOnRestore);
-        this.removeEventListener('rtc-login-requested', this._boundOnLoginRequested);
-        this.removeEventListener('rtc-new-session', this._boundOnNewSession);
-        this.removeEventListener('rtc-auth-logout', this._boundOnLogout);
-        this.removeEventListener('rtc-input-submit', this._boundOnInputSubmit);
-        this.removeEventListener('rtc-stop-requested', this._boundOnStopRequested);
-        this.removeEventListener('rtc-user-message-resend', this._boundOnResendMessage);
-        this.removeEventListener('rtc-fork-initiated', this._boundOnForkInitiated);
-        this.removeEventListener('rtc-session-delete-requested', this._boundOnSessionDeleteRequested);
-        this.removeEventListener('rtc-session-rename-confirmed', this._boundOnSessionRenameConfirmed);
-        this.removeEventListener('rtc-toast-requested', this._boundOnToastRequested);
-        this.removeEventListener('rtc-toast-close', this._boundOnToastClose);
-        this.removeEventListener('rtc-command-requested', this._boundOnCommandRequested);
-        this.removeEventListener('activity-change', this._boundOnActivityChange);
-        this.removeEventListener('file-select', this._boundOnFileSelect);
-        this.removeEventListener('folder-toggle', this._boundOnFolderToggle);
-        this.removeEventListener('editor-area-save', this._boundOnEditorAreaSave);
-        this.removeEventListener('editor-area-tab-close', this._boundOnEditorAreaTabClose);
-        this.removeEventListener('editor-area-tab-select', this._boundOnEditorAreaTabSelect);
-        this.removeEventListener('editor-area-content-change', this._boundOnEditorAreaContentChange);
-        this.removeEventListener('editor-area-view-mode-change', this._boundOnEditorAreaViewModeChange);
-        this.removeEventListener('editor-area-cursor-move', this._boundOnEditorAreaCursorMove);
-        this.removeEventListener('editor-area-restore-default', this._boundOnEditorAreaRestoreDefault);
-        this.removeEventListener('refresh-requested', this._boundOnFileExplorerRefresh);
-        this.removeEventListener('rtc-chat-layout-session-select', this._boundOnChatLayoutSessionSelect);
-        this.removeEventListener('rtc-chat-layout-tab-activate', this._boundOnChatLayoutTabActivate);
-        this.removeEventListener('rtc-chat-layout-tab-close', this._boundOnChatLayoutTabClose);
-        this.removeEventListener('rtc-drawer-close', this._boundOnDrawerClose);
-        this.removeEventListener('keydown', this._boundOnKeydown);
-        this.removeEventListener('wheel', this._boundOnWheel);
+        // Unbind all DOM event listeners via EventBindingController
+        // (also called automatically by hostDisconnected, but explicit for clarity)
+        this._eventBindings?.unbindEvents(this);
         this._busUnsubMessage?.();
         this._busUnsubBulkUpdate?.();
         this._busUnsubGapFill?.();

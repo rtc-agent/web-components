@@ -1601,10 +1601,17 @@ export class EntityRepository {
             },
             'synced', // default, ignored due to preserveSyncStatus
             {
-              silent: true, // upsertTurn already emitted UI updates for this turn
+              silent: true, // We'll emit turn count events manually below
               preserveSyncStatus: true, // don't overwrite sync_status with stale value
             }
           );
+
+          // After turn count is persisted, emit session field events so UI layer
+          // can refresh turn counts with the latest values (avoids stale reads).
+          emitUIUpdates('session', 'updated', sessionClientId, {}, {
+            pending_turn_count: pending,
+            running_turn_count: running,
+          });
         }
         break;
       }
