@@ -76,6 +76,20 @@ function validateNumberParam(params: ToolParams, name: string): number | null {
   throw new TypeError(`Parameter '${name}' must be a number, got ${typeof value}`);
 }
 
+/**
+ * Try to parse a string as JSON. If successful, return the parsed object;
+ * otherwise return the original string. Used to avoid double-serialization
+ * when Agent code does `console.log(JSON.stringify(obj))`.
+ */
+function tryParseJsonString(value: string): unknown {
+  if (typeof value !== 'string') return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
 /** write tool mode whitelist (MD4) */
 const VALID_WRITE_MODES = ['overwrite', 'append', 'create-new'] as const;
 type WriteMode = typeof VALID_WRITE_MODES[number];
@@ -454,9 +468,15 @@ export class ScriptTool implements Tool {
       if (result !== undefined) data.result = result;
       // Truncate console output (max 100 entries to prevent oversized data from bloating the database)
       const MAX_LOG_ENTRIES = 100;
-      if (output.logs.length > 0) data.logs = output.logs.slice(0, MAX_LOG_ENTRIES);
-      if (output.warns.length > 0) data.warnings = output.warns.slice(0, MAX_LOG_ENTRIES);
-      if (output.errors.length > 0) data.errors = output.errors.slice(0, MAX_LOG_ENTRIES);
+      if (output.logs.length > 0) {
+        data.logs = output.logs.slice(0, MAX_LOG_ENTRIES).map(tryParseJsonString);
+      }
+      if (output.warns.length > 0) {
+        data.warnings = output.warns.slice(0, MAX_LOG_ENTRIES).map(tryParseJsonString);
+      }
+      if (output.errors.length > 0) {
+        data.errors = output.errors.slice(0, MAX_LOG_ENTRIES).map(tryParseJsonString);
+      }
       data.duration_ms = durationMs;
 
       return {
