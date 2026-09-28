@@ -178,6 +178,7 @@ export {
     buildValidator,
     withValidation,
     zodToParams,
+    zodToOpenAPISchema,
     openApiToZod,
     withMeta,
 } from './validation/index.js';

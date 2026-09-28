@@ -709,9 +709,14 @@ export class RtcChatLayout extends LitElement {
 
             if (remainingTabs.length > 0) {
                 // Still have tabs: activate adjacent one
-                const closedIndex = this._tabCtx.state.tabs.findIndex(
+                let closedIndex = this._tabCtx.state.tabs.findIndex(
                     t => t.sessionId === sessionId
                 );
+                // closeTab() may have already removed the tab before this handler runs,
+                // so findIndex can return -1. Fall back to the end of remaining list.
+                if (closedIndex < 0) {
+                    closedIndex = remainingTabs.length;
+                }
                 const nextIndex = Math.min(closedIndex, remainingTabs.length - 1);
                 const nextSessionId = remainingTabs[nextIndex].sessionId;
                 this._sessionCtx.actions.switchSession(nextSessionId);

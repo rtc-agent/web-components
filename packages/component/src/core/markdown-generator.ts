@@ -6,7 +6,7 @@
  */
 
 import type { FunctionDef, FunctionGroupDef, RegistryConfig, OpenAPISchema, ParameterDef } from '../types/skill.js';
-import { zodToParams } from '../validation/zod-to-openapi.js';
+import { zodToParams, zodToOpenAPISchema } from '../validation/zod-to-openapi.js';
 import {createLogger} from '@rtc-agent/client';
 
 const log = createLogger('MarkdownGenerator');
@@ -145,6 +145,16 @@ export function generateFunctionMd(funcDef: FunctionDef, groupName?: string): st
     }
   }
 
+  // Get return schema: prefer zodSchema conversion, otherwise use schema
+  let returnSchema: OpenAPISchema | undefined = funcDef.returns?.schema;
+  if (funcDef.returns?.zodSchema && !returnSchema) {
+    try {
+      returnSchema = zodToOpenAPISchema(funcDef.returns.zodSchema);
+    } catch (err) {
+      log.warn(`Failed to convert returns.zodSchema to OpenAPI schema for ${funcDef.name}:`, err);
+    }
+  }
+
   // Parameters (using OpenAPI Schema format)
   if (parameters && parameters.length > 0) {
     md += `## Parameters\n\n`;
@@ -166,24 +176,40 @@ export function generateFunctionMd(funcDef: FunctionDef, groupName?: string): st
   // Returns (using OpenAPI Schema format)
   if (funcDef.returns) {
     md += `## Returns\n\n`;
-    const returnType = schemaToTypeString(funcDef.returns.schema);
-    md += `**Type:** ${returnType}\n\n`;
-    if (funcDef.returns.description || funcDef.returns.schema.description) {
-      md += `${funcDef.returns.description || funcDef.returns.schema.description}\n\n`;
-    }
 
-    // If it's an object type, expand properties
-    if (funcDef.returns.schema.type === 'object' && funcDef.returns.schema.properties) {
-      md += `| Field | Type | Description |\n`;
-      md += `|-------|------|-------------|\n`;
-      const requiredFields = (funcDef.returns.schema.required || []) as string[];
-      for (const [propName, propSchema] of Object.entries(funcDef.returns.schema.properties)) {
-        const propType = schemaToTypeString(propSchema);
-        const propDesc = propSchema.description || '';
-        const reqMark = requiredFields.includes(propName) ? ' *(required)*' : '';
-        md += `| ${propName} | ${propType} | ${propDesc}${reqMark} |\n`;
+    if (returnSchema) {
+      // For object types with properties, just show "object" since details are in the table
+      // For other types (including arrays), show the full type string
+      const isObjectWithProperties = returnSchema.type === 'object' && !!returnSchema.properties;
+      const returnType = isObjectWithProperties ? 'object' : schemaToTypeString(returnSchema);
+      md += `**Type:** ${returnType}\n\n`;
+      if (funcDef.returns.description || returnSchema.description) {
+        md += `${funcDef.returns.description || returnSchema.description}\n\n`;
       }
-      md += '\n';
+
+      // If it's an object type, expand properties recursively
+      if (returnSchema.type === 'object' && returnSchema.properties) {
+        md += `| Field | Type | Required | Description | Example |\n`;
+        md += `|-------|------|----------|-------------|---------|\n`;
+
+        const requiredFields = (returnSchema.required || []) as string[];
+        for (const [propName, propSchema] of Object.entries(returnSchema.properties)) {
+          const propRequired = requiredFields.includes(propName);
+          const rows = schemaToTableRows(
+            propSchema,
+            propName,
+            propRequired,
+            propSchema.description?.replaceAll('\n', '<br/>'),
+          );
+          md += rows.join('\n') + '\n';
+        }
+        md += '\n';
+      }
+    } else {
+      // No schema available, just show description
+      if (funcDef.returns.description) {
+        md += `${funcDef.returns.description}\n\n`;
+      }
     }
   }
 
@@ -191,6 +217,19 @@ export function generateFunctionMd(funcDef: FunctionDef, groupName?: string): st
   md += `## Example\n\n`;
   md += `**You must use the \`script\`tool to execute the script below.**\n\n`;
   md += '```javascript\n';
+
+  // Add JSDoc comment with return type
+  if (returnSchema) {
+    const returnTypeStr = schemaToTypeString(returnSchema);
+    const returnDesc = funcDef.returns?.description || returnSchema.description || '';
+    md += `/**\n`;
+    md += ` * @returns {${returnTypeStr}}`;
+    if (returnDesc) {
+      md += ` ${returnDesc}`;
+    }
+    md += `\n */\n`;
+  }
+
   if (groupName) {
     // Chain call example
     const funcName = funcDef.name.split('.')[1];

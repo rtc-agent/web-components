@@ -171,6 +171,19 @@ function extractFieldInfo(schema: ZodType): {
 }
 
 /**
+ * Convert Zod schema to OpenAPI Schema
+ *
+ * Supports all Zod types including nested objects and arrays.
+ * Compatible with Zod v3 and v4.
+ *
+ * @param schema Zod schema
+ * @returns OpenAPI Schema
+ */
+export function zodToOpenAPISchema(schema: ZodType): OpenAPISchema {
+  return zodFieldToOpenAPI(schema);
+}
+
+/**
  * Single Zod field to OpenAPI schema
  * Compatible with Zod v3 and v4
  */
@@ -257,6 +270,125 @@ function zodFieldToOpenAPI(schema: ZodType): OpenAPISchema {
         ...zodFieldToOpenAPI(def.innerType),
         default: typeof def.defaultValue === 'function' ? def.defaultValue() : def.defaultValue,
       };
+
+    case 'ZodObject':
+    case 'object': {
+      // Get shape: v3 is a function call, v4 is a direct object
+      const shapeEntries = typeof def.shape === 'function' ? def.shape() : def.shape;
+      if (!shapeEntries) return { type: 'object' };
+
+      const properties: Record<string, OpenAPISchema> = {};
+      const required: string[] = [];
+
+      for (const [key, fieldSchema] of Object.entries(shapeEntries)) {
+        const fieldOpenAPI = zodFieldToOpenAPI(fieldSchema as ZodType);
+        const fieldInfo = extractFieldInfo(fieldSchema as ZodType);
+
+        // Add description if available
+        if (fieldInfo.description && !fieldOpenAPI.description) {
+          fieldOpenAPI.description = fieldInfo.description;
+        }
+
+        properties[key] = fieldOpenAPI;
+
+        // Track required fields (not optional and no default)
+        if (!fieldInfo.isOptional) {
+          required.push(key);
+        }
+      }
+
+      const result: OpenAPISchema = {
+        type: 'object',
+        properties,
+      };
+
+      if (required.length > 0) {
+        result.required = required;
+      }
+
+      // Add description from .describe() if available
+      const description = def.description || (schema as any).description;
+      if (description) {
+        result.description = description;
+      }
+
+      return result;
+    }
+
+    case 'ZodVoid':
+    case 'void':
+      return { type: 'null' };
+
+    case 'ZodNull':
+    case 'null':
+      return { type: 'null' };
+
+    case 'ZodNullable':
+    case 'nullable': {
+      const innerSchema = zodFieldToOpenAPI(def.innerType);
+      // In OpenAPI 3.0, nullable is a property; in 3.1, use type array
+      // For compatibility, we'll use a simple approach
+      return { ...innerSchema, nullable: true };
+    }
+
+    case 'ZodRecord':
+    case 'record': {
+      // z.record(keyType, valueType) or z.record(valueType)
+      const valueType = def.valueType || def.type;
+      return {
+        type: 'object',
+        additionalProperties: valueType ? zodFieldToOpenAPI(valueType) : {},
+      };
+    }
+
+    case 'ZodAny':
+    case 'any':
+      return {};
+
+    case 'ZodUnknown':
+    case 'unknown':
+      return {};
+
+    case 'ZodLiteral':
+    case 'literal': {
+      const value = def.value;
+      const type = typeof value;
+      if (type === 'string') return { type: 'string', enum: [value] };
+      if (type === 'number') return { type: 'number', enum: [value] };
+      if (type === 'boolean') return { type: 'boolean', enum: [value] };
+      return { enum: [value] };
+    }
+
+    case 'ZodUnion':
+    case 'union':
+    case 'ZodDiscriminatedUnion':
+    case 'discriminatedUnion': {
+      // Convert union options to oneOf
+      const options = def.options || [];
+      if (options.length === 0) return {};
+      const oneOf = options.map((opt: ZodType) => zodFieldToOpenAPI(opt));
+      return { oneOf };
+    }
+
+    case 'ZodIntersection':
+    case 'intersection': {
+      // Convert intersection to allOf
+      const left = zodFieldToOpenAPI(def.left);
+      const right = zodFieldToOpenAPI(def.right);
+      return { allOf: [left, right] };
+    }
+
+    case 'ZodTuple':
+    case 'tuple': {
+      // Convert tuple to array with prefixItems (OpenAPI 3.1) or items (simplified)
+      const items = (def.items || []).map((item: ZodType) => zodFieldToOpenAPI(item));
+      return {
+        type: 'array',
+        items: items.length > 0 ? { oneOf: items } : {},
+        minItems: items.length,
+        maxItems: items.length,
+      };
+    }
 
     default:
       return {};

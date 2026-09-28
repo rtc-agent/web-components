@@ -131,5 +131,5 @@ export function withValidation<TParams extends ZodType, TResult>(
 // ── Exports ──────────────────────────────────────────
 
 export { z } from 'zod';
-export { zodToParams, withMeta } from './zod-to-openapi.js';
+export { zodToParams, zodToOpenAPISchema, withMeta } from './zod-to-openapi.js';
 export { openApiToZod } from './openapi-to-zod.js';

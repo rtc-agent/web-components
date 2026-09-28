@@ -48,13 +48,13 @@ export class CancelledError extends Error {
  */
 export interface OpenAPISchema {
   /** Data type */
-  type?: 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array';
+  type?: 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array' | 'null';
   /** Data format (e.g. date, date-time, email, uri, uuid, int32, int64, float, double, etc.) */
   format?: string;
   /** Description */
   description?: string;
   /** Whether required (used within object properties) */
-  required?: boolean;
+  required?: boolean | string[];
   /** Default value */
   default?: unknown;
   /** Example value */
@@ -65,6 +65,8 @@ export interface OpenAPISchema {
   properties?: Record<string, OpenAPISchema>;
   /** Array item definition */
   items?: OpenAPISchema;
+  /** Additional properties for record/map types */
+  additionalProperties?: OpenAPISchema | boolean;
   /** Reference to another schema (e.g. '#/components/schemas/User') */
   $ref?: string;
   /** Minimum value (number/integer) */
@@ -83,6 +85,14 @@ export interface OpenAPISchema {
   maxItems?: number;
   /** Whether duplicate items are allowed (array) */
   uniqueItems?: boolean;
+  /** Whether value can be null (OpenAPI 3.0) */
+  nullable?: boolean;
+  /** One of these schemas (for unions) */
+  oneOf?: OpenAPISchema[];
+  /** All of these schemas (for intersections) */
+  allOf?: OpenAPISchema[];
+  /** Any of these schemas */
+  anyOf?: OpenAPISchema[];
 }
 
 /**
@@ -106,7 +116,9 @@ export interface ParameterDef {
  */
 export interface ReturnDef {
   /** OpenAPI Schema definition */
-  schema: OpenAPISchema;
+  schema?: OpenAPISchema;
+  /** Zod schema (for runtime validation, takes precedence over schema) */
+  zodSchema?: ZodType;
   /** Return value description (optional, fallback if schema has no description) */
   description?: string;
 }
