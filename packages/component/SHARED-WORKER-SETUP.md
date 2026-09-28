@@ -176,11 +176,59 @@ public/
 
 ## 故障排除
 
+### 问题：Worker 验证超时（Stale Worker）
+
+**症状**：控制台显示错误信息：
+
+```text
+Worker verification timed out after 5000ms. This may indicate a stale SharedWorker
+from a previous browser session (e.g., after force-killing a tab during debugging).
+To resolve: visit chrome://inspect/#workers, find and terminate the stale
+'rtc-agent-worker' instance, then reload the page.
+```
+
+**原因**：
+
+SharedWorker 在浏览器中持久存在，即使关闭 Tab 也不会立即销毁。如果在调试过程中强制终止 Tab（例如遇到无限递归），Worker 可能处于不一致状态。后续页面加载会连接到这个残留的 Worker，导致验证超时。
+
+**解决**：
+
+1. 访问 `chrome://inspect/#workers`
+2. 找到名为 `rtc-agent-worker` 的 SharedWorker 实例
+3. 点击 "terminate" 终止该 Worker
+4. 刷新页面
+
+**开发模式自动处理**：
+
+在开发模式下（Vite `import.meta.env.DEV`），组件会自动为 Worker 名称添加时间戳后缀（如 `rtc-agent-worker-dev-1727520000000`），避免连接到之前会话的残留 Worker。生产模式保持固定名称以确保多 Tab 共享。
+
+### 问题：动态模块加载失败（Stale Chunk Hash）
+
+**症状**：控制台显示错误：
+
+```text
+Failed to fetch dynamically imported module: .../highlight-languages-XXXX.js
+```
+
+**原因**：
+
+组件库重新构建后，chunk 文件的 hash 发生变化，但宿主应用缓存了旧的 JS bundle，仍引用旧的 chunk hash。
+
+**解决**：
+
+1. 清除浏览器缓存（硬刷新）
+2. 重启开发服务器
+
+**自动重试机制**：
+
+组件内置了自动重试逻辑（2 次尝试），在检测到 chunk 加载失败时会自动清除缓存并重新加载。大多数情况下无需手动干预。
+
 ### 问题：SharedWorker 加载失败
 
 **症状**：控制台显示 404 或 CORS 错误
 
 **解决**：
+
 1. 确认 worker 文件存在：`ls public/rtc-agent/`
 2. 检查 workerUrl 路径是否正确
 3. 重启开发服务器
@@ -190,6 +238,7 @@ public/
 **症状**：更新依赖后，worker 行为未变化
 
 **解决**：
+
 1. 重新运行 `npx rtc-agent-setup`
 2. 清除浏览器缓存（硬刷新）
 3. 确认 manifest.json 版本号已更新
@@ -202,6 +251,21 @@ public/
 - 每次构建 hash 都会变化
 - CLI 工具将带 hash 的文件复制为 `shared-worker.js`，简化配置
 - 升级时 CLI 工具会自动清理旧版本文件
+
+### 开发模式 vs 生产模式的 Worker 命名
+
+**开发模式**：
+
+- Worker 名称包含时间戳：`rtc-agent-worker-dev-{timestamp}`
+- 每次页面加载都会创建新的 Worker 实例
+- 避免连接到之前调试会话残留的 stale Worker
+- 适用于开发调试场景（频繁热重载、强制终止 Tab）
+
+**生产模式**：
+
+- Worker 名称固定：`rtc-agent-worker`
+- 多个 Tab 共享同一个 Worker 实例
+- 确保多 Tab 场景下的连接共享和状态一致性
 
 ### 为什么不使用 Blob URL？
 

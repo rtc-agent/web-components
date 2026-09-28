@@ -188,6 +188,53 @@ agent.messageController.actions.sendMessage(content);
 agent.skillController.actions.setRegistry(registry);
 ```
 
+## 稳定性与已知问题
+
+### v0.2.7-rc.3 稳定性改进
+
+本次发布包含多项稳定性和数据一致性修复：
+
+**Worker 连接稳定性**：
+
+- 开发模式下使用带时间戳的 Worker 名称（`rtc-agent-worker-dev-{timestamp}`），避免连接到调试会话残留的 stale Worker
+- 改进 Worker 验证超时错误信息，提供清晰的 `chrome://inspect/#workers` 手动清理指引
+- 动态模块加载（DOMPurify、highlight.js）增加自动重试机制（2 次尝试），处理 chunk hash 过期问题
+
+**数据一致性保护**：
+
+- VirtualFS 读-改-写操作包装在事务中，防止并发写入导致数据损坏
+- `handleEditorSave` 增加 per-file 并发锁，防止 Ctrl+S 与自动-save 并行写入时旧内容覆盖新内容
+- `flushGapFillBuffer` 延迟 offset 推进，确保数据持久化成功后才移动游标，防止永久数据丢失
+
+**React StrictMode 兼容**：
+
+- 修复 `connectedCallback → disconnectedCallback → connectedCallback` 生命周期竞态
+- `RtcProcessor` 增加 `cancel()` 方法，支持组件卸载时优雅关闭 RTC 循环
+- Master Tab 切换时立即退出处理循环，防止与新 Master 并发执行
+
+**UI 与事件系统**：
+
+- 提取 `EventBindingController`，集中管理 30+ DOM 事件监听器
+- 验证错误消息翻译为英文，与 Agent 提示语言保持一致
+
+### 开发环境注意事项
+
+**SharedWorker 残留问题**：
+
+如果在调试过程中遇到无限递归或其他严重错误导致 Tab 强制终止，SharedWorker 可能处于不一致状态。解决方法：
+
+1. 访问 `chrome://inspect/#workers`
+2. 终止名为 `rtc-agent-worker` 的 SharedWorker 实例
+3. 刷新页面
+
+开发模式下会自动避免此问题（每次加载创建新的 Worker 实例）。
+
+**动态模块加载失败**：
+
+组件库热重载后，如果遇到 "Failed to fetch dynamically imported module" 错误，组件会自动重试 2 次。如果仍然失败，清除浏览器缓存并重启开发服务器。
+
+详细故障排除指南见 [SharedWorker 配置指南](./SHARED-WORKER-SETUP.md#故障排除)。
+
 ## License
 
 [MIT](../../LICENSE)
