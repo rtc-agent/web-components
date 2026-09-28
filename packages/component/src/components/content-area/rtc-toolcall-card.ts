@@ -91,6 +91,37 @@ function parseToolCallData(message: Message): ToolCallData | null {
 }
 
 /**
+ * Parsed todo item from todoWrite tool input.
+ */
+interface TodoItem {
+    content: string;
+    status: 'completed' | 'in_progress' | 'pending';
+    active_form?: string;
+}
+
+/**
+ * Parse todoWrite tool input from ToolCallData.
+ */
+function parseTodoWriteInput(toolData: ToolCallData): TodoItem[] | null {
+    if (toolData.tool_name !== 'todoWrite') return null;
+    try {
+        let raw: unknown;
+        if (typeof toolData.input === 'string') {
+            raw = JSON.parse(toolData.input);
+        } else if (typeof toolData.input === 'object' && toolData.input !== null) {
+            raw = toolData.input;
+        } else {
+            return null;
+        }
+        const input = raw as Record<string, unknown>;
+        const todos = input.todos as TodoItem[] | undefined;
+        return Array.isArray(todos) ? todos : null;
+    } catch {
+        return null;
+    }
+}
+
+/**
  * Parsed script tool input parameters.
  */
 interface ScriptInput {
@@ -329,6 +360,11 @@ export class RtcToolCallCard extends LitElement {
                 const pattern = (input.pattern as string) || '';
                 return `find ${pattern}`;
             }
+            case 'todoWrite': {
+                const todos = input.todos as unknown[] | undefined;
+                const count = Array.isArray(todos) ? todos.length : 0;
+                return `todoWrite (${count} tasks)`;
+            }
             default:
                 return toolName;
         }
@@ -341,6 +377,11 @@ export class RtcToolCallCard extends LitElement {
         // read/ls/write/grep/find: header-only, no content section
         if (['read', 'ls', 'write', 'grep', 'find'].includes(toolName)) {
             return nothing;
+        }
+
+        // todoWrite: render as todo list
+        if (toolName === 'todoWrite' && toolData) {
+            return this._renderTodoWriteInput(toolData);
         }
 
         // Script tool: render based on action
@@ -422,6 +463,55 @@ export class RtcToolCallCard extends LitElement {
               <span class="toolcall-meta-value">${JSON.stringify(script.params)}</span>
             </div>
             ` : nothing}
+          </div>
+        `;
+    }
+
+    /**
+     * Render todoWrite tool input as a todo list.
+     */
+    private _renderTodoWriteInput(toolData: ToolCallData) {
+        const todos = parseTodoWriteInput(toolData);
+        if (!todos || todos.length === 0) {
+            // Fallback to default rendering
+            const params = tryFormatJson(toolData.input);
+            return html`
+              <div class="toolcall-section in" part="in">
+                <span class="toolcall-label">In</span>
+                <rtc-scroll-container style="--rtc-scroll-max-height-locked: var(--rtc-content-height-sm); --rtc-scroll-max-height-unlocked: var(--rtc-content-height-lg);">
+                  <span class="toolcall-value">${params}</span>
+                </rtc-scroll-container>
+              </div>
+            `;
+        }
+
+        return html`
+          <div class="toolcall-todo-list">
+            ${todos.map(todo => this._renderTodoItem(todo))}
+          </div>
+        `;
+    }
+
+    /**
+     * Render a single todo item.
+     */
+    private _renderTodoItem(todo: TodoItem) {
+        const status = todo.status || 'pending';
+        const isCompleted = status === 'completed';
+        const isInProgress = status === 'in_progress';
+
+        const icon = isCompleted ? '✓' : isInProgress ? '●' : '○';
+        const statusClass = `todo-item-${status}`;
+
+        return html`
+          <div class="toolcall-todo-item ${statusClass}">
+            <span class="todo-icon">${icon}</span>
+            <div class="todo-content">
+              <span class="todo-text">${todo.content}</span>
+              ${isInProgress && todo.active_form ? html`
+                <span class="todo-active-form">${todo.active_form}</span>
+              ` : nothing}
+            </div>
           </div>
         `;
     }

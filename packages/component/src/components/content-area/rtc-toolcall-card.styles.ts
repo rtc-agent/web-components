@@ -159,6 +159,92 @@ export const styles = [
       color: var(--rtc-color-text);
     }
 
+    /* ── Todo list (for todoWrite tool) ── */
+    .toolcall-todo-list {
+      padding: var(--rtc-spacing-sm);
+      display: flex;
+      flex-direction: column;
+      gap: var(--rtc-spacing-xs);
+    }
+
+    .toolcall-todo-item {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--rtc-spacing-sm);
+      padding: var(--rtc-spacing-xs);
+      border-radius: var(--rtc-border-radius-sm);
+      transition: background var(--rtc-transition-duration) var(--rtc-transition-timing);
+    }
+
+    .toolcall-todo-item:hover {
+      background: var(--rtc-color-bg-hover);
+    }
+
+    .todo-icon {
+      flex-shrink: 0;
+      width: 16px;
+      height: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: var(--rtc-font-size-sm);
+      font-weight: var(--rtc-font-weight-bold);
+      margin-top: 1px;
+    }
+
+    .todo-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .todo-text {
+      font-size: var(--rtc-font-size-sm);
+      line-height: var(--rtc-line-height-base);
+      color: var(--rtc-color-text);
+      word-break: break-word;
+    }
+
+    .todo-active-form {
+      font-size: var(--rtc-font-size-xs);
+      line-height: var(--rtc-line-height-base);
+      color: var(--rtc-color-text-secondary);
+      font-style: italic;
+      word-break: break-word;
+    }
+
+    /* Completed state */
+    .toolcall-todo-item.todo-item-completed .todo-icon {
+      color: var(--rtc-color-success);
+    }
+
+    .toolcall-todo-item.todo-item-completed .todo-text {
+      color: var(--rtc-color-text-tertiary);
+      text-decoration: line-through;
+    }
+
+    /* In progress state */
+    .toolcall-todo-item.todo-item-in_progress .todo-icon {
+      color: var(--rtc-color-warning);
+      animation: rtc-dot-pulse 1.5s ease-in-out infinite;
+    }
+
+    .toolcall-todo-item.todo-item-in_progress .todo-text {
+      color: var(--rtc-color-text);
+      font-weight: var(--rtc-font-weight-medium);
+    }
+
+    /* Pending state */
+    .toolcall-todo-item.todo-item-pending .todo-icon {
+      color: var(--rtc-color-text-tertiary);
+    }
+
+    .toolcall-todo-item.todo-item-pending .todo-text {
+      color: var(--rtc-color-text-secondary);
+    }
+
     /* ── Dot state: running (waiting for output) ── */
     :host([data-toolcall-status="running"]) .timeline-dot {
       background: var(--rtc-color-warning);

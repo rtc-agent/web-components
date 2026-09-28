@@ -344,6 +344,11 @@ function formatReplyTitle(toolName: string, inputStr: string): string {
             const pattern = (input.pattern as string) || '';
             return `find ${pattern}`;
         }
+        case 'todoWrite': {
+            const todos = input.todos as unknown[] | undefined;
+            const count = Array.isArray(todos) ? todos.length : 0;
+            return `todoWrite (${count} tasks)`;
+        }
         default:
             return toolName;
     }
@@ -439,6 +444,11 @@ export class RtcToolCallReply extends LitElement {
             return this._renderFallback();
         }
 
+        // todoWrite: render as empty (height: 0) since input already shows the full list
+        if (tc.tool_name === 'todoWrite') {
+            return this._renderEmptyReply();
+        }
+
         // Script tool: structured output rendering
         if (tc.tool_name === 'script') {
             return this._renderScriptReply(tc);
@@ -451,6 +461,20 @@ export class RtcToolCallReply extends LitElement {
 
         // Default: generic output rendering
         return this._renderGenericReply(tc);
+    }
+
+    /**
+     * Empty reply: renders with height 0 (for tools like todoWrite where output is not important).
+     */
+    private _renderEmptyReply() {
+        return html`
+            <div class="timeline-item reply-empty">
+                <div class="timeline-dot" part="dot" data-timestamp=${this._formattedTimestamp}></div>
+                <div class="timeline-content" part="content">
+                    <!-- Empty content: maintains structure but takes no visual space -->
+                </div>
+            </div>
+        `;
     }
 
     /**

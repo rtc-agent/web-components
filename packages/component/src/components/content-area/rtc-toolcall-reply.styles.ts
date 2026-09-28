@@ -124,6 +124,19 @@ export const styles = [
       font-style: italic;
     }
 
+    /* Empty reply (for tools like todoWrite): height 0 */
+    .timeline-item.reply-empty {
+      margin-bottom: 0;
+      padding: 0;
+      height: 0;
+      overflow: hidden;
+    }
+
+    .timeline-item.reply-empty .timeline-dot,
+    .timeline-item.reply-empty .timeline-content {
+      display: none;
+    }
+
     /* ── Footer ── */
     .reply-footer {
       display: flex;
