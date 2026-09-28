@@ -1,8 +1,8 @@
 /**
  * Markdown Generator
  *
- * 从 FunctionDef 生成 markdown 文档
- * 使用 OpenAPI Schema 格式描述参数和返回值
+ * Generates markdown documentation from FunctionDef.
+ * Uses OpenAPI Schema format to describe parameters and return values.
  */
 
 import type { FunctionDef, FunctionGroupDef, RegistryConfig, OpenAPISchema, ParameterDef } from '../types/skill.js';
@@ -12,26 +12,26 @@ import {createLogger} from '@rtc-agent/client';
 const log = createLogger('MarkdownGenerator');
 
 /**
- * 将 OpenAPI Schema 转换为可读的类型字符串
+ * Convert OpenAPI Schema to a readable type string
  *
- * 参考 openapi-markdown 的 dataTypes.js 逻辑
+ * References openapi-markdown's dataTypes.js logic
  */
 function schemaToTypeString(schema: OpenAPISchema): string {
   if (!schema) return 'unknown';
 
-  // 引用类型
+  // Reference type
   if (schema.$ref) {
     const name = schema.$ref.split('/').pop() || schema.$ref;
     return `[${name}](${schema.$ref})`;
   }
 
-  // 数组类型
+  // Array type
   if (schema.type === 'array' && schema.items) {
     const itemType = schemaToTypeString(schema.items);
     return `${itemType}[]`;
   }
 
-  // 对象类型（有 properties）
+  // Object type (with properties)
   if (schema.type === 'object' && schema.properties) {
     const props = Object.entries(schema.properties)
       .map(([key, val]) => `${key}: ${schemaToTypeString(val)}`)
@@ -39,7 +39,7 @@ function schemaToTypeString(schema: OpenAPISchema): string {
     return `{ ${props} }`;
   }
 
-  // 基础类型 + 格式
+  // Primitive type + format
   if (schema.type) {
     if (schema.format) {
       return `${schema.type} (${schema.format})`;
@@ -47,7 +47,7 @@ function schemaToTypeString(schema: OpenAPISchema): string {
     return schema.type;
   }
 
-  // 只有格式
+  // Format only
   if (schema.format) {
     return schema.format;
   }
@@ -56,9 +56,9 @@ function schemaToTypeString(schema: OpenAPISchema): string {
 }
 
 /**
- * 递归生成 Schema 的详细描述表格行
+ * Recursively generate detailed description table rows for a Schema
  *
- * 参考 openapi-markdown 的 pathParameters.js 逻辑
+ * References openapi-markdown's pathParameters.js logic
  */
 function schemaToTableRows(
   schema: OpenAPISchema,
@@ -71,10 +71,10 @@ function schemaToTableRows(
   const indent = ' '.repeat(depth);
   const displayName = depth > 0 ? `└─ ${name}` : name;
 
-  // 生成示例值
+  // Generate example value
   const exampleStr = schema.example !== undefined ? `\`${JSON.stringify(schema.example)}\`` : '';
 
-  // 基础类型
+  // Primitive type
   if (schema.type && schema.type !== 'object' && schema.type !== 'array') {
     const typeStr = schemaToTypeString(schema);
     const desc = description || schema.description || '';
@@ -83,14 +83,14 @@ function schemaToTableRows(
     return rows;
   }
 
-  // 数组类型
+  // Array type
   if (schema.type === 'array' && schema.items) {
     const typeStr = `${schemaToTypeString(schema.items)}[]`;
     const desc = description || schema.description || '';
     const reqStr = required ? 'Yes' : 'No';
     rows.push(`| ${indent}${displayName} | ${typeStr} | ${reqStr} | ${desc} | ${exampleStr} |`);
 
-    // 如果 items 是对象，展开其属性
+    // If items is an object, expand its properties
     if (schema.items.type === 'object' && schema.items.properties) {
       const requiredFields = (schema.items.required || []) as string[];
       for (const [propName, propSchema] of Object.entries(schema.items.properties)) {
@@ -101,13 +101,13 @@ function schemaToTableRows(
     return rows;
   }
 
-  // 对象类型
+  // Object type
   if (schema.type === 'object' && schema.properties) {
     const desc = description || schema.description || '';
     const reqStr = required ? 'Yes' : 'No';
     rows.push(`| ${indent}${displayName} | object | ${reqStr} | ${desc} | ${exampleStr} |`);
 
-    // 展开属性
+    // Expand properties
     const requiredFields = (schema.required || []) as string[];
     for (const [propName, propSchema] of Object.entries(schema.properties)) {
       const propRequired = requiredFields.includes(propName);
@@ -116,7 +116,7 @@ function schemaToTableRows(
     return rows;
   }
 
-  // 其他情况
+  // Other cases
   const typeStr = schemaToTypeString(schema);
   const desc = description || schema.description || '';
   const reqStr = required ? 'Yes' : 'No';
@@ -125,17 +125,17 @@ function schemaToTableRows(
 }
 
 /**
- * 生成单个 Function 的 markdown 文档
+ * Generate markdown documentation for a single Function
  *
- * 文件头添加生成标识注释，标识该文件由系统自动生成
+ * Adds a generation identifier comment at the file header to mark it as auto-generated
  */
 export function generateFunctionMd(funcDef: FunctionDef, groupName?: string): string {
-  // 生成标识注释（用于识别自动生成的文件）
+  // Generate identifier comment (used to identify auto-generated files)
   let md = `<!-- AUTO-GENERAGED by rtc-agent FunctionRegistry. Do not edit manually. -->\n\n`;
   md += `# ${funcDef.name}\n\n`;
   md += `${funcDef.description}\n\n`;
 
-  // 获取参数定义：优先使用 zodSchema 转换，否则使用 parameters
+  // Get parameter definition: prefer zodSchema conversion, otherwise use parameters
   let parameters: ParameterDef[] | undefined = funcDef.parameters;
   if (funcDef.zodSchema && !parameters) {
     try {
@@ -145,7 +145,7 @@ export function generateFunctionMd(funcDef: FunctionDef, groupName?: string): st
     }
   }
 
-  // Parameters (使用 OpenAPI Schema 格式)
+  // Parameters (using OpenAPI Schema format)
   if (parameters && parameters.length > 0) {
     md += `## Parameters\n\n`;
     md += `| Name | Type | Required | Description | Example |\n`;
@@ -163,7 +163,7 @@ export function generateFunctionMd(funcDef: FunctionDef, groupName?: string): st
     md += '\n';
   }
 
-  // Returns (使用 OpenAPI Schema 格式)
+  // Returns (using OpenAPI Schema format)
   if (funcDef.returns) {
     md += `## Returns\n\n`;
     const returnType = schemaToTypeString(funcDef.returns.schema);
@@ -172,7 +172,7 @@ export function generateFunctionMd(funcDef: FunctionDef, groupName?: string): st
       md += `${funcDef.returns.description || funcDef.returns.schema.description}\n\n`;
     }
 
-    // 如果是对象类型，展开属性
+    // If it's an object type, expand properties
     if (funcDef.returns.schema.type === 'object' && funcDef.returns.schema.properties) {
       md += `| Field | Type | Description |\n`;
       md += `|-------|------|-------------|\n`;
@@ -192,7 +192,7 @@ export function generateFunctionMd(funcDef: FunctionDef, groupName?: string): st
   md += `**You must use the \`script\`tool to execute the script below.**\n\n`;
   md += '```javascript\n';
   if (groupName) {
-    // 链式调用示例
+    // Chain call example
     const funcName = funcDef.name.split('.')[1];
     md += `const result = await rtcAgent.${groupName}.${funcName}({\n`;
     if (parameters) {
@@ -204,7 +204,7 @@ export function generateFunctionMd(funcDef: FunctionDef, groupName?: string): st
     }
     md += `});\n`;
   } else {
-    // call 示例
+    // call example
     md += `const result = await rtcAgent.call('${funcDef.name}', {\n`;
     if (parameters) {
       const params = parameters
@@ -221,27 +221,27 @@ export function generateFunctionMd(funcDef: FunctionDef, groupName?: string): st
 }
 
 /**
- * 根据 OpenAPI Schema 生成示例值
+ * Generate example value based on OpenAPI Schema
  */
 function getExampleValue(schema: OpenAPISchema): string {
   if (!schema) return 'null';
 
-  // 优先使用显式指定的 example
+  // Prefer explicitly specified example
   if (schema.example !== undefined) {
     return JSON.stringify(schema.example);
   }
 
-  // 枚举值
+  // Enum value
   if (schema.enum && schema.enum.length > 0) {
     return JSON.stringify(schema.enum[0]);
   }
 
-  // 默认值
+  // Default value
   if (schema.default !== undefined) {
     return JSON.stringify(schema.default);
   }
 
-  // 根据类型生成示例
+  // Generate example based on type
   switch (schema.type) {
     case 'string':
       if (schema.format === 'date') return '"2024-01-01"';
@@ -252,7 +252,7 @@ function getExampleValue(schema: OpenAPISchema): string {
       return '"example"';
     case 'number':
     case 'integer':
-      // 如果有最小值，使用最小值
+      // If minimum is specified, use it
       if (schema.minimum !== undefined) return String(schema.minimum);
       return '0';
     case 'boolean':
@@ -267,7 +267,7 @@ function getExampleValue(schema: OpenAPISchema): string {
 }
 
 /**
- * 生成 Functions 索引（按分组组织）
+ * Generate Functions index (organized by group)
  */
 export function generateFunctionsIndex(
   functions: FunctionDef[],
@@ -275,7 +275,7 @@ export function generateFunctionsIndex(
 ): string {
   let md = '# Functions Index\n\n';
 
-  // 按分组组织
+  // Organize by group
   if (groups.length > 0) {
     for (const group of groups) {
       const groupFunctions = functions.filter(f => f.name.startsWith(group.name + '.'));
@@ -294,7 +294,7 @@ export function generateFunctionsIndex(
     }
   }
 
-  // 未分组的 Functions
+  // Ungrouped Functions
   const ungroupedFunctions = functions.filter(f => !f.name.includes('.'));
   if (ungroupedFunctions.length > 0) {
     md += `## General Functions\n\n`;
@@ -307,13 +307,13 @@ export function generateFunctionsIndex(
     md += '\n';
   }
 
-  md += `---\n**总计**: ${functions.length} 个 Functions，${groups.length} 个分组\n`;
+  md += `---\n**Total**: ${functions.length} Functions, ${groups.length} groups\n`;
 
   return md;
 }
 
 /**
- * 生成 Scenarios 索引
+ * Generate Scenarios index
  */
 export function generateScenariosIndex(scenarios: Array<{
   path: string;
@@ -331,16 +331,16 @@ export function generateScenariosIndex(scenarios: Array<{
     md += `| ${title} | ${description} | ${filename} | ${tags} |\n`;
   }
 
-  md += `\n---\n**总计**: ${scenarios.length} 个 Scenarios\n`;
+  md += `\n---\n**Total**: ${scenarios.length} Scenarios\n`;
 
   return md;
 }
 
 /**
- * 生成 AGENT.md
+ * Generate AGENT.md
  *
- * Agent Prompt 定义 Agent 的身份、工作流和能力。
- * 前端生成此内容，Server 端有默认降级实现。
+ * Agent Prompt defines the Agent's identity, workflow, and capabilities.
+ * The frontend generates this content; the server has a default fallback implementation.
  */
 export function generateAgentMd(
   config: RegistryConfig,
@@ -363,14 +363,14 @@ export function generateAgentMd(
 }
 
 /**
- * Agent 标题和描述
+ * Agent title and description
  */
 function generateAgentHeader(config: RegistryConfig): string {
   return `# ${config.name}\n\n${config.description}\n\n`;
 }
 
 /**
- * Agent Persona（可选）
+ * Agent Persona (optional)
  */
 function generateAgentPersona(config: RegistryConfig): string {
   if (!config.persona) return '';
@@ -378,7 +378,7 @@ function generateAgentPersona(config: RegistryConfig): string {
 }
 
 /**
- * 运行环境上下文
+ * Runtime environment context
  */
 function generateAgentEnvironment(): string {
   return `## Environment
@@ -403,7 +403,7 @@ function generateAgentEnvironment(): string {
 }
 
 /**
- * 可用工具列表
+ * Available tools list
  */
 function generateAgentTools(): string {
   return `## Available Tools
@@ -424,7 +424,7 @@ function generateAgentTools(): string {
 }
 
 /**
- * 可用函数列表（按分组组织）
+ * Available functions list (organized by group)
  */
 function generateAgentFunctions(functions: FunctionDef[], groups: FunctionGroupDef[]): string {
   // Return empty if no functions at all
@@ -432,7 +432,7 @@ function generateAgentFunctions(functions: FunctionDef[], groups: FunctionGroupD
 
   let md = '## Available Functions\n\n';
 
-  // 按分组列出
+  // List by group
   for (const group of groups) {
     const groupFunctions = functions.filter(f => f.name.startsWith(group.name + '.'));
     if (groupFunctions.length === 0) continue;
@@ -445,7 +445,7 @@ function generateAgentFunctions(functions: FunctionDef[], groups: FunctionGroupD
     md += '\n';
   }
 
-  // 未分组的函数
+  // Ungrouped functions
   const ungroupedFunctions = functions.filter(f => !f.name.includes('.'));
   if (ungroupedFunctions.length > 0) {
     md += `### General Functions\n\n`;
@@ -460,7 +460,7 @@ function generateAgentFunctions(functions: FunctionDef[], groups: FunctionGroupD
 }
 
 /**
- * 业务场景（可选）
+ * Business scenarios (optional)
  */
 function generateAgentScenarios(scenarioCount: number): string {
   if (scenarioCount === 0) return '';
@@ -474,7 +474,7 @@ See \`/scenarios/INDEX.md\` for the full list.
 }
 
 /**
- * 函数调用说明
+ * Function call instructions
  */
 function generateAgentHowToCall(): string {
   return `## How to Call Functions
@@ -514,7 +514,7 @@ console.log("Tasks:", tasks)
 }
 
 /**
- * 页脚标识
+ * Footer identifier
  */
 function generateAgentFooter(): string {
   return `---\n*Auto-generated. Do not edit manually.*\n`;

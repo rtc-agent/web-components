@@ -347,8 +347,12 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
       element._eventBusUnsubscribes = undefined;
     }
 
-    // 5. Optionally clear localStorage tokens
-    // TODO: Implement as needed
+    // 5. Clear localStorage tokens to prevent resource leak
+    try {
+      localStorage.removeItem('rtc_auth_tokens');
+    } catch {
+      // Ignore errors (e.g. localStorage unavailable or access denied)
+    }
   };
 
   return element;

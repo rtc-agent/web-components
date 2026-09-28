@@ -118,7 +118,7 @@ export const styles = css`
 
   /* ── Minimized ── */
   :host([data-mode='minimized']) {
-    /* 与 logo 同构的圆角方形：圆角比例 = 290/1250 = 23.2% */
+    /* Isomorphic rounded square with logo: border-radius ratio = 290/1250 = 23.2% */
     width: var(--rtc-bubble-size);
     height: var(--rtc-bubble-size);
     min-width: 0;
@@ -153,10 +153,10 @@ export const styles = css`
     z-index: var(--rtc-z-content, 1);
   }
 
-  /* ── VS Code 风格布局（Phase 3） ── */
+  /* ── VS Code-style layout (Phase 3) ── */
 
-  /* 主布局：Activity Bar + Content/Editor
-   * position: relative 供 rtc-drawer 的 absolute 定位基准 */
+  /* Main layout: Activity Bar + Content/Editor
+   * position: relative serves as positioning base for rtc-drawer's absolute positioning */
   .main-layout {
     flex: 1;
     display: flex;
@@ -165,7 +165,7 @@ export const styles = css`
     position: relative;
   }
 
-  /* 编辑器区域包裹器（editor-area + status-bar） */
+  /* Editor area wrapper (editor-area + status-bar) */
   .editor-area-wrapper {
     flex: 1;
     display: flex;
@@ -202,7 +202,7 @@ export const styles = css`
     height: 28px;
   }
 
-  /* 默认产品 logo 撑满气泡 */
+  /* Default product logo fills the bubble */
   .bubble-logo {
     display: flex;
     align-items: center;
@@ -232,10 +232,10 @@ export const styles = css`
   }
 
   :host([data-notification='active']) .bubble {
-    /* 橙色到黄色渐变 */
+    /* Orange to yellow gradient */
     background: linear-gradient(135deg, #F97802 100%, #F9CD53 0%) !important;
     color: white !important;
-    /* 添加缩放脉冲动画 */
+    /* Add scale pulse animation */
     animation: rtc-notification-bubble-pulse 1.5s ease-in-out infinite;
   }
 
@@ -263,7 +263,7 @@ export const styles = css`
     }
   }
 
-  /* 尊重用户动画偏好 */
+  /* Respect user motion preferences */
   @media (prefers-reduced-motion: reduce) {
     :host([data-notification='active']) {
       animation: none;

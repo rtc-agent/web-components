@@ -1,12 +1,12 @@
 /**
  * Event Bus
  *
- * 简单的事件总线，用于解耦 FunctionRegistry 和 UI
+ * Simple event bus for decoupling FunctionRegistry and UI.
  *
- * 使用场景：
- * - FunctionRegistry 发出 function:start/success/error/progress 事件
- * - UI 层监听事件并显示 toast/confirm/progress
- * - 宿主应用（Flutter）监听事件并通过 postMessage 转发
+ * Usage scenarios:
+ * - FunctionRegistry emits function:start/success/error/progress events
+ * - UI layer listens to events and displays toast/confirm/progress
+ * - Host applications (Flutter) listen to events and forward via postMessage
  */
 
 import {createLogger} from '@rtc-agent/client';
@@ -14,21 +14,21 @@ import {createLogger} from '@rtc-agent/client';
 const log = createLogger('EventBus');
 
 /**
- * 事件处理器类型
+ * Event handler type
  */
 export type EventHandler<T = unknown> = (event: T) => void | Promise<void>;
 
 /**
- * MD8: 事件映射接口 - 为事件名提供类型安全
+ * MD8: Event map interface - provides type safety for event names
  *
- * 使用方法：
+ * Usage:
  * ```ts
  * interface MyEvents {
  *   'user:login': { userId: string };
  *   'user:logout': void;
  * }
  * const bus = createEventBus<MyEvents>();
- * bus.on('user:login', (event) => { ... }); // event 类型为 { userId: string }
+ * bus.on('user:login', (event) => { ... }); // event type is { userId: string }
  * ```
  */
 export interface DefaultEventMap {
@@ -36,17 +36,17 @@ export interface DefaultEventMap {
 }
 
 /**
- * 事件总线
+ * Event bus
  *
- * @typeParam TEventMap - 事件名到数据类型的映射（MD8）
+ * @typeParam TEventMap - Mapping from event names to data types (MD8)
  */
 export class EventBus<TEventMap extends DefaultEventMap = DefaultEventMap> {
   private handlers = new Map<string, Set<EventHandler>>();
 
   /**
-   * 订阅事件
+   * Subscribe to event
    *
-   * @returns 取消订阅的函数
+   * @returns Unsubscribe function
    */
   on<K extends keyof TEventMap & string>(
     event: K,
@@ -57,14 +57,14 @@ export class EventBus<TEventMap extends DefaultEventMap = DefaultEventMap> {
     }
     this.handlers.get(event)!.add(handler as EventHandler);
 
-    // 返回取消订阅函数
+    // Return unsubscribe function
     return () => {
       this.handlers.get(event)?.delete(handler as EventHandler);
     };
   }
 
   /**
-   * 订阅一次性事件
+   * Subscribe to one-time event
    */
   once<K extends keyof TEventMap & string>(
     event: K,
@@ -78,7 +78,7 @@ export class EventBus<TEventMap extends DefaultEventMap = DefaultEventMap> {
   }
 
   /**
-   * 取消订阅
+   * Unsubscribe
    */
   off<K extends keyof TEventMap & string>(
     event: K,
@@ -88,15 +88,15 @@ export class EventBus<TEventMap extends DefaultEventMap = DefaultEventMap> {
   }
 
   /**
-   * 发出事件（同步）
+   * Emit event (synchronous)
    *
-   * M8: 迭代前对 handlers 做快照（Array.from），避免 handler 内调用 off 导致并发修改
+   * M8: Snapshot handlers (Array.from) before iteration to avoid concurrent modification when handler calls off
    */
   emit<K extends keyof TEventMap & string>(event: K, data: TEventMap[K]): void {
     const handlers = this.handlers.get(event);
     if (!handlers) return;
 
-    // M8: 快照，防止迭代过程中 Set 被修改
+    // M8: Snapshot to prevent Set modification during iteration
     const snapshot = Array.from(handlers);
     for (const handler of snapshot) {
       try {
@@ -108,10 +108,10 @@ export class EventBus<TEventMap extends DefaultEventMap = DefaultEventMap> {
   }
 
   /**
-   * 发出事件（异步，等待所有 handler 完成）
+   * Emit event (async, wait for all handlers to complete)
    *
-   * M9: 注意：此方法永远 resolve，handler 中的错误会被 catch 并通过 log.error 输出。
-   * 如果需要错误传播（handler 错误导致 emitAsync reject），请使用 emitAsyncStrict。
+   * M9: Note: this method always resolves; errors in handlers are caught and output via log.error.
+   * If error propagation is needed (handler errors cause emitAsync to reject), use emitAsyncStrict.
    */
   async emitAsync<K extends keyof TEventMap & string>(
     event: K,
@@ -120,7 +120,7 @@ export class EventBus<TEventMap extends DefaultEventMap = DefaultEventMap> {
     const handlers = this.handlers.get(event);
     if (!handlers) return;
 
-    // M8: 快照，防止迭代过程中 Set 被修改
+    // M8: Snapshot to prevent Set modification during iteration
     const snapshot = Array.from(handlers);
     const promises: Promise<void>[] = [];
     for (const handler of snapshot) {
@@ -134,10 +134,10 @@ export class EventBus<TEventMap extends DefaultEventMap = DefaultEventMap> {
   }
 
   /**
-   * M9: 严格版异步事件发出 - handler 错误会导致 Promise reject
+   * M9: Strict async event emit - handler errors cause Promise rejection
    *
-   * 与 emitAsync 不同，此方法不会吞掉 handler 中的错误。
-   * 任一 handler 抛出错误，返回的 Promise 将 reject。
+   * Unlike emitAsync, this method does not swallow errors from handlers.
+   * If any handler throws, the returned Promise will reject.
    */
   async emitAsyncStrict<K extends keyof TEventMap & string>(
     event: K,
@@ -155,14 +155,14 @@ export class EventBus<TEventMap extends DefaultEventMap = DefaultEventMap> {
   }
 
   /**
-   * m6: 清除所有事件的所有处理器（改名为 clearAll 与 clearEvent 对称）
+   * m6: Clear all handlers for all events (renamed to clearAll for symmetry with clearEvent)
    */
   clearAll(): void {
     this.handlers.clear();
   }
 
   /**
-   * 清除指定事件的所有处理器
+   * Clear all handlers for a specific event
    */
   clearEvent(event: string): void {
     this.handlers.delete(event);
@@ -170,7 +170,7 @@ export class EventBus<TEventMap extends DefaultEventMap = DefaultEventMap> {
 }
 
 /**
- * Function 执行相关事件
+ * Function execution related events
  */
 export interface FunctionStartEvent {
   path: string;
@@ -193,7 +193,7 @@ export interface FunctionProgressEvent {
 }
 
 /**
- * MD8: FunctionRegistry 使用的事件映射
+ * MD8: Event map used by FunctionRegistry
  */
 export interface FunctionRegistryEventMap extends DefaultEventMap {
   'function:start': FunctionStartEvent;
@@ -206,16 +206,16 @@ export interface FunctionRegistryEventMap extends DefaultEventMap {
 }
 
 /**
- * MD7: 事件总线工厂函数
+ * MD7: Event bus factory function
  *
- * 使用工厂函数创建新的事件总线实例，避免全局单例的问题。
- * 全局实例 `defaultEventBus` 只是默认导出，应用可以创建自己的实例。
+ * Uses factory function to create new event bus instances, avoiding global singleton issues.
+ * The global instance `defaultEventBus` is just the default export; applications can create their own instances.
  */
 export function createEventBus<TEventMap extends DefaultEventMap = DefaultEventMap>(): EventBus<TEventMap> {
   return new EventBus<TEventMap>();
 }
 
 /**
- * 全局默认事件总线实例（MD7：仅作为默认导出，推荐使用 createEventBus() 创建独立实例）
+ * Global default event bus instance (MD7: only as default export; recommended to use createEventBus() to create independent instances)
  */
 export const eventBus = createEventBus<FunctionRegistryEventMap>();

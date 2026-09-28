@@ -2,37 +2,37 @@ import {createContext} from '@lit/context';
 import type {EditorViewMode} from '../types/index.js';
 
 /**
- * Editor Context — 编辑器状态管理。
+ * Editor Context — Editor state management.
  *
- * 管理 VS Code 风格布局中的编辑器状态：工具栏可用性、视图模式、
- * 打开的标签页、当前活动文件。
+ * Manages editor state in a VS Code-style layout: toolbar availability, view mode,
+ * open tabs, and current active file.
  *
- * Phase 2.5 仅实现工具栏相关状态；标签页管理留给 Phase 2.7。
+ * Phase 2.5 implements only toolbar-related state; tab management is deferred to Phase 2.7.
  *
  * Provided by: <rtc-agent> (root)
  * Consumed by: <rtc-editor-toolbar>, <rtc-editor-area>
  */
 export interface EditorState {
-    /** 当前视图模式 */
+    /** Current view mode */
     viewMode: EditorViewMode;
-    /** 保存按钮是否可用 */
+    /** Whether the save button is enabled */
     canSave: boolean;
-    /** 撤销按钮是否可用 */
+    /** Whether the undo button is enabled */
     canUndo: boolean;
-    /** 重做按钮是否可用 */
+    /** Whether the redo button is enabled */
     canRedo: boolean;
 }
 
 export interface EditorActions {
-    /** 设置视图模式 */
+    /** Set the view mode */
     setViewMode(mode: EditorViewMode): void;
-    /** 设置保存可用性 */
+    /** Set save availability */
     setCanSave(value: boolean): void;
-    /** 设置撤销可用性 */
+    /** Set undo availability */
     setCanUndo(value: boolean): void;
-    /** 设置重做可用性 */
+    /** Set redo availability */
     setCanRedo(value: boolean): void;
-    /** 重置状态 */
+    /** Reset state */
     reset(): void;
 }
 

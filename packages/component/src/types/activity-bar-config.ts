@@ -1,30 +1,30 @@
 /**
  * Activity Bar Configuration Types
  *
- * 用于 <rtc-agent> 组件的 Activity Bar 配置 API。
- * 控制 Activity Bar 中各活动按钮的显隐。
+ * Used for Activity Bar configuration API of the <rtc-agent> component.
+ * Controls the visibility of activity buttons in the Activity Bar.
  */
 
 /**
- * Activity 类型
+ * Activity type
  */
 export type Activity = 'files' | 'chat' | 'settings';
 
 /**
- * Activity Bar 配置
+ * Activity Bar configuration
  *
- * 通过 <rtc-agent>.activityBarConfig 属性设置。
- * 注意：chat 按钮始终显示，不可隐藏。
+ * Set via the <rtc-agent>.activityBarConfig property.
+ * Note: the chat button is always visible and cannot be hidden.
  */
 export interface ActivityBarConfig {
-    /** 禁用的活动列表（chat 不可禁用） */
+    /** Disabled activities list (chat cannot be disabled) */
     disabledActivities?: Array<'files' | 'settings'>;
-    /** 默认活动 */
+    /** Default activity */
     defaultActivity?: Activity;
 }
 
 /**
- * 解析后的 Activity Bar 配置（所有字段都有默认值）
+ * Resolved Activity Bar configuration (all fields have defaults)
  */
 export interface ResolvedActivityBarConfig {
     disabledActivities: Array<'files' | 'settings'>;
@@ -32,7 +32,7 @@ export interface ResolvedActivityBarConfig {
 }
 
 /**
- * 默认 Activity Bar 配置
+ * Default Activity Bar configuration
  */
 export const DEFAULT_ACTIVITY_BAR_CONFIG: ResolvedActivityBarConfig = {
     disabledActivities: [],
@@ -40,7 +40,7 @@ export const DEFAULT_ACTIVITY_BAR_CONFIG: ResolvedActivityBarConfig = {
 };
 
 /**
- * 解析 Activity Bar 配置（合并默认值）
+ * Resolve Activity Bar configuration (merge with defaults)
  */
 export function resolveActivityBarConfig(config?: ActivityBarConfig): ResolvedActivityBarConfig {
     if (!config) return { ...DEFAULT_ACTIVITY_BAR_CONFIG };

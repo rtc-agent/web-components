@@ -1,17 +1,17 @@
 /**
  * File Explorer Component
  *
- * VS Code 风格的文件浏览器侧边栏。
- * 组合 rtc-file-tree-item 递归叶子组件，显示完整的文件树。
+ * VS Code-style file browser sidebar.
+ * Composes rtc-file-tree-item recursive leaf components to display the full file tree.
  *
- * - Header：标题 + 操作按钮（新建文件、刷新）
- * - Content：递归渲染 rtc-file-tree-item
- * - Empty State：无文件时显示提示
+ * - Header: title + action buttons (new file, refresh)
+ * - Content: recursively renders rtc-file-tree-item
+ * - Empty State: shows prompt when no files
  *
  * @element rtc-file-explorer
- * @fires file-select - 用户点击文件 (detail: { path })
- * @fires folder-toggle - 用户点击文件夹 (detail: { path })
- * @fires refresh-requested - 用户点击刷新按钮
+ * @fires file-select - User clicks a file (detail: { path })
+ * @fires folder-toggle - User clicks a folder (detail: { path })
+ * @fires refresh-requested - User clicks the refresh button
  */
 import {LitElement, html} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
@@ -27,7 +27,7 @@ import {FileExplorerContext, type FileExplorerContextValue} from '../../contexts
 import type {FileNode} from '../../types/index.js';
 import {refreshIcon} from '../../icons/index.js';
 
-// 子组件（副作用导入）
+// Sub-components (side-effect imports)
 import './rtc-file-tree-item.js';
 import type {RtcFileTreeItem} from './rtc-file-tree-item.js';
 import { createLogger } from '@rtc-agent/client';
@@ -53,11 +53,11 @@ export class RtcFileExplorer extends LitElement {
 
     /* ── Properties ── */
 
-    /** 文件树根节点（由外部 Controller 注入） */
+    /** File tree root node (injected by external Controller) */
     @property({type: Object})
     root: FileNode | null = null;
 
-    /** 主题（继承自父级） */
+    /** Theme (inherited from parent) */
     @property({type: String, reflect: true})
     theme: 'light' | 'dark' | 'system' = 'system';
 
@@ -82,20 +82,20 @@ export class RtcFileExplorer extends LitElement {
         isSelected: () => false,
     };
 
-    /** 当前键盘焦点所在的路径（roving tabindex 管理） */
+    /** Current keyboard focus path (roving tabindex management) */
     @state()
     private _focusedPath: string | null = null;
 
     /* ── Event Handlers ── */
 
     /**
-     * 转发子组件的 file-tree-item-select 事件
-     * 同时同步键盘焦点到被点击的项
+     * Forward the file-tree-item-select event from child components
+     * Also sync keyboard focus to the clicked item
      */
     private _handleFileSelect(e: CustomEvent) {
         const {path, type} = e.detail;
         this._setFocusedPath(path);
-        // 仅文件触发 file-select；文件夹由 tree-item 自己处理 toggle
+        // Only trigger file-select for files; folders handle toggle within tree-item itself
         if (type === 'file') {
             this.dispatchEvent(
                 new CustomEvent('file-select', {
@@ -108,8 +108,8 @@ export class RtcFileExplorer extends LitElement {
     }
 
     /**
-     * 转发子组件的 file-tree-item-toggle 事件
-     * 同时同步键盘焦点到被点击的文件夹
+     * Forward the file-tree-item-toggle event from child components
+     * Also sync keyboard focus to the clicked folder
      */
     private _handleFolderToggle(e: CustomEvent) {
         this._setFocusedPath(e.detail.path);
@@ -123,7 +123,7 @@ export class RtcFileExplorer extends LitElement {
     }
 
     /**
-     * 刷新按钮
+     * Refresh button
      */
     private _handleRefresh() {
         this.dispatchEvent(
@@ -134,21 +134,21 @@ export class RtcFileExplorer extends LitElement {
         );
     }
 
-    /* ── 键盘导航 ──
+    /* ── Keyboard navigation ──
      *
-     * ARIA Treeview 模式：roving tabindex。
-     * 只有当前焦点项 tabindex=0，其余 tabindex=-1。
-     * 方向键在可见项列表中移动焦点，Enter/Space 激活。
+     * ARIA Treeview pattern: roving tabindex.
+     * Only the current focus item has tabindex=0, all others have tabindex=-1.
+     * Arrow keys move focus within the visible item list, Enter/Space activates.
      */
 
     /**
-     * 深度优先遍历可见（展开的）树节点，返回扁平列表。
-     * 通过 composed tree walk 穿越递归 Shadow DOM。
+     * Depth-first traversal of visible (expanded) tree nodes, returns a flat list.
+     * Traverses recursive Shadow DOM via composed tree walk.
      *
-     * TODO(perf): 当前每次按键都遍历整棵树，O(n)。对于大文件树（>500 节点），
-     * 应在 controller 中维护一个扁平可见路径列表（expand/collapse/select 时增量更新），
-     * 此处直接读取该列表即可 O(1)。项目已引入 @lit-labs/virtualizer，
-     * 未来可将树渲染切换为虚拟滚动以支撑上千节点的场景。
+     * TODO(perf): Currently traverses the entire tree on every keypress, O(n). For large file trees (>500 nodes),
+     * a flat visible path list should be maintained in the controller (incrementally updated on expand/collapse/select),
+     * and this method would just read that list in O(1). The project has imported @lit-labs/virtualizer,
+     * and in the future tree rendering can be switched to virtual scrolling to support thousands of nodes.
      */
     private _getVisibleTreeItems(): RtcFileTreeItem[] {
         const result: RtcFileTreeItem[] = [];
@@ -157,7 +157,7 @@ export class RtcFileExplorer extends LitElement {
                 if (child.tagName === 'RTC-FILE-TREE-ITEM') {
                     const item = child as RtcFileTreeItem;
                     result.push(item);
-                    // 仅展开的文件夹才递归子节点
+                    // Only recurse into children for expanded folders
                     if (item.isFolder && item.expanded) {
                         const childrenContainer =
                             item.shadowRoot?.querySelector('.children');
@@ -172,11 +172,11 @@ export class RtcFileExplorer extends LitElement {
     }
 
     /**
-     * 设置键盘焦点到指定 path（roving tabindex）。
-     * 同时将选中状态同步到 context（选中 ≠ 焦点，但点击/Enter 会同步）。
+     * Set keyboard focus to the specified path (roving tabindex).
+     * Also syncs selection state to context (selection !== focus, but click/Enter syncs).
      */
     private _setFocusedPath(path: string | null, select = false) {
-        // 清除旧焦点项的 tabindex
+        // Clear tabindex of old focus item
         if (this._focusedPath) {
             const oldItem = this._findTreeItemByPath(this._focusedPath);
             if (oldItem) {
@@ -185,7 +185,7 @@ export class RtcFileExplorer extends LitElement {
             }
         }
         this._focusedPath = path;
-        // 设置新焦点项的 tabindex 并聚焦
+        // Set tabindex of new focus item and focus it
         if (path) {
             const newItem = this._findTreeItemByPath(path);
             if (newItem) {
@@ -202,7 +202,7 @@ export class RtcFileExplorer extends LitElement {
     }
 
     /**
-     * 通过 composed walk 查找指定 path 的树节点
+     * Find tree node by path via composed walk
      */
     private _findTreeItemByPath(path: string): RtcFileTreeItem | null {
         for (const item of this._getVisibleTreeItems()) {
@@ -212,13 +212,13 @@ export class RtcFileExplorer extends LitElement {
     }
 
     /**
-     * 确保初始焦点存在（树加载后，焦点默认为第一项或选中项）
+     * Ensure initial focus exists (after tree loads, focus defaults to first item or selected item)
      */
     private _ensureInitialFocus() {
         if (this._focusedPath) return;
         const items = this._getVisibleTreeItems();
         if (items.length === 0) return;
-        // 优先聚焦选中项，否则第一项
+        // Prefer focusing selected item, otherwise first item
         const selectedPath = this._explorerCtx.state.selectedPath;
         const target = selectedPath && this._findTreeItemByPath(selectedPath)
             ? selectedPath
@@ -232,7 +232,7 @@ export class RtcFileExplorer extends LitElement {
     }
 
     /**
-     * 全局键盘事件处理（绑定在 .sidebar-content 上）
+     * Global keyboard event handler (bound to .sidebar-content)
      */
     private _handleKeydown(e: KeyboardEvent) {
         const items = this._getVisibleTreeItems();
@@ -247,19 +247,19 @@ export class RtcFileExplorer extends LitElement {
 
         switch (e.key) {
             case 'ArrowDown': {
-                // 下一项
+                // Next item
                 const next = Math.min(currentIndex + 1, items.length - 1);
                 this._setFocusedPath(items[next].node.path);
                 break;
             }
             case 'ArrowUp': {
-                // 上一项
+                // Previous item
                 const prev = Math.max(currentIndex - 1, 0);
                 this._setFocusedPath(items[prev].node.path);
                 break;
             }
             case 'ArrowRight': {
-                // 文件夹：展开；文件：无操作
+                // Folder: expand; File: no action
                 if (currentIndex >= 0) {
                     const item = items[currentIndex];
                     if (item.isFolder && !item.expanded) {
@@ -276,7 +276,7 @@ export class RtcFileExplorer extends LitElement {
                 break;
             }
             case 'ArrowLeft': {
-                // 文件夹已展开 → 折叠；已折叠/文件 → 跳到父节点
+                // Folder expanded → collapse; collapsed/file → jump to parent node
                 if (currentIndex >= 0) {
                     const item = items[currentIndex];
                     if (item.isFolder && item.expanded) {
@@ -289,7 +289,7 @@ export class RtcFileExplorer extends LitElement {
                             })
                         );
                     } else {
-                        // 跳到父文件夹
+                        // Jump to parent folder
                         const parentPath = this._getParentPath(item.node.path);
                         if (parentPath !== null) {
                             this._setFocusedPath(parentPath);
@@ -300,7 +300,7 @@ export class RtcFileExplorer extends LitElement {
             }
             case 'Enter':
             case ' ': {
-                // 激活当前项：文件夹 toggle，文件选中打开
+                // Activate current item: folder toggle, file select to open
                 if (currentIndex >= 0) {
                     const item = items[currentIndex];
                     if (item.isFolder) {
@@ -345,7 +345,7 @@ export class RtcFileExplorer extends LitElement {
     }
 
     /**
-     * 获取父路径（/a/b/c → /a/b，/a → /）
+     * Get parent path (/a/b/c → /a/b, /a → /)
      */
     private _getParentPath(path: string): string | null {
         if (path === '/' || path === '') return null;
@@ -414,7 +414,7 @@ export class RtcFileExplorer extends LitElement {
 
     updated(changed: Map<string, unknown>) {
         super.updated(changed);
-        // 树加载/变更后，确保有初始焦点
+        // After tree loads/changes, ensure initial focus exists
         if (changed.has('root') || changed.has('_explorerCtx')) {
             this._ensureInitialFocus();
         }

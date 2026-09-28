@@ -1,10 +1,10 @@
 /**
  * Editor Controller
  *
- * 管理编辑器状态：视图模式、工具栏按钮可用性。
+ * Manages editor state: view mode, toolbar button availability.
  *
- * Phase 2.5 仅实现工具栏相关状态；标签页管理（openTabs / activeFile）
- * 留给 Phase 2.7。
+ * Phase 2.5 only implements toolbar-related state; tab management (openTabs / activeFile)
+ * is deferred to Phase 2.7.
  *
  * Provided by: <rtc-agent> (root)
  * Consumed by: <rtc-editor-toolbar>, <rtc-editor-area>

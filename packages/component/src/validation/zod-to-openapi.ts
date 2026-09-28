@@ -1,12 +1,12 @@
 /**
- * Zod Schema → OpenAPI Schema 转换
+ * Zod Schema to OpenAPI Schema conversion
  *
- * 将 Zod schema 转换为 OpenAPI Schema 格式，用于生成 Agent 文档
+ * Converts Zod schema to OpenAPI Schema format, used for generating Agent documentation
  *
- * 迁移自 peep/src/lib/rtc-agent-validation.ts
+ * Migrated from peep/src/lib/rtc-agent-validation.ts
  *
- * 支持的 Zod 功能：
- * - .describe() → description（参数描述）
+ * Supported Zod features:
+ * - .describe() → description (parameter description)
  * - .optional() → required: false
  * - .default() → default + required: false
  * - .min()/.max() → minimum/maximum
@@ -15,17 +15,17 @@
  * - .enum() → enum
  * - z.array() → array + items
  *
- * 扩展功能（通过 meta 方法）：
- * - .meta({ example: ... }) → example（示例值）
+ * Extended features (via meta method):
+ * - .meta({ example: ... }) → example (example value)
  */
 
 import type { ZodType } from 'zod';
 import type { OpenAPISchema, ParameterDef } from '../types/skill.js';
 
 /**
- * Zod metadata 扩展接口
+ * Zod metadata extension interface
  *
- * 用于存储示例值等 OpenAPI 特有信息
+ * Used to store example values and other OpenAPI-specific information
  */
 interface ZodMeta {
   example?: unknown;
@@ -34,10 +34,10 @@ interface ZodMeta {
 }
 
 /**
- * 从 Zod schema 生成 OpenAPI parameters
+ * Generate OpenAPI parameters from Zod schema
  *
  * @param shape ZodObject schema
- * @param descriptions 可选的参数描述覆盖
+ * @param descriptions Optional parameter description overrides
  */
 export function zodToParams<T extends ZodType>(
   shape: T,
@@ -46,8 +46,8 @@ export function zodToParams<T extends ZodType>(
   const params: ParameterDef[] = [];
   let obj = shape as any;
 
-  // 解包 ZodOptional/ZodDefault，获取内部的 ZodObject
-  // 处理 z.object({...}).optional() 的情况
+  // Unwrap ZodOptional/ZodDefault to get the inner ZodObject
+  // Handles z.object({...}).optional() case
   while (obj?._def) {
     const typeIdentifier = obj._def.typeName || obj._def.type;
     if (typeIdentifier === 'ZodOptional' || typeIdentifier === 'optional' ||
@@ -58,9 +58,9 @@ export function zodToParams<T extends ZodType>(
     }
   }
 
-  // 兼容 Zod v3 和 v4 的结构差异
-  // Zod v3: _def.typeName === 'ZodObject', _def.shape 是函数
-  // Zod v4: _def.typeName 是 undefined, _def.shape 是对象
+  // Compatibility with Zod v3 and v4 structural differences
+  // Zod v3: _def.typeName === 'ZodObject', _def.shape is a function
+  // Zod v4: _def.typeName is undefined, _def.shape is an object
   const isZodObject = obj?._def && (
     obj._def.typeName === 'ZodObject' ||  // v3
     (obj._def.shape !== undefined && typeof obj._def.shape === 'object' && !Array.isArray(obj._def.shape))  // v4
@@ -70,7 +70,7 @@ export function zodToParams<T extends ZodType>(
     throw new Error('zodToParams expects a ZodObject schema (got: ' + (obj?._def?.typeName || obj?._def?.type || 'unknown') + ')');
   }
 
-  // 获取 shape：v3 是函数调用，v4 是直接对象
+  // Get shape: v3 is a function call, v4 is a direct object
   const shapeEntries = typeof obj._def.shape === 'function'
     ? obj._def.shape()
     : obj._def.shape;
@@ -95,8 +95,8 @@ export function zodToParams<T extends ZodType>(
 }
 
 /**
- * 提取字段的元信息（可选性、描述、示例）
- * 兼容 Zod v3 和 v4
+ * Extract field metadata (optionality, description, example)
+ * Compatible with Zod v3 and v4
  */
 function extractFieldInfo(schema: ZodType): {
   isOptional: boolean;
@@ -110,10 +110,10 @@ function extractFieldInfo(schema: ZodType): {
   let description: string | undefined;
   let example: unknown;
 
-  // 获取类型标识（兼容 v3 的 typeName 和 v4 的 type）
+  // Get type identifier (compatible with v3's typeName and v4's type)
   const typeIdentifier = def.typeName || def.type;
 
-  // 递归处理包装类型（optional/default）
+  // Recursively handle wrapper types (optional/default)
   // v3: typeName === 'ZodOptional'/'ZodDefault', innerType
   // v4: type === 'optional'/'default', innerType
   if (typeIdentifier === 'ZodOptional' || typeIdentifier === 'optional' ||
@@ -126,16 +126,16 @@ function extractFieldInfo(schema: ZodType): {
     }
   }
 
-  // 读取描述
+  // Read description
   // v3: def.description
-  // v4: schema.description (顶层属性，不在 _def 里)
+  // v4: schema.description (top-level property, not in _def)
   if (def.description) {
     description = def.description;
   } else if ((schema as any).description) {
     description = (schema as any).description;
   }
 
-  // 读取 metadata（示例值）- v3 使用 def.meta
+  // Read metadata (example values) - v3 uses def.meta
   const meta = def.meta as ZodMeta | undefined;
   if (meta?.example !== undefined) {
     example = meta.example;
@@ -143,7 +143,7 @@ function extractFieldInfo(schema: ZodType): {
     example = meta.examples[0];
   }
 
-  // v4: 检查 _zod.bag（zod v4 的 metadata 存储位置）
+  // v4: Check _zod.bag (zod v4's metadata storage location)
   const zodBag = (schema as any)._zod?.bag as ZodMeta | undefined;
   if (example === undefined && zodBag?.example !== undefined) {
     example = zodBag.example;
@@ -151,19 +151,19 @@ function extractFieldInfo(schema: ZodType): {
     example = zodBag.examples[0];
   }
 
-  // 从 enum 自动生成示例
+  // Auto-generate example from enum
   // v3: typeName === 'ZodEnum', values
   // v4: type === 'enum', values
   if (example === undefined && (typeIdentifier === 'ZodEnum' || typeIdentifier === 'enum') && def.values?.length > 0) {
     example = def.values[0];
   }
 
-  // 从 default 生成示例
+  // Auto-generate example from default
   if (example === undefined && (typeIdentifier === 'ZodDefault' || typeIdentifier === 'default') && typeof def.defaultValue === 'function') {
     try {
       example = def.defaultValue();
     } catch {
-      // 忽略
+      // Ignore
     }
   }
 
@@ -171,19 +171,19 @@ function extractFieldInfo(schema: ZodType): {
 }
 
 /**
- * 单个 Zod 字段转 OpenAPI schema
- * 兼容 Zod v3 和 v4
+ * Single Zod field to OpenAPI schema
+ * Compatible with Zod v3 and v4
  */
 function zodFieldToOpenAPI(schema: ZodType): OpenAPISchema {
   const def = (schema as any)._def;
 
   if (!def) return {};
 
-  // 读取 metadata 中的 format
+  // Read format from metadata
   const meta = def.meta as ZodMeta | undefined;
   const format = meta?.format;
 
-  // 获取类型标识（兼容 v3 的 typeName 和 v4 的 type）
+  // Get type identifier (compatible with v3's typeName and v4's type)
   const typeIdentifier = def.typeName || def.type;
 
   switch (typeIdentifier) {
@@ -264,9 +264,9 @@ function zodFieldToOpenAPI(schema: ZodType): OpenAPISchema {
 }
 
 /**
- * 为 Zod schema 添加 metadata（示例值等）
+ * Add metadata to Zod schema (example values, etc.)
  *
- * 用法：
+ * Usage:
  * ```ts
  * import { z } from 'zod';
  * import { withMeta } from '@rtc-agent/component';

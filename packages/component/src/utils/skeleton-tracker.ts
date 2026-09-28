@@ -1,13 +1,13 @@
 /**
- * Skeleton Tracker - 骨架屏生命周期统一管理
+ * Skeleton Tracker - Unified skeleton screen lifecycle management
  *
- * 替代原有分散的状态管理：
+ * Replaces the previously scattered state management:
  * - _placeholderItemIds: Set<string>
  * - _placeholderPositions: Array<{itemId: string; y: number}>
  * - _placeholderIndexMap: Map<string, number>
  * - _pendingRestorationIds: Set<string>
  *
- * 统一管理骨架屏的创建、追踪、恢复，提供清晰的 API。
+ * Unified management of skeleton screen creation, tracking, and restoration, providing a clear API.
  */
 
 import {createLogger} from '@rtc-agent/client';
@@ -15,57 +15,57 @@ import {createLogger} from '@rtc-agent/client';
 const log = createLogger('SkeletonTracker');
 
 /**
- * 骨架屏信息
+ * Skeleton screen info
  */
 export interface SkeletonInfo {
-    /** 元素 ID */
+    /** Element ID */
     itemId: string;
-    /** 在 _items 中的索引 */
+    /** Index in _items */
     index: number;
-    /** 绝对 Y 坐标（相对于滚动内容） */
+    /** Absolute Y coordinate (relative to scroll content) */
     y: number;
-    /** DOM 元素引用 */
+    /** DOM element reference */
     element: HTMLElement;
-    /** 是否在待恢复队列中 */
+    /** Whether it is in the pending restoration queue */
     isPendingRestoration: boolean;
 }
 
 /**
- * 骨架屏追踪器
+ * Skeleton screen tracker
  *
- * 职责：
- * 1. 追踪所有骨架屏的状态（位置、DOM 引用、恢复状态）
- * 2. 提供高效的查询 API（按范围、按 ID）
- * 3. 支持批量操作（重建位置、清空）
+ * Responsibilities:
+ * 1. Track state of all skeleton screens (position, DOM reference, restoration state)
+ * 2. Provide efficient query API (by range, by ID)
+ * 3. Support batch operations (rebuild positions, clear)
  *
- * 使用方式：
+ * Usage:
  * ```typescript
  * const tracker = new SkeletonTracker();
  *
- * // 添加骨架屏
+ * // Add skeleton
  * tracker.add(itemId, index, y, element);
  *
- * // 查询范围内的骨架屏
+ * // Query skeletons in range
  * const skeletons = tracker.getSkeletonsInRange(top, bottom);
  *
- * // 重建所有位置（布局变化后）
+ * // Rebuild all positions (after layout changes)
  * tracker.rebuildPositions(scrollContainer, elementMap);
  *
- * // 移除已恢复的骨架屏
+ * // Remove restored skeleton
  * tracker.remove(itemId);
  * ```
  */
 export class SkeletonTracker {
-    /** 骨架屏信息映射：itemId → SkeletonInfo */
+    /** Skeleton info map: itemId -> SkeletonInfo */
     private _skeletons: Map<string, SkeletonInfo> = new Map();
 
     /**
-     * 添加骨架屏
+     * Add a skeleton
      *
-     * @param itemId 元素 ID
-     * @param index 在 _items 中的索引
-     * @param y 绝对 Y 坐标
-     * @param element DOM 元素引用
+     * @param itemId Element ID
+     * @param index Index in _items
+     * @param y Absolute Y coordinate
+     * @param element DOM element reference
      */
     add(itemId: string, index: number, y: number, element: HTMLElement): void {
         if (this._skeletons.has(itemId)) {
@@ -84,9 +84,9 @@ export class SkeletonTracker {
     }
 
     /**
-     * 移除骨架屏
+     * Remove a skeleton
      *
-     * @param itemId 元素 ID
+     * @param itemId Element ID
      */
     remove(itemId: string): void {
         const removed = this._skeletons.delete(itemId);
@@ -96,44 +96,44 @@ export class SkeletonTracker {
     }
 
     /**
-     * 获取骨架屏信息
+     * Get skeleton info
      *
-     * @param itemId 元素 ID
-     * @returns 骨架屏信息，不存在返回 undefined
+     * @param itemId Element ID
+     * @returns Skeleton info, or undefined if not found
      */
     get(itemId: string): SkeletonInfo | undefined {
         return this._skeletons.get(itemId);
     }
 
     /**
-     * 检查是否是骨架屏
+     * Check if an item is a skeleton
      *
-     * @param itemId 元素 ID
-     * @returns 是否是骨架屏
+     * @param itemId Element ID
+     * @returns Whether it is a skeleton
      */
     has(itemId: string): boolean {
         return this._skeletons.has(itemId);
     }
 
     /**
-     * 获取指定 Y 范围内的骨架屏
+     * Get skeletons within a Y range
      *
-     * 检查骨架屏的任意部分是否在范围内（顶部、底部或完全包含）。
+     * Checks if any part of the skeleton (top, bottom, or fully contained) is within range.
      *
-     * @param yMin 范围上界
-     * @param yMax 范围下界
-     * @returns 范围内的骨架屏数组
+     * @param yMin Range upper bound
+     * @param yMax Range lower bound
+     * @returns Array of skeletons within range
      */
     getInRange(yMin: number, yMax: number): SkeletonInfo[] {
         const result: SkeletonInfo[] = [];
 
         for (const skeleton of this._skeletons.values()) {
-            // 跳过已在恢复队列中的
+            // Skip those already in the restoration queue
             if (skeleton.isPendingRestoration) {
                 continue;
             }
 
-            // 检查元素是否还在 DOM 中
+            // Check if element is still in the DOM
             if (!skeleton.element.isConnected) {
                 log.warn(`Skeleton ${skeleton.itemId} element not connected, removing`);
                 this._skeletons.delete(skeleton.itemId);
@@ -143,11 +143,11 @@ export class SkeletonTracker {
             const skeletonHeight = skeleton.element.getBoundingClientRect().height;
             const skeletonBottom = skeleton.y + skeletonHeight;
 
-            // 检查是否在范围内（任意部分）
+            // Check if within range (any part)
             const inRange =
-                (skeleton.y >= yMin && skeleton.y <= yMax) || // 顶部在范围内
-                (skeletonBottom >= yMin && skeletonBottom <= yMax) || // 底部在范围内
-                (skeleton.y < yMin && skeletonBottom > yMax); // 完全包含范围
+                (skeleton.y >= yMin && skeleton.y <= yMax) || // top is within range
+                (skeletonBottom >= yMin && skeletonBottom <= yMax) || // bottom is within range
+                (skeleton.y < yMin && skeletonBottom > yMax); // fully contains range
 
             if (inRange) {
                 result.push(skeleton);
@@ -158,9 +158,9 @@ export class SkeletonTracker {
     }
 
     /**
-     * 标记骨架屏为待恢复状态
+     * Mark a skeleton as pending restoration
      *
-     * @param itemId 元素 ID
+     * @param itemId Element ID
      */
     markPending(itemId: string): void {
         const skeleton = this._skeletons.get(itemId);
@@ -170,9 +170,9 @@ export class SkeletonTracker {
     }
 
     /**
-     * 清除待恢复标记
+     * Clear pending restoration flag
      *
-     * @param itemId 元素 ID
+     * @param itemId Element ID
      */
     clearPending(itemId: string): void {
         const skeleton = this._skeletons.get(itemId);
@@ -182,13 +182,13 @@ export class SkeletonTracker {
     }
 
     /**
-     * 重建所有骨架屏的 Y 位置
+     * Rebuild Y positions for all skeletons
      *
-     * 当布局发生变化（容器 resize、元素插入等）后调用，
-     * 基于当前 DOM 状态重新计算所有骨架屏的绝对 Y 坐标。
+     * Called after layout changes (container resize, element insertion, etc.)
+     * to recalculate absolute Y coordinates for all skeletons based on current DOM state.
      *
-     * @param scrollContainer 滚动容器
-     * @param elementMap 索引 → DOM 元素映射
+     * @param scrollContainer Scroll container
+     * @param elementMap Index -> DOM element map
      */
     rebuildPositions(scrollContainer: HTMLElement, elementMap: Map<number, HTMLElement>): void {
         const containerRect = scrollContainer.getBoundingClientRect();
@@ -208,12 +208,12 @@ export class SkeletonTracker {
     }
 
     /**
-     * 更新骨架屏的索引
+     * Update skeleton indices
      *
-     * 当 _items 数组变化（prepend、splice 等）后调用，
-     * 更新所有骨架屏的索引以匹配新的 _items 数组。
+     * Called after the _items array changes (prepend, splice, etc.)
+     * to update all skeleton indices to match the new _items array.
      *
-     * @param indexMap 旧索引 → 新索引映射
+     * @param indexMap Old index -> new index map
      */
     updateIndices(indexMap: Map<number, number>): void {
         for (const skeleton of this._skeletons.values()) {
@@ -225,7 +225,7 @@ export class SkeletonTracker {
     }
 
     /**
-     * 清空所有骨架屏
+     * Clear all skeletons
      */
     clear(): void {
         const count = this._skeletons.size;
@@ -234,23 +234,23 @@ export class SkeletonTracker {
     }
 
     /**
-     * 获取所有骨架屏
+     * Get all skeletons
      *
-     * @returns 所有骨架屏数组
+     * @returns Array of all skeletons
      */
     getAll(): SkeletonInfo[] {
         return Array.from(this._skeletons.values());
     }
 
     /**
-     * 获取骨架屏数量
+     * Get skeleton count
      */
     get size(): number {
         return this._skeletons.size;
     }
 
     /**
-     * 获取待恢复的骨架屏数量
+     * Get count of skeletons pending restoration
      */
     get pendingCount(): number {
         let count = 0;

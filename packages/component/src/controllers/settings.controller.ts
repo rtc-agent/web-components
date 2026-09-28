@@ -7,7 +7,7 @@
  *
  * Corresponds to: `SettingsContext` (defined in `contexts/settings.ts`).
  * Provided by: `<rtc-agent>` (root)
- * Consumed by: `<rtc-settings-layout>`, 各功能组件
+ * Consumed by: `<rtc-settings-layout>`, each feature component
  */
 import type {ReactiveController, ReactiveControllerHost} from 'lit';
 import type {
@@ -104,7 +104,7 @@ export class SettingsController implements ReactiveController {
             const raw = localStorage.getItem(STORAGE_KEYS.settings);
             if (!raw) return;
             const saved = JSON.parse(raw);
-            // 逐分组合并，保留默认值作为 fallback，并验证值域
+            // Merge group by group, keeping defaults as fallback and validating value range
             this._state = {
                 appearance: {
                     theme: this._validateTheme(saved.appearance?.theme),

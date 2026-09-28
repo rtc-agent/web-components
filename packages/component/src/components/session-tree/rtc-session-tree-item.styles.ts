@@ -1,13 +1,13 @@
 import {css} from 'lit';
 
 /**
- * Session Tree Item 样式
+ * Session Tree Item styles
  *
- * 参考 rtc-file-tree-item.styles.ts 的完整模式：
- * - static styles 数组包含 [tokens, lightTheme, darkTheme, baseStyles, styles]
- * - 显式 :host([theme='dark']) / :host([theme='light']) 块
- * - 选中态使用 --rtc-color-on-primary 作为文字色
- * - 左侧 2px accent 指示条
+ * Following the full pattern from rtc-file-tree-item.styles.ts:
+ * - static styles array includes [tokens, lightTheme, darkTheme, baseStyles, styles]
+ * - Explicit :host([theme='dark']) / :host([theme='light']) blocks
+ * - Selected state uses --rtc-color-on-primary as text color
+ * - Left 2px accent indicator bar
  */
 export const styles = css`
     :host {
@@ -53,7 +53,7 @@ export const styles = css`
         background-color: var(--rtc-color-primary);
     }
 
-    /* Chevron (展开/折叠箭头) */
+    /* Chevron (expand/collapse arrow) */
     .chevron {
         width: 16px;
         height: 16px;
@@ -74,13 +74,13 @@ export const styles = css`
         transform: rotate(90deg);
     }
 
-    /* 占位（叶子节点无 chevron，用 indent 对齐） */
+    /* Spacer (leaf nodes have no chevron; use indent for alignment) */
     .indent {
         width: 16px;
         flex-shrink: 0;
     }
 
-    /* 图标 */
+    /* Icon */
     .icon {
         width: 16px;
         height: 16px;
@@ -130,7 +130,7 @@ export const styles = css`
         50%      { opacity: 0.4; transform: scale(0.85); }
     }
 
-    /* 标题 */
+    /* Title */
     .label {
         flex: 1;
         white-space: nowrap;
@@ -140,7 +140,7 @@ export const styles = css`
         line-height: 28px;
     }
 
-    /* 时间戳 */
+    /* Timestamp */
     .timestamp {
         flex-shrink: 0;
         font-size: 11px;
@@ -149,7 +149,7 @@ export const styles = css`
         padding-left: 8px;
     }
 
-    /* ── Action buttons (重命名/删除) ── */
+    /* ── Action buttons (rename/delete) ── */
     .actions {
         display: flex;
         align-items: center;
@@ -166,7 +166,7 @@ export const styles = css`
         opacity: 1;
     }
 
-    /* hover/selected 时隐藏 timestamp，给 actions 让位 */
+    /* Hide timestamp on hover/selected to make room for actions */
     .tree-item-content:hover .timestamp,
     .tree-item-content.selected .timestamp {
         display: none;
@@ -203,7 +203,7 @@ export const styles = css`
         color: var(--rtc-color-danger, #dc2626);
     }
 
-    /* 选中态下 action-btn 的颜色适配 */
+    /* Color adaptation for action-btn in selected state */
     .tree-item-content.selected .action-btn {
         color: var(--rtc-color-text-inverse, #ffffff);
         opacity: 0.7;
@@ -219,7 +219,7 @@ export const styles = css`
         color: var(--rtc-color-text-inverse, #ffffff);
     }
 
-    /* ── 内联重命名 ── */
+    /* ── Inline rename ── */
     .rename-input {
         flex: 1;
         min-width: 0;
@@ -279,18 +279,18 @@ export const styles = css`
         color: var(--rtc-color-text, #333333);
     }
 
-    /* 重命名态下的特殊样式 */
+    /* Special styles in rename state */
     .tree-item-content.renaming {
         background-color: var(--rtc-color-bg-hover);
     }
 
-    /* 子节点容器 */
+    /* Child node container */
     .children {
         display: block;
         background-color: inherit;
     }
 
-    /* ── 暗色主题适配 ── */
+    /* ── Dark theme adaptation ── */
     :host([theme='dark']) .tree-item-content {
         color: var(--rtc-color-text, #cccccc);
     }
@@ -341,7 +341,7 @@ export const styles = css`
         color: var(--rtc-color-text, #cccccc);
     }
 
-    /* ── 亮色主题适配 ── */
+    /* ── Light theme adaptation ── */
     :host([theme='light']) .tree-item-content {
         color: var(--rtc-color-text, #333333);
     }

@@ -1,37 +1,37 @@
 /**
- * 运行时参数校验模块
+ * Runtime parameter validation module
  *
- * 提供统一的参数校验入口，支持 Zod schema 和 OpenAPI Schema
- * 校验失败返回友好错误，引导 Agent 读取 /functions/INDEX.md
+ * Provides a unified parameter validation entry point, supporting Zod schema and OpenAPI Schema
+ * Validation failures return friendly errors, guiding Agent to read /functions/INDEX.md
  */
 
 import { z, type ZodType } from 'zod';
 import type { ParameterDef } from '../types/skill.js';
 import { openApiToZod } from './openapi-to-zod.js';
 
-// ── 类型定义 ──────────────────────────────────────
+// ── Type definitions ──────────────────────────────────────
 
-/** 校验错误信息 */
+/** Validation error info */
 export interface ValidationError {
   field: string;
   message: string;
   code?: string;
 }
 
-/** 校验结果 */
+/** Validation result */
 export interface ValidationResult<T = unknown> {
   success: boolean;
   data?: T;
   errors?: ValidationError[];
 }
 
-// ── 参数校验 ──────────────────────────────────────
+// ── Parameter validation ──────────────────────────────────────
 
 /**
- * 用 Zod schema 校验参数
+ * Validate parameters with Zod schema
  *
  * @param schema Zod schema
- * @param params 待校验的参数
+ * @param params Parameters to validate
  */
 export function validateParams<T extends ZodType>(
   schema: T,
@@ -53,7 +53,7 @@ export function validateParams<T extends ZodType>(
 }
 
 /**
- * 格式化校验错误为 Agent 友好的消息
+ * Format validation error into Agent-friendly message
  */
 export function formatValidationError(
   groupName: string,
@@ -68,13 +68,13 @@ export function formatValidationError(
 }
 
 /**
- * 构建校验器
+ * Build validator
  *
- * 优先使用 zodSchema，否则从 parameters 生成
+ * Prefers zodSchema, otherwise generates from parameters
  *
- * @param zodSchema 可选的 Zod schema
- * @param parameters OpenAPI 格式的参数定义
- * @returns Zod schema 用于校验
+ * @param zodSchema Optional Zod schema
+ * @param parameters Parameter definitions in OpenAPI format
+ * @returns Zod schema for validation
  */
 export function buildValidator(
   zodSchema: ZodType | undefined,
@@ -88,16 +88,16 @@ export function buildValidator(
     return openApiToZod(parameters);
   }
 
-  // 没有 schema 信息，跳过校验
+  // No schema info, skip validation
   return null;
 }
 
-// ── Handler 包装器 ─────────────────────────────────
+// ── Handler wrapper ─────────────────────────────────
 
 /**
- * 带校验的 handler 包装器
+ * Handler wrapper with validation
  *
- * 用于 FunctionDef.handler 的包装，自动进行参数校验
+ * Used for wrapping FunctionDef.handler, automatically validates parameters
  */
 export function withValidation<TParams extends ZodType, TResult>(
   groupName: string,
@@ -106,7 +106,7 @@ export function withValidation<TParams extends ZodType, TResult>(
   handler: (params: z.infer<TParams>) => Promise<TResult> | TResult
 ): (params: Record<string, unknown>) => Promise<TResult | { error: string }> {
   return async (params: Record<string, unknown>) => {
-    // 1. 参数校验
+    // 1. Parameter validation
     const validation = validateParams(schema, params);
 
     if (!validation.success) {
@@ -115,7 +115,7 @@ export function withValidation<TParams extends ZodType, TResult>(
       };
     }
 
-    // 2. 执行 handler
+    // 2. Execute handler
     try {
       const result = await handler(validation.data!);
       return result;
@@ -128,7 +128,7 @@ export function withValidation<TParams extends ZodType, TResult>(
   };
 }
 
-// ── 导出 ──────────────────────────────────────────
+// ── Exports ──────────────────────────────────────────
 
 export { z } from 'zod';
 export { zodToParams, withMeta } from './zod-to-openapi.js';

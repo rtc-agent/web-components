@@ -1,19 +1,19 @@
 /**
- * Session Tree 容器组件
+ * Session Tree Container Component
  *
- * VS Code 风格会话树侧边栏。
- * 组合 rtc-session-tree-item 递归叶子组件，显示完整的会话层级树。
+ * VS Code-style session tree sidebar.
+ * Composes rtc-session-tree-item recursive leaf components to display the full session hierarchy tree.
  *
- * - Header：标题 + 操作按钮（新建会话）
- * - Content：递归渲染 rtc-session-tree-item
- * - Empty State：无会话时显示提示
+ * - Header: Title + action buttons (new session)
+ * - Content: Recursively renders rtc-session-tree-item
+ * - Empty State: Shows a prompt when there are no sessions
  *
- * 通过 SessionTreeContext 消费树数据和展开/折叠操作。
+ * Consumes tree data and expand/collapse actions via SessionTreeContext.
  *
  * @element rtc-session-tree
- * @fires rtc-session-tree-select - 用户点击会话 (detail: { sessionId })
- * @fires rtc-session-tree-toggle - 用户点击展开/折叠 (detail: { sessionId })
- * @fires rtc-session-tree-new - 用户点击新建按钮
+ * @fires rtc-session-tree-select - User clicks a session (detail: { sessionId })
+ * @fires rtc-session-tree-toggle - User clicks expand/collapse (detail: { sessionId })
+ * @fires rtc-session-tree-new - User clicks the new session button
  */
 import {LitElement, html} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
@@ -28,7 +28,7 @@ import {baseStyles} from '../../styles/base.js';
 import {SessionTreeContext, type SessionTreeContextValue} from '../../contexts/session-tree.js';
 import {plusIcon, refreshIcon} from '../../icons/index.js';
 
-// 子组件（副作用导入）
+// Sub-component (side-effect import)
 import './rtc-session-tree-item.js';
 import type {RtcSessionTreeItem} from './rtc-session-tree-item.js';
 import { createLogger } from '@rtc-agent/client';
@@ -52,7 +52,7 @@ export class RtcSessionTree extends LitElement {
 
     /* ── Properties ── */
 
-    /** 主题（继承自父级） */
+    /** Theme (inherited from parent) */
     @property({type: String, reflect: true})
     theme: 'light' | 'dark' | 'system' = 'system';
 
@@ -70,11 +70,11 @@ export class RtcSessionTree extends LitElement {
         },
     };
 
-    /** 当前选中的 sessionId */
+    /** Currently selected sessionId */
     @property({type: String, attribute: 'selected-session-id'})
     selectedSessionId: string | null = null;
 
-    /** 当前键盘焦点所在的 sessionId（roving tabindex 管理） */
+    /** SessionId with current keyboard focus (roving tabindex management) */
     @state()
     private _focusedSessionId: string | null = null;
 
@@ -115,8 +115,8 @@ export class RtcSessionTree extends LitElement {
     }
 
     private _handleRefresh() {
-        // Session 列表由 UIUpdateBus 实时同步（服务端变更自动推送），无手动刷新逻辑。
-        // 保留按钮但给出提示，避免用户困惑。未来若需要强制拉取可在此处接入。
+        // Session list is synced in real-time by UIUpdateBus (server changes auto-pushed), no manual refresh logic.
+        // Keep the button but show a toast to avoid user confusion. Can be wired to force-fetch in the future if needed.
         this.dispatchEvent(
             new CustomEvent('rtc-toast-requested', {
                 bubbles: true,
@@ -131,7 +131,7 @@ export class RtcSessionTree extends LitElement {
 
     private _handleItemRename(e: CustomEvent) {
         const {sessionId, title} = e.detail;
-        // 向上转发为统一的重命名确认事件，由 rtc-agent 直接调用 SessionController
+        // Forward upward as a unified rename confirmation event, handled by rtc-agent which calls SessionController directly
         this.dispatchEvent(
             new CustomEvent('rtc-session-rename-confirmed', {
                 bubbles: true,
@@ -143,7 +143,7 @@ export class RtcSessionTree extends LitElement {
 
     private _handleItemDelete(e: CustomEvent) {
         const {sessionId} = e.detail;
-        // 向上转发为统一的删除请求事件，由 rtc-agent 调用 SessionController.deleteSession
+        // Forward upward as a unified delete request event, handled by rtc-agent which calls SessionController.deleteSession
         this.dispatchEvent(
             new CustomEvent('rtc-session-delete-requested', {
                 bubbles: true,
@@ -153,15 +153,15 @@ export class RtcSessionTree extends LitElement {
         );
     }
 
-    /* ── 键盘导航 ──
+    /* ── Keyboard Navigation ──
      *
-     * ARIA Treeview 模式：roving tabindex。
-     * 方向键在可见项列表中移动焦点，Enter/Space 激活。
+     * ARIA Treeview pattern: roving tabindex.
+     * Arrow keys move focus within the visible item list, Enter/Space activates.
      */
 
     /**
-     * 深度优先遍历可见（展开的）树节点，返回扁平列表。
-     * 通过 composed tree walk 穿越递归 Shadow DOM。
+     * Depth-first traversal of visible (expanded) tree nodes, returning a flat list.
+     * Walks the composed tree to traverse recursive Shadow DOM.
      */
     private _getVisibleTreeItems(): RtcSessionTreeItem[] {
         const result: RtcSessionTreeItem[] = [];
@@ -170,7 +170,7 @@ export class RtcSessionTree extends LitElement {
                 if (child.tagName === 'RTC-SESSION-TREE-ITEM') {
                     const item = child as RtcSessionTreeItem;
                     result.push(item);
-                    // 仅展开的节点才递归子节点
+                    // Only recurse into children for expanded nodes
                     if (item.node.children.length > 0 && item.node.isExpanded) {
                         const childrenContainer =
                             item.shadowRoot?.querySelector('.children');
@@ -185,7 +185,7 @@ export class RtcSessionTree extends LitElement {
     }
 
     private _setFocusedSessionId(sessionId: string | null) {
-        // 清除旧焦点项
+        // Clear old focused item
         if (this._focusedSessionId) {
             const oldItem = this._findTreeItemBySessionId(this._focusedSessionId);
             if (oldItem) {
@@ -194,7 +194,7 @@ export class RtcSessionTree extends LitElement {
             }
         }
         this._focusedSessionId = sessionId;
-        // 设置新焦点项
+        // Set new focused item
         if (sessionId) {
             const newItem = this._findTreeItemBySessionId(sessionId);
             if (newItem) {

@@ -1,18 +1,18 @@
 /**
  * File Tree Item Component
  *
- * 递归文件树节点组件，用于显示文件夹和文件。
+ * Recursive file tree node component for displaying folders and files.
  *
- * - 文件夹：显示 chevron + 文件夹图标 + 名称，可展开/折叠
- * - 文件：显示缩进 + 文件图标 + 名称
- * - 从 FileExplorerContext 读取展开/选中/加载状态
- * - 递归渲染子节点
+ * - Folders: display chevron + folder icon + name, expandable/collapsible
+ * - Files: display indent + file icon + name
+ * - Reads expand/select/loading state from FileExplorerContext
+ * - Recursively renders child nodes
  *
- * ARIA: role="treeitem"，由父级 Explorer 管理 tabindex（roving）与焦点。
+ * ARIA: role="treeitem", parent Explorer manages tabindex (roving) and focus.
  *
  * @element rtc-file-tree-item
- * @fires file-tree-item-toggle - 点击文件夹展开/折叠（detail: { path }）
- * @fires file-tree-item-select - 点击文件/文件夹选中（detail: { path }）
+ * @fires file-tree-item-toggle - Clicked folder to expand/collapse (detail: { path })
+ * @fires file-tree-item-select - Clicked file/folder to select (detail: { path })
  */
 import {LitElement, html, nothing} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
@@ -38,7 +38,7 @@ import { createLogger } from '@rtc-agent/client';
 const log = createLogger('FileTreeItem');
 
 /**
- * Chevron 右箭头 SVG（内联，无依赖）
+ * Chevron right arrow SVG (inline, no dependencies)
  */
 const chevronRightSvg = html`
     <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
@@ -65,15 +65,15 @@ export class RtcFileTreeItem extends LitElement {
 
     /* ── Properties ── */
 
-    /** 文件树节点数据 */
+    /** File tree node data */
     @property({type: Object})
     node: FileNode = {path: '/', name: 'root', type: 'folder'};
 
-    /** 缩进层级（0 = 根） */
+    /** Indentation level (0 = root) */
     @property({type: Number})
     depth = 0;
 
-    /** 主题（继承自父级） */
+    /** Theme (inherited from parent) */
     @property({type: String, reflect: true})
     theme: 'light' | 'dark' | 'system' = 'system';
 
@@ -104,7 +104,7 @@ export class RtcFileTreeItem extends LitElement {
         return this._explorerCtx.isExpanded(this.node.path);
     }
 
-    /** 公开给父级 Explorer 用于键盘导航 composed walk */
+    /** Exposed to parent Explorer for keyboard navigation composed walk */
     get expanded(): boolean {
         return this._isExpanded;
     }
@@ -121,13 +121,13 @@ export class RtcFileTreeItem extends LitElement {
         return this.node.type === 'folder';
     }
 
-    /** 公开给父级 Explorer 用于键盘导航 composed walk */
+    /** Exposed to parent Explorer for keyboard navigation composed walk */
     get isFolder(): boolean {
         return this._isFolder;
     }
 
     /**
-     * 聚焦内部 content div（由父级 Explorer 在键盘导航时调用）
+     * Focus the inner content div (called by parent Explorer during keyboard navigation)
      */
     focusContent() {
         const el = this.shadowRoot?.querySelector('.tree-item-content') as HTMLElement | null;
@@ -152,10 +152,10 @@ export class RtcFileTreeItem extends LitElement {
 
     private _handleSelect() {
         this._explorerCtx.actions.selectNode(this.node.path);
-        // 文件夹：点击行同时 toggle 展开/折叠（VS Code 行为）
+        // Folder: clicking the row also toggles expand/collapse (VS Code behavior)
         if (this._isFolder) {
             this._explorerCtx.actions.toggleNode(this.node.path);
-            // 触发 toggle 事件，用于懒加载子节点
+            // Dispatch toggle event for lazy-loading child nodes
             this.dispatchEvent(
                 new CustomEvent('file-tree-item-toggle', {
                     bubbles: true,
@@ -176,7 +176,7 @@ export class RtcFileTreeItem extends LitElement {
     /* ── Render Helpers ── */
 
     /**
-     * 根据文件扩展名返回对应图标
+     * Returns the corresponding icon based on file extension
      */
     private _getFileIcon() {
         const name = this.node.name.toLowerCase();
@@ -190,14 +190,14 @@ export class RtcFileTreeItem extends LitElement {
     }
 
     /**
-     * 渲染文件夹图标
+     * Render folder icon
      */
     private _renderFolderIcon() {
         return this._isExpanded ? folderOpenIcon : folderClosedIcon;
     }
 
     /**
-     * 渲染 chevron（仅文件夹）
+     * Render chevron (folders only)
      */
     private _renderChevron() {
         return html`
@@ -211,7 +211,7 @@ export class RtcFileTreeItem extends LitElement {
     }
 
     /**
-     * 渲染加载指示器
+     * Render loading indicator
      */
     private _renderSpinner() {
         if (!this._isLoading) return nothing;
@@ -268,7 +268,7 @@ export class RtcFileTreeItem extends LitElement {
     }
 
     /**
-     * 返回图标 CSS 类名
+     * Returns icon CSS class name
      */
     private _getIconClass(): string {
         if (this._isFolder) {

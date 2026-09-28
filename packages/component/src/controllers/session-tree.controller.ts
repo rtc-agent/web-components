@@ -1,14 +1,14 @@
 /**
  * Session Tree Controller
  *
- * 将平铺的 session 列表构建为层级树：
- * - rootClientSessionId 为空的 session 作为根节点
- * - 其余 session 按 rootClientSessionId 分组，挂到对应根节点的 children 中
+ * Builds a hierarchical tree from a flat session list:
+ * - Sessions with empty rootClientSessionId become root nodes
+ * - Remaining sessions are grouped by rootClientSessionId under their corresponding root node's children
  *
- * 管理展开/折叠状态。session 列表变化时通过 rebuildTree() 重建。
+ * Manages expand/collapse state. Tree is rebuilt via rebuildTree() when session list changes.
  *
- * 对应：`SessionTreeContext`（contexts/session-tree.ts）
- * 消费方：<rtc-session-tree>, <rtc-session-tree-item>
+ * Corresponds to: `SessionTreeContext` (contexts/session-tree.ts)
+ * Consumed by: <rtc-session-tree>, <rtc-session-tree-item>
  */
 import type {ReactiveController, ReactiveControllerHost} from 'lit';
 import type {Session, SessionTreeNode, SessionTreeState, SessionTreeActions} from '../types/index.js';
@@ -24,7 +24,7 @@ export class SessionTreeController implements ReactiveController {
     host: ReactiveControllerHost;
 
     private _state: SessionTreeState = {rootNodes: []};
-    /** 展开状态的 Map：sessionId → isExpanded。默认全部折叠。 */
+    /** Expanded state Map: sessionId → isExpanded. Default is all collapsed. */
     private _expanded = new Map<string, boolean>();
 
     readonly actions: SessionTreeActions;
@@ -52,8 +52,8 @@ export class SessionTreeController implements ReactiveController {
     /* ── Persistence ── */
 
     private _restoreExpanded() {
-        // 默认全部折叠，不恢复之前的展开状态
-        // 如需持久化展开状态，可在此处从 localStorage 读取
+        // Default all collapsed, do not restore previous expand state
+        // To persist expand state, read from localStorage here
     }
 
     private _persistExpanded() {
@@ -89,14 +89,14 @@ export class SessionTreeController implements ReactiveController {
     }
 
     /**
-     * 用当前缓存的 sessions 和展开状态重建树
+     * Rebuild tree using currently cached sessions and expand state
      *
-     * rebuildTree 时 sessions 会更新，但展开状态 (_expanded) 保留。
-     * 此方法从 _expanded 读取最新展开状态来重建。
+     * During rebuildTree, sessions are updated but expand state (_expanded) is preserved.
+     * This method reads the latest expand state from _expanded to rebuild.
      */
     private _rebuildTreeFromCache() {
-        // 重建时 sessions 已经在 _state 中（由 rebuildTree 更新）
-        // 但 _rebuildTreeFromCache 需要 sessions，我们用闭包缓存
+        // During rebuild, sessions are already in _state (updated by rebuildTree)
+        // But _rebuildTreeFromCache needs sessions, so we cache them via closure
         if (this._cachedSessions) {
             this._buildTree(this._cachedSessions);
         }
@@ -111,7 +111,7 @@ export class SessionTreeController implements ReactiveController {
 
     private _buildTree(sessions: Session[]) {
         log.debug('Building tree from', sessions.length, 'sessions');
-        // 1. 分类：root sessions vs child sessions
+        // 1. Categorize: root sessions vs child sessions
         const rootSessions = sessions.filter(s => !s.rootClientSessionId);
         log.debug('Root sessions:', rootSessions.length);
         const childMap = new Map<string, Session[]>();
@@ -124,12 +124,12 @@ export class SessionTreeController implements ReactiveController {
         }
         log.debug('Child sessions grouped:', childMap.size, 'groups');
 
-        // 2. 构建树，保留已有展开状态
+        // 2. Build tree, preserving existing expand state
         const rootNodes: SessionTreeNode[] = rootSessions.map(s =>
             this._buildNode(s, childMap)
         );
 
-        // 3. 按 updatedAt 降序排列（最近的在上面）
+        // 3. Sort by updatedAt descending (most recent on top)
         rootNodes.sort((a, b) => b.session.updatedAt - a.session.updatedAt);
 
         this._state = {rootNodes};

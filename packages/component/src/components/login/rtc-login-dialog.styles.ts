@@ -87,7 +87,7 @@ export const styles = css`
     background: var(--rtc-color-bg, #ffffff);
   }
 
-  /* ── 等待弹窗授权状态 ── */
+  /* ── Waiting for popup authorization status ── */
   .waiting-container {
     flex: 1;
     display: flex;

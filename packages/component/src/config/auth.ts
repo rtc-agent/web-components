@@ -99,16 +99,16 @@ export const STORAGE_KEYS = {
     deviceName: 'rtc_device_name',
     oauthState: 'rtc_oauth_state',
     mode: 'rtc_mode',
-    /** 窗口状态：mode, position, size */
+    /** Window state: mode, position, size */
     windowState: 'rtc_window_state',
-    /** 会话树展开状态：sessionId → isExpanded */
+    /** Session tree expand state: sessionId → isExpanded */
     sessionTreeExpanded: 'rtc_session_tree_expanded',
-    /** Activity Bar 状态：active activity + sidebarVisible */
+    /** Activity Bar state: active activity + sidebarVisible */
     activityBar: 'rtc_activity_bar',
-    /** Editor Area 状态：打开的 tabs + activeFilePath */
+    /** Editor Area state: open tabs + activeFilePath */
     editorArea: 'rtc_editor_area',
-    /** 全局设置状态 */
+    /** Global settings state */
     settings: 'rtc_settings',
-    /** Input Area 高度（resize handle 位置） */
+    /** Input Area height (resize handle position) */
     inputAreaHeight: 'rtc_input_area_height',
 } as const;

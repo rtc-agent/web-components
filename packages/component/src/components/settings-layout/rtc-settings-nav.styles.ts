@@ -1,9 +1,9 @@
 import {css} from 'lit';
 
 /**
- * Settings Nav 样式
+ * Settings Nav styles
  *
- * 左栏分类导航，使用项目 design tokens 支持多主题。
+ * Left column category navigation, uses project design tokens for multi-theme support.
  */
 export const styles = css`
     :host {

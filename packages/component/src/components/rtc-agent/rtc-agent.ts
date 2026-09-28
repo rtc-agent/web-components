@@ -853,7 +853,7 @@ export class RtcAgent extends LitElement {
     private _boundOnKeydown = (e: KeyboardEvent) => {
         if (e.key === 'Escape' && this._fork.isActive) {
             this._fork.actions.clearFork();
-            // 派发事件由 chat-layout 监听并清空输入框（事件驱动，避免跨 shadow DOM 查询）
+            // Dispatch event for chat-layout to listen and clear input box (event-driven, avoids cross-shadow-DOM queries)
             this.dispatchEvent(new CustomEvent('rtc-clear-active-input'));
             return;
         }
@@ -1234,7 +1234,7 @@ export class RtcAgent extends LitElement {
         this._session.onSessionSwitch = () => {
             log.debug('onSessionSwitch currentSessionId:', this._session.value.state.currentSessionId);
             this._fork.actions.clearFork();  // Clear fork state when switching sessions.
-            // 注：tab transient params 的清除由 chat-layout._handleTabActivate 负责
+            // Note: clearing tab transient params is handled by chat-layout._handleTabActivate
             const sessionId = this._session.value.state.currentSessionId;
             if (sessionId) {
                 const repoState = this._message.repository.getSessionState(sessionId);

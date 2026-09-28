@@ -4,8 +4,8 @@ const log = createLogger('FunctionRegistry');
 /**
  * Function Registry
  *
- * 管理 Function 注册、解析、链式调用
- * 使用 Proxy 实现 rtcAgent.user.register() 语法
+ * Manages function registration, resolution, and chain calls.
+ * Uses Proxy to implement rtcAgent.user.register() syntax.
  */
 
 import type {
@@ -21,8 +21,8 @@ import { eventBus, type FunctionStartEvent, type FunctionSuccessEvent, type Func
 import { buildValidator, validateParams, formatValidationError } from '../validation/index.js';
 
 /**
- * FunctionGroup 实例
- * 支持链式注册和调用
+ * FunctionGroup instance
+ * Supports chain registration and invocation
  */
 export class FunctionGroup {
   private registry: FunctionRegistry;
@@ -35,12 +35,12 @@ export class FunctionGroup {
   }
 
   /**
-   * 注册 Function 到当前 Group
+   * Register a function to the current group
    *
-   * @param funcDef Function 定义，name 为必填（Group 内的函数名称，不含 Group 前缀）
+   * @param funcDef Function definition, name is required (function name within the group, without group prefix)
    */
   register(funcDef: Omit<FunctionDef, 'name'> & { name: string }): FunctionDef {
-    // 生成完整名称：group.name
+    // Generate full name: group.name
     const fullName = `${this.groupName}.${funcDef.name}`;
 
     const fullDef: FunctionDef = {
@@ -55,17 +55,17 @@ export class FunctionGroup {
   }
 
   /**
-   * 获取 Group 内的所有 Function
+   * Get all functions within the group
    */
   listFunctions(): FunctionDef[] {
     return Array.from(this.functions.values());
   }
 
   /**
-   * 通过 Proxy 支持链式调用：rtcAgent.task.list(params)
+   * Support chain calls via Proxy: rtcAgent.task.list(params)
    *
-   * 白名单方法直接返回，其他属性名视为 Group 内的函数名，
-   * 返回一个调用 registry.execute('group.funcName', params) 的函数。
+   * Whitelist methods are returned directly; other property names are treated as function names within the group,
+   * returning a function that calls registry.execute('group.funcName', params).
    */
   createProxy(): FunctionGroup & Record<string, (params?: Record<string, unknown>) => Promise<unknown>> {
     const group = this;
@@ -78,7 +78,7 @@ export class FunctionGroup {
           return (target as Record<symbol, unknown>)[prop];
         }
 
-        // 白名单方法
+        // Whitelist methods
         if (PUBLIC_METHODS.has(prop)) {
           const value = (target as Record<string, unknown>)[prop];
           if (typeof value === 'function') {
@@ -87,7 +87,7 @@ export class FunctionGroup {
           return value;
         }
 
-        // 检查是否是已注册的函数名
+        // Check if it's a registered function name
         const fullName = `${group.groupName}.${prop}`;
         if (group.functions.has(fullName)) {
           return (params: Record<string, unknown> = {}) => group.registry.execute(fullName, params);
@@ -100,7 +100,7 @@ export class FunctionGroup {
 }
 
 /**
- * FunctionRegistry - 全局注册表
+ * FunctionRegistry - Global registry
  */
 export class FunctionRegistry {
   private config: RegistryConfig;
@@ -114,45 +114,45 @@ export class FunctionRegistry {
   }
 
   /**
-   * 注册单个 Function
+   * Register a single function
    *
-   * M10: 注意，文档生成（_updateFunctionDoc）是异步的 fire-and-forget 操作。
-   * register() 返回后，文档可能尚未写入虚拟文件系统。
-   * 文档通常会在几百毫秒内就绪，但不保证在 register() 返回时已完成。
-   * 如果需要确保文档就绪，请手动调用虚拟文件系统的 read 并等待。
+   * M10: Note that document generation (_updateFunctionDoc) is an async fire-and-forget operation.
+   * After register() returns, the document may not yet be written to the virtual file system.
+   * Documents will typically be ready within a few hundred milliseconds, but completion at register() return is not guaranteed.
+   * If you need to ensure the document is ready, manually call the virtual file system's read and wait.
    */
   register(funcDef: FunctionDef): FunctionDef {
-    // 提取 group 名称（如果有）
+    // Extract group name (if any)
     const parts = funcDef.name.split('.');
     const groupName = parts.length > 1 ? parts[0] : undefined;
 
     this.functions.set(funcDef.name, funcDef);
 
-    // 自动生成文档
-    // M10: fire-and-forget，文档可能延迟就绪（见上方注释）
+    // Auto-generate documentation
+    // M10: fire-and-forget, document may be delayed in becoming ready (see comment above)
     void this._updateFunctionDoc(funcDef, groupName);
 
     return funcDef;
   }
 
   /**
-   * 内部方法：注册 Function（由 FunctionGroup 调用）
+   * Internal method: Register a function (called by FunctionGroup)
    *
-   * @internal 仅供内部使用，外部应使用 register() 方法
+   * @internal For internal use only; external callers should use the register() method
    *
-   * M10: 同 register()，文档生成是异步 fire-and-forget，可能延迟就绪。
+   * M10: Same as register(), document generation is async fire-and-forget and may be delayed in becoming ready.
    */
   registerInternal(funcDef: FunctionDef, groupName: string): void {
     this.functions.set(funcDef.name, funcDef);
 
-    // 自动生成文档
+    // Auto-generate documentation
     void this._updateFunctionDoc(funcDef, groupName);
   }
 
   /**
-   * 创建 FunctionGroup
+   * Create a FunctionGroup
    *
-   * 返回 Proxy 包装的 FunctionGroup，支持链式调用：
+   * Returns a Proxy-wrapped FunctionGroup supporting chain calls:
    * rtcAgent.task.list(params) → rtcAgent.execute('task.list', params)
    */
   createGroup(groupDef: FunctionGroupDef): FunctionGroup & Record<string, (params?: Record<string, unknown>) => Promise<unknown>> {
@@ -170,25 +170,25 @@ export class FunctionRegistry {
   }
 
   /**
-   * 注销 Function
+   * Unregister a function
    *
-   * 删除内存中的 Function 定义，同时删除虚拟文件系统中的文档，并更新索引
+   * Removes the function definition from memory, deletes the document in the virtual file system, and updates the index.
    *
-   * MD9: unregister 是 async 而 register 是 sync 的设计原因：
-   * - register 只需更新内存 Map（同步操作），文档生成是后台 fire-and-forget
-   * - unregister 需要删除虚拟文件系统中的文档文件并更新索引，这些是 I/O 操作
-   * - 调用方通常需要在注销完成后确认文件系统已清理，因此 unregister 返回 Promise
+   * MD9: Design rationale for unregister being async while register is sync:
+   * - register only updates the in-memory Map (synchronous operation); document generation is background fire-and-forget
+   * - unregister needs to delete document files in the virtual file system and update the index, which are I/O operations
+   * - Callers typically need to confirm file system cleanup after unregister completes, so unregister returns a Promise
    */
   async unregister(name: string): Promise<void> {
     const funcDef = this.functions.get(name);
     if (!funcDef) {
-      return; // 不存在则直接返回
+      return; // Does not exist, return directly
     }
 
-    // 从内存中删除
+    // Remove from memory
     this.functions.delete(name);
 
-    // 删除文档文件
+    // Delete document file
     const parts = name.split('.');
     const groupName = parts.length > 1 ? parts[0] : undefined;
     const docPath = groupName
@@ -198,60 +198,60 @@ export class FunctionRegistry {
     try {
       await virtualFS.remove(docPath);
     } catch (err) {
-      // 文件可能不存在，忽略错误
+      // File may not exist, ignore error
       log.warn(` Failed to remove doc file ${docPath}:`, err);
     }
 
-    // 更新索引
+    // Update index
     await this._updateFunctionsIndex();
     await this._updateAgentMd();
   }
 
   /**
-   * 解析 Function 路径
+   * Resolve a function path
    */
   resolve(path: string): FunctionDef | undefined {
     return this.functions.get(path);
   }
 
   /**
-   * 列出所有 Function
+   * List all functions
    */
   listFunctions(): FunctionDef[] {
     return Array.from(this.functions.values());
   }
 
   /**
-   * 列出所有 Group
+   * List all groups
    */
   listGroups(): FunctionGroupDef[] {
     return Array.from(this.groupDefs.values());
   }
 
   /**
-   * 重新生成所有文档（用于数据库初始化后）
+   * Regenerate all documents (used after database initialization)
    *
-   * 解决时序问题：register() 在数据库初始化前调用时，文档写入会失败。
-   * 数据库初始化完成后，调用此方法重新生成所有文档。
+   * Solves timing issue: when register() is called before database initialization, document writes will fail.
+   * After database initialization completes, call this method to regenerate all documents.
    *
-   * 应使用 generateAllDocsContent() + WorkerBridge.batchWriteFiles()
+   * Should use generateAllDocsContent() + WorkerBridge.batchWriteFiles()
    */
   async regenerateAllDocs(): Promise<void> {
     try {
-      // 重新生成所有 function 文档
+      // Regenerate all function documents
       for (const funcDef of this.functions.values()) {
         const parts = funcDef.name.split('.');
         const groupName = parts.length > 1 ? parts[0] : undefined;
         await this._updateFunctionDoc(funcDef, groupName);
       }
 
-      // 更新 functions 索引
+      // Update functions index
       await this._updateFunctionsIndex();
 
-      // 更新 scenarios 索引（scenarios 由 scenario-loader 管理，这里只更新索引）
+      // Update scenarios index (scenarios are managed by scenario-loader, only the index is updated here)
       await this._updateScenariosIndex();
 
-      // 更新 AGENT.md
+      // Update AGENT.md
       await this._updateAgentMd();
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
@@ -264,13 +264,13 @@ export class FunctionRegistry {
   }
 
   /**
-   * 生成所有文档内容（不写入 VirtualFS），并计算需要删除的孤儿路径
+   * Generate all document content (without writing to VirtualFS), and calculate orphan paths to delete
    *
-   * 使用方式：主线程生成内容，通过 WorkerBridge.batchWriteFiles() 发送到 Worker 写入。
-   * 同时查询 VFS 中已有的函数文档，计算不再注册的孤儿路径，一并传给 Worker 删除。
+   * Usage: main thread generates content, sends it to Worker via WorkerBridge.batchWriteFiles() for writing.
+   * Also queries existing function documents in VFS to calculate orphan paths that are no longer registered, and passes them to Worker for deletion.
    *
-   * @param scenarioCount scenario 数量（用于生成 AGENT.md）
-   * @returns files: 要写入的文件列表, deletePaths: 要删除的孤儿路径
+   * @param scenarioCount Number of scenarios (used for generating AGENT.md)
+   * @returns files: list of files to write, deletePaths: orphan paths to delete
    */
   async generateAllDocsContent(scenarioCount = 0): Promise<{
     files: Array<{path: string; content: string}>;
@@ -279,7 +279,7 @@ export class FunctionRegistry {
     const files: Array<{path: string; content: string}> = [];
     log.info('generateAllDocsContent called, functions count:', this.functions.size);
 
-    // 生成所有 function 文档
+    // Generate all function documents
     const currentDocPaths = new Set<string>();
     for (const funcDef of this.functions.values()) {
       const parts = funcDef.name.split('.');
@@ -292,7 +292,7 @@ export class FunctionRegistry {
       currentDocPaths.add(path);
     }
 
-    // 生成 functions 索引
+    // Generate functions index
     const functions = this.listFunctions();
     const groups = this.listGroups();
     const indexPath = '/functions/INDEX.md';
@@ -301,13 +301,13 @@ export class FunctionRegistry {
       content: generateFunctionsIndex(functions, groups),
     });
 
-    // 生成 AGENT.md
+    // Generate AGENT.md
     files.push({
       path: '/AGENT.md',
       content: generateAgentMd(this.config, functions, groups, scenarioCount),
     });
 
-    // 计算孤儿路径：VFS 中已有的函数文档，但不在当前注册列表中
+    // Calculate orphan paths: function documents already in VFS that are not in the current registration list
     let deletePaths: string[] = [];
     try {
       const existingFiles = await virtualFS.find('**', '/functions/');
@@ -325,18 +325,18 @@ export class FunctionRegistry {
   }
 
   /**
-   * 执行 Function
+   * Execute a function
    *
-   * 使用事件驱动架构，不直接调用 UI：
-   * - 发出 function:start/success/error/progress 事件
-   * - UI 层监听事件并处理
+   * Uses event-driven architecture, does not directly invoke UI:
+   * - Emits function:start/success/error/progress events
+   * - UI layer listens to events and handles them
    *
-   * CancelledError 处理：
-   * - onStart 抛出的 CancelledError 不触发 onError
+   * CancelledError handling:
+   * - CancelledError thrown by onStart does not trigger onError
    *
-   * M11: onSuccess 使用 fire-and-forget，与 eventBus.emit('function:success') 无顺序保证。
-   *      onSuccess 可能在 function:success 事件之前或之后完成。
-   *     如需严格顺序，请使用事件监听替代 hook。
+   * M11: onSuccess uses fire-and-forget, no ordering guarantee with eventBus.emit('function:success').
+   *      onSuccess may complete before or after the function:success event.
+   *     For strict ordering, use event listeners instead of hooks.
    */
   async execute(path: string, params: Record<string, unknown>): Promise<unknown> {
     const funcDef = this.resolve(path);
@@ -344,38 +344,38 @@ export class FunctionRegistry {
       throw new Error(`Function not found: ${path}`);
     }
 
-    // 参数校验：优先使用 zodSchema，否则从 parameters 生成
+    // Parameter validation: prefer zodSchema, otherwise generate from parameters
     const validator = buildValidator(funcDef.zodSchema, funcDef.parameters);
     if (validator) {
       const validation = validateParams(validator, params);
       if (!validation.success) {
-        // 解析 group 名称和 function 名称
+        // Parse group name and function name
         const parts = path.split('.');
         const groupName = parts.length > 1 ? parts[0] : 'global';
         const funcName = parts.length > 1 ? parts[1] : parts[0];
         const errorMsg = formatValidationError(groupName, funcName, validation.errors!);
         throw new Error(errorMsg);
       }
-      // 使用校验后的数据（可能包含默认值）
+      // Use validated data (may contain default values)
       params = validation.data!;
     }
 
-    // 先发出 start 事件，再调用 onStart hook。
-    // UI 层可以先收到通知（如显示 loading），然后 onStart 可能弹出确认框等。
+    // Emit start event first, then call onStart hook.
+    // UI layer can receive notification first (e.g., show loading), then onStart may show a confirmation dialog, etc.
     const startEvent: FunctionStartEvent = { path, params };
     eventBus.emit('function:start', startEvent);
 
-    // 使用用户自定义 hooks
+    // Use user-defined hooks
     const hooks = funcDef.hooks || {};
 
-    // onStart 单独处理，CancelledError 直接抛出，不触发 onError
+    // onStart handled separately; CancelledError is thrown directly without triggering onError
     if (hooks.onStart) {
       await hooks.onStart(params);
     }
 
-    // 主执行逻辑
+    // Main execution logic
     try {
-      // 创建进度回调，发出 progress 事件
+      // Create progress callback, emit progress events
       const onProgress = async (progress: number) => {
         const progressEvent: FunctionProgressEvent = { path, progress };
         eventBus.emit('function:progress', progressEvent);
@@ -385,10 +385,10 @@ export class FunctionRegistry {
         }
       };
 
-      // 执行 handler
+      // Execute handler
       const result = await funcDef.handler(params, onProgress);
 
-      // onSuccess 使用 fire-and-forget，不阻塞主流程
+      // onSuccess uses fire-and-forget, does not block main flow
       if (hooks.onSuccess) {
         Promise.resolve()
           .then(() => hooks.onSuccess!(result))
@@ -397,7 +397,7 @@ export class FunctionRegistry {
           });
       }
 
-      // 发出 success 事件
+      // Emit success event
       const successEvent: FunctionSuccessEvent = { path, result };
       eventBus.emit('function:success', successEvent);
 
@@ -405,7 +405,7 @@ export class FunctionRegistry {
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
 
-      // onError 使用 fire-and-forget，不阻塞主流程
+      // onError uses fire-and-forget, does not block main flow
       if (hooks.onError) {
         Promise.resolve()
           .then(() => hooks.onError!(err))
@@ -414,7 +414,7 @@ export class FunctionRegistry {
           });
       }
 
-      // 发出 error 事件
+      // Emit error event
       const errorEvent: FunctionErrorEvent = { path, error: err };
       eventBus.emit('function:error', errorEvent);
 
@@ -423,21 +423,21 @@ export class FunctionRegistry {
   }
 
   /**
-   * 写入 Scenario
+   * Write a scenario
    *
-   * m8: scenario.id 字段被忽略，文件名始终从 title 生成 slug。
-   * 原因：虚拟文件系统的文件路径基于 title slug，id 仅用于数据库索引。
-   * scenario.id 在 scenario-loader 的 manifest 中用于唯一标识，但不影响文件存储路径。
+   * m8: scenario.id field is ignored; filename is always generated from title slug.
+   * Reason: virtual file system paths are based on title slug; id is only used for database indexing.
+   * scenario.id is used for unique identification in scenario-loader's manifest, but does not affect file storage path.
    *
-   * 写入策略：使用 'create-new' 模式，文件已存在时不覆盖（保护用户编辑的内容）
+   * Write strategy: uses 'create-new' mode; does not overwrite if file already exists (protects user-edited content)
    */
   async writeScenario(scenario: ScenarioDef): Promise<void> {
-    // 生成文件名（使用 title 的 slug 版本）
+    // Generate filename (use title's slug version)
     const slug = this._slugify(scenario.title);
     const filename = `${slug}.md`;
     const path = `/scenarios/${filename}`;
 
-    // 生成 markdown 内容（包含 frontmatter）
+    // Generate markdown content (including frontmatter)
     let content = '---\n';
     content += `title: "${scenario.title}"\n`;
     if (scenario.tags && scenario.tags.length > 0) {
@@ -446,19 +446,19 @@ export class FunctionRegistry {
     content += '---\n\n';
     content += scenario.content;
 
-    // 使用 'create-new' 模式：文件已存在时不覆盖
+    // Use 'create-new' mode: do not overwrite if file already exists
     await virtualFS.write(path, content, 'create-new');
 
-    // 更新索引
+    // Update index
     await this._updateScenariosIndex();
   }
 
   /**
-   * 更新 Function 文档
+   * Update function documentation
    */
   private async _updateFunctionDoc(funcDef: FunctionDef, groupName?: string): Promise<void> {
     try {
-      // 生成单个 Function 文档
+      // Generate single function document
       const md = generateFunctionMd(funcDef, groupName);
       const path = groupName
         ? `/functions/${groupName}/${funcDef.name.split('.')[1]}.md`
@@ -466,15 +466,15 @@ export class FunctionRegistry {
 
       await virtualFS.write(path, md, 'overwrite');
 
-      // 更新 INDEX.md
+      // Update INDEX.md
       await this._updateFunctionsIndex();
 
-      // 更新 AGENT.md
+      // Update AGENT.md
       await this._updateAgentMd();
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
-      // 数据库尚未初始化时，文档写入必然失败——这是预期的时序问题，
-      // 后续 regenerateAllDocs() 会在数据库就绪后重新生成，无需报错。
+      // When the database has not been initialized yet, document writes will inevitably fail —
+      // this is an expected timing issue; regenerateAllDocs() will regenerate after the database is ready, no need to report error.
       if (error.message.includes('getDatabase() called without a name')) {
         return;
       }
@@ -487,41 +487,41 @@ export class FunctionRegistry {
   }
 
   /**
-   * 更新 Functions 索引
+   * Update Functions index
    *
-   * 写入策略：使用 'overwrite' 模式（索引文件总是最新状态）
+   * Write strategy: uses 'overwrite' mode (index file is always up to date)
    */
   private async _updateFunctionsIndex(): Promise<void> {
     const functions = this.listFunctions();
     const groups = this.listGroups();
     const md = generateFunctionsIndex(functions, groups);
-    // 索引文件总是覆盖写入，保持最新状态
+    // Index file is always overwritten to keep it up to date
     await virtualFS.write('/functions/INDEX.md', md, 'overwrite');
   }
 
   /**
-   * 更新 Scenarios 索引
+   * Update Scenarios index
    *
-   * 写入策略：使用 'overwrite' 模式（索引文件总是最新状态）
+   * Write strategy: uses 'overwrite' mode (index file is always up to date)
    */
   private async _updateScenariosIndex(): Promise<void> {
-    // 查询所有 scenario 文件
+    // Query all scenario files
     const scenarios = await virtualFS.queryByType('scenario');
 
-    // 使用 markdown-generator 中的共享函数（静态导入，已在文件顶部引入）
+    // Use the shared function from markdown-generator (static import, already imported at file top)
     const md = generateScenariosIndex(scenarios);
 
-    // 索引文件总是覆盖写入，保持最新状态
+    // Index file is always overwritten to keep it up to date
     await virtualFS.write('/scenarios/INDEX.md', md, 'overwrite');
 
-    // 更新 AGENT.md
+    // Update AGENT.md
     await this._updateAgentMd();
   }
 
   /**
-   * 更新 AGENT.md
+   * Update AGENT.md
    *
-   * 写入策略：使用 'create-new' 模式，文件已存在时不覆盖（保护用户编辑的内容）
+   * Write strategy: uses 'create-new' mode; does not overwrite if file already exists (protects user-edited content)
    */
   private async _updateAgentMd(): Promise<void> {
     const functions = this.listFunctions();
@@ -529,34 +529,34 @@ export class FunctionRegistry {
     const scenarios = await virtualFS.queryByType('scenario');
 
     const md = generateAgentMd(this.config, functions, groups, scenarios.length);
-    // 使用 'create-new' 模式：文件已存在时不覆盖
+    // Use 'create-new' mode: do not overwrite if file already exists
     await virtualFS.write('/AGENT.md', md, 'overwrite');
   }
 
   /**
-   * 字符串转 slug
+   * Convert string to slug
    *
-   * 支持 CJK 字符（中文、日文、韩文）
-   * 如果结果为空，则使用时间戳 + 随机数
+   * Supports CJK characters (Chinese, Japanese, Korean)
+   * If the result is empty, uses timestamp + random number
    *
-   * MD10: slug 截断到 100 字符，避免文件名过长
+   * MD10: slug is truncated to 100 characters to avoid overly long filenames
    */
   private _slugify(text: string): string {
-    // 支持 Unicode 字符（包括 CJK）
+    // Support Unicode characters (including CJK)
     let slug = text
       .toLowerCase()
-      // 保留字母数字、空格、连字符、以及 CJK 字符
+      // Keep letters, numbers, spaces, hyphens, and CJK characters
       .replace(/[^\p{L}\p{N}\s-]/gu, '')
       .replace(/\s+/g, '-')
       .replace(/-+/g, '-')
       .trim();
 
-    // MD10: 截断到 100 字符
+    // MD10: Truncate to 100 characters
     if (slug.length > 100) {
       slug = slug.slice(0, 100).replace(/-+$/, '');
     }
 
-    // 如果结果为空（纯特殊字符），使用时间戳 + 随机数
+    // If result is empty (pure special characters), use timestamp + random number
     if (!slug) {
       return `scenario-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     }
@@ -565,14 +565,14 @@ export class FunctionRegistry {
   }
 
   /**
-   * M12: 通过 Proxy 支持链式调用：rtcAgent.user.register(params)
+   * M12: Support chain calls via Proxy: rtcAgent.user.register(params)
    *
-   * 使用白名单方式暴露方法，不暴露 functions/groups 等私有属性
+   * Uses whitelist to expose methods, without exposing private properties like functions/groups
    */
   createProxy(): FunctionRegistry & Record<string, FunctionGroup> {
     const registry = this;
 
-    // M12: 白名单 - 只暴露这些方法和属性
+    // M12: Whitelist - only expose these methods and properties
     const PUBLIC_METHODS = new Set([
       'register',
       'registerInternal',
@@ -590,12 +590,12 @@ export class FunctionRegistry {
 
     return new Proxy(this, {
       get(target, prop: string | symbol) {
-        // 处理 Symbol 属性
+        // Handle Symbol properties
         if (typeof prop === 'symbol') {
           return (target as Record<symbol, unknown>)[prop];
         }
 
-        // M12: 只暴露白名单中的方法
+        // M12: Only expose whitelisted methods
         if (PUBLIC_METHODS.has(prop)) {
           const value = (target as Record<string, unknown>)[prop];
           if (typeof value === 'function') {
@@ -604,7 +604,7 @@ export class FunctionRegistry {
           return value;
         }
 
-        // 否则尝试返回 group proxy（支持链式调用）
+        // Otherwise try to return group proxy (supports chain calls)
         const groupProxy = registry.groupProxies.get(prop);
         if (groupProxy) {
           return groupProxy;
@@ -617,10 +617,10 @@ export class FunctionRegistry {
 }
 
 /**
- * 创建全局 Registry
+ * Create global Registry
  *
- * 自动注册内置 system 工具组（delay/uuid/now/random/time），
- * 使脚本可以通过 rtcAgent.system.* 访问被沙箱阻断的常用平台 API。
+ * Automatically registers the built-in system tool group (delay/uuid/now/random/time),
+ * allowing scripts to access commonly used platform APIs sandboxed via rtcAgent.system.*.
  */
 export function defineRegistry(config: RegistryConfig): FunctionRegistry & Record<string, FunctionGroup> {
   const registry = new FunctionRegistry(config);

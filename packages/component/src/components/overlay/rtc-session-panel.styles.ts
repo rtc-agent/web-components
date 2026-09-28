@@ -12,7 +12,7 @@ export const styles = css`
     width: 100%;
   }
 
-  /* 浮动模式（默认）：绝对定位 + 固定宽度 */
+  /* Floating mode (default): absolute positioning + fixed width */
   :host(:not([sidebar])) {
     position: absolute;
     z-index: var(--rtc-z-overlay);

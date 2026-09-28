@@ -1,14 +1,14 @@
 /**
- * 内置 system 工具组
+ * Built-in system tool group
  *
- * 默认注册到每个 FunctionRegistry，提供脚本常用的系统级工具函数。
- * 这些函数包装了被沙箱阻断的灰色 API（setTimeout、crypto.randomUUID 等），
- * 通过 rtcAgent.system.* 暴露给脚本，使 LLM 无需直接访问平台 API。
+ * Registered by default to every FunctionRegistry, providing commonly used system-level utility functions for scripts.
+ * These functions wrap gray-area APIs blocked by the sandbox (setTimeout, crypto.randomUUID, etc.),
+ * exposing them to scripts via rtcAgent.system.* so the LLM doesn't need direct access to platform APIs.
  *
- * 注册方式：遵循标准 FunctionDef 规范，自动生成虚拟文档（/functions/system/*.md）
- * LLM 通过 /AGENT.md → /functions/INDEX.md 发现这些函数。
+ * Registration: follows the standard FunctionDef specification and auto-generates virtual docs (/functions/system/*.md)
+ * The LLM discovers these functions via /AGENT.md -> /functions/INDEX.md.
  *
- * 注意：此文件演示了 Zod schema 注册方式（推荐），同时也兼容 OpenAPI Schema 方式。
+ * Note: This file demonstrates Zod schema registration (recommended), while remaining compatible with OpenAPI Schema.
  */
 
 import type { FunctionDef } from '../types/skill.js';
@@ -16,7 +16,7 @@ import type { FunctionRegistry } from './function-registry.js';
 import { z, withMeta } from '../validation/index.js';
 
 /**
- * system 组定义
+ * system group definition
  */
 export const SYSTEM_GROUP_DEF = {
   name: 'system',
@@ -24,13 +24,13 @@ export const SYSTEM_GROUP_DEF = {
 };
 
 /**
- * 注册内置 system 工具组到 registry
+ * Register the built-in system tool group to the registry
  *
- * 使用标准 createGroup + group.register 流程，自动生成虚拟文档。
- * 应在 defineRegistry() 中自动调用，使所有 registry 默认拥有 system 组。
+ * Uses the standard createGroup + group.register flow to auto-generate virtual docs.
+ * Should be called automatically in defineRegistry() so all registries have the system group by default.
  */
 export function registerBuiltinSystemGroup(registry: FunctionRegistry): void {
-  // 如果 system 组已存在（如重复调用），跳过
+  // If system group already exists (e.g. duplicate call), skip
   if (registry.listGroups().some(g => g.name === 'system')) return;
 
   const group = registry.createGroup(SYSTEM_GROUP_DEF);
@@ -42,9 +42,9 @@ export function registerBuiltinSystemGroup(registry: FunctionRegistry): void {
 /**
  * system.delay(ms) — Promise-based sleep
  *
- * 包装 setTimeout，受脚本超时控制（Promise.race 会在脚本超时时 reject）。
+ * Wraps setTimeout, subject to script timeout control (Promise.race rejects on script timeout).
  *
- * 使用 Zod schema 定义参数（推荐方式）
+ * Uses Zod schema for parameter definition (recommended)
  */
 export const DELAY_DEF: FunctionDef = {
   name: 'delay',
@@ -76,9 +76,9 @@ export const DELAY_DEF: FunctionDef = {
 /**
  * system.uuid() — Generate UUID v4
  *
- * 使用 crypto.randomUUID()（现代浏览器均支持）。
+ * Uses crypto.randomUUID() (supported by all modern browsers).
  *
- * 使用 Zod schema 定义参数（推荐方式）
+ * Uses Zod schema for parameter definition (recommended)
  */
 export const UUID_DEF: FunctionDef = {
   name: 'uuid',
@@ -122,8 +122,8 @@ export const NOW_DEF: FunctionDef = {
 /**
  * system.random(options?) — Random number generation
  *
- * 使用 Zod schema 定义参数（推荐方式）
- * 使用 withMeta 添加示例值
+ * Uses Zod schema for parameter definition (recommended)
+ * Uses withMeta to add example values
  */
 export const RANDOM_DEF: FunctionDef = {
   name: 'random',
@@ -154,7 +154,7 @@ export const RANDOM_DEF: FunctionDef = {
 /**
  * system.time(format?) — Formatted current time
  *
- * 使用 Zod schema 定义参数（推荐方式）
+ * Uses Zod schema for parameter definition (recommended)
  */
 export const TIME_DEF: FunctionDef = {
   name: 'time',
@@ -184,8 +184,8 @@ export const TIME_DEF: FunctionDef = {
 /**
  * system.timezone() — Get local timezone information
  *
- * 返回本地时区的 IANA 名称（如 'Asia/Shanghai'）和当前 UTC 偏移量。
- * 使用 Intl.DateTimeFormat API 获取，无需第三方库。
+ * Returns the local timezone's IANA name (e.g. 'Asia/Shanghai') and current UTC offset.
+ * Uses Intl.DateTimeFormat API, no third-party library needed.
  */
 export const TIMEZONE_DEF: FunctionDef = {
   name: 'timezone',
@@ -212,7 +212,7 @@ export const TIMEZONE_DEF: FunctionDef = {
 };
 
 /**
- * 所有内置 system 函数定义
+ * All built-in system function definitions
  */
 export const SYSTEM_FUNCTIONS: FunctionDef[] = [
   DELAY_DEF,

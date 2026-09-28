@@ -46,7 +46,7 @@ export function extractTextContent(content: ContentData | undefined | null): str
     case 'summary':
       return getLocale() === 'en-US' ? '[Messages compressed]' : '[消息已被压缩]';
     case 'prompt': {
-      // 提取 prompt 的可读文本用于剪贴板复制
+      // Extract readable text from prompt for clipboard copy
       const pc = content.data as PromptContent;
       if (!pc) return '';
       const parts = [`[${pc.name}]`];
@@ -64,17 +64,17 @@ export function extractTextContent(content: ContentData | undefined | null): str
       return result;
     }
     case 'toolcall_input': {
-      // 提取工具名称用于显示
+      // Extract tool name for display
       const data = content.data as { tool_name?: string; name?: string };
       return data?.tool_name || data?.name || '[工具调用]';
     }
     case 'toolcall_output': {
-      // 提取工具名称用于显示
+      // Extract tool name for display
       const data = content.data as { tool_name?: string; name?: string };
       return data?.tool_name || data?.name || '[工具结果]';
     }
     case 'error': {
-      // 提取错误标题或消息用于显示
+      // Extract error title or message for display
       const data = content.data as { title?: string; message?: string };
       return data?.title || data?.message || '[错误]';
     }

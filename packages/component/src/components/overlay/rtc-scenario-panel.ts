@@ -39,7 +39,7 @@ export class RtcScenarioPanel extends LitElement {
     @state()
     private _selectedPaths: Set<string> = new Set();
 
-    /** 外部传入的已选中路径列表，用于初始化选中状态 */
+    /** Externally provided list of selected paths, used to initialize selection state */
     @property({type: Array})
     initialSelectedPaths: string[] = [];
 
@@ -96,7 +96,7 @@ export class RtcScenarioPanel extends LitElement {
         const isSelected = this._selectedPaths.has(scenario.path);
 
         if (isSelected) {
-            // 取消选中
+            // Deselect
             this._selectedPaths.delete(scenario.path);
             this._selectedPaths = new Set(this._selectedPaths);
 
@@ -111,7 +111,7 @@ export class RtcScenarioPanel extends LitElement {
                 })
             );
         } else {
-            // 选中：读取文件内容
+            // Select: read file content
             try {
                 const content = await virtualFS.read(scenario.path);
                 const scenarioRef: ScenarioRef = {

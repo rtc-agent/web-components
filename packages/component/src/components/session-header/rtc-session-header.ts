@@ -341,7 +341,7 @@ export class RtcSessionHeader extends LitElement {
         const sessions: Session[] = this._sessionCtx.state.sessions;
         const currentSessionId = this._sessionCtx.state.currentSessionId;
 
-        // 优先从 Context 读取标题
+        // Prefer reading title from Context
         const currentSession = currentSessionId
             ? sessions.find(s => s.clientId === currentSessionId)
             : undefined;
@@ -395,8 +395,8 @@ export class RtcSessionHeader extends LitElement {
 
     private _handleNewSession() {
         // Start a new conversation: clear current selection and messages, but keep session history.
-        // Then dispatch rtc-session-tree-new so chat-layout 走统一的 unsaved tab 编排流程
-        // （与 session-tree "+" 按钮同源）。
+        // Then dispatch rtc-session-tree-new so chat-layout goes through the unified unsaved tab orchestration flow
+        // (same source as the session-tree "+" button).
         this._sessionCtx.actions.clearCurrentSession();
         this.dispatchEvent(
             new CustomEvent('rtc-session-tree-new', {bubbles: true, composed: true})

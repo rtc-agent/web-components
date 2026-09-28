@@ -71,20 +71,20 @@ export class WindowInteractionController implements ReactiveController {
 
   private _isEnabled = false;
 
-  /** 窗口配置 */
+  /** Window configuration */
   private _draggable = true;
   private _resizable = true;
 
-  /** 延迟配置更新（交互进行中时缓存） */
+  /** Defer config update (cache during interaction) */
   private _pendingConfig?: { draggable?: boolean; resizable?: boolean };
 
-  /** Ghost 预览元素（拖动/缩放期间的轻量级视觉反馈） */
+  /** Ghost preview element (lightweight visual feedback during drag/resize) */
   private _ghostElement?: HTMLElement;
-  /** Ghost 起始状态（用于计算 delta） */
+  /** Ghost start state (used to compute delta) */
   private _ghostStartRect?: { left: number; top: number; width: number; height: number };
-  /** 累计拖动偏移（drag 期间） */
+  /** Cumulative drag offset (during drag) */
   private _ghostDragOffset = { x: 0, y: 0 };
-  /** 缓存的 margin 值（拖动/缩放期间复用，避免重复调用 getComputedStyle） */
+  /** Cached margin value (reused during drag/resize to avoid repeated getComputedStyle calls) */
   private _cachedMargin = 20;
 
   /** Bound keydown handler — stored so it can be removed on cleanup. */
@@ -95,7 +95,7 @@ export class WindowInteractionController implements ReactiveController {
     this._draggable = config?.draggable ?? true;
     this._resizable = config?.resizable ?? true;
 
-    // selectstart 事件拦截在 enable 时注册
+    // selectstart event interception registered at enable time
 
     this.value = {
       state: this._state,
@@ -113,17 +113,17 @@ export class WindowInteractionController implements ReactiveController {
     // future animation tuning.
   }
 
-  /** 更新配置 */
+  /** Update config */
   setConfig(config: { draggable?: boolean; resizable?: boolean }): void {
-    // Fix 53: 检查配置是否真的变化
+    // Fix 53: Check whether config actually changed
     const draggableChanged = config.draggable !== undefined && config.draggable !== this._draggable;
     const resizableChanged = config.resizable !== undefined && config.resizable !== this._resizable;
 
     if (!draggableChanged && !resizableChanged) {
-      return; // 无变化，跳过
+      return; // No change, skip
     }
 
-    // Fix 53: 如果正在进行交互，延迟到交互结束
+    // Fix 53: If interaction in progress, defer until interaction ends
     if (this._state.isDragging || this._state.isResizing) {
       log.debug('setConfig: interaction in progress, deferring');
       this._pendingConfig = config;
@@ -134,7 +134,7 @@ export class WindowInteractionController implements ReactiveController {
     this._resizable = config.resizable ?? true;
     log.debug('setConfig:', {draggable: this._draggable, resizable: this._resizable});
 
-    // 先销毁现有的 interact 实例
+    // Destroy existing interact instances first
     if (this._windowElement) {
       interact(this._windowElement).unset();
     }
@@ -142,18 +142,18 @@ export class WindowInteractionController implements ReactiveController {
       interact(this._titleBarElement).unset();
     }
 
-    // 重新初始化交互（如果已启用）
+    // Re-initialize interactions (if enabled)
     if (this._isEnabled) {
       this._initInteractions();
     }
   }
 
-  /** 是否允许拖拽 */
+  /** Whether dragging is allowed */
   get draggable(): boolean {
     return this._draggable;
   }
 
-  /** 是否允许调整大小 */
+  /** Whether resizing is allowed */
   get resizable(): boolean {
     return this._resizable;
   }
@@ -173,7 +173,7 @@ export class WindowInteractionController implements ReactiveController {
   }
 
   hostDisconnected(): void {
-    // 确保 ghost 元素被清理（防止组件被动态移除时泄漏）
+    // Ensure ghost element is cleaned up (prevent leak when component is dynamically removed)
     this._destroyGhostElement();
     this.destroy();
   }
@@ -189,13 +189,13 @@ export class WindowInteractionController implements ReactiveController {
       this._titleBarElement.removeEventListener('keydown', this._boundOnKeydown);
       interact(this._titleBarElement).unset();
     }
-    // 清理 ghost 元素
+    // Clean up ghost element
     this._destroyGhostElement();
     this._isEnabled = false;
   }
 
   private _enable(): void {
-    // Fix 54: 幂等保护，避免重复创建 interact 实例
+    // Fix 54: Idempotent guard, avoid creating duplicate interact instances
     if (this._isEnabled) {
       log.debug('enable: already enabled, skipping');
       return;
@@ -240,7 +240,7 @@ export class WindowInteractionController implements ReactiveController {
         end: () => this._onDragEnd(),
       },
       // Removed allowFrom — title bar element is directly draggable
-      // Ghost 预览模式下禁用 inertia，避免 ghost 销毁后仍有 move/end 事件
+      // Disable inertia in ghost preview mode to avoid move/end events after ghost is destroyed
       inertia: false,
     });
   }
@@ -267,7 +267,7 @@ export class WindowInteractionController implements ReactiveController {
           },
         }),
       ],
-      // Ghost 预览模式下禁用 inertia
+      // Disable inertia in ghost preview mode
       inertia: false,
     });
   }
@@ -356,15 +356,15 @@ export class WindowInteractionController implements ReactiveController {
     this._state = { ...this._state, isDragging: true };
     this._windowElement?.classList.add('dragging');
 
-    // 缓存 margin（避免在 move 期间重复调用 getComputedStyle）
+    // Cache margin (avoid repeated getComputedStyle calls during move)
     this._cachedMargin = this._getMargin();
 
-    // 同步创建 ghost 预览元素（确保不丢失后续 move 事件的 dx/dy）
+    // Synchronously create ghost preview element (ensure subsequent move event dx/dy are not lost)
     this._createGhostElement();
-    // 重置累计偏移
+    // Reset cumulative offset
     this._ghostDragOffset = { x: 0, y: 0 };
 
-    // 延迟 Lit 渲染到下一帧，避免与 ghost 创建在同一帧内竞争
+    // Defer Lit render to next frame to avoid racing with ghost creation in the same frame
     requestAnimationFrame(() => this._host.requestUpdate());
   }
 
@@ -374,11 +374,11 @@ export class WindowInteractionController implements ReactiveController {
     const margin = this._cachedMargin;
     const viewport = { width: window.innerWidth, height: window.innerHeight };
 
-    // 累计偏移
+    // Cumulative offset
     this._ghostDragOffset.x += event.dx;
     this._ghostDragOffset.y += event.dy;
 
-    // 计算约束后的偏移
+    // Compute constrained offset
     let offsetX = this._ghostDragOffset.x;
     let offsetY = this._ghostDragOffset.y;
 
@@ -386,15 +386,15 @@ export class WindowInteractionController implements ReactiveController {
     const newLeft = left + offsetX;
     const newTop = top + offsetY;
 
-    // 约束到视口
+    // Clamp to viewport
     const clampedLeft = Math.max(margin, Math.min(newLeft, viewport.width - width - margin));
     const clampedTop = Math.max(margin, Math.min(newTop, viewport.height - height - margin));
 
-    // 更新累计偏移为约束后的值（防止超出后继续累加）
+    // Update cumulative offset to the clamped value (prevent continued accumulation after hitting the boundary)
     this._ghostDragOffset.x = clampedLeft - left;
     this._ghostDragOffset.y = clampedTop - top;
 
-    // 只更新 ghost 的 CSS transform（GPU 加速，零渲染开销）
+    // Only update the ghost CSS transform (GPU-accelerated, zero rendering overhead)
     this._ghostElement.style.transform = `translate3d(${this._ghostDragOffset.x}px, ${this._ghostDragOffset.y}px, 0)`;
   }
 
@@ -402,18 +402,18 @@ export class WindowInteractionController implements ReactiveController {
     this._state = { ...this._state, isDragging: false };
     this._windowElement?.classList.remove('dragging');
 
-    // 提交最终位置（恰好一次 Lit 渲染）
+    // Commit final position (exactly one Lit render)
     if (this._ghostStartRect && this._ghostElement) {
       const finalX = this._ghostStartRect.left + this._ghostDragOffset.x;
       const finalY = this._ghostStartRect.top + this._ghostDragOffset.y;
       this.onPositionChange?.(finalX, finalY);
     }
 
-    // 销毁 ghost
+    // Destroy ghost
     this._destroyGhostElement();
     this._host.requestUpdate();
 
-    // Fix 53: 处理延迟的配置更新（仅当没有交互正在进行时）
+    // Fix 53: Handle deferred config update (only when no interaction is in progress)
     if (this._pendingConfig && !this._state.isDragging && !this._state.isResizing) {
       const config = this._pendingConfig;
       this._pendingConfig = undefined;
@@ -425,13 +425,13 @@ export class WindowInteractionController implements ReactiveController {
     this._state = { ...this._state, isResizing: true };
     this._windowElement?.classList.add('resizing');
 
-    // 缓存 margin（避免在 move 期间重复调用 getComputedStyle）
+    // Cache margin (avoid repeated getComputedStyle calls during move)
     this._cachedMargin = this._getMargin();
 
-    // 同步创建 ghost 预览元素
+    // Synchronously create ghost preview element
     this._createGhostElement();
 
-    // 延迟 Lit 渲染到下一帧，避免与 ghost 创建在同一帧内竞争
+    // Defer Lit render to next frame to avoid racing with ghost creation in the same frame
     requestAnimationFrame(() => this._host.requestUpdate());
   }
 
@@ -442,7 +442,7 @@ export class WindowInteractionController implements ReactiveController {
     const margin = this._cachedMargin;
     const edges = event.edges;
 
-    // 计算 ghost 的位置偏移（left/top 边缘 resize 时位置也会变化）
+    // Compute ghost position offset (left/top edge resize also changes position)
     let offsetX = 0;
     let offsetY = 0;
 
@@ -450,7 +450,7 @@ export class WindowInteractionController implements ReactiveController {
       const newLeft = edges.left ? event.rect.left : this._ghostStartRect.left;
       const newTop = edges.top ? event.rect.top : this._ghostStartRect.top;
 
-      // 约束到视口
+      // Clamp to viewport
       const clampedLeft = Math.max(margin, Math.min(newLeft, window.innerWidth - width - margin));
       const clampedTop = Math.max(margin, Math.min(newTop, window.innerHeight - height - margin));
 
@@ -458,7 +458,7 @@ export class WindowInteractionController implements ReactiveController {
       offsetY = clampedTop - this._ghostStartRect.top;
     }
 
-    // 更新 ghost 尺寸和位置（GPU 加速）
+    // Update ghost size and position (GPU-accelerated)
     this._ghostElement.style.width = `${width}px`;
     this._ghostElement.style.height = `${height}px`;
     this._ghostElement.style.transform = `translate3d(${offsetX}px, ${offsetY}px, 0)`;
@@ -468,7 +468,7 @@ export class WindowInteractionController implements ReactiveController {
     this._state = { ...this._state, isResizing: false };
     this._windowElement?.classList.remove('resizing');
 
-    // 提交最终尺寸和位置（恰好一次 Lit 渲染）
+    // Commit final size and position (exactly one Lit render)
     if (this._ghostElement && this._ghostStartRect) {
       const ghostRect = this._ghostElement.getBoundingClientRect();
       const finalWidth = this._ghostElement.offsetWidth;
@@ -476,18 +476,18 @@ export class WindowInteractionController implements ReactiveController {
       const finalX = ghostRect.left;
       const finalY = ghostRect.top;
 
-      // 先提交位置（如果有变化），再提交尺寸
+      // Commit position first (if changed), then size
       if (finalX !== this._ghostStartRect.left || finalY !== this._ghostStartRect.top) {
         this.onPositionChange?.(finalX, finalY);
       }
       this.onSizeChange?.(finalWidth, finalHeight);
     }
 
-    // 销毁 ghost
+    // Destroy ghost
     this._destroyGhostElement();
     this._host.requestUpdate();
 
-    // Fix 53: 处理延迟的配置更新（仅当没有交互正在进行时）
+    // Fix 53: Handle deferred config update (only when no interaction is in progress)
     if (this._pendingConfig && !this._state.isDragging && !this._state.isResizing) {
       const config = this._pendingConfig;
       this._pendingConfig = undefined;
@@ -512,15 +512,15 @@ export class WindowInteractionController implements ReactiveController {
   }
 
   /**
-   * 创建 Ghost 预览元素
+   * Create Ghost preview element
    *
-   * 在 document.body 中创建一个轻量级的虚线边框元素，
-   * 用于在拖动/缩放期间提供视觉反馈，避免触发 Lit 重渲染。
+   * Creates a lightweight dashed-border element in document.body
+   * to provide visual feedback during drag/resize, avoiding Lit re-renders.
    */
   private _createGhostElement(): void {
     if (!this._windowElement) return;
 
-    // 清理可能存在的旧 ghost（防御性编程）
+    // Clean up any pre-existing ghost (defensive programming)
     this._destroyGhostElement();
 
     const rect = this._windowElement.getBoundingClientRect();
@@ -555,7 +555,7 @@ export class WindowInteractionController implements ReactiveController {
   }
 
   /**
-   * 销毁 Ghost 预览元素
+   * Destroy Ghost preview element
    */
   private _destroyGhostElement(): void {
     if (this._ghostElement) {

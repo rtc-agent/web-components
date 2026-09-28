@@ -1,10 +1,10 @@
 import {css} from 'lit';
 
 /**
- * File Explorer 样式
+ * File Explorer styles
  *
- * VS Code 风格侧边栏：header + 文件树内容区。
- * 颜色使用项目 Tokens（--rtc-color-*），确保双主题适配。
+ * VS Code-style sidebar: header + file tree content area.
+ * Colors use project Tokens (--rtc-color-*) to ensure dual-theme adaptation.
  */
 export const styles = css`
     :host {

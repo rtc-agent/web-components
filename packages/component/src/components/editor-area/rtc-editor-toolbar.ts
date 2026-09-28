@@ -1,24 +1,24 @@
 /**
  * Editor Toolbar Component
  *
- * VS Code 风格编辑器工具栏。
+ * VS Code-style editor toolbar.
  *
- * 布局：
- * [💾 保存] │ [↶] [↷] │ [flex spacer] │ [🔄 恢复默认] │ [编辑|预览|分屏]
+ * Layout:
+ * [💾 Save] │ [↶] [↷] │ [flex spacer] │ [🔄 Restore Default] │ [Edit|Preview|Split]
  *
- * 纯 UI 组件：只发事件，不操作 VFS。状态由 EditorController 驱动。
+ * Pure UI component: only dispatches events, does not operate VFS. State is driven by EditorController.
  *
  * @element rtc-editor-toolbar
  *
- * @fires editor-save - 点击保存
- * @fires editor-undo - 点击撤销
- * @fires editor-redo - 点击重做
- * @fires editor-format - 格式化操作 (detail: { format: 'bold' | 'italic' | 'code' | 'link' })
- * @fires editor-view-mode-change - 视图切换 (detail: { viewMode: EditorViewMode })
- * @fires editor-restore-default - 点击恢复默认
+ * @fires editor-save - Fired when save is clicked
+ * @fires editor-undo - Fired when undo is clicked
+ * @fires editor-redo - Fired when redo is clicked
+ * @fires editor-format - Format action (detail: { format: 'bold' | 'italic' | 'code' | 'link' })
+ * @fires editor-view-mode-change - View mode switch (detail: { viewMode: EditorViewMode })
+ * @fires editor-restore-default - Fired when restore default is clicked
  *
- * ## 样式
- * 使用项目 design tokens（--rtc-color-*），支持亮色/暗色主题。
+ * ## Styling
+ * Uses project design tokens (--rtc-color-*), supports light/dark themes.
  */
 import {LitElement, html, nothing} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
@@ -48,7 +48,7 @@ import { createLogger } from '@rtc-agent/client';
 
 const log = createLogger('EditorToolbar');
 
-/** 格式化类型 */
+/** Format type */
 type FormatType = 'bold' | 'italic' | 'code' | 'link';
 
 @localized()
@@ -70,27 +70,27 @@ export class RtcEditorToolbar extends LitElement {
 
     /* ── Properties ── */
 
-    /** 保存按钮是否可用 */
+    /** Whether the save button is enabled */
     @property({type: Boolean, attribute: 'can-save'})
     canSave = false;
 
-    /** 撤销按钮是否可用 */
+    /** Whether the undo button is enabled */
     @property({type: Boolean, attribute: 'can-undo'})
     canUndo = false;
 
-    /** 重做按钮是否可用 */
+    /** Whether the redo button is enabled */
     @property({type: Boolean, attribute: 'can-redo'})
     canRedo = false;
 
-    /** 恢复默认按钮是否可用（仅对系统生成的文件显示） */
+    /** Whether the restore default button is enabled (only shown for system-generated files) */
     @property({type: Boolean, attribute: 'can-restore'})
     canRestore = false;
 
-    /** 当前视图模式 */
+    /** Current view mode */
     @property({type: String, attribute: 'view-mode'})
     viewMode: EditorViewMode = 'edit';
 
-    /** 主题 */
+    /** Theme */
     @property({type: String, reflect: true})
     theme: 'light' | 'dark' | 'system' = 'system';
 
@@ -163,7 +163,7 @@ export class RtcEditorToolbar extends LitElement {
         void this._localeCtx.locale;
         return html`
             <div class="toolbar" role="toolbar" aria-label="Editor toolbar">
-                <!-- 保存（主按钮） -->
+                <!-- Save (primary button) -->
                 <button
                     class="toolbar-btn primary"
                     ?disabled=${!this.canSave}
@@ -177,7 +177,7 @@ export class RtcEditorToolbar extends LitElement {
 
                 <span class="separator" role="separator"></span>
 
-                <!-- 撤销 / 重做 -->
+                <!-- Undo / Redo -->
                 <button
                     class="toolbar-btn"
                     ?disabled=${!this.canUndo}
@@ -195,8 +195,8 @@ export class RtcEditorToolbar extends LitElement {
 
                 <span class="separator" role="separator"></span>
 
-                <!-- 格式化 -->
-                <!-- 暂不支持
+                <!-- Formatting -->
+                <!-- Not yet supported
                 <button
                     class="toolbar-btn"
                     title=${msg('加粗')}
@@ -222,10 +222,10 @@ export class RtcEditorToolbar extends LitElement {
                     @click=${() => this._handleFormat('link')}
                 >${linkIcon}</button>
                  -->
-                <!-- 弹性空间 -->
+                <!-- Flexible spacer -->
                 <span class="spacer"></span>
 
-                <!-- 恢复默认（仅对系统生成的文件显示） -->
+                <!-- Restore default (only shown for system-generated files) -->
                 ${this.canRestore ? html`
                     <button
                         class="toolbar-btn"
@@ -235,7 +235,7 @@ export class RtcEditorToolbar extends LitElement {
                     >${refreshIcon}</button>
                 ` : nothing}
 
-                <!-- 视图切换 -->
+                <!-- View mode toggle -->
                 <div class="view-toggle" role="group" aria-label=${msg('视图模式')}>
                     <button
                         class="view-toggle-btn ${this.viewMode === 'edit' ? 'active' : ''}"

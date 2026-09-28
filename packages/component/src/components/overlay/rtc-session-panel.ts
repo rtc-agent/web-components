@@ -45,7 +45,7 @@ export class RtcSessionPanel extends LitElement {
     @property({type: String, attribute: 'current-session-id'})
     currentSessionId: string | null = null;
 
-    /** 主题（继承自父级） */
+    /** Theme (inherited from parent) */
     @property({type: String, reflect: true})
     theme: 'light' | 'dark' | 'system' = 'system';
 

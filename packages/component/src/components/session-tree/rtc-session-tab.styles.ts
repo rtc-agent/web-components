@@ -1,13 +1,13 @@
 import {css} from 'lit';
 
 /**
- * Session Tab 样式
+ * Session Tab styles
  *
- * 参考 rtc-editor-tab.styles.ts 的完整模式：
- * - static styles 数组包含 [tokens, lightTheme, darkTheme, baseStyles, styles]
- * - 显式 :host([theme='dark']) / :host([theme='light']) 块
- * - active 状态顶部 1px 指示条
- * - dirty dot / close button opacity 切换逻辑
+ * Follows the full pattern from rtc-editor-tab.styles.ts:
+ * - static styles array contains [tokens, lightTheme, darkTheme, baseStyles, styles]
+ * - Explicit :host([theme='dark']) / :host([theme='light']) blocks
+ * - Active state top 1px indicator bar
+ * - dirty dot / close button opacity toggle logic
  */
 export const styles = css`
     :host {
@@ -143,7 +143,7 @@ export const styles = css`
         fill: currentColor;
     }
 
-    /* ── 暗色主题适配 ── */
+    /* ── Dark theme adaptation ── */
     :host([theme='dark']) .tab {
         background: var(--rtc-color-bg-tertiary, #2d2d30);
         color: var(--rtc-color-text-secondary, #858585);
@@ -169,7 +169,7 @@ export const styles = css`
         color: var(--rtc-color-text, #cccccc);
     }
 
-    /* ── 亮色主题适配 ── */
+    /* ── Light theme adaptation ── */
     :host([theme='light']) .tab {
         background: var(--rtc-color-bg-tertiary, #e8e8e8);
         color: var(--rtc-color-text-secondary, #666666);

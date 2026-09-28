@@ -40,7 +40,7 @@ export const styles = css`
     border-radius: var(--rtc-border-radius-sm);
   }
 
-  /* ── 连接状态圆点 ── */
+  /* ── Connection status dot ── */
   .status-dot {
     width: 8px;
     height: 8px;
@@ -62,7 +62,7 @@ export const styles = css`
     background: var(--rtc-color-error);
   }
 
-  /* 连接失败状态：红色闪烁 */
+  /* Connection failed state: red blinking */
   .status-dot.failed {
     background: var(--rtc-color-error);
     animation: status-blink 1s step-end infinite;
@@ -78,7 +78,7 @@ export const styles = css`
     50% { opacity: 0.4; }
   }
 
-  /* 无障碍：减弱动画 */
+  /* Accessibility: reduce motion */
   @media (prefers-reduced-motion: reduce) {
     .status-dot.connecting,
     .status-dot.reconnecting,
@@ -118,7 +118,7 @@ export const styles = css`
     fill: currentColor;
   }
 
-  /* 重试按钮：连接失败时突出显示 */
+  /* Retry button: highlighted on connection failure */
   .retry-btn {
     color: var(--rtc-color-error);
   }
@@ -128,7 +128,7 @@ export const styles = css`
     color: var(--rtc-color-error);
   }
 
-  /* 重试按钮旋转动画 */
+  /* Retry button rotation animation */
   .retry-btn svg {
     transition: transform 0.3s ease;
   }

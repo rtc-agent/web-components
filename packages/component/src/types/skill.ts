@@ -1,21 +1,21 @@
 /**
  * Skill System Types
  *
- * 定义 Function、FunctionGroup、VisualHooks 等核心类型
+ * Defines core types for Function, FunctionGroup, VisualHooks, etc.
  */
 
 import type { ZodType } from 'zod';
 
 /**
- * CancelledError - 用户取消操作
+ * CancelledError - User cancelled operation
  *
- * 用于区分"用户取消"和"真正的错误"
+ * Used to distinguish "user cancellation" from "real errors"
  *
- * M13: 添加 isCancelled brand 属性，解决跨 realm 时 instanceof 不可靠的问题。
- * 使用 `CancelledError.isCancelledError(err)` 进行类型守卫判断。
+ * M13: Added isCancelled brand property to solve the unreliability of instanceof across realms.
+ * Use `CancelledError.isCancelledError(err)` for type guard checks.
  */
 export class CancelledError extends Error {
-  /** M13: brand 属性，用于跨 realm 可靠判断 */
+  /** M13: brand property for reliable cross-realm type checking */
   readonly isCancelled = true;
 
   constructor(message = 'Operation cancelled by user') {
@@ -24,8 +24,8 @@ export class CancelledError extends Error {
   }
 
   /**
-   * M13: 跨 realm 安全的类型守卫
-   * 比 instanceof 更可靠（iframe、Worker、不同 bundle 等场景）
+   * M13: Cross-realm safe type guard
+   * More reliable than instanceof (for iframe, Worker, different bundle scenarios, etc.)
    */
   static isCancelledError(error: unknown): error is CancelledError {
     return (
@@ -36,117 +36,117 @@ export class CancelledError extends Error {
 }
 
 /**
- * OpenAPI Schema 格式的参数定义
+ * Parameter definition in OpenAPI Schema format
  *
- * 使用标准 OpenAPI 3.0 Schema 格式，支持：
- * - 基础类型：string, number, integer, boolean
- * - 复杂类型：object, array
- * - 格式：date, date-time, email, uri, uuid 等
- * - 嵌套对象和数组
- * - 枚举值
- * - 示例值（example）
+ * Uses standard OpenAPI 3.0 Schema format, supporting:
+ * - Basic types: string, number, integer, boolean
+ * - Complex types: object, array
+ * - Formats: date, date-time, email, uri, uuid, etc.
+ * - Nested objects and arrays
+ * - Enum values
+ * - Example values (example)
  */
 export interface OpenAPISchema {
-  /** 数据类型 */
+  /** Data type */
   type?: 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array';
-  /** 数据格式（如 date, date-time, email, uri, uuid, int32, int64, float, double 等） */
+  /** Data format (e.g. date, date-time, email, uri, uuid, int32, int64, float, double, etc.) */
   format?: string;
-  /** 描述 */
+  /** Description */
   description?: string;
-  /** 是否必需（在 object 的 properties 中使用） */
+  /** Whether required (used within object properties) */
   required?: boolean;
-  /** 默认值 */
+  /** Default value */
   default?: unknown;
-  /** 示例值 */
+  /** Example value */
   example?: unknown;
-  /** 枚举值 */
+  /** Enum values */
   enum?: unknown[];
-  /** 对象属性定义 */
+  /** Object property definitions */
   properties?: Record<string, OpenAPISchema>;
-  /** 数组项定义 */
+  /** Array item definition */
   items?: OpenAPISchema;
-  /** 引用其他 schema（如 '#/components/schemas/User'） */
+  /** Reference to another schema (e.g. '#/components/schemas/User') */
   $ref?: string;
-  /** 最小值（number/integer） */
+  /** Minimum value (number/integer) */
   minimum?: number;
-  /** 最大值（number/integer） */
+  /** Maximum value (number/integer) */
   maximum?: number;
-  /** 最小长度（string） */
+  /** Minimum length (string) */
   minLength?: number;
-  /** 最大长度（string） */
+  /** Maximum length (string) */
   maxLength?: number;
-  /** 正则模式（string） */
+  /** Regex pattern (string) */
   pattern?: string;
-  /** 最小项数（array） */
+  /** Minimum item count (array) */
   minItems?: number;
-  /** 最大项数（array） */
+  /** Maximum item count (array) */
   maxItems?: number;
-  /** 是否允许重复项（array） */
+  /** Whether duplicate items are allowed (array) */
   uniqueItems?: boolean;
 }
 
 /**
- * 参数定义（OpenAPI 格式）
+ * Parameter definition (OpenAPI format)
  *
- * 使用 OpenAPI Schema 定义参数类型，支持复杂的嵌套结构
+ * Uses OpenAPI Schema to define parameter types, supporting complex nested structures.
  */
 export interface ParameterDef {
-  /** 参数名称 */
+  /** Parameter name */
   name: string;
-  /** OpenAPI Schema 定义 */
+  /** OpenAPI Schema definition */
   schema: OpenAPISchema;
-  /** 是否必需 */
+  /** Whether required */
   required?: boolean;
-  /** 参数描述（可选，如果 schema 中没有 description） */
+  /** Parameter description (optional, fallback if schema has no description) */
   description?: string;
 }
 
 /**
- * 返回值定义（OpenAPI 格式）
+ * Return value definition (OpenAPI format)
  */
 export interface ReturnDef {
-  /** OpenAPI Schema 定义 */
+  /** OpenAPI Schema definition */
   schema: OpenAPISchema;
-  /** 返回值描述（可选，如果 schema 中没有 description） */
+  /** Return value description (optional, fallback if schema has no description) */
   description?: string;
 }
 
 /**
- * Visual Hooks - UI 钩子函数
+ * Visual Hooks - UI hook functions
  */
 export interface VisualHooks {
-  /** 执行开始 */
+  /** Execution started */
   onStart?: (params: Record<string, unknown>) => void | Promise<void>;
-  /** 执行成功 */
+  /** Execution succeeded */
   onSuccess?: (result: unknown) => void | Promise<void>;
-  /** 执行失败 */
+  /** Execution failed */
   onError?: (error: Error) => void | Promise<void>;
-  /** 执行进度 */
+  /** Execution progress */
   onProgress?: (progress: number) => void | Promise<void>;
 }
 
 /**
- * Function 定义
+ * Function definition
  */
 export interface FunctionDef {
-  /** Function 名称（如 'user.register'） */
+  /** Function name (e.g. 'user.register') */
   name: string;
-  /** Function 描述 */
+  /** Function description */
   description: string;
-  /** 参数列表（OpenAPI 格式，向后兼容） */
+  /** Parameter list (OpenAPI format, backward compatible) */
   parameters?: ParameterDef[];
-  /** Zod schema（用于运行时校验，优先于 parameters） */
+  /** Zod schema (for runtime validation, takes precedence over parameters) */
   zodSchema?: ZodType;
-  /** 返回值定义 */
+  /** Return value definition */
   returns?: ReturnDef;
   /** Visual Hooks */
   hooks?: VisualHooks;
   /**
-   * 执行函数（第二个参数是进度回调，可选）
+   * Execution function (second parameter is a progress callback, optional)
    *
-   * MD13: 返回值类型为 unknown（不再使用 unknown | Promise<unknown>）。
-   * 注释说明：handler 可以是同步或异步函数。FunctionRegistry.execute 内部会 await 返回值，
-   * 因此异步函数返回的 Promise 会被自动解析。同步函数的返回值会被包装为 resolved Promise。
+   * MD13: Return type is unknown (no longer uses unknown | Promise<unknown>).
+   * Note: handler can be a sync or async function. FunctionRegistry.execute internally awaits the return value,
+   * so Promises returned by async functions are automatically resolved. Sync function returns are wrapped in a resolved Promise.
    */
   handler: (
     params: Record<string, unknown>,
@@ -155,64 +155,64 @@ export interface FunctionDef {
 }
 
 /**
- * FunctionGroup 定义
+ * FunctionGroup definition
  */
 export interface FunctionGroupDef {
-  /** Group 名称（如 'user'） */
+  /** Group name (e.g. 'user') */
   name: string;
-  /** Group 描述 */
+  /** Group description */
   description: string;
 }
 
 /**
- * Registry 配置
+ * Registry configuration
  */
 export interface RegistryConfig {
-  /** 应用名称 */
+  /** Application name */
   name: string;
-  /** 应用描述 */
+  /** Application description */
   description: string;
-  /** AI 人设 */
+  /** AI persona */
   persona?: string;
-  /** 异步操作错误回调（如文档生成失败） */
+  /** Async operation error callback (e.g. document generation failure) */
   onError?: (error: Error, context: string) => void;
 }
 
 /**
- * Scenario 定义
+ * Scenario definition
  */
 export interface ScenarioDef {
-  /** Scenario 唯一标识（可选，默认从 title 生成） */
+  /** Scenario unique identifier (optional, auto-generated from title by default) */
   id?: string;
-  /** Scenario 标题 */
+  /** Scenario title */
   title: string;
-  /** Scenario 简短描述（用于 INDEX.md） */
+  /** Scenario short description (used for INDEX.md) */
   description?: string;
-  /** Scenario 内容（Markdown） */
+  /** Scenario content (Markdown) */
   content: string;
-  /** 标签 */
+  /** Tags */
   tags?: string[];
-  /** 作者 */
+  /** Author */
   author?: string;
-  /** 创建时间（ISO 8601） */
+  /** Creation time (ISO 8601) */
   createdAt?: string;
 }
 
 /**
  * Scenario Manifest
  *
- * m10: 此类型在 scenario-loader.ts 中使用（解析 manifest.json），
- * 并通过 types/index.ts 和 package index.ts 导出。
+ * m10: This type is used in scenario-loader.ts (for parsing manifest.json),
+ * and exported via types/index.ts and the package index.ts.
  */
 export interface ScenarioManifest {
   scenarios: Array<{
-    /** 文件名 */
+    /** Filename */
     file: string;
-    /** 唯一标识（可选） */
+    /** Unique identifier (optional) */
     id?: string;
-    /** 名称（可选） */
+    /** Name (optional) */
     name?: string;
-    /** 描述（可选） */
+    /** Description (optional) */
     description?: string;
   }>;
 }

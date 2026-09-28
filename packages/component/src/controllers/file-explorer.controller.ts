@@ -1,10 +1,10 @@
 /**
  * File Explorer Controller
  *
- * 管理文件树状态：展开/折叠、选中、加载状态。
+ * Manages file tree state: expand/collapse, selection, loading state.
  *
- * 状态存储在 Controller 内部（expandedPaths, loadingPaths），
- * 而非 FileNode 对象上，便于批量操作（expandAll/collapseAll）。
+ * State is stored inside the Controller (expandedPaths, loadingPaths),
+ * rather than on FileNode objects, for easier batch operations (expandAll/collapseAll).
  *
  * Provided by: <rtc-agent> (root)
  */
@@ -127,7 +127,7 @@ export class FileExplorerController implements ReactiveController {
     /* ── Helper Methods ── */
 
     /**
-     * 递归收集所有文件夹路径
+     * Recursively collect all folder paths
      */
     private _collectFolderPaths(node: FileNode, paths: Set<string>) {
         if (node.type === 'folder') {
@@ -141,8 +141,8 @@ export class FileExplorerController implements ReactiveController {
     }
 
     /**
-     * 递归更新指定路径节点的子项
-     * 返回新的根节点（不可变更新）
+     * Recursively update children of the node at the given path
+     * Returns new root node (immutable update)
      */
     private _updateNodeChildren(
         node: FileNode,
@@ -157,7 +157,7 @@ export class FileExplorerController implements ReactiveController {
                 const updated = this._updateNodeChildren(child, targetPath, children);
                 return updated || child;
             });
-            // 检查是否有子节点被更新
+            // Check if any child nodes were updated
             const hasUpdate = newChildren.some((child, i) => child !== node.children![i]);
             if (hasUpdate) {
                 return {...node, children: newChildren};

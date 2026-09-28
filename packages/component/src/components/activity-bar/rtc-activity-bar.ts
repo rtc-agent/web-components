@@ -1,18 +1,18 @@
 /**
  * RTC Activity Bar Component
  *
- * VS Code 风格的左侧活动栏，支持在资源管理器/聊天/设置间切换。
+ * VS Code-style left activity bar, supporting switching between Explorer/Chat/Settings.
  *
  * @element rtc-activity-bar
- * @fires activity-change - 活动切换时触发 (detail: { activity, toggleSidebar })
+ * @fires activity-change - Fired on activity switch (detail: { activity, toggleSidebar })
  *
- * ## 交互逻辑
- * - 点击当前活动 → toggle sidebar（触发 activity-change 事件，toggleSidebar: true）
- * - 点击不同活动 → 切换活动并显示 sidebar（触发 activity-change 事件，toggleSidebar: false）
- * - ↑/↓ 箭头键在图标间切换（roving tabindex），Enter/Space 激活
+ * ## Interaction logic
+ * - Click current activity → toggle sidebar (dispatches activity-change event, toggleSidebar: true)
+ * - Click different activity → switch activity and show sidebar (dispatches activity-change event, toggleSidebar: false)
+ * - ↑/↓ arrow keys switch between icons (roving tabindex), Enter/Space to activate
  *
- * ## 样式
- * 使用项目 design tokens（--rtc-color-*），支持亮色/暗色主题。
+ * ## Styling
+ * Uses project design tokens (--rtc-color-*), supports light/dark themes.
  */
 import {LitElement, html, nothing} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
@@ -30,7 +30,7 @@ import { createLogger } from '@rtc-agent/client';
 
 const log = createLogger('ActivityBar');
 
-/** 可聚焦的活动列表（顺序：files → chat → settings） */
+/** Focusable activity list (order: files → chat → settings) */
 const ACTIVITY_LIST: Activity[] = ['files', 'chat', 'settings'];
 
 @localized()
@@ -38,15 +38,15 @@ const ACTIVITY_LIST: Activity[] = ['files', 'chat', 'settings'];
 export class RtcActivityBar extends LitElement {
     static styles = styles;
 
-    /** 当前活动 */
+    /** Current activity */
     @property({type: String, reflect: true})
     active: Activity = 'chat';
 
-    /** 是否显示 Files 按钮 */
+    /** Whether to show the Files button */
     @property({type: Boolean, attribute: 'show-files'})
     showFiles = true;
 
-    /** 是否显示 Settings 按钮 */
+    /** Whether to show the Settings button */
     @property({type: Boolean, attribute: 'show-settings'})
     showSettings = true;
 
@@ -61,11 +61,11 @@ export class RtcActivityBar extends LitElement {
     };
 
     /**
-     * 处理活动图标点击
+     * Handle activity icon click
      *
-     * 逻辑：
-     * - 点击当前活动 → toggleSidebar: true
-     * - 点击不同活动 → 切换活动，toggleSidebar: false
+     * Logic:
+     * - Click current activity → toggleSidebar: true
+     * - Click different activity → switch activity, toggleSidebar: false
      */
     private _handleClick(activity: Activity) {
         const isToggle = activity === this.active;
@@ -82,11 +82,11 @@ export class RtcActivityBar extends LitElement {
     }
 
     /**
-     * 键盘事件处理
+     * Keyboard event handling
      *
-     * - ↑/↓：在可用活动间移动焦点（roving tabindex）
-     * - Enter/Space：激活当前活动
-     * - Home/End：跳到首/末项
+     * - ↑/↓: move focus between available activities (roving tabindex)
+     * - Enter/Space: activate current activity
+     * - Home/End: jump to first/last item
      */
     private _handleKeydown(e: KeyboardEvent, currentActivity: Activity) {
         const available = ACTIVITY_LIST;
@@ -130,7 +130,7 @@ export class RtcActivityBar extends LitElement {
     }
 
     /**
-     * 将焦点移到指定活动图标（roving tabindex）
+     * Move focus to a specific activity icon (roving tabindex)
      */
     private _focusActivity(activity: Activity) {
         const el = this.shadowRoot?.querySelector(`[data-activity="${activity}"]`) as HTMLElement | null;
@@ -138,7 +138,7 @@ export class RtcActivityBar extends LitElement {
     }
 
     /**
-     * 计算 roving tabindex：当前 active 的活动获得 tabindex=0，其余 -1
+     * Compute roving tabindex: the currently active activity gets tabindex=0, others get -1
      */
     private _tabIndex(activity: Activity): number {
         return activity === this.active ? 0 : -1;
@@ -149,7 +149,7 @@ export class RtcActivityBar extends LitElement {
         void this._localeCtx.locale;
 
         return html`
-            <!-- 顶部活动 -->
+            <!-- Top activity -->
             <div
                 class="activity-icon ${this.active === 'chat' ? 'active' : ''}"
                 data-activity="chat"
@@ -175,10 +175,10 @@ export class RtcActivityBar extends LitElement {
             >${filesIcon}</div>
             ` : nothing}
 
-            <!-- Spacer 将设置推到底部 -->
+            <!-- Spacer pushes settings to the bottom -->
             <div class="activity-spacer"></div>
 
-            <!-- 底部活动 -->
+            <!-- Bottom activity -->
             ${this.showSettings ? html`
             <div
                 class="activity-icon ${this.active === 'settings' ? 'active' : ''}"

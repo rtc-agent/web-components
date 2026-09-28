@@ -1,12 +1,12 @@
 /**
  * Skill Controller
  *
- * 轻量级 ReactiveController，管理 Skill 系统与组件的集成
+ * Lightweight ReactiveController that manages integration between the Skill system and components
  *
- * 职责：
- * - 持有 FunctionRegistry 实例引用
- * - 订阅 eventBus 事件，驱动 UI 更新（toast、confirm）
- * - 暴露 actions 给宿主应用
+ * Responsibilities:
+ * - Holds a FunctionRegistry instance reference
+ * - Subscribes to eventBus events to drive UI updates (toast, confirm)
+ * - Exposes actions to the host application
  */
 
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
@@ -22,33 +22,33 @@ const log = createLogger('SkillController');
  * SkillController actions
  */
 export interface SkillActions {
-  /** 获取 FunctionRegistry 实例 */
+  /** Get FunctionRegistry instance */
   getRegistry(): FunctionRegistry | null;
-  /** 设置 FunctionRegistry 实例（宿主应用调用） */
+  /** Set FunctionRegistry instance (called by host application) */
   setRegistry(registry: FunctionRegistry): void;
 }
 
 /**
- * SkillController 配置
+ * SkillController configuration
  */
 export interface SkillControllerConfig {
-  /** Toast 回调（由组件注入） */
+  /** Toast callback (injected by components) */
   onToast?: (message: string, type: 'info' | 'success' | 'error') => void;
-  /** 确认请求回调（由组件注入） */
+  /** Confirm request callback (injected by components) */
   onConfirmRequest?: (requestId: string, path: string, message: string) => void;
 }
 
 /**
  * SkillController
  *
- * 管理 Skill 系统与组件的集成
+ * Manages integration between the Skill system and components
  */
 export class SkillController implements ReactiveController {
   private _host: ReactiveControllerHost;
   private _registry: FunctionRegistry | null = null;
   private _config: SkillControllerConfig = {};
 
-  /** 事件取消订阅函数 */
+  /** Event unsubscribe functions */
   private _unsubscribes: Array<() => void> = [];
 
   constructor(host: ReactiveControllerHost, config?: SkillControllerConfig) {
@@ -58,7 +58,7 @@ export class SkillController implements ReactiveController {
   }
 
   /**
-   * 当前状态（供 Context 使用）
+   * Current state (for Context use)
    */
   get value(): SkillContextValue {
     return {
@@ -67,7 +67,7 @@ export class SkillController implements ReactiveController {
   }
 
   /**
-   * Actions（供宿主应用调用）
+   * Actions (for host application to call)
    */
   get actions(): SkillActions {
     return {
@@ -76,19 +76,19 @@ export class SkillController implements ReactiveController {
         this._registry = registry;
         this._host.requestUpdate();
 
-        // 自动创建 rtcAgentAPI Proxy 并注入 ToolRegistry
-        // 让 script 工具的 eval 能调用已注册的 function
+        // Automatically create rtcAgentAPI Proxy and inject into ToolRegistry
+        // Allows script tool's eval to call registered functions
         this._bridgeToolRegistry(registry);
       },
     };
   }
 
   /**
-   * 创建 rtcAgentAPI Proxy 并注入 ToolRegistry
+   * Create rtcAgentAPI Proxy and inject into ToolRegistry
    *
-   * 此方法将 FunctionRegistry 与 ToolRegistry 桥接：
-   * - callFunction/readFile/writeFile/listDir 映射到 registry.execute 和 virtualFS
-   * - Proxy 的 get trap 转发到 registry 的 group proxy，支持链式调用（rtcAgent.task.create()）
+   * This method bridges FunctionRegistry and ToolRegistry:
+   * - callFunction/readFile/writeFile/listDir map to registry.execute and virtualFS
+   * - Proxy's get trap forwards to registry's group proxy, supporting chain calls (rtcAgent.task.create())
    */
   private _bridgeToolRegistry(registry: FunctionRegistry): void {
     const rtcAgentAPI = new Proxy({
@@ -98,9 +98,9 @@ export class SkillController implements ReactiveController {
       listDir: (path: string) => virtualFS.ls(path),
     }, {
       get(target, prop) {
-        // 优先返回 API 方法
+        // Prefer returning API methods
         if (prop in target) return (target as Record<string, unknown>)[prop as string];
-        // 否则转发到 registry（获取 group proxy）
+        // Otherwise forward to registry (get group proxy)
         return (registry as unknown as Record<string | symbol, unknown>)[prop];
       }
     });
@@ -110,7 +110,7 @@ export class SkillController implements ReactiveController {
   }
 
   /**
-   * 设置配置（用于延迟注入回调）
+   * Set configuration (for deferred callback injection)
    */
   setConfig(config: SkillControllerConfig): void {
     this._config = config;
@@ -120,7 +120,7 @@ export class SkillController implements ReactiveController {
    * ReactiveController: host connected
    */
   hostConnected(): void {
-    // 订阅 eventBus 事件
+    // Subscribe to eventBus events
     this._subscribeEvents();
   }
 
@@ -128,7 +128,7 @@ export class SkillController implements ReactiveController {
    * ReactiveController: host disconnected
    */
   hostDisconnected(): void {
-    // 取消所有订阅
+    // Unsubscribe all
     for (const unsub of this._unsubscribes) {
       unsub();
     }
@@ -136,7 +136,7 @@ export class SkillController implements ReactiveController {
   }
 
   /**
-   * 订阅 eventBus 事件
+   * Subscribe to eventBus events
    */
   private _subscribeEvents(): void {
     // Guard: unsubscribe previous listeners before re-subscribing.
@@ -146,7 +146,7 @@ export class SkillController implements ReactiveController {
     }
     this._unsubscribes = [];
 
-    // 订阅 ui:toast 事件
+    // Subscribe to ui:toast event
     const unsubToast = eventBus.on('ui:toast', (event: { message: string; type: string }) => {
       if (this._config.onToast) {
         this._config.onToast(event.message, event.type as 'info' | 'success' | 'error');
@@ -154,7 +154,7 @@ export class SkillController implements ReactiveController {
     });
     this._unsubscribes.push(unsubToast);
 
-    // 订阅 ui:confirm-request 事件
+    // Subscribe to ui:confirm-request event
     const unsubConfirm = eventBus.on('ui:confirm-request', (event: { requestId: string; path: string; message: string }) => {
       if (this._config.onConfirmRequest) {
         this._config.onConfirmRequest(event.requestId, event.path, event.message);
@@ -164,7 +164,7 @@ export class SkillController implements ReactiveController {
   }
 
   /**
-   * 响应确认请求（由组件调用）
+   * Respond to confirm request (called by components)
    */
   respondToConfirm(requestId: string, confirmed: boolean): void {
     eventBus.emit('ui:confirm-response', { requestId, confirmed });

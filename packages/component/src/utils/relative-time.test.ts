@@ -100,7 +100,7 @@ describe('formatRelativeTime', () => {
 
     it('should handle timestamp equal to now (0 seconds)', () => {
         const result = formatRelativeTime(FIXED_NOW, 'zh-CN');
-        // Should be "现在" or "0秒前" depending on Intl implementation
+        // Should be "now" or "0s ago" depending on Intl implementation
         expect(typeof result).toBe('string');
         expect(result.length).toBeGreaterThan(0);
     });

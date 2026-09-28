@@ -1,15 +1,15 @@
 import {createContext} from '@lit/context';
 
 /**
- * Turn Count Context — 当前会话中处于活跃状态的 turn 数量
+ * Turn Count Context — Number of active turns in the current session.
  *
- * 由 `<rtc-agent>` 根组件提供，`<rtc-input-area>` 消费，
- * 用于决定 send 按钮的图标 / disabled 状态。
+ * Provided by the `<rtc-agent>` root component, consumed by `<rtc-input-area>`,
+ * used to determine the send button icon / disabled state.
  *
- * 数据来源：persistence 层的写时聚合。每次收到 turn 相关 Update，
- * EntityRepository 会把该 session 的 pending_turn_count / running_turn_count
- * 回写到 sessions 行，UIUpdateBus 自动发布 session.updated 事件，
- * 根组件订阅后从 session 行读出两个字段推入本 context。
+ * Data source: write-time aggregation from the persistence layer. On each turn-related update,
+ * EntityRepository writes back pending_turn_count / running_turn_count to the sessions row,
+ * UIUpdateBus automatically publishes a session.updated event,
+ * and the root component subscribes and reads these two fields from the session row into this context.
  *
  * Provided by: <rtc-agent> (root)
  * Consumed by: <rtc-input-area>

@@ -1,21 +1,21 @@
 import {css} from 'lit';
 
 /**
- * Drawer 样式
+ * Drawer styles
  *
- * 左侧滑出抽屉面板：
- * - 固定在 Activity Bar 右侧，overlay 在主内容之上
- * - 通过 transform + transition 实现平滑滑入/滑出
- * - 半透明 backdrop 遮罩层，点击关闭
- * - 宽度可通过 --rtc-drawer-width CSS 自定义属性配置
+ * Left slide-out drawer panel:
+ * - Fixed to the right of Activity Bar, overlay above main content
+ * - Smooth slide in/out via transform + transition
+ * - Semi-transparent backdrop overlay, click to close
+ * - Width configurable via --rtc-drawer-width CSS custom property
  *
- * @cssprop [--rtc-drawer-width=240px] - 抽屉宽度
- * @csspart backdrop - 遮罩层
- * @csspart panel - 抽屉面板
+ * @cssprop [--rtc-drawer-width=240px] - Drawer width
+ * @csspart backdrop - Backdrop overlay
+ * @csspart panel - Drawer panel
  */
 export const styles = css`
     :host {
-        /* 抽屉面板定位基准：通过 --rtc-drawer-left 控制左侧偏移 */
+        /* Drawer panel positioning base: left offset controlled via --rtc-drawer-left */
         position: absolute;
         top: 0;
         left: var(--rtc-drawer-left, 0px);
@@ -29,7 +29,7 @@ export const styles = css`
         pointer-events: auto;
     }
 
-    /* ── Backdrop 遮罩层 ── */
+    /* ── Backdrop overlay ── */
     .backdrop {
         position: absolute;
         inset: 0;
@@ -44,7 +44,7 @@ export const styles = css`
         pointer-events: auto;
     }
 
-    /* ── Panel 抽屉面板 ── */
+    /* ── Panel drawer panel ── */
     .panel {
         position: absolute;
         top: 0;
@@ -65,13 +65,13 @@ export const styles = css`
         transform: translateX(0);
     }
 
-    /* ── 内容插槽区域 ── */
+    /* ── Content slot area ── */
     ::slotted(*) {
         flex: 1;
         overflow: hidden;
     }
 
-    /* ── 尊重用户动画偏好 ── */
+    /* ── Respect user animation preferences ── */
     @media (prefers-reduced-motion: reduce) {
         .backdrop,
         .panel {

@@ -1,8 +1,8 @@
 /**
- * 相对时间格式化工具
+ * Relative time formatting utilities
  *
- * 使用原生 Intl.RelativeTimeFormat，无需第三方库。
- * 支持中英文，自动选择最佳单位（秒/分钟/小时/天/周/月/年）。
+ * Uses native Intl.RelativeTimeFormat, no third-party library needed.
+ * Supports Chinese and English, automatically selects the best unit (seconds/minutes/hours/days/weeks/months/years).
  */
 
 const rtfZh = new Intl.RelativeTimeFormat('zh-CN', { numeric: 'auto' });
@@ -19,10 +19,10 @@ const DIVISIONS: { amount: number; name: Intl.RelativeTimeFormatUnit }[] = [
 ];
 
 /**
- * 格式化时间戳为相对时间
- * @param timestamp 毫秒时间戳
- * @param locale 语言环境，默认中文
- * @returns 相对时间字符串，如 "3分钟前"、"2小时前"、"5天前"
+ * Format a timestamp as relative time
+ * @param timestamp Millisecond timestamp
+ * @param locale Locale, defaults to Chinese
+ * @returns Relative time string, e.g. "3 minutes ago", "2 hours ago", "5 days ago"
  */
 export function formatRelativeTime(
     timestamp: number,

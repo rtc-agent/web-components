@@ -1,9 +1,9 @@
 import {css} from 'lit';
 
 /**
- * Activity Bar 样式
+ * Activity Bar styles
  *
- * 使用项目 design tokens（--rtc-color-*）支持多主题。
+ * Uses project design tokens (--rtc-color-*) for multi-theme support.
  */
 export const styles = css`
     :host {
@@ -15,7 +15,7 @@ export const styles = css`
         align-items: center;
         padding: var(--rtc-space-s, 8px) 0;
         flex-shrink: 0;
-        /* 始终在 drawer 之上，防止被遮罩覆盖 */
+        /* Always above drawer, prevent being covered by overlay */
         position: relative;
         z-index: var(--rtc-z-activity-bar, 30);
     }

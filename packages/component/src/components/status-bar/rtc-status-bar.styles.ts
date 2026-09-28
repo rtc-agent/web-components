@@ -1,13 +1,13 @@
 import {css} from 'lit';
 
 /**
- * Status Bar 样式
+ * Status Bar styles
  *
- * VS Code 风格底部状态栏。
- * 颜色使用项目 Tokens，确保双主题适配。
+ * VS Code-style bottom status bar.
+ * Colors use project Tokens to ensure dual-theme adaptation.
  *
- * VS Code 中 Status Bar 双主题同色（蓝底白字），
- * 这里使用 --rtc-color-accent 作为背景色。
+ * In VS Code the Status Bar has the same color in both themes (blue background, white text),
+ * here we use --rtc-color-accent as the background color.
  */
 export const styles = css`
     :host {
@@ -51,13 +51,13 @@ export const styles = css`
         flex: 1;
     }
 
-    /* ── 空状态（无文件打开时） ── */
+    /* ── Empty state (when no file is open) ── */
     .status-empty {
         color: var(--rtc-color-on-primary, #ffffff);
         opacity: 0.7;
     }
 
-    /* ── 保存状态指示 ── */
+    /* ── Save status indicator ── */
     .status-save-unsaved {
         font-style: italic;
     }

@@ -17,7 +17,7 @@ import type { SyncStatus } from '@rtc-agent/persistence';
 
 export type MessageRole = 'user' | 'assistant' | 'system';
 
-/** 消息同步状态：pending=本地待同步, synced=已同步, failed=同步失败 */
+/** Message sync status: pending=locally pending sync, synced=synced, failed=sync failed */
 // SyncStatus re-exported from @rtc-agent/persistence above
 
 export interface Message {
@@ -27,77 +27,77 @@ export interface Message {
     timestamp: number;
     /** Is the message still being streamed? */
     streaming?: boolean;
-    /** 同步状态 */
+    /** Sync status */
     syncStatus: SyncStatus;
     /**
-     * 父消息的 clientId。
-     * toolcall_output 通过此字段指向对应的 toolcall_input。
-     * 映射自协议层 Message.parent_message_id（server UUID → 解析为 client_id）。
+     * The clientId of the parent message.
+     * toolcall_output points to its corresponding toolcall_input via this field.
+     * Mapped from the protocol layer's Message.parent_message_id (server UUID -> resolved as client_id).
      */
     parentClientId?: string;
 }
 
 /* ── Sessions ── */
 
-/** Session 运行状态，与 protocol SessionStatus 对齐 */
+/** Session runtime status, aligned with protocol SessionStatus */
 export type SessionStatus = 'active' | 'closed' | 'idle';
 
 export interface Session {
     clientId: string;
-    /** 创建此 Session 的设备 ID（来自 JWT Token），用于前端判断 RTC 请求归属 */
+    /** Device ID that created this Session (from JWT Token), used by the frontend to determine RTC request ownership */
     deviceId?: string;
     title: string;
     createdAt: number;
     updatedAt: number;
     todoList?: TodoItem[];
     /**
-     * 父级 root session 的 clientId（fork 产生的子 session 指向其根 session）。
-     * 为空表示该 session 本身就是 root session。
+     * The clientId of the parent root session (forked child sessions point to their root session).
+     * If empty, this session is itself a root session.
      */
     rootClientSessionId?: string;
-    /** Session 运行状态：active（agent 生成中）/ idle（等待输入）/ closed（已关闭） */
+    /** Session runtime status: active (agent generating) / idle (waiting for input) / closed (terminated) */
     status?: SessionStatus;
 
-    // ── Token 用量（从 LocalSession 透传，后端 session.updated 推送后填充） ──
+    // ── Token Usage (passed through from LocalSession, populated after backend session.updated push) ──
 
-    /** 累计纯输入 token 数（不含 cached read/write） */
+    /** Cumulative net input token count (excluding cached read/write) */
     totalInputTokens?: number;
-    /** 累计输出 token 数 */
+    /** Cumulative output token count */
     totalOutputTokens?: number;
-    /** 累计总 token 数（包含所有类型） */
+    /** Cumulative total token count (including all types) */
     totalTokens?: number;
-    /** 当前上下文实际 token 数（压缩后回写，用于压缩进度计算） */
+    /** Actual current context token count (rewritten after compression, used for compression progress calculation) */
     currentContextTokens?: number;
-    /** 累计缓存读取 token 数 */
+    /** Cumulative cache read token count */
     totalCachedReadTokens?: number;
-    /** 累计缓存写入 token 数 */
+    /** Cumulative cache write token count */
     totalCachedWriteTokens?: number;
-    /** 累计推理 token 数 */
+    /** Cumulative reasoning token count */
     totalReasoningTokens?: number;
-    /** 累计成本（美元） */
+    /** Cumulative cost (USD) */
     totalCostUsd?: number;
-    /** 最后一次 token 统计更新时间（ISO 8601） */
+    /** Last token stats update time (ISO 8601) */
     lastTokenUpdateAt?: string;
 
-    // ── Token 预估（后端实时计算，通过 session.updated 推送） ──
+    // ── Token Estimation (real-time computation by backend, pushed via session.updated) ──
 
-    /** 压缩触发阈值（contextTokensLimit - autoCompactBufferTokens） */
+    /** Compression trigger threshold (contextTokensLimit - autoCompactBufferTokens) */
     compressionThreshold?: number;
-    /** 压缩进度 (0-100) */
+    /** Compression progress (0-100) */
     compressionProgress?: number;
-    /** 距离压缩的轮次（-1 表示已超过阈值） */
+    /** Rounds until compression (-1 means threshold already exceeded) */
     roundsUntilCompression?: number;
-    /** 预估下一轮 token 数 */
+    /** Estimated token count for the next round */
     estimatedNextRoundTokens?: number;
 }
 
 /* ── Session Tree ── */
 
 /**
- * 会话树节点（递归结构）
+ * Session tree node (recursive structure)
  *
- * root session 作为"文件夹"，子 session（通过 rootClientSessionId 关联）
- * 嵌套在 children 中。
+ * Root sessions serve as "folders"; child sessions (linked via rootClientSessionId)
+ * are nested in the children array.
  */
 export interface SessionTreeNode {
     session: Session;
@@ -106,92 +106,92 @@ export interface SessionTreeNode {
 }
 
 export interface SessionTreeState {
-    /** 根节点列表（rootClientSessionId 为空的 session） */
+    /** Root node list (sessions with empty rootClientSessionId) */
     rootNodes: SessionTreeNode[];
 }
 
 export interface SessionTreeActions {
-    /** 切换节点展开/折叠状态 */
+    /** Toggle node expand/collapse state */
     toggleExpand(sessionId: string): void;
-    /** 展开指定节点 */
+    /** Expand the specified node */
     expand(sessionId: string): void;
-    /** 折叠指定节点 */
+    /** Collapse the specified node */
     collapse(sessionId: string): void;
-    /** 重建整棵树（session 列表变化时调用） */
+    /** Rebuild the entire tree (called when the session list changes) */
     rebuildTree(sessions: Session[]): void;
 }
 
 /* ── Session Tab ── */
 
 /**
- * 会话 Tab 页签
+ * Session tab
  *
- * 以 sessionId 为唯一标识，同一 session 只允许开一个 tab。
+ * Uses sessionId as the unique identifier; only one tab is allowed per session.
  */
 export interface SessionTab {
-    /** Session clientId（唯一标识） */
+    /** Session clientId (unique identifier) */
     sessionId: string;
-    /** 显示标题 */
+    /** Display title */
     title: string;
-    /** 标题是否为默认/占位值（空、"Untitled"、"New Chat"）。用于标题同步判断。 */
+    /** Whether the title is a default/placeholder value (empty, "Untitled", "New Chat"). Used for title sync decisions. */
     isDefault?: boolean;
-    /** 该 Session 是否尚未持久化（未发送过消息）。 */
+    /** Whether this Session has not been persisted yet (no messages sent). */
     isUnsaved?: boolean;
-    /** Session 运行状态：active（agent 生成中）/ idle（等待输入）/ closed（已关闭） */
+    /** Session runtime status: active (agent generating) / idle (waiting for input) / closed (terminated) */
     status?: SessionStatus;
-    // ── Transient UI params（不持久化，消费后清除）──
-    /** 预填到 input-area 的初始值 */
+    // ── Transient UI params (not persisted, cleared after consumption) ──
+    /** Initial value pre-filled into the input area */
     initialInputValue?: string;
-    /** notice-bar 显示的提示消息 */
+    /** Notice message displayed in the notice bar */
     noticeMessage?: string;
-    /** 每次 setTransientParams 递增，防御 Lit 脏检查跳过 */
+    /** Incremented on each setTransientParams call to defend against Lit dirty-check skipping */
     initialValueVersion?: number;
 }
 
 export interface SessionTabState {
-    /** 打开的 tab 列表（顺序即显示顺序） */
+    /** Open tab list (order matches display order) */
     tabs: SessionTab[];
-    /** 当前活动 tab 的 sessionId */
+    /** Currently active tab's sessionId */
     activeSessionId: string | null;
 }
 
 export interface SessionTabActions {
-    /** 打开或切换到指定 session 的 tab。`options.isUnsaved` 用于新建 unsaved draft tab。`options.skipPersist` 用于批量恢复时跳过 localStorage 写入。`options.initialInputValue` / `options.noticeMessage` 用于传递瞬态 UI 参数。 */
+    /** Open or switch to a tab for the specified session. `options.isUnsaved` is for creating a new unsaved draft tab. `options.skipPersist` is for skipping localStorage writes during bulk restore. `options.initialInputValue` / `options.noticeMessage` are for passing transient UI params. */
     openOrActivate(sessionId: string, title: string, options?: { isUnsaved?: boolean; activate?: boolean; skipPersist?: boolean; initialInputValue?: string; noticeMessage?: string }): void;
-    /** 关闭指定 tab。若关闭的是活动 tab，自动激活相邻 tab。 */
+    /** Close the specified tab. If closing the active tab, automatically activates an adjacent tab. */
     closeTab(sessionId: string): void;
-    /** 设置活动 tab */
+    /** Set the active tab */
     setActiveTab(sessionId: string | null): void;
-    /** 清空所有 tab */
+    /** Clear all tabs */
     clearAll(): void;
-    /** 用 sessions 中的最新标题同步已有 Tab 的标题 */
+    /** Sync existing Tab titles with the latest titles from sessions */
     updateTabTitles(sessionTitleMap: Map<string, string>): void;
-    /** 用 sessions 中的最新状态同步已有 Tab 的 status */
+    /** Sync existing Tab statuses with the latest statuses from sessions */
     syncTabStatuses(sessionStatusMap: Map<string, SessionStatus>): void;
-    /** 将指定 tab 标记为已保存。 */
+    /** Mark the specified tab as saved. */
     markSaved(sessionId: string): void;
-    /** 查找当前 unsaved tab，返回第一个 isUnsaved === true 的 tab。 */
+    /** Find the current unsaved tab, returning the first tab where isUnsaved === true. */
     findUnsavedTab(): SessionTab | undefined;
-    /** 更新指定 tab 的 session 运行状态。 */
+    /** Update the session runtime status of the specified tab. */
     updateTabStatus(sessionId: string, status: SessionStatus): void;
     /**
-     * 从 localStorage 恢复活动 Tab
+     * Restore the active Tab from localStorage
      *
-     * 仅在首次加载后调用：把上次浏览器关闭前的 activeSessionId 重新设为活动。
-     * 若存储的 id 不在当前 tabs 中，则保持不变。
-     * 返回 true 表示 active 发生了变化。
+     * Only called once on initial load: re-sets the activeSessionId from before the browser was closed.
+     * If the stored id is not in the current tabs, no change is made.
+     * Returns true if the active tab changed.
      */
     restoreActiveFromStorage(): boolean;
     /**
-     * 从 localStorage 读取上次活动 Tab 的 sessionId
+     * Read the last active Tab's sessionId from localStorage
      *
-     * 用于恢复 tabs 循环时决定哪个 tab 应该 activate: true。
-     * 如果 localStorage 为空或不可用，返回 null。
+     * Used during tab loop restoration to determine which tab should have activate: true.
+     * Returns null if localStorage is empty or unavailable.
      */
     getStoredActiveSessionId(): string | null;
-    /** 设置指定 tab 的瞬态 UI 参数（initialInputValue, noticeMessage），同时递增 initialValueVersion。 */
+    /** Set transient UI params (initialInputValue, noticeMessage) for the specified tab, also incrementing initialValueVersion. */
     setTransientParams(sessionId: string, params: { initialInputValue?: string; noticeMessage?: string }): void;
-    /** 清除指定 tab 的瞬态 UI 参数。 */
+    /** Clear transient UI params for the specified tab. */
     clearTransientParams(sessionId: string): void;
 }
 
@@ -268,7 +268,7 @@ export interface SessionState {
 }
 
 export interface SessionActions {
-    /** 创建新 session 并设为 current。返回新 session 的 clientId（同步可得，规避 context 异步传播）。 */
+    /** Create a new session and set it as current. Returns the new session's clientId (available synchronously to avoid context async propagation). */
     createSession(): string;
 
     switchSession(id: string): void;
@@ -277,10 +277,10 @@ export interface SessionActions {
 
     deleteSession(id: string): Promise<{ok: boolean; error?: string}>;
 
-    /** 通知后端关闭 session（Tab 关闭时调用，fire-and-forget） */
+    /** Notify the backend to close the session (called when a Tab closes, fire-and-forget) */
     closeSession(sessionId: string): Promise<{ok: boolean; error?: Error}>;
 
-    /** 重新打开已关闭的 session（打开 closed session 时调用，透明 reopen） */
+    /** Reopen a closed session (called when opening a closed session, transparent reopen) */
     reopenSession(sessionId: string): Promise<{ok: boolean; error?: Error}>;
 
     /** Reset all session state */
@@ -313,10 +313,10 @@ export interface MessageState {
 export interface MessageActions {
     sendMessage(content: ContentData): Promise<void>;
 
-    /** 重新发送失败的消息（保留原 client_id 实现幂等重试） */
+    /** Resend a failed message (preserves the original client_id for idempotent retry) */
     resendMessage(messageClientId: string, content: ContentData): Promise<void>;
 
-    /** 分叉对话：基于旧消息创建新 session，替换消息内容 */
+    /** Fork a conversation: create a new session based on an old message, replacing message content */
     forkSession(params: {
         oldSessionClientId: string;
         oldMessageClientId: string;
@@ -332,7 +332,7 @@ export interface MessageActions {
     /** Finalize the last streaming message. */
     finalizeLastMessage(): void;
 
-    /** 清空所有消息。Session 切换时调用，也可作为用户主动操作。 */
+    /** Clear all messages. Called on session switch, can also be a user-initiated action. */
     clearMessages(): void;
 }
 
@@ -377,76 +377,76 @@ export type {
 /* ── File Explorer & Editor (Phase 1) ── */
 
 /**
- * Activity Bar 的活动类型
+ * Activity Bar activity types
  *
- * - files: 资源管理器（文件树 + 编辑器）
- * - chat: 聊天模式（当前主界面）
- * - settings: 设置（底部）
+ * - files: File explorer (file tree + editor)
+ * - chat: Chat mode (current main interface)
+ * - settings: Settings (at the bottom)
  */
 export type Activity = 'files' | 'chat' | 'settings';
 
 /**
- * 文件树节点（递归结构）
+ * File tree node (recursive structure)
  *
- * 对应 VirtualFS 的目录/文件条目。`children` 为 undefined 表示"未加载"
- * （懒加载语义），与空数组（空目录）区分。
+ * Corresponds to VirtualFS directory/file entries. `children` being undefined means "not loaded"
+ * (lazy-loading semantics), distinguished from an empty array (empty directory).
  */
 export interface FileNode {
-    /** 绝对路径，如 '/scenarios/checkout.md' */
+    /** Absolute path, e.g. '/scenarios/checkout.md' */
     path: string;
-    /** 文件名（不含路径） */
+    /** File name (without path) */
     name: string;
-    /** 节点类型 */
+    /** Node type */
     type: 'file' | 'folder';
-    /** 子节点。仅 folder 有意义；undefined 表示尚未加载。 */
+    /** Child nodes. Only meaningful for folders; undefined means not yet loaded. */
     children?: FileNode[];
-    /** 是否展开。仅 folder 有意义。 */
+    /** Whether expanded. Only meaningful for folders. */
     isExpanded?: boolean;
-    /** 是否正在懒加载子节点。仅 folder 有意义。 */
+    /** Whether child nodes are being lazy-loaded. Only meaningful for folders. */
     isLoading?: boolean;
 }
 
 /**
- * 编辑器视图模式
+ * Editor view mode
  *
- * - edit: 仅显示编辑面板
- * - preview: 仅显示预览面板
- * - split: 左右分屏（中间可拖动分割条）
+ * - edit: Show only the edit panel
+ * - preview: Show only the preview panel
+ * - split: Side-by-side (with a draggable splitter in the middle)
  */
 export type EditorViewMode = 'edit' | 'preview' | 'split';
 
 /**
- * 编辑器标签页
+ * Editor tab
  *
- * 以 filePath 为唯一标识，同一路径只允许开一个 tab。
+ * Uses filePath as the unique identifier; only one tab is allowed per path.
  */
 export interface EditorTab {
-    /** 文件路径（唯一标识） */
+    /** File path (unique identifier) */
     filePath: string;
-    /** 当前编辑内容 */
+    /** Current edited content */
     content: string;
-    /** 是否有未保存修改 */
+    /** Whether there are unsaved changes */
     isDirty: boolean;
-    /** 光标位置（行号 / 列号，均 1-based） */
+    /** Cursor position (line / column, both 1-based) */
     cursorPosition: {line: number; column: number};
-    /** 当前 tab 的视图模式（每个 tab 独立） */
+    /** Current tab's view mode (each tab is independent) */
     viewMode: EditorViewMode;
 }
 
 /**
- * 状态栏显示信息
+ * Status bar display information
  *
- * 由 StatusBarController 从 EditorAreaController 派生，
- * 供 rtc-status-bar 组件渲染。
+ * Derived by StatusBarController from EditorAreaController,
+ * consumed by the rtc-status-bar component for rendering.
  */
 export interface StatusBarInfo {
-    /** 文件类型标签（如 "Markdown"、"JavaScript"） */
+    /** File type label (e.g. "Markdown", "JavaScript") */
     fileType: string;
-    /** 编码（固定 "UTF-8"，后续可扩展） */
+    /** Encoding (fixed "UTF-8", extensible later) */
     encoding: string;
-    /** 光标位置（行号 / 列号，均 1-based） */
+    /** Cursor position (line / column, both 1-based) */
     cursor: {line: number; column: number};
-    /** 保存状态：saved=已保存，unsaved=有未保存修改，none=无文件打开 */
+    /** Save status: saved=changes saved, unsaved=has unsaved changes, none=no file open */
     saveStatus: 'saved' | 'unsaved' | 'none';
 }
 

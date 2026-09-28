@@ -35,7 +35,7 @@ interface UpsertItem {
 }
 
 /**
- * 批量操作按实体类型分组后的结果。
+ * Result of batch operations grouped by entity type.
  */
 interface BatchEntities {
   sessions: Partial<LocalSession>[];
@@ -45,10 +45,10 @@ interface BatchEntities {
 }
 
 /**
- * 批量删除操作的 client_id 集合（按实体类型分组）。
+ * client_id collection for batch delete operations (grouped by entity type).
  *
- * `_pendingDeleteServerIds` 暂存尚未从 server_id 解析为 client_id 的待处理项，
- * 由 `resolveDeleteClientIds` 解析后清空。
+ * `_pendingDeleteServerIds` temporarily stores items that have not yet been resolved from server_id to client_id,
+ * resolved and cleared by `resolveDeleteClientIds`.
  */
 interface BatchDeletes {
   sessions: string[];
@@ -59,9 +59,9 @@ interface BatchDeletes {
 }
 
 /**
- * bulkGet 的结果：按实体类型组织的 Map<client_id, record>。
+ * Result of bulkGet: Map<client_id, record> organized by entity type.
  *
- * 仅在事务内使用（由 `bulkGetExisting` 返回）。
+ * Only used within transactions (returned by `bulkGetExisting`).
  */
 interface ExistingData {
   sessions: Map<string, LocalSession>;

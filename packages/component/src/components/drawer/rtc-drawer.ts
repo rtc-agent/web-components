@@ -1,40 +1,42 @@
 /**
  * RTC Drawer Component
  *
- * 通用左侧抽屉面板组件。
- * 从 Activity Bar 右侧滑入，overlay 在主内容之上，不挤压主内容区宽度。
+ * Generic left-side drawer panel component.
+ * Slides in from the right side of the Activity Bar, overlays on top of the main content
+ * without squeezing the main content area width.
  *
- * 用于替代原有的 flex 布局侧边栏（session-tree、file-explorer、settings-nav），
- * 统一抽屉交互：
- * - 半透明 backdrop 遮罩，点击关闭
- * - ESC 键关闭
- * - 平滑 slide-in/out 动画
- * - 互斥行为（由父组件控制，同一时刻只打开一个）
+ * Used to replace the original flex-layout sidebars (session-tree, file-explorer, settings-nav),
+ * unifying drawer interaction:
+ * - Semi-transparent backdrop overlay, click to close
+ * - ESC key to close
+ * - Smooth slide-in/out animation
+ * - Mutually exclusive behavior (controlled by parent component, only one open at a time)
  *
  * @element rtc-drawer
  *
- * @attr {boolean} open - 抽屉是否打开
+ * @attr {boolean} open - Whether the drawer is open
  *
- * @cssprop [--rtc-drawer-width=240px] - 抽屉面板宽度
- * @cssprop [--rtc-drawer-backdrop-bg=rgba(0,0,0,0.3)] - 遮罩层背景色
- * @cssprop [--rtc-drawer-transition-duration=0.25s] - 动画时长
+ * @cssprop [--rtc-drawer-width=240px] - Drawer panel width
+ * @cssprop [--rtc-drawer-backdrop-bg=rgba(0,0,0,0.3)] - Backdrop background color
+ * @cssprop [--rtc-drawer-transition-duration=0.25s] - Animation duration
  *
- * @csspart backdrop - 遮罩层元素
- * @csspart panel - 抽屉面板元素
+ * @csspart backdrop - Backdrop element
+ * @csspart panel - Drawer panel element
  *
- * @fires rtc-drawer-close - 用户请求关闭抽屉时触发（点击 backdrop / 按 ESC）
+ * @fires rtc-drawer-close - Fired when user requests to close the drawer (click backdrop / press ESC)
  *
- * ## 用法
+ * ## Usage
  * ```html
  * <rtc-drawer ?open=${drawerOpen}>
  *   <rtc-session-tree></rtc-session-tree>
  * </rtc-drawer>
  * ```
  *
- * ## 定位
- * Drawer 使用 position: absolute 定位，需要父容器设置 position: relative。
- * 在 rtc-agent 中，Drawer 放在 .main-layout 内部（.main-layout 已是 flex 容器），
- * 通过 JS 设置 left 为 Activity Bar 宽度（48px），实现紧贴 Activity Bar 右侧。
+ * ## Positioning
+ * Drawer uses position: absolute positioning, requiring the parent container to set position: relative.
+ * In rtc-agent, the Drawer is placed inside .main-layout (.main-layout is already a flex container),
+ * with JS setting left to the Activity Bar width (48px), to position it flush against the right side
+ * of the Activity Bar.
  */
 import {LitElement, html} from 'lit';
 import {customElement, property} from 'lit/decorators.js';
@@ -45,10 +47,10 @@ export class RtcDrawer extends LitElement {
     static styles = styles;
 
     /**
-     * 抽屉是否打开
+     * Whether the drawer is open
      *
-     * 通过 attribute `open` 或 property 控制。
-     * reflect: true 使 DOM 上能看到 [open] 属性，驱动 CSS 状态。
+     * Controlled via attribute `open` or property.
+     * reflect: true makes the [open] attribute visible in the DOM, driving CSS state.
      */
     @property({type: Boolean, reflect: true})
     open = false;
@@ -57,7 +59,7 @@ export class RtcDrawer extends LitElement {
 
     connectedCallback() {
         super.connectedCallback();
-        // 全局 ESC 监听：打开状态下按 ESC 关闭
+        // Global ESC listener: close when ESC is pressed while open
         document.addEventListener('keydown', this._boundOnKeydown);
     }
 
@@ -69,9 +71,9 @@ export class RtcDrawer extends LitElement {
     /* ── Event Handlers ── */
 
     /**
-     * 点击 backdrop 遮罩层
+     * Click backdrop overlay
      *
-     * 派发自定义事件通知父组件关闭抽屉。
+     * Dispatches custom event to notify parent component to close the drawer.
      */
     private _handleBackdropClick() {
         this.dispatchEvent(
@@ -83,9 +85,9 @@ export class RtcDrawer extends LitElement {
     }
 
     /**
-     * 全局 ESC 键处理
+     * Global ESC key handler
      *
-     * 仅当抽屉打开且连接在 DOM 中时响应。
+     * Only responds when drawer is open and connected in the DOM.
      */
     private _boundOnKeydown = (e: KeyboardEvent) => {
         if (e.key === 'Escape' && this.open) {

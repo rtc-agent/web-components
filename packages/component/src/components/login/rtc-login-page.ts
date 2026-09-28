@@ -1,16 +1,16 @@
 /**
  * RTC Login Page Component
  *
- * 居中展示 Logo、应用名称和 OAuth2 Provider 选择按钮。
- * 用户未登录时显示。
+ * Centered display of Logo, application name, and OAuth2 Provider selection buttons.
+ * Shown when user is not logged in.
  *
  * @element rtc-login-page
- * @fires rtc-login-requested - 用户选择了 provider，detail 包含 {provider}
- * @csspart container - 登录容器
- * @csspart logo - Logo 区域
- * @csspart app-name - 应用名称文本
- * @csspart providers - Provider 按钮容器
- * @csspart provider-btn - 单个 Provider 按钮
+ * @fires rtc-login-requested - User selected a provider, detail contains {provider}
+ * @csspart container - Login container
+ * @csspart logo - Logo area
+ * @csspart app-name - Application name text
+ * @csspart providers - Provider buttons container
+ * @csspart provider-btn - Single Provider button
  */
 import {LitElement, html, nothing} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
@@ -25,7 +25,7 @@ import { createLogger } from '@rtc-agent/client';
 
 const log = createLogger('LoginPage');
 
-/** Provider 配置 */
+/** Provider configuration */
 interface ProviderConfig {
     name: string;
     label: string;
@@ -33,7 +33,7 @@ interface ProviderConfig {
     color: string;
 }
 
-/** 已知 provider 的配置 */
+/** Configuration for known providers */
 const PROVIDER_CONFIGS: Record<string, Omit<ProviderConfig, 'name'>> = {
     github: {
         label: 'GitHub',
@@ -113,7 +113,7 @@ export class RtcLoginPage extends LitElement {
                     if (config) {
                         return { name, ...config };
                     }
-                    // 未知 provider 使用默认配置
+                    // Use default config for unknown provider
                     return {
                         name,
                         label: name.charAt(0).toUpperCase() + name.slice(1),
@@ -124,7 +124,7 @@ export class RtcLoginPage extends LitElement {
                 .filter(p => p.name);
         } catch (err) {
             log.error('Failed to load providers:', err);
-            // 回退到默认 mock provider
+            // Fallback to default mock provider
             this._providers = [{
                 name: 'mock',
                 ...PROVIDER_CONFIGS.mock,
@@ -135,7 +135,7 @@ export class RtcLoginPage extends LitElement {
     }
 
     private _handleProviderSelect(providerName: string) {
-        // 发送事件，携带 provider 信息。<rtc-agent> 监听此事件并打开登录对话框。
+        // Dispatch event with provider info. <rtc-agent> listens for this event and opens the login dialog.
         this.dispatchEvent(
             new CustomEvent('rtc-login-requested', {
                 bubbles: true,
@@ -171,7 +171,7 @@ export class RtcLoginPage extends LitElement {
             return html`<div class="error-text">${msg('暂无可用的登录方式')}</div>`;
         }
 
-        // 如果只有一个 provider，直接显示一个按钮
+        // If only one provider, display a single button directly
         if (this._providers.length === 1) {
             const provider = this._providers[0];
             return html`
@@ -187,7 +187,7 @@ export class RtcLoginPage extends LitElement {
             `;
         }
 
-        // 多个 providers，显示列表
+        // Multiple providers, display as a list
         return html`
             <div class="providers" part="providers">
                 ${this._providers.map(provider => html`

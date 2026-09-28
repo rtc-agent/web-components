@@ -15,9 +15,9 @@
  *
  * | syncStatus | more-btn | menu contents          | border style |
  * |------------|----------|------------------------|--------------|
- * | pending    | ✓        | 复制,分叉 + timestamp  | glow breathing animation |
- * | synced     | ✓        | 复制,分叉 + timestamp  | static default border |
- * | failed     | ✓        | 复制,分叉,重试 + timestamp | static error border |
+ * | pending    | ✓        | Copy, Fork + timestamp   | glow breathing animation |
+ * | synced     | ✓        | Copy, Fork + timestamp   | static default border |
+ * | failed     | ✓        | Copy, Fork, Retry + timestamp | static error border |
  *
  * ## Attributes (reflected for CSS targeting):
  * - `data-sync-status`  — "pending" | "synced" | "failed"
@@ -86,7 +86,7 @@ export class RtcUserMessage extends LitElement implements StatefulComponent {
     private _moreBtn?: HTMLElement;
 
     /**
-     * more-menu portal 容器（teleport 到 shadow root 层级，脱离 wrapper 的 stacking context）
+     * more-menu portal container (teleported to shadow root level, escapes wrapper's stacking context)
      */
     private _moreMenuEl: HTMLElement | null = null;
 
@@ -237,7 +237,7 @@ export class RtcUserMessage extends LitElement implements StatefulComponent {
     }
 
     /**
-     * 提取 user_message 类型的结构化数据（如果有）
+     * Extract structured data of user_message type (if present)
      */
     private _getUserMessageData(): UserMessageContent | null {
         const content = this.message?.content;
@@ -277,8 +277,8 @@ export class RtcUserMessage extends LitElement implements StatefulComponent {
     }
 
     /**
-     * 将 more-menu teleport 到 shadow root 层级（脱离 wrapper 的 stacking context）。
-     * floating-ui 使用 position: absolute（相对 offset parent），坐标不受影响。
+     * Teleport more-menu to shadow root level (escape wrapper's stacking context).
+     * floating-ui uses position: absolute (relative to offset parent); coordinates are unaffected.
      */
     private async _teleportMenu() {
         if (!this.shadowRoot || this._moreMenuEl) return;
@@ -298,7 +298,7 @@ export class RtcUserMessage extends LitElement implements StatefulComponent {
     }
 
     /**
-     * 移除 teleported more-menu
+     * Remove teleported more-menu
      */
     private _removeMenu() {
         this._stopPositioning();
@@ -363,7 +363,7 @@ export class RtcUserMessage extends LitElement implements StatefulComponent {
     }
 
     /**
-     * 复制消息内容到剪贴板
+     * Copy message content to clipboard
      */
     private async _handleCopy() {
         const text = this._getTextContent();
@@ -381,7 +381,7 @@ export class RtcUserMessage extends LitElement implements StatefulComponent {
     }
 
     /**
-     * 分叉逻辑：派发自定义事件，由根组件处理
+     * Fork logic: dispatch custom event, handled by root component
      */
     private _handleFork() {
         this.dispatchEvent(

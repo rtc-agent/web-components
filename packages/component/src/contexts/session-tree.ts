@@ -1,8 +1,8 @@
 /**
  * Session Tree Context — holds session tree structure and expand/collapse actions.
  *
- * 将会话列表组织为层级树：root session 为"文件夹"，
- * fork 产生的子 session（通过 rootClientSessionId 关联）嵌套其中。
+ * Organizes the session list into a hierarchical tree: root sessions serve as "folders",
+ * and forked child sessions (linked via rootClientSessionId) are nested inside.
  *
  * Provided by: <rtc-agent> (root)
  * Consumed by: <rtc-session-tree>, <rtc-session-tree-item>

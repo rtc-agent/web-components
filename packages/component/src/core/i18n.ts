@@ -5,12 +5,12 @@ import {createLogger} from '@rtc-agent/client';
 
 const log = createLogger('I18n');
 
-// 1. 语言代码
+// 1. Locale codes
 export const sourceLocale = 'zh-CN' as const;
 export const targetLocales = ['en-US'] as const;
 export type SupportedLocale = typeof targetLocales[number] | typeof sourceLocale;
 
-// 2. 动态导入语言包
+// 2. Dynamic import of locale bundles
 const localeModules: Record<string, () => Promise<LocaleModule>> = {
   'en-US': async () => {
     const mod = await import('../locales/en-US.js');
@@ -18,7 +18,7 @@ const localeModules: Record<string, () => Promise<LocaleModule>> = {
   },
 };
 
-// 3. 配置 localize 运行时
+// 3. Configure localize runtime
 export const { getLocale, setLocale: _setLocale } = configureLocalization({
   sourceLocale,
   targetLocales,
@@ -49,18 +49,18 @@ export interface LocaleContextValue {
 
 export const localeContext = createContext<LocaleContextValue>(Symbol('locale'));
 
-// 5. 类型守卫：编译期保证类型安全
+// 5. Type guard: compile-time type safety
 const validLocales: readonly string[] = [sourceLocale, ...targetLocales];
 
 export function isValidLocale(value: string): value is SupportedLocale {
   return validLocales.includes(value);
 }
 
-// 6. 持久化
+// 6. Persistence
 const STORAGE_KEY = 'rtc-agent-locale';
 
 function getInitialLocale(hostLang?: string): SupportedLocale {
-  // 1. 宿主应用的 HTML 属性（最高优先级）
+  // 1. Host application's HTML attribute (highest priority)
   if (hostLang && isValidLocale(hostLang)) {
     return hostLang;
   }
@@ -85,7 +85,7 @@ export async function initLocale(hostLang?: string): Promise<void> {
   if (initial !== sourceLocale) {
     await _setLocale(initial);
   }
-  // 同步文档 lang 属性，确保屏幕阅读器使用正确发音规则
+  // Sync document lang attribute to ensure screen readers use correct pronunciation rules
   document.documentElement.lang = initial;
 }
 
@@ -99,8 +99,8 @@ export function persistLocale(locale: SupportedLocale): void {
 }
 
 /**
- * 切换语言并同步所有相关状态
- * 组件中应调用此函数而非直接调用 _setLocale
+ * Switch language and synchronize all related state
+ * Components should call this function instead of calling _setLocale directly
  */
 export async function switchLocale(locale: SupportedLocale): Promise<void> {
   await _setLocale(locale);

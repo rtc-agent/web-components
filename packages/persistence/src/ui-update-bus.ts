@@ -347,7 +347,7 @@ export class UIUpdateBus {
    * Emit gap fill start event. UI can show a syncing overlay.
    */
   emitGapFillStart(): void {
-    console.log('[BulkUpdate] UIUpdateBus.emitGapFillStart() called');
+    log.debug('[BulkUpdate] UIUpdateBus.emitGapFillStart() called');
     for (const listener of this.gapFillListeners) {
       try {
         listener(true);
@@ -361,7 +361,7 @@ export class UIUpdateBus {
    * Emit gap fill end event. UI can hide the syncing overlay and reload data.
    */
   emitGapFillEnd(): void {
-    console.log('[BulkUpdate] UIUpdateBus.emitGapFillEnd() called');
+    log.debug('[BulkUpdate] UIUpdateBus.emitGapFillEnd() called');
     for (const listener of this.gapFillListeners) {
       try {
         listener(false);

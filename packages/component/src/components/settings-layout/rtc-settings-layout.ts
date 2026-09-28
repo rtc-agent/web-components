@@ -1,15 +1,15 @@
 /**
  * RTC Settings Layout Component
  *
- * 两栏布局：左栏分类导航 + 右栏设置内容。
- * 消费 SettingsContext 获取/修改设置状态。
+ * Two-column layout: left column for category navigation + right column for settings content.
+ * Consumes SettingsContext to get/modify settings state.
  *
  * @element rtc-settings-layout
  *
  * @attr {string} [theme=system] - Theme: 'light' | 'dark' | 'system'
  *
- * ## 样式
- * 使用项目 design tokens（--rtc-color-*），支持亮色/暗色主题。
+ * ## Styles
+ * Uses project design tokens (--rtc-color-*), supports light/dark themes.
  */
 import {LitElement, html, nothing} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
@@ -30,13 +30,13 @@ import type {SettingsCategory} from './rtc-settings-nav.js';
 import './rtc-settings-nav.js';
 import '../drawer/rtc-drawer.js';
 
-// 导入类型（仅用于 TypeScript）
+// Import types (TypeScript only)
 import type {SettingsState} from '../../contexts/settings.js';
 import { createLogger } from '@rtc-agent/client';
 
 const log = createLogger('SettingsLayout');
 
-/** 面板标题映射 */
+/** Panel title mapping */
 function panelTitle(category: SettingsCategory): string {
     switch (category) {
         case 'appearance':
@@ -59,35 +59,35 @@ function panelTitle(category: SettingsCategory): string {
 export class RtcSettingsLayout extends LitElement {
     static styles = [tokens, lightTheme, darkTheme, baseStyles, styles];
 
-    /** delegatesFocus: true — 支持键盘焦点委托 */
+    /** delegatesFocus: true — supports keyboard focus delegation */
     static shadowRootOptions = {
         ...LitElement.shadowRootOptions,
         delegatesFocus: true,
     };
 
-    /** 主题属性 */
+    /** Theme property */
     @property({type: String, reflect: true})
     theme: 'light' | 'dark' | 'system' = 'system';
 
-    /** 版本号（由父级传入） */
+    /** Version number (passed from parent) */
     @property({type: String, attribute: 'version'})
     version = '0.2.6';
 
     /**
-     * 设置导航抽屉是否可见
+     * Whether the settings navigation drawer is visible
      *
-     * 由父级 rtc-agent 根据 ActivityController.sidebarVisible 透传。
-     * 使用 <rtc-drawer> overlay 抽屉模式，不挤压主内容区。
+     * Passed through from parent rtc-agent based on ActivityController.sidebarVisible.
+     * Uses <rtc-drawer> overlay drawer mode, does not push the main content area.
      */
     @property({type: Boolean, attribute: false})
     sidebarVisible = false;
 
-    /** 消费 SettingsContext */
+    /** Consumes SettingsContext */
     @consume({context: SettingsContext, subscribe: true})
     @property({attribute: false})
     private _settingsCtx: SettingsContextValue | undefined;
 
-    /** 消费 AuthContext（账户面板使用） */
+    /** Consumes AuthContext (used by account panel) */
     @consume({context: AuthContext, subscribe: true})
     @property({attribute: false})
     private _authCtx: AuthContextValue | undefined;
@@ -102,20 +102,20 @@ export class RtcSettingsLayout extends LitElement {
         locales: [sourceLocale, ...targetLocales],
     };
 
-    /** 当前选中的分类 */
+    /** Currently selected category */
     @state()
     private _activeCategory: SettingsCategory = 'appearance';
 
-    /** aria-live 消息（屏幕阅读器反馈） */
+    /** aria-live message (screen reader feedback) */
     @state()
     private _liveMessage = '';
 
-    /** 处理分类切换 */
+    /** Handle category switch */
     private _handleCategoryChange(e: CustomEvent<{category: SettingsCategory}>) {
         this._activeCategory = e.detail.category;
     }
 
-    /** 更新设置并发送 aria-live 反馈 */
+    /** Update settings and send aria-live feedback */
     private _updateSetting(
         group: 'appearance' | 'chat' | 'files' | 'notifications',
         partial: Record<string, unknown>,
@@ -140,7 +140,7 @@ export class RtcSettingsLayout extends LitElement {
         this._liveMessage = message;
     }
 
-    /** 渲染外观设置 */
+    /** Render appearance settings */
     private _renderAppearance() {
         const s = this._settingsCtx?.state.appearance;
         if (!s) return nothing;
@@ -220,7 +220,7 @@ export class RtcSettingsLayout extends LitElement {
         `;
     }
 
-    /** 渲染聊天设置 */
+    /** Render chat settings */
     private _renderChat() {
         const s = this._settingsCtx?.state.chat;
         if (!s) return nothing;
@@ -272,7 +272,7 @@ export class RtcSettingsLayout extends LitElement {
         `;
     }
 
-    /** 渲染文件设置 */
+    /** Render file settings */
     private _renderFiles() {
         const s = this._settingsCtx?.state.files;
         if (!s) return nothing;
@@ -327,7 +327,7 @@ export class RtcSettingsLayout extends LitElement {
         `;
     }
 
-    /** 渲染通知设置 */
+    /** Render notification settings */
     private _renderNotifications() {
         const s = this._settingsCtx?.state.notifications;
         if (!s) return nothing;
@@ -383,7 +383,7 @@ export class RtcSettingsLayout extends LitElement {
         `;
     }
 
-    /** 渲染账户面板 */
+    /** Render account panel */
     private _renderAccount() {
         const auth = this._authCtx;
         const userId = auth?.state.userId ?? msg('未登录');
@@ -416,7 +416,7 @@ export class RtcSettingsLayout extends LitElement {
         `;
     }
 
-    /** 渲染关于页面 */
+    /** Render about page */
     private _renderAbout() {
         return html`
             <div class="panel-header" id="panel-header-about">${panelTitle('about')}</div>
@@ -445,7 +445,7 @@ export class RtcSettingsLayout extends LitElement {
         `;
     }
 
-    /** 根据当前分类渲染对应的面板 */
+    /** Render the corresponding panel based on current category */
     private _renderPanel() {
         switch (this._activeCategory) {
             case 'appearance':
@@ -468,7 +468,7 @@ export class RtcSettingsLayout extends LitElement {
     render() {
         void this._localeCtx.locale;
         return html`
-            <!-- 设置导航抽屉（overlay 模式，不挤压主内容区） -->
+            <!-- Settings navigation drawer (overlay mode, does not push main content area) -->
             <rtc-drawer ?open=${this.sidebarVisible}>
                 <rtc-settings-nav
                     .active=${this._activeCategory}
@@ -482,7 +482,7 @@ export class RtcSettingsLayout extends LitElement {
             >
                 ${this._renderPanel()}
             </div>
-            <!-- 屏幕阅读器实时反馈 -->
+            <!-- Screen reader live feedback -->
             <div class="sr-only" aria-live="polite" aria-atomic="true">
                 ${this._liveMessage}
             </div>

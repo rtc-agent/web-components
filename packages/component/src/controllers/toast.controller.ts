@@ -58,7 +58,7 @@ export class ToastController implements ReactiveController {
         this._toasts = [...this._toasts, {id, message, type, action}];
         this._host.requestUpdate();
 
-        // error 不自动消失，其他类型自动消失
+        // error does not auto-dismiss; other types auto-dismiss
         const duration = type === 'error' ? 0 : type === 'success' ? 2000 : 2500;
         if (duration > 0) {
             const timer = setTimeout(() => this._remove(id), duration);

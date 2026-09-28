@@ -42,19 +42,19 @@ export class RtcTitleBar extends LitElement {
     @property({type: String, attribute: 'connection-state'})
     connectionState: ConnectionState = 'disconnected';
 
-    /** 是否显示最小化按钮 */
+    /** Whether to show the minimize button */
     @property({type: Boolean, attribute: 'show-minimize'})
     showMinimize = true;
 
-    /** 是否显示最大化按钮 */
+    /** Whether to show the maximize button */
     @property({type: Boolean, attribute: 'show-maximize'})
     showMaximize = true;
 
-    /** 连接是否失败（显示重试按钮） */
+    /** Whether connection has failed (shows retry button) */
     @property({type: Boolean, attribute: 'connection-failed'})
     connectionFailed = false;
 
-    /** 连接失败的错误信息（用于 tooltip） */
+    /** Error message when connection failed (used for tooltip) */
     @property({type: String, attribute: 'connection-error'})
     connectionError = '';
 

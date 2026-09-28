@@ -1,9 +1,9 @@
 /**
  * Markdown Editor Styles
  *
- * VS Code 风格 Markdown 编辑器样式。
+ * VS Code style Markdown editor styles.
  *
- * 使用项目 design tokens（--rtc-color-*），支持亮色/暗色主题。
+ * Uses project design tokens (--rtc-color-*), supports light/dark themes.
  */
 import {css} from 'lit';
 
@@ -19,9 +19,9 @@ export const styles = css`
 
     /* ── Syntax Highlighting Tokens ──
      *
-     * highlight.js 主题配色（参考 rtc-message.styles.ts）：
-     *   - light 主题：highlight.js github.css
-     *   - dark 主题：highlight.js atom-one-dark.css
+     * highlight.js theme colors (see rtc-message.styles.ts):
+     *   - light theme: highlight.js github.css
+     *   - dark theme: highlight.js atom-one-dark.css
      */
     :host {
         --rtc-syntax-text: #24292e;
@@ -187,7 +187,7 @@ export const styles = css`
         color: var(--rtc-color-text);
     }
 
-    /* Markdown 渲染后的样式 */
+    /* Styles after Markdown rendering */
     .preview-content h1 {
         font-size: var(--rtc-font-size-2xl);
         font-weight: var(--rtc-font-weight-bold);

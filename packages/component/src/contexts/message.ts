@@ -11,10 +11,10 @@ export interface MessageContextValue {
     state: MessageState;
     actions: MessageActions;
     /**
-     * 查询当前 session 的用户消息历史（用于输入框上下箭头导航）
+     * Query the current session's user message history (for input box up/down arrow navigation)
      *
-     * 返回纯文本内容数组，按时间倒序（最新消息在前）。
-     * 可选方法，由 MessageController 注入。
+     * Returns an array of plain text content, sorted by time in descending order (newest first).
+     * Optional method, injected by MessageController.
      */
     getUserMessageHistory?(sessionId: string, limit?: number): Promise<string[]>;
 }

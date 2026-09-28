@@ -1,10 +1,10 @@
 import {css} from 'lit';
 
 /**
- * Settings Layout 样式
+ * Settings Layout styles
  *
- * 两栏布局：左栏导航 + 右栏设置内容。
- * 使用项目 design tokens 支持多主题。
+ * Two-column layout: left nav + right settings content.
+ * Uses project design tokens for multi-theme support.
  */
 export const styles = css`
     :host {
@@ -19,7 +19,7 @@ export const styles = css`
         position: relative;
     }
 
-    /* 设置导航抽屉宽度与 settings-nav 一致 */
+    /* Settings nav drawer width, consistent with settings-nav */
     rtc-drawer {
         --rtc-drawer-width: 200px;
     }
@@ -41,7 +41,7 @@ export const styles = css`
         border-bottom: 1px solid var(--rtc-color-border, #3c3c3c);
     }
 
-    /* ── 关于页面 Logo ── */
+    /* ── About page Logo ── */
 
     .about-brand {
         display: flex;
@@ -62,7 +62,7 @@ export const styles = css`
         color: var(--rtc-color-text, #cccccc);
     }
 
-    /* ── 设置项通用样式 ── */
+    /* ── Common setting row styles ── */
 
     .setting-row {
         display: flex;
@@ -101,7 +101,7 @@ export const styles = css`
         flex-shrink: 0;
     }
 
-    /* ── Select 控件 ── */
+    /* ── Select control ── */
 
     select {
         padding: 4px 8px;
@@ -126,7 +126,7 @@ export const styles = css`
         outline-offset: -1px;
     }
 
-    /* ── Number 控件 ── */
+    /* ── Number control ── */
 
     .number-input {
         display: flex;
@@ -162,7 +162,7 @@ export const styles = css`
         color: var(--rtc-color-text-tertiary, #666666);
     }
 
-    /* ── Toggle 控件 ── */
+    /* ── Toggle control ── */
 
     .toggle {
         display: inline-block;
@@ -215,7 +215,7 @@ export const styles = css`
         outline-offset: 2px;
     }
 
-    /* ── Info 行（只读） ── */
+    /* ── Info row (read-only) ── */
 
     .info-value {
         font-size: var(--rtc-font-size-xs, 12px);
@@ -232,7 +232,7 @@ export const styles = css`
         text-decoration: underline;
     }
 
-    /* ── 按钮 ── */
+    /* ── Buttons ── */
 
     button.danger {
         padding: 6px 12px;
@@ -254,7 +254,7 @@ export const styles = css`
         outline-offset: 2px;
     }
 
-    /* ── Aria-live region（屏幕阅读器） ── */
+    /* ── Aria-live region (screen reader) ── */
 
     .sr-only {
         position: absolute;

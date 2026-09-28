@@ -4,7 +4,7 @@
  * Renders an error feedback message with category-specific icon and color,
  * title, description, optional retry button, and collapsible raw error details.
  *
- * ## Layout model (时间线布局)
+ * ## Layout model (timeline layout)
  *
  * Reuses the shared timeline layout (dot + vertical line) from timeline.styles.ts.
  * The dot color reflects the error category.

@@ -1,10 +1,10 @@
 import {css} from 'lit';
 
 /**
- * Editor Tab 样式
+ * Editor Tab styles
  *
- * VS Code 风格编辑器标签页。
- * 颜色使用项目 Tokens，确保双主题适配。
+ * VS Code-style editor tab.
+ * Colors use project Tokens to ensure dual-theme compatibility.
  */
 export const styles = css`
     :host {
@@ -35,7 +35,7 @@ export const styles = css`
         color: var(--rtc-color-text, #cccccc);
     }
 
-    /* 活动标签：顶部指示条 + 背景切换 */
+    /* Active tab: top indicator bar + background switch */
     .tab.active {
         background: var(--rtc-color-bg, #1e1e1e);
         color: var(--rtc-color-text, #cccccc);
@@ -51,7 +51,7 @@ export const styles = css`
         background: var(--rtc-color-primary, #2741fe);
     }
 
-    /* 文件图标 */
+    /* File icon */
     .icon {
         width: 16px;
         height: 16px;
@@ -79,7 +79,7 @@ export const styles = css`
         color: var(--rtc-color-text-secondary, #858585);
     }
 
-    /* 文件名 */
+    /* Filename */
     .name {
         white-space: nowrap;
         overflow: hidden;
@@ -88,7 +88,7 @@ export const styles = css`
         line-height: 36px;
     }
 
-    /* 脏标记（未保存圆点） */
+    /* Dirty indicator (unsaved dot) */
     .dirty-dot {
         width: 8px;
         height: 8px;
@@ -97,7 +97,7 @@ export const styles = css`
         flex-shrink: 0;
     }
 
-    /* 关闭按钮 */
+    /* Close button */
     .close-btn {
         width: 20px;
         height: 20px;
@@ -117,7 +117,7 @@ export const styles = css`
         fill: currentColor;
     }
 
-    /* 悬停或活动时显示关闭按钮 */
+    /* Show close button on hover or when active */
     .tab:hover .close-btn,
     .tab.active .close-btn {
         opacity: 0.7;
@@ -128,7 +128,7 @@ export const styles = css`
         background: var(--rtc-color-bg-active, #37373d);
     }
 
-    /* 有脏标记时，默认隐藏关闭按钮，悬停时显示脏标记 */
+    /* When dirty indicator is present, hide close button by default; show dirty indicator on hover */
     .tab.dirty:not(:hover):not(.active) .close-btn {
         opacity: 0;
     }
@@ -142,7 +142,7 @@ export const styles = css`
         opacity: 0;
     }
 
-    /* ── 暗色主题适配 ── */
+    /* ── Dark theme adaptation ── */
     :host([theme='dark']) .tab {
         background: var(--rtc-color-bg-tertiary, #2d2d30);
         color: var(--rtc-color-text-secondary, #858585);
@@ -162,7 +162,7 @@ export const styles = css`
         background: var(--rtc-color-text, #cccccc);
     }
 
-    /* ── 亮色主题适配 ── */
+    /* ── Light theme adaptation ── */
     :host([theme='light']) .tab {
         background: var(--rtc-color-bg-tertiary, #e8e8e8);
         color: var(--rtc-color-text-secondary, #666666);

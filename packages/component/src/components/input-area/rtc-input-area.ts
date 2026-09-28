@@ -39,7 +39,7 @@ import '../overlay/rtc-command-panel.js';
 import '../overlay/rtc-scenario-panel.js';
 import '../token-usage/rtc-token-usage.js';
 
-// UIUpdateBus 用于监听新消息事件
+// UIUpdateBus is used to listen for new message events
 import {getUIUpdateBus, type UIUpdateEvent} from '@rtc-agent/persistence';
 import { createLogger } from '@rtc-agent/client';
 
@@ -175,7 +175,7 @@ export class RtcInputArea extends LitElement {
     @state()
     private _selectedScenarios: ScenarioRef[] = [];
 
-    // Token usage 数据（由 rtc-chat-layout 通过 setter 注入）
+    // Token usage data (injected by rtc-chat-layout via setter)
     @state()
     private _tokenEstimatedNext = 0;
     @state()
@@ -198,15 +198,15 @@ export class RtcInputArea extends LitElement {
     };
 
     /**
-     * 根据当前 session 更新 token 显示数据
+     * Update token display data based on current session
      *
-     * 从 SessionContext 中查找 sessionId 对应的 session，
-     * 提取 token 相关字段并更新内部 state。
+     * Finds the session matching sessionId from SessionContext,
+     * extracts token-related fields and updates internal state.
      */
     private _updateTokenDisplay() {
         const sessionId = this._effectiveSessionId;
         if (!sessionId) {
-            // 无 session，清空显示
+            // No session, clear display
             this._tokenEstimatedNext = 0;
             this._tokenTotalTokens = 0;
             this._tokenTotalCostUsd = 0;
@@ -217,14 +217,14 @@ export class RtcInputArea extends LitElement {
             return;
         }
 
-        // 从 sessions 数组中查找目标 session
+        // Find target session from sessions array
         const session = this._sessionCtx.state.sessions.find(s => s.clientId === sessionId);
         if (!session) {
-            // Session 未找到，保持当前显示（可能是首次加载时数据尚未到达）
+            // Session not found, keep current display (data may not have arrived yet on first load)
             return;
         }
 
-        // 提取 token 相关字段
+        // Extract token-related fields
         this._tokenEstimatedNext = session.estimatedNextRoundTokens ?? 0;
         this._tokenTotalTokens = session.totalTokens ?? 0;
         this._tokenTotalCostUsd = session.totalCostUsd ?? 0;
@@ -232,7 +232,7 @@ export class RtcInputArea extends LitElement {
         this._tokenCompressionProgress = session.compressionProgress ?? 0;
         this._tokenRoundsUntilCompression = session.roundsUntilCompression ?? -1;
 
-        // 构建 details 对象
+        // Build details object
         if (session.totalInputTokens !== undefined ||
             session.totalOutputTokens !== undefined ||
             session.totalCachedReadTokens !== undefined ||
@@ -250,14 +250,14 @@ export class RtcInputArea extends LitElement {
         }
     }
 
-    // 历史导航状态
+    // History navigation state
     @state()
     private _userMessageHistory: string[] = [];
     @state()
     private _historyIndex = -1;
     private _draft = '';
 
-    // UIUpdateBus 订阅清理函数
+    // UIUpdateBus subscription cleanup function
     private _busUnsub?: () => void;
 
     @query('.mode-btn')
@@ -308,17 +308,17 @@ export class RtcInputArea extends LitElement {
     }
 
     /**
-     * 公共方法：设置输入框内容（用于 fork 等场景预填内容）
+     * Public method: set input box content (used for pre-filling in scenarios like fork)
      */
     public setValue(value: string) {
         this._value = value;
-        // 等下一个渲染周期后聚焦
+        // Wait for next render cycle before focusing
         this.updateComplete.then(() => {
             const textarea = this._textarea;
             if (textarea) {
                 textarea.value = value;
                 textarea.focus();
-                // 不调整高度，保持 CSS 控制的固定高度，内容超出时用滚动条
+                // Don't adjust height, keep the fixed height controlled by CSS, use scrollbar when content overflows
             }
         }).catch(err => {
             log.error('setValue: focus after update failed:', err);
@@ -326,7 +326,7 @@ export class RtcInputArea extends LitElement {
     }
 
     /**
-     * 公共方法：清空输入框
+     * Public method: clear input box
      */
     public clearValue() {
         this._value = '';
@@ -344,13 +344,13 @@ export class RtcInputArea extends LitElement {
         return this._turnCount.runningTurnCount > 0;
     }
 
-    /** 当前会话有活跃 turn 且输入框为空 → 显示 stop 按钮；否则显示 send 按钮。 */
+    /** Current session has active turns and input is empty → show stop button; otherwise show send button. */
     private get _showStop(): boolean {
         return this._hasActiveTurns && !this._hasContent;
     }
 
     /**
-     * Stop 按钮点击：发送停止请求事件
+     * Stop button click: send stop request event
      */
     private _handleStop() {
         const sessionId = this._effectiveSessionId;
@@ -370,19 +370,19 @@ export class RtcInputArea extends LitElement {
     }
 
     private _handleKeydown(e: KeyboardEvent) {
-        // 忽略 IME 组合输入过程中的按键（中文/日文/韩文输入法）
+        // Ignore key presses during IME composition (Chinese/Japanese/Korean input methods)
         if (e.isComposing || e.keyCode === 229) return;
 
         const shortcut = this._settingsCtx.state.chat.sendShortcut;
 
         if (shortcut === 'Ctrl+Enter') {
-            // Ctrl/Cmd+Enter 发送，Enter 换行
+            // Ctrl/Cmd+Enter to send, Enter for newline
             if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                 e.preventDefault();
                 this._submit();
             }
         } else {
-            // Enter 发送（默认），Shift+Enter 换行
+            // Enter to send (default), Shift+Enter for newline
             if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
                 e.preventDefault();
                 this._submit();
@@ -399,8 +399,8 @@ export class RtcInputArea extends LitElement {
     }
 
     /**
-     * 判断光标是否在 textarea 第一行
-     * 光标前没有换行符即为第一行（空值时也返回 true）
+     * Check if cursor is on the first line of textarea
+     * Returns true if there's no newline before cursor (also returns true when empty)
      */
     private _isCursorOnFirstLine(): boolean {
         const textarea = this._textarea;
@@ -410,8 +410,8 @@ export class RtcInputArea extends LitElement {
     }
 
     /**
-     * 判断光标是否在 textarea 最后一行
-     * 光标后没有换行符即为最后一行（空值时也返回 true）
+     * Check if cursor is on the last line of textarea
+     * Returns true if there's no newline after cursor (also returns true when empty)
      */
     private _isCursorOnLastLine(): boolean {
         const textarea = this._textarea;
@@ -421,13 +421,13 @@ export class RtcInputArea extends LitElement {
     }
 
     /**
-     * 历史导航：上箭头回溯、下箭头前进
+     * History navigation: up arrow to go back, down arrow to go forward
      *
-     * 首次按上箭头时从 MessageContext 加载用户消息历史，
-     * 并将当前输入保存为 draft，以便回到最新位置时恢复。
+     * On first up arrow press, loads user message history from MessageContext,
+     * and saves current input as draft to restore when returning to the latest position.
      */
     private async _navigateHistory(direction: 'up' | 'down') {
-        // 首次进入历史导航时加载历史消息
+        // Load history messages on first history navigation
         if (this._historyIndex === -1 && direction === 'up') {
             this._draft = this._value;
             await this._loadUserMessageHistory();
@@ -442,7 +442,7 @@ export class RtcInputArea extends LitElement {
             newIndex = this._historyIndex === -1 ? 0 : Math.min(this._historyIndex + 1, maxIndex);
         } else {
             if (this._historyIndex <= 0) {
-                // 回到草稿状态
+                // Return to draft state
                 newIndex = -1;
             } else {
                 newIndex = this._historyIndex - 1;
@@ -452,7 +452,7 @@ export class RtcInputArea extends LitElement {
         this._historyIndex = newIndex;
         this._value = newIndex === -1 ? this._draft : this._userMessageHistory[newIndex];
 
-        // 同步 DOM 并移动光标到末尾
+        // Sync DOM and move cursor to end
         const textarea = this._textarea;
         if (textarea) {
             textarea.value = this._value;
@@ -461,7 +461,7 @@ export class RtcInputArea extends LitElement {
     }
 
     /**
-     * 从 MessageContext 加载当前 session 的用户消息历史
+     * Load user message history for current session from MessageContext
      */
     private async _loadUserMessageHistory() {
         const sessionId = this._effectiveSessionId;
@@ -481,11 +481,11 @@ export class RtcInputArea extends LitElement {
         const text = this._value.trim();
         if (!text) return;
 
-        // 退出历史模式
+        // Exit history mode
         this._historyIndex = -1;
         this._draft = '';
 
-        // 检查是否为 slash 命令
+        // Check if it's a slash command
         const parsed = parseCommand(text);
         // /goal and /loop are NOT front-end commands — they are plain messages
         // with a prefix that the backend recognizes. Let them fall through to
@@ -503,8 +503,8 @@ export class RtcInputArea extends LitElement {
             return;
         }
 
-        // 乐观更新：将当前消息插入历史头部（最新消息在前）
-        // 避免 UIUpdateBus 延迟导致刚发的消息不在历史中
+        // Optimistic update: insert current message at head of history (newest first)
+        // Prevents UIUpdateBus delay from causing the just-sent message to be missing from history
         if (
             this._userMessageHistory.length === 0 ||
             this._userMessageHistory[0] !== text
@@ -512,12 +512,12 @@ export class RtcInputArea extends LitElement {
             this._userMessageHistory = [text, ...this._userMessageHistory];
         }
 
-        // 构建 UserMessageContent
+        // Build UserMessageContent
         const contentData: ContentData = {
             type: 'user_message',
             data: {
                 text: text,
-                files: [],  // 预留字段
+                files: [],  // Reserved field
                 scenarios: this._selectedScenarios.length > 0 ? this._selectedScenarios : undefined,
             },
         };
@@ -530,7 +530,7 @@ export class RtcInputArea extends LitElement {
             })
         );
 
-        // 清空状态
+        // Clear state
         this._value = '';
         this._selectedScenarios = [];
         if (this._textarea) this._textarea.value = '';
@@ -652,17 +652,17 @@ export class RtcInputArea extends LitElement {
         const selected: boolean = detail.selected;
 
         if (!selected) {
-            // 取消选中
+            // Deselect
             const index = this._selectedScenarios.findIndex(s => s.filepath === scenario.filepath);
             if (index >= 0) {
                 this._selectedScenarios = this._selectedScenarios.filter((_, i) => i !== index);
             }
         } else {
-            // 选中
+            // Select
             this._selectedScenarios = [...this._selectedScenarios, scenario];
         }
 
-        // 选中/取消选中后自动关闭 panel
+        // Auto-close panel after select/deselect
         this._closeScenarioPanel();
     }
 
@@ -690,7 +690,7 @@ export class RtcInputArea extends LitElement {
     private _onDocClick = (e: MouseEvent) => {
         const path = e.composedPath();
 
-        // Mode panel: 点击 mode panel 外部时关闭
+        // Mode panel: close when clicking outside mode panel
         // Note: We intentionally don't check if the toggle button is in the path.
         // The button's click handler (_handleModeToggle) handles the toggle logic.
         // Since Lit renders are async, the panel remains in DOM briefly after
@@ -703,7 +703,7 @@ export class RtcInputArea extends LitElement {
             }
         }
 
-        // Command panel: 点击 command panel 外部时关闭
+        // Command panel: close when clicking outside command panel
         if (this._showCommandPanel) {
             const commandPanel = this._commandPanel;
             if (commandPanel && !path.includes(commandPanel)) {
@@ -711,7 +711,7 @@ export class RtcInputArea extends LitElement {
             }
         }
 
-        // Scenario panel: 点击 scenario panel 外部时关闭
+        // Scenario panel: close when clicking outside scenario panel
         if (this._showScenarioPanel) {
             const scenarioPanel = this._scenarioPanel;
             if (scenarioPanel && !path.includes(scenarioPanel)) {
@@ -726,14 +726,14 @@ export class RtcInputArea extends LitElement {
         // only when a panel is open, not unconditionally here. This avoids firing a
         // no-op callback on every mousedown when no panels need outside-click dismissal.
 
-        // 订阅 UIUpdateBus：收到当前 session 的用户消息时清空历史缓存，下次导航时重新加载
+        // Subscribe to UIUpdateBus: clear history cache when a user message is received for current session, reload on next navigation
         const bus = getUIUpdateBus();
         this._busUnsub = bus.subscribe('message', (event: UIUpdateEvent) => {
             if (event.action !== 'created' || event.field !== 'role' || event.newValue !== 'user') {
                 return;
             }
-            // 有新用户消息写入，清空缓存，下次导航时重新加载
-            // （不在此处立即加载，避免频繁查询）
+            // New user message written, clear cache, reload on next navigation
+            // (Don't load immediately here to avoid frequent queries)
             this._userMessageHistory = [];
             this._historyIndex = -1;
         });
@@ -751,7 +751,7 @@ export class RtcInputArea extends LitElement {
     }
 
     updated(changed: Map<string | number | symbol, unknown>) {
-        // Session 切换时清空历史缓存，下次导航时重新加载
+        // Clear history cache on session switch, reload on next navigation
         if (changed.has('_sessionCtx') || changed.has('sessionId')) {
             // Defer @state mutations to avoid "change-in-update" warning.
             // _updateTokenDisplay() sets multiple @state properties (_tokenEstimatedNext,
@@ -765,8 +765,8 @@ export class RtcInputArea extends LitElement {
                 this._updateTokenDisplay();
             });
         }
-        // 当 initialValueVersion 变化时，强制同步 initialValue 到 _value
-        // 使用 version 而非直接监听 initialValue，防御同值重复设置被 Lit 跳过
+        // When initialValueVersion changes, force-sync initialValue to _value
+        // Uses version instead of directly watching initialValue to defend against Lit skipping same-value updates
         if (changed.has('initialValueVersion') && this.initialValue !== undefined) {
             this._value = this.initialValue;
             this.updateComplete.then(() => {

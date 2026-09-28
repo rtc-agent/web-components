@@ -9,7 +9,7 @@ export {RtcAgent} from './components/rtc-agent/rtc-agent.js';
 // ===== Host Integration (Recommended Entry Points) =====
 
 /**
- * 等待组件模块加载并初始化完成（ES module 风格的 ready 信号）
+ * Wait for the component module to load and initialize (ES module-style ready signal)
  *
  * @example
  * ```ts
@@ -22,7 +22,7 @@ export {RtcAgent} from './components/rtc-agent/rtc-agent.js';
 export {whenReady} from './core/ready.js';
 
 /**
- * 国际化 API — 运行时切换语言
+ * Internationalization API -- switch language at runtime
  *
  * @example
  * ```ts
@@ -44,7 +44,7 @@ export {
 export type { SupportedLocale, LocaleContextValue } from './core/i18n.js';
 
 /**
- * 主题 API — 运行时切换主题
+ * Theme API -- switch theme at runtime
  *
  * @example
  * ```ts
@@ -63,31 +63,31 @@ export {
 export type { Theme } from './core/theme.js';
 
 /**
- * Agent 声明式配置类型
+ * Agent declarative configuration types
  *
- * 用于 <rtc-agent>.agentConfig 属性 —— 宿主应用的主要集成方式。
- * 无需了解内部的 FunctionRegistry / toolRegistry 等概念。
+ * Used for the <rtc-agent>.agentConfig property -- the primary integration method for host applications.
+ * No need to understand internal concepts like FunctionRegistry / toolRegistry.
  */
 export type {AgentConfig, AgentFunctionGroup} from './types/agent-config.js';
 
 /**
- * 组件事件 detail 类型映射（用于 TypeScript 类型安全的 addEventListener）
+ * Component event detail type mapping (for TypeScript type-safe addEventListener)
  *
- * 通过全局扩展 HTMLElementEventMap 生效，document.querySelector('rtc-agent')
- * 返回的 RtcAgent 实例自动获得 rtc-agent-ready 事件的类型提示。
+ * Works via global extension of HTMLElementEventMap; the RtcAgent instance returned by
+ * document.querySelector('rtc-agent') automatically gets type hints for the rtc-agent-ready event.
  */
 export type {RtcAgentEventDetailMap} from './types/events.js';
 
 /**
- * 全局类型扩展（HTMLElementTagNameMap 等）
+ * Global type extensions (HTMLElementTagNameMap, etc.)
  *
- * 导入此模块后，document.querySelector('rtc-agent') 自动返回 RtcAgent 类型。
- * 通常无需显式导入 —— 主入口已包含此扩展。
+ * After importing this module, document.querySelector('rtc-agent') automatically returns the RtcAgent type.
+ * Usually no explicit import is needed -- the main entry already includes this extension.
  */
 import './elements.js';
 
 /**
- * 工厂函数 — 声明式创建 <rtc-agent> 实例
+ * Factory function -- declaratively create an <rtc-agent> instance
  *
  * @example
  * ```ts

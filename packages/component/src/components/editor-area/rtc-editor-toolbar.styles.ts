@@ -1,10 +1,10 @@
 import {css} from 'lit';
 
 /**
- * Editor Toolbar 样式
+ * Editor Toolbar styles
  *
- * VS Code 风格编辑器工具栏。
- * 颜色使用项目 Tokens，确保双主题适配。
+ * VS Code style editor toolbar.
+ * Colors use project Tokens to ensure dual-theme compatibility.
  */
 export const styles = css`
     :host {
@@ -22,7 +22,7 @@ export const styles = css`
         gap: var(--rtc-spacing-xs, 4px);
     }
 
-    /* ── 工具栏按钮 ── */
+    /* ── Toolbar button ── */
 
     .toolbar-btn {
         display: inline-flex;
@@ -64,7 +64,7 @@ export const styles = css`
         cursor: default;
     }
 
-    /* 主按钮（保存） */
+    /* Primary button (save) */
     .toolbar-btn.primary {
         background: var(--rtc-color-primary, #2741fe);
         color: var(--rtc-color-on-primary, #ffffff);
@@ -85,7 +85,7 @@ export const styles = css`
         opacity: 0.5;
     }
 
-    /* ── 分隔符 ── */
+    /* ── Separator ── */
 
     .separator {
         width: 1px;
@@ -95,13 +95,13 @@ export const styles = css`
         flex-shrink: 0;
     }
 
-    /* ── 弹性空间（推开右侧视图切换） ── */
+    /* ── Flexible space (pushes right-side view toggle) ── */
 
     .spacer {
         flex: 1;
     }
 
-    /* ── 视图切换组 ── */
+    /* ── View toggle group ── */
 
     .view-toggle {
         display: inline-flex;
@@ -144,7 +144,7 @@ export const styles = css`
         color: var(--rtc-color-on-primary, #ffffff);
     }
 
-    /* ── 暗色主题 ── */
+    /* ── Dark theme ── */
 
     :host([theme='dark']) {
         background: var(--rtc-color-bg-secondary, #252526);
@@ -176,7 +176,7 @@ export const styles = css`
         color: var(--rtc-color-text, #cccccc);
     }
 
-    /* ── 亮色主题 ── */
+    /* ── Light theme ── */
 
     :host([theme='light']) {
         background: var(--rtc-color-bg-secondary, #f5f5f5);

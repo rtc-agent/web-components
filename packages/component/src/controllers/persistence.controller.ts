@@ -36,28 +36,28 @@ import {WorkerBridge} from '../worker-bridge.js';
 import {MasterLock} from '../master-lock.js';
 
 /**
- * 将 WorkerPersistenceAdapter 断言为 PersistenceLayer
+ * Assert WorkerPersistenceAdapter as PersistenceLayer.
  *
- * WorkerPersistenceAdapter 结构上匹配 PersistenceLayer，但以下方法语义不同：
- * - getClient(): throws（用 PersistenceController.onConnectionStateChange 替代）
- * - getEntityRepository(): throws（当前无调用方）
- * - getOffsetManager(): 返回仅含 reset() 的 shim
+ * WorkerPersistenceAdapter structurally matches PersistenceLayer, but the following methods differ in semantics:
+ * - getClient(): throws (use PersistenceController.onConnectionStateChange instead)
+ * - getEntityRepository(): throws (no current callers)
+ * - getOffsetManager(): returns a shim with only reset()
  *
- * 当修改 PersistenceLayer 公共 API 时，必须同步更新 WorkerPersistenceAdapter。
- * 集中在此函数，避免散落在代码中的 `as unknown as` 造成认知负担。
+ * When modifying the PersistenceLayer public API, WorkerPersistenceAdapter must be updated accordingly.
+ * Centralized in this function to avoid scattered `as unknown as` casts causing cognitive burden.
  */
 function _asPersistenceLayer(adapter: WorkerPersistenceAdapter): PersistenceLayer {
     return adapter as unknown as PersistenceLayer;
 }
 
 /**
- * PersistenceLayer 的 Worker 适配器
+ * Worker adapter for PersistenceLayer
  *
- * 实现 PersistenceLayer 的公共接口，内部通过 Comlink 代理转发到 SharedWorker。
+ * Implements the PersistenceLayer public interface, internally proxying calls to SharedWorker via Comlink.
  *
- * 注意：getClient() / getOffsetManager() / getEntityRepository() 无法直接工作
- * （这些对象在 Worker 内部），调用时会抛出错误。
- * 连接状态已通过 PersistenceController.onConnectionStateChange 统一接口解决。
+ * Note: getClient() / getOffsetManager() / getEntityRepository() cannot work directly
+ * (these objects live inside the Worker) and will throw when called.
+ * Connection state is handled via the unified PersistenceController.onConnectionStateChange interface.
  */
 class WorkerPersistenceAdapter {
     private _core: Remote<WorkerPersistenceCore>;
@@ -66,7 +66,7 @@ class WorkerPersistenceAdapter {
         this._core = core;
     }
 
-    // ========== 连接 ==========
+    // ========== Connection ==========
 
     async connect(): Promise<void> {
         log.info('connect() called');
@@ -82,7 +82,7 @@ class WorkerPersistenceAdapter {
         await this._core.reconnect();
     }
 
-    // ========== 查询 ==========
+    // ========== Query ==========
 
     async listSessions(cursor?: string, limit?: number): Promise<LocalSession[]> {
         return this._core.listSessions(cursor, limit);
@@ -117,7 +117,7 @@ class WorkerPersistenceAdapter {
         return this._core.getNextRtcToProcess(sessionClientId);
     }
 
-    // ========== 操作 ==========
+    // ========== Operations ==========
 
     async sendMessage(params: {
         content: ContentData;
@@ -181,7 +181,7 @@ class WorkerPersistenceAdapter {
         return this._core.updateSessionTitle(sessionClientId, title);
     }
 
-    // ========== 生命周期 ==========
+    // ========== Lifecycle ==========
 
     async close(): Promise<void> {
         await this._core.close();
@@ -192,18 +192,18 @@ class WorkerPersistenceAdapter {
     }
 
     /**
-     * 初始化虚拟文件系统
+     * Initialize the virtual file system.
      *
-     * virtualFS 在 Worker 内共享同一 IndexedDB，通过 Comlink 透传调用。
+     * virtualFS shares a single IndexedDB inside the Worker and is accessed via Comlink pass-through calls.
      */
     async initializeVirtualFS(config?: AgentMdConfig): Promise<void> {
         await this._core.initializeVirtualFS(config ?? {});
     }
 
-    // ========== 受限的方法 ==========
+    // ========== Restricted methods ==========
 
     /**
-     * @throws 不支持直接访问 RTCAgentClient，使用 PersistenceController.onConnectionStateChange 替代
+     * @throws Direct RTCAgentClient access is not supported; use PersistenceController.onConnectionStateChange instead
      */
     getClient(): never {
         throw new Error(
@@ -213,9 +213,9 @@ class WorkerPersistenceAdapter {
     }
 
     /**
-     * 返回一个 shim 对象，仅支持 reset() 操作。
+     * Returns a shim object that only supports the reset() operation.
      *
-     * reset() 通过 Comlink 透传到 Worker 内的 getOffsetManager().reset()。
+     * reset() is passed through via Comlink to getOffsetManager().reset() inside the Worker.
      */
     getOffsetManager(): { reset: () => Promise<void> } {
         return {
@@ -224,7 +224,7 @@ class WorkerPersistenceAdapter {
     }
 
     /**
-     * @throws 不支持直接访问 EntityRepository
+     * @throws Direct EntityRepository access is not supported
      */
     getEntityRepository(): never {
         throw new Error(
@@ -314,9 +314,9 @@ export class PersistenceController implements ReactiveController {
     /**
      * Get the MasterLock instance.
      *
-     * MasterLock 封装 Web Locks API，用于 Master Tab 选举。
-     * 每个 Tab 各自持有一个 MasterLock，自己判断是否为 Master。
-     * 只有 Master Tab 的 RtcProcessor 会执行 RTC 工具调用。
+     * MasterLock wraps the Web Locks API for Master Tab election.
+     * Each Tab holds its own MasterLock and determines whether it is the Master.
+     * Only the Master Tab's RtcProcessor will execute RTC tool calls.
      *
      * @see docs/shared-worker-proposal.md §4.3
      */
@@ -409,7 +409,7 @@ export class PersistenceController implements ReactiveController {
      * The WorkerPersistenceAdapter wraps the Comlink proxy, presenting a
      * PersistenceLayer-compatible interface to the rest of the application.
      *
-     * 支持重试：如果 Worker 初始化或连接失败，会自动重试。
+     * Supports retries: if Worker initialization or connection fails, it will automatically retry.
      */
     private async _connectWorker(config: PersistenceConfig): Promise<void> {
         let lastError: Error | null = null;
@@ -427,24 +427,24 @@ export class PersistenceController implements ReactiveController {
                 lastError = err instanceof Error ? err : new Error(String(err));
                 log.error(`Connection attempt ${attempt + 1} failed:`, lastError.message);
 
-                // 清理失败的连接
+                // Clean up failed connection
                 await this._cleanupFailedConnection();
             }
         }
 
-        // 所有重试都失败
+        // All retries failed
         throw new Error(
             `[PersistenceController] Failed to connect after ${PersistenceController.MAX_CONNECT_RETRIES + 1} attempts: ${lastError?.message}`
         );
     }
 
     /**
-     * 单次连接尝试
+     * Single connection attempt
      */
     private async _connectWorkerOnce(config: PersistenceConfig): Promise<void> {
         log.debug('[LIFECYCLE_DEBUG] _connectWorkerOnce() started');
 
-        // 使用本地变量捕获 bridge 实例，避免在 await 后访问可能被 disconnect() 修改的 this._workerBridge
+        // Capture bridge instance in a local variable to avoid accessing this._workerBridge after await, which may have been modified by disconnect()
         const bridge = new WorkerBridge(this._auth, {
             workerUrl: this._workerUrl,
         });
@@ -453,27 +453,27 @@ export class PersistenceController implements ReactiveController {
         this._workerBridge = bridge;
         log.debug('[LIFECYCLE_DEBUG] Set this._workerBridge = bridge');
 
-        // 异步加载 worker 脚本：从 Vite 工厂函数提取 URL → fetch → blob URL → SharedWorker
-        // 这样 SharedWorker 继承页面 origin，避免 CDN 部署时的跨源错误。
-        // 详见 worker-bridge.ts 顶部注释。
+        // Asynchronously load worker script: extract URL from Vite factory function -> fetch -> blob URL -> SharedWorker.
+        // This way SharedWorker inherits the page origin, avoiding cross-origin errors in CDN deployments.
+        // See the top comment in worker-bridge.ts for details.
         log.debug('[LIFECYCLE_DEBUG] Before await bridge.initWorker()');
         await bridge.initWorker();
         log.debug('[LIFECYCLE_DEBUG] After await bridge.initWorker()');
 
-        // 检查点：如果在 await 期间被 disconnect()，优雅退出
-        // disconnect() 会将 this._workerBridge 设为 undefined 或新的 bridge
+        // Checkpoint: if disconnect() was called during await, exit gracefully.
+        // disconnect() will have set this._workerBridge to undefined or a new bridge.
         log.debug('[LIFECYCLE_DEBUG] Checkpoint 1: this._workerBridge === bridge?', this._workerBridge === bridge);
         if (this._workerBridge !== bridge) {
             log.debug('[LIFECYCLE_DEBUG] Connection interrupted during initWorker(), cleaning up');
-            await bridge.destroy().catch(() => {}); // 忽略清理错误
+            await bridge.destroy().catch(() => {}); // Ignore cleanup errors
             log.debug('[LIFECYCLE_DEBUG] Cleanup after interruption completed, returning');
             return;
         }
         log.debug('[LIFECYCLE_DEBUG] Checkpoint 1 passed, continuing');
 
-        // 剥离不可序列化的回调函数（Structured Clone 不支持函数）。
-        // Worker 侧会在 init() 中用自己的 requestToken 桥接替换 getToken，
-        // onTokenExpired 同理——Worker 不需要这些主线程回调。
+        // Strip non-serializable callback functions (Structured Clone does not support functions).
+        // The Worker side replaces getToken with its own requestToken bridge in init(),
+        // and the same applies to onTokenExpired — the Worker does not need these main-thread callbacks.
         const { getToken: _gt, onTokenExpired: _ote, ...serializableClient } = config.client;
         const workerConfig: PersistenceConfig = {
             ...config,
@@ -485,7 +485,7 @@ export class PersistenceController implements ReactiveController {
         await bridge.init(workerConfig);
         log.debug('[LIFECYCLE_DEBUG] After await bridge.init(workerConfig)');
 
-        // 检查点：如果在 await 期间被 disconnect()，优雅退出
+        // Checkpoint: if disconnect() was called during await, exit gracefully.
         log.debug('[LIFECYCLE_DEBUG] Checkpoint 2: this._workerBridge === bridge?', this._workerBridge === bridge);
         if (this._workerBridge !== bridge) {
             log.debug('[LIFECYCLE_DEBUG] Connection interrupted during init(), cleaning up');
@@ -495,15 +495,15 @@ export class PersistenceController implements ReactiveController {
         }
         log.debug('[LIFECYCLE_DEBUG] Checkpoint 2 passed, continuing');
 
-        // 将主线程的 virtualFS 方法替换为 Comlink 代理
-        // 主线程不可直接访问 IndexedDB，
-        // 所有 virtualFS 操作（工具执行、script 读取等）自动路由到 Worker
+        // Replace the main-thread virtualFS methods with a Comlink proxy.
+        // The main thread cannot directly access IndexedDB,
+        // so all virtualFS operations (tool execution, script reads, etc.) are automatically routed to the Worker.
         log.debug('[LIFECYCLE_DEBUG] Before bridge.installVirtualFSProxy()');
         bridge.installVirtualFSProxy();
         log.debug('[LIFECYCLE_DEBUG] After bridge.installVirtualFSProxy()');
 
         // Create adapter that wraps the Comlink proxy
-        // 断言语义见 _asPersistenceLayer 顶部注释
+        // See the top comment of _asPersistenceLayer for cast semantics
         log.debug('[LIFECYCLE_DEBUG] Creating WorkerPersistenceAdapter');
         this._layer = _asPersistenceLayer(new WorkerPersistenceAdapter(bridge.core));
         log.debug('[LIFECYCLE_DEBUG] this._layer created');
@@ -513,7 +513,7 @@ export class PersistenceController implements ReactiveController {
         await bridge.core.connect();
         log.debug('[LIFECYCLE_DEBUG] After await bridge.core.connect() - WebSocket should be connected now');
 
-        // 创建 MasterLock 并开始选举
+        // Create MasterLock and start election
         const userId = this._auth.state.userId;
         if (userId) {
             log.debug('[LIFECYCLE_DEBUG] Creating MasterLock for userId:', userId);
@@ -524,7 +524,7 @@ export class PersistenceController implements ReactiveController {
             this._masterLock.onRelease = () => {
                 log.info('this Tab lost Master');
             };
-            // 开始尝试获取锁（可能排队）
+            // Start trying to acquire the lock (may queue)
             void this._masterLock.acquire();
             log.debug('[LIFECYCLE_DEBUG] MasterLock created and acquire started');
         }
@@ -533,7 +533,7 @@ export class PersistenceController implements ReactiveController {
     }
 
     /**
-     * 清理失败的连接
+     * Clean up a failed connection
      */
     private async _cleanupFailedConnection(): Promise<void> {
         if (this._workerBridge) {
@@ -548,7 +548,7 @@ export class PersistenceController implements ReactiveController {
     }
 
     /**
-     * 延迟指定毫秒数
+     * Delay for the specified number of milliseconds
      */
     private _delay(ms: number): Promise<void> {
         return new Promise(resolve => setTimeout(resolve, ms));
@@ -557,10 +557,10 @@ export class PersistenceController implements ReactiveController {
     /**
      * Disconnect and tear down the PersistenceLayer.
      *
-     * - 递增 generation counter，使旧的 _connecting promise 的 finally 块失效
-     * - 清除 _connecting promise，允许新的连接尝试
-     * - 先 reset offset，再 close layer
-     * - 额外释放 MasterLock + 销毁 WorkerBridge
+     * - Increment the generation counter to invalidate the finally block of any old _connecting promise
+     * - Clear the _connecting promise to allow a new connection attempt
+     * - Reset offset first, then close the layer
+     * - Additionally release the MasterLock and destroy the WorkerBridge
      *
      * Call this on logout or when auth is lost.
      */
@@ -571,21 +571,21 @@ export class PersistenceController implements ReactiveController {
         log.debug('[LIFECYCLE_DEBUG] disconnect() this._connecting exists?', !!this._connecting);
         log.debug('[LIFECYCLE_DEBUG] disconnect() current generation:', this._connectGeneration);
 
-        // 递增 generation counter，使旧的 _connecting promise 的 finally 块失效
-        // 这是关键：如果 disconnect() 打断了正在进行的连接，旧 promise 的 finally 块
-        // 不应该清除新的 _connecting
+        // Increment the generation counter to invalidate the finally block of any old _connecting promise.
+        // This is critical: if disconnect() interrupts an in-flight connection, the old promise's finally block
+        // must not clear the new _connecting.
         this._connectGeneration++;
         log.debug('[LIFECYCLE_DEBUG] disconnect() Bumped generation to:', this._connectGeneration);
 
-        // 清除 _connecting promise，允许新的连接尝试
-        // 这是关键：如果 disconnect() 打断了正在进行的连接，后续的 connect() 应该创建新连接，
-        // 而不是等待已经被打断的旧 promise
+        // Clear the _connecting promise to allow a new connection attempt.
+        // This is critical: if disconnect() interrupts an in-flight connection, a subsequent connect()
+        // should create a new connection rather than waiting for the already-interrupted old promise.
         if (this._connecting) {
             log.debug('[LIFECYCLE_DEBUG] disconnect() Clearing _connecting promise');
             this._connecting = undefined;
         }
 
-        // 使用本地变量捕获 layer 和 workerBridge，避免在 await 期间清除新的实例
+        // Capture layer and workerBridge in local variables to avoid clearing new instances during await
         const layer = this._layer;
         const workerBridge = this._workerBridge;
 
@@ -594,10 +594,10 @@ export class PersistenceController implements ReactiveController {
         if (layer) {
             try {
                 log.debug('[LIFECYCLE_DEBUG] disconnect() Before await layer.getOffsetManager().reset()');
-                // 重置 offset（通过 adapter shim 透传到 core.resetOffset()）
+                // Reset offset (passed through via the adapter shim to core.resetOffset())
                 await layer.getOffsetManager().reset();
                 log.debug('[LIFECYCLE_DEBUG] disconnect() After reset()');
-                // 关闭 WS + DB（通过 adapter 委托到 core.close()）
+                // Close WS + DB (delegated via the adapter to core.close())
                 log.debug('[LIFECYCLE_DEBUG] disconnect() Before await layer.close()');
                 await layer.close();
                 log.debug('[LIFECYCLE_DEBUG] disconnect() After close()');
@@ -605,13 +605,13 @@ export class PersistenceController implements ReactiveController {
                 log.error('disconnect error:', err);
             }
             log.debug('[LIFECYCLE_DEBUG] disconnect() Setting this._layer = undefined (only if still the same)');
-            // 只有当 this._layer 还是我们捕获的 layer 时才清除
+            // Only clear if this._layer is still the layer we captured
             if (this._layer === layer) {
                 this._layer = undefined;
             }
         }
 
-        // 额外清理
+        // Additional cleanup
         if (workerBridge) {
             log.debug('[LIFECYCLE_DEBUG] disconnect() Cleaning up workerBridge');
             this._masterLock?.release();
@@ -624,7 +624,7 @@ export class PersistenceController implements ReactiveController {
                 log.error('WorkerBridge disconnect error:', err);
             }
             log.debug('[LIFECYCLE_DEBUG] disconnect() Setting this._workerBridge = undefined (only if still the same)');
-            // 只有当 this._workerBridge 还是我们捕获的 workerBridge 时才清除
+            // Only clear if this._workerBridge is still the workerBridge we captured
             if (this._workerBridge === workerBridge) {
                 this._workerBridge = undefined;
             } else {
@@ -635,12 +635,12 @@ export class PersistenceController implements ReactiveController {
         log.debug('[LIFECYCLE_DEBUG] disconnect() completed');
     }
 
-    // ========== 连接状态统一接口 ==========
+    // ========== Unified connection state interface ==========
 
     /**
-     * 获取当前连接状态
+     * Get the current connection state.
      *
-     * 通过 WorkerBridge 获取连接状态。
+     * Retrieves the connection state via WorkerBridge.
      */
     async getConnectionState(): Promise<ConnectionState> {
         if (this._workerBridge) {
@@ -650,16 +650,16 @@ export class PersistenceController implements ReactiveController {
     }
 
     /**
-     * 监听连接状态变更
+     * Listen for connection state changes.
      *
-     * 监听 WorkerBridge 广播的连接状态变更事件。
-     * 返回取消监听的函数。
+     * Subscribes to connection state change events broadcast by WorkerBridge.
+     * Returns a function that unsubscribes the listener.
      */
     onConnectionStateChange(listener: (event: ConnectionStateEvent) => void): () => void {
         if (this._workerBridge) {
             return this._workerBridge.onConnectionStateChange(listener);
         }
-        // 未连接时返回空取消函数
+        // Return a no-op unsubscribe function when not connected
         return () => {};
     }
 }

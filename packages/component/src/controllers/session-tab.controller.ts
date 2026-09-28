@@ -1,15 +1,15 @@
 /**
  * Session Tab Controller
  *
- * 管理对话页面的 Tab 页签：
- * - 打开/切换到 session 的 tab
- * - 关闭 tab（关闭活动 tab 时自动激活相邻 tab）
- * - 清空所有 tab
+ * Manages conversation page tabs:
+ * - Open/switch to session tabs
+ * - Close tabs (auto-activate adjacent tab when closing the active tab)
+ * - Clear all tabs
  *
- * Tab 以 sessionId 为唯一标识，同一 session 只允许开一个 tab。
+ * Each tab uses sessionId as its unique identifier; only one tab per session is allowed.
  *
- * 对应：`SessionTabContext`（contexts/session-tab.ts）
- * 消费方：<rtc-session-tab-bar>, <rtc-chat-layout>
+ * Corresponds to: `SessionTabContext` (contexts/session-tab.ts)
+ * Consumers: <rtc-session-tab-bar>, <rtc-chat-layout>
  */
 import { msg } from '@lit/localize';
 import type {ReactiveController, ReactiveControllerHost} from 'lit';
@@ -62,11 +62,12 @@ export class SessionTabController implements ReactiveController {
     hostDisconnected() {}
 
     /**
-     * 过滤掉无效 Tab（session 已被删除或不存在）
+     * Filter out invalid tabs (session has been deleted or does not exist)
      *
-     * 在 session 列表从 IndexedDB 加载后调用，清理持久化中残留的无效 Tab。
-     * `isUnsaved === true` 的 tab 即使 sessionId 不在 DB 中也保留（它们是尚未持久化的 draft）。
-     * 返回 true 表示有 Tab 被移除（调用方可能需要更新 UI）。
+     * Called after session list is loaded from IndexedDB to clean up stale persisted tabs.
+     * Tabs with `isUnsaved === true` are kept even if their sessionId is not in the DB
+     * (they are drafts not yet persisted).
+     * Returns true if any tab was removed (caller may need to update UI).
      */
     filterInvalidTabs(validSessionIds: Set<string>): boolean {
         const before = this._state.tabs.length;
@@ -78,7 +79,7 @@ export class SessionTabController implements ReactiveController {
         log.debug('filterInvalidTabs before:', before, 'after:', tabs.length);
         log.debug('filterInvalidTabs activeSessionId:', activeSessionId);
 
-        // 如果活动 Tab 被过滤掉了（且不属于保留的 unsaved tab），激活第一个可用的
+        // If the active tab was filtered out (and is not a preserved unsaved tab), activate the first available one
         if (activeSessionId && !tabs.some(t => t.sessionId === activeSessionId)) {
             activeSessionId = tabs.length > 0 ? tabs[0].sessionId : null;
             log.debug('activeTab filtered out, new activeSessionId:', activeSessionId);
@@ -94,25 +95,27 @@ export class SessionTabController implements ReactiveController {
     }
 
     /**
-     * 用 sessions 中的最新标题同步已有 Tab 的标题
+     * Sync existing tab titles with the latest titles from sessions
      *
-     * DB 是标题的权威来源。UIUpdateBus 推送的 session 变更（用户 rename 或服务端生成）
-     * 都已先写入 DB，此方法负责把 DB 中的最新标题同步到 Tab。
+     * The DB is the authoritative source for titles. Session changes pushed via UIUpdateBus
+     * (user renames or server-generated) are written to DB first; this method syncs the
+     * latest DB titles to tabs.
      *
-     * 跳过条件：
-     * - Tab 对应的 session 不在 DB 中（如 unsaved tab，newTitle 为 undefined）
-     * - DB 返回空标题
-     * - DB 标题与 Tab 当前标题完全相同（无变化）
+     * Skip conditions:
+     * - Tab's session is not in the DB (e.g., unsaved tab, newTitle is undefined)
+     * - DB returns an empty title
+     * - DB title is identical to the tab's current title (no change)
      */
     updateTabTitles(sessionTitleMap: Map<string, string>): boolean {
         log.debug('updateTabTitles called with', sessionTitleMap.size, 'titles');
         let changed = false;
         const tabs = this._state.tabs.map(t => {
             const newTitle = sessionTitleMap.get(t.sessionId);
-            // 只要 DB 提供了非空且与当前不同的标题，就同步到 Tab。
-            // DB 是标题的权威来源：UIUpdateBus 推送的变更（无论是用户 rename 还是服务端生成）
-            // 都已经反映在 DB 中，Tab 应当跟随。
-            // 注意：unsaved tab（DB 无记录）的 newTitle 为 undefined，会自动跳过。
+            // Sync to tab whenever DB provides a non-empty title that differs from the current one.
+            // The DB is the authoritative source for titles: changes pushed via UIUpdateBus
+            // (whether user renames or server-generated) are already reflected in the DB;
+            // tabs should follow.
+            // Note: unsaved tabs (no DB record) have newTitle === undefined and are automatically skipped.
             const shouldUpdate = newTitle !== undefined &&
                 newTitle.trim() !== '' &&
                 newTitle !== t.title;
@@ -133,10 +136,10 @@ export class SessionTabController implements ReactiveController {
     }
 
     /**
-     * 用 sessions 中的最新状态同步已有 Tab 的 status
+     * Sync existing tab statuses with the latest statuses from sessions
      *
-     * DB 是 status 的权威来源（服务端 turn 生命周期事件写入）。
-     * 在 _loadSessions 时调用，确保 tab status 与 DB 一致。
+     * The DB is the authoritative source for status (written by server turn lifecycle events).
+     * Called during _loadSessions to ensure tab statuses match the DB.
      */
     syncTabStatuses(sessionStatusMap: Map<string, SessionStatus>): boolean {
         let changed = false;
@@ -162,12 +165,12 @@ export class SessionTabController implements ReactiveController {
         return !title || title === msg('未命名') || title === msg('新聊天');
     }
 
-    /** 查找当前 unsaved tab，返回第一个 isUnsaved === true 的 tab。 */
+    /** Find the current unsaved tab, returns the first tab with isUnsaved === true. */
     private _findUnsavedTab(): SessionTab | undefined {
         return this._state.tabs.find(t => t.isUnsaved === true);
     }
 
-    /** 将指定 tab 标记为已保存。 */
+    /** Mark a specific tab as saved. */
     private _markSaved(sessionId: string): void {
         const tab = this._state.tabs.find(t => t.sessionId === sessionId);
         if (!tab || tab.isUnsaved !== true) {
@@ -181,7 +184,7 @@ export class SessionTabController implements ReactiveController {
         this.host.requestUpdate();
     }
 
-    /** 更新指定 tab 的 session 运行状态（active/idle/closed）。 */
+    /** Update the session runtime status (active/idle/closed) of a specific tab. */
     private _updateTabStatus(sessionId: string, status: SessionStatus): void {
         const tab = this._state.tabs.find(t => t.sessionId === sessionId);
         if (!tab || tab.status === status) return;
@@ -198,7 +201,7 @@ export class SessionTabController implements ReactiveController {
         log.debug('openOrActivate current tabs:', this._state.tabs.map(t => `${t.sessionId}="${t.title}"(isDefault=${t.isDefault})`));
 
         const isPlaceholder = this._isPlaceholderTitle(title);
-        const shouldActivate = options?.activate ?? true; // 默认激活
+        const shouldActivate = options?.activate ?? true; // Default: activate
         const skipPersist = options?.skipPersist ?? false;
         const transientParams = (options?.initialInputValue !== undefined || options?.noticeMessage !== undefined)
             ? { initialInputValue: options?.initialInputValue, noticeMessage: options?.noticeMessage }
@@ -209,10 +212,10 @@ export class SessionTabController implements ReactiveController {
 
         if (existingIndex >= 0) {
             const existing = this._state.tabs[existingIndex];
-            // 保护已有真实标题的 Tab 不被占位标题覆盖
+            // Protect tabs with real titles from being overwritten by placeholder titles
             if (isPlaceholder && !existing.isDefault && existing.title !== title) {
                 log.debug('Protected tab title:', existing.title);
-                // 仅在需要激活时更新 activeSessionId
+                // Only update activeSessionId when activation is needed
                 if (shouldActivate && this._state.activeSessionId !== sessionId) {
                     this._state = {...this._state, activeSessionId: sessionId};
                     if (!skipPersist) this._persistActiveSessionId(sessionId);
@@ -269,11 +272,11 @@ export class SessionTabController implements ReactiveController {
         let activeSessionId = this._state.activeSessionId;
 
         if (activeSessionId === sessionId) {
-            // 关闭的是活动 tab → 激活相邻 tab
+            // Closing the active tab → activate adjacent tab
             if (tabs.length === 0) {
                 activeSessionId = null;
             } else {
-                // 优先激活右侧 tab，否则激活左侧
+                // Prefer activating the right tab, otherwise the left
                 const nextIndex = Math.min(tabIndex, tabs.length - 1);
                 activeSessionId = tabs[nextIndex].sessionId;
             }
@@ -304,9 +307,10 @@ export class SessionTabController implements ReactiveController {
     }
 
     /**
-     * 把 activeSessionId 写入 localStorage
+     * Write activeSessionId to localStorage
      *
-     * 仅在浏览器环境下执行（SSR 安全）；任何异常静默忽略（如隐私模式配额为 0）。
+     * Only runs in browser environments (SSR-safe); any errors are silently ignored
+     * (e.g., private mode quota is 0).
      */
     private _persistActiveSessionId(sessionId: string | null): void {
         try {
@@ -317,15 +321,15 @@ export class SessionTabController implements ReactiveController {
                 window.localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, sessionId);
             }
         } catch {
-            // localStorage 不可用（隐私模式/配额满），忽略
+            // localStorage unavailable (private mode / quota full), ignore
         }
     }
 
     /**
-     * 从 localStorage 读取上次活动 Tab 的 sessionId
+     * Read the last active tab's sessionId from localStorage
      *
-     * 用于恢复 tabs 循环时决定哪个 tab 应该 activate: true。
-     * 如果 localStorage 为空或不可用，返回 null。
+     * Used to decide which tab should have activate: true when restoring the tabs cycle.
+     * Returns null if localStorage is empty or unavailable.
      */
     private _getStoredActiveSessionId(): string | null {
         try {
@@ -337,10 +341,10 @@ export class SessionTabController implements ReactiveController {
     }
 
     /**
-     * 设置指定 tab 的瞬态 UI 参数（initialInputValue, noticeMessage）
+     * Set transient UI params for a tab (initialInputValue, noticeMessage)
      *
-     * 同时递增 initialValueVersion，确保即使新旧值相同，
-     * input-area 的 updated() 也能被触发（防御 Lit 脏检查跳过）。
+     * Also increments initialValueVersion to ensure input-area's updated() is triggered
+     * even when old and new values are identical (defends against Lit dirty-check skipping).
      */
     private _setTransientParams(sessionId: string, params: { initialInputValue?: string; noticeMessage?: string }): void {
         const tab = this._state.tabs.find(t => t.sessionId === sessionId);
@@ -359,7 +363,7 @@ export class SessionTabController implements ReactiveController {
         this.host.requestUpdate();
     }
 
-    /** 清除指定 tab 的瞬态 UI 参数。 */
+    /** Clear transient UI params for a specific tab. */
     private _clearTransientParams(sessionId: string): void {
         const tab = this._state.tabs.find(t => t.sessionId === sessionId);
         if (!tab) return;
@@ -374,15 +378,15 @@ export class SessionTabController implements ReactiveController {
     }
 
     /**
-     * 从 localStorage 恢复活动 Tab
+     * Restore active tab from localStorage
      *
-     * 仅当存储的 sessionId 在当前 tabs 列表中时才恢复，否则保持不变。
-     * 用于浏览器刷新后恢复用户上次的活动 tab。
+     * Only restores when the stored sessionId is in the current tab list; otherwise no change.
+     * Used to restore the user's last active tab after a browser refresh.
      */
     private _restoreActiveFromStorage(): boolean {
         const stored = this._getStoredActiveSessionId();
         if (!stored) return false;
-        // 仅在存储的 tab 仍存在于当前 tabs 列表中时恢复
+        // Only restore when the stored tab still exists in the current tab list
         if (!this._state.tabs.some(t => t.sessionId === stored)) {
             log.debug('Stored id not in tabs:', stored);
             return false;

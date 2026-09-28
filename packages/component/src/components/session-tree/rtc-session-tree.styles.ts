@@ -1,12 +1,12 @@
 import {css} from 'lit';
 
 /**
- * Session Tree 容器样式
+ * Session Tree container styles
  *
- * 参考 rtc-file-explorer.styles.ts：
- * - Header（36px）+ Content（flex: 1, overflow-y: auto）
- * - 颜色使用项目 Tokens，确保双主题适配
- * - 滚动条样式与 file-explorer 一致
+ * Follows rtc-file-explorer.styles.ts:
+ * - Header (36px) + Content (flex: 1, overflow-y: auto)
+ * - Colors use project Tokens to ensure dual-theme adaptation
+ * - Scrollbar styles consistent with file-explorer
  */
 export const styles = css`
     :host {

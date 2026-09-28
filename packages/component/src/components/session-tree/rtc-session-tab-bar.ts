@@ -1,14 +1,14 @@
 /**
- * Session Tab Bar 容器组件
+ * Session Tab Bar container component
  *
- * VS Code 风格 Tab 标签栏，组合 rtc-session-tab 叶子组件。
- * 横向排列，超出时横向滚动。
+ * VS Code-style tab bar, composing rtc-session-tab leaf components.
+ * Horizontal layout, scrolls horizontally when overflowing.
  *
- * 通过 SessionTabContext 消费 Tab 数据和切换/关闭操作。
+ * Consumes Tab data and switch/close operations via SessionTabContext.
  *
  * @element rtc-session-tab-bar
- * @fires rtc-session-tab-bar-activate - 切换 Tab (detail: { sessionId })
- * @fires rtc-session-tab-bar-close - 关闭 Tab (detail: { sessionId })
+ * @fires rtc-session-tab-bar-activate - Switch tab (detail: { sessionId })
+ * @fires rtc-session-tab-bar-close - Close tab (detail: { sessionId })
  */
 import {LitElement, html} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
@@ -23,7 +23,7 @@ import {baseStyles} from '../../styles/base.js';
 import {SessionTabContext, type SessionTabContextValue} from '../../contexts/session-tab.js';
 import {plusIcon} from '../../icons/index.js';
 
-// 子组件（副作用导入）
+// Sub-components (side-effect imports)
 import './rtc-session-tab.js';
 import { createLogger } from '@rtc-agent/client';
 
@@ -46,13 +46,13 @@ export class RtcSessionTabBar extends LitElement {
 
     /* ── Properties ─ */
 
-    /** 主题（继承自父级） */
+    /** Theme (inherited from parent) */
     @property({type: String, reflect: true})
     theme: 'light' | 'dark' | 'system' = 'system';
 
     /* ── Private ── */
 
-    /** 上一次激活的 sessionId，用于检测变化 */
+    /** Previously activated sessionId, used to detect changes */
     private _prevActiveSessionId: string | null = null;
 
     /* ── Context ── */
@@ -105,7 +105,7 @@ export class RtcSessionTabBar extends LitElement {
     }
 
     private _handleNewSession() {
-        // 复用 rtc-session-tree-new 事件，由 chat-layout 统一处理
+        // Reuse rtc-session-tree-new event, handled uniformly by chat-layout
         this.dispatchEvent(
             new CustomEvent('rtc-session-tree-new', {
                 bubbles: true,
@@ -119,7 +119,7 @@ export class RtcSessionTabBar extends LitElement {
     protected updated(): void {
         const {activeSessionId} = this._tabCtx.state;
 
-        // 检测 activeSessionId 变化，自动滚动到激活的 Tab
+        // Detect activeSessionId changes, auto-scroll to the active tab
         if (activeSessionId && activeSessionId !== this._prevActiveSessionId) {
             this._prevActiveSessionId = activeSessionId;
             requestAnimationFrame(() => {

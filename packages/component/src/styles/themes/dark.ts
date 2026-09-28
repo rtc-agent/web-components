@@ -1,44 +1,44 @@
 /**
- * RTC Agent 主题 — 夜晚（暗色）
+ * RTC Agent Theme — Night (Dark)
  *
- * 产品品牌色：
- *   - 主色（蓝青，深底柔和）：#1A7AB0
- *   - 警告（橙色行星）：#F97802
- *   - 信息（蓝青）：#1A7AB0
- *   - 成功（亮绿）：#4ADE80
- *   - 错误（红色）：#F87171
- *   - 文字（月亮色）：#E8E8E8
- *   - 背景（夜空极深色）：#0B1127
+ * Product brand colors:
+ *   - Primary (blue-cyan, soft on dark): #1A7AB0
+ *   - Warning (orange planet): #F97802
+ *   - Info (blue-cyan): #1A7AB0
+ *   - Success (bright green): #4ADE80
+ *   - Error (red): #F87171
+ *   - Text (moon color): #E8E8E8
+ *   - Background (deep night sky): #0B1127
  */
 import {css} from 'lit';
 
 export const darkTheme = css`
     :host([theme='dark']) {
-        /* 背景 */
+        /* Background */
         --rtc-color-bg: #0B1127;
         --rtc-color-bg-secondary: #111B36;
         --rtc-color-bg-tertiary: #1A2548;
         --rtc-color-bg-hover: #1E2D52;
         --rtc-color-bg-active: #253560;
 
-        /* 主色 */
+        /* Primary */
         --rtc-color-primary: #1A7AB0;
         --rtc-color-primary-hover: #2290CC;
         --rtc-color-primary-active: #145F8C;
         --rtc-color-primary-rgb: 26 122 176;
 
-        /* 文字 */
+        /* Text */
         --rtc-color-text: #E8E8E8;
         --rtc-color-text-secondary: #A0A8C0;
         --rtc-color-text-tertiary: #6B7394;
         --rtc-color-text-inverse: #0B1127;
 
-        /* 边框 */
+        /* Border */
         --rtc-color-border: #1E2A4A;
         --rtc-color-border-hover: #2A3860;
         --rtc-color-border-focus: #1A7AB0;
 
-        /* 语义 */
+        /* Semantic */
         --rtc-color-success: #4ADE80;
         --rtc-color-warning: #F97802;
         --rtc-color-error: #F87171;
@@ -55,7 +55,7 @@ export const darkTheme = css`
         --rtc-color-toolcall-6: #F472B6; /* bright pink */
         --rtc-color-toolcall-7: #A3E635; /* bright lime */
 
-        /* 遮罩 */
+        /* Backdrop */
         --rtc-color-backdrop: rgba(11,17,39,0.6);
     }
 `;

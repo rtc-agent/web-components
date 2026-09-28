@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-// Vite ?raw 导入：将文件内容作为字符串导入
+// Vite ?raw import: import file content as a string
 declare module '*?raw' {
   const content: string;
   export default content;

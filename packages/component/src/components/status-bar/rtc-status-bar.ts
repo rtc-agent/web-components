@@ -1,21 +1,21 @@
 /**
  * Status Bar Component
  *
- * VS Code 风格底部状态栏，显示当前编辑文件的状态信息。
+ * VS Code-style bottom status bar displaying current editor file status information.
  *
- * 布局：
+ * Layout:
  * ┌──────────────────────────────────────────┐
- * │ Markdown  │  UTF-8  │  行 8, 列 12  │  已保存  │
+ * │ Markdown  │  UTF-8  │  Ln 8, Col 12  │  Saved  │
  * └──────────────────────────────────────────┘
  *
- * 纯 UI 组件：只接收 StatusBarInfo 渲染，不操作 VFS。
- * 状态由 StatusBarController 驱动（或 Debug HTML 手动驱动）。
+ * Pure UI component: only receives StatusBarInfo for rendering, does not operate VFS.
+ * State is driven by StatusBarController (or Debug HTML for manual driving).
  *
  * @element rtc-status-bar
  *
- * ## 样式
- * 使用项目 design tokens（--rtc-color-*），支持亮色/暗色主题。
- * VS Code 风格：蓝底白字，双主题同色。
+ * ## Styles
+ * Uses project design tokens (--rtc-color-*), supports light/dark themes.
+ * VS Code style: blue background with white text, same colors in both themes.
  */
 import {LitElement, html} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
@@ -39,7 +39,7 @@ export class RtcStatusBar extends LitElement {
 
     /* ── Properties ── */
 
-    /** 状态栏数据 */
+    /** Status bar data */
     @property({type: Object, attribute: false})
     fileInfo: StatusBarInfo = {
         fileType: '',
@@ -48,7 +48,7 @@ export class RtcStatusBar extends LitElement {
         saveStatus: 'none',
     };
 
-    /** 主题 */
+    /** Theme */
     @property({type: String, reflect: true})
     theme: 'light' | 'dark' | 'system' = 'system';
 

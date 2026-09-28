@@ -178,10 +178,10 @@ export class SessionController implements ReactiveController {
     }
 
     /**
-     * 通知后端关闭 session
+     * Notify backend to close session
      *
-     * 仅发送 RPC 通知，不做本地状态变更（Tab 关闭由调用方处理）。
-     * 失败时仅 log 错误，由调用方决定如何处理。
+     * Only sends RPC notification, does not change local state (Tab close is handled by caller).
+     * On failure, only logs error; caller decides how to handle it.
      */
     private async _closeSession(id: string): Promise<{ok: boolean; error?: Error}> {
         if (!this.persistence) {
@@ -189,10 +189,10 @@ export class SessionController implements ReactiveController {
             return {ok: true};
         }
 
-        // 检查 session 是否已同步到后端（有 server_id）
+        // Check if session has been synced to backend (has server_id)
         const session = await this.persistence.getSession(id);
         if (!session?.server_id) {
-            // 未同步的 session 无需通知后端
+            // Unsynced session does not need backend notification
             return {ok: true};
         }
 
@@ -206,10 +206,10 @@ export class SessionController implements ReactiveController {
     }
 
     /**
-     * 重新打开已关闭的 session（透明 reopen）
+     * Reopen a closed session (transparent reopen)
      *
-     * 调用后端 openSession API，将 session 状态从 closed 改回 idle/active。
-     * 后端返回 updates 后由 applyUpdates 处理本地状态同步。
+     * Calls backend openSession API to change session state from closed back to idle/active.
+     * After backend returns updates, applyUpdates handles local state sync.
      */
     private async _reopenSession(id: string): Promise<{ok: boolean; error?: Error}> {
         if (!this.persistence) {
@@ -256,7 +256,7 @@ export class SessionController implements ReactiveController {
     }
 
     private _setSessions(sessions: Session[]) {
-        // 只更新 sessions 列表，保持 currentSessionId 不变
+        // Only update sessions list, keep currentSessionId unchanged
         this._state = {...this._state, sessions};
         this.host.requestUpdate();
     }

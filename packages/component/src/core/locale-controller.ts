@@ -3,7 +3,7 @@ import { ContextConsumer } from '@lit/context';
 import { localeContext, sourceLocale, targetLocales } from './i18n.js';
 
 /**
- * 封装 locale context 消费逻辑，减少组件样板代码
+ * Wraps locale context consumption logic to reduce component boilerplate
  *
  * @example
  * ```typescript
@@ -13,7 +13,7 @@ import { localeContext, sourceLocale, targetLocales } from './i18n.js';
  *   private _locale = new LocaleController(this);
  *
  *   render() {
- *     return html`<p>当前: ${this._locale.locale}</p>`;
+ *     return html`<p>Current: ${this._locale.locale}</p>`;
  *   }
  * }
  * ```
@@ -38,6 +38,6 @@ export class LocaleController implements ReactiveController {
   }
 
   hostUpdated() {
-    // Context 值变化时自动触发重渲染
+    // Automatically triggers re-render when Context value changes
   }
 }

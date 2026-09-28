@@ -1,24 +1,24 @@
 /**
  * Markdown Editor Component
  *
- * VS Code 风格 Markdown 编辑器，支持编辑/预览/分屏三种视图模式。
+ * VS Code-style Markdown editor, supporting edit/preview/split three view modes.
  *
- * 布局（split 模式）：
+ * Layout (split mode):
  * ┌──────────────────┬───┬──────────────────┐
- * │  编辑区           │   │  预览区           │
- * │  (textarea)      │   │  (marked 渲染)    │
+ * │  Edit Pane       │   │  Preview Pane    │
+ * │  (textarea)      │   │  (marked render) │
  * │                  │   │                   │
  * └──────────────────┴───┴──────────────────┘
  *
- * Markdown 解析使用 marked + DOMPurify（懒加载，与 rtc-message 共享）。
+ * Markdown parsing uses marked + DOMPurify (lazy-loaded, shared with rtc-message).
  *
  * @element rtc-markdown-editor
  *
- * @fires editor-content-change - 内容变更 (detail: { content: string })
- * @fires editor-cursor-move - 光标移动 (detail: { line: number, column: number })
+ * @fires editor-content-change - Content changed (detail: { content: string })
+ * @fires editor-cursor-move - Cursor moved (detail: { line: number, column: number })
  *
- * ## 样式
- * 使用项目 design tokens（--rtc-color-*），支持亮色/暗色主题。
+ * ## Styling
+ * Uses project design tokens (--rtc-color-*), supports light/dark themes.
  */
 import {LitElement, html} from 'lit';
 import {customElement, property, state, query} from 'lit/decorators.js';
@@ -52,37 +52,37 @@ export class RtcMarkdownEditor extends LitElement {
 
     /* ── Properties ── */
 
-    /** 当前编辑内容 */
+    /** Current editing content */
     @property({type: String})
     content = '';
 
-    /** 视图模式 */
+    /** View mode */
     @property({type: String, attribute: 'view-mode'})
     viewMode: EditorViewMode = 'split';
 
-    /** 主题 */
+    /** Theme */
     @property({type: String, reflect: true})
     theme: 'light' | 'dark' | 'system' = 'system';
 
-    /** 是否只读 */
+    /** Whether read-only */
     @property({type: Boolean, attribute: 'read-only'})
     readOnly = false;
 
     /* ── Internal State ── */
 
-    /** Markdown 渲染后的 HTML */
+    /** HTML rendered from Markdown */
     @state()
     private _renderedHtml = '';
 
-    /** 光标位置 */
+    /** Cursor position */
     @state()
     private _cursorPosition = {line: 1, column: 1};
 
-    /** 分屏分割条位置（百分比） */
+    /** Split divider position (percentage) */
     @state()
     private _splitPosition = 50;
 
-    /** 是否正在拖动分割条 */
+    /** Whether the split divider is being dragged */
     @state()
     private _isDragging = false;
 
@@ -103,7 +103,7 @@ export class RtcMarkdownEditor extends LitElement {
         hljs: typeof import('../../utils/highlight-languages.js').default;
     }> | null = null;
 
-    /** 防抖定时器 */
+    /** Debounce timer */
     private _debounceTimer?: ReturnType<typeof setTimeout>;
 
     private async _loadModules() {
@@ -132,18 +132,18 @@ export class RtcMarkdownEditor extends LitElement {
         try {
             const {marked, DOMPurify, hljs} = await this._loadModules();
 
-            // 解析 Markdown
+            // Parse Markdown
             const rawHtml = await marked.parse(this.content);
 
-            // 检查 generation 是否过期
+            // Check if generation is stale
             if (generation !== this._parseGeneration) {
                 return;
             }
 
-            // 应用语法高亮
+            // Apply syntax highlighting
             const highlighted = this._highlightCodeBlocks(rawHtml as string, hljs);
 
-            // 消毒
+            // Sanitize
             const cleanHtml = DOMPurify.sanitize(highlighted, {
                 ALLOWED_TAGS: [
                     'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
@@ -154,8 +154,8 @@ export class RtcMarkdownEditor extends LitElement {
                     'a', 'strong', 'em', 'del',
                     'table', 'thead', 'tbody', 'tr', 'th', 'td',
                     'img',
-                    'input', // 任务列表 checkbox
-                    'span', // highlight.js 需要
+                    'input', // Task list checkbox
+                    'span', // Required by highlight.js
                 ],
                 ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'target', 'class', 'type', 'checked', 'disabled', 'style'],
             });
@@ -168,7 +168,7 @@ export class RtcMarkdownEditor extends LitElement {
     }
 
     /**
-     * 对 Markdown 渲染出的所有 <pre><code> 块应用 highlight.js 语法高亮
+     * Apply highlight.js syntax highlighting to all <pre><code> blocks in Markdown-rendered HTML
      */
     private _highlightCodeBlocks(html: string, hljs: typeof import('../../utils/highlight-languages.js').default): string {
         if (!html.includes('<pre>')) return html;
@@ -181,7 +181,7 @@ export class RtcMarkdownEditor extends LitElement {
     /* ── Lifecycle ── */
 
     willUpdate(changed: Map<string, unknown>) {
-        // 内容变化时触发防抖解析
+        // Trigger debounced parsing when content changes
         if (changed.has('content')) {
             this._debouncedParse();
         }
@@ -247,7 +247,7 @@ export class RtcMarkdownEditor extends LitElement {
     }
 
     private _handleKeydown(e: KeyboardEvent) {
-        // Tab 键插入 2 空格
+        // Tab key inserts 2 spaces
         if (e.key === 'Tab') {
             e.preventDefault();
             const textarea = this._textarea;
@@ -286,7 +286,7 @@ export class RtcMarkdownEditor extends LitElement {
         const x = e.clientX - rect.left;
         const percentage = (x / rect.width) * 100;
 
-        // 限制范围 10%-90%
+        // Clamp range to 10%-90%
         this._splitPosition = Math.max(10, Math.min(90, percentage));
     };
 

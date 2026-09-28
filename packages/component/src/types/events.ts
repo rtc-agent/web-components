@@ -1,46 +1,47 @@
 /**
  * RtcAgent Event Type Map
  *
- * 通过全局扩展 HTMLElementEventMap 让 addEventListener 对 <rtc-agent>
- * 派发的自定义事件提供类型安全。
+ * Extends HTMLElementEventMap globally to provide type-safe addEventListener
+ * for custom events dispatched by <rtc-agent>.
  *
- * 设计要点：
- * - 扩展而非重载：保留 HTMLElement 原生事件 + 内部事件（rtc-window-minimize 等）
- *   的类型推导，同时加入 rtc-agent-ready 等公开事件
- * - 新增公开事件只需在 RtcAgentEventMap 里添加一项即可
+ * Design points:
+ * - Extend, don't override: preserve type inference for native HTMLElement events
+ *   and internal events (e.g. rtc-window-minimize), while adding public events
+ *   like rtc-agent-ready.
+ * - To add a new public event, simply add an entry to RtcAgentEventMap.
  *
  * @example
  * ```ts
  * const agent = document.querySelector<RtcAgent>('#agent')!;
  * agent.addEventListener('rtc-agent-ready', (e) => {
- *   e.detail;  // void — 类型安全
+ *   e.detail;  // void -- type-safe
  * });
  * agent.addEventListener('click', (e) => {
- *   e.clientX;  // number — 原生事件仍然类型安全
+ *   e.clientX;  // number -- native events remain type-safe
  * });
- * agent.addEventListener('typo-event', ...);  // ✗ TS 报错
+ * agent.addEventListener('typo-event', ...);  // ✗ TS error
  * ```
  */
 
 /**
- * 公开的自定义事件（供外部宿主应用监听）
+ * Public custom events (for external host application listeners)
  *
- * detail 类型说明：
- * - `void`：事件无 payload
- * - `T`：事件 payload 类型为 T
+ * Detail type explanation:
+ * - `void`: event has no payload
+ * - `T`: event payload type is T
  */
 export interface RtcAgentEventDetailMap {
-  /** 组件首次渲染完成，可以安全地设置 agentConfig / registry */
+  /** Component first render complete; safe to set agentConfig / registry */
   'rtc-agent-ready': void;
-  /** 主题变化（属性变更或 system 跟随系统偏好变化时触发） */
+  /** Theme changed (triggered by attribute change or 'system' following system preference) */
   'rtc-theme-change': { theme: 'light' | 'dark' | 'system' };
-  /** 组件即将从 DOM 移除（在 disconnectedCallback 清理逻辑之前触发） */
+  /** Component is about to be removed from DOM (fires before disconnectedCallback cleanup) */
   'rtc-before-destroy': void;
-  /** 消息发送前拦截（可通过 preventDefault() 取消发送，或修改 detail.message.content） */
+  /** Intercept before message send (cancel via preventDefault(), or modify detail.message.content) */
   'rtc-before-message-send': { message: { content: string; metadata?: Record<string, unknown> } };
 }
 
-// 全局扩展 HTMLElementEventMap，使 addEventListener 自动支持这些事件
+// Globally extend HTMLElementEventMap so addEventListener automatically supports these events
 declare global {
   interface HTMLElementEventMap {
     'rtc-agent-ready': CustomEvent<RtcAgentEventDetailMap['rtc-agent-ready']>;

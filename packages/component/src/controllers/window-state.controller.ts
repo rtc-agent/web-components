@@ -22,7 +22,7 @@ import {createLogger} from '@rtc-agent/client';
 
 const log = createLogger('WindowStateController');
 
-/** 序列化窗口状态时剔除 transient 字段（lastState 在 restore 后无意义） */
+/** Exclude transient fields when serializing window state (lastState is meaningless after restore) */
 type PersistedWindowState = Omit<WindowState, 'lastState'>;
 
 export class WindowStateController implements ReactiveController {
@@ -78,17 +78,17 @@ export class WindowStateController implements ReactiveController {
         this._restoreState();
     }
 
-    /** 更新配置 */
+    /** Update config */
     setConfig(config: ResolvedWindowConfig): void {
         this._config = config;
-        // 如果没有保存的状态，应用默认模式
+        // If no saved state, apply default mode
         if (!this._restored) {
             this._state = {...this._state, mode: config.defaultMode};
             this.host.requestUpdate();
         }
     }
 
-    /** 获取配置 */
+    /** Get config */
     get config(): ResolvedWindowConfig {
         return this._config;
     }
@@ -174,7 +174,7 @@ export class WindowStateController implements ReactiveController {
         try {
             const raw = localStorage.getItem(STORAGE_KEYS.windowState);
             if (!raw) {
-                // 没有保存的状态，应用默认模式
+                // No saved state, apply default mode
                 this._state = {...this._state, mode: this._config.defaultMode};
                 return;
             }
@@ -192,7 +192,7 @@ export class WindowStateController implements ReactiveController {
                 // Clamp to current viewport — devtools / zoom may have changed
                 this._clampToViewport();
             } else {
-                // 保存的状态无效，应用默认模式
+                // Saved state is invalid, apply default mode
                 this._state = {...this._state, mode: this._config.defaultMode};
             }
         } catch (e) {
@@ -203,23 +203,23 @@ export class WindowStateController implements ReactiveController {
     }
 
     /**
-     * 将窗口位置和尺寸限制在当前视口范围内
+     * Clamp window position and size to current viewport bounds
      *
-     * 刷新后浏览器 devtools、缩放比例可能已变化，
-     * 直接恢复上次的位置可能导致窗口溢出视口（如被右侧 devtools 遮挡）。
+     * After refresh, browser devtools/zoom level may have changed;
+     * directly restoring the last position may cause the window to overflow the viewport (e.g., obscured by right-side devtools).
      */
     private _clampToViewport() {
         const vw = window.innerWidth;
         const vh = window.innerHeight;
         const {position, size, mode} = this._state;
 
-        if (mode === 'maximized') return; // maximized 由 CSS inset:0 控制，无需 clamp
+        if (mode === 'maximized') return; // maximized is controlled by CSS inset:0, no clamping needed
 
-        // 限制尺寸不超过视口
+        // Clamp size to not exceed viewport
         const width = Math.min(size.width, vw);
         const height = Math.min(size.height, vh);
 
-        // 限制位置：确保窗口至少部分可见
+        // Clamp position: ensure window is at least partially visible
         const x = Math.max(0, Math.min(position.x, vw - width));
         const y = Math.max(0, Math.min(position.y, vh - height));
 
@@ -297,6 +297,11 @@ export class WindowStateController implements ReactiveController {
                 // Window's bottom-right corner at bubble position
                 x = viewport.width + offset.x - width;
                 y = viewport.height - offset.y - height;
+                break;
+            default:
+                // Fallback: center the window in the viewport
+                x = (viewport.width - width) / 2;
+                y = (viewport.height - height) / 2;
                 break;
         }
 

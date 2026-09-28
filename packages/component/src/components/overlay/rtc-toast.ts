@@ -1,19 +1,19 @@
 /**
  * RTC Toast Component
  *
- * 全局通知组件，用于显示操作反馈（复制成功、错误提示等）。
+ * Global notification component for displaying operation feedback (copy success, error messages, etc.).
  *
- * ## 架构
+ * ## Architecture
  *
- * 事件驱动，不是全局 API：
- * 1. 子组件 dispatch `rtc-toast-requested` 事件
- * 2. `<rtc-agent>` 监听事件，将 toast 推入 `@state()` 数组
- * 3. 本组件响应式渲染 toast 列表
+ * Event-driven, not a global API:
+ * 1. Child component dispatches `rtc-toast-requested` event
+ * 2. `<rtc-agent>` listens for the event and pushes toast into `@state()` array
+ * 3. This component reactively renders the toast list
  *
- * ## 事件接口
+ * ## Event interface
  *
  * ```typescript
- * // 子组件触发
+ * // Child component triggers
  * this.dispatchEvent(new CustomEvent('rtc-toast-requested', {
  *   bubbles: true,
  *   composed: true,
@@ -61,7 +61,7 @@ export class RtcToast extends LitElement {
       flex-direction: column;
       gap: var(--rtc-spacing-sm, 8px);
       pointer-events: none;
-      /* 限制在父容器内 */
+      /* Constrain within parent container */
       max-width: calc(100% - var(--rtc-spacing-lg, 24px) * 2);
     }
 
@@ -140,11 +140,11 @@ export class RtcToast extends LitElement {
 
     .toast-message {
       flex: 1;
-      /* 文本溢出处理：单行截断 */
+      /* Text overflow handling: single-line truncation */
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      /* 限制最大宽度，防止过长内容撑开容器 */
+      /* Limit max width to prevent long content from stretching the container */
       max-width: 400px;
     }
 
@@ -191,7 +191,7 @@ export class RtcToast extends LitElement {
       }
     }
 
-    /* 无障碍：减弱动画 */
+    /* Accessibility: reduced motion */
     @media (prefers-reduced-motion: reduce) {
       .toast-item,
       .toast-item.exiting {

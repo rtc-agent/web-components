@@ -1,11 +1,11 @@
 /**
  * RTC Settings Nav Component
  *
- * 左栏分类导航，支持键盘导航（Arrow Up/Down, Home/End, Enter/Space）。
- * 使用 roving tabindex 模式。
+ * Left-column category navigation, supports keyboard navigation (Arrow Up/Down, Home/End, Enter/Space).
+ * Uses roving tabindex pattern.
  *
  * @element rtc-settings-nav
- * @fires settings-nav-change - 分类切换时触发 (detail: { category })
+ * @fires settings-nav-change - Fired when category changes (detail: { category })
  */
 import {LitElement, html} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
@@ -25,13 +25,13 @@ import { createLogger } from '@rtc-agent/client';
 
 const log = createLogger('SettingsNav');
 
-/** 设置分类 */
+/** Settings category */
 export type SettingsCategory = 'appearance' | 'chat' | 'files' | 'notifications' | 'account' | 'about';
 
 /** Person icon (inline SVG) for the account category */
 const personIcon = html`<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M10.5 5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zm.5 3H5a3 3 0 0 0-3 3v2h12v-2a3 3 0 0 0-3-3z"/></svg>`;
 
-/** 分类定义 */
+/** Category definition */
 interface CategoryDef {
     id: SettingsCategory;
     label: string;
@@ -54,13 +54,13 @@ function getCategories(): CategoryDef[] {
 export class RtcSettingsNav extends LitElement {
     static styles = styles;
 
-    /** delegatesFocus: true — 支持键盘焦点委托 */
+    /** delegatesFocus: true — Supports keyboard focus delegation */
     static shadowRootOptions = {
         ...LitElement.shadowRootOptions,
         delegatesFocus: true,
     };
 
-    /** 当前选中的分类 */
+    /** Currently selected category */
     @property({type: String, reflect: true})
     active: SettingsCategory = 'appearance';
 
@@ -74,7 +74,7 @@ export class RtcSettingsNav extends LitElement {
         locales: [sourceLocale, ...targetLocales],
     };
 
-    /** 处理分类点击 */
+    /** Handle category click */
     private _handleClick(category: SettingsCategory) {
         if (category === this.active) return;
         this.dispatchEvent(
@@ -87,11 +87,11 @@ export class RtcSettingsNav extends LitElement {
     }
 
     /**
-     * 键盘事件处理
+     * Keyboard event handler
      *
-     * - ↑/↓：在分类间移动焦点（roving tabindex）
-     * - Home/End：跳到首/末项
-     * - Enter/Space：激活当前分类
+     * - Arrow Up/Down: move focus between categories (roving tabindex)
+     * - Home/End: jump to first/last item
+     * - Enter/Space: activate current category
      */
     private _handleKeydown(e: KeyboardEvent, current: SettingsCategory) {
         const items = getCategories();
@@ -131,7 +131,7 @@ export class RtcSettingsNav extends LitElement {
         }
     }
 
-    /** 将焦点移到指定分类 */
+    /** Move focus to specified category */
     private _focusCategory(category: SettingsCategory) {
         const el = this.shadowRoot?.querySelector(
             `[data-category="${category}"]`
@@ -139,17 +139,17 @@ export class RtcSettingsNav extends LitElement {
         el?.focus();
     }
 
-    /** 计算 roving tabindex */
+    /** Calculate roving tabindex */
     private _tabIndex(category: SettingsCategory): number {
         return category === this.active ? 0 : -1;
     }
 
     /**
-     * Lit lifecycle: 属性更新后调用。
+     * Lit lifecycle: called after properties are updated.
      *
-     * 当 `active` 被外部直接修改时（如调试工具、父组件设置属性），
-     * 主动派发事件通知父组件同步状态，确保 tabpanel 的 aria-labelledby
-     * 始终指向正确的面板标题。
+     * When `active` is modified externally (e.g., dev tools, parent component setting property),
+     * proactively dispatches event to notify parent component to sync state, ensuring the
+     * tabpanel's aria-labelledby always points to the correct panel title.
      */
     updated(changedProperties: Map<string, unknown>) {
         if (changedProperties.has('active')) {

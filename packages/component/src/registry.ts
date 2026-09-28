@@ -1,4 +1,4 @@
-// Registry 定义和 Function 注册
+// Registry definition and function registration
 import { defineRegistry } from './index.js';
 import { loadTasks, saveTasks, type Task } from './storage.js';
 import { generateUUID, showToast } from './utils.js';
@@ -12,13 +12,13 @@ export const registry = defineRegistry({
     persona: 'You are a helpful task management assistant.'
 });
 
-// 创建 Task Group
+// Create Task Group
 const taskGroup = registry.createGroup({
     name: 'task',
     description: 'Task management operations'
 });
 
-// task.list - 获取任务列表
+// task.list - Get task list
 taskGroup.register({
     name: 'list',
     description: 'List all tasks with optional filtering',
@@ -72,7 +72,7 @@ taskGroup.register({
     }
 });
 
-// task.get - 获取单个任务
+// task.get - Get a single task
 taskGroup.register({
     name: 'get',
     description: 'Get a specific task by ID',
@@ -111,7 +111,7 @@ taskGroup.register({
     }
 });
 
-// task.create - 创建任务
+// task.create - Create a task
 taskGroup.register({
     name: 'create',
     description: 'Create a new task',
@@ -173,7 +173,7 @@ taskGroup.register({
     }
 });
 
-// task.update - 更新任务
+// task.update - Update a task
 taskGroup.register({
     name: 'update',
     description: 'Update an existing task',
@@ -246,7 +246,7 @@ taskGroup.register({
     }
 });
 
-// task.delete - 删除任务
+// task.delete - Delete a task
 taskGroup.register({
     name: 'delete',
     description: 'Delete a task',

@@ -1,7 +1,7 @@
 /**
  * Scenario Loader
  *
- * 从 URL 加载 Scenario markdown 文件
+ * Loads Scenario markdown files from a URL
  */
 
 import type { ScenarioManifest } from '../types/skill.js';
@@ -12,18 +12,18 @@ import {createLogger} from '@rtc-agent/client';
 const log = createLogger('ScenarioLoader');
 
 /**
- * 解析 YAML frontmatter
+ * Parse YAML frontmatter
  *
- * 格式：
+ * Format:
  * ---
- * title: "标题"
+ * title: "Title"
  * tags: [tag1, tag2]
  * ---
  *
- * 内容...
+ * Content...
  *
- * 支持的字段：title, id, name, description, tags, author, createdAt
- * 限制：不支持多行值、复杂 YAML 结构
+ * Supported fields: title, id, name, description, tags, author, createdAt
+ * Limitations: does not support multi-line values or complex YAML structures
  */
 export function parseFrontmatter(content: string): {
   id?: string;
@@ -35,7 +35,7 @@ export function parseFrontmatter(content: string): {
   createdAt?: string;
   body: string;
 } {
-  // 支持 \r\n 和 \n 换行符，支持末尾没有换行符
+  // Supports \r\n and \n line endings, supports no trailing newline
   const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
 
   if (!match) {
@@ -56,7 +56,7 @@ export function parseFrontmatter(content: string): {
     body: string;
   } = { body };
 
-  // 简单解析 YAML（不引入 gray-matter 依赖）
+  // Simple YAML parsing (without gray-matter dependency)
   const lines = yamlStr.split(/\r?\n/);
   for (const line of lines) {
     const colonIndex = line.indexOf(':');
@@ -65,7 +65,7 @@ export function parseFrontmatter(content: string): {
     const key = line.substring(0, colonIndex).trim();
     let value = line.substring(colonIndex + 1).trim();
 
-    // 移除引号
+    // Strip quotes
     if (value.startsWith('"') && value.endsWith('"')) {
       value = value.slice(1, -1);
     }
@@ -86,7 +86,7 @@ export function parseFrontmatter(content: string): {
         result.description = value;
         break;
       case 'tags':
-        // 解析数组格式：[tag1, tag2] 或 tag1, tag2
+        // Parse array format: [tag1, tag2] or tag1, tag2
         if (value.startsWith('[') && value.endsWith(']')) {
           value = value.slice(1, -1);
         }
@@ -108,7 +108,7 @@ export function parseFrontmatter(content: string): {
 }
 
 /**
- * 带超时的 fetch
+ * Fetch with timeout
  */
 async function fetchWithTimeout(url: string, timeoutMs: number = 10000): Promise<Response> {
   const controller = new AbortController();
@@ -123,19 +123,19 @@ async function fetchWithTimeout(url: string, timeoutMs: number = 10000): Promise
 }
 
 /**
- * 从 URL 加载 Scenarios
+ * Load Scenarios from URL
  *
- * @param baseURL Scenario 文件的基础 URL（如 '/scenarios/'）
- * @param timeoutMs 每个请求的超时时间（毫秒，默认 10000）
- * @returns 加载的 Scenario 数量
+ * @param baseURL Base URL for Scenario files (e.g. '/scenarios/')
+ * @param timeoutMs Timeout per request in milliseconds (default 10000)
+ * @returns Number of Scenarios loaded
  */
 export async function loadScenariosFromURL(baseURL: string, timeoutMs: number = 10000): Promise<number> {
-  // 确保 baseURL 以 / 结尾
+  // Ensure baseURL ends with /
   if (!baseURL.endsWith('/')) {
     baseURL += '/';
   }
 
-  // 尝试加载 manifest.json
+  // Try loading manifest.json
   let manifest: ScenarioManifest | null = null;
 
   try {
@@ -156,16 +156,16 @@ export async function loadScenariosFromURL(baseURL: string, timeoutMs: number = 
   let filesToLoad: string[];
 
   if (manifest && manifest.scenarios) {
-    // 使用 manifest 中的文件列表
+    // Use file list from manifest
     filesToLoad = manifest.scenarios.map(s => s.file);
   } else {
-    // 如果没有 manifest，尝试扫描目录（假设有一个列表接口）
-    // 这里简化处理：要求宿主应用提供文件列表或使用 manifest
+    // No manifest — try scanning directory (assumes a list endpoint exists)
+    // Simplified: requires host app to provide file list or use manifest
     log.warn('No manifest.json found. Please provide manifest.json or use writeScenario() API.');
     return 0;
   }
 
-  // 加载每个 Scenario 文件
+  // Load each Scenario file
   let loadedCount = 0;
 
   for (const file of filesToLoad) {
@@ -181,19 +181,19 @@ export async function loadScenariosFromURL(baseURL: string, timeoutMs: number = 
       const content = await response.text();
       const parsed = parseFrontmatter(content);
 
-      // 生成文件名（使用原始文件名）
+      // Generate filename (use original filename)
       const filename = file.endsWith('.md') ? file : `${file}.md`;
       const path = `/scenarios/${filename}`;
 
-      // 构建元数据（类型对齐 FileSystemEntryMetadata，避免 any 逃逸）
-      // 注：FileSystemEntryMetadata 无 author 字段，author 信息保留在 frontmatter 原文中
+      // Build metadata (aligned to FileSystemEntryMetadata to avoid `any` escape)
+      // Note: FileSystemEntryMetadata has no author field; author info is preserved in original frontmatter
       const metadata: Partial<FileSystemEntryMetadata> = {
         name: parsed.title ?? parsed.name,
         description: parsed.description,
         tags: parsed.tags,
       };
 
-      // 写入虚拟文件系统（使用新的 metadataOverride 参数）
+      // Write to virtual file system (uses new metadataOverride parameter)
       await virtualFS.write(path, content, 'overwrite', metadata);
 
       loadedCount++;
@@ -202,7 +202,7 @@ export async function loadScenariosFromURL(baseURL: string, timeoutMs: number = 
       if (err instanceof Error && err.name === 'AbortError') {
         log.error(`Timeout loading ${file}`);
       } else if (err instanceof Error && err.message.includes('getDatabase() called without a name')) {
-        // 数据库尚未初始化——预期的时序问题，后续 connectedCallback 会重新加载
+        // Database not yet initialized — expected timing issue, connectedCallback will reload later
         continue;
       } else {
         log.error(`Error loading ${file}:`, err);
@@ -210,7 +210,7 @@ export async function loadScenariosFromURL(baseURL: string, timeoutMs: number = 
     }
   }
 
-  // 更新 Scenarios 索引
+  // Update Scenarios index
   if (loadedCount > 0) {
     await updateScenariosIndex();
   }
@@ -220,14 +220,14 @@ export async function loadScenariosFromURL(baseURL: string, timeoutMs: number = 
 }
 
 /**
- * 从 URL 加载 Scenarios 内容（不写入 VirtualFS），并计算需要删除的孤儿路径
+ * Load Scenarios content from URL (without writing to VirtualFS), and compute orphan paths to delete
  *
- * 使用方式：主线程获取内容，通过 WorkerBridge.batchWriteFiles() 发送到 Worker 写入。
- * 同时查询 VFS 中已有的 scenario 文件，计算不在 manifest 中的孤儿路径，一并传给 Worker 删除。
+ * Usage: main thread fetches content, then sends it via WorkerBridge.batchWriteFiles() to the Worker for writing.
+ * Also queries existing scenario files in VFS to compute orphan paths not in the manifest, passing them to the Worker for deletion.
  *
- * @param baseURL Scenario 文件的基础 URL
- * @param timeoutMs 每个请求的超时时间
- * @returns files: 要写入的文件列表, deletePaths: 要删除的孤儿路径
+ * @param baseURL Base URL for Scenario files
+ * @param timeoutMs Timeout per request
+ * @returns files: files to write, deletePaths: orphan paths to delete
  */
 export async function loadScenariosContent(
   baseURL: string,
@@ -236,12 +236,12 @@ export async function loadScenariosContent(
   files: Array<{path: string; content: string; metadata: {name?: string; description?: string; tags?: string[]}}>
   deletePaths: string[];
 }> {
-  // 确保 baseURL 以 / 结尾
+  // Ensure baseURL ends with /
   if (!baseURL.endsWith('/')) {
     baseURL += '/';
   }
 
-  // 尝试加载 manifest.json
+  // Try loading manifest.json
   let manifest: ScenarioManifest | null = null;
 
   try {
@@ -298,7 +298,7 @@ export async function loadScenariosContent(
     }
   }
 
-  // 计算孤儿路径：VFS 中已有的 scenario 文件，但不在当前 manifest 中
+  // Compute orphan paths: existing scenario files in VFS not in the current manifest
   let deletePaths: string[] = [];
   try {
     const currentPaths = new Set(files.map(f => f.path));
@@ -317,13 +317,13 @@ export async function loadScenariosContent(
 }
 
 /**
- * 更新 Scenarios 索引
+ * Update Scenarios index
  */
 async function updateScenariosIndex(): Promise<void> {
-  // 查询所有 scenario 文件
+  // Query all scenario files
   const scenarios = await virtualFS.queryByType('scenario');
 
-  // 使用 markdown-generator 中的共享函数（静态导入，已在文件顶部引入）
+  // Use shared function from markdown-generator (static import, already imported at top of file)
   const md = generateScenariosIndex(scenarios);
 
   await virtualFS.write('/scenarios/INDEX.md', md, 'overwrite');

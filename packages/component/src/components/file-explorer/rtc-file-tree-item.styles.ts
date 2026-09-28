@@ -1,10 +1,10 @@
 import {css} from 'lit';
 
 /**
- * File Tree Item 样式
+ * File Tree Item styles
  *
- * 颜色使用项目 Tokens，确保双主题适配。
- * 文件夹图标使用 VS Code 风格金色（#dcb67a），文件图标使用蓝色（#519aba）。
+ * Colors use project Tokens to ensure dual-theme compatibility.
+ * Folder icons use VS Code style gold (#dcb67a), file icons use blue (#519aba).
  */
 export const styles = css`
     :host {
@@ -54,7 +54,7 @@ export const styles = css`
         background-color: var(--rtc-color-accent);
     }
 
-    /* Chevron (展开/折叠箭头) */
+    /* Chevron (expand/collapse arrow) */
     .chevron {
         width: 16px;
         height: 16px;
@@ -75,13 +75,13 @@ export const styles = css`
         transform: rotate(90deg);
     }
 
-    /* 占位（文件项无 chevron，用 indent 对齐） */
+    /* Placeholder (file item has no chevron, use indent to align) */
     .indent {
         width: 16px;
         flex-shrink: 0;
     }
 
-    /* 图标 */
+    /* Icon */
     .icon {
         width: 16px;
         height: 16px;
@@ -114,7 +114,7 @@ export const styles = css`
         color: var(--rtc-color-icon-file-js);
     }
 
-    /* 文件名 */
+    /* File name */
     .label {
         flex: 1;
         white-space: nowrap;
@@ -124,7 +124,7 @@ export const styles = css`
         line-height: 28px;
     }
 
-    /* 加载指示器 */
+    /* Loading indicator */
     .spinner {
         width: 14px;
         height: 14px;
@@ -141,13 +141,13 @@ export const styles = css`
         }
     }
 
-    /* 子节点容器 */
+    /* Child nodes container */
     .children {
         display: block;
         background-color: inherit;
     }
 
-    /* 暗色模式适配 */
+    /* Dark mode adaptation */
     :host([theme="dark"]) .tree-item-content {
         color: var(--rtc-color-text-primary, #cccccc);
     }
@@ -165,7 +165,7 @@ export const styles = css`
         color: var(--rtc-color-text-secondary, #888);
     }
 
-    /* 亮色模式适配 */
+    /* Light mode adaptation */
     :host([theme="light"]) .tree-item-content {
         color: var(--rtc-color-text-primary, #333333);
     }

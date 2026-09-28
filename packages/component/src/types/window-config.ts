@@ -1,89 +1,89 @@
 /**
  * Window Configuration Types
  *
- * 用于 <rtc-agent> 组件的窗口配置 API。
- * 控制窗口的默认状态、尺寸、位置、交互限制等。
+ * Window configuration API for the <rtc-agent> component.
+ * Controls the window's default state, size, position, interaction constraints, etc.
  */
 
 /**
- * Bubble 位置配置
+ * Bubble position configuration
  *
- * 使用数学笛卡尔坐标系：
- * - 原点在宿主应用的某个角（由 corner 决定）
- * - x 轴：右正左负
- * - y 轴：上正下负（数学坐标系，非屏幕坐标系）
+ * Uses a mathematical Cartesian coordinate system:
+ * - Origin is at one corner of the host application (determined by `corner`)
+ * - x-axis: positive to the right, negative to the left
+ * - y-axis: positive upward, negative downward (mathematical, not screen coordinates)
  *
- * 象限分布：
- * - top-left: 第四象限 (x>0, y<0)
- * - top-right: 第三象限 (x<0, y<0)
- * - bottom-left: 第一象限 (x>0, y>0)
- * - bottom-right: 第二象限 (x<0, y>0)
+ * Quadrant distribution:
+ * - top-left: Quadrant IV (x>0, y<0)
+ * - top-right: Quadrant III (x<0, y<0)
+ * - bottom-left: Quadrant I (x>0, y>0)
+ * - bottom-right: Quadrant II (x<0, y>0)
  */
 export type BubbleCorner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
 export interface BubblePosition {
-    /** 坐标系原点在宿主应用的哪个角 */
+    /** Which corner of the host application is the coordinate origin */
     corner: BubbleCorner;
-    /** 相对于原点的偏移（数学笛卡尔坐标） */
+    /** Offset relative to the origin (mathematical Cartesian coordinates) */
     offset: { x: number; y: number };
 }
 
 /**
- * 窗口配置
+ * Window configuration
  *
- * 通过 <rtc-agent>.windowConfig 属性设置。
+ * Set via the <rtc-agent>.windowConfig property.
  */
 export interface WindowConfig {
-    // ── 默认状态 ──────────────────────────────────────
+    // ── Default State ──
 
-    /** 默认窗口模式 */
+    /** Default window mode */
     defaultMode?: 'normal' | 'maximized' | 'minimized';
 
-    /** 初始位置（仅 normal 模式生效） */
+    /** Initial position (only effective in normal mode) */
     initialPosition?: { x: number; y: number };
 
-    /** 初始尺寸（仅 normal 模式生效） */
+    /** Initial size (only effective in normal mode) */
     initialSize?: { width: number; height: number };
 
-    // ── 尺寸限制 ──────────────────────────────────────
+    // ── Size Limits ──
 
-    /** 最小宽度 */
+    /** Minimum width */
     minWidth?: number;
 
-    /** 最小高度 */
+    /** Minimum height */
     minHeight?: number;
 
-    /** 最大宽度（默认视口宽度） */
+    /** Maximum width (defaults to viewport width) */
     maxWidth?: number;
 
-    /** 最大高度（默认视口高度） */
+    /** Maximum height (defaults to viewport height) */
     maxHeight?: number;
 
-    // ── 交互控制 ──────────────────────────────────────
+    // ── Interaction Controls ──
 
-    /** 是否允许拖拽（默认 true） */
+    /** Whether dragging is allowed (default: true) */
     draggable?: boolean;
 
-    /** 是否允许调整大小（默认 true） */
+    /** Whether resizing is allowed (default: true) */
     resizable?: boolean;
 
-    // ── 按钮控制 ──────────────────────────────────────
+    // ── Button Controls ──
 
-    /** 是否显示最小化按钮（默认 true） */
+    /** Whether to show the minimize button (default: true) */
     showMinimize?: boolean;
 
-    /** 是否显示最大化按钮（默认 true） */
+    /** Whether to show the maximize button (default: true) */
     showMaximize?: boolean;
 
-    /** 是否显示关闭按钮（默认 false，关闭=最小化） */
+    /** Whether to show the close button (default: false; close = minimize) */
     showClose?: boolean;
 
-    // ── 嵌入模式 ──────────────────────────────────────
+    // ── Embedded Mode ──
 
     /**
-     * 嵌入模式（禁用所有窗口交互）
+     * Embedded mode (disables all window interaction)
      *
-     * 等同于：
+     * Equivalent to:
      * - draggable: false
      * - resizable: false
      * - showMinimize: false
@@ -93,19 +93,19 @@ export interface WindowConfig {
      */
     embedded?: boolean;
 
-    // ── Bubble 位置 ──────────────────────────────────────
+    // ── Bubble Position ──
 
     /**
-     * 最小化 bubble 的位置配置
+     * Minimized bubble position configuration
      *
-     * 使用数学笛卡尔坐标系，原点在宿主应用的某个角。
-     * 默认值：{ corner: 'bottom-right', offset: { x: -20, y: 20 } }
+     * Uses a mathematical Cartesian coordinate system with the origin at one corner of the host application.
+     * Default: { corner: 'bottom-right', offset: { x: -20, y: 20 } }
      */
     bubblePosition?: BubblePosition;
 }
 
 /**
- * 解析后的窗口配置（所有字段都有默认值）
+ * Resolved window configuration (all fields have defaults)
  */
 export interface ResolvedWindowConfig {
     defaultMode: 'normal' | 'maximized' | 'minimized';
@@ -125,11 +125,11 @@ export interface ResolvedWindowConfig {
 }
 
 /**
- * 默认窗口配置
+ * Default window configuration
  */
 export const DEFAULT_WINDOW_CONFIG: ResolvedWindowConfig = {
     defaultMode: 'normal',
-    initialPosition: { x: -1, y: -1 },  // -1 表示使用默认计算逻辑（右下角）
+    initialPosition: { x: -1, y: -1 },  // -1 means use default calculation logic (bottom-right corner)
     initialSize: { width: 420, height: 640 },
     minWidth: 350,
     minHeight: 520,
@@ -141,18 +141,18 @@ export const DEFAULT_WINDOW_CONFIG: ResolvedWindowConfig = {
     showMaximize: true,
     showClose: false,
     embedded: false,
-    bubblePosition: { corner: 'bottom-right', offset: { x: -20, y: 20 } },  // 右下角向内偏移 20px
+    bubblePosition: { corner: 'bottom-right', offset: { x: -20, y: 20 } },  // Bottom-right corner inset 20px
 };
 
 /**
- * 解析窗口配置（合并默认值）
+ * Resolve window configuration (merge with defaults)
  *
- * embedded: true 会覆盖交互相关配置
+ * embedded: true overrides interaction-related settings.
  */
 export function resolveWindowConfig(config?: WindowConfig): ResolvedWindowConfig {
     if (!config) return { ...DEFAULT_WINDOW_CONFIG };
 
-    // embedded 模式：禁用所有交互
+    // embedded mode: disable all interactions
     if (config.embedded) {
         return {
             ...DEFAULT_WINDOW_CONFIG,

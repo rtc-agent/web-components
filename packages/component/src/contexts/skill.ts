@@ -1,25 +1,25 @@
 /**
  * Skill Context
  *
- * 提供 Skill 系统状态给子组件
+ * Provides Skill system state to child components
  *
  * Provided by: <rtc-agent> (root)
- * Consumed by: 未来的 Skill 面板、Function 列表组件等
+ * Consumed by: future Skill panels, Function list components, etc.
  */
 
 import { createContext } from '@lit/context';
 import type { FunctionRegistry } from '../core/function-registry.js';
 
 /**
- * Skill Context 值
+ * Skill Context value
  */
 export interface SkillContextValue {
-  /** Function 注册表实例 */
+  /** Function registry instance */
   registry: FunctionRegistry | null;
 }
 
 /**
- * Skill Context 默认值
+ * Skill Context default value
  */
 export const DEFAULT_SKILL_STATE: SkillContextValue = {
   registry: null,

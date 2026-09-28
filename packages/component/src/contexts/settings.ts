@@ -1,10 +1,10 @@
 import {createContext} from '@lit/context';
 
 /**
- * Settings Context — 全局设置状态和操作
+ * Settings Context — global settings state and actions
  *
  * Provided by: <rtc-agent> (root)
- * Consumed by: <rtc-settings-layout>, 各功能组件
+ * Consumed by: <rtc-settings-layout>, various feature components
  */
 
 export interface SettingsState {

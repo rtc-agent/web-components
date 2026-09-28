@@ -1,43 +1,43 @@
 /**
- * RTC Agent 主题 — 白天（亮色）
+ * RTC Agent Theme — Day (Light)
  *
- * 产品品牌色：
- *   - 主色（蓝天）：#2741FE
- *   - 警告（橙色行星）：#F97802
- *   - 信息（亮蓝）：#2AC9FF
- *   - 成功（绿色）：#4CAF50
- *   - 错误（红色）：#F44336
- *   - 文字（夜空极深色）：#1A1A2E
+ * Product brand colors:
+ *   - Primary (sky blue): #2741FE
+ *   - Warning (orange planet): #F97802
+ *   - Info (bright blue): #2AC9FF
+ *   - Success (green): #4CAF50
+ *   - Error (red): #F44336
+ *   - Text (deep night sky): #1A1A2E
  */
 import {css} from 'lit';
 
 export const lightTheme = css`
     :host {
-        /* 背景 */
+        /* Background */
         --rtc-color-bg: #FFFFFF;
         --rtc-color-bg-secondary: #F5F5F5;
         --rtc-color-bg-tertiary: #E8E8E8;
         --rtc-color-bg-hover: #EEEEEE;
         --rtc-color-bg-active: #E0E0E0;
 
-        /* 主色 */
+        /* Primary */
         --rtc-color-primary: #2741FE;
         --rtc-color-primary-hover: #4A5FFE;
         --rtc-color-primary-active: #1E35D4;
         --rtc-color-primary-rgb: 39 65 254;
 
-        /* 文字 */
+        /* Text */
         --rtc-color-text: #1A1A2E;
         --rtc-color-text-secondary: #555570;
         --rtc-color-text-tertiary: #8888A0;
         --rtc-color-text-inverse: #FFFFFF;
 
-        /* 边框 */
+        /* Border */
         --rtc-color-border: #E0E0E0;
         --rtc-color-border-hover: #D0D0D0;
         --rtc-color-border-focus: #2741FE;
 
-        /* 语义 */
+        /* Semantic */
         --rtc-color-success: #4CAF50;
         --rtc-color-warning: #F97802;
         --rtc-color-error: #F44336;
@@ -54,7 +54,7 @@ export const lightTheme = css`
         --rtc-color-toolcall-6: #E91E63; /* pink */
         --rtc-color-toolcall-7: #8BC34A; /* lime */
 
-        /* 遮罩 */
+        /* Backdrop */
         --rtc-color-backdrop: rgba(0,0,0,0.3);
     }
 `;

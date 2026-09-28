@@ -38,13 +38,13 @@ describe('i18n core', () => {
     it('localStorage 值非法时回退', async () => {
       localStorage.setItem('rtc-agent-locale', 'invalid-locale');
       await initLocale();
-      // 回退到浏览器语言或 sourceLocale
+      // Fall back to browser language or sourceLocale
       expect(['zh-CN', 'en-US']).toContain(document.documentElement.lang);
     });
 
     it('无 localStorage 时回退到浏览器语言或 sourceLocale', async () => {
       await initLocale();
-      // navigator.language 可能是 zh-CN 或 en-US 等
+      // navigator.language may be zh-CN, en-US, etc.
       expect(['zh-CN', 'en-US']).toContain(document.documentElement.lang);
     });
   });

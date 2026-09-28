@@ -42,11 +42,11 @@ export class ToolCallController implements ReactiveController {
     hostDisconnected() {}
 
     /**
-     * 添加待处理的 tool call。
+     * Add a pending tool call.
      *
-     * **注意**：此方法不在 `ToolCallActions` 接口中，不通过 Context 暴露。
-     * 仅供协议层（未来）和 demo 页面（task19）直接调用 Controller 使用。
-     * 用户触发的 tool call 操作（approve/deny）仍通过 Context actions。
+     * **Note**: This method is not in the `ToolCallActions` interface and is not exposed via Context.
+     * It is only for direct use by the protocol layer (future) and demo page (task19) calling the Controller.
+     * User-triggered tool call operations (approve/deny) still go through Context actions.
      */
     addPendingCall(call: ToolCall) {
         this._state = {

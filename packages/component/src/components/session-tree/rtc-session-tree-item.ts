@@ -1,16 +1,16 @@
 /**
- * Session Tree Item — 单个会话树节点
+ * Session Tree Item — a single session tree node
  *
- * 递归渲染：如果 node 有 children 且 isExpanded，渲染子节点列表。
- * 根节点显示文件夹图标，叶子节点显示会话图标。
+ * Recursive rendering: if node has children and isExpanded, renders child node list.
+ * Root nodes display a folder icon, leaf nodes display a session icon.
  *
- * 样式模式完全参考 rtc-file-tree-item.ts。
+ * Style patterns fully reference rtc-file-tree-item.ts.
  *
  * @element rtc-session-tree-item
- * @fires rtc-session-tree-item-select - 点击会话（detail: { sessionId }）
- * @fires rtc-session-tree-item-toggle - 点击展开/折叠（detail: { sessionId }）
- * @fires rtc-session-tree-item-rename - 确认重命名（detail: { sessionId, title }）
- * @fires rtc-session-tree-item-delete - 点击删除（detail: { sessionId }）
+ * @fires rtc-session-tree-item-select - Clicked on session (detail: { sessionId })
+ * @fires rtc-session-tree-item-toggle - Clicked expand/collapse (detail: { sessionId })
+ * @fires rtc-session-tree-item-rename - Confirmed rename (detail: { sessionId, title })
+ * @fires rtc-session-tree-item-delete - Clicked delete (detail: { sessionId })
  */
 import {LitElement, html, nothing, svg} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
@@ -38,7 +38,7 @@ import { createLogger } from '@rtc-agent/client';
 
 const log = createLogger('SessionTreeItem');
 
-// 内联 chevron SVG（与 rtc-file-tree-item 保持一致）
+// Inline chevron SVG (consistent with rtc-file-tree-item)
 const chevronSvg = svg`<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
     <path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>`;
@@ -67,11 +67,11 @@ export class RtcSessionTreeItem extends LitElement {
     @property({type: String, attribute: 'selected-session-id'})
     selectedSessionId: string | null = null;
 
-    /** 主题：light / dark / system */
+    /** Theme: light / dark / system */
     @property({type: String, reflect: true})
     theme: 'light' | 'dark' | 'system' = 'system';
 
-    /** 内联重命名模式 */
+    /** Inline rename mode */
     @state()
     private _isRenaming = false;
 
@@ -79,9 +79,9 @@ export class RtcSessionTreeItem extends LitElement {
     private _renameValue = '';
 
     private _handleClick() {
-        // 重命名模式下不响应主体点击
+        // Don't respond to main click in rename mode
         if (this._isRenaming) return;
-        // 点击主体（包括文件夹和叶子）只选中，不展开/折叠
+        // Clicking on main area (including folders and leaves) only selects, doesn't expand/collapse
         this.dispatchEvent(
             new CustomEvent('rtc-session-tree-item-select', {
                 bubbles: true,
@@ -106,7 +106,7 @@ export class RtcSessionTreeItem extends LitElement {
         e.stopPropagation();
         this._renameValue = this.node.session.title || '';
         this._isRenaming = true;
-        // 下一帧聚焦 input
+        // Focus input on next frame
         requestAnimationFrame(() => {
             const input = this.shadowRoot?.querySelector('.rename-input') as HTMLInputElement | null;
             input?.focus();
@@ -118,7 +118,7 @@ export class RtcSessionTreeItem extends LitElement {
         e.stopPropagation();
         const title = this._renameValue.trim();
         if (!title) {
-            // 标题为空时取消而非确认
+            // Cancel instead of confirming when title is empty
             this._handleRenameCancel(e);
             return;
         }

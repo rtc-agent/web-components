@@ -6,20 +6,20 @@
  *
  * Markdown parsing is lazy-loaded (Lit best-practice 7-3).
  *
- * ## Layout model (时间线布局)
+ * ## Layout model (Timeline layout)
  *
- * DOM 结构：
- *   .timeline-item (position: relative, padding-left 给 dot + 竖线留位)
- *     ├── .timeline-dot          (absolute, 与竖线共享 left 参考系)
- *     ├── ::before               (竖线, 绝对定位伪元素)
+ * DOM structure:
+ *   .timeline-item (position: relative, padding-left reserves space for dot + vertical line)
+ *     ├── .timeline-dot          (absolute, shares left reference frame with the vertical line)
+ *     ├── ::before               (vertical line, absolutely positioned pseudo-element)
  *     └── .timeline-content
- *           └── div              (rendered-HTML 包裹层)
- *                 └── <p>/<h1>/... (Markdown 渲染出的块级元素)
+ *           └── div              (rendered-HTML wrapper layer)
+ *                 └── <p>/<h1>/... (block-level elements produced by Markdown rendering)
  *
- * 对齐原理（详见 rtc-message.styles.ts 注释）：
- *   - 竖线 center X = 15px（left: 14px + width 2px 的一半）
- *   - dot center X    = 15px（left: 15px + translateX(-50%)）
- *   - dot center Y    ≈ 首行文本行高中点 Y（top: 9px，基于默认 token 计算）
+ * Alignment principle (see rtc-message.styles.ts comments for details):
+ *   - vertical line center X = 15px (left: 14px + half of width 2px)
+ *   - dot center X             = 15px (left: 15px + translateX(-50%))
+ *   - dot center Y             ≈ first-line text line-height midpoint Y (top: 9px, based on default token calculation)
  *
  * @element rtc-message
  * @csspart dot - The timeline dot
@@ -62,21 +62,22 @@ export class RtcMessage extends LitElement implements StatefulComponent {
     isLast = false;
 
     /**
-     * Markdown 经 marked + DOMPurify 处理后得到的安全 HTML 字符串。
+     * Safe HTML string produced by processing Markdown through marked + DOMPurify.
      *
-     * 为什么需要这个中间 state，而不是直接渲染 message.content？
-     * 1. marked + DOMPurify 通过动态 import 懒加载（首次加载是异步的）
-     * 2. 解析结果需要在异步完成后才可用
-     * 3. 使用 @state 让结果可用时自动触发重渲染
+     * Why is this intermediate @state needed instead of rendering message.content directly?
+     * 1. marked + DOMPurify are lazy-loaded via dynamic import (first load is async)
+     * 2. Parse results are only available after async completion
+     * 3. Using @state triggers automatic re-render when results become available
      */
     @state()
     private _renderedHtml = '';
 
     /**
-     * Thinking 内容的折叠状态。
+     * Collapse state for thinking content.
      *
-     * 默认折叠（false）。streaming 期间用户可以手动展开查看实时思考过程，
-     * streaming 结束后保持用户的当前选择，不自动切换。
+     * Default collapsed (false). During streaming, user can manually expand to view
+     * real-time thinking process. After streaming ends, the user's current choice
+     * is preserved without automatic switching.
      */
     @state()
     private _thinkingExpanded = false;
@@ -108,15 +109,15 @@ export class RtcMessage extends LitElement implements StatefulComponent {
     private _lastParsedContent: string = '';
 
     /**
-     * 只在 message 变化时重新解析 Markdown。
+     * Only re-parse Markdown when message changes.
      *
-     * 为什么不监听所有属性？
-     * - isLast 只影响外层 class（success 状态），不影响内容渲染
-     * - 监听所有属性会导致 isLast 变化时也重新跑一遍 marked + DOMPurify，浪费性能
+     * Why not watch all properties?
+     * - isLast only affects outer class (success state), not content rendering
+     * - Watching all properties would cause marked + DOMPurify to re-run on isLast changes, wasting performance
      */
     willUpdate(changed: Map<string, unknown>) {
         if (changed.has('message')) {
-            // Prompt 类型不需要 Markdown 解析，跳过以节省 CPU
+            // Prompt type doesn't need Markdown parsing, skip to save CPU
             if (this.message.content?.type !== 'prompt') {
                 this._parseMarkdown();
             }
@@ -133,7 +134,7 @@ export class RtcMessage extends LitElement implements StatefulComponent {
             return;
         }
 
-        // Prompt 类型不需要 Markdown 解析，直接跳过（防御性兜底）
+        // Prompt type doesn't need Markdown parsing, skip directly (defensive fallback)
         if (contentData.type === 'prompt') {
             this._renderedHtml = '';
             this._lastParsedContent = '';
@@ -157,12 +158,13 @@ export class RtcMessage extends LitElement implements StatefulComponent {
         this._lastParsedContent = content;
 
         /*
-         * 懒加载 marked + DOMPurify + highlight.js 三件套（首次异步，之后复用）。
+         * Lazy-load the marked + DOMPurify + highlight.js trio (first load is async, then reused).
          *
-         * 为什么三个一起懒加载而不是分开？
-         *   它们共同构成"Markdown → 安全 HTML → 着色 HTML"的完整流水线，
-         *   任一缺失都无法渲染出最终的彩色消息。首次渲染时一次性加载，
-         *   后续只付解析 + 高亮 + 消毒的 CPU 成本，无网络 I/O。
+         * Why lazy-load all three together instead of separately?
+         *   Together they form the complete "Markdown → safe HTML → highlighted HTML" pipeline.
+         *   If any one is missing, the final colored message cannot be rendered. Load them all
+         *   in one go on first render; subsequent parses only pay CPU cost for
+         *   parsing + highlighting + sanitizing, no network I/O.
          */
         if (!this._modulesPromise) {
             this._modulesPromise = Promise.all([
@@ -181,9 +183,9 @@ export class RtcMessage extends LitElement implements StatefulComponent {
         // Guard: if content changed while we awaited, discard this result.
         if (generation !== this._parseGeneration) return;
 
-        // marked.parse 在异步模式下返回 Promise<string>，同步模式下返回
-        // string | undefined。我们调用时未 await，故 cast 为 string；但 DOMPurify
-        // 对 null/undefined 输入会抛出 TypeError，所以必须在此处兜底。
+        // marked.parse returns Promise<string> in async mode and
+        // string | undefined in sync mode. We call it without await, hence cast to string;
+        // but DOMPurify throws TypeError on null/undefined input, so we must guard here.
         let rawHtml: string;
         try {
             rawHtml = (marked.parse(content) as string) ?? '';
@@ -195,27 +197,27 @@ export class RtcMessage extends LitElement implements StatefulComponent {
         // Guard again — parsing is async; content may have changed during parse.
         if (generation !== this._parseGeneration) return;
 
-        // 在 DOMPurify 之前高亮：hljs 添加的 <span class="hljs-*"> 会被保留，
-        // 潜在的恶意脚本会被后续 DOMPurify 清除。顺序不能反过来。
+        // Highlight before DOMPurify: hljs adds <span class="hljs-*"> which are preserved,
+        // while potentially malicious scripts are removed by subsequent DOMPurify. The order cannot be reversed.
         const highlighted = this._highlightCodeBlocks(rawHtml, hljs);
 
         this._renderedHtml = DOMPurify.sanitize(highlighted);
     }
 
     /**
-     * 对 Markdown 渲染出的所有 <pre><code> 块应用 highlight.js 语法高亮。
+     * Apply highlight.js syntax highlighting to all <pre><code> blocks from Markdown rendering.
      *
-     * 流程：
-     *   1. DOMParser 把 HTML 字符串解析成 DOM
-     *   2. 遍历所有 <pre><code> 元素
-     *   3. 调用 hljs.highlightElement()，它会根据 <code> 的 class
-     *      （如 language-javascript）选择语言，否则自动检测
-     *   4. 序列化回 HTML 字符串
+     * Flow:
+     *   1. DOMParser parses HTML string into DOM
+     *   2. Iterate all <pre><code> elements
+     *   3. Call hljs.highlightElement(), which selects language based on <code>'s class
+     *      (e.g. language-javascript), otherwise auto-detects
+     *   4. Serialize back to HTML string
      *
-     * 为什么用 DOMParser 而不是正则？
-     *   - 正则无法正确处理嵌套标签、HTML 实体、language hint 属性
-     *   - DOMParser 由浏览器原生实现，性能足够（代码块不会很大）
-     *   - highlight.js 的官方 API 就是面向 DOM 元素的 highlightElement()
+     * Why use DOMParser instead of regex?
+     *   - Regex cannot correctly handle nested tags, HTML entities, language hint attributes
+     *   - DOMParser is natively implemented by the browser, performance is sufficient (code blocks aren't large)
+     *   - highlight.js's official API is the DOM-element-oriented highlightElement()
      */
     private _highlightCodeBlocks(html: string, hljs: typeof import('../../utils/highlight-languages.js').default): string {
         if (!html.includes('<pre>')) return html;
@@ -226,25 +228,25 @@ export class RtcMessage extends LitElement implements StatefulComponent {
     }
 
     /**
-     * 当前消息是否为思考类型（content.type === 'thinking'）。
-     * 思考类型消息渲染为可折叠区域，而非直接展示 Markdown。
+     * Whether the current message is thinking type (content.type === 'thinking').
+     * Thinking type messages render as collapsible sections, not direct Markdown display.
      */
     private get _isThinkingContent(): boolean {
         return this.message?.content?.type === 'thinking';
     }
 
     /**
-     * 当前消息是否是压缩摘要（content.type === 'summary'）。
-     * 压缩摘要渲染为不可折叠的指示块：streaming 态显示"正在压缩"，
-     * 完成态显示释放/增加的 token 数。
+     * Whether the current message is a compression summary (content.type === 'summary').
+     * Compression summaries render as non-collapsible indicator blocks: streaming state shows "compressing",
+     * completed state shows released/increased token count.
      */
     private get _isSummaryContent(): boolean {
         return this.message?.content?.type === 'summary';
     }
 
     /**
-     * 当前消息是否是 prompt 类型（content.type === 'prompt'）。
-     * Prompt 消息渲染为特殊卡片，而非 Markdown。
+     * Whether the current message is prompt type (content.type === 'prompt').
+     * Prompt messages render as special cards, not Markdown.
      */
     private get _isPromptContent(): boolean {
         return this.message?.content?.type === 'prompt';
@@ -287,7 +289,7 @@ export class RtcMessage extends LitElement implements StatefulComponent {
     }
 
     /**
-     * 点击 timeline-dot：复制消息内容到剪贴板
+     * On timeline-dot click: copy message content to clipboard
      */
     private async _handleDotClick() {
         const text = extractTextContent(this.message?.content);
@@ -312,13 +314,13 @@ export class RtcMessage extends LitElement implements StatefulComponent {
         const isPrompt = this._isPromptContent;
 
         /*
-         * success 状态条件：
-         *   - isLast：只有最后一条消息才显示"完成"绿点
-         *   - !streaming：流式传输中不算完成
-         *   - 思考类型消息不算"完成"（它是辅助信息，不是最终回复）
-         *   - 压缩摘要不算"完成"（它是系统信息，不是最终回复）
-         *   - prompt 类型不算"完成"（它是系统提示词，不是最终回复）
-         *   - !!content：必须有内容（空消息不算完成）
+         * Success state conditions:
+         *   - isLast: only the last message shows the "complete" green dot
+         *   - !streaming: streaming in progress doesn't count as "complete"
+         *   - thinking type messages don't count as "complete" (they are auxiliary info, not final reply)
+         *   - compression summaries don't count as "complete" (they are system info, not final reply)
+         *   - prompt type doesn't count as "complete" (it is a system prompt, not final reply)
+         *   - !!content: must have content (empty messages don't count as complete)
          */
         const classes = {
             'timeline-item': true,
@@ -345,12 +347,12 @@ export class RtcMessage extends LitElement implements StatefulComponent {
               : isPrompt
                 ? this._renderPromptBlock()
                 /*
-                 * 注意这一层额外的 <div> 包裹：
-                 * 1. .innerHTML 必须挂在某个元素上，不能直接挂在 .timeline-content
-                 *    上（否则会和 thinking 分支的结构冲突）
-                 * 2. 这层包裹在 CSS 里被选择器穿透：
+                 * Note this extra layer of <div> wrapping:
+                 * 1. .innerHTML must be attached to some element, not directly on .timeline-content
+                 *    (otherwise it would conflict with the thinking branch's structure)
+                 * 2. This wrapping layer is targeted by CSS selector penetration:
                  *    `.timeline-content > div > *:first-child { margin-top: 0 }`
-                 *    用来清除 Markdown 渲染出的首个 <p> 的 UA 默认 margin
+                 *    used to clear the UA default margin on the first <p> rendered by Markdown
                  */
                 : html`<div .innerHTML=${this._renderedHtml}></div>`}
         </div>
@@ -359,10 +361,10 @@ export class RtcMessage extends LitElement implements StatefulComponent {
     }
 
     /**
-     * 渲染思考内容块（可折叠）。
+     * Render thinking content block (collapsible).
      *
-     * 折叠态：显示 header 行（chevron + "思考过程"），内容隐藏。
-     * 展开态：header 行 + 下方渲染 Markdown 内容。
+     * Collapsed state: shows header row (chevron + "Thinking process"), content hidden.
+     * Expanded state: header row + Markdown content rendered below.
      */
     private _renderThinkingBlock() {
         const expanded = this._thinkingExpanded;
@@ -381,13 +383,13 @@ export class RtcMessage extends LitElement implements StatefulComponent {
     }
 
     /**
-     * 渲染压缩摘要块（不可折叠）。
+     * Render compression summary block (non-collapsible).
      *
-     * streaming 态：显示"正在压缩上下文..."。
-     * 完成态：显示"已压缩上下文 · 释放/增加 X token"。
+     * Streaming state: shows "Compressing context...".
+     * Completed state: shows "Compressed context · released/increased X tokens".
      *
-     * 不再展示压缩后的摘要内容，用户无需阅读；
-     * 只关注"正在压缩"和"释放了多少 token"两个信号。
+     * No longer displays the compressed summary content, user doesn't need to read it;
+     * only focuses on two signals: "compressing" and "how many tokens were released".
      */
     private _renderSummaryBlock() {
         const isStreaming = !!this.message.streaming;
@@ -413,19 +415,19 @@ export class RtcMessage extends LitElement implements StatefulComponent {
     }
 
     /**
-     * 渲染 prompt 内容块（不可折叠）。
+     * Render prompt content block (non-collapsible).
      *
-     * 显示格式：
+     * Display format:
      *   SCENARIOS  $title
-     *   [提示词预览 max-height:3行]
+     *   [Prompt preview max-height:3 lines]
      *
-     * 设计决策：
-     * - 不支持展开：系统提示词用户无需阅读完整内容
-     * - 使用左边框而非全边框：视觉上更轻盈（与 summary-block 的全边框区分）
-     * - 预览区域限制为 3 行：节省空间
-     * - 使用 <pre> 渲染 prompt 文本：保留原始格式（换行、缩进），
-     *   同时避免 HTML 注入（prompt 内容可能包含 < 和 > 字符）
-     * - 自动支持暗色主题（使用 --rtc-* CSS 变量）
+     * Design decisions:
+     * - No expand support: users don't need to read full system prompt content
+     * - Uses left border instead of full border: visually lighter (distinguished from summary-block's full border)
+     * - Preview area limited to 3 lines: saves space
+     * - Uses <pre> to render prompt text: preserves original formatting (line breaks, indentation),
+     *   while avoiding HTML injection (prompt content may contain < and > characters)
+     * - Automatically supports dark theme (uses --rtc-* CSS variables)
      */
     private _renderPromptBlock() {
         const contentData = this.message?.content?.data as PromptContent | undefined;
@@ -446,11 +448,11 @@ export class RtcMessage extends LitElement implements StatefulComponent {
     }
 
     /**
-     * 从 message.content.data 提取压缩统计信息。
+     * Extract compression statistics from message.content.data.
      *
-     * 兼容两种数据格式：
-     *   - 新格式：SummaryContent { items, metadata }
-     *   - 旧格式：SummaryItem[]（无 metadata，返回全 0）
+     * Compatible with two data formats:
+     *   - New format: SummaryContent { items, metadata }
+     *   - Old format: SummaryItem[] (no metadata, returns all zeros)
      */
     private _extractSummaryStats() {
         const contentData = this.message?.content?.data as Record<string, unknown> | undefined;
@@ -467,14 +469,14 @@ export class RtcMessage extends LitElement implements StatefulComponent {
     }
 
     /**
-     * 格式化 token 数量，使用 K/B/T 单位。
+     * Format token count using K/B/T units.
      *
-     * 规则：
-     * - < 1000: 显示原数（如 500）
-     * - < 1M: 显示 K（如 12.5K）
-     * - < 1B: 显示 M（如 1.5M）
-     * - >= 1B: 显示 B（如 2.3B）
-     * - >= 1T: 显示 T（如 1.2T）
+     * Rules:
+     * - < 1000: show raw number (e.g. 500)
+     * - < 1M: show K (e.g. 12.5K)
+     * - < 1B: show M (e.g. 1.5M)
+     * - >= 1B: show B (e.g. 2.3B)
+     * - >= 1T: show T (e.g. 1.2T)
      */
     private _formatTokens(tokens: number): string {
         if (tokens < 1000) {
@@ -495,12 +497,12 @@ export class RtcMessage extends LitElement implements StatefulComponent {
     }
 
     /**
-     * 格式化持续时间。
+     * Format duration.
      *
-     * 规则：
-     * - < 1000ms: 显示 ms（如 500ms）
-     * - < 60s: 显示 s（如 3.5s）
-     * - >= 60s: 显示 m s（如 2m 30s）
+     * Rules:
+     * - < 1000ms: show ms (e.g. 500ms)
+     * - < 60s: show s (e.g. 3.5s)
+     * - >= 60s: show m s (e.g. 2m 30s)
      */
     private _formatDuration(ms: number): string {
         if (ms < 1000) {

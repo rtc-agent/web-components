@@ -5,20 +5,20 @@
  * the vertical timeline with dot + connecting line.
  *
  * Layout model:
- *   .timeline-item (position: relative, padding-left 给 dot + 竖线留位)
- *     ├── ::before               (竖线, 绝对定位)
- *     ├── .timeline-dot          (圆点, 绝对定位)
- *     └── .timeline-content      (内容区)
+ *   .timeline-item (position: relative, padding-left reserves space for dot + vertical line)
+ *     ├── ::before               (vertical line, absolutely positioned)
+ *     ├── .timeline-dot          (dot, absolutely positioned)
+ *     └── .timeline-content      (content area)
  *
- * 对齐原理：
- *   - 竖线 center X = 15px（left: 14px + width 2px 的一半）
- *   - dot center X    = 15px（left: 15px + translateX(-50%)）
- *   - dot center Y    ≈ 首行文本行高中点 Y（top: 9px）
+ * Alignment principle:
+ *   - vertical line center X = 15px (left: 14px + half of width 2px)
+ *   - dot center X    = 15px (left: 15px + translateX(-50%))
+ *   - dot center Y    ≈ first line text line-height midpoint Y (top: 9px)
  */
 import {css} from 'lit';
 
 export const timelineStyles = css`
-  /* ── 时间线 item ────────────────────────────────────────────── */
+  /* ── Timeline item ────────────────────────────────────────────── */
   .timeline-item {
     position: relative;
     margin-bottom: var(--rtc-message-gap, var(--rtc-spacing-md));
@@ -29,7 +29,7 @@ export const timelineStyles = css`
     margin-bottom: 0;
   }
 
-  /* ── 时间竖线（连续）────────────────────────────────────────── */
+  /* ── Timeline vertical line (continuous) ────────────────────────────────────────── */
   .timeline-item::before {
     content: '';
     position: absolute;
@@ -40,7 +40,7 @@ export const timelineStyles = css`
     background: var(--rtc-color-border);
   }
 
-  /* ── 时间线圆点 ────────────────────────────────────────────── */
+  /* ── Timeline dot ────────────────────────────────────────────── */
   .timeline-dot {
     position: absolute;
     left: 15px;
@@ -90,7 +90,7 @@ export const timelineStyles = css`
     visibility: visible;
   }
 
-  /* ── Dot 脉冲动画 ────────────────────────────────────────── */
+  /* ── Dot pulse animation ────────────────────────────────────────── */
   @keyframes rtc-dot-pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.3; }

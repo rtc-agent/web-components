@@ -16,7 +16,7 @@ describe('SessionTabController', () => {
     beforeEach(() => {
         host = new MockHost();
         ctrl = new SessionTabController(host as any);
-        // 清理 localStorage
+        // Clear localStorage
         localStorage.clear();
     });
 

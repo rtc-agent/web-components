@@ -62,10 +62,6 @@ export class PersistenceLayer {
         return this.offsetManager.getPosition(channel);
       },
       updateOffset: async (channel: string, offset: number, epoch: string) => {
-        // Temporary debug log: track who sets offset to 20482
-        if (offset === 20482) {
-          console.warn(`[DEBUG] updateOffset called with 20482 for channel ${channel}`, new Error().stack);
-        }
         await this.offsetManager.updatePosition(channel, offset, epoch);
       },
       onPublication: async (event: PublicationEvent) => {

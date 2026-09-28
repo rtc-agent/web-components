@@ -14,13 +14,13 @@ export const styles = css`
   .input-inner {
     display: flex;
     flex-direction: column;
-    /* 当 host 有自定义高度时，让内部填满 */
+    /* When host has custom height, let inner fill it */
     height: 100%;
   }
 
   .textarea-container {
     position: relative;
-    /* 扩展以填充剩余空间 */
+    /* Expand to fill remaining space */
     flex: 1;
     min-height: 36px;
     display: flex;
@@ -29,7 +29,7 @@ export const styles = css`
   .input-textarea {
     display: block;
     width: 100%;
-    /* 填满容器，不再有固定 max-height */
+    /* Fill container, no longer has fixed max-height */
     height: 100%;
     min-height: 36px;
     border: none;

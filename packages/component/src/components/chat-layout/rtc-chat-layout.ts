@@ -1,24 +1,24 @@
 /**
  * RTC Chat Layout Component
  *
- * 两栏布局的对话页面：
- * - 左栏：rtc-session-tree（会话树）
- * - 右栏：rtc-session-tab-bar（Tab 标签栏）+ 聊天内容区
+ * Two-column chat layout page:
+ * - Left column: rtc-session-tree (session tree)
+ * - Right column: rtc-session-tab-bar (tab bar) + chat content area
  *
- * 点击会话树节点 → 打开/切换 Tab → 聊天内容区显示该 session 的消息。
+ * Clicking a session tree node → opens/switches tab → chat content area displays that session's messages.
  *
- * 聊天内容区复用现有组件（rtc-content-area / rtc-notice-bar /
- * rtc-input-area / rtc-overlay-manager）。通过 SessionContext 的
- * currentSessionId 切换不同 session，并通过 messageController 属性
- * 将 MessageRepository 传递给 rtc-content-area → rtc-message-list，
- * 实现每个 tab 独立的消息实例。
+ * The chat content area reuses existing components (rtc-content-area / rtc-notice-bar /
+ * rtc-input-area / rtc-overlay-manager). It switches between sessions via
+ * currentSessionId from SessionContext, and passes MessageRepository to
+ * rtc-content-area → rtc-message-list through the messageController property,
+ * achieving independent message instances per tab.
  *
  * @element rtc-chat-layout
- * @fires rtc-chat-layout-session-select - 用户点击会话树节点 (detail: { sessionId })
- * @fires rtc-chat-layout-tab-activate - 用户切换 Tab (detail: { sessionId })
- * @fires rtc-chat-layout-tab-close - 用户关闭 Tab (detail: { sessionId })
- * @fires rtc-fork-initiated - 分叉请求编排完成 (detail: { oldSessionClientId, oldMessageClientId, newSessionClientId, content })
- * @fires rtc-new-session - 新建会话（含全部关闭后自动创建）
+ * @fires rtc-chat-layout-session-select - User clicks a session tree node (detail: { sessionId })
+ * @fires rtc-chat-layout-tab-activate - User switches tab (detail: { sessionId })
+ * @fires rtc-chat-layout-tab-close - User closes tab (detail: { sessionId })
+ * @fires rtc-fork-initiated - Fork request orchestration complete (detail: { oldSessionClientId, oldMessageClientId, newSessionClientId, content })
+ * @fires rtc-new-session - New session (including auto-create after all tabs closed)
  */
 import {LitElement, html, type PropertyValues} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
@@ -67,16 +67,16 @@ export class RtcChatLayout extends LitElement {
         locales: [sourceLocale, ...targetLocales],
     };
 
-    /** 主题：light / dark / system */
+    /** Theme: light / dark / system */
     @property({type: String, reflect: true})
     theme: 'light' | 'dark' | 'system' = 'system';
 
     /**
-     * 会话树（.sidebar）是否可见
+     * Whether the session tree (.sidebar) is visible
      *
-     * 由父级 rtc-agent 根据 ActivityController.sidebarVisible 透传：
-     * - 点击"聊天"活动栏图标 → toggleSidebar → false → 隐藏
-     * - 再次点击 → toggleSidebar → true → 展开
+     * Passed through from parent rtc-agent based on ActivityController.sidebarVisible:
+     * - Click "chat" activity bar icon → toggleSidebar → false → hide
+     * - Click again → toggleSidebar → true → expand
      */
     @property({type: Boolean, reflect: true, attribute: 'session-tree-visible'})
     sessionTreeVisible = true;
@@ -87,29 +87,30 @@ export class RtcChatLayout extends LitElement {
 
     /* ── Resize State ── */
 
-    /** 是否正在拖拽 resize handle */
+    /** Whether currently dragging the resize handle */
     private _isResizing = false;
 
-    /** 拖拽开始时的 Y 坐标 */
+    /** Y coordinate when drag started */
     private _resizeStartY = 0;
 
-    /** 拖拽开始时的 input-area 高度 */
+    /** input-area height when drag started */
     private _resizeStartHeight = 0;
 
-    /** 当前拖拽的 session ID */
+    /** Session ID of the current drag operation */
     private _resizeSessionId: string | null = null;
 
-    /** 最小 input-area 高度 */
+    /** Minimum input-area height */
     private static readonly MIN_INPUT_HEIGHT = 80;
 
-    /** 最大 input-area 高度 */
+    /** Maximum input-area height */
     private static readonly MAX_INPUT_HEIGHT = 400;
 
     /**
-     * 已经应用过保存的高度的 session 集合
+     * Set of sessions that have already had their saved height applied
      *
-     * 用于避免重复应用：每个 session 的 input-area 只在首次渲染时应用一次。
-     * 当 session 被新创建时（不在集合中），会应用保存的高度。
+     * Used to avoid repeated application: each session's input-area height is
+     * applied only once on first render. When a session is newly created
+     * (not in the set), the saved height is applied.
      */
     private _heightAppliedSessions = new Set<string>();
 
@@ -158,22 +159,22 @@ export class RtcChatLayout extends LitElement {
 
     connectedCallback() {
         super.connectedCallback();
-        // 监听 rtc-message-sent：事件从 rtc-agent（父组件）派发，
-        // 向上冒泡到 document。chat-layout 必须在 document 上监听，
-        // 因为事件不会向下传播到 shadow DOM 中的子组件。
+        // Listen for rtc-message-sent: event dispatched from rtc-agent (parent component),
+        // bubbles up to document. chat-layout must listen on document because
+        // the event does not propagate down into shadow DOM child components.
         document.addEventListener('rtc-message-sent', this._boundOnMessageSent);
-        // 监听 fork 请求：事件从聊天内容区的消息组件冒泡上来，
-        // 在 chat-layout 自身上拦截以编排 unsaved tab + 派发 rtc-fork-initiated
+        // Listen for fork requests: event bubbles up from message components in the chat content area,
+        // intercepted on chat-layout itself to orchestrate unsaved tab + dispatch rtc-fork-initiated
         this.addEventListener('rtc-fork-requested', this._boundOnForkRequested);
-        // 监听 rtc-session-tree-new：捕获 session-header "+" 按钮冒泡上来的事件
-        // （Phase 6 改 session-header 后生效；Phase 3 先接好监听）
+        // Listen for rtc-session-tree-new: captures event bubbling up from session-header "+" button
+        // (takes effect after Phase 6 changes to session-header; Phase 3 wires up the listener first)
         this.addEventListener('rtc-session-tree-new', this._handleSessionTreeNew);
-        // 监听 rtc-clear-active-input：Escape 键取消 fork 时由 rtc-agent 派发
+        // Listen for rtc-clear-active-input: dispatched by rtc-agent when Escape key cancels a fork
         this.addEventListener('rtc-clear-active-input', this._boundOnClearActiveInput);
-        // 监听 rtc-notification-click：事件从 rtc-agent（父组件）派发，
-        // 必须在 document 上监听（同 rtc-message-sent）
+        // Listen for rtc-notification-click: event dispatched from rtc-agent (parent component),
+        // must listen on document (same as rtc-message-sent)
         document.addEventListener('rtc-notification-click', this._handleNotificationClick);
-        // 监听全局 mousemove/mouseup 用于 resize handle 拖拽
+        // Listen for global mousemove/mouseup for resize handle drag
         document.addEventListener('mousemove', this._boundOnResizeMouseMove);
         document.addEventListener('mouseup', this._boundOnResizeMouseUp);
 
@@ -198,25 +199,25 @@ export class RtcChatLayout extends LitElement {
     }
 
     /**
-     * 组件更新后检查是否需要应用保存的 input-area 高度
+     * After component update, check whether saved input-area height needs to be applied
      *
-     * 每次更新后遍历所有 tab，对于尚未应用过高度的 session，
-     * 应用 localStorage 中保存的高度。这确保了：
-     * 1. 首次加载时，tabs 渲染后立即应用保存的高度
-     * 2. 新建 tab 时，也会应用保存的高度
-     * 3. 每个 session 只应用一次，避免覆盖用户的拖拽调整
+     * After each update, iterate all tabs and apply the saved height from localStorage
+     * for sessions that haven't had it applied yet. This ensures:
+     * 1. On initial load, saved height is applied immediately after tabs render
+     * 2. When creating a new tab, saved height is also applied
+     * 3. Each session has height applied only once, avoiding overwriting user's drag adjustments
      */
     protected updated(_changedProperties: PropertyValues): void {
         super.updated(_changedProperties);
 
-        // 检查是否有 tabs 被渲染
+        // Check if any tabs are rendered
         const tabs = this._tabCtx?.state?.tabs;
         if (!tabs || tabs.length === 0) return;
 
         const savedHeight = this._loadInputAreaHeight();
         if (savedHeight === null) return;
 
-        // 对每个未应用过高度的 session 应用保存的高度
+        // Apply saved height to each session that hasn't had it applied yet
         for (const tab of tabs) {
             if (this._heightAppliedSessions.has(tab.sessionId)) continue;
 
@@ -228,10 +229,10 @@ export class RtcChatLayout extends LitElement {
         }
     }
 
-    /** 清空当前活动 tab 的输入框（供 Escape 键等场景调用） */
+    /** Clear the active tab's input box (called for Escape key, etc.) */
     private _boundOnClearActiveInput = () => this.clearActiveInput();
 
-    /** 清空当前活动 tab 的输入框 */
+    /** Clear the active tab's input box */
     public clearActiveInput(): void {
         const activeId = this._tabCtx.state.activeSessionId;
         if (!activeId) return;
@@ -248,9 +249,9 @@ export class RtcChatLayout extends LitElement {
     /* ── Resize Handle Methods ── */
 
     /**
-     * 开始拖拽 resize handle
+     * Begin dragging resize handle
      *
-     * 记录初始状态，设置拖拽标志。
+     * Records initial state, sets drag flag.
      */
     private _handleResizeStart(e: MouseEvent, sessionId: string): void {
         e.preventDefault();
@@ -262,23 +263,23 @@ export class RtcChatLayout extends LitElement {
         this._resizeStartHeight = inputArea.offsetHeight;
         this._resizeSessionId = sessionId;
 
-        // 添加 dragging 样式
+        // Add dragging style
         const handle = e.target as HTMLElement;
         handle.classList.add('dragging');
 
-        // 设置全局样式
+        // Set global styles
         document.body.style.cursor = 'ns-resize';
         document.body.style.userSelect = 'none';
     }
 
-    /** 全局 mousemove 处理 */
+    /** Global mousemove handler */
     private _boundOnResizeMouseMove = (e: MouseEvent): void => {
         if (!this._isResizing || !this._resizeSessionId) return;
 
         const inputArea = this._getInputAreaBySession(this._resizeSessionId);
         if (!inputArea) return;
 
-        // 计算新高度：向上拖 = clientY 减小 = 高度增加
+        // Calculate new height: drag up = clientY decreases = height increases
         const deltaY = this._resizeStartY - e.clientY;
         const newHeight = Math.max(
             RtcChatLayout.MIN_INPUT_HEIGHT,
@@ -288,11 +289,11 @@ export class RtcChatLayout extends LitElement {
         inputArea.style.height = `${newHeight}px`;
     };
 
-    /** 全局 mouseup 处理 */
+    /** Global mouseup handler */
     private _boundOnResizeMouseUp = (): void => {
         if (!this._isResizing) return;
 
-        // 保存高度到 localStorage
+        // Save height to localStorage
         const inputArea = this._resizeSessionId
             ? this._getInputAreaBySession(this._resizeSessionId)
             : null;
@@ -303,33 +304,33 @@ export class RtcChatLayout extends LitElement {
         this._isResizing = false;
         this._resizeSessionId = null;
 
-        // 移除 dragging 样式
+        // Remove dragging style
         const handles = this.shadowRoot?.querySelectorAll('.resize-handle.dragging');
         handles?.forEach(h => h.classList.remove('dragging'));
 
-        // 恢复全局样式
+        // Restore global styles
         document.body.style.cursor = '';
         document.body.style.userSelect = '';
     };
 
     /**
-     * 保存 input-area 高度到 localStorage
+     * Save input-area height to localStorage
      *
-     * 高度是全局设置（所有 tab 共享），不区分 sessionId。
+     * Height is a global setting (shared across all tabs), not per-session.
      */
     private _saveInputAreaHeight(height: number): void {
         try {
             if (typeof window === 'undefined' || !window.localStorage) return;
             window.localStorage.setItem(STORAGE_KEYS.inputAreaHeight, String(height));
         } catch {
-            // localStorage 不可用（隐私模式/配额满），忽略
+            // localStorage unavailable (private mode / quota exceeded), ignore
         }
     }
 
     /**
-     * 从 localStorage 加载 input-area 高度
+     * Load input-area height from localStorage
      *
-     * 返回 null 表示没有保存的高度，使用默认值。
+     * Returns null if no saved height exists, use default value.
      */
     private _loadInputAreaHeight(): number | null {
         try {
@@ -338,7 +339,7 @@ export class RtcChatLayout extends LitElement {
             if (!stored) return null;
             const height = parseInt(stored, 10);
             if (isNaN(height)) return null;
-            // 确保在有效范围内
+            // Ensure within valid range
             return Math.max(
                 RtcChatLayout.MIN_INPUT_HEIGHT,
                 Math.min(RtcChatLayout.MAX_INPUT_HEIGHT, height)
@@ -349,7 +350,7 @@ export class RtcChatLayout extends LitElement {
     }
 
     /**
-     * 应用保存的高度到指定 session 的 input-area
+     * Apply saved height to specified session's input-area
      */
     private _applyStoredHeight(sessionId: string): void {
         const savedHeight = this._loadInputAreaHeight();
@@ -361,7 +362,7 @@ export class RtcChatLayout extends LitElement {
         }
     }
 
-    /** 根据 sessionId 获取对应的 input-area 元素 */
+    /** Get the input-area element for a given sessionId */
     private _getInputAreaBySession(sessionId: string): HTMLElement | null {
         const inputAreas = this.shadowRoot?.querySelectorAll('rtc-input-area');
         if (!inputAreas) return null;
@@ -375,20 +376,20 @@ export class RtcChatLayout extends LitElement {
     }
 
     /**
-     * 核心编排：确保存在一个 unsaved tab
+     * Core orchestration: ensure an unsaved tab exists
      *
-     * - 已有 unsaved tab → 激活它，返回其 sessionId
-     * - 没有 → 创建新 session + 开 unsaved tab，返回 newId
+     * - Already has unsaved tab → activate it, return its sessionId
+     * - None exists → create new session + open unsaved tab, return newId
      *
-     * 同步方法（无 await），保证双击 "+" 幂等：
-     * 第二次调用时 findUnsavedTab 立即返回已有 tab。
+     * Synchronous method (no await), ensures double-click "+" is idempotent:
+     * second call finds existing tab via findUnsavedTab immediately.
      *
-     * @param params 可选的瞬态 UI 参数（fork 内容、notice 提示等）
+     * @param params Optional transient UI parameters (fork content, notice message, etc.)
      */
     private _ensureUnsavedSession(params?: { initialInputValue?: string; noticeMessage?: string }): string {
         const existing = this._tabCtx.actions.findUnsavedTab();
         if (existing) {
-            // 复用：更新 transient params
+            // Reuse: update transient params
             if (params) {
                 this._tabCtx.actions.setTransientParams(existing.sessionId, params);
             }
@@ -397,10 +398,10 @@ export class RtcChatLayout extends LitElement {
             log.debug('Reusing unsaved tab:', existing.sessionId);
             return existing.sessionId;
         }
-        // createSession 同步返回新 ID（规避 context 异步传播读不到新 currentSessionId 的问题）
+        // createSession returns new ID synchronously (avoids issue where context async propagation can't read the new currentSessionId)
         const newId = this._sessionCtx.actions.createSession();
-        // 关键：触发 onSessionSwitch 以加载新 session 的消息（空）并清理旧消息
-        // createSession 本身不调用 onSessionSwitch，需要手动 switchSession 触发
+        // Key: trigger onSessionSwitch to load new session's messages (empty) and clear old messages
+        // createSession itself does not call onSessionSwitch, need to manually trigger switchSession
         this._sessionCtx.actions.switchSession(newId);
         this._tabCtx.actions.openOrActivate(newId, msg('未命名'), {isUnsaved: true, ...params});
         log.debug('Created new unsaved tab:', newId);
@@ -408,10 +409,10 @@ export class RtcChatLayout extends LitElement {
     }
 
     private _boundOnForkRequested = (e: Event) => {
-        // Fork 流程：用户提交了分叉对话的消息
-        // 1. 通过 _ensureUnsavedSession 复用/新建 unsaved tab，传入 fork 内容作为 transient params
-        // 2. 派发 rtc-fork-initiated 携带完整分叉元数据，由 rtc-agent 接线到 ForkController
-        // 3. Lit 渲染时通过 property binding 将 transient params 传递给 input-area / notice-bar
+        // Fork flow: user submitted a fork conversation message
+        // 1. Reuse/create unsaved tab via _ensureUnsavedSession, passing fork content as transient params
+        // 2. Dispatch rtc-fork-initiated with full fork metadata, for rtc-agent to wire to ForkController
+        // 3. Lit renders transient params to input-area / notice-bar via property binding
         const {oldMessageClientId, content} = (e as CustomEvent).detail ?? {};
         const oldSessionClientId = this._sessionCtx?.state?.currentSessionId;
         if (!oldSessionClientId) {
@@ -443,20 +444,20 @@ export class RtcChatLayout extends LitElement {
         const sessionClientId = detail?.message?.session_client_id;
         if (!sessionClientId) return;
 
-        // 标记 tab 为已保存（unsaved → saved 的单向跃迁）
+        // Mark tab as saved (unsaved → saved one-way transition)
         this._tabCtx.actions.markSaved(sessionClientId);
 
-        // 兜底：确保 tab 存在（覆盖从 session tree 点击打开但尚未建 tab 的场景）
+        // Fallback: ensure tab exists (covers scenario opened from session tree click but tab not yet created)
         this._ensureTabForSession(sessionClientId);
     };
 
-    /** session-header / session-tree "+" 按钮事件透传到 _handleNewSession */
+    /** session-header / session-tree "+" button event forwarded to _handleNewSession */
     private _handleSessionTreeNew = () => {
         log.debug('Event received, calling _handleNewSession');
         this._handleNewSession();
     };
 
-    /** Toast 通知点击：跳转到对应 session（含 reopen 检查） */
+    /** Toast notification click: navigate to corresponding session (with reopen check) */
     private _handleNotificationClick = (e: Event) => {
         const {sessionId} = (e as CustomEvent).detail;
         if (sessionId) {
@@ -465,11 +466,11 @@ export class RtcChatLayout extends LitElement {
     };
 
     /**
-     * 为指定 session 打开或激活 Tab
+     * Open or activate tab for specified session
      *
-     * 从 SessionContext 的 sessions 列表中查找 session 以获取标题。
-     * 如果 session 不存在（如新建会话还未持久化），使用 'Untitled' 作为占位标题。
-     * 后续 `_loadSessions` 会通过 `updateTabTitles` 同步真实标题。
+     * Looks up session from SessionContext's sessions list to get the title.
+     * If session doesn't exist (e.g., newly created session not yet persisted), uses 'Untitled' as placeholder title.
+     * `_loadSessions` will sync real titles later via `updateTabTitles`.
      */
     private _ensureTabForSession(sessionId: string) {
         const session = this._sessionCtx?.state?.sessions.find(
@@ -483,11 +484,11 @@ export class RtcChatLayout extends LitElement {
     /* ── Event Handlers ── */
 
     /**
-     * 点击会话树节点
+     * Session tree node click
      *
-     * 1. 检查 session 状态，如果是 closed 则先调用 reopenSession
-     * 2. 打开/切换到对应 Tab
-     * 3. 切换 SessionContext 的 currentSessionId（触发聊天内容刷新）
+     * 1. Check session status, if closed then call reopenSession first
+     * 2. Open/switch to corresponding tab
+     * 3. Switch SessionContext's currentSessionId (triggers chat content refresh)
      */
     private _handleTreeSelect(e: CustomEvent) {
         const {sessionId} = e.detail;
@@ -495,19 +496,19 @@ export class RtcChatLayout extends LitElement {
     }
 
     /**
-     * 打开 session（含透明 reopen 检查）
+     * Open session (with transparent reopen check)
      *
-     * 如果 session 状态为 closed，先调用 reopenSession 重新打开。
-     * 成功后再执行 UI 操作（打开 Tab + 切换 session）。
+     * If session status is closed, call reopenSession to reopen it first.
+     * After success, perform UI operations (open tab + switch session).
      */
     private async _openWithReopenCheck(sessionId: string) {
         const session = this._sessionCtx?.state?.sessions.find(s => s.clientId === sessionId);
 
-        // 透明 reopen：如果 session 是 closed，先调用 openSession
+        // Transparent reopen: if session is closed, call openSession first
         if (session?.status === 'closed') {
             const result = await this._sessionCtx.actions.reopenSession(sessionId);
             if (!result.ok) {
-                // 失败时显示 toast 提示
+                // Show toast notification on failure
                 this.dispatchEvent(new CustomEvent('rtc-toast-requested', {
                     bubbles: true,
                     composed: true,
@@ -516,11 +517,11 @@ export class RtcChatLayout extends LitElement {
                         type: 'error',
                     },
                 }));
-                return; // 不打开 Tab
+                return; // Don't open tab
             }
         }
 
-        // 成功（或无需 reopen）→ 同步执行 UI 操作
+        // Success (or no reopen needed) → perform UI operations synchronously
         this._ensureTabForSession(sessionId);
         this._sessionCtx.actions.switchSession(sessionId);
 
@@ -534,20 +535,20 @@ export class RtcChatLayout extends LitElement {
     }
 
     /**
-     * 点击展开/折叠（由 SessionTreeController 内部处理，此处无需额外逻辑）
+     * Expand/collapse click (handled internally by SessionTreeController, no extra logic needed here)
      */
     private _handleTreeToggle() {
         // no-op
     }
 
     /**
-     * 点击新建会话按钮
+     * New session button click
      *
-     * 通过 _ensureUnsavedSession 保证 unsaved tab 唯一：
-     * - 已有 unsaved tab → 聚焦它
-     * - 没有 → 创建新 session + 开 unsaved tab
+     * Uses _ensureUnsavedSession to ensure unsaved tab uniqueness:
+     * - Already has unsaved tab → focus it
+     * - None exists → create new session + open unsaved tab
      *
-     * 派发 rtc-new-session，由 rtc-agent 清 fork 状态。
+     * Dispatches rtc-new-session, rtc-agent clears fork state.
      */
     private _handleNewSession() {
         this._ensureUnsavedSession();
@@ -557,14 +558,14 @@ export class RtcChatLayout extends LitElement {
     }
 
     /**
-     * 切换 Tab
+     * Switch tab
      *
-     * 切换 SessionContext 的 currentSessionId。
+     * Switches SessionContext's currentSessionId.
      */
     private _handleTabActivate(e: CustomEvent) {
         const {sessionId} = e.detail;
         const oldSessionId = this._sessionCtx?.state?.currentSessionId;
-        // 清除旧 tab 的 transient params（防止 notice bar 残留）
+        // Clear old tab's transient params (to prevent notice bar residue)
         if (oldSessionId && oldSessionId !== sessionId) {
             this._tabCtx.actions.clearTransientParams(oldSessionId);
         }
@@ -618,15 +619,15 @@ export class RtcChatLayout extends LitElement {
     }
 
     /**
-     * 关闭 Tab
+     * Close tab
      *
-     * SessionTabController 会自动处理相邻 Tab 激活。
-     * 如果关闭的是当前活动的 session，需要切换到新激活的 Tab；
-     * 如果没有剩余 Tab（需求 4），立即调用 _handleNewSession 创建新 unsaved tab。
+     * SessionTabController automatically handles adjacent tab activation.
+     * If closing the currently active session, need to switch to the newly activated tab;
+     * if no tabs remain (requirement 4), immediately call _handleNewSession to create a new unsaved tab.
      *
-     * 注意：不能通过 this._tabCtx.state 读取关闭后的状态，
-     * 因为 @consume 的 context 更新是异步的（等 Lit 下一轮渲染）。
-     * 此处同步计算剩余 Tab 来判断下一步。
+     * Note: cannot read post-close state via this._tabCtx.state,
+     * because @consume context updates are asynchronous (wait for Lit's next render cycle).
+     * Here we synchronously calculate remaining tabs to determine next step.
      */
     /**
      * Handle tab close event: close session on backend, switch to adjacent tab,
@@ -641,7 +642,7 @@ export class RtcChatLayout extends LitElement {
         // Save tab snapshot before closing (for potential restore on failure)
         const tabSnapshot = this._tabCtx.state.tabs.find(t => t.sessionId === sessionId);
 
-        // ── 通知后端关闭 session（仅对已保存的 session，unsaved tab 没有后端 session） ──
+        // ── Notify backend to close session (only for saved sessions; unsaved tabs have no backend session) ──
         if (tabSnapshot && !tabSnapshot.isUnsaved) {
             // Close tab optimistically (UI updates immediately)
             this.dispatchEvent(
@@ -701,13 +702,13 @@ export class RtcChatLayout extends LitElement {
         }
 
         if (wasActive) {
-            // 同步计算：关闭这个 Tab 后还剩几个
+            // Synchronously calculate: how many tabs remain after closing this one
             const remainingTabs = this._tabCtx.state.tabs.filter(
                 t => t.sessionId !== sessionId
             );
 
             if (remainingTabs.length > 0) {
-                // 还有 Tab：激活相邻的
+                // Still have tabs: activate adjacent one
                 const closedIndex = this._tabCtx.state.tabs.findIndex(
                     t => t.sessionId === sessionId
                 );
@@ -715,8 +716,8 @@ export class RtcChatLayout extends LitElement {
                 const nextSessionId = remainingTabs[nextIndex].sessionId;
                 this._sessionCtx.actions.switchSession(nextSessionId);
             } else {
-                // 需求 4：全部关闭 → 立即创建新 unsaved session
-                // 先清空旧 session 的消息/选中态（clearCurrentSession 会触发 onSessionSwitch 清理消息）
+                // Requirement 4: all closed → immediately create new unsaved session
+                // First clear old session's messages/selection state (clearCurrentSession triggers onSessionSwitch to clear messages)
                 this._sessionCtx.actions.clearCurrentSession();
                 this._handleNewSession();
             }
@@ -739,8 +740,8 @@ export class RtcChatLayout extends LitElement {
 
         const {tabs, activeSessionId} = this._tabCtx.state;
 
-        // 当没有打开的 tab 时（理论上不会出现，因为全部关闭会自动创建新 tab）
-        // 显示提示文本
+        // When no tabs are open (theoretically shouldn't happen, as closing all auto-creates a new tab)
+        // Show hint text
         if (tabs.length === 0) {
             return html`
                 <div class="tab-content-wrapper">
@@ -789,7 +790,7 @@ export class RtcChatLayout extends LitElement {
     render() {
         void this._localeCtx.locale;
         return html`
-            <!-- 左栏：会话树（通过 rtc-drawer overlay 抽屉实现） -->
+            <!-- Left column: session tree (implemented via rtc-drawer overlay) -->
             <rtc-drawer ?open=${this.sessionTreeVisible}>
                 <rtc-session-tree
                     theme=${this.theme}
@@ -799,7 +800,7 @@ export class RtcChatLayout extends LitElement {
                 ></rtc-session-tree>
             </rtc-drawer>
 
-            <!-- 右栏：Tab + 聊天内容 -->
+            <!-- Right column: tabs + chat content -->
             <div class="main">
                 <div class="tab-bar">
                     <rtc-session-tab-bar

@@ -20,15 +20,15 @@ export const styles = [
       display: block;
 
       /*
-       * ── 语法高亮颜色（默认 = github.css light 主题）────────
+       * ── Syntax highlighting colors (default = github.css light theme)────────
        *
-       * 语义化变量：变量名表示"语法角色"（keyword/string/comment 等），
-       * 而不是"颜色名"（red/blue/green 等）。这样切换主题时，
-       * 只需要改变量的值，.hljs-* 规则保持不变。
+       * Semantic variables: variable names represent "syntax roles" (keyword/string/comment etc.),
+       * not "color names" (red/blue/green etc.). This way, when switching themes,
+       * only the variable values need to change; .hljs-* rules stay unchanged.
        *
-       * 颜色来源：
-       *   - light 主题：highlight.js github.css（https://github.com/highlightjs/highlight.js）
-       *   - dark 主题：highlight.js atom-one-dark.css
+       * Color sources:
+       *   - light theme: highlight.js github.css (https://github.com/highlightjs/highlight.js)
+       *   - dark theme: highlight.js atom-one-dark.css
        */
       --rtc-syntax-text: #24292e;
       --rtc-syntax-bg: #f6f8fa;
@@ -47,13 +47,13 @@ export const styles = [
     }
 
     /*
-     * 暗色主题覆盖。
+     * Dark theme overrides.
      *
-     * :host-context() 会向上遍历 shadow DOM 边界，匹配到祖先 <rtc-agent> 的
-     * theme='dark' 属性（参见 dark.ts 的 :host([theme='dark']) 选择器）。
+     * :host-context() walks up through shadow DOM boundaries to match the ancestor
+     * <rtc-agent>'s theme='dark' attribute (see dark.ts :host([theme='dark']) selector).
      *
-     * 当 <rtc-agent theme="dark"> 时，下面的变量值生效，所有 .hljs-* 规则
-     * 自动切换到 atom-one-dark 配色。
+     * When <rtc-agent theme="dark">, the variable values below take effect, and all
+     * .hljs-* rules automatically switch to atom-one-dark color scheme.
      */
     :host-context([theme='dark']) {
       --rtc-syntax-text: #abb2bf;
@@ -73,17 +73,18 @@ export const styles = [
     }
 
     /*
-     * 清除首/末块级元素的纵向 margin，让时间线圆点与第一行文本水平对齐。
+     * Clear vertical margin on first/last block-level elements so the timeline dot
+     * aligns horizontally with the first line of text.
      *
-     * 选择器解读：.timeline-content > div > *
-     *   - .timeline-content     : 组件 render 的内容容器
-     *   - > div                 : render 函数里的 <div .innerHTML=...> 包裹层
-     *                             （为什么需要这层包裹？见 rtc-message.ts render() 注释）
-     *   - > *:first-child       : Markdown 渲染出的首个块级元素（<p>/<h1>/<ul>/...）
+     * Selector breakdown: .timeline-content > div > *
+     *   - .timeline-content     : component render's content container
+     *   - > div                 : the <div .innerHTML=...> wrapper layer in render function
+     *                             (why is this wrapper needed? see rtc-message.ts render() comments)
+     *   - > *:first-child       : first block-level element produced by Markdown rendering (<p>/<h1>/<ul>/...)
      *
-     * 浏览器 UA 默认给 <p> 上下各 14px margin，会把首行文本从顶边推开，
-     * 与 absolute 定位在 top: 9px 的 .timeline-dot 错位。
-     * 这条规则清除掉首个块级元素的 margin-top，让文字从内容区顶边开始。
+     * Browser UA defaults give <p> 14px margin top and bottom, which pushes the first line
+     * away from the top edge, misaligning with the .timeline-dot absolutely positioned at top: 9px.
+     * This rule clears the margin-top on the first block-level element, so text starts from the content area top edge.
      */
     .timeline-content > div > *:first-child {
       margin-top: 0;
@@ -94,18 +95,18 @@ export const styles = [
     }
 
     /*
-     * 行内代码。
+     * Inline code.
      *
-     * 为什么同时用 background + border？
-     *   仅用 background 在暗色主题下对比度不足：
+     * Why use both background + border?
+     *   Background alone has insufficient contrast in dark theme:
      *     --rtc-color-bg-secondary (#252526) vs --rtc-color-bg (#1e1e1e)
-     *     亮度差仅 7 个单位，肉眼几乎分辨不出。
-     *   加 1px border（--rtc-color-border #3c3c3c）后，边框与背景有 20+ 单位差，
-     *   轮廓清晰。亮色主题下也受益（#e0e0e0 边框 vs #f5f5f5 背景）。
+     *     brightness difference is only 7 units, nearly indistinguishable to the eye.
+     *   Adding a 1px border (--rtc-color-border #3c3c3c) gives 20+ unit difference from background,
+     *   making the outline clear. Light theme also benefits (#e0e0e0 border vs #f5f5f5 background).
      *
-     * 用 --rtc-color-bg-tertiary 而不是 secondary 作为背景，进一步拉开与页面背景距离：
-     *   - 亮色：#e8e8e8 vs 页面 #ffffff，差 24
-     *   - 暗色：#2d2d30 vs 页面 #1e1e1e，差 15
+     * Uses --rtc-color-bg-tertiary instead of secondary as background, further distancing from page background:
+     *   - light: #e8e8e8 vs page #ffffff, difference 24
+     *   - dark: #2d2d30 vs page #1e1e1e, difference 15
      */
     .timeline-content code {
       background: var(--rtc-color-bg-tertiary);
@@ -125,11 +126,11 @@ export const styles = [
     }
 
     /*
-     * 代码块内的 <code> 取消行内样式（背景/边框/圆角），
-     * 由外层 <pre> 接管背景，让 highlight.js 的颜色主导。
+     * Remove inline styles (background/border/border-radius) from <code> inside code blocks,
+     * letting the outer <pre> take over background, allowing highlight.js colors to dominate.
      *
-     * 这里必须显式 reset border/background，因为上面的 .timeline-content code
-     * 同时命中行内代码和代码块内的 <code>，需要后写规则覆盖。
+     * Here we must explicitly reset border/background because the above .timeline-content code
+     * targets both inline code and <code> inside code blocks; the later-written rule needs to override.
      */
     .timeline-content pre code {
       background: none;
@@ -147,14 +148,14 @@ export const styles = [
     }
 
     /*
-     * 链接：显式使用 --rtc-color-primary token，
-     * 避免依赖浏览器默认 <a> 颜色（亮色主题下深蓝 #0000EE 在暗色背景上几乎不可见）。
+     * Links: explicitly use --rtc-color-primary token,
+     * avoiding reliance on browser default <a> color (in light theme, deep blue #0000EE is nearly invisible on dark backgrounds).
      *
-     * 主题跟随：
-     *   - 亮色主题 --rtc-color-primary = #2741fe（蓝）
-     *   - 暗色主题 --rtc-color-primary = #00d9ff / #2741fe（亮青/蓝）
+     * Theme following:
+     *   - light theme --rtc-color-primary = #2741fe (blue)
+     *   - dark theme --rtc-color-primary = #00d9ff / #2741fe (light cyan/blue)
      *
-     * 同时加 hover/focus 样式，保持可访问性（键盘 Tab 可见焦点）。
+     * Also add hover/focus styles to maintain accessibility (visible focus for keyboard Tab).
      */
     .timeline-content a {
       color: var(--rtc-color-primary);
@@ -185,18 +186,18 @@ export const styles = [
     }
 
     /*
-     * ── 思考内容折叠块 ─────────────────────────────────────────
+     * ── Thinking content collapsible block ─────────────────────────────────────────
      *
-     * 结构：
+     * Structure:
      *   .thinking-block
-     *     ├── .thinking-header  (可点击，toggle 折叠)
-     *     │     ├── .thinking-chevron  (▸/▾ 箭头)
-     *     │     └── .thinking-label    ("思考过程" 文字)
-     *     └── .thinking-body    (展开时显示，内含 Markdown 渲染的 HTML)
+     *     ├── .thinking-header  (clickable, toggles collapse)
+     *     │     ├── .thinking-chevron  (▸/▾ arrow)
+     *     │     └── .thinking-label    ("Thinking process" text)
+     *     └── .thinking-body    (shown when expanded, contains Markdown-rendered HTML)
      *
-     * 折叠态：只显示 header，body 不渲染（DOM 中不存在）。
-     * 展开态：header + body。
-     * streaming 状态由父级 .timeline-item.streaming 控制 dot 脉冲动画。
+     * Collapsed state: only shows header, body not rendered (doesn't exist in DOM).
+     * Expanded state: header + body.
+     * streaming state controlled by parent .timeline-item.streaming for dot pulse animation.
      */
     .thinking-block {
       border: 1px solid var(--rtc-color-border);
@@ -237,7 +238,7 @@ export const styles = [
       font-size: var(--rtc-font-size-sm);
     }
 
-    /* thinking body 内的首/末块级元素也清除 margin */
+    /* Clear margin on first/last block-level elements inside thinking body */
     .thinking-body > div > *:first-child {
       margin-top: 0;
     }
@@ -247,17 +248,17 @@ export const styles = [
     }
 
     /*
-     * ── 压缩摘要块（不可折叠）────────────────────────────────
+     * ── Compression summary block (non-collapsible)────────────────────────────────
      *
-     * 结构：
+     * Structure:
      *   .summary-block
      *     └── .summary-header
-     *           ├── .summary-label    ("已压缩上下文" / "正在压缩上下文...")
-     *           └── .summary-stats    (释放/增加 token 数 + 耗时，仅完成态显示)
+     *           ├── .summary-label    ("Compressed context" / "Compressing context...")
+     *           └── .summary-stats    (released/increased token count + duration, shown only in completed state)
      *
-     * 不再展示压缩后的摘要内容，用户只关注两个信号：
-     *   1. 正在压缩（streaming 态，由父级 .timeline-item.streaming 控制 dot 脉冲）
-     *   2. 释放/增加了多少 token（完成态）
+     * No longer displays the compressed summary content; user only focuses on two signals:
+     *   1. Compressing (streaming state, dot pulse controlled by parent .timeline-item.streaming)
+     *   2. How many tokens were released/increased (completed state)
      */
     .summary-block {
       border: 1px solid var(--rtc-color-border);
@@ -303,25 +304,25 @@ export const styles = [
     }
 
     /*
-     * ── 语法高亮规则 ────────────────────────────────────────────
+     * ── Syntax highlighting rules ────────────────────────────────────────────
      *
-     * highlight.js 在代码块内的每个 token 上添加 .hljs-* 类名
-     * （例如 .hljs-keyword, .hljs-string）。下面的规则把这些类名
-     * 映射到 :host 上定义的 --rtc-syntax-* 变量。
+     * highlight.js adds .hljs-* class names to each token inside code blocks
+     * (e.g. .hljs-keyword, .hljs-string). The rules below map these class names
+     * to the --rtc-syntax-* variables defined on :host.
      *
-     * 切换主题时只需要改变量值（见 :host-context([theme='dark']) 段），
-     * 这些规则保持不变。
+     * When switching themes, only change the variable values (see :host-context([theme='dark']) section);
+     * these rules stay unchanged.
      *
-     * 类名 → 颜色对照（基于 github.css / atom-one-dark.css）：
-     *   keyword        : if / else / return / const / function 等
-     *   title          : 函数名、类名
-     *   attr/number    : 属性、数字常量
-     *   string         : 字符串
-     *   built_in       : 内置对象（console / Promise / Array 等）
-     *   comment        : 注释
-     *   tag            : HTML/SVG 标签名
-     *   section        : Markdown 标题
-     *   bullet         : 列表标记
+     * Class name → color mapping (based on github.css / atom-one-dark.css):
+     *   keyword        : if / else / return / const / function etc.
+     *   title          : function names, class names
+     *   attr/number    : attributes, numeric literals
+     *   string         : strings
+     *   built_in       : built-in objects (console / Promise / Array etc.)
+     *   comment        : comments
+     *   tag            : HTML/SVG tag names
+     *   section        : Markdown headings
+     *   bullet         : list markers
      */
     .hljs {
       color: var(--rtc-syntax-text);
@@ -417,8 +418,8 @@ export const styles = [
 
     /* ── Table ─────────────────────────────────────────────────────
      *
-     * 极简风格：去掉竖线，只用横线分隔。
-     * 斑马纹 + 悬停高亮提升可读性。
+     * Minimalist style: remove vertical lines, use only horizontal lines for separation.
+     * Zebra striping + hover highlighting for better readability.
      */
     .timeline-content table {
       width: 100%;
@@ -448,38 +449,38 @@ export const styles = [
       color: var(--rtc-color-text);
     }
 
-    /* 斑马纹 */
+    /* Zebra striping */
     .timeline-content tbody tr:nth-child(even) {
       background: var(--rtc-color-bg-secondary);
     }
 
-    /* 悬停高亮 */
+    /* Hover highlight */
     .timeline-content tbody tr:hover {
       background: var(--rtc-color-bg-hover);
     }
 
-    /* 最后一行去掉下边框 */
+    /* Remove bottom border on last row */
     .timeline-content tbody tr:last-child td {
       border-bottom: none;
     }
 
     /*
-     * ── Prompt 内容块（不可折叠）────────────────────────────────
+     * ── Prompt content block (non-collapsible)────────────────────────────────
      *
-     * 结构：
+     * Structure:
      *   .prompt-block
      *     ├── .prompt-header
-     *     │     ├── .prompt-name    ("SCENARIOS" 等，大写)
-     *     │     └── .prompt-title   (可选的标题)
-     *     └── pre.prompt-preview    (提示词预览，最多 3 行，<pre> 保留格式)
+     *     │     ├── .prompt-name    ("SCENARIOS" etc., uppercase)
+     *     │     └── .prompt-title   (optional title)
+     *     └── pre.prompt-preview    (prompt preview, max 3 lines, <pre> preserves formatting)
      *
-     * 设计决策：
-     * - 使用左边框（border-left: 3px）而非全边框，视觉上更轻盈
-     *   （与 summary-block 的全边框形成视觉区分）
-     * - 预览区域限制为 3 行（通过 max-height + overflow: hidden）
-     * - 不支持展开（系统提示词用户无需阅读完整内容）
-     * - 自动支持暗色主题（使用 --rtc-* CSS 变量，由 light.ts/dark.ts 定义）
-     * - <pre> 重置字体为继承值，避免浏览器默认等宽字体
+     * Design decisions:
+     * - Uses left border (border-left: 3px) instead of full border, visually lighter
+     *   (creates visual distinction from summary-block's full border)
+     * - Preview area limited to 3 lines (via max-height + overflow: hidden)
+     * - No expand support (users don't need to read full system prompt content)
+     * - Automatically supports dark theme (uses --rtc-* CSS variables, defined by light.ts/dark.ts)
+     * - <pre> resets font to inherited value, avoiding browser default monospace font
      */
     .prompt-block {
       border-left: 3px solid var(--rtc-color-primary);

@@ -1,22 +1,22 @@
 /**
- * Notification Context — 通知系统状态和操作
+ * Notification Context — notification system state and actions
  *
  * Provided by: <rtc-agent> (root)
- * Consumed by: 需要感知未读通知的组件
+ * Consumed by: components that need to be aware of unread notifications
  */
 import {createContext} from '@lit/context';
 
 export interface NotificationState {
-    /** 未读通知计数 */
+    /** Unread notification count */
     unreadCount: number;
-    /** 上次通知时间戳（用于气泡动画） */
+    /** Last notification timestamp (used for bubble animation) */
     lastNotificationAt: number | null;
 }
 
 export interface NotificationActions {
-    /** 标记所有通知为已读 */
+    /** Mark all notifications as read */
     markAsRead(): void;
-    /** 清除所有通知状态 */
+    /** Clear all notification state */
     clearAll(): void;
 }
 

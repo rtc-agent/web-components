@@ -1,23 +1,23 @@
 /**
  * Status Bar Controller
  *
- * 从 EditorAreaController 派生状态栏信息。
- * 只读：不修改编辑器状态，只计算显示数据。
+ * Derives status bar information from EditorAreaController.
+ * Read-only: does not modify editor state, only computes display data.
  *
- * 设计要点：
- * - 依赖 EditorAreaController 获取当前活动 tab
- * - 从文件路径推断文件类型
- * - 从 isDirty 推断保存状态
- * - 光标位置直接透传
+ * Design points:
+ * - Depends on EditorAreaController to get current active tab
+ * - Infers file type from file path
+ * - Infers save status from isDirty
+ * - Cursor position is passed through directly
  *
- * Debug HTML 可直接使用此 Controller 驱动状态栏组件。
+ * Debug HTML can directly use this Controller to drive the status bar component.
  */
 import type {ReactiveController, ReactiveControllerHost} from 'lit';
 import type {StatusBarInfo} from '../types/index.js';
 import type {EditorAreaController} from './editor-area.controller.js';
 
 /**
- * 从文件路径推断文件类型标签
+ * Infer file type label from file path
  */
 function inferFileType(filePath: string): string {
     const ext = filePath.split('.').pop()?.toLowerCase();
@@ -56,10 +56,10 @@ export class StatusBarController implements ReactiveController {
     hostDisconnected() {}
 
     /**
-     * 计算当前状态栏信息
+     * Compute current status bar information
      *
-     * 从 EditorAreaController 的 activeTab 派生。
-     * 无活动 tab 时返回空状态（saveStatus='none'）。
+     * Derived from EditorAreaController's activeTab.
+     * Returns empty state when no active tab (saveStatus='none').
      */
     get info(): StatusBarInfo {
         const activeTab = this._editorController.activeTab;

@@ -1,22 +1,22 @@
 /**
  * Editor Tab Component
  *
- * VS Code 风格编辑器标签页。
+ * VS Code-style editor tab.
  *
- * - 显示文件图标（按扩展名区分）+ 文件名 + 关闭按钮
- * - 活动状态：顶部 1px 主色指示条
- * - 脏状态：未保存时显示圆点，悬停时切换为关闭按钮
- * - 文件名超长省略号
+ * - Shows file icon (by extension) + file name + close button
+ * - Active state: 1px accent indicator bar at the top
+ * - Dirty state: shows a dot when unsaved, switches to close button on hover
+ * - Long file names truncated with ellipsis
  *
- * ARIA: roving tabindex — 活动标签 tabindex=0，其余 -1。
- * ←/→ 箭头键在标签间切换，Home/End 跳到首/末标签。
+ * ARIA: roving tabindex — active tab has tabindex=0, others -1.
+ * Arrow Left/Right moves focus between tabs, Home/End jumps to first/last tab.
  *
  * @element rtc-editor-tab
- * @fires editor-tab-select - 点击标签切换 (detail: { filePath })
- * @fires editor-tab-close - 点击关闭按钮 (detail: { filePath })
+ * @fires editor-tab-select - Fired when tab is clicked to switch (detail: { filePath })
+ * @fires editor-tab-close - Fired when close button is clicked (detail: { filePath })
  *
- * ## 样式
- * 使用项目 design tokens（--rtc-color-*），支持亮色/暗色主题。
+ * ## Styles
+ * Uses project design tokens (--rtc-color-*), supports light/dark themes.
  */
 import {LitElement, html} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
@@ -57,30 +57,30 @@ export class RtcEditorTab extends LitElement {
 
     /* ── Properties ── */
 
-    /** 文件路径（唯一标识） */
+    /** File path (unique identifier) */
     @property({type: String, attribute: 'file-path'})
     filePath = '';
 
-    /** 文件名（显示用，不含路径） */
+    /** File name (for display, without path) */
     @property({type: String, attribute: 'file-name'})
     fileName = '';
 
-    /** 是否为活动标签 */
+    /** Whether this is the active tab */
     @property({type: Boolean, reflect: true})
     active = false;
 
-    /** 是否有未保存修改 */
+    /** Whether there are unsaved changes */
     @property({type: Boolean, reflect: true})
     dirty = false;
 
-    /** 主题（继承自父级） */
+    /** Theme (inherited from parent) */
     @property({type: String, reflect: true})
     theme: 'light' | 'dark' | 'system' = 'system';
 
     /* ── Event Handlers ── */
 
     /**
-     * 点击标签 → 切换活动
+     * Click tab -> toggle active state
      */
     private _handleSelect() {
         this.dispatchEvent(
@@ -93,9 +93,9 @@ export class RtcEditorTab extends LitElement {
     }
 
     /**
-     * 点击关闭按钮 → 关闭标签
+     * Click close button -> close tab
      *
-     * stopPropagation 防止冒泡到标签的 select 事件。
+     * stopPropagation prevents bubbling to the tab's select event.
      */
     private _handleClose(e: Event) {
         e.stopPropagation();
@@ -109,11 +109,11 @@ export class RtcEditorTab extends LitElement {
     }
 
     /**
-     * 键盘事件
+     * Keyboard event handler
      *
-     * - Enter/Space：选中当前标签
-     * - ←/→：在兄弟标签间移动焦点（roving tabindex）
-     * - Home/End：跳到首/末标签
+     * - Enter/Space: select current tab
+     * - Arrow Left/Right: move focus between sibling tabs (roving tabindex)
+     * - Home/End: jump to first/last tab
      */
     private _handleKeydown(e: KeyboardEvent) {
         const siblings = this._getSiblingTabs();
@@ -167,7 +167,7 @@ export class RtcEditorTab extends LitElement {
     }
 
     /**
-     * 获取兄弟标签列表（在父容器的 light DOM 中）
+     * Get list of sibling tabs (in parent container's light DOM)
      */
     private _getSiblingTabs(): RtcEditorTab[] {
         const parent = this.parentElement;
@@ -176,7 +176,7 @@ export class RtcEditorTab extends LitElement {
     }
 
     /**
-     * 聚焦此标签（由兄弟标签或父级在键盘导航时调用）
+     * Focus this tab (called by sibling tabs or parent during keyboard navigation)
      */
     focusTab() {
         const el = this.shadowRoot?.querySelector('.tab') as HTMLElement | null;
@@ -186,7 +186,7 @@ export class RtcEditorTab extends LitElement {
     /* ── Render Helpers ── */
 
     /**
-     * 根据文件扩展名返回对应图标
+     * Returns the appropriate icon based on file extension
      */
     private _getFileIcon() {
         const name = this.fileName.toLowerCase();
@@ -200,7 +200,7 @@ export class RtcEditorTab extends LitElement {
     }
 
     /**
-     * 返回图标 CSS 类名
+     * Returns the icon CSS class name
      */
     private _getIconClass(): string {
         const name = this.fileName.toLowerCase();

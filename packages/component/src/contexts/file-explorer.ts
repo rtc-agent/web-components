@@ -2,47 +2,47 @@ import {createContext} from '@lit/context';
 import type {FileNode} from '../types/index.js';
 
 /**
- * File Explorer Context — 文件树状态管理。
+ * File Explorer Context — File tree state management.
  *
- * 管理 VS Code 风格布局中的文件浏览器状态：展开/折叠、选中、加载状态。
+ * Manages file browser state in a VS Code-style layout: expand/collapse, selection, loading state.
  *
  * Provided by: <rtc-agent> (root)
  * Consumed by: <rtc-file-tree-item>, <rtc-file-explorer>
  */
 export interface FileExplorerState {
-    /** 文件树根节点 */
+    /** File tree root node */
     root: FileNode | null;
-    /** 当前选中路径 */
+    /** Currently selected path */
     selectedPath: string | null;
 }
 
 export interface FileExplorerActions {
-    /** 设置根节点（从 VFS 加载后调用） */
+    /** Set the root node (called after loading from VFS) */
     setRoot(root: FileNode): void;
-    /** Toggle 节点展开/折叠 */
+    /** Toggle node expand/collapse */
     toggleNode(path: string): void;
-    /** 展开所有节点 */
+    /** Expand all nodes */
     expandAll(): void;
-    /** 折叠所有节点 */
+    /** Collapse all nodes */
     collapseAll(): void;
-    /** 选中节点 */
+    /** Select a node */
     selectNode(path: string): void;
-    /** 设置节点加载状态 */
+    /** Set node loading state */
     setLoading(path: string, loading: boolean): void;
-    /** 更新节点子项（懒加载后调用） */
+    /** Update node children (called after lazy loading) */
     updateChildren(path: string, children: FileNode[]): void;
-    /** 重置状态 */
+    /** Reset state */
     reset(): void;
 }
 
 export interface FileExplorerContextValue {
     state: FileExplorerState;
     actions: FileExplorerActions;
-    /** 查询节点是否展开 */
+    /** Query whether a node is expanded */
     isExpanded(path: string): boolean;
-    /** 查询节点是否正在加载 */
+    /** Query whether a node is loading */
     isLoading(path: string): boolean;
-    /** 查询节点是否选中 */
+    /** Query whether a node is selected */
     isSelected(path: string): boolean;
 }
 

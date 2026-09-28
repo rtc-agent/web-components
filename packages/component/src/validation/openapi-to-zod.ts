@@ -1,17 +1,17 @@
 /**
- * OpenAPI Schema → Zod Schema 转换
+ * OpenAPI Schema to Zod Schema conversion
  *
- * 将 OpenAPI Schema 转换为 Zod schema，用于向后兼容现有 OpenAPI Schema 注册方式
+ * Converts OpenAPI Schema to Zod schema for backward compatibility with existing OpenAPI Schema registration
  */
 
 import { z, type ZodType } from 'zod';
 import type { OpenAPISchema, ParameterDef } from '../types/skill.js';
 
 /**
- * 从 OpenAPI parameters 生成 ZodObject schema
+ * Generate ZodObject schema from OpenAPI parameters
  *
- * @param parameters OpenAPI 格式的参数定义数组
- * @returns ZodObject schema，可用于运行时校验
+ * @param parameters Array of parameter definitions in OpenAPI format
+ * @returns ZodObject schema, can be used for runtime validation
  */
 export function openApiToZod(parameters: ParameterDef[]): ZodType {
   const shape: Record<string, ZodType> = {};
@@ -19,12 +19,12 @@ export function openApiToZod(parameters: ParameterDef[]): ZodType {
   for (const param of parameters) {
     let fieldSchema = openApiSchemaToZod(param.schema);
 
-    // 添加描述
+    // Add description
     if (param.description || param.schema.description) {
       fieldSchema = fieldSchema.describe(param.description || param.schema.description || '');
     }
 
-    // 处理可选/必填
+    // Handle optional/required
     if (!param.required && param.schema.required !== true) {
       fieldSchema = fieldSchema.optional();
     }
@@ -36,7 +36,7 @@ export function openApiToZod(parameters: ParameterDef[]): ZodType {
 }
 
 /**
- * 单个 OpenAPI Schema 转 Zod schema
+ * Single OpenAPI Schema to Zod schema conversion
  */
 function openApiSchemaToZod(schema: OpenAPISchema): ZodType {
   const type = schema.type;
@@ -45,7 +45,7 @@ function openApiSchemaToZod(schema: OpenAPISchema): ZodType {
     case 'string': {
       let stringSchema = z.string();
 
-      // 应用约束
+      // Apply constraints
       if (schema.minLength !== undefined) {
         stringSchema = stringSchema.min(schema.minLength);
       }
@@ -56,14 +56,14 @@ function openApiSchemaToZod(schema: OpenAPISchema): ZodType {
         stringSchema = stringSchema.regex(new RegExp(schema.pattern));
       }
 
-      // 处理枚举
+      // Handle enum
       if (schema.enum !== undefined && schema.enum.length > 0) {
         return z.enum(schema.enum as [string, ...string[]]);
       }
 
-      // 处理格式（仅用于文档，运行时不校验）
+      // Handle format (for documentation only, no runtime validation)
       if (schema.format === 'date' || schema.format === 'date-time') {
-        // 可以添加自定义校验，但这里保持简单
+        // Could add custom validation, but keeping it simple here
       }
 
       return stringSchema;
@@ -120,7 +120,7 @@ function openApiSchemaToZod(schema: OpenAPISchema): ZodType {
         const shape: Record<string, ZodType> = {};
         for (const [key, propSchema] of Object.entries(schema.properties)) {
           let fieldSchema = openApiSchemaToZod(propSchema);
-          // 如果字段不是 required，则设为可选
+          // If field is not required, make it optional
           if (!propSchema.required) {
             fieldSchema = fieldSchema.optional();
           }
@@ -132,7 +132,7 @@ function openApiSchemaToZod(schema: OpenAPISchema): ZodType {
     }
 
     default:
-      // 未知类型，返回 unknown
+      // Unknown type, return unknown
       return z.unknown();
   }
 }

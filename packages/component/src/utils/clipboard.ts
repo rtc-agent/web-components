@@ -1,8 +1,8 @@
 /**
- * Clipboard 工具函数
+ * Clipboard utilities
  *
- * 提供跨浏览器兼容的剪贴板复制功能。
- * 优先使用 navigator.clipboard API，降级到 execCommand。
+ * Provides cross-browser compatible clipboard copy functionality.
+ * Prefers navigator.clipboard API, falls back to execCommand.
  */
 
 import {createLogger} from '@rtc-agent/client';
@@ -10,26 +10,26 @@ import {createLogger} from '@rtc-agent/client';
 const log = createLogger('Clipboard');
 
 /**
- * 复制文本到剪贴板
+ * Copy text to clipboard
  *
- * @param text 要复制的文本
- * @returns 是否成功
+ * @param text Text to copy
+ * @returns Whether the copy was successful
  */
 export async function copyToClipboard(text: string): Promise<boolean> {
   if (!text) return false;
 
-  // 优先使用现代 Clipboard API
+  // Prefer modern Clipboard API
   if (navigator.clipboard?.writeText) {
     try {
       await navigator.clipboard.writeText(text);
       return true;
     } catch (err) {
-      // 降级到 execCommand
+      // Fall back to execCommand
       log.debug('Clipboard API failed, falling back to execCommand:', err);
     }
   }
 
-  // Fallback: 使用 execCommand（同步，旧浏览器兼容）
+  // Fallback: use execCommand (synchronous, compatible with older browsers)
   try {
     const textarea = document.createElement('textarea');
     textarea.value = text;

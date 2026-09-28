@@ -14,16 +14,16 @@ import {ContextProvider} from '@lit/context';
 import type {Context} from '@lit/context';
 
 /**
- * 将 context provider 包装到 host 元素的 light DOM 父节点。
+ * Wrap a context provider around the host element's light DOM parent.
  *
- * 时序契约（重要）：
- * 1. wrapper 必须作为 host 的 light DOM 父节点插入（不能 append 到 document.body）
- *    ——因为 @consume 沿 composed tree 向上查找 provider
- * 2. 必须在 fixture() 调用 await nextFrame() 之前同步完成
- *    ——否则 @consume 在首次 update cycle 时找不到 provider
- * 3. wrapper 使用 <slot> 渲染 host，context 通过 slot 正确传播
+ * Timing contract (important):
+ * 1. The wrapper must be inserted as the host's light DOM parent (cannot append to document.body)
+ *    -- because @consume walks up the composed tree to find the provider.
+ * 2. It must be done synchronously before fixture() calls await nextFrame()
+ *    -- otherwise @consume won't find the provider during the first update cycle.
+ * 3. The wrapper uses <slot> to render the host; the context propagates correctly through the slot.
  *
- * @returns provider wrapper 元素，可以通过 wrapper.updateContext(value) 更新 context 值
+ * @returns The provider wrapper element. Call wrapper.updateContext(value) to update the context value.
  */
 export function provideContext<T>(
     host: HTMLElement,
@@ -37,7 +37,7 @@ export function provideContext<T>(
         private _provider = new ContextProvider(this, {context, initialValue: value});
 
         /**
-         * 更新 context 值
+         * Update the context value.
          */
         updateContext(newValue: T) {
             this._provider.setValue(newValue);

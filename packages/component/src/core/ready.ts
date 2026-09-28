@@ -1,18 +1,18 @@
 /**
  * Module Ready Signal
  *
- * 提供两种机制让宿主应用等待 <rtc-agent> 组件初始化完成：
- * 1. `whenReady()` Promise — ES module 风格
- * 2. `rtc-agent-ready` 自定义事件 — Web Component 风格（由 RtcAgent 组件派发）
+ * Provides two mechanisms for the host application to wait for <rtc-agent> component initialization:
+ * 1. `whenReady()` Promise — ES module style
+ * 2. `rtc-agent-ready` custom event — Web Component style (dispatched by RtcAgent component)
  *
- * 内部使用：组件在 firstUpdated 时调用 _markReady()。
+ * Internal use: component calls _markReady() on firstUpdated.
  */
 
 let _resolve: () => void;
 let _ready = false;
 
 /**
- * 等待 <rtc-agent> 组件模块加载并初始化完成
+ * Wait for the <rtc-agent> component module to load and initialize
  *
  * @example
  * ```ts
@@ -27,10 +27,10 @@ export const whenReady: Promise<void> = new Promise<void>((resolve) => {
 });
 
 /**
- * 标记模块已就绪（内部使用）
+ * Mark the module as ready (internal use)
  *
- * 由 RtcAgent 组件在 firstUpdated 时调用。
- * 重复调用是安全的（后续调用立即返回）。
+ * Called by RtcAgent component on firstUpdated.
+ * Safe to call multiple times (subsequent calls return immediately).
  */
 export function _markReady(): void {
   if (_ready) return;
@@ -39,7 +39,7 @@ export function _markReady(): void {
 }
 
 /**
- * 检查模块是否已就绪（内部使用，主要用于测试）
+ * Check whether the module is ready (internal use, mainly for testing)
  */
 export function _isReady(): boolean {
   return _ready;

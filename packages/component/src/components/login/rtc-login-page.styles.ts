@@ -1,14 +1,14 @@
 import {css} from 'lit';
 
 export const styles = css`
-  /* ── 宿主元素 ── */
+  /* ── Host element ── */
   :host {
     display: block;
     flex: 1;
     overflow: hidden;
   }
 
-  /* ── 容器布局 ── */
+  /* ── Container layout ── */
   .login-container {
     display: flex;
     flex-direction: column;
@@ -19,7 +19,7 @@ export const styles = css`
     text-align: center;
   }
 
-  /* ── Logo & 应用名称 ── */
+  /* ── Logo & app name ── */
   .logo {
     margin-bottom: var(--rtc-spacing-lg, 24px);
   }
@@ -42,7 +42,7 @@ export const styles = css`
     margin-bottom: var(--rtc-spacing-xl, 32px);
   }
 
-  /* ── Provider 按钮容器 ── */
+  /* ── Provider button container ── */
   .providers {
     display: flex;
     flex-direction: column;
@@ -51,7 +51,7 @@ export const styles = css`
     max-width: 280px;
   }
 
-  /* ── Provider 按钮 ── */
+  /* ── Provider button ── */
   .provider-btn {
     display: flex;
     align-items: center;
@@ -97,7 +97,7 @@ export const styles = css`
     height: 100%;
   }
 
-  /* ── 加载 & 错误状态 ── */
+  /* ── Loading & error state ── */
   .loading-text {
     font-size: var(--rtc-font-size-sm, 14px);
     color: var(--rtc-color-text-secondary, #666);

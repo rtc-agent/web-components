@@ -1,24 +1,25 @@
 /**
  * Editor Area Controller
  *
- * 管理 Editor Area 的状态：
- * - 打开的文件标签列表
- * - 当前活动文件
- * - 每个标签的内容和脏状态
- * - 每个标签的视图模式
+ * Manages Editor Area state:
+ * - Open file tab list
+ * - Current active file
+ * - Content and dirty state per tab
+ * - View mode per tab
  *
- * 提供 actions 供组件或 Debug HTML 调用。
+ * Provides actions for components or Debug HTML to call.
  *
- * 设计要点：
- * - 同一路径只允许开一个 tab（幂等打开）
- * - 关闭最后一个 tab 后 activeFilePath 清空
- * - 关闭当前活动 tab 后自动切到相邻 tab
- * - 内容变更时标记 isDirty
- * - 保存时清除 isDirty（实际写入 VFS 由外部处理）
+ * Design notes:
+ * - Only one tab allowed per path (idempotent open)
+ * - activeFilePath clears after closing the last tab
+ * - Auto-switches to adjacent tab after closing the active tab
+ * - Marks isDirty on content change
+ * - Clears isDirty on save (actual VFS write handled externally)
  *
- * ## 持久化
- * - 通过 localStorage 保存打开的 tab 列表（filePath, viewMode, cursorPosition）
- *   和 activeFilePath。内容（content）不持久化，刷新后从 VFS 重新加载。
+ * ## Persistence
+ * - Saves the open tab list (filePath, viewMode, cursorPosition)
+ *   and activeFilePath via localStorage. Content is not persisted;
+ *   it is reloaded from VFS after refresh.
  */
 import type {ReactiveController, ReactiveControllerHost} from 'lit';
 import type {EditorTab, EditorViewMode} from '../types/index.js';
@@ -27,7 +28,7 @@ import {createLogger} from '@rtc-agent/client';
 
 const log = createLogger('EditorAreaController');
 
-/** 持久化的 Tab 数据（不含 content） */
+/** Persisted Tab data (excluding content) */
 interface PersistedTabMeta {
     filePath: string;
     viewMode: EditorViewMode;
@@ -45,27 +46,27 @@ export interface EditorAreaState {
 }
 
 export interface EditorAreaActions {
-    /** 打开文件（幂等：已存在则切换到该 tab） */
+    /** Open a file (idempotent: switches to existing tab if already open) */
     openFile(filePath: string, content: string, viewMode?: EditorViewMode): void;
-    /** 关闭标签 */
+    /** Close a tab */
     closeFile(filePath: string): void;
-    /** 关闭所有标签 */
+    /** Close all tabs */
     closeAll(): void;
-    /** 切换到指定标签 */
+    /** Switch to a specific tab */
     switchTab(filePath: string): void;
-    /** 更新内容（自动标记 dirty） */
+    /** Update content (auto-marks dirty) */
     updateContent(filePath: string, content: string): void;
-    /** 保存文件（清除 dirty 标记） */
+    /** Save file (clears dirty flag) */
     saveFile(filePath: string): void;
-    /** 设置视图模式 */
+    /** Set view mode */
     setViewMode(filePath: string, viewMode: EditorViewMode): void;
-    /** 更新光标位置 */
+    /** Update cursor position */
     setCursorPosition(filePath: string, position: {line: number; column: number}): void;
     /**
-     * 静默设置文件内容（不标记 dirty）
+     * Silently set file content (does not mark dirty)
      *
-     * 用于刷新后从 VFS 重新加载内容到已恢复的 tab。
-     * 如果 tab 不存在，则创建新 tab。
+     * Used to reload content from VFS into restored tabs after refresh.
+     * Creates a new tab if the tab does not exist.
      */
     loadContent(filePath: string, content: string): void;
 }
@@ -75,7 +76,7 @@ export class EditorAreaController implements ReactiveController {
     private _tabs: EditorTab[] = [];
     private _activeFilePath = '';
 
-    /** 光标位置持久化节流：避免频繁写 localStorage */
+    /** Cursor position persistence throttle: avoid frequent localStorage writes */
     private _cursorPersistTimer?: ReturnType<typeof setTimeout>;
 
     readonly actions: EditorAreaActions;
@@ -100,7 +101,7 @@ export class EditorAreaController implements ReactiveController {
     hostConnected() {}
 
     hostDisconnected() {
-        // 清理节流定时器
+        // Clean up throttle timer
         if (this._cursorPersistTimer) {
             clearTimeout(this._cursorPersistTimer);
             this._cursorPersistTimer = undefined;
@@ -119,7 +120,7 @@ export class EditorAreaController implements ReactiveController {
             const isValidViewMode = (v: unknown): v is EditorViewMode =>
                 v === 'edit' || v === 'preview' || v === 'split';
 
-            // 用空 content 恢复 tab；内容等待 VFS 就绪后由外部调用 loadContent 填充
+            // Restore tabs with empty content; content will be filled by external loadContent calls once VFS is ready
             this._tabs = saved.tabs.map(t => ({
                 filePath: t.filePath,
                 content: '',
@@ -130,7 +131,7 @@ export class EditorAreaController implements ReactiveController {
                 viewMode: isValidViewMode(t.viewMode) ? t.viewMode : 'edit',
             }));
 
-            // activeFilePath 必须在恢复后的 tabs 中存在
+            // activeFilePath must exist in restored tabs
             const activeExists = this._tabs.some(t => t.filePath === saved.activeFilePath);
             this._activeFilePath = activeExists ? saved.activeFilePath : (this._tabs[0]?.filePath ?? '');
         } catch (e) {
@@ -184,14 +185,14 @@ export class EditorAreaController implements ReactiveController {
     /* ── Actions ── */
 
     /**
-     * 打开文件
+     * Open a file
      *
-     * 幂等：如果文件已打开，只切换标签不覆盖内容。
+     * Idempotent: if file is already open, only switches the tab without overwriting content.
      */
     private _openFile(filePath: string, content: string, viewMode: EditorViewMode = 'edit') {
         const existing = this._tabs.find(t => t.filePath === filePath);
         if (existing) {
-            // 已打开，只切换
+            // Already open, only switch
             this._activeFilePath = filePath;
             this._persist();
             this._host.requestUpdate();
@@ -213,9 +214,9 @@ export class EditorAreaController implements ReactiveController {
     }
 
     /**
-     * 关闭标签
+     * Close a tab
      *
-     * 关闭后自动切换到相邻标签。如果关闭的是最后一个，清空 activeFilePath。
+     * Auto-switches to adjacent tab after closing. Clears activeFilePath if closing the last tab.
      */
     private _closeFile(filePath: string) {
         const index = this._tabs.findIndex(t => t.filePath === filePath);
@@ -229,7 +230,7 @@ export class EditorAreaController implements ReactiveController {
             if (this._tabs.length === 0) {
                 this._activeFilePath = '';
             } else {
-                // 切换到相邻标签（优先左侧）
+                // Switch to adjacent tab (prefer left)
                 const newIndex = Math.min(index, this._tabs.length - 1);
                 this._activeFilePath = this._tabs[newIndex].filePath;
             }
@@ -240,7 +241,7 @@ export class EditorAreaController implements ReactiveController {
     }
 
     /**
-     * 关闭所有标签
+     * Close all tabs
      */
     private _closeAll() {
         this._tabs = [];
@@ -250,7 +251,7 @@ export class EditorAreaController implements ReactiveController {
     }
 
     /**
-     * 切换到指定标签
+     * Switch to a specific tab
      */
     private _switchTab(filePath: string) {
         const exists = this._tabs.some(t => t.filePath === filePath);
@@ -262,7 +263,7 @@ export class EditorAreaController implements ReactiveController {
     }
 
     /**
-     * 更新内容（自动标记 dirty）
+     * Update content (auto-marks dirty)
      */
     private _updateContent(filePath: string, content: string) {
         this._tabs = this._tabs.map(t => {
@@ -273,15 +274,15 @@ export class EditorAreaController implements ReactiveController {
                 isDirty: true,
             };
         });
-        // 内容变更频繁，不持久化（避免 localStorage 抖动）；
-        // 脏状态和内容由 VFS 作为权威来源，刷新后从 VFS 重新加载。
+        // Content changes frequently; skip persistence to avoid localStorage thrashing;
+        // dirty state and content are authoritative in VFS; reload from VFS after refresh.
         this._host.requestUpdate();
     }
 
     /**
-     * 保存文件（清除 dirty 标记）
+     * Save file (clears dirty flag)
      *
-     * 注意：实际写入 VFS 由外部监听 editor-area-save 事件处理。
+     * Note: actual VFS write is handled externally by listening to the editor-area-save event.
      */
     private _saveFile(filePath: string) {
         this._tabs = this._tabs.map(t => {
@@ -293,7 +294,7 @@ export class EditorAreaController implements ReactiveController {
     }
 
     /**
-     * 设置视图模式
+     * Set view mode
      */
     private _setViewMode(filePath: string, viewMode: EditorViewMode) {
         this._tabs = this._tabs.map(t => {
@@ -305,12 +306,12 @@ export class EditorAreaController implements ReactiveController {
     }
 
     /**
-     * 更新光标位置
+     * Update cursor position
      */
     private _setCursorPosition(filePath: string, position: {line: number; column: number}) {
         const tab = this._tabs.find(t => t.filePath === filePath);
         if (!tab) return;
-        // 位置没变，跳过
+        // Position unchanged, skip
         if (tab.cursorPosition.line === position.line && tab.cursorPosition.column === position.column) {
             return;
         }
@@ -318,9 +319,9 @@ export class EditorAreaController implements ReactiveController {
             if (t.filePath !== filePath) return t;
             return {...t, cursorPosition: position};
         });
-        // 触发 host update 让 status bar 实时更新
+        // Trigger host update so status bar updates in real time
         this._host.requestUpdate();
-        // 节流持久化：2 秒内只写一次 localStorage，避免光标频繁移动导致的 IO 抖动
+        // Throttle persistence: write localStorage only once per 2s to avoid IO thrashing from frequent cursor moves
         if (this._cursorPersistTimer) return;
         this._cursorPersistTimer = setTimeout(() => {
             this._cursorPersistTimer = undefined;
@@ -329,10 +330,10 @@ export class EditorAreaController implements ReactiveController {
     }
 
     /**
-     * 静默设置文件内容（不标记 dirty）
+     * Silently set file content (does not mark dirty)
      *
-     * 用于刷新后从 VFS 重新加载内容到已恢复的 tab。
-     * 如果 tab 不存在，则创建新 tab。
+     * Used to reload content from VFS into restored tabs after refresh.
+     * Creates a new tab if the tab does not exist.
      */
     private _loadContent(filePath: string, content: string) {
         const existing = this._tabs.find(t => t.filePath === filePath);
@@ -345,7 +346,7 @@ export class EditorAreaController implements ReactiveController {
             this._host.requestUpdate();
             return;
         }
-        // tab 不存在时创建（兼容外部直接调用 loadContent 的场景）
+        // Create tab when it does not exist (for cases where external code calls loadContent directly)
         const newTab: EditorTab = {
             filePath,
             content,

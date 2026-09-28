@@ -12,12 +12,12 @@ export interface FixtureOptions {
 }
 
 /**
- * 测试用 fixture 渲染。
+ * Test fixture rendering.
  *
- * 时序契约（重要）：
- * 1. 如果提供了 options.setup，它会在第一次 nextFrame() 之前同步执行
- * 2. setup 中调用 provideContext() 是安全的，context 会在 host 首次 update 时就位
- * 3. 不要在 setup 中 await 任何东西——此时元素尚未 connected
+ * Timing contract (important):
+ * 1. If options.setup is provided, it runs synchronously before the first nextFrame().
+ * 2. It is safe to call provideContext() in setup; the context will be in place before the host's first update.
+ * 3. Do not await anything inside setup -- the element is not yet connected at that point.
  *
  * @example
  * const el = await fixture(html`<my-consumer></my-consumer>`, {

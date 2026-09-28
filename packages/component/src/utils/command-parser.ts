@@ -14,44 +14,44 @@
  */
 
 export interface ParsedCommand {
-    /** 是否为命令输入 */
+    /** Whether the input is a command */
     isCommand: boolean;
-    /** 命令名称（不含 '/' 前缀） */
+    /** Command name (without the '/' prefix) */
     name?: string;
-    /** 命令参数（命令名后的剩余内容，已 trim） */
+    /** Command arguments (remaining content after command name, trimmed) */
     args?: string;
 }
 
 /**
- * 解析用户输入，判断是否为 slash 命令
+ * Parse user input to determine if it's a slash command
  *
- * 解析规则：
- * 1. 输入必须以 '/' 开头
- * 2. '/' 后必须有至少一个非空白字符作为命令名
- * 3. 命令名由连续的非空白字符组成（到第一个空格为止）
- * 4. 命令名后的内容作为参数（trim 后传入）
+ * Parsing rules:
+ * 1. Input must start with '/'
+ * 2. There must be at least one non-whitespace character after '/' as the command name
+ * 3. The command name consists of consecutive non-whitespace characters (up to the first space)
+ * 4. Content after the command name is treated as arguments (passed after trimming)
  */
 export function parseCommand(input: string): ParsedCommand {
     const trimmed = input.trim();
 
-    // 必须以 '/' 开头
+    // Must start with '/'
     if (!trimmed.startsWith('/')) {
         return { isCommand: false };
     }
 
-    // 去掉 '/' 前缀
+    // Remove '/' prefix
     const withoutSlash = trimmed.slice(1);
 
-    // '/' 后必须有内容
+    // There must be content after '/'
     if (withoutSlash.length === 0) {
         return { isCommand: false };
     }
 
-    // 分割命令名和参数
+    // Split command name and arguments
     const spaceIndex = withoutSlash.search(/\s/);
 
     if (spaceIndex === -1) {
-        // 没有参数，整个输入就是命令名
+        // No arguments, the entire input is the command name
         return {
             isCommand: true,
             name: withoutSlash.toLowerCase(),
@@ -61,7 +61,7 @@ export function parseCommand(input: string): ParsedCommand {
     const name = withoutSlash.slice(0, spaceIndex).toLowerCase();
     const args = withoutSlash.slice(spaceIndex).trim();
 
-    // 命令名不能为空
+    // Command name cannot be empty
     if (name.length === 0) {
         return { isCommand: false };
     }

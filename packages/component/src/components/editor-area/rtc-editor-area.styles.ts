@@ -1,10 +1,10 @@
 import {css} from 'lit';
 
 /**
- * Editor Area 样式
+ * Editor Area styles
  *
- * VS Code 风格编辑器区域容器。
- * 颜色使用项目 Tokens，确保双主题适配。
+ * VS Code-style editor area container.
+ * Colors use project Tokens to ensure dual-theme adaptation.
  */
 export const styles = css`
     :host {
@@ -17,7 +17,7 @@ export const styles = css`
         color: var(--rtc-color-text, #cccccc);
     }
 
-    /* ── Tabs 区域 ── */
+    /* ── Tabs area ── */
     .tabs-bar {
         display: flex;
         align-items: center;
@@ -29,7 +29,7 @@ export const styles = css`
         flex-shrink: 0;
     }
 
-    /* 隐藏滚动条但保持可滚动 */
+    /* Hide scrollbar but keep scrollable */
     .tabs-bar::-webkit-scrollbar {
         display: none;
     }
@@ -39,12 +39,12 @@ export const styles = css`
         scrollbar-width: none;
     }
 
-    /* ── Toolbar 区域 ── */
+    /* ── Toolbar area ── */
     .toolbar-area {
         flex-shrink: 0;
     }
 
-    /* ── Editor Content 区域 ── */
+    /* ── Editor Content area ── */
     .editor-content {
         flex: 1;
         min-height: 0;
@@ -52,7 +52,7 @@ export const styles = css`
         flex-direction: column;
     }
 
-    /* ── Welcome Screen（无文件打开时） ── */
+    /* ── Welcome Screen (when no file is open) ── */
     .welcome-screen {
         flex: 1;
         display: flex;
@@ -87,7 +87,7 @@ export const styles = css`
         font-size: var(--rtc-font-size-sm, 13px);
     }
 
-    /* ── 亮色主题适配 ── */
+    /* ── Light theme adaptation ── */
     :host([theme='light']) {
         background: var(--rtc-color-bg, #ffffff);
         color: var(--rtc-color-text, #333333);

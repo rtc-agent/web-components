@@ -6,9 +6,9 @@
  *
  * Layout:
  *   ┌──────────────────┐
- *   │ 复制             │
- *   │ 分叉             │
- *   │ 重试  (failed)   │
+ *   │ Copy             │
+ *   │ Fork             │
+ *   │ Retry  (failed)  │
  *   ├──────────────────┤
  *   │ MM-DD HH:mm      │
  *   └──────────────────┘
@@ -99,7 +99,7 @@ export class RtcMessageMoreMenu extends LitElement {
     @property({type: Number})
     timestamp = 0;
 
-    /** 格式化时间戳为紧凑格式（委托给共享工具函数） */
+    /** Format timestamp to compact format (delegates to shared utility function) */
     private get _formattedTimestamp(): string {
         return formatTimestampCompact(this.timestamp);
     }

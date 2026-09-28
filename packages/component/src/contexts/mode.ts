@@ -32,17 +32,17 @@ export const MODE_CONFIGS: ModeConfig[] = [
     },
     // {
     //     mode: 'plan',
-    //     label: '计划',
+    //     label: 'Plan',
     //     icon: 'tasklist',
     //     description:
-    //         'Claude 会先探索代码并展示计划，然后再进行编辑',
+    //         'Claude will first explore the code and present a plan before making edits',
     // },
     // {
     //     mode: 'auto',
-    //     label: '自动',
+    //     label: 'Auto',
     //     icon: 'zap',
     //     description:
-    //         'Claude 会自动执行通过安全检查的操作，对有风险的操作会暂停',
+    //         'Claude will automatically execute operations that pass safety checks, and pause for risky operations',
     // },
     {
         mode: 'bypass',

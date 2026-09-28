@@ -250,7 +250,7 @@ export class RtcToolCallCard extends LitElement {
     }
 
     /**
-     * 复制工具调用内容（与 dot 点击对应）
+     * Copy tool call content (corresponds to dot click)
      */
     private async _handleDotClick() {
         await this._handleCopy(this._outCopyText || this._inCopyText);

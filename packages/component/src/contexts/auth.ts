@@ -10,10 +10,11 @@ import type {AuthState} from '../types/index.js';
  * Note: Token persistence and OAuth2 flows are managed by AuthController.
  * setTokens() is a root-level coordination method, NOT exposed on this context.
  *
- * **设计例外**：与其他 context 的 `{state, actions}` 模式不同，
- * AuthContext 将 `login`/`logout` 直接放在顶层（与 `state` 并列）。
- * 理由：Auth 只有两个动作，包装成 `actions` 子对象徒增冗余，
- * 且 `el.login()` 比 `el.actions.login()` 更符合语义直觉。
+ * **Design exception**: Unlike other contexts that follow the `{state, actions}` pattern,
+ * AuthContext places `login`/`logout` directly at the top level (alongside `state`).
+ * Rationale: Auth has only two actions, so wrapping them in an `actions` sub-object
+ * would add unnecessary redundancy, and `el.login()` is more semantically intuitive
+ * than `el.actions.login()`.
  */
 export interface AuthContextValue {
     state: AuthState;

@@ -1,34 +1,34 @@
 /**
- * MasterLock: 基于 Web Locks API 的 Master Tab 选举
+ * MasterLock: Master Tab election based on Web Locks API.
  *
- * 设计原则：
- * - 每个 Tab 各自持有一个 MasterLock，自己判断是否为 Master
- * - Worker 不参与选举，不知道也不关心谁是 Master
- * - Tab 关闭 → 浏览器自动释放锁 → 其他 Tab 排队获得 → 自动升级
- * - 锁名含 userId，多用户隔离
+ * Design principles:
+ * - Each Tab holds its own MasterLock; the Tab itself decides whether it is the Master.
+ * - Workers do not participate in the election — they neither know nor care who the Master is.
+ * - Tab closes -> browser auto-releases the lock -> other Tabs acquire it in queue order -> auto-upgrade.
+ * - Lock name contains userId for multi-user isolation.
  *
- * 用法：
+ * Usage:
  * ```ts
  * const lock = new MasterLock('user-123');
  * lock.onAcquire = () => { console.log('became master'); };
  * lock.onRelease = () => { console.log('lost master'); };
- * await lock.acquire();  // 开始尝试获取锁（可能排队）
+ * await lock.acquire();  // Start trying to acquire the lock (may queue)
  * // ... later
- * lock.release();        // 主动释放（Tab 关闭时浏览器自动释放）
+ * lock.release();        // Actively release (browser auto-releases when Tab closes)
  * ```
  *
  * @see docs/shared-worker-proposal.md §4.3
  */
 
-/** MasterLock 事件回调 */
+/** MasterLock event callbacks */
 import {createLogger} from '@rtc-agent/client';
 
 const log = createLogger('MasterLock');
 
 export interface MasterLockCallbacks {
-    /** 获得锁 → 成为 Master */
+    /** Acquired lock -> become Master */
     onAcquire?: () => void;
-    /** 失去锁 → 降级为非 Master */
+    /** Lost lock -> demote to non-Master */
     onRelease?: () => void;
 }
 
@@ -38,9 +38,9 @@ export class MasterLock {
     private _controlled = false;
     private _abortController?: AbortController;
 
-    /** 获得锁时的回调 */
+    /** Callback invoked when the lock is acquired */
     onAcquire?: () => void;
-    /** 失去锁时的回调 */
+    /** Callback invoked when the lock is lost */
     onRelease?: () => void;
 
     constructor(userId: string) {
@@ -48,28 +48,28 @@ export class MasterLock {
     }
 
     /**
-     * 当前 Tab 是否为 Master
+     * Whether the current Tab is the Master.
      */
     get isMaster(): boolean {
         return this._isMaster;
     }
 
     /**
-     * 是否已经开始选举流程（调用了 acquire）
+     * Whether the election process has started (i.e. acquire() was called).
      */
     get isControlled(): boolean {
         return this._controlled;
     }
 
     /**
-     * 开始尝试获取 Master 锁
+     * Start attempting to acquire the Master lock.
      *
-     * - 如果没有其他 Master，立即获得锁
-     * - 如果已有 Master，排队等待（浏览器调度，零轮询）
-     * - 获得锁后调用 onAcquire 回调
-     * - Tab 关闭 → 浏览器自动释放 → 排队的 Tab 获得锁
+     * - If no other Master exists, the lock is acquired immediately.
+     * - If a Master already exists, queue and wait (browser-scheduled, zero polling).
+     * - Calls onAcquire callback once the lock is obtained.
+     * - Tab closes -> browser auto-releases -> queued Tab acquires the lock.
      *
-     * 幂等：多次调用只有第一次生效。
+     * Idempotent: only the first call takes effect; subsequent calls are ignored.
      */
     async acquire(): Promise<void> {
         if (this._controlled) {
@@ -78,8 +78,8 @@ export class MasterLock {
         }
 
         if (!this._isWebLocksAvailable()) {
-            // Web Locks 不可用 → 直接降级为"总是 Master"
-            // 兼容旧浏览器或特殊环境（如隐私模式）
+            // Web Locks not available -> fall back to "always Master"
+            // Compatible with older browsers or special environments (e.g. privacy mode)
             log.warn('Web Locks API not available, acting as always-master');
             this._isMaster = true;
             this._controlled = true;
@@ -90,33 +90,33 @@ export class MasterLock {
         this._controlled = true;
         this._abortController = new AbortController();
 
-        // navigator.locks.request 的 callback 在获得锁时调用
-        // callback 返回的 Promise resolve 时释放锁
-        // 我们让 callback 永不 resolve → 锁一直被持有直到 Tab 关闭
+        // The callback of navigator.locks.request is invoked when the lock is acquired.
+        // The lock is released when the callback's returned Promise resolves.
+        // We make the callback never resolve -> the lock is held until the Tab closes.
         // eslint-disable-next-line @typescript-eslint/no-floating-promises
         navigator.locks.request(
             this._lockName,
             { signal: this._abortController.signal },
             async () => {
-                // 获得锁 → 成为 Master
+                // Acquired lock -> become Master
                 this._isMaster = true;
                 log.info('acquired lock → became Master');
                 this.onAcquire?.();
 
-                // 永不 resolve → 锁一直被持有
-                // Tab 关闭时浏览器自动释放，其他 Tab 排队获得
+                // Never resolve -> lock stays held.
+                // When the Tab closes, the browser auto-releases it and the next queued Tab acquires it.
                 await new Promise<void>((resolve) => {
-                    // 存储 resolve 以便 release() 可以主动释放
+                    // Store resolve so release() can actively release the lock
                     this._releaseResolve = resolve;
                 });
 
-                // 释放锁后 → 降级
+                // Lock released -> demote
                 this._isMaster = false;
                 log.info('released lock → lost Master');
                 this.onRelease?.();
             },
         ).catch((err: unknown) => {
-            // AbortError 是主动 release() 导致的，不需要报错
+            // AbortError is caused by an explicit release() call; no need to report it.
             if (err instanceof DOMException && err.name === 'AbortError') {
                 return;
             }
@@ -125,24 +125,24 @@ export class MasterLock {
     }
 
     /**
-     * 主动释放 Master 锁
+     * Actively release the Master lock.
      *
-     * - 如果当前是 Master → 释放锁 → 触发 onRelease
-     * - 如果正在排队 → 取消排队（abort）
-     * - 如果已经不是 Master → no-op
+     * - If currently Master -> release the lock -> trigger onRelease.
+     * - If still queuing -> cancel the queue (abort).
+     * - If already not Master -> no-op.
      */
     release(): void {
         if (!this._controlled) {
             return;
         }
 
-        // 解除 callback 中的阻塞 → 锁被释放 → callback 后续代码执行
+        // Unblock the callback -> lock is released -> callback continuation executes.
         if (this._releaseResolve) {
             this._releaseResolve();
             this._releaseResolve = undefined;
         }
 
-        // 如果还在排队（未获得锁），abort 取消排队
+        // If still queuing (lock not yet acquired), abort to cancel the queue.
         if (!this._isMaster && this._abortController) {
             this._abortController.abort();
         }
@@ -151,12 +151,12 @@ export class MasterLock {
     }
 
     /**
-     * 检测 Web Locks API 是否可用
+     * Check whether the Web Locks API is available.
      */
     private _isWebLocksAvailable(): boolean {
         return typeof navigator !== 'undefined' && 'locks' in navigator;
     }
 
-    /** 用于解除 acquire callback 中的阻塞 */
+    /** Used to unblock the acquire callback's await */
     private _releaseResolve?: () => void;
 }

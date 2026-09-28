@@ -25,13 +25,13 @@ export const styles = css`
     transition: max-height var(--rtc-transition-duration) var(--rtc-transition-timing);
   }
 
-  /* 解锁状态 */
+  /* Unlocked state */
   .scroll-container.unlocked .content {
     max-height: var(--rtc-scroll-max-height-unlocked, 200px);
     overflow-y: auto;
   }
 
-  /* 底部渐变遮罩 + 模糊（通用样式） */
+  /* Bottom gradient mask + blur (generic styles) */
   .scroll-container .content::after {
     content: '';
     position: absolute;
@@ -44,21 +44,21 @@ export const styles = css`
     transition: all var(--rtc-transition-duration) var(--rtc-transition-timing);
   }
 
-  /* 锁定状态：显示遮罩 */
+  /* Locked state: show mask */
   .scroll-container.locked .content::after {
     background: linear-gradient(to bottom, transparent 0%, color-mix(in srgb, var(--rtc-color-bg) 85%, transparent) 100%);
     backdrop-filter: blur(0.5px);
     -webkit-backdrop-filter: blur(0.5px);
   }
 
-  /* 解锁状态：隐藏遮罩 */
+  /* Unlocked state: hide mask */
   .scroll-container.unlocked .content::after {
     background: linear-gradient(to bottom, transparent 0%, transparent 100%);
     backdrop-filter: blur(0px);
     -webkit-backdrop-filter: blur(0px);
   }
 
-  /* 滚动指示器（下箭头图标） */
+  /* Scroll indicator (down arrow icon) */
   .scroll-indicator {
     position: absolute;
     bottom: 0;
@@ -79,7 +79,7 @@ export const styles = css`
     fill: var(--rtc-color-text-secondary);
   }
 
-  /* 解锁状态：上箭头指示器（位于底部） */
+  /* Unlocked state: up arrow indicator (at bottom) */
   .scroll-indicator-up {
     position: absolute;
     bottom: 4px;

@@ -263,29 +263,29 @@ export async function loadSessions(
 // ── Tab Reconciliation ──
 
 /**
- * 增量对账 tab 与 session 状态（非首次加载时调用）。
+ * Incrementally reconcile tab and session state (called after initial load).
  *
- * Gap fill / BulkUpdate 后，DB 中的 session 列表可能已变化：
- * - 其他 tab/client 创建了新 session → 需要开 tab
- * - 其他 tab/client 关闭了 session → 需要关 tab
- * - session 被删除 → 需要关 tab
+ * After Gap fill / BulkUpdate, the session list in DB may have changed:
+ * - Another tab/client created a new session → need to open tab
+ * - Another tab/client closed a session → need to close tab
+ * - Session was deleted → need to close tab
  *
- * 与首次加载的 restoreTabsFromDB 区别：
- * - restoreTabsFromDB 是全量恢复（按 updatedAt 排序，恢复 storedActiveId）
- * - reconcileTabs 是增量修补（保留用户已有 tab 顺序和激活状态，新 tab 不激活）
+ * Difference from restoreTabsFromDB on initial load:
+ * - restoreTabsFromDB is a full restore (sorted by updatedAt, restores storedActiveId)
+ * - reconcileTabs is incremental patching (preserves user's existing tab order and active state; new tabs are not activated)
  *
- * 幂等安全：多次调用无副作用，已存在的 tab 不会被重复打开或重排。
+ * Idempotent-safe: multiple calls have no side effects; existing tabs won't be reopened or reordered.
  */
 function reconcileTabs(
     uiSessions: Session[],
     sessionTab: SessionLoaderDeps['sessionTab'],
     logger: Logger,
 ): void {
-    // 1. 计算应该开 tab 的 session 集合（open 且未删除）
+    // 1. Compute the set of sessions that should have tabs open (open and not deleted)
     const openSessions = uiSessions.filter(s => s.status !== 'closed');
     const openIds = new Set(openSessions.map(s => s.clientId));
 
-    // 2. 关闭无效 tab（session 已 closed 或已删除，保留 unsaved draft）
+    // 2. Close invalid tabs (session is closed or deleted; preserve unsaved drafts)
     const currentTabs = sessionTab.value.state.tabs;
     const tabsToClose = currentTabs.filter(
         t => !openIds.has(t.sessionId) && t.isUnsaved !== true
@@ -295,7 +295,7 @@ function reconcileTabs(
         sessionTab.actions.closeTab(tab.sessionId);
     }
 
-    // 3. 为新增的 open session 开 tab（不激活，不打扰用户当前操作）
+    // 3. Open tabs for newly added open sessions (don't activate; don't disturb user's current operation)
     // Re-read tabs after closing, since closeTab mutates state synchronously.
     const updatedTabs = sessionTab.value.state.tabs;
     const currentTabIds = new Set(updatedTabs.map(t => t.sessionId));

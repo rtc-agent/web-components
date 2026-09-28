@@ -1,4 +1,4 @@
-// 数据存取模块（demo 使用 localStorage，不存入虚拟文件系统）
+// Data storage module (demo uses localStorage, does not write into the virtual file system)
 
 import {createLogger} from '@rtc-agent/client';
 

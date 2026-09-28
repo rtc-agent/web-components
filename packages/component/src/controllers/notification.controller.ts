@@ -1,18 +1,19 @@
 /**
  * Notification Controller
  *
- * 轻量级通知系统：监听 UIUpdateBus 的新消息事件，根据焦点检测逻辑
- * 触发声音提示、Toast 通知和最小化图标动画。
+ * Lightweight notification system: listens for new message events via UIUpdateBus,
+ * triggers sound alerts, toast notifications, and minimized icon animations
+ * based on focus detection logic.
  *
- * 架构：
- * - 订阅 UIUpdateBus 的 'message' 事件（按 entity 过滤）
- * - 通过 PersistenceLayer 查询消息所属 session
- * - 焦点检测：当前 session 收到消息不通知，其他 session 才通知
- * - 通知展示：正常模式 → Toast，最小化模式 → 图标动画
+ * Architecture:
+ * - Subscribes to UIUpdateBus 'message' events (filtered by entity)
+ * - Queries the message's session via PersistenceLayer
+ * - Focus detection: no notification for the current session; notify for other sessions
+ * - Notification display: normal mode → Toast, minimized mode → icon animation
  *
  * Corresponds to: `NotificationContext` (defined in `contexts/notification.ts`).
  * Provided by: `<rtc-agent>` (root)
- * Consumed by: 需要感知未读通知的组件
+ * Consumed by: Components that need to be aware of unread notifications
  */
 import type {ReactiveController, ReactiveControllerHost} from 'lit';
 import {msg} from '@lit/localize';
@@ -32,10 +33,11 @@ import type {ContentData} from '../types/index.js';
 
 const log = createLogger('NotificationController');
 
-// 音效资源 URL：Vite 的 `?url` 后缀在 dev/build 时都会解析为正确可访问的 URL
-// （dev: dev server 路径；build: dist 下的 hashed 路径），无论组件部署在根路径、
-// 子路径还是 CDN，都能正确加载。相比 `new URL('./', import.meta.url).pathname`
-// 的旧方案：(1) 不会因 host 不匹配导致 404；(2) 不需要音效文件和脚本同目录。
+// Sound resource URLs: Vite's `?url` suffix resolves to a correct accessible URL
+// in both dev and build (dev: dev server path; build: hashed path under dist),
+// loading correctly regardless of whether the component is deployed at root,
+// a subpath, or a CDN. Compared to the old `new URL('./', import.meta.url).pathname`
+// approach: (1) no 404 from host mismatch; (2) sound files don't need to be in the same directory as scripts.
 import messageSoundUrl from '../assets/sounds/message.mp3?url';
 import completeSoundUrl from '../assets/sounds/complete.mp3?url';
 import errorSoundUrl from '../assets/sounds/error.mp3?url';
@@ -43,7 +45,7 @@ import errorSoundUrl from '../assets/sounds/error.mp3?url';
 export class NotificationController implements ReactiveController {
     host: ReactiveControllerHost & HTMLElement;
 
-    // ─── 依赖注入（由 Root 组件设置） ─────────────────────
+    // ─── Dependency injection (set by Root component) ─────────────────────
     sessionController?: SessionController;
     messageController?: MessageController;
     toastController?: ToastController;
@@ -51,7 +53,7 @@ export class NotificationController implements ReactiveController {
     settingsController?: SettingsController;
     persistence?: PersistenceLayer;
 
-    // ─── 状态 ─────────────────────────────────────────────
+    // ─── State ──────────────────────────────────────────────
     private _state: NotificationState = {...DEFAULT_NOTIFICATION_STATE};
 
     readonly actions: NotificationActions;
@@ -60,14 +62,14 @@ export class NotificationController implements ReactiveController {
         return {state: this._state, actions: this.actions};
     }
 
-    // ─── 私有字段 ─────────────────────────────────────────
+    // ─── Private fields ────────────────────────────────────────
     private _busUnsubscribe?: () => void;
     private _sounds = new Map<string, HTMLAudioElement>();
-    /** 延迟加载音效的定时器（非关键音效，组件卸载时需清理） */
+    /** Timer for deferred sound loading (non-critical sounds, cleaned up on unmount) */
     private _deferredSoundTimer?: ReturnType<typeof setTimeout>;
-    /** requestIdleCallback 返回的句柄，hostDisconnected 时用于取消尚未触发的 idle 回调。 */
+    /** Handle returned by requestIdleCallback, used in hostDisconnected to cancel untriggered idle callbacks. */
     private _idleCallbackId?: number;
-    /** 通知节流：防止快速连续通知导致 UI 卡顿 */
+    /** Notification throttle: prevent UI jank from rapid successive notifications */
     private _lastNotifyTime = 0;
     private static readonly NOTIFY_THROTTLE_MS = 300;
     /** Fallback delay (ms) when `requestIdleCallback` is available but hasn't fired yet. */
@@ -111,20 +113,21 @@ export class NotificationController implements ReactiveController {
         this.host.removeAttribute('data-notification');
     }
 
-    // ─── 音频管理 ─────────────────────────────────────────
+    // ─── Audio management ──────────────────────────────────
 
     /**
-     * 预加载提示音
+     * Preload notification sounds
      *
-     * 关键音效（message）立即加载；非关键音效延迟加载以优化首屏性能。
-     * 加载失败时降级处理：不影响 Toast 和动画功能。
+     * Critical sounds (message) load immediately; non-critical sounds load deferred
+     * to optimize first-paint performance. Load failures degrade gracefully:
+     * Toast and animation features are unaffected.
      *
-     * 注意：音效文件路径在构建时应确保存在，运行时加载失败会降级处理。
+     * Note: sound file paths should be verified at build time; runtime load failures degrade gracefully.
      */
     private _preloadSounds(): void {
         // Clear previously loaded sounds to avoid duplicates on reconnect cycles.
         this._sounds.clear();
-        // 直接使用 Vite 解析好的资源 URL，无需运行时拼接
+        // Use Vite-resolved asset URLs directly; no runtime path construction needed
         const soundUrls: Record<string, string> = {
             message: messageSoundUrl,
         };
@@ -133,7 +136,7 @@ export class NotificationController implements ReactiveController {
             this._loadSound(type, url);
         }
 
-        // 延迟加载非关键音效
+        // Deferred loading of non-critical sounds
         const deferredSounds: Record<string, string> = {
             complete: completeSoundUrl,
             error: errorSoundUrl,
@@ -191,8 +194,8 @@ export class NotificationController implements ReactiveController {
         }, {once: true});
 
         audio.addEventListener('error', () => {
-            // 音效文件可能不存在或加载失败，降级处理：不播放该音效
-            log.warn(`音频加载失败（文件可能不存在）: ${url}`);
+            // Sound file may not exist or failed to load; degrade gracefully: don't play this sound
+            log.warn(`Audio load failed (file may not exist): ${url}`);
             this._sounds.delete(type);
         }, {once: true});
 
@@ -209,22 +212,22 @@ export class NotificationController implements ReactiveController {
         sound.currentTime = 0;
         sound.volume = 1.0;
         sound.play().catch((error) => {
-            // 浏览器自动播放策略限制（需用户首次交互后才启用）
+            // Browser autoplay policy restriction (requires user interaction first)
             if (error.name === 'NotAllowedError') {
-                log.warn('音频播放被浏览器阻止，需要用户交互');
+                log.warn('Audio playback blocked by browser; user interaction required');
             } else {
-                log.warn('播放失败:', error);
+                log.warn('Playback failed:', error);
             }
         });
     }
 
-    // ─── 消息订阅 ─────────────────────────────────────────
+    // ─── Message subscription ──────────────────────────────────
 
     /**
-     * 订阅 UIUpdateBus 的新消息事件
+     * Subscribe to new message events from UIUpdateBus
      *
-     * 使用按 entity 过滤的订阅模式（参考 rtc-input-area 用法）。
-     * 仅监听 content 字段的 created 事件（消息内容首次写入时触发）。
+     * Uses entity-filtered subscription pattern (see rtc-input-area usage).
+     * Only listens for 'created' events on the content field (triggered on first message write).
      */
     private _subscribeToMessages(): void {
         // Guard against re-entrant calls: unsubscribe previous listener before
@@ -240,7 +243,7 @@ export class NotificationController implements ReactiveController {
     }
 
     private async _handleNewMessage(event: UIUpdateEvent): Promise<void> {
-        // 节流：防止快速连续通知
+        // Throttle: prevent rapid successive notifications
         const now = Date.now();
         if (now - this._lastNotifyTime < NotificationController.NOTIFY_THROTTLE_MS) {
             return;
@@ -250,7 +253,7 @@ export class NotificationController implements ReactiveController {
             // Capture abort signal before async operation to detect disconnection
             const abortSignal = this._abortController.signal;
 
-            // 查询消息所属 session
+            // Query the session the message belongs to
             const message = this.persistence
                 ? await this.persistence.getMessage(event.entityId)
                 : undefined;
@@ -263,7 +266,7 @@ export class NotificationController implements ReactiveController {
             const sessionId = message?.session_client_id;
             if (!sessionId) return;
 
-            // 焦点检测
+            // Focus detection
             if (!this._shouldNotify(sessionId)) return;
 
             this._lastNotifyTime = now;
@@ -273,31 +276,31 @@ export class NotificationController implements ReactiveController {
             if (error instanceof Error && error.name === 'AbortError') {
                 return;
             }
-            log.error('处理消息失败:', error);
-            // 不中断订阅流，继续处理后续消息
+            log.error('Failed to handle message:', error);
+            // Do not interrupt the subscription stream; continue processing subsequent messages
         }
     }
 
-    // ─── 焦点检测 ─────────────────────────────────────────
+    // ─── Focus detection ─────────────────────────────────────
 
     /**
-     * 判断是否应该触发通知
+     * Determine whether a notification should be triggered
      *
-     * 场景：
-     * - 用户在 session A 看消息，session B 收到新消息 → 通知
-     * - 用户在 session A 看消息，session A 收到新消息 → 不通知
-     * - 用户没在看任何 session → 通知所有新消息
-     * - 用户禁用通知 → 所有消息都不通知
+     * Scenarios:
+     * - User is viewing session A, session B receives a new message → notify
+     * - User is viewing session A, session A receives a new message → do not notify
+     * - User is not viewing any session → notify for all new messages
+     * - User has disabled notifications → no notifications for any messages
      */
     private _shouldNotify(messageSessionId: string): boolean {
         const currentSessionId = this.sessionController?.value.state.currentSessionId;
 
-        // 当前正在查看的 session 收到消息 → 不通知
+        // Message received for the session currently being viewed → do not notify
         if (currentSessionId && messageSessionId === currentSessionId) {
             return false;
         }
 
-        // 检查通知设置
+        // Check notification settings
         const settings = this.settingsController?.value.state.notifications;
         if (!settings?.soundEnabled && !settings?.toastEnabled) {
             return false;
@@ -306,23 +309,23 @@ export class NotificationController implements ReactiveController {
         return true;
     }
 
-    // ─── 触发通知 ─────────────────────────────────────────
+    // ─── Trigger notification ──────────────────────────────────
 
     private _triggerNotification(
         event: UIUpdateEvent,
         sessionId: string
     ): void {
-        // 播放声音
+        // Play sound
         this._playSound('message');
 
-        // 更新未读计数
+        // Update unread count
         this._state = {
             unreadCount: this._state.unreadCount + 1,
             lastNotificationAt: Date.now(),
         };
         this.host.requestUpdate();
 
-        // 根据窗口状态决定展示方式
+        // Determine display method based on window state
         const windowMode = this.windowStateController?.value.state.mode;
 
         if (windowMode === 'minimized') {
@@ -332,22 +335,22 @@ export class NotificationController implements ReactiveController {
         }
     }
 
-    // ─── Toast 显示 ───────────────────────────────────────
+    // ─── Toast display ───────────────────────────────────────
 
     private _showToast(event: UIUpdateEvent, sessionId: string): void {
         const settings = this.settingsController?.value.state.notifications;
         if (!settings?.toastEnabled) return;
 
-        // 从 ContentData 对象提取可读文本（而不是直接 String() 转换）
+        // Extract readable text from ContentData object (instead of direct String() conversion)
         const contentData = event.newValue as ContentData | undefined;
         const content = extractTextContent(contentData);
 
-        // 查找 session 标题
+        // Look up session title
         const sessions = this.sessionController?.value.state.sessions ?? [];
         const session = sessions.find(s => s.clientId === sessionId);
         const title = session?.title ?? msg('新消息');
 
-        // 使用 ToastController 显示通知，附带跳转动作
+        // Use ToastController to show notification with a navigate action
         this.toastController?.actions.show(
             `${title}: ${content}`,
             'info',
@@ -358,12 +361,12 @@ export class NotificationController implements ReactiveController {
         );
     }
 
-    // ─── 导航跳转 ─────────────────────────────────────────
+    // ─── Navigation ────────────────────────────────────────────
 
     /**
-     * 跳转到目标 session 并清除通知状态
+     * Navigate to the target session and clear notification state
      *
-     * 流程：切换 session → 标记已读 → 派发 rtc-notification-click 事件
+     * Flow: switch session → mark as read → dispatch rtc-notification-click event
      */
     private _navigateToSession(sessionId: string): void {
         this.sessionController?.actions.switchSession(sessionId);
@@ -378,25 +381,25 @@ export class NotificationController implements ReactiveController {
         );
     }
 
-    // ─── 最小化图标动画 ───────────────────────────────────
+    // ─── Minimized icon animation ──────────────────────────────
 
     /**
-     * 触发最小化图标脉冲动画
+     * Trigger minimized icon pulse animation
      *
-     * 通过 host 元素设置 data-notification 属性，
-     * CSS 通过 `:host([data-notification])` 选择器触发动画。
-     * 动画会一直持续，直到用户展开窗口或点击 bubble。
+     * Sets the data-notification attribute on the host element;
+     * CSS triggers animation via the `:host([data-notification])` selector.
+     * Animation persists until the user expands the window or clicks the bubble.
      */
     private _animateMinimizeIcon(): void {
         this.host.setAttribute('data-notification', 'active');
-        // 不再设置超时，动画持续直到用户展开窗口
+        // No timeout set; animation persists until user expands the window
     }
 
     private _clearAnimation(): void {
         this.host.removeAttribute('data-notification');
     }
 
-    // ─── Actions 实现 ─────────────────────────────────────
+    // ─── Actions implementation ────────────────────────────────
 
     private _markAsRead(): void {
         this._state = {...this._state, unreadCount: 0};

@@ -1,20 +1,20 @@
 /**
  * Token Usage Component
  *
- * 圆形进度条显示 Session Token 使用情况。
- * 嵌入 rtc-input-area 的 toolbar 中。
+ * Circular progress bar showing session token usage.
+ * Embedded in rtc-input-area's toolbar.
  *
- * 数据来源：
- * - estimatedNext：预估下一轮 token 数（后端实时计算）
- * - totalTokens：累计总 token 数
- * - details：分项 token 数据
+ * Data sources:
+ * - estimatedNext: estimated next turn token count (real-time from backend)
+ * - totalTokens: cumulative total token count
+ * - details: per-item token data
  *
  * @element rtc-token-usage
  *
- * ## 样式
- * - 圆形进度条：SVG circle + stroke-dasharray
- * - 颜色阈值：50% 黄色，70% 红色
- * - Hover 显示详细面板
+ * ## Styling
+ * - Circular progress: SVG circle + stroke-dasharray
+ * - Color thresholds: 50% yellow, 70% red
+ * - Hover shows detail panel
  */
 import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
@@ -23,7 +23,7 @@ import { lightTheme } from '../../styles/themes/light.js';
 import { darkTheme } from '../../styles/themes/dark.js';
 import { baseStyles } from '../../styles/base.js';
 
-/** 默认进度条总量（compressionThreshold 未传入时的兜底值） */
+/** Default progress bar total (fallback when compressionThreshold is not provided) */
 const DEFAULT_TOKEN_BUDGET = 1_000_000;
 
 @customElement('rtc-token-usage')
@@ -75,7 +75,7 @@ export class RtcTokenUsage extends LitElement {
                 stroke: var(--rtc-color-error);
             }
 
-            /* Hover 面板 */
+            /* Hover panel */
             .token-tooltip {
                 display: none;
                 position: absolute;
@@ -155,31 +155,31 @@ export class RtcTokenUsage extends LitElement {
     @property({ type: String, reflect: true })
     theme: 'light' | 'dark' | 'system' = 'system';
 
-    /** 预估下一轮 token 数 */
+    /** Estimated next turn token count */
     @property({ type: Number, attribute: false })
     estimatedNext = 0;
 
-    /** 累计总 token 数 */
+    /** Cumulative total token count */
     @property({ type: Number, attribute: false })
     totalTokens = 0;
 
-    /** 累计成本美元 */
+    /** Cumulative cost in USD */
     @property({ type: Number, attribute: false })
     totalCostUsd = 0;
 
-    /** 压缩触发阈值（后端推送，用于圆环进度分母） */
+    /** Compression trigger threshold (pushed from backend, used as circular progress denominator) */
     @property({ type: Number, attribute: false })
     compressionThreshold = 0;
 
-    /** 压缩进度（0-100） */
+    /** Compression progress (0-100) */
     @property({ type: Number, attribute: false })
     compressionProgress = 0;
 
-    /** 距离压缩的轮次（-1 = 已超过阈值） */
+    /** Rounds until compression (-1 = threshold already exceeded) */
     @property({ type: Number, attribute: false })
     roundsUntilCompression = -1;
 
-    /** 分项 token 数据 */
+    /** Per-item token data */
     @property({ type: Object, attribute: false })
     details?: {
         input?: number;
@@ -191,20 +191,20 @@ export class RtcTokenUsage extends LitElement {
 
     /* ── Computed ── */
 
-    /** 计算进度百分比：estimatedNext / compressionThreshold */
+    /** Calculate progress percentage: estimatedNext / compressionThreshold */
     private get _percentage(): number {
         const budget = this.compressionThreshold > 0 ? this.compressionThreshold : DEFAULT_TOKEN_BUDGET;
         return Math.min((this.estimatedNext / budget) * 100, 100);
     }
 
-    /** 计算颜色类名 */
+    /** Calculate color class name */
     private get _progressClass(): string {
         if (this._percentage >= 70) return 'danger';
         if (this._percentage >= 50) return 'warning';
         return '';
     }
 
-    /** 计算缓存命中率：cachedRead / (cachedRead + input)，上限 99% */
+    /** Calculate cache hit rate: cachedRead / (cachedRead + input), capped at 99% */
     private get _cacheHitRate(): number | null {
         if (!this.details) return null;
         const cachedRead = this.details.cachedRead ?? 0;
@@ -214,7 +214,7 @@ export class RtcTokenUsage extends LitElement {
         return Math.min(99, Math.round((cachedRead / denominator) * 100));
     }
 
-    /** SVG circle 参数 */
+    /** SVG circle parameters */
     private get _circleParams() {
         const radius = 9;
         const circumference = 2 * Math.PI * radius;

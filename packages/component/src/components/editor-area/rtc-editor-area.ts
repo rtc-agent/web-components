@@ -1,37 +1,37 @@
 /**
  * Editor Area Component
  *
- * VS Code 风格编辑器区域，组合 Tab + Toolbar + Markdown Editor。
+ * VS Code-style editor area, combining Tab + Toolbar + Markdown Editor.
  *
- * 布局：
+ * Layout:
  * ┌──────────────────────────────────┐
- * │ Tabs (横向滚动，多标签)           │
+ * │ Tabs (horizontal scroll, multi-tab) │
  * ├──────────────────────────────────┤
- * │ Toolbar (保存/撤销/恢复/视图)     │
+ * │ Toolbar (save/undo/redo/view)    │
  * ├──────────────────────────────────┤
- * │ Editor Content (编辑/预览/分屏)   │
+ * │ Editor Content (edit/preview/split) │
  * └──────────────────────────────────┘
  *
- * 无打开文件时显示 Welcome Screen。
+ * Shows Welcome Screen when no file is open.
  *
- * 纯 UI 组件：只发事件，不直接操作 VFS。
- * 状态由 EditorAreaController 驱动（或 Debug HTML 手动驱动）。
+ * Pure UI component: dispatches events only, does not directly operate VFS.
+ * State is driven by EditorAreaController (or manually by Debug HTML).
  *
  * @element rtc-editor-area
  *
- * @fires editor-area-save - 保存当前文件 (detail: { filePath })
- * @fires editor-area-undo - 撤销
- * @fires editor-area-redo - 重做
- * @fires editor-area-format - 格式化 (detail: { format: 'bold' | 'italic' | 'code' | 'link' })
- * @fires editor-area-view-mode-change - 视图切换 (detail: { filePath, viewMode })
- * @fires editor-area-content-change - 内容变更 (detail: { filePath, content })
- * @fires editor-area-tab-select - 切换标签 (detail: { filePath })
- * @fires editor-area-tab-close - 关闭标签 (detail: { filePath })
- * @fires editor-area-cursor-move - 光标移动 (detail: { line, column })
- * @fires editor-area-restore-default - 恢复默认 (detail: { filePath })
+ * @fires editor-area-save - Save current file (detail: { filePath })
+ * @fires editor-area-undo - Undo
+ * @fires editor-area-redo - Redo
+ * @fires editor-area-format - Format (detail: { format: 'bold' | 'italic' | 'code' | 'link' })
+ * @fires editor-area-view-mode-change - View mode switch (detail: { filePath, viewMode })
+ * @fires editor-area-content-change - Content change (detail: { filePath, content })
+ * @fires editor-area-tab-select - Tab switch (detail: { filePath })
+ * @fires editor-area-tab-close - Tab close (detail: { filePath })
+ * @fires editor-area-cursor-move - Cursor move (detail: { line, column })
+ * @fires editor-area-restore-default - Restore default (detail: { filePath })
  *
- * ## 样式
- * 使用项目 design tokens（--rtc-color-*），支持亮色/暗色主题。
+ * ## Styling
+ * Uses project design tokens (--rtc-color-*), supports light/dark themes.
  */
 import {LitElement, html, nothing} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
@@ -54,7 +54,7 @@ import { createLogger } from '@rtc-agent/client';
 
 const log = createLogger('EditorArea');
 
-/** 格式化类型（与 toolbar 一致） */
+/** Format type (consistent with toolbar) */
 type FormatType = 'bold' | 'italic' | 'code' | 'link';
 
 @localized()
@@ -76,34 +76,34 @@ export class RtcEditorArea extends LitElement {
 
     /* ── Properties ── */
 
-    /** 打开的文件标签列表 */
+    /** List of open file tabs */
     @property({type: Array})
     tabs: EditorTab[] = [];
 
-    /** 当前活动文件路径 */
+    /** Current active file path */
     @property({type: String, attribute: 'active-file-path'})
     activeFilePath = '';
 
-    /** 主题 */
+    /** Theme */
     @property({type: String, reflect: true})
     theme: 'light' | 'dark' | 'system' = 'system';
 
     /* ── Computed ── */
 
-    /** 获取当前活动的 tab */
+    /** Get the currently active tab */
     private get _activeTab(): EditorTab | undefined {
         return this.tabs.find(t => t.filePath === this.activeFilePath);
     }
 
-    /** 保存按钮是否可用（有活动文件且有未保存修改） */
+    /** Whether the save button is enabled (has active file with unsaved changes) */
     private get _canSave(): boolean {
         return this._activeTab?.isDirty ?? false;
     }
 
     /**
-     * 恢复默认按钮是否可用（仅对系统生成的文件显示）
+     * Whether the restore default button is enabled (shown only for system-generated files)
      *
-     * 系统生成的文件：/AGENT.md, /functions/*.md, /scenarios/*.md
+     * System-generated files: /AGENT.md, /functions/*.md, /scenarios/*.md
      */
     private get _canRestore(): boolean {
         if (!this._activeTab) return false;
@@ -305,7 +305,7 @@ export class RtcEditorArea extends LitElement {
     }
 
     /**
-     * 从路径提取文件名
+     * Extract filename from path
      */
     private _getFileName(filePath: string): string {
         const parts = filePath.split('/');

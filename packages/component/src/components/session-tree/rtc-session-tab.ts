@@ -1,11 +1,11 @@
 /**
- * Session Tab — 单个 Tab 页签
+ * Session Tab — A single tab
  *
- * 样式模式完全参考 rtc-editor-tab.ts。
+ * Styling pattern follows rtc-editor-tab.ts exactly.
  *
  * @element rtc-session-tab
- * @fires rtc-session-tab-activate - 点击激活（detail: { sessionId }）
- * @fires rtc-session-tab-close - 点击关闭（detail: { sessionId }）
+ * @fires rtc-session-tab-activate - Click to activate (detail: { sessionId })
+ * @fires rtc-session-tab-close - Click to close (detail: { sessionId })
  */
 import {LitElement, html, svg} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
@@ -23,7 +23,7 @@ import { createLogger } from '@rtc-agent/client';
 
 const log = createLogger('SessionTab');
 
-// 内联 close SVG（与 rtc-editor-tab 保持一致）
+// Inline close SVG (consistent with rtc-editor-tab)
 const closeSvg = svg`<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
     <path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
 </svg>`;
@@ -55,11 +55,11 @@ export class RtcSessionTab extends LitElement {
     @property({type: Boolean, reflect: true})
     dirty = false;
 
-    /** Session 运行状态：active（agent 生成中）/ idle（等待输入）/ closed（已关闭） */
+    /** Session runtime status: active (agent generating) / idle (awaiting input) / closed */
     @property({type: String, reflect: true})
     status: SessionStatus = 'idle';
 
-    /** 主题：light / dark / system */
+    /** Theme: light / dark / system */
     @property({type: String, reflect: true})
     theme: 'light' | 'dark' | 'system' = 'system';
 

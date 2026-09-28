@@ -1,12 +1,12 @@
 import {css} from 'lit';
 
 /**
- * Session Tab Bar 样式
+ * Session Tab Bar styles
  *
- * 布局结构：
- * - .tab-bar-wrapper: 外层 flex 容器
- * - .tabs-scroll: 左侧可滚动 tabs 区域 (flex: 1)
- * - .tab-add: 右侧固定新建按钮 (flex-shrink: 0)
+ * Layout structure:
+ * - .tab-bar-wrapper: outer flex container
+ * - .tabs-scroll: left scrollable tabs area (flex: 1)
+ * - .tab-add: right fixed new button (flex-shrink: 0)
  */
 export const styles = css`
     :host {
@@ -14,7 +14,7 @@ export const styles = css`
         width: 100%;
     }
 
-    /* ── 外层容器 ── */
+    /* ── Outer container ── */
     .tab-bar-wrapper {
         display: flex;
         align-items: center;
@@ -24,7 +24,7 @@ export const styles = css`
         border-bottom: 1px solid var(--rtc-color-border);
     }
 
-    /* ── Tabs 可滚动区域 ── */
+    /* ── Tabs scrollable area ── */
     .tabs-scroll {
         display: flex;
         align-items: center;
@@ -35,7 +35,7 @@ export const styles = css`
         overflow-y: hidden;
     }
 
-    /* 隐藏滚动条但保持可滚动 */
+    /* Hide scrollbar but keep scrollable */
     .tabs-scroll::-webkit-scrollbar {
         display: none;
     }
@@ -45,7 +45,7 @@ export const styles = css`
         scrollbar-width: none;
     }
 
-    /* ── 新建会话按钮（固定右侧） ── */
+    /* ── New session button (fixed right) ── */
     .tab-add {
         display: inline-flex;
         align-items: center;
@@ -79,7 +79,7 @@ export const styles = css`
         fill: currentColor;
     }
 
-    /* ── 暗色主题适配 ── */
+    /* ── Dark theme adaptation ── */
     :host([theme='dark']) .tab-bar-wrapper,
     :host([theme='dark']) .tab-add {
         background: var(--rtc-color-bg-tertiary, #2d2d30);
@@ -95,7 +95,7 @@ export const styles = css`
         color: var(--rtc-color-text, #cccccc);
     }
 
-    /* ── 亮色主题适配 ── */
+    /* ── Light theme adaptation ── */
     :host([theme='light']) .tab-bar-wrapper,
     :host([theme='light']) .tab-add {
         background: var(--rtc-color-bg-tertiary, #e8e8e8);

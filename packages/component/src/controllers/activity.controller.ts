@@ -1,15 +1,15 @@
 /**
  * Activity Controller
  *
- * 管理 VS Code 风格布局中的活动状态（资源管理器/聊天/设置）。
+ * Manages activity state in VS Code-style layout (explorer/chat/settings).
  *
  * Corresponds to: `ActivityContext` (defined in `contexts/activity.ts`).
  * Provided by: `<rtc-agent>` (root)
- * Consumed by: `<rtc-activity-bar>`, `<rtc-agent>` (布局条件渲染)
+ * Consumed by: `<rtc-activity-bar>`, `<rtc-agent>` (conditional layout rendering)
  *
- * ## 持久化
- * - 通过 localStorage 保存当前 active 活动和 sidebarVisible 状态
- * - 刷新页面后恢复到上次离开时的活动
+ * ## Persistence
+ * - Saves current active activity and sidebarVisible state via localStorage
+ * - Restores to last activity on page refresh
  */
 import type {ReactiveController, ReactiveControllerHost} from 'lit';
 import type {Activity} from '../types/index.js';
@@ -34,12 +34,12 @@ export class ActivityController implements ReactiveController {
         return {state: this._state, actions: this.actions};
     }
 
-    /** 当前活动（readonly 快捷访问） */
+    /** Current activity (readonly quick access) */
     get active(): Activity {
         return this._state.active;
     }
 
-    /** 侧边栏是否可见（readonly 快捷访问） */
+    /** Whether sidebar is visible (readonly quick access) */
     get sidebarVisible(): boolean {
         return this._state.sidebarVisible;
     }
@@ -93,18 +93,18 @@ export class ActivityController implements ReactiveController {
     }
 
     /**
-     * 设置活动
+     * Set activity
      *
-     * 逻辑：
-     * - 点击当前活动 → toggle sidebar
-     * - 点击不同活动 → 切换活动并显示 sidebar
+     * Logic:
+     * - Click current activity → toggle sidebar
+     * - Click different activity → switch activity and show sidebar
      */
     private _setActivity(activity: Activity) {
         if (this._state.active === activity) {
-            // 点击当前活动，toggle sidebar
+            // Click current activity, toggle sidebar
             this._toggleSidebar();
         } else {
-            // 切换到新活动，保留 sidebarVisible 状态
+            // Switch to new activity, preserve sidebarVisible state
             this._state = {
                 active: activity,
                 sidebarVisible: this._state.sidebarVisible,

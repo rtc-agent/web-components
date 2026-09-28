@@ -1,13 +1,13 @@
 /**
- * Visibility Manager - 可见性状态机
+ * Visibility Manager - Visibility state machine
  *
- * 管理虚拟滚动的可见性状态，确保在不可见时暂停操作，
- * 恢复到可见时同步重建状态。
+ * Manages virtual scroll visibility state, ensuring operations are paused when not visible,
+ * and state is synchronously rebuilt when visibility is restored.
  *
- * 解决的问题：
- * - Tab 切换（visibility: hidden）时虚拟滚动仍在执行操作
- * - 浏览器窗口失焦（document.hidden）时的状态不一致
- * - 从不可见恢复到可见时骨架屏无法恢复
+ * Problems addressed:
+ * - Virtual scroll continues operating during tab switches (visibility: hidden)
+ * - Inconsistent state when browser window loses focus (document.hidden)
+ * - Skeletons fail to restore when transitioning from hidden back to visible
  */
 
 import {createLogger} from '@rtc-agent/client';
@@ -15,46 +15,46 @@ import {createLogger} from '@rtc-agent/client';
 const log = createLogger('VisibilityManager');
 
 /**
- * 可见性状态
+ * Visibility state
  */
 export enum VisibilityState {
-    /** 可见且活跃 */
+    /** Visible and active */
     VISIBLE = 'visible',
-    /** 不可见（Tab 切换或窗口失焦） */
+    /** Not visible (tab switch or window out of focus) */
     HIDDEN = 'hidden',
-    /** 正在转换（从 hidden 到 visible 的过渡期） */
+    /** Transitioning (transition period from hidden to visible) */
     TRANSITIONING = 'transitioning'
 }
 
 /**
- * 可见性状态变化监听器
+ * Visibility state change listener
  */
 export type VisibilityChangeListener = (state: VisibilityState) => void;
 
 /**
- * 可见性管理器
+ * Visibility manager
  *
- * 职责：
- * 1. 维护可见性状态机（VISIBLE ↔ HIDDEN ↔ TRANSITIONING）
- * 2. 通知监听器状态变化
- * 3. 提供操作许可检查（shouldPerformOperations）
+ * Responsibilities:
+ * 1. Maintain the visibility state machine (VISIBLE <-> HIDDEN <-> TRANSITIONING)
+ * 2. Notify listeners of state changes
+ * 3. Provide operation permission check (shouldPerformOperations)
  *
- * 使用方式：
+ * Usage:
  * ```typescript
  * const manager = new VisibilityManager();
  *
- * // 监听状态变化
+ * // Listen for state changes
  * manager.onStateChange(state => {
  *     console.log('Visibility changed:', state);
  * });
  *
- * // 更新可见性（由外部调用）
- * manager.update(true);  // 变为可见
- * manager.update(false); // 变为不可见
+ * // Update visibility (called externally)
+ * manager.update(true);  // Become visible
+ * manager.update(false); // Become hidden
  *
- * // 检查是否应该执行操作
+ * // Check whether operations should be performed
  * if (manager.shouldPerformOperations()) {
- *     // 执行虚拟滚动操作
+ *     // Execute virtual scroll operations
  * }
  * ```
  */
@@ -63,37 +63,37 @@ export class VisibilityManager {
     private _listeners: Set<VisibilityChangeListener> = new Set();
 
     /**
-     * 获取当前状态
+     * Get current state
      */
     get state(): VisibilityState {
         return this._state;
     }
 
     /**
-     * 更新可见性状态
+     * Update visibility state
      *
-     * 状态转换规则：
-     * - VISIBLE → HIDDEN: 直接转换
-     * - HIDDEN → VISIBLE: 经过 TRANSITIONING 过渡状态
-     * - TRANSITIONING → VISIBLE: 自动转换（在一帧后）
+     * State transition rules:
+     * - VISIBLE -> HIDDEN: direct transition
+     * - HIDDEN -> VISIBLE: via TRANSITIONING intermediate state
+     * - TRANSITIONING -> VISIBLE: auto-transition (after one frame)
      *
-     * @param isVisible 是否可见
+     * @param isVisible Whether it is visible
      */
     update(isVisible: boolean): void {
         const newState = isVisible ? VisibilityState.VISIBLE : VisibilityState.HIDDEN;
 
-        // 状态未变化，跳过
+        // No state change, skip
         if (this._state === newState) {
             return;
         }
 
         log.debug(`Visibility update: ${this._state} → ${newState}`);
 
-        // 从 HIDDEN 到 VISIBLE 需要经过 TRANSITIONING 状态
+        // HIDDEN to VISIBLE must go through TRANSITIONING state
         if (this._state === VisibilityState.HIDDEN && newState === VisibilityState.VISIBLE) {
             this._transitionTo(VisibilityState.TRANSITIONING);
 
-            // 给浏览器一帧时间完成布局，然后转为 VISIBLE
+            // Give browser one frame to complete layout, then transition to VISIBLE
             requestAnimationFrame(() => {
                 if (this._state === VisibilityState.TRANSITIONING) {
                     this._transitionTo(VisibilityState.VISIBLE);
@@ -105,7 +105,7 @@ export class VisibilityManager {
     }
 
     /**
-     * 转换到指定状态并通知监听器
+     * Transition to the specified state and notify listeners
      */
     private _transitionTo(state: VisibilityState): void {
         if (this._state === state) {
@@ -117,7 +117,7 @@ export class VisibilityManager {
 
         log.debug(`Visibility state changed: ${oldState} → ${state}`);
 
-        // 通知所有监听器
+        // Notify all listeners
         for (const listener of this._listeners) {
             try {
                 listener(state);
@@ -128,10 +128,10 @@ export class VisibilityManager {
     }
 
     /**
-     * 注册状态变化监听器
+     * Register a state change listener
      *
-     * @param listener 监听器函数
-     * @returns 取消注册的函数
+     * @param listener Listener function
+     * @returns Unregister function
      */
     onStateChange(listener: VisibilityChangeListener): () => void {
         this._listeners.add(listener);
@@ -142,21 +142,21 @@ export class VisibilityManager {
     }
 
     /**
-     * 检查当前是否应该执行虚拟滚动操作
+     * Check whether virtual scroll operations should be performed
      *
-     * 只有在 VISIBLE 状态下才允许执行操作（skeletonize、restore 等）。
-     * HIDDEN 和 TRANSITIONING 状态下应该暂停所有操作。
+     * Only VISIBLE state allows operations (skeletonize, restore, etc.).
+     * HIDDEN and TRANSITIONING states should pause all operations.
      *
-     * @returns 是否应该执行操作
+     * @returns Whether operations should be performed
      */
     shouldPerformOperations(): boolean {
         return this._state === VisibilityState.VISIBLE;
     }
 
     /**
-     * 检查当前是否可见
+     * Check whether currently visible
      *
-     * @returns 是否可见（VISIBLE 或 TRANSITIONING）
+     * @returns Whether visible (VISIBLE or TRANSITIONING)
      */
     isVisible(): boolean {
         return this._state === VisibilityState.VISIBLE ||
@@ -164,7 +164,7 @@ export class VisibilityManager {
     }
 
     /**
-     * 清空所有监听器（用于 dispose）
+     * Clear all listeners (for dispose)
      */
     dispose(): void {
         this._listeners.clear();

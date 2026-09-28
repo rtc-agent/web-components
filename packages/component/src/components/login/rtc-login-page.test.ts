@@ -49,7 +49,7 @@ describe('<rtc-login-page>', () => {
             html`<rtc-login-page></rtc-login-page>`,
             {setup: (host) => provideContext(host, AuthContext, mockAuthCtx)}
         );
-        // 等待 provider 加载完成（网络请求失败会回退到 mock provider）
+        // Wait for provider to finish loading (falls back to mock provider on network failure)
         await el.updateComplete;
         await nextFrame();
         await nextFrame();
@@ -84,13 +84,13 @@ describe('<rtc-login-page>', () => {
             html`<rtc-login-page></rtc-login-page>`,
             {setup: (host) => provideContext(host, AuthContext, mockAuthCtx)}
         );
-        // 等待 provider 加载完成
+        // Wait for provider to finish loading
         await el.updateComplete;
         await nextFrame();
         await nextFrame();
         const handler = vi.fn();
         el.addEventListener('rtc-login-requested', handler);
-        // 找到包含 "Mock" 文本的按钮（provider 顺序可能不固定）
+        // Find the button with "Mock" text (provider order may vary)
         const buttons = el.shadowRoot!.querySelectorAll('.provider-btn');
         let mockBtn: HTMLElement | null = null;
         for (const btn of buttons) {
@@ -99,7 +99,7 @@ describe('<rtc-login-page>', () => {
                 break;
             }
         }
-        // 如果没找到 Mock 按钮，使用第一个按钮（回退）
+        // If Mock button not found, use the first button (fallback)
         const btn = mockBtn ?? (buttons[0] as HTMLElement);
         btn.click();
         expect(handler).toHaveBeenCalledTimes(1);
