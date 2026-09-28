@@ -50,9 +50,9 @@ import workerFactory from '../../worker/src/shared-worker.ts?sharedworker';
  *
  * Vite's type definition for ?sharedworker imports marks it as a constructor with options,
  * but at runtime it is a plain function that returns a SharedWorker instance.
- * This type correctly represents the runtime behavior.
+ * The factory function accepts an optional WorkerOptions parameter (name, type).
  */
-type WorkerFactoryFunction = () => SharedWorker;
+type WorkerFactoryFunction = (options?: WorkerOptions) => SharedWorker;
 
 /**
  * Extract the worker chunk URL from a Vite-generated worker factory function source.
@@ -121,6 +121,25 @@ export class WorkerBridge {
     private static readonly INIT_RETRY_DELAY_MS = 1000;
     /** Timeout for worker liveness verification (ping/pong). */
     private static readonly VERIFICATION_TIMEOUT_MS = 5000;
+
+    /**
+     * Generate a worker name for SharedWorker construction.
+     *
+     * In dev mode, appends a timestamp suffix to avoid connecting to stale workers
+     * from previous sessions (e.g., after force-killing a tab during debugging).
+     * SharedWorkers persist across tab closures, so a stale worker in a bad state
+     * can cause verification timeouts on subsequent page loads.
+     *
+     * In production mode, uses a fixed name for predictable multi-tab sharing.
+     */
+    private static _getWorkerName(): string {
+        const baseName = 'rtc-agent-worker';
+        // Use import.meta.env.DEV for Vite dev mode detection
+        if (typeof import.meta !== 'undefined' && (import.meta as any).env?.DEV) {
+            return `${baseName}-dev-${Date.now()}`;
+        }
+        return baseName;
+    }
 
     constructor(
         private readonly _auth: AuthController,
@@ -226,11 +245,13 @@ export class WorkerBridge {
      * Single Worker initialization attempt.
      */
     private async _initWorkerOnce(): Promise<void> {
+        const workerName = WorkerBridge._getWorkerName();
+
         // If custom workerUrl is provided, use it directly
         if (this._config.workerUrl) {
             log.info('Using custom workerUrl:', this._config.workerUrl);
             this._worker = new SharedWorker(this._config.workerUrl, {
-                name: 'rtc-agent-worker',
+                name: workerName,
                 type: 'module',
             });
         } else {
@@ -266,7 +287,12 @@ export class WorkerBridge {
                 // Vite's type definition is incorrect (marks ?sharedworker import as a constructor);
                 // at runtime it is a plain function that returns a SharedWorker instance.
                 // Call it without 'new' since it's a factory function, not a constructor.
-                this._worker = (workerFactory as unknown as WorkerFactoryFunction)();
+                // Pass workerName to control the SharedWorker's name (important for dev mode
+                // to avoid connecting to stale workers from previous sessions).
+                this._worker = (workerFactory as unknown as WorkerFactoryFunction)({
+                    name: workerName,
+                    type: 'module',
+                });
             } else {
                 // Cross-origin (CDN deployment): fetch worker script -> create same-origin blob: URL
                 // -> construct SharedWorker.
@@ -291,7 +317,7 @@ export class WorkerBridge {
 
                 try {
                     this._worker = new SharedWorker(blobUrl, {
-                        name: 'rtc-agent-worker',
+                        name: workerName,
                         type: 'module',
                     });
                 } finally {
@@ -339,7 +365,14 @@ export class WorkerBridge {
         // 2. Useless timer occupying the event loop for 5s after successful verification
         let timeoutId: ReturnType<typeof setTimeout> | undefined;
         const timeoutPromise = new Promise<never>((_, reject) => {
-            timeoutId = setTimeout(() => reject(new Error('Worker verification timed out')), WorkerBridge.VERIFICATION_TIMEOUT_MS);
+            timeoutId = setTimeout(() => {
+                const staleWorkerHint = `Worker verification timed out after ${WorkerBridge.VERIFICATION_TIMEOUT_MS}ms. ` +
+                    `This may indicate a stale SharedWorker from a previous browser session ` +
+                    `(e.g., after force-killing a tab during debugging). ` +
+                    `To resolve: visit chrome://inspect/#workers, find and terminate the stale ` +
+                    `'rtc-agent-worker' instance, then reload the page.`;
+                reject(new Error(staleWorkerHint));
+            }, WorkerBridge.VERIFICATION_TIMEOUT_MS);
         });
 
         try {
@@ -352,8 +385,9 @@ export class WorkerBridge {
             }
             log.info('Worker verification successful');
         } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'unknown error';
             throw new Error(
-                `[WorkerBridge] Worker verification failed: ${err instanceof Error ? err.message : 'unknown error'}`
+                `[WorkerBridge] Worker verification failed: ${errorMessage}`
             );
         } finally {
             if (timeoutId !== undefined) {
