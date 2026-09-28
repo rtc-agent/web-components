@@ -106,19 +106,36 @@ export class RtcMarkdownEditor extends LitElement {
     /** Debounce timer */
     private _debounceTimer?: ReturnType<typeof setTimeout>;
 
-    private async _loadModules() {
-        if (!this._modulesPromise) {
-            this._modulesPromise = Promise.all([
+    /**
+     * Lazy-load marked + DOMPurify + highlight.js with retry logic.
+     * Handles stale chunk errors during development (when rebuilds change chunk hashes).
+     */
+    private async _loadModules(attempts = 2): Promise<{
+        marked: typeof import('marked').marked;
+        DOMPurify: typeof import('dompurify').default;
+        hljs: typeof import('../../utils/highlight-languages.js').default;
+    }> {
+        try {
+            const [markedMod, dompurifyMod, hljsMod] = await Promise.all([
                 import('marked'),
                 import('dompurify'),
                 import('../../utils/highlight-languages.js'),
-            ]).then(([markedMod, dompurifyMod, hljsMod]) => ({
+            ]);
+            return {
                 marked: markedMod.marked,
                 DOMPurify: dompurifyMod.default,
                 hljs: hljsMod.default,
-            }));
+            };
+        } catch (err) {
+            // Dynamic import failed (likely stale chunk hash after rebuild)
+            if (attempts > 0) {
+                console.warn('[rtc-markdown-editor] Module load failed, retrying...', err);
+                this._modulesPromise = null; // Clear cache to force fresh attempt
+                return this._loadModules(attempts - 1);
+            }
+            console.error('[rtc-markdown-editor] Module load failed after retries:', err);
+            throw err;
         }
-        return this._modulesPromise;
     }
 
     private async _parseMarkdown() {
@@ -130,7 +147,10 @@ export class RtcMarkdownEditor extends LitElement {
         }
 
         try {
-            const {marked, DOMPurify, hljs} = await this._loadModules();
+            if (!this._modulesPromise) {
+                this._modulesPromise = this._loadModules();
+            }
+            const {marked, DOMPurify, hljs} = await this._modulesPromise;
 
             // Parse Markdown
             const rawHtml = await marked.parse(this.content);

@@ -124,6 +124,38 @@ export class RtcMessage extends LitElement implements StatefulComponent {
         }
     }
 
+    /**
+     * Lazy-load marked + DOMPurify + highlight.js with retry logic.
+     * Handles stale chunk errors during development (when rebuilds change chunk hashes).
+     */
+    private async _loadModulesWithRetry(attempts = 2): Promise<{
+        marked: typeof import('marked').marked;
+        DOMPurify: typeof import('dompurify').default;
+        hljs: typeof import('../../utils/highlight-languages.js').default;
+    }> {
+        try {
+            const [markedMod, dompurifyMod, hljsMod] = await Promise.all([
+                import('marked'),
+                import('dompurify'),
+                import('../../utils/highlight-languages.js'),
+            ]);
+            return {
+                marked: markedMod.marked,
+                DOMPurify: dompurifyMod.default,
+                hljs: hljsMod.default,
+            };
+        } catch (err) {
+            // Dynamic import failed (likely stale chunk hash after rebuild)
+            if (attempts > 0) {
+                console.warn('[rtc-message] Module load failed, retrying...', err);
+                this._modulesPromise = null; // Clear cache to force fresh attempt
+                return this._loadModulesWithRetry(attempts - 1);
+            }
+            console.error('[rtc-message] Module load failed after retries:', err);
+            throw err;
+        }
+    }
+
     private async _parseMarkdown() {
         const contentData = this.message.content;
         const generation = ++this._parseGeneration;
@@ -167,15 +199,7 @@ export class RtcMessage extends LitElement implements StatefulComponent {
          *   parsing + highlighting + sanitizing, no network I/O.
          */
         if (!this._modulesPromise) {
-            this._modulesPromise = Promise.all([
-                import('marked'),
-                import('dompurify'),
-                import('../../utils/highlight-languages.js'),
-            ]).then(([markedMod, dompurifyMod, hljsMod]) => ({
-                marked: markedMod.marked,
-                DOMPurify: dompurifyMod.default,
-                hljs: hljsMod.default,
-            }));
+            this._modulesPromise = this._loadModulesWithRetry();
         }
 
         const {marked, DOMPurify, hljs} = await this._modulesPromise;
