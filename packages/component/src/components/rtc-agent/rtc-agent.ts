@@ -1114,7 +1114,10 @@ export class RtcAgent extends LitElement {
         // _loadTokens() starts async refresh, but connectedCallback() runs before
         // refresh completes, so isLoggedIn is still false. When refresh succeeds,
         // onLogin fires and triggers connection.
+        log.debug('[AUTH_LIFECYCLE] connectedCallback() Setting onLogin callback');
+        log.debug('[AUTH_LIFECYCLE] connectedCallback() _auth.state.isLoggedIn:', this._auth.state.isLoggedIn);
         this._auth.onLogin = () => {
+            log.debug('[AUTH_LIFECYCLE] onLogin callback fired, calling _connectWithRetry()');
             void this._connectWithRetry();
         };
 
@@ -1123,6 +1126,7 @@ export class RtcAgent extends LitElement {
         // Note: If tokens were expired and refresh is in-flight, this check will be false,
         // but onLogin callback will trigger connection when refresh completes.
         if (this._auth.state.isLoggedIn) {
+            log.debug('[AUTH_LIFECYCLE] connectedCallback() isLoggedIn is true, calling _connectWithRetry()');
             void this._connectWithRetry();
         }
 
@@ -1145,11 +1149,15 @@ export class RtcAgent extends LitElement {
      * initialization when connectedCallback and onLogin fire in quick succession.
      */
     private _connectWithRetry(): Promise<void> {
+        log.debug('[AUTH_LIFECYCLE] _connectWithRetry() called');
+        log.debug('[AUTH_LIFECYCLE] _connectWithRetry() _connecting exists?', !!this._connecting);
+        log.debug('[AUTH_LIFECYCLE] _connectWithRetry() _connectGeneration:', this._connectGeneration);
         if (this._connecting) {
-            log.debug('_connectWithRetry already in-flight, reusing existing promise');
+            log.debug('[AUTH_LIFECYCLE] _connectWithRetry() Already in-flight, reusing existing promise');
             return this._connecting;
         }
 
+        log.debug('[AUTH_LIFECYCLE] _connectWithRetry() Starting new connection attempt');
         this._connecting = this._doConnectWithRetry();
         return this._connecting;
     }
@@ -1280,9 +1288,11 @@ export class RtcAgent extends LitElement {
         this._rtcProcessor?.cancel();
         this._rtcProcessor = undefined;
         this._unsubConnection?.();
+        log.debug('[AUTH_LIFECYCLE] disconnectedCallback() Clearing onLogin callback');
         this._auth.onLogin = undefined;  // Clear auth callback to prevent leaks
 
         // Invalidate any in-flight connection attempt (see _connectGeneration docs).
+        log.debug('[AUTH_LIFECYCLE] disconnectedCallback() Bumping _connectGeneration from', this._connectGeneration, 'to', this._connectGeneration + 1);
         this._connectGeneration++;
         this._connecting = undefined;
 

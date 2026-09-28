@@ -347,12 +347,11 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
       element._eventBusUnsubscribes = undefined;
     }
 
-    // 5. Clear localStorage tokens to prevent resource leak
-    try {
-      localStorage.removeItem('rtc_auth_tokens');
-    } catch {
-      // Ignore errors (e.g. localStorage unavailable or access denied)
-    }
+    // NOTE: We intentionally do NOT clear localStorage tokens here.
+    // Reason: destroy() is called during Vite HMR (Hot Module Replacement),
+    // and clearing tokens would log the user out on every code change.
+    // If the user wants to log out, they should call auth.logout() explicitly.
+    // The tokens will remain in localStorage for the next session.
   };
 
   return element;
