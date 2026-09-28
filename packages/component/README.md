@@ -133,7 +133,7 @@ RTC Agent 使用 SharedWorker + Comlink 架构实现多 Tab 共享：
 - 共享 IndexedDB 存储
 - Master Tab 选举（Web Locks API）
 
-详细设计见 [docs/shared-worker-proposal.md](../../docs/shared-worker-proposal.md)。
+详细配置见 [SharedWorker 配置指南](./SHARED-WORKER-SETUP.md)。
 
 ### 公开属性
 
@@ -142,39 +142,41 @@ RTC Agent 使用 SharedWorker + Comlink 架构实现多 Tab 共享：
 | `theme` | `'light' \| 'dark' \| 'system'` | `'system'` | 主题 |
 | `app-label` | `string` | `'RTC Agent'` | 标题栏 / 气泡 tooltip 文本 |
 | `bubble-icon` | `string` | `''` | 最小化气泡内的 SVG / HTML |
+| `logo` | `{ light?: string; dark?: string } \| null` | `null` | 自定义 Logo（light/dark 两套） |
+| `worker-url` | `string` | `''` | SharedWorker 文件 URL |
 | `scenarios-url` | `string` | `''` | Scenario 文档 URL |
 | `agentConfig` | `AgentConfig \| null` | `null` | 声明式函数注册 |
 | `registry` | `FunctionRegistry \| null` | `null` | 命令式函数注册（高级） |
 
 ### 公开事件
 
-所有公开事件遵循 `rtc-agent-<event>` 命名模式：
+所有公开事件遵循 `rtc-<event>` 命名模式：
 
 **生命周期事件：**
 
 - `rtc-agent-ready` — 组件就绪
-- `rtc-agent-beforeDestroy` — 组件即将销毁
-- `rtc-agent-themeChange` — 主题变化
+- `rtc-before-destroy` — 组件即将销毁
+- `rtc-theme-change` — 主题变化
 
 **消息拦截事件：**
 
-- `rtc-agent-beforeMessageSend` — 消息发送前（可取消或修改）
+- `rtc-before-message-send` — 消息发送前（可取消或修改）
 
-**工具调用事件：**
+**工具调用事件（EventBus 桥接，通过 `on` 配置注册）：**
 
-- `rtc-agent-toolCallStart` — 工具调用开始
-- `rtc-agent-toolCallSuccess` — 工具调用成功
-- `rtc-agent-toolCallError` — 工具调用失败
-- `rtc-agent-toolCallProgress` — 工具调用进度
+- `toolCallStart` — 工具调用开始
+- `toolCallSuccess` — 工具调用成功
+- `toolCallError` — 工具调用失败
+- `toolCallProgress` — 工具调用进度
 
 **会话和消息事件：**
 
-- `rtc-session-created` / `rtc-session-switched`
-- `rtc-message-sent`
+- `rtc-session-created` / `rtc-session-switched` / `rtc-session-renamed` / `rtc-session-deleted`
+- `rtc-message-sent` / `rtc-message-received`
 
 **认证事件：**
 
-- `rtc-auth-login-requested`
+- `rtc-auth-login-requested` / `rtc-auth-login` / `rtc-auth-refresh-failed` / `rtc-auth-logout`
 
 ### 控制器访问
 

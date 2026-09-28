@@ -60,6 +60,8 @@
 | `theme` | `'light' \| 'dark' \| 'system'` | `'system'` | 主题模式 |
 | `lang` | `string` | `'zh-CN'` | 语言（BCP 47 格式，如 `'en-US'`, `'zh-CN'`） |
 | `bubbleIcon` | `string` | - | 最小化气泡图标（SVG 或 HTML） |
+| `logo` | `{ light?: string; dark?: string }` | `null` | 自定义 Logo，替换默认 RTC Agent Logo |
+| `workerUrl` | `string` | `undefined` | SharedWorker 文件 URL（详见 [SharedWorker 配置指南](./SHARED-WORKER-SETUP.md)） |
 
 ### 服务器配置
 
@@ -155,6 +157,7 @@ activityBar: {
 on: {
   ready?: () => void;              // 组件首次渲染完成
   beforeDestroy?: () => void;      // 组件即将销毁
+  themeChange?: (detail: { theme: 'light' | 'dark' | 'system' }) => void; // 主题变化
 }
 ```
 
@@ -358,16 +361,17 @@ import type {
 } from 'https://cdn.example.com/@rtc-agent/component/dist/index.d.ts';
 ```
 
-**注意**：当前版本（0.1.0）尚未生成 `.d.ts` 类型定义文件。类型支持将在后续版本中添加。
+**注意**：`.d.ts` 类型定义文件已随构建产物一起生成（从 0.2.7 版本开始）。
 
 ## 构建产物说明
 
 构建后的 `dist/` 目录包含：
 
 - `index.js` - ESM 格式入口（推荐）
-- `index.umd.js` - UMD 格式（兼容旧版浏览器）
+- `index.d.ts` - TypeScript 类型定义文件
 - `index-*.js` - 代码分割的 chunk 文件
 - `assets/` - 静态资源（图标、字体等）
+- `shared-worker*.js` - SharedWorker 文件
 - `scenarios/` - 场景定义文件
 - `sounds/` - 音效文件
 
@@ -378,10 +382,11 @@ import type {
 1. **ES Module 支持**：CDN 方式需要浏览器支持 ES Module（现代浏览器均支持）
 2. **CORS 配置**：如果从不同域名加载，服务器需要配置 CORS
 3. **路径解析**：组件内部使用相对路径加载资源，确保部署结构完整
-4. **类型定义**：当前版本未生成 `.d.ts` 文件，TypeScript 类型支持需要等待后续版本
+4. **SharedWorker**：需额外配置 worker 文件，详见 [SharedWorker 配置指南](./SHARED-WORKER-SETUP.md)
 
 ## 相关文档
 
-- [组件开发文档](./README.md)
-- [API 文档](./docs/)
-- [示例代码](./examples/)
+- [组件 README](./README.md)
+- [API 文档](./API.md)
+- [使用示例](./EXAMPLES.md)
+- [SharedWorker 配置指南](./SHARED-WORKER-SETUP.md)

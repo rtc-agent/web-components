@@ -235,7 +235,26 @@ const agent = createRtcAgent({
 document.getElementById('agent-container')!.appendChild(agent);
 ```
 
-## 示例 10: 完整配置
+## 示例 10: 自定义 Logo
+
+替换默认 RTC Agent Logo，分别提供 light/dark 主题版本。
+
+```ts
+const agent = createRtcAgent({
+  appLabel: 'Branded Assistant',
+  server: { url: 'https://api.example.com' },
+  logo: {
+    light: '<svg viewBox="0 0 24 24"><path d="..." fill="#333"/></svg>',
+    dark: '<svg viewBox="0 0 24 24"><path d="..." fill="#fff"/></svg>',
+  },
+});
+
+document.body.appendChild(agent);
+```
+
+> 只需提供一个主题变体时，省略另一个字段即可，缺失的变体会回退到默认 Logo。
+
+## 示例 11: 完整配置
 
 展示所有配置项的综合使用。
 
@@ -249,11 +268,20 @@ const config: RtcAgentConfig = {
   theme: 'dark',
   lang: 'en-US',
 
+  // 自定义 Logo
+  logo: {
+    light: '<svg>...</svg>',
+    dark: '<svg>...</svg>',
+  },
+
   // 服务端
   server: {
     url: 'https://api.example.com',
     redirectUri: 'https://example.com/callback',
   },
+
+  // SharedWorker
+  workerUrl: '/rtc-agent/shared-worker.js',
 
   // 数据库
   databaseName: 'my-app',

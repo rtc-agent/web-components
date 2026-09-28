@@ -27,6 +27,8 @@ document.body.appendChild(agent);
 | `theme` | `'light' \| 'dark' \| 'system'` | `'system'` | 视觉主题。`'system'` 跟随系统偏好 |
 | `lang` | `string` | `'zh-CN'` | BCP 47 语言标签（如 `'zh-CN'`、`'en-US'`）。优先级：此属性 > localStorage > 浏览器语言 |
 | `bubbleIcon` | `string` | — | SVG / HTML 字符串，渲染在最小化气泡内。组件内部会用 DOMPurify 做 sanitization |
+| `logo` | `{ light?: string; dark?: string } \| null` | `null` | 自定义 Logo，替换登录页、空状态、设置"关于"等处的默认 RTC Agent Logo。分别提供 light/dark 主题的 SVG/HTML 字符串，省略的变体回退到默认 Logo |
+| `workerUrl` | `string` | `undefined` | SharedWorker 文件的自定义 URL。NPM 安装时需通过 CLI 工具或手动复制 worker 文件到 public 目录后设置。详见 [SharedWorker 配置指南](./SHARED-WORKER-SETUP.md) |
 
 ### 服务端配置 (`server`)
 
