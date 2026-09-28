@@ -270,11 +270,11 @@ export interface EventCallbacks {
    * Tool call started (bridged from EventBus `function:start`).
    *
    * Fires when a tool function begins execution. The `path` field contains
-   * the function path (e.g. `"myGroup/myFunction"`), and `params` contains
+   * the function path (e.g. `"myGroup.myFunction"`), and `params` contains
    * the validated arguments passed to the handler.
    */
   toolCallStart?: (detail: {
-    /** Function path, e.g. "groupName/functionName" */
+    /** Function path, e.g. "groupName.functionName" */
     path: string;
     /** Validated arguments passed to the handler */
     params: Record<string, unknown>;
@@ -286,7 +286,7 @@ export interface EventCallbacks {
    * Fires after the tool handler returns a value successfully.
    */
   toolCallSuccess?: (detail: {
-    /** Function path, e.g. "groupName/functionName" */
+    /** Function path, e.g. "groupName.functionName" */
     path: string;
     /** Return value of the handler */
     result: unknown;
@@ -298,7 +298,7 @@ export interface EventCallbacks {
    * Fires when the tool handler throws an error.
    */
   toolCallError?: (detail: {
-    /** Function path, e.g. "groupName/functionName" */
+    /** Function path, e.g. "groupName.functionName" */
     path: string;
     /** Error thrown by the handler */
     error: Error;
@@ -310,7 +310,7 @@ export interface EventCallbacks {
    * Fires when the tool handler reports progress via the `onProgress` callback.
    */
   toolCallProgress?: (detail: {
-    /** Function path, e.g. "groupName/functionName" */
+    /** Function path, e.g. "groupName.functionName" */
     path: string;
     /** Progress value reported by the handler (typically 0–100) */
     progress: number;

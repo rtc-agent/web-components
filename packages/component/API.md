@@ -258,11 +258,12 @@ beforeMessageSend: ({ message }) => {
 
 永久销毁 agent 实例，执行完整清理：
 
-1. 从 DOM 移除元素（触发 `disconnectedCallback`）
-2. 清除外部 token 引用
-3. 取消所有 DOM 事件订阅
-4. 取消所有 EventBus 订阅
-5. 释放所有内部引用
+1. 从 DOM 移除元素（触发 `disconnectedCallback`，清理 DOM 事件监听器、EventBus 订阅、auth 回调、auto-save 定时器等）
+2. 清除待处理的认证配置引用（`_pendingAuthConfig`、`_pendingDynamicAuth`、`_pendingAuthProvider`）
+3. 取消所有通过 `on` 注册的 DOM 事件订阅函数（`_eventUnsubscribes`）
+4. 取消所有通过 EventBus 桥接的工具调用事件订阅函数（`_eventBusUnsubscribes`）
+
+> **注意**：`destroy()` **不会** 清除 localStorage 中的认证 token。这是为了兼容 Vite HMR（热模块替换）——如果每次代码变更都清除 token，开发时每次保存都会导致登出。如需主动登出，请调用 `auth.logout()`。
 
 调用 `destroy()` 后，实例不应再被使用。
 
