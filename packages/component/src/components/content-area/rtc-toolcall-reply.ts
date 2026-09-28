@@ -27,6 +27,7 @@ import {styles} from './rtc-toolcall-reply.styles.js';
 import type {Message} from '../../types/index.js';
 import {formatTimestampCompact} from '../../utils/format.js';
 import type {RtcToolCallCard} from './rtc-toolcall-card.js';
+import { copyToClipboard } from '../../utils/clipboard.js';
 import { createLogger } from '@rtc-agent/client';
 import './rtc-scroll-container.js';
 
@@ -436,6 +437,56 @@ export class RtcToolCallReply extends LitElement {
         }));
     }
 
+    /**
+     * Handle dot click: copy output content to clipboard.
+     */
+    private async _handleDotClick() {
+        const text = this._getCopyText();
+        if (!text) return;
+
+        const success = await copyToClipboard(text);
+        this.dispatchEvent(new CustomEvent('rtc-toast-requested', {
+            bubbles: true,
+            composed: true,
+            detail: {
+                message: success ? msg('已复制到剪贴板') : msg('复制失败'),
+                type: success ? 'success' : 'error',
+            },
+        }));
+    }
+
+    /**
+     * Get text to copy based on tool type.
+     */
+    private _getCopyText(): string {
+        const tc = parseOutputToolCall(this.message);
+        if (!tc) return '';
+
+        // todoWrite: empty (output height is 0, nothing to copy)
+        if (tc.tool_name === 'todoWrite') return '';
+
+        // script: combine logs/warnings/errors
+        if (tc.tool_name === 'script') {
+            const scriptOutput = parseScriptOutput(tc.output);
+            if (scriptOutput?.data) {
+                const parts: string[] = [];
+                if (scriptOutput.data.logs?.length) {
+                    parts.push(scriptOutput.data.logs.join('\n'));
+                }
+                if (scriptOutput.data.warnings?.length) {
+                    parts.push(scriptOutput.data.warnings.map(w => `[WARN] ${w}`).join('\n'));
+                }
+                if (scriptOutput.data.errors?.length) {
+                    parts.push(scriptOutput.data.errors.map(e => `[ERR] ${e}`).join('\n'));
+                }
+                return parts.join('\n\n');
+            }
+        }
+
+        // default: formatted output
+        return tc.output;
+    }
+
     render() {
         void this._localeCtx.locale;
 
@@ -483,7 +534,7 @@ export class RtcToolCallReply extends LitElement {
     private _renderFallback() {
         return html`
             <div class="timeline-item">
-                <div class="timeline-dot" part="dot" data-timestamp=${this._formattedTimestamp}></div>
+                <div class="timeline-dot" part="dot" data-timestamp=${this._formattedTimestamp} @click=${this._handleDotClick}></div>
                 <div class="timeline-content" part="content">
                     <div class="reply-card" part="card">
                         <rtc-scroll-container style="--rtc-scroll-max-height-locked: var(--rtc-content-height-md); --rtc-scroll-max-height-unlocked: var(--rtc-content-height-xl);">
@@ -517,7 +568,7 @@ export class RtcToolCallReply extends LitElement {
 
         return html`
             <div class="timeline-item">
-                <div class="timeline-dot" part="dot" data-timestamp=${this._formattedTimestamp}></div>
+                <div class="timeline-dot" part="dot" data-timestamp=${this._formattedTimestamp} @click=${this._handleDotClick}></div>
                 <div class="timeline-content" part="content">
                     <div class="reply-card" part="card">
                         <div
@@ -599,6 +650,7 @@ export class RtcToolCallReply extends LitElement {
                     class="timeline-dot"
                     part="dot"
                     data-timestamp=${this._formattedTimestamp}
+                    @click=${this._handleDotClick}
                 ></div>
                 <div class="timeline-content" part="content">
                     <div class="reply-card reply-card-compact" part="card">
@@ -641,6 +693,7 @@ export class RtcToolCallReply extends LitElement {
                     class="timeline-dot"
                     part="dot"
                     data-timestamp=${this._formattedTimestamp}
+                    @click=${this._handleDotClick}
                 ></div>
                 <div class="timeline-content" part="content">
                     <div class="reply-card" part="card">

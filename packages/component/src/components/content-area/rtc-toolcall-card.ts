@@ -253,16 +253,22 @@ export class RtcToolCallCard extends LitElement {
      */
     private get _inCopyText(): string {
         const inData = parseToolCallData(this.pair.input);
-        if (inData?.input != null) return tryFormatJson(inData.input);
-        return '';
-    }
+        if (!inData) return '';
 
-    /**
-     * Get OUT section copy text (output result)
-     */
-    private get _outCopyText(): string {
-        const outData = this.pair.output ? parseToolCallData(this.pair.output) : null;
-        if (outData?.output != null) return tryFormatJson(outData.output);
+        // todoWrite: render as task list text (matches visual rendering)
+        if (inData.tool_name === 'todoWrite') {
+            const todos = parseTodoWriteInput(inData);
+            if (todos && todos.length > 0) {
+                return todos.map(todo => {
+                    const icon = todo.status === 'completed' ? '✓' :
+                                todo.status === 'in_progress' ? '●' : '○';
+                    return `${icon} ${todo.content}`;
+                }).join('\n');
+            }
+        }
+
+        // default: formatted JSON
+        if (inData?.input != null) return tryFormatJson(inData.input);
         return '';
     }
 
@@ -281,10 +287,11 @@ export class RtcToolCallCard extends LitElement {
     }
 
     /**
-     * Copy tool call content (corresponds to dot click)
+     * Copy tool call content (corresponds to dot click).
+     * Input card's dot should copy input content (render-what-you-see principle).
      */
     private async _handleDotClick() {
-        await this._handleCopy(this._outCopyText || this._inCopyText);
+        await this._handleCopy(this._inCopyText);
     }
 
     render() {
