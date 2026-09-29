@@ -188,6 +188,18 @@ agent.messageController.actions.sendMessage(content);
 agent.skillController.actions.setRegistry(registry);
 ```
 
+## 代码高亮
+
+消息中的代码块使用 highlight.js 进行语法高亮。为控制包体积，组件按需注册了 15 种常用语言（含别名）：
+
+| 类别 | 语言 | 别名 |
+| --- | --- | --- |
+| Web 开发 | JavaScript, TypeScript, XML, CSS, JSON | `js`, `ts`, `html`, `yml` |
+| 后端/系统 | Python, Go, Bash, YAML, SQL | `py`, `golang`, `sh`, `shell` |
+| 配置/标记 | Markdown, Diff, Plaintext | `md`, `text` |
+
+未注册的语言将回退到无高亮纯文本渲染。如需扩展支持的语言，可在宿主应用中通过 `hljs.registerLanguage()` 注册额外语言包（需自行引入 highlight.js）。
+
 ## 稳定性与已知问题
 
 ### v0.2.7-rc.3 稳定性改进
