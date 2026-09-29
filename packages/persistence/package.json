@@ -16,8 +16,8 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
+    "build": "tsup",
+    "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },
@@ -32,6 +32,7 @@
   "devDependencies": {
     "@types/babel__core": "^7.20.5",
     "fake-indexeddb": "^6.2.5",
+    "tsup": "^8.0.0",
     "typescript": "^5.4.0",
     "vitest": "^2.0.0"
   }
