@@ -1922,7 +1922,6 @@ export class RtcAgent extends LitElement {
         const isFunctions = active === 'functions';
         const showSidebar = sidebarVisible && (isFiles || isChat || isSettings || isFunctions);
         const disabled = this._resolvedActivityBarConfig.disabledActivities;
-        const enableFunctionDebugger = this._resolvedActivityBarConfig.enableFunctionDebugger;
 
         return html`
       <div class="main-layout">
@@ -1931,7 +1930,7 @@ export class RtcAgent extends LitElement {
           theme=${this.theme}
           ?show-files=${!disabled.includes('files')}
           ?show-settings=${!disabled.includes('settings')}
-          ?show-functions=${enableFunctionDebugger}
+          ?show-functions=${!disabled.includes('functions')}
         ></rtc-activity-bar>
         ${isFiles
           ? html`<rtc-drawer ?open=${showSidebar} style="--rtc-drawer-left: 48px">
