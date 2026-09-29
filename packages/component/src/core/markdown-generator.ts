@@ -215,7 +215,7 @@ export function generateFunctionMd(funcDef: FunctionDef, groupName?: string): st
 
   // Example
   md += `## Example\n\n`;
-  md += `**You must use the \`script\`tool to execute the script below.**\n\n`;
+  md += `**You must use the \`script\` tool to execute the script below.**\n\n`;
   md += '```javascript\n';
 
   // Add JSDoc comment with return type
@@ -518,7 +518,7 @@ See \`/scenarios/INDEX.md\` for the full list.
 function generateAgentHowToCall(): string {
   return `## How to Call Functions
 
-You are extremely cautious. You always read the \`/Function/INDEX.md\` document first and write the \`script\` based on it.
+You are extremely cautious. You always read the \`/functions/INDEX.md\` document first and write the \`script\` based on it.
 
 ### Parameter Passing
 
