@@ -1129,6 +1129,7 @@ export class RtcAgent extends LitElement {
                 refreshToken: this._pendingAuthProvider.refreshToken,
                 isLoggedIn: this._pendingAuthProvider.isLoggedIn,
                 logout: this._pendingAuthProvider.logout,
+                getUserId: this._pendingAuthProvider.getUserId,
             });
             this._pendingAuthProvider = undefined;
         }

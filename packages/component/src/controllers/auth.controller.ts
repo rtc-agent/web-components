@@ -269,7 +269,7 @@ export class AuthController implements ReactiveController {
                 isLoggedIn: true,
                 accessToken: '', // Will be fetched on demand
                 refreshToken: '', // Not used in provider mode
-                userId: 'provider-managed', // Provider manages user identity
+                userId: provider.getUserId?.() || 'provider-managed',
                 expiresAt: Infinity, // Provider controls expiration
             };
         } else {

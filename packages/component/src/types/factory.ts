@@ -124,6 +124,14 @@ export interface AuthProvider {
   isLoggedIn(): boolean;
   /** Optional logout handler. If provided, component logout delegates to host */
   logout?(): Promise<void>;
+  /**
+   * Returns the current user's unique identifier.
+   *
+   * Used to construct per-user IndexedDB names (e.g. `{databaseName}-{userId}`).
+   * If not provided, falls back to `'provider-managed'` — all users will share
+   * the same database, which is usually NOT what you want in production.
+   */
+  getUserId?(): string;
 }
 
 // ===== Event Callbacks (Phase 3) =====
