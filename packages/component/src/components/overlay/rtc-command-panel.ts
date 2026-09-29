@@ -16,7 +16,7 @@ import {localized, msg} from '@lit/localize';
 import {consume} from '@lit/context';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {styles} from './rtc-command-panel.styles.js';
-import {gearIcon, clockIcon, checklistIcon} from '../../icons/index.js';
+import {gearIcon, clockIcon, checklistIcon, saveIcon} from '../../icons/index.js';
 import { createLogger } from '@rtc-agent/client';
 
 const log = createLogger('CommandPanel');
@@ -57,6 +57,13 @@ export const COMMAND_CONFIGS: CommandConfig[] = [
         description: '设定目标，持续工作直到达成',
         available: true,
         icon: checklistIcon,
+    },
+    {
+        name: 'export',
+        label: '/export',
+        description: '导出当前对话为 HTML 文件',
+        available: true,
+        icon: saveIcon,
     },
 ];
 
@@ -141,6 +148,7 @@ export class RtcCommandPanel extends LitElement {
             case 'compact': return msg('压缩上下文，减少 token 消耗');
             case 'loop': return msg('循环执行任务');
             case 'goal': return msg('设定目标，持续工作直到达成');
+            case 'export': return msg('导出当前对话为 HTML 文件');
             default: return fallback;
         }
     }

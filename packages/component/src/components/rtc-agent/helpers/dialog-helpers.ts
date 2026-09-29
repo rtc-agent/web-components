@@ -5,6 +5,7 @@
  * Extracted from rtc-agent.ts to keep the root component lean.
  */
 import type { LocalRtc } from '@rtc-agent/persistence';
+import type { ExportOptions } from '../../overlay/rtc-export-dialog.js';
 
 // ── Tool Confirm Dialog ──
 
@@ -146,6 +147,50 @@ export function showRestoreConfirmDialog(
 
         el.addEventListener("rtc-restore-confirmed", onConfirm);
         el.addEventListener("rtc-restore-cancelled", onCancel);
+
+        host.appendChild(el);
+    });
+}
+
+// ── Export Dialog ──
+
+/**
+ * Show export options dialog.
+ *
+ * Creates an <rtc-export-dialog> overlay, appends it to the host's shadowRoot,
+ * and returns a Promise that resolves to the export options or null if cancelled.
+ * The overlay is automatically removed after the user responds.
+ *
+ * @param totalMessages - Total number of messages available for export.
+ * @param host - The shadow root host to append the dialog to.
+ */
+export function showExportDialog(
+    totalMessages: number,
+    host: ShadowRoot,
+): Promise<ExportOptions | null> {
+    return new Promise((resolve) => {
+        const el = document.createElement("rtc-export-dialog");
+        el.totalMessages = totalMessages;
+
+        const cleanup = () => {
+            el.removeEventListener("rtc-export-confirm", onConfirm);
+            el.removeEventListener("rtc-export-cancel", onCancel);
+            el.remove();
+        };
+
+        const onConfirm = (e: Event) => {
+            const detail = (e as CustomEvent<ExportOptions>).detail;
+            cleanup();
+            resolve(detail);
+        };
+
+        const onCancel = () => {
+            cleanup();
+            resolve(null);
+        };
+
+        el.addEventListener("rtc-export-confirm", onConfirm);
+        el.addEventListener("rtc-export-cancel", onCancel);
 
         host.appendChild(el);
     });

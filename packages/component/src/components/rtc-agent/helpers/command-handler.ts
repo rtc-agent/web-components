@@ -10,6 +10,8 @@ import type { Logger } from '@rtc-agent/client';
 import type { ToastActions } from '../../../controllers/toast.controller.js';
 import type { Session, Message } from '../../../types/index.js';
 import { exportSession } from '../../../utils/session-exporter.js';
+import { showExportDialog } from './dialog-helpers.js';
+import type { ExportOptions } from '../../overlay/rtc-export-dialog.js';
 
 // ── Dependency interfaces ──
 
@@ -20,6 +22,8 @@ export interface CommandDeps {
     currentSession?: Session;
     /** Current session messages (for commands that need message data like /export). */
     currentMessages?: Message[];
+    /** Shadow root host for showing dialogs. */
+    host?: ShadowRoot;
     toast: ToastActions;
     logger: Logger;
 }
@@ -89,11 +93,12 @@ async function handleCompactCommand(
 /**
  * Handle the /export command.
  *
- * Exports current session to HTML file for offline reading.
+ * Shows an export options dialog, then exports current session to HTML file.
  * Filters out streaming (incomplete) messages before export.
+ * Applies user-selected options (limit, tool calls, thinking).
  */
 async function handleExportCommand(deps: CommandDeps): Promise<void> {
-    const { toast, logger, currentSession, currentMessages } = deps;
+    const { toast, logger, currentSession, currentMessages, host } = deps;
 
     if (!currentSession) {
         toast.show(msg('没有活动的会话'), 'error');
@@ -101,9 +106,28 @@ async function handleExportCommand(deps: CommandDeps): Promise<void> {
     }
 
     // Filter out streaming (incomplete) messages — they have partial content
-    const messages = (currentMessages ?? []).filter(m => !m.streaming);
-    if (messages.length === 0) {
+    const allMessages = (currentMessages ?? []).filter(m => !m.streaming);
+    if (allMessages.length === 0) {
         toast.show(msg('当前会话没有消息'), 'error');
+        return;
+    }
+
+    // Show export options dialog
+    if (!host) {
+        logger.error('Cannot show export dialog: host is not available');
+        return;
+    }
+
+    const options = await showExportDialog(allMessages.length, host);
+    if (!options) {
+        // User cancelled
+        return;
+    }
+
+    // Apply filters based on options
+    const messages = applyExportOptions(allMessages, options);
+    if (messages.length === 0) {
+        toast.show(msg('没有符合条件的消息'), 'error');
         return;
     }
 
@@ -114,4 +138,32 @@ async function handleExportCommand(deps: CommandDeps): Promise<void> {
         logger.error('/export failed:', err);
         toast.show(msg('导出失败'), 'error');
     }
+}
+
+/**
+ * Apply export options to filter and limit messages.
+ *
+ * - If limit > 0, take the most recent `limit` messages
+ * - If includeToolCalls is false, filter out toolcall_input and toolcall_output
+ * - If includeThinking is false, filter out thinking messages
+ */
+function applyExportOptions(messages: Message[], options: ExportOptions): Message[] {
+    let result = messages;
+
+    // Filter by content type
+    if (!options.includeToolCalls) {
+        result = result.filter(m =>
+            m.content.type !== 'toolcall_input' && m.content.type !== 'toolcall_output'
+        );
+    }
+    if (!options.includeThinking) {
+        result = result.filter(m => m.content.type !== 'thinking');
+    }
+
+    // Apply limit (0 = all, otherwise take the most recent N)
+    if (options.limit > 0 && options.limit < result.length) {
+        result = result.slice(-options.limit);
+    }
+
+    return result;
 }

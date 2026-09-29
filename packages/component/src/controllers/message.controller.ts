@@ -220,6 +220,31 @@ export class MessageController implements ReactiveController {
     }
 
     /**
+     * Load all messages for a session from persistence (for export/commands).
+     *
+     * Unlike the paginated UI methods, this loads the complete message history
+     * without pagination limits. Use sparingly — for large sessions this loads
+     * all messages into memory.
+     *
+     * Returns empty array if persistence is not available or session has no messages.
+     */
+    async loadAllMessages(sessionId: string): Promise<Message[]> {
+        if (!this._persistence) return [];
+
+        // Use a very large limit to effectively load all messages.
+        // Internally, listMessages loads all from IndexedDB then slices,
+        // so this doesn't cause extra DB work — just skips the slice.
+        const localMessages = await this._persistence.listMessages(
+            sessionId,
+            undefined,
+            Number.MAX_SAFE_INTEGER,
+            'backward',
+        );
+
+        return localMessages.map(local => this._localMessageToUI(local));
+    }
+
+    /**
      * Evict a session from the repository cache.
      * Called when a tab is closed to free memory.
      */

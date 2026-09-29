@@ -10,7 +10,7 @@
 import {LitElement, html, nothing, type TemplateResult} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
 import {consume} from '@lit/context';
-import {localized, msg} from '@lit/localize';
+import {localized, msg, str} from '@lit/localize';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
 import {styles} from './rtc-function-history.styles.js';
 import {tokens} from '../../styles/tokens.js';
@@ -36,9 +36,9 @@ function relativeTime(timestamp: number): string {
     const days = Math.floor(hours / 24);
 
     if (seconds < 60) return msg('刚刚');
-    if (minutes < 60) return msg(`${minutes} 分钟前`);
-    if (hours < 24) return msg(`${hours} 小时前`);
-    return msg(`${days} 天前`);
+    if (minutes < 60) return msg(str`${minutes} 分钟前`);
+    if (hours < 24) return msg(str`${hours} 小时前`);
+    return msg(str`${days} 天前`);
 }
 
 @localized()
@@ -305,7 +305,7 @@ export class RtcFunctionHistory extends LitElement {
                                 ${msg('上一页')}
                             </button>
                             <span class="pagination-info">
-                                ${msg(`第 ${page} 页 / 共 ${totalPages} 页`)}
+                                ${msg(str`第 ${page} 页 / 共 ${totalPages} 页`)}
                             </span>
                             <button
                                 class="pagination-btn"

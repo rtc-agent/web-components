@@ -214,18 +214,6 @@
   <source>关闭</source>
   <target>Close</target>
 </trans-unit>
-<trans-unit id="s1e3b8c46001e3962">
-  <source>会话已删除</source>
-  <target>Session deleted</target>
-</trans-unit>
-<trans-unit id="s03259582cecb7f6f">
-  <source>删除失败</source>
-  <target>Delete failed</target>
-</trans-unit>
-<trans-unit id="sa33d70ea05452700">
-  <source>重命名失败</source>
-  <target>Rename failed</target>
-</trans-unit>
 <trans-unit id="s912a87b19f6ee361">
   <source>没有活动的会话</source>
   <target>No active session</target>
@@ -690,14 +678,6 @@
   <source>文件 <x id="0" equiv-text="${filePath}"/> 已被删除</source>
   <target>File <x id="0" equiv-text="${filePath}"/> has been deleted</target>
 </trans-unit>
-<trans-unit id="s814dfb26b607cdf3">
-  <source>删除失败，请稍后重试</source>
-  <target>Delete failed, please retry later</target>
-</trans-unit>
-<trans-unit id="s999e1da626842b8c">
-  <source>重命名失败，请稍后重试</source>
-  <target>Rename failed, please retry later</target>
-</trans-unit>
 <trans-unit id="sd3f11dfa2287048c">
   <source>恢复默认</source>
   <target>Restore default</target>
@@ -713,14 +693,6 @@
 <trans-unit id="s0293d842f6e611ae">
   <source>确认恢复</source>
   <target>Confirm restore</target>
-</trans-unit>
-<trans-unit id="s028df6915f235766">
-  <source>已恢复默认内容</source>
-  <target>Restore default</target>
-</trans-unit>
-<trans-unit id="s61b232fc4d1f652a">
-  <source>恢复失败</source>
-  <target>Restore failed</target>
 </trans-unit>
 <trans-unit id="sbc25ddf9669f1a6e">
   <source>打开一个会话即可开始</source>
@@ -869,6 +841,227 @@
 <trans-unit id="s1cc47dc4d80a1842">
   <source>新聊天</source>
   <target>New Chat</target>
+</trans-unit>
+<!-- Export dialog -->
+<trans-unit id="s6e9e88739bc12d4c">
+  <source>函数调试</source>
+  <target>Function Debug</target>
+</trans-unit>
+<trans-unit id="s2e5c781bb630d349">
+  <source>关闭会话失败，请重试</source>
+  <target>Failed to close session, please retry</target>
+</trans-unit>
+<trans-unit id="s387bc87d440bc5ad">
+  <source>点击折叠</source>
+  <target>Click to collapse</target>
+</trans-unit>
+<trans-unit id="sb9775a7db22f4988">
+  <source>点击展开</source>
+  <target>Click to expand</target>
+</trans-unit>
+<trans-unit id="sdb3c0da90bf80180">
+  <source>控制台</source>
+  <target>Console</target>
+</trans-unit>
+<trans-unit id="sbf288fc6928ca3de">
+  <source>复制全部日志</source>
+  <target>Copy all logs</target>
+</trans-unit>
+<trans-unit id="s974744082ed5612e">
+  <source>清空</source>
+  <target>Clear</target>
+</trans-unit>
+<trans-unit id="s11655be4b30fede6">
+  <source>暂无日志输出</source>
+  <target>No log output yet</target>
+</trans-unit>
+<trans-unit id="sedc12275baa03e2c">
+  <source>函数信息</source>
+  <target>Function Info</target>
+</trans-unit>
+<trans-unit id="s5d3c3f3c60ffc0c1">
+  <source>参数文档</source>
+  <target>Parameters</target>
+</trans-unit>
+<trans-unit id="s253cca08a6b1c098">
+  <source>名称</source>
+  <target>Name</target>
+</trans-unit>
+<trans-unit id="sd52ab5086352f443">
+  <source>类型</source>
+  <target>Type</target>
+</trans-unit>
+<trans-unit id="s395c3508b86010f1">
+  <source>必填</source>
+  <target>Required</target>
+</trans-unit>
+<trans-unit id="s6dd2d6080ba660ea">
+  <source>描述</source>
+  <target>Description</target>
+</trans-unit>
+<trans-unit id="s8a88dde2b0e3d4e2">
+  <source>从左侧选择一个函数开始调试</source>
+  <target>Select a function from the left to start debugging</target>
+</trans-unit>
+<trans-unit id="s5c645b6e9f52886d">
+  <source>执行中...</source>
+  <target>Executing...</target>
+</trans-unit>
+<trans-unit id="sdc131c0942088919">
+  <source>运行</source>
+  <target>Run</target>
+</trans-unit>
+<trans-unit id="sf517c24157589a6f">
+  <source>执行成功</source>
+  <target>Execution successful</target>
+</trans-unit>
+<trans-unit id="sd07f7841388d4f68">
+  <source>执行失败</source>
+  <target>Execution failed</target>
+</trans-unit>
+<trans-unit id="s116cee0896181b15">
+  <source>刚刚</source>
+  <target>Just now</target>
+</trans-unit>
+<trans-unit id="s89cc810afc952547">
+  <source><x id="0" equiv-text="${minutes}"/> 分钟前</source>
+  <target><x id="0" equiv-text="${minutes}"/> minutes ago</target>
+</trans-unit>
+<trans-unit id="s14a1840024c09831">
+  <source><x id="0" equiv-text="${hours}"/> 小时前</source>
+  <target><x id="0" equiv-text="${hours}"/> hours ago</target>
+</trans-unit>
+<trans-unit id="s135bde3870514299">
+  <source><x id="0" equiv-text="${days}"/> 天前</source>
+  <target><x id="0" equiv-text="${days}"/> days ago</target>
+</trans-unit>
+<trans-unit id="s105944089541c74f">
+  <source>参数</source>
+  <target>Parameters</target>
+</trans-unit>
+<trans-unit id="s8162a1081c0a0595">
+  <source>日志</source>
+  <target>Logs</target>
+</trans-unit>
+<trans-unit id="sd03a6a085efe167a">
+  <source>结果</source>
+  <target>Result</target>
+</trans-unit>
+<trans-unit id="sa752a6d9e9728b78">
+  <source>复制参数</source>
+  <target>Copy parameters</target>
+</trans-unit>
+<trans-unit id="s6a580dd9b55d003e">
+  <source>复制日志</source>
+  <target>Copy logs</target>
+</trans-unit>
+<trans-unit id="s751d17081136b578">
+  <source>恢复</source>
+  <target>Restore</target>
+</trans-unit>
+<trans-unit id="s1aac76f0f5345d7c">
+  <source>重新运行</source>
+  <target>Rerun</target>
+</trans-unit>
+<trans-unit id="sf3925ca5791c14d2">
+  <source>历史记录</source>
+  <target>History</target>
+</trans-unit>
+<trans-unit id="sac0458d68b5c8b73">
+  <source>按函数名过滤...</source>
+  <target>Filter by function name...</target>
+</trans-unit>
+<trans-unit id="sd7c5a28b8e06a0fc">
+  <source>暂无历史记录</source>
+  <target>No history yet</target>
+</trans-unit>
+<trans-unit id="s0e4e4c846c34f036">
+  <source>上一页</source>
+  <target>Previous</target>
+</trans-unit>
+<trans-unit id="sc98997e0e9944d8d">
+  <source>第 <x id="0" equiv-text="${page}"/> 页 / 共 <x id="1" equiv-text="${totalPages}"/> 页</source>
+  <target>Page <x id="0" equiv-text="${page}"/> of <x id="1" equiv-text="${totalPages}"/></target>
+</trans-unit>
+<trans-unit id="s131c338472a22911">
+  <source>下一页</source>
+  <target>Next</target>
+</trans-unit>
+<trans-unit id="s3db3bf246500402c">
+  <source>参数 (JSON)</source>
+  <target>Parameters (JSON)</target>
+</trans-unit>
+<trans-unit id="sd76245f332c51ea2">
+  <source>Invalid JSON</source>
+  <target>Invalid JSON</target>
+</trans-unit>
+<trans-unit id="s46e8259bbcd7df58">
+  <source>暂无已注册的函数</source>
+  <target>No registered functions</target>
+</trans-unit>
+<trans-unit id="s17284a089b388be8">
+  <source>函数</source>
+  <target>Function</target>
+</trans-unit>
+<trans-unit id="s9259c59fc1ab601b">
+  <source>函数树</source>
+  <target>Function tree</target>
+</trans-unit>
+<trans-unit id="sdae148f01d938da7">
+  <source>导出当前对话为 HTML 文件</source>
+  <target>Export current conversation as HTML file</target>
+</trans-unit>
+<trans-unit id="s15a3e0089a35e30d">
+  <source>全部</source>
+  <target>All</target>
+</trans-unit>
+<trans-unit id="sadeb4474860a6375">
+  <source>导出选项</source>
+  <target>Export Options</target>
+</trans-unit>
+<trans-unit id="s9af1764f80413fbb">
+  <source>消息数量限制</source>
+  <target>Message limit</target>
+</trans-unit>
+<trans-unit id="s4fc0d048d8433bde">
+  <source>工具调用</source>
+  <target>Tool calls</target>
+</trans-unit>
+<trans-unit id="s0e2db60893d059e4">
+  <source>包括</source>
+  <target>Include</target>
+</trans-unit>
+<trans-unit id="sdd83a682a05ea0b1">
+  <source>不包括</source>
+  <target>Exclude</target>
+</trans-unit>
+<trans-unit id="s54ac4b7ff12547c5">
+  <source>推理过程</source>
+  <target>Thinking</target>
+</trans-unit>
+<trans-unit id="s2b24c608abd8b973">
+  <source>导出</source>
+  <target>Export</target>
+</trans-unit>
+<trans-unit id="s5a4967f99deadf5f">
+  <source>当前会话没有消息</source>
+  <target>Current session has no messages</target>
+</trans-unit>
+<trans-unit id="s4234dfe5c862ffeb">
+  <source>没有符合条件的消息</source>
+  <target>No messages match the criteria</target>
+</trans-unit>
+<trans-unit id="s09f39e7686bc7b12">
+  <source>导出成功</source>
+  <target>Export successful</target>
+</trans-unit>
+<trans-unit id="s1b3be8769609cc19">
+  <source>导出失败</source>
+  <target>Export failed</target>
+</trans-unit>
+<trans-unit id="sd6edb44c5859c745">
+  <source>拖动滑块选择导出的消息数量</source>
+  <target>Drag slider to select number of messages to export</target>
 </trans-unit>
 </body>
 </file>

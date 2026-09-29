@@ -141,6 +141,7 @@ import type {LocalRtc} from '@rtc-agent/persistence';
 import '../overlay/rtc-tool-confirm.js';
 import '../overlay/rtc-ask-user.js';
 import '../overlay/rtc-restore-confirm.js';
+import '../overlay/rtc-export-dialog.js';
 // Child component registrations (side-effect imports)
 import '../title-bar/rtc-title-bar.js';
 import '../login/rtc-login-page.js';
@@ -1683,11 +1684,27 @@ export class RtcAgent extends LitElement {
      *
      * Currently supported commands:
      * - /compact [custom_instruction]: compress current session context
+     * - /export: export current session to HTML file
      */
     private async _handleCommand(name: string, args?: string): Promise<void> {
+        // Get current session object (for commands that need session metadata like title, tokens)
+        const currentSessionId = this._session.value.state.currentSessionId;
+        const currentSession = currentSessionId
+            ? this._session.value.state.sessions.find(s => s.clientId === currentSessionId)
+            : undefined;
+
+        // Load all messages from persistence (not the paginated UI state).
+        // For commands like /export that need the complete message history.
+        const currentMessages = currentSessionId
+            ? await this._message.loadAllMessages(currentSessionId)
+            : [];
+
         await dispatchCommand(name, args, {
             persistenceLayer: this._persistence.layer,
-            currentSessionId: this._session.value.state.currentSessionId,
+            currentSessionId,
+            currentSession,
+            currentMessages,
+            host: this.shadowRoot!,
             toast: this._toast.actions,
             logger: log,
         });
