@@ -52,6 +52,20 @@ export interface StaticTokenAuth {
   userId: string;
   /** Token expiration time in seconds. If not set, no auto-refresh is attempted */
   expiresIn?: number;
+  /**
+   * Device ID — must match the Device ID embedded in the JWT token by the server.
+   *
+   * The server embeds a Device ID into the JWT Claims when issuing tokens.
+   * RTCs (Remote Tool Calls / scripts) dispatched by the server carry this Device ID
+   * in the `session_device_id` field. The component filters RTCs at execution time:
+   * only RTCs whose `session_device_id` matches the local Device ID are executed.
+   *
+   * If not provided or mismatched, scripts will silently fail to execute.
+   *
+   * Host backends should return the Device ID alongside the token so the frontend
+   * can forward it here.
+   */
+  deviceId: string;
 }
 
 /**
@@ -88,6 +102,20 @@ export interface DynamicTokenAuth {
   }>;
   /** User ID associated with the authentication */
   userId: string;
+  /**
+   * Device ID — must match the Device ID embedded in the JWT token by the server.
+   *
+   * The server embeds a Device ID into the JWT Claims when issuing tokens.
+   * RTCs (Remote Tool Calls / scripts) dispatched by the server carry this Device ID
+   * in the `session_device_id` field. The component filters RTCs at execution time:
+   * only RTCs whose `session_device_id` matches the local Device ID are executed.
+   *
+   * If not provided or mismatched, scripts will silently fail to execute.
+   *
+   * Host backends should return the Device ID alongside the token so the frontend
+   * can forward it here.
+   */
+  deviceId: string;
 }
 
 /**
@@ -132,6 +160,20 @@ export interface AuthProvider {
    * the same database, which is usually NOT what you want in production.
    */
   getUserId?(): string;
+  /**
+   * Device ID — must match the Device ID embedded in the JWT token by the server.
+   *
+   * The server embeds a Device ID into the JWT Claims when issuing tokens.
+   * RTCs (Remote Tool Calls / scripts) dispatched by the server carry this Device ID
+   * in the `session_device_id` field. The component filters RTCs at execution time:
+   * only RTCs whose `session_device_id` matches the local Device ID are executed.
+   *
+   * If not provided or mismatched, scripts will silently fail to execute.
+   *
+   * Host backends should return the Device ID alongside the token so the frontend
+   * can forward it here.
+   */
+  deviceId: string;
 }
 
 // ===== Event Callbacks (Phase 3) =====

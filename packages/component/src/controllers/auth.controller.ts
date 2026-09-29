@@ -192,8 +192,17 @@ export class AuthController implements ReactiveController {
      * Use this when the host application manages token lifecycle
      * (e.g. StaticTokenAuth mode from createRtcAgent factory).
      */
-    setExternalTokens(params: SetTokensParams) {
+    setExternalTokens(params: SetTokensParams & { deviceId: string }) {
         this._externalTokens = true;
+
+        // Store the server-issued Device ID to localStorage so that
+        // getOrCreateDeviceId() (called later by PersistenceController) picks it up
+        // instead of generating a new one. This ensures RTC filtering matches.
+        try {
+            localStorage.setItem(STORAGE_KEYS.deviceId, params.deviceId);
+        } catch (err) {
+            log.debug('Failed to store deviceId in localStorage:', err);
+        }
 
         const expiresAt = Date.now() + params.expiresIn * 1000;
 
@@ -232,9 +241,19 @@ export class AuthController implements ReactiveController {
             expiresIn?: number;
         }>;
         userId: string;
+        deviceId: string;
     }) {
         this._dynamicTokenProvider = provider;
         this._externalTokens = true;
+
+        // Store the server-issued Device ID to localStorage so that
+        // getOrCreateDeviceId() (called later by PersistenceController) picks it up
+        // instead of generating a new one. This ensures RTC filtering matches.
+        try {
+            localStorage.setItem(STORAGE_KEYS.deviceId, provider.deviceId);
+        } catch (err) {
+            log.debug('Failed to store deviceId in localStorage:', err);
+        }
 
         this._state = {
             isLoggedIn: true,
@@ -260,6 +279,15 @@ export class AuthController implements ReactiveController {
     setAuthProvider(provider: AuthProvider) {
         this._authProvider = provider;
         this._externalTokens = true; // Skip localStorage persistence
+
+        // Store the server-issued Device ID to localStorage so that
+        // getOrCreateDeviceId() (called later by PersistenceController) picks it up
+        // instead of generating a new one. This ensures RTC filtering matches.
+        try {
+            localStorage.setItem(STORAGE_KEYS.deviceId, provider.deviceId);
+        } catch (err) {
+            log.debug('Failed to store deviceId in localStorage:', err);
+        }
 
         // Set initial state based on provider's isLoggedIn()
         const loggedIn = provider.isLoggedIn();

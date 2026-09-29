@@ -1112,6 +1112,7 @@ export class RtcAgent extends LitElement {
                 refreshToken: auth.refreshToken ?? '',
                 userId: auth.userId,
                 expiresIn: auth.expiresIn ?? 3600,
+                deviceId: auth.deviceId,
             });
             // setExternalTokens triggers onLogin callback, which triggers
             // _connectWithRetry. Skip the explicit check below.
@@ -1121,6 +1122,7 @@ export class RtcAgent extends LitElement {
                 getToken: this._pendingDynamicAuth.getToken,
                 refreshToken: this._pendingDynamicAuth.refreshToken,
                 userId: this._pendingDynamicAuth.userId,
+                deviceId: this._pendingDynamicAuth.deviceId,
             });
             this._pendingDynamicAuth = undefined;
         } else if (this._pendingAuthProvider) {
@@ -1131,6 +1133,7 @@ export class RtcAgent extends LitElement {
                 isLoggedIn: this._pendingAuthProvider.isLoggedIn,
                 logout: this._pendingAuthProvider.logout,
                 getUserId: this._pendingAuthProvider.getUserId,
+                deviceId: this._pendingAuthProvider.deviceId,
             });
             this._pendingAuthProvider = undefined;
         }
