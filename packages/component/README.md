@@ -202,6 +202,41 @@ agent.skillController.actions.setRegistry(registry);
 
 ## 稳定性与已知问题
 
+### v0.2.8-rc.0 会话导出与 Function Debugger
+
+本次发布引入会话导出功能和 Function Debugger 面板，并包含多项稳定性修复。
+
+**会话导出功能**：
+
+- 新增 `/export` 斜杠命令，支持将当前会话导出为静态 HTML 文件
+- 导出选项对话框支持配置：消息数量限制、是否包含 tool calls、是否包含 thinking
+- HTML 导出使用 highlight.js 代码高亮，支持离线阅读和分享
+- 消息分类渲染：用户/助手消息展开显示，tool calls/thinking 等折叠显示
+
+**Function Debugger**：
+
+- 新增 Function Debugger 面板，支持查看函数调用历史
+- 历史记录迁移到 IndexedDB，支持分页加载
+- Activity Bar 配置重构，functions 显隐统一到 `disabledActivities` 数组
+
+**Tool Call 增强**：
+
+- `todoWrite` 工具支持专门的渲染卡片
+- Tool call 卡片支持点击复制 function name
+
+**稳定性修复**：
+
+- 修复 AuthProvider 未传递 `getUserId` 导致数据库隔离问题
+- 修复 Vite HMR 时 React StrictMode 下的登出问题
+- 修复 SharedWorker 连接在 tab 强制关闭后的 stale 连接问题
+- 修复 JSON console output 的双重序列化问题
+
+**文档更新**：
+
+- 添加代码高亮文档，说明支持的 15 种语言
+- 更新 SharedWorker 设置指南
+- 同步事件系统文档与实现
+
 ### v0.2.7-rc.3 稳定性改进
 
 本次发布包含多项稳定性和数据一致性修复：

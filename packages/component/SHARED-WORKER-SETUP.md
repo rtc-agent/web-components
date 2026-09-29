@@ -167,7 +167,7 @@ public/
 
 ```json
 {
-  "version": "0.2.7-rc.3",
+  "version": "0.2.8-rc.0",
   "workerFile": "shared-worker.js",
   "stableWorkerUrl": "/rtc-agent/shared-worker.js",
   "timestamp": "2026-09-26T07:51:39.539Z"
