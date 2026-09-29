@@ -224,3 +224,476 @@ function parseContentData(data: unknown): Record<string, unknown> | null {
     }
     return null;
 }
+
+/**
+ * Generate preview text for collapsed messages.
+ *
+ * Provides a short, meaningful label for each content type.
+ * Tool call field name is `tool_name` (see rtc-toolcall-card.ts:53-91).
+ * Uses shared parseContentData() for uniform JSON string/object handling.
+ */
+export function getPreviewText(message: Message): string {
+    const { type, data } = message.content;
+
+    switch (type) {
+        case 'toolcall_input': {
+            const parsed = parseContentData(data);
+            return (parsed?.tool_name as string) || (parsed?.name as string) || 'Tool Call';
+        }
+        case 'toolcall_output': {
+            const parsed = parseContentData(data);
+            const toolName = (parsed?.tool_name as string) || (parsed?.name as string) || 'Tool';
+            return `${toolName} 结果`;
+        }
+        case 'thinking':
+            return '推理过程';
+        case 'error': {
+            const parsed = parseContentData(data);
+            return (parsed?.title as string) || (parsed?.message as string) || 'Error';
+        }
+        case 'prompt': {
+            const parsed = parseContentData(data);
+            return `Prompt: ${(parsed?.name as string) || ''}`;
+        }
+        case 'summary':
+            return '对话摘要';
+        default:
+            return type;
+    }
+}
+
+/**
+ * Format number with thousand separators.
+ */
+function formatNumber(num: number | undefined): string {
+    if (num === undefined || num === null) return '0';
+    return num.toLocaleString('en-US');
+}
+
+/**
+ * Format timestamp to readable date string.
+ */
+function formatDateTime(timestamp: number): string {
+    const date = new Date(timestamp);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}`;
+}
+
+/**
+ * Format message timestamp to time-only string.
+ */
+function formatTime(timestamp: number): string {
+    const date = new Date(timestamp);
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    return `${hours}:${minutes}:${seconds}`;
+}
+
+/**
+ * Generate complete HTML document for session export.
+ *
+ * Async because renderMessageContent requires lazy-loaded marked/DOMPurify.
+ */
+export async function generateSessionHTML(session: Session, messages: Message[]): Promise<string> {
+    const sessionMeta = `
+        <header class="session-header">
+            <h1 class="session-title">${escapeHtml(session.title)}</h1>
+            <div class="session-meta">
+                <span>
+                    <span class="meta-label">创建时间</span>
+                    <span class="meta-value">${formatDateTime(session.createdAt)}</span>
+                </span>
+                <span>
+                    <span class="meta-label">消息数</span>
+                    <span class="meta-value">${messages.length}</span>
+                </span>
+            </div>
+            <div class="token-stats">
+                <span class="token-stat">输入 Tokens: <strong>${formatNumber(session.totalInputTokens)}</strong></span>
+                <span class="token-stat">输出 Tokens: <strong>${formatNumber(session.totalOutputTokens)}</strong></span>
+                <span class="token-stat">缓存读取: <strong>${formatNumber(session.totalCachedReadTokens)}</strong></span>
+                <span class="token-stat">缓存写入: <strong>${formatNumber(session.totalCachedWriteTokens)}</strong></span>
+                <span class="token-stat">总花费: <strong>$${(session.totalCostUsd ?? 0).toFixed(3)}</strong></span>
+            </div>
+        </header>
+    `;
+
+    // Render all messages (async due to lazy-loaded marked/DOMPurify)
+    const renderedMessages = await Promise.all(messages.map(async (msg) => {
+        const expanded = shouldExpand(msg);
+        const roleClass = msg.role === 'user' ? 'user' : msg.role === 'assistant' ? 'assistant' : 'collapsed';
+        const contentClass = expanded ? roleClass : 'collapsed';
+        const content = await renderMessageContent(msg);
+        const time = formatTime(msg.timestamp);
+
+        if (expanded) {
+            return `
+                <article class="message ${contentClass}">
+                    <div class="message-header">
+                        <span class="message-role"><span class="role-dot"></span>${escapeHtml(msg.role)}</span>
+                        <time class="message-time">${time}</time>
+                    </div>
+                    <div class="message-content">${content}</div>
+                </article>
+            `;
+        } else {
+            const preview = getPreviewText(msg);
+            return `
+                <article class="message collapsed">
+                    <div class="message-header">
+                        <span class="message-role"><span class="role-dot"></span>${escapeHtml(msg.content.type)} <span class="type-badge">${escapeHtml(msg.content.type)}</span></span>
+                        <time class="message-time">${time}</time>
+                    </div>
+                    <details>
+                        <summary>${escapeHtml(preview)}</summary>
+                        <div class="message-content">${content}</div>
+                    </details>
+                </article>
+            `;
+        }
+    }));
+
+    const messagesHTML = renderedMessages.join('\n');
+
+    return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${escapeHtml(session.title)}</title>
+    <style>
+        :root {
+            --bg-user: #eff6ff;
+            --bg-assistant: #ffffff;
+            --bg-collapsed: #f9fafb;
+            --border-color: #e5e7eb;
+            --text-primary: #111827;
+            --text-secondary: #6b7280;
+            --accent-user: #3b82f6;
+            --accent-assistant: #10b981;
+            --accent-collapsed: #9ca3af;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.7;
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 40px 24px 80px;
+            color: var(--text-primary);
+            background: #fafafa;
+        }
+
+        .session-header {
+            background: #fff;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px 28px;
+            margin-bottom: 32px;
+            box-shadow: 0 1px 3px rgba(0,0,0,.04);
+        }
+
+        .session-title {
+            font-size: 22px;
+            font-weight: 700;
+            margin: 0 0 12px;
+            letter-spacing: -0.01em;
+        }
+
+        .session-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 20px;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .session-meta span {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .meta-label {
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .meta-value {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .token-stats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px 16px;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border-color);
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .token-stat {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+        }
+
+        .token-stat strong {
+            color: var(--text-primary);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .messages {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .message {
+            background: #fff;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 18px 22px;
+            box-shadow: 0 1px 2px rgba(0,0,0,.03);
+        }
+
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .message-role {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            font-size: 11px;
+        }
+
+        .role-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .message.user .role-dot { background: var(--accent-user); }
+        .message.assistant .role-dot { background: var(--accent-assistant); }
+        .message.collapsed .role-dot { background: var(--accent-collapsed); }
+
+        .message-time {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .message.user {
+            background: var(--bg-user);
+            border-color: #bfdbfe;
+        }
+
+        .message.assistant {
+            background: var(--bg-assistant);
+        }
+
+        .message-content {
+            font-size: 14.5px;
+            word-break: break-word;
+        }
+
+        .message-content p { margin: 0 0 10px; }
+        .message-content p:last-child { margin-bottom: 0; }
+
+        .message-content h1,
+        .message-content h2,
+        .message-content h3,
+        .message-content h4 {
+            margin: 16px 0 8px;
+            line-height: 1.3;
+        }
+        .message-content h1 { font-size: 20px; }
+        .message-content h2 { font-size: 17px; }
+        .message-content h3 { font-size: 15px; }
+        .message-content h4 { font-size: 14px; }
+
+        .message-content ul, .message-content ol {
+            padding-left: 24px;
+            margin: 8px 0;
+        }
+
+        .message-content li { margin-bottom: 4px; }
+
+        .message-content a {
+            color: var(--accent-user);
+            text-decoration: none;
+        }
+        .message-content a:hover { text-decoration: underline; }
+
+        .message-content pre {
+            background: #f3f4f6;
+            border: 1px solid var(--border-color);
+            padding: 14px 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 10px 0;
+            font-size: 13px;
+            line-height: 1.55;
+        }
+
+        .message-content code {
+            font-family: "SF Mono", "Fira Code", Monaco, Consolas, monospace;
+            font-size: 0.92em;
+        }
+
+        .message-content :not(pre) > code {
+            background: #f3f4f6;
+            padding: 2px 5px;
+            border-radius: 4px;
+        }
+
+        .message-content table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 12px 0;
+            font-size: 13.5px;
+        }
+
+        .message-content th, .message-content td {
+            border: 1px solid var(--border-color);
+            padding: 8px 12px;
+            text-align: left;
+        }
+
+        .message-content th {
+            background: #f9fafb;
+            font-weight: 600;
+        }
+
+        .message-content blockquote {
+            border-left: 3px solid var(--border-color);
+            padding-left: 14px;
+            color: var(--text-secondary);
+            margin: 10px 0;
+        }
+
+        .message.collapsed {
+            background: var(--bg-collapsed);
+            border-color: #e5e7eb;
+        }
+
+        .message.collapsed details {
+            margin-top: 4px;
+        }
+
+        .message.collapsed details summary {
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            padding: 4px 0;
+            list-style: none;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            user-select: none;
+        }
+
+        .message.collapsed details summary::-webkit-details-marker { display: none; }
+
+        .message.collapsed details summary::before {
+            content: "▸";
+            font-size: 11px;
+            transition: transform .15s ease;
+            flex-shrink: 0;
+        }
+
+        .message.collapsed details[open] summary::before {
+            transform: rotate(90deg);
+        }
+
+        .message.collapsed details summary:hover {
+            color: var(--text-primary);
+        }
+
+        .message.collapsed details[open] summary {
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .message.collapsed details .message-content {
+            font-size: 13.5px;
+            color: #374151;
+        }
+
+        .type-badge {
+            display: inline-block;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: #e5e7eb;
+            color: #6b7280;
+            margin-left: 4px;
+            vertical-align: middle;
+        }
+
+        @media print {
+            body { background: #fff; padding: 20px; }
+            .message { box-shadow: none; break-inside: avoid; }
+            .session-header { box-shadow: none; }
+            details[open] summary ~ .message-content { display: block !important; }
+        }
+    </style>
+</head>
+<body>
+    ${sessionMeta}
+    <main class="messages">
+        ${messagesHTML}
+    </main>
+</body>
+</html>`;
+}
+
+/**
+ * Trigger browser download of HTML content.
+ */
+export function triggerDownload(html: string, filename: string): void {
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+/**
+ * Export session to HTML file.
+ *
+ * Main entry point: generates HTML and triggers download.
+ * Async because generateSessionHTML requires lazy-loaded marked/DOMPurify.
+ */
+export async function exportSession(session: Session, messages: Message[]): Promise<void> {
+    const html = await generateSessionHTML(session, messages);
+    const filename = generateFilename(session);
+    triggerDownload(html, filename);
+}
