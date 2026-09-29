@@ -850,11 +850,24 @@ export class RTCAgentClient implements IRTCAgentClient {
 
   /**
    * Deduplicate updates at item level.
-   * Key: `${entity}:${entity_id}`, keep the one with the smallest offset (first occurrence).
-   * Server returns the latest entity data in the first Update, so we keep the earliest one.
+   * Key: `${entity}:${entity_id}`, keep both the first (smallest offset) and last (largest offset) updates.
+   *
+   * Why keep both first and last?
+   * - First update: ensures creation/initialization operations are executed (prerequisite for subsequent updates)
+   * - Last update: ensures the final state is correct
+   * - Middle updates: discarded to reduce IndexedDB writes (server returns complete entity data in each update)
+   *
+   * Example:
+   * - offset=100: message created (status=pending)
+   * - offset=101: message updated (status=sent)
+   * - offset=102: message updated (status=delivered)
+   * Result: keep offset=100 (creation) and offset=102 (final state), apply in order
    */
   private deduplicateUpdates(updates: Update[]): Update[] {
-    const map = new Map<string, { item: UpdateItem; data: unknown; offset: number }>();
+    const map = new Map<string, {
+      first: { item: UpdateItem; data: unknown; offset: number };
+      last: { item: UpdateItem; data: unknown; offset: number };
+    }>();
 
     for (const update of updates) {
       for (let i = 0; i < update.items.length; i++) {
@@ -865,27 +878,53 @@ export class RTCAgentClient implements IRTCAgentClient {
 
         const key = `${item.entity}:${item.entity_id}`;
         const existing = map.get(key);
-        if (!existing || update.offset < existing.offset) {
-          // Keep the first occurrence (smallest offset) - server already returns latest data
-          map.set(key, { item, data, offset: update.offset });
+
+        if (!existing) {
+          // First occurrence: initialize both first and last
+          map.set(key, {
+            first: { item, data, offset: update.offset },
+            last: { item, data, offset: update.offset },
+          });
+        } else {
+          // Update last if this offset is larger
+          if (update.offset > existing.last.offset) {
+            existing.last = { item, data, offset: update.offset };
+          }
+          // Update first if this offset is smaller
+          if (update.offset < existing.first.offset) {
+            existing.first = { item, data, offset: update.offset };
+          }
         }
       }
     }
 
-    // Reconstruct as Update array (one item per Update), sorted by offset
+    // Reconstruct as Update array
     const result: Update[] = [];
-    const byOffset = Array.from(map.values()).sort((a, b) => a.offset - b.offset);
 
-    for (const { item, data, offset } of byOffset) {
+    for (const { first, last } of map.values()) {
+      // Add first (smallest offset) - ensures creation/initialization
       result.push({
         id: '', // Original Update id is not preserved after deduplication
-        items: [item],
-        data_list: [data],
-        offset,
+        items: [first.item],
+        data_list: [first.data],
+        offset: first.offset,
       });
+
+      // Add last (largest offset) if different from first - ensures final state
+      if (last.offset !== first.offset) {
+        result.push({
+          id: '',
+          items: [last.item],
+          data_list: [last.data],
+          offset: last.offset,
+        });
+      }
     }
 
-    return result;
+    // Sort by offset to ensure correct application order (first → last)
+    const resultSorted = result.sort((a, b) => a.offset - b.offset);
+
+    return resultSorted;
   }
 
   /**

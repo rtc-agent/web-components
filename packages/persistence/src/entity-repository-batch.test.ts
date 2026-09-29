@@ -407,3 +407,388 @@ describe('applyUpdates (batch processing)', () => {
     });
   });
 });
+
+/**
+ * Test suite: Multiple upserts for the same entity (field merge + last-wins)
+ *
+ * Tests the persistence layer's behavior when receiving multiple upserts for the
+ * same entity, simulating the scenario after client-layer deduplicateUpdates
+ * keeps both first (creation) and last (final state) updates.
+ *
+ * Key behaviors tested:
+ * 1. Last-wins: same client_id in a batch, only last data is used
+ * 2. Field merge: existing fields preserved, incoming fields override
+ * 3. Message streaming_status monotonic guard (no regression)
+ * 4. Turn lifecycle: running → completed correctly persisted
+ */
+describe('Multiple upserts for same entity (merge + last-wins)', () => {
+  let repo: EntityRepository;
+
+  beforeEach(async () => {
+    getDatabase(TEST_DB);
+    await flushAll();
+    repo = new EntityRepository(TEST_DEVICE_ID);
+  });
+
+  // ==================== Last-wins in batch ====================
+
+  describe('Last-wins deduplication in batch', () => {
+    it('should keep only the last update for same client_id in a batch', async () => {
+      // Create session and turn together, with 2 updates for the same turn
+      await repo.applyUpdates([
+        {
+          id: 'u-session',
+          items: [{ entity: 'session', action: 'created', entity_id: 'srv-s1' }],
+          data_list: [{ id: 'srv-s1', client_id: 'c-s1', status: 'active' }],
+          offset: 0,
+        },
+        {
+          id: 'u-first',
+          items: [{ entity: 'turn', action: 'created', entity_id: 'srv-t1' }],
+          data_list: [{ id: 'srv-t1', client_id: 'c-t1', session_id: 'srv-s1', status: 'running' }],
+          offset: 1,
+        },
+        {
+          id: 'u-last',
+          items: [{ entity: 'turn', action: 'updated', entity_id: 'srv-t1' }],
+          data_list: [{ id: 'srv-t1', client_id: 'c-t1', session_id: 'srv-s1', status: 'completed' }],
+          offset: 5,
+        },
+      ]);
+
+      const turn = await repo.getClientTurn('c-t1');
+      expect(turn).toBeDefined();
+      expect(turn!.status).toBe('completed'); // Last wins
+    });
+
+    it('should handle 5 updates for same entity in a batch (last wins)', async () => {
+      // Session + 5 updates for the same turn in one batch
+      await repo.applyUpdates([
+        { id: 'u-session', items: [{ entity: 'session', action: 'created', entity_id: 'srv-s1' }],
+          data_list: [{ id: 'srv-s1', client_id: 'c-s1', status: 'active' }], offset: 0 },
+        { id: 'u1', items: [{ entity: 'turn', action: 'created', entity_id: 'srv-t1' }],
+          data_list: [{ id: 'srv-t1', client_id: 'c-t1', session_id: 'srv-s1', status: 'running' }], offset: 1 },
+        { id: 'u2', items: [{ entity: 'turn', action: 'updated', entity_id: 'srv-t1' }],
+          data_list: [{ id: 'srv-t1', client_id: 'c-t1', session_id: 'srv-s1', status: 'running' }], offset: 2 },
+        { id: 'u3', items: [{ entity: 'turn', action: 'updated', entity_id: 'srv-t1' }],
+          data_list: [{ id: 'srv-t1', client_id: 'c-t1', session_id: 'srv-s1', status: 'running' }], offset: 3 },
+        { id: 'u4', items: [{ entity: 'turn', action: 'updated', entity_id: 'srv-t1' }],
+          data_list: [{ id: 'srv-t1', client_id: 'c-t1', session_id: 'srv-s1', status: 'running' }], offset: 4 },
+        { id: 'u5', items: [{ entity: 'turn', action: 'updated', entity_id: 'srv-t1' }],
+          data_list: [{ id: 'srv-t1', client_id: 'c-t1', session_id: 'srv-s1', status: 'completed' }], offset: 5 },
+      ]);
+
+      const turn = await repo.getClientTurn('c-t1');
+      expect(turn).toBeDefined();
+      expect(turn!.status).toBe('completed'); // Last update wins
+    });
+  });
+
+  // ==================== Field merge with existing data ====================
+
+  describe('Field merge with existing IndexedDB data', () => {
+    it('should merge incoming fields with existing fields (not replace)', async () => {
+      // Step 1: Create a session with initial fields
+      await repo.applyUpdates([{
+        id: 'u1',
+        items: [{ entity: 'session', action: 'created', entity_id: 'srv-s1' }],
+        data_list: [{
+          id: 'srv-s1', client_id: 'c-s1', title: 'Original Title',
+          status: 'active', agent_prompt: 'You are helpful',
+        }],
+        offset: 1,
+      }]);
+
+      let session = await repo.getClientSession('c-s1');
+      expect(session!.title).toBe('Original Title');
+      expect(session!.agent_prompt).toBe('You are helpful');
+
+      // Step 2: Update only the title (not agent_prompt)
+      await repo.applyUpdates([{
+        id: 'u2',
+        items: [{ entity: 'session', action: 'updated', entity_id: 'srv-s1' }],
+        data_list: [{
+          id: 'srv-s1', client_id: 'c-s1', title: 'Updated Title',
+        }],
+        offset: 2,
+      }]);
+
+      session = await repo.getClientSession('c-s1');
+      expect(session!.title).toBe('Updated Title'); // Updated
+      expect(session!.agent_prompt).toBe('You are helpful'); // Preserved!
+    });
+
+    it('should preserve server_id when incoming does not provide it', async () => {
+      // Create session with server_id
+      await repo.applyUpdates([{
+        id: 'u1',
+        items: [{ entity: 'session', action: 'created', entity_id: 'srv-s1' }],
+        data_list: [{ id: 'srv-s1', client_id: 'c-s1', title: 'Test', status: 'active' }],
+        offset: 1,
+      }]);
+
+      let session = await repo.getClientSession('c-s1');
+      expect(session!.server_id).toBe('srv-s1');
+
+      // Update without server_id in data_list
+      await repo.applyUpdates([{
+        id: 'u2',
+        items: [{ entity: 'session', action: 'updated', entity_id: 'srv-s1' }],
+        data_list: [{ id: 'srv-s1', client_id: 'c-s1', title: 'Updated' }],
+        offset: 2,
+      }]);
+
+      session = await repo.getClientSession('c-s1');
+      expect(session!.server_id).toBe('srv-s1'); // Preserved!
+      expect(session!.title).toBe('Updated');
+    });
+  });
+
+  // ==================== Turn lifecycle ====================
+
+  describe('Turn lifecycle: running → completed', () => {
+    it('should correctly persist turn transition from running to completed', async () => {
+      // Setup session
+      await repo.applyUpdates([{
+        id: 'u-session',
+        items: [{ entity: 'session', action: 'created', entity_id: 'srv-s1' }],
+        data_list: [{ id: 'srv-s1', client_id: 'c-s1', status: 'active' }],
+        offset: 0,
+      }]);
+
+      // Step 1: Turn created with status=running
+      await repo.applyUpdates([{
+        id: 'u1',
+        items: [{ entity: 'turn', action: 'created', entity_id: 'srv-t1' }],
+        data_list: [{ id: 'srv-t1', client_id: 'c-t1', session_id: 'srv-s1', status: 'running' }],
+        offset: 1,
+      }]);
+
+      let turn = await repo.getClientTurn('c-t1');
+      expect(turn!.status).toBe('running');
+
+      // Verify session has running_turn_count=1
+      let session = await repo.getClientSession('c-s1');
+      expect(session!.running_turn_count).toBe(1);
+      expect(session!.pending_turn_count).toBe(0);
+
+      // Step 2: Turn updated to status=completed
+      await repo.applyUpdates([{
+        id: 'u2',
+        items: [{ entity: 'turn', action: 'updated', entity_id: 'srv-t1' }],
+        data_list: [{ id: 'srv-t1', client_id: 'c-t1', session_id: 'srv-s1', status: 'completed' }],
+        offset: 2,
+      }]);
+
+      turn = await repo.getClientTurn('c-t1');
+      expect(turn!.status).toBe('completed');
+
+      // Verify session counts updated
+      session = await repo.getClientSession('c-s1');
+      expect(session!.running_turn_count).toBe(0);
+      expect(session!.pending_turn_count).toBe(0);
+    });
+
+    it('should handle rapid turn state changes: pending → running → completed', async () => {
+      // All in one batch: session + 3 turn state changes
+      await repo.applyUpdates([
+        { id: 'u-session', items: [{ entity: 'session', action: 'created', entity_id: 'srv-s1' }],
+          data_list: [{ id: 'srv-s1', client_id: 'c-s1', status: 'active' }], offset: 0 },
+        { id: 'u1', items: [{ entity: 'turn', action: 'created', entity_id: 'srv-t1' }],
+          data_list: [{ id: 'srv-t1', client_id: 'c-t1', session_id: 'srv-s1', status: 'pending' }], offset: 1 },
+        { id: 'u2', items: [{ entity: 'turn', action: 'updated', entity_id: 'srv-t1' }],
+          data_list: [{ id: 'srv-t1', client_id: 'c-t1', session_id: 'srv-s1', status: 'running' }], offset: 2 },
+        { id: 'u3', items: [{ entity: 'turn', action: 'updated', entity_id: 'srv-t1' }],
+          data_list: [{ id: 'srv-t1', client_id: 'c-t1', session_id: 'srv-s1', status: 'completed' }], offset: 3 },
+      ]);
+
+      const turn = await repo.getClientTurn('c-t1');
+      expect(turn!.status).toBe('completed'); // Final state
+    });
+  });
+
+  // ==================== Message streaming_status monotonic guard ====================
+
+  describe('Message streaming_status monotonic guard', () => {
+    it('should prevent streaming_status regression: completed → streaming', async () => {
+      await repo.applyUpdates([{
+        id: 'u-session',
+        items: [{ entity: 'session', action: 'created', entity_id: 'srv-s1' }],
+        data_list: [{ id: 'srv-s1', client_id: 'c-s1', status: 'active' }],
+        offset: 0,
+      }]);
+
+      // Step 1: Message reaches completed status
+      await repo.applyUpdates([{
+        id: 'u1',
+        items: [{ entity: 'message', action: 'created', entity_id: 'srv-m1' }],
+        data_list: [{
+          id: 'srv-m1', client_id: 'c-m1', session_id: 'srv-s1',
+          role: 'assistant', streaming_status: 'completed', content: 'Hello',
+        }],
+        offset: 1,
+      }]);
+
+      let msg = await repo.getClientMessage('c-m1');
+      expect(msg!.streaming_status).toBe('completed');
+
+      // Step 2: Try to apply an older update with streaming_status=streaming
+      // This simulates a late-arriving update from gap fill
+      await repo.applyUpdates([{
+        id: 'u2',
+        items: [{ entity: 'message', action: 'updated', entity_id: 'srv-m1' }],
+        data_list: [{
+          id: 'srv-m1', client_id: 'c-m1', session_id: 'srv-s1',
+          role: 'assistant', streaming_status: 'streaming', content: 'Hello',
+        }],
+        offset: 2,
+      }]);
+
+      msg = await repo.getClientMessage('c-m1');
+      // streaming_status should NOT regress to 'streaming'
+      expect(msg!.streaming_status).toBe('completed');
+    });
+
+    it('should prevent streaming_status regression: completed → pending', async () => {
+      await repo.applyUpdates([{
+        id: 'u-session',
+        items: [{ entity: 'session', action: 'created', entity_id: 'srv-s1' }],
+        data_list: [{ id: 'srv-s1', client_id: 'c-s1', status: 'active' }],
+        offset: 0,
+      }]);
+
+      // Message reaches completed
+      await repo.applyUpdates([{
+        id: 'u1',
+        items: [{ entity: 'message', action: 'created', entity_id: 'srv-m1' }],
+        data_list: [{
+          id: 'srv-m1', client_id: 'c-m1', session_id: 'srv-s1',
+          role: 'assistant', streaming_status: 'completed',
+        }],
+        offset: 1,
+      }]);
+
+      // Try to apply pending status (regression)
+      await repo.applyUpdates([{
+        id: 'u2',
+        items: [{ entity: 'message', action: 'updated', entity_id: 'srv-m1' }],
+        data_list: [{
+          id: 'srv-m1', client_id: 'c-m1', session_id: 'srv-s1',
+          role: 'assistant', streaming_status: 'pending',
+        }],
+        offset: 2,
+      }]);
+
+      const msg = await repo.getClientMessage('c-m1');
+      expect(msg!.streaming_status).toBe('completed'); // No regression
+    });
+
+    it('should allow streaming_status progression: pending → streaming → completed', async () => {
+      await repo.applyUpdates([{
+        id: 'u-session',
+        items: [{ entity: 'session', action: 'created', entity_id: 'srv-s1' }],
+        data_list: [{ id: 'srv-s1', client_id: 'c-s1', status: 'active' }],
+        offset: 0,
+      }]);
+
+      // Progression: pending → streaming
+      await repo.applyUpdates([{
+        id: 'u1',
+        items: [{ entity: 'message', action: 'created', entity_id: 'srv-m1' }],
+        data_list: [{
+          id: 'srv-m1', client_id: 'c-m1', session_id: 'srv-s1',
+          role: 'assistant', streaming_status: 'pending',
+        }],
+        offset: 1,
+      }]);
+
+      let msg = await repo.getClientMessage('c-m1');
+      expect(msg!.streaming_status).toBe('pending');
+
+      // Progression: streaming → completed
+      await repo.applyUpdates([{
+        id: 'u2',
+        items: [{ entity: 'message', action: 'updated', entity_id: 'srv-m1' }],
+        data_list: [{
+          id: 'srv-m1', client_id: 'c-m1', session_id: 'srv-s1',
+          role: 'assistant', streaming_status: 'streaming',
+        }],
+        offset: 2,
+      }]);
+
+      msg = await repo.getClientMessage('c-m1');
+      expect(msg!.streaming_status).toBe('streaming');
+
+      await repo.applyUpdates([{
+        id: 'u3',
+        items: [{ entity: 'message', action: 'updated', entity_id: 'srv-m1' }],
+        data_list: [{
+          id: 'srv-m1', client_id: 'c-m1', session_id: 'srv-s1',
+          role: 'assistant', streaming_status: 'completed',
+        }],
+        offset: 3,
+      }]);
+
+      msg = await repo.getClientMessage('c-m1');
+      expect(msg!.streaming_status).toBe('completed');
+    });
+  });
+
+  // ==================== Edge cases ====================
+
+  describe('Edge cases', () => {
+    it('should handle new entity created by last update (no prior existence)', async () => {
+      // Session and turn in same batch, turn references session
+      await repo.applyUpdates([{
+        id: 'u1',
+        items: [
+          { entity: 'session', action: 'created', entity_id: 'srv-s1' },
+          { entity: 'turn', action: 'created', entity_id: 'srv-t1' },
+        ],
+        data_list: [
+          { id: 'srv-s1', client_id: 'c-s1', status: 'active' },
+          { id: 'srv-t1', client_id: 'c-t1', session_id: 'srv-s1', status: 'completed' },
+        ],
+        offset: 1,
+      }]);
+
+      // Both should be created correctly
+      const session = await repo.getClientSession('c-s1');
+      const turn = await repo.getClientTurn('c-t1');
+      expect(session).toBeDefined();
+      expect(turn).toBeDefined();
+      expect(turn!.status).toBe('completed');
+    });
+
+    it('should handle multiple entities each with multiple updates in same batch', async () => {
+      // Session + 2 entities (turns), each with 3 updates, all in one batch
+      await repo.applyUpdates([
+        { id: 'u-session', items: [{ entity: 'session', action: 'created', entity_id: 'srv-s1' }],
+          data_list: [{ id: 'srv-s1', client_id: 'c-s1', status: 'active' }], offset: 0 },
+        // Turn 1: 3 updates
+        { id: 'u1', items: [{ entity: 'turn', action: 'created', entity_id: 'srv-t1' }],
+          data_list: [{ id: 'srv-t1', client_id: 'c-t1', session_id: 'srv-s1', status: 'pending' }], offset: 1 },
+        // Turn 2: first update
+        { id: 'u2', items: [{ entity: 'turn', action: 'created', entity_id: 'srv-t2' }],
+          data_list: [{ id: 'srv-t2', client_id: 'c-t2', session_id: 'srv-s1', status: 'pending' }], offset: 2 },
+        // Turn 1: second update
+        { id: 'u3', items: [{ entity: 'turn', action: 'updated', entity_id: 'srv-t1' }],
+          data_list: [{ id: 'srv-t1', client_id: 'c-t1', session_id: 'srv-s1', status: 'running' }], offset: 3 },
+        // Turn 2: second update
+        { id: 'u4', items: [{ entity: 'turn', action: 'updated', entity_id: 'srv-t2' }],
+          data_list: [{ id: 'srv-t2', client_id: 'c-t2', session_id: 'srv-s1', status: 'running' }], offset: 4 },
+        // Turn 1: third update (final)
+        { id: 'u5', items: [{ entity: 'turn', action: 'updated', entity_id: 'srv-t1' }],
+          data_list: [{ id: 'srv-t1', client_id: 'c-t1', session_id: 'srv-s1', status: 'completed' }], offset: 5 },
+        // Turn 2: third update (final)
+        { id: 'u6', items: [{ entity: 'turn', action: 'updated', entity_id: 'srv-t2' }],
+          data_list: [{ id: 'srv-t2', client_id: 'c-t2', session_id: 'srv-s1', status: 'completed' }], offset: 6 },
+      ]);
+
+      const t1 = await repo.getClientTurn('c-t1');
+      const t2 = await repo.getClientTurn('c-t2');
+      expect(t1!.status).toBe('completed');
+      expect(t2!.status).toBe('completed');
+    });
+  });
+});

@@ -353,7 +353,7 @@ describe('Issue #234: flushGapFillBuffer offset advancement', () => {
       expect(mockUpdateOffset).toHaveBeenCalledWith(channel, 1001, epoch);
     });
 
-    it('should correctly deduplicate updates before processing', async () => {
+    it('should correctly deduplicate updates before processing (keep first and last)', async () => {
       const channel = 'topic:u=test-user-id';
       const epoch = 'test-epoch';
 
@@ -367,11 +367,12 @@ describe('Issue #234: flushGapFillBuffer offset advancement', () => {
 
       await flushGapFillBuffer(channel, buffer, gapOffsets, epoch);
 
-      // Verify deduplication: should only process first occurrence
+      // Verify deduplication: should keep first (offset=1) and last (offset=3)
       expect(mockOnPublications).toHaveBeenCalledTimes(1);
       const events = mockOnPublications.mock.calls[0][0];
-      expect(events).toHaveLength(1);
-      expect(events[0].offset).toBe(1); // First occurrence
+      expect(events).toHaveLength(2);
+      expect(events[0].offset).toBe(1); // First occurrence (creation)
+      expect(events[1].offset).toBe(3); // Last occurrence (final state)
 
       // Offset should still advance to max (3)
       expect(mockUpdateOffset).toHaveBeenCalledWith(channel, 3, epoch);
@@ -915,6 +916,480 @@ describe('Fix 25: disconnect() comprehensive cleanup', () => {
 
       // @ts-expect-error - accessing private field for testing
       expect(client.gapFillTasks.size).toBe(0);
+    });
+  });
+});
+
+/**
+ * Test suite for deduplicateUpdates: keep first and last offset updates
+ *
+ * Bug fix: Previously only kept the smallest offset update, causing entity state
+ * to be stuck at an old value (e.g., turn stuck at "running" instead of "completed").
+ *
+ * Fix: Keep both the first (smallest offset) and last (largest offset) updates for
+ * each entity. This ensures:
+ * - First update: creation/initialization operations are executed (prerequisite)
+ * - Last update: final state is correct
+ * - Middle updates: discarded to reduce IndexedDB writes
+ */
+describe('deduplicateUpdates: keep first and last offset', () => {
+  let client: RTCAgentClient;
+  let mockOptions: RTCAgentClientOptions;
+
+  beforeEach(() => {
+    mockOptions = {
+      endpoint: 'wss://test.example.com/connection',
+      getToken: () => 'test-token',
+      userId: 'test-user-id',
+      getLastOffset: vi.fn().mockResolvedValue({ offset: 0, epoch: 'test-epoch' }),
+    };
+
+    client = new RTCAgentClient(mockOptions);
+  });
+
+  afterEach(() => {
+    client.disconnect();
+  });
+
+  // Access private method for testing
+  const deduplicateUpdates = (updates: Update[]): Update[] => {
+    // @ts-expect-error - accessing private method for testing
+    return client.deduplicateUpdates(updates);
+  };
+
+  // Helper to create test updates with custom entity, action, and data
+  const createTestUpdate = (
+    offset: number,
+    entity: 'session' | 'message' | 'turn' | 'rtc' | 'file',
+    entityId: string,
+    action: 'created' | 'updated' | 'deleted',
+    data: Record<string, unknown>
+  ): Update => ({
+    id: `update-${offset}`,
+    items: [{ entity, entity_id: entityId, action }],
+    data_list: [{ ...data, id: entityId, entity_id: entityId }],
+    offset,
+  });
+
+  // ==================== Basic Scenarios ====================
+
+  describe('Basic scenarios', () => {
+    it('should return empty array for empty input', () => {
+      const result = deduplicateUpdates([]);
+      expect(result).toEqual([]);
+    });
+
+    it('should return single update unchanged', () => {
+      const updates: Update[] = [
+        createTestUpdate(1, 'session', 'session-1', 'created', { status: 'active' }),
+      ];
+
+      const result = deduplicateUpdates(updates);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].offset).toBe(1);
+      expect(result[0].items[0].entity).toBe('session');
+      expect(result[0].items[0].entity_id).toBe('session-1');
+    });
+
+    it('should keep both first and last for two updates of same entity', () => {
+      const updates: Update[] = [
+        createTestUpdate(1, 'session', 'session-1', 'created', { status: 'pending' }),
+        createTestUpdate(2, 'session', 'session-1', 'updated', { status: 'active' }),
+      ];
+
+      const result = deduplicateUpdates(updates);
+
+      expect(result).toHaveLength(2);
+      expect(result[0].offset).toBe(1);
+      expect(result[1].offset).toBe(2);
+    });
+
+    it('should keep first and last for 5 updates of same entity', () => {
+      const updates: Update[] = [
+        createTestUpdate(1, 'turn', 'turn-1', 'created', { status: 'running' }),
+        createTestUpdate(2, 'turn', 'turn-1', 'updated', { status: 'processing' }),
+        createTestUpdate(3, 'turn', 'turn-1', 'updated', { status: 'almost_done' }),
+        createTestUpdate(4, 'turn', 'turn-1', 'updated', { status: 'finishing' }),
+        createTestUpdate(5, 'turn', 'turn-1', 'updated', { status: 'completed' }),
+      ];
+
+      const result = deduplicateUpdates(updates);
+
+      // Should keep offset=1 (first/created) and offset=5 (last/completed)
+      expect(result).toHaveLength(2);
+      expect(result[0].offset).toBe(1);
+      expect(result[0].items[0].action).toBe('created');
+      expect((result[0].data_list![0] as Record<string, unknown>).status).toBe('running');
+      expect(result[1].offset).toBe(5);
+      expect(result[1].items[0].action).toBe('updated');
+      expect((result[1].data_list![0] as Record<string, unknown>).status).toBe('completed');
+    });
+  });
+
+  // ==================== Multi-Entity Scenarios ====================
+
+  describe('Multi-entity scenarios', () => {
+    it('should handle multiple entities each with multiple updates', () => {
+      const updates: Update[] = [
+        // Entity A: 3 updates
+        createTestUpdate(1, 'session', 'session-A', 'created', { status: 'pending' }),
+        createTestUpdate(3, 'session', 'session-A', 'updated', { status: 'active' }),
+        createTestUpdate(5, 'session', 'session-A', 'updated', { status: 'completed' }),
+        // Entity B: 2 updates
+        createTestUpdate(2, 'turn', 'turn-B', 'created', { status: 'running' }),
+        createTestUpdate(4, 'turn', 'turn-B', 'updated', { status: 'completed' }),
+      ];
+
+      const result = deduplicateUpdates(updates);
+
+      // Should keep: A(1,5), B(2,4) = 4 updates total
+      expect(result).toHaveLength(4);
+
+      // Should be sorted by offset
+      expect(result[0].offset).toBe(1);
+      expect(result[0].items[0].entity_id).toBe('session-A');
+      expect(result[1].offset).toBe(2);
+      expect(result[1].items[0].entity_id).toBe('turn-B');
+      expect(result[2].offset).toBe(4);
+      expect(result[2].items[0].entity_id).toBe('turn-B');
+      expect(result[3].offset).toBe(5);
+      expect(result[3].items[0].entity_id).toBe('session-A');
+    });
+
+    it('should handle entities with single update each', () => {
+      const updates: Update[] = [
+        createTestUpdate(1, 'session', 'session-1', 'created', { status: 'active' }),
+        createTestUpdate(2, 'turn', 'turn-1', 'created', { status: 'running' }),
+        createTestUpdate(3, 'message', 'msg-1', 'created', { content: 'hello' }),
+      ];
+
+      const result = deduplicateUpdates(updates);
+
+      // Each entity has only 1 update, so all are kept
+      expect(result).toHaveLength(3);
+      expect(result.map(u => u.offset)).toEqual([1, 2, 3]);
+    });
+
+    it('should handle mixed: some entities with single update, some with multiple', () => {
+      const updates: Update[] = [
+        createTestUpdate(1, 'session', 'session-1', 'created', { status: 'pending' }),
+        createTestUpdate(2, 'turn', 'turn-1', 'created', { status: 'running' }),
+        createTestUpdate(3, 'session', 'session-1', 'updated', { status: 'active' }),
+        createTestUpdate(4, 'turn', 'turn-1', 'updated', { status: 'completed' }),
+        createTestUpdate(5, 'message', 'msg-1', 'created', { content: 'hello' }),
+        createTestUpdate(6, 'session', 'session-1', 'updated', { status: 'completed' }),
+      ];
+
+      const result = deduplicateUpdates(updates);
+
+      // session-1: keep 1 and 6
+      // turn-1: keep 2 and 4
+      // msg-1: keep 5 (only one)
+      expect(result).toHaveLength(5);
+      expect(result.map(u => u.offset)).toEqual([1, 2, 4, 5, 6]);
+    });
+  });
+
+  // ==================== Complex Scenarios ====================
+
+  describe('Complex scenarios', () => {
+    it('should handle Update with multiple items', () => {
+      const update: Update = {
+        id: 'multi-item-update',
+        items: [
+          { entity: 'session', entity_id: 'session-1', action: 'updated' },
+          { entity: 'turn', entity_id: 'turn-1', action: 'updated' },
+        ],
+        data_list: [
+          { id: 'session-1', status: 'active' },
+          { id: 'turn-1', status: 'running' },
+        ],
+        offset: 1,
+      };
+
+      const result = deduplicateUpdates([update]);
+
+      // Should split into separate updates for each item
+      expect(result).toHaveLength(2);
+      expect(result[0].items[0].entity).toBe('session');
+      expect(result[1].items[0].entity).toBe('turn');
+    });
+
+    it('should handle multiple Updates with multiple items and deduplication', () => {
+      const updates: Update[] = [
+        {
+          id: 'update-1',
+          items: [
+            { entity: 'session', entity_id: 'session-1', action: 'created' },
+            { entity: 'turn', entity_id: 'turn-1', action: 'created' },
+          ],
+          data_list: [
+            { id: 'session-1', status: 'pending' },
+            { id: 'turn-1', status: 'running' },
+          ],
+          offset: 1,
+        },
+        {
+          id: 'update-2',
+          items: [
+            { entity: 'session', entity_id: 'session-1', action: 'updated' },
+            { entity: 'turn', entity_id: 'turn-1', action: 'updated' },
+          ],
+          data_list: [
+            { id: 'session-1', status: 'active' },
+            { id: 'turn-1', status: 'completed' },
+          ],
+          offset: 2,
+        },
+      ];
+
+      const result = deduplicateUpdates(updates);
+
+      // session-1: first at offset=1, last at offset=2
+      // turn-1: first at offset=1, last at offset=2
+      expect(result).toHaveLength(4);
+      // Sorted by offset
+      expect(result[0].offset).toBe(1);
+      expect(result[1].offset).toBe(1);
+      expect(result[2].offset).toBe(2);
+      expect(result[3].offset).toBe(2);
+    });
+
+    it('should skip items with missing data_list entry', () => {
+      const updates: Update[] = [
+        {
+          id: 'update-1',
+          items: [
+            { entity: 'session', entity_id: 'session-1', action: 'created' },
+            { entity: 'turn', entity_id: 'turn-1', action: 'created' },
+          ],
+          data_list: [
+            { id: 'session-1', status: 'active' },
+            // Missing data for turn-1
+          ],
+          offset: 1,
+        },
+      ];
+
+      const result = deduplicateUpdates(updates);
+
+      // Should only keep session-1 (turn-1 has no data)
+      expect(result).toHaveLength(1);
+      expect(result[0].items[0].entity).toBe('session');
+    });
+
+    it('should handle empty data_list', () => {
+      const updates: Update[] = [
+        {
+          id: 'update-1',
+          items: [{ entity: 'session', entity_id: 'session-1', action: 'created' }],
+          data_list: [],
+          offset: 1,
+        },
+      ];
+
+      const result = deduplicateUpdates(updates);
+
+      expect(result).toHaveLength(0);
+    });
+  });
+
+  // ==================== Edge Cases ====================
+
+  describe('Edge cases', () => {
+    it('should handle non-contiguous offsets', () => {
+      const updates: Update[] = [
+        createTestUpdate(10, 'session', 'session-1', 'created', { status: 'pending' }),
+        createTestUpdate(50, 'session', 'session-1', 'updated', { status: 'active' }),
+        createTestUpdate(100, 'session', 'session-1', 'updated', { status: 'completed' }),
+      ];
+
+      const result = deduplicateUpdates(updates);
+
+      expect(result).toHaveLength(2);
+      expect(result[0].offset).toBe(10);
+      expect(result[1].offset).toBe(100);
+    });
+
+    it('should handle updates arriving out of order', () => {
+      const updates: Update[] = [
+        createTestUpdate(5, 'session', 'session-1', 'updated', { status: 'active' }),
+        createTestUpdate(1, 'session', 'session-1', 'created', { status: 'pending' }),
+        createTestUpdate(3, 'session', 'session-1', 'updated', { status: 'processing' }),
+      ];
+
+      const result = deduplicateUpdates(updates);
+
+      // Should still keep first (offset=1) and last (offset=5)
+      expect(result).toHaveLength(2);
+      expect(result[0].offset).toBe(1);
+      expect(result[1].offset).toBe(5);
+    });
+
+    it('should handle all updates with same offset (same entity)', () => {
+      // This is an edge case: same entity, same offset (shouldn't happen in practice)
+      const updates: Update[] = [
+        createTestUpdate(1, 'session', 'session-1', 'created', { status: 'pending' }),
+        createTestUpdate(1, 'session', 'session-1', 'updated', { status: 'active' }),
+      ];
+
+      const result = deduplicateUpdates(updates);
+
+      // Since offsets are equal, first and last are the same → only 1 result
+      expect(result).toHaveLength(1);
+      expect(result[0].offset).toBe(1);
+    });
+
+    it('should handle large number of updates for same entity efficiently', () => {
+      // 100 updates for the same entity
+      const updates: Update[] = Array.from({ length: 100 }, (_, i) =>
+        createTestUpdate(i + 1, 'session', 'session-1', i === 0 ? 'created' : 'updated', {
+          status: i === 0 ? 'pending' : i === 99 ? 'completed' : 'processing',
+          updateNumber: i + 1,
+        })
+      );
+
+      const startTime = performance.now();
+      const result = deduplicateUpdates(updates);
+      const elapsed = performance.now() - startTime;
+
+      // Should keep only first (offset=1) and last (offset=100)
+      expect(result).toHaveLength(2);
+      expect(result[0].offset).toBe(1);
+      expect((result[0].data_list![0] as Record<string, unknown>).status).toBe('pending');
+      expect(result[1].offset).toBe(100);
+      expect((result[1].data_list![0] as Record<string, unknown>).status).toBe('completed');
+
+      // Should be efficient (< 100ms)
+      expect(elapsed).toBeLessThan(100);
+    });
+
+    it('should handle different entity types with same entity_id', () => {
+      // Different entity types should be treated as different entities
+      const updates: Update[] = [
+        createTestUpdate(1, 'session', 'id-1', 'created', { type: 'session' }),
+        createTestUpdate(2, 'turn', 'id-1', 'created', { type: 'turn' }),
+        createTestUpdate(3, 'session', 'id-1', 'updated', { type: 'session-updated' }),
+        createTestUpdate(4, 'turn', 'id-1', 'updated', { type: 'turn-updated' }),
+      ];
+
+      const result = deduplicateUpdates(updates);
+
+      // session:id-1 and turn:id-1 are different entities
+      expect(result).toHaveLength(4);
+      expect(result.map(u => u.offset)).toEqual([1, 2, 3, 4]);
+    });
+
+    it('should preserve data integrity for first and last updates', () => {
+      const updates: Update[] = [
+        createTestUpdate(1, 'turn', 'turn-1', 'created', {
+          status: 'running',
+          message_count: 0,
+          started_at: '2024-01-01T00:00:00Z',
+        }),
+        createTestUpdate(2, 'turn', 'turn-1', 'updated', {
+          status: 'processing',
+          message_count: 5,
+        }),
+        createTestUpdate(3, 'turn', 'turn-1', 'updated', {
+          status: 'completed',
+          message_count: 10,
+          completed_at: '2024-01-01T00:01:00Z',
+        }),
+      ];
+
+      const result = deduplicateUpdates(updates);
+
+      expect(result).toHaveLength(2);
+
+      // First update should have creation data
+      const firstData = result[0].data_list![0] as Record<string, unknown>;
+      expect(firstData.status).toBe('running');
+      expect(firstData.message_count).toBe(0);
+      expect(firstData.started_at).toBe('2024-01-01T00:00:00Z');
+
+      // Last update should have final state
+      const lastData = result[1].data_list![0] as Record<string, unknown>;
+      expect(lastData.status).toBe('completed');
+      expect(lastData.message_count).toBe(10);
+      expect(lastData.completed_at).toBe('2024-01-01T00:01:00Z');
+    });
+  });
+
+  // ==================== Turn Stuck Bug Scenario ====================
+
+  describe('Bug fix: turn stuck at running state', () => {
+    it('should correctly handle turn lifecycle: running → completed', () => {
+      // Simulates the exact bug scenario: turn goes from running to completed
+      // but gap fill was only keeping the first update (running)
+      const updates: Update[] = [
+        createTestUpdate(100, 'turn', 'turn-abc', 'created', { status: 'running' }),
+        createTestUpdate(101, 'turn', 'turn-abc', 'updated', { status: 'running' }),
+        createTestUpdate(102, 'turn', 'turn-abc', 'updated', { status: 'running' }),
+        createTestUpdate(103, 'turn', 'turn-abc', 'updated', { status: 'completed' }),
+      ];
+
+      const result = deduplicateUpdates(updates);
+
+      expect(result).toHaveLength(2);
+
+      // First: turn created with running status
+      expect(result[0].offset).toBe(100);
+      expect((result[0].data_list![0] as Record<string, unknown>).status).toBe('running');
+
+      // Last: turn updated to completed status
+      expect(result[1].offset).toBe(103);
+      expect((result[1].data_list![0] as Record<string, unknown>).status).toBe('completed');
+    });
+
+    it('should correctly handle message lifecycle: pending → sent → delivered', () => {
+      const updates: Update[] = [
+        createTestUpdate(1, 'message', 'msg-1', 'created', { streaming_status: 'pending' }),
+        createTestUpdate(2, 'message', 'msg-1', 'updated', { streaming_status: 'streaming' }),
+        createTestUpdate(3, 'message', 'msg-1', 'updated', { streaming_status: 'streaming' }),
+        createTestUpdate(4, 'message', 'msg-1', 'updated', { streaming_status: 'completed' }),
+        createTestUpdate(5, 'message', 'msg-1', 'updated', { streaming_status: 'completed' }),
+      ];
+
+      const result = deduplicateUpdates(updates);
+
+      expect(result).toHaveLength(2);
+      expect(result[0].offset).toBe(1);
+      expect((result[0].data_list![0] as Record<string, unknown>).streaming_status).toBe('pending');
+      expect(result[1].offset).toBe(5);
+      expect((result[1].data_list![0] as Record<string, unknown>).streaming_status).toBe('completed');
+    });
+
+    it('should handle concurrent entities with different lifecycles', () => {
+      // Multiple entities going through state changes simultaneously
+      const updates: Update[] = [
+        createTestUpdate(1, 'session', 'session-1', 'created', { status: 'active' }),
+        createTestUpdate(2, 'turn', 'turn-1', 'created', { status: 'running' }),
+        createTestUpdate(3, 'message', 'msg-1', 'created', { streaming_status: 'pending' }),
+        createTestUpdate(4, 'turn', 'turn-1', 'updated', { status: 'running' }),
+        createTestUpdate(5, 'message', 'msg-1', 'updated', { streaming_status: 'streaming' }),
+        createTestUpdate(6, 'turn', 'turn-1', 'updated', { status: 'completed' }),
+        createTestUpdate(7, 'message', 'msg-1', 'updated', { streaming_status: 'completed' }),
+        createTestUpdate(8, 'session', 'session-1', 'updated', { status: 'active' }),
+      ];
+
+      const result = deduplicateUpdates(updates);
+
+      // session-1: 1, 8
+      // turn-1: 2, 6
+      // msg-1: 3, 7
+      expect(result).toHaveLength(6);
+
+      const offsets = result.map(u => u.offset);
+      expect(offsets).toEqual([1, 2, 3, 6, 7, 8]);
+
+      // Verify final states
+      const turnLast = result.find(u => u.offset === 6);
+      expect((turnLast!.data_list![0] as Record<string, unknown>).status).toBe('completed');
+
+      const msgLast = result.find(u => u.offset === 7);
+      expect((msgLast!.data_list![0] as Record<string, unknown>).streaming_status).toBe('completed');
     });
   });
 });
