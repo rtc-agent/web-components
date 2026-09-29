@@ -300,14 +300,45 @@ export class AuthController implements ReactiveController {
                 userId: provider.getUserId?.() || 'provider-managed',
                 expiresAt: Infinity, // Provider controls expiration
             };
-        } else {
-            this._state = { isLoggedIn: false };
-        }
-
-        this.host.requestUpdate();
-
-        if (loggedIn) {
+            this.host.requestUpdate();
             this._fireLogin();
+        } else {
+            // isLoggedIn() returned false — but the user may still have a valid
+            // refresh token (e.g. page refreshed after access token expired).
+            // Attempt async refresh via the provider BEFORE showing the login page.
+            // If refresh succeeds → logged in; if it fails → show login page.
+            this._state = { isLoggedIn: false };
+            this.host.requestUpdate();
+            log.debug('[AUTH_LIFECYCLE] setAuthProvider() isLoggedIn=false, attempting async refresh via provider');
+            void provider.refreshToken().then(result => {
+                // Guard: if _authProvider was cleared (logout/destroy) during the
+                // async refresh, don't update state.
+                if (this._authProvider !== provider) {
+                    log.debug('[AUTH_LIFECYCLE] setAuthProvider() Auth provider changed during refresh, skipping');
+                    return;
+                }
+                const newExpiresAt = result.expiresIn
+                    ? Date.now() + result.expiresIn * 1000
+                    : Infinity;
+                this._state = {
+                    isLoggedIn: true,
+                    accessToken: result.accessToken,
+                    refreshToken: result.refreshToken ?? '',
+                    userId: provider.getUserId?.() || 'provider-managed',
+                    expiresAt: newExpiresAt,
+                };
+                if (newExpiresAt !== Infinity) {
+                    this._scheduleRefresh(newExpiresAt);
+                }
+                this.host.requestUpdate();
+                log.debug('[AUTH_LIFECYCLE] setAuthProvider() Async refresh succeeded, new expiresAt:', newExpiresAt);
+                this._fireLogin();
+            }).catch(err => {
+                // Guard: same as above.
+                if (this._authProvider !== provider) return;
+                log.debug('[AUTH_LIFECYCLE] setAuthProvider() Async refresh failed, showing login page:', err);
+                // Stay logged out — login page is already shown.
+            });
         }
     }
 
