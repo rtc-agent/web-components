@@ -176,16 +176,13 @@ describe('<rtc-input-area>', () => {
         expect(btn).not.toBeNull();
     });
 
-    it('should dispatch rtc-voice-input-requested on voice button click', async () => {
+    it('should have voice button disabled (feature not yet implemented)', async () => {
         const el = await fixture<RtcInputArea>(
             html`<rtc-input-area></rtc-input-area>`,
             {setup: (host) => provideContext(host, ModeContext, mockModeCtx)}
         );
         await nextFrame();
-        const handler = vi.fn();
-        el.addEventListener('rtc-voice-input-requested', handler);
-        const btn = el.shadowRoot!.querySelector('.voice-btn') as HTMLElement;
-        btn.click();
-        expect(handler).toHaveBeenCalledTimes(1);
+        const btn = el.shadowRoot!.querySelector('.voice-btn') as HTMLButtonElement;
+        expect(btn.disabled).toBe(true);
     });
 });

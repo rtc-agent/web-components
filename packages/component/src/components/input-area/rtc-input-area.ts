@@ -798,12 +798,12 @@ export class RtcInputArea extends LitElement {
             @input=${this._handleInput}
             @keydown=${this._handleKeydown}
           ></textarea>
-          <button class="voice-btn" part="voice-btn" title=${msg('语音输入')} @click=${this._handleVoice}>
+          <button class="voice-btn" part="voice-btn" title=${msg('语音输入')} disabled @click=${this._handleVoice}>
             ${micIcon}
           </button>
         </div>
         <div class="input-toolbar" part="toolbar">
-          <button class="toolbar-btn" title=${msg('附加文件')}>${attachIcon}</button>
+          <button class="toolbar-btn" title=${msg('附加文件')} disabled>${attachIcon}</button>
           <button class="toolbar-btn tool-btn" title=${msg('命令')} @click=${this._handleCommandToggle}>${toolIcon}</button>
           <button class="toolbar-btn scenario-btn ${this._selectedScenarios.length > 0 ? 'scenario-btn--active' : ''}" title=${this._selectedScenarios.length > 0 ? msg(`场景 (${this._selectedScenarios.length} 个已选)`) : msg('场景')} @click=${this._handleScenarioToggle}>
             ${checklistIcon}

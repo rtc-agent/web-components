@@ -74,6 +74,16 @@ export const styles = css`
     color: var(--rtc-color-text);
   }
 
+  .voice-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .voice-btn:disabled:hover {
+    background: none;
+    color: var(--rtc-color-text-secondary);
+  }
+
   .voice-btn svg {
     width: 16px;
     height: 16px;
@@ -106,6 +116,16 @@ export const styles = css`
   .toolbar-btn:hover {
     background: var(--rtc-color-bg-hover);
     color: var(--rtc-color-text);
+  }
+
+  .toolbar-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .toolbar-btn:disabled:hover {
+    background: none;
+    color: var(--rtc-color-text-secondary);
   }
 
   .toolbar-btn svg {
