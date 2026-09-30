@@ -568,7 +568,10 @@ try {
         CancelledError,
     } = await import('../src/index.ts');
 
-    const { virtualFS, executeScriptCode, createSandbox } = await import('@rtc-agent/persistence');
+    const { virtualFS, executeScriptCode, createSandbox, getUIUpdateBus } = await import('@rtc-agent/persistence');
+
+    // Expose getUIUpdateBus for E2E testing (gap fill, onStateGap scenarios)
+    window.__getUIUpdateBus = getUIUpdateBus;
 
     // ============================================================
     // Globals

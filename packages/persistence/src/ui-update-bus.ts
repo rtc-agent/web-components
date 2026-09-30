@@ -1,5 +1,6 @@
 import type { UpdateEntity, UpdateAction } from '@rtc-agent/protocol';
 import { createLogger } from '@rtc-agent/client';
+import { getDatabase, type UIUpdateQueueInput, type UIUpdateQueueEntry } from './database.js';
 
 const log = createLogger('UIUpdateBus');
 
@@ -24,10 +25,15 @@ export interface UIUpdateEvent {
 /**
  * UI update subscriber callback.
  *
+ * @param event - The UI update event
+ * @param seq - The persisted seq in IndexedDB (0 if persist was skipped or failed).
+ *              Each listener receives the exact seq for this event, not a global value,
+ *              preventing seq mismatch under concurrent publishes.
+ *
  * May return a Promise for async operations. Events for the same (entity, entityId)
  * are queued per listener, ensuring sequential processing and preventing race conditions.
  */
-export type UIUpdateListener = (event: UIUpdateEvent) => void | Promise<void>;
+export type UIUpdateListener = (event: UIUpdateEvent, seq: number) => void | Promise<void>;
 
 /**
  * Bulk update event: emitted when a batch of updates completes after suspend.
@@ -60,6 +66,12 @@ export type GapFillStateListener = (isSyncing: boolean) => void;
  * - Supports suspend/resume for batch operations (prevents UI thrashing)
  */
 export class UIUpdateBus {
+  /**
+   * Enable/disable persistent queue (IndexedDB write on publish).
+   * Default: true. Set to false in tests to avoid overhead.
+   */
+  static persistEnabled = true;
+
   /** entity -> subscriber set */
   private entityListeners = new Map<UpdateEntity, Set<UIUpdateListener>>();
   /** Wildcard subscribers (receive all events) */
@@ -101,6 +113,23 @@ export class UIUpdateBus {
   private _suspendedEntities = new Set<UpdateEntity>();
 
   /**
+   * Whether `init()` has been called.
+   * Before init(), publish() skips persistence to avoid incorrect seq tracking.
+   */
+  private _initialized = false;
+
+  /**
+   * Initialize the bus.
+   *
+   * MUST be called before any publish() calls.
+   * Sets the _initialized flag so publish() knows it is safe to persist.
+   */
+  async init(): Promise<void> {
+    if (this._initialized) return;
+    this._initialized = true;
+  }
+
+  /**
    * Get or create a unique ID for a listener.
    * Uses WeakMap so IDs are auto-cleaned when listener is garbage collected.
    */
@@ -133,14 +162,14 @@ export class UIUpdateBus {
    * Timeout protection: If a listener Promise never resolves, the chain will
    * timeout after CHAIN_TIMEOUT_MS to prevent permanent blocking.
    */
-  private _dispatchToListener(listener: UIUpdateListener, event: UIUpdateEvent): void {
+  private _dispatchToListener(listener: UIUpdateListener, event: UIUpdateEvent, seq: number): void {
     const key = this._getChainKey(event.entity, event.entityId, listener);
     const prev = this._processingChains.get(key) ?? Promise.resolve();
 
     // Use .catch() at the end to handle both sync and async errors.
     // try-catch alone cannot catch rejected Promises returned by the listener.
     const next = prev
-      .then(() => this._withTimeout(listener(event), UIUpdateBus.CHAIN_TIMEOUT_MS, key))
+      .then(() => this._withTimeout(listener(event, seq), UIUpdateBus.CHAIN_TIMEOUT_MS, key))
       .catch(err => {
         log.error('listener error:', err);
       });
@@ -221,28 +250,80 @@ export class UIUpdateBus {
   /**
    * Publish a UI update event (called internally by persistence layer only).
    *
+   * **BREAKING CHANGE**: This method is now `async` and returns `Promise<void>`.
+   * The async nature is required to await the IndexedDB write and capture the actual
+   * auto-increment `seq`. Callers should use fire-and-forget pattern:
+   * ```ts
+   * bus.publish(event); // No need to await unless you specifically need to wait for persistence
+   * ```
+   *
+   * Events are persisted to IndexedDB before dispatch (fire-and-forget) to ensure
+   * reconnecting tabs can catch up on missed events after page refreshes or
+   * weak-network reconnections.
+   *
+   * @param event - The UI update event to publish
+   * @param options.skipPersist - If true, skip IndexedDB persistence (used when
+   *                              the event was already persisted by the Worker)
+   * @param options.seqOverride - If provided, use this seq instead of the DB-assigned one.
+   *                              Used during catch-up replay to preserve the original seq.
+   *
    * Events for the same (entity, entityId) are queued per listener,
    * ensuring sequential processing and preventing race conditions.
    *
    * When suspended, events are collected but not dispatched until resume() is called.
    */
-  publish(event: UIUpdateEvent): void {
+  async publish(event: UIUpdateEvent, options?: { skipPersist?: boolean; seqOverride?: number }): Promise<void> {
     if (this._suspended) {
-      // Collect event for later bulk dispatch
+      // Collect event for later bulk dispatch.
+      // NOTE: suspended events are NOT persisted — they are local-only batching
+      // and will be dispatched by resume(). Persisting them would cause duplicate
+      // delivery on the next page refresh (resume delivers + catch-up replays).
       this._suspendedEvents.push(event);
       this._suspendedEntities.add(event.entity);
       return;
     }
 
+    // Persist to queue and wait for actual DB seq.
+    // Only non-suspended events are persisted — suspended events are batched
+    // locally and dispatched by resume(), so persisting them would duplicate.
+    // Skip if persistEnabled is false (e.g., in tests to avoid overhead)
+    // or if skipPersist is true (e.g., when main thread receives events from Worker).
+    //
+    // We AWAIT the DB write and capture the actual auto-increment seq,
+    // passing it directly to listeners (not via a global tracker).
+    let seq = 0;
+    if (!options?.skipPersist && UIUpdateBus.persistEnabled && this._initialized) {
+      try {
+        const db = getDatabase();
+        // structuredClone may throw for non-cloneable objects (functions, DOM nodes, etc.)
+        // Fallback to JSON serialization which handles most plain data objects.
+        let clonedEvent: unknown;
+        try {
+          clonedEvent = structuredClone(event);
+        } catch {
+          clonedEvent = JSON.parse(JSON.stringify(event));
+        }
+        // Await the add() to get the actual auto-increment seq from IndexedDB
+        // Type assertion: UIUpdateQueueInput is acceptable for add() since seq is auto-generated
+        const input: UIUpdateQueueInput = { event: clonedEvent, timestamp: Date.now() };
+        seq = await db.ui_updates.add(input as UIUpdateQueueEntry);
+      } catch (err) {
+        log.warn('Failed to persist UI update to queue (seq not advanced):', err);
+      }
+    } else if (options?.seqOverride !== undefined) {
+      // Use caller-provided seq (e.g., during catch-up replay)
+      seq = options.seqOverride;
+    }
+
     // Wildcard subscribers
     for (const listener of this.wildcardListeners) {
-      this._dispatchToListener(listener, event);
+      this._dispatchToListener(listener, event, seq);
     }
     // Per-entity subscribers
     const set = this.entityListeners.get(event.entity);
     if (set) {
       for (const listener of set) {
-        this._dispatchToListener(listener, event);
+        this._dispatchToListener(listener, event, seq);
       }
     }
   }
@@ -401,6 +482,7 @@ export class UIUpdateBus {
     }
     this._suspendedEvents = [];
     this._suspendedEntities.clear();
+    this._initialized = false;
     // Note: _listenerIds is a WeakMap, entries auto-clean when listeners are GC'd
   }
 }
@@ -424,4 +506,6 @@ export function closeUIUpdateBus(): void {
     instance.clear();
     instance = null;
   }
+  // Reset static test flags to production defaults
+  UIUpdateBus.persistEnabled = true;
 }

@@ -1,23 +1,37 @@
 import type { ContentData } from '@rtc-agent/protocol';
 import type { ConnectionState, ConnectionStateEvent } from '@rtc-agent/client';
-import type { PersistenceConfig, AgentMdConfig, FileSystemMetadataOverride } from '@rtc-agent/persistence';
+import type { PersistenceConfig, AgentMdConfig, FileSystemMetadataOverride, UIUpdateQueueEntry } from '@rtc-agent/persistence';
 import type { UIUpdateEvent, LocalSession, LocalMessage, LocalRtc, DebugHistoryItem, PagedResult } from '@rtc-agent/persistence';
+
+/**
+ * Payload for onUIUpdate callback: includes the event and its persisted seq.
+ * The seq is used by the main thread to track progress and minimize redundant catch-up replays.
+ */
+export interface UIUpdatePayload {
+  event: UIUpdateEvent;
+  /** Persisted seq in IndexedDB (0 if persist failed or event was suspended). */
+  seq: number;
+}
 
 /**
  * Worker-side callbacks: each connected Tab registers its own set.
  *
- * - onUIUpdate: Worker broadcasts entity changes to this Tab
+ * - onUIUpdate: Worker broadcasts entity changes to this Tab (includes seq for cursor tracking)
  * - requestToken: Centrifuge requests a token from any Tab when needed
  * - requestTokenRefresh: Centrifuge requests a token refresh from any Tab when expired
  * - onConnectionStateChange: Worker broadcasts RTCAgentClient connection state changes to this Tab
  * - onGapFillState: Worker broadcasts gap fill state changes (start/end) to this Tab
+ * - onStateGap: Catch-up detected a gap in events (TTL cleanup deleted missed events).
+ *               The tab should trigger a full state refresh to recover.
  */
 export interface WorkerCallbacks {
-  onUIUpdate: (event: UIUpdateEvent) => void;
+  onUIUpdate: (payload: UIUpdatePayload) => void;
   requestToken: () => Promise<string>;
   requestTokenRefresh: () => Promise<'refresh' | 'relogin'>;
   onConnectionStateChange: (event: ConnectionStateEvent) => void;
   onGapFillState: (isSyncing: boolean) => void;
+  /** Called when catch-up detects a gap in events (e.g., TTL cleanup deleted missed events). */
+  onStateGap: () => void;
 }
 
 /**
@@ -34,6 +48,26 @@ export interface WorkerPersistenceCore {
   registerCallback(cb: WorkerCallbacks): void;
   /** Unregister a Tab's callbacks */
   unregisterCallback(cb: WorkerCallbacks): void;
+
+  /**
+   * Get persistent UI update events for catch-up after page refresh or reconnection.
+   *
+   * Returns events from the IndexedDB queue where seq > fromSeq, ordered by seq ascending.
+   * The main thread uses this to replay missed events that were persisted while the tab
+   * was disconnected or refreshing.
+   *
+   * Also detects gaps: if fromSeq > 0 but events were deleted by TTL cleanup,
+   * hasGap is true and the caller should trigger a full state refresh.
+   *
+   * @param fromSeq - Return events with seq > fromSeq
+   * @param limit - Maximum number of events to return (default: 1000)
+   * @returns entries, hasGap (events were skipped), hasMore (more events beyond limit)
+   */
+  getCatchUpEvents(fromSeq: number, limit?: number): Promise<{
+    entries: UIUpdateQueueEntry[];
+    hasGap: boolean;
+    hasMore: boolean;
+  }>;
 
   /**
    * Health check: verify the Worker is running.

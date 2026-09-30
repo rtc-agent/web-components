@@ -340,7 +340,7 @@ describe('UIUpdateBus', () => {
       // Wait for async Promise chain to complete
       await vi.advanceTimersByTimeAsync(0);
 
-      expect(listener).toHaveBeenCalledWith(event);
+      expect(listener).toHaveBeenCalledWith(event, 0);
     });
 
     it('should support entity-specific subscriptions', async () => {

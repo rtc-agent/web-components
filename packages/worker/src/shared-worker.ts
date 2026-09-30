@@ -24,6 +24,7 @@ sharedSelf.onconnect = (e: MessageEvent): void => {
     init: (config: Parameters<WorkerCore['init']>[0]) => core.init(config),
     registerCallback: (cb: WorkerCallbacks) => core.registerCallback(cb),
     unregisterCallback: (cb: WorkerCallbacks) => core.unregisterCallback(cb),
+    getCatchUpEvents: (...args: Parameters<WorkerCore['getCatchUpEvents']>) => core.getCatchUpEvents(...args),
 
     // Health check (does not require init)
     ping: () => core.ping(),

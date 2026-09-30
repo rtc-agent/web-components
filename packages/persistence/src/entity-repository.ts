@@ -114,13 +114,13 @@ function formatField(path: (string | number)[]): string {
  * If before is undefined, the entire entity is treated as newly created; otherwise
  * field-level diffs are computed via microdiff and published per-field.
  */
-function emitUIUpdates(
+async function emitUIUpdates(
   entity: UpdateEntity,
   action: UpdateAction,
   entityId: string,
   before: Record<string, unknown> | undefined,
   after: Record<string, unknown>
-): void {
+): Promise<void> {
   const bus = getUIUpdateBus();
 
   // Deep clone to ensure data is structurally cloneable (for Comlink postMessage transport).
@@ -131,7 +131,7 @@ function emitUIUpdates(
   if (!cloneableBefore) {
     // Create: emit a CREATE event for each top-level field in after
     for (const [field, newValue] of Object.entries(cloneableAfter)) {
-      bus.publish({
+      await bus.publish({
         entity,
         action,
         entityId,
@@ -146,7 +146,7 @@ function emitUIUpdates(
   // Update: publish per-field diffs from microdiff
   const changes = diff(cloneableBefore, cloneableAfter);
   for (const change of changes) {
-    bus.publish({
+    await bus.publish({
       entity,
       action,
       entityId,
@@ -247,7 +247,7 @@ export class EntityRepository {
       }
 
       if (!options?.silent) {
-        emitUIUpdates('session', action, result.after.client_id, result.before as unknown as Record<string, unknown> | undefined, result.after as unknown as Record<string, unknown>);
+        await emitUIUpdates('session', action, result.after.client_id, result.before as unknown as Record<string, unknown> | undefined, result.after as unknown as Record<string, unknown>);
       }
       return result;
     });
@@ -386,7 +386,7 @@ export class EntityRepository {
 
       if (!options?.silent) {
         log.debug('[EntityRepository] Emitting turn UI update:', action, result.after.client_id, 'session:', result.after.session_client_id);
-        emitUIUpdates('turn', action, result.after.client_id, result.before as unknown as Record<string, unknown> | undefined, result.after as unknown as Record<string, unknown>);
+        await emitUIUpdates('turn', action, result.after.client_id, result.before as unknown as Record<string, unknown> | undefined, result.after as unknown as Record<string, unknown>);
       }
       return result;
     });
@@ -485,7 +485,7 @@ export class EntityRepository {
       }
 
       if (!options?.silent) {
-        emitUIUpdates('message', action, result.after.client_id, result.before as unknown as Record<string, unknown> | undefined, result.after as unknown as Record<string, unknown>);
+        await emitUIUpdates('message', action, result.after.client_id, result.before as unknown as Record<string, unknown> | undefined, result.after as unknown as Record<string, unknown>);
       }
       return result;
     });
@@ -595,7 +595,7 @@ export class EntityRepository {
       }
 
       if (!options?.silent) {
-        emitUIUpdates('rtc', action, result.after.client_id, result.before as unknown as Record<string, unknown> | undefined, result.after as unknown as Record<string, unknown>);
+        await emitUIUpdates('rtc', action, result.after.client_id, result.before as unknown as Record<string, unknown> | undefined, result.after as unknown as Record<string, unknown>);
       }
       return result;
     });
@@ -680,7 +680,7 @@ export class EntityRepository {
    * Process an Update event (from Publication or RPC response).
    *
    * After each item is written to IndexedDB, field-level update events are
-   * synchronously published to UIUpdateBus.
+   * asynchronously published (awaited) to UIUpdateBus.
    */
   async applyUpdate(update: Update): Promise<void> {
     return this.applyUpdates([update]);
@@ -779,7 +779,7 @@ export class EntityRepository {
       );
 
       // 8. Emit batch UI updates (outside transaction)
-      this.emitBatchUIUpdates(beforeSnapshots, merged, deletes);
+      await this.emitBatchUIUpdates(beforeSnapshots, merged, deletes);
     } catch (err) {
       const elapsed = performance.now() - startTime;
       log.error(`[applyUpdates] Transaction failed after ${elapsed.toFixed(1)}ms:`, err);
@@ -1482,11 +1482,11 @@ export class EntityRepository {
    * Called outside transaction (transaction only does DB operations).
    * Before snapshots collected within transaction via collectBeforeSnapshots.
    */
-  private emitBatchUIUpdates(
+  private async emitBatchUIUpdates(
     before: Map<string, any>,
     merged: BatchEntities,
     deletes: BatchDeletes
-  ): void {
+  ): Promise<void> {
     const entityTypes = ['sessions', 'turns', 'messages', 'rtcs'] as const;
     const typeNames = ['session', 'turn', 'message', 'rtc'] as const;
 
@@ -1505,7 +1505,7 @@ export class EntityRepository {
         if (typeName === 'turn') {
           log.debug('[EntityRepository] Emitting batch turn UI update:', action, clientId, 'session:', (record as any).session_client_id);
         }
-        emitUIUpdates(
+        await emitUIUpdates(
           typeName,
           action,
           clientId,
@@ -1523,7 +1523,7 @@ export class EntityRepository {
       for (const clientId of ids) {
         const key = `${typeName}:${clientId}`;
         const oldRecord = before.get(key);
-        emitUIUpdates(
+        await emitUIUpdates(
           typeName,
           'deleted',
           clientId,
@@ -1608,7 +1608,7 @@ export class EntityRepository {
 
           // After turn count is persisted, emit session field events so UI layer
           // can refresh turn counts with the latest values (avoids stale reads).
-          emitUIUpdates('session', 'updated', sessionClientId, {}, {
+          await emitUIUpdates('session', 'updated', sessionClientId, {}, {
             pending_turn_count: pending,
             running_turn_count: running,
           });
