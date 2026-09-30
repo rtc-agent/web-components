@@ -805,7 +805,10 @@ export class RtcInputArea extends LitElement {
         <div class="input-toolbar" part="toolbar">
           <button class="toolbar-btn" title=${msg('附加文件')}>${attachIcon}</button>
           <button class="toolbar-btn tool-btn" title=${msg('命令')} @click=${this._handleCommandToggle}>${toolIcon}</button>
-          <button class="toolbar-btn scenario-btn" title=${msg('场景')} @click=${this._handleScenarioToggle}>${checklistIcon}</button>
+          <button class="toolbar-btn scenario-btn ${this._selectedScenarios.length > 0 ? 'scenario-btn--active' : ''}" title=${this._selectedScenarios.length > 0 ? msg(`场景 (${this._selectedScenarios.length} 个已选)`) : msg('场景')} @click=${this._handleScenarioToggle}>
+            ${checklistIcon}
+            ${this._selectedScenarios.length > 0 ? html`<span class="scenario-badge">${this._selectedScenarios.length}</span>` : ''}
+          </button>
           <div class="toolbar-divider"></div>
           <rtc-token-usage
               theme=${this.theme}

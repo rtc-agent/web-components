@@ -114,6 +114,35 @@ export const styles = css`
     fill: currentColor;
   }
 
+  .scenario-btn {
+    position: relative;
+  }
+
+  .scenario-btn--active {
+    color: var(--rtc-color-primary);
+  }
+
+  .scenario-btn--active:hover {
+    color: var(--rtc-color-primary-hover);
+  }
+
+  .scenario-badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    min-width: 12px;
+    height: 12px;
+    border-radius: 6px;
+    background: var(--rtc-color-primary, #0066ff);
+    color: #ffffff;
+    font-size: 9px;
+    font-weight: 600;
+    line-height: 12px;
+    text-align: center;
+    padding: 0 2px;
+    box-sizing: border-box;
+  }
+
   .toolbar-spacer {
     flex: 1;
   }
