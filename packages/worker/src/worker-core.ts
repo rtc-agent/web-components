@@ -8,6 +8,7 @@ import {
   type PersistenceConfig,
   type AgentMdConfig,
   type UIUpdateEvent,
+  type UIUpdateQueueEntry,
   type LocalSession,
   type LocalMessage,
   type LocalRtc,
@@ -36,6 +37,9 @@ export class WorkerCore implements WorkerPersistenceCore {
   private layer: PersistenceLayer | null = null;
   private unsubscribeBus: (() => void) | null = null;
   private unsubscribeConnection: (() => void) | null = null;
+
+  /** Timer for periodic UI update queue cleanup (prevents unbounded growth). */
+  private _cleanupTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** Callback sets for all connected Tabs */
   private callbacks = new Set<WorkerCallbacks>();
@@ -68,11 +72,20 @@ export class WorkerCore implements WorkerPersistenceCore {
 
     this.layer = createPersistenceLayer(bridgedConfig);
 
-    // Subscribe to UIUpdateBus to broadcast events to all registered callbacks
+    // Initialize UIUpdateBus: set the _initialized flag so publish() persists events.
     const bus = getUIUpdateBus();
-    this.unsubscribeBus = bus.subscribe((event: UIUpdateEvent) => {
-      this.broadcastUIUpdate(event);
+    await bus.init();
+
+    // Subscribe to UIUpdateBus to broadcast events to all registered callbacks.
+    // publish() passes the per-event seq directly to the subscriber.
+    this.unsubscribeBus = bus.subscribe((event: UIUpdateEvent, seq: number) => {
+      this.broadcastUIUpdate(event, seq);
     });
+
+    // Start periodic TTL cleanup for the UI update queue (30-minute TTL).
+    // Uses setTimeout (not setInterval) so the timer can be stopped when no tabs
+    // are connected, allowing the SharedWorker to be garbage-collected by the browser.
+    this._scheduleCleanup();
   }
 
   /**
@@ -80,6 +93,10 @@ export class WorkerCore implements WorkerPersistenceCore {
    */
   registerCallback(cb: WorkerCallbacks): void {
     this.callbacks.add(cb);
+    // Restart cleanup timer if it was stopped (e.g., after all tabs disconnected)
+    if (this._cleanupTimer === null) {
+      this._scheduleCleanup();
+    }
   }
 
   /**
@@ -87,6 +104,66 @@ export class WorkerCore implements WorkerPersistenceCore {
    */
   unregisterCallback(cb: WorkerCallbacks): void {
     this.callbacks.delete(cb);
+  }
+
+  /**
+   * Get persistent UI update events for catch-up after page refresh or reconnection.
+   *
+   * Returns events from the IndexedDB queue where seq > fromSeq, ordered by seq ascending.
+   * The main thread uses this to replay missed events that were persisted while the tab
+   * was disconnected or refreshing.
+   *
+   * Also detects gaps: if fromSeq > 0 but the lowest returned seq > fromSeq + 1,
+   * some events were deleted (by TTL cleanup) before the tab could catch up.
+   * The caller should trigger a full state refresh when hasGap is true.
+   *
+   * @param fromSeq - Return events with seq > fromSeq
+   * @param limit - Maximum number of events to return (default: 1000). Prevents memory
+   *                issues when a tab has been offline for a long time.
+   * @returns entries, hasGap (events were skipped), hasMore (more events available beyond limit)
+   */
+  async getCatchUpEvents(fromSeq: number, limit = 1000): Promise<{
+    entries: UIUpdateQueueEntry[];
+    hasGap: boolean;
+    hasMore: boolean;
+  }> {
+    const db = getDatabase();
+    // Fetch limit + 1 to detect if there are more events beyond the limit
+    const entries = await db.ui_updates.where('seq').above(fromSeq).limit(limit + 1).toArray();
+    const hasMore = entries.length > limit;
+    if (hasMore) entries.pop(); // Remove the extra entry
+
+    // Gap detection: if fromSeq > 0, check if events were lost before the tab could catch up.
+    // Only check the start gap: if the lowest returned seq > fromSeq + 1, TTL cleanup deleted
+    // the oldest events that this tab needed. Middle gaps are intentionally NOT checked because
+    // IndexedDB auto-increment can skip seq numbers when a transaction fails (e.g., constraint
+    // violation, quota exceeded), which does not indicate data loss — the event was never persisted.
+    let hasGap = false;
+    if (fromSeq > 0 && entries.length > 0) {
+      // Check start gap: first entry should be fromSeq + 1
+      const minSeq = entries[0].seq;
+      if (minSeq > fromSeq + 1) {
+        hasGap = true;
+        log.warn(`getCatchUpEvents: gap at start! fromSeq=${fromSeq}, lowest returned seq=${minSeq}`);
+      }
+    } else if (fromSeq > 0 && entries.length === 0) {
+      // fromSeq > 0 but no events found — either all events were processed (normal)
+      // or events were deleted by TTL cleanup (gap).
+      // Check if DB has ANY events beyond fromSeq to distinguish:
+      const latest = await db.ui_updates.orderBy('seq').last();
+      if (!latest) {
+        // DB is completely empty but fromSeq > 0 — all events were TTL-deleted → gap
+        hasGap = true;
+        log.warn(`getCatchUpEvents: gap detected! fromSeq=${fromSeq}, but DB is empty (all events TTL-deleted)`);
+      } else if (latest.seq !== fromSeq) {
+        // DB has events beyond fromSeq, but none returned — gap
+        hasGap = true;
+        log.warn(`getCatchUpEvents: gap detected! fromSeq=${fromSeq}, but DB has events up to seq=${latest.seq}`);
+      }
+    }
+
+    log.debug(`getCatchUpEvents: returning ${entries.length} events from seq ${fromSeq} (hasGap=${hasGap}, hasMore=${hasMore})`);
+    return { entries, hasGap, hasMore };
   }
 
   /**
@@ -282,11 +359,65 @@ export class WorkerCore implements WorkerPersistenceCore {
       this.unsubscribeBus = null;
     }
     this._unsubscribeConnectionState();
+
+    // Stop periodic cleanup timer
+    if (this._cleanupTimer !== null) {
+      clearTimeout(this._cleanupTimer);
+      this._cleanupTimer = null;
+    }
+
+    // TTL cleanup: remove UI update queue entries older than 30 minutes
+    await this._cleanupUIUpdateQueue();
+
     if (this.layer) {
       await this.layer.close();
       this.layer = null;
     }
     this.callbacks.clear();
+  }
+
+  /**
+   * TTL cleanup for the UI update queue.
+   * Removes entries older than 30 minutes to prevent unbounded growth.
+   *
+   * 30-minute window balances memory usage with offline resilience:
+   * - Tabs offline for < 30 min catch up all missed events
+   * - Tabs offline > 30 min get a full state refresh on next session load
+   */
+  private async _cleanupUIUpdateQueue(): Promise<void> {
+    try {
+      const cutoff = Date.now() - 30 * 60 * 1000; // 30 minutes
+      const db = getDatabase();
+      const deleted = await db.ui_updates.where('timestamp').below(cutoff).delete();
+      if (deleted > 0) {
+        log.debug(`UI update queue cleanup: removed ${deleted} entries older than 30 minutes`);
+      }
+    } catch (err) {
+      log.debug('UI update queue cleanup failed (non-fatal):', err);
+    }
+  }
+
+  /**
+   * Schedule the next TTL cleanup using setTimeout (not setInterval).
+   *
+   * After cleanup runs, checks if any tabs are still connected:
+   * - If yes: schedule the next cleanup in 60 seconds
+   * - If no: stop the timer, allowing the SharedWorker to be garbage-collected
+   *
+   * This is critical for browser environments where setInterval would prevent
+   * the SharedWorker from being terminated when no tabs are connected.
+   */
+  private _scheduleCleanup(): void {
+    this._cleanupTimer = setTimeout(() => {
+      this._cleanupUIUpdateQueue();
+
+      // Only reschedule if there are still connected tabs
+      if (this.callbacks.size > 0) {
+        this._scheduleCleanup();
+      } else {
+        this._cleanupTimer = null;
+      }
+    }, 60_000);
   }
 
   async flushAll(): Promise<void> {
@@ -474,10 +605,11 @@ export class WorkerCore implements WorkerPersistenceCore {
   /**
    * Broadcast a UIUpdateEvent to all registered Tab callbacks.
    */
-  private broadcastUIUpdate(event: UIUpdateEvent): void {
+  private broadcastUIUpdate(event: UIUpdateEvent, seq = 0): void {
+    const payload = { event, seq };
     for (const cb of this.callbacks) {
       try {
-        cb.onUIUpdate(event);
+        cb.onUIUpdate(payload);
       } catch (err) {
         log.error('onUIUpdate callback error:', err);
       }

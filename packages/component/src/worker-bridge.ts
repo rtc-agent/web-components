@@ -19,7 +19,7 @@ import {getUIUpdateBus, virtualFS} from '@rtc-agent/persistence';
 import type {PersistenceConfig, UIUpdateEvent, FileSystemMetadataOverride} from '@rtc-agent/persistence';
 import type {ConnectionState, ConnectionStateEvent} from '@rtc-agent/client';
 import {createLogger} from '@rtc-agent/client';
-import type {WorkerPersistenceCore, WorkerCallbacks} from '@rtc-agent/worker';
+import type {WorkerPersistenceCore, WorkerCallbacks, UIUpdatePayload} from '@rtc-agent/worker';
 import type {AuthController} from './controllers/auth.controller.js';
 
 const log = createLogger('WorkerBridge');
@@ -112,10 +112,30 @@ export class WorkerBridge {
     /** Comlink-proxied callbacks (for cross-Worker transfer). */
     private _proxiedCallbacks: WorkerCallbacks;
     private _initialized = false;
+    /** Promise-based dedup guard: concurrent init() calls share the same initialization. */
+    private _initPromise: Promise<void> | null = null;
+    /** AbortController for cancelling ongoing catch-up */
+    private _catchUpAbortController?: AbortController;
     private _config: WorkerBridgeConfig;
 
     /** Connection state listeners (main-thread side). */
     private _connectionListeners = new Set<(event: ConnectionStateEvent) => void>();
+
+    /**
+     * Whether sessionStorage cursor has been restored (only once per instance lifetime).
+     * Prevents destroy(false) + init() from re-loading a stale sessionStorage cursor.
+     */
+    private _hasRestoredFromStorage = false;
+
+    /**
+     * Last processed UI update sequence number (for catch-up after page refresh).
+     * Persisted in sessionStorage to survive page refreshes within the same tab.
+     * Updated during both catch-up and real-time broadcasts to minimize redundant replays.
+     */
+    private _lastProcessedSeq: number;
+    /** Database name for scoping sessionStorage key (prevents cross-instance collisions). */
+    private _databaseName: string;
+    private static readonly SESSION_STORAGE_KEY_PREFIX = 'rtc-ui-update-seq';
 
     private static readonly MAX_INIT_RETRIES = 3;
     private static readonly INIT_RETRY_DELAY_MS = 1000;
@@ -146,13 +166,25 @@ export class WorkerBridge {
         config: WorkerBridgeConfig = {}
     ) {
         this._config = config;
+        // databaseName is not available yet (set in init()). Use a placeholder key.
+        // sessionStorage restore is deferred to init() when the actual databaseName is known.
+        this._databaseName = 'default';
+        this._lastProcessedSeq = 0;
 
         // 1. Prepare callbacks (registered in the Worker during init()).
         this._callbacks = {
             // Worker broadcasts UIUpdateEvent -> main-thread UIUpdateBus.publish().
-            onUIUpdate: (event: UIUpdateEvent) => {
+            // Also updates _lastProcessedSeq so catch-up won't re-deliver this event.
+            // skipPersist: true — Worker already persisted this event, avoid duplicate writes.
+            // seqOverride: pass the original seq so listeners receive the correct persisted seq
+            // (not 0, which would break the API contract).
+            onUIUpdate: (payload: UIUpdatePayload) => {
                 const bus = getUIUpdateBus();
-                bus.publish(event);
+                bus.publish(payload.event, { skipPersist: true, seqOverride: payload.seq });
+                // Advance cursor on real-time delivery to minimize redundant catch-up replays.
+                if (payload.seq > this._lastProcessedSeq) {
+                    this._updateLastProcessedSeq(payload.seq);
+                }
             },
             // Worker requests token -> AuthController.getAccessTokenAsync().
             requestToken: async (): Promise<string> => {
@@ -186,6 +218,16 @@ export class WorkerBridge {
                 } else {
                     bus.emitGapFillEnd();
                 }
+            },
+            // Catch-up detected a gap in events (TTL cleanup deleted missed events).
+            // Reset cursor and trigger a full state refresh via gap fill mechanism.
+            onStateGap: () => {
+                log.warn('catchUp: state gap detected — events were lost (likely TTL cleanup)');
+                this._lastProcessedSeq = 0;
+                this._saveLastProcessedSeq();
+                // 只调用 end 触发 reload，不调用 start（不显示遮罩）
+                const bus = getUIUpdateBus();
+                bus.emitGapFillEnd();
             },
         };
 
@@ -436,8 +478,12 @@ export class WorkerBridge {
      * 1. Call Worker's core.init() to initialize shared state.
      * 2. Register this tab's callbacks (onUIUpdate + requestToken + onConnectionStateChange).
      * 3. Open the port to start communication.
+     * 4. Catch up on missed UI update events (persisted in Worker's IndexedDB).
+     *    Callbacks are registered first so real-time events arriving during catch-up
+     *    update _lastProcessedSeq, preventing both loss and duplication.
      *
      * Idempotent: only the first call takes effect.
+     * Concurrent calls share the same initialization Promise (no double catch-up).
      * Must call initWorker() first.
      */
     async init(config: PersistenceConfig): Promise<void> {
@@ -445,8 +491,38 @@ export class WorkerBridge {
             log.warn('already initialized');
             return;
         }
+        // Promise-based dedup: concurrent init() calls share the same initialization
+        if (this._initPromise) {
+            return this._initPromise;
+        }
+
+        this._initPromise = this._doInit(config);
+        try {
+            await this._initPromise;
+            this._initialized = true;
+        } finally {
+            this._initPromise = null;
+        }
+    }
+
+    /**
+     * Internal initialization logic.
+     */
+    private async _doInit(config: PersistenceConfig): Promise<void> {
         if (!this._worker || !this._core) {
             throw new Error('[WorkerBridge] init() called before initWorker()');
+        }
+
+        // Store databaseName for sessionStorage key scoping.
+        // Detect databaseName change: if the name differs from the previous init(),
+        // re-load the cursor from the new sessionStorage key to avoid using a stale cursor.
+        const newDatabaseName = config.databaseName ?? 'default';
+        const databaseNameChanged = newDatabaseName !== this._databaseName;
+        this._databaseName = newDatabaseName;
+
+        if (!this._hasRestoredFromStorage || databaseNameChanged) {
+            this._lastProcessedSeq = this._loadLastProcessedSeq();
+            this._hasRestoredFromStorage = true;
         }
 
         // Open the port (must be called before any communication).
@@ -455,10 +531,14 @@ export class WorkerBridge {
         // Initialize the Worker-side shared state.
         await this._core.init(config);
 
-        // Register this tab's callbacks (using the proxy-wrapped version).
+        // Register callback FIRST so real-time events update _lastProcessedSeq during catch-up.
+        // Catch-up then queries seq > _lastProcessedSeq, automatically skipping events
+        // that were already delivered in real-time — preventing both loss and duplication.
         await this._core.registerCallback(this._proxiedCallbacks);
 
-        this._initialized = true;
+        // Catch up on missed UI update events AFTER registering real-time callbacks.
+        // Paginated: handles >1000 missed events. Detects gaps from TTL cleanup.
+        await this._doCatchUp();
     }
 
     /**
@@ -467,8 +547,15 @@ export class WorkerBridge {
      * 1. Unregister callbacks.
      * 2. Close the port.
      * 3. Terminate the Worker (note: SharedWorker only terminates after all ports are closed).
+     *
+     * @param clearStorage - If true, clear sessionStorage cursor (use when tab is closing).
+     *                       If false (default), keep cursor so component remount doesn't trigger
+     *                       redundant catch-up. Only clear on actual tab close (beforeunload).
      */
-    async destroy(): Promise<void> {
+    async destroy(clearStorage = false): Promise<void> {
+        // Cancel ongoing catch-up
+        this._catchUpAbortController?.abort();
+
         if (!this._initialized) {
             return;
         }
@@ -485,6 +572,19 @@ export class WorkerBridge {
         this._connectionListeners.clear();
         this._worker.port.close();
         this._initialized = false;
+
+        // Only clear cursor state when explicitly requested (e.g., tab close).
+        // Component unmount/remount (clearStorage=false) should keep the cursor
+        // to avoid redundant catch-up on next init().
+        if (clearStorage) {
+            this._lastProcessedSeq = 0;
+            this._hasRestoredFromStorage = false;
+            try {
+                sessionStorage.removeItem(this._getSessionStorageKey());
+            } catch {
+                // sessionStorage may be unavailable
+            }
+        }
     }
 
     // ========== Connection State Monitoring ==========
@@ -562,5 +662,201 @@ export class WorkerBridge {
 
         virtualFS.remove = ((path: string) =>
             core.virtualFSRemove(path)) as typeof virtualFS.remove;
+    }
+
+    // ========== UI Update Catch-Up ==========
+
+    /**
+     * Catch up on missed UI update events from the Worker's persistent queue.
+     *
+     * Called AFTER registerCallback(), so real-time events arriving during catch-up
+     * will update _lastProcessedSeq via the onUIUpdate callback. The catch-up query
+     * uses `seq > _lastProcessedSeq`, so it automatically skips events already
+     * delivered in real-time — preventing both loss and duplication.
+     *
+     * Paginated: handles >1000 missed events by looping until hasMore is false.
+     * Idempotent: skips entries with seq <= _lastProcessedSeq (guards against
+     * events delivered in real-time between the query and the loop iteration).
+     * Gap-aware: if hasGap is true, stops and signals onStateGap for full refresh.
+     */
+    private async _doCatchUp(): Promise<void> {
+        if (!this._core) return;
+
+        this._catchUpAbortController = new AbortController();
+        const signal = this._catchUpAbortController.signal;
+
+        try {
+            let fromSeq = this._lastProcessedSeq;
+            let totalDelivered = 0;
+            let hasMore = true;
+
+            while (hasMore && !signal.aborted) {
+                const result = await this._core.getCatchUpEvents(fromSeq);
+
+                if (signal.aborted) break;
+
+                // Gap detection: events were deleted before we could catch up
+                if (result.hasGap) {
+                    log.warn('catchUp: gap detected, triggering state refresh');
+                    this._callbacks.onStateGap();
+                    return;
+                }
+
+                if (result.entries.length === 0) {
+                    if (totalDelivered === 0) {
+                        log.debug('catchUp: no missed events');
+                    }
+                    return;
+                }
+
+                log.debug(`catchUp: replaying ${result.entries.length} events from seq ${fromSeq}`);
+
+                // Time-slicing: yield to the main thread when a time budget is exhausted.
+                // This adapts to actual event processing cost (fast events → fewer yields,
+                // slow events → more yields) and works consistently across browsers
+                // (no dependency on requestIdleCallback which Safari lacks).
+                const FRAME_BUDGET_MS = 8; // ~half a 16ms frame, leaves headroom for rendering
+                let sliceStart = performance.now();
+
+                for (let i = 0; i < result.entries.length && !signal.aborted; i++) {
+                    const entry = result.entries[i];
+                    const entrySeq = entry.seq;
+
+                    // Idempotency guard: skip events already delivered in real-time
+                    // (real-time callback updated _lastProcessedSeq between query and now)
+                    if (entrySeq <= this._lastProcessedSeq) {
+                        continue;
+                    }
+
+                    // Runtime type validation: ensure event structure is valid before processing
+                    // (guards against corrupted IndexedDB data or schema changes)
+                    if (!this._isValidUIUpdateEvent(entry.event)) {
+                        log.warn('catchUp: skipping entry with invalid event structure');
+                        continue;
+                    }
+
+                    try {
+                        this._callbacks.onUIUpdate({
+                            event: entry.event as UIUpdateEvent,
+                            seq: entrySeq,
+                        });
+                        // onUIUpdate callback already calls _updateLastProcessedSeq and persists to sessionStorage
+                        totalDelivered++;
+                    } catch (err) {
+                        log.error('catchUp: failed to deliver event, stopping:', err);
+                        return; // Stop at first failure, next catchUp will retry
+                    }
+
+                    // Yield to main thread when time budget is exhausted
+                    if (performance.now() - sliceStart > FRAME_BUDGET_MS) {
+                        await this._yieldToMain();
+                        sliceStart = performance.now();
+                    }
+                }
+
+                // Advance cursor for next page
+                fromSeq = result.entries[result.entries.length - 1].seq;
+
+                // Check if there are more pages
+                hasMore = result.hasMore;
+            }
+
+            if (signal.aborted) {
+                log.debug('catchUp: cancelled');
+                return;
+            }
+
+            if (totalDelivered > 0) {
+                log.debug(`catchUp: delivered ${totalDelivered} total events`);
+            }
+        } catch (err) {
+            if (!signal.aborted) {
+                log.error('catchUp: failed to query events (non-fatal):', err);
+            }
+        } finally {
+            this._catchUpAbortController = undefined;
+        }
+    }
+
+    /**
+     * Yield control to the main thread to allow UI rendering and user interaction.
+     *
+     * Uses MessageChannel to schedule a macrotask without setTimeout's 4ms minimum
+     * delay floor (imposed by HTML spec for deeply-nested setTimeout calls).
+     * MessageChannel.postMessage() enqueues a 'message' event as a macrotask,
+     * which fires on the next event-loop turn with ~0ms latency.
+     *
+     * Combined with time-slicing in _doCatchUp, this prevents UI jank regardless
+     * of browser (works on Safari which lacks requestIdleCallback).
+     */
+    private _yieldToMain(): Promise<void> {
+        return new Promise(resolve => {
+            const channel = new MessageChannel();
+            channel.port1.onmessage = () => {
+                channel.port1.close();
+                channel.port2.close();
+                resolve();
+            };
+            channel.port2.postMessage(null);
+        });
+    }
+
+    /**
+     * Runtime type validation for UIUpdateEvent.
+     *
+     * Ensures the event structure is valid before processing (guards against
+     * corrupted IndexedDB data or schema mismatches after upgrades).
+     */
+    private _isValidUIUpdateEvent(event: unknown): event is UIUpdateEvent {
+        if (!event || typeof event !== 'object') return false;
+        const e = event as Record<string, unknown>;
+        return typeof e.entity === 'string' &&
+               typeof e.action === 'string' &&
+               typeof e.entityId === 'string';
+    }
+
+    /**
+     * Update the last processed seq and persist to sessionStorage.
+     */
+    private _updateLastProcessedSeq(seq: number): void {
+        this._lastProcessedSeq = seq;
+        this._saveLastProcessedSeq();
+    }
+
+    /**
+     * Get the sessionStorage key for this instance (scoped by databaseName).
+     */
+    private _getSessionStorageKey(): string {
+        return `${WorkerBridge.SESSION_STORAGE_KEY_PREFIX}-${this._databaseName}`;
+    }
+
+    /**
+     * Load last processed seq from sessionStorage.
+     */
+    private _loadLastProcessedSeq(): number {
+        try {
+            const stored = sessionStorage.getItem(this._getSessionStorageKey());
+            if (stored !== null) {
+                const seq = parseInt(stored, 10);
+                if (!isNaN(seq) && seq >= 0) {
+                    return seq;
+                }
+            }
+        } catch {
+            // sessionStorage may be unavailable (private browsing, etc.)
+        }
+        return 0;
+    }
+
+    /**
+     * Save last processed seq to sessionStorage.
+     */
+    private _saveLastProcessedSeq(): void {
+        try {
+            sessionStorage.setItem(this._getSessionStorageKey(), String(this._lastProcessedSeq));
+        } catch {
+            // sessionStorage may be unavailable or full
+            log.debug('Failed to save lastProcessedSeq to sessionStorage (non-fatal)');
+        }
     }
 }
