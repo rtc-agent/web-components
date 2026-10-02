@@ -119,10 +119,12 @@ function copyWorkerFiles(targetDir) {
   }
 
   // Find the hashed worker file
-  const hashedWorkerFile = workerFiles.find(f => f !== 'shared-worker.js' && f.match(/shared-worker-[A-Za-z0-9]+\.js/));
+  // Vite generates hashes with alphanumeric characters, underscores, and hyphens
+  const hashedWorkerFile = workerFiles.find(f => f !== 'shared-worker.js' && f.match(/shared-worker-[\w-]+\.js/));
 
   if (!hashedWorkerFile) {
     console.warn('⚠️  Warning: No hashed worker file found');
+    console.log('   Available worker files:', workerFiles.join(', '));
     return 0;
   }
 
