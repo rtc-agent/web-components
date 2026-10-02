@@ -101,19 +101,53 @@ export const styles = css`
     justify-content: center;
     background: var(--rtc-color-error, #f44336);
     border-radius: 2px;
-    font-size: 12px;
+    position: relative;
+    cursor: pointer;
+  }
+
+  .error-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+  }
+
+  .error-icon svg {
+    width: 14px;
+    height: 14px;
+    fill: currentColor;
   }
 
   .retry-btn {
     display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    border: none;
+    border-radius: 2px;
+    cursor: pointer;
+    padding: 0;
+    margin: 0;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .retry-btn svg {
+    width: 12px;
+    height: 12px;
+    fill: currentColor;
   }
 
   .thumb-error:hover .retry-btn {
-    display: block;
-    position: absolute;
-    font-size: 10px;
-    color: var(--rtc-color-primary, #2741fe);
-    cursor: pointer;
+    display: flex;
+  }
+
+  .thumb-error:hover .error-icon {
+    display: none;
   }
 
   /* Loading skeleton */

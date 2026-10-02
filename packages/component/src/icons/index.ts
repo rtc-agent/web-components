@@ -48,6 +48,8 @@ export {
     linkIcon,
     eyeIcon,
     columnsIcon,
+    // File upload/download icons
+    alertIcon,
     // Utilities
     icons,
     getIcon,

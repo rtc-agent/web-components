@@ -284,6 +284,15 @@ export class RtcChatLayout extends LitElement {
             .removeFile(detail.file, detail.index);
     }
 
+    /** Handle file retry request from preview-area */
+    private _handleFileRetry(e: CustomEvent, sessionId: string): void {
+        const inputArea = this._getInputAreaBySession(sessionId);
+        if (!inputArea) return;
+        const detail = e.detail;
+        (inputArea as unknown as { retryUpload: (taskId: string) => void })
+            .retryUpload(detail.file.fileid);
+    }
+
     /** Handle file preview request from preview-area */
     private _handleFilePreview(e: CustomEvent, _sessionId: string): void {
         const file = e.detail.file as FileAttachment;
@@ -795,6 +804,7 @@ export class RtcChatLayout extends LitElement {
                 .uploadStates=${fileState.uploadStates}
                 @rtc-file-remove=${(e: CustomEvent) => this._handleFileRemove(e, sessionId)}
                 @rtc-file-preview=${(e: CustomEvent) => this._handleFilePreview(e, sessionId)}
+                @rtc-file-retry=${(e: CustomEvent) => this._handleFileRetry(e, sessionId)}
             ></rtc-file-preview-area>
         `;
     }

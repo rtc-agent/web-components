@@ -179,6 +179,9 @@ export class RtcInputArea extends LitElement {
     @state()
     private _uploadStates: Map<string, string> = new Map();
 
+    /** File objects for retry (fileid → File) */
+    private _fileObjects: Map<string, File> = new Map();
+
     /** Public getters for file state (used by parent to render preview-area) */
     get pendingFiles() { return this._pendingFiles; }
     get uploadProgress() { return this._uploadProgress; }
@@ -389,6 +392,9 @@ export class RtcInputArea extends LitElement {
 
                 entries.push({file, attachment});
 
+                // Save File object for retry
+                this._fileObjects.set(fileid, file);
+
                 // Set initial upload state
                 this._uploadStates.set(fileid, 'loading');
                 this._uploadProgress.set(fileid, 0);
@@ -420,7 +426,7 @@ export class RtcInputArea extends LitElement {
 
         const fileid = attachment.fileid;
         try {
-            await fileStorage.upload({
+            const result = await fileStorage.upload({
                 file,
                 filename: file.name,
                 contentType: file.type,
@@ -432,8 +438,15 @@ export class RtcInputArea extends LitElement {
                 },
             });
 
-            this._uploadStates.set(fileid, 'loaded');
-            this._uploadProgress.set(fileid, 100);
+            // Only mark as loaded if actually synced to S3
+            if (result.syncStatus === 'synced') {
+                this._uploadStates.set(fileid, 'loaded');
+                this._uploadProgress.set(fileid, 100);
+            } else {
+                // Offline or failed: mark as error
+                log.warn(`File upload not synced to S3: ${fileid}, status=${result.syncStatus}`);
+                this._uploadStates.set(fileid, 'error');
+            }
         } catch (error) {
             log.error('File upload failed:', error);
             this._uploadStates.set(fileid, 'error');
@@ -451,6 +464,7 @@ export class RtcInputArea extends LitElement {
         this._pendingFiles = this._pendingFiles.filter((_, i) => i !== index);
         this._uploadStates.delete(file.fileid);
         this._uploadProgress.delete(file.fileid);
+        this._fileObjects.delete(file.fileid);
 
         // Trigger re-render
         this._uploadStates = new Map(this._uploadStates);
@@ -458,6 +472,29 @@ export class RtcInputArea extends LitElement {
 
         // Notify parent of file state change
         this._notifyFileStateChange();
+    }
+
+    /**
+     * Public method: retry a failed upload (called by parent)
+     */
+    public retryUpload(taskId: string) {
+        const file = this._fileObjects.get(taskId);
+        const attachment = this._pendingFiles.find(f => f.fileid === taskId);
+
+        if (!file || !attachment) {
+            log.warn(`Cannot retry upload: file not found for taskId=${taskId}`);
+            return;
+        }
+
+        // Reset state to loading
+        this._uploadStates.set(taskId, 'loading');
+        this._uploadProgress.set(taskId, 0);
+        this._uploadStates = new Map(this._uploadStates);
+        this._uploadProgress = new Map(this._uploadProgress);
+        this._notifyFileStateChange();
+
+        // Retry upload
+        this._syncToS3(file, attachment);
     }
 
     /**
@@ -513,12 +550,13 @@ export class RtcInputArea extends LitElement {
         return this._value.trim().length > 0 || this._pendingFiles.length > 0;
     }
 
-    /** Check if form can be submitted (has content and no files are uploading) */
+    /** Check if form can be submitted (has content and no files are uploading or failed) */
     private get _canSubmit(): boolean {
         if (!this._hasContent) return false;
-        // Check if any files are still uploading
-        const hasUploadingFiles = Array.from(this._uploadStates.values()).some(state => state === 'loading');
-        return !hasUploadingFiles;
+        // Check if any files are still uploading or failed
+        const hasUploadingOrFailedFiles = Array.from(this._uploadStates.values())
+            .some(state => state === 'loading' || state === 'error');
+        return !hasUploadingOrFailedFiles;
     }
 
     private get _hasActiveTurns(): boolean {
@@ -662,10 +700,11 @@ export class RtcInputArea extends LitElement {
         const text = this._value.trim();
         if (!text && this._pendingFiles.length === 0) return;
 
-        // Check if any files are still uploading
-        const hasUploadingFiles = Array.from(this._uploadStates.values()).some(state => state === 'loading');
-        if (hasUploadingFiles) {
-            log.warn('Cannot submit: files are still uploading');
+        // Check if any files are still uploading or failed
+        const hasUploadingOrFailedFiles = Array.from(this._uploadStates.values())
+            .some(state => state === 'loading' || state === 'error');
+        if (hasUploadingOrFailedFiles) {
+            log.warn('Cannot submit: files are still uploading or failed');
             return;
         }
 
@@ -725,6 +764,8 @@ export class RtcInputArea extends LitElement {
         this._uploadProgress = new Map();
         this._uploadStates = new Map();
         if (this._textarea) this._textarea.value = '';
+        // Notify parent of cleared file state so file-preview-area updates
+        this._notifyFileStateChange();
     }
 
     private get _currentModeLabel(): string {

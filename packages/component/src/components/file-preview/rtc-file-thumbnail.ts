@@ -22,6 +22,7 @@ import {createLogger} from '@rtc-agent/client';
 import {FileStorageContext, type FileStorageContextValue} from '../../contexts/file-storage.js';
 import {parseFileId} from '../../utils/file-id.js';
 import type {FileAttachment} from '../../types/index.js';
+import {alertIcon, retryIcon} from '../../icons/index.js';
 
 const log = createLogger('FileThumbnail');
 
@@ -187,16 +188,17 @@ export class RtcFileThumbnail extends LitElement {
 
   /** Render thumbnail content */
   private _renderThumbnail() {
-    // Error state
+    // Error state: show alert icon, retry button on hover
     if (this.loadingState === 'error' || this._imageError) {
       return html`
         <div class="thumb-error" role="img" aria-label=${msg('加载失败')}>
-          <span class="error-icon">⚠️</span>
+          <span class="error-icon">${alertIcon}</span>
           <button
             class="retry-btn"
             aria-label=${msg('重试上传')}
+            title=${msg('重试')}
             @click=${this._handleRetry}
-          >${msg('点击重试')}</button>
+          >${retryIcon}</button>
         </div>
       `;
     }

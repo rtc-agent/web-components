@@ -67,6 +67,9 @@ import columnsSvg from './svg/columns-16.svg?raw';
 import lockSvg from './svg/lock-16.svg?raw';
 import unlockSvg from './svg/unlock-16.svg?raw';
 
+// File upload/download icons
+import alertSvg from './svg/alert-16.svg?raw';
+
 /**
  * Convert SVG string to Lit template using unsafeHTML
  */
@@ -146,6 +149,10 @@ export const lockIcon = toLitTemplate(lockSvg);
 // unlockIcon: Scroll unlocked state.
 export const unlockIcon = toLitTemplate(unlockSvg);
 
+// File upload/download icons
+// alertIcon: Error/warning state.
+export const alertIcon = toLitTemplate(alertSvg);
+
 /**
  * Icon name to template mapping
  */
@@ -195,6 +202,8 @@ export const icons = {
     // Scroll lock icons
     lock: lockIcon,
     unlock: unlockIcon,
+    // File upload/download icons
+    alert: alertIcon,
 } as const;
 
 export type IconName = keyof typeof icons;

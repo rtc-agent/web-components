@@ -171,8 +171,8 @@ export class PersistenceLayer {
       this._cleanupTimer = null;
     }, 5000);
 
-    // Setup network listener for auto-sync on online event
-    this.setupNetworkListener();
+    // Disabled: auto-sync on network online event (manual retry only)
+    // this.setupNetworkListener();
 
     // P0-1 fix: recover stale 'syncing' entries from previous crashes/aborts.
     // P2-R5-05: tracked in SyncTaskTracker so close() waits for it.
@@ -1054,24 +1054,10 @@ export class PersistenceLayer {
 
   // ========== Network-Aware Sync ==========
 
-  /**
-   * Setup network listener for automatic sync on network recovery.
-   *
-   * Only adds the listener in Worker-like environments (where `self.addEventListener` exists).
-   * When the 'online' event fires, triggers syncPendingFiles() automatically.
-   */
-  private setupNetworkListener(): void {
-    if (typeof self !== 'undefined' && typeof self.addEventListener === 'function') {
-      this._onlineListener = () => {
-        log.info('Network online, triggering pending sync');
-        this.syncPendingFiles().catch(err => {
-          log.error('auto sync failed:', err);
-        });
-      };
-      self.addEventListener('online', this._onlineListener);
-      log.info('Network listener setup complete');
-    }
-  }
+  // setupNetworkListener: DISABLED
+  // Auto-sync on network online event is disabled in favor of manual retry.
+  // Users now explicitly retry failed uploads via the UI.
+  // The method has been removed; removeNetworkListener() remains for cleanup.
 
   /**
    * Remove the network online event listener.
