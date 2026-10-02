@@ -2,15 +2,17 @@
  * RTC Input Area Component
  *
  * Message textarea with bottom toolbar (attach, tool, mode, send buttons).
- * Layout: textarea on top, toolbar on bottom (matches Claude Code UI).
+ * Layout: file preview area on top (when files are attached), textarea in middle,
+ * toolbar on bottom (matches Claude Code UI).
  * Enter to submit, Shift+Enter for newline.
+ * Supports file paste upload: paste images or files from clipboard.
  *
  * The mode panel is rendered inside this component's shadow DOM and positioned
  * with @floating-ui/dom relative to the mode button, so it never overflows
  * the rtc-agent window boundary.
  *
  * @element rtc-input-area
- * @fires rtc-input-submit - User submitted message (detail: { content })
+ * @fires rtc-input-submit - User submitted message (detail: { contentData })
  * @fires rtc-command-requested - User submitted a slash command (detail: { name, args })
  * @fires rtc-voice-input-requested - User clicked voice input button
  * @csspart textarea - The textarea element
@@ -31,13 +33,15 @@ import {SessionContext, type SessionContextValue} from '../../contexts/session.j
 import {TurnCountContext, type TurnCountContextValue} from '../../contexts/turn-count.js';
 import {MessageContext, type MessageContextValue} from '../../contexts/message.js';
 import {SettingsContext, type SettingsContextValue} from '../../contexts/settings.js';
+import {FileStorageContext, type FileStorageContextValue} from '../../contexts/file-storage.js';
 import {attachIcon, toolIcon, sendIcon, stopIcon, micIcon, checklistIcon} from '../../icons/index.js';
 import {parseCommand} from '../../utils/command-parser.js';
-import type {ScenarioRef, ContentData} from '../../types/index.js';
+import type {ScenarioRef, ContentData, FileAttachment} from '../../types/index.js';
 import '../overlay/rtc-mode-panel.js';
 import '../overlay/rtc-command-panel.js';
 import '../overlay/rtc-scenario-panel.js';
 import '../token-usage/rtc-token-usage.js';
+import '../file-preview/rtc-file-preview-area.js';
 
 // UIUpdateBus is used to listen for new message events
 import {getUIUpdateBus, type UIUpdateEvent} from '@rtc-agent/persistence';
@@ -159,6 +163,24 @@ export class RtcInputArea extends LitElement {
             resetAll: () => {},
         },
     };
+
+    @consume({context: FileStorageContext, subscribe: true})
+    @state()
+    private _fileStorageCtx: FileStorageContextValue = {
+        fileStorage: null,
+    };
+
+    @state()
+    private _pendingFiles: FileAttachment[] = [];
+
+    @state()
+    private _uploadProgress: Map<string, number> = new Map();
+
+    @state()
+    private _uploadStates: Map<string, string> = new Map();
+
+    @state()
+    private _localPreviews: Map<string, string> = new Map();
 
     @state()
     private _value = '';
@@ -308,6 +330,157 @@ export class RtcInputArea extends LitElement {
     }
 
     /**
+     * Handle paste event: extract files from clipboard and upload them
+     */
+    private async _handlePaste(e: ClipboardEvent) {
+        const clipboardData = e.clipboardData;
+        if (!clipboardData) return;
+
+        const files: File[] = [];
+        for (let i = 0; i < clipboardData.items.length; i++) {
+            const item = clipboardData.items[i];
+            if (item.kind === 'file') {
+                const file = item.getAsFile();
+                if (file) files.push(file);
+            }
+        }
+
+        if (files.length > 0) {
+            e.preventDefault();
+            await this._uploadFiles(files);
+        }
+    }
+
+    /**
+     * Upload files: create FileAttachment entries immediately for instant display,
+     * then upload in parallel and update fileid when complete
+     */
+    private async _uploadFiles(files: File[]) {
+        const fileStorage = this._fileStorageCtx.fileStorage;
+        if (!fileStorage) {
+            log.error('FileStorage not available');
+            return;
+        }
+
+        // Generate temporary IDs and create FileAttachment entries immediately
+        const tempEntries: Array<{tempId: string; file: File; attachment: FileAttachment}> = [];
+
+        for (const file of files) {
+            const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+            // Create blob URL for image preview
+            if (file.type.startsWith('image/')) {
+                const blobUrl = URL.createObjectURL(file);
+                this._localPreviews.set(tempId, blobUrl);
+            }
+
+            const attachment: FileAttachment = {
+                mimetype: file.type || 'application/octet-stream',
+                fileid: tempId,
+                extra: {
+                    name: file.name,
+                    size: file.size,
+                },
+            };
+
+            tempEntries.push({tempId, file, attachment});
+        }
+
+        // Add all attachments to _pendingFiles immediately for instant display
+        this._pendingFiles = [...this._pendingFiles, ...tempEntries.map(e => e.attachment)];
+
+        // Set initial upload states
+        for (const {tempId} of tempEntries) {
+            this._uploadStates.set(tempId, 'uploading');
+            this._uploadProgress.set(tempId, 0);
+        }
+        this._uploadStates = new Map(this._uploadStates);
+        this._uploadProgress = new Map(this._uploadProgress);
+
+        // Upload all files in parallel
+        const uploadPromises = tempEntries.map(async ({tempId, file, attachment}) => {
+            try {
+                const fileInfo = await fileStorage.upload({
+                    file,
+                    filename: file.name,
+                    contentType: file.type,
+                    onProgress: (loaded, total) => {
+                        const progress = total > 0 ? Math.round((loaded / total) * 100) : 0;
+                        this._uploadProgress.set(tempId, progress);
+                        this._uploadProgress = new Map(this._uploadProgress);
+                    },
+                });
+
+                // Generate real fileid from md5 and extension
+                const realFileid = `${fileInfo.md5}.${fileInfo.ext}`;
+
+                // Migrate local preview URL from tempId to realFileid
+                const blobUrl = this._localPreviews.get(tempId);
+                if (blobUrl) {
+                    this._localPreviews.delete(tempId);
+                    this._localPreviews.set(realFileid, blobUrl);
+                }
+
+                // Update attachment with real fileid
+                attachment.fileid = realFileid;
+                this._uploadStates.set(tempId, 'loaded');
+                this._uploadStates.set(realFileid, 'loaded');
+                this._uploadProgress.set(tempId, 100);
+                this._uploadProgress.set(realFileid, 100);
+
+                // Trigger re-render
+                this._pendingFiles = [...this._pendingFiles];
+                this._uploadStates = new Map(this._uploadStates);
+                this._uploadProgress = new Map(this._uploadProgress);
+                this._localPreviews = new Map(this._localPreviews);
+
+            } catch (error) {
+                log.error('File upload failed:', error);
+                this._uploadStates.set(tempId, 'error');
+                this._uploadStates = new Map(this._uploadStates);
+            }
+        });
+
+        await Promise.all(uploadPromises);
+    }
+
+    /**
+     * Handle file removal from pending list
+     */
+    private _handleFileRemove(e: CustomEvent) {
+        const detail = e.detail;
+        const file = detail.file as FileAttachment;
+        const index = detail.index as number;
+
+        // Revoke blob URL if exists
+        const blobUrl = this._localPreviews.get(file.fileid);
+        if (blobUrl) {
+            URL.revokeObjectURL(blobUrl);
+            this._localPreviews.delete(file.fileid);
+        }
+
+        // Remove from pending files
+        this._pendingFiles = this._pendingFiles.filter((_, i) => i !== index);
+        this._uploadStates.delete(file.fileid);
+        this._uploadProgress.delete(file.fileid);
+
+        // Trigger re-render
+        this._uploadStates = new Map(this._uploadStates);
+        this._uploadProgress = new Map(this._uploadProgress);
+        this._localPreviews = new Map(this._localPreviews);
+    }
+
+    /**
+     * Handle file preview request
+     */
+    private _handleFilePreview(e: CustomEvent) {
+        const detail = e.detail;
+        const file = detail.file as FileAttachment;
+        log.debug('File preview requested:', file);
+        // TODO: Implement file preview modal
+    }
+
+    /**
      * Public method: set input box content (used for pre-filling in scenarios like fork)
      */
     public setValue(value: string) {
@@ -337,7 +510,7 @@ export class RtcInputArea extends LitElement {
     }
 
     private get _hasContent(): boolean {
-        return this._value.trim().length > 0;
+        return this._value.trim().length > 0 || this._pendingFiles.length > 0;
     }
 
     private get _hasActiveTurns(): boolean {
@@ -479,7 +652,7 @@ export class RtcInputArea extends LitElement {
 
     private _submit() {
         const text = this._value.trim();
-        if (!text) return;
+        if (!text && this._pendingFiles.length === 0) return;
 
         // Exit history mode
         this._historyIndex = -1;
@@ -517,7 +690,7 @@ export class RtcInputArea extends LitElement {
             type: 'user_message',
             data: {
                 text: text,
-                files: [],  // Reserved field
+                files: this._pendingFiles.length > 0 ? this._pendingFiles : undefined,
                 scenarios: this._selectedScenarios.length > 0 ? this._selectedScenarios : undefined,
             },
         };
@@ -530,9 +703,21 @@ export class RtcInputArea extends LitElement {
             })
         );
 
+        // Clean up blob URLs for pending files
+        for (const file of this._pendingFiles) {
+            const blobUrl = this._localPreviews.get(file.fileid);
+            if (blobUrl) {
+                URL.revokeObjectURL(blobUrl);
+            }
+        }
+
         // Clear state
         this._value = '';
         this._selectedScenarios = [];
+        this._pendingFiles = [];
+        this._uploadProgress = new Map();
+        this._uploadStates = new Map();
+        this._localPreviews = new Map();
         if (this._textarea) this._textarea.value = '';
     }
 
@@ -748,6 +933,12 @@ export class RtcInputArea extends LitElement {
         this._scenarioPanelCtrl.stopPositioning();
         this._busUnsub?.();
         this._busUnsub = undefined;
+
+        // Clean up blob URLs to prevent memory leaks
+        for (const blobUrl of this._localPreviews.values()) {
+            URL.revokeObjectURL(blobUrl);
+        }
+        this._localPreviews.clear();
     }
 
     updated(changed: Map<string | number | symbol, unknown>) {
@@ -789,6 +980,16 @@ export class RtcInputArea extends LitElement {
         void this._localeCtx.locale;
         return html`
       <div class="input-inner">
+        ${this._pendingFiles.length > 0 ? html`
+          <rtc-file-preview-area
+            .files=${this._pendingFiles}
+            .uploadProgress=${this._uploadProgress}
+            .uploadStates=${this._uploadStates}
+            .localPreviews=${this._localPreviews}
+            @rtc-file-remove=${this._handleFileRemove}
+            @rtc-file-preview=${this._handleFilePreview}
+          ></rtc-file-preview-area>
+        ` : ''}
         <div class="textarea-container">
           <textarea
             class="input-textarea"
@@ -797,6 +998,7 @@ export class RtcInputArea extends LitElement {
             placeholder=${msg('随便问...')}
             @input=${this._handleInput}
             @keydown=${this._handleKeydown}
+            @paste=${this._handlePaste}
           ></textarea>
           <button class="voice-btn" part="voice-btn" title=${msg('语音输入')} disabled @click=${this._handleVoice}>
             ${micIcon}

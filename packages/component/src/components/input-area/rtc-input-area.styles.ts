@@ -18,6 +18,12 @@ export const styles = css`
     height: 100%;
   }
 
+  rtc-file-preview-area {
+    display: block;
+    padding: var(--rtc-spacing-sm) var(--rtc-spacing-md) 0;
+    flex-shrink: 0;
+  }
+
   .textarea-container {
     position: relative;
     /* Expand to fill remaining space */
