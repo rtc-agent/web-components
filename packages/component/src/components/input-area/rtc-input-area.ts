@@ -305,6 +305,9 @@ export class RtcInputArea extends LitElement {
     @query('rtc-scenario-panel')
     private _scenarioPanel?: HTMLElement;
 
+    @query('.file-input')
+    private _fileInput!: HTMLInputElement;
+
     private _modePanelCtrl = new FloatingPanelController({
         host: this,
         getButton: () => this._modeBtn,
@@ -332,6 +335,26 @@ export class RtcInputArea extends LitElement {
         this.dispatchEvent(
             new CustomEvent('rtc-voice-input-requested', {bubbles: true, composed: true})
         );
+    }
+
+    /**
+     * Handle attach button click: trigger file input
+     */
+    private _handleAttachClick() {
+        this._fileInput?.click();
+    }
+
+    /**
+     * Handle file selection from file input
+     */
+    private async _handleFileSelect(e: Event) {
+        const input = e.target as HTMLInputElement;
+        const files = Array.from(input.files ?? []);
+        if (files.length > 0) {
+            await this._uploadFiles(files);
+        }
+        // Reset input so same file can be selected again
+        input.value = '';
     }
 
     /**
@@ -1036,7 +1059,15 @@ export class RtcInputArea extends LitElement {
           </button>
         </div>
         <div class="input-toolbar" part="toolbar">
-          <button class="toolbar-btn" title=${msg('附加文件')} disabled>${attachIcon}</button>
+          <input
+            type="file"
+            class="file-input"
+            multiple
+            accept="image/*,text/*"
+            @change=${this._handleFileSelect}
+            style="display: none"
+          >
+          <button class="toolbar-btn" title=${msg('附加文件')} @click=${this._handleAttachClick}>${attachIcon}</button>
           <button class="toolbar-btn tool-btn" title=${msg('命令')} @click=${this._handleCommandToggle}>${toolIcon}</button>
           <button class="toolbar-btn scenario-btn ${this._selectedScenarios.length > 0 ? 'scenario-btn--active' : ''}" title=${this._selectedScenarios.length > 0 ? msg(`场景 (${this._selectedScenarios.length} 个已选)`) : msg('场景')} @click=${this._handleScenarioToggle}>
             ${checklistIcon}
