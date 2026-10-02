@@ -288,8 +288,16 @@ export class RtcChatLayout extends LitElement {
 
     /** Handle file preview request from preview-area */
     private _handleFilePreview(e: CustomEvent, _sessionId: string): void {
-        // TODO: Implement file preview modal
-        log.debug('File preview requested:', e.detail.file);
+        const file = e.detail.file as FileAttachment;
+        if (!file) return;
+        log.debug('File preview requested:', file);
+
+        // Dispatch event to rtc-agent which renders the modal at window-container level
+        this.dispatchEvent(new CustomEvent('rtc-file-preview-requested', {
+            bubbles: true,
+            composed: true,
+            detail: {file},
+        }));
     }
 
     /* ── Resize Handle Methods ── */

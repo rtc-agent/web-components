@@ -56,7 +56,7 @@ import {customElement, property, state} from 'lit/decorators.js';
 import {ContextProvider} from '@lit/context';
 import {version} from '../../../package.json';
 import {styles} from './rtc-agent.styles.js';
-import type {WindowMode, Activity} from '../../types/index.js';
+import type {WindowMode, Activity, FileAttachment} from '../../types/index.js';
 
 // Styles
 import {tokens} from '../../styles/tokens.js';
@@ -158,6 +158,9 @@ import '../status-bar/rtc-status-bar.js';
 
 // Chat Layout component (conversation page refactor)
 import '../chat-layout/rtc-chat-layout.js';
+
+// File Preview Modal (rendered at window-container level to avoid escaping the window)
+import '../file-preview/rtc-file-preview-modal.js';
 
 // Settings Layout component
 import '../settings-layout/rtc-settings-layout.js';
@@ -798,6 +801,10 @@ export class RtcAgent extends LitElement {
 
     /** Whether gap fill syncing overlay is shown. */
     private _isSyncing = false;
+
+    /** File currently being previewed (null = modal closed). Rendered at window-container level. */
+    @state()
+    private _previewFile: FileAttachment | null = null;
 
     /** RTC processor (instantiated after persistence connect). */
     private _rtcProcessor?: RtcProcessor;
@@ -1652,6 +1659,18 @@ export class RtcAgent extends LitElement {
         this._showLoginDialog = false;
     }
 
+    /* ── File Preview ── */
+
+    private _handleFilePreviewRequested(e: Event) {
+        const detail = (e as CustomEvent).detail;
+        if (!detail?.file) return;
+        this._previewFile = detail.file;
+    }
+
+    private _handleFilePreviewClose() {
+        this._previewFile = null;
+    }
+
     /* ── Session & Turn Count ── */
 
     /**
@@ -1910,7 +1929,8 @@ export class RtcAgent extends LitElement {
         const sidebarVisible = this._activity.sidebarVisible;
 
         return html`
-      <div class="window-container">
+      <div class="window-container"
+           @rtc-file-preview-requested=${this._handleFilePreviewRequested}>
         <rtc-title-bar
           app-label=${this.appLabel}
           .windowMode=${mode}
@@ -1932,6 +1952,13 @@ export class RtcAgent extends LitElement {
               <div class="syncing-text">${msg('同步数据中...')}</div>
             </div>
           </div>
+        ` : null}
+        ${this._previewFile ? html`
+          <rtc-file-preview-modal
+            .file=${this._previewFile}
+            .open=${true}
+            @rtc-preview-close=${this._handleFilePreviewClose}
+          ></rtc-file-preview-modal>
         ` : null}
       </div>
       <div class="bubble"
