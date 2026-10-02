@@ -2,7 +2,7 @@
  * RTC Error Message Component
  *
  * Renders an error feedback message with category-specific icon and color,
- * title, description, optional retry button, and collapsible raw error details.
+ * title, description, and collapsible raw error details.
  *
  * ## Layout model (timeline layout)
  *
@@ -137,31 +137,13 @@ export class RtcErrorMessage extends LitElement implements StatefulComponent {
             }
 
             /*
-             * Action bar: retry button + raw error toggle.
+             * Action bar: raw error toggle.
              */
             .error-actions {
                 display: flex;
                 align-items: center;
                 gap: var(--rtc-spacing-sm);
                 padding: var(--rtc-spacing-xs) var(--rtc-spacing-md) var(--rtc-spacing-sm);
-            }
-
-            .error-retry-btn {
-                display: inline-flex;
-                align-items: center;
-                gap: var(--rtc-spacing-xs);
-                background: var(--rtc-color-primary);
-                color: var(--rtc-color-text-inverse);
-                border: none;
-                padding: var(--rtc-spacing-xs) var(--rtc-spacing-sm);
-                border-radius: var(--rtc-border-radius-sm);
-                font-size: var(--rtc-font-size-sm);
-                cursor: pointer;
-                transition: background var(--rtc-transition-duration) var(--rtc-transition-timing);
-            }
-
-            .error-retry-btn:hover {
-                background: var(--rtc-color-primary-hover, var(--rtc-color-primary));
             }
 
             .error-raw-toggle {
@@ -286,14 +268,6 @@ export class RtcErrorMessage extends LitElement implements StatefulComponent {
         this._rawErrorExpanded = !this._rawErrorExpanded;
     }
 
-    private _handleRetry() {
-        this.dispatchEvent(new CustomEvent('rtc-error-retry', {
-            bubbles: true,
-            composed: true,
-            detail: {clientId: this.message.clientId},
-        }));
-    }
-
     // ── StatefulComponent Interface (Phase 2) ──
 
     /**
@@ -350,17 +324,12 @@ export class RtcErrorMessage extends LitElement implements StatefulComponent {
                             </div>
                             <span class="error-category-label">${config.label}</span>
                         </div>
-                        ${errorData.retryable || (errorData.show_raw_error && errorData.raw_error)
+                        ${errorData.show_raw_error && errorData.raw_error
                             ? html`
                                 <div class="error-actions">
-                                    ${errorData.retryable
-                                        ? html`<button class="error-retry-btn" @click=${this._handleRetry} aria-label=${msg('重试')}>${msg('重试')}</button>`
-                                        : null}
-                                    ${errorData.show_raw_error && errorData.raw_error
-                                        ? html`<button class="error-raw-toggle" @click=${this._toggleRawError} aria-expanded=${this._rawErrorExpanded}>
-                                            ${this._rawErrorExpanded ? '▾' : '▸'} ${msg('原始错误')}
-                                        </button>`
-                                        : null}
+                                    <button class="error-raw-toggle" @click=${this._toggleRawError} aria-expanded=${this._rawErrorExpanded}>
+                                        ${this._rawErrorExpanded ? '▾' : '▸'} ${msg('原始错误')}
+                                    </button>
                                 </div>
                             `
                             : null}

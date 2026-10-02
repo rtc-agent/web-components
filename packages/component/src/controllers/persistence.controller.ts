@@ -34,6 +34,7 @@ const log = createLogger('PersistenceController');
 import {getOrCreateDeviceId} from '../utils/device.js';
 import {WorkerBridge} from '../worker-bridge.js';
 import {MasterLock} from '../master-lock.js';
+import {FileStorage} from '../utils/file-storage.js';
 
 /**
  * Assert WorkerPersistenceAdapter as PersistenceLayer.
@@ -240,6 +241,7 @@ export class PersistenceController implements ReactiveController {
     private _masterLock?: MasterLock;
     private _databaseNameOverride?: string;
     private _workerUrl?: string;
+    private _fileStorage?: FileStorage;
 
     /**
      * In-flight connection promise — prevents concurrent `connect()` calls from
@@ -324,6 +326,32 @@ export class PersistenceController implements ReactiveController {
         return this._masterLock;
     }
 
+    /**
+     * Get the FileStorage instance for high-level file operations.
+     *
+     * FileStorage provides intelligent file upload/download with automatic MD5 calculation,
+     * caching, and progress tracking. Requires an active connection (after connect()).
+     *
+     * @throws Error if not connected or userId is not available
+     */
+    get fileStorage(): FileStorage {
+        if (!this._fileStorage) {
+            if (!this._workerBridge) {
+                throw new Error(
+                    '[PersistenceController] fileStorage requires an active connection. Call connect() first.'
+                );
+            }
+            const userId = this._auth.state.userId;
+            if (!userId) {
+                throw new Error(
+                    '[PersistenceController] fileStorage requires userId from auth state.'
+                );
+            }
+            this._fileStorage = new FileStorage(this._workerBridge, userId);
+        }
+        return this._fileStorage;
+    }
+
     hostConnected() {
         // No-op: connection is driven by auth state, not host lifecycle.
     }
@@ -369,6 +397,8 @@ export class PersistenceController implements ReactiveController {
                 ? `${this._databaseNameOverride}-${userId}`
                 : `rtc-agent-${userId}`,
             deviceId,
+            userId,
+            serverUrl: AUTH_CONFIG.serverUrl,
             client: {
                 endpoint: AUTH_CONFIG.wsEndpoint,
                 getToken: async () => {
@@ -545,6 +575,7 @@ export class PersistenceController implements ReactiveController {
             this._workerBridge = undefined;
         }
         this._layer = undefined;
+        this._fileStorage = undefined;
     }
 
     /**
@@ -616,6 +647,7 @@ export class PersistenceController implements ReactiveController {
             log.debug('[LIFECYCLE_DEBUG] disconnect() Cleaning up workerBridge');
             this._masterLock?.release();
             this._masterLock = undefined;
+            this._fileStorage = undefined;
             try {
                 log.debug('[LIFECYCLE_DEBUG] disconnect() Before await workerBridge.destroy()');
                 await workerBridge.destroy();

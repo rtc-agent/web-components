@@ -49,11 +49,13 @@
     "interactjs": "^1.10.28",
     "lit": "^3.1.0",
     "marked": "^18.0.11",
+    "spark-md5": "^3.0.2",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@lit/localize-tools": "^0.8.2",
     "@types/dompurify": "^3.2.0",
+    "@types/spark-md5": "^3.0.5",
     "@vitest/coverage-v8": "^5.0.2",
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^30.0.1",

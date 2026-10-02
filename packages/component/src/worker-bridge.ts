@@ -16,8 +16,8 @@
  */
 import {wrap, proxy, type Remote} from 'comlink';
 import {getUIUpdateBus, virtualFS} from '@rtc-agent/persistence';
-import type {PersistenceConfig, UIUpdateEvent, FileSystemMetadataOverride} from '@rtc-agent/persistence';
-import type {ConnectionState, ConnectionStateEvent} from '@rtc-agent/client';
+import type {PersistenceConfig, UIUpdateEvent, FileSystemMetadataOverride, CachedFileInfo, FileCacheEntry, FileSyncStatus} from '@rtc-agent/persistence';
+import type {ConnectionState, ConnectionStateEvent, HeadObjectResult} from '@rtc-agent/client';
 import {createLogger} from '@rtc-agent/client';
 import type {WorkerPersistenceCore, WorkerCallbacks, UIUpdatePayload} from '@rtc-agent/worker';
 import type {AuthController} from './controllers/auth.controller.js';
@@ -87,6 +87,26 @@ function extractWorkerRelativePath(factory: Function): string {
     );
 }
 
+/**
+ * Throttle a function so it's called at most once per delayMs.
+ *
+ * Used to rate-limit progress callbacks to avoid message storms
+ * across the Comlink boundary (~10 calls/sec at 100ms interval).
+ */
+function throttle<T extends (...args: any[]) => void>(
+    fn: T,
+    delayMs: number
+): T {
+    let lastCall = 0;
+    return ((...args: any[]) => {
+        const now = Date.now();
+        if (now - lastCall >= delayMs) {
+            lastCall = now;
+            fn(...args);
+        }
+    }) as T;
+}
+
 export interface WorkerBridgeConfig {
     /**
      * Custom SharedWorker URL.
@@ -117,6 +137,8 @@ export class WorkerBridge {
     /** AbortController for cancelling ongoing catch-up */
     private _catchUpAbortController?: AbortController;
     private _config: WorkerBridgeConfig;
+    /** Counter for generating unique operation IDs (for file operation cancellation) */
+    private _operationCounter = 0;
 
     /** Connection state listeners (main-thread side). */
     private _connectionListeners = new Set<(event: ConnectionStateEvent) => void>();
@@ -662,6 +684,274 @@ export class WorkerBridge {
 
         virtualFS.remove = ((path: string) =>
             core.virtualFSRemove(path)) as typeof virtualFS.remove;
+    }
+
+    // ========== File Cache & S3 Proxy ==========
+
+    /**
+     * Cache a downloaded file (proxied to Worker).
+     */
+    async cacheFile(
+        md5: string,
+        ext: string,
+        blob: Blob,
+        contentType: string,
+        ttlMs?: number
+    ): Promise<void> {
+        return this._core!.cacheFile(md5, ext, blob, contentType, ttlMs);
+    }
+
+    /**
+     * Get a cached file (proxied to Worker).
+     */
+    async getCachedFile(
+        md5: string,
+        ext: string
+    ): Promise<CachedFileInfo | null> {
+        return this._core!.getCachedFile(md5, ext);
+    }
+
+    /**
+     * Evict all expired cache entries (proxied to Worker).
+     */
+    async evictExpiredCache(): Promise<number> {
+        return this._core!.evictExpiredCache();
+    }
+
+    /**
+     * Evict synced cache entries using LRU strategy (proxied to Worker).
+     *
+     * Only evicts files with syncStatus='synced'. Pending/failed/syncing files
+     * are preserved to prevent data loss.
+     *
+     * @param targetBytes Number of bytes to free (default: 100MB)
+     * @returns Actual evicted count and bytes freed
+     */
+    async evictCache(targetBytes?: number): Promise<{ evictedCount: number; evictedBytes: number }> {
+        return this._core!.evictCache(targetBytes);
+    }
+
+    /**
+     * Upload a file to S3 (proxied to Worker).
+     *
+     * Progress callbacks are throttled to 100ms intervals to avoid message storms.
+     *
+     * Cancellation via AbortSignal: generates a unique operationId, passes it to the Worker,
+     * and registers an abort listener that calls cancelFileOperation(operationId) on the Worker.
+     * The Worker's WorkerCore maintains a Map<operationId, AbortController>; the abort triggers
+     * the controller, which aborts the underlying HTTP request via PersistenceLayer's signal.
+     *
+     * @param md5 File content MD5 hash (32 hex chars)
+     * @param ext File extension
+     * @param blob File content as Blob
+     * @param contentType MIME type (optional)
+     * @param onProgress Throttled progress callback (optional)
+     * @param signal AbortSignal for cancellation (optional)
+     * @returns Upload result with sync status information
+     */
+    async uploadFile(
+        md5: string,
+        ext: string,
+        blob: Blob,
+        contentType?: string,
+        filename?: string,
+        onProgress?: (loaded: number, total: number) => void,
+        signal?: AbortSignal,
+        cacheTtlMs?: number
+    ): Promise<{ syncStatus: 'pending' | 'syncing' | 'synced' | 'failed'; syncedAt?: number; errorMessage?: string }> {
+        // Fail fast if already aborted
+        if (signal?.aborted) {
+            throw new DOMException('Upload aborted', 'AbortError');
+        }
+
+        // Generate unique operation ID for cancellation
+        const operationId = `op-upload-${++this._operationCounter}`;
+
+        // Wire abort signal to cancel operation in Worker
+        // P2-001 fix: remove listener on completion to prevent memory leak
+        let cleanupAbortListener: (() => void) | undefined;
+        if (signal) {
+            const onAbort = () => {
+                this._core!.cancelFileOperation(operationId);
+            };
+            signal.addEventListener('abort', onAbort, { once: true });
+            cleanupAbortListener = () => signal.removeEventListener('abort', onAbort);
+        }
+
+        // Wrap progress callback with throttle to avoid message storms
+        const throttled = onProgress ? throttle(onProgress, 100) : undefined;
+        try {
+            return await this._core!.uploadFile(md5, ext, blob, contentType, filename, operationId, throttled, cacheTtlMs);
+        } finally {
+            cleanupAbortListener?.();
+        }
+    }
+
+    /**
+     * Download a file from S3 with local caching (proxied to Worker).
+     *
+     * Progress callbacks are throttled to 100ms intervals to avoid message storms.
+     *
+     * Cancellation via AbortSignal: generates a unique operationId, passes it to the Worker,
+     * and registers an abort listener that calls cancelFileOperation(operationId) on the Worker.
+     * The Worker's WorkerCore maintains a Map<operationId, AbortController>; the abort triggers
+     * the controller, which aborts the underlying HTTP request via PersistenceLayer's signal.
+     *
+     * P2-NEW-4 fix: added forceRefresh parameter to bypass local cache
+     *
+     * @param md5 File content MD5 hash
+     * @param ext File extension
+     * @param onProgress Progress callback (optional, throttled)
+     * @param signal AbortSignal for cancellation (optional)
+     * @param forceRefresh If true, bypass local cache and download from S3 (optional)
+     */
+    async downloadFile(
+        md5: string,
+        ext: string,
+        onProgress?: (loaded: number, total: number) => void,
+        signal?: AbortSignal,
+        forceRefresh?: boolean  // P2-NEW-4 fix: added forceRefresh parameter
+    ): Promise<Blob> {
+        // Fail fast if already aborted
+        if (signal?.aborted) {
+            throw new DOMException('Download aborted', 'AbortError');
+        }
+
+        // Generate unique operation ID for cancellation
+        const operationId = `op-download-${++this._operationCounter}`;
+
+        // Wire abort signal to cancel operation in Worker
+        // P2-001 fix: remove listener on completion to prevent memory leak
+        let cleanupAbortListener: (() => void) | undefined;
+        if (signal) {
+            const onAbort = () => {
+                this._core!.cancelFileOperation(operationId);
+            };
+            signal.addEventListener('abort', onAbort, { once: true });
+            cleanupAbortListener = () => signal.removeEventListener('abort', onAbort);
+        }
+
+        // Throttle progress callback to avoid message storms
+        const throttled = onProgress ? throttle(onProgress, 100) : undefined;
+        try {
+            // P2-NEW-4 fix: pass forceRefresh to Worker
+            return await this._core!.downloadFile(md5, ext, throttled, operationId, forceRefresh);
+        } finally {
+            cleanupAbortListener?.();
+        }
+    }
+
+    /**
+     * Delete a file from local cache and S3 (proxied to Worker).
+     *
+     * @param md5 File content MD5 hash
+     * @param ext File extension
+     */
+    async deleteFile(md5: string, ext: string): Promise<void> {
+        return this._core!.deleteFile(md5, ext);
+    }
+
+    /**
+     * Calculate MD5 hash of a Blob (proxied to Worker).
+     *
+     * Runs in the Worker thread to avoid blocking the main thread.
+     */
+    async calculateFileMD5(blob: Blob): Promise<string> {
+        return this._core!.calculateFileMD5(blob);
+    }
+
+    /**
+     * Get file metadata from S3 without downloading (proxied to Worker).
+     */
+    async headFile(md5: string, ext: string): Promise<HeadObjectResult> {
+        return this._core!.headFile(md5, ext);
+    }
+
+    /**
+     * Get a presigned URL for file operations (proxied to Worker).
+     */
+    async getPresignedUrl(operation: 'get' | 'put', key: string, expiresIn?: number): Promise<string> {
+        return this._core!.getPresignedUrl(operation, key, expiresIn);
+    }
+
+    /**
+     * List files by sync status (proxied to Worker).
+     */
+    async listFiles(syncStatus?: FileSyncStatus, limit: number = 100, offset: number = 0): Promise<FileCacheEntry[]> {
+        return this._core!.listFiles(syncStatus, limit, offset);
+    }
+
+    /**
+     * Count files by sync status (proxied to Worker).
+     */
+    async countFiles(syncStatus?: FileSyncStatus): Promise<number> {
+        return this._core!.countFiles(syncStatus);
+    }
+
+    /**
+     * Batch sync all pending/failed files to S3 (proxied to Worker).
+     *
+     * Automatically called when the network comes back online.
+     * Can also be called manually to trigger sync.
+     *
+     * @returns Statistics: number of files synced and failed, plus detailed file lists
+     *          for per-file UI broadcast (syncedFiles, failedFiles)
+     */
+    async syncPendingFiles(): Promise<{
+        synced: number;
+        failed: number;
+        syncedFiles: Array<{ md5: string; ext: string }>;
+        failedFiles: Array<{ md5: string; ext: string; errorMessage?: string }>;
+    }> {
+        return this._core!.syncPendingFiles();
+    }
+
+    /**
+     * Resume all interrupted multipart uploads.
+     *
+     * P2-NEW-6 fix: Returns syncedFiles/failedFiles for per-file event broadcasting.
+     *
+     * @returns Statistics: number of uploads resumed, failed, expired, plus detailed file lists
+     */
+    async resumeInterruptedUploads(): Promise<{
+      resumed: number;
+      failed: number;
+      expired: number;
+      syncedFiles: Array<{ md5: string; ext: string }>;
+      failedFiles: Array<{ md5: string; ext: string; errorMessage?: string }>;
+    }> {
+        return this._core!.resumeInterruptedUploads();
+    }
+
+    /**
+     * Get cache statistics: total files, total size, and breakdown by sync status.
+     */
+    async getCacheStats(): Promise<{
+      totalFiles: number;
+      totalSize: number;
+      byStatus: {
+        pending: { count: number; size: number };
+        syncing: { count: number; size: number };
+        synced: { count: number; size: number };
+        failed: { count: number; size: number };
+      };
+    }> {
+        return this._core!.getCacheStats();
+    }
+
+    /**
+     * Update file metadata (filename, contentType) in the local cache (proxied to Worker).
+     *
+     * @param md5 File content MD5 hash
+     * @param ext File extension
+     * @param updates Partial metadata to update (filename and/or contentType)
+     */
+    async updateFileMetadata(
+      md5: string,
+      ext: string,
+      updates: { filename?: string; contentType?: string }
+    ): Promise<void> {
+      return this._core!.updateFileMetadata(md5, ext, updates);
     }
 
     // ========== UI Update Catch-Up ==========

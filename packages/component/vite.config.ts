@@ -62,4 +62,8 @@ export default defineConfig({
       allow: [path.resolve('../../debug'), path.resolve('.'), path.resolve('..')],
     },
   },
+  worker: {
+    // Worker 构建配置：使用 ESM 格式避免 IIFE 与代码分割冲突
+    format: 'es',
+  },
 });

@@ -16,7 +16,11 @@ import {
   type PagedResult,
   type FileSystemEntryType,
   type FileSystemMetadataOverride,
+  type CachedFileInfo,
+  type FileCacheEntry,
+  type FileSyncStatus,
 } from '@rtc-agent/persistence';
+import type { HeadObjectResult } from '@rtc-agent/client';
 import type { ContentData } from '@rtc-agent/protocol';
 import type { ConnectionState, ConnectionStateEvent, TokenExpiredAction } from '@rtc-agent/client';
 import { createLogger } from '@rtc-agent/client';
@@ -37,12 +41,23 @@ export class WorkerCore implements WorkerPersistenceCore {
   private layer: PersistenceLayer | null = null;
   private unsubscribeBus: (() => void) | null = null;
   private unsubscribeConnection: (() => void) | null = null;
+  private _disposeCoordinator: (() => void) | null = null;
 
   /** Timer for periodic UI update queue cleanup (prevents unbounded growth). */
   private _cleanupTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** Callback sets for all connected Tabs */
   private callbacks = new Set<WorkerCallbacks>();
+
+  /**
+   * Map of operationId -> AbortController for file operations.
+   *
+   * When WorkerBridge starts an upload/download, it generates a unique operationId.
+   * WorkerCore creates an AbortController, stores it here, and passes its signal
+   * to PersistenceLayer. When WorkerBridge calls cancelFileOperation(operationId),
+   * the controller is aborted, which cancels the underlying HTTP request.
+   */
+  private _operationControllers = new Map<string, AbortController>();
 
   /**
    * Initialize shared state.
@@ -71,6 +86,13 @@ export class WorkerCore implements WorkerPersistenceCore {
     };
 
     this.layer = createPersistenceLayer(bridgedConfig);
+
+    // P2-NEW-3 fix + P2-D update: inject status change listener into FileOpCoordinator
+    // Returns a dispose function for teardown.
+    const fileOpCoordinator = this.layer.getFileOpCoordinator();
+    this._disposeCoordinator = fileOpCoordinator.onStatusChange((md5, ext, status, errorMessage) => {
+      this._broadcastFileSyncStatus(md5, ext, status, errorMessage);
+    });
 
     // Initialize UIUpdateBus: set the _initialized flag so publish() persists events.
     const bus = getUIUpdateBus();
@@ -354,9 +376,20 @@ export class WorkerCore implements WorkerPersistenceCore {
   // ========== Lifecycle ==========
 
   async close(): Promise<void> {
+    // P3-R6-02: Abort all ongoing file operations before closing
+    for (const [id, ac] of this._operationControllers) {
+      log.debug(`aborting file operation: ${id}`);
+      ac.abort();
+    }
+    this._operationControllers.clear();
+
     if (this.unsubscribeBus) {
       this.unsubscribeBus();
       this.unsubscribeBus = null;
+    }
+    if (this._disposeCoordinator) {
+      this._disposeCoordinator();
+      this._disposeCoordinator = null;
     }
     this._unsubscribeConnectionState();
 
@@ -617,6 +650,28 @@ export class WorkerCore implements WorkerPersistenceCore {
   }
 
   /**
+   * Broadcast a file sync status change to all registered Tab callbacks.
+   *
+   * P0-2 fix: emits a UIUpdateEvent so the UI can react to sync status changes
+   * (e.g., show spinner for 'syncing', checkmark for 'synced', error icon for 'failed').
+   */
+  private _broadcastFileSyncStatus(
+    md5: string,
+    ext: string,
+    syncStatus: string,
+    errorMessage?: string,
+  ): void {
+    this.broadcastUIUpdate({
+      entity: 'file',
+      action: 'updated',
+      entityId: `${md5}.${ext}`,
+      field: 'syncStatus',
+      oldValue: undefined,
+      newValue: { syncStatus, md5, ext, errorMessage },
+    });
+  }
+
+  /**
    * Broadcast gap fill state change to all registered Tab callbacks.
    */
   private broadcastGapFillState(isSyncing: boolean): void {
@@ -709,5 +764,198 @@ export class WorkerCore implements WorkerPersistenceCore {
         log.error('onConnectionStateChange callback error:', err);
       }
     }
+  }
+
+  // ========== File Cache & S3 Operations ==========
+
+  async cacheFile(
+    md5: string,
+    ext: string,
+    blob: Blob,
+    contentType: string,
+    ttlMs?: number
+  ): Promise<void> {
+    const layer = this.ensureLayer();
+    return layer.cacheFile(md5, ext, blob, contentType, ttlMs);
+  }
+
+  async getCachedFile(
+    md5: string,
+    ext: string
+  ): Promise<CachedFileInfo | null> {
+    const layer = this.ensureLayer();
+    return layer.getCachedFile(md5, ext);
+  }
+
+  async evictExpiredCache(): Promise<number> {
+    const layer = this.ensureLayer();
+    return layer.evictExpiredCache();
+  }
+
+  async evictCache(targetBytes?: number): Promise<{ evictedCount: number; evictedBytes: number }> {
+    const layer = this.ensureLayer();
+    return layer.evictCache(targetBytes);
+  }
+
+  async uploadFile(
+    md5: string,
+    ext: string,
+    blob: Blob,
+    contentType?: string,
+    filename?: string,
+    operationId?: string,
+    onProgress?: (loaded: number, total: number) => void,
+    cacheTtlMs?: number
+  ): Promise<{ syncStatus: 'pending' | 'syncing' | 'synced' | 'failed'; syncedAt?: number; errorMessage?: string }> {
+    const layer = this.ensureLayer();
+    // Create AbortController for this operation (allows cancellation via cancelFileOperation)
+    const ac = new AbortController();
+    if (operationId) {
+      this._operationControllers.set(operationId, ac);
+    }
+    try {
+      const result = await layer.uploadFile(md5, ext, blob, contentType, filename, ac.signal, onProgress, cacheTtlMs);
+      // P0-2: broadcast sync status change to all tabs
+      this._broadcastFileSyncStatus(md5, ext, result.syncStatus, result.errorMessage);
+      return result;
+    } finally {
+      if (operationId) {
+        this._operationControllers.delete(operationId);
+      }
+    }
+  }
+
+  async downloadFile(
+    md5: string,
+    ext: string,
+    onProgress?: (loaded: number, total: number) => void,
+    operationId?: string,
+    forceRefresh?: boolean  // P2-NEW-4 fix: added forceRefresh parameter
+  ): Promise<Blob> {
+    const layer = this.ensureLayer();
+    // Create AbortController for this operation (allows cancellation via cancelFileOperation)
+    const ac = new AbortController();
+    if (operationId) {
+      this._operationControllers.set(operationId, ac);
+    }
+    try {
+      // P2-NEW-4 fix: pass forceRefresh to PersistenceLayer
+      const blob = await layer.downloadFile(md5, ext, onProgress, ac.signal, forceRefresh);
+      // P0-2: broadcast sync status 'synced' after successful download+cache
+      this._broadcastFileSyncStatus(md5, ext, 'synced');
+      return blob;
+    } finally {
+      if (operationId) {
+        this._operationControllers.delete(operationId);
+      }
+    }
+  }
+
+  /**
+   * Cancel an ongoing file operation by its operationId.
+   *
+   * No-op if operationId is not found (operation already completed or invalid).
+   */
+  cancelFileOperation(operationId: string): void {
+    const ac = this._operationControllers.get(operationId);
+    if (ac) {
+      log.debug(`cancelling file operation: ${operationId}`);
+      ac.abort();
+      this._operationControllers.delete(operationId);
+    }
+  }
+
+  async deleteFile(md5: string, ext: string): Promise<void> {
+    const layer = this.ensureLayer();
+    return layer.deleteFile(md5, ext);
+  }
+
+  async calculateFileMD5(blob: Blob): Promise<string> {
+    const layer = this.ensureLayer();
+    return layer.calculateFileMD5(blob);
+  }
+
+  async headFile(md5: string, ext: string): Promise<HeadObjectResult> {
+    const layer = this.ensureLayer();
+    return layer.headFile(md5, ext);
+  }
+
+  async getPresignedUrl(operation: 'get' | 'put', key: string, expiresIn?: number): Promise<string> {
+    const layer = this.ensureLayer();
+    return layer.getPresignedUrl(operation, key, expiresIn);
+  }
+
+  async listFiles(syncStatus?: FileSyncStatus, limit: number = 100, offset: number = 0): Promise<FileCacheEntry[]> {
+    const layer = this.ensureLayer();
+    return layer.listFiles(syncStatus, limit, offset);
+  }
+
+  async countFiles(syncStatus?: FileSyncStatus): Promise<number> {
+    const layer = this.ensureLayer();
+    return layer.countFiles(syncStatus);
+  }
+
+  async syncPendingFiles(): Promise<{
+    synced: number;
+    failed: number;
+    syncedFiles: Array<{ md5: string; ext: string }>;
+    failedFiles: Array<{ md5: string; ext: string; errorMessage?: string }>;
+  }> {
+    const layer = this.ensureLayer();
+    const result = await layer.syncPendingFiles();
+
+    // Gap 1 fix: broadcast per-file sync status changes so UI can show real-time progress
+    for (const file of result.syncedFiles) {
+      this._broadcastFileSyncStatus(file.md5, file.ext, 'synced');
+    }
+    for (const file of result.failedFiles) {
+      this._broadcastFileSyncStatus(file.md5, file.ext, 'failed', file.errorMessage);
+    }
+
+    return result;
+  }
+
+  async resumeInterruptedUploads(): Promise<{
+    resumed: number;
+    failed: number;
+    expired: number;
+    syncedFiles: Array<{ md5: string; ext: string }>;
+    failedFiles: Array<{ md5: string; ext: string; errorMessage?: string }>;
+  }> {
+    const layer = this.ensureLayer();
+    const result = await layer.resumeInterruptedUploads();
+
+    // P2-NEW-6 fix: broadcast per-file sync status changes so UI can show real-time progress
+    for (const file of result.syncedFiles) {
+      this._broadcastFileSyncStatus(file.md5, file.ext, 'synced');
+    }
+    for (const file of result.failedFiles) {
+      this._broadcastFileSyncStatus(file.md5, file.ext, 'failed', file.errorMessage);
+    }
+
+    return result;
+  }
+
+  async getCacheStats(): Promise<{
+    totalFiles: number;
+    totalSize: number;
+    byStatus: {
+      pending: { count: number; size: number };
+      syncing: { count: number; size: number };
+      synced: { count: number; size: number };
+      failed: { count: number; size: number };
+    };
+  }> {
+    const layer = this.ensureLayer();
+    return layer.getCacheStats();
+  }
+
+  async updateFileMetadata(
+    md5: string,
+    ext: string,
+    updates: { filename?: string; contentType?: string }
+  ): Promise<void> {
+    const layer = this.ensureLayer();
+    return layer.updateFileMetadata(md5, ext, updates);
   }
 }

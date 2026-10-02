@@ -162,3 +162,7 @@ export interface RpcError {
     code: RpcErrorCode;
     message: string;
 }
+
+// ---------- S3 对象存储 ----------
+
+export * from './s3.js';

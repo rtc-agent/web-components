@@ -80,6 +80,31 @@ sharedSelf.onconnect = (e: MessageEvent): void => {
     virtualFSQueryByType: (...args: Parameters<WorkerCore['virtualFSQueryByType']>) => core.virtualFSQueryByType(...args),
     virtualFSExists: (...args: Parameters<WorkerCore['virtualFSExists']>) => core.virtualFSExists(...args),
     virtualFSRemove: (...args: Parameters<WorkerCore['virtualFSRemove']>) => core.virtualFSRemove(...args),
+
+    // File Cache & S3 Operations
+    cacheFile: (...args: Parameters<WorkerCore['cacheFile']>) => core.cacheFile(...args),
+    getCachedFile: (...args: Parameters<WorkerCore['getCachedFile']>) => core.getCachedFile(...args),
+    evictExpiredCache: () => core.evictExpiredCache(),
+    evictCache: (...args: Parameters<WorkerCore['evictCache']>) => core.evictCache(...args),
+    uploadFile: (...args: Parameters<WorkerCore['uploadFile']>) => core.uploadFile(...args),
+    downloadFile: (...args: Parameters<WorkerCore['downloadFile']>) => core.downloadFile(...args),
+    deleteFile: (...args: Parameters<WorkerCore['deleteFile']>) => core.deleteFile(...args),
+    cancelFileOperation: (...args: Parameters<WorkerCore['cancelFileOperation']>) => core.cancelFileOperation(...args),
+
+    // MD5 calculation (runs in Worker thread)
+    calculateFileMD5: (...args: Parameters<WorkerCore['calculateFileMD5']>) => core.calculateFileMD5(...args),
+
+    // S3 metadata operations
+    headFile: (...args: Parameters<WorkerCore['headFile']>) => core.headFile(...args),
+    getPresignedUrl: (...args: Parameters<WorkerCore['getPresignedUrl']>) => core.getPresignedUrl(...args),
+
+    // File list & count
+    listFiles: (...args: Parameters<WorkerCore['listFiles']>) => core.listFiles(...args),
+    countFiles: (...args: Parameters<WorkerCore['countFiles']>) => core.countFiles(...args),
+    syncPendingFiles: () => core.syncPendingFiles(),
+    resumeInterruptedUploads: () => core.resumeInterruptedUploads(),
+    getCacheStats: () => core.getCacheStats(),
+    updateFileMetadata: (...args: Parameters<WorkerCore['updateFileMetadata']>) => core.updateFileMetadata(...args),
   };
 
   expose(facade, port);

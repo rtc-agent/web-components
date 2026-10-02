@@ -27,10 +27,12 @@
     "@rtc-agent/client": "workspace:*",
     "@rtc-agent/protocol": "workspace:*",
     "dexie": "^4.4.5",
-    "microdiff": "^1.6.0"
+    "microdiff": "^1.6.0",
+    "spark-md5": "^3.0.2"
   },
   "devDependencies": {
     "@types/babel__core": "^7.20.5",
+    "@types/spark-md5": "^3.0.5",
     "fake-indexeddb": "^6.2.5",
     "tsup": "^8.0.0",
     "typescript": "^5.4.0",

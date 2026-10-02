@@ -2,9 +2,17 @@
 
 export { RTCAgentClient } from './client.js';
 export { OAuth2Client } from './oauth2-client.js';
+export { S3Client } from './s3-client.js';
 export { createLogger, setGlobalLogLevel } from './logger.js';
 export type { Logger, LogLevel } from './logger.js';
 export type { OAuth2ClientOptions, OAuth2ProvidersResponse } from './oauth2-client.js';
+export type {
+  S3ClientOptions,
+  UploadOptions,
+  HeadObjectResult,
+  ListObjectsResult,
+  ListObjectItem,
+} from './s3-client.js';
 export type {
   IRTCAgentClient,
   RTCAgentClientOptions,

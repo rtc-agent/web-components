@@ -209,6 +209,106 @@ export interface UIUpdateQueueEntry extends UIUpdateQueueInput {
   seq: number;
 }
 
+// ========== File cache ==========
+
+/**
+ * File cache entry for downloaded files from S3.
+ * Primary key: [md5+ext] composite key
+ *
+ * Supports offline-first data model with sync status tracking.
+ */
+export interface FileCacheEntry {
+  /** File content MD5 hash (32 hex chars) */
+  md5: string;
+  /** File extension (e.g., 'txt', 'jpg') */
+  ext: string;
+  /** File content as Blob */
+  data: Blob;
+  /** MIME type */
+  contentType: string;
+  /** File size in bytes */
+  size: number;
+  /** Expiration timestamp (ms since epoch) */
+  expiresAt: number;
+  /** Last access timestamp (ms since epoch, for future LRU) */
+  lastAccessedAt: number;
+  /** Creation timestamp (ms since epoch) */
+  createdAt: number;
+
+  // ========== Offline-first fields ==========
+
+  /**
+   * Sync status with S3:
+   * - 'pending': file uploaded locally but not yet synced to S3 (offline upload)
+   * - 'syncing': currently being uploaded to S3
+   * - 'synced': successfully synced to S3 (normal download cache)
+   * - 'failed': sync to S3 failed
+   */
+  syncStatus: 'pending' | 'syncing' | 'synced' | 'failed';
+  /** Original filename (for UI display, optional) */
+  filename?: string;
+  /** Error message from most recent sync failure */
+  errorMessage?: string;
+  /** Timestamp of last successful sync (ms since epoch) */
+  syncedAt?: number;
+  /** Number of retry attempts for failed syncs */
+  retryCount: number;
+}
+
+// ========== Upload progress (multipart resume) ==========
+
+/**
+ * Upload part status within a multipart upload.
+ */
+export interface UploadPartRecord {
+  /** Part number (1-10000, S3 constraint) */
+  partNumber: number;
+  /** ETag returned by S3 after successful upload */
+  etag: string;
+  /** Part size in bytes */
+  size: number;
+}
+
+/**
+ * Multipart upload progress record.
+ * Primary key: [md5+ext] composite key (one active upload per file)
+ *
+ * Stores the state needed to resume an interrupted multipart upload.
+ */
+export interface UploadProgressEntry {
+  /** File content MD5 hash (32 hex chars) — part of composite PK */
+  md5: string;
+  /** File extension — part of composite PK */
+  ext: string;
+  /** S3 multipart upload ID (from CreateMultipartUpload) */
+  uploadId: string;
+  /** S3 object key */
+  s3Key: string;
+  /** Total file size in bytes */
+  fileSize: number;
+  /** Part size in bytes (all parts except the last are this size) */
+  partSize: number;
+  /** Total number of parts */
+  totalParts: number;
+  /** Array of completed parts (with ETags) */
+  completedParts: UploadPartRecord[];
+  /** Number of bytes uploaded so far */
+  bytesUploaded: number;
+  /** MIME type */
+  contentType: string;
+  /** Original filename (optional, for UI) */
+  filename?: string;
+  /** Creation timestamp (ms since epoch) */
+  createdAt: number;
+  /** Last update timestamp (ms since epoch) */
+  updatedAt: number;
+  /**
+   * S3 multipart upload expiration (createdAt + 7 days).
+   * After this time, the uploadId becomes invalid and must be restarted.
+   */
+  expiresAt: number;
+}
+
 // ========== Database definition ==========
 
 export class RTCAgentDatabase extends Dexie {
@@ -220,6 +320,8 @@ export class RTCAgentDatabase extends Dexie {
   fileSystemEntries!: Table<FileSystemEntry, string>;
   debugHistory!: Table<LocalDebugHistoryItem, string>;
   ui_updates!: Table<UIUpdateQueueEntry, number>;
+  fileCache!: Table<FileCacheEntry, [string, string]>;
+  uploadParts!: Table<UploadProgressEntry, [string, string]>;
 
   constructor(databaseName: string) {
     if (!databaseName) {
@@ -404,6 +506,36 @@ export class RTCAgentDatabase extends Dexie {
       debugHistory: 'id, function_name, timestamp, [function_name+timestamp]',
       ui_updates: '++seq, timestamp',
     });
+
+    // v11: Add fileCache table for S3 file download caching
+    this.version(11).stores({
+      fileCache: '[md5+ext], expiresAt',
+    });
+
+    // v12: Extend fileCache with offline-first sync status tracking
+    // Adds syncStatus index for querying by sync state; migrates existing entries to 'synced'
+    this.version(12).stores({
+      fileCache: '[md5+ext], expiresAt, syncStatus',
+    }).upgrade(async (tx) => {
+      // Smooth migration: treat existing cached files as already synced
+      await tx.table('fileCache').toCollection().modify((entry: Record<string, unknown>) => {
+        if (!entry.syncStatus) {
+          entry.syncStatus = 'synced';
+          entry.retryCount = 0;
+        }
+      });
+    });
+
+    // v13: Add uploadParts table for multipart upload progress tracking (resume upload)
+    this.version(13).stores({
+      uploadParts: '[md5+ext], uploadId, expiresAt',
+    });
+
+    // v14: Add lastAccessedAt index for efficient LRU eviction queries
+    // P2-NEW-1 fix: evictLRU uses sortBy('lastAccessedAt'), adding an index avoids full table scan
+    this.version(14).stores({
+      fileCache: '[md5+ext], expiresAt, syncStatus, lastAccessedAt',  // added lastAccessedAt index
+    });
   }
 }
 
@@ -467,6 +599,8 @@ export async function flushAll(): Promise<void> {
     db.fileSystemEntries,
     db.debugHistory,
     db.ui_updates,
+    db.fileCache,
+    db.uploadParts,  // P2-3 fix: clear multipart upload progress records
   ];
   await db.transaction('rw', tables, async () => {
     await db.sessions.clear();
@@ -477,5 +611,8 @@ export async function flushAll(): Promise<void> {
     await db.fileSystemEntries.clear();
     await db.debugHistory.clear();
     await db.ui_updates.clear();
+    await db.fileCache.clear();
+    await db.uploadParts.clear();  // P2-3 fix
   });
+  log.info(`flushAll: cleared ${tables.length} tables`);
 }
