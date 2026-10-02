@@ -702,6 +702,22 @@ export class WorkerBridge {
     }
 
     /**
+     * Cache a file with pending sync status (proxied to Worker).
+     *
+     * Writes the file to local cache with syncStatus='pending', without uploading to S3.
+     * Used for edit mode: file is cached locally first, then uploaded to S3 in background.
+     */
+    async cacheFilePending(
+        md5: string,
+        ext: string,
+        blob: Blob,
+        contentType: string,
+        filename?: string
+    ): Promise<void> {
+        return this._core!.cacheFilePending(md5, ext, blob, contentType, filename);
+    }
+
+    /**
      * Get a cached file (proxied to Worker).
      */
     async getCachedFile(

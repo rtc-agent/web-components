@@ -83,6 +83,7 @@ sharedSelf.onconnect = (e: MessageEvent): void => {
 
     // File Cache & S3 Operations
     cacheFile: (...args: Parameters<WorkerCore['cacheFile']>) => core.cacheFile(...args),
+    cacheFilePending: (...args: Parameters<WorkerCore['cacheFilePending']>) => core.cacheFilePending(...args),
     getCachedFile: (...args: Parameters<WorkerCore['getCachedFile']>) => core.getCachedFile(...args),
     evictExpiredCache: () => core.evictExpiredCache(),
     evictCache: (...args: Parameters<WorkerCore['evictCache']>) => core.evictCache(...args),

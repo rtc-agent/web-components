@@ -14,6 +14,9 @@
 
 import type { WorkerBridge } from '../worker-bridge.js';
 import type { FileCacheEntry } from '@rtc-agent/persistence';
+import {createLogger} from '@rtc-agent/client';
+
+const log = createLogger('FileStorage');
 
 /**
  * Run tasks with concurrency control.
@@ -510,6 +513,137 @@ export class FileStorage {
     const key = `user-${this.userId}/${md5}.${ext}`;
 
     return await this.bridge.getPresignedUrl('get', key, expiresIn);
+  }
+
+  // ========== Thumbnail URL Management ==========
+
+  /** Shared blob URL cache (md5.ext → {url, refCount}) */
+  private _blobUrlCache = new Map<string, {url: string; refCount: number}>();
+
+  /** Inflight dedup (md5.ext → Promise) */
+  private _inflightThumbnail = new Map<string, Promise<string>>();
+
+  /**
+   * Get thumbnail URL with shared blob URL cache and inflight dedup.
+   *
+   * Strategy:
+   * 1. Already have blob URL → return directly (refCount++)
+   * 2. Request in-flight → reuse Promise (dedup)
+   * 3. Local cache hit → download() + createObjectURL()
+   * 4. Cache miss → download() (auto-caches) + createObjectURL()
+   * 5. Download fails → getPresignedUrl() (final fallback, browser loads directly)
+   *
+   * @param identifier - File identifier (md5 + ext or FileInfo)
+   * @returns URL string (blob: or https:) for use in <img src>
+   */
+  async getThumbnailUrl(identifier: FileIdentifier): Promise<string> {
+    const {md5, ext} = normalizeIdentifier(identifier);
+    const key = `${md5}.${ext}`;
+
+    // 1. Already have blob URL → return directly
+    const cached = this._blobUrlCache.get(key);
+    if (cached) {
+      cached.refCount++;
+      return cached.url;
+    }
+
+    // 2. Inflight dedup
+    const inflight = this._inflightThumbnail.get(key);
+    if (inflight) {
+      return inflight;
+    }
+
+    // 3-5. Load
+    const promise = this._resolveThumbnailUrl(md5, ext, key);
+    this._inflightThumbnail.set(key, promise);
+    return promise;
+  }
+
+  private async _resolveThumbnailUrl(
+    md5: string,
+    ext: string,
+    key: string
+  ): Promise<string> {
+    try {
+      // 3. Check local cache
+      const isCached = await this.isCached(md5, ext);
+      if (isCached) {
+        const blob = await this.download(md5, ext);
+        return this._createBlobUrl(blob, key);
+      }
+
+      // 4. Cache miss → download (auto-caches)
+      try {
+        const blob = await this.download(md5, ext);
+        return this._createBlobUrl(blob, key);
+      } catch (downloadErr) {
+        // 5. Download failed → fallback to presigned URL
+        log.warn('Download failed, falling back to presigned URL:', downloadErr);
+        this._inflightThumbnail.delete(key);
+        return await this.getPresignedUrl({md5, ext}, 3600);
+      }
+    } catch (err) {
+      this._inflightThumbnail.delete(key);
+      throw err;
+    }
+  }
+
+  private _createBlobUrl(blob: Blob, key: string): string {
+    const url = URL.createObjectURL(blob);
+    this._blobUrlCache.set(key, {url, refCount: 1});
+    this._inflightThumbnail.delete(key);
+    return url;
+  }
+
+  /**
+   * Release thumbnail URL reference.
+   *
+   * Decrements refCount. When refCount reaches 0, revokes the blob URL.
+   * Call this in component disconnectedCallback.
+   *
+   * @param identifier - File identifier (md5 + ext or FileInfo)
+   */
+  releaseThumbnailUrl(identifier: FileIdentifier): void {
+    const {md5, ext} = normalizeIdentifier(identifier);
+    const key = `${md5}.${ext}`;
+    const entry = this._blobUrlCache.get(key);
+    if (!entry) return;
+
+    entry.refCount--;
+    if (entry.refCount <= 0) {
+      URL.revokeObjectURL(entry.url);
+      this._blobUrlCache.delete(key);
+    }
+  }
+
+  /**
+   * Cache file locally for upload (edit mode).
+   *
+   * Writes file to local cache with syncStatus='pending', without uploading to S3.
+   * Returns FileInfo with real fileid (md5.ext) so components can use getThumbnailUrl()
+   * immediately. The actual S3 upload happens later via upload().
+   *
+   * @param file - File object to cache
+   * @returns FileInfo with real md5, ext, and syncStatus='pending'
+   */
+  async cacheFileForUpload(file: File): Promise<FileInfo> {
+    // 1. Calculate MD5 (Worker thread, doesn't block main thread)
+    const md5 = await this.bridge.calculateFileMD5(file);
+    const ext = getFileExtension(file.name);
+    const contentType = file.type || 'application/octet-stream';
+
+    // 2. Write to local cache with syncStatus='pending' (no S3 upload)
+    await this.bridge.cacheFilePending(md5, ext, file, contentType, file.name);
+
+    // 3. Return FileInfo with real fileid
+    return {
+      md5,
+      ext,
+      size: file.size,
+      contentType,
+      filename: file.name,
+      syncStatus: 'pending',
+    };
   }
 
   /**

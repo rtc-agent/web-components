@@ -290,6 +290,27 @@ export interface WorkerPersistenceCore {
   ): Promise<void>;
 
   /**
+   * Cache a downloaded file with pending sync status (executed inside Worker).
+   *
+   * Similar to cacheFile but records the entry with syncStatus='pending',
+   * meaning the file content is cached locally but not yet uploaded to S3.
+   * Used for optimistic local caching before upload completes.
+   *
+   * @param md5 File content MD5 hash (32 hex chars)
+   * @param ext File extension
+   * @param blob File content as Blob
+   * @param contentType MIME type
+   * @param filename Original filename (optional)
+   */
+  cacheFilePending(
+    md5: string,
+    ext: string,
+    blob: Blob,
+    contentType: string,
+    filename?: string
+  ): Promise<void>;
+
+  /**
    * Get a cached file (executed inside Worker).
    *
    * Returns null if not found or expired.

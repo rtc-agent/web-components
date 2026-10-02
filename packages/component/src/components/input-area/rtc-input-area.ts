@@ -179,14 +179,10 @@ export class RtcInputArea extends LitElement {
     @state()
     private _uploadStates: Map<string, string> = new Map();
 
-    @state()
-    private _localPreviews: Map<string, string> = new Map();
-
     /** Public getters for file state (used by parent to render preview-area) */
     get pendingFiles() { return this._pendingFiles; }
     get uploadProgress() { return this._uploadProgress; }
     get uploadStates() { return this._uploadStates; }
-    get localPreviews() { return this._localPreviews; }
 
     @state()
     private _value = '';
@@ -358,8 +354,14 @@ export class RtcInputArea extends LitElement {
     }
 
     /**
-     * Upload files: create FileAttachment entries immediately for instant display,
-     * then upload in parallel and update fileid when complete
+     * Upload files: cache locally first to get real fileid, then display immediately,
+     * then upload to S3 in background.
+     *
+     * Flow:
+     * 1. cacheFileForUpload() → writes to local cache (syncStatus='pending'), returns real fileid
+     * 2. Create FileAttachment with real fileid (md5.ext)
+     * 3. Display immediately (rtc-file-thumbnail loads from FileStorage cache)
+     * 4. Background upload() to S3
      */
     private async _uploadFiles(files: File[]) {
         const fileStorage = this._fileStorageCtx.fileStorage;
@@ -368,111 +370,83 @@ export class RtcInputArea extends LitElement {
             return;
         }
 
-        // Generate temporary IDs and create FileAttachment entries immediately
-        const tempEntries: Array<{tempId: string; file: File; attachment: FileAttachment}> = [];
+        const entries: Array<{file: File; attachment: FileAttachment}> = [];
 
+        // Phase 1: Cache all files locally to get real fileids
         for (const file of files) {
-            const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+            try {
+                const fileInfo = await fileStorage.cacheFileForUpload(file);
+                const fileid = `${fileInfo.md5}.${fileInfo.ext}`;
 
-            // Create blob URL for image preview
-            if (file.type.startsWith('image/')) {
-                const blobUrl = URL.createObjectURL(file);
-                this._localPreviews.set(tempId, blobUrl);
+                const attachment: FileAttachment = {
+                    mimetype: file.type || 'application/octet-stream',
+                    fileid,
+                    extra: {
+                        name: file.name,
+                        size: file.size,
+                    },
+                };
+
+                entries.push({file, attachment});
+
+                // Set initial upload state
+                this._uploadStates.set(fileid, 'loading');
+                this._uploadProgress.set(fileid, 0);
+            } catch (error) {
+                log.error('Failed to cache file for upload:', error);
             }
-
-            const attachment: FileAttachment = {
-                mimetype: file.type || 'application/octet-stream',
-                fileid: tempId,
-                extra: {
-                    name: file.name,
-                    size: file.size,
-                },
-            };
-
-            tempEntries.push({tempId, file, attachment});
         }
 
-        // Add all attachments to _pendingFiles immediately for instant display
-        this._pendingFiles = [...this._pendingFiles, ...tempEntries.map(e => e.attachment)];
+        if (entries.length === 0) return;
 
-        // Set initial upload states
-        for (const {tempId} of tempEntries) {
-            this._uploadStates.set(tempId, 'loading');
-            this._uploadProgress.set(tempId, 0);
+        // Phase 2: Display immediately (thumbnails load from FileStorage cache)
+        this._pendingFiles = [...this._pendingFiles, ...entries.map(e => e.attachment)];
+        this._uploadStates = new Map(this._uploadStates);
+        this._uploadProgress = new Map(this._uploadProgress);
+        this._notifyFileStateChange();
+
+        // Phase 3: Upload to S3 in background
+        for (const {file, attachment} of entries) {
+            this._syncToS3(file, attachment);
+        }
+    }
+
+    /**
+     * Upload a single file to S3 (background sync after local caching).
+     */
+    private async _syncToS3(file: File, attachment: FileAttachment): Promise<void> {
+        const fileStorage = this._fileStorageCtx.fileStorage;
+        if (!fileStorage) return;
+
+        const fileid = attachment.fileid;
+        try {
+            await fileStorage.upload({
+                file,
+                filename: file.name,
+                contentType: file.type,
+                onProgress: (loaded, total) => {
+                    const progress = total > 0 ? Math.round((loaded / total) * 100) : 0;
+                    this._uploadProgress.set(fileid, progress);
+                    this._uploadProgress = new Map(this._uploadProgress);
+                    this._notifyFileStateChange();
+                },
+            });
+
+            this._uploadStates.set(fileid, 'loaded');
+            this._uploadProgress.set(fileid, 100);
+        } catch (error) {
+            log.error('File upload failed:', error);
+            this._uploadStates.set(fileid, 'error');
         }
         this._uploadStates = new Map(this._uploadStates);
         this._uploadProgress = new Map(this._uploadProgress);
-
-        // Notify parent of file state change
         this._notifyFileStateChange();
-
-        // Upload all files in parallel
-        const uploadPromises = tempEntries.map(async ({tempId, file, attachment}) => {
-            try {
-                const fileInfo = await fileStorage.upload({
-                    file,
-                    filename: file.name,
-                    contentType: file.type,
-                    onProgress: (loaded, total) => {
-                        const progress = total > 0 ? Math.round((loaded / total) * 100) : 0;
-                        this._uploadProgress.set(tempId, progress);
-                        this._uploadProgress = new Map(this._uploadProgress);
-                        this._notifyFileStateChange();
-                    },
-                });
-
-                // Generate real fileid from md5 and extension
-                const realFileid = `${fileInfo.md5}.${fileInfo.ext}`;
-
-                // Migrate local preview URL from tempId to realFileid
-                const blobUrl = this._localPreviews.get(tempId);
-                if (blobUrl) {
-                    this._localPreviews.delete(tempId);
-                    this._localPreviews.set(realFileid, blobUrl);
-                }
-
-                // Update attachment with real fileid
-                attachment.fileid = realFileid;
-                this._uploadStates.set(tempId, 'loaded');
-                this._uploadStates.set(realFileid, 'loaded');
-                this._uploadProgress.set(tempId, 100);
-                this._uploadProgress.set(realFileid, 100);
-
-                log.debug(`[InputArea] Upload completed for ${tempId} -> ${realFileid}`, {
-                    states: Array.from(this._uploadStates.entries()),
-                    progress: Array.from(this._uploadProgress.entries()),
-                });
-
-                // Trigger re-render
-                this._pendingFiles = [...this._pendingFiles];
-                this._uploadStates = new Map(this._uploadStates);
-                this._uploadProgress = new Map(this._uploadProgress);
-                this._localPreviews = new Map(this._localPreviews);
-
-                // Notify parent of file state change
-                this._notifyFileStateChange();
-
-            } catch (error) {
-                log.error('File upload failed:', error);
-                this._uploadStates.set(tempId, 'error');
-                this._uploadStates = new Map(this._uploadStates);
-            }
-        });
-
-        await Promise.all(uploadPromises);
     }
 
     /**
      * Public method: remove a file from pending list (called by parent)
      */
     public removeFile(file: FileAttachment, index: number) {
-        // Revoke blob URL if exists
-        const blobUrl = this._localPreviews.get(file.fileid);
-        if (blobUrl) {
-            URL.revokeObjectURL(blobUrl);
-            this._localPreviews.delete(file.fileid);
-        }
-
         // Remove from pending files
         this._pendingFiles = this._pendingFiles.filter((_, i) => i !== index);
         this._uploadStates.delete(file.fileid);
@@ -481,10 +455,6 @@ export class RtcInputArea extends LitElement {
         // Trigger re-render
         this._uploadStates = new Map(this._uploadStates);
         this._uploadProgress = new Map(this._uploadProgress);
-
-        // Notify parent of file state change
-        this._notifyFileStateChange();
-        this._localPreviews = new Map(this._localPreviews);
 
         // Notify parent of file state change
         this._notifyFileStateChange();
@@ -498,7 +468,6 @@ export class RtcInputArea extends LitElement {
             files: [...this._pendingFiles],
             uploadProgress: new Map(this._uploadProgress),
             uploadStates: new Map(this._uploadStates),
-            localPreviews: new Map(this._localPreviews),
         };
         log.debug('[InputArea] Dispatching rtc-files-changed:', {
             files: detail.files.map(f => f.fileid),
@@ -749,21 +718,12 @@ export class RtcInputArea extends LitElement {
             })
         );
 
-        // Clean up blob URLs for pending files
-        for (const file of this._pendingFiles) {
-            const blobUrl = this._localPreviews.get(file.fileid);
-            if (blobUrl) {
-                URL.revokeObjectURL(blobUrl);
-            }
-        }
-
-        // Clear state
+        // Clear state (blob URLs are managed by FileStorage's shared cache)
         this._value = '';
         this._selectedScenarios = [];
         this._pendingFiles = [];
         this._uploadProgress = new Map();
         this._uploadStates = new Map();
-        this._localPreviews = new Map();
         if (this._textarea) this._textarea.value = '';
     }
 
@@ -979,12 +939,6 @@ export class RtcInputArea extends LitElement {
         this._scenarioPanelCtrl.stopPositioning();
         this._busUnsub?.();
         this._busUnsub = undefined;
-
-        // Clean up blob URLs to prevent memory leaks
-        for (const blobUrl of this._localPreviews.values()) {
-            URL.revokeObjectURL(blobUrl);
-        }
-        this._localPreviews.clear();
     }
 
     updated(changed: Map<string | number | symbol, unknown>) {

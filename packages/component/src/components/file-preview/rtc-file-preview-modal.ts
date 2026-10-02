@@ -26,6 +26,7 @@ import {localized, msg} from '@lit/localize';
 import {styles} from './rtc-file-preview-modal.styles.js';
 import {createLogger} from '@rtc-agent/client';
 import {FileStorageContext, type FileStorageContextValue} from '../../contexts/file-storage.js';
+import {parseFileId} from '../../utils/file-id.js';
 import type {FileAttachment} from '../../types/index.js';
 
 const log = createLogger('FilePreviewModal');
@@ -186,18 +187,6 @@ export class RtcFilePreviewModal extends LitElement {
     }
   }
 
-  /** Parse fileid into md5 and ext */
-  private _parseFileId(fileid: string): {md5: string; ext: string} {
-    const lastDot = fileid.lastIndexOf('.');
-    if (lastDot === -1) {
-      throw new Error(`Invalid fileid format: ${fileid}`);
-    }
-    return {
-      md5: fileid.slice(0, lastDot),
-      ext: fileid.slice(lastDot + 1),
-    };
-  }
-
   /** Check if MIME type is image */
   private _isImage(mimetype: string): boolean {
     return mimetype.startsWith('image/');
@@ -252,7 +241,7 @@ export class RtcFilePreviewModal extends LitElement {
         throw new Error('FileStorage not available');
       }
 
-      const {md5, ext} = this._parseFileId(this.file.fileid);
+      const {md5, ext} = parseFileId(this.file.fileid);
       const mimetype = this.file.mimetype;
 
       if (this._isImage(mimetype)) {

@@ -408,6 +408,29 @@ export class PersistenceLayer {
   }
 
   /**
+   * Cache a file with syncStatus='pending' (local cache only, no S3 upload).
+   *
+   * Used for the upload flow: file is written locally first so that
+   * `getThumbnailUrl()` can load from cache immediately, while the actual
+   * S3 sync happens asynchronously via `uploadFile()` or `syncPendingFiles()`.
+   *
+   * @param md5 File content MD5 hash (32 hex chars)
+   * @param ext File extension
+   * @param blob File content as Blob
+   * @param contentType MIME type
+   * @param filename Original filename (optional, for UI display)
+   */
+  async cacheFilePending(
+    md5: string,
+    ext: string,
+    blob: Blob,
+    contentType: string,
+    filename?: string
+  ): Promise<void> {
+    return this.fileCacheRepository.putWithSyncStatus(md5, ext, blob, contentType, 'pending', filename);
+  }
+
+  /**
    * Get a cached file.
    *
    * Returns null if not found or expired.

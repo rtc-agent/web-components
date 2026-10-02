@@ -779,6 +779,17 @@ export class WorkerCore implements WorkerPersistenceCore {
     return layer.cacheFile(md5, ext, blob, contentType, ttlMs);
   }
 
+  async cacheFilePending(
+    md5: string,
+    ext: string,
+    blob: Blob,
+    contentType: string,
+    filename?: string
+  ): Promise<void> {
+    const layer = this.ensureLayer();
+    return layer.cacheFilePending(md5, ext, blob, contentType, filename);
+  }
+
   async getCachedFile(
     md5: string,
     ext: string

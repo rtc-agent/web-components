@@ -6,7 +6,9 @@ import {css} from 'lit';
  * Layout model:
  *   .user-message-wrapper — sticky container, full-width
  *     └── .user-message   — bubble with max-height, overflow hidden
- *           └── .user-message-text — text content
+ *           ├── .user-message-content — flex column (files + text)
+ *           │     ├── .file-preview-section — conditional file preview area
+ *           │     └── .user-message-text — text content
  *
  * The ::after pseudo-element creates a gradient fade mask when text overflows
  * and the bubble is not expanded. It only appears when [data-overflow] is set
@@ -88,6 +90,18 @@ export const styles = css`
     font-size: var(--rtc-font-size-base);
     line-height: var(--rtc-line-height-base);
     margin: 0;
+  }
+
+  /* ── Content wrapper (files + text) ── */
+  .user-message-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  /* ── File preview section ── */
+  .file-preview-section {
+    margin-bottom: var(--rtc-spacing-sm, 8px);
   }
 
   /* ── Scenario tags ── */

@@ -119,13 +119,12 @@ export class RtcChatLayout extends LitElement {
 
     /* ── File State (per session, for preview-area rendering) ── */
 
-    /** File state per session: Map<sessionId, {files, uploadProgress, uploadStates, localPreviews}> */
+    /** File state per session: Map<sessionId, {files, uploadProgress, uploadStates}> */
     @state()
     private _fileStates = new Map<string, {
         files: FileAttachment[];
         uploadProgress: Map<string, number>;
         uploadStates: Map<string, string>;
-        localPreviews: Map<string, string>;
     }>();
 
     /* ── Context ── */
@@ -273,7 +272,6 @@ export class RtcChatLayout extends LitElement {
             files: detail.files,
             uploadProgress: detail.uploadProgress,
             uploadStates: detail.uploadStates,
-            localPreviews: detail.localPreviews,
         });
     }
 
@@ -795,7 +793,6 @@ export class RtcChatLayout extends LitElement {
                 .files=${fileState.files}
                 .uploadProgress=${fileState.uploadProgress}
                 .uploadStates=${fileState.uploadStates}
-                .localPreviews=${fileState.localPreviews}
                 @rtc-file-remove=${(e: CustomEvent) => this._handleFileRemove(e, sessionId)}
                 @rtc-file-preview=${(e: CustomEvent) => this._handleFilePreview(e, sessionId)}
             ></rtc-file-preview-area>

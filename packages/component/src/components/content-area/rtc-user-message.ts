@@ -6,7 +6,10 @@
  * Layout model:
  *   .user-message-wrapper (sticky container)
  *     ├── .user-message (bubble with max-height, overflow hidden)
- *     │     ├── .user-message-text (text content)
+ *     │     ├── .user-message-content (files + text, overflow detection target)
+ *     │     │     ├── .file-preview-section (conditional, when files exist)
+ *     │     │     │     └── <rtc-file-preview-area readonly>
+ *     │     │     └── .user-message-text (text content)
  *     │     ├── .show-more-btn     (bottom-right, visible on hover when overflowing)
  *     │     └── .more-btn          (top-right, visible on hover)
  *     └── <rtc-message-more-menu> (position:fixed, positioned via floating-ui)
@@ -32,7 +35,7 @@
  * @csspart show-more - The "Show more" button
  * @csspart more    - The more button (⋯)
  */
-import {LitElement, html} from 'lit';
+import {LitElement, html, nothing} from 'lit';
 import {customElement, property, state, query} from 'lit/decorators.js';
 import {consume} from '@lit/context';
 import {localized, msg} from '@lit/localize';
@@ -45,11 +48,12 @@ import {
     autoUpdate,
 } from '@floating-ui/dom';
 import {styles} from './rtc-user-message.styles.js';
-import type {Message, UserMessageContent} from '../../types/index.js';
+import type {Message, UserMessageContent, FileAttachment} from '../../types/index.js';
 import {copyToClipboard} from '../../utils/clipboard.js';
 import {extractTextContent} from '../../utils/format.js';
 import './rtc-message-more-menu.js';
-import { createLogger } from '@rtc-agent/client';
+import '../file-preview/rtc-file-preview-area.js';
+import {createLogger} from '@rtc-agent/client';
 import type {StatefulComponent} from '../../utils/message-virtual-scroll.js';
 
 const log = createLogger('UserMessage');
@@ -92,6 +96,7 @@ export class RtcUserMessage extends LitElement implements StatefulComponent {
 
     private _resizeObserver?: ResizeObserver;
     private _textEl?: HTMLElement;
+    private _contentEl?: HTMLElement;
     private _cleanupPosition: (() => void) | null = null;
 
     /** Bound event handler for menu select (stored for clean removal). */
@@ -131,9 +136,13 @@ export class RtcUserMessage extends LitElement implements StatefulComponent {
 
     firstUpdated() {
         this._textEl = this.shadowRoot!.querySelector('.user-message-text') as HTMLElement;
-        if (this._textEl) {
+        // Observe the content wrapper (files + text) for overflow detection,
+        // not just the text element, since file previews also contribute to total height.
+        this._contentEl = this.shadowRoot!.querySelector('.user-message-content') as HTMLElement;
+        const observeTarget = this._contentEl ?? this._textEl;
+        if (observeTarget) {
             this._resizeObserver = new ResizeObserver(() => this._checkOverflow());
-            this._resizeObserver.observe(this._textEl);
+            this._resizeObserver.observe(observeTarget);
         }
     }
 
@@ -202,9 +211,12 @@ export class RtcUserMessage extends LitElement implements StatefulComponent {
     /* ── Overflow detection ── */
 
     private _checkOverflow() {
-        if (!this._textEl) return;
-        const bubble = this._textEl.parentElement as HTMLElement;
+        const bubble = this.shadowRoot?.querySelector('.user-message') as HTMLElement | null;
         if (!bubble) return;
+
+        // Use the content wrapper (files + text) when available, fall back to text-only
+        const contentEl = this._contentEl ?? this._textEl;
+        if (!contentEl) return;
 
         // When expanded the bubble has `max-height: none`, so its
         // clientHeight equals the full content height and can no longer
@@ -221,7 +233,7 @@ export class RtcUserMessage extends LitElement implements StatefulComponent {
             effectiveMaxHeight = bubble.clientHeight;
         }
 
-        const isOverflowing = this._textEl.scrollHeight > effectiveMaxHeight;
+        const isOverflowing = contentEl.scrollHeight > effectiveMaxHeight;
         this._isOverflowing = isOverflowing;
         if (isOverflowing) {
             this.setAttribute('data-overflow', '');
@@ -245,6 +257,35 @@ export class RtcUserMessage extends LitElement implements StatefulComponent {
             return content.data as UserMessageContent;
         }
         return null;
+    }
+
+    /**
+     * Safely extract file list from user message data.
+     * Filters out null/undefined/malformed entries to prevent render crashes.
+     */
+    private _extractFiles(userData: UserMessageContent | null): FileAttachment[] {
+        if (!userData?.files || !Array.isArray(userData.files)) return [];
+        return userData.files.filter((f): f is FileAttachment =>
+            f != null && typeof f.mimetype === 'string' && typeof f.fileid === 'string'
+        );
+    }
+
+    /* ── File Preview Event ── */
+
+    /**
+     * Handle file preview request from rtc-file-preview-area.
+     * Dispatches rtc-file-preview-requested event to bubble up to rtc-agent,
+     * which renders the global preview modal at window-container level.
+     */
+    private _handleFilePreview(e: CustomEvent): void {
+        const {file} = e.detail as {file: FileAttachment; index: number};
+        if (file) {
+            this.dispatchEvent(new CustomEvent('rtc-file-preview-requested', {
+                bubbles: true,
+                composed: true,
+                detail: {file},
+            }));
+        }
     }
 
     /* ── Event handlers ── */
@@ -412,6 +453,7 @@ export class RtcUserMessage extends LitElement implements StatefulComponent {
         void this._localeCtx.locale;
         const userData = this._getUserMessageData();
         const text = userData?.text ?? this._getTextContent();
+        const files = this._extractFiles(userData);
 
         // Guard against undefined message (should not happen, but defensive)
         const syncStatus = this.message?.syncStatus ?? 'synced';
@@ -419,7 +461,18 @@ export class RtcUserMessage extends LitElement implements StatefulComponent {
         return html`
       <div class="user-message-wrapper" part="wrapper">
         <div class="user-message" part="bubble">
-          <div class="user-message-text" part="text">${text}</div>
+          <div class="user-message-content">
+            ${files.length > 0 ? html`
+              <div class="file-preview-section">
+                <rtc-file-preview-area
+                  .files=${files}
+                  .readonly=${true}
+                  @rtc-file-preview=${this._handleFilePreview}
+                ></rtc-file-preview-area>
+              </div>
+            ` : nothing}
+            <div class="user-message-text" part="text">${text}</div>
+          </div>
 
           ${this._isOverflowing
             ? html`<button

@@ -38,10 +38,6 @@ export class RtcFilePreviewArea extends LitElement {
   @property({type: Object})
   uploadStates: Map<string, string> = new Map();
 
-  /** Local preview URLs for image files (taskId -> blob URL) */
-  @property({type: Object})
-  localPreviews: Map<string, string> = new Map();
-
   @state()
   private _resizeObserver?: ResizeObserver;
 
@@ -81,13 +77,6 @@ export class RtcFilePreviewArea extends LitElement {
     } else {
       this.removeAttribute('data-empty');
     }
-  }
-
-  /** Generate thumbnail src URL for image files */
-  private _getThumbnailSrc(file: FileAttachment): string {
-    if (!file.mimetype.startsWith('image/')) return '';
-    // Use local preview URL (blob URL from parent component)
-    return this.localPreviews.get(file.fileid) ?? '';
   }
 
   /** Get filename from FileAttachment.extra */
@@ -152,7 +141,7 @@ export class RtcFilePreviewArea extends LitElement {
 
           return html`
             <rtc-file-thumbnail
-              .src=${this._getThumbnailSrc(file)}
+              .file=${file}
               .mimetype=${file.mimetype}
               .filename=${this._getFilename(file)}
               .filesize=${this._getFilesize(file)}

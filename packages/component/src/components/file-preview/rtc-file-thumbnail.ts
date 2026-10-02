@@ -15,9 +15,13 @@
  */
 import {LitElement, html, nothing} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
+import {consume} from '@lit/context';
 import {localized, msg, str} from '@lit/localize';
 import {styles} from './rtc-file-thumbnail.styles.js';
 import {createLogger} from '@rtc-agent/client';
+import {FileStorageContext, type FileStorageContextValue} from '../../contexts/file-storage.js';
+import {parseFileId} from '../../utils/file-id.js';
+import type {FileAttachment} from '../../types/index.js';
 
 const log = createLogger('FileThumbnail');
 
@@ -69,6 +73,17 @@ export class RtcFileThumbnail extends LitElement {
   @property({type: Boolean, reflect: true})
   readonly: boolean = false;
 
+  /** File attachment (preferred over src for self-contained loading) */
+  @property({type: Object})
+  file: FileAttachment | null = null;
+
+  @consume({context: FileStorageContext, subscribe: true})
+  @state()
+  private _fileStorageCtx: FileStorageContextValue = {fileStorage: null};
+
+  @state()
+  private _thumbnailUrl: string = '';
+
   @state()
   private _imageError: boolean = false;
 
@@ -118,6 +133,58 @@ export class RtcFileThumbnail extends LitElement {
     log.warn(`Image load failed for ${this.filename}`);
   }
 
+  /** Lifecycle: trigger thumbnail loading when file changes */
+  updated(changed: Map<string | number | symbol, unknown>): void {
+    super.updated(changed);
+    if (changed.has('file')) {
+      this._loadThumbnail();
+    }
+  }
+
+  /** Lifecycle: cleanup blob URL references */
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    if (this.file && this._thumbnailUrl.startsWith('blob:')) {
+      try {
+        this._fileStorageCtx.fileStorage?.releaseThumbnailUrl(
+          parseFileId(this.file.fileid)
+        );
+      } catch (err) {
+        log.warn('Failed to release thumbnail URL:', err);
+      }
+    }
+  }
+
+  /** Load thumbnail URL from FileStorage or use src fallback */
+  private async _loadThumbnail(): Promise<void> {
+    // Backward compatibility: if src is provided, use it directly
+    if (this.src) {
+      this._thumbnailUrl = this.src;
+      return;
+    }
+
+    // If no file or not an image, clear thumbnail
+    if (!this.file || !this.file.mimetype.startsWith('image/')) {
+      this._thumbnailUrl = '';
+      return;
+    }
+
+    // If no FileStorage available, cannot load
+    const fileStorage = this._fileStorageCtx.fileStorage;
+    if (!fileStorage) {
+      this._thumbnailUrl = '';
+      return;
+    }
+
+    try {
+      const {md5, ext} = parseFileId(this.file.fileid);
+      this._thumbnailUrl = await fileStorage.getThumbnailUrl({md5, ext});
+    } catch (err) {
+      log.warn('Failed to load thumbnail:', err);
+      this._thumbnailUrl = '';
+    }
+  }
+
   /** Render thumbnail content */
   private _renderThumbnail() {
     // Error state
@@ -140,11 +207,12 @@ export class RtcFileThumbnail extends LitElement {
     }
 
     // Image file
-    if (this._isImage(this.mimetype) && this.src) {
+    const imageUrl = this._thumbnailUrl || this.src;
+    if (this._isImage(this.mimetype) && imageUrl) {
       return html`
         <img
           class="thumb-img"
-          src=${this.src}
+          src=${imageUrl}
           loading="lazy"
           alt=${this.filename}
           @error=${this._handleImageError}
