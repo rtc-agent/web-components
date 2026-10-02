@@ -779,7 +779,8 @@ export class WorkerBridge {
         }
 
         // Wrap progress callback with throttle to avoid message storms
-        const throttled = onProgress ? throttle(onProgress, 100) : undefined;
+        // Use Comlink.proxy() to make the function serializable across postMessage boundary
+        const throttled = onProgress ? proxy(throttle(onProgress, 100)) : undefined;
         try {
             return await this._core!.uploadFile(md5, ext, blob, contentType, filename, operationId, throttled, cacheTtlMs);
         } finally {
@@ -832,7 +833,8 @@ export class WorkerBridge {
         }
 
         // Throttle progress callback to avoid message storms
-        const throttled = onProgress ? throttle(onProgress, 100) : undefined;
+        // Use Comlink.proxy() to make the function serializable across postMessage boundary
+        const throttled = onProgress ? proxy(throttle(onProgress, 100)) : undefined;
         try {
             // P2-NEW-4 fix: pass forceRefresh to Worker
             return await this._core!.downloadFile(md5, ext, throttled, operationId, forceRefresh);

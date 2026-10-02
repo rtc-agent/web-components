@@ -82,6 +82,8 @@ import {NotificationContext} from '../../contexts/notification.js';
 import {LogoContext, DEFAULT_LOGO} from '../../contexts/logo.js';
 import {FunctionsContext} from '../../contexts/functions.js';
 import {FunctionDebugContext} from '../../contexts/function-debug.js';
+import {FileStorageContext, type FileStorageContextValue} from '../../contexts/file-storage.js';
+import {FileStorage} from '../../utils/file-storage.js';
 
 // Controllers
 import {WindowStateController} from '../../controllers/window-state.controller.js';
@@ -879,11 +881,29 @@ export class RtcAgent extends LitElement {
     private _functionsProvider = new ContextProvider(this, {context: FunctionsContext, initialValue: this._functions.value});
     private _functionDebugProvider = new ContextProvider(this, {context: FunctionDebugContext, initialValue: this._functionDebug.value});
     private _logoProvider = new ContextProvider(this, {context: LogoContext, initialValue: DEFAULT_LOGO});
+    private _fileStorageProvider = new ContextProvider(this, {context: FileStorageContext, initialValue: {fileStorage: null} as FileStorageContextValue});
     private _localeProvider = new ContextProvider(this, {context: localeContext, initialValue: {
         locale: sourceLocale,
         setLocale: switchLocale,
         locales: [sourceLocale, ...targetLocales],
     } as LocaleContextValue});
+
+    // FileStorage instance (initialized when WorkerBridge is available)
+    @state()
+    private _fileStorage: FileStorage | null = null;
+
+    /**
+     * Initialize FileStorage when WorkerBridge and userId are available
+     */
+    private _initializeFileStorage(): void {
+        const workerBridge = this._persistence.workerBridge;
+        const userId = this._auth.value.state.userId;
+
+        if (workerBridge && userId && !this._fileStorage) {
+            this._fileStorage = new FileStorage(workerBridge, userId);
+            log.info('FileStorage initialized for user:', userId);
+        }
+    }
 
     /* ── Lifecycle ── */
 
@@ -949,6 +969,9 @@ export class RtcAgent extends LitElement {
         if (this._persistence.layer) {
             this._notification.persistence = this._persistence.layer;
         }
+
+        // Initialize FileStorage when WorkerBridge is available
+        this._initializeFileStorage();
 
         // Initialize EventBindingController with all dependencies
         this._eventBindings = new EventBindingController(this, {
@@ -1352,6 +1375,11 @@ export class RtcAgent extends LitElement {
             this._notificationProvider.setValue(this._notification.value);
             this._functionsProvider.setValue(this._functions.value);
             this._functionDebugProvider.setValue(this._functionDebug.value);
+
+            // Initialize FileStorage if not already done
+            this._initializeFileStorage();
+            this._fileStorageProvider.setValue({fileStorage: this._fileStorage});
+
             this._localeProvider.setValue({
                 locale: getLocale() as typeof sourceLocale | typeof targetLocales[number],
                 setLocale: switchLocale,

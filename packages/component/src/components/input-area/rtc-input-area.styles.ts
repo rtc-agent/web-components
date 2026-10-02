@@ -14,21 +14,13 @@ export const styles = css`
   .input-inner {
     display: flex;
     flex-direction: column;
-    /* When host has custom height, let inner fill it */
     height: 100%;
-  }
-
-  rtc-file-preview-area {
-    display: block;
-    padding: var(--rtc-spacing-sm) var(--rtc-spacing-md) 0;
-    flex-shrink: 0;
   }
 
   .textarea-container {
     position: relative;
-    /* Expand to fill remaining space */
     flex: 1;
-    min-height: 36px;
+    min-height: 80px;
     display: flex;
   }
 

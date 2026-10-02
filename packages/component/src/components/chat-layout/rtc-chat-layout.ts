@@ -46,9 +46,12 @@ import '../session-tree/rtc-session-tab-bar.js';
 import '../content-area/rtc-content-area.js';
 import '../notice-bar/rtc-notice-bar.js';
 import '../input-area/rtc-input-area.js';
+import '../file-preview/rtc-file-preview-area.js';
 import type {MessageController} from '../../controllers/message.controller.js';
 import '../overlay/rtc-overlay-manager.js';
 import '../drawer/rtc-drawer.js';
+
+import type {FileAttachment} from '../../types/index.js';
 
 @localized()
 @customElement('rtc-chat-layout')
@@ -113,6 +116,17 @@ export class RtcChatLayout extends LitElement {
      * (not in the set), the saved height is applied.
      */
     private _heightAppliedSessions = new Set<string>();
+
+    /* ── File State (per session, for preview-area rendering) ── */
+
+    /** File state per session: Map<sessionId, {files, uploadProgress, uploadStates, localPreviews}> */
+    @state()
+    private _fileStates = new Map<string, {
+        files: FileAttachment[];
+        uploadProgress: Map<string, number>;
+        uploadStates: Map<string, string>;
+        localPreviews: Map<string, string>;
+    }>();
 
     /* ── Context ── */
 
@@ -244,6 +258,38 @@ export class RtcChatLayout extends LitElement {
                 break;
             }
         }
+    }
+
+    /* ── File State Methods ── */
+
+    /** Handle file state change from input-area */
+    private _handleFilesChanged(e: CustomEvent, sessionId: string): void {
+        const detail = e.detail;
+        log.debug('[ChatLayout] Received rtc-files-changed for session:', sessionId, {
+            files: detail.files.map((f: FileAttachment) => f.fileid),
+            states: Array.from(detail.uploadStates.entries()),
+        });
+        this._fileStates = new Map(this._fileStates).set(sessionId, {
+            files: detail.files,
+            uploadProgress: detail.uploadProgress,
+            uploadStates: detail.uploadStates,
+            localPreviews: detail.localPreviews,
+        });
+    }
+
+    /** Handle file removal from preview-area */
+    private _handleFileRemove(e: CustomEvent, sessionId: string): void {
+        const inputArea = this._getInputAreaBySession(sessionId);
+        if (!inputArea) return;
+        const detail = e.detail;
+        (inputArea as unknown as { removeFile: (file: FileAttachment, index: number) => void })
+            .removeFile(detail.file, detail.index);
+    }
+
+    /** Handle file preview request from preview-area */
+    private _handleFilePreview(e: CustomEvent, _sessionId: string): void {
+        // TODO: Implement file preview modal
+        log.debug('File preview requested:', e.detail.file);
     }
 
     /* ── Resize Handle Methods ── */
@@ -731,6 +777,23 @@ export class RtcChatLayout extends LitElement {
 
     /* ── Render ── */
 
+    private _renderFilePreview(sessionId: string) {
+        const fileState = this._fileStates.get(sessionId);
+        if (!fileState || fileState.files.length === 0) {
+            return '';
+        }
+        return html`
+            <rtc-file-preview-area
+                .files=${fileState.files}
+                .uploadProgress=${fileState.uploadProgress}
+                .uploadStates=${fileState.uploadStates}
+                .localPreviews=${fileState.localPreviews}
+                @rtc-file-remove=${(e: CustomEvent) => this._handleFileRemove(e, sessionId)}
+                @rtc-file-preview=${(e: CustomEvent) => this._handleFilePreview(e, sessionId)}
+            ></rtc-file-preview-area>
+        `;
+    }
+
     private _renderChatContent() {
         // Guard: wait for tab context to be available
         if (!this._tabCtx?.state) {
@@ -779,11 +842,13 @@ export class RtcChatLayout extends LitElement {
                             @mousedown=${(e: MouseEvent) => this._handleResizeStart(e, tab.sessionId)}
                             title="Drag to resize"
                         ></div>
+                        ${this._renderFilePreview(tab.sessionId)}
                         <rtc-input-area
                             theme=${this.theme}
                             .sessionId=${tab.sessionId}
                             .initialValue=${tab.initialInputValue}
                             .initialValueVersion=${tab.initialValueVersion ?? 0}
+                            @rtc-files-changed=${(e: CustomEvent) => this._handleFilesChanged(e, tab.sessionId)}
                         ></rtc-input-area>
                         <rtc-overlay-manager></rtc-overlay-manager>
                     </div>

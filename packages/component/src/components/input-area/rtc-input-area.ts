@@ -182,6 +182,12 @@ export class RtcInputArea extends LitElement {
     @state()
     private _localPreviews: Map<string, string> = new Map();
 
+    /** Public getters for file state (used by parent to render preview-area) */
+    get pendingFiles() { return this._pendingFiles; }
+    get uploadProgress() { return this._uploadProgress; }
+    get uploadStates() { return this._uploadStates; }
+    get localPreviews() { return this._localPreviews; }
+
     @state()
     private _value = '';
 
@@ -391,11 +397,14 @@ export class RtcInputArea extends LitElement {
 
         // Set initial upload states
         for (const {tempId} of tempEntries) {
-            this._uploadStates.set(tempId, 'uploading');
+            this._uploadStates.set(tempId, 'loading');
             this._uploadProgress.set(tempId, 0);
         }
         this._uploadStates = new Map(this._uploadStates);
         this._uploadProgress = new Map(this._uploadProgress);
+
+        // Notify parent of file state change
+        this._notifyFileStateChange();
 
         // Upload all files in parallel
         const uploadPromises = tempEntries.map(async ({tempId, file, attachment}) => {
@@ -408,6 +417,7 @@ export class RtcInputArea extends LitElement {
                         const progress = total > 0 ? Math.round((loaded / total) * 100) : 0;
                         this._uploadProgress.set(tempId, progress);
                         this._uploadProgress = new Map(this._uploadProgress);
+                        this._notifyFileStateChange();
                     },
                 });
 
@@ -428,11 +438,19 @@ export class RtcInputArea extends LitElement {
                 this._uploadProgress.set(tempId, 100);
                 this._uploadProgress.set(realFileid, 100);
 
+                log.debug(`[InputArea] Upload completed for ${tempId} -> ${realFileid}`, {
+                    states: Array.from(this._uploadStates.entries()),
+                    progress: Array.from(this._uploadProgress.entries()),
+                });
+
                 // Trigger re-render
                 this._pendingFiles = [...this._pendingFiles];
                 this._uploadStates = new Map(this._uploadStates);
                 this._uploadProgress = new Map(this._uploadProgress);
                 this._localPreviews = new Map(this._localPreviews);
+
+                // Notify parent of file state change
+                this._notifyFileStateChange();
 
             } catch (error) {
                 log.error('File upload failed:', error);
@@ -445,13 +463,9 @@ export class RtcInputArea extends LitElement {
     }
 
     /**
-     * Handle file removal from pending list
+     * Public method: remove a file from pending list (called by parent)
      */
-    private _handleFileRemove(e: CustomEvent) {
-        const detail = e.detail;
-        const file = detail.file as FileAttachment;
-        const index = detail.index as number;
-
+    public removeFile(file: FileAttachment, index: number) {
         // Revoke blob URL if exists
         const blobUrl = this._localPreviews.get(file.fileid);
         if (blobUrl) {
@@ -467,17 +481,34 @@ export class RtcInputArea extends LitElement {
         // Trigger re-render
         this._uploadStates = new Map(this._uploadStates);
         this._uploadProgress = new Map(this._uploadProgress);
+
+        // Notify parent of file state change
+        this._notifyFileStateChange();
         this._localPreviews = new Map(this._localPreviews);
+
+        // Notify parent of file state change
+        this._notifyFileStateChange();
     }
 
     /**
-     * Handle file preview request
+     * Notify parent component of file state changes
      */
-    private _handleFilePreview(e: CustomEvent) {
-        const detail = e.detail;
-        const file = detail.file as FileAttachment;
-        log.debug('File preview requested:', file);
-        // TODO: Implement file preview modal
+    private _notifyFileStateChange() {
+        const detail = {
+            files: [...this._pendingFiles],
+            uploadProgress: new Map(this._uploadProgress),
+            uploadStates: new Map(this._uploadStates),
+            localPreviews: new Map(this._localPreviews),
+        };
+        log.debug('[InputArea] Dispatching rtc-files-changed:', {
+            files: detail.files.map(f => f.fileid),
+            states: Array.from(detail.uploadStates.entries()),
+        });
+        this.dispatchEvent(new CustomEvent('rtc-files-changed', {
+            bubbles: true,
+            composed: true,
+            detail,
+        }));
     }
 
     /**
@@ -511,6 +542,14 @@ export class RtcInputArea extends LitElement {
 
     private get _hasContent(): boolean {
         return this._value.trim().length > 0 || this._pendingFiles.length > 0;
+    }
+
+    /** Check if form can be submitted (has content and no files are uploading) */
+    private get _canSubmit(): boolean {
+        if (!this._hasContent) return false;
+        // Check if any files are still uploading
+        const hasUploadingFiles = Array.from(this._uploadStates.values()).some(state => state === 'loading');
+        return !hasUploadingFiles;
     }
 
     private get _hasActiveTurns(): boolean {
@@ -653,6 +692,13 @@ export class RtcInputArea extends LitElement {
     private _submit() {
         const text = this._value.trim();
         if (!text && this._pendingFiles.length === 0) return;
+
+        // Check if any files are still uploading
+        const hasUploadingFiles = Array.from(this._uploadStates.values()).some(state => state === 'loading');
+        if (hasUploadingFiles) {
+            log.warn('Cannot submit: files are still uploading');
+            return;
+        }
 
         // Exit history mode
         this._historyIndex = -1;
@@ -980,16 +1026,6 @@ export class RtcInputArea extends LitElement {
         void this._localeCtx.locale;
         return html`
       <div class="input-inner">
-        ${this._pendingFiles.length > 0 ? html`
-          <rtc-file-preview-area
-            .files=${this._pendingFiles}
-            .uploadProgress=${this._uploadProgress}
-            .uploadStates=${this._uploadStates}
-            .localPreviews=${this._localPreviews}
-            @rtc-file-remove=${this._handleFileRemove}
-            @rtc-file-preview=${this._handleFilePreview}
-          ></rtc-file-preview-area>
-        ` : ''}
         <div class="textarea-container">
           <textarea
             class="input-textarea"
@@ -1030,7 +1066,7 @@ export class RtcInputArea extends LitElement {
             class="send-btn ${this._showStop ? 'send-btn--stop' : ''}"
             part="send-btn"
             title=${this._showStop ? msg('停止') : msg('发送')}
-            ?disabled=${!this._showStop && !this._hasContent}
+            ?disabled=${!this._showStop && !this._canSubmit}
             @click=${this._showStop ? this._handleStop : this._submit}
           >${this._showStop ? stopIcon : sendIcon}</button>
         </div>

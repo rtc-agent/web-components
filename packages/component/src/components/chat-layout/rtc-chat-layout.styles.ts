@@ -139,4 +139,10 @@ export const styles = css`
     .resize-handle.dragging::before {
         background: var(--rtc-color-primary);
     }
+
+    /* ── File Preview Area (above input-area) ── */
+    rtc-file-preview-area {
+        display: block;
+        flex-shrink: 0;
+    }
 `;
