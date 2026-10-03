@@ -23,6 +23,14 @@ import { createLogger } from '@rtc-agent/client';
 const log = createLogger('EntityRepository');
 
 /**
+ * Extended message type with temporary field for parent message ID resolution.
+ * Used during batch upsert to store pending server IDs before resolution.
+ */
+interface MessageWithPendingParent extends Partial<LocalMessage> {
+  _pending_parent_server_id?: string;
+}
+
+/**
  * Upsert options.
  */
 export interface UpsertOptions {
@@ -1067,7 +1075,7 @@ export class EntityRepository {
       const sessionId = raw['session_id'] as string | undefined;
       const parentMsgId = raw['parent_message_id'] as string | undefined;
 
-      const mapped: Partial<LocalMessage> = {
+      const mapped: MessageWithPendingParent = {
         // Defaults
         session_client_id: '',
         role: 'user',
@@ -1085,7 +1093,7 @@ export class EntityRepository {
         server_id: serverId,
         client_id: clientId,
         sync_status: 'synced',
-      } as Partial<LocalMessage>;
+      };
 
       // Field mapping: session_id → session_client_id
       if (sessionId) {
@@ -1097,7 +1105,7 @@ export class EntityRepository {
       // Field mapping: parent_message_id → parent_client_id
       // Store as _pending_parent_server_id temporarily, resolve later in resolveParentMessageIds
       if (parentMsgId) {
-        (mapped as any)._pending_parent_server_id = parentMsgId;
+        mapped._pending_parent_server_id = parentMsgId;
       }
       delete (mapped as Record<string, unknown>)['parent_message_id'];
       result.messages.push(mapped);
@@ -1163,14 +1171,14 @@ export class EntityRepository {
    * Modifies messages in-place, setting parent_client_id and removing _pending_parent_server_id.
    */
   private async resolveParentMessageIds(
-    messages: Partial<LocalMessage>[]
+    messages: MessageWithPendingParent[]
   ): Promise<void> {
     if (messages.length === 0) return;
 
     // Collect all pending parent server_ids
     const parentServerIds = new Set<string>();
     for (const msg of messages) {
-      const pendingId = (msg as any)._pending_parent_server_id as string | undefined;
+      const pendingId = msg._pending_parent_server_id;
       if (pendingId) {
         parentServerIds.add(pendingId);
       }
@@ -1208,7 +1216,7 @@ export class EntityRepository {
 
     // Fill back parent_client_id, delete temporary field
     for (const msg of messages) {
-      const pendingId = (msg as any)._pending_parent_server_id as string | undefined;
+      const pendingId = msg._pending_parent_server_id;
       if (pendingId) {
         const parentClientId = serverToClient.get(pendingId);
         if (parentClientId) {
@@ -1216,7 +1224,7 @@ export class EntityRepository {
         } else {
           log.warn(`[applyUpdates:message] parent message ${pendingId} not found in DB or current batch`);
         }
-        delete (msg as any)._pending_parent_server_id;
+        delete msg._pending_parent_server_id;
       }
     }
   }
