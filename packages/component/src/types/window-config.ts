@@ -125,11 +125,18 @@ export interface ResolvedWindowConfig {
 }
 
 /**
+ * Sentinel value for initialPosition.x/y meaning "use default position
+ * calculation logic" (bottom-right corner with margin), rather than an
+ * explicit pixel offset.
+ */
+export const POSITION_AUTO = -1;
+
+/**
  * Default window configuration
  */
 export const DEFAULT_WINDOW_CONFIG: ResolvedWindowConfig = {
     defaultMode: 'normal',
-    initialPosition: { x: -1, y: -1 },  // -1 means use default calculation logic (bottom-right corner)
+    initialPosition: { x: POSITION_AUTO, y: POSITION_AUTO },  // Auto-calculate (bottom-right corner)
     initialSize: { width: 420, height: 640 },
     minWidth: 350,
     minHeight: 520,
@@ -162,6 +169,7 @@ export function resolveWindowConfig(config?: WindowConfig): ResolvedWindowConfig
             showMinimize: false,
             showMaximize: false,
             showClose: false,
+            // In embedded mode, default to maximized unless explicitly overridden.
             defaultMode: config.defaultMode ?? 'maximized',
             bubblePosition: config.bubblePosition ?? DEFAULT_WINDOW_CONFIG.bubblePosition,
         };
@@ -170,6 +178,9 @@ export function resolveWindowConfig(config?: WindowConfig): ResolvedWindowConfig
     return {
         ...DEFAULT_WINDOW_CONFIG,
         ...config,
+        // The ?? fallbacks below are necessary: when config carries explicit
+        // `undefined` for these fields, the spread would override the DEFAULT
+        // values from ...DEFAULT_WINDOW_CONFIG with `undefined`.
         initialPosition: config.initialPosition ?? DEFAULT_WINDOW_CONFIG.initialPosition,
         initialSize: config.initialSize ?? DEFAULT_WINDOW_CONFIG.initialSize,
         bubblePosition: config.bubblePosition ?? DEFAULT_WINDOW_CONFIG.bubblePosition,

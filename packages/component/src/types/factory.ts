@@ -561,6 +561,13 @@ export interface RtcAgentConfig {
    */
   groups?: AgentFunctionGroup[];
 
+  /**
+   * Async operation error callback (e.g. document generation failure).
+   *
+   * Maps to `AgentConfig.onError`.
+   */
+  onError?: (error: Error, context: string) => void;
+
   // ── Authentication ──
 
   /**

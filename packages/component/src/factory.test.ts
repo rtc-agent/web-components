@@ -334,19 +334,19 @@ describe('createRtcAgent', () => {
       const mockSession = {id: 'session-1', title: 'Test Session', createdAt: new Date()};
       const createdEvent = new CustomEvent('rtc-session-created', {detail: {session: mockSession}});
       agent.dispatchEvent(createdEvent);
-      expect(sessionCreated).toHaveBeenCalledWith(expect.any(CustomEvent));
+      expect(sessionCreated).toHaveBeenCalledWith({session: mockSession});
 
       const switchedEvent = new CustomEvent('rtc-session-switched', {detail: {id: 'session-1'}});
       agent.dispatchEvent(switchedEvent);
-      expect(sessionSwitched).toHaveBeenCalledWith(expect.any(CustomEvent));
+      expect(sessionSwitched).toHaveBeenCalledWith({id: 'session-1'});
 
       const renamedEvent = new CustomEvent('rtc-session-renamed', {detail: {id: 'session-1', title: 'New Title'}});
       agent.dispatchEvent(renamedEvent);
-      expect(sessionRenamed).toHaveBeenCalledWith(expect.any(CustomEvent));
+      expect(sessionRenamed).toHaveBeenCalledWith({id: 'session-1', title: 'New Title'});
 
       const deletedEvent = new CustomEvent('rtc-session-deleted', {detail: {id: 'session-1'}});
       agent.dispatchEvent(deletedEvent);
-      expect(sessionDeleted).toHaveBeenCalledWith(expect.any(CustomEvent));
+      expect(sessionDeleted).toHaveBeenCalledWith({id: 'session-1'});
     });
 
     it('should register and trigger message callbacks', () => {
@@ -362,11 +362,11 @@ describe('createRtcAgent', () => {
       const mockMessage = {id: 'msg-1', content: 'Hello', role: 'user' as const, timestamp: new Date()};
       const receivedEvent = new CustomEvent('rtc-message-received', {detail: {message: mockMessage}});
       agent.dispatchEvent(receivedEvent);
-      expect(messageReceived).toHaveBeenCalledWith(expect.any(CustomEvent));
+      expect(messageReceived).toHaveBeenCalledWith({message: mockMessage});
 
       const sentEvent = new CustomEvent('rtc-message-sent', {detail: {message: mockMessage}});
       agent.dispatchEvent(sentEvent);
-      expect(messageSent).toHaveBeenCalledWith(expect.any(CustomEvent));
+      expect(messageSent).toHaveBeenCalledWith({message: mockMessage});
     });
 
     it('should register and trigger auth/connection callbacks', () => {
@@ -391,24 +391,24 @@ describe('createRtcAgent', () => {
       document.body.appendChild(agent);
 
       agent.dispatchEvent(new CustomEvent('rtc-connection-retry'));
-      expect(connectionRetry).toHaveBeenCalledWith(expect.any(CustomEvent));
+      expect(connectionRetry).toHaveBeenCalled();
 
       agent.dispatchEvent(new CustomEvent('rtc-auth-login-requested'));
-      expect(authLoginRequested).toHaveBeenCalledWith(expect.any(CustomEvent));
+      expect(authLoginRequested).toHaveBeenCalled();
 
       agent.dispatchEvent(new CustomEvent('rtc-auth-refresh-failed'));
-      expect(authError).toHaveBeenCalledWith(expect.any(CustomEvent));
+      expect(authError).toHaveBeenCalled();
 
       agent.dispatchEvent(new CustomEvent('rtc-auth-logout'));
-      expect(authLogout).toHaveBeenCalledWith(expect.any(CustomEvent));
+      expect(authLogout).toHaveBeenCalled();
 
       const stateEvent = new CustomEvent('rtc-connection-state-change', {detail: {state: 'connected'}});
       agent.dispatchEvent(stateEvent);
-      expect(connectionStateChange).toHaveBeenCalledWith(expect.any(CustomEvent));
+      expect(connectionStateChange).toHaveBeenCalledWith({state: 'connected'});
 
       const loginEvent = new CustomEvent('rtc-auth-login', {detail: {userId: 'user-123'}});
       agent.dispatchEvent(loginEvent);
-      expect(authLogin).toHaveBeenCalledWith(expect.any(CustomEvent));
+      expect(authLogin).toHaveBeenCalledWith({userId: 'user-123'});
     });
 
     it('should register and trigger themeChange callback', () => {
@@ -419,7 +419,7 @@ describe('createRtcAgent', () => {
 
       const event = new CustomEvent('rtc-theme-change', {detail: {theme: 'dark'}});
       agent.dispatchEvent(event);
-      expect(themeChange).toHaveBeenCalledWith(expect.any(CustomEvent));
+      expect(themeChange).toHaveBeenCalledWith({theme: 'dark'});
     });
 
     it('should register and trigger beforeDestroy callback', () => {
@@ -430,7 +430,7 @@ describe('createRtcAgent', () => {
 
       const event = new CustomEvent('rtc-before-destroy');
       agent.dispatchEvent(event);
-      expect(beforeDestroy).toHaveBeenCalledWith(expect.any(CustomEvent));
+      expect(beforeDestroy).toHaveBeenCalledTimes(1);
     });
 
     it('should clean up DOM event listeners on destroy', () => {
@@ -461,7 +461,7 @@ describe('createRtcAgent', () => {
       expect(sessionCreated).not.toHaveBeenCalled();
     });
 
-    it('should pass event detail to callbacks via event.detail', () => {
+    it('should pass event detail directly to callbacks (not wrapped in CustomEvent)', () => {
       const sessionCreated = vi.fn();
       const agent = createRtcAgent({on: {sessionCreated}});
 
@@ -471,11 +471,11 @@ describe('createRtcAgent', () => {
       const event = new CustomEvent('rtc-session-created', {detail: {session: mockSession}});
       agent.dispatchEvent(event);
 
-      // Callback receives CustomEvent, can access detail via event.detail
+      // Callback receives the unwrapped detail directly (not the CustomEvent envelope)
       expect(sessionCreated).toHaveBeenCalled();
-      const receivedEvent = sessionCreated.mock.calls[0][0];
-      expect(receivedEvent).toBeInstanceOf(CustomEvent);
-      expect(receivedEvent.detail).toEqual({session: mockSession});
+      const receivedDetail = sessionCreated.mock.calls[0][0];
+      expect(receivedDetail).toEqual({session: mockSession});
+      expect(receivedDetail).not.toBeInstanceOf(CustomEvent);
     });
   });
 

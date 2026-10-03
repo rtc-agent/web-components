@@ -146,7 +146,8 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
     config.agentDescription !== undefined ||
     config.persona !== undefined ||
     config.functions !== undefined ||
-    config.groups !== undefined;
+    config.groups !== undefined ||
+    config.onError !== undefined;
 
   if (hasAgentConfig) {
     const agentConfig: AgentConfig = {};
@@ -165,6 +166,9 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
     }
     if (config.groups !== undefined) {
       agentConfig.groups = config.groups;
+    }
+    if (config.onError !== undefined) {
+      agentConfig.onError = config.onError;
     }
 
     element.agentConfig = agentConfig;
@@ -188,22 +192,26 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
     const callbacks = config.on;
     // PERF: Array of tuples (not object) avoids dictionary iteration overhead.
     // Each entry is [eventName, callback | undefined].
-    const eventMap: Array<[string, EventListener | undefined]> = [
-      ['rtc-agent-ready', callbacks.ready],
-      ['rtc-connection-retry', callbacks.connectionRetry],
-      ['rtc-auth-login-requested', callbacks.authLoginRequested],
-      ['rtc-auth-refresh-failed', callbacks.authError],
-      ['rtc-auth-logout', callbacks.authLogout],
-      ['rtc-session-created', callbacks.sessionCreated as EventListener | undefined],
-      ['rtc-session-switched', callbacks.sessionSwitched as EventListener | undefined],
-      ['rtc-session-renamed', callbacks.sessionRenamed as EventListener | undefined],
-      ['rtc-session-deleted', callbacks.sessionDeleted as EventListener | undefined],
-      ['rtc-message-received', callbacks.messageReceived as EventListener | undefined],
-      ['rtc-message-sent', callbacks.messageSent as EventListener | undefined],
-      ['rtc-connection-state-change', callbacks.connectionStateChange as EventListener | undefined],
-      ['rtc-auth-login', callbacks.authLogin as EventListener | undefined],
-      ['rtc-theme-change', callbacks.themeChange as EventListener | undefined],
-      ['rtc-before-destroy', callbacks.beforeDestroy as EventListener | undefined],
+    //
+    // DOM CustomEvent callbacks are WRAPPED to unwrap `.detail` before forwarding
+    // to the user callback. This matches the JSDoc contract: users receive the
+    // typed detail object, not the raw CustomEvent envelope.
+    const eventMap: Array<[string, ((event: Event) => void) | undefined]> = [
+      ['rtc-agent-ready', callbacks.ready && (() => callbacks.ready!())],
+      ['rtc-connection-retry', callbacks.connectionRetry && (() => callbacks.connectionRetry!())],
+      ['rtc-auth-login-requested', callbacks.authLoginRequested && (() => callbacks.authLoginRequested!())],
+      ['rtc-auth-refresh-failed', callbacks.authError && (() => callbacks.authError!())],
+      ['rtc-auth-logout', callbacks.authLogout && (() => callbacks.authLogout!())],
+      ['rtc-session-created', callbacks.sessionCreated && ((e: Event) => callbacks.sessionCreated!((e as CustomEvent).detail))],
+      ['rtc-session-switched', callbacks.sessionSwitched && ((e: Event) => callbacks.sessionSwitched!((e as CustomEvent).detail))],
+      ['rtc-session-renamed', callbacks.sessionRenamed && ((e: Event) => callbacks.sessionRenamed!((e as CustomEvent).detail))],
+      ['rtc-session-deleted', callbacks.sessionDeleted && ((e: Event) => callbacks.sessionDeleted!((e as CustomEvent).detail))],
+      ['rtc-message-received', callbacks.messageReceived && ((e: Event) => callbacks.messageReceived!((e as CustomEvent).detail))],
+      ['rtc-message-sent', callbacks.messageSent && ((e: Event) => callbacks.messageSent!((e as CustomEvent).detail))],
+      ['rtc-connection-state-change', callbacks.connectionStateChange && ((e: Event) => callbacks.connectionStateChange!((e as CustomEvent).detail))],
+      ['rtc-auth-login', callbacks.authLogin && ((e: Event) => callbacks.authLogin!((e as CustomEvent).detail))],
+      ['rtc-theme-change', callbacks.themeChange && ((e: Event) => callbacks.themeChange!((e as CustomEvent).detail))],
+      ['rtc-before-destroy', callbacks.beforeDestroy && (() => callbacks.beforeDestroy!())],
     ];
 
     // Register callbacks and store unsubscribe functions for cleanup

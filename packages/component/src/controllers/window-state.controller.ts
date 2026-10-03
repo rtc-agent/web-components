@@ -18,6 +18,7 @@ import type {WindowStateContextValue} from '../contexts/window-state.js';
 import {DEFAULT_WINDOW_STATE} from '../contexts/window-state.js';
 import {STORAGE_KEYS} from '../config/auth.js';
 import type {ResolvedWindowConfig} from '../types/window-config.js';
+import {DEFAULT_WINDOW_CONFIG} from '../types/window-config.js';
 import {createLogger} from '@rtc-agent/client';
 
 const log = createLogger('WindowStateController');
@@ -49,22 +50,7 @@ export class WindowStateController implements ReactiveController {
 
     constructor(host: ReactiveControllerHost, config?: ResolvedWindowConfig) {
         this.host = host;
-        this._config = config ?? {
-            defaultMode: 'normal',
-            initialPosition: { x: -1, y: -1 },
-            initialSize: { width: 420, height: 640 },
-            minWidth: 350,
-            minHeight: 520,
-            maxWidth: Infinity,
-            maxHeight: Infinity,
-            draggable: true,
-            resizable: true,
-            showMinimize: true,
-            showMaximize: true,
-            showClose: false,
-            embedded: false,
-            bubblePosition: { corner: 'bottom-right', offset: { x: -20, y: 20 } },
-        };
+        this._config = config ?? { ...DEFAULT_WINDOW_CONFIG };
         this.host.addController(this);
         this.actions = {
             setMode: (mode: WindowMode) => this._setMode(mode),
