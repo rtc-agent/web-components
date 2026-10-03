@@ -53,6 +53,8 @@ export class RtcLoginDialog extends LitElement {
     private _oauth2Client: OAuth2Client | null = null;
     private _messageHandler: ((event: MessageEvent) => void) | null = null;
     private _loginStarted = false;
+    /** Guard against duplicate token exchange (concurrent postMessage from callback page). */
+    private _tokenExchanging = false;
     private _popup: Window | null = null;
     private _popupCheckInterval: ReturnType<typeof setInterval> | null = null;
     /** Timer for auto-closing after successful login (cleared on disconnect to prevent stale execution). */
@@ -274,9 +276,17 @@ export class RtcLoginDialog extends LitElement {
             return;
         }
 
+        // Guard: prevent duplicate token exchange (callback page may send multiple messages,
+        // or message listener may fire before _cleanup removes it in the finally block).
+        if (this._tokenExchanging) {
+            log.debug('token exchange already in progress, ignoring duplicate callback');
+            return;
+        }
+
         const {code, state, error} = event.data;
 
-        // Use try/finally to ensure message listener cleanup on all paths
+        // Use try/finally to ensure message listener cleanup and guard reset on all paths
+        this._tokenExchanging = true;
         try {
             // Handle error from callback page
             if (error) {
@@ -333,6 +343,7 @@ export class RtcLoginDialog extends LitElement {
             this._errorMessage = err instanceof Error ? err.message : msg('未知错误');
             this._loginStarted = false;
         } finally {
+            this._tokenExchanging = false;
             this._cleanup();
         }
     }

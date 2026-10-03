@@ -552,8 +552,11 @@ export class AuthController implements ReactiveController {
             let stored: Record<string, unknown> = {};
             try {
                 stored = JSON.parse(localStorage.getItem(STORAGE_KEYS.tokens) || '{}');
-            } catch (err) {
-                // Corrupted data; start fresh
+            } catch {
+                // Corrupted localStorage data (e.g., browser extension interference, storage
+                // fault): discard and start fresh. The next line writes valid token data,
+                // effectively repairing the corrupted entry. No data loss — the in-memory
+                // state (this._state) is the source of truth for the current session.
             }
             stored.accessToken = newAccessToken;
             stored.expiresAt = newExpiresAt;

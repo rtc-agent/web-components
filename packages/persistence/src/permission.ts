@@ -23,8 +23,11 @@ export type PermissionAction =
  *
  * When adding new tools, add corresponding permission rules here.
  *
- * Plan and auto modes are not yet enabled; they temporarily use
- * the same rules as edit mode.
+ * NOTE: plan and auto modes are not yet user-facing. They temporarily share
+ * edit mode's rules as a deliberate default — edit mode is the most commonly
+ * exercised non-manual mode, so its rules are the safest baseline until
+ * plan/auto have dedicated UX and testing. When those modes are activated,
+ * their columns should be reviewed and adjusted independently.
  */
 const PERMISSION_RULES: Record<ToolName, Record<Mode, PermissionAction>> = {
   ls:       { manual: 'allow',   edit: 'allow',   plan: 'allow',   auto: 'allow',   bypass: 'allow' },
