@@ -447,6 +447,8 @@ export class RtcAgent extends LitElement {
      *
      * @example
      * <rtc-agent server-url="http://localhost:28080"></rtc-agent>
+     *
+     * @see {@link RtcAgentConfig.server.url} - Factory config equivalent
      */
     @property({type: String, attribute: 'server-url'})
     set serverURL(value: string) {
@@ -465,6 +467,8 @@ export class RtcAgent extends LitElement {
      *
      * @example
      * <rtc-agent redirect-uri="https://example.com/auth/callback.html"></rtc-agent>
+     *
+     * @see {@link RtcAgentConfig.server.redirectUri} - Factory config equivalent
      */
     @property({type: String, attribute: 'redirect-uri'})
     set redirectURI(value: string) {

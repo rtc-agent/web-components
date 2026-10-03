@@ -7,6 +7,51 @@
 import type { LocalRtc } from '@rtc-agent/persistence';
 import type { ExportOptions } from '../../overlay/rtc-export-dialog.js';
 
+/**
+ * Common template for creating dialog promises.
+ *
+ * Handles the boilerplate of:
+ * - Creating the element
+ * - Setting up event listeners for resolve/reject
+ * - Cleaning up listeners and removing the element
+ * - Appending to the shadow root
+ *
+ * @param tagName - The custom element tag name (e.g., 'rtc-tool-confirm')
+ * @param host - The shadow root to append the dialog to
+ * @param setup - Callback to configure the element and return resolve handler + event mappings
+ * @returns A promise that resolves when the dialog is dismissed
+ */
+function createDialogPromise<T>(
+    tagName: string,
+    host: ShadowRoot,
+    setup: (el: HTMLElement, resolve: (value: T) => void) => Array<[string, EventListener]>
+): Promise<T> {
+    return new Promise((resolve) => {
+        const el = document.createElement(tagName);
+        const listeners = setup(el, resolve);
+
+        const cleanup = () => {
+            for (const [eventName, handler] of listeners) {
+                el.removeEventListener(eventName, handler);
+            }
+            el.remove();
+        };
+
+        // Wrap handlers to auto-cleanup before resolving
+        for (const [eventName, originalHandler] of listeners) {
+            const wrappedHandler: EventListener = (e) => {
+                cleanup();
+                originalHandler(e);
+            };
+            // Remove original, add wrapped
+            el.removeEventListener(eventName, originalHandler);
+            el.addEventListener(eventName, wrappedHandler);
+        }
+
+        host.appendChild(el);
+    });
+}
+
 // ── Tool Confirm Dialog ──
 
 /**
@@ -23,36 +68,18 @@ export function showToolConfirmDialog(
     rtc: LocalRtc,
     host: ShadowRoot,
 ): Promise<boolean> {
-    return new Promise((resolve) => {
-        const el = document.createElement("rtc-tool-confirm");
-        el.toolCall = {
+    return createDialogPromise<boolean>('rtc-tool-confirm', host, (el, resolve) => {
+        (el as HTMLInputElement & { toolCall: unknown }).toolCall = {
             id: rtc.client_id,
             toolName: rtc.tool_name,
             parameters: rtc.parameters as Record<string, unknown> | undefined,
             status: "pending",
         };
 
-        const cleanup = () => {
-            el.removeEventListener("rtc-tool-call-approved", onApproved);
-            el.removeEventListener("rtc-tool-call-denied", onDenied);
-            el.remove();
-        };
-
-        const onApproved = () => {
-            cleanup();
-            resolve(true);
-        };
-
-        const onDenied = () => {
-            cleanup();
-            resolve(false);
-        };
-
-        el.addEventListener("rtc-tool-call-approved", onApproved);
-        el.addEventListener("rtc-tool-call-denied", onDenied);
-
-        // Append to shadowRoot to maintain style inheritance.
-        host.appendChild(el);
+        return [
+            ['rtc-tool-call-approved', () => resolve(true)],
+            ['rtc-tool-call-denied', () => resolve(false)],
+        ];
     });
 }
 
@@ -78,34 +105,19 @@ export function showAskUserDialog(
     rtc: LocalRtc,
     host: ShadowRoot,
 ): Promise<AskUserAnswer | null> {
-    return new Promise((resolve) => {
-        const el = document.createElement("rtc-ask-user");
-        el.rtc = rtc;
+    return createDialogPromise<AskUserAnswer | null>('rtc-ask-user', host, (el, resolve) => {
+        (el as HTMLInputElement & { rtc: LocalRtc }).rtc = rtc;
 
-        const cleanup = () => {
-            el.removeEventListener("rtc-ask-user-submit", onSubmit);
-            el.removeEventListener("rtc-ask-user-dismiss", onDismiss);
-            el.remove();
-        };
-
-        const onSubmit = (e: Event) => {
-            const detail = (e as CustomEvent).detail as {
-                clientId: string;
-                payload: AskUserAnswer;
-            };
-            cleanup();
-            resolve(detail.payload);
-        };
-
-        const onDismiss = () => {
-            cleanup();
-            resolve(null);
-        };
-
-        el.addEventListener("rtc-ask-user-submit", onSubmit);
-        el.addEventListener("rtc-ask-user-dismiss", onDismiss);
-
-        host.appendChild(el);
+        return [
+            ['rtc-ask-user-submit', (e: Event) => {
+                const detail = (e as CustomEvent).detail as {
+                    clientId: string;
+                    payload: AskUserAnswer;
+                };
+                resolve(detail.payload);
+            }],
+            ['rtc-ask-user-dismiss', () => resolve(null)],
+        ];
     });
 }
 
@@ -125,30 +137,13 @@ export function showRestoreConfirmDialog(
     filePath: string,
     host: ShadowRoot,
 ): Promise<boolean> {
-    return new Promise((resolve) => {
-        const el = document.createElement("rtc-restore-confirm");
-        el.filePath = filePath;
+    return createDialogPromise<boolean>('rtc-restore-confirm', host, (el, resolve) => {
+        (el as HTMLInputElement & { filePath: string }).filePath = filePath;
 
-        const cleanup = () => {
-            el.removeEventListener("rtc-restore-confirmed", onConfirm);
-            el.removeEventListener("rtc-restore-cancelled", onCancel);
-            el.remove();
-        };
-
-        const onConfirm = () => {
-            cleanup();
-            resolve(true);
-        };
-
-        const onCancel = () => {
-            cleanup();
-            resolve(false);
-        };
-
-        el.addEventListener("rtc-restore-confirmed", onConfirm);
-        el.addEventListener("rtc-restore-cancelled", onCancel);
-
-        host.appendChild(el);
+        return [
+            ['rtc-restore-confirmed', () => resolve(true)],
+            ['rtc-restore-cancelled', () => resolve(false)],
+        ];
     });
 }
 
@@ -168,30 +163,15 @@ export function showExportDialog(
     totalMessages: number,
     host: ShadowRoot,
 ): Promise<ExportOptions | null> {
-    return new Promise((resolve) => {
-        const el = document.createElement("rtc-export-dialog");
-        el.totalMessages = totalMessages;
+    return createDialogPromise<ExportOptions | null>('rtc-export-dialog', host, (el, resolve) => {
+        (el as HTMLInputElement & { totalMessages: number }).totalMessages = totalMessages;
 
-        const cleanup = () => {
-            el.removeEventListener("rtc-export-confirm", onConfirm);
-            el.removeEventListener("rtc-export-cancel", onCancel);
-            el.remove();
-        };
-
-        const onConfirm = (e: Event) => {
-            const detail = (e as CustomEvent<ExportOptions>).detail;
-            cleanup();
-            resolve(detail);
-        };
-
-        const onCancel = () => {
-            cleanup();
-            resolve(null);
-        };
-
-        el.addEventListener("rtc-export-confirm", onConfirm);
-        el.addEventListener("rtc-export-cancel", onCancel);
-
-        host.appendChild(el);
+        return [
+            ['rtc-export-confirm', (e: Event) => {
+                const detail = (e as CustomEvent<ExportOptions>).detail;
+                resolve(detail);
+            }],
+            ['rtc-export-cancel', () => resolve(null)],
+        ];
     });
 }

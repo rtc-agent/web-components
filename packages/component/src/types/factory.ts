@@ -408,12 +408,17 @@ export interface RtcAgentConfig {
 
   /**
    * Backend server connection settings.
+   *
+   * @see {@link RtcAgent.serverURL} - The underlying component property (setter)
+   * @see {@link RtcAgent.redirectURI} - The underlying component property (setter)
    */
   server?: {
     /**
      * Backend server URL (e.g. `'https://api.example.com'`).
      *
      * Maps to `RtcAgent.serverURL` setter, which internally calls `setServerUrl()`.
+     *
+     * @see {@link RtcAgent.serverURL} - Equivalent component property
      */
     url: string;
 
@@ -421,6 +426,8 @@ export interface RtcAgentConfig {
      * OAuth redirect URI for authentication flows.
      *
      * Maps to `RtcAgent.redirectURI` setter, which internally calls `setRedirectUri()`.
+     *
+     * @see {@link RtcAgent.redirectURI} - Equivalent component property
      */
     redirectUri?: string;
   };

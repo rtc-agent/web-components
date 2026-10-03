@@ -97,9 +97,7 @@ export class UIUpdateBus {
   /** Map from listener function to its unique ID (WeakMap for auto-cleanup) */
   private _listenerIds = new WeakMap<UIUpdateListener, number>();
 
-  /** Suspend state: when true, events are collected but not dispatched */
-  private _suspended = false;
-  /** Suspend depth counter for reference counting */
+  /** Suspend depth counter for reference counting (0 = not suspended) */
   private _suspendDepth = 0;
   /** Safety timer to force resume if suspend exceeds timeout */
   private _suspendSafetyTimer?: ReturnType<typeof setTimeout>;
@@ -279,17 +277,17 @@ export class UIUpdateBus {
    * When suspended, events are collected but not dispatched until resume() is called.
    */
   async publish(event: UIUpdateEvent, options?: { skipPersist?: boolean; seqOverride?: number }): Promise<void> {
-    if (this._suspended) {
+    if (this._suspendDepth > 0) {
       // Collect event for later bulk dispatch.
       // NOTE: suspended events are NOT persisted — they are local-only batching
       // and will be dispatched by resume(). Persisting them would cause duplicate
       // delivery on the next page refresh (resume delivers + catch-up replays).
 
-      // Memory safety: warn if suspended events exceed threshold
+      // Memory safety: reject if suspended events exceed threshold
       if (this._suspendedEvents.length >= UIUpdateBus.MAX_SUSPENDED_EVENTS) {
-        log.warn(
-          `Suspended events count (${this._suspendedEvents.length}) exceeded threshold (${UIUpdateBus.MAX_SUSPENDED_EVENTS}). ` +
-          'Consider resuming sooner or reducing event frequency during suspend.'
+        throw new Error(
+          `Suspended events limit exceeded (${UIUpdateBus.MAX_SUSPENDED_EVENTS}). ` +
+          'Resume UI updates before publishing more events, or reduce event frequency during suspend.'
         );
       }
 
@@ -353,7 +351,6 @@ export class UIUpdateBus {
   suspend(): void {
     this._suspendDepth++;
     if (this._suspendDepth === 1) {
-      this._suspended = true;
       // Start safety timer to prevent permanent suspend
       this._suspendSafetyTimer = setTimeout(() => {
         log.error('UIUpdateBus suspend exceeded safety timeout, forcing resume');
@@ -379,7 +376,6 @@ export class UIUpdateBus {
     this._suspendDepth--;
 
     if (this._suspendDepth === 0) {
-      this._suspended = false;
       // Clear safety timer
       if (this._suspendSafetyTimer) {
         clearTimeout(this._suspendSafetyTimer);
@@ -409,7 +405,6 @@ export class UIUpdateBus {
       );
     }
     this._suspendDepth = 0;
-    this._suspended = false;
     if (this._suspendSafetyTimer) {
       clearTimeout(this._suspendSafetyTimer);
       this._suspendSafetyTimer = undefined;
@@ -500,8 +495,7 @@ export class UIUpdateBus {
     this.bulkUpdateListeners.clear();
     this.gapFillListeners.clear();
     this._processingChains.clear();
-    // Reset suspend state and depth counter
-    this._suspended = false;
+    // Reset suspend depth counter
     this._suspendDepth = 0;
     // Clear safety timer
     if (this._suspendSafetyTimer) {

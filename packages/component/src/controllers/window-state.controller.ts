@@ -37,6 +37,13 @@ export class WindowStateController implements ReactiveController {
     /** Callback when viewport is too small for the window (triggers auto-minimize). */
     onViewportTooSmall?: () => void;
 
+    /**
+     * Cached bubble size (parsed from --rtc-bubble-size CSS variable).
+     * Avoids repeated getComputedStyle() calls on every render.
+     * Invalidated when config changes or on viewport resize.
+     */
+    private _bubbleSizeCache: number | null = null;
+
     readonly actions: WindowStateActions;
 
     get value(): WindowStateContextValue {
@@ -67,6 +74,8 @@ export class WindowStateController implements ReactiveController {
     /** Update config */
     setConfig(config: ResolvedWindowConfig): void {
         this._config = config;
+        // Invalidate bubble size cache on config change
+        this._bubbleSizeCache = null;
         // If no saved state, apply default mode
         if (!this._restored) {
             this._state = {...this._state, mode: config.defaultMode};
@@ -102,6 +111,9 @@ export class WindowStateController implements ReactiveController {
         const { mode } = this._state;
 
         if (this._config.embedded) return; // CSS handles layout
+
+        // Invalidate bubble size cache on resize (CSS variable may have changed)
+        this._bubbleSizeCache = null;
 
         if (mode === 'maximized') return; // CSS handles it
 
@@ -304,6 +316,24 @@ export class WindowStateController implements ReactiveController {
     }
 
     /**
+     * Get the bubble size from CSS variable with caching.
+     *
+     * The bubble size is parsed from the --rtc-bubble-size CSS variable.
+     * Results are cached to avoid repeated getComputedStyle() calls.
+     * Cache is invalidated on config change or viewport resize.
+     *
+     * @param el - The host element to read CSS variable from
+     * @returns The bubble size in pixels (defaults to 40 if not set or invalid)
+     */
+    private _getBubbleSize(el: HTMLElement): number {
+        if (this._bubbleSizeCache !== null) {
+            return this._bubbleSizeCache;
+        }
+        this._bubbleSizeCache = parseInt(getComputedStyle(el).getPropertyValue('--rtc-bubble-size')) || 40;
+        return this._bubbleSizeCache;
+    }
+
+    /**
      * Apply position/size state to a host element as inline styles.
      *
      * Inline styles override CSS rules (including :host([data-mode=...])),
@@ -351,14 +381,14 @@ export class WindowStateController implements ReactiveController {
             }
         } else if (mode === 'minimized') {
             // Clear inline width/height so CSS :host([data-mode='minimized']) can
-            // apply the bubble size (40×40). Inline styles would otherwise win.
+            // apply the bubble size (40x40). Inline styles would otherwise win.
             el.style.width = '';
             el.style.height = '';
             el.style.minWidth = '';
             el.style.minHeight = '';
 
             // Calculate bubble position using bubblePosition config
-            const bubbleSize = parseInt(getComputedStyle(el).getPropertyValue('--rtc-bubble-size')) || 40;
+            const bubbleSize = this._getBubbleSize(el);
             const viewport = { width: window.innerWidth, height: window.innerHeight };
             const { corner, offset } = this._config.bubblePosition;
 

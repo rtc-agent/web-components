@@ -296,7 +296,15 @@ const BLOCKED_MEMBER_PROPERTIES: ReadonlySet<string> = new Set([
  * 4. Dangerous loop constructs (original loopGuardPlugin logic)
  *    - `while` / `do...while` / `for(;;)` -- no foreseeable termination condition
  *    - Allowed: `for...of` / `for...in` / bounded `for` / Array iteration methods
+ *
+ * 5. Loop iteration guard (DoS prevention)
+ *    - Injects iteration counter into bounded `for` loops to prevent tight-loop DoS
+ *    - Throws if loop exceeds MAX_LOOP_ITERATIONS (100,000)
  */
+
+/** Maximum iterations allowed per loop before throwing (DoS prevention). */
+const MAX_LOOP_ITERATIONS = 100_000;
+
 const sandboxPlugin = {
   visitor: {
     // 1. Block dangerous global identifiers
@@ -377,12 +385,70 @@ const sandboxPlugin = {
         '`do...while` loops are not allowed. Use `for...of` or Array iteration methods instead.',
       );
     },
-    ForStatement(path: { node: { test: unknown }; buildCodeFrameError: (msg: string) => Error }) {
+    ForStatement(path: {
+      node: { test: unknown; body: unknown };
+      buildCodeFrameError: (msg: string) => Error;
+      scope: { generateUidIdentifier: (name: string) => { type: string; name: string } };
+      insertBefore: (node: unknown) => void;
+    }) {
       // Only intercept for(;;): test === null means no termination condition
       if (path.node.test === null) {
         throw path.buildCodeFrameError(
           '`for(;;)` infinite loops are not allowed. Use a bounded `for` loop or `for...of` instead.',
         );
+      }
+
+      // Inject iteration counter for DoS prevention.
+      // This wraps the loop body with a counter check that throws if exceeded.
+      // The counter is scoped to each loop via a unique variable name.
+      const loopId = path.scope.generateUidIdentifier('loopCounter');
+      const counterDecl = {
+        type: 'VariableDeclaration',
+        kind: 'let',
+        declarations: [{
+          type: 'VariableDeclarator',
+          id: loopId,
+          init: { type: 'NumericLiteral', value: 0 },
+        }],
+      };
+
+      // Create the check: if (++__loopCounter > MAX_LOOP_ITERATIONS) throw new Error(...)
+      const checkStmt = {
+        type: 'IfStatement',
+        test: {
+          type: 'BinaryExpression',
+          operator: '>',
+          left: {
+            type: 'UpdateExpression',
+            operator: '++',
+            prefix: true,
+            argument: loopId,
+          },
+          right: { type: 'NumericLiteral', value: MAX_LOOP_ITERATIONS },
+        },
+        consequent: {
+          type: 'ThrowStatement',
+          argument: {
+            type: 'NewExpression',
+            callee: { type: 'Identifier', name: 'Error' },
+            arguments: [{
+              type: 'TemplateLiteral',
+              quasis: [
+                { type: 'TemplateElement', value: { raw: 'Loop exceeded maximum iterations (', cooked: 'Loop exceeded maximum iterations (' }, tail: false },
+                { type: 'TemplateElement', value: { raw: '). This may indicate an infinite loop.', cooked: '). This may indicate an infinite loop.' }, tail: true },
+              ],
+              expressions: [{ type: 'NumericLiteral', value: MAX_LOOP_ITERATIONS }],
+            }],
+          },
+        },
+      };
+
+      // Wrap the body: prepend counter declaration and check
+      const body = path.node.body as { type: string; body: unknown[] };
+      if (body.type === 'BlockStatement') {
+        body.body.unshift(checkStmt);
+        // Insert counter declaration before the loop (as a sibling)
+        path.insertBefore(counterDecl);
       }
     },
   },

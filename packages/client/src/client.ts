@@ -94,6 +94,8 @@ export class RTCAgentClient implements IRTCAgentClient {
   private isGapFillProcessing = false;
   /** AbortControllers for active gap fill waits (cleared on disconnect). */
   private readonly _gapFillAbortControllers = new Map<string, AbortController>();
+  /** Current delay for exponential backoff after gap fill failure. Initialized in constructor. */
+  private _reconnectDelay!: number;
 
   // ========== Update Scheduler: dispatch -> [buffer] -> serial executor ==========
   /**
@@ -115,9 +117,16 @@ export class RTCAgentClient implements IRTCAgentClient {
   private static readonly RECONNECT_AFTER_SIZE_LIMIT_DELAY_MS = 3000;
   /** Delay (ms) before reconnecting after a successful token refresh. */
   private static readonly RECONNECT_AFTER_TOKEN_REFRESH_DELAY_MS = 1000;
+  /** Initial delay (ms) for exponential backoff after gap fill failure. */
+  private static readonly RECONNECT_INITIAL_DELAY_MS = 1000;
+  /** Maximum delay (ms) for exponential backoff. */
+  private static readonly RECONNECT_MAX_DELAY_MS = 30000;
+  /** Multiplier for exponential backoff. */
+  private static readonly RECONNECT_BACKOFF_MULTIPLIER = 2;
 
   constructor(options: RTCAgentClientOptions) {
     this.options = options;
+    this._reconnectDelay = RTCAgentClient.RECONNECT_INITIAL_DELAY_MS;
   }
 
   // ========== Lifecycle ==========
@@ -167,6 +176,8 @@ export class RTCAgentClient implements IRTCAgentClient {
     this.centrifuge.on('connected', () => {
       log.debug('centrifuge connected, setting state to connected');
       this.wasConnected = true;
+      // Reset exponential backoff on successful connection
+      this._reconnectDelay = RTCAgentClient.RECONNECT_INITIAL_DELAY_MS;
       this.setConnectionState('connected');
       this.subscribeChannels();
     });
@@ -646,7 +657,12 @@ export class RTCAgentClient implements IRTCAgentClient {
                 log.debug('attempting reconnect after update processing failure');
                 this.reconnect().catch(e => log.error('reconnect failed:', e));
               }
-            }, RTCAgentClient.RECONNECT_AFTER_SIZE_LIMIT_DELAY_MS);
+            }, this._reconnectDelay);
+            // Exponential backoff for next failure
+            this._reconnectDelay = Math.min(
+              this._reconnectDelay * RTCAgentClient.RECONNECT_BACKOFF_MULTIPLIER,
+              RTCAgentClient.RECONNECT_MAX_DELAY_MS
+            );
           }
           // Critical error: stop processing remaining queue — reconnect will clear state
           break;
@@ -1015,14 +1031,19 @@ export class RTCAgentClient implements IRTCAgentClient {
     }
   }
 
+  /** Tracks the last reason emitted for connection state changes. */
+  private _connectionReason?: string;
+
   private setConnectionState(state: ConnectionState, reason?: string): void {
     log.debug(
       '[GAP_FILL_DEBUG] setConnectionState:', state, 'reason:', reason,
       '| previous:', this.connectionState,
       '| timestamp:', new Date().toISOString()
     );
-    if (this.connectionState === state) return;
+    // Only skip if both state and reason are unchanged
+    if (this.connectionState === state && this._connectionReason === reason) return;
     this.connectionState = state;
+    this._connectionReason = reason;
     const event: ConnectionStateEvent = { state, reason };
     this.emit('connection', event);
     this.options.onConnectionStateChange?.(event);
