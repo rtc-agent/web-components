@@ -147,16 +147,30 @@ export class OffsetManager {
    *
    * Clears both in-memory cache and IndexedDB.
    * Cache is cleared synchronously first.
+   *
+   * If IndexedDB write fails, the cache is rolled back to maintain consistency.
    */
   async clearAll(): Promise<void> {
     log.info('clearAll: clearing all offset records');
+
+    // Save previous cache state for potential rollback
+    const previousCache = new Map(this.cache);
 
     // Clear cache first (synchronous)
     this.cache.clear();
 
     // Then clear IndexedDB (asynchronous)
     const db = getDatabase();
-    await db.offsets.clear();
+    try {
+      await db.offsets.clear();
+    } catch (err) {
+      // Rollback cache on persistence failure to maintain consistency
+      this.cache.clear();
+      for (const [key, value] of previousCache) {
+        this.cache.set(key, value);
+      }
+      throw err;
+    }
   }
 
   /**

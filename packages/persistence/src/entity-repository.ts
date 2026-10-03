@@ -140,8 +140,8 @@ async function emitUIUpdates(
   entity: UpdateEntity,
   action: UpdateAction,
   entityId: string,
-  before: Record<string, unknown> | undefined,
-  after: Record<string, unknown>
+  before: object | undefined,
+  after: object
 ): Promise<void> {
   const bus = getUIUpdateBus();
 
@@ -185,14 +185,16 @@ async function emitUIUpdates(
  * Uses JSON serialize/deserialize to strip non-cloneable objects (functions, DOM elements,
  * circular references, etc.). Returns an empty object if serialization fails to avoid
  * DataCloneError.
+ *
+ * Returns Record<string, unknown> since JSON.parse always produces a plain object.
  */
-function safeClone<T>(obj: T): T {
+function safeClone(obj: object): Record<string, unknown> {
   try {
-    return JSON.parse(JSON.stringify(obj));
+    return JSON.parse(JSON.stringify(obj)) as Record<string, unknown>;
   } catch {
     // Serialization failed (e.g. circular reference); return empty object
     log.warn('safeClone: failed to clone object, returning empty object');
-    return {} as T;
+    return {};
   }
 }
 
@@ -269,7 +271,7 @@ export class EntityRepository {
       }
 
       if (!options?.silent) {
-        await emitUIUpdates('session', action, result.after.client_id, result.before as unknown as Record<string, unknown> | undefined, result.after as unknown as Record<string, unknown>);
+        await emitUIUpdates('session', action, result.after.client_id, result.before, result.after);
       }
       return result;
     });
@@ -344,24 +346,30 @@ export class EntityRepository {
    *
    * Does not directly delete the IndexedDB row; data is preserved for sync purposes.
    * listSessions automatically filters out records with non-empty deleted_at.
+   *
+   * Wrapped in a transaction to prevent TOCTOU race where concurrent modifications
+   * could see inconsistent state between the existence check and the write.
    */
   async softDeleteSession(clientId: string): Promise<UpsertResult<LocalSession>> {
-    const existing = await this.getClientSession(clientId);
-    if (!existing) {
-      throw new Error(`[EntityRepository] softDeleteSession: session not found: ${clientId}`);
-    }
+    const db = getDatabase();
     const now = nowRFC3339();
     log.debug(`softDeleteSession: setting deleted_at=${now} for ${clientId}`);
-    const result = await this.upsertSession(
-      {
-        client_id: clientId,
-        deleted_at: now,
-        updated_at: now,
-      },
-      'pending',
-    );
-    log.debug(`softDeleteSession: after upsert, deleted_at=${result.after.deleted_at}`);
-    return result;
+
+    // Perform existence check and upsert within the same transaction
+    return db.transaction('rw', db.sessions, async () => {
+      const existing = await db.sessions.get(clientId);
+      if (!existing) {
+        throw new Error(`[EntityRepository] softDeleteSession: session not found: ${clientId}`);
+      }
+      return this.upsertSession(
+        {
+          client_id: clientId,
+          deleted_at: now,
+          updated_at: now,
+        },
+        'pending',
+      );
+    });
   }
 
   // ========== Turn ==========
@@ -410,7 +418,7 @@ export class EntityRepository {
 
       if (!options?.silent) {
         log.debug('[EntityRepository] Emitting turn UI update:', action, result.after.client_id, 'session:', result.after.session_client_id);
-        await emitUIUpdates('turn', action, result.after.client_id, result.before as unknown as Record<string, unknown> | undefined, result.after as unknown as Record<string, unknown>);
+        await emitUIUpdates('turn', action, result.after.client_id, result.before, result.after);
       }
       return result;
     });
@@ -428,10 +436,11 @@ export class EntityRepository {
    */
   async countActiveTurns(sessionClientId: string): Promise<{ pending: number; running: number }> {
     const db = getDatabase();
-    const base = db.turns.where('session_client_id').equals(sessionClientId);
-    // Dexie does not support multiple where() calls on the same query chain; count separately and merge
+    // Dexie does not support multiple where() calls on the same query chain,
+    // and a WhereClause cannot be reused after a terminal call (.count(), .toArray(), etc.).
+    // Two independent queries are required; they run in parallel for performance.
     const [pending, running] = await Promise.all([
-      base.filter(t => t.status === 'pending').count(),
+      db.turns.where('session_client_id').equals(sessionClientId).filter(t => t.status === 'pending').count(),
       db.turns.where('session_client_id').equals(sessionClientId).filter(t => t.status === 'running').count(),
     ]);
     return { pending, running };
@@ -509,7 +518,7 @@ export class EntityRepository {
       }
 
       if (!options?.silent) {
-        await emitUIUpdates('message', action, result.after.client_id, result.before as unknown as Record<string, unknown> | undefined, result.after as unknown as Record<string, unknown>);
+        await emitUIUpdates('message', action, result.after.client_id, result.before, result.after);
       }
       return result;
     });
@@ -621,7 +630,7 @@ export class EntityRepository {
       }
 
       if (!options?.silent) {
-        await emitUIUpdates('rtc', action, result.after.client_id, result.before as unknown as Record<string, unknown> | undefined, result.after as unknown as Record<string, unknown>);
+        await emitUIUpdates('rtc', action, result.after.client_id, result.before, result.after);
       }
       return result;
     });
@@ -1538,8 +1547,8 @@ export class EntityRepository {
           typeName,
           action,
           clientId,
-          oldRecord as Record<string, unknown> | undefined,
-          record as unknown as Record<string, unknown>
+          oldRecord as object | undefined,
+          record as object
         );
       }
     }

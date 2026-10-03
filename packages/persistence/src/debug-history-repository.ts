@@ -231,7 +231,9 @@ export function initDebugHistoryRepository(): DebugHistoryRepository {
 
 export function getDebugHistoryRepository(): DebugHistoryRepository {
   if (!repoInstance) {
-    return initDebugHistoryRepository();
+    throw new Error(
+      '[DebugHistoryRepository] not initialized. Call initDebugHistoryRepository() first.'
+    );
   }
   return repoInstance;
 }

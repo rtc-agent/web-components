@@ -272,7 +272,7 @@ export class GrepTool implements Tool {
         if (result.appliedOffset !== undefined) {
           output += ` (offset: ${result.appliedOffset})`;
         }
-        output += '\n' + result.filenames.join('\n');
+        output += '\n' + (result.filenames ?? []).join('\n');
         return output;
       }
 
