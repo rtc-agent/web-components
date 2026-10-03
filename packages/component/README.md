@@ -88,7 +88,7 @@ import { createRtcAgent } from '@rtc-agent/component';
 const agent = createRtcAgent({
   appLabel: 'My Assistant',
   server: { url: 'https://api.example.com' },
-  workerUrl: '/rtc-agent/shared-worker.js',
+  workerURL: '/rtc-agent/shared-worker.js',
   auth: {
     getToken: () => localStorage.getItem('token'),
     refreshToken: async () => {

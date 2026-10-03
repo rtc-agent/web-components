@@ -61,7 +61,7 @@
 | `lang` | `string` | `'zh-CN'` | 语言（BCP 47 格式，如 `'en-US'`, `'zh-CN'`） |
 | `bubbleIcon` | `string` | - | 最小化气泡图标（SVG 或 HTML） |
 | `logo` | `{ light?: string; dark?: string }` | `null` | 自定义 Logo，替换默认 RTC Agent Logo |
-| `workerUrl` | `string` | `undefined` | SharedWorker 文件 URL（详见 [SharedWorker 配置指南](./SHARED-WORKER-SETUP.md)） |
+| `workerURL` | `string` | `undefined` | SharedWorker 文件 URL（详见 [SharedWorker 配置指南](./SHARED-WORKER-SETUP.md)） |
 
 ### 服务器配置
 

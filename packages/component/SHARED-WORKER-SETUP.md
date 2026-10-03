@@ -34,7 +34,7 @@ npx rtc-agent-setup
 import { createRtcAgent } from '@rtc-agent/component';
 
 const agent = createRtcAgent({
-  workerUrl: '/rtc-agent/shared-worker.js',
+  workerURL: '/rtc-agent/shared-worker.js',
   // ... 其他配置
 });
 ```
@@ -84,12 +84,12 @@ Vite 开发服务器会自动处理文件变化，无需特殊配置。
    ```typescript
    // 读取 manifest.json
    const manifest = await fetch('/rtc-agent/manifest.json').then(r => r.json());
-   const workerUrl = `/rtc-agent/shared-worker.js?v=${manifest.version}`;
+   const workerURL = `/rtc-agent/shared-worker.js?v=${manifest.version}`;
    ```
 
 2. **或使用构建工具注入版本号**：
    ```typescript
-   const workerUrl = `/rtc-agent/shared-worker.js?v=${__APP_VERSION__}`;
+   const workerURL = `/rtc-agent/shared-worker.js?v=${__APP_VERSION__}`;
    ```
 
 3. **配置 Cache-Control 头部**（Nginx 示例）：
@@ -141,13 +141,13 @@ pnpm add -D copyfiles
 打开浏览器控制台，应该看到：
 
 ```
-[WorkerBridge] Using custom workerUrl: /rtc-agent/shared-worker.js
-[WorkerBridge] worker init: { workerUrl: '...', ... }
+[WorkerBridge] Using custom workerURL: /rtc-agent/shared-worker.js
+[WorkerBridge] worker init: { workerURL: '...', ... }
 ```
 
 如果看到 404 错误，请检查：
 1. worker 文件是否正确复制到 public 目录
-2. workerUrl 路径是否正确
+2. workerURL 路径是否正确
 3. 开发服务器是否已重启
 
 ## 文件结构
@@ -230,7 +230,7 @@ Failed to fetch dynamically imported module: .../highlight-languages-XXXX.js
 **解决**：
 
 1. 确认 worker 文件存在：`ls public/rtc-agent/`
-2. 检查 workerUrl 路径是否正确
+2. 检查 workerURL 路径是否正确
 3. 重启开发服务器
 
 ### 问题：升级后仍使用旧版本

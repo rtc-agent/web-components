@@ -281,13 +281,13 @@ const config: RtcAgentConfig = {
   },
 
   // SharedWorker
-  workerUrl: '/rtc-agent/shared-worker.js',
+  workerURL: '/rtc-agent/shared-worker.js',
 
   // 数据库
   databaseName: 'my-app',
 
   // 场景文档
-  scenariosUrl: '/scenarios',
+  scenariosURL: '/scenarios',
 
   // 窗口
   window: {
