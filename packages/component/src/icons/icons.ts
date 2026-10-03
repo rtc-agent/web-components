@@ -16,23 +16,23 @@ import {unsafeHTML} from 'lit/directives/unsafe-html.js';
 // Import all SVG files as raw strings
 // Using Vite's ?raw import to get SVG content
 import minimizeSvg from './svg/minimize-16.svg?raw';
-import maximizeSvg from './svg/maximize-16.svg?raw';
-import restoreSvg from './svg/restore-16.svg?raw';
+import screenFullSvg from './svg/screen-full-16.svg?raw';  // octicons: screen-full-16
+import restoreSvg from './svg/restore-16.svg?raw';  // octicons: screen-normal-16
 import clockSvg from './svg/clock-16.svg?raw';
 import plusSvg from './svg/plus-16.svg?raw';
-import editSvg from './svg/edit-16.svg?raw';
-import deleteSvg from './svg/delete-16.svg?raw';
-import handSvg from './svg/hand-16.svg?raw';
+import editSvg from './svg/edit-16.svg?raw';  // octicons: pencil-16
+import deleteSvg from './svg/delete-16.svg?raw';  // octicons: trash-16
+import handSvg from './svg/hand-16.svg?raw';  // octicons: grabber-16
 import codeSvg from './svg/code-16.svg?raw';
-import planSvg from './svg/plan-16.svg?raw';
+import planSvg from './svg/plan-16.svg?raw';  // octicons: tasklist-16
 import zapSvg from './svg/zap-16.svg?raw';
 import gearSvg from './svg/gear-16.svg?raw';
 import checkSvg from './svg/check-16.svg?raw';
-import attachSvg from './svg/attach-16.svg?raw';
-import toolSvg from './svg/tool-16.svg?raw';
-import sendSvg from './svg/send-16.svg?raw';
-import stopSvg from './svg/stop-16.svg?raw';
-import micSvg from './svg/mic-16.svg?raw';
+import attachSvg from './svg/attach-16.svg?raw';  // octicons: paperclip-16
+import toolSvg from './svg/tool-16.svg?raw';  // octicons: tools-16 (singular vs plural)
+import sendSvg from './svg/send-16.svg?raw';  // octicons: paper-airplane-16
+import squareFillSvg from './svg/square-fill-16.svg?raw';  // octicons: square-fill-16
+import micSvg from './svg/mic-16.svg?raw';  // octicons: broadcast-16 (semantic mismatch)
 import checklistSvg from './svg/checklist-16.svg?raw';
 
 // File explorer icons (Phase 1)
@@ -57,8 +57,8 @@ import chevronDownSvg from './svg/chevron-down-16.svg?raw';
 // link: Insert hyperlink.
 // eye: Preview mode.
 // columns: Split-screen view.
-import boldSvg from './svg/text-bold-16.svg?raw';
-import italicSvg from './svg/text-italic-16.svg?raw';
+import boldSvg from './svg/text-bold-16.svg?raw';  // octicons: bold-16 (text- prefix added)
+import italicSvg from './svg/text-italic-16.svg?raw';  // octicons: italic-16 (text- prefix added)
 import linkSvg from './svg/link-16.svg?raw';
 import eyeSvg from './svg/eye-16.svg?raw';
 import columnsSvg from './svg/columns-16.svg?raw';
@@ -79,7 +79,7 @@ function toLitTemplate(svgString: string) {
 
 // Icon templates
 export const minimizeIcon = toLitTemplate(minimizeSvg);
-export const maximizeIcon = toLitTemplate(maximizeSvg);
+export const maximizeIcon = toLitTemplate(screenFullSvg);  // Uses octicons screen-full (corner brackets)
 export const restoreIcon = toLitTemplate(restoreSvg);
 export const clockIcon = toLitTemplate(clockSvg);
 export const plusIcon = toLitTemplate(plusSvg);
@@ -94,7 +94,7 @@ export const checkIcon = toLitTemplate(checkSvg);
 export const attachIcon = toLitTemplate(attachSvg);
 export const toolIcon = toLitTemplate(toolSvg);
 export const sendIcon = toLitTemplate(sendSvg);
-export const stopIcon = toLitTemplate(stopSvg);
+export const stopIcon = toLitTemplate(squareFillSvg);  // Uses octicons square-fill (simple filled square)
 export const micIcon = toLitTemplate(micSvg);
 export const checklistIcon = toLitTemplate(checklistSvg);
 
