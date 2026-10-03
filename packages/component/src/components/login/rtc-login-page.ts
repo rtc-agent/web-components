@@ -5,7 +5,7 @@
  * Shown when user is not logged in.
  *
  * @element rtc-login-page
- * @fires rtc-login-requested - User selected a provider, detail contains {provider}
+ * @fires rtc-auth-login-requested - User selected a provider, detail contains {provider}
  * @csspart container - Login container
  * @csspart logo - Logo area
  * @csspart app-name - Application name text
@@ -136,8 +136,9 @@ export class RtcLoginPage extends LitElement {
 
     private _handleProviderSelect(providerName: string) {
         // Dispatch event with provider info. <rtc-agent> listens for this event and opens the login dialog.
+        // FIX: Use consistent event name 'rtc-auth-login-requested' as defined in types/events.ts
         this.dispatchEvent(
-            new CustomEvent('rtc-login-requested', {
+            new CustomEvent('rtc-auth-login-requested', {
                 bubbles: true,
                 composed: true,
                 detail: { provider: providerName },

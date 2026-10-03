@@ -58,7 +58,11 @@ function openApiSchemaToZod(schema: OpenAPISchema): ZodType {
 
       // Handle enum
       if (schema.enum !== undefined && schema.enum.length > 0) {
-        return z.enum(schema.enum as [string, ...string[]]);
+        // Safety: ensure all enum values are strings before casting
+        const enumValues = schema.enum.filter((v): v is string => typeof v === 'string');
+        if (enumValues.length > 0) {
+          return z.enum(enumValues as [string, ...string[]]);
+        }
       }
 
       // Handle format (for documentation only, no runtime validation)

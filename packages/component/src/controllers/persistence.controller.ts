@@ -442,7 +442,7 @@ export class PersistenceController implements ReactiveController {
                 return;
             } catch (err) {
                 lastError = err instanceof Error ? err : new Error(String(err));
-                log.error(`Connection attempt ${attempt + 1} failed:`, lastError.message);
+                log.error(`Connection attempt ${attempt + 1} failed:`, lastError);
 
                 // Clean up failed connection
                 await this._cleanupFailedConnection();
@@ -561,6 +561,7 @@ export class PersistenceController implements ReactiveController {
         // This is critical: if disconnect() interrupts an in-flight connection, the old promise's finally block
         // must not clear the new _connecting.
         this._connectGeneration++;
+        const gen = this._connectGeneration;
 
         // Clear the _connecting promise to allow a new connection attempt.
         // This is critical: if disconnect() interrupts an in-flight connection, a subsequent connect()
@@ -573,6 +574,11 @@ export class PersistenceController implements ReactiveController {
         const layer = this._layer;
         const workerBridge = this._workerBridge;
 
+        // P1 Fix: Clear references immediately to prevent new operations from using them during disconnect.
+        // This prevents race conditions where connect() is called during disconnect()'s await operations.
+        this._layer = undefined;
+        this._workerBridge = undefined;
+
         if (layer) {
             try {
                 // Reset offset (passed through via the adapter shim to core.resetOffset())
@@ -581,10 +587,6 @@ export class PersistenceController implements ReactiveController {
                 await layer.close();
             } catch (err) {
                 log.error('disconnect error:', err);
-            }
-            // Only clear if this._layer is still the layer we captured
-            if (this._layer === layer) {
-                this._layer = undefined;
             }
         }
 
@@ -598,10 +600,12 @@ export class PersistenceController implements ReactiveController {
             } catch (err) {
                 log.error('WorkerBridge disconnect error:', err);
             }
-            // Only clear if this._workerBridge is still the workerBridge we captured
-            if (this._workerBridge === workerBridge) {
-                this._workerBridge = undefined;
-            }
+        }
+
+        // P1 Fix: Verify that no new connection was started during our cleanup
+        // If generation changed, a new connect() was called, and we should not interfere
+        if (this._connectGeneration !== gen) {
+            log.warn('disconnect interrupted by new connect, generation changed');
         }
     }
 

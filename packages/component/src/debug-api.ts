@@ -11,7 +11,7 @@
  * - `debug-api-ext.ts` — Extended APIs (session, tools, toast, settings, metrics, network)
  * - `debug-api.ts` — This file: entry point + installDebugAPI()
  */
-import {createLogger} from '@rtc-agent/client';
+import {createLogger, setGlobalLogLevel} from '@rtc-agent/client';
 import type {RtcAgentDebugAPI} from './debug-api-types.js';
 import {installLogCapture} from './debug-api-helpers.js';
 import {buildCoreAPI} from './debug-api-core.js';
@@ -27,6 +27,9 @@ export type {RtcAgentDebugAPI} from './debug-api-types.js';
  * Composes core and extended APIs into a single frozen object and assigns it
  * to `window.rtcAgentDebug`. Should be called once, after the component module
  * is loaded, in dev/test builds only.
+ *
+ * Also enables verbose (debug-level) logging globally so that development and
+ * E2E test runs capture the full diagnostic stream.
  */
 export function installDebugAPI(): void {
     if (typeof window === 'undefined') return;
@@ -34,6 +37,10 @@ export function installDebugAPI(): void {
         log.warn('Debug API already installed, skipping');
         return;
     }
+
+    // Enable debug-level logging in dev/test builds so that the log buffer
+    // (and the console) captures the full diagnostic stream.
+    setGlobalLogLevel('debug');
 
     // Install log capture first so we capture logs from API construction.
     installLogCapture();

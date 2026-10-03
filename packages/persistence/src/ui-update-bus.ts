@@ -107,6 +107,8 @@ export class UIUpdateBus {
   private static readonly MAX_SUSPEND_MS = 30_000;
   /** Timeout for Promise chain execution (10 seconds) */
   private static readonly CHAIN_TIMEOUT_MS = 10_000;
+  /** Maximum number of events to collect during suspend before warning */
+  private static readonly MAX_SUSPENDED_EVENTS = 1000;
   /** Collected events during suspend */
   private _suspendedEvents: UIUpdateEvent[] = [];
   /** Track which entities were updated during suspend */
@@ -196,7 +198,7 @@ export class UIUpdateBus {
   ): Promise<T | void> {
     if (!promise) return;
 
-    let timeoutHandle: ReturnType<typeof setTimeout>;
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
     const timeoutPromise = new Promise<never>((_, reject) => {
       timeoutHandle = setTimeout(() => {
         reject(new Error(`Listener chain timeout after ${timeoutMs}ms for ${contextKey}`));
@@ -209,7 +211,11 @@ export class UIUpdateBus {
         timeoutPromise,
       ]);
     } finally {
-      clearTimeout(timeoutHandle!);
+      // FIX: Use optional chaining instead of non-null assertion to handle case where
+      // timeoutHandle might not be assigned if an error occurs before setTimeout completes
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+      }
     }
   }
 
@@ -278,6 +284,15 @@ export class UIUpdateBus {
       // NOTE: suspended events are NOT persisted — they are local-only batching
       // and will be dispatched by resume(). Persisting them would cause duplicate
       // delivery on the next page refresh (resume delivers + catch-up replays).
+
+      // Memory safety: warn if suspended events exceed threshold
+      if (this._suspendedEvents.length >= UIUpdateBus.MAX_SUSPENDED_EVENTS) {
+        log.warn(
+          `Suspended events count (${this._suspendedEvents.length}) exceeded threshold (${UIUpdateBus.MAX_SUSPENDED_EVENTS}). ` +
+          'Consider resuming sooner or reducing event frequency during suspend.'
+        );
+      }
+
       this._suspendedEvents.push(event);
       this._suspendedEntities.add(event.entity);
       return;
@@ -378,8 +393,21 @@ export class UIUpdateBus {
   /**
    * Force resume: emergency recovery when suspend exceeds safety timeout or host disconnects.
    * Resets depth counter, clears safety timer, and flushes events.
+   * Note: If there are pending processing chains, they will continue running but
+   * suspended events will be flushed immediately. This may cause temporary inconsistency
+   * but is acceptable for emergency recovery.
    */
   private _forceResume(): void {
+    const pendingChains = this._processingChains.size;
+    if (pendingChains > 0) {
+      // P1 Fix: Log detailed warning about pending operations before force resume
+      // This helps diagnose potential data inconsistency issues
+      log.warn(
+        `Force resuming with ${pendingChains} pending processing chains. ` +
+        `This may cause temporary state inconsistency. ` +
+        `Pending chains will continue running in background.`
+      );
+    }
     this._suspendDepth = 0;
     this._suspended = false;
     if (this._suspendSafetyTimer) {

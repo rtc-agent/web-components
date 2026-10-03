@@ -76,6 +76,7 @@ export class VisibilityManager {
      * - VISIBLE -> HIDDEN: direct transition
      * - HIDDEN -> VISIBLE: via TRANSITIONING intermediate state
      * - TRANSITIONING -> VISIBLE: auto-transition (after one frame)
+     * - If in TRANSITIONING and receives opposite direction update, cancel transition
      *
      * @param isVisible Whether it is visible
      */
@@ -87,6 +88,24 @@ export class VisibilityManager {
             return;
         }
 
+        // P1 Fix: Handle TRANSITIONING state with better boundary checks
+        // If we're transitioning and receive a new update, handle it carefully
+        if (this._state === VisibilityState.TRANSITIONING) {
+            // If transitioning to VISIBLE but now receiving HIDDEN, cancel transition
+            // and go directly to HIDDEN
+            if (!isVisible) {
+                log.debug(`Visibility update: canceling transition to VISIBLE, going directly to HIDDEN`);
+                this._transitionTo(VisibilityState.HIDDEN);
+                return;
+            }
+            // If transitioning and receiving VISIBLE again (duplicate), ignore
+            // We're already on our way to VISIBLE
+            if (isVisible) {
+                log.debug(`Visibility update: already transitioning to VISIBLE, ignoring duplicate`);
+                return;
+            }
+        }
+
         log.debug(`Visibility update: ${this._state} → ${newState}`);
 
         // HIDDEN to VISIBLE must go through TRANSITIONING state
@@ -95,6 +114,7 @@ export class VisibilityManager {
 
             // Give browser one frame to complete layout, then transition to VISIBLE
             requestAnimationFrame(() => {
+                // P1 Fix: Check state again before transitioning, as it may have changed
                 if (this._state === VisibilityState.TRANSITIONING) {
                     this._transitionTo(VisibilityState.VISIBLE);
                 }

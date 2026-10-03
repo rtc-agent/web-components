@@ -6,6 +6,7 @@
  * and component reference.
  */
 import {virtualFS} from '@rtc-agent/persistence';
+import {setGlobalLogLevel, getGlobalLogLevel} from '@rtc-agent/client';
 import type {RtcAgentDebugAPI} from './debug-api-types.js';
 import {
     log,
@@ -28,7 +29,7 @@ export function buildCoreAPI(): Pick<
     | 'loginAs' | 'logout'
     | 'triggerEvent'
     | 'listFiles' | 'readFile' | 'writeFile' | 'deleteFile'
-    | 'logs' | 'clearLogs'
+    | 'logs' | 'clearLogs' | 'setLogLevel' | 'getLogLevel'
     | 'click' | 'scrollIntoView' | 'typeText'
     | 'element' | 'waitForReady' | 'waitForConnected'
     | 'sendMessage' | 'getMessages' | 'addDemoMessage' | 'clearMessages'
@@ -194,7 +195,7 @@ export function buildCoreAPI(): Pick<
         loginAs(userId: string, tokens?: {accessToken?: string; refreshToken?: string}): void {
             const el = getAgentElement();
             if (!el) {
-                log.error('loginAs: rtc-agent element not found');
+                log.warn('loginAs: rtc-agent element not found');
                 return;
             }
             el.authController.setTokens({
@@ -209,7 +210,7 @@ export function buildCoreAPI(): Pick<
         logout(): void {
             const el = getAgentElement();
             if (!el) {
-                log.error('logout: rtc-agent element not found');
+                log.warn('logout: rtc-agent element not found');
                 return;
             }
             el.authController.logout();
@@ -221,7 +222,7 @@ export function buildCoreAPI(): Pick<
         triggerEvent(name: string, detail?: unknown): void {
             const el = getAgentElement();
             if (!el) {
-                log.error('triggerEvent: rtc-agent element not found');
+                log.warn('triggerEvent: rtc-agent element not found');
                 return;
             }
             el.dispatchEvent(new CustomEvent(name, {
@@ -274,6 +275,15 @@ export function buildCoreAPI(): Pick<
 
         clearLogs(): void {
             logBuffer.length = 0;
+        },
+
+        setLogLevel(level: 'debug' | 'info' | 'warn' | 'error'): void {
+            setGlobalLogLevel(level);
+            log.info(`Log level set to: ${level}`);
+        },
+
+        getLogLevel(): 'debug' | 'info' | 'warn' | 'error' {
+            return getGlobalLogLevel();
         },
 
         // ── UI Control ──
@@ -395,7 +405,7 @@ export function buildCoreAPI(): Pick<
         async sendMessage(content: string): Promise<void> {
             const el = getAgentElement();
             if (!el) {
-                log.error('sendMessage: rtc-agent element not found');
+                log.warn('sendMessage: rtc-agent element not found');
                 return;
             }
             const contentData: ContentData = {type: 'text', data: content};
@@ -419,7 +429,7 @@ export function buildCoreAPI(): Pick<
         addDemoMessage(content: string, role: 'user' | 'assistant' = 'assistant'): void {
             const el = getAgentElement();
             if (!el) {
-                log.error('addDemoMessage: rtc-agent element not found');
+                log.warn('addDemoMessage: rtc-agent element not found');
                 return;
             }
             if (role === 'assistant') {
@@ -445,7 +455,7 @@ export function buildCoreAPI(): Pick<
         clearMessages(): void {
             const el = getAgentElement();
             if (!el) {
-                log.error('clearMessages: rtc-agent element not found');
+                log.warn('clearMessages: rtc-agent element not found');
                 return;
             }
             el.messageController.actions.clearMessages();

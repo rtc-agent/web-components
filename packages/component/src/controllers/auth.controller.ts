@@ -467,9 +467,24 @@ export class AuthController implements ReactiveController {
         }
     }
 
-    /** Save tokens to localStorage */
+    /** Save tokens to localStorage with QuotaExceededError handling */
     private _saveTokens(tokens: StoredTokens) {
-        localStorage.setItem(STORAGE_KEYS.tokens, JSON.stringify(tokens));
+        try {
+            localStorage.setItem(STORAGE_KEYS.tokens, JSON.stringify(tokens));
+        } catch (err) {
+            // CRITICAL FIX: Handle QuotaExceededError (common on mobile browsers)
+            // Attempt to clear residual data and retry once
+            log.error('[AUTH] Failed to save tokens to localStorage:', err);
+            try {
+                localStorage.removeItem(STORAGE_KEYS.tokens);
+                localStorage.setItem(STORAGE_KEYS.tokens, JSON.stringify(tokens));
+                log.info('[AUTH] Token save succeeded after clearing residual data');
+            } catch (retryErr) {
+                log.error('[AUTH] Token persistence failed after retry:', retryErr);
+                // Don't block login flow — token is already in memory
+                // User will need to re-login on next page load, but current session works
+            }
+        }
     }
 
     /** Schedule next refresh */

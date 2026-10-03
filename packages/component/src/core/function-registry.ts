@@ -121,8 +121,15 @@ export class FunctionRegistry {
    * After register() returns, the document may not yet be written to the virtual file system.
    * Documents will typically be ready within a few hundred milliseconds, but completion at register() return is not guaranteed.
    * If you need to ensure the document is ready, manually call the virtual file system's read and wait.
+   *
+   * If a function with the same name already exists, a warning is logged and the old definition is replaced.
    */
   register(funcDef: FunctionDef): FunctionDef {
+    // Warn on duplicate registration (prevents silent overwrites)
+    if (this.functions.has(funcDef.name)) {
+      log.warn(`Function '${funcDef.name}' is already registered and will be overwritten.`);
+    }
+
     // Normalize: derive parameters from zodSchema if not explicitly set
     this._normalizeFunctionDef(funcDef);
 
@@ -147,6 +154,11 @@ export class FunctionRegistry {
    * M10: Same as register(), document generation is async fire-and-forget and may be delayed in becoming ready.
    */
   registerInternal(funcDef: FunctionDef, groupName: string): void {
+    // Warn on duplicate registration (prevents silent overwrites)
+    if (this.functions.has(funcDef.name)) {
+      log.warn(`Function '${funcDef.name}' is already registered and will be overwritten.`);
+    }
+
     // Normalize: derive parameters from zodSchema if not explicitly set
     this._normalizeFunctionDef(funcDef);
 
@@ -543,7 +555,8 @@ export class FunctionRegistry {
   /**
    * Update AGENT.md
    *
-   * Write strategy: uses 'create-new' mode; does not overwrite if file already exists (protects user-edited content)
+   * Write strategy: uses 'overwrite' mode (AGENT.md is auto-generated and must always reflect
+   * the current registry state; user edits are not expected here — use scenarios for customization)
    */
   private async _updateAgentMd(): Promise<void> {
     const functions = this.listFunctions();
@@ -551,7 +564,7 @@ export class FunctionRegistry {
     const scenarios = await virtualFS.queryByType('scenario');
 
     const md = generateAgentMd(this.config, functions, groups, scenarios.length);
-    // Use 'create-new' mode: do not overwrite if file already exists
+    // Use 'overwrite' mode: AGENT.md is always regenerated to stay consistent with registry
     await virtualFS.write('/AGENT.md', md, 'overwrite');
   }
 
@@ -597,7 +610,6 @@ export class FunctionRegistry {
     // M12: Whitelist - only expose these methods and properties
     const PUBLIC_METHODS = new Set([
       'register',
-      'registerInternal',
       'createGroup',
       'unregister',
       'resolve',

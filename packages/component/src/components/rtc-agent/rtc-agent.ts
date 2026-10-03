@@ -291,21 +291,55 @@ export class RtcAgent extends LitElement {
      *
      * Either field can be omitted; missing variants fall back to the default logo.
      *
-     * **Security note**: Same as `bubbleIcon` — callers should sanitize input
-     * before assignment. The component does NOT sanitize this value.
+     * **Security note**: CRITICAL FIX — Logo HTML is now sanitized using DOMPurify
+     * before being stored in context, preventing XSS attacks even if callers forget
+     * to sanitize input. Same sanitization rules as `bubbleIcon`.
      */
     @property({attribute: false})
     set logo(value: { light?: string; dark?: string } | null) {
         this._logo = value;
-        this._logoProvider.setValue({
-            light: value?.light ?? '',
-            dark: value?.dark ?? '',
+        // CRITICAL FIX: Sanitize logo HTML to prevent XSS
+        void this._sanitizeLogo(value).then(sanitized => {
+            this._logoProvider.setValue({
+                light: sanitized?.light ?? '',
+                dark: sanitized?.dark ?? '',
+            });
+        }).catch(err => {
+            log.error('Logo sanitization failed:', err);
+            this._logoProvider.setValue({ light: '', dark: '' });
         });
     }
     get logo(): { light?: string; dark?: string } | null {
         return this._logo;
     }
     private _logo: { light?: string; dark?: string } | null = null;
+
+    /**
+     * Sanitize logo HTML using DOMPurify to prevent XSS.
+     * Uses the same strict SVG whitelist as bubbleIcon sanitization.
+     */
+    private async _sanitizeLogo(value: { light?: string; dark?: string } | null): Promise<{ light?: string; dark?: string } | null> {
+        if (!value) return null;
+        const sanitize = async (html: string | undefined): Promise<string> => {
+            if (!html) return '';
+            try {
+                const DOMPurify = await this._loadDOMPurify();
+                return DOMPurify.sanitize(html, {
+                    ALLOWED_TAGS: ['svg', 'path', 'g', 'circle', 'rect', 'line', 'polyline', 'polygon', 'text', 'use'],
+                    ALLOWED_ATTR: ['viewBox', 'd', 'xmlns', 'fill', 'stroke', 'stroke-width', 'class', 'width', 'height', 'transform', 'cx', 'cy', 'r', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'points', 'dx', 'dy', 'text-anchor', 'font-size', 'href']
+                });
+            } catch {
+                // DOMPurify not available — strip all tags as a safe fallback
+                const el = document.createElement('div');
+                el.textContent = html;
+                return el.innerHTML;
+            }
+        };
+        return {
+            light: await sanitize(value.light),
+            dark: await sanitize(value.dark),
+        };
+    }
 
     /**
      * FunctionRegistry instance (host-app injection, advanced usage).
@@ -1150,6 +1184,7 @@ export class RtcAgent extends LitElement {
         } else if (this._pendingAuthProvider) {
             // Mode 3: AuthProvider
             this._auth.setAuthProvider({
+                type: 'provider',
                 getToken: this._pendingAuthProvider.getToken,
                 refreshToken: this._pendingAuthProvider.refreshToken,
                 isLoggedIn: this._pendingAuthProvider.isLoggedIn,

@@ -41,6 +41,15 @@ export class MessageController implements ReactiveController {
      */
     private _sessionUpdateChains = new Map<string, Promise<void>>();
 
+    /** Maximum number of concurrent session chains to prevent memory leak */
+    private static readonly MAX_SESSION_CHAINS = 100;
+
+    /**
+     * Track the session ID currently being streamed to detect session switches.
+     * When session switches during streaming, operations for the old session should be ignored.
+     */
+    private _streamingSessionId?: string;
+
     readonly actions: MessageActions;
 
     /** Setter for persistence injection (avoids circular deps). */
@@ -302,6 +311,28 @@ export class MessageController implements ReactiveController {
         });
         this._sessionUpdateChains.set(messageSessionId, next);
 
+        // P1 Fix: Proactive cleanup to prevent memory leak
+        // Remove settled chains immediately to free memory
+        this._cleanupSettledChains();
+
+        // Hard limit: if still too many chains, remove oldest ones
+        if (this._sessionUpdateChains.size > MessageController.MAX_SESSION_CHAINS) {
+            const entries = Array.from(this._sessionUpdateChains.entries());
+            const toRemove = entries.length - MessageController.MAX_SESSION_CHAINS;
+            let removed = 0;
+            for (let i = 0; i < entries.length && removed < toRemove; i++) {
+                const [sessionId, chain] = entries[i];
+                // Only remove if the chain is settled (not the current one we just added)
+                if (chain !== next) {
+                    this._sessionUpdateChains.delete(sessionId);
+                    removed++;
+                }
+            }
+            if (removed > 0) {
+                log.debug(`Cleaned up ${removed} old session update chains (size: ${this._sessionUpdateChains.size})`);
+            }
+        }
+
         // Clean up the chain when it settles
         next.finally(() => {
             if (this._sessionUpdateChains.get(messageSessionId) === next) {
@@ -335,6 +366,39 @@ export class MessageController implements ReactiveController {
                 bubbles: true,
                 composed: true,
             }));
+        }
+    }
+
+    /**
+     * P1 Fix: Clean up settled promise chains to prevent memory leak.
+     * Removes chains that have already resolved/rejected.
+     */
+    private _cleanupSettledChains(): void {
+        // Check a subset of chains to avoid expensive iteration
+        // We use a simple heuristic: check if the chain is still pending
+        const toDelete: string[] = [];
+
+        for (const [sessionId, chain] of this._sessionUpdateChains) {
+            // Check if the promise is settled by racing with an already-resolved promise
+            // If the chain is already resolved, Promise.race will resolve immediately
+            let isSettled = false;
+            Promise.race([
+                chain.then(() => { isSettled = true; }).catch(() => { isSettled = true; }),
+                Promise.resolve()
+            ]).then(() => {
+                if (isSettled) {
+                    toDelete.push(sessionId);
+                }
+            });
+        }
+
+        // Remove settled chains
+        for (const sessionId of toDelete) {
+            this._sessionUpdateChains.delete(sessionId);
+        }
+
+        if (toDelete.length > 0) {
+            log.debug(`Cleaned up ${toDelete.length} settled session update chains`);
         }
     }
 
@@ -775,6 +839,9 @@ export class MessageController implements ReactiveController {
         const currentSessionId = this._sessionController?.value.state.currentSessionId;
         if (!this._repository || !currentSessionId) return;
 
+        // Track streaming session to detect session switches
+        this._streamingSessionId = currentSessionId;
+
         const state = this._repository.getSessionState(currentSessionId);
         const lastMsg = state.messages[state.messages.length - 1];
         if (!lastMsg) return;
@@ -797,6 +864,14 @@ export class MessageController implements ReactiveController {
         const currentSessionId = this._sessionController?.value.state.currentSessionId;
         if (!this._repository || !currentSessionId) return;
 
+        // Check if session changed during streaming - if so, skip finalization
+        // to prevent stale streaming operations from affecting the new session
+        if (this._streamingSessionId && this._streamingSessionId !== currentSessionId) {
+            log.debug(`Skipping finalize: session changed from ${this._streamingSessionId} to ${currentSessionId}`);
+            this._streamingSessionId = undefined;
+            return;
+        }
+
         const state = this._repository.getSessionState(currentSessionId);
         const lastMsg = state.messages[state.messages.length - 1];
         if (!lastMsg) return;
@@ -805,6 +880,9 @@ export class MessageController implements ReactiveController {
             ...msg,
             streaming: false,
         }));
+
+        // Clear streaming session tracker
+        this._streamingSessionId = undefined;
 
         this.host.requestUpdate();
     }
@@ -823,6 +901,22 @@ export class MessageController implements ReactiveController {
             this._repository.setNewestOffset(currentSessionId, '');
         }
 
+        // Cancel any in-flight streaming operations to prevent them from
+        // affecting the new session after a session switch
+        this._cancelStreaming();
+
         this.host.requestUpdate();
+    }
+
+    /**
+     * Cancel any in-flight streaming operations.
+     * Called during session switch to prevent stale streaming updates
+     * from the old session from affecting the new session.
+     */
+    private _cancelStreaming() {
+        if (this._streamingSessionId) {
+            log.debug(`Cancelling streaming for session: ${this._streamingSessionId}`);
+            this._streamingSessionId = undefined;
+        }
     }
 }

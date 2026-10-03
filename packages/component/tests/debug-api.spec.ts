@@ -74,6 +74,8 @@ test.describe('Debug API - Installation', () => {
                 waitForReady: typeof api.waitForReady,
                 waitForConnected: typeof api.waitForConnected,
                 clearLogs: typeof api.clearLogs,
+                setLogLevel: typeof api.setLogLevel,
+                getLogLevel: typeof api.getLogLevel,
                 // Session Management
                 createSession: typeof api.createSession,
                 switchSession: typeof api.switchSession,

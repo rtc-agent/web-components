@@ -3,6 +3,21 @@
  *
  * Extracted from rtc-agent.ts to keep the root component lean.
  * Each command is a pure async function that takes its dependencies explicitly.
+ *
+ * ## Command Registration
+ *
+ * Commands are registered in a registry pattern, making it easy to add new commands
+ * without modifying the core dispatch logic. Built-in commands (compact, export) are
+ * registered at module load time.
+ *
+ * To add a new command:
+ * ```ts
+ * import { registerCommand } from './command-handler.js';
+ *
+ * registerCommand('mycommand', async (args, deps) => {
+ *   // Command implementation
+ * });
+ * ```
  */
 import { msg, str } from '@lit/localize';
 import type { PersistenceLayer } from '@rtc-agent/persistence';
@@ -28,6 +43,55 @@ export interface CommandDeps {
     logger: Logger;
 }
 
+// ── Command Registry ──
+
+/**
+ * Command handler function signature
+ */
+export type CommandHandler = (
+    args: string | undefined,
+    deps: CommandDeps
+) => Promise<void>;
+
+/**
+ * Command registry - maps command names to their handlers
+ */
+const commandRegistry = new Map<string, CommandHandler>();
+
+/**
+ * Register a new slash command
+ *
+ * @param name - Command name (without the leading slash)
+ * @param handler - Async function to execute when the command is invoked
+ *
+ * @example
+ * ```ts
+ * registerCommand('hello', async (args, deps) => {
+ *   deps.toast.show(`Hello ${args ?? 'World'}!`, 'info');
+ * });
+ * ```
+ */
+export function registerCommand(name: string, handler: CommandHandler): void {
+    if (commandRegistry.has(name)) {
+        console.warn(`[CommandHandler] Command '/${name}' is already registered. Overwriting.`);
+    }
+    commandRegistry.set(name, handler);
+}
+
+/**
+ * Unregister a slash command
+ */
+export function unregisterCommand(name: string): boolean {
+    return commandRegistry.delete(name);
+}
+
+/**
+ * Get all registered command names
+ */
+export function getRegisteredCommands(): string[] {
+    return Array.from(commandRegistry.keys());
+}
+
 // ── Public API ──
 
 /**
@@ -36,36 +100,56 @@ export interface CommandDeps {
  * Currently supported:
  * - /compact [custom_instruction]: compress current session context
  * - /export: export current session to HTML file
+ *
+ * New commands can be registered via `registerCommand()`.
  */
 export async function handleCommand(
     name: string,
     args: string | undefined,
     deps: CommandDeps,
 ): Promise<void> {
-    switch (name) {
-        case "compact":
-            await handleCompactCommand(args, deps);
-            break;
-        case "export":
-            await handleExportCommand(deps);
-            break;
-        default:
-            deps.toast.show(msg(str`未知命令: /${name}`), "error");
-            break;
+    const handler = commandRegistry.get(name);
+    if (handler) {
+        await handler(args, deps);
+    } else {
+        deps.toast.show(msg(str`未知命令: /${name}`), "error");
     }
 }
 
 /**
- * Handle the /compact command.
+ * Apply export options to filter and limit messages.
  *
- * Calls the server RPC to compress the current session context.
- * Does not show a success toast immediately (waits for Live push to update session state).
- * Shows an error toast on failure.
+ * - If limit > 0, take the most recent `limit` messages
+ * - If includeToolCalls is false, filter out toolcall_input and toolcall_output
+ * - If includeThinking is false, filter out thinking messages
  */
-async function handleCompactCommand(
-    customInstruction: string | undefined,
-    deps: CommandDeps,
-): Promise<void> {
+function applyExportOptions(messages: Message[], options: ExportOptions): Message[] {
+    let result = messages;
+
+    // Filter by content type
+    if (!options.includeToolCalls) {
+        result = result.filter(m =>
+            m.content.type !== 'toolcall_input' && m.content.type !== 'toolcall_output'
+        );
+    }
+    if (!options.includeThinking) {
+        result = result.filter(m => m.content.type !== 'thinking');
+    }
+
+    // Apply limit (0 = all, otherwise take the most recent N)
+    if (options.limit > 0 && options.limit < result.length) {
+        result = result.slice(-options.limit);
+    }
+
+    return result;
+}
+
+// ── Built-in Commands Registration ──
+
+/**
+ * Register built-in commands at module load time
+ */
+registerCommand('compact', async (args, deps) => {
     const { persistenceLayer, currentSessionId, toast, logger } = deps;
 
     if (!currentSessionId) {
@@ -81,23 +165,16 @@ async function handleCompactCommand(
     toast.show(msg("正在压缩上下文..."), "info");
 
     try {
-        await persistenceLayer.compactSession(currentSessionId, customInstruction);
+        await persistenceLayer.compactSession(currentSessionId, args);
         // Success: don't show toast immediately, wait for Live push to update session.
     } catch (err) {
         logger.error("/compact failed:", err);
         const message = err instanceof Error ? err.message : msg("压缩上下文失败");
         toast.show(message, "error");
     }
-}
+});
 
-/**
- * Handle the /export command.
- *
- * Shows an export options dialog, then exports current session to HTML file.
- * Filters out streaming (incomplete) messages before export.
- * Applies user-selected options (limit, tool calls, thinking).
- */
-async function handleExportCommand(deps: CommandDeps): Promise<void> {
+registerCommand('export', async (_args, deps) => {
     const { toast, logger, currentSession, currentMessages, host } = deps;
 
     if (!currentSession) {
@@ -138,32 +215,4 @@ async function handleExportCommand(deps: CommandDeps): Promise<void> {
         logger.error('/export failed:', err);
         toast.show(msg('导出失败'), 'error');
     }
-}
-
-/**
- * Apply export options to filter and limit messages.
- *
- * - If limit > 0, take the most recent `limit` messages
- * - If includeToolCalls is false, filter out toolcall_input and toolcall_output
- * - If includeThinking is false, filter out thinking messages
- */
-function applyExportOptions(messages: Message[], options: ExportOptions): Message[] {
-    let result = messages;
-
-    // Filter by content type
-    if (!options.includeToolCalls) {
-        result = result.filter(m =>
-            m.content.type !== 'toolcall_input' && m.content.type !== 'toolcall_output'
-        );
-    }
-    if (!options.includeThinking) {
-        result = result.filter(m => m.content.type !== 'thinking');
-    }
-
-    // Apply limit (0 = all, otherwise take the most recent N)
-    if (options.limit > 0 && options.limit < result.length) {
-        result = result.slice(-options.limit);
-    }
-
-    return result;
-}
+});

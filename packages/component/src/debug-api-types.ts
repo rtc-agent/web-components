@@ -99,6 +99,18 @@ export interface RtcAgentDebugAPI {
     /** Clear the log buffer. */
     clearLogs(): void;
 
+    /**
+     * Set the global minimum log level for all loggers.
+     *
+     * Levels: 'debug' < 'info' < 'warn' < 'error'.
+     * Setting to 'error' suppresses all but error logs; setting to 'debug'
+     * enables full verbose output.
+     */
+    setLogLevel(level: 'debug' | 'info' | 'warn' | 'error'): void;
+
+    /** Get the current global minimum log level. */
+    getLogLevel(): 'debug' | 'info' | 'warn' | 'error';
+
     // ── UI Control ──
 
     /**

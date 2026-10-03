@@ -19,12 +19,24 @@ const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
   error: 3,
 };
 
-/** The minimum level that will be emitted. Defaults to 'debug'. */
-let globalMinLevel: LogLevel = 'debug';
+/**
+ * The minimum level that will be emitted.
+ *
+ * Defaults to 'info' to match production expectations (the module docstring
+ * promises "production builds default to 'info'"). Callers (e.g. the debug
+ * page or a host application bootstrap) can call `setGlobalLogLevel('debug')`
+ * to enable verbose output in development.
+ */
+let globalMinLevel: LogLevel = 'info';
 
 /** Set the global minimum log level for all loggers. */
 export function setGlobalLogLevel(level: LogLevel): void {
   globalMinLevel = level;
+}
+
+/** Get the current global minimum log level. */
+export function getGlobalLogLevel(): LogLevel {
+  return globalMinLevel;
 }
 
 export interface Logger {

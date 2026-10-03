@@ -84,6 +84,10 @@ export class UploadProgressRepository {
   /**
    * Update completed parts after a part upload succeeds.
    *
+   * CRITICAL FIX: Use Dexie's modify() for atomic read-modify-write to prevent
+   * race conditions when multiple parts complete concurrently. Without this,
+   * concurrent calls could overwrite each other's changes, losing part completion records.
+   *
    * @param md5 File content MD5 hash
    * @param ext File extension
    * @param part Completed part record
@@ -94,24 +98,28 @@ export class UploadProgressRepository {
     part: UploadPartRecord
   ): Promise<void> {
     const db = getDatabase();
-    const entry = await db.uploadParts.get([md5, ext]);
-    if (!entry) {
+
+    // FIX: Use modify() for atomic update within a transaction
+    let updated = false;
+    await db.uploadParts.where('[md5+ext]').equals([md5, ext]).modify(entry => {
+      // Add part to completed list (avoid duplicates)
+      const existing = entry.completedParts.findIndex(p => p.partNumber === part.partNumber);
+      if (existing >= 0) {
+        entry.completedParts[existing] = part;
+      } else {
+        entry.completedParts.push(part);
+      }
+
+      entry.bytesUploaded = entry.completedParts.reduce((sum, p) => sum + p.size, 0);
+      entry.updatedAt = Date.now();
+      updated = true;
+    });
+
+    if (!updated) {
       throw new Error(`Upload progress not found: ${md5}.${ext}`);
     }
 
-    // Add part to completed list (avoid duplicates)
-    const existing = entry.completedParts.findIndex(p => p.partNumber === part.partNumber);
-    if (existing >= 0) {
-      entry.completedParts[existing] = part;
-    } else {
-      entry.completedParts.push(part);
-    }
-
-    entry.bytesUploaded = entry.completedParts.reduce((sum, p) => sum + p.size, 0);
-    entry.updatedAt = Date.now();
-
-    await db.uploadParts.put(entry);
-    log.debug(`part completed: ${md5}.${ext}, part=${part.partNumber}, progress=${entry.completedParts.length}/${entry.totalParts}`);
+    log.debug(`part completed: ${md5}.${ext}, part=${part.partNumber}`);
   }
 
   /**

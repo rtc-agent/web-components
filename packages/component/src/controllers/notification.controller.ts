@@ -253,9 +253,21 @@ export class NotificationController implements ReactiveController {
             // Capture abort signal before async operation to detect disconnection
             const abortSignal = this._abortController.signal;
 
-            // Query the session the message belongs to
+            // CRITICAL FIX: Pass abort signal to getMessage to allow cancellation
+            // Use Promise.race to ensure we can abort the DB query if disconnected
             const message = this.persistence
-                ? await this.persistence.getMessage(event.entityId)
+                ? await Promise.race([
+                    this.persistence.getMessage(event.entityId),
+                    new Promise<undefined>((_, reject) => {
+                        if (abortSignal.aborted) {
+                            reject(new DOMException('Aborted', 'AbortError'));
+                            return;
+                        }
+                        abortSignal.addEventListener('abort', () => {
+                            reject(new DOMException('Aborted', 'AbortError'));
+                        }, { once: true });
+                    })
+                ])
                 : undefined;
 
             // Check if aborted during await (e.g., host disconnected)

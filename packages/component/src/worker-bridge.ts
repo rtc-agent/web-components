@@ -292,7 +292,7 @@ export class WorkerBridge {
                 return;
             } catch (err) {
                 lastError = err instanceof Error ? err : new Error(String(err));
-                log.error(`Worker initialization attempt ${attempt + 1} failed:`, lastError.message);
+                log.error(`Worker initialization attempt ${attempt + 1} failed:`, lastError);
 
                 // Clean up the failed Worker instance.
                 this._cleanupFailedWorker();

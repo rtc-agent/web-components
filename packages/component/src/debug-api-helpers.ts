@@ -42,11 +42,17 @@ export const logBuffer: string[] = [];
 
 /**
  * Format a log entry with timestamp and level.
+ *
+ * Error objects are serialized with their message and stack trace (both are
+ * non-enumerable and would be lost by a plain `JSON.stringify`, which returns
+ * `"{}"` for Error instances). Other values fall back to JSON.stringify with
+ * a String() safety net for circular references.
  */
 function formatLogEntry(level: string, args: unknown[]): string {
     const ts = new Date().toISOString();
     const msg = args.map(a => {
         if (typeof a === 'string') return a;
+        if (a instanceof Error) return a.stack ?? `${a.name}: ${a.message}`;
         try { return JSON.stringify(a); } catch { return String(a); }
     }).join(' ');
     return `[${ts}] [${level}] ${msg}`;

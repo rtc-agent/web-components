@@ -65,6 +65,17 @@ export class EventBus<TEventMap extends DefaultEventMap = DefaultEventMap> {
 
   /**
    * Subscribe to one-time event
+   *
+   * @returns Unsubscribe function. If not used and the event is never triggered,
+   *          the handler will remain in memory until the EventBus is cleared.
+   *          For events that may never fire, consider using a timeout or explicit cleanup.
+   *
+   * @example
+   * ```ts
+   * const unsub = bus.once('user:login', handleLogin);
+   * // Later, if needed:
+   * unsub(); // Cancel the one-time subscription
+   * ```
    */
   once<K extends keyof TEventMap & string>(
     event: K,
@@ -138,6 +149,23 @@ export class EventBus<TEventMap extends DefaultEventMap = DefaultEventMap> {
    *
    * Unlike emitAsync, this method does not swallow errors from handlers.
    * If any handler throws, the returned Promise will reject.
+   *
+   * **Important**: All handlers are executed even if one rejects. The returned Promise
+   * rejects as soon as any handler rejects (via Promise.all), but other handlers continue
+   * to run to completion. This is useful when you need to know if any handler failed,
+   * but don't want to abort other handlers' execution.
+   *
+   * If you need to wait for all handlers regardless of errors, use emitAsync instead.
+   *
+   * @example
+   * ```ts
+   * try {
+   *   await bus.emitAsyncStrict('user:login', userData);
+   * } catch (err) {
+   *   // At least one handler failed, but others may still be running
+   *   log.error('Login handler failed:', err);
+   * }
+   * ```
    */
   async emitAsyncStrict<K extends keyof TEventMap & string>(
     event: K,

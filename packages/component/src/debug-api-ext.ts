@@ -70,7 +70,7 @@ export function buildExtAPI(): Pick<
         createSession(): string | null {
             const el = getAgentElement();
             if (!el) {
-                log.error('createSession: rtc-agent element not found');
+                log.warn('createSession: rtc-agent element not found');
                 return null;
             }
             const clientId = el.sessionController.actions.createSession();
@@ -81,7 +81,7 @@ export function buildExtAPI(): Pick<
         switchSession(sessionId: string): boolean {
             const el = getAgentElement();
             if (!el) {
-                log.error('switchSession: rtc-agent element not found');
+                log.warn('switchSession: rtc-agent element not found');
                 return false;
             }
             const exists = el.sessionController.value.state.sessions.some(
@@ -152,7 +152,7 @@ export function buildExtAPI(): Pick<
         }): void {
             const el = getAgentElement();
             if (!el) {
-                log.error('addPendingToolCall: rtc-agent element not found');
+                log.warn('addPendingToolCall: rtc-agent element not found');
                 return;
             }
             const toolCall: ToolCall = {
@@ -209,7 +209,7 @@ export function buildExtAPI(): Pick<
         showToast(message: string, type: 'info' | 'success' | 'error' = 'info'): void {
             const el = getAgentElement();
             if (!el) {
-                log.error('showToast: rtc-agent element not found');
+                log.warn('showToast: rtc-agent element not found');
                 return;
             }
             el.toastController.actions.show(message, type);
@@ -237,7 +237,7 @@ export function buildExtAPI(): Pick<
         updateSettings(section: string, patch: Record<string, unknown>): void {
             const el = getAgentElement();
             if (!el) {
-                log.error('updateSettings: rtc-agent element not found');
+                log.warn('updateSettings: rtc-agent element not found');
                 return;
             }
             const actions = el.settingsController.actions;
@@ -265,7 +265,7 @@ export function buildExtAPI(): Pick<
         setActivity(activity: string): void {
             const el = getAgentElement();
             if (!el) {
-                log.error('setActivity: rtc-agent element not found');
+                log.warn('setActivity: rtc-agent element not found');
                 return;
             }
             const validActivities: Activity[] = ['files', 'chat', 'settings'];

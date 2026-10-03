@@ -600,19 +600,23 @@ export class VirtualFS {
 
   /**
    * Delete a file.
+   * CRITICAL FIX: Use transaction to prevent TOCTOU race condition where concurrent
+   * write could create a file between the exists() check and delete() call.
    */
   async remove(path: string): Promise<void> {
     const normalizedPath = normalizePath(path);
     log.debug('remove:', normalizedPath);
     const db = getDatabase();
 
-    const exists = await this.exists(normalizedPath);
-    if (!exists) {
-      log.debug('remove: file not found:', normalizedPath);
-      throw new PathError('ENOENT', `File not found: ${normalizedPath}`);
-    }
-
-    await db.fileSystemEntries.delete(normalizedPath);
+    // FIX: Perform existence check and delete within the same transaction
+    await db.transaction('rw', db.fileSystemEntries, async () => {
+      const entry = await db.fileSystemEntries.get(normalizedPath);
+      if (!entry) {
+        log.debug('remove: file not found:', normalizedPath);
+        throw new PathError('ENOENT', `File not found: ${normalizedPath}`);
+      }
+      await db.fileSystemEntries.delete(normalizedPath);
+    });
     log.debug('remove: success:', normalizedPath);
   }
 

@@ -584,7 +584,8 @@ export class EventBindingController implements ReactiveController {
         element.addEventListener('rtc-window-restore', this._boundOnRestore);
 
         // Authentication
-        element.addEventListener('rtc-login-requested', this._boundOnLoginRequested);
+        // FIX: Use consistent event name 'rtc-auth-login-requested' as defined in types/events.ts
+        element.addEventListener('rtc-auth-login-requested', this._boundOnLoginRequested);
         element.addEventListener('rtc-auth-logout', this._boundOnLogout);
 
         // Session management
@@ -645,7 +646,8 @@ export class EventBindingController implements ReactiveController {
         element.removeEventListener('rtc-window-restore', this._boundOnRestore);
 
         // Authentication
-        element.removeEventListener('rtc-login-requested', this._boundOnLoginRequested);
+        // FIX: Use consistent event name 'rtc-auth-login-requested' as defined in types/events.ts
+        element.removeEventListener('rtc-auth-login-requested', this._boundOnLoginRequested);
         element.removeEventListener('rtc-auth-logout', this._boundOnLogout);
 
         // Session management

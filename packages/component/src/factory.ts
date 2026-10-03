@@ -4,9 +4,12 @@
  * @module factory
  */
 
-import type { RtcAgentConfig, RtcAgentWithLifecycle, StaticTokenAuth, DynamicTokenAuth, AuthProvider } from './types/factory.js';
+import type { RtcAgentConfig, RtcAgentWithLifecycle } from './types/factory.js';
 import type { AgentConfig } from './types/agent-config.js';
 import { eventBus } from './core/event-bus.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('Factory');
 
 /**
  * Create a pre-configured `<rtc-agent>` custom element.
@@ -173,22 +176,23 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
   // ── Authentication configuration ──
 
   if (config.auth) {
-    // Detect auth mode by checking fields
-    if ('accessToken' in config.auth) {
-      // Mode 1: StaticTokenAuth
-      const staticAuth = config.auth as StaticTokenAuth;
-
-      // Store pending auth config — will be applied in connectedCallback
-      // after the element is mounted (controllers are initialized at that point).
-      element._pendingAuthConfig = staticAuth;
-    } else if ('getToken' in config.auth && !('isLoggedIn' in config.auth)) {
-      // Mode 2: DynamicTokenAuth
-      const dynamicAuth = config.auth as DynamicTokenAuth;
-      element._pendingDynamicAuth = dynamicAuth;
-    } else if ('isLoggedIn' in config.auth) {
-      // Mode 3: AuthProvider
-      const authProvider = config.auth as AuthProvider;
-      element._pendingAuthProvider = authProvider;
+    // P1 Fix: Use discriminator field for type-safe auth mode detection
+    // This is more reliable than checking for field existence
+    switch (config.auth.type) {
+      case 'static':
+        // Mode 1: StaticTokenAuth
+        element._pendingAuthConfig = config.auth;
+        break;
+      case 'dynamic':
+        // Mode 2: DynamicTokenAuth
+        element._pendingDynamicAuth = config.auth;
+        break;
+      case 'provider':
+        // Mode 3: AuthProvider
+        element._pendingAuthProvider = config.auth;
+        break;
+      default:
+        log.error('Unknown auth type:', (config.auth as { type: string }).type);
     }
   }
 

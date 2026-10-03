@@ -2028,6 +2028,8 @@ export class MessageVirtualScroll<T> {
             this._heightCache.delete(itemId);
             this._componentStateCache.delete(itemId);
             this._idToIndex.delete(itemId);
+            // CRITICAL FIX: Also clean up skeleton tracker to prevent stale skeleton state
+            this._skeletonTracker.remove(itemId);
         }
 
         // Rebuild _idToIndex: all remaining items' indices shifted by -settleCount
@@ -2046,6 +2048,11 @@ export class MessageVirtualScroll<T> {
                     // Settled element: remove from DOM and stop observing
                     el.remove();
                     this._itemResizeObserver?.unobserve(el);
+                    // CRITICAL FIX: Also clean up skeleton tracker for removed DOM elements
+                    const itemId = el.dataset.itemId;
+                    if (itemId) {
+                        this._skeletonTracker.remove(itemId);
+                    }
                 }
             }
             this._elementMap = newElementMap;

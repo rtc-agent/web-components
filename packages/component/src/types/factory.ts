@@ -23,6 +23,32 @@ import type { Session, Message } from './index.js';
 export type AuthConfig = StaticTokenAuth | DynamicTokenAuth | AuthProvider;
 
 /**
+ * Type guards for AuthConfig discrimination.
+ *
+ * These helpers provide type-safe runtime checks to distinguish between
+ * the three authentication modes without relying on fragile property checks.
+ *
+ * @example
+ * ```ts
+ * if (isStaticTokenAuth(config.auth)) {
+ *   // TypeScript knows config.auth is StaticTokenAuth
+ *   console.log(config.auth.accessToken);
+ * }
+ * ```
+ */
+export function isStaticTokenAuth(auth: AuthConfig): auth is StaticTokenAuth {
+  return 'accessToken' in auth && typeof auth.accessToken === 'string';
+}
+
+export function isDynamicTokenAuth(auth: AuthConfig): auth is DynamicTokenAuth {
+  return 'getToken' in auth && !('isLoggedIn' in auth);
+}
+
+export function isAuthProvider(auth: AuthConfig): auth is AuthProvider {
+  return 'isLoggedIn' in auth;
+}
+
+/**
  * Mode 1: Static Token Authentication
  *
  * The host application provides a fixed access token. The component will not
@@ -35,6 +61,7 @@ export type AuthConfig = StaticTokenAuth | DynamicTokenAuth | AuthProvider;
  * ```ts
  * const agent = createRtcAgent({
  *   auth: {
+ *     type: 'static',
  *     accessToken: 'eyJhbGc...',
  *     refreshToken: 'optional-refresh-token',
  *     userId: 'user-123',
@@ -44,6 +71,8 @@ export type AuthConfig = StaticTokenAuth | DynamicTokenAuth | AuthProvider;
  * ```
  */
 export interface StaticTokenAuth {
+  /** Discriminator field for type-safe auth mode detection */
+  type: 'static';
   /** Access token for API requests */
   accessToken: string;
   /** Optional refresh token (not used in static mode, reserved for future) */
@@ -81,6 +110,7 @@ export interface StaticTokenAuth {
  * ```ts
  * const agent = createRtcAgent({
  *   auth: {
+ *     type: 'dynamic',
  *     getToken: () => authService.getLatestToken(),
  *     refreshToken: async () => {
  *       const result = await authService.refresh();
@@ -92,6 +122,8 @@ export interface StaticTokenAuth {
  * ```
  */
 export interface DynamicTokenAuth {
+  /** Discriminator field for type-safe auth mode detection */
+  type: 'dynamic';
   /** Called each time a token is needed (e.g., WebSocket connection, API request) */
   getToken: () => string | Promise<string>;
   /** Called when the token expires and needs refresh */
@@ -131,6 +163,7 @@ export interface DynamicTokenAuth {
  * ```ts
  * const agent = createRtcAgent({
  *   auth: {
+ *     type: 'provider',
  *     getToken: () => authProvider.getAccessToken(),
  *     refreshToken: () => authProvider.refreshAccessToken(),
  *     isLoggedIn: () => authProvider.isAuthenticated(),
@@ -140,6 +173,8 @@ export interface DynamicTokenAuth {
  * ```
  */
 export interface AuthProvider {
+  /** Discriminator field for type-safe auth mode detection */
+  type: 'provider';
   /** Returns the current access token */
   getToken(): string | Promise<string>;
   /** Refreshes the access token */

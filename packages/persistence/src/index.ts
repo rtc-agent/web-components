@@ -116,6 +116,20 @@ export class PersistenceLayer {
   }> | null = null;
 
   constructor(config: PersistenceConfig) {
+    // CRITICAL FIX: Validate required configuration fields to prevent runtime errors
+    if (!config.deviceId) {
+      throw new Error('[PersistenceLayer] deviceId is required in PersistenceConfig');
+    }
+    if (!config.userId) {
+      throw new Error('[PersistenceLayer] userId is required in PersistenceConfig');
+    }
+    if (!config.serverUrl) {
+      throw new Error('[PersistenceLayer] serverUrl is required in PersistenceConfig');
+    }
+    if (!config.client) {
+      throw new Error('[PersistenceLayer] client is required in PersistenceConfig');
+    }
+
     this._userId = config.userId;
 
     // Initialize EntityRepository singleton (device ID filtering on write)
