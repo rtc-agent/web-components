@@ -20,6 +20,11 @@ export type MessageRole = 'user' | 'assistant' | 'system';
 /** Message sync status: pending=locally pending sync, synced=synced, failed=sync failed */
 // SyncStatus re-exported from @rtc-agent/persistence above
 
+/**
+ * UI-layer Message type with camelCase fields for frontend rendering.
+ * @deprecated For new code, prefer using `Message` from `@rtc-agent/protocol` (snake_case) for type safety.
+ * This type is maintained for backward compatibility with existing UI components.
+ */
 export interface Message {
     clientId: string;
     role: MessageRole;
@@ -42,6 +47,11 @@ export interface Message {
 /** Session runtime status, aligned with protocol SessionStatus */
 export type SessionStatus = 'active' | 'closed' | 'idle';
 
+/**
+ * UI-layer Session type with camelCase fields for frontend rendering.
+ * @deprecated For new code, prefer using `Session` from `@rtc-agent/protocol` (snake_case) for type safety.
+ * This type is maintained for backward compatibility with existing UI components.
+ */
 export interface Session {
     clientId: string;
     /** Device ID that created this Session (from JWT Token), used by the frontend to determine RTC request ownership */
