@@ -11,13 +11,11 @@
  * - `debug-api-ext.ts` — Extended APIs (session, tools, toast, settings, metrics, network)
  * - `debug-api.ts` — This file: entry point + installDebugAPI()
  */
-import {createLogger, setGlobalLogLevel} from '@rtc-agent/client';
+import {setGlobalLogLevel} from '@rtc-agent/client';
 import type {RtcAgentDebugAPI} from './debug-api-types.js';
-import {installLogCapture} from './debug-api-helpers.js';
+import {log, installLogCapture} from './debug-api-helpers.js';
 import {buildCoreAPI} from './debug-api-core.js';
 import {buildExtAPI} from './debug-api-ext.js';
-
-const log = createLogger('DebugAPI');
 
 export type {RtcAgentDebugAPI} from './debug-api-types.js';
 

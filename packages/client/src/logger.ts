@@ -2,7 +2,10 @@
  * Lightweight scoped logger for @rtc-agent/client.
  *
  * Provides levelled logging (debug < info < warn < error) with a module prefix.
- * In production builds the min level defaults to 'info'; in dev it defaults to 'debug'.
+ * The global minimum level defaults to 'info' in all environments. In dev/test
+ * builds, `installDebugAPI()` calls `setGlobalLogLevel('debug')` to enable
+ * verbose output. Host applications can also call `setGlobalLogLevel('debug')`
+ * directly to enable verbose logging at runtime.
  *
  * Usage:
  *   const log = createLogger('RTCAgentClient');
@@ -22,10 +25,9 @@ const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
 /**
  * The minimum level that will be emitted.
  *
- * Defaults to 'info' to match production expectations (the module docstring
- * promises "production builds default to 'info'"). Callers (e.g. the debug
- * page or a host application bootstrap) can call `setGlobalLogLevel('debug')`
- * to enable verbose output in development.
+ * Defaults to 'info' in all environments. The debug API bootstrap calls
+ * `setGlobalLogLevel('debug')` in dev/test builds to enable verbose output.
+ * See the module docstring for details.
  */
 let globalMinLevel: LogLevel = 'info';
 

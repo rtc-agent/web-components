@@ -7,7 +7,7 @@
 import { virtualFS } from './virtual-fs.js';
 import { createLogger } from '@rtc-agent/client';
 
-const log = createLogger('VirtualFS');
+const log = createLogger('VirtualFSInit');
 
 /**
  * AGENT.md template configuration.
