@@ -391,7 +391,7 @@ export class PersistenceController implements ReactiveController {
                 : `rtc-agent-${userId}`,
             deviceId,
             userId,
-            serverUrl: AUTH_CONFIG.serverUrl,
+            serverURL: AUTH_CONFIG.serverURL,
             client: {
                 endpoint: AUTH_CONFIG.wsEndpoint,
                 getToken: async () => {

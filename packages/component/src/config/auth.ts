@@ -14,7 +14,7 @@ const log = createLogger('AuthConfig');
  * Set via `<rtc-agent server-url="...">` attribute (wired in RtcAgent setter).
  * Precedence: explicit setServerUrl() > VITE_SERVER_URL env > 'http://localhost:28080'.
  */
-let _serverUrl: string | null = null;
+let _serverURL: string | null = null;
 
 /**
  * Runtime-overridable redirect URI.
@@ -31,7 +31,7 @@ let _redirectUri: string | null = null;
  * Safe to call multiple times; takes effect immediately for subsequent reads.
  */
 export function setServerUrl(url: string | null): void {
-    _serverUrl = url && url.length > 0 ? url.replace(/\/+$/, '') : null;
+    _serverURL = url && url.length > 0 ? url.replace(/\/+$/, '') : null;
 }
 
 /**
@@ -56,7 +56,7 @@ export function setRedirectUri(uri: string | null): void {
 
 /** Get server URL (runtime override > env > default). */
 function getServerUrl(): string {
-    if (_serverUrl) return _serverUrl;
+    if (_serverURL) return _serverURL;
     // Vite injects env vars at build time (typed via vite/client in vite-env.d.ts)
     try {
         const env = import.meta.env;
@@ -71,7 +71,7 @@ function getServerUrl(): string {
 /** Auth-related configuration */
 export const AUTH_CONFIG = {
     /** Backend server URL */
-    get serverUrl(): string {
+    get serverURL(): string {
         return getServerUrl();
     },
 

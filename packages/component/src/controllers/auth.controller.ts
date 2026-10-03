@@ -408,7 +408,7 @@ export class AuthController implements ReactiveController {
         expiresAt?: number;
     }> {
         try {
-            const response = await fetch(`${AUTH_CONFIG.serverUrl}/oauth2/refresh`, {
+            const response = await fetch(`${AUTH_CONFIG.serverURL}/oauth2/refresh`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({refresh_token: refreshToken}),

@@ -324,13 +324,13 @@ export class WorkerBridge {
 
             // 2. Resolve the worker's absolute URL.
             const here = import.meta.url;
-            const workerUrl = new URL(workerPath, here).href;
+            const workerURL = new URL(workerPath, here).href;
 
             // 3. Determine if cross-origin.
             const pageOrigin = window.location.origin;
             let workerOrigin: string;
             try {
-                workerOrigin = new URL(workerUrl).origin;
+                workerOrigin = new URL(workerURL).origin;
             } catch (err) {
                 // Malformed URL — assume same-origin as fallback
                 log.debug('Failed to parse worker URL origin, assuming same-origin:', err);
@@ -339,7 +339,7 @@ export class WorkerBridge {
             const isCrossOrigin = workerOrigin !== pageOrigin;
 
             log.info('worker init:', {
-                workerUrl,
+                workerURL,
                 pageOrigin,
                 workerOrigin,
                 isCrossOrigin,
@@ -363,7 +363,7 @@ export class WorkerBridge {
                 // CDN must return CORS headers (Access-Control-Allow-Origin) or fetch will fail.
                 let script: string;
                 try {
-                    const response = await fetch(workerUrl, {
+                    const response = await fetch(workerURL, {
                         cache: 'default', // CDN scripts are content-hashed in production; dev URLs are unique per HMR.
                     });
                     if (!response.ok) {
@@ -372,7 +372,7 @@ export class WorkerBridge {
                     script = await response.text();
                 } catch (err) {
                     throw new Error(
-                        `[WorkerBridge] failed to fetch worker script from ${workerUrl}: ${err instanceof Error ? err.message : err}`
+                        `[WorkerBridge] failed to fetch worker script from ${workerURL}: ${err instanceof Error ? err.message : err}`
                     );
                 }
 

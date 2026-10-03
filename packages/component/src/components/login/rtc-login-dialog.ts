@@ -63,7 +63,7 @@ export class RtcLoginDialog extends LitElement {
     connectedCallback() {
         super.connectedCallback();
         this._oauth2Client = new OAuth2Client({
-            serverUrl: AUTH_CONFIG.serverUrl,
+            serverURL: AUTH_CONFIG.serverURL,
             redirectUri: AUTH_CONFIG.redirectUri,
         });
     }
