@@ -4,7 +4,7 @@
  * @module factory
  */
 
-import type { RtcAgentConfig, RtcAgentWithLifecycle } from './types/factory.js';
+import type { RtcAgentConfig, RtcAgentWithLifecycle, StaticTokenAuth, DynamicTokenAuth, AuthProvider } from './types/factory.js';
 import type { AgentConfig } from './types/agent-config.js';
 import { eventBus } from './core/event-bus.js';
 import { createLogger } from '@rtc-agent/client';
@@ -176,23 +176,20 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
   // ── Authentication configuration ──
 
   if (config.auth) {
-    // P1 Fix: Use discriminator field for type-safe auth mode detection
-    // This is more reliable than checking for field existence
-    switch (config.auth.type) {
-      case 'static':
-        // Mode 1: StaticTokenAuth
-        element._pendingAuthConfig = config.auth;
-        break;
-      case 'dynamic':
-        // Mode 2: DynamicTokenAuth
-        element._pendingDynamicAuth = config.auth;
-        break;
-      case 'provider':
-        // Mode 3: AuthProvider
-        element._pendingAuthProvider = config.auth;
-        break;
-      default:
-        log.error('Unknown auth type:', (config.auth as { type: string }).type);
+    // Support both discriminator field (new) and field existence (legacy) for backward compatibility
+    const authType = 'type' in config.auth ? config.auth.type : undefined;
+
+    if (authType === 'static' || (!authType && 'accessToken' in config.auth)) {
+      // Mode 1: StaticTokenAuth
+      element._pendingAuthConfig = config.auth as StaticTokenAuth;
+    } else if (authType === 'dynamic' || (!authType && 'getToken' in config.auth && !('isLoggedIn' in config.auth))) {
+      // Mode 2: DynamicTokenAuth
+      element._pendingDynamicAuth = config.auth as DynamicTokenAuth;
+    } else if (authType === 'provider' || (!authType && 'isLoggedIn' in config.auth)) {
+      // Mode 3: AuthProvider
+      element._pendingAuthProvider = config.auth as AuthProvider;
+    } else {
+      log.error('Unknown auth type:', authType ?? 'no discriminator field');
     }
   }
 
