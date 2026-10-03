@@ -98,6 +98,7 @@ export const STORAGE_KEYS = {
     deviceId: 'rtc_device_id',
     deviceName: 'rtc_device_name',
     oauthState: 'rtc_oauth_state',
+    pkceCodeVerifier: 'rtc_pkce_code_verifier',
     mode: 'rtc_mode',
     /** Window state: mode, position, size */
     windowState: 'rtc_window_state',

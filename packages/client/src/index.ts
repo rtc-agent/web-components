@@ -1,11 +1,11 @@
 // @rtc-agent/client — Communication layer for RTC Agent
 
 export { RTCAgentClient } from './client.js';
-export { OAuth2Client } from './oauth2-client.js';
+export { OAuth2Client, generatePKCEParams } from './oauth2-client.js';
 export { S3Client } from './s3-client.js';
 export { createLogger, setGlobalLogLevel, getGlobalLogLevel } from './logger.js';
 export type { Logger, LogLevel } from './logger.js';
-export type { OAuth2ClientOptions, OAuth2ProvidersResponse } from './oauth2-client.js';
+export type { OAuth2ClientOptions, OAuth2ProvidersResponse, PKCEParams } from './oauth2-client.js';
 export type {
   S3ClientOptions,
   UploadOptions,

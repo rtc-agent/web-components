@@ -26,6 +26,62 @@ export interface OAuth2ProvidersResponse {
 }
 
 /**
+ * PKCE (Proof Key for Code Exchange) parameters.
+ * RFC 7636: https://datatracker.ietf.org/doc/html/rfc7636
+ */
+export interface PKCEParams {
+  codeVerifier: string;
+  codeChallenge: string;
+  codeChallengeMethod: 'S256' | 'plain';
+}
+
+/**
+ * Generate a cryptographically random code verifier for PKCE.
+ * @returns Base64URL-encoded random string (43-128 characters)
+ */
+function generateCodeVerifier(): string {
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  return base64UrlEncode(array);
+}
+
+/**
+ * Generate code challenge from code verifier using S256 method.
+ * @param codeVerifier The code verifier
+ * @returns Base64URL-encoded SHA-256 hash
+ */
+async function generateCodeChallenge(codeVerifier: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(codeVerifier);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return base64UrlEncode(new Uint8Array(hash));
+}
+
+/**
+ * Base64URL encode (no padding) - RFC 7636 Section 3
+ */
+function base64UrlEncode(buffer: Uint8Array): string {
+  let binary = '';
+  for (let i = 0; i < buffer.length; i++) {
+    binary += String.fromCharCode(buffer[i]);
+  }
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+/**
+ * Generate PKCE parameters for OAuth2 authorization.
+ */
+export async function generatePKCEParams(): Promise<PKCEParams> {
+  const codeVerifier = generateCodeVerifier();
+  const codeChallenge = await generateCodeChallenge(codeVerifier);
+  return {
+    codeVerifier,
+    codeChallenge,
+    codeChallengeMethod: 'S256',
+  };
+}
+
+/**
  * OAuth2 HTTP Client
  *
  * Encapsulates all OAuth2-related HTTP API calls:
@@ -55,25 +111,32 @@ export class OAuth2Client {
   }
 
   /**
-   * Fetch the OAuth2 authorization URL.
+   * Fetch the OAuth2 authorization URL with PKCE support.
    *
    * @param provider Provider name (e.g. 'github', 'google', 'mock')
+   * @param pkce PKCE parameters (code_challenge and code_challenge_method)
    * @returns Response containing redirect_url and state
    */
-  async getAuthorizationUrl(provider: string): Promise<OAuth2AuthorizeResponse> {
+  async getAuthorizationUrl(
+    provider: string,
+    pkce: PKCEParams,
+  ): Promise<OAuth2AuthorizeResponse> {
     const params = new URLSearchParams({
       provider,
       redirect_uri: this.redirectUri,
+      code_challenge: pkce.codeChallenge,
+      code_challenge_method: pkce.codeChallengeMethod,
     });
     const resp = await this.fetchWithTimeout(`/oauth2/authorize?${params}`);
     return (await resp.json()) as OAuth2AuthorizeResponse;
   }
 
   /**
-   * Exchange an authorization code for tokens.
+   * Exchange an authorization code for tokens with PKCE verification.
    *
    * @param code Authorization code
    * @param state CSRF state token (for verification)
+   * @param codeVerifier PKCE code verifier (must match the code_challenge from authorization)
    * @param deviceId Device ID (optional)
    * @param deviceName Device name (optional)
    * @param userAgent User agent string (optional)
@@ -82,6 +145,7 @@ export class OAuth2Client {
   async exchangeToken(
     code: string,
     state: string,
+    codeVerifier: string,
     deviceId?: string,
     deviceName?: string,
     userAgent?: string,
@@ -90,6 +154,7 @@ export class OAuth2Client {
       code,
       state,
       redirect_uri: this.redirectUri,
+      code_verifier: codeVerifier,
       device_id: deviceId ?? '',
       device_name: deviceName,
       user_agent: userAgent,

@@ -17,7 +17,7 @@ import {styles} from './rtc-login-dialog.styles.js';
 import {AUTH_CONFIG, STORAGE_KEYS} from '../../config/auth.js';
 import {getOrCreateDeviceId, getDeviceName} from '../../utils/device.js';
 import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
-import {OAuth2Client} from '@rtc-agent/client';
+import {OAuth2Client, generatePKCEParams} from '@rtc-agent/client';
 import { createLogger } from '@rtc-agent/client';
 
 const log = createLogger('LoginDialog');
@@ -187,17 +187,21 @@ export class RtcLoginDialog extends LitElement {
         this._authUrl = '';
 
         try {
-            // 1. Get authorization URL using OAuth2Client
-            const authz = await this._oauth2Client.getAuthorizationUrl(this.provider);
+            // 1. Generate PKCE parameters (RFC 7636)
+            const pkce = await generatePKCEParams();
 
-            // 2. Save state for validation
+            // 2. Get authorization URL using OAuth2Client with PKCE
+            const authz = await this._oauth2Client.getAuthorizationUrl(this.provider, pkce);
+
+            // 3. Save state and code_verifier for validation
             sessionStorage.setItem(STORAGE_KEYS.oauthState, authz.state);
+            sessionStorage.setItem(STORAGE_KEYS.pkceCodeVerifier, pkce.codeVerifier);
 
-            // 3. Open popup window
+            // 4. Open popup window
             this._authUrl = authz.redirect_url;
             this._openPopup(authz.redirect_url);
 
-            // 4. Listen for postMessage from popup
+            // 5. Listen for postMessage from popup
             this._messageHandler = this._handleCallback.bind(this);
             window.addEventListener('message', this._messageHandler);
 
@@ -305,19 +309,30 @@ export class RtcLoginDialog extends LitElement {
                 return;
             }
 
+            // Retrieve PKCE code_verifier
+            const codeVerifier = sessionStorage.getItem(STORAGE_KEYS.pkceCodeVerifier);
+            if (!codeVerifier) {
+                this._status = 'error';
+                this._errorMessage = msg('PKCE code_verifier 丢失，请重试');
+                this._loginStarted = false;
+                return;
+            }
+
             // Token exchange
             this._status = 'exchanging';
 
             const tokens = await this._oauth2Client.exchangeToken(
                 code,
                 state,
+                codeVerifier,
                 getOrCreateDeviceId(),
                 getDeviceName(),
                 navigator.userAgent,
             );
 
-            // Clear state
+            // Clear state and code_verifier
             sessionStorage.removeItem(STORAGE_KEYS.oauthState);
+            sessionStorage.removeItem(STORAGE_KEYS.pkceCodeVerifier);
 
             // Notify parent
             this._status = 'success';
