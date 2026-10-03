@@ -79,7 +79,7 @@ export interface PersistenceConfig {
   /** User ID for S3 file operations */
   userId: string;
   /** Server URL for S3 operations (e.g., 'http://localhost:8888') */
-  serverUrl: string;
+  serverURL: string;
 }
 
 /**
@@ -123,8 +123,8 @@ export class PersistenceLayer {
     if (!config.userId) {
       throw new Error('[PersistenceLayer] userId is required in PersistenceConfig');
     }
-    if (!config.serverUrl) {
-      throw new Error('[PersistenceLayer] serverUrl is required in PersistenceConfig');
+    if (!config.serverURL) {
+      throw new Error('[PersistenceLayer] serverURL is required in PersistenceConfig');
     }
     if (!config.client) {
       throw new Error('[PersistenceLayer] client is required in PersistenceConfig');
@@ -187,7 +187,7 @@ export class PersistenceLayer {
 
     // Initialize S3Client for file operations
     this.s3Client = new S3Client({
-      serverUrl: config.serverUrl,
+      serverURL: config.serverURL,
       getToken: config.client.getToken,
     });
 

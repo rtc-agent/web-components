@@ -25,7 +25,7 @@ describe('Fix 26: PersistenceLayer graceful shutdown', () => {
       databaseName: DB_NAME,
       deviceId: 'test-device-id',
       userId: 'test-user-id',
-      serverUrl: 'http://localhost:8888',
+      serverURL: 'http://localhost:8888',
     };
 
     persistence = new PersistenceLayer(config);
