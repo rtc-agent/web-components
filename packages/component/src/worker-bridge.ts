@@ -676,13 +676,13 @@ export class WorkerBridge {
         virtualFS.find = ((pattern: string, path?: string) =>
             core.virtualFSFind(pattern, path)) as typeof virtualFS.find;
 
-        virtualFS.grep = ((
+        virtualFS.grep = (
             pattern: string,
             path?: string,
             caseSensitive?: boolean,
             maxResults?: number,
         ) =>
-            core.virtualFSGrep(pattern, path, caseSensitive, maxResults)) as typeof virtualFS.grep;
+            core.virtualFSGrep(pattern, path, caseSensitive, maxResults);
 
         virtualFS.queryByType = ((type: string) =>
             core.virtualFSQueryByType(type)) as typeof virtualFS.queryByType;

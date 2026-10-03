@@ -19,6 +19,7 @@ import {
   type CachedFileInfo,
   type FileCacheEntry,
   type FileSyncStatus,
+  type GrepResult,
 } from '@rtc-agent/persistence';
 import type { HeadObjectResult } from '@rtc-agent/client';
 import type { ContentData } from '@rtc-agent/protocol';
@@ -589,7 +590,7 @@ export class WorkerCore implements WorkerPersistenceCore {
     path?: string,
     caseSensitive?: boolean,
     maxResults?: number,
-  ): Promise<Array<{ file: string; line: string; lineNumber: number }>> {
+  ): Promise<GrepResult> {
     return virtualFS.grep(pattern, path, caseSensitive, maxResults);
   }
 

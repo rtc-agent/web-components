@@ -1,6 +1,6 @@
 import type { ContentData } from '@rtc-agent/protocol';
 import type { ConnectionState, ConnectionStateEvent, HeadObjectResult } from '@rtc-agent/client';
-import type { PersistenceConfig, AgentMdConfig, FileSystemMetadataOverride, UIUpdateQueueEntry, CachedFileInfo, FileCacheEntry, FileSyncStatus } from '@rtc-agent/persistence';
+import type { PersistenceConfig, AgentMdConfig, FileSystemMetadataOverride, UIUpdateQueueEntry, CachedFileInfo, FileCacheEntry, FileSyncStatus, GrepResult } from '@rtc-agent/persistence';
 import type { UIUpdateEvent, LocalSession, LocalMessage, LocalRtc, DebugHistoryItem, PagedResult } from '@rtc-agent/persistence';
 
 /**
@@ -238,7 +238,7 @@ export interface WorkerPersistenceCore {
     path?: string,
     caseSensitive?: boolean,
     maxResults?: number,
-  ): Promise<Array<{ file: string; line: string; lineNumber: number }>>;
+  ): Promise<GrepResult>;
 
   /**
    * Query files by type (executed inside Worker).
