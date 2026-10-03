@@ -22,11 +22,14 @@
 import { msg, str } from '@lit/localize';
 import type { PersistenceLayer } from '@rtc-agent/persistence';
 import type { Logger } from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/client';
 import type { ToastActions } from '../../../controllers/toast.controller.js';
 import type { Session, Message } from '../../../types/index.js';
 import { exportSession } from '../../../utils/session-exporter.js';
 import { showExportDialog } from './dialog-helpers.js';
 import type { ExportOptions } from '../../overlay/rtc-export-dialog.js';
+
+const log = createLogger('CommandHandler');
 
 // ── Dependency interfaces ──
 
@@ -73,7 +76,7 @@ const commandRegistry = new Map<string, CommandHandler>();
  */
 export function registerCommand(name: string, handler: CommandHandler): void {
     if (commandRegistry.has(name)) {
-        console.warn(`[CommandHandler] Command '/${name}' is already registered. Overwriting.`);
+        log.warn(`Command '/${name}' is already registered. Overwriting.`);
     }
     commandRegistry.set(name, handler);
 }

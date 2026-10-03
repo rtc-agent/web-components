@@ -274,7 +274,13 @@ function handleSessionStatusChange(
     // Scenario 1: session closed (open -> closed) -> close tab and evict message cache.
     if (newStatus === 'closed') {
         log.debug('Session closed, closing tab:', sessionId);
-        sessionTab.actions.closeTab(sessionId);
+        // Error isolation: evictSession must run even if closeTab throws.
+        // A failed closeTab should not prevent message cache cleanup.
+        try {
+            sessionTab.actions.closeTab(sessionId);
+        } catch (err) {
+            log.error('Failed to close tab for session:', sessionId, err);
+        }
         // Fix 45: Evict message cache to prevent memory leak
         message.evictSession(sessionId);
         return;

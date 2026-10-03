@@ -294,7 +294,7 @@ describe('handleBusEvent - Fix 45: Session close evicts message cache', () => {
             expect(mockMessage.evictSession).toHaveBeenCalledWith('session-1');
         });
 
-        it('should call evictSession even if closeTab throws', () => {
+        it('should still call evictSession even if closeTab throws', () => {
             mockSessionTab.actions.closeTab.mockImplementation(() => {
                 throw new Error('closeTab failed');
             });
@@ -308,12 +308,11 @@ describe('handleBusEvent - Fix 45: Session close evicts message cache', () => {
                 newValue: 'closed',
             };
 
-            // Should not throw
-            expect(() => handleBusEvent(event, createDeps())).toThrow('closeTab failed');
+            // Should not throw (error is caught internally)
+            expect(() => handleBusEvent(event, createDeps())).not.toThrow();
 
-            // evictSession should still be called (but it's after closeTab, so it won't be called if closeTab throws)
-            // Actually, looking at the implementation, evictSession is called after closeTab, so if closeTab throws, evictSession won't be called
-            // This is a potential issue, but for now let's just test the happy path
+            // evictSession should still be called even when closeTab throws
+            expect(mockMessage.evictSession).toHaveBeenCalledWith('session-1');
         });
 
         it('should not call evictSession for non-closed status changes', () => {

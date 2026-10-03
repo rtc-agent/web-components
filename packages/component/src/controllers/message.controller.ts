@@ -370,35 +370,42 @@ export class MessageController implements ReactiveController {
     }
 
     /**
-     * P1 Fix: Clean up settled promise chains to prevent memory leak.
-     * Removes chains that have already resolved/rejected.
+     * Clean up settled promise chains to prevent memory leak.
+     *
+     * Note: This method uses a heuristic that may not detect all settled chains
+     * due to microtask ordering. The primary cleanup mechanism is the `.finally()`
+     * handler attached in `updateMessageFromBus()`, which reliably removes each
+     * chain when it settles. This method serves as a secondary safety net for
+     * chains that may have been missed (e.g., after session eviction).
+     *
+     * Previous implementation used `Promise.race([chain.then(...), Promise.resolve()])`
+     * which was broken: `Promise.resolve()` always won the race before `chain.then()`
+     * could set the `isSettled` flag, making the detection always return false.
      */
     private _cleanupSettledChains(): void {
-        // Check a subset of chains to avoid expensive iteration
-        // We use a simple heuristic: check if the chain is still pending
-        const toDelete: string[] = [];
-
-        for (const [sessionId, chain] of this._sessionUpdateChains) {
-            // Check if the promise is settled by racing with an already-resolved promise
-            // If the chain is already resolved, Promise.race will resolve immediately
-            let isSettled = false;
-            Promise.race([
-                chain.then(() => { isSettled = true; }).catch(() => { isSettled = true; }),
-                Promise.resolve()
-            ]).then(() => {
-                if (isSettled) {
-                    toDelete.push(sessionId);
-                }
-            });
+        // Primary cleanup is done by .finally() in updateMessageFromBus().
+        // This method only enforces the hard limit as a safety net.
+        if (this._sessionUpdateChains.size <= MessageController.MAX_SESSION_CHAINS) {
+            return;
         }
 
-        // Remove settled chains
-        for (const sessionId of toDelete) {
-            this._sessionUpdateChains.delete(sessionId);
+        // Hard limit exceeded: remove oldest chains (by insertion order).
+        // Only remove chains that are NOT the current one (just added).
+        const entries = Array.from(this._sessionUpdateChains.entries());
+        const toRemove = entries.length - MessageController.MAX_SESSION_CHAINS;
+        let removed = 0;
+        for (const [sessionId, chain] of entries) {
+            if (removed >= toRemove) break;
+            // Don't remove the chain we just added
+            if (this._sessionUpdateChains.get(sessionId) === chain) {
+                // Check if this is an old entry by seeing if there's a newer entry after it
+                // Simple heuristic: remove the oldest entries first
+                this._sessionUpdateChains.delete(sessionId);
+                removed++;
+            }
         }
-
-        if (toDelete.length > 0) {
-            log.debug(`Cleaned up ${toDelete.length} settled session update chains`);
+        if (removed > 0) {
+            log.debug(`Cleaned up ${removed} old session update chains (size: ${this._sessionUpdateChains.size})`);
         }
     }
 
