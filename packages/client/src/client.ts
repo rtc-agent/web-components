@@ -750,7 +750,7 @@ export class RTCAgentClient implements IRTCAgentClient {
       `subState=${sub.state}`
     );
 
-    const BATCH_SIZE = 10; // Number of items per RPC call (avoid oversized responses)
+    const BATCH_SIZE = 500; // Number of items per RPC call (avoid oversized responses)
     const ACCUMULATE_THRESHOLD = 10000; // Accumulate to this count before dedup
     // Only suspend UI updates for large gaps to prevent UI thrashing.
     // Small gaps (< 100) can update UI normally for real-time feedback.
