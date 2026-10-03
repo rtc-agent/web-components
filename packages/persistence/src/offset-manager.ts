@@ -116,17 +116,30 @@ export class OffsetManager {
    * Clears both in-memory cache and IndexedDB.
    * Cache is cleared synchronously first.
    *
+   * If IndexedDB write fails, the cache is rolled back to maintain consistency.
+   *
    * @param channel Channel identifier
    */
   async clearPosition(channel: string): Promise<void> {
     log.debug('clearPosition:', channel);
+
+    // Save previous cache state for potential rollback
+    const previousValue = this.cache.get(channel);
 
     // Clear cache first (synchronous)
     this.cache.delete(channel);
 
     // Then clear IndexedDB (asynchronous)
     const db = getDatabase();
-    await db.offsets.delete(channel);
+    try {
+      await db.offsets.delete(channel);
+    } catch (err) {
+      // Rollback cache on persistence failure to maintain consistency
+      if (previousValue !== undefined) {
+        this.cache.set(channel, previousValue);
+      }
+      throw err;
+    }
   }
 
   /**

@@ -34,7 +34,8 @@ export class ResourceScope {
   private listeners = new Array<{
     target: EventTarget;
     type: string;
-    listener: EventListener;
+    originalListener: EventListener;
+    wrappedListener: EventListener;
   }>();
   private disposed = false;
 
@@ -93,7 +94,7 @@ export class ResourceScope {
       // If once listener, auto-remove from scope
       if (options?.once) {
         const idx = this.listeners.findIndex(l =>
-          l.target === target && l.type === type && l.listener === listener
+          l.target === target && l.type === type && l.wrappedListener === wrappedListener
         );
         if (idx !== -1) {
           this.listeners.splice(idx, 1);
@@ -107,7 +108,7 @@ export class ResourceScope {
     };
 
     target.addEventListener(type, wrappedListener, options);
-    this.listeners.push({ target, type, listener: wrappedListener });
+    this.listeners.push({ target, type, originalListener: listener, wrappedListener });
   }
 
   /**
@@ -139,11 +140,11 @@ export class ResourceScope {
     listener: EventListener
   ): void {
     const idx = this.listeners.findIndex(l =>
-      l.target === target && l.type === type && l.listener === listener
+      l.target === target && l.type === type && l.originalListener === listener
     );
     if (idx !== -1) {
       const entry = this.listeners[idx];
-      target.removeEventListener(type, entry.listener);
+      target.removeEventListener(type, entry.wrappedListener);
       this.listeners.splice(idx, 1);
     }
   }
@@ -170,8 +171,8 @@ export class ResourceScope {
     this.timers.clear();
 
     // Remove all listeners
-    for (const { target, type, listener } of this.listeners) {
-      target.removeEventListener(type, listener);
+    for (const { target, type, wrappedListener } of this.listeners) {
+      target.removeEventListener(type, wrappedListener);
     }
     const listenerCount = this.listeners.length;
     this.listeners.length = 0;

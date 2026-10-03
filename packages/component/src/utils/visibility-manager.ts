@@ -98,12 +98,10 @@ export class VisibilityManager {
                 this._transitionTo(VisibilityState.HIDDEN);
                 return;
             }
-            // If transitioning and receiving VISIBLE again (duplicate), ignore
-            // We're already on our way to VISIBLE
-            if (isVisible) {
-                log.debug(`Visibility update: already transitioning to VISIBLE, ignoring duplicate`);
-                return;
-            }
+            // Transitioning and receiving VISIBLE again (duplicate): ignore.
+            // We're already on our way to VISIBLE.
+            log.debug(`Visibility update: already transitioning to VISIBLE, ignoring duplicate`);
+            return;
         }
 
         log.debug(`Visibility update: ${this._state} → ${newState}`);
