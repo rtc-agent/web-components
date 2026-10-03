@@ -122,10 +122,13 @@ function openApiSchemaToZod(schema: OpenAPISchema): ZodType {
     case 'object': {
       if (schema.properties) {
         const shape: Record<string, ZodType> = {};
+        // OpenAPI spec: `required` is an array of property names on the parent object.
+        // For backward compatibility, also check per-property `required: boolean`.
+        const requiredFields = (schema.required as string[] | undefined) ?? [];
         for (const [key, propSchema] of Object.entries(schema.properties)) {
           let fieldSchema = openApiSchemaToZod(propSchema);
-          // If field is not required, make it optional
-          if (!propSchema.required) {
+          const isRequired = requiredFields.includes(key) || propSchema.required === true;
+          if (!isRequired) {
             fieldSchema = fieldSchema.optional();
           }
           shape[key] = fieldSchema;

@@ -6,6 +6,13 @@ const log = createLogger('FunctionRegistry');
  *
  * Manages function registration, resolution, and chain calls.
  * Uses Proxy to implement rtcAgent.user.register() syntax.
+ *
+ * This file is intentionally large (660+ lines) because it provides a cohesive
+ * API surface for the function registration system. The core class (FunctionRegistry)
+ * and its helper (FunctionGroup) are tightly coupled: FunctionGroup delegates to
+ * FunctionRegistry for storage, and FunctionRegistry exposes group proxies for
+ * chain-call syntax. Splitting them would scatter the registration/execution/doc
+ * pipeline across files, making the system harder to understand and maintain.
  */
 
 import type {
@@ -17,7 +24,7 @@ import type {
 import { virtualFS } from '@rtc-agent/persistence';
 import { generateFunctionMd, generateFunctionsIndex, generateAgentMd, generateScenariosIndex } from './markdown-generator.js';
 import { registerBuiltinSystemGroup } from './builtin-system-group.js';
-import { zodToParams } from '../validation/zod-to-openapi.js';
+import { zodToParams, zodToOpenAPISchema } from '../validation/zod-to-openapi.js';
 import { eventBus, type FunctionStartEvent, type FunctionSuccessEvent, type FunctionErrorEvent, type FunctionProgressEvent } from './event-bus.js';
 import { buildValidator, validateParams, formatValidationError } from '../validation/index.js';
 
@@ -125,54 +132,40 @@ export class FunctionRegistry {
    * If a function with the same name already exists, a warning is logged and the old definition is replaced.
    */
   register(funcDef: FunctionDef): FunctionDef {
+    // Extract group name (if any)
+    const parts = funcDef.name.split('.');
+    const groupName = parts.length > 1 ? parts[0] : undefined;
+
+    this.registerInternal(funcDef, groupName);
+    return funcDef;
+  }
+
+  /**
+   * Internal registration logic shared by register() and FunctionGroup.
+   *
+   * @internal For internal use only; external callers should use the register() method.
+   */
+  registerInternal(funcDef: FunctionDef, groupName?: string): void {
     // Warn on duplicate registration (prevents silent overwrites)
     if (this.functions.has(funcDef.name)) {
       log.warn(`Function '${funcDef.name}' is already registered and will be overwritten.`);
     }
 
-    // Normalize: derive parameters from zodSchema if not explicitly set
+    // Normalize: derive parameters and return schema from zodSchema if not explicitly set
     this._normalizeFunctionDef(funcDef);
-
-    // Extract group name (if any)
-    const parts = funcDef.name.split('.');
-    const groupName = parts.length > 1 ? parts[0] : undefined;
 
     this.functions.set(funcDef.name, funcDef);
 
     // Auto-generate documentation
     // M10: fire-and-forget, document may be delayed in becoming ready (see comment above)
     void this._updateFunctionDoc(funcDef, groupName);
-
-    return funcDef;
   }
 
   /**
-   * Internal method: Register a function (called by FunctionGroup)
-   *
-   * @internal For internal use only; external callers should use the register() method
-   *
-   * M10: Same as register(), document generation is async fire-and-forget and may be delayed in becoming ready.
-   */
-  registerInternal(funcDef: FunctionDef, groupName: string): void {
-    // Warn on duplicate registration (prevents silent overwrites)
-    if (this.functions.has(funcDef.name)) {
-      log.warn(`Function '${funcDef.name}' is already registered and will be overwritten.`);
-    }
-
-    // Normalize: derive parameters from zodSchema if not explicitly set
-    this._normalizeFunctionDef(funcDef);
-
-    this.functions.set(funcDef.name, funcDef);
-
-    // Auto-generate documentation
-    void this._updateFunctionDoc(funcDef, groupName);
-  }
-
-  /**
-   * Normalize a FunctionDef by deriving parameters from zodSchema when parameters is not set.
+   * Normalize a FunctionDef by deriving parameters/return schema from zodSchema when not explicitly set.
    *
    * Ensures all downstream consumers (debugger, default params, markdown generator)
-   * can rely on `fn.parameters` being populated.
+   * can rely on `fn.parameters` and `fn.returns.schema` being populated.
    */
   private _normalizeFunctionDef(funcDef: FunctionDef): void {
     if (!funcDef.parameters && funcDef.zodSchema) {
@@ -180,6 +173,15 @@ export class FunctionRegistry {
         funcDef.parameters = zodToParams(funcDef.zodSchema);
       } catch (err) {
         log.warn(`Failed to convert zodSchema to parameters for ${funcDef.name}:`, err);
+      }
+    }
+
+    // Also derive return schema from zodSchema if not already set
+    if (!funcDef.returns?.schema && funcDef.returns?.zodSchema) {
+      try {
+        funcDef.returns.schema = zodToOpenAPISchema(funcDef.returns.zodSchema);
+      } catch (err) {
+        log.warn(`Failed to convert returns.zodSchema for ${funcDef.name}:`, err);
       }
     }
   }
@@ -234,7 +236,7 @@ export class FunctionRegistry {
       await virtualFS.remove(docPath);
     } catch (err) {
       // File may not exist, ignore error
-      log.warn(` Failed to remove doc file ${docPath}:`, err);
+      log.warn(`Failed to remove doc file ${docPath}:`, err);
     }
 
     // Update index
@@ -515,7 +517,7 @@ export class FunctionRegistry {
       if (this.config.onError) {
         this.config.onError(error, `Failed to update documentation for function: ${funcDef.name}`);
       } else {
-        log.error(` Failed to update documentation for ${funcDef.name}:`, err);
+        log.error(`Failed to update documentation for ${funcDef.name}:`, err);
       }
     }
   }

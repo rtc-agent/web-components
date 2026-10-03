@@ -63,7 +63,7 @@ export const DELAY_DEF: FunctionDef = {
     description: 'Object with completion status and actual elapsed time',
   },
   handler: (params) => {
-    const ms = Math.min(Math.max(Number(params.ms) || 0, 0), 60000);
+    const { ms } = params as { ms: number };
     const start = Date.now();
     return new Promise<{ completed: boolean; elapsed: number }>((resolve) => {
       setTimeout(() => {
@@ -95,7 +95,7 @@ export const UUID_DEF: FunctionDef = {
     description: 'UUID v4 string (or array of strings when count > 1)',
   },
   handler: (params) => {
-    const count = Math.min(Math.max(Number(params.count) || 1, 1), 100);
+    const { count = 1 } = params as { count?: number };
     if (count === 1) {
       return crypto.randomUUID();
     }
@@ -138,9 +138,11 @@ export const RANDOM_DEF: FunctionDef = {
     description: 'Random number',
   },
   handler: (params) => {
-    const min = Number(params.min) ?? 0;
-    const max = Number(params.max) ?? 1;
-    const integer = Boolean(params.integer);
+    const { min = 0, max = 1, integer = false } = params as {
+      min?: number;
+      max?: number;
+      integer?: boolean;
+    };
 
     if (integer) {
       const lo = Math.ceil(min);
@@ -167,7 +169,7 @@ export const TIME_DEF: FunctionDef = {
     description: 'Current time as a string',
   },
   handler: (params) => {
-    const format = (params.format as string) || 'locale';
+    const { format = 'locale' } = params as { format?: 'iso' | 'locale' | 'timestamp' };
     const now = new Date();
     switch (format) {
       case 'iso':
