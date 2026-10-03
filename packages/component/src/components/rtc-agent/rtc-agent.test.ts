@@ -212,22 +212,23 @@ describe('<rtc-agent>', () => {
     // ── Auth boundary tests ──
 
     describe('auth boundary', () => {
-        it('should initialize auth state correctly when factory provides StaticTokenAuth', async () => {
+        it('should initialize auth state correctly when factory provides AuthProvider', async () => {
             const agent = createRtcAgent({
                 auth: {
-                    accessToken: 'test-token',
-                    refreshToken: 'test-refresh',
-                    userId: 'user-42',
-                    expiresIn: 3600,
+                    getToken: () => 'test-token',
+                    refreshToken: () => Promise.resolve({ accessToken: 'refreshed-token' }),
+                    isLoggedIn: () => true,
+                    logout: () => Promise.resolve(),
+                    getUserId: () => 'user-42',
+                    deviceId: 'device-123',
                 },
             });
             document.body.appendChild(agent);
             await agent.updateComplete;
 
-            // Auth state must reflect the static tokens.
+            // Auth state must reflect the provider-managed auth.
             expect(agent.authController.state.isLoggedIn).toBe(true);
             expect(agent.authController.state.userId).toBe('user-42');
-            expect(agent.authController.state.accessToken).toBe('test-token');
 
             agent.destroy();
         });

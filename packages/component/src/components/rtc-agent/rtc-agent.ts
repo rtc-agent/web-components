@@ -131,7 +131,7 @@ import type {WindowConfig} from '../../types/window-config.js';
 import {resolveWindowConfig} from '../../types/window-config.js';
 import type {ActivityBarConfig} from '../../types/activity-bar-config.js';
 import {resolveActivityBarConfig, type ResolvedActivityBarConfig} from '../../types/activity-bar-config.js';
-import type {StaticTokenAuth, DynamicTokenAuth, AuthProvider} from '../../types/factory.js';
+import type {AuthProvider} from '../../types/factory.js';
 // Side-effect import: extends HTMLElementEventMap with rtc-agent-ready event
 import '../../types/events.js';
 
@@ -611,25 +611,6 @@ export class RtcAgent extends LitElement {
     }
     private _activityBarConfig: ActivityBarConfig | null = null;
     private _resolvedActivityBarConfig: ResolvedActivityBarConfig = resolveActivityBarConfig();
-
-    /**
-     * @internal Pending auth configuration from factory function.
-     *
-     * Set by `createRtcAgent` factory when StaticTokenAuth is provided.
-     * Applied in `connectedCallback` after controllers are initialized.
-     * Cleared after application to prevent re-application on reconnect.
-     */
-    @property({attribute: false})
-    _pendingAuthConfig?: StaticTokenAuth;
-
-    /**
-     * @internal Pending dynamic auth configuration from factory function.
-     *
-     * Set by `createRtcAgent` factory when DynamicTokenAuth is provided.
-     * Applied in `connectedCallback` after controllers are initialized.
-     */
-    @property({attribute: false})
-    _pendingDynamicAuth?: DynamicTokenAuth;
 
     /**
      * @internal Pending auth provider configuration from factory function.
@@ -1156,42 +1137,11 @@ export class RtcAgent extends LitElement {
         // Reflect initial mode attribute.
         this.setAttribute('data-mode', this._windowState.value.state.mode);
 
-        // Apply pending auth config from factory function (StaticTokenAuth mode).
-        // Must be done before the onLogin callback is set, so that setExternalTokens
+        // Apply pending auth provider from factory function.
+        // Must be done before the onLogin callback is set, so that setAuthProvider
         // triggers onLogin -> _connectWithRetry naturally.
-        if (this._pendingAuthConfig) {
-            const auth = this._pendingAuthConfig;
-            this._pendingAuthConfig = undefined;
-
-            this._auth.setExternalTokens({
-                accessToken: auth.accessToken,
-                refreshToken: auth.refreshToken ?? '',
-                userId: auth.userId,
-                expiresIn: auth.expiresIn ?? 3600,
-                deviceId: auth.deviceId,
-            });
-            // setExternalTokens triggers onLogin callback, which triggers
-            // _connectWithRetry. Skip the explicit check below.
-        } else if (this._pendingDynamicAuth) {
-            // Mode 2: DynamicTokenAuth
-            this._auth.setDynamicTokenProvider({
-                getToken: this._pendingDynamicAuth.getToken,
-                refreshToken: this._pendingDynamicAuth.refreshToken,
-                userId: this._pendingDynamicAuth.userId,
-                deviceId: this._pendingDynamicAuth.deviceId,
-            });
-            this._pendingDynamicAuth = undefined;
-        } else if (this._pendingAuthProvider) {
-            // Mode 3: AuthProvider
-            this._auth.setAuthProvider({
-                type: 'provider',
-                getToken: this._pendingAuthProvider.getToken,
-                refreshToken: this._pendingAuthProvider.refreshToken,
-                isLoggedIn: this._pendingAuthProvider.isLoggedIn,
-                logout: this._pendingAuthProvider.logout,
-                getUserId: this._pendingAuthProvider.getUserId,
-                deviceId: this._pendingAuthProvider.deviceId,
-            });
+        if (this._pendingAuthProvider) {
+            this._auth.setAuthProvider(this._pendingAuthProvider);
             this._pendingAuthProvider = undefined;
         }
 

@@ -48,18 +48,7 @@ export class AuthController implements ReactiveController {
     /** Flag to indicate external token mode (skip localStorage persistence). */
     private _externalTokens = false;
 
-    /** Dynamic token provider (mode 2) */
-    private _dynamicTokenProvider?: {
-        getToken: () => string | Promise<string>;
-        refreshToken?: () => Promise<{
-            accessToken: string;
-            refreshToken?: string;
-            expiresIn?: number;
-        }>;
-        userId: string;
-    };
-
-    /** Auth provider (mode 3) */
+    /** Auth provider */
     private _authProvider?: AuthProvider;
 
     /**
@@ -115,7 +104,7 @@ export class AuthController implements ReactiveController {
      *
      * Memory management: clears document-level listeners and timers that would
      * otherwise prevent GC or fire on a detached element. Provider references
-     * (_dynamicTokenProvider, _authProvider) are intentionally NOT cleared here —
+     * (_authProvider) are intentionally NOT cleared here —
      * they persist across temporary disconnects and are cleared by _performLogout()
      * or when the controller is GC'd with the element.
      */
@@ -173,93 +162,7 @@ export class AuthController implements ReactiveController {
     }
 
     /**
-     * Set tokens from external source (host application).
-     *
-     * Unlike regular `setTokens()`, this method:
-     * 1. Does NOT persist tokens to localStorage
-     * 2. Sets a flag to skip future persistence
-     * 3. Still triggers onLogin callback for WebSocket connection
-     *
-     * Use this when the host application manages token lifecycle
-     * (e.g. StaticTokenAuth mode from createRtcAgent factory).
-     */
-    setExternalTokens(params: SetTokensParams & { deviceId: string }) {
-        this._externalTokens = true;
-
-        // Store the server-issued Device ID to localStorage so that
-        // getOrCreateDeviceId() (called later by PersistenceController) picks it up
-        // instead of generating a new one. This ensures RTC filtering matches.
-        try {
-            localStorage.setItem(STORAGE_KEYS.deviceId, params.deviceId);
-        } catch (err) {
-            log.debug('Failed to store deviceId in localStorage:', err);
-        }
-
-        const expiresAt = Date.now() + params.expiresIn * 1000;
-
-        this._state = {
-            isLoggedIn: true,
-            accessToken: params.accessToken,
-            refreshToken: params.refreshToken,
-            userId: params.userId,
-            expiresAt,
-        };
-
-        // Skip _saveTokens() for external tokens — they are not persisted
-        this._scheduleRefresh(expiresAt);
-        this.host.requestUpdate();
-        // Notify rtc-agent to trigger WebSocket connection
-        this._fireLogin();
-    }
-
-    /**
-     * Set the dynamic token provider (Mode 2: DynamicTokenAuth).
-     *
-     * Switches the controller into external-token mode: tokens are fetched
-     * on-demand from the provider instead of being stored in localStorage.
-     *
-     * The `_state` is set to logged-in with an empty `accessToken` (fetched
-     * lazily via `getAccessTokenAsync`) and `expiresAt = Infinity` (no
-     * scheduled refresh — the provider controls expiration).
-     *
-     * @param provider - The dynamic token provider callbacks and user ID.
-     */
-    setDynamicTokenProvider(provider: {
-        getToken: () => string | Promise<string>;
-        refreshToken?: () => Promise<{
-            accessToken: string;
-            refreshToken?: string;
-            expiresIn?: number;
-        }>;
-        userId: string;
-        deviceId: string;
-    }) {
-        this._dynamicTokenProvider = provider;
-        this._externalTokens = true;
-
-        // Store the server-issued Device ID to localStorage so that
-        // getOrCreateDeviceId() (called later by PersistenceController) picks it up
-        // instead of generating a new one. This ensures RTC filtering matches.
-        try {
-            localStorage.setItem(STORAGE_KEYS.deviceId, provider.deviceId);
-        } catch (err) {
-            log.debug('Failed to store deviceId in localStorage:', err);
-        }
-
-        this._state = {
-            isLoggedIn: true,
-            accessToken: '',
-            refreshToken: '',
-            userId: provider.userId,
-            expiresAt: Infinity,
-        };
-
-        this.host.requestUpdate();
-        this._fireLogin();
-    }
-
-    /**
-     * Set auth provider for mode 3 authentication.
+     * Set auth provider for authentication.
      *
      * The component delegates all authentication management to the provider.
      * Use this for complex authentication flows, multi-tenant applications,
@@ -338,18 +241,14 @@ export class AuthController implements ReactiveController {
      * Get the current access token, resolving it asynchronously if needed.
      *
      * Priority:
-     * 1. Auth provider (mode 3) - calls provider.getToken()
-     * 2. Dynamic token provider (mode 2) - calls provider.getToken()
-     * 3. Stored token (mode 1 / internal auth) - returns _state.accessToken
+     * 1. Auth provider - calls provider.getToken()
+     * 2. Stored token (internal auth) - returns _state.accessToken
      *
      * @returns The access token string, or undefined if unavailable.
      */
     async getAccessTokenAsync(): Promise<string | undefined> {
         if (this._authProvider) {
             return await this._authProvider.getToken();
-        }
-        if (this._dynamicTokenProvider) {
-            return await this._dynamicTokenProvider.getToken();
         }
         return this._state.accessToken;
     }
@@ -381,7 +280,6 @@ export class AuthController implements ReactiveController {
      * Internal logout implementation.
      *
      * Memory management: clears all provider references and timers to prevent leaks.
-     * - `_dynamicTokenProvider`: released so the closure can be GC'd
      * - `_authProvider`: released so the host app's provider can be GC'd
      * - `_refreshTimer`: cleared to prevent orphaned setTimeout callbacks
      * - `_externalTokens`: reset so next login cycle starts clean
@@ -395,7 +293,6 @@ export class AuthController implements ReactiveController {
             localStorage.removeItem(STORAGE_KEYS.tokens);
         }
         this._externalTokens = false;
-        this._dynamicTokenProvider = undefined;
         this._authProvider = undefined;
 
         if (this._refreshTimer) {
@@ -560,17 +457,12 @@ export class AuthController implements ReactiveController {
      * that could corrupt localStorage (parse-modify-write race).
      */
     async handleTokenExpired(): Promise<TokenExpiredAction> {
-        // Auth provider mode (Mode 3): delegate refresh to the provider
+        // Auth provider mode: delegate refresh to the provider
         if (this._authProvider) {
             return this._executeRefreshWithGuard();
         }
 
-        // Dynamic token mode: delegate refresh to the provider
-        if (this._dynamicTokenProvider?.refreshToken) {
-            return this._executeRefreshWithGuard();
-        }
-
-        // Static token mode: use refreshToken from state
+        // Internal auth mode: use refreshToken from state
         if (!this._state.refreshToken) {
             this._logout();
             return 'relogin';
@@ -603,7 +495,7 @@ export class AuthController implements ReactiveController {
      * Returns true on success, false on failure.
      */
     private async _doRefresh(): Promise<boolean> {
-        // Auth provider (Mode 3): delegate refresh to the provider.
+        // Auth provider: delegate refresh to the provider.
         if (this._authProvider) {
             try {
                 const result = await this._authProvider.refreshToken();
@@ -632,34 +524,7 @@ export class AuthController implements ReactiveController {
             }
         }
 
-        // Dynamic token provider (Mode 2): delegate refresh to the provider.
-        if (this._dynamicTokenProvider?.refreshToken) {
-            try {
-                const result = await this._dynamicTokenProvider.refreshToken();
-                const newExpiresAt = result.expiresIn
-                    ? Date.now() + result.expiresIn * 1000
-                    : Infinity;
-
-                this._state = {
-                    ...this._state,
-                    accessToken: result.accessToken,
-                    refreshToken: result.refreshToken ?? '',
-                    expiresAt: newExpiresAt,
-                };
-
-                // External tokens are not persisted to localStorage.
-                if (newExpiresAt !== Infinity) {
-                    this._scheduleRefresh(newExpiresAt);
-                }
-
-                this.host.requestUpdate();
-                return true;
-            } catch (error) {
-                log.error('[AUTH_LIFECYCLE] _doRefresh() Dynamic token refresh failed:', error);
-                return false;
-            }
-        }
-
+        // Internal auth mode: use the built-in refresh endpoint
         const result = await this._executeRefresh(this._state.refreshToken!);
 
         if (!result.success) {
@@ -717,9 +582,7 @@ export class AuthController implements ReactiveController {
      * Centralized to ensure both the `rtc-auth-login` DOM event and the
      * `onLogin` callback fire together, covering all login paths:
      * - setTokens (login dialog completion)
-     * - setExternalTokens (host app static tokens)
-     * - setDynamicTokenProvider (mode 2)
-     * - setAuthProvider (mode 3, when already logged in)
+     * - setAuthProvider (when provider.isLoggedIn() returns true)
      * - _loadTokens (valid tokens found or refresh succeeded)
      *
      * Memory note: `onLogin` callback is set by rtc-agent.ts in connectedCallback()

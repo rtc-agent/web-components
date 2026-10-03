@@ -10,150 +10,40 @@ import type { AgentFunctionGroup } from './agent-config.js';
 import type { FunctionDef } from './skill.js';
 import type { Session, Message } from './index.js';
 
-// ===== Authentication Configuration (Three Modes) =====
+// ===== Authentication Configuration =====
 
 /**
  * Authentication configuration for the RTC Agent.
  *
- * Supports three modes:
- * - StaticTokenAuth: Fixed token provided by host application
- * - DynamicTokenAuth: Token retrieved via callback (recommended)
- * - AuthProvider: Full authentication delegation to host application
- */
-export type AuthConfig = StaticTokenAuth | DynamicTokenAuth | AuthProvider;
-
-/**
- * Type guards for AuthConfig discrimination.
- *
- * These helpers provide type-safe runtime checks to distinguish between
- * the three authentication modes without relying on fragile property checks.
- *
- * @example
- * ```ts
- * if (isStaticTokenAuth(config.auth)) {
- *   // TypeScript knows config.auth is StaticTokenAuth
- *   console.log(config.auth.accessToken);
- * }
- * ```
- */
-export function isStaticTokenAuth(auth: AuthConfig): auth is StaticTokenAuth {
-  return 'accessToken' in auth && typeof auth.accessToken === 'string';
-}
-
-export function isDynamicTokenAuth(auth: AuthConfig): auth is DynamicTokenAuth {
-  return 'getToken' in auth && !('isLoggedIn' in auth);
-}
-
-export function isAuthProvider(auth: AuthConfig): auth is AuthProvider {
-  return 'isLoggedIn' in auth;
-}
-
-/**
- * Mode 1: Static Token Authentication
- *
- * The host application provides a fixed access token. The component will not
- * attempt to refresh the token. Use this mode when:
- * - The token is long-lived and doesn't expire
- * - The host application handles token refresh externally
- * - Simple integration is preferred over automatic token management
+ * Uses AuthProvider pattern: full authentication delegation to host application.
+ * This is the only supported authentication mode, validated across all environments
+ * (development, testing, production) and provides the cleanest integration with
+ * host application authentication systems.
  *
  * @example
  * ```ts
  * const agent = createRtcAgent({
  *   auth: {
- *     type: 'static',
- *     accessToken: 'eyJhbGc...',
- *     refreshToken: 'optional-refresh-token',
- *     userId: 'user-123',
- *     expiresIn: 3600, // optional, seconds
+ *     getToken: () => authProvider.getAccessToken(),
+ *     refreshToken: () => authProvider.refresh(),
+ *     isLoggedIn: () => authProvider.isAuthenticated(),
+ *     logout: () => authProvider.signOut(),
+ *     getUserId: () => authProvider.getUserId(),
+ *     deviceId: authProvider.getDeviceId(),
  *   }
  * });
  * ```
  */
-export interface StaticTokenAuth {
-  /** Discriminator field for type-safe auth mode detection */
-  type: 'static';
-  /** Access token for API requests */
-  accessToken: string;
-  /** Optional refresh token (not used in static mode, reserved for future) */
-  refreshToken?: string;
-  /** User ID associated with the token */
-  userId: string;
-  /** Token expiration time in seconds. If not set, no auto-refresh is attempted */
-  expiresIn?: number;
-  /**
-   * Device ID — must match the Device ID embedded in the JWT token by the server.
-   *
-   * The server embeds a Device ID into the JWT Claims when issuing tokens.
-   * RTCs (Remote Tool Calls / scripts) dispatched by the server carry this Device ID
-   * in the `session_device_id` field. The component filters RTCs at execution time:
-   * only RTCs whose `session_device_id` matches the local Device ID are executed.
-   *
-   * If not provided or mismatched, scripts will silently fail to execute.
-   *
-   * Host backends should return the Device ID alongside the token so the frontend
-   * can forward it here.
-   */
-  deviceId: string;
-}
+export type AuthConfig = AuthProvider;
 
 /**
- * Mode 2: Dynamic Token Authentication (Recommended)
- *
- * The host application provides callbacks for token retrieval and refresh.
- * The component calls these callbacks when needed. Use this mode when:
- * - Tokens expire and need automatic refresh
- * - Token management is handled by the host application
- * - You want the component to automatically refresh tokens before expiration
- *
- * @example
- * ```ts
- * const agent = createRtcAgent({
- *   auth: {
- *     type: 'dynamic',
- *     getToken: () => authService.getLatestToken(),
- *     refreshToken: async () => {
- *       const result = await authService.refresh();
- *       return { accessToken: result.access, refreshToken: result.refresh };
- *     },
- *     userId: authService.getUserId(),
- *   }
- * });
- * ```
- */
-export interface DynamicTokenAuth {
-  /** Discriminator field for type-safe auth mode detection */
-  type: 'dynamic';
-  /** Called each time a token is needed (e.g., WebSocket connection, API request) */
-  getToken: () => string | Promise<string>;
-  /** Called when the token expires and needs refresh */
-  refreshToken?: () => Promise<{
-    accessToken: string;
-    refreshToken?: string;
-    expiresIn?: number;
-  }>;
-  /** User ID associated with the authentication */
-  userId: string;
-  /**
-   * Device ID — must match the Device ID embedded in the JWT token by the server.
-   *
-   * The server embeds a Device ID into the JWT Claims when issuing tokens.
-   * RTCs (Remote Tool Calls / scripts) dispatched by the server carry this Device ID
-   * in the `session_device_id` field. The component filters RTCs at execution time:
-   * only RTCs whose `session_device_id` matches the local Device ID are executed.
-   *
-   * If not provided or mismatched, scripts will silently fail to execute.
-   *
-   * Host backends should return the Device ID alongside the token so the frontend
-   * can forward it here.
-   */
-  deviceId: string;
-}
-
-/**
- * Mode 3: Auth Provider (Advanced)
+ * Authentication Provider Interface
  *
  * The host application provides a complete authentication provider interface.
+ * This is the only supported authentication mode, validated across all environments
+ * (development, testing, production) and provides the cleanest integration with
+ * host application authentication systems.
+ *
  * Use this mode for:
  * - Multi-tenant applications
  * - Custom token rotation strategies
@@ -163,18 +53,17 @@ export interface DynamicTokenAuth {
  * ```ts
  * const agent = createRtcAgent({
  *   auth: {
- *     type: 'provider',
  *     getToken: () => authProvider.getAccessToken(),
  *     refreshToken: () => authProvider.refreshAccessToken(),
  *     isLoggedIn: () => authProvider.isAuthenticated(),
  *     logout: () => authProvider.signOut(),
+ *     getUserId: () => authProvider.getUserId(),
+ *     deviceId: authProvider.getDeviceId(),
  *   }
  * });
  * ```
  */
 export interface AuthProvider {
-  /** Discriminator field for type-safe auth mode detection */
-  type: 'provider';
   /** Returns the current access token */
   getToken(): string | Promise<string>;
   /** Refreshes the access token */
@@ -677,10 +566,8 @@ export interface RtcAgentConfig {
   /**
    * Authentication configuration.
    *
-   * Three modes are supported:
-   * - StaticTokenAuth: Fixed token (simplest)
-   * - DynamicTokenAuth: Token via callback (recommended)
-   * - AuthProvider: Full delegation (advanced)
+   * Uses AuthProvider pattern: full authentication delegation to host application.
+   * The host provides getToken, refreshToken, isLoggedIn, logout, getUserId, and deviceId.
    *
    * If not provided, the component uses its internal OAuth flow.
    */

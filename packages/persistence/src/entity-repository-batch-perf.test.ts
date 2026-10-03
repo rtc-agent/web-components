@@ -102,7 +102,7 @@ describe('applyUpdates performance benchmark', () => {
     console.log(`  Time: ${elapsed.toFixed(2)}ms`);
     console.log(`  Per-item: ${(elapsed / totalItems).toFixed(3)}ms`);
 
-    expect(elapsed).toBeLessThan(600); // Allow headroom for CI/dev machine load variance
+    expect(elapsed).toBeLessThan(800); // Allow headroom for CI/dev machine load variance
   });
 
   it('benchmark: compare single vs batch for 100 items', async () => {

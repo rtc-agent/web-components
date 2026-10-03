@@ -4,12 +4,9 @@
  * @module factory
  */
 
-import type { RtcAgentConfig, RtcAgentWithLifecycle, StaticTokenAuth, DynamicTokenAuth, AuthProvider } from './types/factory.js';
+import type { RtcAgentConfig, RtcAgentWithLifecycle, AuthProvider } from './types/factory.js';
 import type { AgentConfig } from './types/agent-config.js';
 import { eventBus } from './core/event-bus.js';
-import { createLogger } from '@rtc-agent/client';
-
-const log = createLogger('Factory');
 
 /**
  * Create a pre-configured `<rtc-agent>` custom element.
@@ -176,21 +173,8 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
   // ── Authentication configuration ──
 
   if (config.auth) {
-    // Support both discriminator field (new) and field existence (legacy) for backward compatibility
-    const authType = 'type' in config.auth ? config.auth.type : undefined;
-
-    if (authType === 'static' || (!authType && 'accessToken' in config.auth)) {
-      // Mode 1: StaticTokenAuth
-      element._pendingAuthConfig = config.auth as StaticTokenAuth;
-    } else if (authType === 'dynamic' || (!authType && 'getToken' in config.auth && !('isLoggedIn' in config.auth))) {
-      // Mode 2: DynamicTokenAuth
-      element._pendingDynamicAuth = config.auth as DynamicTokenAuth;
-    } else if (authType === 'provider' || (!authType && 'isLoggedIn' in config.auth)) {
-      // Mode 3: AuthProvider
-      element._pendingAuthProvider = config.auth as AuthProvider;
-    } else {
-      log.error('Unknown auth type:', authType ?? 'no discriminator field');
-    }
+    // AuthProvider mode: delegate all authentication management to the host application
+    element._pendingAuthProvider = config.auth as AuthProvider;
   }
 
   // ── Event callbacks ──
@@ -332,8 +316,6 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
     element.remove();
 
     // 2. Clear external token references
-    element._pendingAuthConfig = undefined;
-    element._pendingDynamicAuth = undefined;
     element._pendingAuthProvider = undefined;
 
     // 3. Cancel all DOM event subscriptions

@@ -105,8 +105,6 @@ export type {
     RtcAgentConfig,
     RtcAgentWithLifecycle,
     AuthConfig,
-    StaticTokenAuth,
-    DynamicTokenAuth,
     AuthProvider,
     EventCallbacks,
 } from './types/factory.js';

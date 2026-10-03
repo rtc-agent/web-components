@@ -99,57 +99,13 @@ describe('createRtcAgent integration', () => {
   // ── 2. Authentication flow integration ─────────────────────────────
 
   describe('authentication flows', () => {
-    it('should handle StaticTokenAuth integration', () => {
-      const agent = createRtcAgent({
-        auth: {
-          accessToken: 'static-token-123',
-          refreshToken: 'refresh-token-456',
-          userId: 'user-789',
-          expiresIn: 3600,
-        },
-      });
-
-      // Verify pending auth config BEFORE mount (connectedCallback clears it)
-      expect(agent._pendingAuthConfig).toBeDefined();
-      expect(agent._pendingAuthConfig!.accessToken).toBe('static-token-123');
-      expect(agent._pendingAuthConfig!.refreshToken).toBe('refresh-token-456');
-      expect(agent._pendingAuthConfig!.userId).toBe('user-789');
-      expect(agent._pendingAuthConfig!.expiresIn).toBe(3600);
-
-      document.body.appendChild(agent);
-
-      agent.destroy();
-    });
-
-    it('should handle DynamicTokenAuth integration', () => {
-      const getToken = vi.fn().mockReturnValue('dynamic-token');
-      const refreshToken = vi.fn().mockResolvedValue({ accessToken: 'new-token' });
-
-      const agent = createRtcAgent({
-        auth: {
-          getToken,
-          refreshToken,
-          userId: 'dynamic-user',
-        },
-      });
-
-      // Verify pending dynamic auth BEFORE mount
-      expect(agent._pendingDynamicAuth).toBeDefined();
-      expect(agent._pendingDynamicAuth!.getToken).toBe(getToken);
-      expect(agent._pendingDynamicAuth!.refreshToken).toBe(refreshToken);
-      expect(agent._pendingDynamicAuth!.userId).toBe('dynamic-user');
-
-      document.body.appendChild(agent);
-
-      agent.destroy();
-    });
-
     it('should handle AuthProvider integration', () => {
       const authProvider = {
         getToken: vi.fn().mockReturnValue('provider-token'),
         refreshToken: vi.fn().mockResolvedValue({ accessToken: 'refreshed-token' }),
         isLoggedIn: vi.fn().mockReturnValue(true),
         logout: vi.fn().mockResolvedValue(undefined),
+        deviceId: 'device-123',
       };
 
       const agent = createRtcAgent({ auth: authProvider });
@@ -391,9 +347,10 @@ describe('createRtcAgent integration', () => {
         agentDescription: 'Complete integration test',
         persona: 'You are an integration tester',
         auth: {
-          accessToken: 'integration-token',
-          userId: 'integration-user',
-          expiresIn: 7200,
+          getToken: vi.fn().mockReturnValue('integration-token'),
+          refreshToken: vi.fn().mockResolvedValue({ accessToken: 'refreshed-token' }),
+          isLoggedIn: vi.fn().mockReturnValue(true),
+          deviceId: 'device-123',
         },
         on: {
           ready,
@@ -411,8 +368,8 @@ describe('createRtcAgent integration', () => {
       expect(agent.redirectURI).toBe('https://app.com/callback');
       expect(agent.databaseName).toBe('integration-db');
       expect(agent.scenariosURL).toBe('/scenarios');
-      expect(agent._pendingAuthConfig).toBeDefined();
-      expect(agent._pendingAuthConfig!.accessToken).toBe('integration-token');
+      expect(agent._pendingAuthProvider).toBeDefined();
+      expect(agent._pendingAuthProvider!.getToken).toBeDefined();
 
       document.body.appendChild(agent);
 
@@ -479,8 +436,6 @@ describe('createRtcAgent integration', () => {
 
       expect(agent.appLabel).toBe('Minimal');
       expect(agent.theme).toBe('light');
-      expect(agent._pendingAuthConfig).toBeUndefined();
-      expect(agent._pendingDynamicAuth).toBeUndefined();
       expect(agent._pendingAuthProvider).toBeUndefined();
       expect(agent._eventUnsubscribes).toBeUndefined();
       expect(agent._eventBusUnsubscribes).toBeUndefined();

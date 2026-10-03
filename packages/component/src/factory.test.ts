@@ -220,45 +220,13 @@ describe('createRtcAgent', () => {
 
   // ── Authentication configuration ────────────────────────────────
 
-  it('should set _pendingAuthConfig for StaticTokenAuth (mode 1)', () => {
-    const agent = createRtcAgent({
-      auth: {
-        accessToken: 'test-access-token',
-        refreshToken: 'test-refresh-token',
-        userId: 'user-123',
-        expiresIn: 3600,
-      },
-    });
-    expect(agent._pendingAuthConfig).toBeDefined();
-    expect(agent._pendingAuthConfig!.accessToken).toBe('test-access-token');
-    expect(agent._pendingAuthConfig!.refreshToken).toBe('test-refresh-token');
-    expect(agent._pendingAuthConfig!.userId).toBe('user-123');
-    expect(agent._pendingAuthConfig!.expiresIn).toBe(3600);
-  });
-
-  it('should set _pendingDynamicAuth for DynamicTokenAuth (mode 2)', () => {
-    const getToken = () => 'dynamic-token';
-    const refreshToken = () => Promise.resolve({accessToken: 'new-token'});
-
-    const agent = createRtcAgent({
-      auth: {
-        getToken,
-        refreshToken,
-        userId: 'dynamic-user-456',
-      },
-    });
-    expect(agent._pendingDynamicAuth).toBeDefined();
-    expect(agent._pendingDynamicAuth!.getToken).toBe(getToken);
-    expect(agent._pendingDynamicAuth!.refreshToken).toBe(refreshToken);
-    expect(agent._pendingDynamicAuth!.userId).toBe('dynamic-user-456');
-  });
-
-  it('should set _pendingAuthProvider for AuthProvider (mode 3)', () => {
+  it('should set _pendingAuthProvider for AuthProvider', () => {
     const authProvider = {
       getToken: () => 'provider-token',
       refreshToken: () => Promise.resolve({accessToken: 'refreshed-token'}),
       isLoggedIn: () => true,
       logout: () => Promise.resolve(),
+      deviceId: 'device-123',
     };
 
     const agent = createRtcAgent({auth: authProvider});
@@ -272,16 +240,15 @@ describe('createRtcAgent', () => {
   it('should clear pending auth references on destroy()', () => {
     const agent = createRtcAgent({
       auth: {
-        accessToken: 'test-token',
-        userId: 'user-123',
-        expiresIn: 3600,
+        getToken: () => 'token',
+        refreshToken: () => Promise.resolve({accessToken: 'new-token'}),
+        isLoggedIn: () => true,
+        deviceId: 'device-123',
       },
     });
-    expect(agent._pendingAuthConfig).toBeDefined();
+    expect(agent._pendingAuthProvider).toBeDefined();
 
     agent.destroy();
-    expect(agent._pendingAuthConfig).toBeUndefined();
-    expect(agent._pendingDynamicAuth).toBeUndefined();
     expect(agent._pendingAuthProvider).toBeUndefined();
   });
 
