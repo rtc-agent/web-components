@@ -62,6 +62,7 @@ import type {WindowMode, Activity, FileAttachment} from '../../types/index.js';
 import {tokens} from '../../styles/tokens.js';
 import {lightTheme} from '../../styles/themes/light.js';
 import {darkTheme} from '../../styles/themes/dark.js';
+import {initTheme} from '../../core/theme.js';
 import {baseStyles} from '../../styles/base.js';
 
 // Contexts (for provider keys)
@@ -796,6 +797,9 @@ export class RtcAgent extends LitElement {
     /** Tracks whether locale has been initialized (only once). */
     private _localeInitialized = false;
 
+    /** Tracks whether theme has been initialized (only once). */
+    private _themeInitialized = false;
+
     /** Auto-save debounce timers per file */
     private _autoSaveTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -948,6 +952,12 @@ export class RtcAgent extends LitElement {
         if (!this._localeInitialized) {
             this._localeInitialized = true;
             void initLocale(this._lang || undefined);
+        }
+
+        // Initialize theme from stored preference (once)
+        if (!this._themeInitialized) {
+            this._themeInitialized = true;
+            initTheme();
         }
 
         // Wire ForkController dependencies
