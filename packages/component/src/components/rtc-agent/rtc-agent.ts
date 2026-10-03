@@ -539,18 +539,18 @@ export class RtcAgent extends LitElement {
      *
      * @example
      * ```ts
-     * agent.workerUrl = '/rtc-agent/shared-worker.js';
+     * agent.workerURL = '/rtc-agent/shared-worker.js';
      * ```
      */
     @property({ type: String, attribute: 'worker-url' })
-    set workerUrl(value: string) {
-        this._workerUrl = value;
-        this._persistence.workerUrl = value || undefined;
+    set workerURL(value: string) {
+        this._workerURL = value;
+        this._persistence.workerURL = value || undefined;
     }
-    get workerUrl(): string {
-        return this._workerUrl;
+    get workerURL(): string {
+        return this._workerURL;
     }
-    private _workerUrl = '';
+    private _workerURL = '';
 
     /**
      * Window configuration (optional).

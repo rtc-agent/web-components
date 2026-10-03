@@ -118,11 +118,11 @@ export interface WorkerBridgeConfig {
      * @example
      * ```ts
      * new WorkerBridge(authController, {
-     *   workerUrl: '/rtc-agent/shared-worker.js'
+     *   workerURL: '/rtc-agent/shared-worker.js'
      * });
      * ```
      */
-    workerUrl?: string;
+    workerURL?: string;
 }
 
 export class WorkerBridge {
@@ -311,10 +311,10 @@ export class WorkerBridge {
     private async _initWorkerOnce(): Promise<void> {
         const workerName = WorkerBridge._getWorkerName();
 
-        // If custom workerUrl is provided, use it directly
-        if (this._config.workerUrl) {
-            log.info('Using custom workerUrl:', this._config.workerUrl);
-            this._worker = new SharedWorker(this._config.workerUrl, {
+        // If custom workerURL is provided, use it directly
+        if (this._config.workerURL) {
+            log.info('Using custom workerURL:', this._config.workerURL);
+            this._worker = new SharedWorker(this._config.workerURL, {
                 name: workerName,
                 type: 'module',
             });

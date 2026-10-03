@@ -6,6 +6,10 @@
  */
 import type { LocalRtc } from '@rtc-agent/persistence';
 import type { ExportOptions } from '../../overlay/rtc-export-dialog.js';
+import type { RtcToolConfirm } from '../../overlay/rtc-tool-confirm.js';
+import type { RtcAskUser } from '../../overlay/rtc-ask-user.js';
+import type { RtcRestoreConfirm } from '../../overlay/rtc-restore-confirm.js';
+import type { RtcExportDialog } from '../../overlay/rtc-export-dialog.js';
 
 /**
  * Common template for creating dialog promises.
@@ -69,7 +73,8 @@ export function showToolConfirmDialog(
     host: ShadowRoot,
 ): Promise<boolean> {
     return createDialogPromise<boolean>('rtc-tool-confirm', host, (el, resolve) => {
-        (el as HTMLInputElement & { toolCall: unknown }).toolCall = {
+        const confirm = el as RtcToolConfirm;
+        confirm.toolCall = {
             id: rtc.client_id,
             toolName: rtc.tool_name,
             parameters: rtc.parameters as Record<string, unknown> | undefined,
@@ -106,7 +111,8 @@ export function showAskUserDialog(
     host: ShadowRoot,
 ): Promise<AskUserAnswer | null> {
     return createDialogPromise<AskUserAnswer | null>('rtc-ask-user', host, (el, resolve) => {
-        (el as HTMLInputElement & { rtc: LocalRtc }).rtc = rtc;
+        const askUser = el as RtcAskUser;
+        askUser.rtc = rtc;
 
         return [
             ['rtc-ask-user-submit', (e: Event) => {
@@ -138,7 +144,8 @@ export function showRestoreConfirmDialog(
     host: ShadowRoot,
 ): Promise<boolean> {
     return createDialogPromise<boolean>('rtc-restore-confirm', host, (el, resolve) => {
-        (el as HTMLInputElement & { filePath: string }).filePath = filePath;
+        const confirm = el as RtcRestoreConfirm;
+        confirm.filePath = filePath;
 
         return [
             ['rtc-restore-confirmed', () => resolve(true)],
@@ -164,7 +171,8 @@ export function showExportDialog(
     host: ShadowRoot,
 ): Promise<ExportOptions | null> {
     return createDialogPromise<ExportOptions | null>('rtc-export-dialog', host, (el, resolve) => {
-        (el as HTMLInputElement & { totalMessages: number }).totalMessages = totalMessages;
+        const dialog = el as RtcExportDialog;
+        dialog.totalMessages = totalMessages;
 
         return [
             ['rtc-export-confirm', (e: Event) => {

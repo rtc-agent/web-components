@@ -129,6 +129,28 @@ export function matchGlob(pattern: string, path: string): boolean {
 }
 
 /**
+ * Result of a grep operation.
+ */
+export interface GrepResult {
+  /** Output mode */
+  mode: 'files_with_matches' | 'content' | 'count';
+  /** Formatted content string (for 'content' and 'count' modes) */
+  content?: string;
+  /** Matching file paths (for 'files_with_matches' mode) */
+  filenames?: string[];
+  /** Number of matching files */
+  numFiles: number;
+  /** Number of matching lines (for 'content' mode) */
+  numLines?: number;
+  /** Total match count (for 'count' mode) */
+  numMatches?: number;
+  /** Whether a limit was applied */
+  appliedLimit?: number;
+  /** Whether an offset was applied */
+  appliedOffset?: number;
+}
+
+/**
  * Virtual file system.
  *
  * Uses class structure rather than module-level functions to facilitate injecting
@@ -349,14 +371,16 @@ export class VirtualFS {
     multiline: boolean = false,
     glob?: string,
     type?: string
-  ): Promise<any> {
+  ): Promise<GrepResult> {
     const normalizedPath = normalizePath(path);
     log.debug('grep: pattern:', pattern, 'path:', normalizedPath, 'caseSensitive:', caseSensitive, 'outputMode:', outputMode);
     const db = getDatabase();
 
     let regex: RegExp;
     try {
-      const flags = caseSensitive ? '' : 'i';
+      // Always include 'g' flag for correct match counting and iteration.
+      // Individual test() calls reset lastIndex explicitly to avoid state bugs.
+      const flags = (caseSensitive ? '' : 'i') + 'g';
       const regexPattern = multiline ? pattern.replace(/\./g, '[\\s\\S]') : pattern;
       regex = new RegExp(regexPattern, flags + (multiline ? 'm' : ''));
     } catch (err) {
@@ -408,6 +432,8 @@ export class VirtualFS {
       const matchedFiles: string[] = [];
 
       for (const entry of entries) {
+        // Reset lastIndex since regex has 'g' flag and test() maintains state
+        regex.lastIndex = 0;
         if (regex.test(entry.content)) {
           matchedFiles.push(entry.path);
         }
@@ -456,10 +482,46 @@ export class VirtualFS {
     const contentResults: Array<{ file: string; lineNumber: number; line: string }> = [];
 
     for (const entry of entries) {
+      // Multiline mode: match against full content, not line-by-line.
+      // A multiline regex can span lines, so line-by-line testing would miss matches.
+      // We find the match position, then determine which lines it covers.
+      if (multiline) {
+        regex.lastIndex = 0;
+        let match: RegExpExecArray | null;
+        while ((match = regex.exec(entry.content)) !== null) {
+          // Determine line range of the match
+          const beforeMatch = entry.content.substring(0, match.index);
+          const startLine = beforeMatch.split('\n').length - 1; // 0-indexed
+          const matchText = match[0];
+          const endLine = startLine + matchText.split('\n').length - 1;
+
+          const lines = entry.content.split('\n');
+          const contextStart = Math.max(0, startLine - contextBefore);
+          const contextEnd = Math.min(lines.length - 1, endLine + contextAfter);
+
+          for (let j = contextStart; j <= contextEnd; j++) {
+            contentResults.push({
+              file: entry.path,
+              lineNumber: j + 1,
+              line: lines[j],
+            });
+          }
+
+          // Prevent infinite loop on zero-length matches
+          if (match[0].length === 0) {
+            regex.lastIndex++;
+          }
+        }
+        continue;
+      }
+
+      // Non-multiline mode: line-by-line processing
       const lines = entry.content.split('\n');
 
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
+        // Reset lastIndex since regex has 'g' flag
+        regex.lastIndex = 0;
         if (regex.test(line)) {
           // Add context lines
           const startLine = Math.max(0, i - contextBefore);

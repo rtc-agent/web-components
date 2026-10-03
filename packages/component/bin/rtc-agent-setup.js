@@ -181,7 +181,7 @@ async function main() {
     console.log('  1. SharedWorker files are now available in your public directory');
     console.log('  2. Configure createRtcAgent() to use the worker:');
     console.log('     createRtcAgent({');
-    console.log('       workerUrl: \'/rtc-agent/shared-worker.js\'');
+    console.log('       workerURL: \'/rtc-agent/shared-worker.js\'');
     console.log('     })');
     console.log('  3. When upgrading @rtc-agent/component, run:');
     console.log('     npx rtc-agent-setup');

@@ -90,8 +90,8 @@ describe('createRtcAgent', () => {
 
   // ── Scenario documents ─────────────────────────────────────────
 
-  it('should map scenariosUrl to scenariosURL', () => {
-    const agent = createRtcAgent({scenariosUrl: '/scenarios'});
+  it('should map scenariosURL to scenariosURL', () => {
+    const agent = createRtcAgent({scenariosURL: '/scenarios'});
     expect(agent.scenariosURL).toBe('/scenarios');
   });
 
@@ -274,7 +274,7 @@ describe('createRtcAgent', () => {
           redirectUri: 'https://app.com/callback',
         },
         databaseName: 'test-db',
-        scenariosUrl: '/scenarios',
+        scenariosURL: '/scenarios',
         window: {defaultMode: 'maximized', embedded: true},
         activityBar: {disabledActivities: ['settings'], defaultActivity: 'chat'},
         agentName: 'FullAgent',

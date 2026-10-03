@@ -101,6 +101,7 @@ export class FileCacheRepository {
     contentType: string,
     ttlMs: number = DEFAULT_TTL_MS
   ): Promise<void> {
+    this._lifecycleGuard.assertActive();  // P1-A: guard check
     const db = getDatabase();
     const now = Date.now();
     const entry: FileCacheEntry = {
@@ -130,6 +131,7 @@ export class FileCacheRepository {
    * @param ext File extension
    */
   async get(md5: string, ext: string): Promise<CachedFileInfo | null> {
+    this._lifecycleGuard.assertActive();  // P1-A: guard check
     const db = getDatabase();
     const entry = await db.fileCache.get([md5, ext]);
 
@@ -168,6 +170,7 @@ export class FileCacheRepository {
    * @returns Number of entries evicted
    */
   async evictExpired(): Promise<number> {
+    this._lifecycleGuard.assertActive();  // P1-A: guard check
     const db = getDatabase();
     const now = Date.now();
 
@@ -198,6 +201,7 @@ export class FileCacheRepository {
    * @param ext File extension
    */
   async delete(md5: string, ext: string): Promise<void> {
+    this._lifecycleGuard.assertActive();  // P1-A: guard check
     const db = getDatabase();
     await db.fileCache.delete([md5, ext]);
     log.info(`deleted file cache entry: ${md5}.${ext}`);
@@ -254,6 +258,7 @@ export class FileCacheRepository {
    * @returns Promise resolving to 32-character hex MD5 hash
    */
   async calculateMD5(blob: Blob): Promise<string> {
+    this._lifecycleGuard.assertActive();  // P1-A: guard check
     const buffer = await blob.arrayBuffer();
     return SparkMD5.ArrayBuffer.hash(buffer);
   }

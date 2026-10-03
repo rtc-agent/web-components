@@ -308,7 +308,7 @@ export interface EventCallbacks {
  *     redirectUri: 'https://example.com/callback',
  *   },
  *   databaseName: 'my-app',
- *   scenariosUrl: '/scenarios',
+ *   scenariosURL: '/scenarios',
  *   window: {
  *     defaultMode: 'maximized',
  *     embedded: true,
@@ -460,18 +460,18 @@ export interface RtcAgentConfig {
    * **Important**: This property must be set before the element is mounted
    * to the DOM.
    *
-   * Maps to `RtcAgent.workerUrl`.
+   * Maps to `RtcAgent.workerURL`.
    *
    * @default undefined (uses Vite's factory function to determine worker URL)
    *
    * @example
    * ```ts
    * createRtcAgent({
-   *   workerUrl: '/rtc-agent/shared-worker.js'
+   *   workerURL: '/rtc-agent/shared-worker.js'
    * });
    * ```
    */
-  workerUrl?: string;
+  workerURL?: string;
 
   // ── Scenario documents ──
 
@@ -483,7 +483,7 @@ export interface RtcAgentConfig {
    *
    * Maps to `RtcAgent.scenariosURL` setter.
    */
-  scenariosUrl?: string;
+  scenariosURL?: string;
 
   // ── Window configuration ──
 

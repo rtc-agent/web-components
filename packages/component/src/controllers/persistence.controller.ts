@@ -240,7 +240,7 @@ export class PersistenceController implements ReactiveController {
     private _workerBridge?: WorkerBridge;
     private _masterLock?: MasterLock;
     private _databaseNameOverride?: string;
-    private _workerUrl?: string;
+    private _workerURL?: string;
     private _fileStorage?: FileStorage;
 
     /**
@@ -292,8 +292,8 @@ export class PersistenceController implements ReactiveController {
      *
      * Must be called before connect().
      */
-    set workerUrl(value: string | undefined) {
-        this._workerUrl = value;
+    set workerURL(value: string | undefined) {
+        this._workerURL = value;
     }
 
     /** The PersistenceLayer instance. Only available after connect(). */
@@ -461,7 +461,7 @@ export class PersistenceController implements ReactiveController {
     private async _connectWorkerOnce(config: PersistenceConfig): Promise<void> {
         // Capture bridge instance in a local variable to avoid accessing this._workerBridge after await, which may have been modified by disconnect()
         const bridge = new WorkerBridge(this._auth, {
-            workerUrl: this._workerUrl,
+            workerURL: this._workerURL,
         });
 
         this._workerBridge = bridge;

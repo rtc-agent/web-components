@@ -315,24 +315,6 @@ export class MessageController implements ReactiveController {
         // Remove settled chains immediately to free memory
         this._cleanupSettledChains();
 
-        // Hard limit: if still too many chains, remove oldest ones
-        if (this._sessionUpdateChains.size > MessageController.MAX_SESSION_CHAINS) {
-            const entries = Array.from(this._sessionUpdateChains.entries());
-            const toRemove = entries.length - MessageController.MAX_SESSION_CHAINS;
-            let removed = 0;
-            for (let i = 0; i < entries.length && removed < toRemove; i++) {
-                const [sessionId, chain] = entries[i];
-                // Only remove if the chain is settled (not the current one we just added)
-                if (chain !== next) {
-                    this._sessionUpdateChains.delete(sessionId);
-                    removed++;
-                }
-            }
-            if (removed > 0) {
-                log.debug(`Cleaned up ${removed} old session update chains (size: ${this._sessionUpdateChains.size})`);
-            }
-        }
-
         // Clean up the chain when it settles
         next.finally(() => {
             if (this._sessionUpdateChains.get(messageSessionId) === next) {
@@ -389,23 +371,20 @@ export class MessageController implements ReactiveController {
             return;
         }
 
-        // Hard limit exceeded: remove oldest chains (by insertion order).
-        // Only remove chains that are NOT the current one (just added).
-        const entries = Array.from(this._sessionUpdateChains.entries());
+        // Hard limit exceeded: remove oldest chains (by Map insertion order)
+        // to bring the count down to MAX_SESSION_CHAINS.
+        // Warning: this may remove chains that are still active, but that is
+        // acceptable — the .finally() handler in updateMessageFromBus will clean up
+        // the actual Promise when it settles. Removing the Map entry early just means
+        // we lose the ability to chain subsequent events for that session, which is
+        // preferable to unbounded memory growth.
+        const entries = Array.from(this._sessionUpdateChains.keys());
         const toRemove = entries.length - MessageController.MAX_SESSION_CHAINS;
-        let removed = 0;
-        for (const [sessionId, chain] of entries) {
-            if (removed >= toRemove) break;
-            // Don't remove the chain we just added
-            if (this._sessionUpdateChains.get(sessionId) === chain) {
-                // Check if this is an old entry by seeing if there's a newer entry after it
-                // Simple heuristic: remove the oldest entries first
-                this._sessionUpdateChains.delete(sessionId);
-                removed++;
-            }
+        for (let i = 0; i < toRemove; i++) {
+            this._sessionUpdateChains.delete(entries[i]);
         }
-        if (removed > 0) {
-            log.debug(`Cleaned up ${removed} old session update chains (size: ${this._sessionUpdateChains.size})`);
+        if (toRemove > 0) {
+            log.debug(`Cleaned up ${toRemove} oldest session update chains (size: ${this._sessionUpdateChains.size})`);
         }
     }
 

@@ -50,6 +50,12 @@ import './rtc-error-message.js';
 import {MessageVirtualScroll, type WindowBoundary, type StatefulComponent} from '../../utils/message-virtual-scroll.js';
 import {MessageSkeletonGenerator} from '../../utils/message-skeleton.js';
 
+/** Type guard: check if an element implements StatefulComponent */
+function isStatefulComponent(el: Element): el is Element & StatefulComponent {
+    return 'getState' in el && typeof (el as Element & StatefulComponent).getState === 'function'
+        && 'setState' in el && typeof (el as Element & StatefulComponent).setState === 'function';
+}
+
 /** Duration of toolcall jump highlight animation. */
 const HIGHLIGHT_ANIMATION_MS = 2000;
 /** Distance from bottom threshold for "at bottom" detection (px). Matches Telegram's SCROLLED_DOWN_THRESHOLD. */
@@ -255,15 +261,15 @@ export class RtcMessageList extends LitElement {
                 createPlaceholder: (msg, height) => MessageSkeletonGenerator.create(msg, height),
                 // Phase 2: Extract component state before skeletonization
                 extractComponentState: (_msg, el) => {
-                    if ('getState' in el && typeof (el as unknown as StatefulComponent).getState === 'function') {
-                        return (el as unknown as StatefulComponent).getState();
+                    if (isStatefulComponent(el)) {
+                        return el.getState();
                     }
                     return null;
                 },
                 // Phase 2: Inject component state after restoration
                 injectComponentState: (_msg, el, state) => {
-                    if ('setState' in el && typeof (el as unknown as StatefulComponent).setState === 'function') {
-                        (el as unknown as StatefulComponent).setState(state);
+                    if (isStatefulComponent(el)) {
+                        el.setState(state);
                     }
                 },
                 // Phase 2+4: Check if item is stable (safe to skeletonize)

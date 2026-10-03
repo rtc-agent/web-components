@@ -115,14 +115,14 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
   // ── Worker configuration ──
   // Must be set before the element is mounted to the DOM.
 
-  if (config.workerUrl !== undefined) {
-    element.workerUrl = config.workerUrl;
+  if (config.workerURL !== undefined) {
+    element.workerURL = config.workerURL;
   }
 
   // ── Scenario documents ──
 
-  if (config.scenariosUrl !== undefined) {
-    element.scenariosURL = config.scenariosUrl;
+  if (config.scenariosURL !== undefined) {
+    element.scenariosURL = config.scenariosURL;
   }
 
   // ── Window configuration ──
