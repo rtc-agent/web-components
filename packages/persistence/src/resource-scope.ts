@@ -1,4 +1,4 @@
-// Resource Scope — 自动管理 timer、listener 等资源的生命周期
+// Resource Scope — automatically manages lifecycle of timers, listeners, and other resources
 
 import { createLogger } from '@rtc-agent/client';
 
@@ -25,7 +25,7 @@ const log = createLogger('ResourceScope');
  *   scope.addEventListener(signal, 'abort', () => cleanup());
  *   await operation();
  * } finally {
- *   scope.dispose(); // 清理所有 timer 和 listener
+ *   scope.dispose(); // cleanup all timers and listeners
  * }
  * ```
  */
@@ -90,7 +90,7 @@ export class ResourceScope {
     }
 
     const wrappedListener = (event: Event) => {
-      // 如果是 once listener，自动从作用域中移除
+      // If once listener, auto-remove from scope
       if (options?.once) {
         const idx = this.listeners.findIndex(l =>
           l.target === target && l.type === type && l.listener === listener
@@ -162,14 +162,14 @@ export class ResourceScope {
     }
     this.disposed = true;
 
-    // 清理所有 timer
+    // Cleanup all timers
     for (const timer of this.timers) {
       clearTimeout(timer);
     }
     const timerCount = this.timers.size;
     this.timers.clear();
 
-    // 移除所有 listener
+    // Remove all listeners
     for (const { target, type, listener } of this.listeners) {
       target.removeEventListener(type, listener);
     }

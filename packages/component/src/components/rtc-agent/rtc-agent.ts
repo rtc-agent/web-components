@@ -120,7 +120,7 @@ import {_markReady} from '../../core/ready.js';
 
 // i18n
 import {initLocale, getLocale, localeContext, type LocaleContextValue, sourceLocale, targetLocales, switchLocale, isValidLocale, type SupportedLocale} from '../../core/i18n.js';
-import {msg} from '@lit/localize';
+import {msg, localized} from '@lit/localize';
 
 // Logo
 import {renderBubbleLogo} from '../../icons/logo.js';
@@ -218,6 +218,7 @@ const AUTO_SAVE_DEBOUNCE_MS = 1000;
 /** Margin (px) from viewport edge for initial window position in {@link RtcAgent.firstUpdated}. */
 const INITIAL_POSITION_MARGIN_PX = 20;
 
+@localized()
 @customElement('rtc-agent')
 export class RtcAgent extends LitElement {
     static styles = [tokens, lightTheme, darkTheme, baseStyles, styles];

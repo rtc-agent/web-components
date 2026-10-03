@@ -675,7 +675,7 @@ export class WorkerCore implements WorkerPersistenceCore {
    * Broadcast gap fill state change to all registered Tab callbacks.
    */
   private broadcastGapFillState(isSyncing: boolean): void {
-    console.log('[BulkUpdate] WorkerCore.broadcastGapFillState called, isSyncing:', isSyncing, 'callbacks:', this.callbacks.size);
+    log.debug('[BulkUpdate] WorkerCore.broadcastGapFillState called, isSyncing:', isSyncing, 'callbacks:', this.callbacks.size);
     for (const cb of this.callbacks) {
       try {
         cb.onGapFillState(isSyncing);

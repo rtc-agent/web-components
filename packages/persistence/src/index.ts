@@ -1,3 +1,17 @@
+/**
+ * Persistence Layer
+ *
+ * Integrates RTCAgentClient (Centrifuge WebSocket) with IndexedDB storage (via Dexie).
+ * Provides a unified API for: session/message/RTC CRUD, file cache management,
+ * multipart S3 uploads with progress tracking, background sync of pending files,
+ * debug history, and lifecycle management.
+ *
+ * This file is intentionally large (2000+ lines) because it serves as the main
+ * facade for the entire persistence subsystem. All file operations (upload, download,
+ * cache, sync), RTC message handling, and lifecycle coordination flow through this
+ * class. Splitting would scatter the integration logic across files, making it
+ * harder to understand the data flow between IndexedDB, S3, and the WebSocket client.
+ */
 import { RTCAgentClient, type RTCAgentClientOptions, type PublicationEvent, S3Client, type HeadObjectResult } from '@rtc-agent/client';
 import type { Update, ContentData, SendMessageRequest, ForkSessionRequest, CompactSessionRequest } from '@rtc-agent/protocol';
 import { getDatabase, closeDatabase, flushAll, type LocalSession, type LocalMessage, type LocalRtc, type DebugHistoryItem, type FileCacheEntry, type UploadPartRecord } from './database.js';

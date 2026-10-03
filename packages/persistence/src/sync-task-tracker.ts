@@ -67,7 +67,7 @@ export class SyncTaskTracker {
     return { completed: false, remainingTasks };
   }
 
-  /** 当前正在执行的任务数量 */
+  /** Number of currently executing tasks */
   get pendingCount(): number {
     return this._tasks.size;
   }

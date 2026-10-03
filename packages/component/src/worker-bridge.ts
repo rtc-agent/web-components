@@ -247,7 +247,7 @@ export class WorkerBridge {
                 log.warn('catchUp: state gap detected — events were lost (likely TTL cleanup)');
                 this._lastProcessedSeq = 0;
                 this._saveLastProcessedSeq();
-                // 只调用 end 触发 reload，不调用 start（不显示遮罩）
+                // Only call end to trigger reload, skip start (don't show overlay)
                 const bus = getUIUpdateBus();
                 bus.emitGapFillEnd();
             },

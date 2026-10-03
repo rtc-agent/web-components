@@ -1,4 +1,4 @@
-// FileOpCoordinator — 文件操作协调器，状态变更自动广播
+// FileOpCoordinator — coordinates file operations, broadcasts state changes automatically
 
 import type { FileCacheRepository, FileSyncStatus } from './file-cache-repository.js';
 import { createLogger } from '@rtc-agent/client';

@@ -45,7 +45,7 @@ import '../session-tree/rtc-session-tree.js';
 import '../session-tree/rtc-session-tab-bar.js';
 import '../content-area/rtc-content-area.js';
 import '../notice-bar/rtc-notice-bar.js';
-import '../input-area/rtc-input-area.js';
+import {RtcInputArea} from '../input-area/rtc-input-area.js';
 import '../file-preview/rtc-file-preview-area.js';
 import type {MessageController} from '../../controllers/message.controller.js';
 import '../overlay/rtc-overlay-manager.js';
@@ -280,8 +280,7 @@ export class RtcChatLayout extends LitElement {
         const inputArea = this._getInputAreaBySession(sessionId);
         if (!inputArea) return;
         const detail = e.detail;
-        (inputArea as unknown as { removeFile: (file: FileAttachment, index: number) => void })
-            .removeFile(detail.file, detail.index);
+        inputArea.removeFile(detail.file, detail.index);
     }
 
     /** Handle file retry request from preview-area */
@@ -289,8 +288,7 @@ export class RtcChatLayout extends LitElement {
         const inputArea = this._getInputAreaBySession(sessionId);
         if (!inputArea) return;
         const detail = e.detail;
-        (inputArea as unknown as { retryUpload: (taskId: string) => void })
-            .retryUpload(detail.file.fileid);
+        inputArea.retryUpload(detail.file.fileid);
     }
 
     /** Handle file preview request from preview-area */
@@ -424,13 +422,13 @@ export class RtcChatLayout extends LitElement {
     }
 
     /** Get the input-area element for a given sessionId */
-    private _getInputAreaBySession(sessionId: string): HTMLElement | null {
-        const inputAreas = this.shadowRoot?.querySelectorAll('rtc-input-area');
+    private _getInputAreaBySession(sessionId: string): RtcInputArea | null {
+        const inputAreas = this.shadowRoot?.querySelectorAll<RtcInputArea>('rtc-input-area');
         if (!inputAreas) return null;
 
         for (const el of Array.from(inputAreas)) {
-            if ((el as HTMLElement & { sessionId: string | null }).sessionId === sessionId) {
-                return el as HTMLElement;
+            if (el.sessionId === sessionId) {
+                return el;
             }
         }
         return null;

@@ -1,4 +1,15 @@
-// S3 Client — 封装 S3 对象存储操作
+/**
+ * S3 Client — wraps S3 object storage operations
+ *
+ * Provides upload (single + multipart), download, delete, head, list, and presigned
+ * URL operations against an S3-compatible endpoint. Manages temporary credential
+ * caching with automatic early refresh, and AWS SDK client lifecycle.
+ *
+ * This file is intentionally large (700+ lines) because all S3 operations share
+ * the same credential management and client lifecycle. The multipart upload logic
+ * (with progress tracking and abort support) is tightly coupled to the credential
+ * refresh mechanism. Splitting would scatter the S3 protocol flow across files.
+ */
 
 import { S3Client as AWSS3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand, ListObjectsCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, ListPartsCommand } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
@@ -7,35 +18,35 @@ import { createLogger } from './logger.js';
 
 const log = createLogger('S3Client');
 
-/** 分片上传阈值：5MB（S3 最小分片大小要求） */
+/** Multipart upload threshold: 5MB (S3 minimum part size) */
 const MULTIPART_THRESHOLD = 5 * 1024 * 1024;
 
-/** 凭证提前刷新时间：5 分钟 */
+/** Credential early refresh margin: 5 minutes */
 const CREDENTIAL_REFRESH_MARGIN_MS = 5 * 60 * 1000;
 
 /**
- * S3 Client 配置选项
+ * S3 Client configuration options
  */
 export interface S3ClientOptions {
-  /** 后端服务器 URL */
+  /** Backend server URL */
   serverUrl: string;
-  /** 获取 JWT token 的函数 */
+  /** Function to get JWT token */
   getToken: () => string | Promise<string>;
-  /** S3 bucket 名称，默认 'rtc-agent' */
+  /** S3 bucket name, default 'rtc-agent' */
   bucket?: string;
-  /** S3 region，默认 'us-east-1' */
+  /** S3 region, default 'us-east-1' */
   region?: string;
 }
 
 /**
- * 上传选项
+ * Upload options
  */
 export interface UploadOptions {
-  /** 文件内容类型 */
+  /** File content type */
   contentType?: string;
-  /** 上传进度回调 */
+  /** Upload progress callback */
   onProgress?: (loaded: number, total: number) => void;
-  /** 取消信号 */
+  /** Cancellation signal */
   signal?: AbortSignal;
 }
 
@@ -90,13 +101,13 @@ export class S3Client {
     getToken: () => string | Promise<string>;
   };
 
-  /** 缓存的临时凭证 */
+  /** Cached temporary credentials */
   private credentials: TemporaryCredentialsResponse | null = null;
-  /** 凭证过期时间 */
+  /** Credential expiration time */
   private expiresAt: Date | null = null;
-  /** 并发刷新去重 */
+  /** Concurrent refresh deduplication */
   private refreshPromise: Promise<void> | null = null;
-  /** 缓存的 AWS S3 Client 实例 */
+  /** Cached AWS S3 Client instance */
   private awsClient: AWSS3Client | null = null;
 
   constructor(options: S3ClientOptions) {
@@ -139,7 +150,7 @@ export class S3Client {
     log.debug(`upload: key=${key}, size=${file.size}`);
 
     if (file.size <= MULTIPART_THRESHOLD) {
-      // 小文件：直接上传
+      // Small file: direct upload
       await client.send(
         new PutObjectCommand({
           Bucket: this.options.bucket,
@@ -150,7 +161,7 @@ export class S3Client {
         { abortSignal: options?.signal }
       );
     } else {
-      // 大文件：分片上传
+      // Large file: multipart upload
       // The Upload class takes an abortController (not signal).
       // Wire a local AbortController to the caller's signal so abort propagates.
       const abortController = new AbortController();
@@ -264,9 +275,9 @@ export class S3Client {
       }
     }
 
-    // Fallback: AWS SDK Body 可能是多种类型，使用 transformToByteArray 统一处理
+    // Fallback: AWS SDK Body may be various types, use transformToByteArray for unified handling
     const bytes = await response.Body.transformToByteArray();
-    // 将 Uint8Array 转换为 ArrayBuffer 以兼容 Blob
+    // Convert Uint8Array to ArrayBuffer for Blob compatibility
     const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
     return new Blob([buffer], { type: response.ContentType });
   }
@@ -626,28 +637,28 @@ export class S3Client {
     this.refreshPromise = null;
   }
 
-  // ========== 内部方法 ==========
+  // ========== Internal Methods ==========
 
   /**
-   * 构建对象键
-   * 格式：user-{userId}/{md5Hash}.{ext}
+   * Build object key
+   * Format: user-{userId}/{md5Hash}.{ext}
    */
   private buildKey(userId: string, md5Hash: string, ext: string): string {
     return `user-${userId}/${md5Hash}.${ext}`;
   }
 
   /**
-   * 获取 AWS S3 Client（自动刷新凭证）
+   * Get AWS S3 Client (auto-refresh credentials)
    */
   private async getClient(): Promise<AWSS3Client> {
-    // 检查凭证是否有效（提前 5 分钟刷新）
+    // Check if credentials are valid (refresh 5 minutes before expiry)
     if (this.credentials && this.expiresAt &&
         Date.now() < this.expiresAt.getTime() - CREDENTIAL_REFRESH_MARGIN_MS &&
         this.awsClient) {
       return this.awsClient;
     }
 
-    // 并发刷新去重
+    // Concurrent refresh deduplication
     if (this.refreshPromise) {
       await this.refreshPromise;
       // P2-R6-05: Distinguish "refresh failed" from "client disposed"
@@ -702,7 +713,7 @@ export class S3Client {
     this.credentials = await response.json() as TemporaryCredentialsResponse;
     this.expiresAt = new Date(this.credentials.expires_at);
 
-    // 创建新的 AWS S3 Client
+    // Create new AWS S3 Client
     this.awsClient = new AWSS3Client({
       endpoint: `${this.options.serverUrl}/s3/`,
       region: this.options.region,

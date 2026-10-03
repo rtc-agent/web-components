@@ -1,3 +1,16 @@
+/**
+ * RTC Agent Client
+ *
+ * WebSocket client built on Centrifuge for real-time communication with the backend.
+ * Handles connection lifecycle, subscriptions (topic + live channels), message
+ * scheduling with buffer deduplication, gap fill management, and reconnection logic.
+ *
+ * This file is intentionally large (1200+ lines) because it encapsulates the entire
+ * client-side real-time protocol: connection management, subscription handling,
+ * update scheduling, and gap fill logic are tightly coupled and form a cohesive
+ * state machine. Splitting would scatter the protocol flow across files, making
+ * it harder to reason about ordering guarantees and error recovery.
+ */
 import {Centrifuge, HistoryOptions} from 'centrifuge';
 import {RpcMethod, SendMessageRequest, ForkSessionRequest, Update, UpdateItem} from '@rtc-agent/protocol';
 import type {
@@ -82,7 +95,7 @@ export class RTCAgentClient implements IRTCAgentClient {
   /** AbortControllers for active gap fill waits (cleared on disconnect). */
   private readonly _gapFillAbortControllers = new Map<string, AbortController>();
 
-  // ========== Update Scheduler: 调度 → [缓冲区] → 阻塞执行器 ==========
+  // ========== Update Scheduler: dispatch -> [buffer] -> serial executor ==========
   /**
    * Buffer for pending updates (deduplication happens here before enqueue).
    * Publication callbacks fire-and-forget into this buffer; the executor
@@ -553,7 +566,7 @@ export class RTCAgentClient implements IRTCAgentClient {
     };
   }
 
-  // ========== Update Scheduler: 调度 → [缓冲区] → 阻塞执行器 ==========
+  // ========== Update Scheduler: dispatch -> [buffer] -> serial executor ==========
 
   /**
    * Schedule an update for async serial processing (non-blocking).
@@ -570,7 +583,7 @@ export class RTCAgentClient implements IRTCAgentClient {
   private scheduleUpdate(update: Update): void {
     const channel = `topic:u=${this.options.userId}`;
 
-    // 缓冲区去重 1: 过期消息 (offset <= 已处理的 lastOffset)
+    // Buffer dedup 1: stale message (offset <= already-processed lastOffset)
     if (update.offset > 0) {
       const cachedLastOffset = this.lastOffsetCache.get(channel);
       if (cachedLastOffset !== undefined && update.offset <= cachedLastOffset) {
@@ -581,7 +594,7 @@ export class RTCAgentClient implements IRTCAgentClient {
       }
     }
 
-    // 缓冲区去重 2: 队列中已有相同 offset
+    // Buffer dedup 2: same offset already in queue
     if (update.offset > 0 && this.pendingUpdates.some(u => u.offset === update.offset)) {
       log.debug(`scheduleUpdate: skip duplicate in buffer offset=${update.offset}`);
       return;
@@ -609,7 +622,7 @@ export class RTCAgentClient implements IRTCAgentClient {
         const update = this.pendingUpdates.shift()!;
         try {
           await this.applyUpdates([update]);
-          // 成功后更新同步缓存（用于后续入队去重）
+          // Update sync cache on success (for subsequent enqueue dedup)
           if (update.offset > 0) {
             const channel = `topic:u=${this.options.userId}`;
             this.lastOffsetCache.set(channel, update.offset);
@@ -618,7 +631,7 @@ export class RTCAgentClient implements IRTCAgentClient {
           log.error(`processUpdateQueue failed for offset ${update.offset}:`, err);
           this.emit('error', err instanceof Error ? err : new Error(String(err)));
 
-          // 严重错误（如 gap fill 失败）→ 触发 reconnect，和原 publication 错误处理一致
+          // Critical error (e.g., gap fill failure) -> trigger reconnect, same as publication error handling
           if (this.shouldReconnect) {
             this.centrifuge?.disconnect();
             this.setConnectionState('disconnected', 'update processing failed');
@@ -635,7 +648,7 @@ export class RTCAgentClient implements IRTCAgentClient {
               }
             }, RTCAgentClient.RECONNECT_AFTER_SIZE_LIMIT_DELAY_MS);
           }
-          // 严重错误，停止处理剩余队列 — reconnect 会清空状态
+          // Critical error: stop processing remaining queue — reconnect will clear state
           break;
         }
       }
@@ -712,15 +725,15 @@ export class RTCAgentClient implements IRTCAgentClient {
       return;
     }
 
-    // 调试日志：记录 gap fill 开始时的连接状态和 subscription 状态
+    // Debug log: record connection state and subscription state at gap fill start
     log.debug(
       `[GAP_FILL_DEBUG] runGapFill started: channel=${channel}, targetOffset=${targetOffset}, ` +
       `connectionState=${this.connectionState}, centrifuge=${!!this.centrifuge}, ` +
       `subState=${sub.state}`
     );
 
-    const BATCH_SIZE = 10; // RPC 每次拉取的数量（避免返回内容过大）
-    const ACCUMULATE_THRESHOLD = 10000; // 累积到此数量后去重
+    const BATCH_SIZE = 10; // Number of items per RPC call (avoid oversized responses)
+    const ACCUMULATE_THRESHOLD = 10000; // Accumulate to this count before dedup
     // Only suspend UI updates for large gaps to prevent UI thrashing.
     // Small gaps (< 100) can update UI normally for real-time feedback.
     const SUSPEND_THRESHOLD = 100;
@@ -730,27 +743,27 @@ export class RTCAgentClient implements IRTCAgentClient {
     const currentOffset = startPosition?.offset ?? 0;
     const gapSize = targetOffset - currentOffset;
 
-    console.log(`[BulkUpdate] runGapFill: gapSize=${gapSize}, threshold=${SUSPEND_THRESHOLD}`);
+    log.debug(`[BulkUpdate] runGapFill: gapSize=${gapSize}, threshold=${SUSPEND_THRESHOLD}`);
 
     // Notify UI that gap fill is starting (for large gaps)
     if (gapSize > SUSPEND_THRESHOLD) {
-      console.log('[BulkUpdate] runGapFill: calling onGapFillStart');
+      log.debug('[BulkUpdate] runGapFill: calling onGapFillStart');
       this.options.onGapFillStart?.();
       this.options.suspendUIUpdates?.();
     }
 
-    // 缓冲区提升到 try 外面，断网时也能应用已拉取的内容
+    // Buffer hoisted outside try so content fetched before disconnect can still be applied
     let buffer: Update[] = [];
     let gapOffsets: number[] = [];
     let offset = currentOffset;
 
     try {
-      // 外层循环：直到达到 targetOffset
+      // Outer loop: continue until reaching targetOffset
       while (offset < targetOffset - 1) {
         buffer = [];
         gapOffsets = [];
 
-        // 内层循环：分批拉取，累积到 ACCUMULATE_THRESHOLD+
+        // Inner loop: fetch in batches, accumulate to ACCUMULATE_THRESHOLD+
         while (buffer.length < ACCUMULATE_THRESHOLD && offset < targetOffset - 1) {
           const remaining = targetOffset - offset - 1;
           const limit = Math.min(BATCH_SIZE, remaining);
@@ -762,7 +775,7 @@ export class RTCAgentClient implements IRTCAgentClient {
             reverse: false,
           };
 
-          // 调试日志：记录调用 history 前的连接状态
+          // Debug log: record connection state before calling history
           log.debug(
             `[GAP_FILL_DEBUG] Calling sub.history(): offset=${offset}, limit=${limit}, ` +
             `connectionState=${this.connectionState}, hasCentrifuge=${!!this.centrifuge}, ` +
@@ -790,30 +803,30 @@ export class RTCAgentClient implements IRTCAgentClient {
             }
           }
 
-          // 分离 real updates 和 gap placeholders
+          // Separate real updates from gap placeholders
           for (const pub of publications) {
             const data = pub.data as Record<string, unknown>;
             const pubOffset = pub.offset ?? 0;
             if (data?.type === 'gap') {
-              // Gap placeholder: 记录 offset，稍后批量处理
+              // Gap placeholder: record offset for batch processing later
               gapOffsets.push(pubOffset);
             } else {
               buffer.push(pub.data as Update);
             }
           }
 
-          // 更新 offset 为当前批次的最后一个
+          // Advance offset to the last item in current batch
           offset = publications[publications.length - 1].offset ?? offset;
 
           // If we got fewer publications than requested, we've reached the end
           if (publications.length < limit) break;
         }
 
-        // 应用当前批次的缓冲区内容
+        // Apply current batch buffer content
         await this.flushGapFillBuffer(channel, buffer, gapOffsets, epoch);
       }
     } catch (err) {
-      // 网络错误时，先应用缓冲区已拉取的内容
+      // On network error, apply already-fetched buffer content first
       if (buffer.length > 0 || gapOffsets.length > 0) {
         log.debug(`[GAP_FILL_DEBUG] Network error, flushing buffer before error handling: ${buffer.length} updates, ${gapOffsets.length} gap offsets`);
         try {
@@ -823,7 +836,7 @@ export class RTCAgentClient implements IRTCAgentClient {
         }
       }
 
-      // 调试日志：记录错误发生时的详细上下文
+      // Debug log: record detailed context when error occurs
       log.error(
         `[GAP_FILL_DEBUG] runGapFill failed for channel ${channel}:`,
         err,
@@ -841,7 +854,7 @@ export class RTCAgentClient implements IRTCAgentClient {
     } finally {
       // Resume UI updates and notify UI only if we suspended
       if (gapSize > SUSPEND_THRESHOLD) {
-        console.log('[BulkUpdate] runGapFill: calling resumeUIUpdates and onGapFillEnd');
+        log.debug('[BulkUpdate] runGapFill: calling resumeUIUpdates and onGapFillEnd');
         this.options.resumeUIUpdates?.();
         this.options.onGapFillEnd?.();
       }
@@ -941,7 +954,7 @@ export class RTCAgentClient implements IRTCAgentClient {
     gapOffsets: number[],
     epoch: string
   ): Promise<void> {
-    // 处理累积的 updates：去重后批量应用
+    // Process accumulated updates: deduplicate then apply in batch
     if (buffer.length > 0) {
       const deduplicated = this.deduplicateUpdates(buffer);
 
@@ -971,8 +984,9 @@ export class RTCAgentClient implements IRTCAgentClient {
           }
         }
 
-        // ✅ 关键修复：数据持久化成功后，一次性推进 offset 到 max(gapOffsets, buffer offsets)
-        // 这确保了 offset 不会在数据未持久化的情况下被推进
+        // Key fix: advance offset to max(gapOffsets, buffer offsets) only after
+        // data persistence succeeds. This ensures offset is not advanced without
+        // persisted data.
         const allOffsets = [...gapOffsets, ...buffer.map(u => u.offset)];
         const maxOffset = Math.max(...allOffsets);
         await this.options.updateOffset?.(channel, maxOffset, epoch);
@@ -981,7 +995,7 @@ export class RTCAgentClient implements IRTCAgentClient {
         this.options.resumeUIUpdates?.();
       }
     } else if (gapOffsets.length > 0) {
-      // ✅ 只有 gap placeholders（无真实数据），可以安全推进 offset
+      // Only gap placeholders (no real data): safe to advance offset directly
       const maxGapOffset = Math.max(...gapOffsets);
       await this.options.updateOffset?.(channel, maxGapOffset, epoch);
     }
@@ -1123,15 +1137,15 @@ export class RTCAgentClient implements IRTCAgentClient {
       const topicSub = this.centrifuge.newSubscription(topicChannel);
       this.subscriptions.set(topicChannel, topicSub);
 
-      // 调度 → [缓冲区] → 阻塞执行器
-      // 回调只投递到 pendingUpdates 缓冲区，立刻返回，不阻塞 Centrifuge。
-      // 去重、串行化、错误处理全部由 scheduleUpdate / processUpdateQueue 负责。
+      // dispatch -> [buffer] -> serial executor
+      // Callback only dispatches to pendingUpdates buffer, returns immediately, never blocks Centrifuge.
+      // Deduplication, serialization, and error handling are all handled by scheduleUpdate / processUpdateQueue.
       topicSub.on('publication', (ctx) => {
         this.scheduleUpdate(ctx.data as Update);
       });
 
       topicSub.on('subscribed', async (ctx) => {
-        // 调试日志：记录 subscribed 事件触发
+        // Debug log: record subscribed event trigger
         log.debug(
           `[GAP_FILL_DEBUG] Subscription 'subscribed' event: channel=${topicChannel}, ` +
           `serverOffset=${ctx.streamPosition?.offset}, epoch=${ctx.streamPosition?.epoch}, ` +
@@ -1172,8 +1186,8 @@ export class RTCAgentClient implements IRTCAgentClient {
             this.scheduleGapFill(topicChannel, serverOffset + 1, epoch);
           }
 
-          // 同步更新 lastOffsetCache，供 scheduleUpdate 入队去重使用
-          // （避免入队时 await IndexedDB 重新阻塞回调）
+          // Sync-update lastOffsetCache for scheduleUpdate enqueue dedup
+          // (avoids awaiting IndexedDB during enqueue, which would re-block the callback)
           if (localOffset !== undefined) {
             this.lastOffsetCache.set(topicChannel, localOffset);
           }

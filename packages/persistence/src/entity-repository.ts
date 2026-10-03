@@ -1,3 +1,17 @@
+/**
+ * Entity Repository
+ *
+ * Central CRUD layer for all RTC Agent entities (sessions, turns, messages, RTCs)
+ * backed by IndexedDB via Dexie. Handles upsert operations, batch updates,
+ * parent-child relationship resolution (pending parent server IDs), sync status
+ * tracking, and UIUpdateBus emission for reactive UI updates.
+ *
+ * This file is intentionally large (1700+ lines) because it manages the complete
+ * lifecycle of all entities with their interdependencies. Session/turn/message/RTC
+ * operations share common patterns (sync status, parent resolution, UI bus emission)
+ * that are tightly coupled. Splitting by entity type would duplicate the shared
+ * infrastructure and obscure the cross-entity consistency guarantees.
+ */
 import { getDatabase, type LocalSession, type LocalTurn, type LocalMessage, type LocalRtc, type SyncStatus } from './database.js';
 import { getUIUpdateBus } from './ui-update-bus.js';
 import { nowRFC3339 } from './time-utils.js';
