@@ -155,7 +155,7 @@ export class TrackedBackgroundTask {
       }
 
       const timer = setTimeout(() => {
-        signal.removeEventListener('abort', onAbort);
+        // No need to removeEventListener: addEventListener uses { once: true }
         resolve();
       }, ms);
 

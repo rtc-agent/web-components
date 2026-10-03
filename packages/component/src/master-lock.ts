@@ -93,8 +93,8 @@ export class MasterLock {
         // The callback of navigator.locks.request is invoked when the lock is acquired.
         // The lock is released when the callback's returned Promise resolves.
         // We make the callback never resolve -> the lock is held until the Tab closes.
-        // eslint-disable-next-line @typescript-eslint/no-floating-promises
-        navigator.locks.request(
+        // Using void to explicitly mark this as a floating promise (intentional fire-and-forget).
+        void navigator.locks.request(
             this._lockName,
             { signal: this._abortController.signal },
             async () => {
