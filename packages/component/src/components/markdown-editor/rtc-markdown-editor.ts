@@ -129,11 +129,11 @@ export class RtcMarkdownEditor extends LitElement {
         } catch (err) {
             // Dynamic import failed (likely stale chunk hash after rebuild)
             if (attempts > 0) {
-                console.warn('[rtc-markdown-editor] Module load failed, retrying...', err);
+                log.warn('Module load failed, retrying...', err);
                 this._modulesPromise = null; // Clear cache to force fresh attempt
                 return this._loadModules(attempts - 1);
             }
-            console.error('[rtc-markdown-editor] Module load failed after retries:', err);
+            log.error('Module load failed after retries:', err);
             throw err;
         }
     }

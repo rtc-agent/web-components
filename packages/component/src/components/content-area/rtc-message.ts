@@ -147,11 +147,11 @@ export class RtcMessage extends LitElement implements StatefulComponent {
         } catch (err) {
             // Dynamic import failed (likely stale chunk hash after rebuild)
             if (attempts > 0) {
-                console.warn('[rtc-message] Module load failed, retrying...', err);
+                log.warn('Module load failed, retrying...', err);
                 this._modulesPromise = null; // Clear cache to force fresh attempt
                 return this._loadModulesWithRetry(attempts - 1);
             }
-            console.error('[rtc-message] Module load failed after retries:', err);
+            log.error('Module load failed after retries:', err);
             throw err;
         }
     }
