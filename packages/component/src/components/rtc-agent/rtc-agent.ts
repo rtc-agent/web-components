@@ -384,7 +384,12 @@ export class RtcAgent extends LitElement {
 
         try {
             const { files, deletePaths } = await registry.generateAllDocsContent(0);
-            await this._persistence.workerBridge!.core.batchWriteFiles(files, deletePaths);
+            const bridge = this._persistence.workerBridge;
+            if (!bridge) {
+                log.warn('WorkerBridge not available, skipping doc regeneration');
+                return;
+            }
+            await bridge.core.batchWriteFiles(files, deletePaths);
 
             // If scenariosURL was set but scenarios haven't loaded yet, load them now.
             if (this._scenariosURL) {
@@ -629,7 +634,12 @@ export class RtcAgent extends LitElement {
     private async _loadScenarios(baseURL: string): Promise<void> {
         try {
             const { files, deletePaths } = await loadScenariosContent(baseURL);
-            await this._persistence.workerBridge!.core.batchWriteFiles(files, deletePaths);
+            const bridge = this._persistence.workerBridge;
+            if (!bridge) {
+                log.warn('WorkerBridge not available, skipping scenario load');
+                return;
+            }
+            await bridge.core.batchWriteFiles(files, deletePaths);
             log.info(`Loaded ${files.length} scenarios from ${baseURL}, deleted orphans: ${deletePaths.length}`);
         } catch (err) {
             log.error('Failed to load scenarios:', err);
@@ -779,6 +789,9 @@ export class RtcAgent extends LitElement {
 
     /** Tracks whether we've done the initial session load (for auto-select logic). */
     private _initialSessionLoadDone = false;
+
+    /** Tracks whether the rtc-agent-ready event has been dispatched (prevents duplicates in StrictMode). */
+    private _readyDispatched = false;
 
     /** Tracks whether locale has been initialized (only once). */
     private _localeInitialized = false;
@@ -1441,14 +1454,18 @@ export class RtcAgent extends LitElement {
             }
         }
 
-        // Signal readiness to host applications
+        // Signal readiness to host applications (idempotent — guarded against React StrictMode double-mount)
         // 1. Resolve the whenReady() Promise (for ES module importers)
         _markReady();
         // 2. Dispatch rtc-agent-ready event (for addEventListener listeners)
-        this.dispatchEvent(new CustomEvent<void>('rtc-agent-ready', {
-            bubbles: true,
-            composed: true,
-        }));
+        // Guarded by _readyDispatched to prevent duplicate events on re-mount.
+        if (!this._readyDispatched) {
+            this._readyDispatched = true;
+            this.dispatchEvent(new CustomEvent<void>('rtc-agent-ready', {
+                bubbles: true,
+                composed: true,
+            }));
+        }
     }
 
     /* ── Message Send Interception ── */

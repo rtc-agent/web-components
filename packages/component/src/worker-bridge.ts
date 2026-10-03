@@ -364,7 +364,7 @@ export class WorkerBridge {
                 let script: string;
                 try {
                     const response = await fetch(workerUrl, {
-                        cache: 'no-store', // Avoid using stale cached scripts.
+                        cache: 'default', // CDN scripts are content-hashed in production; dev URLs are unique per HMR.
                     });
                     if (!response.ok) {
                         throw new Error(`HTTP ${response.status} ${response.statusText}`);
@@ -594,6 +594,14 @@ export class WorkerBridge {
         this._connectionListeners.clear();
         this._worker.port.close();
         this._initialized = false;
+
+        // Clean up shared yield channel (prevents memory leak if catch-up was in progress)
+        if (this._yieldChannel) {
+            this._yieldChannel.port1.close();
+            this._yieldChannel.port2.close();
+            this._yieldChannel = undefined;
+        }
+        this._yieldResolves.length = 0;
 
         // Only clear cursor state when explicitly requested (e.g., tab close).
         // Component unmount/remount (clearStorage=false) should keep the cursor
@@ -1011,8 +1019,6 @@ export class WorkerBridge {
                 }
 
                 if (result.entries.length === 0) {
-                    if (totalDelivered === 0) {
-                    }
                     return;
                 }
 
@@ -1086,9 +1092,21 @@ export class WorkerBridge {
     }
 
     /**
+     * Shared MessageChannel for yielding to the main thread during catch-up.
+     *
+     * Reusing a single channel avoids creating a new MessageChannel (and two MessagePorts)
+     * per yield. For large catch-ups (1000+ events with frequent yields), this significantly
+     * reduces GC pressure.
+     *
+     * Lazily initialized on first yield; closed in destroy().
+     */
+    private _yieldChannel?: MessageChannel;
+    private _yieldResolves: Array<() => void> = [];
+
+    /**
      * Yield control to the main thread to allow UI rendering and user interaction.
      *
-     * Uses MessageChannel to schedule a macrotask without setTimeout's 4ms minimum
+     * Uses a shared MessageChannel to schedule a macrotask without setTimeout's 4ms minimum
      * delay floor (imposed by HTML spec for deeply-nested setTimeout calls).
      * MessageChannel.postMessage() enqueues a 'message' event as a macrotask,
      * which fires on the next event-loop turn with ~0ms latency.
@@ -1098,13 +1116,15 @@ export class WorkerBridge {
      */
     private _yieldToMain(): Promise<void> {
         return new Promise(resolve => {
-            const channel = new MessageChannel();
-            channel.port1.onmessage = () => {
-                channel.port1.close();
-                channel.port2.close();
-                resolve();
-            };
-            channel.port2.postMessage(null);
+            if (!this._yieldChannel) {
+                this._yieldChannel = new MessageChannel();
+                this._yieldChannel.port1.onmessage = () => {
+                    const cb = this._yieldResolves.shift();
+                    if (cb) cb();
+                };
+            }
+            this._yieldResolves.push(resolve);
+            this._yieldChannel.port2.postMessage(null);
         });
     }
 

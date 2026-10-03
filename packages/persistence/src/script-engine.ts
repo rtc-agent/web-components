@@ -578,7 +578,12 @@ export async function _executeCode(
   try {
     // M1: Use fn.call(undefined, ...) to bind this to undefined (strict mode)
     const executionPromise = fn.call(undefined, ...values);
-    return await Promise.race([executionPromise, timeoutPromise]);
+    const result = await Promise.race([executionPromise, timeoutPromise]);
+    // Catch late rejections after timeout wins the race (prevents unhandled rejection).
+    // If execution already resolved, this is a no-op.
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
+    Promise.resolve(executionPromise).catch(() => {});
+    return result;
   } finally {
     // B1: Clear timeout timer to avoid memory leaks
     if (timer !== undefined) {

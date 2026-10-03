@@ -7,7 +7,7 @@
 import { msg, str } from '@lit/localize';
 import { loadScenariosContent } from '../../../core/scenario-loader.js';
 import { RtcProcessor } from '@rtc-agent/persistence';
-import type { PersistenceLayer, LocalRtc } from '@rtc-agent/persistence';
+import type { PersistenceLayer, LocalRtc, AskUserDialogFn } from '@rtc-agent/persistence';
 import type { WorkerBridge } from '../../../worker-bridge.js';
 import type { ConnectionState } from '@rtc-agent/client';
 import type { Logger } from '@rtc-agent/client';
@@ -180,12 +180,7 @@ async function initRtcProcessor(
     const rtcProcessor = new RtcProcessor(layer);
     rtcProcessor.setConfirmDialog((rtc) => deps.showToolConfirm(rtc));
     rtcProcessor.setAskUserDialog(
-        (rtc) =>
-            deps.showAskUser(rtc) as ReturnType<
-                typeof rtcProcessor.setAskUserDialog
-            > extends (fn: (rtc: LocalRtc) => infer R) => unknown
-                ? R
-                : never,
+        (rtc) => deps.showAskUser(rtc) as ReturnType<AskUserDialogFn>,
     );
     rtcProcessor.setMode(deps.mode.value.state.currentMode);
 
@@ -219,12 +214,10 @@ async function setupConnectionListener(
     const connectionState = await deps.persistence.getConnectionState();
 
     // Use unified API to listen for connection state changes.
-    let currentState = connectionState;
     const unsubConnection = deps.persistence.onConnectionStateChange((event) => {
-        currentState = event.state;
         // Notify the component to update its UI state
         deps.onConnectionStateChange?.(event.state);
     });
 
-    return { unsubConnection, connectionState: currentState };
+    return { unsubConnection, connectionState };
 }
