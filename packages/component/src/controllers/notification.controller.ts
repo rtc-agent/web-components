@@ -248,6 +248,9 @@ export class NotificationController implements ReactiveController {
         if (now - this._lastNotifyTime < NotificationController.NOTIFY_THROTTLE_MS) {
             return;
         }
+        // Update throttle timestamp immediately to prevent race conditions
+        // where successive events both pass the throttle check before either completes
+        this._lastNotifyTime = now;
 
         try {
             // Capture abort signal before async operation to detect disconnection
@@ -281,7 +284,6 @@ export class NotificationController implements ReactiveController {
             // Focus detection
             if (!this._shouldNotify(sessionId)) return;
 
-            this._lastNotifyTime = now;
             this._triggerNotification(event, sessionId);
         } catch (error) {
             // Ignore AbortError from disconnection

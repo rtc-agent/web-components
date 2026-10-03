@@ -79,7 +79,7 @@ describe('<rtc-login-page>', () => {
         expect(err!.textContent).toContain('Auth failed');
     });
 
-    it('should dispatch rtc-login-requested on provider button click', async () => {
+    it('should dispatch rtc-auth-login-requested on provider button click', async () => {
         const el = await fixture<RtcLoginPage>(
             html`<rtc-login-page></rtc-login-page>`,
             {setup: (host) => provideContext(host, AuthContext, mockAuthCtx)}
@@ -89,7 +89,7 @@ describe('<rtc-login-page>', () => {
         await nextFrame();
         await nextFrame();
         const handler = vi.fn();
-        el.addEventListener('rtc-login-requested', handler);
+        el.addEventListener('rtc-auth-login-requested', handler);
         // Find the button with "Mock" text (provider order may vary)
         const buttons = el.shadowRoot!.querySelectorAll('.provider-btn');
         let mockBtn: HTMLElement | null = null;
