@@ -136,8 +136,8 @@ export class OAuth2Client {
       });
 
       if (!resp.ok) {
-        const errorText = await resp.text().catch(() => 'Unknown error');
-        throw new Error(`OAuth2 API error ${resp.status}: ${errorText}`);
+        // Only include HTTP status code in error message to avoid leaking sensitive server response details
+        throw new Error(`OAuth2 API error ${resp.status}: ${resp.statusText || 'Request failed'}`);
       }
 
       return resp;
