@@ -20,7 +20,7 @@ describe('S3Client', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     client = new S3Client({
-      serverUrl: 'http://localhost:8888',
+      serverURL: 'http://localhost:8888',
       getToken: () => mockToken,
     });
   });
@@ -135,7 +135,7 @@ describe('S3Client', () => {
     it('should use default bucket and region', () => {
       // 通过构造函数测试默认值
       const client = new S3Client({
-        serverUrl: 'http://localhost:8888',
+        serverURL: 'http://localhost:8888',
         getToken: () => mockToken,
       });
 
@@ -146,7 +146,7 @@ describe('S3Client', () => {
 
     it('should allow custom bucket and region', () => {
       const client = new S3Client({
-        serverUrl: 'http://localhost:8888',
+        serverURL: 'http://localhost:8888',
         getToken: () => mockToken,
         bucket: 'custom-bucket',
         region: 'eu-west-1',
@@ -156,14 +156,14 @@ describe('S3Client', () => {
       client.dispose();
     });
 
-    it('should strip trailing slash from serverUrl', async () => {
+    it('should strip trailing slash from serverURL', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({ url: 'https://example.com' }),
       });
 
       const client = new S3Client({
-        serverUrl: 'http://localhost:8888/',
+        serverURL: 'http://localhost:8888/',
         getToken: () => mockToken,
       });
 

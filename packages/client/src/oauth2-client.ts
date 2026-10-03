@@ -11,7 +11,7 @@ import type {
  */
 export interface OAuth2ClientOptions {
   /** Backend server URL. */
-  serverUrl: string;
+  serverURL: string;
   /** OAuth2 redirect callback URL. */
   redirectUri: string;
   /** Request timeout in milliseconds, defaults to 10000. */
@@ -35,12 +35,12 @@ export interface OAuth2ProvidersResponse {
  * - Refresh access tokens
  */
 export class OAuth2Client {
-  private readonly serverUrl: string;
+  private readonly serverURL: string;
   private readonly redirectUri: string;
   private readonly timeout: number;
 
   constructor(options: OAuth2ClientOptions) {
-    this.serverUrl = options.serverUrl.replace(/\/$/, '');
+    this.serverURL = options.serverURL.replace(/\/$/, '');
     this.redirectUri = options.redirectUri;
     this.timeout = options.timeout ?? 10000;
   }
@@ -125,7 +125,7 @@ export class OAuth2Client {
     path: string,
     init?: RequestInit,
   ): Promise<Response> {
-    const url = `${this.serverUrl}${path}`;
+    const url = `${this.serverURL}${path}`;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 

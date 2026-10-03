@@ -39,9 +39,9 @@ async function exchangeRefreshToken(refreshToken: string): Promise<{
   access_token: string;
   user_id: string;
 }> {
-  const serverUrl = process.env.SERVER_URL ?? 'http://localhost:8888';
+  const serverURL = process.env.SERVER_URL ?? 'http://localhost:8888';
 
-  const response = await fetch(`${serverUrl}/oauth2/refresh`, {
+  const response = await fetch(`${serverURL}/oauth2/refresh`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -87,7 +87,7 @@ describeIntegration('S3Client Integration', () => {
     testMd5 = generateMd5LikeHash();
 
     client = new S3Client({
-      serverUrl: process.env.SERVER_URL ?? 'http://localhost:8888',
+      serverURL: process.env.SERVER_URL ?? 'http://localhost:8888',
       getToken: () => accessToken,
     });
   });

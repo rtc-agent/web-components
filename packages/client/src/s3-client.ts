@@ -29,7 +29,7 @@ const CREDENTIAL_REFRESH_MARGIN_MS = 5 * 60 * 1000;
  */
 export interface S3ClientOptions {
   /** Backend server URL */
-  serverUrl: string;
+  serverURL: string;
   /** Function to get JWT token */
   getToken: () => string | Promise<string>;
   /** S3 bucket name, default 'rtc-agent' */
@@ -112,7 +112,7 @@ export class S3Client {
 
   constructor(options: S3ClientOptions) {
     this.options = {
-      serverUrl: options.serverUrl.replace(/\/$/, ''),
+      serverURL: options.serverURL.replace(/\/$/, ''),
       getToken: options.getToken,
       bucket: options.bucket ?? 'rtc-agent',
       region: options.region ?? 'us-east-1',
@@ -370,7 +370,7 @@ export class S3Client {
     key: string,
     expiresIn?: number
   ): Promise<string> {
-    const url = `${this.options.serverUrl}/api/presigned-url`;
+    const url = `${this.options.serverURL}/api/presigned-url`;
     const token = await this.options.getToken();
 
     log.debug(`getPresignedUrl: operation=${operation}, key=${key}`);
@@ -693,7 +693,7 @@ export class S3Client {
    * 刷新临时凭证
    */
   private async refreshCredentials(): Promise<void> {
-    const url = `${this.options.serverUrl}/api/credentials/temporary`;
+    const url = `${this.options.serverURL}/api/credentials/temporary`;
     const token = await this.options.getToken();
 
     log.debug('refreshing temporary credentials');
@@ -715,7 +715,7 @@ export class S3Client {
 
     // Create new AWS S3 Client
     this.awsClient = new AWSS3Client({
-      endpoint: `${this.options.serverUrl}/s3/`,
+      endpoint: `${this.options.serverURL}/s3/`,
       region: this.options.region,
       credentials: {
         accessKeyId: this.credentials.access_key_id,
