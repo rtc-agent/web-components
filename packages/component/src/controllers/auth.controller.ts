@@ -93,14 +93,10 @@ export class AuthController implements ReactiveController {
             login: () => this._login(),
             logout: () => this._logout(),
         };
-        log.debug('[AUTH_LIFECYCLE] Constructor called, about to call _loadTokens()');
         this._loadTokens();
     }
 
     hostConnected() {
-        log.debug('[AUTH_LIFECYCLE] hostConnected() called');
-        log.debug('[AUTH_LIFECYCLE] hostConnected() _state.isLoggedIn:', this._state.isLoggedIn);
-        log.debug('[AUTH_LIFECYCLE] hostConnected() _refreshTimer exists?', !!this._refreshTimer);
         this._boundVisibilityHandler = this._onVisibilityChange.bind(this);
         document.addEventListener('visibilitychange', this._boundVisibilityHandler);
 
@@ -110,7 +106,6 @@ export class AuthController implements ReactiveController {
         // 2. hostDisconnected() → clears timer
         // 3. Second hostConnected() → timer missing, need to re-schedule
         if (this._state.isLoggedIn && !this._refreshTimer && this._state.expiresAt) {
-            log.debug('[AUTH_LIFECYCLE] hostConnected() Re-scheduling refresh timer (was cleared by hostDisconnected)');
             this._scheduleRefresh(this._state.expiresAt);
         }
     }
@@ -125,15 +120,11 @@ export class AuthController implements ReactiveController {
      * or when the controller is GC'd with the element.
      */
     hostDisconnected() {
-        log.debug('[AUTH_LIFECYCLE] hostDisconnected() called');
-        log.debug('[AUTH_LIFECYCLE] hostDisconnected() _state.isLoggedIn:', this._state.isLoggedIn);
-        log.debug('[AUTH_LIFECYCLE] hostDisconnected() _refreshTimer exists?', !!this._refreshTimer);
         if (this._boundVisibilityHandler) {
             document.removeEventListener('visibilitychange', this._boundVisibilityHandler);
             this._boundVisibilityHandler = undefined;
         }
         if (this._refreshTimer) {
-            log.debug('[AUTH_LIFECYCLE] hostDisconnected() Clearing _refreshTimer');
             clearTimeout(this._refreshTimer);
             this._refreshTimer = undefined;
         }
@@ -309,12 +300,10 @@ export class AuthController implements ReactiveController {
             // If refresh succeeds → logged in; if it fails → show login page.
             this._state = { isLoggedIn: false };
             this.host.requestUpdate();
-            log.debug('[AUTH_LIFECYCLE] setAuthProvider() isLoggedIn=false, attempting async refresh via provider');
             void provider.refreshToken().then(result => {
                 // Guard: if _authProvider was cleared (logout/destroy) during the
                 // async refresh, don't update state.
                 if (this._authProvider !== provider) {
-                    log.debug('[AUTH_LIFECYCLE] setAuthProvider() Auth provider changed during refresh, skipping');
                     return;
                 }
                 const newExpiresAt = result.expiresIn
@@ -331,12 +320,10 @@ export class AuthController implements ReactiveController {
                     this._scheduleRefresh(newExpiresAt);
                 }
                 this.host.requestUpdate();
-                log.debug('[AUTH_LIFECYCLE] setAuthProvider() Async refresh succeeded, new expiresAt:', newExpiresAt);
                 this._fireLogin();
-            }).catch(err => {
+            }).catch(() => {
                 // Guard: same as above.
                 if (this._authProvider !== provider) return;
-                log.debug('[AUTH_LIFECYCLE] setAuthProvider() Async refresh failed, showing login page:', err);
                 // Stay logged out — login page is already shown.
             });
         }
@@ -376,10 +363,8 @@ export class AuthController implements ReactiveController {
     }
 
     private _logout() {
-        log.debug('[AUTH_LIFECYCLE] _logout() called');
         // Auth provider (Mode 3): delegate logout to the provider
         if (this._authProvider?.logout) {
-            log.debug('[AUTH_LIFECYCLE] _logout() Delegating to auth provider');
             void this._authProvider.logout().then(() => {
                 this._performLogout();
             }).catch((error) => {
@@ -402,13 +387,11 @@ export class AuthController implements ReactiveController {
      * - `_externalTokens`: reset so next login cycle starts clean
      */
     private _performLogout() {
-        log.debug('[AUTH_LIFECYCLE] _performLogout() called');
         this._state = {isLoggedIn: false};
 
         // Only clear localStorage if we are not in external token mode.
         // External tokens were never persisted, so there is nothing to clean up.
         if (!this._externalTokens) {
-            log.debug('[AUTH_LIFECYCLE] _performLogout() Clearing localStorage');
             localStorage.removeItem(STORAGE_KEYS.tokens);
         }
         this._externalTokens = false;
@@ -416,7 +399,6 @@ export class AuthController implements ReactiveController {
         this._authProvider = undefined;
 
         if (this._refreshTimer) {
-            log.debug('[AUTH_LIFECYCLE] _performLogout() Clearing _refreshTimer');
             clearTimeout(this._refreshTimer);
             this._refreshTimer = undefined;
         }
@@ -429,21 +411,16 @@ export class AuthController implements ReactiveController {
 
     /** Load tokens from localStorage */
     private _loadTokens() {
-        log.debug('[AUTH_LIFECYCLE] _loadTokens() called');
         try {
             const stored = localStorage.getItem(STORAGE_KEYS.tokens);
-            log.debug('[AUTH_LIFECYCLE] _loadTokens() stored tokens:', stored ? 'exists' : 'null');
             if (!stored) return;
 
             const tokens: StoredTokens = JSON.parse(stored);
-            log.debug('[AUTH_LIFECYCLE] _loadTokens() parsed tokens, expiresAt:', tokens.expiresAt, 'now:', Date.now(), 'diff:', tokens.expiresAt - Date.now());
 
             // Check if expired
             if (tokens.expiresAt < Date.now()) {
-                log.debug('[AUTH_LIFECYCLE] _loadTokens() Token expired, attempting refresh');
                 // Try refresh; on failure clear tokens so login page shows
                 void this._executeRefresh(tokens.refreshToken).then(result => {
-                    log.debug('[AUTH_LIFECYCLE] _loadTokens() Refresh completed, success:', result.success);
                     if (result.success) {
                         this._state = {
                             isLoggedIn: true,
@@ -464,7 +441,6 @@ export class AuthController implements ReactiveController {
                         // (fixes race condition: connectedCallback() ran before refresh completed)
                         this._fireLogin();
                     } else {
-                        log.debug('[AUTH_LIFECYCLE] _loadTokens() Refresh failed, clearing localStorage');
                         localStorage.removeItem(STORAGE_KEYS.tokens);
                     }
                 }).catch(err => {
@@ -473,7 +449,6 @@ export class AuthController implements ReactiveController {
                     localStorage.removeItem(STORAGE_KEYS.tokens);
                 });
             } else {
-                log.debug('[AUTH_LIFECYCLE] _loadTokens() Token still valid, setting state and scheduling refresh');
                 this._state = {
                     isLoggedIn: true,
                     accessToken: tokens.accessToken,
@@ -494,24 +469,19 @@ export class AuthController implements ReactiveController {
 
     /** Save tokens to localStorage */
     private _saveTokens(tokens: StoredTokens) {
-        log.debug('[AUTH_LIFECYCLE] _saveTokens() called, expiresAt:', tokens.expiresAt);
         localStorage.setItem(STORAGE_KEYS.tokens, JSON.stringify(tokens));
     }
 
     /** Schedule next refresh */
     private _scheduleRefresh(expiresAt: number) {
-        log.debug('[AUTH_LIFECYCLE] _scheduleRefresh() called with expiresAt:', expiresAt);
         if (this._refreshTimer) {
-            log.debug('[AUTH_LIFECYCLE] _scheduleRefresh() Clearing existing timer');
             clearTimeout(this._refreshTimer);
         }
 
         // Refresh REFRESH_BUFFER_MS before expiry
         const timeUntilRefresh = Math.max(0, expiresAt - Date.now() - AUTH_CONFIG.refreshBufferMs);
-        log.debug('[AUTH_LIFECYCLE] _scheduleRefresh() Scheduling refresh in', timeUntilRefresh, 'ms');
 
         this._refreshTimer = setTimeout(() => {
-            log.debug('[AUTH_LIFECYCLE] _scheduleRefresh() Timer fired, calling handleTokenExpired()');
             void this.handleTokenExpired();
         }, timeUntilRefresh);
     }
@@ -575,10 +545,6 @@ export class AuthController implements ReactiveController {
      * that could corrupt localStorage (parse-modify-write race).
      */
     async handleTokenExpired(): Promise<TokenExpiredAction> {
-        log.debug('[AUTH_LIFECYCLE] handleTokenExpired() called');
-        log.debug('[AUTH_LIFECYCLE] handleTokenExpired() _authProvider?', !!this._authProvider);
-        log.debug('[AUTH_LIFECYCLE] handleTokenExpired() _dynamicTokenProvider?', !!this._dynamicTokenProvider);
-        log.debug('[AUTH_LIFECYCLE] handleTokenExpired() _state.refreshToken?', !!this._state.refreshToken);
         // Auth provider mode (Mode 3): delegate refresh to the provider
         if (this._authProvider) {
             return this._executeRefreshWithGuard();
@@ -591,7 +557,6 @@ export class AuthController implements ReactiveController {
 
         // Static token mode: use refreshToken from state
         if (!this._state.refreshToken) {
-            log.debug('[AUTH_LIFECYCLE] handleTokenExpired() No refresh token, calling _logout()');
             this._logout();
             return 'relogin';
         }
@@ -623,11 +588,9 @@ export class AuthController implements ReactiveController {
      * Returns true on success, false on failure.
      */
     private async _doRefresh(): Promise<boolean> {
-        log.debug('[AUTH_LIFECYCLE] _doRefresh() called');
         // Auth provider (Mode 3): delegate refresh to the provider.
         if (this._authProvider) {
             try {
-                log.debug('[AUTH_LIFECYCLE] _doRefresh() Using auth provider');
                 const result = await this._authProvider.refreshToken();
 
                 const newExpiresAt = result.expiresIn
@@ -647,7 +610,6 @@ export class AuthController implements ReactiveController {
                 }
 
                 this.host.requestUpdate();
-                log.debug('[AUTH_LIFECYCLE] _doRefresh() Auth provider refresh succeeded');
                 return true;
             } catch (error) {
                 log.error('[AUTH_LIFECYCLE] _doRefresh() Auth provider refresh failed:', error);
@@ -658,7 +620,6 @@ export class AuthController implements ReactiveController {
         // Dynamic token provider (Mode 2): delegate refresh to the provider.
         if (this._dynamicTokenProvider?.refreshToken) {
             try {
-                log.debug('[AUTH_LIFECYCLE] _doRefresh() Using dynamic token provider');
                 const result = await this._dynamicTokenProvider.refreshToken();
                 const newExpiresAt = result.expiresIn
                     ? Date.now() + result.expiresIn * 1000
@@ -677,7 +638,6 @@ export class AuthController implements ReactiveController {
                 }
 
                 this.host.requestUpdate();
-                log.debug('[AUTH_LIFECYCLE] _doRefresh() Dynamic token refresh succeeded');
                 return true;
             } catch (error) {
                 log.error('[AUTH_LIFECYCLE] _doRefresh() Dynamic token refresh failed:', error);
@@ -685,12 +645,9 @@ export class AuthController implements ReactiveController {
             }
         }
 
-        log.debug('[AUTH_LIFECYCLE] _doRefresh() Using static token mode, refreshToken:', this._state.refreshToken ? 'exists' : 'missing');
         const result = await this._executeRefresh(this._state.refreshToken!);
-        log.debug('[AUTH_LIFECYCLE] _doRefresh() Static refresh result:', result.success);
 
         if (!result.success) {
-            log.debug('[AUTH_LIFECYCLE] _doRefresh() Refresh failed, calling _logout()');
             this._logout();
             this.host.dispatchEvent(
                 new CustomEvent('rtc-auth-refresh-failed', {bubbles: true, composed: true})
@@ -717,7 +674,6 @@ export class AuthController implements ReactiveController {
                 stored = JSON.parse(localStorage.getItem(STORAGE_KEYS.tokens) || '{}');
             } catch (err) {
                 // Corrupted data; start fresh
-                log.debug('[AUTH_LIFECYCLE] _doRefresh() Stored token data corrupted, starting fresh:', err);
             }
             stored.accessToken = newAccessToken;
             stored.expiresAt = newExpiresAt;
@@ -727,18 +683,14 @@ export class AuthController implements ReactiveController {
         // Schedule next refresh
         this._scheduleRefresh(newExpiresAt);
         this.host.requestUpdate();
-        log.debug('[AUTH_LIFECYCLE] _doRefresh() Refresh succeeded, new expiresAt:', newExpiresAt);
         return true;
     }
 
     /** Check if refresh needed when page becomes visible */
     private _onVisibilityChange() {
-        log.debug('[AUTH_LIFECYCLE] _onVisibilityChange() called, visibilityState:', document.visibilityState);
         if (document.visibilityState === 'visible' && this._state.isLoggedIn) {
             const needsRefresh = this._state.expiresAt && Date.now() > this._state.expiresAt - AUTH_CONFIG.refreshBufferMs;
-            log.debug('[AUTH_LIFECYCLE] _onVisibilityChange() isLoggedIn:', this._state.isLoggedIn, 'needsRefresh:', needsRefresh);
             if (needsRefresh) {
-                log.debug('[AUTH_LIFECYCLE] _onVisibilityChange() Token near expiry, calling handleTokenExpired()');
                 void this.handleTokenExpired();
             }
         }
@@ -760,8 +712,6 @@ export class AuthController implements ReactiveController {
      * is bounded to the host element's lifecycle.
      */
     private _fireLogin() {
-        log.debug('[AUTH_LIFECYCLE] _fireLogin() called, userId:', this._state.userId);
-        log.debug('[AUTH_LIFECYCLE] _fireLogin() onLogin callback exists?', !!this.onLogin);
         this.host.dispatchEvent(
             new CustomEvent('rtc-auth-login', {
                 detail: { userId: this._state.userId },

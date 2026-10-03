@@ -184,7 +184,6 @@ export class VirtualFS {
     metadataOverride?: Partial<FileSystemEntryMetadata>
   ): Promise<number> {
     const normalizedPath = normalizePath(path);
-    log.debug('write:', normalizedPath, 'mode:', mode, 'content length:', content.length);
     const db = getDatabase();
 
     const type = this.inferFileType(normalizedPath);
@@ -195,7 +194,6 @@ export class VirtualFS {
 
       // create-new mode: skip write if file already exists
       if (mode === 'create-new' && existing) {
-        log.debug('write: file already exists in create-new mode, skipping:', normalizedPath);
         return existing.content.length;
       }
 
@@ -235,7 +233,6 @@ export class VirtualFS {
       };
 
       await db.fileSystemEntries.put(entry);
-      log.debug('write: success, final content length:', finalContent.length);
       return finalContent.length;
     });
   }

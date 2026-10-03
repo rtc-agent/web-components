@@ -197,7 +197,6 @@ export class WindowInteractionController implements ReactiveController {
   private _enable(): void {
     // Fix 54: Idempotent guard, avoid creating duplicate interact instances
     if (this._isEnabled) {
-      log.debug('enable: already enabled, skipping');
       return;
     }
     if (!this._windowElement || !this._titleBarElement) return;

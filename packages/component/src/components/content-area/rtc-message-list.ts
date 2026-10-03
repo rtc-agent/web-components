@@ -377,17 +377,6 @@ export class RtcMessageList extends LitElement {
         const oldMessages = this._messages;
         const newMessages = data.messages;
 
-        // Only log when there are actual changes to reduce noise
-        const hasChanges = oldMessages.length !== newMessages.length ||
-            (newMessages.length > 0 && oldMessages[oldMessages.length - 1]?.clientId !== newMessages[newMessages.length - 1]?.clientId);
-
-        if (hasChanges) {
-            log.debug('_handleMessagesUpdate: old=', oldMessages.length,
-                'new=', newMessages.length,
-                'lastId=', newMessages[newMessages.length - 1]?.clientId?.slice(0, 8),
-                'lastStatus=', newMessages[newMessages.length - 1]?.syncStatus);
-        }
-
         if (!this._virtualScroll) {
             this._messages = newMessages;
             this._hasMore = data.hasMore;
@@ -419,15 +408,6 @@ export class RtcMessageList extends LitElement {
         }, 50);
 
         this._hasMore = data.hasMore;
-
-        // Only log when there are actual changes to reduce noise
-        if (hasChanges) {
-            log.debug(
-                `_handleMessagesUpdate: ` +
-                `oldCount=${oldMessages.length}, newCount=${newMessages.length}, ` +
-                `hasMore=${data.hasMore}`
-            );
-        }
 
         // Update loadedTop/loadedBottom based on hasMore AND virtual scroll alignment.
         //

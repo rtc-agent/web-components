@@ -371,17 +371,10 @@ export class PersistenceController implements ReactiveController {
      * Safe to call multiple times — subsequent calls are no-ops.
      */
     async connect(): Promise<void> {
-        log.debug('[LIFECYCLE_DEBUG] connect() called');
-        log.debug('[LIFECYCLE_DEBUG] connect() this._layer exists?', !!this._layer);
-        log.debug('[LIFECYCLE_DEBUG] connect() this._connecting exists?', !!this._connecting);
-        log.debug('[LIFECYCLE_DEBUG] connect() current generation:', this._connectGeneration);
-
         if (this._layer) {
-            log.debug('[LIFECYCLE_DEBUG] connect() Already connected, returning');
             return;
         }
         if (this._connecting) {
-            log.debug('[LIFECYCLE_DEBUG] connect() Already connecting, awaiting existing attempt');
             return this._connecting;
         }
 
@@ -417,19 +410,13 @@ export class PersistenceController implements ReactiveController {
 
         // Capture the current generation so we can detect stale resolution
         const gen = this._connectGeneration;
-        log.debug('[LIFECYCLE_DEBUG] connect() Creating _connecting promise with generation:', gen);
 
         this._connecting = this._connectWorker(config).finally(() => {
-            log.debug('[LIFECYCLE_DEBUG] connect() _connecting promise finalized, generation:', gen, 'current:', this._connectGeneration);
             // Only clear _connecting if no newer attempt has superseded us
             if (this._connectGeneration === gen) {
-                log.debug('[LIFECYCLE_DEBUG] connect() Generation matches, clearing _connecting');
                 this._connecting = undefined;
-            } else {
-                log.debug('[LIFECYCLE_DEBUG] connect() Generation mismatch, stale promise, skipping cleanup');
             }
         });
-        log.debug('[LIFECYCLE_DEBUG] connect() Returning _connecting promise');
         return this._connecting;
     }
 
@@ -472,34 +459,24 @@ export class PersistenceController implements ReactiveController {
      * Single connection attempt
      */
     private async _connectWorkerOnce(config: PersistenceConfig): Promise<void> {
-        log.debug('[LIFECYCLE_DEBUG] _connectWorkerOnce() started');
-
         // Capture bridge instance in a local variable to avoid accessing this._workerBridge after await, which may have been modified by disconnect()
         const bridge = new WorkerBridge(this._auth, {
             workerUrl: this._workerUrl,
         });
-        log.debug('[LIFECYCLE_DEBUG] Created new WorkerBridge instance');
 
         this._workerBridge = bridge;
-        log.debug('[LIFECYCLE_DEBUG] Set this._workerBridge = bridge');
 
         // Asynchronously load worker script: extract URL from Vite factory function -> fetch -> blob URL -> SharedWorker.
         // This way SharedWorker inherits the page origin, avoiding cross-origin errors in CDN deployments.
         // See the top comment in worker-bridge.ts for details.
-        log.debug('[LIFECYCLE_DEBUG] Before await bridge.initWorker()');
         await bridge.initWorker();
-        log.debug('[LIFECYCLE_DEBUG] After await bridge.initWorker()');
 
         // Checkpoint: if disconnect() was called during await, exit gracefully.
         // disconnect() will have set this._workerBridge to undefined or a new bridge.
-        log.debug('[LIFECYCLE_DEBUG] Checkpoint 1: this._workerBridge === bridge?', this._workerBridge === bridge);
         if (this._workerBridge !== bridge) {
-            log.debug('[LIFECYCLE_DEBUG] Connection interrupted during initWorker(), cleaning up');
             await bridge.destroy().catch(() => {}); // Ignore cleanup errors
-            log.debug('[LIFECYCLE_DEBUG] Cleanup after interruption completed, returning');
             return;
         }
-        log.debug('[LIFECYCLE_DEBUG] Checkpoint 1 passed, continuing');
 
         // Strip non-serializable callback functions (Structured Clone does not support functions).
         // The Worker side replaces getToken with its own requestToken bridge in init(),
@@ -511,42 +488,29 @@ export class PersistenceController implements ReactiveController {
         };
 
         // Initialize the Worker (creates PersistenceLayer inside Worker)
-        log.debug('[LIFECYCLE_DEBUG] Before await bridge.init(workerConfig)');
         await bridge.init(workerConfig);
-        log.debug('[LIFECYCLE_DEBUG] After await bridge.init(workerConfig)');
 
         // Checkpoint: if disconnect() was called during await, exit gracefully.
-        log.debug('[LIFECYCLE_DEBUG] Checkpoint 2: this._workerBridge === bridge?', this._workerBridge === bridge);
         if (this._workerBridge !== bridge) {
-            log.debug('[LIFECYCLE_DEBUG] Connection interrupted during init(), cleaning up');
             await bridge.destroy().catch(() => {});
-            log.debug('[LIFECYCLE_DEBUG] Cleanup after interruption completed, returning');
             return;
         }
-        log.debug('[LIFECYCLE_DEBUG] Checkpoint 2 passed, continuing');
 
         // Replace the main-thread virtualFS methods with a Comlink proxy.
         // The main thread cannot directly access IndexedDB,
         // so all virtualFS operations (tool execution, script reads, etc.) are automatically routed to the Worker.
-        log.debug('[LIFECYCLE_DEBUG] Before bridge.installVirtualFSProxy()');
         bridge.installVirtualFSProxy();
-        log.debug('[LIFECYCLE_DEBUG] After bridge.installVirtualFSProxy()');
 
         // Create adapter that wraps the Comlink proxy
         // See the top comment of _asPersistenceLayer for cast semantics
-        log.debug('[LIFECYCLE_DEBUG] Creating WorkerPersistenceAdapter');
         this._layer = _asPersistenceLayer(new WorkerPersistenceAdapter(bridge.core));
-        log.debug('[LIFECYCLE_DEBUG] this._layer created');
 
         // Connect (starts Centrifuge WebSocket inside Worker)
-        log.debug('[LIFECYCLE_DEBUG] Before await bridge.core.connect()');
         await bridge.core.connect();
-        log.debug('[LIFECYCLE_DEBUG] After await bridge.core.connect() - WebSocket should be connected now');
 
         // Create MasterLock and start election
         const userId = this._auth.state.userId;
         if (userId) {
-            log.debug('[LIFECYCLE_DEBUG] Creating MasterLock for userId:', userId);
             this._masterLock = new MasterLock(userId);
             this._masterLock.onAcquire = () => {
                 log.info('this Tab became Master');
@@ -556,10 +520,7 @@ export class PersistenceController implements ReactiveController {
             };
             // Start trying to acquire the lock (may queue)
             void this._masterLock.acquire();
-            log.debug('[LIFECYCLE_DEBUG] MasterLock created and acquire started');
         }
-
-        log.debug('[LIFECYCLE_DEBUG] _connectWorkerOnce() completed successfully');
     }
 
     /**
@@ -596,23 +557,15 @@ export class PersistenceController implements ReactiveController {
      * Call this on logout or when auth is lost.
      */
     async disconnect(): Promise<void> {
-        log.debug('[LIFECYCLE_DEBUG] disconnect() started');
-        log.debug('[LIFECYCLE_DEBUG] disconnect() this._layer exists?', !!this._layer);
-        log.debug('[LIFECYCLE_DEBUG] disconnect() this._workerBridge exists?', !!this._workerBridge);
-        log.debug('[LIFECYCLE_DEBUG] disconnect() this._connecting exists?', !!this._connecting);
-        log.debug('[LIFECYCLE_DEBUG] disconnect() current generation:', this._connectGeneration);
-
         // Increment the generation counter to invalidate the finally block of any old _connecting promise.
         // This is critical: if disconnect() interrupts an in-flight connection, the old promise's finally block
         // must not clear the new _connecting.
         this._connectGeneration++;
-        log.debug('[LIFECYCLE_DEBUG] disconnect() Bumped generation to:', this._connectGeneration);
 
         // Clear the _connecting promise to allow a new connection attempt.
         // This is critical: if disconnect() interrupts an in-flight connection, a subsequent connect()
         // should create a new connection rather than waiting for the already-interrupted old promise.
         if (this._connecting) {
-            log.debug('[LIFECYCLE_DEBUG] disconnect() Clearing _connecting promise');
             this._connecting = undefined;
         }
 
@@ -620,22 +573,15 @@ export class PersistenceController implements ReactiveController {
         const layer = this._layer;
         const workerBridge = this._workerBridge;
 
-        log.debug('[LIFECYCLE_DEBUG] disconnect() Captured layer and workerBridge in local variables');
-
         if (layer) {
             try {
-                log.debug('[LIFECYCLE_DEBUG] disconnect() Before await layer.getOffsetManager().reset()');
                 // Reset offset (passed through via the adapter shim to core.resetOffset())
                 await layer.getOffsetManager().reset();
-                log.debug('[LIFECYCLE_DEBUG] disconnect() After reset()');
                 // Close WS + DB (delegated via the adapter to core.close())
-                log.debug('[LIFECYCLE_DEBUG] disconnect() Before await layer.close()');
                 await layer.close();
-                log.debug('[LIFECYCLE_DEBUG] disconnect() After close()');
             } catch (err) {
                 log.error('disconnect error:', err);
             }
-            log.debug('[LIFECYCLE_DEBUG] disconnect() Setting this._layer = undefined (only if still the same)');
             // Only clear if this._layer is still the layer we captured
             if (this._layer === layer) {
                 this._layer = undefined;
@@ -644,27 +590,19 @@ export class PersistenceController implements ReactiveController {
 
         // Additional cleanup
         if (workerBridge) {
-            log.debug('[LIFECYCLE_DEBUG] disconnect() Cleaning up workerBridge');
             this._masterLock?.release();
             this._masterLock = undefined;
             this._fileStorage = undefined;
             try {
-                log.debug('[LIFECYCLE_DEBUG] disconnect() Before await workerBridge.destroy()');
                 await workerBridge.destroy();
-                log.debug('[LIFECYCLE_DEBUG] disconnect() After destroy()');
             } catch (err) {
                 log.error('WorkerBridge disconnect error:', err);
             }
-            log.debug('[LIFECYCLE_DEBUG] disconnect() Setting this._workerBridge = undefined (only if still the same)');
             // Only clear if this._workerBridge is still the workerBridge we captured
             if (this._workerBridge === workerBridge) {
                 this._workerBridge = undefined;
-            } else {
-                log.debug('[LIFECYCLE_DEBUG] disconnect() this._workerBridge has been replaced, not clearing');
             }
         }
-
-        log.debug('[LIFECYCLE_DEBUG] disconnect() completed');
     }
 
     // ========== Unified connection state interface ==========

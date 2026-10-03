@@ -105,12 +105,10 @@ export async function connectWithRetry(
                     depth: number,
                 ): Promise<{ files: Array<{ path: string; content: string }>; deletePaths: string[] }>;
             } | null;
-            deps.logger.debug("After connect, registry:", registry ? "set" : "null");
             if (registry?.generateAllDocsContent) {
                 const { files, deletePaths } = await registry.generateAllDocsContent(0);
                 if (files.length > 0 && deps.persistence.workerBridge) {
                     await deps.persistence.workerBridge.core.batchWriteFiles(files, deletePaths);
-                    deps.logger.debug("batchWriteFiles completed, deleted orphans:", deletePaths.length);
                 }
             }
 

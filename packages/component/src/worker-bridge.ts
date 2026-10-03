@@ -1012,7 +1012,6 @@ export class WorkerBridge {
 
                 if (result.entries.length === 0) {
                     if (totalDelivered === 0) {
-                        log.debug('catchUp: no missed events');
                     }
                     return;
                 }

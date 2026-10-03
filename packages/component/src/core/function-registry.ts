@@ -300,7 +300,6 @@ export class FunctionRegistry {
     deletePaths: string[];
   }> {
     const files: Array<{path: string; content: string}> = [];
-    log.info('generateAllDocsContent called, functions count:', this.functions.size);
 
     // Generate all function documents
     const currentDocPaths = new Set<string>();

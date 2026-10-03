@@ -180,7 +180,6 @@ export class RtcProcessor {
    * If already processing, sets pendingCheck so the current loop will re-check.
    */
   async onRtcUpdate() {
-    log.debug('onRtcUpdate called, processing:', this.processing);
     if (this.processing) {
       this.pendingCheck = true;
       return;
@@ -202,7 +201,6 @@ export class RtcProcessor {
     const abortSignal = this._abortController.signal;
 
     this.processing = true;
-    log.debug('processLoop started');
 
     // Reset silent-skip tracker at the start of each loop.
     this._lastSilentlySkippedRtcId = undefined;
@@ -227,7 +225,6 @@ export class RtcProcessor {
 
         const rtc = await this.persistence.getNextRtcToProcess(undefined);
         if (!rtc) {
-          log.debug('processLoop: no more RTC to process, exiting');
           if (this.pendingCheck) {
             continue;
           }
@@ -278,7 +275,6 @@ export class RtcProcessor {
     } finally {
       this.processing = false;
       this._abortController = undefined;
-      log.debug('processLoop finished');
     }
   }
 

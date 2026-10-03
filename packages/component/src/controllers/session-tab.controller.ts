@@ -76,13 +76,9 @@ export class SessionTabController implements ReactiveController {
         );
         let activeSessionId = this._state.activeSessionId;
 
-        log.debug('filterInvalidTabs before:', before, 'after:', tabs.length);
-        log.debug('filterInvalidTabs activeSessionId:', activeSessionId);
-
         // If the active tab was filtered out (and is not a preserved unsaved tab), activate the first available one
         if (activeSessionId && !tabs.some(t => t.sessionId === activeSessionId)) {
             activeSessionId = tabs.length > 0 ? tabs[0].sessionId : null;
-            log.debug('activeTab filtered out, new activeSessionId:', activeSessionId);
         }
 
         if (tabs.length !== before) {
@@ -107,7 +103,6 @@ export class SessionTabController implements ReactiveController {
      * - DB title is identical to the tab's current title (no change)
      */
     updateTabTitles(sessionTitleMap: Map<string, string>): boolean {
-        log.debug('updateTabTitles called with', sessionTitleMap.size, 'titles');
         let changed = false;
         const tabs = this._state.tabs.map(t => {
             const newTitle = sessionTitleMap.get(t.sessionId);
@@ -120,7 +115,6 @@ export class SessionTabController implements ReactiveController {
                 newTitle.trim() !== '' &&
                 newTitle !== t.title;
             if (shouldUpdate) {
-                log.debug('Updating tab', t.sessionId, ':', `"${t.title}"`, '->', `"${newTitle}"`);
                 changed = true;
                 return {...t, title: newTitle, isDefault: false, isUnsaved: false};
             }
@@ -197,9 +191,6 @@ export class SessionTabController implements ReactiveController {
     }
 
     private _openOrActivate(sessionId: string, title: string, options?: { isUnsaved?: boolean; activate?: boolean; skipPersist?: boolean; initialInputValue?: string; noticeMessage?: string }) {
-        log.debug('openOrActivate sessionId:', sessionId, 'title:', `"${title}"`);
-        log.debug('openOrActivate current tabs:', this._state.tabs.map(t => `${t.sessionId}="${t.title}"(isDefault=${t.isDefault})`));
-
         const isPlaceholder = this._isPlaceholderTitle(title);
         const shouldActivate = options?.activate ?? true; // Default: activate
         const skipPersist = options?.skipPersist ?? false;
@@ -258,7 +249,6 @@ export class SessionTabController implements ReactiveController {
             }
         }
 
-        log.debug('openOrActivate final tabs:', this._state.tabs.map(t => `${t.sessionId}="${t.title}"(isDefault=${t.isDefault})`));
 
         this.host.requestUpdate();
     }

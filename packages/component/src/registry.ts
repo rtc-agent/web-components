@@ -52,12 +52,6 @@ taskGroup.register({
         }
     },
     hooks: {
-        onStart: (params) => {
-            log.debug('Fetching tasks with filter:', params.filter);
-        },
-        onSuccess: (result) => {
-            log.info('Success:', (result as Task[]).length, 'tasks');
-        }
     },
     handler: async (params) => {
         const allTasks = await loadTasks();

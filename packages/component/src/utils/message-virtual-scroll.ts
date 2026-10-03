@@ -380,12 +380,6 @@ export class MessageVirtualScroll<T> {
             return;
         }
 
-        log.debug(
-            `setItems diff: prepended=${diff.prepended.length}, ` +
-            `appended=${diff.appended.length}, middleInserted=${diff.middleInserted.length}, ` +
-            `updated=${diff.hasUpdates}`
-        );
-
         // Apply operations
         if (diff.middleInserted.length > 0 || diff.hasRemovals) {
             // Middle insert or removal: full re-render with scroll compensation
@@ -595,7 +589,6 @@ export class MessageVirtualScroll<T> {
             // The skeleton can't be updated in-place; restoration will use latest data
             if (this._skeletonTracker.has(itemId)) {
                 this._componentStateCache.delete(itemId);
-                log.debug(`Invalidated cached state for ${itemId} (content changed while placeholder)`);
                 return;
             }
 
@@ -771,7 +764,6 @@ export class MessageVirtualScroll<T> {
             for (const skeleton of this._skeletonTracker.getAll()) {
                 skeleton.y += prependHeight;
             }
-            log.debug(`Updated ${this._skeletonTracker.size} skeleton positions by +${prependHeight}px`);
         }
 
         // Restore scroll position using Telegram's algorithm
@@ -793,28 +785,14 @@ export class MessageVirtualScroll<T> {
         const scrollSaver = new ScrollSaver(this._scrollContainer, this._query, false);
         scrollSaver.save();
 
-        const scrollTopBefore = this._scrollContainer.scrollTop;
-        const scrollHeightBefore = this._scrollContainer.scrollHeight;
-
         const startIndex = this._items.length;
         this._items = [...this._items, ...items];
 
         // Render new items
         this._renderNewItems(items, startIndex);
 
-        const scrollHeightAfter = this._scrollContainer.scrollHeight;
-
         // Restore scroll position using Telegram's algorithm
         scrollSaver.restore();
-
-        const scrollTopAfter = this._scrollContainer.scrollTop;
-
-        log.debug(
-            `appendItems: ` +
-            `items=${items.length}, scrollHeight: ${scrollHeightBefore} → ${scrollHeightAfter}, ` +
-            `scrollTop: ${scrollTopBefore} → ${scrollTopAfter}, ` +
-            `diff=${scrollTopAfter - scrollTopBefore}`
-        );
 
         // Phase 5 (I2): Settle excess items to cold storage
         this._settleData();
@@ -849,7 +827,6 @@ export class MessageVirtualScroll<T> {
         // 2. If placeholder and content changed, invalidate cached state
         if (this._skeletonTracker.has(itemId) && contentChanged) {
             this._componentStateCache.delete(itemId);
-            log.debug(`Invalidated cached state for ${itemId} (content changed while placeholder)`);
             return true; // Data updated, DOM will be updated on restoration
         }
 
@@ -950,7 +927,6 @@ export class MessageVirtualScroll<T> {
      */
     markStreamStart(itemId: string): void {
         this._activeStreams.add(itemId);
-        log.debug(`Stream started for ${itemId}`);
     }
 
     /**
@@ -960,7 +936,6 @@ export class MessageVirtualScroll<T> {
      */
     markStreamEnd(itemId: string): void {
         this._activeStreams.delete(itemId);
-        log.debug(`Stream ended for ${itemId}`);
         // Trigger a slice check so the item can be skeletonized if off-screen
         this._sliceViewport();
     }
@@ -1021,7 +996,6 @@ export class MessageVirtualScroll<T> {
     restoreAll(): void {
         if (this._skeletonTracker.size === 0) return;
 
-        log.debug(`restoreAll: restoring ${this._skeletonTracker.size} skeletons`);
 
         // Capture viewport position BEFORE any DOM mutations
         const viewportTop = this._scrollContainer.scrollTop;
@@ -1053,7 +1027,6 @@ export class MessageVirtualScroll<T> {
         // Single scroll adjustment for all restorations above viewport
         if (Math.abs(totalHeightDiffAbove) > 5) {
             this._scrollContainer.scrollTop += totalHeightDiffAbove;
-            log.debug(`Adjusted scroll position by ${totalHeightDiffAbove}px after batch restore`);
         }
     }
 
@@ -1217,12 +1190,10 @@ export class MessageVirtualScroll<T> {
         // Load more top: near top AND not fully loaded in that direction
         // Telegram uses onScrollOffset = 300px for early triggering
         if (distanceFromTop < this._preloadThreshold && !this._loadedTop && !this._isLoading.top) {
-            log.debug(`loadMore(top) triggered, distance=${distanceFromTop}, threshold=${this._preloadThreshold}`);
             this._isLoading.top = true;
             this._onLoadMore('top', boundary)
                 .then(items => {
                     if (items.length > 0) {
-                        log.debug(`loadMore(top) returned ${items.length} items`);
                         return this.prependItems(items);
                     }
                     // No more messages returned directly - but DO NOT auto-mark as fully loaded.
@@ -1241,12 +1212,10 @@ export class MessageVirtualScroll<T> {
 
         // Load more bottom: near bottom AND not fully loaded in that direction
         if (distanceFromBottom < this._preloadThreshold && !this._loadedBottom && !this._isLoading.bottom) {
-            log.debug(`loadMore(bottom) triggered, distance=${distanceFromBottom}, threshold=${this._preloadThreshold}`);
             this._isLoading.bottom = true;
             this._onLoadMore('bottom', boundary)
                 .then(items => {
                     if (items.length > 0) {
-                        log.debug(`loadMore(bottom) returned ${items.length} items`);
                         return this.appendItems(items);
                     }
                     // No more messages returned directly - but DO NOT auto-mark as fully loaded.
@@ -1296,18 +1265,15 @@ export class MessageVirtualScroll<T> {
         const restoreTop = scrollTop - PRELOAD_DISTANCE;
         const restoreBottom = scrollTop + clientHeight + PRELOAD_DISTANCE;
 
-        log.debug(`_restoreSkeletonsInRange: scrollTop=${scrollTop}, clientHeight=${clientHeight}, skeletons=${this._skeletonTracker.size}, range=[${restoreTop}, ${restoreBottom}]`);
 
         // Use SkeletonTracker to find skeletons in range
         // This internally checks "any part in range" and filters out already-pending ones
         const skeletonsInRange = this._skeletonTracker.getInRange(restoreTop, restoreBottom);
 
         if (skeletonsInRange.length === 0) {
-            log.debug(`_restoreSkeletonsInRange: no skeletons in range`);
             return;
         }
 
-        log.debug(`_restoreSkeletonsInRange: found ${skeletonsInRange.length} skeletons in range`);
 
         // Sort by scroll direction for natural restoration order
         const direction = this._getScrollDirection();
@@ -1366,7 +1332,6 @@ export class MessageVirtualScroll<T> {
 
             // Visibility state machine check
             if (!this._visibilityManager.shouldPerformOperations()) {
-                log.debug(`Skipping batch restoration: visibility state is ${this._visibilityManager.state}`);
                 // Clear pending flags so items can be retried when visible again
                 for (const {itemId} of this._pendingRestorations) {
                     this._skeletonTracker.clearPending(itemId);
@@ -1410,7 +1375,6 @@ export class MessageVirtualScroll<T> {
             // Single scroll adjustment for all restorations above viewport
             if (Math.abs(totalHeightDiffAbove) > 5) {
                 this._scrollContainer.scrollTop += totalHeightDiffAbove;
-                log.debug(`Adjusted scroll position by ${totalHeightDiffAbove}px after batch restoration`);
             }
 
             // Continue if more pending
@@ -1503,7 +1467,6 @@ export class MessageVirtualScroll<T> {
      * - TRANSITIONING → VISIBLE: Rebuild skeleton positions, restore visible skeletons
      */
     private _onVisibilityStateChange(state: VisibilityState): void {
-        log.debug(`Visibility state changed: ${state}`);
 
         switch (state) {
             case VisibilityState.HIDDEN:
@@ -1552,7 +1515,6 @@ export class MessageVirtualScroll<T> {
         }
         this._pendingRestorations = [];
 
-        log.debug('Paused all virtual scroll operations');
     }
 
     /**
@@ -1570,11 +1532,9 @@ export class MessageVirtualScroll<T> {
      */
     private _restoreState(): void {
         if (this._skeletonTracker.size === 0) {
-            log.debug('No skeletons to restore');
             return;
         }
 
-        log.debug(`Restoring state: ${this._skeletonTracker.size} skeletons`);
 
         // Step 1: Rebuild skeleton positions based on current layout
         this._skeletonTracker.rebuildPositions(this._scrollContainer, this._elementMap);
@@ -1584,7 +1544,6 @@ export class MessageVirtualScroll<T> {
         // to ensure all visible skeletons are restored before user interaction
         this._restoreVisibleSkeletons();
 
-        log.debug('State restored');
     }
 
     /**
@@ -1608,7 +1567,6 @@ export class MessageVirtualScroll<T> {
             return;
         }
 
-        log.debug(`Restoring ${skeletonsInRange.length} visible skeletons synchronously`);
 
         // Capture viewport position BEFORE any DOM mutations
         const viewportTop = this._scrollContainer.scrollTop;
@@ -1634,7 +1592,6 @@ export class MessageVirtualScroll<T> {
         // Single scroll adjustment for all restorations above viewport
         if (Math.abs(totalHeightDiffAbove) > 5) {
             this._scrollContainer.scrollTop += totalHeightDiffAbove;
-            log.debug(`Adjusted scroll position by ${totalHeightDiffAbove}px after visible restore`);
         }
     }
 
@@ -1657,14 +1614,12 @@ export class MessageVirtualScroll<T> {
 
         // Visibility state machine check: only perform operations when VISIBLE
         if (!this._visibilityManager.shouldPerformOperations()) {
-            log.debug(`Skipping _sliceViewport: visibility state is ${this._visibilityManager.state}`);
             return;
         }
 
         // I3: Prevent rapid re-slicing
         const now = Date.now();
         if (now - this._lastSliceTime < this.MIN_SLICE_INTERVAL) {
-            log.debug(`Skipping _sliceViewport: last slice was ${now - this._lastSliceTime}ms ago`);
             return;
         }
 
@@ -1682,23 +1637,6 @@ export class MessageVirtualScroll<T> {
 
         if (stableInvisibleTop.length === 0 && stableInvisibleBottom.length === 0) return;
 
-        log.debug(
-            `Slicing viewport: stableTop=${stableInvisibleTop.length}, ` +
-            `stableBottom=${stableInvisibleBottom.length}, ` +
-            `visible=${slice.visible.length}` +
-            `, scrollTop=${this._scrollContainer.scrollTop}` +
-            `, scrollHeight=${this._scrollContainer.scrollHeight}`
-        );
-
-        // Log which items are being skeletonized
-        if (stableInvisibleTop.length > 0) {
-            const topIds = stableInvisibleTop.map(p => this._getItemId(p.item)).join(', ');
-            log.debug(`Will skeletonize top items: ${topIds}`);
-        }
-        if (stableInvisibleBottom.length > 0) {
-            const bottomIds = stableInvisibleBottom.map(p => this._getItemId(p.item)).join(', ');
-            log.debug(`Will skeletonize bottom items: ${bottomIds}`);
-        }
 
         // Mark as not fully loaded (like Telegram's setLoaded)
         if (stableInvisibleTop.length > 0) {
@@ -1711,7 +1649,6 @@ export class MessageVirtualScroll<T> {
         // Save scroll state
         const scrollSaver = new ScrollSaver(this._scrollContainer, this._query, stableInvisibleTop.length > 0);
         scrollSaver.save();
-        const savedScrollTop = this._scrollContainer.scrollTop;
 
         // Replace top invisible elements with skeleton placeholders
         for (const part of stableInvisibleTop) {
@@ -1725,16 +1662,9 @@ export class MessageVirtualScroll<T> {
 
         // Restore scroll position
         scrollSaver.restore();
-        const restoredScrollTop = this._scrollContainer.scrollTop;
-        log.debug(`Scroll position: saved=${savedScrollTop}, restored=${restoredScrollTop}, diff=${restoredScrollTop - savedScrollTop}`);
 
         // Notify size change
         this._onSizeChange?.();
-
-        log.debug(
-            `After slice: skeletons=${this._skeletonTracker.size}, ` +
-            `loadedTop=${this._loadedTop}, loadedBottom=${this._loadedBottom}`
-        );
     }
 
     /**
@@ -1760,7 +1690,6 @@ export class MessageVirtualScroll<T> {
         // Phase 4 (I7 fix): Skip if element has been disconnected from DOM
         // (e.g., by concurrent clear() or session switch)
         if (!element.isConnected) {
-            log.debug(`Skipping skeleton replacement for ${itemId}: element not connected`);
             return;
         }
 
@@ -1801,7 +1730,6 @@ export class MessageVirtualScroll<T> {
         // Step 7: Stop tracking height for old element, start for skeleton (no-op for skeleton)
         this._itemResizeObserver?.unobserve(element);
 
-        log.debug(`Replaced item ${itemId} with skeleton (height=${height}px)`);
     }
 
     /**
@@ -1836,12 +1764,10 @@ export class MessageVirtualScroll<T> {
                 // (to avoid viewport jumping for elements user can see)
                 if (skeletonY < viewportTop) {
                     this._scrollContainer.scrollTop += heightDiff;
-                    log.debug(`Adjusted scroll position by ${heightDiff}px after restoring ${itemId}`);
                 }
             }
         });
 
-        log.debug(`Restored skeleton for item ${itemId}`);
     }
 
     /**
@@ -1863,7 +1789,6 @@ export class MessageVirtualScroll<T> {
         // Resolve current index: use _idToIndex for O(1) lookup, falling back to elementMap scan
         let actualIndex = this._idToIndex.get(itemId);
         if (actualIndex === undefined) {
-            log.debug(`_idToIndex stale for ${itemId}, falling back to elementMap scan`);
             for (const [idx, el] of this._elementMap) {
                 if (el.dataset.isSkeleton === 'true' && el.dataset.itemId === itemId) {
                     actualIndex = idx;
@@ -1873,7 +1798,6 @@ export class MessageVirtualScroll<T> {
         }
 
         if (actualIndex === undefined) {
-            log.debug(`Skipping restore: index not found for ${itemId}`);
             return null;
         }
 
@@ -1980,7 +1904,6 @@ export class MessageVirtualScroll<T> {
                     this._componentStateCache.delete(result.value);
                 }
             }
-            log.debug(`Evicted ${removeCount} entries from state cache`);
         }
     }
 
@@ -2002,7 +1925,6 @@ export class MessageVirtualScroll<T> {
                     this._heightCache.delete(result.value);
                 }
             }
-            log.debug(`Evicted ${removeCount} entries from height cache`);
         }
     }
 
@@ -2067,7 +1989,6 @@ export class MessageVirtualScroll<T> {
         // Only rebuild positions when visible (state machine check)
         if (this._visibilityManager.shouldPerformOperations()) {
             this._skeletonTracker.rebuildPositions(this._scrollContainer, this._elementMap);
-            log.debug(`Rebuilt ${this._skeletonTracker.size} skeleton positions after container resize`);
 
             // Schedule a debounced slice check after position rebuild
             if (this._sliceDebounceTimer) {
@@ -2130,7 +2051,6 @@ export class MessageVirtualScroll<T> {
             this._elementMap = newElementMap;
         }
 
-        log.debug(`Settled ${settleCount} items to cold storage (hot=${this._items.length}, settled=${this._settledCount})`);
     }
 
     // ── Rendering ──

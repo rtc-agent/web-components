@@ -319,7 +319,6 @@ export class RtcAgent extends LitElement {
     @property({attribute: false})
     set registry(value: FunctionRegistry | null) {
         if (value) {
-            log.info('registry setter called, isConnected:', this._persistence.isConnected);
             this._skill.actions.setRegistry(value);
             this._functions.setRegistry(value);
             this._functionDebug.setRegistry(value);
@@ -909,7 +908,6 @@ export class RtcAgent extends LitElement {
 
         if (workerBridge && userId && !this._fileStorage) {
             this._fileStorage = new FileStorage(workerBridge, userId);
-            log.info('FileStorage initialized for user:', userId);
         }
     }
 
@@ -933,7 +931,6 @@ export class RtcAgent extends LitElement {
 
         // Cross-controller wiring: session switch -> reload messages for the new session
         this._session.onSessionSwitch = () => {
-            log.debug('onSessionSwitch currentSessionId:', this._session.value.state.currentSessionId);
             this._fork.actions.clearFork();  // Clear fork state when switching sessions.
             // Note: clearing tab transient params is handled by chat-layout._handleTabActivate
             const sessionId = this._session.value.state.currentSessionId;
@@ -941,16 +938,10 @@ export class RtcAgent extends LitElement {
                 const repoState = this._message.repository.getSessionState(sessionId);
                 if (repoState.messages.length === 0) {
                     // First load or session was evicted: repository has no data, fetch from DB
-                    log.debug('onSessionSwitch calling message.reload() (empty repository)');
                     void this._message.reload();
-                } else {
-                    // Repository already has data (kept in sync via WebSocket), skip reload
-                    // This avoids unnecessary DB queries and DOM updates
-                    log.debug(`onSessionSwitch skipping reload (repo has ${repoState.messages.length} messages)`);
                 }
             } else {
                 // currentSessionId is null (e.g. after closing the last Tab) -> clear messages.
-                log.debug('onSessionSwitch clearing messages (no current session)');
                 this._message.actions.clearMessages();
             }
             // Immediately sync turn count to new session's value on session switch.
@@ -1174,10 +1165,7 @@ export class RtcAgent extends LitElement {
         // _loadTokens() starts async refresh, but connectedCallback() runs before
         // refresh completes, so isLoggedIn is still false. When refresh succeeds,
         // onLogin fires and triggers connection.
-        log.debug('[AUTH_LIFECYCLE] connectedCallback() Setting onLogin callback');
-        log.debug('[AUTH_LIFECYCLE] connectedCallback() _auth.state.isLoggedIn:', this._auth.state.isLoggedIn);
         this._auth.onLogin = () => {
-            log.debug('[AUTH_LIFECYCLE] onLogin callback fired, calling _connectWithRetry()');
             void this._connectWithRetry();
         };
 
@@ -1186,7 +1174,6 @@ export class RtcAgent extends LitElement {
         // Note: If tokens were expired and refresh is in-flight, this check will be false,
         // but onLogin callback will trigger connection when refresh completes.
         if (this._auth.state.isLoggedIn) {
-            log.debug('[AUTH_LIFECYCLE] connectedCallback() isLoggedIn is true, calling _connectWithRetry()');
             void this._connectWithRetry();
         }
 
@@ -1209,15 +1196,10 @@ export class RtcAgent extends LitElement {
      * initialization when connectedCallback and onLogin fire in quick succession.
      */
     private _connectWithRetry(): Promise<void> {
-        log.debug('[AUTH_LIFECYCLE] _connectWithRetry() called');
-        log.debug('[AUTH_LIFECYCLE] _connectWithRetry() _connecting exists?', !!this._connecting);
-        log.debug('[AUTH_LIFECYCLE] _connectWithRetry() _connectGeneration:', this._connectGeneration);
         if (this._connecting) {
-            log.debug('[AUTH_LIFECYCLE] _connectWithRetry() Already in-flight, reusing existing promise');
             return this._connecting;
         }
 
-        log.debug('[AUTH_LIFECYCLE] _connectWithRetry() Starting new connection attempt');
         this._connecting = this._doConnectWithRetry();
         return this._connecting;
     }
@@ -1349,11 +1331,9 @@ export class RtcAgent extends LitElement {
         this._rtcProcessor?.cancel();
         this._rtcProcessor = undefined;
         this._unsubConnection?.();
-        log.debug('[AUTH_LIFECYCLE] disconnectedCallback() Clearing onLogin callback');
         this._auth.onLogin = undefined;  // Clear auth callback to prevent leaks
 
         // Invalidate any in-flight connection attempt (see _connectGeneration docs).
-        log.debug('[AUTH_LIFECYCLE] disconnectedCallback() Bumping _connectGeneration from', this._connectGeneration, 'to', this._connectGeneration + 1);
         this._connectGeneration++;
         this._connecting = undefined;
 
@@ -1683,18 +1663,15 @@ export class RtcAgent extends LitElement {
     private async _refreshTurnCounts() {
         const currentId = this._session.value.state.currentSessionId;
         if (!currentId || !this._persistence.layer) {
-            log.debug('[TurnCount] Resetting to default (no session or persistence not ready)');
             this._turnCountProvider.setValue(DEFAULT_TURN_COUNT);
             return;
         }
         try {
             const session = await this._persistence.layer.getSession(currentId);
             if (!session) {
-                log.debug('[TurnCount] Session not found in persistence, resetting to default');
                 this._turnCountProvider.setValue(DEFAULT_TURN_COUNT);
                 return;
             }
-            log.debug('[TurnCount] Refreshing for session', currentId, 'pending:', session.pending_turn_count, 'running:', session.running_turn_count);
             this._turnCountProvider.setValue({
                 pendingTurnCount: session.pending_turn_count,
                 runningTurnCount: session.running_turn_count,
@@ -1861,7 +1838,7 @@ export class RtcAgent extends LitElement {
             return DOMPurify;
         } catch (err) {
             if (attempts > 0) {
-                console.warn('[rtc-agent] DOMPurify load failed, retrying...', err);
+                log.warn('DOMPurify load failed, retrying...', err);
                 return this._loadDOMPurify(attempts - 1);
             }
             throw err;

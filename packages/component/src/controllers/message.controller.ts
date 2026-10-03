@@ -484,7 +484,6 @@ export class MessageController implements ReactiveController {
 
                 // Reload messages from DB to reflect the just-written message.
                 await this._reloadFromDB(result.session.client_id);
-                log.debug('_reloadFromDB completed');
             }
         }
 
@@ -603,18 +602,8 @@ export class MessageController implements ReactiveController {
         // or UIUpdateBus events), skip reload to avoid duplicate/overwrite issues.
         // This prevents race conditions between _reloadFromDB and concurrent message loading.
         if (existingMessages.length > 0) {
-            log.debug('_reloadFromDB skipped: repository already has messages', {
-                sessionId: sessionClientId.slice(0, 8),
-                existingCount: existingMessages.length,
-            });
             return;
         }
-
-        log.debug('_reloadFromDB before:', {
-            sessionId: sessionClientId.slice(0, 8),
-            existingCount: existingMessages.length,
-            existingIds: existingMessages.map(m => m.clientId.slice(0, 8)),
-        });
 
         // Load the latest messages (backward = from newest)
         const localMessages = await this._persistence.listMessages(
@@ -622,20 +611,8 @@ export class MessageController implements ReactiveController {
         );
         const freshMessages = localMessages.map((m) => this._localMessageToUI(m));
 
-        log.debug('_reloadFromDB loaded:', {
-            sessionId: sessionClientId.slice(0, 8),
-            freshCount: freshMessages.length,
-            freshIds: freshMessages.map(m => m.clientId.slice(0, 8)),
-        });
-
         // Merge: preserve existing messages not in fresh batch
         const merged = this._mergeMessages(existingMessages, freshMessages);
-
-        log.debug('_reloadFromDB merged:', {
-            sessionId: sessionClientId.slice(0, 8),
-            mergedCount: merged.length,
-            mergedIds: merged.map(m => m.clientId.slice(0, 8)),
-        });
 
         // ── Cursor logic (critical fix) ──
         //

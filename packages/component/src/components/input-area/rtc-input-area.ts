@@ -1006,10 +1006,6 @@ export class RtcInputArea extends LitElement {
     }
 
     updated(changed: Map<string | number | symbol, unknown>) {
-        // Log turn count changes for debugging
-        if (changed.has('_turnCount')) {
-            log.debug('[InputArea] Turn count changed:', this._turnCount);
-        }
         // Clear history cache on session switch, reload on next navigation
         if (changed.has('_sessionCtx') || changed.has('sessionId')) {
             // Defer @state mutations to avoid "change-in-update" warning.

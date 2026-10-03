@@ -89,7 +89,6 @@ export async function loadSessions(
     // 1. Implementing virtual scrolling in session-tree component
     // 2. Using cursor-based pagination with infinite scroll
     const sessions = await deps.persistenceLayer.listSessions();
-    deps.logger.debug("Loaded sessions from DB:", sessions.length);
 
     const uiSessions: Session[] = sessions.map((s) => ({
         clientId: s.client_id,
@@ -141,12 +140,6 @@ export async function loadSessions(
                 skipPersist: true,
             });
         }
-        deps.logger.debug(
-            "Restored tabs from DB:",
-            openSessions.length,
-            "storedActiveId:",
-            storedActiveId,
-        );
 
         // Fallback: if storedActiveId isn't in tabs, activate the first tab.
         if (
@@ -154,10 +147,6 @@ export async function loadSessions(
             openSessions.length > 0
         ) {
             const fallbackId = openSessions[0].clientId;
-            deps.logger.debug(
-                "Active tab is null, falling back to first tab:",
-                fallbackId,
-            );
             deps.sessionTab.actions.setActiveTab(fallbackId);
         }
     } else {
@@ -169,31 +158,13 @@ export async function loadSessions(
 
     // Filter invalid tabs (clean up tabs whose sessions have been deleted from persistence).
     const validIds = new Set(uiSessions.map((s) => s.clientId));
-    const hadInvalidTabs = deps.sessionTab.filterInvalidTabs(validIds);
-    deps.logger.debug(
-        "filterInvalidTabs:",
-        hadInvalidTabs ? "removed some" : "none removed",
-    );
-    deps.logger.debug(
-        "Tabs after filter:",
-        deps.sessionTab.value.state.tabs.map((t) => `${t.sessionId}="${t.title}"`),
-    );
-    deps.logger.debug(
-        "activeSessionId:",
-        deps.sessionTab.value.state.activeSessionId,
-    );
+    deps.sessionTab.filterInvalidTabs(validIds);
 
     // Sync SessionController.currentSessionId with Tab's activeSessionId.
     // When the active tab is filtered out, switch session to trigger message cleanup.
     const newActiveId = deps.sessionTab.value.state.activeSessionId;
     const currentId = deps.session.value.state.currentSessionId;
     if (currentId !== newActiveId) {
-        deps.logger.debug(
-            "Syncing currentSessionId:",
-            currentId,
-            "->",
-            newActiveId,
-        );
         if (newActiveId) {
             deps.session.actions.switchSession(newActiveId);
         } else {
@@ -204,15 +175,7 @@ export async function loadSessions(
     // Sync existing tab titles with the latest titles from sessions.
     // Fix: new session tabs created with empty titles need updating when the server returns the real title.
     const titleMap = new Map(uiSessions.map((s) => [s.clientId, s.title]));
-    const titlesUpdated = deps.sessionTab.updateTabTitles(titleMap);
-    deps.logger.debug(
-        "updateTabTitles:",
-        titlesUpdated ? "updated" : "no change",
-    );
-    deps.logger.debug(
-        "Tabs after title sync:",
-        deps.sessionTab.value.state.tabs.map((t) => `${t.sessionId}="${t.title}"`),
-    );
+    deps.sessionTab.updateTabTitles(titleMap);
 
     // Sync existing tabs' status with latest status from sessions (drives status dot display).
     const statusMap = new Map(

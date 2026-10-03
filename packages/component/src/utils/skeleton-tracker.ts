@@ -228,9 +228,7 @@ export class SkeletonTracker {
      * Clear all skeletons
      */
     clear(): void {
-        const count = this._skeletons.size;
         this._skeletons.clear();
-        log.debug(`Cleared ${count} skeletons`);
     }
 
     /**
