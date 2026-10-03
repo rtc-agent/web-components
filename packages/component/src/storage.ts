@@ -4,7 +4,8 @@ import {createLogger} from '@rtc-agent/client';
 
 const log = createLogger('Storage');
 
-const STORAGE_KEY = 'rtc-agent-tasks';
+// Use rtc_ prefix to follow localStorage key naming convention
+const STORAGE_KEY = 'rtc_agent_tasks';
 
 export interface Task {
     id: string;

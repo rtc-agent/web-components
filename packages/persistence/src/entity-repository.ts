@@ -301,6 +301,8 @@ export class EntityRepository {
   async listSessions(cursor?: string, limit: number = 10000): Promise<LocalSession[]> {
     const db = getDatabase();
     const query = db.sessions.orderBy('updated_at').reverse();
+    // PERFORMANCE: Loads all sessions into memory before filtering.
+    // Acceptable for < 1000 sessions; consider database-level pagination for larger datasets.
     const all = await query.toArray();
 
     // Filter soft-deleted items (deleted_at non-empty means deleted)
@@ -518,6 +520,8 @@ export class EntityRepository {
   ): Promise<LocalMessage[]> {
     const db = getDatabase();
     const query = db.messages.where('session_client_id').equals(sessionClientId);
+    // PERFORMANCE: Loads all messages for the session into memory before sorting/paginating.
+    // Acceptable for typical chat sessions; consider database-level pagination for very long conversations.
     const allMessages = await query.toArray();
 
     // Sort strategy: first by created_at, then by client_id (client ID primary key) for ties.
@@ -670,6 +674,9 @@ export class EntityRepository {
 
   /**
    * List RTCs for a session (ascending by offset).
+   *
+   * PERFORMANCE: Loads all RTCs for the session into memory before sorting/paginating.
+   * Acceptable for typical sessions; consider database-level pagination for sessions with many tool calls.
    */
   async listRtcBySession(
     sessionClientId: string,

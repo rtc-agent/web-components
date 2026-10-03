@@ -332,6 +332,10 @@ export class RTCAgentDatabase extends Dexie {
     log.info('Initializing database:', databaseName);
     super(databaseName);
 
+    // Database migration chain (v1 -> v14).
+    // Each version must be sequential; never skip or modify existing versions.
+    // See: .claude/skills/rtc-agent-development-standards/js-ts/indexeddb.md
+
     // v1: Legacy schema, using id (server UUID) as primary key
     this.version(1).stores({
       sessions: 'id, &client_id, sync_status, owner_ref_id, status',
