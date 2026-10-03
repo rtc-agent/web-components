@@ -88,14 +88,16 @@ export const UUID_DEF: FunctionDef = {
   }),
   returns: {
     schema: {
-      type: 'string',
-      format: 'uuid',
-      description: 'A single UUID v4 string. If count > 1, returns an array of UUID strings instead.',
+      oneOf: [
+        { type: 'string', format: 'uuid', description: 'A single UUID v4 string (when count is 1 or omitted)' },
+        { type: 'array', items: { type: 'string', format: 'uuid' }, description: 'Array of UUID v4 strings (when count > 1)' },
+      ],
+      description: 'UUID v4 string or array of strings depending on count',
     },
-    description: 'UUID v4 string (or array of strings when count > 1)',
+    description: 'UUID v4 string (when count=1) or array of UUID strings (when count>1)',
   },
   handler: (params) => {
-    const { count = 1 } = params as { count?: number };
+    const { count = 1 } = params as { count: number };
     if (count === 1) {
       return crypto.randomUUID();
     }
@@ -138,11 +140,7 @@ export const RANDOM_DEF: FunctionDef = {
     description: 'Random number',
   },
   handler: (params) => {
-    const { min = 0, max = 1, integer = false } = params as {
-      min?: number;
-      max?: number;
-      integer?: boolean;
-    };
+    const { min, max, integer } = params as { min: number; max: number; integer: boolean };
 
     if (integer) {
       const lo = Math.ceil(min);
@@ -169,7 +167,7 @@ export const TIME_DEF: FunctionDef = {
     description: 'Current time as a string',
   },
   handler: (params) => {
-    const { format = 'locale' } = params as { format?: 'iso' | 'locale' | 'timestamp' };
+    const { format } = params as { format: 'iso' | 'locale' | 'timestamp' };
     const now = new Date();
     switch (format) {
       case 'iso':

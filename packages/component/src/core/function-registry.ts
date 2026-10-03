@@ -101,6 +101,8 @@ export class FunctionGroup {
           return (params: Record<string, unknown> = {}) => group.registry.execute(fullName, params);
         }
 
+        // Unknown property: log a warning to help debug typos or missing registrations
+        log.warn(`Function '${fullName}' is not registered. Available functions: ${Array.from(group.functions.keys()).map(k => k.split('.')[1]).join(', ')}`);
         return undefined;
       },
     }) as unknown as FunctionGroup & Record<string, (params?: Record<string, unknown>) => Promise<unknown>>;
@@ -579,8 +581,11 @@ export class FunctionRegistry {
    * MD10: slug is truncated to 100 characters to avoid overly long filenames
    */
   private _slugify(text: string): string {
+    // Defense-in-depth: reject path separators and traversal sequences before normalization
+    const sanitized = text.replace(/[/\\]/g, '').replace(/\.\./g, '');
+
     // Support Unicode characters (including CJK)
-    let slug = text
+    let slug = sanitized
       .toLowerCase()
       // Keep letters, numbers, spaces, hyphens, and CJK characters
       .replace(/[^\p{L}\p{N}\s-]/gu, '')
@@ -646,6 +651,8 @@ export class FunctionRegistry {
           return groupProxy;
         }
 
+        // Unknown property: log a warning to help debug typos or missing registrations
+        log.warn(`'${prop}' is not a registered function group or public method. Available groups: ${Array.from(registry.groupProxies.keys()).join(', ')}`);
         return undefined;
       },
     }) as unknown as FunctionRegistry & Record<string, FunctionGroup>;

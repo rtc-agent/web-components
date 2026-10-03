@@ -25,6 +25,11 @@ export function schemaToTypeString(schema: OpenAPISchema): string {
     return `[${name}](${schema.$ref})`;
   }
 
+  // Union type (oneOf)
+  if (schema.oneOf && schema.oneOf.length > 0) {
+    return schema.oneOf.map(s => schemaToTypeString(s)).join(' | ');
+  }
+
   // Array type
   if (schema.type === 'array' && schema.items) {
     const itemType = schemaToTypeString(schema.items);

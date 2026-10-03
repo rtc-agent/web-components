@@ -398,6 +398,11 @@ function zodFieldToOpenAPI(schema: ZodType): OpenAPISchema {
 /**
  * Add metadata to Zod schema (example values, etc.)
  *
+ * **Implementation note**: This mutates the schema's internal `_def.meta` property,
+ * which is not part of Zod's public API. This approach is compatible with Zod v3 and v4,
+ * but may break if Zod changes its internal structure in a future major version.
+ * If that happens, consider migrating to `zod-to-json-schema` or a dedicated metadata library.
+ *
  * Usage:
  * ```ts
  * import { z } from 'zod';

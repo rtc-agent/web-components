@@ -51,8 +51,6 @@ taskGroup.register({
             description: 'Array of tasks'
         }
     },
-    hooks: {
-    },
     handler: async (params) => {
         const allTasks = await loadTasks();
         const filter = (params.filter as string) || 'all';
