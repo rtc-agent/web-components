@@ -183,7 +183,7 @@ export class RTCAgentClient implements IRTCAgentClient {
     });
     this.centrifuge.on('disconnected', (ctx) => {
       log.debug(
-        '[GAP_FILL_DEBUG] centrifuge disconnected, reason:', ctx?.reason,
+        'centrifuge disconnected, reason:', ctx?.reason,
         '| code:', ctx?.code,
         '| wasConnected:', this.wasConnected,
         '| shouldReconnect:', this.shouldReconnect,
@@ -537,9 +537,11 @@ export class RTCAgentClient implements IRTCAgentClient {
           throw new Error(`Gap fill aborted for channel ${channel}`);
         }
 
-        // Check if gap fill is still running for this channel
-        if (!this.gapFillTasks.has(channel) && !this.isGapFillProcessing) {
-          return; // Gap fill completed (or failed)
+        // Check if gap fill is still running for this channel.
+        // Only the per-channel task entry matters here; isGapFillProcessing is a global
+        // flag that may still be true while waiting for an unrelated channel to finish.
+        if (!this.gapFillTasks.has(channel)) {
+          return; // Gap fill completed (or failed) for this channel
         }
 
         // Wait a bit before checking again, but abortable
@@ -692,7 +694,7 @@ export class RTCAgentClient implements IRTCAgentClient {
       pending.targetOffset = Math.max(pending.targetOffset, targetOffset);
       pending.epoch = epoch;
       log.debug(
-        `[GAP_FILL_DEBUG] scheduleGapFill merged: channel=${channel}, ` +
+        `scheduleGapFill merged: channel=${channel}, ` +
         `targetOffset=${pending.targetOffset}, isProcessing=${this.isGapFillProcessing}`
       );
     } else {
@@ -743,7 +745,7 @@ export class RTCAgentClient implements IRTCAgentClient {
 
     // Debug log: record connection state and subscription state at gap fill start
     log.debug(
-      `[GAP_FILL_DEBUG] runGapFill started: channel=${channel}, targetOffset=${targetOffset}, ` +
+      `runGapFill started: channel=${channel}, targetOffset=${targetOffset}, ` +
       `connectionState=${this.connectionState}, centrifuge=${!!this.centrifuge}, ` +
       `subState=${sub.state}`
     );
@@ -793,7 +795,7 @@ export class RTCAgentClient implements IRTCAgentClient {
 
           // Debug log: record connection state before calling history
           log.debug(
-            `[GAP_FILL_DEBUG] Calling sub.history(): offset=${offset}, limit=${limit}, ` +
+            `Calling sub.history(): offset=${offset}, limit=${limit}, ` +
             `connectionState=${this.connectionState}, hasCentrifuge=${!!this.centrifuge}, ` +
             `subState=${sub.state}`
           );
@@ -844,17 +846,17 @@ export class RTCAgentClient implements IRTCAgentClient {
     } catch (err) {
       // On network error, apply already-fetched buffer content first
       if (buffer.length > 0 || gapOffsets.length > 0) {
-        log.debug(`[GAP_FILL_DEBUG] Network error, flushing buffer before error handling: ${buffer.length} updates, ${gapOffsets.length} gap offsets`);
+        log.debug(`Network error, flushing buffer before error handling: ${buffer.length} updates, ${gapOffsets.length} gap offsets`);
         try {
           await this.flushGapFillBuffer(channel, buffer, gapOffsets, epoch);
         } catch (flushErr) {
-          log.error(`[GAP_FILL_DEBUG] Failed to flush buffer on error:`, flushErr);
+          log.error(`Failed to flush buffer on error:`, flushErr);
         }
       }
 
       // Debug log: record detailed context when error occurs
       log.error(
-        `[GAP_FILL_DEBUG] runGapFill failed for channel ${channel}:`,
+        `runGapFill failed for channel ${channel}:`,
         err,
         `| connectionState=${this.connectionState}`,
         `| hasCentrifuge=${!!this.centrifuge}`,
@@ -1035,8 +1037,7 @@ export class RTCAgentClient implements IRTCAgentClient {
   private _connectionReason?: string;
 
   private setConnectionState(state: ConnectionState, reason?: string): void {
-    log.debug(
-      '[GAP_FILL_DEBUG] setConnectionState:', state, 'reason:', reason,
+    log.debug('setConnectionState:', state, 'reason:', reason,
       '| previous:', this.connectionState,
       '| timestamp:', new Date().toISOString()
     );
@@ -1168,7 +1169,7 @@ export class RTCAgentClient implements IRTCAgentClient {
       topicSub.on('subscribed', async (ctx) => {
         // Debug log: record subscribed event trigger
         log.debug(
-          `[GAP_FILL_DEBUG] Subscription 'subscribed' event: channel=${topicChannel}, ` +
+          `Subscription 'subscribed' event: channel=${topicChannel}, ` +
           `serverOffset=${ctx.streamPosition?.offset}, epoch=${ctx.streamPosition?.epoch}, ` +
           `connectionState=${this.connectionState}`
         );

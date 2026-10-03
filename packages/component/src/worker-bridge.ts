@@ -71,7 +71,7 @@ type WorkerFactoryFunction = (options?: WorkerOptions) => SharedWorker;
  *
  * Tries the new URL(...) pattern first (production), then plain string (dev).
  */
-function extractWorkerRelativePath(factory: Function): string {
+function extractWorkerRelativePath(factory: object): string {
     const src = factory.toString();
 
     // 1. Production mode: new URL("...", import.meta.url)
