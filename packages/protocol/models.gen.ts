@@ -362,11 +362,11 @@ export interface components {
             /** @description 具体内容（结构由 type 决定），类型取决于 type 字段 */
             data: unknown;
         };
-        /** @description 用户消息内容（支持文本 + 场景 + 文件预留） */
+        /** @description 用户消息内容（支持文本 + 场景 + 文件附件） */
         UserMessageContent: {
             /** @description 消息文本内容 */
             text: string;
-            /** @description 文件附件列表（预留字段，暂不实现） */
+            /** @description 文件附件列表 */
             files?: components["schemas"]["FileAttachment"][];
             /** @description 场景列表（包含完整内容，无需再读取文件） */
             scenarios?: components["schemas"]["ScenarioRef"][];
@@ -385,7 +385,7 @@ export interface components {
              */
             role?: "system" | "user";
         };
-        /** @description 文件附件（预留） */
+        /** @description 文件附件 */
         FileAttachment: {
             /** @description MIME 类型（如 image/png, application/pdf） */
             mimetype: string;
@@ -658,21 +658,15 @@ export interface components {
         /** @description 获取消息列表请求 */
         MessageListRequest: {
             session_id: components["schemas"]["UUID"];
-            /**
-             * Format: uint32
-             * @description 分页游标（上一页最后一条的 global_offset）
-             */
-            cursor?: number;
+            /** @description 分页游标（上一页最后一条消息的 global_offset 字符串形式） */
+            cursor?: string;
             /** @description 每页数量，默认 50 */
             limit?: number;
         };
         MessageListResponse: {
             items: components["schemas"]["Message"][];
-            /**
-             * Format: uint32
-             * @description 下一页游标
-             */
-            next_cursor?: number;
+            /** @description 下一页游标（最后一条消息的 global_offset 字符串形式，为空表示没有更多数据） */
+            next_cursor?: string;
         };
         MessageGetRequest: {
             message_id: components["schemas"]["UUID"];
