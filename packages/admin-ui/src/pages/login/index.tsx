@@ -21,7 +21,7 @@ interface LoginFormValues {
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { login, isLoading, error, isAuthenticated, clearAuth } = useAuthStore();
+  const { login, isLoading, error, isAuthenticated } = useAuthStore();
   const [form] = Form.useForm<LoginFormValues>();
 
   // Redirect if already authenticated
@@ -31,12 +31,17 @@ const LoginPage: React.FC = () => {
     }
   }, [isAuthenticated, navigate]);
 
-  // Clear error when component unmounts
+  // Clear only the error message when component unmounts.
+  // NOTE: We deliberately do NOT call clearAuth() here, because that would also
+  // wipe the persisted refresh token and user profile from localStorage, forcing
+  // an unnecessary re-login on the next page load.
   useEffect(() => {
     return () => {
-      clearAuth();
+      if (error) {
+        useAuthStore.setState({ error: null });
+      }
     };
-  }, [clearAuth]);
+  }, [error]);
 
   const handleSubmit = async (values: LoginFormValues) => {
     try {

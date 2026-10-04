@@ -5,7 +5,7 @@
  * and logout button. The sidebar provides navigation between pages.
  */
 
-import React from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Layout, Menu, Button, Avatar, Space, Typography } from 'antd';
 import {
@@ -30,7 +30,7 @@ const MainLayout: React.FC = () => {
   };
 
   // Determine selected menu key from current path
-  const getSelectedKey = () => {
+  const getSelectedKey = useCallback(() => {
     if (location.pathname.startsWith('/dashboard')) {
       return 'dashboard';
     }
@@ -38,9 +38,9 @@ const MainLayout: React.FC = () => {
       return 'demo';
     }
     return 'dashboard';
-  };
+  }, [location.pathname]);
 
-  const menuItems = [
+  const menuItems = useMemo(() => [
     {
       key: 'dashboard',
       icon: <DashboardOutlined />,
@@ -53,7 +53,7 @@ const MainLayout: React.FC = () => {
       label: 'Demo',
       onClick: () => navigate('/demo'),
     },
-  ];
+  ], [navigate]);
 
   return (
     <Layout style={{ minHeight: '100vh' }}>

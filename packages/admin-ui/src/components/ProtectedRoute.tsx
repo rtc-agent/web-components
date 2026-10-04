@@ -14,6 +14,15 @@ interface ProtectedRouteProps {
   children: React.ReactNode;
 }
 
+// ========== Styles ==========
+
+const loadingStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  minHeight: '100vh',
+};
+
 /**
  * Protected route wrapper.
  * Checks authentication state and redirects to login if not authenticated.
@@ -37,15 +46,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   }
 
   return <>{children}</>;
-};
-
-// ========== Styles ==========
-
-const loadingStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  minHeight: '100vh',
 };
 
 export default ProtectedRoute;
