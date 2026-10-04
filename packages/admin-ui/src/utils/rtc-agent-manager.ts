@@ -89,6 +89,7 @@ export function mountRtcAgent() {
       try {
         const agent = createRtcAgent({
           appLabel: 'RTC Agent',
+          theme: 'system', // 主题模式：跟随系统
           server: { url: RTC_AGENT_URL },
           auth: createAdminAuthProvider(),
           workerURL: '/rtc-agent/shared-worker.js',
@@ -96,6 +97,10 @@ export function mountRtcAgent() {
           lang: 'zh-CN',
           window: {
             defaultMode: 'minimized',
+            bubblePosition: {
+              corner: 'bottom-right',
+              offset: { x: -24, y: 24 },
+            },
           },
           on: {
             ready: () => {
