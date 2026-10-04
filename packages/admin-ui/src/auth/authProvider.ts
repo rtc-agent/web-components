@@ -148,11 +148,14 @@ export function createAuthProvider(serverURL: string): AuthProvider {
 /**
  * Check if a JWT token is expiring soon (within 60 seconds).
  * Decodes the token payload without verification (for expiry check only).
+ * Returns false if the token is malformed (caller should handle auth failure elsewhere).
  */
 function isTokenExpiringSoon(token: string): boolean {
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    if (!payload.exp) {
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
+    const payload = JSON.parse(atob(parts[1]));
+    if (typeof payload.exp !== 'number') {
       return false;
     }
     const expiresAt = payload.exp * 1000; // Convert to milliseconds
@@ -160,7 +163,7 @@ function isTokenExpiringSoon(token: string): boolean {
     const bufferMs = 60 * 1000; // 60 seconds buffer
     return expiresAt - now < bufferMs;
   } catch {
-    // If we can't decode the token, assume it's fine
+    // Malformed token -- assume it's fine; auth flow will reject it later.
     return false;
   }
 }

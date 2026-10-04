@@ -131,15 +131,16 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     const response = await authApi.refreshToken(token);
     const { access_token, refresh_token: newRefreshToken } = response;
 
-    // Update localStorage
+    // Use the new refresh token if the server rotated it; otherwise keep the old one.
+    const effectiveRefreshToken = newRefreshToken ?? token;
+
+    // Persist updated tokens to localStorage.
     localStorage.setItem(STORAGE_KEYS.accessToken, access_token);
-    if (newRefreshToken) {
-      localStorage.setItem(STORAGE_KEYS.refreshToken, newRefreshToken);
-    }
+    localStorage.setItem(STORAGE_KEYS.refreshToken, effectiveRefreshToken);
 
     set({
       accessToken: access_token,
-      refreshToken: newRefreshToken ?? token,
+      refreshToken: effectiveRefreshToken,
       isAuthenticated: true,
     });
   },
