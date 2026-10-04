@@ -287,6 +287,18 @@ export default [
     component: './chatbot',
   },
   {
+    path: '/rtc-agent-diagnose',
+    name: 'rtc-agent-diagnose',
+    component: './rtc-agent-diagnose',
+    hideInMenu: true,
+  },
+  {
+    path: '/rtc-agent-test',
+    name: 'rtc-agent-test',
+    component: './rtc-agent-test',
+    hideInMenu: true,
+  },
+  {
     path: '/',
     redirect: '/dashboard/analysis',
   },

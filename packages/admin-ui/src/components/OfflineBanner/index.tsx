@@ -1,4 +1,3 @@
-import { getIntl } from '@umijs/max';
 import { Alert } from 'antd';
 import { useSyncExternalStore } from 'react';
 
@@ -23,6 +22,8 @@ const OfflineBanner: React.FC = () => {
 
   if (isOnline) return null;
 
+  // Use plain text instead of getIntl() to avoid Context issues
+  // when OfflineBanner is rendered in rootContainer outside of Intl provider
   return (
     <Alert
       type="warning"
@@ -36,11 +37,7 @@ const OfflineBanner: React.FC = () => {
         zIndex: 10,
         maxWidth: 480,
       }}
-      title={getIntl().formatMessage({
-        id: 'app.network.offline',
-        defaultMessage:
-          'You are currently offline. Some features may be unavailable.',
-      })}
+      title="You are currently offline. Some features may be unavailable."
     />
   );
 };

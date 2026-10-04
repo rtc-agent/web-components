@@ -50,4 +50,6 @@ export default {
   'menu.editor.mind': '脑图编辑器',
   'menu.editor.koni': '拓扑编辑器',
   'menu.chatbot': 'AI 助手',
+  'menu.rtc-agent-diagnose': 'RTC Agent 诊断',
+  'menu.rtc-agent-test': 'RTC Agent 测试',
 };

@@ -49,4 +49,6 @@ export default {
   'menu.editor.flow': 'ফ্লো এডিটর',
   'menu.editor.mind': 'মাইন্ড এডিটর',
   'menu.editor.koni': 'কোনি সম্পাদক',
+  'menu.rtc-agent-diagnose': 'RTC Agent ডায়াগনোস্টিক্স',
+  'menu.rtc-agent-test': 'RTC Agent পরীক্ষা',
 };

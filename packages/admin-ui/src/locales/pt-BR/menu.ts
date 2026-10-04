@@ -51,4 +51,6 @@ export default {
   'menu.editor.flow': 'Flow Editor',
   'menu.editor.mind': 'Mind Editor',
   'menu.editor.koni': 'Koni Editor',
+  'menu.rtc-agent-diagnose': 'RTC Agent Diagnóstico',
+  'menu.rtc-agent-test': 'RTC Agent Teste',
 };

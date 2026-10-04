@@ -15,12 +15,13 @@ import {
   DocLink,
   ErrorBoundary,
   Footer,
+  GlobalRtcAgent,
   LangDropdown,
   OfflineBanner,
   VersionDropdown,
 } from '@/components';
 import { getCurrentUser } from '@/services/admin-auth';
-import { getUserInfo, isAuthenticated } from '@/utils/auth-storage';
+import { clearAuth, getUserInfo, isAuthenticated } from '@/utils/auth-storage';
 import defaultSettings from '../config/defaultSettings';
 import { errorConfig } from './requestErrorConfig';
 
@@ -59,10 +60,7 @@ export async function getInitialState(): Promise<{
       } as API.CurrentUser;
     } catch (_error) {
       // 如果获取失败，清除 token 并重定向到登录页
-      localStorage.removeItem('admin_access_token');
-      localStorage.removeItem('admin_refresh_token');
-      localStorage.removeItem('admin_user_info');
-      localStorage.removeItem('admin_token_expiry');
+      clearAuth();
 
       const { pathname, search, hash } = history.location;
       history.replace(
@@ -237,7 +235,11 @@ export function rootContainer(container: React.ReactNode) {
   return (
     <>
       <OfflineBanner />
-      <ErrorBoundary>{container}</ErrorBoundary>
+      <ErrorBoundary>
+        {container}
+        {/* 全局 RTC Agent 浮窗 */}
+        <GlobalRtcAgent />
+      </ErrorBoundary>
     </>
   );
 }

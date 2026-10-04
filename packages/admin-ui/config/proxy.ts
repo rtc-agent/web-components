@@ -24,6 +24,22 @@ export default {
       target: 'http://localhost:28081',
       changeOrigin: true,
     },
+    // RTC Agent Server 代理（Token Exchange + WebSocket）
+    '/oauth2/': {
+      target: 'http://localhost:28080',
+      changeOrigin: true,
+    },
+    // Centrifuge WebSocket 连接（组件使用 /connection/websocket 路径）
+    '/connection/': {
+      target: 'http://localhost:28080',
+      changeOrigin: true,
+      ws: true, // WebSocket 支持
+    },
+    '/centrifuge/': {
+      target: 'http://localhost:28080',
+      changeOrigin: true,
+      ws: true, // WebSocket 支持
+    },
     // 其他 /api/ 请求不走代理，由 mock 处理
   },
   test: {

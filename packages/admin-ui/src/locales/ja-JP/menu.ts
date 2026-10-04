@@ -49,4 +49,6 @@ export default {
   'menu.editor.flow': 'フローエディタ',
   'menu.editor.mind': 'マインドエディター',
   'menu.editor.koni': 'コニエディター',
+  'menu.rtc-agent-diagnose': 'RTC Agent 診断',
+  'menu.rtc-agent-test': 'RTC Agent テスト',
 };

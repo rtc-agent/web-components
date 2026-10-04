@@ -160,10 +160,11 @@ const Login: React.FC = () => {
 
       if (result.access_token && result.refresh_token) {
         // 存储 token 到 localStorage
+        // expires_in 默认为 1 小时（3600 秒），防止 API 未返回时 token 立即过期
         setTokens(
           result.access_token,
           result.refresh_token,
-          result.expires_in,
+          result.expires_in || 3600,
         );
 
         // 存储用户信息

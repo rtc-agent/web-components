@@ -88,6 +88,9 @@ importers:
       '@commitlint/config-conventional':
         specifier: ^21.2.0
         version: 21.2.3
+      '@playwright/test':
+        specifier: ^1.63.0
+        version: 1.63.0
       '@testing-library/dom':
         specifier: ^10.4.1
         version: 10.4.2
@@ -166,6 +169,9 @@ importers:
       mockjs:
         specifier: ^1.1.0
         version: 1.1.0
+      playwright:
+        specifier: ^1.63.0
+        version: 1.63.0
       react-doctor:
         specifier: ^0.9.11
         version: 0.9.14(@opentelemetry/core@2.11.0)(eslint@8.57.1)(react@19.3.0)
@@ -7051,7 +7057,7 @@ packages:
     resolution: {integrity: sha512-hy8b7Y1J8OGe6LbAjj3xniQrj3v6lsivCcrmf4TzSgPzLkhIeKgc5IZnT7ReIqmEuodjfO8EYAuoFvIrHi/+jQ==}
     deprecated: This is a stub types definition. history provides its own type definitions, so you do not need this installed.
     dependencies:
-      history: 4.10.1
+      history: 5.3.0
     dev: true
 
   /@types/hoist-non-react-statics@3.3.7(@types/react@19.3.0):
@@ -7155,7 +7161,7 @@ packages:
       '@types/history': 4.7.11
       '@types/react': 19.3.0
       '@types/react-router': 5.1.20
-      redux: 3.7.2
+      redux: 4.2.1
     dev: true
 
   /@types/react-router@5.1.20:
