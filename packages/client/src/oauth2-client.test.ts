@@ -60,7 +60,7 @@ describe('OAuth2Client.tokenExchange', () => {
 
     // Verify the request was made with form-encoded body
     expect(fetch).toHaveBeenCalledWith(
-      `${serverURL}/oauth2/token-exchange`,
+      `${serverURL}/oauth2/token`,
       expect.objectContaining({
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -216,7 +216,7 @@ describe('OAuth2Client.tokenExchange', () => {
     await client.tokenExchange(params);
 
     expect(fetch).toHaveBeenCalledWith(
-      `${serverURL}/oauth2/token-exchange`,
+      `${serverURL}/oauth2/token`,
       expect.any(Object),
     );
   });

@@ -222,7 +222,7 @@ export class OAuth2Client {
       body.append('user_agent', params.user_agent);
     }
 
-    const url = `${this.serverURL}/oauth2/token-exchange`;
+    const url = `${this.serverURL}/oauth2/token`;
     const maxRetries = 1;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
