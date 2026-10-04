@@ -187,7 +187,7 @@ describe('requestErrorConfig', () => {
 
       errorHandler(error, {});
 
-      expect(message.error).toHaveBeenCalledWith('Response status:500');
+      expect(message.error).toHaveBeenCalledWith('请求失败 (500)');
     });
 
     it('should handle offline error', () => {
