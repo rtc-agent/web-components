@@ -13,13 +13,13 @@
  * It is called directly by `<rtc-agent>` when login dialog completes.
  */
 import type {ReactiveController, ReactiveControllerHost} from 'lit';
-import type {TokenExpiredAction} from '@rtc-agent/client';
+import type {TokenExpiredAction, TokenExchangeResponse} from '@rtc-agent/client';
 import type {AuthState} from '../types/index.js';
 import type {AuthContextValue} from '../contexts/auth.js';
 import type {AuthProvider} from '../types/factory.js';
 import {DEFAULT_AUTH_STATE} from '../contexts/auth.js';
 import {AUTH_CONFIG, STORAGE_KEYS} from '../config/auth.js';
-import { createLogger } from '@rtc-agent/client';
+import { createLogger, OAuth2Client } from '@rtc-agent/client';
 
 const log = createLogger('AuthController');
 
@@ -50,6 +50,12 @@ export class AuthController implements ReactiveController {
 
     /** Auth provider */
     private _authProvider?: AuthProvider;
+
+    /** Flag to indicate Token Exchange mode (vs OAuth2 Redirect mode). */
+    private _isTokenExchangeMode = false;
+
+    /** OAuth2Client instance for Token Exchange mode. */
+    private _oauth2Client?: OAuth2Client;
 
     /**
      * Callback fired when auth state transitions to logged-in.
@@ -168,11 +174,27 @@ export class AuthController implements ReactiveController {
      * Use this for complex authentication flows, multi-tenant applications,
      * or custom token rotation strategies.
      *
-     * @param provider - The auth provider interface with getToken, refreshToken, isLoggedIn, and optional logout.
+     * Two modes are supported:
+     * 1. OAuth2 Redirect (default): Host manages tokens via getToken()/refreshToken()
+     * 2. Token Exchange: Host provides external JWT via getExchangeToken(),
+     *    component exchanges it for RTC JWT via OAuth2Client.tokenExchange()
+     *
+     * @param provider - The auth provider interface
      */
     setAuthProvider(provider: AuthProvider) {
         this._authProvider = provider;
         this._externalTokens = true; // Skip localStorage persistence
+
+        // Detect Token Exchange mode
+        this._isTokenExchangeMode = provider.type === 'token-exchange';
+
+        if (this._isTokenExchangeMode) {
+            // Initialize OAuth2Client for Token Exchange mode
+            this._oauth2Client = new OAuth2Client({
+                serverURL: AUTH_CONFIG.serverURL,
+                redirectUri: AUTH_CONFIG.redirectUri,
+            });
+        }
 
         // Store the server-issued Device ID to localStorage so that
         // getOrCreateDeviceId() (called later by PersistenceController) picks it up
@@ -187,48 +209,84 @@ export class AuthController implements ReactiveController {
         const loggedIn = provider.isLoggedIn();
 
         if (loggedIn) {
-            this._state = {
-                isLoggedIn: true,
-                accessToken: '', // Will be fetched on demand
-                refreshToken: '', // Not used in provider mode
-                userId: provider.getUserId?.() || 'provider-managed',
-                expiresAt: Infinity, // Provider controls expiration
-            };
-            this.host.requestUpdate();
-            this._fireLogin();
-        } else {
-            // isLoggedIn() returned false — but the user may still have a valid
-            // refresh token (e.g. page refreshed after access token expired).
-            // Attempt async refresh via the provider BEFORE showing the login page.
-            // If refresh succeeds → logged in; if it fails → show login page.
-            this._state = { isLoggedIn: false };
-            this.host.requestUpdate();
-            void provider.refreshToken().then(result => {
-                // Guard: if _authProvider was cleared (logout/destroy) during the
-                // async refresh, don't update state.
-                if (this._authProvider !== provider) {
-                    return;
-                }
-                const newExpiresAt = result.expiresIn
-                    ? Date.now() + result.expiresIn * 1000
-                    : Infinity;
+            if (this._isTokenExchangeMode) {
+                // Token Exchange mode: perform token exchange immediately
                 this._state = {
                     isLoggedIn: true,
-                    accessToken: result.accessToken,
-                    refreshToken: result.refreshToken ?? '',
+                    accessToken: '', // Will be set by token exchange
+                    refreshToken: '', // Not used in token exchange mode
                     userId: provider.getUserId?.() || 'provider-managed',
-                    expiresAt: newExpiresAt,
+                    expiresAt: Infinity, // Will be set after token exchange
                 };
-                if (newExpiresAt !== Infinity) {
-                    this._scheduleRefresh(newExpiresAt);
-                }
+                this.host.requestUpdate();
+                void this._performTokenExchange().then(success => {
+                    if (this._authProvider !== provider) return;
+                    if (success) {
+                        this._fireLogin();
+                    } else {
+                        // Token exchange failed, logout
+                        this._performLogout();
+                    }
+                });
+            } else {
+                // OAuth2 Redirect mode: host manages tokens
+                this._state = {
+                    isLoggedIn: true,
+                    accessToken: '', // Will be fetched on demand
+                    refreshToken: '', // Not used in provider mode
+                    userId: provider.getUserId?.() || 'provider-managed',
+                    expiresAt: Infinity, // Provider controls expiration
+                };
                 this.host.requestUpdate();
                 this._fireLogin();
-            }).catch(() => {
-                // Guard: same as above.
-                if (this._authProvider !== provider) return;
-                // Stay logged out — login page is already shown.
-            });
+            }
+        } else {
+            // isLoggedIn() returned false
+            this._state = { isLoggedIn: false };
+            this.host.requestUpdate();
+
+            if (this._isTokenExchangeMode) {
+                // Token Exchange mode: attempt token exchange even if isLoggedIn() returned false
+                void this._performTokenExchange().then(success => {
+                    if (this._authProvider !== provider) return;
+                    if (success) {
+                        this._fireLogin();
+                    }
+                    // If failed, stay logged out
+                });
+            } else {
+                // OAuth2 Redirect mode: attempt refresh via provider
+                if (!provider.refreshToken) {
+                    // No refresh method available, stay logged out
+                    return;
+                }
+                void provider.refreshToken().then(result => {
+                    // Guard: if _authProvider was cleared (logout/destroy) during the
+                    // async refresh, don't update state.
+                    if (this._authProvider !== provider) {
+                        return;
+                    }
+                    const newExpiresAt = result.expiresIn
+                        ? Date.now() + result.expiresIn * 1000
+                        : Infinity;
+                    this._state = {
+                        isLoggedIn: true,
+                        accessToken: result.accessToken,
+                        refreshToken: result.refreshToken ?? '',
+                        userId: provider.getUserId?.() || 'provider-managed',
+                        expiresAt: newExpiresAt,
+                    };
+                    if (newExpiresAt !== Infinity) {
+                        this._scheduleRefresh(newExpiresAt);
+                    }
+                    this.host.requestUpdate();
+                    this._fireLogin();
+                }).catch(() => {
+                    // Guard: same as above.
+                    if (this._authProvider !== provider) return;
+                    // Stay logged out — login page is already shown.
+                });
+            }
         }
     }
 
@@ -241,16 +299,107 @@ export class AuthController implements ReactiveController {
      * Get the current access token, resolving it asynchronously if needed.
      *
      * Priority:
-     * 1. Auth provider - calls provider.getToken()
-     * 2. Stored token (internal auth) - returns _state.accessToken
+     * 1. Token Exchange mode - calls provider.getExchangeToken() + tokenExchange()
+     * 2. Auth provider - calls provider.getToken()
+     * 3. Stored token (internal auth) - returns _state.accessToken
      *
      * @returns The access token string, or undefined if unavailable.
      */
     async getAccessTokenAsync(): Promise<string | undefined> {
-        if (this._authProvider) {
+        if (this._isTokenExchangeMode && this._authProvider?.getExchangeToken) {
+            // Token Exchange mode: use the RTC JWT from token exchange
+            return this._state.accessToken;
+        }
+        if (this._authProvider?.getToken) {
             return await this._authProvider.getToken();
         }
         return this._state.accessToken;
+    }
+
+    /**
+     * Perform Token Exchange: call getExchangeToken() + tokenExchange().
+     *
+     * Flow:
+     * 1. Call authProvider.getExchangeToken() to get external JWT
+     * 2. Call OAuth2Client.tokenExchange() to get RTC JWT
+     * 3. Save RTC JWT to state (persisted via setTokens-like logic)
+     * 4. Schedule refresh timer
+     *
+     * Error handling:
+     * - getExchangeToken() fails → logout
+     * - tokenExchange() fails → retry 1 time (handled by OAuth2Client), still fails → logout
+     *
+     * @returns true if exchange succeeded, false otherwise
+     */
+    private async _performTokenExchange(): Promise<boolean> {
+        if (!this._authProvider?.getExchangeToken || !this._oauth2Client) {
+            log.error('[TOKEN_EXCHANGE] Missing getExchangeToken or OAuth2Client');
+            return false;
+        }
+
+        try {
+            // Step 1: Get external JWT from host application
+            let externalJWT: string;
+            try {
+                externalJWT = await this._authProvider.getExchangeToken();
+            } catch (err) {
+                log.error('[TOKEN_EXCHANGE] getExchangeToken() failed:', err);
+                // getExchangeToken failed → logout
+                this._performLogout();
+                return false;
+            }
+
+            if (!externalJWT) {
+                log.error('[TOKEN_EXCHANGE] getExchangeToken() returned empty token');
+                this._performLogout();
+                return false;
+            }
+
+            // Step 2: Exchange external JWT for RTC JWT
+            let response: TokenExchangeResponse;
+            try {
+                response = await this._oauth2Client.tokenExchange({
+                    grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
+                    subject_token: externalJWT,
+                    subject_token_type: 'urn:ietf:params:oauth:token-type:jwt',
+                    device_id: this._authProvider.deviceId,
+                });
+            } catch (err) {
+                log.error('[TOKEN_EXCHANGE] tokenExchange() failed:', err);
+                // tokenExchange failed → logout (retry already handled by OAuth2Client)
+                this._performLogout();
+                return false;
+            }
+
+            // Step 3: Update state with RTC JWT
+            const expiresAt = Date.now() + response.expires_in * 1000;
+            this._state = {
+                isLoggedIn: true,
+                accessToken: response.access_token,
+                refreshToken: '', // Not used in token exchange mode
+                userId: this._authProvider.getUserId?.() || 'provider-managed',
+                expiresAt,
+            };
+
+            // Save to localStorage for persistence across page reloads
+            this._saveTokens({
+                accessToken: response.access_token,
+                refreshToken: '',
+                userId: this._authProvider.getUserId?.() || 'provider-managed',
+                expiresAt,
+            });
+
+            // Step 4: Schedule refresh
+            this._scheduleRefresh(expiresAt);
+            this.host.requestUpdate();
+
+            log.info('[TOKEN_EXCHANGE] Token exchange succeeded, expires at', new Date(expiresAt).toISOString());
+            return true;
+        } catch (err) {
+            log.error('[TOKEN_EXCHANGE] Unexpected error during token exchange:', err);
+            this._performLogout();
+            return false;
+        }
     }
 
     private _login() {
@@ -283,17 +432,22 @@ export class AuthController implements ReactiveController {
      * - `_authProvider`: released so the host app's provider can be GC'd
      * - `_refreshTimer`: cleared to prevent orphaned setTimeout callbacks
      * - `_externalTokens`: reset so next login cycle starts clean
+     * - `_isTokenExchangeMode`: reset to default
+     * - `_oauth2Client`: released for GC
      */
     private _performLogout() {
         this._state = {isLoggedIn: false};
 
         // Only clear localStorage if we are not in external token mode.
         // External tokens were never persisted, so there is nothing to clean up.
-        if (!this._externalTokens) {
+        // Exception: Token Exchange mode persists RTC JWT to localStorage
+        if (!this._externalTokens || this._isTokenExchangeMode) {
             localStorage.removeItem(STORAGE_KEYS.tokens);
         }
         this._externalTokens = false;
         this._authProvider = undefined;
+        this._isTokenExchangeMode = false;
+        this._oauth2Client = undefined;
 
         if (this._refreshTimer) {
             clearTimeout(this._refreshTimer);
@@ -495,8 +649,13 @@ export class AuthController implements ReactiveController {
      * Returns true on success, false on failure.
      */
     private async _doRefresh(): Promise<boolean> {
-        // Auth provider: delegate refresh to the provider.
-        if (this._authProvider) {
+        // Token Exchange mode: refresh by performing a new token exchange
+        if (this._isTokenExchangeMode) {
+            return this._performTokenExchange();
+        }
+
+        // Auth provider (OAuth2 Redirect mode): delegate refresh to the provider.
+        if (this._authProvider?.refreshToken) {
             try {
                 const result = await this._authProvider.refreshToken();
 

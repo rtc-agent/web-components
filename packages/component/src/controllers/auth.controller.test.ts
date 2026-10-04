@@ -1,4 +1,4 @@
-import {describe, it, expect, vi} from 'vitest';
+import {describe, it, expect, vi, beforeEach} from 'vitest';
 import {AuthController} from './auth.controller.js';
 
 class MockHost {
@@ -307,5 +307,233 @@ describe('AuthController - logout', () => {
         expect(host.dispatchEvent).toHaveBeenCalledWith(
             expect.objectContaining({type: 'rtc-auth-logout'})
         );
+    });
+});
+
+describe('AuthController - Token Exchange mode', () => {
+    let fetchMock: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+        localStorage.clear();
+        fetchMock = vi.fn();
+        vi.stubGlobal('fetch', fetchMock);
+    });
+
+    const createTokenExchangeProvider = (overrides: Record<string, unknown> = {}) => ({
+        type: 'token-exchange' as const,
+        getExchangeToken: vi.fn().mockResolvedValue('external-jwt-token'),
+        isLoggedIn: vi.fn().mockReturnValue(true),
+        logout: vi.fn().mockResolvedValue(undefined),
+        getUserId: vi.fn().mockReturnValue('test-user-id'),
+        deviceId: 'test-device-id',
+        ...overrides,
+    });
+
+    const createTokenExchangeResponse = () => ({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: () => Promise.resolve({
+            access_token: 'rtc-jwt-token',
+            issued_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+            token_type: 'Bearer',
+            expires_in: 3600,
+        }),
+    });
+
+    it('should detect token-exchange mode from provider type', async () => {
+        const host = new MockHost();
+        const ctrl = new AuthController(host as any);
+
+        const provider = createTokenExchangeProvider();
+        fetchMock.mockResolvedValue(createTokenExchangeResponse());
+
+        ctrl.setAuthProvider(provider);
+
+        // Wait for async token exchange to complete
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        expect(ctrl.value.state.isLoggedIn).toBe(true);
+        expect(fetchMock).toHaveBeenCalledWith(
+            expect.stringContaining('/oauth2/token-exchange'),
+            expect.any(Object),
+        );
+    });
+
+    it('should call getExchangeToken and tokenExchange on setAuthProvider', async () => {
+        const host = new MockHost();
+        const ctrl = new AuthController(host as any);
+
+        const provider = createTokenExchangeProvider();
+        fetchMock.mockResolvedValue(createTokenExchangeResponse());
+
+        ctrl.setAuthProvider(provider);
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        expect(provider.getExchangeToken).toHaveBeenCalledOnce();
+        expect(ctrl.value.state.accessToken).toBe('rtc-jwt-token');
+        expect(ctrl.value.state.userId).toBe('test-user-id');
+    });
+
+    it('should store RTC JWT in localStorage', async () => {
+        const host = new MockHost();
+        const ctrl = new AuthController(host as any);
+
+        const provider = createTokenExchangeProvider();
+        fetchMock.mockResolvedValue(createTokenExchangeResponse());
+
+        ctrl.setAuthProvider(provider);
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        const stored = localStorage.getItem('rtc_auth_tokens');
+        expect(stored).not.toBeNull();
+        const parsed = JSON.parse(stored!);
+        expect(parsed.accessToken).toBe('rtc-jwt-token');
+    });
+
+    it('should call logout when getExchangeToken fails', async () => {
+        const host = new MockHost();
+        const ctrl = new AuthController(host as any);
+
+        const provider = createTokenExchangeProvider({
+            getExchangeToken: vi.fn().mockRejectedValue(new Error('getExchangeToken failed')),
+        });
+
+        ctrl.setAuthProvider(provider);
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        // State should be cleared (not logged in)
+        expect(ctrl.value.state.isLoggedIn).toBe(false);
+    });
+
+    it('should call logout when tokenExchange fails', async () => {
+        const host = new MockHost();
+        const ctrl = new AuthController(host as any);
+
+        const provider = createTokenExchangeProvider();
+        fetchMock.mockResolvedValue({
+            ok: false,
+            status: 400,
+            statusText: 'Bad Request',
+        });
+
+        ctrl.setAuthProvider(provider);
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        // State should be cleared (not logged in)
+        expect(ctrl.value.state.isLoggedIn).toBe(false);
+    });
+
+    it('should use form-encoded request body for token exchange', async () => {
+        const host = new MockHost();
+        const ctrl = new AuthController(host as any);
+
+        const provider = createTokenExchangeProvider();
+        fetchMock.mockResolvedValue(createTokenExchangeResponse());
+
+        ctrl.setAuthProvider(provider);
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        const call = fetchMock.mock.calls[0];
+        expect(call[1].headers['Content-Type']).toBe('application/x-www-form-urlencoded');
+        expect(call[1].body).toContain('grant_type=');
+        expect(call[1].body).toContain('subject_token=external-jwt-token');
+        expect(call[1].body).toContain('device_id=test-device-id');
+    });
+
+    it('should trigger onLogin callback after successful token exchange', async () => {
+        const host = new MockHost();
+        const ctrl = new AuthController(host as any);
+        const onLogin = vi.fn();
+        ctrl.onLogin = onLogin;
+
+        const provider = createTokenExchangeProvider();
+        fetchMock.mockResolvedValue(createTokenExchangeResponse());
+
+        ctrl.setAuthProvider(provider);
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        expect(onLogin).toHaveBeenCalledOnce();
+    });
+
+    it('handleTokenExpired should perform token exchange in token-exchange mode', async () => {
+        const host = new MockHost();
+        const ctrl = new AuthController(host as any);
+
+        const provider = createTokenExchangeProvider();
+        fetchMock.mockResolvedValue(createTokenExchangeResponse());
+
+        ctrl.setAuthProvider(provider);
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        // Reset mock and prepare for refresh
+        fetchMock.mockClear();
+        fetchMock.mockResolvedValue({
+            ok: true,
+            status: 200,
+            statusText: 'OK',
+            json: () => Promise.resolve({
+                access_token: 'new-rtc-jwt-token',
+                issued_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+                token_type: 'Bearer',
+                expires_in: 3600,
+            }),
+        });
+
+        const result = await ctrl.handleTokenExpired();
+
+        expect(result).toBe('refresh');
+        expect(provider.getExchangeToken).toHaveBeenCalledTimes(2);
+        expect(ctrl.value.state.accessToken).toBe('new-rtc-jwt-token');
+    });
+
+    it('should cleanup token exchange state on logout', async () => {
+        const host = new MockHost();
+        const ctrl = new AuthController(host as any);
+
+        const provider = createTokenExchangeProvider();
+        fetchMock.mockResolvedValue(createTokenExchangeResponse());
+
+        ctrl.setAuthProvider(provider);
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        expect(ctrl.value.state.isLoggedIn).toBe(true);
+
+        ctrl.logout();
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        expect(ctrl.value.state.isLoggedIn).toBe(false);
+        expect(ctrl.value.state.accessToken).toBeUndefined();
+    });
+
+    it('getAccessTokenAsync should return RTC JWT in token-exchange mode', async () => {
+        const host = new MockHost();
+        const ctrl = new AuthController(host as any);
+
+        const provider = createTokenExchangeProvider();
+        fetchMock.mockResolvedValue(createTokenExchangeResponse());
+
+        ctrl.setAuthProvider(provider);
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        const token = await ctrl.getAccessTokenAsync();
+        expect(token).toBe('rtc-jwt-token');
+    });
+
+    it('should attempt token exchange even when isLoggedIn() returns false', async () => {
+        const host = new MockHost();
+        const ctrl = new AuthController(host as any);
+
+        const provider = createTokenExchangeProvider({
+            isLoggedIn: vi.fn().mockReturnValue(false),
+        });
+        fetchMock.mockResolvedValue(createTokenExchangeResponse());
+
+        ctrl.setAuthProvider(provider);
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        expect(provider.getExchangeToken).toHaveBeenCalledOnce();
+        expect(ctrl.value.state.isLoggedIn).toBe(true);
+        expect(ctrl.value.state.accessToken).toBe('rtc-jwt-token');
     });
 });

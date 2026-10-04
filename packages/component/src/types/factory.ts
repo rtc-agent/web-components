@@ -64,26 +64,53 @@ export type AuthConfig = AuthProvider;
  * ```
  */
 export interface AuthProvider {
+  /**
+   * Authentication mode.
+   *
+   * - 'oauth2-redirect': Host manages tokens via getToken()/refreshToken() (default)
+   * - 'token-exchange': Host provides external JWT via getExchangeToken(),
+   *   component exchanges it for RTC JWT
+   *
+   * @default 'oauth2-redirect'
+   */
+  type?: 'oauth2-redirect' | 'token-exchange';
+
   /** Returns the current access token */
-  getToken(): string | Promise<string>;
+  getToken?(): string | Promise<string>;
+
   /** Refreshes the access token */
-  refreshToken(): Promise<{
+  refreshToken?(): Promise<{
     accessToken: string;
     refreshToken?: string;
     expiresIn?: number;
   }>;
+
+  /**
+   * Returns the external JWT for Token Exchange mode.
+   *
+   * Required when type === 'token-exchange'. The component will call this method
+   * to obtain an external JWT from the host application, then exchange it for
+   * an RTC JWT via OAuth2Client.tokenExchange().
+   *
+   * @returns External JWT string (can be sync or async)
+   */
+  getExchangeToken?(): string | Promise<string>;
+
   /** Returns whether the user is currently logged in */
   isLoggedIn(): boolean;
+
   /** Optional logout handler. If provided, component logout delegates to host */
   logout?(): Promise<void>;
+
   /**
    * Returns the current user's unique identifier.
    *
-   * Used to construct per-user IndexedDB names (e.g. `{databaseName}-{userId}`).
+   * Used to construct per-user IndexedDB names (e.g. `{databaseName}-${userId}`).
    * If not provided, falls back to `'provider-managed'` — all users will share
    * the same database, which is usually NOT what you want in production.
    */
   getUserId?(): string;
+
   /**
    * Device ID — must match the Device ID embedded in the JWT token by the server.
    *
