@@ -5,7 +5,7 @@
  * of the Web Component based on authentication state.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mountRtcAgent, unmountRtcAgent } from '@/utils/rtc-agent-manager';
 
 // Mock dependencies

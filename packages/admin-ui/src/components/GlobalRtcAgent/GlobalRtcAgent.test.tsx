@@ -7,7 +7,7 @@
 
 import { render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GlobalRtcAgent } from '@/components/GlobalRtcAgent/GlobalRtcAgent';
 import * as authStorage from '@/utils/auth-storage';
 import * as rtcAgentManager from '@/utils/rtc-agent-manager';

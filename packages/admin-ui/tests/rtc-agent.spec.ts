@@ -23,9 +23,10 @@ test.describe('RTC Agent Integration', () => {
     await page.waitForLoadState('networkidle');
 
     // Check for the specific TypeError we're trying to fix
-    const typeError = errors.find(err =>
-      err.includes("Cannot destructure property 'dispatcher'") ||
-      err.includes("useContext")
+    const typeError = errors.find(
+      (err) =>
+        err.includes("Cannot destructure property 'dispatcher'") ||
+        err.includes('useContext'),
     );
 
     if (typeError) {
@@ -51,7 +52,9 @@ test.describe('RTC Agent Integration', () => {
     await expect(agent).toBeVisible({ timeout: 5000 });
   });
 
-  test('should not mount GlobalRtcAgent when not logged in', async ({ page }) => {
+  test('should not mount GlobalRtcAgent when not logged in', async ({
+    page,
+  }) => {
     // Navigate to a page without logging in
     await page.goto('/welcome');
     await page.waitForLoadState('networkidle');

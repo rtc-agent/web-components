@@ -140,7 +140,9 @@ export const GlobalRtcAgent: React.FC = () => {
   // from the tree while logged in.
   useEffect(() => {
     return () => {
-      console.log('[GlobalRtcAgent] Component unmounting, cleaning up RTC Agent');
+      console.log(
+        '[GlobalRtcAgent] Component unmounting, cleaning up RTC Agent',
+      );
       unmountRtcAgent();
     };
   }, []);

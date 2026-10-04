@@ -21,7 +21,7 @@ import {
   VersionDropdown,
 } from '@/components';
 import { getCurrentUser } from '@/services/admin-auth';
-import { clearAuth, getUserInfo, isAuthenticated } from '@/utils/auth-storage';
+import { isAuthenticated } from '@/utils/auth-storage';
 import defaultSettings from '../config/defaultSettings';
 import { errorConfig } from './requestErrorConfig';
 
@@ -39,16 +39,19 @@ export async function getInitialState(): Promise<{
   settingDrawerOpen?: boolean;
 }> {
   const fetchUserInfo = async () => {
+    // 先检查 localStorage 是否有有效的 token
+    if (!isAuthenticated()) {
+      return undefined;
+    }
+
     try {
-      // 先检查 localStorage 是否有有效的 token
-      if (!isAuthenticated()) {
+      // 调用真正的 API 获取用户信息
+      const userInfo = await getCurrentUser();
+
+      // 确保 userInfo 存在
+      if (!userInfo) {
         return undefined;
       }
-
-      // 调用真正的 API 获取用户信息
-      const userInfo = await getCurrentUser({
-        skipErrorHandler: true,
-      });
 
       // 转换为 Ant Design Pro 的 CurrentUser 格式
       return {
@@ -58,16 +61,11 @@ export async function getInitialState(): Promise<{
         email: userInfo.email,
         access: 'admin', // admin-server 用户都是管理员
       } as API.CurrentUser;
-    } catch (_error) {
-      // 如果获取失败，清除 token 并重定向到登录页
-      clearAuth();
-
-      const { pathname, search, hash } = history.location;
-      history.replace(
-        `${loginPath}?redirect=${encodeURIComponent(pathname + search + hash)}`,
-      );
+    } catch (error: any) {
+      // 401 错误已由 responseInterceptors 处理（自动刷新 token 或跳转登录）
+      // 这里只需要返回 undefined
+      return undefined;
     }
-    return undefined;
   };
 
   // 如果不是登录页面，执行
@@ -77,23 +75,14 @@ export async function getInitialState(): Promise<{
       location.pathname,
     )
   ) {
-    // 先检查 localStorage 是否有用户信息
-    const storedUserInfo = getUserInfo();
-    let currentUser: API.CurrentUser | undefined;
+    // 标记正在初始化
+    isInitializing = true;
 
-    if (storedUserInfo && isAuthenticated()) {
-      // 从 localStorage 恢复用户信息
-      currentUser = {
-        userid: storedUserInfo.id,
-        name: storedUserInfo.name,
-        avatar: storedUserInfo.avatar_url || '',
-        email: storedUserInfo.email,
-        access: 'admin',
-      } as API.CurrentUser;
-    } else {
-      // 否则调用 API
-      currentUser = await fetchUserInfo();
-    }
+    // 调用 API 验证 token 有效性（会触发 401 拦截器）
+    const currentUser = await fetchUserInfo();
+
+    // 初始化完成
+    isInitializing = false;
 
     return {
       fetchUserInfo,
@@ -148,6 +137,11 @@ export const layout: RunTimeLayoutConfig = ({
     // },
     footerRender: () => <Footer />,
     onPageChange: () => {
+      // 如果正在初始化，不检查登录状态（防止误跳转）
+      if (isInitializing) {
+        return;
+      }
+
       const { location } = history;
       // 如果没有登录，重定向到 login
       if (!initialState?.currentUser && location.pathname !== loginPath) {
@@ -230,6 +224,9 @@ export const request: RequestConfig = {
   baseURL: '',
   ...errorConfig,
 };
+
+// 标记是否正在初始化（防止 onPageChange 误跳转）
+let isInitializing = false;
 
 export function rootContainer(container: React.ReactNode) {
   return (

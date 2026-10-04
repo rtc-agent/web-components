@@ -20,15 +20,14 @@ function renderErrorFallback(
 
   // Use plain text fallback instead of getIntl() to avoid Context issues
   // when ErrorBoundary is rendered outside of Intl provider
-  const title = isChunkError
-    ? 'Failed to load page'
-    : 'Something went wrong';
+  const title = isChunkError ? 'Failed to load page' : 'Something went wrong';
 
-  const subTitle = isChunkError && isOffline
-    ? 'Your network connection has been lost. Please check your connection and reload.'
-    : isChunkError
-      ? 'Page resources failed to load. Please reload and try again.'
-      : 'Sorry, an error occurred on this page. Please reload or go back to the home page.';
+  const subTitle =
+    isChunkError && isOffline
+      ? 'Your network connection has been lost. Please check your connection and reload.'
+      : isChunkError
+        ? 'Page resources failed to load. Please reload and try again.'
+        : 'Sorry, an error occurred on this page. Please reload or go back to the home page.';
 
   return (
     <Card variant="borderless" style={{ margin: 24 }}>
