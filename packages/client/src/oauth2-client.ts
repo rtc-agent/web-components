@@ -259,12 +259,19 @@ export class OAuth2Client {
 
         return (await resp.json()) as TokenExchangeResponse;
       } catch (err) {
-        // Re-throw TokenExchangeError as-is
+        // Re-throw TokenExchangeError as-is (HTTP errors already handled above)
         if (err instanceof TokenExchangeError) {
           throw err;
         }
 
-        // Network errors or abort errors are not retryable
+        // Network errors (fetch failures, AbortError) are retryable — they indicate
+        // transient connectivity issues, not client errors.
+        if (attempt < maxRetries) {
+          // Retry after 1 second delay
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          continue;
+        }
+
         throw new TokenExchangeError(
           0,
           `Token exchange failed: ${err instanceof Error ? err.message : String(err)}`,

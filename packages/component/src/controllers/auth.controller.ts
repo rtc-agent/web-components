@@ -331,7 +331,20 @@ export class AuthController implements ReactiveController {
      *
      * @returns true if exchange succeeded, false otherwise
      */
-    private async _performTokenExchange(): Promise<boolean> {
+    private _performTokenExchange(): Promise<boolean> {
+        // Use the _refreshing guard to prevent concurrent token exchange calls
+        // from racing (same pattern as _executeRefreshWithGuard).
+        if (this._refreshing) {
+            return this._refreshing;
+        }
+
+        this._refreshing = this._doTokenExchange();
+        return this._refreshing.finally(() => {
+            this._refreshing = undefined;
+        });
+    }
+
+    private async _doTokenExchange(): Promise<boolean> {
         if (!this._authProvider?.getExchangeToken || !this._oauth2Client) {
             log.error('[TOKEN_EXCHANGE] Missing getExchangeToken or OAuth2Client');
             return false;

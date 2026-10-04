@@ -125,28 +125,23 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     const { refreshToken: token } = get();
     if (!token) {
       get().clearAuth();
-      return;
+      throw new Error('No refresh token available');
     }
 
-    try {
-      const response = await authApi.refreshToken(token);
-      const { access_token, refresh_token: newRefreshToken } = response;
+    const response = await authApi.refreshToken(token);
+    const { access_token, refresh_token: newRefreshToken } = response;
 
-      // Update localStorage
-      localStorage.setItem(STORAGE_KEYS.accessToken, access_token);
-      if (newRefreshToken) {
-        localStorage.setItem(STORAGE_KEYS.refreshToken, newRefreshToken);
-      }
-
-      set({
-        accessToken: access_token,
-        refreshToken: newRefreshToken ?? token,
-        isAuthenticated: true,
-      });
-    } catch {
-      // Refresh failed - user must re-login
-      get().clearAuth();
+    // Update localStorage
+    localStorage.setItem(STORAGE_KEYS.accessToken, access_token);
+    if (newRefreshToken) {
+      localStorage.setItem(STORAGE_KEYS.refreshToken, newRefreshToken);
     }
+
+    set({
+      accessToken: access_token,
+      refreshToken: newRefreshToken ?? token,
+      isAuthenticated: true,
+    });
   },
 
   initialize: async () => {
@@ -166,17 +161,12 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       // Decode the JWT payload (without verification) to read the exp claim.
       // If expired, attempt silent refresh before falling back to login page.
       if (isTokenExpired(accessToken)) {
-        try {
-          await get().refreshAccessToken();
-          // Refresh succeeded — state is now updated with new tokens.
-          return;
-        } catch {
-          // Refresh failed — clear and force re-login.
-          get().clearAuth();
-          return;
-        }
+        await get().refreshAccessToken();
+        // Refresh succeeded — state is now updated with new tokens.
+        return;
       }
 
+      // Token not expired locally — set state immediately so the UI can render.
       set({
         user,
         accessToken,
@@ -186,16 +176,18 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         error: null,
       });
 
-      // Verify the token is still valid by fetching user info
+      // Verify the token is still valid server-side by fetching user info.
+      // If the token was revoked server-side, attempt a silent refresh.
       try {
         const me = await authApi.getMe();
         set({ user: me });
         localStorage.setItem(STORAGE_KEYS.user, JSON.stringify(me));
       } catch {
-        // Token invalid - try to refresh
+        // Token invalid server-side — try to refresh.
         await get().refreshAccessToken();
       }
     } catch {
+      // Refresh or JSON parse failed — clear and force re-login.
       get().clearAuth();
     }
   },

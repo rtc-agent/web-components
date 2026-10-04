@@ -7,6 +7,7 @@
 
 import axios from 'axios';
 import type { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
+import { useAuthStore } from '@/stores/authStore';
 
 // ========== Response Types ==========
 
@@ -78,10 +79,8 @@ httpClient.interceptors.response.use(
   (response: AxiosResponse) => response,
   (error) => {
     if (axios.isAxiosError(error) && error.response?.status === 401) {
-      // Clear tokens on 401
-      localStorage.removeItem(STORAGE_KEYS.accessToken);
-      localStorage.removeItem(STORAGE_KEYS.refreshToken);
-      localStorage.removeItem(STORAGE_KEYS.user);
+      // Delegate token clearing to the auth store to avoid duplicated logic
+      useAuthStore.getState().clearAuth();
 
       // Redirect to login if not already there
       if (window.location.pathname !== '/login') {
