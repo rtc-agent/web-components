@@ -11,15 +11,15 @@ const mockHistory = {
   replace: mockReplace,
 };
 
-const mockQueryCurrentUser = vi.fn();
+const mockGetCurrentUser = vi.fn();
 
 vi.mock('@umijs/max', () => ({
   history: mockHistory,
   Link: ({ children }: any) => children,
 }));
 
-vi.mock('@/services/ant-design-pro/api', () => ({
-  currentUser: mockQueryCurrentUser,
+vi.mock('@/services/admin-auth', () => ({
+  getCurrentUser: mockGetCurrentUser,
 }));
 
 vi.mock('@/components', () => ({
@@ -60,18 +60,20 @@ describe('app getInitialState', () => {
 
   it('should fetch currentUser when not on login page', async () => {
     const { getInitialState } = await import('./app');
-    mockQueryCurrentUser.mockResolvedValue({
-      data: {
-        name: 'Test User',
-        access: 'admin',
-      },
+    mockGetCurrentUser.mockResolvedValue({
+      id: '1',
+      name: 'Test User',
+      email: 'test@example.com',
     });
 
     const state = await getInitialState();
 
-    expect(mockQueryCurrentUser).toHaveBeenCalled();
+    expect(mockGetCurrentUser).toHaveBeenCalled();
     expect(state.currentUser).toEqual({
+      userid: '1',
       name: 'Test User',
+      email: 'test@example.com',
+      avatar: '',
       access: 'admin',
     });
     expect(state.settingDrawerOpen).toBe(false);
@@ -80,7 +82,7 @@ describe('app getInitialState', () => {
 
   it('should redirect to login when currentUser fetch fails (401)', async () => {
     const { getInitialState } = await import('./app');
-    mockQueryCurrentUser.mockRejectedValue(new Error('401 Unauthorized'));
+    mockGetCurrentUser.mockRejectedValue(new Error('401 Unauthorized'));
 
     const state = await getInitialState();
 
@@ -100,7 +102,7 @@ describe('app getInitialState', () => {
 
     const state = await getInitialState();
 
-    expect(mockQueryCurrentUser).not.toHaveBeenCalled();
+    expect(mockGetCurrentUser).not.toHaveBeenCalled();
     expect(state.currentUser).toBeUndefined();
     expect(state.fetchUserInfo).toBeDefined();
   });
@@ -112,7 +114,7 @@ describe('app getInitialState', () => {
       search: '?page=2',
       hash: '#section',
     };
-    mockQueryCurrentUser.mockRejectedValue(new Error('401'));
+    mockGetCurrentUser.mockRejectedValue(new Error('401'));
 
     await getInitialState();
 
@@ -123,8 +125,10 @@ describe('app getInitialState', () => {
 
   it('should include default settings in initial state', async () => {
     const { getInitialState } = await import('./app');
-    mockQueryCurrentUser.mockResolvedValue({
-      data: { name: 'User' },
+    mockGetCurrentUser.mockResolvedValue({
+      id: '1',
+      name: 'User',
+      email: 'user@example.com',
     });
 
     const state = await getInitialState();
@@ -134,13 +138,21 @@ describe('app getInitialState', () => {
 
   it('fetchUserInfo should return user data on success', async () => {
     const { getInitialState } = await import('./app');
-    mockQueryCurrentUser.mockResolvedValue({
-      data: { name: 'Fetched User', access: 'user' },
+    mockGetCurrentUser.mockResolvedValue({
+      id: '1',
+      name: 'Fetched User',
+      email: 'fetched@example.com',
     });
 
     const state = await getInitialState();
 
     const user = await state.fetchUserInfo?.();
-    expect(user).toEqual({ name: 'Fetched User', access: 'user' });
+    expect(user).toEqual({
+      userid: '1',
+      name: 'Fetched User',
+      email: 'fetched@example.com',
+      avatar: '',
+      access: 'admin',
+    });
   });
 });
