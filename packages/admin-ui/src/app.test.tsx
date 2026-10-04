@@ -12,6 +12,8 @@ const mockHistory = {
 };
 
 const mockGetCurrentUser = vi.fn();
+const mockIsAuthenticated = vi.fn(() => true);
+const mockGetUserInfo = vi.fn(() => null);
 
 vi.mock('@umijs/max', () => ({
   history: mockHistory,
@@ -20,6 +22,11 @@ vi.mock('@umijs/max', () => ({
 
 vi.mock('@/services/admin-auth', () => ({
   getCurrentUser: mockGetCurrentUser,
+}));
+
+vi.mock('@/utils/auth-storage', () => ({
+  isAuthenticated: mockIsAuthenticated,
+  getUserInfo: mockGetUserInfo,
 }));
 
 vi.mock('@/components', () => ({
