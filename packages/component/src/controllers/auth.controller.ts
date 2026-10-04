@@ -346,7 +346,7 @@ export class AuthController implements ReactiveController {
 
     private async _doTokenExchange(): Promise<boolean> {
         if (!this._authProvider?.getExchangeToken || !this._oauth2Client) {
-            log.error('[TOKEN_EXCHANGE] Missing getExchangeToken or OAuth2Client');
+            log.error('token_exchange.missing_client');
             return false;
         }
 
@@ -356,14 +356,14 @@ export class AuthController implements ReactiveController {
             try {
                 externalJWT = await this._authProvider.getExchangeToken();
             } catch (err) {
-                log.error('[TOKEN_EXCHANGE] getExchangeToken() failed:', err);
+                log.error('token_exchange.get_token_failed:', err);
                 // getExchangeToken failed → logout
                 this._performLogout();
                 return false;
             }
 
             if (!externalJWT) {
-                log.error('[TOKEN_EXCHANGE] getExchangeToken() returned empty token');
+                log.error('token_exchange.empty_token');
                 this._performLogout();
                 return false;
             }
@@ -378,7 +378,7 @@ export class AuthController implements ReactiveController {
                     device_id: this._authProvider.deviceId,
                 });
             } catch (err) {
-                log.error('[TOKEN_EXCHANGE] tokenExchange() failed:', err);
+                log.error('token_exchange.exchange_failed:', err);
                 // tokenExchange failed → logout (retry already handled by OAuth2Client)
                 this._performLogout();
                 return false;
@@ -406,10 +406,10 @@ export class AuthController implements ReactiveController {
             this._scheduleRefresh(expiresAt);
             this.host.requestUpdate();
 
-            log.info('[TOKEN_EXCHANGE] Token exchange succeeded, expires at', new Date(expiresAt).toISOString());
+            log.info('token_exchange.succeeded, expires at', new Date(expiresAt).toISOString());
             return true;
         } catch (err) {
-            log.error('[TOKEN_EXCHANGE] Unexpected error during token exchange:', err);
+            log.error('token_exchange.unexpected_error:', err);
             this._performLogout();
             return false;
         }
@@ -429,7 +429,7 @@ export class AuthController implements ReactiveController {
             void this._authProvider.logout().then(() => {
                 this._performLogout();
             }).catch((error) => {
-                log.error('[AUTH_LIFECYCLE] _logout() Auth provider logout failed:', error);
+                log.error('auth_lifecycle.logout_failed:', error);
                 this._performLogout();
             });
             return;
@@ -509,7 +509,7 @@ export class AuthController implements ReactiveController {
                     }
                 }).catch(err => {
                     // Guard against unhandled rejection (e.g. localStorage quota exceeded).
-                    log.error('[AUTH_LIFECYCLE] _loadTokens() Refresh promise rejected:', err);
+                    log.error('auth_lifecycle.refresh_rejected:', err);
                     localStorage.removeItem(STORAGE_KEYS.tokens);
                 });
             } else {
@@ -526,7 +526,7 @@ export class AuthController implements ReactiveController {
                 this._fireLogin();
             }
         } catch (err) {
-            log.warn('[AUTH_LIFECYCLE] _loadTokens() Failed to load/parse tokens, clearing:', err);
+            log.warn('auth_lifecycle.load_failed, clearing:', err);
             localStorage.removeItem(STORAGE_KEYS.tokens);
         }
     }
@@ -538,13 +538,13 @@ export class AuthController implements ReactiveController {
         } catch (err) {
             // CRITICAL FIX: Handle QuotaExceededError (common on mobile browsers)
             // Attempt to clear residual data and retry once
-            log.error('[AUTH] Failed to save tokens to localStorage:', err);
+            log.error('auth.save_failed:', err);
             try {
                 localStorage.removeItem(STORAGE_KEYS.tokens);
                 localStorage.setItem(STORAGE_KEYS.tokens, JSON.stringify(tokens));
-                log.info('[AUTH] Token save succeeded after clearing residual data');
+                log.info('auth.save_succeeded_after_clear');
             } catch (retryErr) {
-                log.error('[AUTH] Token persistence failed after retry:', retryErr);
+                log.error('auth.save_failed_after_retry:', retryErr);
                 // Don't block login flow — token is already in memory
                 // User will need to re-login on next page load, but current session works
             }
@@ -691,7 +691,7 @@ export class AuthController implements ReactiveController {
                 this.host.requestUpdate();
                 return true;
             } catch (error) {
-                log.error('[AUTH_LIFECYCLE] _doRefresh() Auth provider refresh failed:', error);
+                log.error('auth_lifecycle.refresh_failed:', error);
                 return false;
             }
         }
