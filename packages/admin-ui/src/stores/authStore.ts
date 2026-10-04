@@ -49,6 +49,10 @@ interface AuthActions {
   /**
    * Refresh the access token using the stored refresh token.
    * Updates the access token in memory and optionally rotates the refresh token.
+   *
+   * Uses a shared Promise guard to prevent concurrent refresh calls from racing.
+   * Multiple simultaneous callers (e.g. axios interceptor + authProvider.getExchangeToken)
+   * will share the same in-flight refresh request.
    */
   refreshAccessToken(): Promise<void>;
 
@@ -74,6 +78,15 @@ interface AuthActions {
 }
 
 type AuthStore = AuthState & AuthActions;
+
+// ========== Shared Promise Guard ==========
+
+/**
+ * In-flight refresh guard.
+ * When a refresh is in progress, all concurrent callers await the same Promise.
+ * Cleared on both success and failure to allow subsequent retries.
+ */
+let refreshPromise: Promise<void> | null = null;
 
 // ========== Store ==========
 
@@ -130,26 +143,41 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   },
 
   refreshAccessToken: async () => {
-    const { refreshToken: token } = get();
-    if (!token) {
-      get().clearAuth();
-      throw new Error('No refresh token available');
+    // Shared Promise guard: if a refresh is already in-flight, await it.
+    if (refreshPromise) {
+      return refreshPromise;
     }
 
-    const response = await authApi.refreshToken(token);
-    const { access_token, refresh_token: newRefreshToken } = response;
+    const doRefresh = async (): Promise<void> => {
+      const { refreshToken: token } = get();
+      if (!token) {
+        get().clearAuth();
+        throw new Error('No refresh token available');
+      }
 
-    // Use the new refresh token if the server rotated it; otherwise keep the old one.
-    const effectiveRefreshToken = newRefreshToken ?? token;
+      const response = await authApi.refreshToken(token);
+      const { access_token, refresh_token: newRefreshToken } = response;
 
-    // Persist the (possibly rotated) refresh token.
-    localStorage.setItem(STORAGE_KEYS.refreshToken, effectiveRefreshToken);
+      // Use the new refresh token if the server rotated it; otherwise keep the old one.
+      const effectiveRefreshToken = newRefreshToken ?? token;
 
-    set({
-      accessToken: access_token,
-      refreshToken: effectiveRefreshToken,
-      isAuthenticated: true,
-    });
+      // Persist the (possibly rotated) refresh token.
+      localStorage.setItem(STORAGE_KEYS.refreshToken, effectiveRefreshToken);
+
+      set({
+        accessToken: access_token,
+        refreshToken: effectiveRefreshToken,
+        isAuthenticated: true,
+      });
+    };
+
+    refreshPromise = doRefresh();
+    try {
+      await refreshPromise;
+    } finally {
+      // Clear guard on both success and failure to allow subsequent retries.
+      refreshPromise = null;
+    }
   },
 
   initialize: async () => {
