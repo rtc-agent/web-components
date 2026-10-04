@@ -70,7 +70,7 @@ describe('app getInitialState', () => {
   });
 
   it('should fetch currentUser when not on login page', async () => {
-    const { getInitialState } = await import('./app');
+    const { getInitialState } = await import('./App');
     mockGetCurrentUser.mockResolvedValue({
       id: '1',
       name: 'Test User',
@@ -91,20 +91,19 @@ describe('app getInitialState', () => {
     expect(state.fetchUserInfo).toBeDefined();
   });
 
-  it('should redirect to login when currentUser fetch fails (401)', async () => {
-    const { getInitialState } = await import('./app');
+  it('should return undefined when currentUser fetch fails (401 handled by interceptor)', async () => {
+    const { getInitialState } = await import('./App');
     mockGetCurrentUser.mockRejectedValue(new Error('401 Unauthorized'));
 
     const state = await getInitialState();
 
-    expect(mockReplace).toHaveBeenCalledWith(
-      expect.stringContaining('/user/login?redirect='),
-    );
+    // 401 错误由响应拦截器处理，getInitialState 只返回 undefined
+    expect(mockReplace).not.toHaveBeenCalled();
     expect(state.currentUser).toBeUndefined();
   });
 
   it('should not fetch currentUser on login page', async () => {
-    const { getInitialState } = await import('./app');
+    const { getInitialState } = await import('./App');
     mockHistory.location = {
       pathname: '/user/login',
       search: '',
@@ -118,8 +117,8 @@ describe('app getInitialState', () => {
     expect(state.fetchUserInfo).toBeDefined();
   });
 
-  it('should encode redirect path correctly on 401', async () => {
-    const { getInitialState } = await import('./app');
+  it('should not redirect on 401 (handled by response interceptor)', async () => {
+    const { getInitialState } = await import('./App');
     mockHistory.location = {
       pathname: '/admin/users',
       search: '?page=2',
@@ -129,13 +128,12 @@ describe('app getInitialState', () => {
 
     await getInitialState();
 
-    expect(mockReplace).toHaveBeenCalledWith(
-      `/user/login?redirect=${encodeURIComponent('/admin/users?page=2#section')}`,
-    );
+    // 响应拦截器负责跳转，不在这里处理
+    expect(mockReplace).not.toHaveBeenCalled();
   });
 
   it('should include default settings in initial state', async () => {
-    const { getInitialState } = await import('./app');
+    const { getInitialState } = await import('./App');
     mockGetCurrentUser.mockResolvedValue({
       id: '1',
       name: 'User',
@@ -148,7 +146,7 @@ describe('app getInitialState', () => {
   });
 
   it('fetchUserInfo should return user data on success', async () => {
-    const { getInitialState } = await import('./app');
+    const { getInitialState } = await import('./App');
     mockGetCurrentUser.mockResolvedValue({
       id: '1',
       name: 'Fetched User',
