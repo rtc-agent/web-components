@@ -5,6 +5,8 @@ import type {
   OAuth2TokenExchangeResponse,
   OAuth2TokenRefreshResponse,
 } from '@rtc-agent/protocol';
+import type { TokenExchangeRequest, TokenExchangeResponse } from './types.js';
+import { TokenExchangeError } from './types.js';
 
 /**
  * OAuth2 Client configuration options.
@@ -181,6 +183,99 @@ export class OAuth2Client {
       body: JSON.stringify({ refresh_token: refreshToken }),
     });
     return (await resp.json()) as OAuth2TokenRefreshResponse;
+  }
+
+  /**
+   * Exchange an external JWT for an RTC JWT using OAuth2 Token Exchange (RFC 8693).
+   *
+   * Used in Token Exchange mode: the host application provides an external JWT
+   * (e.g. from its own identity provider), which is exchanged for an RTC JWT
+   * that can be used for WebSocket connection.
+   *
+   * Retry strategy: 1 retry with 1s delay on 502, 503, 504, 429 (network errors).
+   * 4xx errors are NOT retried (client error, not transient).
+   *
+   * @param params Token exchange request parameters
+   * @returns Token exchange response with RTC JWT
+   * @throws TokenExchangeError if the exchange fails
+   * @example
+   * ```ts
+   * const response = await oauth2Client.tokenExchange({
+   *   grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
+   *   subject_token: externalJWT,
+   *   subject_token_type: 'urn:ietf:params:oauth:token-type:jwt',
+   *   device_id: 'device-uuid',
+   * });
+   * ```
+   */
+  async tokenExchange(params: TokenExchangeRequest): Promise<TokenExchangeResponse> {
+    // Build form-encoded body (application/x-www-form-urlencoded per OAuth2 spec)
+    const body = new URLSearchParams();
+    body.append('grant_type', params.grant_type);
+    body.append('subject_token', params.subject_token);
+    body.append('subject_token_type', params.subject_token_type);
+    body.append('device_id', params.device_id);
+    if (params.device_name) {
+      body.append('device_name', params.device_name);
+    }
+    if (params.user_agent) {
+      body.append('user_agent', params.user_agent);
+    }
+
+    const url = `${this.serverURL}/oauth2/token-exchange`;
+    const maxRetries = 1;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+      try {
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: body.toString(),
+          signal: controller.signal,
+        });
+
+        if (!resp.ok) {
+          const statusCode = resp.status;
+
+          // Check if this is a retryable error (502, 503, 504, 429)
+          const isRetryable = statusCode === 502 || statusCode === 503 ||
+                              statusCode === 504 || statusCode === 429;
+
+          if (isRetryable && attempt < maxRetries) {
+            // Retry after 1 second delay
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            continue;
+          }
+
+          // Non-retryable error or final attempt - throw
+          throw new TokenExchangeError(
+            statusCode,
+            `Token exchange failed: ${statusCode} ${resp.statusText || 'Request failed'}`,
+          );
+        }
+
+        return (await resp.json()) as TokenExchangeResponse;
+      } catch (err) {
+        // Re-throw TokenExchangeError as-is
+        if (err instanceof TokenExchangeError) {
+          throw err;
+        }
+
+        // Network errors or abort errors are not retryable
+        throw new TokenExchangeError(
+          0,
+          `Token exchange failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }
+
+    // Should never reach here, but satisfy TypeScript
+    throw new TokenExchangeError(0, 'Token exchange failed: max retries exceeded');
   }
 
   /**

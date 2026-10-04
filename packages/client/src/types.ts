@@ -22,6 +22,64 @@ import type {
   CompactSessionResponse,
 } from '@rtc-agent/protocol';
 
+// ========== Token Exchange ==========
+
+/**
+ * Token Exchange request parameters.
+ *
+ * Implements RFC 8693 OAuth 2.0 Token Exchange with custom extensions.
+ * Used when the host application provides an external JWT that must be
+ * exchanged for an RTC JWT.
+ *
+ * @see {@link https://datatracker.ietf.org/doc/html/rfc8693|RFC 8693}
+ */
+export interface TokenExchangeRequest {
+  /** OAuth2 grant type, must be 'urn:ietf:params:oauth:grant-type:token-exchange' */
+  grant_type: string;
+  /** External JWT issued by the host application */
+  subject_token: string;
+  /** Token type URI, e.g. 'urn:ietf:params:oauth:token-type:jwt' */
+  subject_token_type: string;
+  /** Device ID for RTC filtering */
+  device_id: string;
+  /** Optional device name for display */
+  device_name?: string;
+  /** Optional user agent string */
+  user_agent?: string;
+}
+
+/**
+ * Token Exchange response from the RTC backend.
+ *
+ * Contains the RTC JWT that should be used for WebSocket connection.
+ */
+export interface TokenExchangeResponse {
+  /** RTC JWT access token */
+  access_token: string;
+  /** Token type URI, e.g. 'urn:ietf:params:oauth:token-type:access_token' */
+  issued_token_type: string;
+  /** Token type, typically 'Bearer' */
+  token_type: string;
+  /** Token lifetime in seconds */
+  expires_in: number;
+}
+
+/**
+ * Token Exchange error with HTTP status code.
+ *
+ * Thrown when the token exchange endpoint returns an error.
+ */
+export class TokenExchangeError extends Error {
+  /** HTTP status code from the backend */
+  readonly statusCode: number;
+
+  constructor(statusCode: number, message: string) {
+    super(message);
+    this.name = 'TokenExchangeError';
+    this.statusCode = statusCode;
+  }
+}
+
 // ========== Connection State ==========
 
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
