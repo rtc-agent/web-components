@@ -81,9 +81,10 @@ function copyWorkerFiles(targetDir) {
   const sourceDir = join(__dirname, '..', 'dist', 'assets');
 
   if (!existsSync(sourceDir)) {
-    console.error('❌ Error: Cannot find @rtc-agent/component dist files');
-    console.error('   Please ensure the package is built correctly');
-    process.exit(1);
+    console.warn('⚠️  Warning: Cannot find @rtc-agent/component dist files');
+    console.warn('   This is normal in monorepo environments before build.');
+    console.warn('   Run `pnpm build` in the component package first.');
+    return 0;
   }
 
   // Create target directory
