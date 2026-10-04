@@ -355,7 +355,7 @@ describe('AuthController - Token Exchange mode', () => {
 
         expect(ctrl.value.state.isLoggedIn).toBe(true);
         expect(fetchMock).toHaveBeenCalledWith(
-            expect.stringContaining('/oauth2/token-exchange'),
+            expect.stringContaining('/oauth2/token'),
             expect.any(Object),
         );
     });

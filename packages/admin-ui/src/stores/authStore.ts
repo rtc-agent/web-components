@@ -2,7 +2,13 @@
  * Authentication state management using Zustand
  *
  * Manages user authentication state, tokens, and provides login/logout/refresh methods.
- * Tokens are persisted in localStorage for session persistence across page reloads.
+ *
+ * Security model:
+ *   - access token: held in memory only (zustand store).  Never written to
+ *     localStorage so that XSS cannot exfiltrate it.
+ *   - refresh token + user profile: persisted in localStorage to survive page
+ *     reloads.  On startup we use the refresh token to silently obtain a fresh
+ *     access token.
  */
 
 import { create } from 'zustand';
@@ -14,9 +20,9 @@ import type { UserResponse } from '@/services/api';
 interface AuthState {
   /** Current authenticated user */
   user: UserResponse | null;
-  /** JWT access token for API calls */
+  /** JWT access token for API calls (memory-only, never persisted) */
   accessToken: string | null;
-  /** JWT refresh token for token renewal */
+  /** JWT refresh token for token renewal (persisted in localStorage) */
   refreshToken: string | null;
   /** Whether the user is currently authenticated */
   isAuthenticated: boolean;
@@ -29,7 +35,8 @@ interface AuthState {
 interface AuthActions {
   /**
    * Login with email and password.
-   * On success, stores tokens and user info in state and localStorage.
+   * On success, stores tokens and user info in state.
+   * Only the refresh token is persisted; the access token stays in memory.
    */
   login(email: string, password: string): Promise<void>;
 
@@ -41,12 +48,13 @@ interface AuthActions {
 
   /**
    * Refresh the access token using the stored refresh token.
-   * Updates both tokens in state and localStorage.
+   * Updates the access token in memory and optionally rotates the refresh token.
    */
   refreshAccessToken(): Promise<void>;
 
   /**
    * Initialize auth state from localStorage (called on app startup).
+   * Uses the persisted refresh token to silently obtain a new access token.
    */
   initialize(): Promise<void>;
 
@@ -85,8 +93,8 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       const response = await authApi.login(email, password);
       const { access_token, refresh_token, user } = response;
 
-      // Persist to localStorage
-      localStorage.setItem(STORAGE_KEYS.accessToken, access_token);
+      // Persist only the refresh token and user profile.
+      // The access token stays in memory to mitigate XSS theft.
       localStorage.setItem(STORAGE_KEYS.refreshToken, refresh_token);
       localStorage.setItem(STORAGE_KEYS.user, JSON.stringify(user));
 
@@ -134,8 +142,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     // Use the new refresh token if the server rotated it; otherwise keep the old one.
     const effectiveRefreshToken = newRefreshToken ?? token;
 
-    // Persist updated tokens to localStorage.
-    localStorage.setItem(STORAGE_KEYS.accessToken, access_token);
+    // Persist the (possibly rotated) refresh token.
     localStorage.setItem(STORAGE_KEYS.refreshToken, effectiveRefreshToken);
 
     set({
@@ -146,11 +153,10 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   },
 
   initialize: async () => {
-    const accessToken = localStorage.getItem(STORAGE_KEYS.accessToken);
     const refreshToken = localStorage.getItem(STORAGE_KEYS.refreshToken);
     const userJson = localStorage.getItem(STORAGE_KEYS.user);
 
-    if (!accessToken || !refreshToken || !userJson) {
+    if (!refreshToken || !userJson) {
       get().clearAuth();
       return;
     }
@@ -158,34 +164,18 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     try {
       const user: UserResponse = JSON.parse(userJson);
 
-      // Check if access token is expired before using it.
-      // Decode the JWT payload (without verification) to read the exp claim.
-      // If expired, attempt silent refresh before falling back to login page.
-      if (isTokenExpired(accessToken)) {
-        await get().refreshAccessToken();
-        // Refresh succeeded — state is now updated with new tokens.
-        return;
-      }
+      // Use the persisted refresh token to silently obtain a fresh access token.
+      // This way the access token never touches localStorage.
+      await get().refreshAccessToken();
 
-      // Token not expired locally — set state immediately so the UI can render.
-      set({
-        user,
-        accessToken,
-        refreshToken,
-        isAuthenticated: true,
-        isLoading: false,
-        error: null,
-      });
-
-      // Verify the token is still valid server-side by fetching user info.
-      // If the token was revoked server-side, attempt a silent refresh.
+      // Reconcile user profile with server (in case it changed).
       try {
         const me = await authApi.getMe();
-        set({ user: me });
         localStorage.setItem(STORAGE_KEYS.user, JSON.stringify(me));
+        set({ user: me });
       } catch {
-        // Token invalid server-side — try to refresh.
-        await get().refreshAccessToken();
+        // getMe failed but refresh succeeded — keep the cached user profile.
+        set({ user });
       }
     } catch {
       // Refresh or JSON parse failed — clear and force re-login.
@@ -194,7 +184,6 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   },
 
   clearAuth: () => {
-    localStorage.removeItem(STORAGE_KEYS.accessToken);
     localStorage.removeItem(STORAGE_KEYS.refreshToken);
     localStorage.removeItem(STORAGE_KEYS.user);
     set({
@@ -208,7 +197,6 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   },
 
   setAuth: (accessToken: string, refreshToken: string, user: UserResponse) => {
-    localStorage.setItem(STORAGE_KEYS.accessToken, accessToken);
     localStorage.setItem(STORAGE_KEYS.refreshToken, refreshToken);
     localStorage.setItem(STORAGE_KEYS.user, JSON.stringify(user));
     set({
@@ -222,25 +210,3 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   },
 }));
 
-// ========== Helpers ==========
-
-/**
- * Check whether a JWT has expired by decoding its payload without verification.
- * Returns true if the token is malformed or past its exp claim.
- *
- * A 30-second buffer is applied so we treat tokens that are about to expire
- * as already expired, avoiding race conditions with in-flight requests.
- */
-function isTokenExpired(token: string): boolean {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return true;
-    const payload = JSON.parse(atob(parts[1]));
-    if (typeof payload.exp !== 'number') return false;
-    const bufferMs = 30 * 1000; // 30-second safety margin
-    return payload.exp * 1000 - bufferMs < Date.now();
-  } catch {
-    // Malformed token — treat as expired so caller attempts refresh.
-    return true;
-  }
-}

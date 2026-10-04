@@ -13,10 +13,15 @@ import { useAuthStore } from '@/stores/authStore';
 
 /**
  * localStorage keys shared between api.ts and authStore.ts.
+ *
+ * SECURITY: The access token is deliberately excluded from persistent storage.
+ * It lives only in memory (zustand store) so that an XSS attack cannot steal it
+ * via localStorage.  Only the refresh token is persisted; it can be rotated /
+ * revoked server-side if compromised.
+ *
  * Centralized here to prevent drift between modules.
  */
 export const STORAGE_KEYS = {
-  accessToken: 'accessToken',
   refreshToken: 'refreshToken',
   user: 'user',
 } as const;
@@ -64,7 +69,8 @@ const httpClient: AxiosInstance = axios.create({
 
 httpClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem(STORAGE_KEYS.accessToken);
+    // Read access token from zustand store (memory-only, not persisted).
+    const token = useAuthStore.getState().accessToken;
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }

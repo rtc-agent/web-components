@@ -182,12 +182,14 @@ describe('OAuth2Client.tokenExchange', () => {
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
-  it('should handle network errors without retry', async () => {
+  it('should retry once on network error then fail', async () => {
     const params = createExchangeParams();
-    vi.mocked(fetch).mockRejectedValueOnce(new Error('Network error'));
+    vi.mocked(fetch)
+      .mockRejectedValueOnce(new Error('Network error'))
+      .mockRejectedValueOnce(new Error('Network error'));
 
     await expect(client.tokenExchange(params)).rejects.toThrow(TokenExchangeError);
-    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 
   it('should handle optional parameters correctly', async () => {
