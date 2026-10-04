@@ -96,6 +96,11 @@ while IFS= read -r file; do
     if [[ "$file" == "scripts/pre-commit" ]] || [[ "$file" == "scripts/pre-push" ]]; then
         continue
     fi
+    # Skip common non-executable files without extensions
+    if [[ "$basename" == "LICENSE" ]] || [[ "$basename" == "CNAME" ]] || \
+       [[ "$file" == *".husky/"* ]] || [[ "$file" == *".agents/"* ]]; then
+        continue
+    fi
     if [[ "$basename" != *.* ]] || [[ "$basename" == *.exe ]]; then
         echo -e "${RED}  ✗ Executable detected: $file${NC}"
         EXEC_FOUND=1
