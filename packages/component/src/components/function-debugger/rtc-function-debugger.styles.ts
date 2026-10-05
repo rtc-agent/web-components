@@ -18,7 +18,7 @@ export const styles = css`
         display: flex;
         flex-direction: column;
         height: 100%;
-        overflow: hidden;
+        overflow-y: auto;
         gap: var(--rtc-spacing-sm);
         padding: var(--rtc-spacing-sm);
         /* Reserve space for history drawer header at the bottom */
@@ -208,11 +208,13 @@ export const styles = css`
     /* ── History Drawer (bottom drawer, overlays content) ── */
 
     .history-section {
-        position: absolute;
+        position: sticky;
         bottom: 0;
         left: 0;
         right: 0;
         z-index: 10;
+        background: var(--rtc-color-bg-primary);
+        box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
     }
 
     /* ── Empty State ── */
