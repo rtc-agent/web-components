@@ -8,12 +8,15 @@
  * 此时 model 的 Provider 还未初始化。改为直接读取 localStorage。
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { refreshToken as apiRefreshToken } from '@/services/admin-auth';
 import {
   AUTH_STATE_CHANGED_EVENT,
+  getRefreshToken,
   getUserInfo,
   getUserPermissions,
   isAuthenticated,
+  setTokens,
 } from '@/utils/auth-storage';
 import { mountRtcAgent, unmountRtcAgent } from '@/utils/rtc-agent-manager';
 
@@ -52,8 +55,36 @@ export const GlobalRtcAgent: React.FC = () => {
     }
   }, []);
 
-  const checkAuth = useCallback(() => {
-    const authenticated = isAuthenticated();
+  // 防止并发 refresh 请求
+  const refreshPromiseRef = useRef<Promise<boolean> | null>(null);
+
+  const checkAuth = useCallback(async () => {
+    let authenticated = isAuthenticated();
+
+    // Token 过期但 refresh token 仍在？先尝试刷新，避免误判为未登录
+    if (!authenticated && getRefreshToken()) {
+      if (!refreshPromiseRef.current) {
+        refreshPromiseRef.current = (async () => {
+          try {
+            const rt = getRefreshToken();
+            if (!rt) return false;
+            const result = await apiRefreshToken({ refresh_token: rt });
+            setTokens(
+              result.access_token,
+              result.refresh_token,
+              result.expires_in || 3600,
+            );
+            return true;
+          } catch {
+            return false;
+          } finally {
+            refreshPromiseRef.current = null;
+          }
+        })();
+      }
+      authenticated = await refreshPromiseRef.current;
+    }
+
     setIsLoggedIn((prev) => {
       if (prev !== authenticated) {
         console.log('[GlobalRtcAgent] Auth state changed:', authenticated);

@@ -349,43 +349,83 @@ export class AuthController implements ReactiveController {
         });
     }
 
+    /**
+     * Perform token exchange with exponential backoff retry.
+     *
+     * In Token Exchange mode, the host application's external JWT might be temporarily
+     * invalid (e.g. still being refreshed). This retry mechanism gives the host app
+     * time to obtain a valid token before giving up.
+     *
+     * Retry schedule: 1s, 2s, 4s, 8s, 16s (max 5 retries, ~31s total wait)
+     */
+    private static readonly TOKEN_EXCHANGE_MAX_RETRIES = 5;
+    private static readonly TOKEN_EXCHANGE_INITIAL_DELAY_MS = 1000;
+
     private async _doTokenExchange(): Promise<boolean> {
         if (!this._authProvider?.getExchangeToken || !this._oauth2Client) {
             log.error('token_exchange.missing_client');
             return false;
         }
 
+        const maxRetries = AuthController.TOKEN_EXCHANGE_MAX_RETRIES;
+        const initialDelay = AuthController.TOKEN_EXCHANGE_INITIAL_DELAY_MS;
+
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            if (attempt > 0) {
+                const delay = initialDelay * Math.pow(2, attempt - 1);
+                log.info(`token_exchange.retry: attempt ${attempt}/${maxRetries}, waiting ${delay}ms`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+
+            const success = await this._tryTokenExchangeOnce();
+            if (success) {
+                return true;
+            }
+
+            // Check if auth provider was changed during the attempt (e.g. logout/destroy)
+            if (!this._authProvider) {
+                return false;
+            }
+        }
+
+        // All retries exhausted
+        log.error(`token_exchange.all_retries_failed: gave up after ${maxRetries} retries`);
+        this._performLogout();
+        return false;
+    }
+
+    /**
+     * Single token exchange attempt (no retry).
+     *
+     * @returns true if exchange succeeded, false otherwise
+     */
+    private async _tryTokenExchangeOnce(): Promise<boolean> {
         try {
             // Step 1: Get external JWT from host application
             let externalJWT: string;
             try {
-                externalJWT = await this._authProvider.getExchangeToken();
+                externalJWT = await this._authProvider!.getExchangeToken!();
             } catch (err) {
-                log.error('token_exchange.get_token_failed:', err);
-                // getExchangeToken failed → logout
-                this._performLogout();
+                log.debug('token_exchange.get_token_failed (will retry):', err);
                 return false;
             }
 
             if (!externalJWT) {
-                log.error('token_exchange.empty_token');
-                this._performLogout();
+                log.debug('token_exchange.empty_token (will retry)');
                 return false;
             }
 
             // Step 2: Exchange external JWT for RTC JWT
             let response: TokenExchangeResponse;
             try {
-                response = await this._oauth2Client.tokenExchange({
+                response = await this._oauth2Client!.tokenExchange({
                     grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
                     subject_token: externalJWT,
                     subject_token_type: 'urn:ietf:params:oauth:token-type:jwt',
-                    device_id: this._authProvider.deviceId,
+                    device_id: this._authProvider!.deviceId,
                 });
             } catch (err) {
-                log.error('token_exchange.exchange_failed:', err);
-                // tokenExchange failed → logout (retry already handled by OAuth2Client)
-                this._performLogout();
+                log.debug('token_exchange.exchange_failed (will retry):', err);
                 return false;
             }
 
@@ -435,8 +475,8 @@ export class AuthController implements ReactiveController {
             log.info('token_exchange.succeeded, userId:', rtcUserId, 'expires at', new Date(expiresAt).toISOString());
             return true;
         } catch (err) {
-            log.error('token_exchange.unexpected_error:', err);
-            this._performLogout();
+            // Unexpected error in single attempt - let retry loop handle it
+            log.debug('token_exchange.unexpected_error (will retry):', err);
             return false;
         }
     }

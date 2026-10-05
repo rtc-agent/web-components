@@ -291,8 +291,10 @@ export const errorConfig: RequestConfig = {
               };
               config._retry = true;
 
-              // 重试请求
-              request(config.url, config)
+              // ⚠️ 重要：必须使用 getResponse: true 获取完整 response 对象
+              // 原因：响应拦截器需要返回 response 对象（含 .data 属性），umi-request 会从中提取 response.data
+              // 如果不传 getResponse: true，request() 默认返回解包后的 data，导致 umi-request 提取不到 .data 而返回 undefined
+              request(config.url, { ...config, getResponse: true })
                 .then((retryResponse) => {
                   resolve(retryResponse);
                 })
