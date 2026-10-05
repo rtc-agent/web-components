@@ -2,35 +2,38 @@
 import type { RequestConfig } from '@umijs/max';
 import { getIntl, history, request } from '@umijs/max';
 import { message, notification } from 'antd';
-import { refreshToken as refreshAccessToken } from '@/services/admin-auth';
-import { clearAuth, getRefreshToken, setTokens } from '@/utils/auth-storage';
+import {
+  getCurrentUser,
+  refreshToken as refreshAccessToken,
+} from '@/services/admin-auth';
+import {
+  clearAuth,
+  getAccessToken,
+  getRefreshToken,
+  setTokens,
+} from '@/utils/auth-storage';
+import { buildPermissionSet, computeAccessLevel } from '@/utils/permission';
 
 const loginPath = '/user/login';
 
-// 标记是否正在刷新 token，避免并发刷新
-let isRefreshing = false;
-// 等待刷新的请求队列
-let refreshSubscribers: Array<(token: string) => void> = [];
+// Token 刷新相关状态
+let refreshPromise: Promise<string | null> | null = null;
+
+// 全局的 setInitialState 函数引用，用于在 token 刷新后更新权限
+// 在 app.tsx 的 layout 中设置
+type SetInitialStateFn = (fn: (prev: any) => any) => Promise<void>;
+let globalSetInitialState: SetInitialStateFn | null = null;
 
 /**
- * 将等待的请求加入队列
+ * 设置全局的 setInitialState 函数
+ * 在 app.tsx 的 layout 中调用
  */
-function subscribeTokenRefresh(cb: (token: string) => void) {
-  refreshSubscribers.push(cb);
+export function setGlobalSetInitialState(fn: SetInitialStateFn | null) {
+  globalSetInitialState = fn;
 }
 
 /**
- * 通知所有等待的请求，token 已刷新
- */
-function onTokenRefreshed(newToken: string) {
-  refreshSubscribers.forEach((cb) => {
-    cb(newToken);
-  });
-  refreshSubscribers = [];
-}
-
-/**
- * 刷新 access token
+ * 刷新 access token 并同步权限数据
  */
 async function refreshTokenRequest(): Promise<string | null> {
   const refreshTokenValue = getRefreshToken();
@@ -51,6 +54,47 @@ async function refreshTokenRequest(): Promise<string | null> {
       result.refresh_token,
       result.expires_in || 3600,
     );
+
+    // 同时刷新权限数据
+    try {
+      const userInfo = await getCurrentUser();
+      if (userInfo && globalSetInitialState) {
+        // 构建权限集合和访问级别
+        const permissionSet = buildPermissionSet(userInfo.permissions);
+        const access = computeAccessLevel(userInfo.roles);
+
+        // 直接使用 setInitialState 更新权限数据
+        // 等待状态更新完成，确保权限数据同步
+        await globalSetInitialState((prev: any) => ({
+          ...prev,
+          currentUser: {
+            ...prev?.currentUser,
+            userid: userInfo.id,
+            name: userInfo.name,
+            email: userInfo.email,
+            avatar: userInfo.avatar_url,
+            roles: userInfo.roles,
+            access,
+            permissions: permissionSet,
+          },
+        }));
+      } else if (userInfo && !globalSetInitialState) {
+        // 注意：如果 globalSetInitialState 为 null，说明 layout 还未 mount
+        // 此时权限数据无法更新，用户可能需要刷新页面才能看到最新权限
+        if (process.env.NODE_ENV === 'development') {
+          console.warn(
+            '[refreshTokenRequest] globalSetInitialState is null, permission data not updated. User may need to refresh the page.',
+          );
+        }
+      }
+    } catch (error) {
+      console.error('[refreshTokenRequest] 刷新权限数据失败:', error);
+      // 权限数据刷新失败时，通知用户可能需要刷新页面
+      // 但不阻断 token 刷新流程
+      message.warning(
+        '权限数据同步失败，部分功能可能受限。建议刷新页面获取最新权限。',
+      );
+    }
 
     return result.access_token;
   } catch (error) {
@@ -73,7 +117,7 @@ enum ErrorShowType {
 interface ResponseStructure {
   success: boolean;
   data: unknown;
-  errorCode?: number;
+  errorCode?: string;
   errorMessage?: string;
   showType?: ErrorShowType;
 }
@@ -159,103 +203,11 @@ export const errorConfig: RequestConfig = {
     },
   },
 
-  // 中间件 - 处理 401 错误和 token 刷新
-  middlewares: [
-    async function (ctx, next) {
-      // 执行下一个中间件/实际请求
-      await next();
-
-      // 检查响应状态
-      const { res, req } = ctx;
-      const { url, options } = req;
-
-      // 如果响应是 401，尝试刷新 token 并重试
-      if (res?.status === 401) {
-        // 如果已经重试过，不再重试
-        if (options?._retry) {
-          throw res;
-        }
-
-        // 检查是否有 refresh token
-        const refreshTokenValue = getRefreshToken();
-        if (!refreshTokenValue) {
-          clearAuth();
-          const { pathname, search, hash } = history.location;
-          history.replace(
-            `${loginPath}?redirect=${encodeURIComponent(pathname + search + hash)}`,
-          );
-          throw res;
-        }
-
-        // 如果当前没有在刷新 token，开始刷新
-        if (!isRefreshing) {
-          isRefreshing = true;
-
-          try {
-            const newToken = await refreshTokenRequest();
-
-            if (!newToken) {
-              // 刷新失败，跳转登录
-              isRefreshing = false;
-              refreshSubscribers = [];
-              clearAuth();
-              const { pathname, search, hash } = history.location;
-              history.replace(
-                `${loginPath}?redirect=${encodeURIComponent(pathname + search + hash)}`,
-              );
-              throw res;
-            }
-
-            // 刷新成功，通知所有等待的请求
-            isRefreshing = false;
-            onTokenRefreshed(newToken);
-
-            // 使用新 token 重试原请求
-            options.headers = {
-              ...options.headers,
-              Authorization: `Bearer ${newToken}`,
-            };
-            options._retry = true;
-
-            // 重新发起请求
-            const retryResponse = await request(url, options);
-            // 将重试结果赋值给 ctx.res
-            ctx.res = retryResponse;
-            return;
-          } catch (refreshError) {
-            isRefreshing = false;
-            refreshSubscribers = [];
-            throw refreshError;
-          }
-        }
-
-        // 如果已经在刷新 token，等待刷新完成后重试
-        return new Promise((resolve, reject) => {
-          subscribeTokenRefresh(async (newToken: string) => {
-            options.headers = {
-              ...options.headers,
-              Authorization: `Bearer ${newToken}`,
-            };
-            options._retry = true;
-
-            try {
-              const retryResponse = await request(url, options);
-              ctx.res = retryResponse;
-              resolve(retryResponse);
-            } catch (error) {
-              reject(error);
-            }
-          });
-        });
-      }
-    },
-  ],
-
   // 请求拦截器
   requestInterceptors: [
     (config: RequestOptions) => {
       // 从 localStorage 获取 JWT token
-      const accessToken = localStorage.getItem('admin_access_token');
+      const accessToken = getAccessToken();
       if (accessToken) {
         config.headers = {
           ...config.headers,
@@ -301,64 +253,54 @@ export const errorConfig: RequestConfig = {
           return Promise.reject(response);
         }
 
-        // 如果当前没有在刷新 token，开始刷新
-        if (!isRefreshing) {
-          isRefreshing = true;
-
-          try {
-            const newToken = await refreshTokenRequest();
-
-            if (!newToken) {
-              // 刷新失败，跳转登录
-              isRefreshing = false;
-              refreshSubscribers = [];
-              clearAuth();
-              const { pathname, search, hash } = history.location;
-              history.replace(
-                `${loginPath}?redirect=${encodeURIComponent(pathname + search + hash)}`,
-              );
-              return Promise.reject(response);
-            }
-
-            // 刷新成功，通知所有等待的请求
-            isRefreshing = false;
-            onTokenRefreshed(newToken);
-
-            // 重试原请求
-            const config = response.config;
-            config.headers = {
-              ...config.headers,
-              Authorization: `Bearer ${newToken}`,
-            };
-            config._retry = true;
-
-            // 重试请求，返回的是完整的响应对象
-            const retryResponse = await request(config.url, config);
-            return retryResponse;
-          } catch (refreshError) {
-            isRefreshing = false;
-            refreshSubscribers = [];
-            return Promise.reject(refreshError);
-          }
+        // 如果当前没有刷新 Promise，创建一个
+        // 这样可以确保多个并发请求只会触发一次刷新
+        if (!refreshPromise) {
+          refreshPromise = refreshTokenRequest().finally(() => {
+            // 刷新完成后，清除 Promise，允许下次刷新
+            refreshPromise = null;
+          });
         }
 
-        // 如果已经在刷新 token，将请求加入队列等待
+        // 等待刷新完成
         return new Promise((resolve, reject) => {
-          subscribeTokenRefresh(async (newToken: string) => {
-            const config = response.config;
-            config.headers = {
-              ...config.headers,
-              Authorization: `Bearer ${newToken}`,
-            };
-            config._retry = true;
+          const promise = refreshPromise;
+          if (!promise) {
+            // 理论上不会发生，因为上面已经检查并创建了
+            reject(new Error('Refresh promise is null'));
+            return;
+          }
+          promise
+            .then((newToken) => {
+              if (!newToken) {
+                // 刷新失败，跳转登录
+                clearAuth();
+                const { pathname, search, hash } = history.location;
+                history.replace(
+                  `${loginPath}?redirect=${encodeURIComponent(pathname + search + hash)}`,
+                );
+                reject(response);
+                return;
+              }
 
-            try {
-              const retryResponse = await request(config.url, config);
-              resolve(retryResponse);
-            } catch (error) {
-              reject(error);
-            }
-          });
+              // 重试原请求
+              const config = response.config;
+              config.headers = {
+                ...config.headers,
+                Authorization: `Bearer ${newToken}`,
+              };
+              config._retry = true;
+
+              // 重试请求
+              request(config.url, config)
+                .then((retryResponse) => {
+                  resolve(retryResponse);
+                })
+                .catch((error) => reject(error));
+            })
+            .catch((refreshError) => {
+              reject(refreshError);
+            });
         });
       }
 

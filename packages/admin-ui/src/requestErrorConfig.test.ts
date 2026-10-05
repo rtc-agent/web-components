@@ -33,7 +33,7 @@ describe('requestErrorConfig', () => {
       const response = {
         success: false,
         data: null,
-        errorCode: 400,
+        errorCode: 'bad_request',
         errorMessage: 'Bad Request',
         showType: 2,
       };
@@ -151,7 +151,7 @@ describe('requestErrorConfig', () => {
       const error: any = new Error('Redirect');
       error.name = 'BizError';
       error.info = {
-        errorCode: 401,
+        errorCode: 'unauthorized',
         errorMessage: 'Unauthorized',
         showType: 9,
       };

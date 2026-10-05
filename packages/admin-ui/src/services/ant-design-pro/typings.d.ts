@@ -21,6 +21,9 @@ declare namespace API {
     };
     address?: string;
     phone?: string;
+    // 权限系统扩展字段
+    roles?: import('@/services/admin-auth').RoleInfo[];
+    permissions?: Set<string>;
   };
 
   type LoginResult = {

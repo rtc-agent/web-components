@@ -70,7 +70,7 @@ describe('app getInitialState', () => {
   });
 
   it('should fetch currentUser when not on login page', async () => {
-    const { getInitialState } = await import('./App');
+    const { getInitialState } = await import('./app');
     mockGetCurrentUser.mockResolvedValue({
       id: '1',
       name: 'Test User',
@@ -80,19 +80,22 @@ describe('app getInitialState', () => {
     const state = await getInitialState();
 
     expect(mockGetCurrentUser).toHaveBeenCalled();
-    expect(state.currentUser).toEqual({
+    expect(state.currentUser).toMatchObject({
       userid: '1',
       name: 'Test User',
       email: 'test@example.com',
       avatar: '',
-      access: 'admin',
+      access: 'admin', // 向后兼容：旧后端不返回 roles，默认 admin
     });
+    expect(state.currentUser?.permissions).toBeInstanceOf(Set);
+    expect(state.currentUser?.permissions?.size).toBe(0);
+    expect(state.currentUser?.roles).toBeUndefined();
     expect(state.settingDrawerOpen).toBe(false);
     expect(state.fetchUserInfo).toBeDefined();
   });
 
   it('should return undefined when currentUser fetch fails (401 handled by interceptor)', async () => {
-    const { getInitialState } = await import('./App');
+    const { getInitialState } = await import('./app');
     mockGetCurrentUser.mockRejectedValue(new Error('401 Unauthorized'));
 
     const state = await getInitialState();
@@ -103,7 +106,7 @@ describe('app getInitialState', () => {
   });
 
   it('should not fetch currentUser on login page', async () => {
-    const { getInitialState } = await import('./App');
+    const { getInitialState } = await import('./app');
     mockHistory.location = {
       pathname: '/user/login',
       search: '',
@@ -118,7 +121,7 @@ describe('app getInitialState', () => {
   });
 
   it('should not redirect on 401 (handled by response interceptor)', async () => {
-    const { getInitialState } = await import('./App');
+    const { getInitialState } = await import('./app');
     mockHistory.location = {
       pathname: '/admin/users',
       search: '?page=2',
@@ -133,7 +136,7 @@ describe('app getInitialState', () => {
   });
 
   it('should include default settings in initial state', async () => {
-    const { getInitialState } = await import('./App');
+    const { getInitialState } = await import('./app');
     mockGetCurrentUser.mockResolvedValue({
       id: '1',
       name: 'User',
@@ -146,7 +149,7 @@ describe('app getInitialState', () => {
   });
 
   it('fetchUserInfo should return user data on success', async () => {
-    const { getInitialState } = await import('./App');
+    const { getInitialState } = await import('./app');
     mockGetCurrentUser.mockResolvedValue({
       id: '1',
       name: 'Fetched User',
@@ -156,12 +159,14 @@ describe('app getInitialState', () => {
     const state = await getInitialState();
 
     const user = await state.fetchUserInfo?.();
-    expect(user).toEqual({
+    expect(user).toMatchObject({
       userid: '1',
       name: 'Fetched User',
       email: 'fetched@example.com',
       avatar: '',
       access: 'admin',
     });
+    expect(user?.permissions).toBeInstanceOf(Set);
+    expect(user?.permissions?.size).toBe(0);
   });
 });

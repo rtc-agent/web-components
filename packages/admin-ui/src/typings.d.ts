@@ -18,3 +18,61 @@ declare module 'mockjs';
 declare const __APP_VERSION__: string;
 declare const __UMI_VERSION__: string;
 declare const __UTOO_VERSION__: string;
+
+// RBAC 权限系统类型定义
+declare namespace API {
+  /** 角色信息 */
+  interface Role {
+    id: string;
+    name: string;
+    display_name: string;
+    description?: string;
+    is_system?: boolean;
+    is_enabled?: boolean;
+    created_at?: string;
+    updated_at?: string;
+  }
+
+  /** 权限信息 */
+  interface Permission {
+    resource: string;
+    action: string;
+  }
+
+  /** 当前用户信息（登录后返回） */
+  interface CurrentUser {
+    userid?: string;
+    name?: string;
+    email?: string;
+    avatar?: string;
+    access?: 'admin' | 'user';
+    roles?: Role[];
+    permissions?: Set<string>;
+  }
+
+  /** 用户-角色关联 */
+  interface UserRole {
+    user_id: string;
+    role_id: string;
+    assigned_at: string;
+  }
+
+  /** 审计日志 */
+  interface AuditLog {
+    id: string;
+    operator_id: string;
+    operator_name?: string;
+    operator_ip?: string;
+    event_type: string;
+    resource_type: string;
+    resource_id?: string;
+    details?: Record<string, any>;
+    created_at: string;
+  }
+
+  /** 分页响应 */
+  interface PaginatedResponse<T> {
+    items: T[];
+    total: number;
+  }
+}

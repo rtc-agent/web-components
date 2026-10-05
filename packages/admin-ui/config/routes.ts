@@ -53,7 +53,8 @@ export default [
     path: '/admin',
     name: 'admin',
     icon: 'crown',
-    access: 'canAdmin',
+    // 注意：这是 Ant Design Pro 模板遗留的示例页面，不受 RBAC 权限控制
+    // 如需权限控制，请修改为具体的权限点（如 canAdmin 或自定义权限）
     routes: [
       {
         path: '/admin',
@@ -63,6 +64,46 @@ export default [
         path: '/admin/sub-page',
         name: 'sub-page',
         component: './Admin',
+      },
+    ],
+  },
+  {
+    path: '/system',
+    name: 'system',
+    icon: 'setting',
+    access: 'canSystemView',
+    routes: [
+      {
+        path: '/system',
+        component: './system/index',
+      },
+      {
+        path: '/system/users',
+        name: 'users',
+        icon: 'user',
+        component: './user/management',
+        access: 'canUserView',
+      },
+      {
+        path: '/system/roles',
+        name: 'roles',
+        icon: 'team',
+        component: './system/roles',
+        access: 'canRoleView',
+      },
+      {
+        path: '/system/permissions',
+        name: 'permissions',
+        icon: 'safety',
+        component: './system/permissions',
+        access: 'canPermissionView',
+      },
+      {
+        path: '/system/audit-logs',
+        name: 'audit-logs',
+        icon: 'fileText',
+        component: './system/audit-logs',
+        access: 'canAuditLogView',
       },
     ],
   },

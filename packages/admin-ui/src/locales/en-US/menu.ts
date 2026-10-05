@@ -52,4 +52,9 @@ export default {
   'menu.chatbot': 'AI Assistant',
   'menu.rtc-agent-diagnose': 'RTC Agent Diagnose',
   'menu.rtc-agent-test': 'RTC Agent Test',
+  'menu.system': 'System',
+  'menu.system.users': 'User Management',
+  'menu.system.roles': 'Role Management',
+  'menu.system.permissions': 'Permission Management',
+  'menu.system.audit-logs': 'Audit Logs',
 };

@@ -22,8 +22,9 @@ import {
 } from '@/components';
 import { getCurrentUser } from '@/services/admin-auth';
 import { isAuthenticated } from '@/utils/auth-storage';
+import { buildPermissionSet, computeAccessLevel } from '@/utils/permission';
 import defaultSettings from '../config/defaultSettings';
-import { errorConfig } from './requestErrorConfig';
+import { errorConfig, setGlobalSetInitialState } from './requestErrorConfig';
 
 const isDev = process.env.NODE_ENV === 'development';
 const loginPath = '/user/login';
@@ -53,15 +54,21 @@ export async function getInitialState(): Promise<{
         return undefined;
       }
 
+      // 构建权限集合和访问级别
+      const permissionSet = buildPermissionSet(userInfo.permissions);
+      const access = computeAccessLevel(userInfo.roles);
+
       // 转换为 Ant Design Pro 的 CurrentUser 格式
       return {
         userid: userInfo.id,
         name: userInfo.name,
         avatar: userInfo.avatar_url || '',
         email: userInfo.email,
-        access: 'admin', // admin-server 用户都是管理员
+        access,
+        roles: userInfo.roles,
+        permissions: permissionSet,
       } as API.CurrentUser;
-    } catch (error: any) {
+    } catch (_error: any) {
       // 401 错误已由 responseInterceptors 处理（自动刷新 token 或跳转登录）
       // 这里只需要返回 undefined
       return undefined;
@@ -78,18 +85,20 @@ export async function getInitialState(): Promise<{
     // 标记正在初始化
     isInitializing = true;
 
-    // 调用 API 验证 token 有效性（会触发 401 拦截器）
-    const currentUser = await fetchUserInfo();
+    try {
+      // 调用 API 验证 token 有效性（会触发 401 拦截器）
+      const currentUser = await fetchUserInfo();
 
-    // 初始化完成
-    isInitializing = false;
-
-    return {
-      fetchUserInfo,
-      currentUser,
-      settings: defaultSettings as Partial<LayoutSettings>,
-      settingDrawerOpen: false,
-    };
+      return {
+        fetchUserInfo,
+        currentUser,
+        settings: defaultSettings as Partial<LayoutSettings>,
+        settingDrawerOpen: false,
+      };
+    } finally {
+      // 初始化完成（无论成功或失败）
+      isInitializing = false;
+    }
   }
   return {
     fetchUserInfo,
@@ -103,6 +112,14 @@ export const layout: RunTimeLayoutConfig = ({
   initialState,
   setInitialState,
 }) => {
+  // 设置全局的 setInitialState 函数，用于 token 刷新后更新权限
+  React.useEffect(() => {
+    setGlobalSetInitialState(setInitialState);
+    return () => {
+      setGlobalSetInitialState(null);
+    };
+  }, [setInitialState]);
+
   return {
     menuItemRender: (item, dom) => {
       if (item.path) {

@@ -28,12 +28,32 @@ export interface RefreshTokenResult {
   token_type: string;
 }
 
+/** 角色信息 */
+export interface RoleInfo {
+  id: string;
+  name: string;
+  display_name: string;
+  description?: string;
+  is_system?: boolean;
+  is_enabled?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/** 权限信息 */
+export interface PermissionInfo {
+  resource: string;
+  action: string;
+}
+
 /** 用户信息 */
 export interface UserInfo {
   id: string;
   email: string;
   name: string;
   avatar_url?: string;
+  roles?: RoleInfo[];
+  permissions?: PermissionInfo[];
 }
 
 /**
