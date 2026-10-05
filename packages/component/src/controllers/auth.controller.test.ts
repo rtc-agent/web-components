@@ -408,11 +408,13 @@ describe('AuthController - Token Exchange mode', () => {
         });
 
         ctrl.setAuthProvider(provider);
-        await new Promise(resolve => setTimeout(resolve, 10));
+        // Wait for all retries to complete (5 retries × exponential backoff + buffer)
+        // Retry schedule: 1s, 2s, 4s, 8s, 16s = 31s total, plus initial attempts
+        await new Promise(resolve => setTimeout(resolve, 35000));
 
         // State should be cleared (not logged in)
         expect(ctrl.value.state.isLoggedIn).toBe(false);
-    });
+    }, 40000);
 
     it('should call logout when tokenExchange fails', async () => {
         const host = new MockHost();
@@ -426,11 +428,13 @@ describe('AuthController - Token Exchange mode', () => {
         });
 
         ctrl.setAuthProvider(provider);
-        await new Promise(resolve => setTimeout(resolve, 10));
+        // Wait for all retries to complete (5 retries × exponential backoff + buffer)
+        // Retry schedule: 1s, 2s, 4s, 8s, 16s = 31s total, plus initial attempts
+        await new Promise(resolve => setTimeout(resolve, 35000));
 
         // State should be cleared (not logged in)
         expect(ctrl.value.state.isLoggedIn).toBe(false);
-    });
+    }, 40000);
 
     it('should use form-encoded request body for token exchange', async () => {
         const host = new MockHost();
