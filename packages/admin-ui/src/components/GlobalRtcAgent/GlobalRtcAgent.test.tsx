@@ -17,6 +17,8 @@ vi.mock('@/utils/auth-storage', () => ({
   isAuthenticated: vi.fn(),
   getUserPermissions: vi.fn(() => [{ resource: 'test', action: 'test' }]),
   getUserInfo: vi.fn(() => ({ id: 'test-user-id', name: 'Test User' })),
+  getRefreshToken: vi.fn(() => null),
+  setTokens: vi.fn(),
   AUTH_STATE_CHANGED_EVENT: 'auth-state-changed',
 }));
 
