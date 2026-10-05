@@ -329,12 +329,20 @@ describe('AuthController - Token Exchange mode', () => {
         ...overrides,
     });
 
-    const createTokenExchangeResponse = () => ({
+    // Helper to create a mock JWT with user_id claim
+    const createMockJwt = (userId: string) => {
+        const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+        const payload = btoa(JSON.stringify({ user_id: userId, exp: Math.floor(Date.now() / 1000) + 3600 }));
+        const signature = 'mock-signature';
+        return `${header}.${payload}.${signature}`;
+    };
+
+    const createTokenExchangeResponse = (accessToken?: string) => ({
         ok: true,
         status: 200,
         statusText: 'OK',
         json: () => Promise.resolve({
-            access_token: 'rtc-jwt-token',
+            access_token: accessToken ?? createMockJwt('test-user-id'),
             issued_token_type: 'urn:ietf:params:oauth:token-type:access_token',
             token_type: 'Bearer',
             expires_in: 3600,
@@ -371,7 +379,7 @@ describe('AuthController - Token Exchange mode', () => {
         await new Promise(resolve => setTimeout(resolve, 10));
 
         expect(provider.getExchangeToken).toHaveBeenCalledOnce();
-        expect(ctrl.value.state.accessToken).toBe('rtc-jwt-token');
+        expect(ctrl.value.state.accessToken).toMatch(/^eyJ/); // JWT format
         expect(ctrl.value.state.userId).toBe('test-user-id');
     });
 
@@ -388,7 +396,7 @@ describe('AuthController - Token Exchange mode', () => {
         const stored = localStorage.getItem('rtc_auth_tokens');
         expect(stored).not.toBeNull();
         const parsed = JSON.parse(stored!);
-        expect(parsed.accessToken).toBe('rtc-jwt-token');
+        expect(parsed.accessToken).toMatch(/^eyJ/); // JWT format
     });
 
     it('should call logout when getExchangeToken fails', async () => {
@@ -468,23 +476,14 @@ describe('AuthController - Token Exchange mode', () => {
 
         // Reset mock and prepare for refresh
         fetchMock.mockClear();
-        fetchMock.mockResolvedValue({
-            ok: true,
-            status: 200,
-            statusText: 'OK',
-            json: () => Promise.resolve({
-                access_token: 'new-rtc-jwt-token',
-                issued_token_type: 'urn:ietf:params:oauth:token-type:access_token',
-                token_type: 'Bearer',
-                expires_in: 3600,
-            }),
-        });
+        fetchMock.mockResolvedValue(createTokenExchangeResponse(createMockJwt('new-user-id')));
 
         const result = await ctrl.handleTokenExpired();
 
         expect(result).toBe('refresh');
         expect(provider.getExchangeToken).toHaveBeenCalledTimes(2);
-        expect(ctrl.value.state.accessToken).toBe('new-rtc-jwt-token');
+        expect(ctrl.value.state.accessToken).toMatch(/^eyJ/); // JWT format
+        expect(ctrl.value.state.userId).toBe('new-user-id');
     });
 
     it('should cleanup token exchange state on logout', async () => {
@@ -517,7 +516,7 @@ describe('AuthController - Token Exchange mode', () => {
         await new Promise(resolve => setTimeout(resolve, 10));
 
         const token = await ctrl.getAccessTokenAsync();
-        expect(token).toBe('rtc-jwt-token');
+        expect(token).toMatch(/^eyJ/); // JWT format
     });
 
     it('should attempt token exchange even when isLoggedIn() returns false', async () => {
@@ -534,6 +533,6 @@ describe('AuthController - Token Exchange mode', () => {
 
         expect(provider.getExchangeToken).toHaveBeenCalledOnce();
         expect(ctrl.value.state.isLoggedIn).toBe(true);
-        expect(ctrl.value.state.accessToken).toBe('rtc-jwt-token');
+        expect(ctrl.value.state.accessToken).toMatch(/^eyJ/); // JWT format
     });
 });
