@@ -371,6 +371,7 @@ export class PersistenceController implements ReactiveController {
      * Safe to call multiple times — subsequent calls are no-ops.
      */
     async connect(): Promise<void> {
+        log.debug('connect() called');
         if (this._layer) {
             return;
         }
@@ -380,6 +381,7 @@ export class PersistenceController implements ReactiveController {
 
         const deviceId = getOrCreateDeviceId();
         const userId = this._auth.state.userId;
+        log.debug('connect() userId:', userId, 'deviceId:', deviceId);
 
         if (!userId) {
             throw new Error('[PersistenceController] connect() called without userId; refusing to open a shared database');

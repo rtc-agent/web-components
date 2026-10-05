@@ -6,6 +6,10 @@
  */
 
 import type { RtcAgentWithLifecycle } from '@rtc-agent/component';
+import { createAdminAgentConfig, createAllGroups } from '@/rtc-agent';
+import type { Permission } from '@/rtc-agent/permission-filter';
+import { filterGroupsByPermissions } from '@/rtc-agent/permission-filter';
+import { initTestHarness } from '@/rtc-agent/test-harness';
 import { createAdminAuthProvider } from '@/utils/rtc-auth-provider';
 
 // Web Component 实例（全局单例）
@@ -48,8 +52,21 @@ function loadRtcAgentComponent() {
   return importPromise;
 }
 
-export function mountRtcAgent() {
-  console.log('[RTC Agent Manager] mountRtcAgent called');
+/**
+ * 挂载 RTC Agent
+ *
+ * @param userPermissions - 当前管理员的权限列表（来自 /api/auth/me）
+ *
+ * 流程：
+ * 1. 根据管理员权限过滤 Function Groups
+ * 2. 创建 AgentConfig（传入过滤后的 groups）
+ * 3. 创建并挂载 RTC Agent
+ */
+export function mountRtcAgent(userPermissions: Permission[] = []) {
+  console.log(
+    '[RTC Agent Manager] mountRtcAgent called with permissions:',
+    userPermissions,
+  );
 
   // 防止重复挂载：已挂载或正在挂载中
   if (rtcAgentInstance) {
@@ -87,6 +104,35 @@ export function mountRtcAgent() {
 
       console.log('[RTC Agent Manager] Creating RTC Agent instance...');
       try {
+        // === Create Function Groups with user permissions ===
+        // createAllGroups creates permission-aware groups (e.g., navigation with filtered pages)
+        const allGroups = createAllGroups(userPermissions);
+
+        // === Filter Function Groups by permissions ===
+        const filteredGroups = filterGroupsByPermissions(
+          allGroups,
+          userPermissions,
+        );
+
+        console.log(
+          `[RTC Agent Manager] Filtered groups: ${filteredGroups.length}/${allGroups.length}`,
+        );
+        console.log(
+          '[RTC Agent Manager] Groups:',
+          filteredGroups.map(
+            (g) => `${g.name}(${g.functions.length} functions)`,
+          ),
+        );
+
+        // === 创建 AgentConfig（传入过滤后的 groups） ===
+        const agentConfig = createAdminAgentConfig(filteredGroups);
+
+        console.log('[RTC Agent Manager] Agent config created:', {
+          name: agentConfig.name,
+          groupsCount: agentConfig.groups?.length || 0,
+          groups: agentConfig.groups?.map((g) => g.name),
+        });
+
         const agent = createRtcAgent({
           appLabel: 'RTC Agent',
           theme: 'system', // 主题模式：跟随系统
@@ -95,6 +141,11 @@ export function mountRtcAgent() {
           workerURL: '/rtc-agent/shared-worker.js',
           databaseName: 'admin-ui',
           lang: 'zh-CN',
+          scenariosURL: '/scenarios/',
+
+          // === 传入权限过滤后的 Functions ===
+          ...agentConfig,
+
           window: {
             defaultMode: 'minimized',
             bubblePosition: {
@@ -105,6 +156,7 @@ export function mountRtcAgent() {
           on: {
             ready: () => {
               console.log('[RTC Agent] Ready');
+              initTestHarness();
             },
             authLogin: ({ userId }: { userId: string }) => {
               console.log('[RTC Agent] Authenticated, userId:', userId);

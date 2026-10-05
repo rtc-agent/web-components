@@ -77,7 +77,7 @@ export async function deletePermission(body: PermissionPolicy) {
 }
 
 /**
- * 检查用户权限
+ * 检查管理员权限
  * POST /api/permissions/check
  */
 export async function checkPermission(body: CheckPermissionParams) {

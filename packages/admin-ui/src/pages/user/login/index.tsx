@@ -167,7 +167,7 @@ const Login: React.FC = () => {
           result.expires_in || 3600,
         );
 
-        // 存储用户信息
+        // 存储管理员信息
         setUserInfo(result.user);
 
         const defaultLoginSuccessMessage = intl.formatMessage({
@@ -176,7 +176,7 @@ const Login: React.FC = () => {
         });
         message.success(defaultLoginSuccessMessage);
 
-        // 获取用户信息
+        // 获取管理员信息
         await fetchUserInfo();
 
         // 跳转到目标页面

@@ -3,16 +3,16 @@ import React, { useEffect } from 'react';
 
 /**
  * 系统管理首页
- * 根据用户权限智能重定向到第一个有权限的页面
+ * 根据管理员权限智能重定向到第一个有权限的页面
  */
 const SystemIndexPage: React.FC = () => {
   const access = useAccess();
 
   useEffect(() => {
     // 按优先级检查权限，重定向到第一个有权限的页面
-    if (access.canUserView) {
+    if (access.canAdminUserView) {
       history.replace('/system/users');
-    } else if (access.canRoleView) {
+    } else if (access.canAdminRoleView) {
       history.replace('/system/roles');
     } else if (access.canPermissionView) {
       history.replace('/system/permissions');

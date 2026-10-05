@@ -6,8 +6,10 @@
   "repository": "git@github.com:rtc-agent/rtc-agent.git",
   "scripts": {
     "analyze": "cross-env ANALYZE=1 max build",
+    "prebuild": "npm run build --prefix ../component",
     "build": "max build",
     "deploy": "cross-env CI=true max build && gh-pages -d dist",
+    "predev": "npm run build --prefix ../component",
     "dev": "cross-env UMI_ENV=dev MOCK=none max dev",
     "i18n-remove": "node scripts/i18n-remove.js",
     "lint": "npm run biome:lint && npm run tsc",

@@ -215,7 +215,12 @@ export class AuthController implements ReactiveController {
                     isLoggedIn: true,
                     accessToken: '', // Will be set by token exchange
                     refreshToken: '', // Not used in token exchange mode
-                    userId: provider.getUserId?.() || 'provider-managed',
+                    // DO NOT call provider.getUserId() here: in Token Exchange mode, the host
+                    // app's userId belongs to an external identity system (e.g. admin-ui admin),
+                    // not to RTC. The real userId will be parsed from the RTC JWT's `sub` claim
+                    // in _doTokenExchange(). Using the external userId would cause Centrifuge
+                    // channel permission mismatch and IndexedDB name collisions.
+                    userId: '',
                     expiresAt: Infinity, // Will be set after token exchange
                 };
                 this.host.requestUpdate();
@@ -384,13 +389,34 @@ export class AuthController implements ReactiveController {
                 return false;
             }
 
-            // Step 3: Update state with RTC JWT
+            // Step 3: Parse userId from RTC JWT (not from external auth provider).
+            // In Token Exchange mode, the external auth provider's userId (e.g. admin system)
+            // is unrelated to the RTC user identity embedded in the RTC JWT's `sub` claim.
+            // Using the external userId would cause Centrifuge channel permission mismatch
+            // (subscription rejected with "permission denied") and IndexedDB name collisions.
+            //
+            // DO NOT fall back to authProvider.getUserId() here: that would silently use the
+            // wrong identity system again. If the RTC JWT has no `sub`, surface the error
+            // immediately so the misconfiguration is visible.
+            const rtcUserId = this._parseUserIdFromJwt(response.access_token);
+            if (!rtcUserId) {
+                log.error(
+                    'token_exchange.no_sub_in_jwt: RTC JWT does not contain a `sub` claim. ' +
+                    'Cannot determine RTC userId. Refusing to fall back to authProvider.getUserId() ' +
+                    'because that would use the external identity system.',
+                );
+                this._performLogout();
+                return false;
+            }
+            log.info('token_exchange.parsed_userId_from_jwt:', rtcUserId);
+
+            // Step 4: Update state with RTC JWT
             const expiresAt = Date.now() + response.expires_in * 1000;
             this._state = {
                 isLoggedIn: true,
                 accessToken: response.access_token,
                 refreshToken: '', // Not used in token exchange mode
-                userId: this._authProvider.getUserId?.() || 'provider-managed',
+                userId: rtcUserId,
                 expiresAt,
             };
 
@@ -398,20 +424,48 @@ export class AuthController implements ReactiveController {
             this._saveTokens({
                 accessToken: response.access_token,
                 refreshToken: '',
-                userId: this._authProvider.getUserId?.() || 'provider-managed',
+                userId: rtcUserId,
                 expiresAt,
             });
 
-            // Step 4: Schedule refresh
+            // Step 5: Schedule refresh
             this._scheduleRefresh(expiresAt);
             this.host.requestUpdate();
 
-            log.info('token_exchange.succeeded, expires at', new Date(expiresAt).toISOString());
+            log.info('token_exchange.succeeded, userId:', rtcUserId, 'expires at', new Date(expiresAt).toISOString());
             return true;
         } catch (err) {
             log.error('token_exchange.unexpected_error:', err);
             this._performLogout();
             return false;
+        }
+    }
+
+    /**
+     * Parse userId from a JWT.
+     *
+     * Used in Token Exchange mode to extract the RTC user identity from the RTC JWT,
+     * rather than relying on the external auth provider's userId (which belongs to a
+     * different identity system — e.g. admin-ui's admin ID vs RTC's user ID).
+     *
+     * RTC JWT uses a non-standard `user_id` claim (not the standard `sub`). See
+     * server/internal/usecase/token_exchange.go and signer.SignAccessToken().
+     *
+     * Returns empty string if the JWT is malformed or neither claim is present.
+     */
+    private _parseUserIdFromJwt(token: string): string {
+        if (!token) return '';
+        try {
+            const parts = token.split('.');
+            if (parts.length !== 3) return '';
+            const payload = JSON.parse(atob(parts[1]));
+            // RTC JWT uses `user_id`; fall back to standard `sub` for forward compatibility.
+            const userId = payload.user_id ?? payload.sub;
+            if (typeof userId !== 'string') return '';
+            return userId;
+        } catch (err) {
+            log.debug('_parseUserIdFromJwt: failed to parse JWT:', err);
+            return '';
         }
     }
 

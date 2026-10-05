@@ -17,6 +17,3 @@ export async function queryCity(
   );
 }
 
-export async function query() {
-  return request('/api/users');
-}

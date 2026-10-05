@@ -53,8 +53,8 @@ export default {
   'menu.rtc-agent-diagnose': 'RTC Agent 诊断',
   'menu.rtc-agent-test': 'RTC Agent 测试',
   'menu.system': '系统管理',
-  'menu.system.users': '用户管理',
-  'menu.system.roles': '角色管理',
+  'menu.system.users': '管理员管理',
+  'menu.system.roles': '管理员角色管理',
   'menu.system.permissions': '权限管理',
   'menu.system.audit-logs': '审计日志',
 };

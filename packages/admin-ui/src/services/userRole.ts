@@ -2,7 +2,7 @@ import { request } from '@umijs/max';
 import type { RoleInfo, UserInfo } from './admin-auth';
 
 /**
- * 用户-角色关联响应
+ * 管理员用户与管理员角色关联响应
  * 对应后端的 UserRoleResponse
  */
 export interface UserRoleAssignment {
@@ -12,61 +12,61 @@ export interface UserRoleAssignment {
   assigned_at: string;
 }
 
-/** 用户列表查询参数 */
+/** 管理员列表查询参数 */
 export interface UserListParams {
   page?: number;
   page_size?: number;
   keyword?: string;
 }
 
-/** 用户列表响应 */
+/** 管理员列表响应 */
 export interface UserListResponse {
   items: UserInfo[];
   total: number;
 }
 
-/** 分配角色参数 */
+/** 分配管理员角色参数 */
 export interface AssignRolesParams {
   role_ids: string[];
 }
 
-/** 用户角色列表响应 */
+/** 管理员角色列表响应 */
 export interface UserRoleListResponse {
   items: UserRoleAssignment[];
   total: number;
 }
 
 /**
- * 查询用户列表
- * GET /api/users
+ * 查询管理员列表
+ * GET /api/admin-users
  *
  * 注意：此 API 需要后端实现。如果后端未实现，此功能将不可用。
  * 开发环境使用 mock 数据（mock/permissionSystem.ts）。
  */
 export async function getUserList(params?: UserListParams) {
-  return request<UserListResponse>('/api/users', {
+  return request<UserListResponse>('/api/admin-users', {
     method: 'GET',
     params,
   });
 }
 
 /**
- * 查询用户角色
- * GET /api/users/:id/roles
+ * 查询管理员角色
+ * GET /api/admin-users/:id/roles
  * 返回：{items: UserRoleAssignment[], total: number}
  */
 export async function getUserRoles(userId: string) {
-  return request<UserRoleListResponse>(`/api/users/${userId}/roles`, {
+  return request<UserRoleListResponse>(`/api/admin-users/${userId}/roles`, {
     method: 'GET',
   });
 }
 
 /**
- * 批量分配角色
- * POST /api/users/:id/roles
+ * 批量分配管理员角色
+ * POST /api/admin-users/:id/roles
  */
 export async function assignUserRoles(userId: string, body: AssignRolesParams) {
-  return request<{ success: boolean }>(`/api/users/${userId}/roles`, {
+  return request<{ success: boolean }>(`/api/admin-users/${userId}/roles`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -76,17 +76,17 @@ export async function assignUserRoles(userId: string, body: AssignRolesParams) {
 }
 
 /**
- * 移除用户角色
- * DELETE /api/users/:id/roles/:roleId
+ * 移除管理员角色
+ * DELETE /api/admin-users/:id/roles/:roleId
  */
 export async function revokeUserRole(userId: string, roleId: string) {
-  return request<{ success: boolean }>(`/api/users/${userId}/roles/${roleId}`, {
+  return request<{ success: boolean }>(`/api/admin-users/${userId}/roles/${roleId}`, {
     method: 'DELETE',
   });
 }
 
 /**
- * 角色下的用户信息
+ * 管理员角色下的管理员信息
  * 对应后端的 RoleUserResponse
  */
 export interface RoleUserInfo {
@@ -96,19 +96,19 @@ export interface RoleUserInfo {
   assigned_at: string;
 }
 
-/** 角色用户列表响应 */
+/** 管理员角色管理员列表响应 */
 export interface RoleUserListResponse {
   items: RoleUserInfo[];
   total: number;
 }
 
 /**
- * 查询角色下的用户
- * GET /api/roles/:id/users
+ * 查询管理员角色下的管理员
+ * GET /api/roles/:id/admin-users
  * 返回：{items: RoleUserInfo[], total: number}
  */
 export async function getRoleUsers(roleId: string) {
-  return request<RoleUserListResponse>(`/api/roles/${roleId}/users`, {
+  return request<RoleUserListResponse>(`/api/roles/${roleId}/admin-users`, {
     method: 'GET',
   });
 }

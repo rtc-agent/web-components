@@ -80,7 +80,7 @@ async function refreshTokenRequest(): Promise<string | null> {
         }));
       } else if (userInfo && !globalSetInitialState) {
         // 注意：如果 globalSetInitialState 为 null，说明 layout 还未 mount
-        // 此时权限数据无法更新，用户可能需要刷新页面才能看到最新权限
+        // 此时权限数据无法更新，管理员可能需要刷新页面才能看到最新权限
         if (process.env.NODE_ENV === 'development') {
           console.warn(
             '[refreshTokenRequest] globalSetInitialState is null, permission data not updated. User may need to refresh the page.',
@@ -89,7 +89,7 @@ async function refreshTokenRequest(): Promise<string | null> {
       }
     } catch (error) {
       console.error('[refreshTokenRequest] 刷新权限数据失败:', error);
-      // 权限数据刷新失败时，通知用户可能需要刷新页面
+      // 权限数据刷新失败时，通知管理员可能需要刷新页面
       // 但不阻断 token 刷新流程
       message.warning(
         '权限数据同步失败，部分功能可能受限。建议刷新页面获取最新权限。',

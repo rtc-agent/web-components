@@ -1164,29 +1164,38 @@ export class RtcAgent extends LitElement {
         // Reflect initial mode attribute.
         this.setAttribute('data-mode', this._windowState.value.state.mode);
 
-        // Apply pending auth provider from factory function.
-        // Must be done before the onLogin callback is set, so that setAuthProvider
-        // triggers onLogin -> _connectWithRetry naturally.
-        if (this._pendingAuthProvider) {
-            this._auth.setAuthProvider(this._pendingAuthProvider);
-            this._pendingAuthProvider = undefined;
-        }
-
         // Set auth login callback to trigger WebSocket connection.
         // This fixes the race condition where tokens are expired on page load:
         // _loadTokens() starts async refresh, but connectedCallback() runs before
         // refresh completes, so isLoggedIn is still false. When refresh succeeds,
         // onLogin fires and triggers connection.
+        //
+        // CRITICAL FIX: Must be set BEFORE setAuthProvider() for Token Exchange mode.
+        // In Token Exchange mode, setAuthProvider() triggers async token exchange,
+        // which calls _fireLogin() on success. If onLogin is not set yet, the
+        // connection will never be triggered, and the component will be stuck.
         this._auth.onLogin = () => {
             void this._connectWithRetry();
         };
 
-        // If tokens were restored from localStorage (e.g. page refresh),
-        // connect persistence layer immediately.
-        // Note: If tokens were expired and refresh is in-flight, this check will be false,
-        // but onLogin callback will trigger connection when refresh completes.
-        if (this._auth.state.isLoggedIn) {
-            void this._connectWithRetry();
+        // Apply pending auth provider from factory function.
+        // In Token Exchange mode, this triggers async token exchange.
+        // When token exchange succeeds, _fireLogin() will be called, which
+        // will invoke the onLogin callback we just set.
+        if (this._pendingAuthProvider) {
+            this._auth.setAuthProvider(this._pendingAuthProvider);
+            this._pendingAuthProvider = undefined;
+            // In Token Exchange mode, don't immediately connect.
+            // Wait for token exchange to complete, which will trigger onLogin callback.
+            // For other modes (OAuth2 Redirect), if already logged in, connect immediately.
+        } else {
+            // No pending auth provider. If tokens were restored from localStorage
+            // (e.g. page refresh), connect persistence layer immediately.
+            // Note: If tokens were expired and refresh is in-flight, this check will be false,
+            // but onLogin callback will trigger connection when refresh completes.
+            if (this._auth.state.isLoggedIn) {
+                void this._connectWithRetry();
+            }
         }
 
         // Install debug API in dev/test builds (exposes window.rtcAgentDebug for E2E tests).

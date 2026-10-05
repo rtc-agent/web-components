@@ -21,7 +21,7 @@ declare const __UTOO_VERSION__: string;
 
 // RBAC 权限系统类型定义
 declare namespace API {
-  /** 角色信息 */
+  /** 管理员角色信息 */
   interface Role {
     id: string;
     name: string;
@@ -39,7 +39,7 @@ declare namespace API {
     action: string;
   }
 
-  /** 当前用户信息（登录后返回） */
+  /** 当前管理员信息（登录后返回） */
   interface CurrentUser {
     userid?: string;
     name?: string;
@@ -50,7 +50,7 @@ declare namespace API {
     permissions?: Set<string>;
   }
 
-  /** 用户-角色关联 */
+  /** 管理员-管理员角色关联 */
   interface UserRole {
     user_id: string;
     role_id: string;

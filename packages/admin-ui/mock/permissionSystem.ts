@@ -2,7 +2,7 @@
  * 权限系统 API Mock 数据
  */
 
-// 角色数据
+// 管理员角色数据
 const roles = [
   {
     id: '1',
@@ -38,9 +38,9 @@ const roles = [
 
 // 权限策略数据
 const permissions = [
-  { role_id: '1', resource: 'user', action: 'read' },
-  { role_id: '1', resource: 'user', action: 'write' },
-  { role_id: '1', resource: 'user', action: 'delete' },
+  { role_id: '1', resource: 'admin_user', action: 'read' },
+  { role_id: '1', resource: 'admin_user', action: 'write' },
+  { role_id: '1', resource: 'admin_user', action: 'delete' },
   { role_id: '1', resource: 'role', action: 'read' },
   { role_id: '1', resource: 'role', action: 'write' },
   { role_id: '1', resource: 'role', action: 'delete' },
@@ -48,10 +48,10 @@ const permissions = [
   { role_id: '1', resource: 'permission', action: 'write' },
   { role_id: '1', resource: 'permission', action: 'delete' },
   { role_id: '1', resource: 'audit_log', action: 'read' },
-  { role_id: '2', resource: 'user', action: 'read' },
-  { role_id: '2', resource: 'user', action: 'write' },
+  { role_id: '2', resource: 'admin_user', action: 'read' },
+  { role_id: '2', resource: 'admin_user', action: 'write' },
   { role_id: '2', resource: 'role', action: 'read' },
-  { role_id: '3', resource: 'user', action: 'read' },
+  { role_id: '3', resource: 'admin_user', action: 'read' },
 ];
 
 // 用户数据
@@ -97,8 +97,8 @@ const auditLogs = [
     operator_id: '1',
     operator_name: '管理员',
     operator_ip: '192.168.1.1',
-    event_type: 'assign_role',
-    resource_type: 'user',
+    event_type: 'assign_roles',
+    resource_type: 'admin_user',
     resource_id: '2',
     details: { role_name: 'operator' },
     created_at: '2024-01-15T11:00:00Z',
@@ -111,13 +111,13 @@ const auditLogs = [
     event_type: 'create_permission',
     resource_type: 'permission',
     resource_id: null,
-    details: { role: 'operator', resource: 'user', action: 'read' },
+    details: { role: 'operator', resource: 'admin_user', action: 'read' },
     created_at: '2024-01-15T12:00:00Z',
   },
 ];
 
 export default {
-  // 角色管理 API
+  // 管理员角色管理 API
   'GET /api/roles': (req: any, res: any) => {
     res.json({
       success: true,
@@ -154,7 +154,7 @@ export default {
         data: roles[index],
       });
     } else {
-      res.json({ success: false, errorMessage: '角色不存在' });
+      res.json({ success: false, errorMessage: '管理员角色不存在' });
     }
   },
 
@@ -168,7 +168,7 @@ export default {
         data: roles[index],
       });
     } else {
-      res.json({ success: false, errorMessage: '角色不存在' });
+      res.json({ success: false, errorMessage: '管理员角色不存在' });
     }
   },
 
@@ -177,13 +177,13 @@ export default {
     const index = roles.findIndex((r) => r.id === id);
     if (index >= 0) {
       if (roles[index].is_system) {
-        res.json({ success: false, errorMessage: '系统角色不可删除' });
+        res.json({ success: false, errorMessage: '系统管理员角色不可删除' });
       } else {
         roles.splice(index, 1);
         res.json({ success: true, data: { success: true } });
       }
     } else {
-      res.json({ success: false, errorMessage: '角色不存在' });
+      res.json({ success: false, errorMessage: '管理员角色不存在' });
     }
   },
 
@@ -220,8 +220,8 @@ export default {
     }
   },
 
-  // 用户管理 API
-  'GET /api/users': (req: any, res: any) => {
+  // 管理员管理 API
+  'GET /api/admin-users': (req: any, res: any) => {
     res.json({
       success: true,
       data: {
@@ -231,7 +231,7 @@ export default {
     });
   },
 
-  'GET /api/users/:id/roles': (req: any, res: any) => {
+  'GET /api/admin-users/:id/roles': (req: any, res: any) => {
     const { id } = req.params;
     const user = users.find((u) => u.id === id);
     if (user) {
@@ -250,11 +250,11 @@ export default {
         },
       });
     } else {
-      res.json({ success: false, errorMessage: '用户不存在' });
+      res.json({ success: false, errorMessage: '管理员不存在' });
     }
   },
 
-  'POST /api/users/:id/roles': (req: any, res: any) => {
+  'POST /api/admin-users/:id/roles': (req: any, res: any) => {
     const { id } = req.params;
     const { role_ids } = req.body;
     const user = users.find((u) => u.id === id);
@@ -262,18 +262,18 @@ export default {
       user.roles = role_ids.map((roleId: string) => roles.find((r) => r.id === roleId)).filter(Boolean);
       res.json({ success: true, data: { success: true } });
     } else {
-      res.json({ success: false, errorMessage: '用户不存在' });
+      res.json({ success: false, errorMessage: '管理员不存在' });
     }
   },
 
-  'DELETE /api/users/:id/roles/:roleId': (req: any, res: any) => {
+  'DELETE /api/admin-users/:id/roles/:roleId': (req: any, res: any) => {
     const { id, roleId } = req.params;
     const user = users.find((u) => u.id === id);
     if (user) {
       user.roles = user.roles.filter((r) => r.id !== roleId);
       res.json({ success: true, data: { success: true } });
     } else {
-      res.json({ success: false, errorMessage: '用户不存在' });
+      res.json({ success: false, errorMessage: '管理员不存在' });
     }
   },
 

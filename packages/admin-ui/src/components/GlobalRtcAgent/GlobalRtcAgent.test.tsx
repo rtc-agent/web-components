@@ -15,6 +15,7 @@ import * as rtcAgentManager from '@/utils/rtc-agent-manager';
 // Mock the dependencies
 vi.mock('@/utils/auth-storage', () => ({
   isAuthenticated: vi.fn(),
+  getUserPermissions: vi.fn(() => [{ resource: 'test', action: 'test' }]),
   AUTH_STATE_CHANGED_EVENT: 'auth-state-changed',
 }));
 

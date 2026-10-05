@@ -154,7 +154,7 @@ export function createAdminAuthProvider(): AuthProvider {
     },
 
     /**
-     * 返回当前用户 ID
+     * 返回当前管理员 ID
      *
      * 用于构造 IndexedDB 名称（{databaseName}-{userId}）。
      */

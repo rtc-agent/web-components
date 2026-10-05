@@ -20,8 +20,8 @@ import type { PermissionFormValues, PermissionTableItem } from './data.d';
 
 /** 资源类型定义 */
 const RESOURCE_TYPES = [
-  { label: '用户管理', value: 'user' },
-  { label: '角色管理', value: 'role' },
+  { label: '管理员管理', value: 'admin_user' },
+  { label: '管理员角色管理', value: 'role' },
   { label: '权限管理', value: 'permission' },
   { label: '审计日志', value: 'audit_log' },
 ];
@@ -45,11 +45,11 @@ const PermissionListPage: React.FC = () => {
     Array<{ label: string; value: string }>
   >([]);
 
-  // 加载角色列表，用于映射 role_id 到显示名称
+  // 加载管理员角色列表，用于映射 role_id 到显示名称
   React.useEffect(() => {
     const loadRoles = async () => {
       try {
-        // 注意：最多加载 1000 个角色，超过部分会显示 role_id
+        // 注意：最多加载 1000 个管理员角色，超过部分会显示 role_id
         const response = await getRoleList({ page: 1, page_size: 1000 });
         const map = new Map<string, string>();
         const options: Array<{ label: string; value: string }> = [];
@@ -64,7 +64,7 @@ const PermissionListPage: React.FC = () => {
         setRoleMap(map);
         setRoleOptions(options);
       } catch (_error) {
-        // 忽略错误，角色名称会显示为 role_id
+        // 忽略错误，管理员角色名称会显示为 role_id
       }
     };
     loadRoles();
@@ -73,7 +73,7 @@ const PermissionListPage: React.FC = () => {
   /** 表格列定义 */
   const columns: ProColumns<PermissionTableItem>[] = [
     {
-      title: '角色',
+      title: '管理员角色',
       dataIndex: 'role_id',
       valueType: 'text',
       search: false,
@@ -124,7 +124,7 @@ const PermissionListPage: React.FC = () => {
           <Access accessible={access.canPermissionEdit} fallback={null}>
             <Popconfirm
               title="确定要删除这个权限策略吗？"
-              description="删除后该角色将失去对应权限"
+              description="删除后该管理员角色将失去对应权限"
               onConfirm={async () => {
                 try {
                   await deletePermission({
@@ -232,9 +232,9 @@ const PermissionListPage: React.FC = () => {
       >
         <ProFormSelect
           name="role_id"
-          label="角色"
-          placeholder="请选择角色"
-          rules={[{ required: true, message: '请选择角色' }]}
+          label="管理员角色"
+          placeholder="请选择管理员角色"
+          rules={[{ required: true, message: '请选择管理员角色' }]}
           options={roleOptions}
         />
         <ProFormSelect

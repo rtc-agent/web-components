@@ -14,7 +14,9 @@ const mockHistory = {
 const mockGetCurrentUser = vi.fn();
 const mockIsAuthenticated = vi.fn(() => true);
 const mockGetUserInfo = vi.fn(() => null);
+const mockSetUserInfo = vi.fn();
 const mockClearAuth = vi.fn();
+const mockGetUserPermissions = vi.fn(() => []);
 
 vi.mock('@umijs/max', () => ({
   history: mockHistory,
@@ -28,6 +30,8 @@ vi.mock('@/services/admin-auth', () => ({
 vi.mock('@/utils/auth-storage', () => ({
   isAuthenticated: mockIsAuthenticated,
   getUserInfo: mockGetUserInfo,
+  setUserInfo: mockSetUserInfo,
+  getUserPermissions: mockGetUserPermissions,
   clearAuth: mockClearAuth,
   AUTH_STATE_CHANGED_EVENT: 'admin-auth-state-changed',
 }));

@@ -76,10 +76,14 @@ export interface ConnectionResult {
 export async function connectWithRetry(
     deps: ConnectionDeps,
 ): Promise<ConnectionResult> {
+    deps.logger.info('[connectWithRetry] Starting connection...');
     try {
+        deps.logger.info('[connectWithRetry] Calling persistence.connect()...');
         await deps.persistence.connect();
+        deps.logger.info('[connectWithRetry] persistence.connect() completed');
 
         if (deps.persistence.layer) {
+            deps.logger.info('[connectWithRetry] persistence.layer exists, proceeding with setup...');
             deps.message.persistence = deps.persistence.layer;
             deps.session.persistence = deps.persistence.layer;
             deps.notification.persistence = deps.persistence.layer;
@@ -131,11 +135,15 @@ export async function connectWithRetry(
             }
 
             // Initialize RTC processor and resume pending tasks.
+            deps.logger.info('[connectWithRetry] Initializing RTC processor...');
             const rtcProcessor = await initRtcProcessor(deps.persistence.layer, deps);
+            deps.logger.info('[connectWithRetry] RTC processor initialized');
 
             // Listen for connection state changes.
+            deps.logger.info('[connectWithRetry] Setting up connection listener...');
             const { unsubConnection, connectionState } =
                 await setupConnectionListener(deps);
+            deps.logger.info('[connectWithRetry] Connection listener setup complete, state:', connectionState);
 
             // Load sessions from DB so the panel isn't empty after refresh.
             deps.loadSessions();

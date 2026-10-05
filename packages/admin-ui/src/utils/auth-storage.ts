@@ -23,6 +23,7 @@ export interface UserInfo {
   email: string;
   name: string;
   avatar_url?: string;
+  permissions?: Array<{ resource: string; action: string }>;
 }
 
 /**
@@ -86,7 +87,7 @@ export const isTokenExpiringSoon = (): boolean => {
 };
 
 /**
- * 存储用户信息
+ * 存储管理员信息
  */
 export const setUserInfo = (userInfo: UserInfo) => {
   try {
@@ -98,7 +99,7 @@ export const setUserInfo = (userInfo: UserInfo) => {
 };
 
 /**
- * 获取用户信息
+ * 获取管理员信息
  */
 export const getUserInfo = (): UserInfo | null => {
   const userInfoStr = localStorage.getItem(USER_INFO_KEY);
@@ -112,7 +113,18 @@ export const getUserInfo = (): UserInfo | null => {
 };
 
 /**
- * 清除所有 Token 和用户信息
+ * 获取管理员权限列表
+ */
+export const getUserPermissions = (): Array<{
+  resource: string;
+  action: string;
+}> => {
+  const userInfo = getUserInfo();
+  return userInfo?.permissions || [];
+};
+
+/**
+ * 清除所有 Token 和管理员信息
  */
 export const clearAuth = () => {
   try {

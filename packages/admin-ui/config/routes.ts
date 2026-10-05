@@ -82,14 +82,14 @@ export default [
         name: 'users',
         icon: 'user',
         component: './user/management',
-        access: 'canUserView',
+        access: 'canAdminUserView',
       },
       {
         path: '/system/roles',
         name: 'roles',
         icon: 'team',
         component: './system/roles',
-        access: 'canRoleView',
+        access: 'canAdminRoleView',
       },
       {
         path: '/system/permissions',

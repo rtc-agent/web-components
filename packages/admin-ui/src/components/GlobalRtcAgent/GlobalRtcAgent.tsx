@@ -11,6 +11,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   AUTH_STATE_CHANGED_EVENT,
+  getUserInfo,
+  getUserPermissions,
   isAuthenticated,
 } from '@/utils/auth-storage';
 import { mountRtcAgent, unmountRtcAgent } from '@/utils/rtc-agent-manager';
@@ -30,6 +32,8 @@ import { mountRtcAgent, unmountRtcAgent } from '@/utils/rtc-agent-manager';
 export const GlobalRtcAgent: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
+  const [permissionsReady, setPermissionsReady] = useState(false);
+  const [userInfoReady, setUserInfoReady] = useState(false);
 
   // 检查浏览器是否支持所需特性
   useEffect(() => {
@@ -115,21 +119,93 @@ export const GlobalRtcAgent: React.FC = () => {
     };
   }, [checkAuth]);
 
-  // Handle mount/unmount based on auth state and browser support.
-  // No cleanup here — unmountRtcAgent is called explicitly when isLoggedIn changes,
-  // and a separate effect handles cleanup on component unmount.
+  // 等待权限信息和用户信息加载完成
   useEffect(() => {
-    console.log('[GlobalRtcAgent] isLoggedIn:', isLoggedIn);
+    if (!isLoggedIn) {
+      setPermissionsReady(false);
+      setUserInfoReady(false);
+      return;
+    }
+
+    // 检查权限和用户信息是否已加载
+    const checkData = () => {
+      const permissions = getUserPermissions();
+      const userInfo = getUserInfo();
+
+      if (permissions.length > 0) {
+        console.log('[GlobalRtcAgent] Permissions loaded:', permissions);
+        setPermissionsReady(true);
+      }
+
+      if (userInfo?.id) {
+        console.log('[GlobalRtcAgent] User info loaded:', userInfo.id);
+        setUserInfoReady(true);
+      }
+
+      return permissions.length > 0 && !!userInfo?.id;
+    };
+
+    // 立即检查一次
+    if (checkData()) {
+      return;
+    }
+
+    // 如果还没有，轮询等待（最多 5 秒）
+    const startTime = Date.now();
+    const interval = setInterval(() => {
+      if (checkData() || Date.now() - startTime > 5000) {
+        clearInterval(interval);
+        if (!permissionsReady) {
+          console.warn(
+            '[GlobalRtcAgent] Permissions not loaded after 5s, mounting with empty permissions',
+          );
+          setPermissionsReady(true);
+        }
+        if (!userInfoReady) {
+          console.warn(
+            '[GlobalRtcAgent] User info not loaded after 5s, mounting may use fallback userId',
+          );
+          setUserInfoReady(true);
+        }
+      }
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [isLoggedIn]);
+
+  // Handle mount/unmount based on auth state, permissions, user info, and browser support.
+  // Mount and unmount are in separate effects so that permission/userInfo state changes
+  // do not re-trigger unmount calls (which would cause double-unmount).
+  useEffect(() => {
+    console.log(
+      '[GlobalRtcAgent] isLoggedIn:',
+      isLoggedIn,
+      'permissionsReady:',
+      permissionsReady,
+      'userInfoReady:',
+      userInfoReady,
+    );
 
     if (!isSupported) {
       console.warn('[GlobalRtcAgent] Browser not supported, skipping mount');
       return;
     }
 
-    if (isLoggedIn) {
+    // 等待权限和用户信息都加载完成再挂载，确保 getUserId() 能返回有效值
+    if (isLoggedIn && permissionsReady && userInfoReady) {
       console.log('[GlobalRtcAgent] Mounting RTC Agent...');
-      mountRtcAgent();
-    } else {
+      // 从 localStorage 读取管理员权限，传递给 mountRtcAgent 进行 Function 过滤
+      const permissions = getUserPermissions();
+      console.log('[GlobalRtcAgent] User permissions:', permissions);
+      mountRtcAgent(permissions);
+    }
+  }, [isLoggedIn, isSupported, permissionsReady, userInfoReady]);
+
+  // Unmount effect: separate from mount so that permissionsReady changes
+  // do not cause a second unmountRtcAgent() call.
+  useEffect(() => {
+    if (!isSupported) return;
+    if (!isLoggedIn) {
       console.log('[GlobalRtcAgent] Unmounting RTC Agent...');
       unmountRtcAgent();
     }

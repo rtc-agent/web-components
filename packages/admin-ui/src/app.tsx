@@ -21,7 +21,7 @@ import {
   VersionDropdown,
 } from '@/components';
 import { getCurrentUser } from '@/services/admin-auth';
-import { isAuthenticated } from '@/utils/auth-storage';
+import { isAuthenticated, setUserInfo } from '@/utils/auth-storage';
 import { buildPermissionSet, computeAccessLevel } from '@/utils/permission';
 import defaultSettings from '../config/defaultSettings';
 import { errorConfig, setGlobalSetInitialState } from './requestErrorConfig';
@@ -46,13 +46,17 @@ export async function getInitialState(): Promise<{
     }
 
     try {
-      // 调用真正的 API 获取用户信息
+      // 调用真正的 API 获取管理员信息
       const userInfo = await getCurrentUser();
 
       // 确保 userInfo 存在
       if (!userInfo) {
         return undefined;
       }
+
+      // 更新 localStorage 中的管理员信息（包含权限）
+      // 这样 GlobalRtcAgent 可以读取权限进行 Function 过滤
+      setUserInfo(userInfo);
 
       // 构建权限集合和访问级别
       const permissionSet = buildPermissionSet(userInfo.permissions);

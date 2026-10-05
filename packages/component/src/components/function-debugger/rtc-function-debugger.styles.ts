@@ -12,6 +12,8 @@ export const styles = css`
         flex-direction: column;
         height: 100%;
         overflow: hidden;
+        position: relative;
+        contain: layout;
     }
 
     .debugger-content {
@@ -208,7 +210,7 @@ export const styles = css`
     /* ── History Drawer (bottom drawer, overlays content) ── */
 
     .history-section {
-        position: sticky;
+        position: fixed;
         bottom: 0;
         left: 0;
         right: 0;

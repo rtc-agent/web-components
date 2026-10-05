@@ -28,7 +28,7 @@ export interface RefreshTokenResult {
   token_type: string;
 }
 
-/** 角色信息 */
+/** 管理员角色信息 */
 export interface RoleInfo {
   id: string;
   name: string;
@@ -46,7 +46,7 @@ export interface PermissionInfo {
   action: string;
 }
 
-/** 用户信息 */
+/** 管理员信息 */
 export interface UserInfo {
   id: string;
   email: string;
@@ -57,7 +57,7 @@ export interface UserInfo {
 }
 
 /**
- * 用户登录
+ * 管理员登录
  * POST /api/auth/login
  */
 export async function login(body: LoginParams, options?: { [key: string]: any }) {
@@ -87,7 +87,7 @@ export async function refreshToken(body: { refresh_token: string }, options?: { 
 }
 
 /**
- * 获取当前用户信息
+ * 获取当前管理员信息
  * GET /api/auth/me
  */
 export async function getCurrentUser(options?: { [key: string]: any }) {

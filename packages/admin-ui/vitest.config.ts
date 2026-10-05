@@ -18,6 +18,7 @@ export default defineConfig({
     // These require Umi's Jest runner and cannot be used with Vitest directly
     exclude: [
       'src/pages/user/login/login.test.tsx',
+      'src/rtc-agent/e2e/**',
       'node_modules',
       'dist',
       '.umi',

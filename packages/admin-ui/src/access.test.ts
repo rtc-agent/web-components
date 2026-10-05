@@ -7,11 +7,11 @@ describe('access', () => {
 
       expect(result.canAdmin).toBe(false);
       expect(result.canSystemView).toBe(false);
-      expect(result.canUserView).toBe(false);
-      expect(result.canUserEdit).toBe(false);
-      expect(result.canUserDelete).toBe(false);
-      expect(result.canRoleView).toBe(false);
-      expect(result.canRoleEdit).toBe(false);
+      expect(result.canAdminUserView).toBe(false);
+      expect(result.canAdminUserEdit).toBe(false);
+      expect(result.canAdminUserDelete).toBe(false);
+      expect(result.canAdminRoleView).toBe(false);
+      expect(result.canAdminRoleEdit).toBe(false);
       expect(result.canPermissionView).toBe(false);
       expect(result.canPermissionEdit).toBe(false);
       expect(result.canAuditLogView).toBe(false);
@@ -24,11 +24,11 @@ describe('access', () => {
 
       expect(result.canAdmin).toBe(false);
       expect(result.canSystemView).toBe(false);
-      expect(result.canUserView).toBe(false);
-      expect(result.canUserEdit).toBe(false);
-      expect(result.canUserDelete).toBe(false);
-      expect(result.canRoleView).toBe(false);
-      expect(result.canRoleEdit).toBe(false);
+      expect(result.canAdminUserView).toBe(false);
+      expect(result.canAdminUserEdit).toBe(false);
+      expect(result.canAdminUserDelete).toBe(false);
+      expect(result.canAdminRoleView).toBe(false);
+      expect(result.canAdminRoleEdit).toBe(false);
       expect(result.canPermissionView).toBe(false);
       expect(result.canPermissionEdit).toBe(false);
       expect(result.canAuditLogView).toBe(false);
@@ -48,22 +48,26 @@ describe('access', () => {
       expect(result.canSystemView).toBe(false);
     });
 
-    it('should return canAdmin as false when permissions exist but no user:write', () => {
+    it('should return canAdmin as false when permissions exist but no admin_user:write', () => {
       const result = access({
         currentUser: {
           access: 'admin',
-          permissions: new Set(['role:read']), // has permissions but no user:write
+          permissions: new Set(['role:read']), // has permissions but no admin_user:write
         },
       });
 
-      expect(result.canAdmin).toBe(false); // should be false because no user:write
+      expect(result.canAdmin).toBe(false); // should be false because no admin_user:write
       expect(result.canSystemView).toBe(true); // but can still view system
     });
   });
 
   describe('when user has permissions', () => {
     it('should return correct permissions based on permission set', () => {
-      const permissionSet = new Set(['user:read', 'user:write', 'role:read']);
+      const permissionSet = new Set([
+        'admin_user:read',
+        'admin_user:write',
+        'role:read',
+      ]);
 
       const result = access({
         currentUser: {
@@ -73,14 +77,14 @@ describe('access', () => {
         },
       });
 
-      // canAdmin 基于 user:write 权限（需求文档 §6.2）
-      expect(result.canAdmin).toBe(true); // 因为有 user:write
+      // canAdmin 基于 admin_user:write 权限（需求文档 §6.2）
+      expect(result.canAdmin).toBe(true); // 因为有 admin_user:write
       expect(result.canSystemView).toBe(true); // 因为有 role:read
-      expect(result.canUserView).toBe(true);
-      expect(result.canUserEdit).toBe(true);
-      expect(result.canUserDelete).toBe(false);
-      expect(result.canRoleView).toBe(true);
-      expect(result.canRoleEdit).toBe(false);
+      expect(result.canAdminUserView).toBe(true);
+      expect(result.canAdminUserEdit).toBe(true);
+      expect(result.canAdminUserDelete).toBe(false);
+      expect(result.canAdminRoleView).toBe(true);
+      expect(result.canAdminRoleEdit).toBe(false);
       expect(result.canPermissionView).toBe(false);
       expect(result.canPermissionEdit).toBe(false);
       expect(result.canAuditLogView).toBe(false);
@@ -88,9 +92,9 @@ describe('access', () => {
 
     it('should return all permissions for admin role', () => {
       const permissionSet = new Set([
-        'user:read',
-        'user:write',
-        'user:delete',
+        'admin_user:read',
+        'admin_user:write',
+        'admin_user:delete',
         'role:read',
         'role:write',
         'permission:read',
@@ -108,18 +112,22 @@ describe('access', () => {
 
       expect(result.canAdmin).toBe(true);
       expect(result.canSystemView).toBe(true);
-      expect(result.canUserView).toBe(true);
-      expect(result.canUserEdit).toBe(true);
-      expect(result.canUserDelete).toBe(true);
-      expect(result.canRoleView).toBe(true);
-      expect(result.canRoleEdit).toBe(true);
+      expect(result.canAdminUserView).toBe(true);
+      expect(result.canAdminUserEdit).toBe(true);
+      expect(result.canAdminUserDelete).toBe(true);
+      expect(result.canAdminRoleView).toBe(true);
+      expect(result.canAdminRoleEdit).toBe(true);
       expect(result.canPermissionView).toBe(true);
       expect(result.canPermissionEdit).toBe(true);
       expect(result.canAuditLogView).toBe(true);
     });
 
     it('should return limited permissions for operator role', () => {
-      const permissionSet = new Set(['user:read', 'user:write', 'role:read']);
+      const permissionSet = new Set([
+        'admin_user:read',
+        'admin_user:write',
+        'role:read',
+      ]);
 
       const result = access({
         currentUser: {
@@ -129,20 +137,20 @@ describe('access', () => {
         },
       });
 
-      expect(result.canAdmin).toBe(true); // 因为有 user:write（需求文档 §6.2）
+      expect(result.canAdmin).toBe(true); // 因为有 admin_user:write（需求文档 §6.2）
       expect(result.canSystemView).toBe(true); // 因为有 role:read
-      expect(result.canUserView).toBe(true);
-      expect(result.canUserEdit).toBe(true);
-      expect(result.canUserDelete).toBe(false);
-      expect(result.canRoleView).toBe(true);
-      expect(result.canRoleEdit).toBe(false);
+      expect(result.canAdminUserView).toBe(true);
+      expect(result.canAdminUserEdit).toBe(true);
+      expect(result.canAdminUserDelete).toBe(false);
+      expect(result.canAdminRoleView).toBe(true);
+      expect(result.canAdminRoleEdit).toBe(false);
       expect(result.canPermissionView).toBe(false);
       expect(result.canPermissionEdit).toBe(false);
       expect(result.canAuditLogView).toBe(false);
     });
 
     it('should return minimal permissions for viewer role', () => {
-      const permissionSet = new Set(['user:read']);
+      const permissionSet = new Set(['admin_user:read']);
 
       const result = access({
         currentUser: {
@@ -153,12 +161,12 @@ describe('access', () => {
       });
 
       expect(result.canAdmin).toBe(false);
-      expect(result.canSystemView).toBe(false); // 只有 user:read，没有 role/permission/audit_log 权限
-      expect(result.canUserView).toBe(true);
-      expect(result.canUserEdit).toBe(false);
-      expect(result.canUserDelete).toBe(false);
-      expect(result.canRoleView).toBe(false);
-      expect(result.canRoleEdit).toBe(false);
+      expect(result.canSystemView).toBe(true); // 有 admin_user:read 就能看到系统管理菜单
+      expect(result.canAdminUserView).toBe(true);
+      expect(result.canAdminUserEdit).toBe(false);
+      expect(result.canAdminUserDelete).toBe(false);
+      expect(result.canAdminRoleView).toBe(false);
+      expect(result.canAdminRoleEdit).toBe(false);
       expect(result.canPermissionView).toBe(false);
       expect(result.canPermissionEdit).toBe(false);
       expect(result.canAuditLogView).toBe(false);
@@ -178,11 +186,11 @@ describe('access', () => {
 
       expect(result.canAdmin).toBe(false);
       expect(result.canSystemView).toBe(false);
-      expect(result.canUserView).toBe(false);
-      expect(result.canUserEdit).toBe(false);
-      expect(result.canUserDelete).toBe(false);
-      expect(result.canRoleView).toBe(false);
-      expect(result.canRoleEdit).toBe(false);
+      expect(result.canAdminUserView).toBe(false);
+      expect(result.canAdminUserEdit).toBe(false);
+      expect(result.canAdminUserDelete).toBe(false);
+      expect(result.canAdminRoleView).toBe(false);
+      expect(result.canAdminRoleEdit).toBe(false);
       expect(result.canPermissionView).toBe(false);
       expect(result.canPermissionEdit).toBe(false);
       expect(result.canAuditLogView).toBe(false);
@@ -200,11 +208,11 @@ describe('access', () => {
 
       expect(result.canAdmin).toBe(true);
       expect(result.canSystemView).toBe(false);
-      expect(result.canUserView).toBe(false);
-      expect(result.canUserEdit).toBe(false);
-      expect(result.canUserDelete).toBe(false);
-      expect(result.canRoleView).toBe(false);
-      expect(result.canRoleEdit).toBe(false);
+      expect(result.canAdminUserView).toBe(false);
+      expect(result.canAdminUserEdit).toBe(false);
+      expect(result.canAdminUserDelete).toBe(false);
+      expect(result.canAdminRoleView).toBe(false);
+      expect(result.canAdminRoleEdit).toBe(false);
       expect(result.canPermissionView).toBe(false);
       expect(result.canPermissionEdit).toBe(false);
       expect(result.canAuditLogView).toBe(false);
@@ -212,6 +220,15 @@ describe('access', () => {
   });
 
   describe('canSystemView logic', () => {
+    it('should be true when user has admin_user:read', () => {
+      const result = access({
+        currentUser: {
+          permissions: new Set(['admin_user:read']),
+        },
+      });
+      expect(result.canSystemView).toBe(true);
+    });
+
     it('should be true when user has role:read', () => {
       const result = access({
         currentUser: {

@@ -8,16 +8,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mountRtcAgent, unmountRtcAgent } from '@/utils/rtc-agent-manager';
 
-// Mock dependencies
-const mockDestroy = vi.fn();
-const mockCreateRtcAgent = vi.fn(() => ({
-  destroy: mockDestroy,
-  setAttribute: vi.fn(),
-}));
+// Mock dependencies - use vi.hoisted() so variables are available when vi.mock factory runs
+const { mockDestroy, mockCreateRtcAgent } = vi.hoisted(() => {
+  const mockDestroy = vi.fn();
+  const mockCreateRtcAgent = vi.fn(() => ({
+    destroy: mockDestroy,
+    setAttribute: vi.fn(),
+  }));
+  return { mockDestroy, mockCreateRtcAgent };
+});
 
-vi.mock('@rtc-agent/component', () => ({
-  createRtcAgent: mockCreateRtcAgent,
-}));
+vi.mock('@rtc-agent/component', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@rtc-agent/component')>();
+  return {
+    ...actual,
+    createRtcAgent: mockCreateRtcAgent,
+  };
+});
 
 vi.mock('@/utils/rtc-auth-provider', () => ({
   createAdminAuthProvider: vi.fn(() => ({

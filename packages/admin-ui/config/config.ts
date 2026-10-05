@@ -214,16 +214,15 @@ export default defineConfig({
     include: ['mock/**/*', 'src/pages/**/_mock.ts'],
     exclude: ['mock/requestRecord.mock.js'],
   },
-  utoopack: {
-    module: {
-      rules: {
-        '*.md': {
-          loaders: [{ loader: join(__dirname, 'md-raw-loader.cjs') }],
-          as: '*.js',
-        },
-      },
-    },
+  chainWebpack(webpackConfig) {
+    webpackConfig.module
+      .rule('md-raw')
+      .test(/\.md$/)
+      .use('md-raw-loader')
+      .loader(join(__dirname, 'md-raw-loader.cjs'))
+      .end();
   },
+  esbuildMinifyIIFE: true,
   requestRecord: {},
   exportStatic: {},
   define: {
@@ -232,6 +231,12 @@ export default defineConfig({
     'process.env.RTC_AGENT_URL': process.env.RTC_AGENT_URL || '',
     __APP_VERSION__: require('./../package.json').version,
     __UMI_VERSION__: require('@umijs/max/package.json').version,
-    __UTOO_VERSION__: require('@utoo/pack/package.json').version,
+    __UTOO_VERSION__: (() => {
+      try {
+        return require('@utoo/pack/package.json').version;
+      } catch {
+        return 'N/A (utoopack disabled)';
+      }
+    })(),
   },
 });

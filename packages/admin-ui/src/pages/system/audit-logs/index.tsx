@@ -7,19 +7,19 @@ import { getAuditLogList } from '@/services/auditLog';
 
 /** 事件类型映射 */
 const EVENT_TYPE_MAP: Record<string, { text: string; color: string }> = {
-  create_role: { text: '创建角色', color: 'green' },
-  update_role: { text: '更新角色', color: 'blue' },
-  delete_role: { text: '删除角色', color: 'red' },
-  assign_role: { text: '分配角色', color: 'cyan' },
-  revoke_role: { text: '撤销角色', color: 'orange' },
+  create_role: { text: '创建管理员角色', color: 'green' },
+  update_role: { text: '更新管理员角色', color: 'blue' },
+  delete_role: { text: '删除管理员角色', color: 'red' },
+  assign_roles: { text: '分配管理员角色', color: 'cyan' },
+  revoke_role: { text: '撤销管理员角色', color: 'orange' },
   create_permission: { text: '创建权限', color: 'green' },
   delete_permission: { text: '删除权限', color: 'red' },
 };
 
 /** 资源类型映射 */
 const RESOURCE_TYPE_MAP: Record<string, string> = {
-  role: '角色',
-  user: '用户',
+  role: '管理员角色',
+  admin_user: '管理员',
   permission: '权限',
 };
 

@@ -44,18 +44,43 @@ if (!window.__pages__?.[pageName]) {
 
 先写测试 → 再写实现 → 验证通过 → AI 自然能正确调用。不需要测试 RTC Agent 本身，只需要确保 Functions 的行为 100% 正确。
 
+### 原则 4：权限感知的 Function 注册
+
+Functions 根据用户权限动态注册，**用户只能看到和调用自己有权限的 Functions**：
+
+- ✅ 每个 Function 声明 `requiredPermissions`（需要的权限列表）
+- ✅ 注册前根据用户权限过滤，无权 Function 不会注册
+- ✅ 无权限要求的 Function（如 navigation、auth）所有用户可用
+- ✅ E2E 测试也基于权限验证，模拟不同角色测试
+
+**核心流程**：
+
+```mermaid
+flowchart LR
+    A[用户登录] --> B[获取 currentUser + permissions]
+    B --> C[createAdminAgentConfig]
+    C --> D[根据 permissions 过滤 Functions]
+    D --> E[注册有权限的 Functions]
+    E --> F[创建 RTC Agent]
+```
+
 ## 2. 分层架构总览
 
 ```mermaid
 flowchart TB
     subgraph RTC["RTC Agent (消费者)"]
         A[AI 推理] --> B[Script Engine]
-        B --> C["rtcAgent.rule.list()"]
+        B --> C["rtcAgent.user.list()"]
+    end
+
+    subgraph PERM["权限过滤层"]
+        P1["用户权限: user:read, role:write, ..."] --> P2[filterFunctionsByPermissions]
+        P2 --> P3[只保留有权限的 Functions]
     end
 
     subgraph FR["Function Registration (桥接层)"]
-        C --> D["Function Registry"]
-        D --> E["rule.list handler"]
+        P3 --> D["Function Registry"]
+        D --> E["user.list handler"]
     end
 
     subgraph E2E["E2E Spec Tests (契约层)"]
@@ -63,7 +88,7 @@ flowchart TB
     end
 
     subgraph PAGE["页面 API 层 (React 管理)"]
-        E -->|"window.__pages__.rule.list()"| G["Page API"]
+        E -->|"window.__pages__.user.list()"| G["Page API"]
         G --> H["actionRef.current?.reload()"]
         G --> I["queryClient.getQueryData()"]
         G --> J["formRef.current?.submit()"]
@@ -79,6 +104,7 @@ flowchart TB
     end
 
     style RTC fill:#e3f2fd,stroke:#1565c0
+    style PERM fill:#fff3e0,stroke:#e65100
     style FR fill:#fff9c4,stroke:#f9a825
     style E2E fill:#f3e5f5,stroke:#7b1fa2
     style PAGE fill:#e8f5e9,stroke:#388e3c
@@ -87,6 +113,7 @@ flowchart TB
 
 **关键原则**：
 
+- ✅ **权限过滤** — 注册前根据用户权限过滤 Functions
 - ✅ Handler **不直接操作 DOM**
 - ✅ Handler **不绕过 UI 调用后端 API**
 - ✅ Handler **调用页面暴露的 React API**
@@ -98,47 +125,85 @@ flowchart TB
 ```
 src/
 ├── pages/
-│   └── table-list/
-│       ├── index.tsx                    # 页面组件（注册 page API）
-│       ├── page-api.ts                  # Page API 定义（供 handler 调用）
-│       └── components/
-│           ├── CreateForm.tsx
-│           └── UpdateForm.tsx
+│   ├── table-list/
+│   │   ├── index.tsx                    # 页面组件（注册 page API）
+│   │   ├── page-api.ts                  # Page API 定义（供 handler 调用）
+│   │   └── components/
+│   │       ├── CreateForm.tsx
+│   │       └── UpdateForm.tsx
+│   │
+│   └── system/
+│       ├── users/                       # 用户管理页面
+│       │   ├── index.tsx
+│       │   └── page-api.ts
+│       ├── roles/                       # 角色管理页面
+│       │   ├── index.tsx
+│       │   └── page-api.ts
+│       └── permissions/                 # 权限管理页面
+│           ├── index.tsx
+│           └── page-api.ts
 │
 ├── rtc-agent/
-│   ├── index.ts                         # 入口：组装 agentConfig
+│   ├── index.ts                         # 入口：组装 agentConfig（含权限过滤）
 │   ├── types.ts                         # 共享类型
+│   ├── permission-filter.ts             # 权限过滤逻辑
 │   ├── test-harness.ts                  # 测试桥接（暴露给 Playwright）
 │   │
 │   ├── groups/
 │   │   ├── index.ts                     # 导出所有 groups
 │   │   │
-│   │   ├── navigation/                  # 页面导航
-│   │   │   ├── index.ts                 # Group 定义 + 函数导出
-│   │   │   ├── goto.ts                  # goto(path) → 页面跳转
-│   │   │   ├── getCurrentPage.ts        # getCurrentPage() → 当前页面信息
-│   │   │   └── listPages.ts             # listPages() → 所有可访问页面
-│   │   │
-│   │   ├── auth/                        # 认证管理
+│   │   ├── navigation/                  # 页面导航（无权限要求）
 │   │   │   ├── index.ts
-│   │   │   ├── currentUser.ts           # currentUser() → 当前用户信息
-│   │   │   ├── hasPermission.ts         # hasPermission(key) → 权限检查
-│   │   │   └── logout.ts               # logout() → 退出登录
+│   │   │   ├── goto.ts
+│   │   │   ├── getCurrentPage.ts
+│   │   │   └── listPages.ts
 │   │   │
-│   │   └── rule/                        # 规则管理 (示例：对应 table-list 页面)
-│   │       ├── index.ts                 # Group 定义 + 函数导出
-│   │       ├── list.ts                  # list() → 调用 page API 读取表格数据
-│   │       ├── create.ts               # create() → 调用 page API 触发创建
-│   │       ├── update.ts               # update() → 调用 page API 触发更新
-│   │       └── remove.ts               # remove() → 调用 page API 触发删除
+│   │   ├── auth/                        # 认证管理（无权限要求）
+│   │   │   ├── index.ts
+│   │   │   ├── currentUser.ts
+│   │   │   ├── hasPermission.ts
+│   │   │   └── logout.ts
+│   │   │
+│   │   ├── user/                        # 用户管理（需要 user:* 权限）
+│   │   │   ├── index.ts
+│   │   │   ├── list.ts                  # requiredPermissions: [{ resource: 'user', action: 'read' }]
+│   │   │   ├── create.ts               # requiredPermissions: [{ resource: 'user', action: 'write' }]
+│   │   │   ├── update.ts               # requiredPermissions: [{ resource: 'user', action: 'write' }]
+│   │   │   └── remove.ts               # requiredPermissions: [{ resource: 'user', action: 'delete' }]
+│   │   │
+│   │   ├── role/                        # 角色管理（需要 role:read/write 权限）
+│   │   │   ├── index.ts
+│   │   │   ├── list.ts                  # requiredPermissions: [{ resource: 'role', action: 'read' }]
+│   │   │   ├── create.ts               # requiredPermissions: [{ resource: 'role', action: 'write' }]
+│   │   │   ├── update.ts               # requiredPermissions: [{ resource: 'role', action: 'write' }]
+│   │   │   └── remove.ts               # requiredPermissions: [{ resource: 'role', action: 'write' }]
+│   │   │
+│   │   ├── permission/                  # 权限管理（需要 permission:read/write 权限）
+│   │   │   ├── index.ts
+│   │   │   ├── list.ts                  # requiredPermissions: [{ resource: 'permission', action: 'read' }]
+│   │   │   ├── create.ts               # requiredPermissions: [{ resource: 'permission', action: 'write' }]
+│   │   │   ├── update.ts               # requiredPermissions: [{ resource: 'permission', action: 'write' }]
+│   │   │   └── remove.ts               # requiredPermissions: [{ resource: 'permission', action: 'write' }]
+│   │   │
+│   │   ├── userRole/                    # 用户角色分配（需要 user_role:read/write 权限）
+│   │   │   ├── index.ts
+│   │   │   ├── list.ts                  # requiredPermissions: [{ resource: 'user_role', action: 'read' }]
+│   │   │   ├── assign.ts               # requiredPermissions: [{ resource: 'user_role', action: 'write' }]
+│   │   │   └── revoke.ts               # requiredPermissions: [{ resource: 'user_role', action: 'write' }]
+│   │   │
+│   │   └── auditLog/                    # 审计日志（需要 audit_log:read 权限）
+│   │       ├── index.ts
+│   │       └── list.ts                  # requiredPermissions: [{ resource: 'audit_log', action: 'read' }]
 │   │
 │   └── e2e/                             # Playwright E2E 测试
 │       ├── fixtures/
-│       │   └── rtc-functions.ts        # 自定义 fixture：暴露 function 调用
+│       │   └── rtc-functions.ts        # 自定义 fixture：暴露 function 调用（含权限模拟）
 │       └── specs/
 │           ├── navigation.spec.ts
 │           ├── auth.spec.ts
-│           └── rule.spec.ts
+│           ├── user.spec.ts             # 测试 user:* 权限的 functions
+│           ├── role.spec.ts
+│           └── permission-filter.spec.ts # 测试权限过滤逻辑
 ```
 
 ## 4. 代码示例
@@ -218,13 +283,40 @@ declare global {
 
 ```typescript
 import type { ActionType } from '@ant-design/pro-components';
-import { useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import React, { useEffect, useRef } from 'react';
 import type { RulePageAPI } from './page-api';
 
 const TableList: React.FC = () => {
   const actionRef = useRef<ActionType | null>(null);
   const queryClient = useQueryClient();
+
+  // === React Query Mutations（不直接 fetch 后端） ===
+  const createMutation = useMutation({
+    mutationFn: (data: { name: string; desc: string }) =>
+      fetch('/api/rule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      }).then((r) => r.json()),
+    onSuccess: () => {
+      actionRef.current?.reload();
+      queryClient.invalidateQueries({ queryKey: ['rule'] });
+    },
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: (keys: number[]) =>
+      fetch('/api/removeRule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: keys }),
+      }).then((r) => r.json()),
+    onSuccess: () => {
+      actionRef.current?.reload();
+      queryClient.invalidateQueries({ queryKey: ['rule'] });
+    },
+  });
 
   // === 注册 Page API ===
   useEffect(() => {
@@ -234,7 +326,6 @@ const TableList: React.FC = () => {
         const { current = 1, pageSize = 20 } = params;
 
         // 从 React Query 缓存获取数据
-        // 这与 UI 中 ProTable 显示的数据完全一致
         const cachedData = queryClient.getQueryData(['rule', { current, pageSize }]);
 
         if (cachedData && typeof cachedData === 'object' && 'data' in cachedData) {
@@ -245,17 +336,34 @@ const TableList: React.FC = () => {
           };
         }
 
-        // 如果缓存中没有，触发刷新并等待
-        actionRef.current?.reload();
-        await new Promise((resolve) => setTimeout(resolve, 500));
-
-        // 重新读取缓存
-        const newData = queryClient.getQueryData(['rule', { current, pageSize }]);
-        return {
-          success: true,
-          data: (newData as any)?.data || [],
-          total: (newData as any)?.total || 0,
-        };
+        // 如果缓存中没有，触发刷新并等待 actionRef 加载
+        // 不使用 setTimeout，而是等待 ProTable 的 request 完成
+        return new Promise((resolve) => {
+          const checkData = () => {
+            const data = queryClient.getQueryData(['rule', { current, pageSize }]);
+            if (data) {
+              resolve({
+                success: true,
+                data: (data as any).data || [],
+                total: (data as any).total || 0,
+              });
+            } else {
+              // 等待 React Query 完成（通过订阅 queryClient）
+              const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
+                if (event?.query.queryKey[0] === 'rule') {
+                  unsubscribe();
+                  resolve({
+                    success: true,
+                    data: (event.query.state.data as any)?.data || [],
+                    total: (event.query.state.data as any)?.total || 0,
+                  });
+                }
+              });
+              actionRef.current?.reload();
+            }
+          };
+          checkData();
+        });
       },
 
       // 刷新表格
@@ -263,24 +371,9 @@ const TableList: React.FC = () => {
         actionRef.current?.reload();
       },
 
-      // 创建规则
+      // 创建规则（通过 React Query mutation，不直接 fetch）
       create: async (data) => {
-        // 触发创建流程
-        // 实际实现可能需要：
-        // 1. 点击"新建"按钮打开弹窗
-        // 2. 填充表单
-        // 3. 提交表单
-        // 这里简化为直接调用 API
-        const response = await fetch('/api/rule', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-        });
-        const result = await response.json();
-
-        // 刷新表格
-        actionRef.current?.reloadAndRest?.();
-
+        const result = await createMutation.mutateAsync(data);
         return { success: result.success, id: result.data?.key };
       },
 
@@ -292,25 +385,14 @@ const TableList: React.FC = () => {
           body: JSON.stringify(data),
         });
         const result = await response.json();
-
-        // 刷新表格
         actionRef.current?.reload();
-
+        queryClient.invalidateQueries({ queryKey: ['rule'] });
         return { success: result.success };
       },
 
-      // 删除规则
+      // 删除规则（通过 React Query mutation）
       remove: async (keys) => {
-        const response = await fetch('/api/removeRule', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key: keys }),
-        });
-        const result = await response.json();
-
-        // 刷新表格
-        actionRef.current?.reloadAndRest?.();
-
+        const result = await removeMutation.mutateAsync(keys);
         return { success: result.success };
       },
     };
@@ -492,48 +574,85 @@ export const ruleGroup: AgentFunctionGroup = {
 };
 ```
 
-### 4.6 入口组装 (`src/rtc-agent/index.ts`)
+### 4.6 入口组装（含权限过滤）(`src/rtc-agent/index.ts`)
 
 ```typescript
 import type { AgentConfig } from '@rtc-agent/component';
-import { ruleGroup } from './groups/rule';
+import { filterGroupsByPermissions } from './permission-filter';
+import type { Permission } from './permission-filter';
+
+// 导入所有 Function Groups
 import { navigationGroup } from './groups/navigation';
 import { authGroup } from './groups/auth';
+import { ruleGroup } from './groups/rule';
+import { userGroup } from './groups/user';
+import { roleGroup } from './groups/role';
+import { permissionGroup } from './groups/permission';
+import { userRoleGroup } from './groups/userRole';
+import { auditLogGroup } from './groups/auditLog';
 
 /**
- * 创建 admin-ui 的 AgentConfig
+ * 所有 Function Groups（未过滤）
  *
- * 用于传递给 createRtcAgent() 的 groups 配置
+ * - navigation/auth: 无权限要求，所有用户可用
+ * - rule: 示例页面，不受 RBAC 控制
+ * - user/role/permission/userRole/auditLog: 受 RBAC 权限控制
  */
-export function createAdminAgentConfig(): Partial<AgentConfig> {
+const allGroups = [
+  navigationGroup,   // 无权限要求
+  authGroup,         // 无权限要求
+  ruleGroup,         // 示例页面，无权限要求
+  userGroup,         // 需要 user:* 权限
+  roleGroup,         // 需要 role:* 权限
+  permissionGroup,   // 需要 permission:* 权限
+  userRoleGroup,     // 需要 user_role:* 权限
+  auditLogGroup,     // 需要 audit_log:read 权限
+];
+
+/**
+ * 创建 admin-ui 的 AgentConfig（根据用户权限过滤 Function Groups）
+ *
+ * @param userPermissions - 当前用户的权限列表（来自 /api/auth/me）
+ *
+ * 示例：
+ * - admin 用户（所有权限）→ 注册所有 Function Groups
+ * - operator 用户（user:read, user:write, role:read）→ 只注册 user 的部分 Functions + role.list
+ * - viewer 用户（user:read）→ 只注册 user.list + navigation + auth + rule
+ */
+export function createAdminAgentConfig(
+  userPermissions: Permission[] = []
+): Partial<AgentConfig> {
+  // 根据用户权限过滤 Function Groups
+  const filteredGroups = filterGroupsByPermissions(allGroups, userPermissions);
+
+  // 输出过滤结果（开发环境）
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[AdminAgentConfig] User permissions:', userPermissions);
+    console.log('[AdminAgentConfig] Filtered groups:',
+      filteredGroups.map((g) => `${g.name}(${g.functions.length} functions)`)
+    );
+  }
+
   return {
     name: 'AdminUI',
     description: 'Ant Design Pro 后台管理系统',
     persona: `你是一个后台管理系统的 AI 助手。
 你可以帮助用户：
 - 导航到不同的页面
-- 查询和管理规则数据
 - 查看当前用户信息和权限
+- 管理用户、角色、权限（根据用户权限）
 
-请始终使用已注册的 Function 来执行操作，不要尝试直接操作 DOM。`,
+请始终使用已注册的 Function 来执行操作。
+如果某个 Function 不存在，说明用户没有相应权限。`,
 
-    groups: [
-      navigationGroup,
-      authGroup,
-      ruleGroup,
-      // 后续添加更多 groups...
-    ],
+    groups: filteredGroups,
   };
 }
 
 /**
- * 导出所有 groups（供测试使用）
+ * 导出所有 Function Groups（供测试使用）
  */
-export const allGroups = [
-  navigationGroup,
-  authGroup,
-  ruleGroup,
-];
+export { allGroups };
 ```
 
 ### 4.7 测试桥接 (`src/rtc-agent/test-harness.ts`)
@@ -823,16 +942,48 @@ test.describe('rule Group - 规则管理', () => {
 });
 ```
 
-### 4.9 Playwright Fixture (`src/rtc-agent/e2e/fixtures/rtc-functions.ts`)
+### 4.10 Playwright Fixture (`src/rtc-agent/e2e/fixtures/rtc-functions.ts`)
 
 ```typescript
 import { test as base } from '@playwright/test';
+import type { Permission } from '@/rtc-agent/permission-filter';
 
 type RtcFunctionsFixtures = {
   /** 调用 RTC Function */
   callFunction: (fullPath: string, params?: Record<string, unknown>) => Promise<unknown>;
-  /** 登录 helper */
+  /** 登录 helper（默认 admin 角色） */
   login: () => Promise<void>;
+  /** 以指定角色登录 */
+  loginAs: (role: 'admin' | 'operator' | 'viewer') => Promise<void>;
+  /** 列出所有已注册的 Functions */
+  listFunctions: () => Promise<Array<{ group: string; name: string; description: string }>>;
+};
+
+// 角色对应的权限映射（与后端一致）
+const ROLE_PERMISSIONS: Record<string, Permission[]> = {
+  admin: [
+    { resource: 'user', action: 'read' },
+    { resource: 'user', action: 'write' },
+    { resource: 'user', action: 'delete' },
+    { resource: 'role', action: 'read' },
+    { resource: 'role', action: 'write' },
+    { resource: 'role', action: 'delete' },
+    { resource: 'permission', action: 'read' },
+    { resource: 'permission', action: 'write' },
+    { resource: 'permission', action: 'delete' },
+    { resource: 'user_role', action: 'read' },
+    { resource: 'user_role', action: 'write' },
+    { resource: 'user_role', action: 'delete' },
+    { resource: 'audit_log', action: 'read' },
+  ],
+  operator: [
+    { resource: 'user', action: 'read' },
+    { resource: 'user', action: 'write' },
+    { resource: 'role', action: 'read' },
+  ],
+  viewer: [
+    { resource: 'user', action: 'read' },
+  ],
 };
 
 export const test = base.extend<RtcFunctionsFixtures>({
@@ -859,48 +1010,591 @@ export const test = base.extend<RtcFunctionsFixtures>({
     };
     await use(login);
   },
+
+  // === 新增：以指定角色登录 ===
+  loginAs: async ({ page }, use) => {
+    const loginAs = async (role: 'admin' | 'operator' | 'viewer') => {
+      // Mock /api/auth/me 接口返回对应角色的权限
+      await page.route('**/api/auth/me', async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            data: {
+              id: 'test-user-id',
+              email: `${role}@example.com`,
+              name: role.toUpperCase(),
+              roles: [{ id: 'role-id', name: role, display_name: role }],
+              permissions: ROLE_PERMISSIONS[role],
+            },
+          }),
+        });
+      });
+
+      await page.goto('/user/login');
+      await page.fill('input[name="email"]', role);
+      await page.fill('input[name="password"]', 'ant.design');
+      await page.click('button[type="submit"]');
+      await page.waitForURL('**/dashboard/**');
+
+      // 等待 RTC Agent 初始化完成（带权限过滤）
+      await page.waitForFunction(() => {
+        // @ts-ignore
+        return window.__rtc__?.listFunctions !== undefined;
+      });
+    };
+    await use(loginAs);
+  },
+
+  // === 新增：列出已注册的 Functions ===
+  listFunctions: async ({ page }, use) => {
+    const listFunctions = async () => {
+      return page.evaluate(() => {
+        // @ts-ignore
+        return window.__rtc__?.listFunctions() || [];
+      });
+    };
+    await use(listFunctions);
+  },
 });
 
 export { expect } from '@playwright/test';
 ```
 
-### 4.10 集成到 rtc-agent-manager.ts
+### 4.10.1 权限过滤 E2E 测试 (`src/rtc-agent/e2e/specs/permission-filter.spec.ts`)
 
 ```typescript
+import { expect, test } from '../fixtures/rtc-functions';
+
+test.describe('权限过滤 - Functions 根据角色权限动态注册', () => {
+  test('admin 角色 - 所有 Functions 可用', async ({ loginAs, listFunctions }) => {
+    await loginAs('admin');
+
+    const functions = await listFunctions();
+
+    // admin 应该能看到所有 groups
+    const groupNames = [...new Set(functions.map((f) => f.group))];
+    expect(groupNames).toContain('navigation');
+    expect(groupNames).toContain('auth');
+    expect(groupNames).toContain('user');
+    expect(groupNames).toContain('role');
+    expect(groupNames).toContain('permission');
+    expect(groupNames).toContain('userRole');
+    expect(groupNames).toContain('auditLog');
+
+    // user group 应该有完整的 CRUD
+    const userFunctions = functions.filter((f) => f.group === 'user');
+    expect(userFunctions.map((f) => f.name)).toEqual(
+      expect.arrayContaining(['list', 'create', 'update', 'remove'])
+    );
+  });
+
+  test('operator 角色 - 只有部分 Functions 可用', async ({ loginAs, listFunctions }) => {
+    await loginAs('operator');
+
+    const functions = await listFunctions();
+    const groupNames = [...new Set(functions.map((f) => f.group))];
+
+    // operator 有 user:read, user:write, role:read
+    expect(groupNames).toContain('navigation');
+    expect(groupNames).toContain('auth');
+    expect(groupNames).toContain('user');
+    expect(groupNames).toContain('role'); // role:read
+
+    // operator 没有 permission, user_role, audit_log 权限
+    expect(groupNames).not.toContain('permission');
+    expect(groupNames).not.toContain('userRole');
+    expect(groupNames).not.toContain('auditLog');
+
+    // user group 只有 list, create, update（没有 delete）
+    const userFunctions = functions.filter((f) => f.group === 'user');
+    expect(userFunctions.map((f) => f.name)).toEqual(
+      expect.arrayContaining(['list', 'create', 'update'])
+    );
+    expect(userFunctions.map((f) => f.name)).not.toContain('remove');
+
+    // role group 只有 list（没有 create, update, remove）
+    const roleFunctions = functions.filter((f) => f.group === 'role');
+    expect(roleFunctions.map((f) => f.name)).toEqual(['list']);
+  });
+
+  test('viewer 角色 - 只有只读 Functions 可用', async ({ loginAs, listFunctions }) => {
+    await loginAs('viewer');
+
+    const functions = await listFunctions();
+    const groupNames = [...new Set(functions.map((f) => f.group))];
+
+    // viewer 只有 user:read
+    expect(groupNames).toContain('navigation');
+    expect(groupNames).toContain('auth');
+    expect(groupNames).toContain('user');
+
+    // viewer 没有其他权限
+    expect(groupNames).not.toContain('role');
+    expect(groupNames).not.toContain('permission');
+    expect(groupNames).not.toContain('userRole');
+    expect(groupNames).not.toContain('auditLog');
+
+    // user group 只有 list
+    const userFunctions = functions.filter((f) => f.group === 'user');
+    expect(userFunctions.map((f) => f.name)).toEqual(['list']);
+  });
+
+  test('无权限的 Function 调用应该失败', async ({ loginAs, callFunction }) => {
+    await loginAs('viewer'); // 只有 user:read
+
+    // viewer 可以尝试调用 user.list（有权限）
+    const listResult = await callFunction('user.list', {});
+    expect(listResult).toBeDefined();
+
+    // viewer 尝试调用 user.remove（没有权限，function 不存在）
+    // 应该抛出错误，因为 function 没有被注册
+    await expect(
+      callFunction('user.remove', { ids: ['test-id'] })
+    ).rejects.toThrow(/Function not found/);
+  });
+});
+```
+
+### 4.11 权限过滤机制 (`src/rtc-agent/permission-filter.ts`)
+
+> **重要说明**：`requiredPermissions` 是 **admin-ui 自定义的扩展属性**，不是 `@rtc-agent/component` 原生支持的字段。`@rtc-agent/component` 的 `FunctionDef` 类型不包含此属性。admin-ui 通过定义 `PermissionAwareFunctionDef` 接口来扩展 `FunctionDef`，在注册前通过 `filterGroupsByPermissions` 过滤掉无权 Function，然后将过滤后的 Function 传给 `@rtc-agent/component`。
+
+**边界情况**：
+
+- **Group 内部分 Function 有权限**：过滤后 Group 仍然存在，只包含有权限的 Function。例如用户有 `user:read` 但没有 `user:delete`，则 `user` Group 只保留 `list` Function。
+- **Group 内所有 Function 无权限**：整个 Group 被移除，AI 完全看不到该 Group 的存在。
+- **权限过滤是一次性的**：在 `createAdminAgentConfig()` 初始化时过滤，之后权限变更需要重新挂载 RTC Agent（刷新页面）。
+
+```typescript
+/**
+ * 权限过滤模块
+ *
+ * 根据用户权限过滤 Functions，只注册用户有权限使用的 Functions
+ */
+
+/**
+ * 权限定义（与后端 API 返回一致）
+ */
+export interface Permission {
+  resource: string;
+  action: string;
+}
+
+/**
+ * 带权限要求的 Function 定义
+ *
+ * 扩展 FunctionDef，添加 requiredPermissions 属性
+ */
+export interface PermissionAwareFunctionDef {
+  name: string;
+  description: string;
+  /** 需要的权限列表，为空表示无权限要求（所有用户可用） */
+  requiredPermissions?: Permission[];
+  // ... 其他 FunctionDef 属性
+}
+
+/**
+ * 将权限数组转换为 Set<string>，用于 O(1) 查询
+ */
+export function buildPermissionSet(permissions: Permission[]): Set<string> {
+  return new Set(permissions.map((p) => `${p.resource}:${p.action}`));
+}
+
+/**
+ * 检查用户是否拥有 Function 所需的所有权限
+ */
+export function hasRequiredPermissions(
+  fn: PermissionAwareFunctionDef,
+  userPermissionSet: Set<string>,
+): boolean {
+  // 无权限要求 = 所有用户可用
+  if (!fn.requiredPermissions || fn.requiredPermissions.length === 0) {
+    return true;
+  }
+
+  // 检查用户是否拥有所有需要的权限
+  return fn.requiredPermissions.every((p) =>
+    userPermissionSet.has(`${p.resource}:${p.action}`)
+  );
+}
+
+/**
+ * 过滤 Functions：只保留用户有权限使用的
+ */
+export function filterFunctionsByPermissions<T extends PermissionAwareFunctionDef>(
+  functions: T[],
+  userPermissions: Permission[],
+): T[] {
+  const userPermissionSet = buildPermissionSet(userPermissions);
+
+  const filtered = functions.filter((fn) =>
+    hasRequiredPermissions(fn, userPermissionSet)
+  );
+
+  console.log(
+    `[Permission Filter] ${filtered.length}/${functions.length} functions available`,
+  );
+
+  return filtered;
+}
+
+/**
+ * 过滤 Function Group：过滤每个 group 内的 functions，移除空的 group
+ */
+export function filterGroupsByPermissions<T extends PermissionAwareFunctionDef>(
+  groups: Array<{ name: string; description?: string; functions: T[] }>,
+  userPermissions: Permission[],
+): Array<{ name: string; description?: string; functions: T[] }> {
+  return groups
+    .map((group) => ({
+      ...group,
+      functions: filterFunctionsByPermissions(group.functions, userPermissions),
+    }))
+    .filter((group) => group.functions.length > 0); // 移除空的 group
+}
+```
+
+### 4.12 带权限声明的 Function 示例 — 查询操作 (`src/rtc-agent/groups/user/list.ts`)
+
+```typescript
+import { z, withMeta } from '@rtc-agent/component';
+import type { FunctionDef } from '@rtc-agent/component';
+
+/**
+ * 查询用户列表
+ *
+ * 权限要求：user:read
+ *
+ * 如果用户没有 user:read 权限，这个 Function 不会被注册
+ */
+export const listUsers: FunctionDef = {
+  name: 'list',
+  description: '查询用户列表，返回当前表格中显示的数据',
+
+  // === 权限声明 ===
+  requiredPermissions: [{ resource: 'user', action: 'read' }],
+
+  zodSchema: z.object({
+    current: withMeta(z.number().int().positive(), { example: 1 })
+      .optional()
+      .describe('当前页码，默认 1'),
+    pageSize: withMeta(z.number().int().positive(), { example: 20 })
+      .optional()
+      .describe('每页条数，默认 20'),
+  }),
+
+  returns: {
+    zodSchema: z.object({
+      success: z.boolean(),
+      data: z.array(z.object({
+        id: z.string(),
+        name: z.string(),
+        email: z.string(),
+        roles: z.array(z.string()),
+      })),
+      total: z.number(),
+    }),
+  },
+
+  handler: async (params) => {
+    // 调用页面 API（不是直接操作 DOM 或后端）
+    return await window.__pages__?.user.list(params);
+  },
+};
+```
+
+### 4.13 带权限声明的 Function 示例 — 删除操作 (`src/rtc-agent/groups/user/remove.ts`)
+
+```typescript
+import { z, withMeta } from '@rtc-agent/component';
+import type { FunctionDef } from '@rtc-agent/component';
+
+/**
+ * 删除用户
+ *
+ * 权限要求：user:delete
+ *
+ * 注意：这个 Function 需要 user:delete 权限
+ * 如果用户只有 user:read/user:write 但没有 user:delete，这个 Function 不会被注册
+ */
+export const removeUser: FunctionDef = {
+  name: 'remove',
+  description: '删除用户，删除成功后表格会自动刷新',
+
+  // === 权限声明：需要 delete 权限 ===
+  requiredPermissions: [{ resource: 'user', action: 'delete' }],
+
+  zodSchema: z.object({
+    ids: withMeta(z.array(z.string()), { example: ['01a10622-...'] })
+      .describe('要删除的用户 ID 列表'),
+  }),
+
+  returns: {
+    zodSchema: z.object({
+      success: z.boolean(),
+      deletedCount: z.number(),
+    }),
+  },
+
+  handler: async (params) => {
+    const { ids } = params as { ids: string[] };
+    return await window.__pages__?.user.remove(ids);
+  },
+};
+```
+
+### 4.14 User Function Group 定义 (`src/rtc-agent/groups/user/index.ts`)
+
+```typescript
+import type { AgentFunctionGroup } from '@rtc-agent/component';
+import { listUsers } from './list';
+import { createUser } from './create';
+import { updateUser } from './update';
+import { removeUser } from './remove';
+
+/**
+ * 用户管理 Function Group
+ *
+ * 对应页面路由：/system/users
+ * 所需权限：
+ * - list: user:read
+ * - create: user:write
+ * - update: user:write
+ * - remove: user:delete
+ */
+export const userGroup: AgentFunctionGroup = {
+  name: 'user',
+  description: '用户管理模块，支持用户的增删改查操作',
+  functions: [
+    listUsers,    // requiredPermissions: [{ resource: 'user', action: 'read' }]
+    createUser,   // requiredPermissions: [{ resource: 'user', action: 'write' }]
+    updateUser,   // requiredPermissions: [{ resource: 'user', action: 'write' }]
+    removeUser,   // requiredPermissions: [{ resource: 'user', action: 'delete' }]
+  ],
+};
+```
+
+### 4.15 集成到 rtc-agent-manager.ts（含权限传递）
+
+```typescript
+import type { RtcAgentWithLifecycle } from '@rtc-agent/component';
+import { createAdminAuthProvider } from '@/utils/rtc-auth-provider';
 import { createAdminAgentConfig } from '@/rtc-agent';
 import { initTestHarness } from '@/rtc-agent/test-harness';
+import type { Permission } from '@/rtc-agent/permission-filter';
 
-// ... existing code ...
+// Web Component 实例（全局单例）
+let rtcAgentInstance: RtcAgentWithLifecycle | null = null;
 
-const agent = createRtcAgent({
-  appLabel: 'RTC Agent',
-  theme: 'system',
-  server: { url: RTC_AGENT_URL },
-  auth: createAdminAuthProvider(),
-  workerURL: '/rtc-agent/shared-worker.js',
-  databaseName: 'admin-ui',
-  lang: 'zh-CN',
+// 动态导入标记
+let importPromise: Promise<{
+  createRtcAgent: typeof import('@rtc-agent/component').createRtcAgent;
+}> | null = null;
 
-  // === 新增：Function Registration ===
-  ...createAdminAgentConfig(),
+// 挂载状态标记
+let mountRequested = false;
+let isMounting = false;
 
-  window: {
-    defaultMode: 'minimized',
-    bubblePosition: {
-      corner: 'bottom-right',
-      offset: { x: -24, y: 24 },
-    },
-  },
+// RTC Agent Server URL
+const RTC_AGENT_URL = process.env.RTC_AGENT_URL || window.location.origin;
 
-  on: {
-    ready: () => {
-      console.log('[RTC Agent] Ready');
-      // === 新增：初始化测试桥接 ===
-      initTestHarness();
-    },
-    // ... existing callbacks
-  },
-});
+function loadRtcAgentComponent() {
+  // ... 同之前的实现
+}
+
+/**
+ * 挂载 RTC Agent
+ *
+ * @param userPermissions - 当前用户的权限列表（来自 /api/auth/me）
+ *
+ * 流程：
+ * 1. 等待用户权限信息
+ * 2. 根据权限过滤 Functions
+ * 3. 创建 RTC Agent（只注册有权限的 Functions）
+ */
+export function mountRtcAgent(userPermissions: Permission[] = []) {
+  console.log('[RTC Agent Manager] mountRtcAgent called with permissions:', userPermissions);
+
+  if (rtcAgentInstance) {
+    console.warn('[RTC Agent Manager] RTC Agent already mounted');
+    return;
+  }
+  if (isMounting) {
+    console.warn('[RTC Agent Manager] RTC Agent mount already in progress');
+    return;
+  }
+
+  mountRequested = true;
+  isMounting = true;
+
+  loadRtcAgentComponent()
+    .then(({ createRtcAgent }) => {
+      isMounting = false;
+
+      if (!mountRequested || rtcAgentInstance) {
+        return;
+      }
+
+      console.log('[RTC Agent Manager] Creating RTC Agent instance...');
+      try {
+        // === 根据用户权限创建 Agent Config ===
+        const agentConfig = createAdminAgentConfig(userPermissions);
+
+        const agent = createRtcAgent({
+          appLabel: 'RTC Agent',
+          theme: 'system',
+          server: { url: RTC_AGENT_URL },
+          auth: createAdminAuthProvider(),
+          workerURL: '/rtc-agent/shared-worker.js',
+          databaseName: 'admin-ui',
+          lang: 'zh-CN',
+
+          // === 传入权限过滤后的 Functions ===
+          ...agentConfig,
+
+          window: {
+            defaultMode: 'minimized',
+            bubblePosition: {
+              corner: 'bottom-right',
+              offset: { x: -24, y: 24 },
+            },
+          },
+
+          on: {
+            ready: () => {
+              console.log('[RTC Agent] Ready');
+              initTestHarness();
+            },
+            authLogin: ({ userId }: { userId: string }) => {
+              console.log('[RTC Agent] Authenticated, userId:', userId);
+            },
+            authError: () => {
+              console.error('[RTC Agent] Auth error, scheduling unmount');
+              setTimeout(() => {
+                unmountRtcAgent();
+              }, 0);
+            },
+          },
+        });
+
+        console.log('[RTC Agent Manager] Appending RTC Agent to document.body');
+        document.body.appendChild(agent);
+        rtcAgentInstance = agent;
+        console.log('[RTC Agent Manager] RTC Agent mounted successfully');
+      } catch (error) {
+        console.error('[RTC Agent Manager] Failed to create RTC Agent:', error);
+        mountRequested = false;
+        isMounting = false;
+      }
+    })
+    .catch((error) => {
+      console.error('[RTC Agent Manager] Failed to load @rtc-agent/component:', error);
+      mountRequested = false;
+      isMounting = false;
+    });
+}
+
+export function unmountRtcAgent() {
+  // ... 同之前的实现
+}
+```
+
+### 4.16 GlobalRtcAgent 组件（等待权限信息）
+
+```typescript
+// src/components/GlobalRtcAgent/GlobalRtcAgent.tsx
+
+import React, { useCallback, useEffect, useState } from 'react';
+import { mountRtcAgent, unmountRtcAgent } from '@/utils/rtc-agent-manager';
+import { isAuthenticated, AUTH_STATE_CHANGED_EVENT } from '@/utils/rtc-auth-provider';
+import { useModel } from '@umijs/max';
+import type { Permission } from '@/rtc-agent/permission-filter';
+
+/**
+ * 全局 RTC Agent 组件
+ *
+ * 流程：
+ * 1. 检查是否已登录（localStorage token）
+ * 2. 等待 getInitialState 完成（获取 currentUser + permissions）
+ * 3. 调用 mountRtcAgent(permissions)
+ */
+export const GlobalRtcAgent: React.FC = () => {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isSupported, setIsSupported] = useState(true);
+  const [isReady, setIsReady] = useState(false);
+
+  // 使用 useModel 获取 initialState（包含 currentUser + permissions）
+  const { initialState, loading } = useModel('@@initialState');
+
+  // 检查登录状态
+  const checkAuth = useCallback(() => {
+    const authenticated = isAuthenticated();
+    setIsLoggedIn((prev) => {
+      if (prev !== authenticated) {
+        console.log('[GlobalRtcAgent] Auth state changed:', authenticated);
+        return authenticated;
+      }
+      return prev;
+    });
+  }, []);
+
+  // 监听登录状态变化
+  useEffect(() => {
+    checkAuth();
+    window.addEventListener(AUTH_STATE_CHANGED_EVENT, checkAuth);
+    window.addEventListener('storage', checkAuth);
+    const interval = setInterval(checkAuth, 5000);
+
+    return () => {
+      window.removeEventListener(AUTH_STATE_CHANGED_EVENT, checkAuth);
+      window.removeEventListener('storage', checkAuth);
+      clearInterval(interval);
+    };
+  }, [checkAuth]);
+
+  // === 关键：等待 initialState 加载完成 ===
+  useEffect(() => {
+    if (!loading && initialState?.currentUser) {
+      console.log('[GlobalRtcAgent] Initial state ready, currentUser loaded');
+      setIsReady(true);
+    }
+  }, [loading, initialState]);
+
+  // === 挂载/卸载逻辑（需要等待权限信息） ===
+  useEffect(() => {
+    if (!isSupported) return;
+
+    // 需要同时满足：已登录 + initialState 已加载
+    if (isLoggedIn && isReady) {
+      // 从 currentUser.permissions 获取权限列表
+      // 注意：currentUser.permissions 是 Set<string>（由 app.tsx 中的 buildPermissionSet 构建）
+      // 格式为 "resource:action" 的集合，如 "user:read", "role:write"
+      // 这里将其转换回 Permission[] 格式传给 mountRtcAgent
+      const permissions: Permission[] = Array.from(
+        (initialState?.currentUser?.permissions as Set<string>) || []
+      ).map((key) => {
+        const [resource, action] = key.split(':');
+        return { resource, action };
+      });
+
+      console.log('[GlobalRtcAgent] Mounting RTC Agent with permissions:', permissions);
+      mountRtcAgent(permissions);
+    } else {
+      unmountRtcAgent();
+    }
+  }, [isLoggedIn, isReady, isSupported, initialState]);
+
+  // 清理
+  useEffect(() => {
+    return () => {
+      unmountRtcAgent();
+    };
+  }, []);
+
+  return null;
+};
 ```
 
 ## 5. Page API 模式详解
@@ -982,28 +1676,31 @@ flowchart LR
         S1["1. 定义 Page API<br/>(页面暴露的接口)"]
         S2["2. 页面注册 API<br/>(useEffect 中注册)"]
         S3["3. 定义 Function Schema<br/>(name, zodSchema, returns)"]
-        S4["4. 实现 Handler<br/>(调用 page API)"]
-        S5["5. 编写 E2E Spec<br/>(验证 Function + UI)"]
-        S6["6. 注册到 Group<br/>(自动对 AI 可用)"]
+        S4["4. 声明权限要求<br/>(requiredPermissions)"]
+        S5["5. 实现 Handler<br/>(调用 page API)"]
+        S6["6. 编写 E2E Spec<br/>(验证 Function + UI + 权限)"]
+        S7["7. 注册到 Group<br/>(自动对 AI 可用)"]
 
-        S1 --> S2 --> S3 --> S4 --> S5 --> S6
+        S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7
     end
 
     style S1 fill:#e8f5e9,stroke:#388e3c
     style S2 fill:#e8f5e9,stroke:#388e3c
     style S3 fill:#fff9c4,stroke:#f9a825
-    style S4 fill:#fff9c4,stroke:#f9a825
-    style S5 fill:#f3e5f5,stroke:#7b1fa2
-    style S6 fill:#e3f2fd,stroke:#1565c0
+    style S4 fill:#fff3e0,stroke:#e65100
+    style S5 fill:#fff9c4,stroke:#f9a825
+    style S6 fill:#f3e5f5,stroke:#7b1fa2
+    style S7 fill:#e3f2fd,stroke:#1565c0
 ```
 
 ```
 1. 定义 Page API    → 明确页面暴露的接口（类型、参数、返回值）
 2. 页面注册 API    → 在 useEffect 中注册到 window.__pages__
 3. 定义 Schema    → 明确 Function 的输入输出契约
-4. 实现 Handler   → 调用 page API（不直接操作 DOM 或后端）
-5. 编写 E2E Spec  → 用 Playwright 验证 Function 行为和 UI 状态
-6. 注册到 Group   → AI 自动发现并可以调用
+4. 声明权限要求   → 设置 requiredPermissions（为空则所有用户可用）
+5. 实现 Handler   → 调用 page API（不直接操作 DOM 或后端）
+6. 编写 E2E Spec  → 用 Playwright 验证 Function 行为、UI 状态、权限过滤
+7. 注册到 Group   → AI 自动发现并可以调用（受权限控制）
 ```
 
 ## 7. 测试策略
@@ -1086,22 +1783,7 @@ const MyPage: React.FC = () => {
 };
 ```
 
-### Step 3: 创建 Function Group
-
-```typescript
-// src/rtc-agent/groups/my-group/index.ts
-import type { AgentFunctionGroup } from '@rtc-agent/component';
-import { listMyData } from './list';
-import { createMyData } from './create';
-
-export const myGroup: AgentFunctionGroup = {
-  name: 'myGroup',
-  description: '我的模块',
-  functions: [listMyData, createMyData],
-};
-```
-
-### Step 4: 实现 Function Handler
+### Step 3: 实现 Function Handler（含权限声明）
 
 ```typescript
 // src/rtc-agent/groups/my-group/list.ts
@@ -1111,8 +1793,15 @@ import type { FunctionDef } from '@rtc-agent/component';
 export const listMyData: FunctionDef = {
   name: 'list',
   description: '查询数据列表',
+
+  // === 权限声明 ===
+  // 如果这个 Function 需要特定权限，在这里声明
+  // 为空或省略表示所有用户可用
+  requiredPermissions: [{ resource: 'my_resource', action: 'read' }],
+
   zodSchema: z.object({ /* params */ }),
   returns: { zodSchema: z.object({ /* returns */ }) },
+
   handler: async (params) => {
     // 调用页面 API（不是直接操作 DOM 或后端）
     const pageAPI = window.__pages__?.myPage;
@@ -1124,29 +1813,63 @@ export const listMyData: FunctionDef = {
 };
 ```
 
+### Step 4: 创建 Function Group
+
+```typescript
+// src/rtc-agent/groups/my-group/index.ts
+import type { AgentFunctionGroup } from '@rtc-agent/component';
+import { listMyData } from './list';
+import { createMyData } from './create';
+
+export const myGroup: AgentFunctionGroup = {
+  name: 'myGroup',
+  description: '我的模块',
+  functions: [
+    listMyData,    // requiredPermissions: [{ resource: 'my_resource', action: 'read' }]
+    createMyData,  // requiredPermissions: [{ resource: 'my_resource', action: 'write' }]
+  ],
+};
+```
+
 ### Step 5: 注册到总入口
 
 ```typescript
 // src/rtc-agent/index.ts
 import { myGroup } from './groups/my-group';
 
-export function createAdminAgentConfig(): Partial<AgentConfig> {
-  return {
-    groups: [myGroup, /* ... */],
-  };
+const allGroups = [
+  // ... 其他 groups
+  myGroup,  // 添加新的 group
+];
+
+// createAdminAgentConfig 会根据用户权限自动过滤
+export function createAdminAgentConfig(userPermissions: Permission[]): Partial<AgentConfig> {
+  const filteredGroups = filterGroupsByPermissions(allGroups, userPermissions);
+  return { groups: filteredGroups };
 }
 ```
 
-### Step 6: 编写 E2E Spec
+### Step 6: 编写 E2E Spec（含权限测试）
 
 ```typescript
 // src/rtc-agent/e2e/specs/my-group.spec.ts
 import { expect, test } from '../fixtures/rtc-functions';
 
 test.describe('myGroup', () => {
-  test('list - 读取数据', async ({ callFunction }) => {
+  test('list - 有权限时可以读取数据', async ({ loginAs, callFunction }) => {
+    await loginAs('admin'); // admin 有 my_resource:read 权限
+
     const result = await callFunction('myGroup.list', {});
     expect(result).toHaveProperty('data');
+  });
+
+  test('list - 无权限时 Function 不可用', async ({ loginAs, callFunction }) => {
+    await loginAs('viewer'); // viewer 没有 my_resource:read 权限
+
+    // Function 不存在（被权限过滤掉了）
+    await expect(
+      callFunction('myGroup.list', {})
+    ).rejects.toThrow(/Function not found/);
   });
 });
 ```
@@ -1160,7 +1883,66 @@ test.describe('myGroup', () => {
 - **Page API 命名** - 与 Group 对应：`window.__pages__.rule`
 - **路由路径** - `/` 分隔：`/list/table-list`
 
-## 10. 注意事项
+## 10. 权限与 Functions 对应关系
+
+### 10.1 权限矩阵
+
+|Group|Function|requiredPermissions|对应路由|页面 access|
+|---|---|---|---|---|
+|**navigation**|goto, getCurrentPage, listPages|无（所有用户可用）|所有页面|-|
+|**auth**|currentUser, hasPermission, logout|无（所有用户可用）|-|-|
+|**user**|list|`user:read`|/system/users|canUserView|
+|**user**|create, update|`user:write`|/system/users|canUserEdit|
+|**user**|remove|`user:delete`|/system/users|canUserDelete|
+|**role**|list|`role:read`|/system/roles|canRoleView|
+|**role**|create, update, remove|`role:write`|/system/roles|canRoleEdit|
+|**permission**|list|`permission:read`|/system/permissions|canPermissionView|
+|**permission**|create, update, remove|`permission:write`|/system/permissions|canPermissionEdit|
+|**userRole**|list|`user_role:read`|/system/users|canUserView|
+|**userRole**|assign, revoke|`user_role:write`|/system/users|canUserEdit|
+|**auditLog**|list|`audit_log:read`|/system/audit-logs|canAuditLogView|
+
+*注：`access.ts` 中未定义 `canRoleDelete` / `canPermissionDelete` / `canUserRoleDelete`，删除操作复用对应的 `write` 权限检查。后端权限虽然区分了 `read/write/delete`，但前端 Function 的 `requiredPermissions` 与 `access.ts` 保持一致。*
+
+### 10.2 角色权限映射
+
+|角色|权限|可用的 Functions|
+|---|---|---|
+|**admin**|所有权限|所有 Functions|
+|**operator**|`user:read`, `user:write`, `role:read`|navigation, auth, user.list/create/update, role.list|
+|**viewer**|`user:read`|navigation, auth, user.list|
+
+### 10.3 权限过滤流程图
+
+```mermaid
+flowchart TB
+    A[用户登录] --> B[GET /api/auth/me]
+    B --> C[获取 permissions 数组]
+    C --> D[GlobalRtcAgent 等待 initialState]
+    D --> E[调用 mountRtcAgent\(permissions\)]
+    E --> F[createAdminAgentConfig\(permissions\)]
+    F --> G[filterGroupsByPermissions]
+    
+    G --> H{遍历每个 Function}
+    H --> I{requiredPermissions?}
+    I -->|无| J[保留 Function]
+    I -->|有| K{用户拥有所有权限?}
+    K -->|是| J
+    K -->|否| L[过滤掉 Function]
+    
+    J --> M[组装过滤后的 Groups]
+    L --> M
+    M --> N[创建 RTC Agent]
+    N --> O[AI 只能看到/调用有权限的 Functions]
+
+    style A fill:#e3f2fd,stroke:#1565c0
+    style F fill:#fff3e0,stroke:#e65100
+    style G fill:#fff3e0,stroke:#e65100
+    style N fill:#e8f5e9,stroke:#388e3c
+    style O fill:#e8f5e9,stroke:#388e3c
+```
+
+## 11. 注意事项
 
 1. **Handler 调用 Page API** - 不直接操作 DOM，不绕过 UI 调后端
 2. **Page API 返回 UI 数据** - 从 React Query 缓存或 actionRef 读取
@@ -1170,11 +1952,15 @@ test.describe('myGroup', () => {
 6. **zodSchema 优先** - 使用 Zod 而不是 OpenAPI 参数定义
 7. **测试桥接仅限开发环境** - 生产环境不会暴露 `window.__rtc__`
 8. **Page API 生命周期** - 页面挂载时注册，卸载时清理
+9. **权限声明** - 每个 Function 应该声明 `requiredPermissions`，为空表示所有用户可用
+10. **权限过滤时机** - 在 `createAdminAgentConfig()` 中根据用户权限过滤，不是运行时检查
+11. **等待权限信息** - `GlobalRtcAgent` 必须等待 `getInitialState()` 完成（获取 currentUser + permissions）后才挂载 RTC Agent
+12. **E2E 测试权限** - 测试时使用 `loginAs(role)` 模拟不同角色，验证权限过滤逻辑
 
-## 11. 后续扩展
+## 12. 后续扩展
 
-- **更多 Groups** - 根据 admin-ui 实际业务需求添加
+- **更多 Groups** - 根据 admin-ui 实际业务需求添加（如 dashboard、form 等页面的 Functions）
 - **Scenario 文档** - 为复杂工作流编写 AI 场景文档
 - **Function 组合** - 支持 Function 之间的依赖和组合
-- **权限控制** - 根据用户角色限制可访问的 Functions
-- **审计日志** - 记录 Function 调用历史
+- **审计日志** - 记录 Function 调用历史（调用者、时间、参数、结果）
+- **权限动态更新** - 用户权限变更时，动态更新已注册的 Functions（无需重新挂载）

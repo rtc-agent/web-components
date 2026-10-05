@@ -16,11 +16,11 @@ export function buildPermissionSet(
 }
 
 /**
- * 计算用户访问级别
+ * 计算管理员访问级别
  * 向后兼容：旧后端不返回 roles（roles 为 undefined），默认 admin
- * 新后端返回 roles 数组：根据是否包含 'admin' 角色判断
+ * 新后端返回 roles 数组：根据是否包含 'admin' 管理员角色判断
  *
- * @param roles 用户角色数组
+ * @param roles 管理员角色数组
  * @returns 访问级别：'admin' | 'user'
  */
 export function computeAccessLevel(
