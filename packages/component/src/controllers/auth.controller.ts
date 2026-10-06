@@ -20,6 +20,7 @@ import type {AuthProvider} from '../types/factory.js';
 import {DEFAULT_AUTH_STATE} from '../contexts/auth.js';
 import {AUTH_CONFIG, STORAGE_KEYS} from '../config/auth.js';
 import { createLogger, OAuth2Client } from '@rtc-agent/client';
+import { getDeviceName } from '../utils/device.js';
 
 const log = createLogger('AuthController');
 
@@ -423,6 +424,8 @@ export class AuthController implements ReactiveController {
                     subject_token: externalJWT,
                     subject_token_type: 'urn:ietf:params:oauth:token-type:jwt',
                     device_id: this._authProvider!.deviceId,
+                    device_name: getDeviceName(),
+                    user_agent: navigator.userAgent,
                 });
             } catch (err) {
                 log.debug('token_exchange.exchange_failed (will retry):', err);

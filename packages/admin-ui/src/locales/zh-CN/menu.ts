@@ -4,6 +4,8 @@ export default {
   'menu.home': '首页',
   'menu.rtc-users': 'RTC 用户',
   'menu.rtc-users.management': '用户管理',
+  'menu.rtc-users.sessions': '对话管理',
+  'menu.rtc-users.messages': '消息管理',
   'menu.admin': '管理页',
   'menu.admin.sub-page': '二级管理页',
   'menu.login': '登录',

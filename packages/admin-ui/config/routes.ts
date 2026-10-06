@@ -66,6 +66,20 @@ export default [
         component: './rtc-users/management',
         access: 'canRtcUserView',
       },
+      {
+        path: '/rtc-users/sessions',
+        name: 'sessions',
+        icon: 'message',
+        component: './rtc-users/sessions',
+        access: 'canRtcSessionView',
+      },
+      {
+        path: '/rtc-users/messages',
+        name: 'messages',
+        icon: 'fileText',
+        component: './rtc-users/messages',
+        access: 'canRtcMessageView',
+      },
     ],
   },
   {

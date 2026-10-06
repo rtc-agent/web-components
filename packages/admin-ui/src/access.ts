@@ -22,6 +22,8 @@ export default function access(
       canAuditLogView: false,
       canRtcUserView: false,
       canRtcUserBan: false,
+      canRtcSessionView: false,
+      canRtcMessageView: false,
       canServerConfigView: false,
       canServerConfigEdit: false,
       canServerConfigDelete: false,
@@ -42,6 +44,8 @@ export default function access(
   const canAuditLogView = perms?.has('audit_log:read') ?? false;
   const canRtcUserView = perms?.has('rtc_user:read') ?? false;
   const canRtcUserBan = perms?.has('rtc_user:ban') ?? false;
+  const canRtcSessionView = perms?.has('rtc_session:read') ?? false;
+  const canRtcMessageView = perms?.has('rtc_message:read') ?? false;
   const canServerConfigView = perms?.has('server_config:read') ?? false;
   const canServerConfigEdit = perms?.has('server_config:write') ?? false;
   const canServerConfigDelete = perms?.has('server_config:delete') ?? false;
@@ -92,6 +96,10 @@ export default function access(
     // RTC 用户管理
     canRtcUserView,
     canRtcUserBan,
+
+    // RTC 对话与消息管理
+    canRtcSessionView,
+    canRtcMessageView,
 
     // 系统配置管理
     canServerConfigView,

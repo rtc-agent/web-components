@@ -1,5 +1,8 @@
 import {
   CheckCircleOutlined,
+  DownOutlined,
+  EyeOutlined,
+  MessageOutlined,
   SettingOutlined,
   StopOutlined,
 } from '@ant-design/icons';
@@ -10,11 +13,12 @@ import {
   ProFormTextArea,
   ProTable,
 } from '@ant-design/pro-components';
-import { useAccess, useIntl } from '@umijs/max';
-import { App, Button, Popconfirm, Space, Tag } from 'antd';
+import { history, useAccess, useIntl } from '@umijs/max';
+import { App, Button, Dropdown, Popconfirm, Space, Tag, Tooltip } from 'antd';
 import React, { useRef, useState } from 'react';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import UserConfigDrawer from './components/UserConfigDrawer';
+import UserDetailDrawer from './components/UserDetailDrawer';
 import type { RtcUserInfo } from './data';
 import { banRtcUser, getRtcUserList, unbanRtcUser } from './service';
 
@@ -27,6 +31,8 @@ const RtcUserManagementPage: React.FC = () => {
   const [banModalVisible, setBanModalVisible] = useState(false);
   const [configDrawerOpen, setConfigDrawerOpen] = useState(false);
   const [configUser, setConfigUser] = useState<RtcUserInfo | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailUser, setDetailUser] = useState<RtcUserInfo | null>(null);
   const access = useAccess();
   const intl = useIntl();
   const { message } = App.useApp();
@@ -206,26 +212,70 @@ const RtcUserManagementPage: React.FC = () => {
       }),
       dataIndex: 'option',
       valueType: 'option',
+      width: 160,
       render: (_, record) => {
         const isBanned = record.status === 'banned';
+        const moreItems = [
+          {
+            key: 'config',
+            label: intl.formatMessage({
+              id: 'pages.rtcUsers.config',
+              defaultMessage: '配置',
+            }),
+            icon: <SettingOutlined />,
+            onClick: () => {
+              setConfigUser(record);
+              setConfigDrawerOpen(true);
+            },
+          },
+          {
+            key: 'sessions',
+            label: intl.formatMessage({
+              id: 'pages.rtcUsers.viewSessions',
+              defaultMessage: '对话',
+            }),
+            icon: <MessageOutlined />,
+            onClick: () =>
+              history.push(`/rtc-users/sessions?user_id=${record.id}`),
+          },
+        ];
+
         return (
-          <Space>
-            {!isBanned && canBan && (
+          <Space size={0}>
+            <Tooltip
+              title={intl.formatMessage({
+                id: 'pages.rtcUsers.detail.viewDetail',
+                defaultMessage: '查看详情',
+              })}
+            >
               <Button
-                type="link"
-                danger
+                type="text"
                 size="small"
-                icon={<StopOutlined />}
+                icon={<EyeOutlined />}
                 onClick={() => {
-                  setCurrentRow(record);
-                  setBanModalVisible(true);
+                  setDetailUser(record);
+                  setDetailOpen(true);
                 }}
-              >
-                {intl.formatMessage({
+              />
+            </Tooltip>
+            {!isBanned && canBan && (
+              <Tooltip
+                title={intl.formatMessage({
                   id: 'pages.rtcUsers.ban',
                   defaultMessage: '封禁',
                 })}
-              </Button>
+              >
+                <Button
+                  type="text"
+                  danger
+                  size="small"
+                  icon={<StopOutlined />}
+                  onClick={() => {
+                    setCurrentRow(record);
+                    setBanModalVisible(true);
+                  }}
+                />
+              </Tooltip>
             )}
             {isBanned && canBan && (
               <Popconfirm
@@ -243,28 +293,30 @@ const RtcUserManagementPage: React.FC = () => {
                   defaultMessage: '取消',
                 })}
               >
-                <Button type="link" size="small" icon={<CheckCircleOutlined />}>
-                  {intl.formatMessage({
+                <Tooltip
+                  title={intl.formatMessage({
                     id: 'pages.rtcUsers.unban',
                     defaultMessage: '解封',
                   })}
-                </Button>
+                >
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<CheckCircleOutlined />}
+                  />
+                </Tooltip>
               </Popconfirm>
             )}
-            <Button
-              type="link"
-              size="small"
-              icon={<SettingOutlined />}
-              onClick={() => {
-                setConfigUser(record);
-                setConfigDrawerOpen(true);
-              }}
-            >
-              {intl.formatMessage({
-                id: 'pages.rtcUsers.config',
-                defaultMessage: '配置',
-              })}
-            </Button>
+            <Dropdown menu={{ items: moreItems }} trigger={['click']}>
+              <Tooltip
+                title={intl.formatMessage({
+                  id: 'pages.rtcUsers.more',
+                  defaultMessage: '更多',
+                })}
+              >
+                <Button type="text" size="small" icon={<DownOutlined />} />
+              </Tooltip>
+            </Dropdown>
           </Space>
         );
       },
@@ -390,6 +442,16 @@ const RtcUserManagementPage: React.FC = () => {
         user={configUser}
         canEdit={canConfigEdit}
         canDelete={canConfigDelete}
+      />
+
+      {/* 用户详情 Drawer */}
+      <UserDetailDrawer
+        open={detailOpen}
+        user={detailUser}
+        onClose={() => {
+          setDetailOpen(false);
+          setDetailUser(null);
+        }}
       />
     </PageContainer>
   );

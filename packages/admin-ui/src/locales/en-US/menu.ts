@@ -4,6 +4,8 @@ export default {
   'menu.home': 'Home',
   'menu.rtc-users': 'RTC Users',
   'menu.rtc-users.management': 'User Management',
+  'menu.rtc-users.sessions': 'Sessions',
+  'menu.rtc-users.messages': 'Messages',
   'menu.admin': 'Admin',
   'menu.admin.sub-page': 'Sub-Page',
   'menu.login': 'Login',

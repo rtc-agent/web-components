@@ -68,11 +68,20 @@ export function setDeviceName(name: string): void {
 function getDefaultDeviceName(): string {
     const ua = navigator.userAgent;
 
-    if (/Macintosh|Mac OS X/.test(ua)) return 'Mac';
-    if (/Windows/.test(ua)) return 'Windows PC';
-    if (/Linux/.test(ua)) return 'Linux PC';
-    if (/iPhone|iPad/.test(ua)) return 'iOS Device';
-    if (/Android/.test(ua)) return 'Android Device';
+    // Extract browser name and version
+    // Order matters: check more specific browsers first
+    if (/Edg\/(\d+)/.test(ua)) {
+        return `Edge ${RegExp.$1}`;
+    }
+    if (/Chrome\/(\d+)/.test(ua)) {
+        return `Chrome ${RegExp.$1}`;
+    }
+    if (/Firefox\/(\d+)/.test(ua)) {
+        return `Firefox ${RegExp.$1}`;
+    }
+    if (/Safari\/(\d+)/.test(ua) && /Version\/(\d+)/.test(ua)) {
+        return `Safari ${RegExp.$1}`;
+    }
 
-    return 'Unknown Device';
+    return 'Unknown Browser';
 }
