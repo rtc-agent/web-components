@@ -7,7 +7,7 @@ export interface BizError {
     errorCode?: string;
     errorMessage?: string;
     showType?: number;
-    data?: any;
+    data?: Record<string, unknown>;
   };
   response?: {
     data?: {
@@ -63,21 +63,27 @@ export const ERROR_CODE_MESSAGES: Record<string, string> = {
  * @returns 友好的错误提示
  */
 export function getFriendlyErrorMessage(
-  error: BizError | any,
+  error: BizError | unknown,
   defaultMessage = '操作失败',
 ): string {
+  // Narrow unknown to a shape we can safely probe
+  const err = (error ?? {}) as Record<string, unknown>;
+  const info = (err.info ?? {}) as Record<string, unknown>;
+  const response = (err.response ?? {}) as Record<string, unknown>;
+  const responseData = (response.data ?? {}) as Record<string, unknown>;
+
   // 尝试从 BizError 中获取错误码
-  const errorCode = error?.info?.errorCode || error?.errorCode;
+  const errorCode = (info.errorCode as string) || (err.errorCode as string);
   if (errorCode && ERROR_CODE_MESSAGES[errorCode]) {
     return ERROR_CODE_MESSAGES[errorCode];
   }
 
   // 尝试从响应体中获取错误码
-  const responseErrorCode = error?.response?.data?.errorCode;
+  const responseErrorCode = responseData.errorCode as string;
   if (responseErrorCode && ERROR_CODE_MESSAGES[responseErrorCode]) {
     return ERROR_CODE_MESSAGES[responseErrorCode];
   }
 
   // 使用错误消息或默认消息
-  return error?.message || defaultMessage;
+  return (err.message as string) || defaultMessage;
 }

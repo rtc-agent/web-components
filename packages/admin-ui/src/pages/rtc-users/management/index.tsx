@@ -1,12 +1,17 @@
-import { StopOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { CheckCircleOutlined, StopOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
-import { ModalForm, PageContainer, ProFormTextArea, ProTable } from '@ant-design/pro-components';
+import {
+  ModalForm,
+  PageContainer,
+  ProFormTextArea,
+  ProTable,
+} from '@ant-design/pro-components';
 import { useAccess, useIntl } from '@umijs/max';
 import { Button, message, Popconfirm, Space, Tag } from 'antd';
 import React, { useRef, useState } from 'react';
+import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import type { RtcUserInfo } from './data';
 import { banRtcUser, getRtcUserList, unbanRtcUser } from './service';
-import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 
 /**
  * RTC 用户管理页面
@@ -24,12 +29,25 @@ const RtcUserManagementPage: React.FC = () => {
     if (!currentRow) return false;
     try {
       await banRtcUser(currentRow.id, { reason: values.reason });
-      message.success(intl.formatMessage({ id: 'pages.rtcUsers.banSuccess', defaultMessage: '封禁用户成功' }));
+      message.success(
+        intl.formatMessage({
+          id: 'pages.rtcUsers.banSuccess',
+          defaultMessage: '封禁用户成功',
+        }),
+      );
       setBanModalVisible(false);
       actionRef.current?.reload();
       return true;
     } catch (error: unknown) {
-      message.error(getFriendlyErrorMessage(error, intl.formatMessage({ id: 'pages.rtcUsers.banFailed', defaultMessage: '封禁用户失败' })));
+      message.error(
+        getFriendlyErrorMessage(
+          error,
+          intl.formatMessage({
+            id: 'pages.rtcUsers.banFailed',
+            defaultMessage: '封禁用户失败',
+          }),
+        ),
+      );
       return false;
     }
   };
@@ -38,58 +56,109 @@ const RtcUserManagementPage: React.FC = () => {
   const handleUnbanUser = async (userId: string) => {
     try {
       await unbanRtcUser(userId);
-      message.success(intl.formatMessage({ id: 'pages.rtcUsers.unbanSuccess', defaultMessage: '解封用户成功' }));
+      message.success(
+        intl.formatMessage({
+          id: 'pages.rtcUsers.unbanSuccess',
+          defaultMessage: '解封用户成功',
+        }),
+      );
       actionRef.current?.reload();
     } catch (error: unknown) {
-      message.error(getFriendlyErrorMessage(error, intl.formatMessage({ id: 'pages.rtcUsers.unbanFailed', defaultMessage: '解封用户失败' })));
+      message.error(
+        getFriendlyErrorMessage(
+          error,
+          intl.formatMessage({
+            id: 'pages.rtcUsers.unbanFailed',
+            defaultMessage: '解封用户失败',
+          }),
+        ),
+      );
     }
   };
 
   /** 表格列定义 */
   const columns: ProColumns<RtcUserInfo>[] = [
     {
-      title: intl.formatMessage({ id: 'pages.rtcUsers.userId', defaultMessage: '用户ID' }),
+      title: intl.formatMessage({
+        id: 'pages.rtcUsers.userId',
+        defaultMessage: '用户ID',
+      }),
       dataIndex: 'id',
       valueType: 'text',
       hideInTable: true,
       search: false,
     },
     {
-      title: intl.formatMessage({ id: 'pages.rtcUsers.email', defaultMessage: '邮箱' }),
+      title: intl.formatMessage({
+        id: 'pages.rtcUsers.email',
+        defaultMessage: '邮箱',
+      }),
       dataIndex: 'email',
       valueType: 'text',
       copyable: true,
     },
     {
-      title: intl.formatMessage({ id: 'pages.rtcUsers.name', defaultMessage: '姓名' }),
+      title: intl.formatMessage({
+        id: 'pages.rtcUsers.name',
+        defaultMessage: '姓名',
+      }),
       dataIndex: 'name',
       valueType: 'text',
     },
     {
-      title: intl.formatMessage({ id: 'pages.rtcUsers.provider', defaultMessage: 'Provider' }),
+      title: intl.formatMessage({
+        id: 'pages.rtcUsers.provider',
+        defaultMessage: 'Provider',
+      }),
       dataIndex: 'provider',
       valueType: 'text',
       search: false,
     },
     {
-      title: intl.formatMessage({ id: 'pages.rtcUsers.status', defaultMessage: '状态' }),
+      title: intl.formatMessage({
+        id: 'pages.rtcUsers.status',
+        defaultMessage: '状态',
+      }),
       dataIndex: 'status',
       valueType: 'select',
       valueEnum: {
-        active: { text: intl.formatMessage({ id: 'pages.rtcUsers.statusActive', defaultMessage: '正常' }), status: 'Success' },
-        banned: { text: intl.formatMessage({ id: 'pages.rtcUsers.statusBanned', defaultMessage: '已封禁' }), status: 'Error' },
+        active: {
+          text: intl.formatMessage({
+            id: 'pages.rtcUsers.statusActive',
+            defaultMessage: '正常',
+          }),
+          status: 'Success',
+        },
+        banned: {
+          text: intl.formatMessage({
+            id: 'pages.rtcUsers.statusBanned',
+            defaultMessage: '已封禁',
+          }),
+          status: 'Error',
+        },
       },
       render: (_, record) => {
         const isBanned = record.status === 'banned';
         return (
           <Tag color={isBanned ? 'red' : 'green'}>
-            {isBanned ? intl.formatMessage({ id: 'pages.rtcUsers.statusBanned', defaultMessage: '已封禁' }) : intl.formatMessage({ id: 'pages.rtcUsers.statusActive', defaultMessage: '正常' })}
+            {isBanned
+              ? intl.formatMessage({
+                  id: 'pages.rtcUsers.statusBanned',
+                  defaultMessage: '已封禁',
+                })
+              : intl.formatMessage({
+                  id: 'pages.rtcUsers.statusActive',
+                  defaultMessage: '正常',
+                })}
           </Tag>
         );
       },
     },
     {
-      title: intl.formatMessage({ id: 'pages.rtcUsers.bannedReason', defaultMessage: '封禁原因' }),
+      title: intl.formatMessage({
+        id: 'pages.rtcUsers.bannedReason',
+        defaultMessage: '封禁原因',
+      }),
       dataIndex: 'banned_reason',
       valueType: 'text',
       search: false,
@@ -97,14 +166,20 @@ const RtcUserManagementPage: React.FC = () => {
       render: (_, record) => record.banned_reason || '-',
     },
     {
-      title: intl.formatMessage({ id: 'pages.rtcUsers.bannedAt', defaultMessage: '封禁时间' }),
+      title: intl.formatMessage({
+        id: 'pages.rtcUsers.bannedAt',
+        defaultMessage: '封禁时间',
+      }),
       dataIndex: 'banned_at',
       valueType: 'dateTime',
       search: false,
       render: (_, record) => record.banned_at || '-',
     },
     {
-      title: intl.formatMessage({ id: 'pages.rtcUsers.createdAt', defaultMessage: '创建时间' }),
+      title: intl.formatMessage({
+        id: 'pages.rtcUsers.createdAt',
+        defaultMessage: '创建时间',
+      }),
       dataIndex: 'created_at',
       valueType: 'dateTime',
       search: false,
@@ -112,7 +187,10 @@ const RtcUserManagementPage: React.FC = () => {
       defaultSortOrder: 'descend',
     },
     {
-      title: intl.formatMessage({ id: 'pages.rtcUsers.actions', defaultMessage: '操作' }),
+      title: intl.formatMessage({
+        id: 'pages.rtcUsers.actions',
+        defaultMessage: '操作',
+      }),
       dataIndex: 'option',
       valueType: 'option',
       render: (_, record) => {
@@ -130,18 +208,33 @@ const RtcUserManagementPage: React.FC = () => {
                   setBanModalVisible(true);
                 }}
               >
-                {intl.formatMessage({ id: 'pages.rtcUsers.ban', defaultMessage: '封禁' })}
+                {intl.formatMessage({
+                  id: 'pages.rtcUsers.ban',
+                  defaultMessage: '封禁',
+                })}
               </Button>
             )}
             {isBanned && canBan && (
               <Popconfirm
-                title={intl.formatMessage({ id: 'pages.rtcUsers.confirmUnban', defaultMessage: '确认解封该用户吗？' })}
+                title={intl.formatMessage({
+                  id: 'pages.rtcUsers.confirmUnban',
+                  defaultMessage: '确认解封该用户吗？',
+                })}
                 onConfirm={() => handleUnbanUser(record.id)}
-                okText={intl.formatMessage({ id: 'pages.rtcUsers.confirm', defaultMessage: '确认' })}
-                cancelText={intl.formatMessage({ id: 'pages.rtcUsers.cancel', defaultMessage: '取消' })}
+                okText={intl.formatMessage({
+                  id: 'pages.rtcUsers.confirm',
+                  defaultMessage: '确认',
+                })}
+                cancelText={intl.formatMessage({
+                  id: 'pages.rtcUsers.cancel',
+                  defaultMessage: '取消',
+                })}
               >
                 <Button type="link" size="small" icon={<CheckCircleOutlined />}>
-                  {intl.formatMessage({ id: 'pages.rtcUsers.unban', defaultMessage: '解封' })}
+                  {intl.formatMessage({
+                    id: 'pages.rtcUsers.unban',
+                    defaultMessage: '解封',
+                  })}
                 </Button>
               </Popconfirm>
             )}
@@ -154,7 +247,10 @@ const RtcUserManagementPage: React.FC = () => {
   return (
     <PageContainer>
       <ProTable<RtcUserInfo>
-        headerTitle={intl.formatMessage({ id: 'pages.rtcUsers.title', defaultMessage: 'RTC 用户列表' })}
+        headerTitle={intl.formatMessage({
+          id: 'pages.rtcUsers.title',
+          defaultMessage: 'RTC 用户列表',
+        })}
         actionRef={actionRef}
         rowKey="id"
         columns={columns}
@@ -171,7 +267,12 @@ const RtcUserManagementPage: React.FC = () => {
               success: true,
             };
           } catch (_error) {
-            message.error(intl.formatMessage({ id: 'pages.rtcUsers.loadFailed', defaultMessage: '加载用户列表失败' }));
+            message.error(
+              intl.formatMessage({
+                id: 'pages.rtcUsers.loadFailed',
+                defaultMessage: '加载用户列表失败',
+              }),
+            );
             return {
               data: [],
               total: 0,
@@ -188,18 +289,21 @@ const RtcUserManagementPage: React.FC = () => {
           labelWidth: 'auto',
         }}
         toolBarRender={() => [
-          <Button
-            key="refresh"
-            onClick={() => actionRef.current?.reload()}
-          >
-            {intl.formatMessage({ id: 'pages.rtcUsers.refresh', defaultMessage: '刷新' })}
+          <Button key="refresh" onClick={() => actionRef.current?.reload()}>
+            {intl.formatMessage({
+              id: 'pages.rtcUsers.refresh',
+              defaultMessage: '刷新',
+            })}
           </Button>,
         ]}
       />
 
       {/* 封禁用户弹窗 */}
       <ModalForm
-        title={intl.formatMessage({ id: 'pages.rtcUsers.banUser', defaultMessage: '封禁用户' })}
+        title={intl.formatMessage({
+          id: 'pages.rtcUsers.banUser',
+          defaultMessage: '封禁用户',
+        })}
         open={banModalVisible}
         onOpenChange={setBanModalVisible}
         modalProps={{
@@ -210,12 +314,36 @@ const RtcUserManagementPage: React.FC = () => {
       >
         <ProFormTextArea
           name="reason"
-          label={intl.formatMessage({ id: 'pages.rtcUsers.banReasonLabel', defaultMessage: '封禁原因' })}
-          placeholder={intl.formatMessage({ id: 'pages.rtcUsers.banReasonPlaceholder', defaultMessage: '请输入封禁原因' })}
+          label={intl.formatMessage({
+            id: 'pages.rtcUsers.banReasonLabel',
+            defaultMessage: '封禁原因',
+          })}
+          placeholder={intl.formatMessage({
+            id: 'pages.rtcUsers.banReasonPlaceholder',
+            defaultMessage: '请输入封禁原因',
+          })}
           rules={[
-            { required: true, message: intl.formatMessage({ id: 'pages.rtcUsers.banReasonRequired', defaultMessage: '请输入封禁原因' }) },
-            { whitespace: true, message: intl.formatMessage({ id: 'pages.rtcUsers.banReasonNoWhitespace', defaultMessage: '封禁原因不能为空白字符' }) },
-            { max: 500, message: intl.formatMessage({ id: 'pages.rtcUsers.banReasonMaxLength', defaultMessage: '封禁原因长度不能超过 500 个字符' }) },
+            {
+              required: true,
+              message: intl.formatMessage({
+                id: 'pages.rtcUsers.banReasonRequired',
+                defaultMessage: '请输入封禁原因',
+              }),
+            },
+            {
+              whitespace: true,
+              message: intl.formatMessage({
+                id: 'pages.rtcUsers.banReasonNoWhitespace',
+                defaultMessage: '封禁原因不能为空白字符',
+              }),
+            },
+            {
+              max: 500,
+              message: intl.formatMessage({
+                id: 'pages.rtcUsers.banReasonMaxLength',
+                defaultMessage: '封禁原因长度不能超过 500 个字符',
+              }),
+            },
           ]}
           fieldProps={{
             rows: 4,

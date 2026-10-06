@@ -59,7 +59,12 @@ export default function access(
     // 实现：isAdmin || canAdminUserView || canAdminRoleView || canPermissionView || canAuditLogView || canRtcUserView
     // 观察者（admin_user:read）、运营（role:read）、权限管理员（permission:read）、审计查看者（audit_log:read）、RTC用户查看者（rtc_user:read）均可见
     canSystemView:
-      isAdmin || canAdminUserView || canAdminRoleView || canPermissionView || canAuditLogView || canRtcUserView,
+      isAdmin ||
+      canAdminUserView ||
+      canAdminRoleView ||
+      canPermissionView ||
+      canAuditLogView ||
+      canRtcUserView,
 
     // 管理员管理
     canAdminUserView,
