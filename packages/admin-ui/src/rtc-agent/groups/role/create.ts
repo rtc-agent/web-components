@@ -14,7 +14,8 @@ import { ensurePageLoaded } from '@/rtc-agent/utils/page-loader';
  */
 export const createRole: PermissionAwareFunctionDef = {
   name: 'create',
-  description: 'Create a new admin role, the table will auto-refresh after successful creation',
+  description:
+    'Create a new admin role, the table will auto-refresh after successful creation',
 
   requiredPermissions: [{ resource: 'role', action: 'write' }],
 
@@ -25,7 +26,9 @@ export const createRole: PermissionAwareFunctionDef = {
     display_name: withMeta(z.string(), { example: 'Editor' }).describe(
       'Display name',
     ),
-    description: withMeta(z.string(), { example: 'A role that can edit content' })
+    description: withMeta(z.string(), {
+      example: 'A role that can edit content',
+    })
       .optional()
       .describe('Admin role description'),
     is_enabled: withMeta(z.boolean(), { example: true })
@@ -77,7 +80,9 @@ export const createRole: PermissionAwareFunctionDef = {
       console.log('[role.create] Creating admin role...');
     },
     onSuccess: (result) => {
-      console.log(`[role.create] Creation successful, ID: ${(result as any).id}`);
+      console.log(
+        `[role.create] Creation successful, ID: ${(result as any).id}`,
+      );
     },
     onError: (error) => {
       console.error('[role.create] Creation failed:', error.message);

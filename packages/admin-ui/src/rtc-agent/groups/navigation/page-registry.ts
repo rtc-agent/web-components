@@ -65,7 +65,8 @@ export function filterPagesByPermissions(
   userPermissions: Set<string>,
 ): PageDefinition[] {
   return pages.filter(
-    (page) => !page.requiredPermission || userPermissions.has(page.requiredPermission),
+    (page) =>
+      !page.requiredPermission || userPermissions.has(page.requiredPermission),
   );
 }
 
@@ -73,9 +74,7 @@ export function filterPagesByPermissions(
  * Format page list for function description
  */
 export function formatPageListForDescription(pages: PageDefinition[]): string {
-  return pages
-    .map((p) => `- ${p.path}: ${p.description}`)
-    .join('\n');
+  return pages.map((p) => `- ${p.path}: ${p.description}`).join('\n');
 }
 
 /**

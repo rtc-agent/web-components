@@ -14,7 +14,8 @@ import { ensurePageLoaded } from '@/rtc-agent/utils/page-loader';
  */
 export const removeRole: PermissionAwareFunctionDef = {
   name: 'remove',
-  description: 'Delete admin roles, the table will auto-refresh after successful deletion',
+  description:
+    'Delete admin roles, the table will auto-refresh after successful deletion',
 
   requiredPermissions: [{ resource: 'role', action: 'write' }],
 

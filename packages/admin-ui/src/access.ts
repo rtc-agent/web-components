@@ -22,6 +22,9 @@ export default function access(
       canAuditLogView: false,
       canRtcUserView: false,
       canRtcUserBan: false,
+      canServerConfigView: false,
+      canServerConfigEdit: false,
+      canServerConfigDelete: false,
     };
   }
 
@@ -39,6 +42,9 @@ export default function access(
   const canAuditLogView = perms?.has('audit_log:read') ?? false;
   const canRtcUserView = perms?.has('rtc_user:read') ?? false;
   const canRtcUserBan = perms?.has('rtc_user:ban') ?? false;
+  const canServerConfigView = perms?.has('server_config:read') ?? false;
+  const canServerConfigEdit = perms?.has('server_config:write') ?? false;
+  const canServerConfigDelete = perms?.has('server_config:delete') ?? false;
 
   // 判断是否为管理员（基于管理员角色名称）
   const roleNames = currentUser.roles?.map((r) => r.name) || [];
@@ -64,7 +70,8 @@ export default function access(
       canAdminRoleView ||
       canPermissionView ||
       canAuditLogView ||
-      canRtcUserView,
+      canRtcUserView ||
+      canServerConfigView,
 
     // 管理员管理
     canAdminUserView,
@@ -85,5 +92,10 @@ export default function access(
     // RTC 用户管理
     canRtcUserView,
     canRtcUserBan,
+
+    // 系统配置管理
+    canServerConfigView,
+    canServerConfigEdit,
+    canServerConfigDelete,
   };
 }

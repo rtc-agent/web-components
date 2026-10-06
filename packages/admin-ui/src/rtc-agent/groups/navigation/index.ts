@@ -1,6 +1,6 @@
 import type { PermissionAwareFunctionDef } from '@/rtc-agent/permission-filter';
 import { createGotoFunction } from './goto';
-import { pages, filterPagesByPermissions } from './page-registry';
+import { filterPagesByPermissions, pages } from './page-registry';
 
 /**
  * Page Navigation Function Group

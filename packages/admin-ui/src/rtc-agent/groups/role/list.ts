@@ -16,7 +16,8 @@ import { ensurePageLoaded } from '@/rtc-agent/utils/page-loader';
  */
 export const listRoles: PermissionAwareFunctionDef = {
   name: 'list',
-  description: 'Query admin role list, returns the data currently displayed in the table',
+  description:
+    'Query admin role list, returns the data currently displayed in the table',
 
   requiredPermissions: [{ resource: 'role', action: 'read' }],
 
@@ -29,7 +30,9 @@ export const listRoles: PermissionAwareFunctionDef = {
       .describe('Items per page, defaults to 20'),
     keyword: withMeta(z.string(), { example: 'admin' })
       .optional()
-      .describe('Keyword search (admin role name, display name, or description)'),
+      .describe(
+        'Keyword search (admin role name, display name, or description)',
+      ),
   }),
 
   returns: {
@@ -43,7 +46,10 @@ export const listRoles: PermissionAwareFunctionDef = {
               name: z.string().describe('Admin role name'),
               display_name: z.string().describe('Display name'),
               description: z.string().optional().describe('Description'),
-              is_system: z.boolean().optional().describe('Whether it is a system admin role'),
+              is_system: z
+                .boolean()
+                .optional()
+                .describe('Whether it is a system admin role'),
               is_enabled: z.boolean().optional().describe('Whether enabled'),
               created_at: z.string().optional().describe('Creation time'),
               updated_at: z.string().optional().describe('Update time'),
@@ -83,7 +89,9 @@ export const listRoles: PermissionAwareFunctionDef = {
       console.log('[role.list] Reading admin role list...');
     },
     onSuccess: (result) => {
-      console.log(`[role.list] Read successful, total ${(result as any).total} records`);
+      console.log(
+        `[role.list] Read successful, total ${(result as any).total} records`,
+      );
     },
     onError: (error) => {
       console.error('[role.list] Read failed:', error.message);

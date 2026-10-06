@@ -16,4 +16,3 @@ export async function queryCity(
     ({ data }) => data,
   );
 }
-

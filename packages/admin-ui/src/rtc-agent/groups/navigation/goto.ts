@@ -1,7 +1,7 @@
 import { withMeta, z } from '@rtc-agent/component';
 import type { PermissionAwareFunctionDef } from '@/rtc-agent/permission-filter';
 import type { PageDefinition } from './page-registry';
-import { formatPageListForDescription, extractPageName } from './page-registry';
+import { extractPageName, formatPageListForDescription } from './page-registry';
 
 /**
  * Navigate to a specified page
@@ -87,10 +87,14 @@ ${formatPageListForDescription(availablePages)}`,
 
   hooks: {
     onStart: (params) => {
-      console.log(`[navigation.goto] Navigating to ${(params as any)?.path}...`);
+      console.log(
+        `[navigation.goto] Navigating to ${(params as any)?.path}...`,
+      );
     },
     onSuccess: (result) => {
-      console.log(`[navigation.goto] Navigation successful: ${(result as any).path}`);
+      console.log(
+        `[navigation.goto] Navigation successful: ${(result as any).path}`,
+      );
     },
     onError: (error) => {
       console.error('[navigation.goto] Navigation failed:', error.message);

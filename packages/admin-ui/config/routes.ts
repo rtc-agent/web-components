@@ -124,6 +124,13 @@ export default [
         component: './system/audit-logs',
         access: 'canAuditLogView',
       },
+      {
+        path: '/system/configs',
+        name: 'configs',
+        icon: 'setting',
+        component: './system/configs',
+        access: 'canServerConfigView',
+      },
     ],
   },
   {

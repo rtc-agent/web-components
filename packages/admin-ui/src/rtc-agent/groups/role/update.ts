@@ -14,7 +14,8 @@ import { ensurePageLoaded } from '@/rtc-agent/utils/page-loader';
  */
 export const updateRole: PermissionAwareFunctionDef = {
   name: 'update',
-  description: 'Update admin role information, the table will auto-refresh after successful update',
+  description:
+    'Update admin role information, the table will auto-refresh after successful update',
 
   requiredPermissions: [{ resource: 'role', action: 'write' }],
 
@@ -28,7 +29,9 @@ export const updateRole: PermissionAwareFunctionDef = {
     display_name: withMeta(z.string(), { example: 'Editor' })
       .optional()
       .describe('Display name'),
-    description: withMeta(z.string(), { example: 'A role that can edit content' })
+    description: withMeta(z.string(), {
+      example: 'A role that can edit content',
+    })
       .optional()
       .describe('Admin role description'),
     is_enabled: withMeta(z.boolean(), { example: true })

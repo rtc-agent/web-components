@@ -59,4 +59,5 @@ export default {
   'menu.system.roles': 'Admin Role Management',
   'menu.system.permissions': 'Permission Management',
   'menu.system.audit-logs': 'Audit Logs',
+  'menu.system.configs': 'System Configs',
 };

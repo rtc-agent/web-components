@@ -59,4 +59,5 @@ export default {
   'menu.system.roles': '管理员角色管理',
   'menu.system.permissions': '权限管理',
   'menu.system.audit-logs': '审计日志',
+  'menu.system.configs': '系统配置',
 };

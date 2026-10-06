@@ -1,4 +1,8 @@
-import { CheckCircleOutlined, StopOutlined } from '@ant-design/icons';
+import {
+  CheckCircleOutlined,
+  SettingOutlined,
+  StopOutlined,
+} from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import {
   ModalForm,
@@ -10,6 +14,7 @@ import { useAccess, useIntl } from '@umijs/max';
 import { Button, message, Popconfirm, Space, Tag } from 'antd';
 import React, { useRef, useState } from 'react';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
+import UserConfigDrawer from './components/UserConfigDrawer';
 import type { RtcUserInfo } from './data';
 import { banRtcUser, getRtcUserList, unbanRtcUser } from './service';
 
@@ -20,9 +25,16 @@ const RtcUserManagementPage: React.FC = () => {
   const actionRef = useRef<ActionType>(null);
   const [currentRow, setCurrentRow] = useState<RtcUserInfo>();
   const [banModalVisible, setBanModalVisible] = useState(false);
+  const [configDrawerOpen, setConfigDrawerOpen] = useState(false);
+  const [configUser, setConfigUser] = useState<RtcUserInfo | null>(null);
   const access = useAccess();
   const intl = useIntl();
   const canBan = access.canRtcUserBan;
+  // NOTE: 用户配置权限复用系统配置权限（设计文档明确说明）
+  // 这是有意为之的设计：用户配置管理使用系统配置的编辑/删除权限点
+  // 参考 access.ts 中 canServerConfigEdit/canServerConfigDelete 的定义
+  const canConfigEdit = access.canServerConfigEdit as boolean;
+  const canConfigDelete = access.canServerConfigDelete as boolean;
 
   /** 封禁用户 */
   const handleBanUser = async (values: { reason: string }) => {
@@ -238,6 +250,20 @@ const RtcUserManagementPage: React.FC = () => {
                 </Button>
               </Popconfirm>
             )}
+            <Button
+              type="link"
+              size="small"
+              icon={<SettingOutlined />}
+              onClick={() => {
+                setConfigUser(record);
+                setConfigDrawerOpen(true);
+              }}
+            >
+              {intl.formatMessage({
+                id: 'pages.rtcUsers.config',
+                defaultMessage: '配置',
+              })}
+            </Button>
           </Space>
         );
       },
@@ -352,6 +378,18 @@ const RtcUserManagementPage: React.FC = () => {
           }}
         />
       </ModalForm>
+
+      {/* 用户配置 Drawer */}
+      <UserConfigDrawer
+        open={configDrawerOpen}
+        onClose={() => {
+          setConfigDrawerOpen(false);
+          setConfigUser(null);
+        }}
+        user={configUser}
+        canEdit={canConfigEdit}
+        canDelete={canConfigDelete}
+      />
     </PageContainer>
   );
 };
