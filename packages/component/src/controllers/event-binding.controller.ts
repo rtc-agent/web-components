@@ -286,6 +286,13 @@ export class EventBindingController implements ReactiveController {
             // Extract ban reason from event detail
             const detail = (event as CustomEvent).detail;
             const reason = detail?.reason as string | undefined;
+            // Clean up sessionStorage entry set by WorkerBridge.onAccountBanned
+            // to prevent duplicate toast on component remount or page refresh.
+            try {
+                sessionStorage.removeItem('rtc-account-banned-pending');
+            } catch {
+                // sessionStorage may be unavailable
+            }
             // Show error toast with reason if available
             toast.actions.show(formatBanMessage(reason), 'error');
             // Call auth logout to update auth state and trigger the full logout flow
