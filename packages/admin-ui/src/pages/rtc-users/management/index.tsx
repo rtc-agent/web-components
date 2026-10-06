@@ -11,7 +11,7 @@ import {
   ProTable,
 } from '@ant-design/pro-components';
 import { useAccess, useIntl } from '@umijs/max';
-import { Button, message, Popconfirm, Space, Tag } from 'antd';
+import { App, Button, Popconfirm, Space, Tag } from 'antd';
 import React, { useRef, useState } from 'react';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import UserConfigDrawer from './components/UserConfigDrawer';
@@ -29,6 +29,7 @@ const RtcUserManagementPage: React.FC = () => {
   const [configUser, setConfigUser] = useState<RtcUserInfo | null>(null);
   const access = useAccess();
   const intl = useIntl();
+  const { message } = App.useApp();
   const canBan = access.canRtcUserBan;
   // NOTE: 用户配置权限复用系统配置权限（设计文档明确说明）
   // 这是有意为之的设计：用户配置管理使用系统配置的编辑/删除权限点

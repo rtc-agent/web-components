@@ -450,6 +450,7 @@ const UserConfigEditModal: React.FC<UserConfigEditModalProps> = ({
 }) => {
   const [form] = Form.useForm<{ value: unknown; change_note?: string }>();
   const intl = useIntl();
+  const { message } = App.useApp();
 
   useEffect(() => {
     if (open) {
@@ -476,6 +477,9 @@ const UserConfigEditModal: React.FC<UserConfigEditModalProps> = ({
           try {
             finalValue = JSON.parse(values.value);
           } catch {
+            message.error(
+              intl.formatMessage({ id: 'pages.config.system.jsonFormatError' }),
+            );
             return false;
           }
         }

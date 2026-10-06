@@ -3,7 +3,7 @@ import {
   ProFormTextArea,
 } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
-import { Alert, Form } from 'antd';
+import { Alert, App, Form } from 'antd';
 import React, { useEffect } from 'react';
 import type { ServerConfigItem } from '@/services/serverConfig';
 import ConfigValueInput from './ConfigValueInput';
@@ -30,6 +30,7 @@ const ConfigEditModal: React.FC<ConfigEditModalProps> = ({
 }) => {
   const [form] = Form.useForm<{ value: unknown; change_note?: string }>();
   const intl = useIntl();
+  const { message } = App.useApp();
 
   useEffect(() => {
     if (config && open) {
@@ -59,6 +60,9 @@ const ConfigEditModal: React.FC<ConfigEditModalProps> = ({
           try {
             finalValue = JSON.parse(values.value);
           } catch {
+            message.error(
+              intl.formatMessage({ id: 'pages.config.system.jsonFormatError' }),
+            );
             return false;
           }
         }

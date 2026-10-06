@@ -36,23 +36,6 @@ export const useConfigSourceRenderer = () => {
 };
 
 /**
- * Legacy renderConfigSource function for backward compatibility.
- * Uses default messages without i18n.
- */
-export const renderConfigSource = (source: string): ReactNode => {
-  switch (source) {
-    case 'yaml':
-      return <Tag color="green">yaml 默认</Tag>;
-    case 'system':
-      return <Tag color="blue">系统配置</Tag>;
-    case 'user':
-      return <Tag color="purple">用户覆盖</Tag>;
-    default:
-      return <Tag>{source}</Tag>;
-  }
-};
-
-/**
  * Format config value for display.
  * Handles null/undefined, objects (JSON serialization), and primitives.
  */
