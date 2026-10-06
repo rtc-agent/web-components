@@ -36,8 +36,9 @@ const roles = [
   },
 ];
 
-// 权限策略数据
+// 权限策略数据（与后端 bootstrap.go 保持一致）
 const permissions = [
+  // Admin role (id: '1') — 18 policies
   { role_id: '1', resource: 'admin_user', action: 'read' },
   { role_id: '1', resource: 'admin_user', action: 'write' },
   { role_id: '1', resource: 'admin_user', action: 'delete' },
@@ -47,11 +48,29 @@ const permissions = [
   { role_id: '1', resource: 'permission', action: 'read' },
   { role_id: '1', resource: 'permission', action: 'write' },
   { role_id: '1', resource: 'permission', action: 'delete' },
+  { role_id: '1', resource: 'admin_user_role', action: 'read' },
+  { role_id: '1', resource: 'admin_user_role', action: 'write' },
+  { role_id: '1', resource: 'admin_user_role', action: 'delete' },
   { role_id: '1', resource: 'audit_log', action: 'read' },
+  { role_id: '1', resource: 'rtc_user', action: 'read' },
+  { role_id: '1', resource: 'rtc_user', action: 'ban' },
+  { role_id: '1', resource: 'server_config', action: 'read' },
+  { role_id: '1', resource: 'server_config', action: 'write' },
+  { role_id: '1', resource: 'server_config', action: 'delete' },
+  // Operator role (id: '2') — 9 policies
   { role_id: '2', resource: 'admin_user', action: 'read' },
   { role_id: '2', resource: 'admin_user', action: 'write' },
   { role_id: '2', resource: 'role', action: 'read' },
+  { role_id: '2', resource: 'admin_user_role', action: 'read' },
+  { role_id: '2', resource: 'admin_user_role', action: 'write' },
+  { role_id: '2', resource: 'rtc_user', action: 'read' },
+  { role_id: '2', resource: 'rtc_user', action: 'ban' },
+  { role_id: '2', resource: 'server_config', action: 'read' },
+  { role_id: '2', resource: 'server_config', action: 'write' },
+  // Viewer role (id: '3') — 3 policies
   { role_id: '3', resource: 'admin_user', action: 'read' },
+  { role_id: '3', resource: 'rtc_user', action: 'read' },
+  { role_id: '3', resource: 'server_config', action: 'read' },
 ];
 
 // 用户数据

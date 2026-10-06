@@ -15,6 +15,9 @@ describe('access', () => {
       expect(result.canPermissionView).toBe(false);
       expect(result.canPermissionEdit).toBe(false);
       expect(result.canAuditLogView).toBe(false);
+      expect(result.canServerConfigView).toBe(false);
+      expect(result.canServerConfigEdit).toBe(false);
+      expect(result.canServerConfigDelete).toBe(false);
     });
   });
 
@@ -32,6 +35,9 @@ describe('access', () => {
       expect(result.canPermissionView).toBe(false);
       expect(result.canPermissionEdit).toBe(false);
       expect(result.canAuditLogView).toBe(false);
+      expect(result.canServerConfigView).toBe(false);
+      expect(result.canServerConfigEdit).toBe(false);
+      expect(result.canServerConfigDelete).toBe(false);
     });
   });
 
@@ -100,6 +106,9 @@ describe('access', () => {
         'permission:read',
         'permission:write',
         'audit_log:read',
+        'server_config:read',
+        'server_config:write',
+        'server_config:delete',
       ]);
 
       const result = access({
@@ -120,6 +129,9 @@ describe('access', () => {
       expect(result.canPermissionView).toBe(true);
       expect(result.canPermissionEdit).toBe(true);
       expect(result.canAuditLogView).toBe(true);
+      expect(result.canServerConfigView).toBe(true);
+      expect(result.canServerConfigEdit).toBe(true);
+      expect(result.canServerConfigDelete).toBe(true);
     });
 
     it('should return limited permissions for operator role', () => {
@@ -170,6 +182,31 @@ describe('access', () => {
       expect(result.canPermissionView).toBe(false);
       expect(result.canPermissionEdit).toBe(false);
       expect(result.canAuditLogView).toBe(false);
+      expect(result.canServerConfigView).toBe(false);
+      expect(result.canServerConfigEdit).toBe(false);
+      expect(result.canServerConfigDelete).toBe(false);
+    });
+
+    it('should return server_config read for viewer role', () => {
+      const permissionSet = new Set([
+        'admin_user:read',
+        'rtc_user:read',
+        'server_config:read',
+      ]);
+
+      const result = access({
+        currentUser: {
+          access: 'user',
+          permissions: permissionSet,
+          roles: [{ id: '3', name: 'viewer', display_name: '观察者' }],
+        },
+      });
+
+      expect(result.canAdmin).toBe(false);
+      expect(result.canSystemView).toBe(true);
+      expect(result.canServerConfigView).toBe(true);
+      expect(result.canServerConfigEdit).toBe(false);
+      expect(result.canServerConfigDelete).toBe(false);
     });
   });
 
@@ -194,6 +231,9 @@ describe('access', () => {
       expect(result.canPermissionView).toBe(false);
       expect(result.canPermissionEdit).toBe(false);
       expect(result.canAuditLogView).toBe(false);
+      expect(result.canServerConfigView).toBe(false);
+      expect(result.canServerConfigEdit).toBe(false);
+      expect(result.canServerConfigDelete).toBe(false);
     });
   });
 
@@ -216,6 +256,9 @@ describe('access', () => {
       expect(result.canPermissionView).toBe(false);
       expect(result.canPermissionEdit).toBe(false);
       expect(result.canAuditLogView).toBe(false);
+      expect(result.canServerConfigView).toBe(false);
+      expect(result.canServerConfigEdit).toBe(false);
+      expect(result.canServerConfigDelete).toBe(false);
     });
   });
 
@@ -251,6 +294,15 @@ describe('access', () => {
       const result = access({
         currentUser: {
           permissions: new Set(['audit_log:read']),
+        },
+      });
+      expect(result.canSystemView).toBe(true);
+    });
+
+    it('should be true when user has server_config:read', () => {
+      const result = access({
+        currentUser: {
+          permissions: new Set(['server_config:read']),
         },
       });
       expect(result.canSystemView).toBe(true);
