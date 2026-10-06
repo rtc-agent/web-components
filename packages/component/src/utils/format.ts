@@ -8,6 +8,7 @@
 
 import type {ContentData, PromptContent} from '../types/index.js';
 import {getLocale} from '../core/i18n.js';
+import {msg, str} from '@lit/localize';
 
 /**
  * Format a timestamp (ms since epoch) into a compact MM-DD HH:mm string.
@@ -35,7 +36,9 @@ export function formatTimestampCompact(timestamp: number | undefined | null): st
  * @returns Localized ban message suitable for toast display.
  */
 export function formatBanMessage(reason?: string): string {
-  return reason ? `您的账号已被封禁：${reason}` : '您的账号已被封禁，请联系管理员';
+  return reason
+    ? msg(str`您的账号已被封禁：${reason}`)
+    : msg('您的账号已被封禁，请联系管理员');
 }
 
 /**

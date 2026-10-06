@@ -57,7 +57,7 @@ export default [
     routes: [
       {
         path: '/rtc-users',
-        component: './rtc-users/index',
+        redirect: '/rtc-users/management',
       },
       {
         path: '/rtc-users/management',

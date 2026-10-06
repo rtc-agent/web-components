@@ -220,6 +220,9 @@ const AUTO_SAVE_DEBOUNCE_MS = 1000;
 /** Margin (px) from viewport edge for initial window position in {@link RtcAgent.firstUpdated}. */
 const INITIAL_POSITION_MARGIN_PX = 20;
 
+/** TTL (ms) for pending ban state stored in sessionStorage. Entries older than this are discarded as stale. */
+const BAN_STATE_TTL_MS = 5 * 60 * 1000;
+
 @localized()
 @customElement('rtc-agent')
 export class RtcAgent extends LitElement {
@@ -961,9 +964,8 @@ export class RtcAgent extends LitElement {
             if (pendingBan) {
                 sessionStorage.removeItem('rtc-account-banned-pending');
                 const banData = JSON.parse(pendingBan) as { reason?: string; timestamp?: number };
-                const FIVE_MINUTES = 5 * 60 * 1000;
-                if (banData.timestamp && Date.now() - banData.timestamp > FIVE_MINUTES) {
-                    log.debug('Ignoring stale pending ban in sessionStorage (older than 5 minutes)');
+                if (banData.timestamp && Date.now() - banData.timestamp > BAN_STATE_TTL_MS) {
+                    log.debug('Ignoring stale pending ban in sessionStorage', { ttlMs: BAN_STATE_TTL_MS });
                 } else {
                     log.warn('Found pending account ban in sessionStorage, handling immediately');
                     this._toast.actions.show(formatBanMessage(banData.reason), 'error');

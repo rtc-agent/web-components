@@ -694,7 +694,7 @@ export class WorkerCore implements WorkerPersistenceCore {
     log.warn('broadcastAccountBanned called, reason:', reason, 'callbacks:', this.callbacks.size);
     for (const cb of this.callbacks) {
       try {
-        cb.onAccountBanned?.(reason);
+        cb.onAccountBanned(reason);
       } catch (err) {
         log.error('onAccountBanned callback error:', err);
       }

@@ -264,6 +264,10 @@ export class WorkerBridge {
                     log.debug('sessionStorage unavailable for ban state', e);
                 }
                 // Dispatch event directly (no setTimeout) for immediate handling
+                // NOTE: Uses querySelector to find the rtc-agent element. This works for the
+                // common case of a single rtc-agent on the page. If multiple instances are
+                // needed in the future, pass the host element reference from PersistenceController
+                // to WorkerBridge constructor and use it here instead of querySelector.
                 const rtcAgent = document.querySelector('rtc-agent');
                 if (rtcAgent) {
                     rtcAgent.dispatchEvent(new CustomEvent('rtc-account-banned', {

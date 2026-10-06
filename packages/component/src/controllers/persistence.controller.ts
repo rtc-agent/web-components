@@ -405,6 +405,9 @@ export class PersistenceController implements ReactiveController {
                     return token;
                 },
                 onTokenExpired: () => this._auth.handleTokenExpired(),
+                // Client-level ban callback: handles connection-state side (stop reconnecting).
+                // The Worker-level callback (in WorkerBridge) handles the UI side (sessionStorage + event dispatch).
+                // Both are needed: this one for the Centrifuge client, the Worker one for the browser tab.
                 onAccountBanned: (reason: string) => {
                     // Account banned: stop reconnecting, but do NOT clear user data.
                     // The connection state will be set to 'disconnected' with reason 'account banned'.
@@ -490,6 +493,9 @@ export class PersistenceController implements ReactiveController {
         // Strip non-serializable callback functions (Structured Clone does not support functions).
         // The Worker side replaces getToken/onTokenExpired/onAccountBanned with its own bridges in init(),
         // so the main-thread callbacks are not needed in the Worker config.
+        // Specifically for onAccountBanned: the Worker has its own broadcastAccountBanned() that
+        // dispatches to registered WorkerCallbacks (including WorkerBridge's handler), so this
+        // client-level callback is only used by the Centrifuge client on the main thread.
         const { getToken: _gt, onTokenExpired: _ote, onAccountBanned: _oab, ...serializableClient } = config.client;
         const workerConfig: PersistenceConfig = {
             ...config,

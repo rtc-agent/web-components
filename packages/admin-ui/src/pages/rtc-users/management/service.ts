@@ -22,15 +22,6 @@ export async function getRtcUserList(params?: {
 }
 
 /**
- * 获取 RTC 用户详情
- */
-export async function getRtcUser(id: string) {
-  return request<{ data: any }>(`/api/rtc-users/${id}`, {
-    method: 'GET',
-  });
-}
-
-/**
  * 封禁 RTC 用户
  */
 export async function banRtcUser(id: string, data: BanRtcUserRequest) {

@@ -33,8 +33,8 @@ export interface WorkerCallbacks {
   onGapFillState: (isSyncing: boolean) => void;
   /** Called when catch-up detects a gap in events (e.g., TTL cleanup deleted missed events). */
   onStateGap: () => void;
-  /** Called when the user's account is banned (disconnect code 4501). */
-  onAccountBanned?: (reason: string) => void;
+  /** Called when the user's account is banned (disconnect code 4501). Required: ban is a security-critical event that must not be silently dropped. */
+  onAccountBanned: (reason: string) => void;
 }
 
 /**
