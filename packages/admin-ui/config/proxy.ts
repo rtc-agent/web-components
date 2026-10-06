@@ -34,6 +34,16 @@ export default {
       target: 'http://localhost:28081',
       changeOrigin: true,
     },
+    // Prometheus 指标代理到 admin-server
+    '/api/metrics': {
+      target: 'http://localhost:28081',
+      changeOrigin: true,
+    },
+    // Grafana 监控面板代理到 admin-server
+    '/api/grafana/': {
+      target: 'http://localhost:28081',
+      changeOrigin: true,
+    },
     // RTC Agent Server 代理（Token Exchange + WebSocket）
     '/oauth2/': {
       target: 'http://localhost:28080',

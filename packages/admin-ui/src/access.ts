@@ -27,6 +27,7 @@ export default function access(
       canServerConfigView: false,
       canServerConfigEdit: false,
       canServerConfigDelete: false,
+      canDashboardView: false,
     };
   }
 
@@ -49,6 +50,7 @@ export default function access(
   const canServerConfigView = perms?.has('server_config:read') ?? false;
   const canServerConfigEdit = perms?.has('server_config:write') ?? false;
   const canServerConfigDelete = perms?.has('server_config:delete') ?? false;
+  const canDashboardView = perms?.has('dashboard:read') ?? false;
 
   // 判断是否为管理员（基于管理员角色名称）
   const roleNames = currentUser.roles?.map((r) => r.name) || [];
@@ -75,7 +77,8 @@ export default function access(
       canPermissionView ||
       canAuditLogView ||
       canRtcUserView ||
-      canServerConfigView,
+      canServerConfigView ||
+      canDashboardView,
 
     // 管理员管理
     canAdminUserView,
@@ -105,5 +108,8 @@ export default function access(
     canServerConfigView,
     canServerConfigEdit,
     canServerConfigDelete,
+
+    // 仪表盘
+    canDashboardView,
   };
 }

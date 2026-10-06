@@ -17,9 +17,9 @@ export interface PageDefinition {
  */
 export const pages: PageDefinition[] = [
   {
-    path: '/dashboard/analysis',
-    name: 'Analysis',
-    description: 'Data analysis dashboard with charts and metrics',
+    path: '/dashboard/grafana',
+    name: 'Grafana',
+    description: 'Monitoring dashboard powered by Grafana',
   },
   {
     path: '/dashboard/monitor',

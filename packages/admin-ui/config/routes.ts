@@ -154,13 +154,66 @@ export default [
     routes: [
       {
         path: '/dashboard',
-        redirect: '/dashboard/analysis',
+        redirect: '/dashboard/grafana',
       },
       {
-        name: 'analysis',
-        icon: 'barChart',
-        path: '/dashboard/analysis',
-        component: './dashboard/analysis',
+        name: 'grafana',
+        icon: 'lineChart',
+        path: '/dashboard/grafana',
+        routes: [
+          {
+            path: '/dashboard/grafana',
+            redirect: '/dashboard/grafana/rtc-agent',
+          },
+          {
+            name: 'rtc-agent',
+            path: '/dashboard/grafana/rtc-agent',
+            component: './dashboard/grafana',
+            access: 'canDashboardView',
+          },
+          {
+            name: 'go-runtime',
+            path: '/dashboard/grafana/go-runtime',
+            component: './dashboard/grafana',
+            access: 'canDashboardView',
+          },
+          {
+            name: 'http-server',
+            path: '/dashboard/grafana/http-server',
+            component: './dashboard/grafana',
+            access: 'canDashboardView',
+          },
+          {
+            name: 'error-feedback',
+            path: '/dashboard/grafana/error-feedback-overview',
+            component: './dashboard/grafana',
+            access: 'canDashboardView',
+          },
+          {
+            name: 'logs',
+            path: '/dashboard/grafana/logs-overview',
+            component: './dashboard/grafana',
+            access: 'canDashboardView',
+          },
+          {
+            name: 'oss3',
+            path: '/dashboard/grafana/oss3-overview',
+            component: './dashboard/grafana',
+            access: 'canDashboardView',
+          },
+          {
+            name: 'minio',
+            path: '/dashboard/grafana/minio-overview',
+            component: './dashboard/grafana',
+            access: 'canDashboardView',
+          },
+          {
+            name: 'health-watchdog',
+            path: '/dashboard/grafana/system-health-watchdog',
+            component: './dashboard/grafana',
+            access: 'canDashboardView',
+          },
+        ],
       },
       {
         name: 'monitor',
@@ -381,7 +434,7 @@ export default [
   },
   {
     path: '/',
-    redirect: '/dashboard/analysis',
+    redirect: '/dashboard/grafana/rtc-agent',
   },
   {
     component: './exception/404',
