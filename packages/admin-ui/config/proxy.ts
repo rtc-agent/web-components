@@ -44,6 +44,16 @@ export default {
       target: 'http://localhost:28081',
       changeOrigin: true,
     },
+    // Jaeger 分布式追踪面板代理到 admin-server
+    '/api/jaeger/': {
+      target: 'http://localhost:28081',
+      changeOrigin: true,
+    },
+    // Pyroscope 性能剖析面板代理到 admin-server
+    '/api/pyroscope/': {
+      target: 'http://localhost:28081',
+      changeOrigin: true,
+    },
     // RTC Agent Server 代理（Token Exchange + WebSocket）
     '/oauth2/': {
       target: 'http://localhost:28080',

@@ -216,6 +216,20 @@ export default [
         ],
       },
       {
+        name: 'jaeger',
+        icon: 'deployment',
+        path: '/dashboard/jaeger',
+        component: './dashboard/jaeger',
+        access: 'canDashboardView',
+      },
+      {
+        name: 'pyroscope',
+        icon: 'profile',
+        path: '/dashboard/pyroscope',
+        component: './dashboard/pyroscope',
+        access: 'canDashboardView',
+      },
+      {
         name: 'monitor',
         icon: 'monitor',
         path: '/dashboard/monitor',

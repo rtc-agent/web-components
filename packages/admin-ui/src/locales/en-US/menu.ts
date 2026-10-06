@@ -21,6 +21,8 @@ export default {
   'menu.dashboard.grafana.oss3': 'OSS3 Storage',
   'menu.dashboard.grafana.minio': 'MinIO Storage',
   'menu.dashboard.grafana.health-watchdog': 'Health Watchdog',
+  'menu.dashboard.jaeger': 'Distributed Tracing',
+  'menu.dashboard.pyroscope': 'Performance Profiling',
   'menu.dashboard.monitor': 'Monitor',
   'menu.dashboard.workplace': 'Workplace',
   'menu.exception.403': '403',
