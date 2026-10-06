@@ -88,6 +88,7 @@ export default {
   'pages.rtcUsers.userId': 'User ID',
   'pages.rtcUsers.email': 'Email',
   'pages.rtcUsers.name': 'Name',
+  'pages.rtcUsers.provider': 'Provider',
   'pages.rtcUsers.status': 'Status',
   'pages.rtcUsers.statusActive': 'Active',
   'pages.rtcUsers.statusBanned': 'Banned',

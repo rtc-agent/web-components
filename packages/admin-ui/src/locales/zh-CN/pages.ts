@@ -83,6 +83,7 @@ export default {
   'pages.rtcUsers.userId': '用户ID',
   'pages.rtcUsers.email': '邮箱',
   'pages.rtcUsers.name': '姓名',
+  'pages.rtcUsers.provider': 'Provider',
   'pages.rtcUsers.status': '状态',
   'pages.rtcUsers.statusActive': '正常',
   'pages.rtcUsers.statusBanned': '已封禁',

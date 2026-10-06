@@ -255,6 +255,11 @@ export class WorkerBridge {
             // Worker broadcasts account banned notification (disconnect code 4501).
             // Store ban state in sessionStorage so it survives component remounts,
             // then dispatch event to trigger immediate logout.
+            //
+            // NOTE: The sessionStorage key is not user-scoped. This is intentional:
+            // the ban state is temporary (picked up immediately by rtc-agent component),
+            // and the user is logged out right away. There's no risk of cross-user
+            // contamination since each user session is isolated by the logout flow.
             onAccountBanned: (reason: string) => {
                 log.warn('Account banned:', reason);
                 // Persist ban state so rtc-agent can pick it up even after remount

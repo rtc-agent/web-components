@@ -1,4 +1,4 @@
-import { StopOutlined, CheckCircleOutlined, UserOutlined } from '@ant-design/icons';
+import { StopOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { ModalForm, PageContainer, ProFormTextArea, ProTable } from '@ant-design/pro-components';
 import { useAccess, useIntl } from '@umijs/max';
@@ -52,7 +52,7 @@ const RtcUserManagementPage: React.FC = () => {
       dataIndex: 'id',
       valueType: 'text',
       hideInTable: true,
-      hideInSearch: true,
+      search: false,
     },
     {
       title: intl.formatMessage({ id: 'pages.rtcUsers.email', defaultMessage: '邮箱' }),
@@ -66,7 +66,7 @@ const RtcUserManagementPage: React.FC = () => {
       valueType: 'text',
     },
     {
-      title: 'Provider',
+      title: intl.formatMessage({ id: 'pages.rtcUsers.provider', defaultMessage: 'Provider' }),
       dataIndex: 'provider',
       valueType: 'text',
       search: false,
@@ -158,7 +158,7 @@ const RtcUserManagementPage: React.FC = () => {
         actionRef={actionRef}
         rowKey="id"
         columns={columns}
-        request={async (params, sort, filter) => {
+        request={async (params, _sort, _filter) => {
           try {
             const { email, name, ...restParams } = params;
             const response = await getRtcUserList({
@@ -170,7 +170,7 @@ const RtcUserManagementPage: React.FC = () => {
               total: response.total,
               success: true,
             };
-          } catch (error) {
+          } catch (_error) {
             message.error(intl.formatMessage({ id: 'pages.rtcUsers.loadFailed', defaultMessage: '加载用户列表失败' }));
             return {
               data: [],

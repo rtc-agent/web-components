@@ -53,7 +53,7 @@ export interface RtcAgentEventDetailMap {
   /** User clicks the retry button */
   'rtc-connection-retry': void;
   /** Connection state transitions (disconnected → connecting → connected, etc.) */
-  'rtc-connection-state-change': { state: ConnectionState };
+  'rtc-connection-state-change': { state: ConnectionState; reason?: string };
   /** User requests login (login dialog submitted) */
   'rtc-auth-login-requested': void;
   /** Login successful (covers initial load, token refresh, manual login, external token set) */
@@ -62,6 +62,8 @@ export interface RtcAgentEventDetailMap {
   'rtc-auth-refresh-failed': void;
   /** User logs out */
   'rtc-auth-logout': void;
+  /** User's account has been banned (disconnect code 4501) */
+  'rtc-account-banned': { reason?: string };
 
   // ── Session ──
 
@@ -100,6 +102,7 @@ declare global {
     'rtc-auth-login': CustomEvent<RtcAgentEventDetailMap['rtc-auth-login']>;
     'rtc-auth-refresh-failed': CustomEvent<RtcAgentEventDetailMap['rtc-auth-refresh-failed']>;
     'rtc-auth-logout': CustomEvent<RtcAgentEventDetailMap['rtc-auth-logout']>;
+    'rtc-account-banned': CustomEvent<RtcAgentEventDetailMap['rtc-account-banned']>;
 
     // Session
     'rtc-session-created': CustomEvent<RtcAgentEventDetailMap['rtc-session-created']>;
