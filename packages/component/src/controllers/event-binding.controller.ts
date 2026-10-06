@@ -49,6 +49,7 @@ import type {SessionTabController} from './session-tab.controller.js';
 import type {SettingsController} from './settings.controller.js';
 import type {NotificationController} from './notification.controller.js';
 import type {Logger} from '@rtc-agent/client';
+import {formatBanMessage} from '../utils/format.js';
 
 /**
  * Dependencies required by EventBindingController.
@@ -286,8 +287,7 @@ export class EventBindingController implements ReactiveController {
             const detail = (event as CustomEvent).detail;
             const reason = detail?.reason as string | undefined;
             // Show error toast with reason if available
-            const message = reason ? `您的账号已被封禁：${reason}` : '您的账号已被封禁，请联系管理员';
-            toast.actions.show(message, 'error');
+            toast.actions.show(formatBanMessage(reason), 'error');
             // Call auth logout to update auth state and trigger the full logout flow
             auth.actions.logout();
         };

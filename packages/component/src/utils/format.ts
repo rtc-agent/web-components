@@ -26,6 +26,19 @@ export function formatTimestampCompact(timestamp: number | undefined | null): st
 }
 
 /**
+ * Format a ban reason into a user-facing toast message.
+ *
+ * Shared across worker-bridge (sessionStorage path), event-binding controller,
+ * and rtc-agent connectedCallback to ensure consistent wording.
+ *
+ * @param reason - Optional ban reason from the server disconnect frame.
+ * @returns Localized ban message suitable for toast display.
+ */
+export function formatBanMessage(reason?: string): string {
+  return reason ? `您的账号已被封禁：${reason}` : '您的账号已被封禁，请联系管理员';
+}
+
+/**
  * Extract plain text content from a ContentData object.
  *
  * Handles all content types uniformly:

@@ -85,6 +85,7 @@ import {FunctionsContext} from '../../contexts/functions.js';
 import {FunctionDebugContext} from '../../contexts/function-debug.js';
 import {FileStorageContext, type FileStorageContextValue} from '../../contexts/file-storage.js';
 import {FileStorage} from '../../utils/file-storage.js';
+import {formatBanMessage} from '../../utils/format.js';
 
 // Controllers
 import {WindowStateController} from '../../controllers/window-state.controller.js';
@@ -954,20 +955,25 @@ export class RtcAgent extends LitElement {
 
         // Check for pending account ban state (survived component remount).
         // If found, handle immediately: show toast and trigger logout.
+        // Stale entries (older than 5 minutes) are silently discarded.
         try {
             const pendingBan = sessionStorage.getItem('rtc-account-banned-pending');
             if (pendingBan) {
                 sessionStorage.removeItem('rtc-account-banned-pending');
-                const { reason } = JSON.parse(pendingBan) as { reason?: string };
-                log.warn('Found pending account ban in sessionStorage, handling immediately');
-                const message = reason ? `您的账号已被封禁：${reason}` : '您的账号已被封禁，请联系管理员';
-                this._toast.actions.show(message, 'error');
-                this._auth.actions.logout();
-                // Continue with connectedCallback to ensure proper initialization,
-                // but the logout will tear things down shortly.
+                const banData = JSON.parse(pendingBan) as { reason?: string; timestamp?: number };
+                const FIVE_MINUTES = 5 * 60 * 1000;
+                if (banData.timestamp && Date.now() - banData.timestamp > FIVE_MINUTES) {
+                    log.debug('Ignoring stale pending ban in sessionStorage (older than 5 minutes)');
+                } else {
+                    log.warn('Found pending account ban in sessionStorage, handling immediately');
+                    this._toast.actions.show(formatBanMessage(banData.reason), 'error');
+                    this._auth.actions.logout();
+                    // Continue with connectedCallback to ensure proper initialization,
+                    // but the logout will tear things down shortly.
+                }
             }
-        } catch {
-            // sessionStorage may be unavailable or contain invalid data
+        } catch (e) {
+            log.debug('sessionStorage unavailable for ban state', e);
         }
 
         // Initialize i18n locale (once), passing host's lang attribute if set

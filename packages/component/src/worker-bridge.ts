@@ -260,8 +260,8 @@ export class WorkerBridge {
                 // Persist ban state so rtc-agent can pick it up even after remount
                 try {
                     sessionStorage.setItem('rtc-account-banned-pending', JSON.stringify({ reason, timestamp: Date.now() }));
-                } catch {
-                    // sessionStorage may be unavailable
+                } catch (e) {
+                    log.debug('sessionStorage unavailable for ban state', e);
                 }
                 // Dispatch event directly (no setTimeout) for immediate handling
                 const rtcAgent = document.querySelector('rtc-agent');
