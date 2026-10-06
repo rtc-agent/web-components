@@ -144,6 +144,14 @@ export interface RTCAgentClientOptions {
    */
   onTokenExpired?: () => Promise<TokenExpiredAction> | TokenExpiredAction;
   /**
+   * Optional: callback when the user's account is banned (disconnect code 4501).
+   *
+   * When the server disconnects with code 4501, the client stops reconnecting
+   * and calls this callback. The application should show a ban notice to the user.
+   * User data is NOT cleared automatically.
+   */
+  onAccountBanned?: (reason: string) => void;
+  /**
    * Optional: retrieve the last processed offset and epoch (caller-provided, topic channel only).
    *
    * - Client calls this on subscribe to set the starting position for recovery.

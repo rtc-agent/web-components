@@ -24,6 +24,11 @@ export default {
       target: 'http://localhost:28081',
       changeOrigin: true,
     },
+    // RTC 用户管理接口代理到 admin-server
+    '/api/rtc-users': {
+      target: 'http://localhost:28081',
+      changeOrigin: true,
+    },
     // RTC Agent Server 代理（Token Exchange + WebSocket）
     '/oauth2/': {
       target: 'http://localhost:28080',

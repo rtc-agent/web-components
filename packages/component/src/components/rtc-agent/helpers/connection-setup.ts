@@ -25,7 +25,7 @@ export interface ConnectionDeps {
         connect(): Promise<void>;
         getConnectionState(): Promise<ConnectionState>;
         onConnectionStateChange(
-            cb: (event: { state: ConnectionState }) => void,
+            cb: (event: { state: ConnectionState; reason?: string }) => void,
         ): () => void;
     };
     message: { persistence?: PersistenceLayer };
@@ -223,6 +223,8 @@ async function setupConnectionListener(
 
     // Use unified API to listen for connection state changes.
     const unsubConnection = deps.persistence.onConnectionStateChange((event) => {
+        deps.logger.info('[connection-setup] received connection state change:', event.state, 'reason:', event.reason);
+
         // Notify the component to update its UI state
         deps.onConnectionStateChange?.(event.state);
     });

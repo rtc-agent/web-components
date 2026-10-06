@@ -405,6 +405,13 @@ export class PersistenceController implements ReactiveController {
                     return token;
                 },
                 onTokenExpired: () => this._auth.handleTokenExpired(),
+                onAccountBanned: (reason: string) => {
+                    // Account banned: stop reconnecting, but do NOT clear user data.
+                    // The connection state will be set to 'disconnected' with reason 'account banned'.
+                    // User data (sessions, messages, etc.) remains intact in IndexedDB.
+                    log.warn('Account banned:', reason);
+                    // No UI notification needed per requirement, but state is updated via connection event.
+                },
                 deviceId,
                 userId,
             },
@@ -481,9 +488,9 @@ export class PersistenceController implements ReactiveController {
         }
 
         // Strip non-serializable callback functions (Structured Clone does not support functions).
-        // The Worker side replaces getToken with its own requestToken bridge in init(),
-        // and the same applies to onTokenExpired — the Worker does not need these main-thread callbacks.
-        const { getToken: _gt, onTokenExpired: _ote, ...serializableClient } = config.client;
+        // The Worker side replaces getToken/onTokenExpired/onAccountBanned with its own bridges in init(),
+        // so the main-thread callbacks are not needed in the Worker config.
+        const { getToken: _gt, onTokenExpired: _ote, onAccountBanned: _oab, ...serializableClient } = config.client;
         const workerConfig: PersistenceConfig = {
             ...config,
             client: serializableClient as PersistenceConfig['client'],

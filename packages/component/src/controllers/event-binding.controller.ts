@@ -149,6 +149,7 @@ export class EventBindingController implements ReactiveController {
     // Authentication
     private _boundOnLoginRequested!: (event: Event) => void;
     private _boundOnLogout!: () => void;
+    private _boundOnAccountBanned!: () => void;
 
     // Session management
     private _boundOnNewSession!: () => void;
@@ -217,7 +218,7 @@ export class EventBindingController implements ReactiveController {
      */
     private _initializeHandlers() {
         const {
-            windowState, session, message, persistence, toast, fork, activity,
+            windowState, auth, session, message, persistence, toast, fork, activity,
             fileExplorer, editorArea, settings, sessionTab, autoSaveTimers,
             getRtcProcessor, setRtcProcessor,
             getUnsubConnection, setUnsubConnection,
@@ -276,6 +277,15 @@ export class EventBindingController implements ReactiveController {
             void persistence.disconnect();
             session.actions.reset();
             message.actions.clearMessages();
+        };
+
+        // Handle account banned (disconnect code 4501)
+        this._boundOnAccountBanned = () => {
+            log.warn('account banned, triggering logout');
+            // Show error toast
+            toast.actions.show('您的账号已被封禁，请联系管理员', 'error');
+            // Call auth logout to update auth state and trigger the full logout flow
+            auth.actions.logout();
         };
 
         // ── Session Management ──
@@ -587,6 +597,7 @@ export class EventBindingController implements ReactiveController {
         // FIX: Use consistent event name 'rtc-auth-login-requested' as defined in types/events.ts
         element.addEventListener('rtc-auth-login-requested', this._boundOnLoginRequested);
         element.addEventListener('rtc-auth-logout', this._boundOnLogout);
+        element.addEventListener('rtc-account-banned', this._boundOnAccountBanned);
 
         // Session management
         element.addEventListener('rtc-new-session', this._boundOnNewSession);
@@ -649,6 +660,7 @@ export class EventBindingController implements ReactiveController {
         // FIX: Use consistent event name 'rtc-auth-login-requested' as defined in types/events.ts
         element.removeEventListener('rtc-auth-login-requested', this._boundOnLoginRequested);
         element.removeEventListener('rtc-auth-logout', this._boundOnLogout);
+        element.removeEventListener('rtc-account-banned', this._boundOnAccountBanned);
 
         // Session management
         element.removeEventListener('rtc-new-session', this._boundOnNewSession);

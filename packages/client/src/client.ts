@@ -191,6 +191,22 @@ export class RTCAgentClient implements IRTCAgentClient {
         '| activeGapFills:', this.gapFillTasks.size
       );
 
+      // Detect account banned (disconnect code 4501).
+      // Server uses terminal disconnect code 4501 (application-specific, no auto-reconnect).
+      // Stop reconnecting and notify the application.
+      if (ctx?.code === 4501) {
+        log.warn('account banned, disconnect code 4501, reason:', ctx?.reason);
+        this.shouldReconnect = false;
+        this.wasConnected = false;
+        // Call onAccountBanned callback if provided
+        if (this.options.onAccountBanned) {
+          const banReason = ctx?.reason || 'account banned';
+          this.options.onAccountBanned(banReason);
+        }
+        this.setConnectionState('disconnected', 'account banned (code 4501)');
+        return;
+      }
+
       // Detect server-side token rejection (e.g. "invalid token").
       // Even if the JWT is not expired, we need to trigger the refresh mechanism.
       if (ctx?.reason === 'invalid token' && this.options.onTokenExpired) {

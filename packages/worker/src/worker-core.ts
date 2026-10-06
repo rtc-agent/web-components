@@ -83,6 +83,7 @@ export class WorkerCore implements WorkerPersistenceCore {
         onTokenExpired: () => this.requestTokenRefresh(),
         onGapFillStart: () => this.broadcastGapFillState(true),
         onGapFillEnd: () => this.broadcastGapFillState(false),
+        onAccountBanned: (reason: string) => this.broadcastAccountBanned(reason),
       },
     };
 
@@ -687,6 +688,20 @@ export class WorkerCore implements WorkerPersistenceCore {
   }
 
   /**
+   * Broadcast account banned notification to all registered Tab callbacks.
+   */
+  private broadcastAccountBanned(reason: string): void {
+    log.warn('broadcastAccountBanned called, reason:', reason, 'callbacks:', this.callbacks.size);
+    for (const cb of this.callbacks) {
+      try {
+        cb.onAccountBanned?.(reason);
+      } catch (err) {
+        log.error('onAccountBanned callback error:', err);
+      }
+    }
+  }
+
+  /**
    * Request a token (used as RTCAgentClient callback).
    *
    * - Picks any registered requestToken callback
@@ -758,6 +773,7 @@ export class WorkerCore implements WorkerPersistenceCore {
    * Broadcast a connection state change to all registered Tab callbacks.
    */
   private broadcastConnectionState(event: ConnectionStateEvent): void {
+    log.debug('broadcastConnectionState called, state:', event.state, 'reason:', event.reason, 'callbacks:', this.callbacks.size);
     for (const cb of this.callbacks) {
       try {
         cb.onConnectionStateChange(event);

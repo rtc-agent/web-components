@@ -50,6 +50,25 @@ export default [
     component: './Welcome',
   },
   {
+    path: '/rtc-users',
+    name: 'rtc-users',
+    icon: 'team',
+    access: 'canRtcUserView',
+    routes: [
+      {
+        path: '/rtc-users',
+        component: './rtc-users/index',
+      },
+      {
+        path: '/rtc-users/management',
+        name: 'management',
+        icon: 'user',
+        component: './rtc-users/management',
+        access: 'canRtcUserView',
+      },
+    ],
+  },
+  {
     path: '/admin',
     name: 'admin',
     icon: 'crown',

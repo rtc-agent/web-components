@@ -2,6 +2,8 @@ export default {
   'menu.welcome': 'Welcome',
   'menu.more-blocks': 'More Blocks',
   'menu.home': 'Home',
+  'menu.rtc-users': 'RTC Users',
+  'menu.rtc-users.management': 'User Management',
   'menu.admin': 'Admin',
   'menu.admin.sub-page': 'Sub-Page',
   'menu.login': 'Login',

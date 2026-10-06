@@ -223,6 +223,7 @@ export class WorkerBridge {
             },
             // Worker broadcasts connection state change -> notify main-thread listeners.
             onConnectionStateChange: (event: ConnectionStateEvent) => {
+                log.debug('[WorkerBridge] onConnectionStateChange called, state:', event.state, 'reason:', event.reason, 'listeners:', this._connectionListeners.size);
                 for (const listener of this._connectionListeners) {
                     try {
                         listener(event);
@@ -250,6 +251,25 @@ export class WorkerBridge {
                 // Only call end to trigger reload, skip start (don't show overlay)
                 const bus = getUIUpdateBus();
                 bus.emitGapFillEnd();
+            },
+            // Worker broadcasts account banned notification (disconnect code 4501).
+            // Trigger logout to redirect to login page.
+            onAccountBanned: (reason: string) => {
+                log.warn('Account banned:', reason);
+                // Dispatch event to trigger logout - the event handler will show the toast
+                setTimeout(() => {
+                    const rtcAgent = document.querySelector('rtc-agent');
+                    if (rtcAgent) {
+                        rtcAgent.dispatchEvent(new CustomEvent('rtc-account-banned', {
+                            bubbles: true,
+                            composed: true,
+                            detail: { reason },
+                        }));
+                        log.warn('dispatched rtc-account-banned event from onAccountBanned callback');
+                    } else {
+                        log.error('rtc-agent element not found when handling account banned');
+                    }
+                }, 100);
             },
         };
 

@@ -23,6 +23,7 @@ export interface UIUpdatePayload {
  * - onGapFillState: Worker broadcasts gap fill state changes (start/end) to this Tab
  * - onStateGap: Catch-up detected a gap in events (TTL cleanup deleted missed events).
  *               The tab should trigger a full state refresh to recover.
+ * - onAccountBanned: Worker broadcasts account ban notification (disconnect code 4501) to this Tab
  */
 export interface WorkerCallbacks {
   onUIUpdate: (payload: UIUpdatePayload) => void;
@@ -32,6 +33,8 @@ export interface WorkerCallbacks {
   onGapFillState: (isSyncing: boolean) => void;
   /** Called when catch-up detects a gap in events (e.g., TTL cleanup deleted missed events). */
   onStateGap: () => void;
+  /** Called when the user's account is banned (disconnect code 4501). */
+  onAccountBanned?: (reason: string) => void;
 }
 
 /**

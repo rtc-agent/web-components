@@ -20,6 +20,8 @@ export default function access(
       canPermissionView: false,
       canPermissionEdit: false,
       canAuditLogView: false,
+      canRtcUserView: false,
+      canRtcUserBan: false,
     };
   }
 
@@ -35,6 +37,8 @@ export default function access(
   const canPermissionView = perms?.has('permission:read') ?? false;
   const canPermissionEdit = perms?.has('permission:write') ?? false;
   const canAuditLogView = perms?.has('audit_log:read') ?? false;
+  const canRtcUserView = perms?.has('rtc_user:read') ?? false;
+  const canRtcUserBan = perms?.has('rtc_user:ban') ?? false;
 
   // 判断是否为管理员（基于管理员角色名称）
   const roleNames = currentUser.roles?.map((r) => r.name) || [];
@@ -72,5 +76,9 @@ export default function access(
 
     // 审计日志
     canAuditLogView,
+
+    // RTC 用户管理
+    canRtcUserView,
+    canRtcUserBan,
   };
 }

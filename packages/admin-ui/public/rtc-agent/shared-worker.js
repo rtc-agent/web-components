@@ -3539,7 +3539,15 @@ const Xs = class Xs {
         this.shouldReconnect,
         "| activeGapFills:",
         this.gapFillTasks.size
-      ), (e == null ? void 0 : e.reason) === "invalid token" && this.options.onTokenExpired) {
+      ), (e == null ? void 0 : e.code) === 4501) {
+        if (sr.warn("account banned, disconnect code 4501, reason:", e == null ? void 0 : e.reason), this.shouldReconnect = !1, this.wasConnected = !1, this.options.onAccountBanned) {
+          const r = (e == null ? void 0 : e.reason) || "account banned";
+          this.options.onAccountBanned(r);
+        }
+        this.setConnectionState("disconnected", "account banned (code 4501)");
+        return;
+      }
+      if ((e == null ? void 0 : e.reason) === "invalid token" && this.options.onTokenExpired) {
         const r = this.centrifuge;
         this.centrifuge = null, r == null || r.disconnect(), this.handleInvalidToken();
       }
@@ -6297,7 +6305,7 @@ class bD extends Uh {
     });
   }
   async loadEventStreamCapability() {
-    const { EventStreamSerde: r, eventStreamSerdeProvider: n } = await import("./index.browser-pEuYnrcY.js"), s = this.resolveEventStreamMarshaller(n);
+    const { EventStreamSerde: r, eventStreamSerdeProvider: n } = await import("./index.browser-yl2kMZM5.js"), s = this.resolveEventStreamMarshaller(n);
     return new r({
       marshaller: s,
       serializer: this.serializer,
@@ -13670,21 +13678,21 @@ function G9(t) {
 var A3 = Number.isNaN || function(e) {
   return e !== e;
 };
-function Pr() {
-  Pr.init.call(this);
+function Ar() {
+  Ar.init.call(this);
 }
-Lv.exports = Pr;
+Lv.exports = Ar;
 Lv.exports.once = Q9;
-Pr.EventEmitter = Pr;
-Pr.prototype._events = void 0;
-Pr.prototype._eventsCount = 0;
-Pr.prototype._maxListeners = void 0;
+Ar.EventEmitter = Ar;
+Ar.prototype._events = void 0;
+Ar.prototype._eventsCount = 0;
+Ar.prototype._maxListeners = void 0;
 var _T = 10;
 function Ay(t) {
   if (typeof t != "function")
     throw new TypeError('The "listener" argument must be of type Function. Received type ' + typeof t);
 }
-Object.defineProperty(Pr, "defaultMaxListeners", {
+Object.defineProperty(Ar, "defaultMaxListeners", {
   enumerable: !0,
   get: function() {
     return _T;
@@ -13695,21 +13703,21 @@ Object.defineProperty(Pr, "defaultMaxListeners", {
     _T = t;
   }
 });
-Pr.init = function() {
+Ar.init = function() {
   (this._events === void 0 || this._events === Object.getPrototypeOf(this)._events) && (this._events = /* @__PURE__ */ Object.create(null), this._eventsCount = 0), this._maxListeners = this._maxListeners || void 0;
 };
-Pr.prototype.setMaxListeners = function(e) {
+Ar.prototype.setMaxListeners = function(e) {
   if (typeof e != "number" || e < 0 || A3(e))
     throw new RangeError('The value of "n" is out of range. It must be a non-negative number. Received ' + e + ".");
   return this._maxListeners = e, this;
 };
 function C3(t) {
-  return t._maxListeners === void 0 ? Pr.defaultMaxListeners : t._maxListeners;
+  return t._maxListeners === void 0 ? Ar.defaultMaxListeners : t._maxListeners;
 }
-Pr.prototype.getMaxListeners = function() {
+Ar.prototype.getMaxListeners = function() {
   return C3(this);
 };
-Pr.prototype.emit = function(e) {
+Ar.prototype.emit = function(e) {
   for (var r = [], n = 1; n < arguments.length; n++) r.push(arguments[n]);
   var s = e === "error", a = this._events;
   if (a !== void 0)
@@ -13748,11 +13756,11 @@ function I3(t, e, r, n) {
   }
   return t;
 }
-Pr.prototype.addListener = function(e, r) {
+Ar.prototype.addListener = function(e, r) {
   return I3(this, e, r, !1);
 };
-Pr.prototype.on = Pr.prototype.addListener;
-Pr.prototype.prependListener = function(e, r) {
+Ar.prototype.on = Ar.prototype.addListener;
+Ar.prototype.prependListener = function(e, r) {
   return I3(this, e, r, !0);
 };
 function X9() {
@@ -13763,13 +13771,13 @@ function O3(t, e, r) {
   var n = { fired: !1, wrapFn: void 0, target: t, type: e, listener: r }, s = X9.bind(n);
   return s.listener = r, n.wrapFn = s, s;
 }
-Pr.prototype.once = function(e, r) {
+Ar.prototype.once = function(e, r) {
   return Ay(r), this.on(e, O3(this, e, r)), this;
 };
-Pr.prototype.prependOnceListener = function(e, r) {
+Ar.prototype.prependOnceListener = function(e, r) {
   return Ay(r), this.prependListener(e, O3(this, e, r)), this;
 };
-Pr.prototype.removeListener = function(e, r) {
+Ar.prototype.removeListener = function(e, r) {
   var n, s, a, i, l;
   if (Ay(r), s = this._events, s === void 0)
     return this;
@@ -13789,8 +13797,8 @@ Pr.prototype.removeListener = function(e, r) {
   }
   return this;
 };
-Pr.prototype.off = Pr.prototype.removeListener;
-Pr.prototype.removeAllListeners = function(e) {
+Ar.prototype.off = Ar.prototype.removeListener;
+Ar.prototype.removeAllListeners = function(e) {
   var r, n, s;
   if (n = this._events, n === void 0)
     return this;
@@ -13816,16 +13824,16 @@ function k3(t, e, r) {
   var s = n[e];
   return s === void 0 ? [] : typeof s == "function" ? r ? [s.listener || s] : [s] : r ? Y9(s) : D3(s, s.length);
 }
-Pr.prototype.listeners = function(e) {
+Ar.prototype.listeners = function(e) {
   return k3(this, e, !0);
 };
-Pr.prototype.rawListeners = function(e) {
+Ar.prototype.rawListeners = function(e) {
   return k3(this, e, !1);
 };
-Pr.listenerCount = function(t, e) {
+Ar.listenerCount = function(t, e) {
   return typeof t.listenerCount == "function" ? t.listenerCount(e) : N3.call(t, e);
 };
-Pr.prototype.listenerCount = N3;
+Ar.prototype.listenerCount = N3;
 function N3(t) {
   var e = this._events;
   if (e !== void 0) {
@@ -13837,7 +13845,7 @@ function N3(t) {
   }
   return 0;
 }
-Pr.prototype.eventNames = function() {
+Ar.prototype.eventNames = function() {
   return this._eventsCount > 0 ? qp(this._events) : [];
 };
 function D3(t, e) {
@@ -77008,7 +77016,7 @@ let Bb = xl;
 function YJ(t) {
   return qt(t.databaseName), new Bb(t);
 }
-const Ar = tn("WorkerCore");
+const Pr = tn("WorkerCore");
 class QJ {
   constructor() {
     _e(this, "layer", null);
@@ -77038,7 +77046,7 @@ class QJ {
    */
   async init(e) {
     if (this.layer) {
-      Ar.warn("already initialized, ignoring init()");
+      Pr.warn("already initialized, ignoring init()");
       return;
     }
     const r = {
@@ -77048,7 +77056,8 @@ class QJ {
         getToken: () => this.requestToken(),
         onTokenExpired: () => this.requestTokenRefresh(),
         onGapFillStart: () => this.broadcastGapFillState(!0),
-        onGapFillEnd: () => this.broadcastGapFillState(!1)
+        onGapFillEnd: () => this.broadcastGapFillState(!1),
+        onAccountBanned: (a) => this.broadcastAccountBanned(a)
       }
     };
     this.layer = YJ(r);
@@ -77095,12 +77104,12 @@ class QJ {
     let i = !1;
     if (e > 0 && s.length > 0) {
       const l = s[0].seq;
-      l > e + 1 && (i = !0, Ar.warn(`getCatchUpEvents: gap at start! fromSeq=${e}, lowest returned seq=${l}`));
+      l > e + 1 && (i = !0, Pr.warn(`getCatchUpEvents: gap at start! fromSeq=${e}, lowest returned seq=${l}`));
     } else if (e > 0 && s.length === 0) {
       const l = await n.ui_updates.orderBy("seq").last();
-      l ? l.seq !== e && (i = !0, Ar.warn(`getCatchUpEvents: gap detected! fromSeq=${e}, but DB has events up to seq=${l.seq}`)) : (i = !0, Ar.warn(`getCatchUpEvents: gap detected! fromSeq=${e}, but DB is empty (all events TTL-deleted)`));
+      l ? l.seq !== e && (i = !0, Pr.warn(`getCatchUpEvents: gap detected! fromSeq=${e}, but DB has events up to seq=${l.seq}`)) : (i = !0, Pr.warn(`getCatchUpEvents: gap detected! fromSeq=${e}, but DB is empty (all events TTL-deleted)`));
     }
-    return Ar.debug(`getCatchUpEvents: returning ${s.length} events from seq ${e} (hasGap=${i}, hasMore=${a})`), { entries: s, hasGap: i, hasMore: a };
+    return Pr.debug(`getCatchUpEvents: returning ${s.length} events from seq ${e} (hasGap=${i}, hasMore=${a})`), { entries: s, hasGap: i, hasMore: a };
   }
   /**
    * Health check: verify the Worker is running.
@@ -77113,9 +77122,9 @@ class QJ {
   }
   // ========== Connection ==========
   async connect() {
-    Ar.debug("connect() called");
+    Pr.debug("connect() called");
     const e = this.ensureLayer();
-    Ar.debug("calling layer.connect()"), await e.connect(), Ar.debug("layer.connect() returned, client state:", e.getClient().getConnectionState()), this._subscribeConnectionState(e), Ar.debug("connection state subscribed, returning from connect()");
+    Pr.debug("calling layer.connect()"), await e.connect(), Pr.debug("layer.connect() returned, client state:", e.getClient().getConnectionState()), this._subscribeConnectionState(e), Pr.debug("connection state subscribed, returning from connect()");
   }
   disconnect() {
     const e = this.ensureLayer();
@@ -77196,7 +77205,7 @@ class QJ {
   // ========== Lifecycle ==========
   async close() {
     for (const [e, r] of this._operationControllers)
-      Ar.debug(`aborting file operation: ${e}`), r.abort();
+      Pr.debug(`aborting file operation: ${e}`), r.abort();
     this._operationControllers.clear(), this.unsubscribeBus && (this.unsubscribeBus(), this.unsubscribeBus = null), this._disposeCoordinator && (this._disposeCoordinator(), this._disposeCoordinator = null), this._unsubscribeConnectionState(), this._cleanupTimer !== null && (clearTimeout(this._cleanupTimer), this._cleanupTimer = null), await this._cleanupUIUpdateQueue(), this.layer && (await this.layer.close(), this.layer = null), this.callbacks.clear();
   }
   /**
@@ -77210,9 +77219,9 @@ class QJ {
   async _cleanupUIUpdateQueue() {
     try {
       const e = Date.now() - 18e5, n = await qt().ui_updates.where("timestamp").below(e).delete();
-      n > 0 && Ar.debug(`UI update queue cleanup: removed ${n} entries older than 30 minutes`);
+      n > 0 && Pr.debug(`UI update queue cleanup: removed ${n} entries older than 30 minutes`);
     } catch (e) {
-      Ar.debug("UI update queue cleanup failed (non-fatal):", e);
+      Pr.debug("UI update queue cleanup failed (non-fatal):", e);
     }
   }
   /**
@@ -77237,7 +77246,7 @@ class QJ {
     await zJ(e);
   }
   async batchWriteFiles(e, r) {
-    Ar.debug("batchWriteFiles called, files count:", e.length, "deletePaths count:", (r == null ? void 0 : r.length) ?? 0);
+    Pr.debug("batchWriteFiles called, files count:", e.length, "deletePaths count:", (r == null ? void 0 : r.length) ?? 0);
     const n = qt();
     await n.transaction("rw", n.fileSystemEntries, async () => {
       var s;
@@ -77245,7 +77254,7 @@ class QJ {
         if (this._isProtectedPath(a.path)) {
           const f = await n.fileSystemEntries.get(a.path);
           if ((s = f == null ? void 0 : f.metadata) != null && s.editedByUser) {
-            Ar.debug("batchWriteFiles: skipping protected file edited by user:", a.path);
+            Pr.debug("batchWriteFiles: skipping protected file edited by user:", a.path);
             continue;
           }
         }
@@ -77258,11 +77267,11 @@ class QJ {
       if (r && r.length > 0)
         for (const a of r)
           try {
-            await Zr.remove(a), Ar.debug("batchWriteFiles: deleted orphan path:", a);
+            await Zr.remove(a), Pr.debug("batchWriteFiles: deleted orphan path:", a);
           } catch (i) {
-            Ar.warn("batchWriteFiles: failed to delete orphan path:", a, i);
+            Pr.warn("batchWriteFiles: failed to delete orphan path:", a, i);
           }
-    }), Ar.debug("batchWriteFiles completed"), this.broadcastUIUpdate({
+    }), Pr.debug("batchWriteFiles completed"), this.broadcastUIUpdate({
       entity: "file",
       action: "updated",
       entityId: "",
@@ -77308,7 +77317,7 @@ class QJ {
     return Zr.grep(e, r, n, s);
   }
   async virtualFSQueryByType(e) {
-    return ["function", "scenario", "script", "index"].includes(e) ? Zr.queryByType(e) : (Ar.warn(`virtualFSQueryByType: unknown type "${e}", falling back to empty result`), []);
+    return ["function", "scenario", "script", "index"].includes(e) ? Zr.queryByType(e) : (Pr.warn(`virtualFSQueryByType: unknown type "${e}", falling back to empty result`), []);
   }
   async virtualFSExists(e) {
     return Zr.exists(e);
@@ -77333,7 +77342,7 @@ class QJ {
       try {
         s.onUIUpdate(n);
       } catch (a) {
-        Ar.error("onUIUpdate callback error:", a);
+        Pr.error("onUIUpdate callback error:", a);
       }
   }
   /**
@@ -77356,12 +77365,25 @@ class QJ {
    * Broadcast gap fill state change to all registered Tab callbacks.
    */
   broadcastGapFillState(e) {
-    Ar.debug("[BulkUpdate] WorkerCore.broadcastGapFillState called, isSyncing:", e, "callbacks:", this.callbacks.size);
+    Pr.debug("[BulkUpdate] WorkerCore.broadcastGapFillState called, isSyncing:", e, "callbacks:", this.callbacks.size);
     for (const r of this.callbacks)
       try {
         r.onGapFillState(e);
       } catch (n) {
-        Ar.error("onGapFillState callback error:", n);
+        Pr.error("onGapFillState callback error:", n);
+      }
+  }
+  /**
+   * Broadcast account banned notification to all registered Tab callbacks.
+   */
+  broadcastAccountBanned(e) {
+    var r;
+    Pr.warn("broadcastAccountBanned called, reason:", e, "callbacks:", this.callbacks.size);
+    for (const n of this.callbacks)
+      try {
+        (r = n.onAccountBanned) == null || r.call(n, e);
+      } catch (s) {
+        Pr.error("onAccountBanned callback error:", s);
       }
   }
   /**
@@ -77375,7 +77397,7 @@ class QJ {
       try {
         return await e.requestToken();
       } catch (r) {
-        Ar.warn("requestToken failed, trying next:", r);
+        Pr.warn("requestToken failed, trying next:", r);
       }
     throw new Error("[WorkerCore] no callback available to provide token");
   }
@@ -77391,7 +77413,7 @@ class QJ {
       try {
         return await e.requestTokenRefresh();
       } catch (r) {
-        Ar.warn("requestTokenRefresh failed, trying next:", r);
+        Pr.warn("requestTokenRefresh failed, trying next:", r);
       }
     return "relogin";
   }
@@ -77409,8 +77431,8 @@ class QJ {
   _subscribeConnectionState(e) {
     this._unsubscribeConnectionState();
     const r = e.getClient();
-    Ar.debug("subscribing to connection state changes"), this.unsubscribeConnection = r.on("connection", (n) => {
-      Ar.debug("connection state changed:", n.state, "reason:", n.reason), this.broadcastConnectionState(n);
+    Pr.debug("subscribing to connection state changes"), this.unsubscribeConnection = r.on("connection", (n) => {
+      Pr.debug("connection state changed:", n.state, "reason:", n.reason), this.broadcastConnectionState(n);
     });
   }
   /**
@@ -77427,7 +77449,7 @@ class QJ {
       try {
         r.onConnectionStateChange(e);
       } catch (n) {
-        Ar.error("onConnectionStateChange callback error:", n);
+        Pr.error("onConnectionStateChange callback error:", n);
       }
   }
   // ========== File Cache & S3 Operations ==========
@@ -77473,7 +77495,7 @@ class QJ {
    */
   cancelFileOperation(e) {
     const r = this._operationControllers.get(e);
-    r && (Ar.debug(`cancelling file operation: ${e}`), r.abort(), this._operationControllers.delete(e));
+    r && (Pr.debug(`cancelling file operation: ${e}`), r.abort(), this._operationControllers.delete(e));
   }
   async deleteFile(e, r) {
     return this.ensureLayer().deleteFile(e, r);
