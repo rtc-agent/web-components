@@ -6305,7 +6305,7 @@ class bD extends Uh {
     });
   }
   async loadEventStreamCapability() {
-    const { EventStreamSerde: r, eventStreamSerdeProvider: n } = await import("./index.browser-yl2kMZM5.js"), s = this.resolveEventStreamMarshaller(n);
+    const { EventStreamSerde: r, eventStreamSerdeProvider: n } = await import("./index.browser-DbxUuMzZ.js"), s = this.resolveEventStreamMarshaller(n);
     return new r({
       marshaller: s,
       serializer: this.serializer,
@@ -10419,23 +10419,23 @@ function MB(t, e) {
   const r = async (n) => e({ ...n, callerClientConfig: t });
   return r.memoized = e.memoized, r.configBound = !0, r;
 }
-const LB = !1, FB = RB(LB), Cr = "ref", dr = "argv", QC = "backend", ja = "authSchemes", xi = "disableDoubleEncoding", Pi = "signingName", Ro = "signingRegion", Qb = "signingRegionSet", Gt = -1, xr = !0, gi = !1, C0 = "isSet", ea = "booleanEquals", Er = "stringEquals", ns = "coalesce", hs = "substring", bn = "", $2 = "aws.partition", ZC = "partitionResult", U2 = "accessPointSuffix", q2 = "regionPrefix", td = (t) => "outpostId_ssa_" + t + bn, eI = "hardwareType", I0 = "ite", ho = "isValidHostLabel", Bo = "sigv4", V2 = "aws.isVirtualHostableS3Bucket", tI = "url", gs = "getAttr", rI = "bucketArn", yo = "--", nI = "arnType", K2 = "accesspoint", O0 = (t) => "accessPointName_ssa_" + t + bn, Zb = "s3-object-lambda", xf = "s3-outposts", H2 = "bucketPartition", sI = "us-east-1", W2 = "outpostType", Ys = "name", Pf = "s3", k0 = "{url#scheme}://{Bucket}.{url#authority}{url#path}", rd = "{url#scheme}://{url#authority}{url#path}", z2 = "{url#scheme}://{url#authority}{url#normalizedPath}{Bucket}", G2 = "https://{Bucket}.s3-accelerate.{partitionResult#dnsSuffix}", X2 = "https://{Bucket}.s3.{partitionResult#dnsSuffix}", J2 = (t) => "{url#scheme}://{accessPointName_ssa_" + t + "}-{bucketArn#accountId}.{url#authority}{url#path}", Y2 = (t) => "Invalid ARN: The access point name may only contain a-z, A-Z, 0-9 and `-`. Found: `{accessPointName_ssa_" + t + "}`", ev = "sigv4a", Q2 = "{url#scheme}://{url#authority}{url#normalizedPath}{uri_encoded_bucket}", Z2 = "https://s3.{partitionResult#dnsSuffix}/{uri_encoded_bucket}", eT = "https://s3.{partitionResult#dnsSuffix}", tT = { [Cr]: "UseFIPS" }, rT = { [Cr]: "UseDualStack" }, Cn = { [Cr]: "Bucket" }, N0 = { fn: gs, [dr]: [{ [Cr]: ZC }, Ys] }, nT = { [Cr]: tI }, Cc = { [Cr]: "Region" }, Io = { [Cr]: rI }, sT = { [Cr]: nI }, D0 = { [Cr]: "accessPointName_ssa_1" }, nd = { fn: gs, [dr]: [Io, "region"] }, iT = { [Cr]: eI }, R0 = { fn: gs, [dr]: [Io, "service"] }, aT = { fn: gs, [dr]: [Io, "accountId"] }, sd = { [QC]: "S3Express", [ja]: [{ [xi]: !0, [Ys]: "{_s3e_auth}", [Pi]: "s3express", [Ro]: "{Region}" }] }, oT = { [QC]: "S3Express", [ja]: [{ [xi]: !0, [Ys]: Bo, [Pi]: "s3express", [Ro]: "{Region}" }] }, id = { [ja]: [{ [xi]: !0, [Ys]: ev, [Pi]: xf, [Qb]: ["*"] }, { [xi]: !0, [Ys]: Bo, [Pi]: xf, [Ro]: "{Region}" }] }, xn = { [ja]: [{ [xi]: !0, [Ys]: Bo, [Pi]: Pf, [Ro]: sI }] }, Jr = { [ja]: [{ [xi]: !0, [Ys]: Bo, [Pi]: Pf, [Ro]: "{Region}" }] }, B0 = { [ja]: [{ [xi]: !0, [Ys]: Bo, [Pi]: Zb, [Ro]: "{bucketArn#region}" }] }, xu = { [ja]: [{ [xi]: !0, [Ys]: Bo, [Pi]: Pf, [Ro]: "{bucketArn#region}" }] }, lT = { [ja]: [{ [xi]: !0, [Ys]: ev, [Pi]: xf, [Qb]: ["*"] }, { [xi]: !0, [Ys]: Bo, [Pi]: xf, [Ro]: "{bucketArn#region}" }] }, M0 = { [ja]: [{ [xi]: !0, [Ys]: Bo, [Pi]: Zb, [Ro]: "{Region}" }] }, cT = [Cc], uT = [{ [Cr]: "Endpoint" }], L0 = [Cn], fT = [Cn, 0, 7, !0], dT = [Io, "resourceId[1]"], jB = ["*"], pT = {
+const LB = !1, FB = RB(LB), Cr = "ref", dr = "argv", QC = "backend", ja = "authSchemes", xi = "disableDoubleEncoding", Pi = "signingName", Ro = "signingRegion", Qb = "signingRegionSet", Gt = -1, Pr = !0, gi = !1, C0 = "isSet", ea = "booleanEquals", Er = "stringEquals", ns = "coalesce", hs = "substring", bn = "", $2 = "aws.partition", ZC = "partitionResult", U2 = "accessPointSuffix", q2 = "regionPrefix", td = (t) => "outpostId_ssa_" + t + bn, eI = "hardwareType", I0 = "ite", ho = "isValidHostLabel", Bo = "sigv4", V2 = "aws.isVirtualHostableS3Bucket", tI = "url", gs = "getAttr", rI = "bucketArn", yo = "--", nI = "arnType", K2 = "accesspoint", O0 = (t) => "accessPointName_ssa_" + t + bn, Zb = "s3-object-lambda", xf = "s3-outposts", H2 = "bucketPartition", sI = "us-east-1", W2 = "outpostType", Ys = "name", Pf = "s3", k0 = "{url#scheme}://{Bucket}.{url#authority}{url#path}", rd = "{url#scheme}://{url#authority}{url#path}", z2 = "{url#scheme}://{url#authority}{url#normalizedPath}{Bucket}", G2 = "https://{Bucket}.s3-accelerate.{partitionResult#dnsSuffix}", X2 = "https://{Bucket}.s3.{partitionResult#dnsSuffix}", J2 = (t) => "{url#scheme}://{accessPointName_ssa_" + t + "}-{bucketArn#accountId}.{url#authority}{url#path}", Y2 = (t) => "Invalid ARN: The access point name may only contain a-z, A-Z, 0-9 and `-`. Found: `{accessPointName_ssa_" + t + "}`", ev = "sigv4a", Q2 = "{url#scheme}://{url#authority}{url#normalizedPath}{uri_encoded_bucket}", Z2 = "https://s3.{partitionResult#dnsSuffix}/{uri_encoded_bucket}", eT = "https://s3.{partitionResult#dnsSuffix}", tT = { [Cr]: "UseFIPS" }, rT = { [Cr]: "UseDualStack" }, Cn = { [Cr]: "Bucket" }, N0 = { fn: gs, [dr]: [{ [Cr]: ZC }, Ys] }, nT = { [Cr]: tI }, Cc = { [Cr]: "Region" }, Io = { [Cr]: rI }, sT = { [Cr]: nI }, D0 = { [Cr]: "accessPointName_ssa_1" }, nd = { fn: gs, [dr]: [Io, "region"] }, iT = { [Cr]: eI }, R0 = { fn: gs, [dr]: [Io, "service"] }, aT = { fn: gs, [dr]: [Io, "accountId"] }, sd = { [QC]: "S3Express", [ja]: [{ [xi]: !0, [Ys]: "{_s3e_auth}", [Pi]: "s3express", [Ro]: "{Region}" }] }, oT = { [QC]: "S3Express", [ja]: [{ [xi]: !0, [Ys]: Bo, [Pi]: "s3express", [Ro]: "{Region}" }] }, id = { [ja]: [{ [xi]: !0, [Ys]: ev, [Pi]: xf, [Qb]: ["*"] }, { [xi]: !0, [Ys]: Bo, [Pi]: xf, [Ro]: "{Region}" }] }, xn = { [ja]: [{ [xi]: !0, [Ys]: Bo, [Pi]: Pf, [Ro]: sI }] }, Jr = { [ja]: [{ [xi]: !0, [Ys]: Bo, [Pi]: Pf, [Ro]: "{Region}" }] }, B0 = { [ja]: [{ [xi]: !0, [Ys]: Bo, [Pi]: Zb, [Ro]: "{bucketArn#region}" }] }, xu = { [ja]: [{ [xi]: !0, [Ys]: Bo, [Pi]: Pf, [Ro]: "{bucketArn#region}" }] }, lT = { [ja]: [{ [xi]: !0, [Ys]: ev, [Pi]: xf, [Qb]: ["*"] }, { [xi]: !0, [Ys]: Bo, [Pi]: xf, [Ro]: "{bucketArn#region}" }] }, M0 = { [ja]: [{ [xi]: !0, [Ys]: Bo, [Pi]: Zb, [Ro]: "{Region}" }] }, cT = [Cc], uT = [{ [Cr]: "Endpoint" }], L0 = [Cn], fT = [Cn, 0, 7, !0], dT = [Io, "resourceId[1]"], jB = ["*"], pT = {
   conditions: [
     [C0, cT],
-    [ea, [{ [Cr]: "Accelerate" }, xr]],
-    [ea, [tT, xr]],
-    [ea, [rT, xr]],
+    [ea, [{ [Cr]: "Accelerate" }, Pr]],
+    [ea, [tT, Pr]],
+    [ea, [rT, Pr]],
     [C0, uT],
     [C0, L0],
-    [Er, [{ fn: ns, [dr]: [{ fn: hs, [dr]: [Cn, 0, 6, xr] }, bn] }, "--x-s3"]],
+    [Er, [{ fn: ns, [dr]: [{ fn: hs, [dr]: [Cn, 0, 6, Pr] }, bn] }, "--x-s3"]],
     [Er, [{ fn: ns, [dr]: [{ fn: hs, [dr]: fT }, bn] }, "--xa-s3"]],
     [$2, cT, ZC],
     [hs, fT, U2],
     [Er, [{ [Cr]: U2 }, "--op-s3"]],
-    [hs, [Cn, 8, 12, xr], q2],
-    [hs, [Cn, 32, 49, xr], td(2)],
-    [hs, [Cn, 49, 50, xr], eI],
-    [ea, [{ [Cr]: "ForcePathStyle" }, xr]],
+    [hs, [Cn, 8, 12, Pr], q2],
+    [hs, [Cn, 32, 49, Pr], td(2)],
+    [hs, [Cn, 49, 50, Pr], eI],
+    [ea, [{ [Cr]: "ForcePathStyle" }, Pr]],
     [Er, [N0, "aws-cn"]],
     [I0, [rT, ".dualstack", bn], "_s3e_ds"],
     [ho, [{ [Cr]: td(2) }, gi]],
@@ -10443,51 +10443,51 @@ const LB = !1, FB = RB(LB), Cr = "ref", dr = "argv", QC = "backend", ja = "authS
     [I0, [{ fn: ns, [dr]: [{ [Cr]: "DisableS3ExpressSessionAuth" }, gi] }, Bo, "sigv4-s3express"], "_s3e_auth"],
     [V2, [Cn, gi]],
     ["parseURL", uT, tI],
-    [ea, [{ fn: ns, [dr]: [{ [Cr]: "UseS3ExpressControlEndpoint" }, gi] }, xr]],
-    [V2, [Cn, xr]],
+    [ea, [{ fn: ns, [dr]: [{ [Cr]: "UseS3ExpressControlEndpoint" }, gi] }, Pr]],
+    [V2, [Cn, Pr]],
     [Er, [{ fn: gs, [dr]: [nT, "scheme"] }, "http"]],
     [ho, [Cc, gi]],
     ["aws.parseArn", L0, rI],
     [gs, [{ fn: "split", [dr]: [Cn, yo, 0] }, "[-2]"], "s3expressAvailabilityZoneId"],
     [Er, [{ fn: ns, [dr]: [{ fn: hs, [dr]: [Cn, 0, 4, gi] }, bn] }, "arn:"]],
-    [Er, [{ fn: ns, [dr]: [{ fn: hs, [dr]: [Cn, 16, 18, xr] }, bn] }, yo]],
-    [ea, [{ fn: gs, [dr]: [nT, "isIp"] }, xr]],
-    [Er, [{ fn: ns, [dr]: [{ fn: hs, [dr]: [Cn, 21, 23, xr] }, bn] }, yo]],
-    [Er, [{ fn: ns, [dr]: [{ fn: hs, [dr]: [Cn, 27, 29, xr] }, bn] }, yo]],
+    [Er, [{ fn: ns, [dr]: [{ fn: hs, [dr]: [Cn, 16, 18, Pr] }, bn] }, yo]],
+    [ea, [{ fn: gs, [dr]: [nT, "isIp"] }, Pr]],
+    [Er, [{ fn: ns, [dr]: [{ fn: hs, [dr]: [Cn, 21, 23, Pr] }, bn] }, yo]],
+    [Er, [{ fn: ns, [dr]: [{ fn: hs, [dr]: [Cn, 27, 29, Pr] }, bn] }, yo]],
     [Er, [{ [Cr]: q2 }, "beta"]],
     ["uriEncode", L0, "uri_encoded_bucket"],
-    [ho, [Cc, xr]],
-    [ea, [{ fn: ns, [dr]: [{ [Cr]: "UseObjectLambdaEndpoint" }, gi] }, xr]],
+    [ho, [Cc, Pr]],
+    [ea, [{ fn: ns, [dr]: [{ [Cr]: "UseObjectLambdaEndpoint" }, gi] }, Pr]],
     [gs, [Io, "resourceId[0]"], nI],
     [Er, [sT, bn]],
     [Er, [sT, K2]],
     [gs, dT, O0(1)],
     [Er, [D0, bn]],
     [Er, [nd, bn]],
-    [Er, [{ fn: ns, [dr]: [{ fn: hs, [dr]: [Cn, 14, 16, xr] }, bn] }, yo]],
+    [Er, [{ fn: ns, [dr]: [{ fn: hs, [dr]: [Cn, 14, 16, Pr] }, bn] }, yo]],
     [Er, [iT, "e"]],
     [Er, [iT, "o"]],
     [Er, [Cc, "aws-global"]],
-    [Er, [{ fn: ns, [dr]: [{ fn: hs, [dr]: [Cn, 19, 21, xr] }, bn] }, yo]],
+    [Er, [{ fn: ns, [dr]: [{ fn: hs, [dr]: [Cn, 19, 21, Pr] }, bn] }, yo]],
     [Er, [R0, Zb]],
-    [ea, [{ fn: ns, [dr]: [{ [Cr]: "DisableAccessPoints" }, gi] }, xr]],
+    [ea, [{ fn: ns, [dr]: [{ [Cr]: "DisableAccessPoints" }, gi] }, Pr]],
     [Er, [R0, xf]],
     [$2, [nd], H2],
-    [ho, [D0, xr]],
-    [Er, [{ fn: ns, [dr]: [{ fn: hs, [dr]: [Cn, 26, 28, xr] }, bn] }, yo]],
-    [Er, [{ fn: ns, [dr]: [{ fn: hs, [dr]: [Cn, 15, 17, xr] }, bn] }, yo]],
+    [ho, [D0, Pr]],
+    [Er, [{ fn: ns, [dr]: [{ fn: hs, [dr]: [Cn, 26, 28, Pr] }, bn] }, yo]],
+    [Er, [{ fn: ns, [dr]: [{ fn: hs, [dr]: [Cn, 15, 17, Pr] }, bn] }, yo]],
     [gs, [Io, "resourceId[4]"]],
-    [Er, [{ fn: ns, [dr]: [{ fn: hs, [dr]: [Cn, 20, 22, xr] }, bn] }, yo]],
-    [ea, [{ [Cr]: "UseGlobalEndpoint" }, xr]],
+    [Er, [{ fn: ns, [dr]: [{ fn: hs, [dr]: [Cn, 20, 22, Pr] }, bn] }, yo]],
+    [ea, [{ [Cr]: "UseGlobalEndpoint" }, Pr]],
     [Er, [Cc, sI]],
     [gs, dT, td(1)],
-    [ea, [{ fn: ns, [dr]: [{ [Cr]: "UseArnRegion" }, xr] }, xr]],
+    [ea, [{ fn: ns, [dr]: [{ [Cr]: "UseArnRegion" }, Pr] }, Pr]],
     [ho, [{ [Cr]: td(1) }, gi]],
     [gs, [Io, "resourceId[2]"], W2],
     [Er, [Cc, nd]],
     [Er, [{ fn: gs, [dr]: [{ [Cr]: H2 }, Ys] }, N0]],
-    [ea, [{ [Cr]: "DisableMultiRegionAccessPoints" }, xr]],
-    [ho, [nd, xr]],
+    [ea, [{ [Cr]: "DisableMultiRegionAccessPoints" }, Pr]],
+    [ho, [nd, Pr]],
     [Er, [{ fn: gs, [dr]: [Io, "partition"] }, N0]],
     [Er, [aT, bn]],
     [Er, [R0, Pf]],
@@ -10568,7 +10568,7 @@ const LB = !1, FB = RB(LB), Cr = "ref", dr = "argv", QC = "backend", ja = "authS
     [Gt, "S3 MRAP does not support FIPS"],
     [Gt, "S3 MRAP does not support S3 Accelerate"],
     [Gt, "Invalid configuration: Multi-Region Access Point ARNs are disabled."],
-    ["https://{accessPointName_ssa_1}.accesspoint.s3-global.{partitionResult#dnsSuffix}", { [ja]: [{ [xi]: xr, name: ev, [Pi]: Pf, [Qb]: jB }] }],
+    ["https://{accessPointName_ssa_1}.accesspoint.s3-global.{partitionResult#dnsSuffix}", { [ja]: [{ [xi]: Pr, name: ev, [Pi]: Pf, [Qb]: jB }] }],
     [Gt, "Client was configured for partition `{partitionResult#name}` but bucket referred to partition `{bucketArn#partition}`"],
     [Gt, "Invalid Access Point Name"],
     [Gt, "S3 Outposts does not support Dual-stack"],
@@ -12716,7 +12716,7 @@ class Ev extends Fr {
     Object.setPrototypeOf(this, Ev.prototype);
   }
 }
-const lI = "ACL", oM = "AccessDenied", cI = "AbortDate", hT = "AccessKeyId", lM = "AnnotationLimitExceeded", cM = "AbortMultipartUpload", uM = "AbortMultipartUploadOutput", fM = "AbortMultipartUploadRequest", dM = "AnnotationNameTooLong", uI = "AcceptRanges", fI = "AbortRuleId", pM = "ArchiveStatus", hM = "AccessTier", cs = "Bucket", yM = "BucketAlreadyExists", mM = "BucketAlreadyOwnedByYou", gM = "BypassGovernanceRetention", $a = "BucketKeyEnabled", wv = "Body", jl = "ChecksumAlgorithm", Kh = "CacheControl", Ua = "ChecksumCRC32", qa = "ChecksumCRC32C", Va = "ChecksumCRC64NVME", Hh = "Cache-Control", Wh = "Content-Disposition", zh = "ContentDisposition", Gh = "Content-Encoding", Xh = "ContentEncoding", Jh = "ContentLanguage", Yh = "Content-Language", Qh = "Content-Length", Zh = "ContentLength", _v = "Content-MD5", Ka = "ChecksumMD5", xv = "ContentMD5", bM = "CompletedMultipartUpload", vM = "CompleteMultipartUploadOutput", SM = "CreateMultipartUploadOutput", TM = "CompleteMultipartUploadResult", EM = "CompleteMultipartUploadRequest", wM = "CreateMultipartUploadRequest", dI = "CompleteMultipartUpload", _M = "CreateMultipartUpload", pI = "ChecksumMode", xM = "CommonPrefix", PM = "CommonPrefixList", AM = "CompletedPartList", CM = "CompletedPart", IM = "CommonPrefixes", hI = "ContentRange", yI = "Content-Range", Ha = "ChecksumSHA1", Wa = "ChecksumSHA256", za = "ChecksumSHA512", OM = "CreateSessionOutput", kM = "CreateSessionResult", NM = "CreateSessionRequest", DM = "CreateSession", Lo = "ChecksumType", ey = "Content-Type", ty = "ContentType", Ga = "ChecksumXXHASH64", Xa = "ChecksumXXHASH3", Ja = "ChecksumXXHASH128", RM = "Contents", yT = "Credentials", Pv = "DeleteMarker", mI = "DisplayName", BM = "DeleteObjectOutput", MM = "DeleteObjectRequest", LM = "DeleteObject", gI = "Delimiter", la = "ExpectedBucketOwner", gh = "ExpiresString", Ai = "ETag", FM = "EncryptionTypeMismatch", bI = "EncodingType", Xc = "Expiration", el = "Expires", vI = "GrantFullControl", jM = "GetObject", $M = "GetObjectOutput", UM = "GetObjectRequest", SI = "GrantRead", TI = "GrantReadACP", EI = "GrantWriteACP", qM = "HeadObject", VM = "HeadObjectOutput", KM = "HeadObjectRequest", HM = "InvalidAnnotationName", wI = "ID", Df = "IfMatch", WM = "IfMatchInitiatedTime", zM = "IfMatchLastModifiedTime", GM = "IfMatchSize", _I = "If-Modified-Since", xI = "IfModifiedSince", XM = "InitiateMultipartUploadResult", Rf = "If-Match", ry = "IfNoneMatch", ny = "If-None-Match", JM = "InvalidObjectState", YM = "InvalidPrefix", QM = "IdempotencyParameterMismatch", ZM = "InvalidRequest", eL = "IsRestoreInProgress", PI = "IsTruncated", AI = "IfUnmodifiedSince", CI = "If-Unmodified-Since", tL = "InvalidWriteOffset", II = "Initiator", Ss = "Key", rL = "Location", nL = "ListBucketResult", sy = "LastModified", OI = "Last-Modified", sL = "ListObjects", iL = "ListObjectsOutput", aL = "ListObjectsRequest", oL = "ListParts", lL = "ListPartsOutput", cL = "ListPartsResult", uL = "ListPartsRequest", iy = "Metadata", fL = "MFA", kI = "MaxKeys", NI = "MissingMeta", dL = "MpuObjectSize", DI = "MaxParts", pL = "MultipartUpload", RI = "Marker", hL = "Name", yL = "NotFound", mL = "NextMarker", gL = "NextPartNumberMarker", bL = "NoSuchAnnotation", vL = "NoSuchBucket", SL = "NoSuchKey", TL = "NoSuchUpload", Av = "Owner", EL = "ObjectAlreadyInActiveTierError", ay = "ObjectLockEventHold", oy = "ObjectLockEventHoldDurationDays", ly = "ObjectLockEventHoldDurationYears", cy = "ObjectLockLegalHoldStatus", uy = "ObjectLockMode", fy = "ObjectLockRetainUntilDate", wL = "ObjectList", _L = "ObjectNotInActiveTierError", xL = "OptionalObjectAttributes", PL = "Object", Cv = "Prefix", BI = "PartsCount", Bf = "PartNumber", MI = "PartNumberMarker", AL = "PutObject", CL = "PutObjectOutput", IL = "PutObjectRequest", OL = "PutObjectTagging", kL = "PutObjectTaggingOutput", NL = "PutObjectTaggingRequest", Iv = "Parts", Ov = "Part", Ya = "RequestCharged", LI = "ResponseCacheControl", FI = "ResponseContentDisposition", jI = "ResponseContentEncoding", $I = "ResponseContentLanguage", UI = "ResponseContentType", qI = "ResponseExpires", DL = "RestoreExpiryDate", ca = "RequestPayer", VI = "ReplicationStatus", KI = "RestoreStatus", bh = "Range", HI = "Restore", mT = "SecretAccessKey", RL = "StreamingBlob", $l = "StorageClass", BL = "SessionCredentialValue", ML = "SessionCredentials", LL = "SessionMode", Qa = "ServerSideEncryption", Oi = "SSECustomerAlgorithm", rl = "SSECustomerKey", ki = "SSECustomerKeyMD5", Ul = "SSEKMSEncryptionContext", ua = "SSEKMSKeyId", gT = "SessionToken", kv = "Size", WI = "TagCount", FL = "TooManyParts", zI = "TagSet", GI = "Tag", Af = "Tagging", su = "UploadId", jL = "UnsupportedMediaType", $L = "UploadPart", UL = "UploadPartOutput", qL = "UploadPartRequest", VL = "Value", Za = "VersionId", KL = "WriteOffsetBytes", dy = "WebsiteRedirectLocation", XI = "accept-ranges", rn = "client", HL = "delimiter", nn = "error", WL = "encoding-type", Ni = "http", py = "httpChecksum", pn = "httpError", Re = "httpHeader", JI = "httpPayload", hy = "httpPrefixHeaders", _r = "httpQuery", zL = "marker", GL = "max-keys", XL = "max-parts", JL = "prefix", Nv = "partNumber", YL = "part-number-marker", YI = "response-cache-control", QI = "response-content-disposition", ZI = "response-content-encoding", e3 = "response-content-language", t3 = "response-content-type", r3 = "response-expires", n3 = "smithy.ts.sdk.synthetic.com.amazonaws.s3", QL = "streaming", yy = "uploadId", my = "versionId", Cf = "xmlFlattened", ls = "xmlName", s3 = "x-amz-acl", i3 = "x-amz-abort-date", a3 = "x-amz-abort-rule-id", ZL = "x-amz-archive-status", e7 = "x-amz-bypass-governance-retention", o3 = "x-amz-checksum-algorithm", ql = "x-amz-checksum-crc32", Vl = "x-amz-checksum-crc32c", Kl = "x-amz-checksum-crc64nvme", Hl = "x-amz-checksum-md5", l3 = "x-amz-checksum-mode", Wl = "x-amz-checksum-sha1", zl = "x-amz-checksum-sha256", Gl = "x-amz-checksum-sha512", t7 = "x-amz-create-session-mode", iu = "x-amz-checksum-type", Xl = "x-amz-checksum-xxhash64", Jl = "x-amz-checksum-xxhash3", Yl = "x-amz-checksum-xxhash128", Dv = "x-amz-delete-marker", gy = "x-amz-expiration", fa = "x-amz-expected-bucket-owner", c3 = "x-amz-grant-full-control", u3 = "x-amz-grant-read", f3 = "x-amz-grant-read-acp", d3 = "x-amz-grant-write-acp", r7 = "x-amz-if-match-initiated-time", n7 = "x-amz-if-match-last-modified-time", s7 = "x-amz-if-match-size", by = "x-amz-meta-", i7 = "x-amz-mfa", p3 = "x-amz-missing-meta", a7 = "x-amz-mp-object-size", h3 = "x-amz-mp-parts-count", vy = "x-amz-object-lock-event-hold", Sy = "x-amz-object-lock-event-hold-duration-days", Ty = "x-amz-object-lock-event-hold-duration-years", Ey = "x-amz-object-lock-legal-hold", wy = "x-amz-object-lock-mode", _y = "x-amz-object-lock-retain-until-date", o7 = "x-amz-optional-object-attributes", l7 = "x-amz-object-size", y3 = "x-amz-restore", eo = "x-amz-request-charged", da = "x-amz-request-payer", m3 = "x-amz-replication-status", xy = "x-amz-storage-class", Rv = "x-amz-sdk-checksum-algorithm", to = "x-amz-server-side-encryption", ro = "x-amz-server-side-encryption-aws-kms-key-id", no = "x-amz-server-side-encryption-bucket-key-enabled", au = "x-amz-server-side-encryption-context", Di = "x-amz-server-side-encryption-customer-algorithm", Ql = "x-amz-server-side-encryption-customer-key", Ri = "x-amz-server-side-encryption-customer-key-MD5", g3 = "x-amz-tagging", b3 = "x-amz-tagging-count", ou = "x-amz-version-id", c7 = "x-amz-write-offset-bytes", Py = "x-amz-website-redirect-location", Dt = "com.amazonaws.s3", v3 = new Rl(n3);
+const lI = "ACL", oM = "AccessDenied", cI = "AbortDate", hT = "AccessKeyId", lM = "AnnotationLimitExceeded", cM = "AbortMultipartUpload", uM = "AbortMultipartUploadOutput", fM = "AbortMultipartUploadRequest", dM = "AnnotationNameTooLong", uI = "AcceptRanges", fI = "AbortRuleId", pM = "ArchiveStatus", hM = "AccessTier", cs = "Bucket", yM = "BucketAlreadyExists", mM = "BucketAlreadyOwnedByYou", gM = "BypassGovernanceRetention", $a = "BucketKeyEnabled", wv = "Body", jl = "ChecksumAlgorithm", Kh = "CacheControl", Ua = "ChecksumCRC32", qa = "ChecksumCRC32C", Va = "ChecksumCRC64NVME", Hh = "Cache-Control", Wh = "Content-Disposition", zh = "ContentDisposition", Gh = "Content-Encoding", Xh = "ContentEncoding", Jh = "ContentLanguage", Yh = "Content-Language", Qh = "Content-Length", Zh = "ContentLength", _v = "Content-MD5", Ka = "ChecksumMD5", xv = "ContentMD5", bM = "CompletedMultipartUpload", vM = "CompleteMultipartUploadOutput", SM = "CreateMultipartUploadOutput", TM = "CompleteMultipartUploadResult", EM = "CompleteMultipartUploadRequest", wM = "CreateMultipartUploadRequest", dI = "CompleteMultipartUpload", _M = "CreateMultipartUpload", pI = "ChecksumMode", xM = "CommonPrefix", PM = "CommonPrefixList", AM = "CompletedPartList", CM = "CompletedPart", IM = "CommonPrefixes", hI = "ContentRange", yI = "Content-Range", Ha = "ChecksumSHA1", Wa = "ChecksumSHA256", za = "ChecksumSHA512", OM = "CreateSessionOutput", kM = "CreateSessionResult", NM = "CreateSessionRequest", DM = "CreateSession", Lo = "ChecksumType", ey = "Content-Type", ty = "ContentType", Ga = "ChecksumXXHASH64", Xa = "ChecksumXXHASH3", Ja = "ChecksumXXHASH128", RM = "Contents", yT = "Credentials", Pv = "DeleteMarker", mI = "DisplayName", BM = "DeleteObjectOutput", MM = "DeleteObjectRequest", LM = "DeleteObject", gI = "Delimiter", la = "ExpectedBucketOwner", gh = "ExpiresString", Ai = "ETag", FM = "EncryptionTypeMismatch", bI = "EncodingType", Xc = "Expiration", el = "Expires", vI = "GrantFullControl", jM = "GetObject", $M = "GetObjectOutput", UM = "GetObjectRequest", SI = "GrantRead", TI = "GrantReadACP", EI = "GrantWriteACP", qM = "HeadObject", VM = "HeadObjectOutput", KM = "HeadObjectRequest", HM = "InvalidAnnotationName", wI = "ID", Df = "IfMatch", WM = "IfMatchInitiatedTime", zM = "IfMatchLastModifiedTime", GM = "IfMatchSize", _I = "If-Modified-Since", xI = "IfModifiedSince", XM = "InitiateMultipartUploadResult", Rf = "If-Match", ry = "IfNoneMatch", ny = "If-None-Match", JM = "InvalidObjectState", YM = "InvalidPrefix", QM = "IdempotencyParameterMismatch", ZM = "InvalidRequest", eL = "IsRestoreInProgress", PI = "IsTruncated", AI = "IfUnmodifiedSince", CI = "If-Unmodified-Since", tL = "InvalidWriteOffset", II = "Initiator", Ss = "Key", rL = "Location", nL = "ListBucketResult", sy = "LastModified", OI = "Last-Modified", sL = "ListObjects", iL = "ListObjectsOutput", aL = "ListObjectsRequest", oL = "ListParts", lL = "ListPartsOutput", cL = "ListPartsResult", uL = "ListPartsRequest", iy = "Metadata", fL = "MFA", kI = "MaxKeys", NI = "MissingMeta", dL = "MpuObjectSize", DI = "MaxParts", pL = "MultipartUpload", RI = "Marker", hL = "Name", yL = "NotFound", mL = "NextMarker", gL = "NextPartNumberMarker", bL = "NoSuchAnnotation", vL = "NoSuchBucket", SL = "NoSuchKey", TL = "NoSuchUpload", Av = "Owner", EL = "ObjectAlreadyInActiveTierError", ay = "ObjectLockEventHold", oy = "ObjectLockEventHoldDurationDays", ly = "ObjectLockEventHoldDurationYears", cy = "ObjectLockLegalHoldStatus", uy = "ObjectLockMode", fy = "ObjectLockRetainUntilDate", wL = "ObjectList", _L = "ObjectNotInActiveTierError", xL = "OptionalObjectAttributes", PL = "Object", Cv = "Prefix", BI = "PartsCount", Bf = "PartNumber", MI = "PartNumberMarker", AL = "PutObject", CL = "PutObjectOutput", IL = "PutObjectRequest", OL = "PutObjectTagging", kL = "PutObjectTaggingOutput", NL = "PutObjectTaggingRequest", Iv = "Parts", Ov = "Part", Ya = "RequestCharged", LI = "ResponseCacheControl", FI = "ResponseContentDisposition", jI = "ResponseContentEncoding", $I = "ResponseContentLanguage", UI = "ResponseContentType", qI = "ResponseExpires", DL = "RestoreExpiryDate", ca = "RequestPayer", VI = "ReplicationStatus", KI = "RestoreStatus", bh = "Range", HI = "Restore", mT = "SecretAccessKey", RL = "StreamingBlob", $l = "StorageClass", BL = "SessionCredentialValue", ML = "SessionCredentials", LL = "SessionMode", Qa = "ServerSideEncryption", Oi = "SSECustomerAlgorithm", rl = "SSECustomerKey", ki = "SSECustomerKeyMD5", Ul = "SSEKMSEncryptionContext", ua = "SSEKMSKeyId", gT = "SessionToken", kv = "Size", WI = "TagCount", FL = "TooManyParts", zI = "TagSet", GI = "Tag", Af = "Tagging", su = "UploadId", jL = "UnsupportedMediaType", $L = "UploadPart", UL = "UploadPartOutput", qL = "UploadPartRequest", VL = "Value", Za = "VersionId", KL = "WriteOffsetBytes", dy = "WebsiteRedirectLocation", XI = "accept-ranges", rn = "client", HL = "delimiter", nn = "error", WL = "encoding-type", Ni = "http", py = "httpChecksum", pn = "httpError", Re = "httpHeader", JI = "httpPayload", hy = "httpPrefixHeaders", xr = "httpQuery", zL = "marker", GL = "max-keys", XL = "max-parts", JL = "prefix", Nv = "partNumber", YL = "part-number-marker", YI = "response-cache-control", QI = "response-content-disposition", ZI = "response-content-encoding", e3 = "response-content-language", t3 = "response-content-type", r3 = "response-expires", n3 = "smithy.ts.sdk.synthetic.com.amazonaws.s3", QL = "streaming", yy = "uploadId", my = "versionId", Cf = "xmlFlattened", ls = "xmlName", s3 = "x-amz-acl", i3 = "x-amz-abort-date", a3 = "x-amz-abort-rule-id", ZL = "x-amz-archive-status", e7 = "x-amz-bypass-governance-retention", o3 = "x-amz-checksum-algorithm", ql = "x-amz-checksum-crc32", Vl = "x-amz-checksum-crc32c", Kl = "x-amz-checksum-crc64nvme", Hl = "x-amz-checksum-md5", l3 = "x-amz-checksum-mode", Wl = "x-amz-checksum-sha1", zl = "x-amz-checksum-sha256", Gl = "x-amz-checksum-sha512", t7 = "x-amz-create-session-mode", iu = "x-amz-checksum-type", Xl = "x-amz-checksum-xxhash64", Jl = "x-amz-checksum-xxhash3", Yl = "x-amz-checksum-xxhash128", Dv = "x-amz-delete-marker", gy = "x-amz-expiration", fa = "x-amz-expected-bucket-owner", c3 = "x-amz-grant-full-control", u3 = "x-amz-grant-read", f3 = "x-amz-grant-read-acp", d3 = "x-amz-grant-write-acp", r7 = "x-amz-if-match-initiated-time", n7 = "x-amz-if-match-last-modified-time", s7 = "x-amz-if-match-size", by = "x-amz-meta-", i7 = "x-amz-mfa", p3 = "x-amz-missing-meta", a7 = "x-amz-mp-object-size", h3 = "x-amz-mp-parts-count", vy = "x-amz-object-lock-event-hold", Sy = "x-amz-object-lock-event-hold-duration-days", Ty = "x-amz-object-lock-event-hold-duration-years", Ey = "x-amz-object-lock-legal-hold", wy = "x-amz-object-lock-mode", _y = "x-amz-object-lock-retain-until-date", o7 = "x-amz-optional-object-attributes", l7 = "x-amz-object-size", y3 = "x-amz-restore", eo = "x-amz-request-charged", da = "x-amz-request-payer", m3 = "x-amz-replication-status", xy = "x-amz-storage-class", Rv = "x-amz-sdk-checksum-algorithm", to = "x-amz-server-side-encryption", ro = "x-amz-server-side-encryption-aws-kms-key-id", no = "x-amz-server-side-encryption-bucket-key-enabled", au = "x-amz-server-side-encryption-context", Di = "x-amz-server-side-encryption-customer-algorithm", Ql = "x-amz-server-side-encryption-customer-key", Ri = "x-amz-server-side-encryption-customer-key-MD5", g3 = "x-amz-tagging", b3 = "x-amz-tagging-count", ou = "x-amz-version-id", c7 = "x-amz-write-offset-bytes", Py = "x-amz-website-redirect-location", Dt = "com.amazonaws.s3", v3 = new Rl(n3);
 var u7 = [-3, n3, "S3ServiceException", 0, [], []];
 v3.registerError(u7, Fr);
 const zr = new Rl(Dt);
@@ -12926,7 +12926,7 @@ var bT = [0, Dt, BL, 8, 0], Zl = [0, Dt, rl, 8, 0], lu = [0, Dt, Ul, 8, 0], so =
   fM,
   0,
   [cs, Ss, su, ca, la, WM],
-  [[0, 1], [0, 1], [0, { [_r]: yy }], [0, { [Re]: da }], [0, { [Re]: fa }], [6, { [Re]: r7 }]],
+  [[0, 1], [0, 1], [0, { [xr]: yy }], [0, { [Re]: da }], [0, { [Re]: fa }], [6, { [Re]: r7 }]],
   3
 ], B7 = [
   3,
@@ -12962,7 +12962,7 @@ var bT = [0, Dt, BL, 8, 0], Zl = [0, Dt, rl, 8, 0], lu = [0, Dt, Ul, 8, 0], so =
   EM,
   0,
   [cs, Ss, su, pL, Ua, qa, Va, Ha, Wa, za, Ka, Ga, Xa, Ja, Lo, dL, ca, la, Df, ry, Oi, rl, ki],
-  [[0, 1], [0, 1], [0, { [_r]: yy }], [() => M7, { [JI]: 1, [ls]: dI }], [0, { [Re]: ql }], [0, { [Re]: Vl }], [0, { [Re]: Kl }], [0, { [Re]: Wl }], [0, { [Re]: zl }], [0, { [Re]: Gl }], [0, { [Re]: Hl }], [0, { [Re]: Xl }], [0, { [Re]: Jl }], [0, { [Re]: Yl }], [0, { [Re]: iu }], [1, { [Re]: a7 }], [0, { [Re]: da }], [0, { [Re]: fa }], [0, { [Re]: Rf }], [0, { [Re]: ny }], [0, { [Re]: Di }], [() => Zl, { [Re]: Ql }], [0, { [Re]: Ri }]],
+  [[0, 1], [0, 1], [0, { [xr]: yy }], [() => M7, { [JI]: 1, [ls]: dI }], [0, { [Re]: ql }], [0, { [Re]: Vl }], [0, { [Re]: Kl }], [0, { [Re]: Wl }], [0, { [Re]: zl }], [0, { [Re]: Gl }], [0, { [Re]: Hl }], [0, { [Re]: Xl }], [0, { [Re]: Jl }], [0, { [Re]: Yl }], [0, { [Re]: iu }], [1, { [Re]: a7 }], [0, { [Re]: da }], [0, { [Re]: fa }], [0, { [Re]: Rf }], [0, { [Re]: ny }], [0, { [Re]: Di }], [() => Zl, { [Re]: Ql }], [0, { [Re]: Ri }]],
   3
 ], $7 = [
   3,
@@ -13008,7 +13008,7 @@ var bT = [0, Dt, BL, 8, 0], Zl = [0, Dt, rl, 8, 0], lu = [0, Dt, Ul, 8, 0], so =
   MM,
   0,
   [cs, Ss, fL, Za, ca, gM, la, Df, zM, GM],
-  [[0, 1], [0, 1], [0, { [Re]: i7 }], [0, { [_r]: my }], [0, { [Re]: da }], [2, { [Re]: e7 }], [0, { [Re]: fa }], [0, { [Re]: Rf }], [6, { [Re]: n7 }], [1, { [Re]: s7 }]],
+  [[0, 1], [0, 1], [0, { [Re]: i7 }], [0, { [xr]: my }], [0, { [Re]: da }], [2, { [Re]: e7 }], [0, { [Re]: fa }], [0, { [Re]: Rf }], [6, { [Re]: n7 }], [1, { [Re]: s7 }]],
   2
 ], W7 = [
   3,
@@ -13023,7 +13023,7 @@ var bT = [0, Dt, BL, 8, 0], Zl = [0, Dt, rl, 8, 0], lu = [0, Dt, Ul, 8, 0], so =
   UM,
   0,
   [cs, Ss, Df, xI, ry, AI, bh, LI, FI, jI, $I, UI, qI, Za, Oi, rl, ki, ca, Bf, la, pI],
-  [[0, 1], [0, 1], [0, { [Re]: Rf }], [4, { [Re]: _I }], [0, { [Re]: ny }], [4, { [Re]: CI }], [0, { [Re]: bh }], [0, { [_r]: YI }], [0, { [_r]: QI }], [0, { [_r]: ZI }], [0, { [_r]: e3 }], [0, { [_r]: t3 }], [6, { [_r]: r3 }], [0, { [_r]: my }], [0, { [Re]: Di }], [() => Zl, { [Re]: Ql }], [0, { [Re]: Ri }], [0, { [Re]: da }], [1, { [_r]: Nv }], [0, { [Re]: fa }], [0, { [Re]: l3 }]],
+  [[0, 1], [0, 1], [0, { [Re]: Rf }], [4, { [Re]: _I }], [0, { [Re]: ny }], [4, { [Re]: CI }], [0, { [Re]: bh }], [0, { [xr]: YI }], [0, { [xr]: QI }], [0, { [xr]: ZI }], [0, { [xr]: e3 }], [0, { [xr]: t3 }], [6, { [xr]: r3 }], [0, { [xr]: my }], [0, { [Re]: Di }], [() => Zl, { [Re]: Ql }], [0, { [Re]: Ri }], [0, { [Re]: da }], [1, { [xr]: Nv }], [0, { [Re]: fa }], [0, { [Re]: l3 }]],
   2
 ], G7 = [
   3,
@@ -13038,7 +13038,7 @@ var bT = [0, Dt, BL, 8, 0], Zl = [0, Dt, rl, 8, 0], lu = [0, Dt, Ul, 8, 0], so =
   KM,
   0,
   [cs, Ss, Df, xI, ry, AI, bh, LI, FI, jI, $I, UI, qI, Za, Oi, rl, ki, ca, Bf, la, pI],
-  [[0, 1], [0, 1], [0, { [Re]: Rf }], [4, { [Re]: _I }], [0, { [Re]: ny }], [4, { [Re]: CI }], [0, { [Re]: bh }], [0, { [_r]: YI }], [0, { [_r]: QI }], [0, { [_r]: ZI }], [0, { [_r]: e3 }], [0, { [_r]: t3 }], [6, { [_r]: r3 }], [0, { [_r]: my }], [0, { [Re]: Di }], [() => Zl, { [Re]: Ql }], [0, { [Re]: Ri }], [0, { [Re]: da }], [1, { [_r]: Nv }], [0, { [Re]: fa }], [0, { [Re]: l3 }]],
+  [[0, 1], [0, 1], [0, { [Re]: Rf }], [4, { [Re]: _I }], [0, { [Re]: ny }], [4, { [Re]: CI }], [0, { [Re]: bh }], [0, { [xr]: YI }], [0, { [xr]: QI }], [0, { [xr]: ZI }], [0, { [xr]: e3 }], [0, { [xr]: t3 }], [6, { [xr]: r3 }], [0, { [xr]: my }], [0, { [Re]: Di }], [() => Zl, { [Re]: Ql }], [0, { [Re]: Ri }], [0, { [Re]: da }], [1, { [xr]: Nv }], [0, { [Re]: fa }], [0, { [Re]: l3 }]],
   2
 ], J7 = [
   3,
@@ -13060,7 +13060,7 @@ var bT = [0, Dt, BL, 8, 0], Zl = [0, Dt, rl, 8, 0], lu = [0, Dt, Ul, 8, 0], so =
   aL,
   0,
   [cs, gI, bI, RI, kI, Cv, ca, la, xL],
-  [[0, 1], [0, { [_r]: HL }], [0, { [_r]: WL }], [0, { [_r]: zL }], [1, { [_r]: GL }], [0, { [_r]: JL }], [0, { [Re]: da }], [0, { [Re]: fa }], [64, { [Re]: o7 }]],
+  [[0, 1], [0, { [xr]: HL }], [0, { [xr]: WL }], [0, { [xr]: zL }], [1, { [xr]: GL }], [0, { [xr]: JL }], [0, { [Re]: da }], [0, { [Re]: fa }], [64, { [Re]: o7 }]],
   1
 ], Z7 = [
   3,
@@ -13075,7 +13075,7 @@ var bT = [0, Dt, BL, 8, 0], Zl = [0, Dt, rl, 8, 0], lu = [0, Dt, Ul, 8, 0], so =
   uL,
   0,
   [cs, Ss, su, DI, MI, ca, la, Oi, rl, ki],
-  [[0, 1], [0, 1], [0, { [_r]: yy }], [1, { [_r]: XL }], [0, { [_r]: YL }], [0, { [Re]: da }], [0, { [Re]: fa }], [0, { [Re]: Di }], [() => Zl, { [Re]: Ql }], [0, { [Re]: Ri }]],
+  [[0, 1], [0, 1], [0, { [xr]: yy }], [1, { [xr]: XL }], [0, { [xr]: YL }], [0, { [Re]: da }], [0, { [Re]: fa }], [0, { [Re]: Di }], [() => Zl, { [Re]: Ql }], [0, { [Re]: Ri }]],
   3
 ], t9 = [
   3,
@@ -13126,7 +13126,7 @@ var bT = [0, Dt, BL, 8, 0], Zl = [0, Dt, rl, 8, 0], lu = [0, Dt, Ul, 8, 0], so =
   NL,
   0,
   [cs, Ss, Af, Za, xv, jl, la, ca],
-  [[0, 1], [0, 1], [() => u9, { [JI]: 1, [ls]: Af }], [0, { [_r]: my }], [0, { [Re]: _v }], [0, { [Re]: Rv }], [0, { [Re]: fa }], [0, { [Re]: da }]],
+  [[0, 1], [0, 1], [() => u9, { [JI]: 1, [ls]: Af }], [0, { [xr]: my }], [0, { [Re]: _v }], [0, { [Re]: Rv }], [0, { [Re]: fa }], [0, { [Re]: da }]],
   3
 ], o9 = [
   3,
@@ -13172,7 +13172,7 @@ var bT = [0, Dt, BL, 8, 0], Zl = [0, Dt, rl, 8, 0], lu = [0, Dt, Ul, 8, 0], so =
   qL,
   0,
   [cs, Ss, Bf, su, wv, Zh, xv, jl, Ua, qa, Va, Ha, Wa, za, Ka, Ga, Xa, Ja, Oi, rl, ki, ca, la],
-  [[0, 1], [0, 1], [1, { [_r]: Nv }], [0, { [_r]: yy }], [() => Bv, 16], [1, { [Re]: Qh }], [0, { [Re]: _v }], [0, { [Re]: Rv }], [0, { [Re]: ql }], [0, { [Re]: Vl }], [0, { [Re]: Kl }], [0, { [Re]: Wl }], [0, { [Re]: zl }], [0, { [Re]: Gl }], [0, { [Re]: Hl }], [0, { [Re]: Xl }], [0, { [Re]: Jl }], [0, { [Re]: Yl }], [0, { [Re]: Di }], [() => Zl, { [Re]: Ql }], [0, { [Re]: Ri }], [0, { [Re]: da }], [0, { [Re]: fa }]],
+  [[0, 1], [0, 1], [1, { [xr]: Nv }], [0, { [xr]: yy }], [() => Bv, 16], [1, { [Re]: Qh }], [0, { [Re]: _v }], [0, { [Re]: Rv }], [0, { [Re]: ql }], [0, { [Re]: Vl }], [0, { [Re]: Kl }], [0, { [Re]: Wl }], [0, { [Re]: zl }], [0, { [Re]: Gl }], [0, { [Re]: Hl }], [0, { [Re]: Xl }], [0, { [Re]: Jl }], [0, { [Re]: Yl }], [0, { [Re]: Di }], [() => Zl, { [Re]: Ql }], [0, { [Re]: Ri }], [0, { [Re]: da }], [0, { [Re]: fa }]],
   4
 ], p9 = [
   1,
@@ -77016,7 +77016,7 @@ let Bb = xl;
 function YJ(t) {
   return qt(t.databaseName), new Bb(t);
 }
-const Pr = tn("WorkerCore");
+const _r = tn("WorkerCore");
 class QJ {
   constructor() {
     _e(this, "layer", null);
@@ -77046,7 +77046,7 @@ class QJ {
    */
   async init(e) {
     if (this.layer) {
-      Pr.warn("already initialized, ignoring init()");
+      _r.warn("already initialized, ignoring init()");
       return;
     }
     const r = {
@@ -77104,12 +77104,12 @@ class QJ {
     let i = !1;
     if (e > 0 && s.length > 0) {
       const l = s[0].seq;
-      l > e + 1 && (i = !0, Pr.warn(`getCatchUpEvents: gap at start! fromSeq=${e}, lowest returned seq=${l}`));
+      l > e + 1 && (i = !0, _r.warn(`getCatchUpEvents: gap at start! fromSeq=${e}, lowest returned seq=${l}`));
     } else if (e > 0 && s.length === 0) {
       const l = await n.ui_updates.orderBy("seq").last();
-      l ? l.seq !== e && (i = !0, Pr.warn(`getCatchUpEvents: gap detected! fromSeq=${e}, but DB has events up to seq=${l.seq}`)) : (i = !0, Pr.warn(`getCatchUpEvents: gap detected! fromSeq=${e}, but DB is empty (all events TTL-deleted)`));
+      l ? l.seq !== e && (i = !0, _r.warn(`getCatchUpEvents: gap detected! fromSeq=${e}, but DB has events up to seq=${l.seq}`)) : (i = !0, _r.warn(`getCatchUpEvents: gap detected! fromSeq=${e}, but DB is empty (all events TTL-deleted)`));
     }
-    return Pr.debug(`getCatchUpEvents: returning ${s.length} events from seq ${e} (hasGap=${i}, hasMore=${a})`), { entries: s, hasGap: i, hasMore: a };
+    return _r.debug(`getCatchUpEvents: returning ${s.length} events from seq ${e} (hasGap=${i}, hasMore=${a})`), { entries: s, hasGap: i, hasMore: a };
   }
   /**
    * Health check: verify the Worker is running.
@@ -77122,9 +77122,9 @@ class QJ {
   }
   // ========== Connection ==========
   async connect() {
-    Pr.debug("connect() called");
+    _r.debug("connect() called");
     const e = this.ensureLayer();
-    Pr.debug("calling layer.connect()"), await e.connect(), Pr.debug("layer.connect() returned, client state:", e.getClient().getConnectionState()), this._subscribeConnectionState(e), Pr.debug("connection state subscribed, returning from connect()");
+    _r.debug("calling layer.connect()"), await e.connect(), _r.debug("layer.connect() returned, client state:", e.getClient().getConnectionState()), this._subscribeConnectionState(e), _r.debug("connection state subscribed, returning from connect()");
   }
   disconnect() {
     const e = this.ensureLayer();
@@ -77205,7 +77205,7 @@ class QJ {
   // ========== Lifecycle ==========
   async close() {
     for (const [e, r] of this._operationControllers)
-      Pr.debug(`aborting file operation: ${e}`), r.abort();
+      _r.debug(`aborting file operation: ${e}`), r.abort();
     this._operationControllers.clear(), this.unsubscribeBus && (this.unsubscribeBus(), this.unsubscribeBus = null), this._disposeCoordinator && (this._disposeCoordinator(), this._disposeCoordinator = null), this._unsubscribeConnectionState(), this._cleanupTimer !== null && (clearTimeout(this._cleanupTimer), this._cleanupTimer = null), await this._cleanupUIUpdateQueue(), this.layer && (await this.layer.close(), this.layer = null), this.callbacks.clear();
   }
   /**
@@ -77219,9 +77219,9 @@ class QJ {
   async _cleanupUIUpdateQueue() {
     try {
       const e = Date.now() - 18e5, n = await qt().ui_updates.where("timestamp").below(e).delete();
-      n > 0 && Pr.debug(`UI update queue cleanup: removed ${n} entries older than 30 minutes`);
+      n > 0 && _r.debug(`UI update queue cleanup: removed ${n} entries older than 30 minutes`);
     } catch (e) {
-      Pr.debug("UI update queue cleanup failed (non-fatal):", e);
+      _r.debug("UI update queue cleanup failed (non-fatal):", e);
     }
   }
   /**
@@ -77246,7 +77246,7 @@ class QJ {
     await zJ(e);
   }
   async batchWriteFiles(e, r) {
-    Pr.debug("batchWriteFiles called, files count:", e.length, "deletePaths count:", (r == null ? void 0 : r.length) ?? 0);
+    _r.debug("batchWriteFiles called, files count:", e.length, "deletePaths count:", (r == null ? void 0 : r.length) ?? 0);
     const n = qt();
     await n.transaction("rw", n.fileSystemEntries, async () => {
       var s;
@@ -77254,7 +77254,7 @@ class QJ {
         if (this._isProtectedPath(a.path)) {
           const f = await n.fileSystemEntries.get(a.path);
           if ((s = f == null ? void 0 : f.metadata) != null && s.editedByUser) {
-            Pr.debug("batchWriteFiles: skipping protected file edited by user:", a.path);
+            _r.debug("batchWriteFiles: skipping protected file edited by user:", a.path);
             continue;
           }
         }
@@ -77267,11 +77267,11 @@ class QJ {
       if (r && r.length > 0)
         for (const a of r)
           try {
-            await Zr.remove(a), Pr.debug("batchWriteFiles: deleted orphan path:", a);
+            await Zr.remove(a), _r.debug("batchWriteFiles: deleted orphan path:", a);
           } catch (i) {
-            Pr.warn("batchWriteFiles: failed to delete orphan path:", a, i);
+            _r.warn("batchWriteFiles: failed to delete orphan path:", a, i);
           }
-    }), Pr.debug("batchWriteFiles completed"), this.broadcastUIUpdate({
+    }), _r.debug("batchWriteFiles completed"), this.broadcastUIUpdate({
       entity: "file",
       action: "updated",
       entityId: "",
@@ -77317,7 +77317,7 @@ class QJ {
     return Zr.grep(e, r, n, s);
   }
   async virtualFSQueryByType(e) {
-    return ["function", "scenario", "script", "index"].includes(e) ? Zr.queryByType(e) : (Pr.warn(`virtualFSQueryByType: unknown type "${e}", falling back to empty result`), []);
+    return ["function", "scenario", "script", "index"].includes(e) ? Zr.queryByType(e) : (_r.warn(`virtualFSQueryByType: unknown type "${e}", falling back to empty result`), []);
   }
   async virtualFSExists(e) {
     return Zr.exists(e);
@@ -77342,7 +77342,7 @@ class QJ {
       try {
         s.onUIUpdate(n);
       } catch (a) {
-        Pr.error("onUIUpdate callback error:", a);
+        _r.error("onUIUpdate callback error:", a);
       }
   }
   /**
@@ -77365,12 +77365,12 @@ class QJ {
    * Broadcast gap fill state change to all registered Tab callbacks.
    */
   broadcastGapFillState(e) {
-    Pr.debug("[BulkUpdate] WorkerCore.broadcastGapFillState called, isSyncing:", e, "callbacks:", this.callbacks.size);
+    _r.debug("[BulkUpdate] WorkerCore.broadcastGapFillState called, isSyncing:", e, "callbacks:", this.callbacks.size);
     for (const r of this.callbacks)
       try {
         r.onGapFillState(e);
       } catch (n) {
-        Pr.error("onGapFillState callback error:", n);
+        _r.error("onGapFillState callback error:", n);
       }
   }
   /**
@@ -77378,12 +77378,12 @@ class QJ {
    */
   broadcastAccountBanned(e) {
     var r;
-    Pr.warn("broadcastAccountBanned called, reason:", e, "callbacks:", this.callbacks.size);
+    _r.warn("broadcastAccountBanned called, reason:", e, "callbacks:", this.callbacks.size);
     for (const n of this.callbacks)
       try {
         (r = n.onAccountBanned) == null || r.call(n, e);
       } catch (s) {
-        Pr.error("onAccountBanned callback error:", s);
+        _r.error("onAccountBanned callback error:", s);
       }
   }
   /**
@@ -77397,7 +77397,7 @@ class QJ {
       try {
         return await e.requestToken();
       } catch (r) {
-        Pr.warn("requestToken failed, trying next:", r);
+        _r.warn("requestToken failed, trying next:", r);
       }
     throw new Error("[WorkerCore] no callback available to provide token");
   }
@@ -77413,7 +77413,7 @@ class QJ {
       try {
         return await e.requestTokenRefresh();
       } catch (r) {
-        Pr.warn("requestTokenRefresh failed, trying next:", r);
+        _r.warn("requestTokenRefresh failed, trying next:", r);
       }
     return "relogin";
   }
@@ -77431,8 +77431,8 @@ class QJ {
   _subscribeConnectionState(e) {
     this._unsubscribeConnectionState();
     const r = e.getClient();
-    Pr.debug("subscribing to connection state changes"), this.unsubscribeConnection = r.on("connection", (n) => {
-      Pr.debug("connection state changed:", n.state, "reason:", n.reason), this.broadcastConnectionState(n);
+    _r.debug("subscribing to connection state changes"), this.unsubscribeConnection = r.on("connection", (n) => {
+      _r.debug("connection state changed:", n.state, "reason:", n.reason), this.broadcastConnectionState(n);
     });
   }
   /**
@@ -77445,11 +77445,12 @@ class QJ {
    * Broadcast a connection state change to all registered Tab callbacks.
    */
   broadcastConnectionState(e) {
+    _r.debug("broadcastConnectionState called, state:", e.state, "reason:", e.reason, "callbacks:", this.callbacks.size);
     for (const r of this.callbacks)
       try {
         r.onConnectionStateChange(e);
       } catch (n) {
-        Pr.error("onConnectionStateChange callback error:", n);
+        _r.error("onConnectionStateChange callback error:", n);
       }
   }
   // ========== File Cache & S3 Operations ==========
@@ -77495,7 +77496,7 @@ class QJ {
    */
   cancelFileOperation(e) {
     const r = this._operationControllers.get(e);
-    r && (Pr.debug(`cancelling file operation: ${e}`), r.abort(), this._operationControllers.delete(e));
+    r && (_r.debug(`cancelling file operation: ${e}`), r.abort(), this._operationControllers.delete(e));
   }
   async deleteFile(e, r) {
     return this.ensureLayer().deleteFile(e, r);

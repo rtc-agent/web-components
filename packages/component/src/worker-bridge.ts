@@ -253,23 +253,28 @@ export class WorkerBridge {
                 bus.emitGapFillEnd();
             },
             // Worker broadcasts account banned notification (disconnect code 4501).
-            // Trigger logout to redirect to login page.
+            // Store ban state in sessionStorage so it survives component remounts,
+            // then dispatch event to trigger immediate logout.
             onAccountBanned: (reason: string) => {
                 log.warn('Account banned:', reason);
-                // Dispatch event to trigger logout - the event handler will show the toast
-                setTimeout(() => {
-                    const rtcAgent = document.querySelector('rtc-agent');
-                    if (rtcAgent) {
-                        rtcAgent.dispatchEvent(new CustomEvent('rtc-account-banned', {
-                            bubbles: true,
-                            composed: true,
-                            detail: { reason },
-                        }));
-                        log.warn('dispatched rtc-account-banned event from onAccountBanned callback');
-                    } else {
-                        log.error('rtc-agent element not found when handling account banned');
-                    }
-                }, 100);
+                // Persist ban state so rtc-agent can pick it up even after remount
+                try {
+                    sessionStorage.setItem('rtc-account-banned-pending', JSON.stringify({ reason, timestamp: Date.now() }));
+                } catch {
+                    // sessionStorage may be unavailable
+                }
+                // Dispatch event directly (no setTimeout) for immediate handling
+                const rtcAgent = document.querySelector('rtc-agent');
+                if (rtcAgent) {
+                    rtcAgent.dispatchEvent(new CustomEvent('rtc-account-banned', {
+                        bubbles: true,
+                        composed: true,
+                        detail: { reason },
+                    }));
+                    log.warn('dispatched rtc-account-banned event from onAccountBanned callback');
+                } else {
+                    log.error('rtc-agent element not found when handling account banned; ban state saved in sessionStorage');
+                }
             },
         };
 

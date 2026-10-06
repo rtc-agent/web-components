@@ -952,6 +952,24 @@ export class RtcAgent extends LitElement {
     connectedCallback() {
         super.connectedCallback();
 
+        // Check for pending account ban state (survived component remount).
+        // If found, handle immediately: show toast and trigger logout.
+        try {
+            const pendingBan = sessionStorage.getItem('rtc-account-banned-pending');
+            if (pendingBan) {
+                sessionStorage.removeItem('rtc-account-banned-pending');
+                const { reason } = JSON.parse(pendingBan) as { reason?: string };
+                log.warn('Found pending account ban in sessionStorage, handling immediately');
+                const message = reason ? `您的账号已被封禁：${reason}` : '您的账号已被封禁，请联系管理员';
+                this._toast.actions.show(message, 'error');
+                this._auth.actions.logout();
+                // Continue with connectedCallback to ensure proper initialization,
+                // but the logout will tear things down shortly.
+            }
+        } catch {
+            // sessionStorage may be unavailable or contain invalid data
+        }
+
         // Initialize i18n locale (once), passing host's lang attribute if set
         if (!this._localeInitialized) {
             this._localeInitialized = true;
@@ -1251,10 +1269,10 @@ export class RtcAgent extends LitElement {
                 showToolConfirm: (rtc) => this._showToolConfirm(rtc),
                 showAskUser: (rtc) => this._showAskUser(rtc),
                 loadSessions: () => { void this._loadSessions(); },
-                onConnectionStateChange: (state) => {
+                onConnectionStateChange: (state, reason) => {
                     this._connectionState = state;
                     this.dispatchEvent(new CustomEvent('rtc-connection-state-change', {
-                        detail: { state },
+                        detail: { state, reason },
                         bubbles: true,
                         composed: true,
                     }));

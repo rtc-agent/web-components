@@ -149,7 +149,7 @@ export class EventBindingController implements ReactiveController {
     // Authentication
     private _boundOnLoginRequested!: (event: Event) => void;
     private _boundOnLogout!: () => void;
-    private _boundOnAccountBanned!: () => void;
+    private _boundOnAccountBanned!: (event: Event) => void;
 
     // Session management
     private _boundOnNewSession!: () => void;
@@ -280,10 +280,14 @@ export class EventBindingController implements ReactiveController {
         };
 
         // Handle account banned (disconnect code 4501)
-        this._boundOnAccountBanned = () => {
+        this._boundOnAccountBanned = (event: Event) => {
             log.warn('account banned, triggering logout');
-            // Show error toast
-            toast.actions.show('您的账号已被封禁，请联系管理员', 'error');
+            // Extract ban reason from event detail
+            const detail = (event as CustomEvent).detail;
+            const reason = detail?.reason as string | undefined;
+            // Show error toast with reason if available
+            const message = reason ? `您的账号已被封禁：${reason}` : '您的账号已被封禁，请联系管理员';
+            toast.actions.show(message, 'error');
             // Call auth logout to update auth state and trigger the full logout flow
             auth.actions.logout();
         };
