@@ -46,6 +46,8 @@ export interface ConfigHistoryTableProps {
   rollbackToVersionId: string;
   /** 回滚默认变更说明 i18n id */
   rollbackDefaultNoteId: string;
+  /** 回滚成功提示 i18n id */
+  rollbackSuccessId: string;
 }
 
 /**
@@ -65,6 +67,7 @@ const ConfigHistoryTable: React.FC<ConfigHistoryTableProps> = ({
   rollbackConfirmId,
   rollbackToVersionId,
   rollbackDefaultNoteId,
+  rollbackSuccessId,
 }) => {
   const actionRef = useRef<ActionType>(null);
   const [rollbackTarget, setRollbackTarget] =
@@ -230,7 +233,7 @@ const ConfigHistoryTable: React.FC<ConfigHistoryTableProps> = ({
                 ),
             );
             message.success(
-              intl.formatMessage({ id: 'pages.config.system.rollbackSuccess' }),
+              intl.formatMessage({ id: rollbackSuccessId }),
             );
             setRollbackModalOpen(false);
             onRollbackSuccess?.();

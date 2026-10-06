@@ -147,13 +147,8 @@ export default {
   'pages.config.system.confirm': 'Confirm',
   'pages.config.system.cancel': 'Cancel',
   'pages.config.system.updateSuccess': 'Config updated successfully',
-  'pages.config.system.updateFailed': 'Config update failed',
   'pages.config.system.deleteSuccess':
     'Config deleted, reverted to YAML default value',
-  'pages.config.system.deleteFailed': 'Delete failed',
-  'pages.config.system.deleteNoRecord':
-    'No record in database, no need to delete',
-  'pages.config.system.loadFailed': 'Failed to load config list',
   'pages.config.system.refresh': 'Refresh',
   'pages.config.system.editTitle': 'Edit Config: ',
   'pages.config.system.configValue': 'Config Value',
@@ -185,12 +180,9 @@ export default {
   'pages.config.system.rollbackNotePlaceholder':
     'Optional, explain the reason for rollback',
   'pages.config.system.rollbackSuccess': 'Rollback successful',
-  'pages.config.system.rollbackFailed': 'Rollback failed',
   'pages.config.system.rollbackDefaultNote': 'Rollback to v{version}',
-  'pages.config.system.loadHistoryFailed': 'Failed to load config history',
   'pages.config.system.forceOverwriteSuccess':
     'Config force overwrite successful',
-  'pages.config.system.forceOverwriteFailed': 'Force overwrite failed',
   'pages.config.system.forceOverwriteSuffix': '(force overwrite)',
   // Conflict Modal
   'pages.config.system.conflict.title': 'Config Conflict',
@@ -219,17 +211,12 @@ export default {
     'After deletion, it will revert to system default value',
   'pages.config.user.confirm': 'Confirm',
   'pages.config.user.cancel': 'Cancel',
-  'pages.config.user.loadFailed': 'Failed to load user configs',
   'pages.config.user.updateSuccess': 'User config updated successfully',
-  'pages.config.user.updateFailed': 'Config update failed',
   'pages.config.user.deleteSuccess':
     'User override deleted, reverted to system default value',
-  'pages.config.user.deleteFailed': 'Delete failed',
   'pages.config.user.rollbackSuccess': 'Rollback successful',
-  'pages.config.user.rollbackFailed': 'Rollback failed',
   'pages.config.user.forceOverwriteSuccess':
     'Config force overwrite successful',
-  'pages.config.user.forceOverwriteFailed': 'Force overwrite failed',
   'pages.config.user.editTitle': 'Edit Config: ',
   'pages.config.user.historyTitle': 'Config History: ',
   'pages.config.user.rollbackTitle': 'Confirm Rollback',

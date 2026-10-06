@@ -1,34 +1,25 @@
-import { DeleteOutlined, EditOutlined } from '@ant-design/icons';
-import {
-  ModalForm,
-  ProFormTextArea,
-  ProTable,
-} from '@ant-design/pro-components';
+import { DeleteOutlined, EditOutlined, HistoryOutlined, MoreOutlined } from '@ant-design/icons';
+import { ProTable } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
 import {
-  Alert,
   App,
   Button,
   Collapse,
   Descriptions,
   Drawer,
-  Form,
+  Dropdown,
   Popconfirm,
   Space,
   Tag,
   Typography,
 } from 'antd';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import ConfigHistoryTable from '@/pages/system/configs/components/ConfigHistoryTable';
-import ConfigValueInput from '@/pages/system/configs/components/ConfigValueInput';
 import ConflictModal from '@/pages/system/configs/components/ConflictModal';
-import type { OptimisticLockConflictData } from '@/services/serverConfig';
+import { useOptimisticLockConflict } from '@/hooks/useOptimisticLockConflict';
 import type { UserConfigItem } from '@/services/userConfig';
 import {
   deleteUserConfig,
-  getUserConfigHistory,
   getUserConfigs,
-  rollbackUserConfig,
   setUserConfig,
 } from '@/services/userConfig';
 import {
@@ -36,6 +27,8 @@ import {
   useConfigSourceRenderer,
 } from '@/utils/configFormat';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
+import UserConfigEditModal from './UserConfigEditModal';
+import UserConfigHistoryModal from './UserConfigHistoryModal';
 import type { RtcUserInfo } from '../data.d';
 
 const { Text } = Typography;
@@ -65,21 +58,11 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
   const [editingConfig, setEditingConfig] = useState<UserConfigItem | null>(
     null,
   );
-  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
 
   // 历史弹窗
   const [historyItem, setHistoryItem] = useState<UserConfigItem | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
-
-  // 乐观锁冲突
-  const [conflictData, setConflictData] =
-    useState<OptimisticLockConflictData | null>(null);
-  const [conflictOpen, setConflictOpen] = useState(false);
-  const [pendingOverwrite, setPendingOverwrite] = useState<{
-    key: string;
-    value: unknown;
-    changeNote?: string;
-  } | null>(null);
 
   const userId = user?.id;
   const intl = useIntl();
@@ -105,6 +88,40 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
       loadConfigs();
     }
   }, [open, userId, loadConfigs]);
+
+  /** 强制覆盖操作 */
+  const doForceOverwrite = async (data: {
+    key: string;
+    value: unknown;
+    changeNote?: string;
+  }) => {
+    if (!userId) return;
+    const changeNote = data.changeNote
+      ? `${data.changeNote} ${intl.formatMessage({ id: 'pages.config.system.forceOverwriteSuffix' })}`
+      : intl.formatMessage({
+          id: 'pages.config.system.forceOverwriteSuffix',
+        });
+    await setUserConfig(userId, data.key, {
+      value: data.value,
+      change_note: changeNote,
+    });
+  };
+
+  // 乐观锁冲突处理
+  const {
+    conflictModalOpen,
+    setConflictModalOpen,
+    conflictData,
+    pendingOverwrite,
+    handleEditError,
+    handleReload: handleConflictReload,
+    handleForceOverwrite,
+  } = useOptimisticLockConflict({
+    onForceOverwrite: doForceOverwrite,
+    onConflictResolved: loadConfigs,
+    forceOverwriteSuccessId: 'pages.config.user.forceOverwriteSuccess',
+    forceOverwriteSuffixId: 'pages.config.system.forceOverwriteSuffix',
+  });
 
   /** 按 category 分组 */
   const groupedConfigs = useMemo(
@@ -135,7 +152,7 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
   /** 打开编辑 */
   const handleEdit = (item: UserConfigItem) => {
     setEditingConfig(item);
-    setEditModalVisible(true);
+    setEditModalOpen(true);
   };
 
   /** 提交编辑 */
@@ -153,59 +170,23 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
       message.success(
         intl.formatMessage({ id: 'pages.config.user.updateSuccess' }),
       );
-      setEditModalVisible(false);
+      setEditModalOpen(false);
       loadConfigs();
       return true;
     } catch (error: unknown) {
-      const err = error as {
-        info?: {
-          errorCode?: string;
-          data?: OptimisticLockConflictData;
-        };
-      };
-      if (err?.info?.errorCode === 'OPTIMISTIC_LOCK_CONFLICT') {
-        const conflictInfo = err.info.data as OptimisticLockConflictData | undefined;
-        if (conflictInfo) {
-          setConflictData(conflictInfo);
-          setPendingOverwrite({
-            key: editingConfig.key,
-            value: values.value,
-            changeNote: values.change_note,
-          });
-          setConflictOpen(true);
-          setEditModalVisible(false);
-          return true;
-        }
-        // 后端返回冲突错误但缺少冲突详情，降级为普通错误提示
-        message.error(getFriendlyErrorMessage(error));
-        return false;
+      // 使用 hook 处理乐观锁冲突
+      const handled = handleEditError(error, {
+        key: editingConfig.key,
+        value: values.value,
+        changeNote: values.change_note,
+      });
+      if (handled) {
+        setEditModalOpen(false);
+        return true;
       }
+      // 非冲突错误，显示普通错误消息
       message.error(getFriendlyErrorMessage(error));
       return false;
-    }
-  };
-
-  /** 强制覆盖 */
-  const handleForceOverwrite = async () => {
-    if (!pendingOverwrite || !userId) return;
-    try {
-      await setUserConfig(userId, pendingOverwrite.key, {
-        value: pendingOverwrite.value,
-        change_note: pendingOverwrite.changeNote
-          ? `${pendingOverwrite.changeNote} ${intl.formatMessage({ id: 'pages.config.system.forceOverwriteSuffix' })}`
-          : intl.formatMessage({
-              id: 'pages.config.system.forceOverwriteSuffix',
-            }),
-      });
-      message.success(
-        intl.formatMessage({ id: 'pages.config.user.forceOverwriteSuccess' }),
-      );
-      setConflictOpen(false);
-      setConflictData(null);
-      setPendingOverwrite(null);
-      loadConfigs();
-    } catch (error: unknown) {
-      message.error(getFriendlyErrorMessage(error));
     }
   };
 
@@ -323,7 +304,8 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
                       id: 'pages.config.system.actions',
                     }),
                     dataIndex: 'option',
-                    width: 160,
+                    width: 120,
+                    fixed: 'right',
                     render: (_, record) => (
                       <Space>
                         {canEdit && (
@@ -339,45 +321,55 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
                           </Button>
                         )}
                         {record.source === 'user' && (
-                          <>
-                            <Button
-                              type="link"
-                              size="small"
-                              onClick={() => handleViewHistory(record)}
-                            >
-                              {intl.formatMessage({
-                                id: 'pages.config.user.history',
-                              })}
-                            </Button>
-                            {canDelete && (
-                              <Popconfirm
-                                title={intl.formatMessage({
-                                  id: 'pages.config.user.confirmDelete',
-                                })}
-                                description={intl.formatMessage({
-                                  id: 'pages.config.user.confirmDeleteDesc',
-                                })}
-                                onConfirm={() => handleDelete(record)}
-                                okText={intl.formatMessage({
-                                  id: 'pages.config.user.confirm',
-                                })}
-                                cancelText={intl.formatMessage({
-                                  id: 'pages.config.user.cancel',
-                                })}
-                              >
-                                <Button
-                                  type="link"
-                                  size="small"
-                                  danger
-                                  icon={<DeleteOutlined />}
-                                >
-                                  {intl.formatMessage({
-                                    id: 'pages.config.user.deleteOverride',
-                                  })}
-                                </Button>
-                              </Popconfirm>
-                            )}
-                          </>
+                          <Dropdown
+                            menu={{
+                              items: [
+                                {
+                                  key: 'history',
+                                  icon: <HistoryOutlined />,
+                                  label: intl.formatMessage({
+                                    id: 'pages.config.user.history',
+                                  }),
+                                  onClick: () => handleViewHistory(record),
+                                },
+                                ...(canDelete
+                                  ? [
+                                      {
+                                        key: 'delete',
+                                        icon: <DeleteOutlined />,
+                                        label: (
+                                          <Popconfirm
+                                            title={intl.formatMessage({
+                                              id: 'pages.config.user.confirmDelete',
+                                            })}
+                                            description={intl.formatMessage({
+                                              id: 'pages.config.user.confirmDeleteDesc',
+                                            })}
+                                            onConfirm={() => handleDelete(record)}
+                                            okText={intl.formatMessage({
+                                              id: 'pages.config.user.confirm',
+                                            })}
+                                            cancelText={intl.formatMessage({
+                                              id: 'pages.config.user.cancel',
+                                            })}
+                                          >
+                                            <span className="text-red-500">
+                                              {intl.formatMessage({
+                                                id: 'pages.config.user.deleteOverride',
+                                              })}
+                                            </span>
+                                          </Popconfirm>
+                                        ),
+                                        danger: true,
+                                      },
+                                    ]
+                                  : []),
+                              ],
+                            }}
+                            trigger={['click']}
+                          >
+                            <Button type="link" size="small" icon={<MoreOutlined />} />
+                          </Dropdown>
                         )}
                       </Space>
                     ),
@@ -392,8 +384,8 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
       {/* 编辑弹窗 */}
       {editingConfig && (
         <UserConfigEditModal
-          open={editModalVisible}
-          onOpenChange={setEditModalVisible}
+          open={editModalOpen}
+          onOpenChange={setEditModalOpen}
           item={editingConfig}
           onFinish={handleEditFinish}
         />
@@ -415,164 +407,14 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
 
       {/* 冲突弹窗 */}
       <ConflictModal
-        open={conflictOpen}
-        onOpenChange={setConflictOpen}
+        open={conflictModalOpen}
+        onOpenChange={setConflictModalOpen}
         conflictData={conflictData}
         configKey={pendingOverwrite?.key}
-        onReload={() => {
-          setConflictOpen(false);
-          setConflictData(null);
-          setPendingOverwrite(null);
-          loadConfigs();
-        }}
+        onReload={handleConflictReload}
         onForceOverwrite={handleForceOverwrite}
       />
     </>
-  );
-};
-
-/** 用户配置编辑弹窗 */
-interface UserConfigEditModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  item: UserConfigItem;
-  onFinish: (values: {
-    value: unknown;
-    change_note?: string;
-  }) => Promise<boolean>;
-}
-
-const UserConfigEditModal: React.FC<UserConfigEditModalProps> = ({
-  open,
-  onOpenChange,
-  item,
-  onFinish,
-}) => {
-  const [form] = Form.useForm<{ value: unknown; change_note?: string }>();
-  const intl = useIntl();
-  const { message } = App.useApp();
-
-  useEffect(() => {
-    if (open) {
-      const currentValue =
-        item.user_value ?? item.effective_value ?? item.yaml_default;
-      const formValue =
-        item.value_type === 'json' && typeof currentValue === 'object'
-          ? JSON.stringify(currentValue, null, 2)
-          : currentValue;
-      form.setFieldsValue({ value: formValue });
-    }
-  }, [open, item, form]);
-
-  return (
-    <ModalForm
-      title={`${intl.formatMessage({ id: 'pages.config.user.editTitle' })}${item.key}`}
-      form={form}
-      open={open}
-      onOpenChange={onOpenChange}
-      modalProps={{ destroyOnClose: true }}
-      onFinish={async (values: { value: unknown; change_note?: string }) => {
-        let finalValue = values.value;
-        if (item.value_type === 'json' && typeof values.value === 'string') {
-          try {
-            finalValue = JSON.parse(values.value);
-          } catch {
-            message.error(
-              intl.formatMessage({ id: 'pages.config.system.jsonFormatError' }),
-            );
-            return false;
-          }
-        }
-        if (item.value_type === 'int' && typeof values.value === 'string') {
-          finalValue = Number.parseInt(values.value, 10);
-        }
-        if (item.value_type === 'float' && typeof values.value === 'string') {
-          finalValue = Number.parseFloat(values.value);
-        }
-        return onFinish({
-          value: finalValue,
-          change_note: values.change_note,
-        });
-      }}
-    >
-      {item.description && (
-        <Alert
-          type="info"
-          showIcon
-          title={item.description}
-          style={{ marginBottom: 16 }}
-        />
-      )}
-      <ConfigValueInput
-        valueType={item.value_type}
-        configKey={item.key}
-        promptRows={8}
-        jsonRows={6}
-      />
-      <ProFormTextArea
-        name="change_note"
-        label={intl.formatMessage({ id: 'pages.config.system.changeNote' })}
-        placeholder={intl.formatMessage({
-          id: 'pages.config.system.changeNotePlaceholder',
-        })}
-        fieldProps={{ rows: 2, maxLength: 500, showCount: true }}
-      />
-    </ModalForm>
-  );
-};
-
-/** 用户配置历史弹窗 */
-interface UserConfigHistoryModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  userId: string;
-  item: UserConfigItem;
-  onRollbackSuccess: () => void;
-}
-
-const UserConfigHistoryModal: React.FC<UserConfigHistoryModalProps> = ({
-  open,
-  onOpenChange,
-  userId,
-  item,
-  onRollbackSuccess,
-}) => {
-  const fetchHistory = async (
-    key: string,
-    params: { page?: number; page_size?: number },
-  ) => {
-    const response = await getUserConfigHistory(userId, key, params);
-    return { items: response.items, total: response.total };
-  };
-
-  const doRollback = async (
-    key: string,
-    targetVersion: number,
-    version: number,
-    changeNote?: string,
-  ) => {
-    await rollbackUserConfig(userId, key, {
-      target_version: targetVersion,
-      version,
-      change_note: changeNote,
-    });
-  };
-
-  return (
-    <ConfigHistoryTable
-      open={open}
-      onOpenChange={onOpenChange}
-      configKey={item.key}
-      currentVersion={item.version}
-      fetchHistory={fetchHistory}
-      doRollback={doRollback}
-      onRollbackSuccess={onRollbackSuccess}
-      modalTitleId="pages.config.user.historyTitle"
-      rollbackTitleId="pages.config.user.rollbackTitle"
-      rollbackConfirmId="pages.config.user.rollbackConfirm"
-      rollbackToVersionId="pages.config.user.rollbackToVersion"
-      rollbackDefaultNoteId="pages.config.user.rollbackDefaultNote"
-    />
   );
 };
 

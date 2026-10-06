@@ -61,6 +61,7 @@ const ConfigHistoryModal: React.FC<ConfigHistoryModalProps> = ({
       rollbackConfirmId="pages.config.system.rollbackConfirm"
       rollbackToVersionId="pages.config.system.rollbackToVersion"
       rollbackDefaultNoteId="pages.config.system.rollbackDefaultNote"
+      rollbackSuccessId="pages.config.system.rollbackSuccess"
     />
   );
 };

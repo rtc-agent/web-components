@@ -4,10 +4,7 @@ import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { useAccess, useIntl } from '@umijs/max';
 import { App, Button, Popconfirm, Space, Tabs, Tag } from 'antd';
 import React, { useCallback, useRef, useState } from 'react';
-import type {
-  OptimisticLockConflictData,
-  ServerConfigItem,
-} from '@/services/serverConfig';
+import type { ServerConfigItem } from '@/services/serverConfig';
 import {
   deleteServerConfig,
   getServerConfigList,
@@ -19,6 +16,7 @@ import {
   useConfigSourceRenderer,
 } from '@/utils/configFormat';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
+import { useOptimisticLockConflict } from '@/hooks/useOptimisticLockConflict';
 import ConfigEditModal from './components/ConfigEditModal';
 import ConfigHistoryModal from './components/ConfigHistoryModal';
 import ConflictModal from './components/ConflictModal';
@@ -98,20 +96,43 @@ const SystemConfigsPage: React.FC = () => {
   const [historyConfigKey, setHistoryConfigKey] = useState<string | null>(null);
   const [historyVersion, setHistoryVersion] = useState(0);
 
-  // 乐观锁冲突
-  const [conflictModalOpen, setConflictModalOpen] = useState(false);
-  const [conflictData, setConflictData] =
-    useState<OptimisticLockConflictData | null>(null);
-  const [pendingOverwrite, setPendingOverwrite] = useState<{
-    key: string;
-    value: unknown;
-    changeNote?: string;
-  } | null>(null);
-
   /** 刷新列表 */
   const reload = useCallback(() => {
     actionRef.current?.reload();
   }, []);
+
+  /** 强制覆盖操作（设计文档 §4.5：不传 version 跳过版本检查） */
+  const doForceOverwrite = async (data: {
+    key: string;
+    value: unknown;
+    changeNote?: string;
+  }) => {
+    const changeNote = data.changeNote
+      ? `${data.changeNote} ${intl.formatMessage({ id: 'pages.config.system.forceOverwriteSuffix' })}`
+      : intl.formatMessage({
+          id: 'pages.config.system.forceOverwriteSuffix',
+        });
+    await updateServerConfig(data.key, {
+      value: data.value,
+      change_note: changeNote,
+    });
+  };
+
+  // 乐观锁冲突处理
+  const {
+    conflictModalOpen,
+    setConflictModalOpen,
+    conflictData,
+    pendingOverwrite,
+    handleEditError,
+    handleReload: handleConflictReload,
+    handleForceOverwrite,
+  } = useOptimisticLockConflict({
+    onForceOverwrite: doForceOverwrite,
+    onConflictResolved: reload,
+    forceOverwriteSuccessId: 'pages.config.system.forceOverwriteSuccess',
+    forceOverwriteSuffixId: 'pages.config.system.forceOverwriteSuffix',
+  });
 
   /** 打开编辑 */
   const handleEdit = (record: ServerConfigItem) => {
@@ -145,30 +166,17 @@ const SystemConfigsPage: React.FC = () => {
       reload();
       return true;
     } catch (error: unknown) {
-      const err = error as {
-        info?: {
-          errorCode?: string;
-          data?: OptimisticLockConflictData;
-        };
-      };
-      if (err?.info?.errorCode === 'OPTIMISTIC_LOCK_CONFLICT') {
-        // 关闭编辑弹窗，弹出冲突对话框接管
-        const conflictInfo = err.info.data as OptimisticLockConflictData | undefined;
-        if (conflictInfo) {
-          setConflictData(conflictInfo);
-          setPendingOverwrite({
-            key: editingConfig.key,
-            value: values.value,
-            changeNote: values.change_note,
-          });
-          setConflictModalOpen(true);
-          setEditModalOpen(false);
-          return true;
-        }
-        // 后端返回冲突错误但缺少冲突详情，降级为普通错误提示
-        message.error(getFriendlyErrorMessage(error));
-        return false;
+      // 使用 hook 处理乐观锁冲突
+      const handled = handleEditError(error, {
+        key: editingConfig.key,
+        value: values.value,
+        changeNote: values.change_note,
+      });
+      if (handled) {
+        setEditModalOpen(false);
+        return true;
       }
+      // 非冲突错误，显示普通错误消息
       message.error(getFriendlyErrorMessage(error));
       return false;
     }
@@ -184,38 +192,6 @@ const SystemConfigsPage: React.FC = () => {
       reload();
     } catch (error: unknown) {
       // 冲突错误使用 getFriendlyErrorMessage 内部的错误码映射
-      message.error(getFriendlyErrorMessage(error));
-    }
-  };
-
-  /** 冲突对话框 - 重新加载 */
-  const handleConflictReload = () => {
-    setConflictModalOpen(false);
-    setConflictData(null);
-    setPendingOverwrite(null);
-    reload();
-  };
-
-  /** 冲突对话框 - 强制覆盖（设计文档 §4.5：不传 version 跳过版本检查） */
-  const handleForceOverwrite = async () => {
-    if (!pendingOverwrite) return;
-    try {
-      await updateServerConfig(pendingOverwrite.key, {
-        value: pendingOverwrite.value,
-        change_note: pendingOverwrite.changeNote
-          ? `${pendingOverwrite.changeNote} ${intl.formatMessage({ id: 'pages.config.system.forceOverwriteSuffix' })}`
-          : intl.formatMessage({
-              id: 'pages.config.system.forceOverwriteSuffix',
-            }),
-      });
-      message.success(
-        intl.formatMessage({ id: 'pages.config.system.forceOverwriteSuccess' }),
-      );
-      setConflictModalOpen(false);
-      setConflictData(null);
-      setPendingOverwrite(null);
-      reload();
-    } catch (error: unknown) {
       message.error(getFriendlyErrorMessage(error));
     }
   };

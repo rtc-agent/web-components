@@ -4,15 +4,15 @@ import {
 } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
 import { Alert, App, Form } from 'antd';
-import React, { useEffect } from 'react';
-import type { ServerConfigItem } from '@/services/serverConfig';
+import { useEffect } from 'react';
+import ConfigValueInput from '@/pages/system/configs/components/ConfigValueInput';
+import type { UserConfigItem } from '@/services/userConfig';
 import { parseConfigValue } from '@/utils/configFormat';
-import ConfigValueInput from './ConfigValueInput';
 
-export interface ConfigEditModalProps {
+export interface UserConfigEditModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  config: ServerConfigItem | null;
+  item: UserConfigItem;
   onFinish: (values: {
     value: unknown;
     change_note?: string;
@@ -20,13 +20,12 @@ export interface ConfigEditModalProps {
 }
 
 /**
- * 配置编辑表单
- * 根据 value_type 渲染不同的输入组件
+ * 用户配置编辑弹窗
  */
-const ConfigEditModal: React.FC<ConfigEditModalProps> = ({
+const UserConfigEditModal: React.FC<UserConfigEditModalProps> = ({
   open,
   onOpenChange,
-  config,
+  item,
   onFinish,
 }) => {
   const [form] = Form.useForm<{ value: unknown; change_note?: string }>();
@@ -34,29 +33,27 @@ const ConfigEditModal: React.FC<ConfigEditModalProps> = ({
   const { message } = App.useApp();
 
   useEffect(() => {
-    if (config && open) {
-      const currentValue = config.value ?? config.yaml_default;
-      // For json type, serialize to string for the textarea
+    if (open) {
+      const currentValue =
+        item.user_value ?? item.effective_value ?? item.yaml_default;
       const formValue =
-        config.value_type === 'json' && typeof currentValue === 'object'
+        item.value_type === 'json' && typeof currentValue === 'object'
           ? JSON.stringify(currentValue, null, 2)
           : currentValue;
       form.setFieldsValue({ value: formValue });
     }
-  }, [config, open, form]);
-
-  if (!config) return null;
+  }, [open, item, form]);
 
   return (
     <ModalForm
-      title={`${intl.formatMessage({ id: 'pages.config.system.editTitle' })}${config.key}`}
+      title={`${intl.formatMessage({ id: 'pages.config.user.editTitle' })}${item.key}`}
       form={form}
       open={open}
       onOpenChange={onOpenChange}
       modalProps={{ destroyOnClose: true }}
-      onFinish={async (values) => {
+      onFinish={async (values: { value: unknown; change_note?: string }) => {
         // 根据配置类型解析值
-        const result = parseConfigValue(values.value, config.value_type);
+        const result = parseConfigValue(values.value, item.value_type);
         if (!result.success) {
           if (result.error === 'json') {
             message.error(
@@ -76,17 +73,19 @@ const ConfigEditModal: React.FC<ConfigEditModalProps> = ({
         });
       }}
     >
-      {config.description && (
+      {item.description && (
         <Alert
           type="info"
           showIcon
-          title={config.description}
+          title={item.description}
           style={{ marginBottom: 16 }}
         />
       )}
       <ConfigValueInput
-        valueType={config.value_type}
-        configKey={config.key}
+        valueType={item.value_type}
+        configKey={item.key}
+        promptRows={8}
+        jsonRows={6}
       />
       <ProFormTextArea
         name="change_note"
@@ -100,4 +99,4 @@ const ConfigEditModal: React.FC<ConfigEditModalProps> = ({
   );
 };
 
-export default ConfigEditModal;
+export default UserConfigEditModal;

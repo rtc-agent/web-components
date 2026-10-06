@@ -62,3 +62,45 @@ export const truncateValue = (text: string, maxLen: number): string =>
 export const isPromptKey = (key: string): boolean => {
   return key === 'worker.system_prompt' || key.includes('prompt');
 };
+
+/**
+ * 根据配置类型解析原始值。
+ * 用于配置编辑弹窗，将用户输入的字符串转换为正确的类型。
+ *
+ * @param rawValue - 用户输入的原始值（通常是字符串）
+ * @param valueType - 配置类型（json/int/float/string/bool 等）
+ * @returns 解析结果，包含成功标志、解析后的值或错误信息
+ */
+export const parseConfigValue = (
+  rawValue: unknown,
+  valueType: string,
+): { success: boolean; value?: unknown; error?: string } => {
+  // JSON 类型：尝试解析字符串
+  if (valueType === 'json' && typeof rawValue === 'string') {
+    try {
+      const parsed = JSON.parse(rawValue);
+      // 防御性检查：拒绝 null 值（后端不允许配置为 null）
+      if (parsed === null) {
+        return { success: false, error: 'null' };
+      }
+      return { success: true, value: parsed };
+    } catch {
+      return { success: false, error: 'json' };
+    }
+  }
+
+  // int 类型：转换为整数
+  if (valueType === 'int' && typeof rawValue === 'string') {
+    const parsed = Number.parseInt(rawValue, 10);
+    return { success: true, value: parsed };
+  }
+
+  // float 类型：转换为浮点数
+  if (valueType === 'float' && typeof rawValue === 'string') {
+    const parsed = Number.parseFloat(rawValue);
+    return { success: true, value: parsed };
+  }
+
+  // 其他类型：直接返回原始值
+  return { success: true, value: rawValue };
+};
