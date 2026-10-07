@@ -1,5 +1,6 @@
 import { LikeOutlined, MessageFilled, StarTwoTone } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
+import { useIntl } from '@umijs/max';
 import { Flex, List, Tag } from 'antd';
 import React from 'react';
 import { ArticleListContent } from '@/components';
@@ -18,6 +19,7 @@ const IconText: React.FC<{
 
 const Articles: React.FC = () => {
   const { styles } = useStyles();
+  const intl = useIntl();
 
   // 获取tab列表数据
   const { data: listData } = useQuery({
@@ -56,8 +58,18 @@ const Articles: React.FC = () => {
             description={
               <Flex wrap gap="small">
                 <Tag>Ant Design</Tag>
-                <Tag>设计语言</Tag>
-                <Tag>蚂蚁集团</Tag>
+                <Tag>
+                  {intl.formatMessage({
+                    id: 'pages.account.center.designLanguage',
+                    defaultMessage: '设计语言',
+                  })}
+                </Tag>
+                <Tag>
+                  {intl.formatMessage({
+                    id: 'pages.account.center.antGroup',
+                    defaultMessage: '蚂蚁集团',
+                  })}
+                </Tag>
               </Flex>
             }
           />

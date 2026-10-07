@@ -1,4 +1,5 @@
 import { GridContent } from '@ant-design/pro-components';
+import { useIntl } from '@umijs/max';
 import { Menu } from 'antd';
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import BaseView from './components/base';
@@ -13,16 +14,24 @@ type SettingsState = {
   selectKey: SettingsStateKeys;
 };
 
-const menuMap: Record<string, React.ReactNode> = {
-  base: '基本设置',
-  security: '安全设置',
-  binding: '账号绑定',
-  notification: '新消息通知',
-};
-const menuItems = Object.keys(menuMap).map((item) => ({
-  key: item,
-  label: menuMap[item],
-}));
+const getMenuMap = (intl: any): Record<string, React.ReactNode> => ({
+  base: intl.formatMessage({
+    id: 'pages.account.settings.base',
+    defaultMessage: '基本设置',
+  }),
+  security: intl.formatMessage({
+    id: 'pages.account.settings.security',
+    defaultMessage: '安全设置',
+  }),
+  binding: intl.formatMessage({
+    id: 'pages.account.settings.binding',
+    defaultMessage: '账号绑定',
+  }),
+  notification: intl.formatMessage({
+    id: 'pages.account.settings.notification',
+    defaultMessage: '新消息通知',
+  }),
+});
 
 const SettingsContent: React.FC<{ selectKey: SettingsStateKeys }> = ({
   selectKey,
@@ -43,6 +52,12 @@ const SettingsContent: React.FC<{ selectKey: SettingsStateKeys }> = ({
 
 const Settings: React.FC = () => {
   const { styles } = useStyles();
+  const intl = useIntl();
+  const menuMap = getMenuMap(intl);
+  const menuItems = Object.keys(menuMap).map((item) => ({
+    key: item,
+    label: menuMap[item],
+  }));
   const [initConfig, setInitConfig] = useState<SettingsState>({
     mode: 'inline',
     selectKey: 'base',
@@ -54,17 +69,13 @@ const Settings: React.FC = () => {
       if (!dom.current) {
         return;
       }
-      let mode: 'inline' | 'horizontal' = 'inline';
       const { offsetWidth } = dom.current;
-      if (dom.current.offsetWidth < 641 && offsetWidth > 400) {
-        mode = 'horizontal';
-      }
-      if (window.innerWidth < 768 && offsetWidth > 400) {
-        mode = 'horizontal';
-      }
+      // 容器宽度 > 400 且（容器 < 641 或视口 < 768）时切换为水平菜单
+      const isHorizontal =
+        offsetWidth > 400 && (offsetWidth < 641 || window.innerWidth < 768);
       setInitConfig((prev) => ({
         ...prev,
-        mode: mode as SettingsState['mode'],
+        mode: isHorizontal ? 'horizontal' : 'inline',
       }));
     });
   };

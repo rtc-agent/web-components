@@ -9,23 +9,42 @@ import {
   ProFormTextArea,
 } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
+import { useIntl } from '@umijs/max';
 import { Button, Input, message, Upload } from 'antd';
-import React from 'react';
+import React, { useState } from 'react';
 import { getCityOptions, provinceOptions } from '@/utils/chinaDivision';
 import type { GeographicItemType } from '../data';
 import { queryCity, queryCurrent, queryProvince } from '../service';
 import useStyles from './index.style';
 
+/**
+ * 手机号校验器
+ * 校验区号和手机号是否填写，注意每个错误分支后必须 return，
+ * 否则会继续执行到 callback() 导致错误信息丢失
+ */
 const validatorPhone = (
   _rule: any,
   value: string[],
   callback: (message?: string) => void,
+  intl: ReturnType<typeof useIntl>,
 ) => {
   if (!value[0]) {
-    callback('Please input your area code!');
+    callback(
+      intl.formatMessage({
+        id: 'pages.account.settings.base.phoneAreaCode',
+        defaultMessage: '请输入区号!',
+      }),
+    );
+    return;
   }
   if (!value[1]) {
-    callback('Please input your phone number!');
+    callback(
+      intl.formatMessage({
+        id: 'pages.account.settings.base.phoneNumber',
+        defaultMessage: '请输入手机号!',
+      }),
+    );
+    return;
   }
   callback();
 };
@@ -48,13 +67,27 @@ const toSelectOptions = (items: GeographicItemType[]) =>
     })
     .filter((item): item is { label: string; value: string } => Boolean(item));
 
-const handleFinish = async () => {
-  message.success('更新基本信息成功');
+/** 头像上传前校验文件类型和大小 */
+const beforeAvatarUpload = (file: File, maxSizeMB: number) => {
+  const isImage = file.type.startsWith('image/');
+  if (!isImage) {
+    message.error('Only image files are allowed!');
+    return false;
+  }
+  const isLt2M = file.size / 1024 / 1024 < maxSizeMB;
+  if (!isLt2M) {
+    message.error(`File size exceeds ${maxSizeMB}MB!`);
+    return false;
+  }
+  return true;
 };
 
 const BaseView: React.FC = () => {
   const { styles } = useStyles();
+  const intl = useIntl();
   const formRef = React.useRef<ProFormInstance>(undefined);
+  // 头像 URL 状态，用于上传后更新预览
+  const [avatarUrl, setAvatarUrl] = useState<string>('');
 
   const handleValuesChange = (changedValues: Record<string, unknown>) => {
     if ('province' in changedValues) {
@@ -62,11 +95,17 @@ const BaseView: React.FC = () => {
     }
   };
 
+  // 使用独立的 queryKey 避免与其他页面的 current-user 查询冲突
   const { data: currentUser, isLoading: loading } = useQuery({
-    queryKey: ['current-user'],
+    queryKey: ['current-user', 'settings'],
     queryFn: () => queryCurrent().then((res) => res.data),
   });
+
   const getAvatarURL = () => {
+    // 优先使用上传后更新的头像
+    if (avatarUrl) {
+      return avatarUrl;
+    }
     if (currentUser) {
       if (currentUser.avatar) {
         return currentUser.avatar;
@@ -77,6 +116,16 @@ const BaseView: React.FC = () => {
     }
     return '';
   };
+
+  const handleFinish = async () => {
+    message.success(
+      intl.formatMessage({
+        id: 'pages.account.settings.base.updateSuccess',
+        defaultMessage: '更新基本信息成功',
+      }),
+    );
+  };
+
   return (
     <div className={styles.baseView}>
       {loading ? null : (
@@ -89,7 +138,10 @@ const BaseView: React.FC = () => {
               onValuesChange={handleValuesChange}
               submitter={{
                 searchConfig: {
-                  submitText: '更新基本信息',
+                  submitText: intl.formatMessage({
+                    id: 'pages.account.settings.base.updateBasic',
+                    defaultMessage: '更新基本信息',
+                  }),
                 },
                 render: (_, dom) => dom[1],
               }}
@@ -104,49 +156,86 @@ const BaseView: React.FC = () => {
               <ProFormText
                 width="md"
                 name="email"
-                label="邮箱"
+                label={intl.formatMessage({
+                  id: 'pages.account.settings.base.email',
+                  defaultMessage: '邮箱',
+                })}
                 rules={[
                   {
                     required: true,
-                    message: '请输入您的邮箱!',
+                    message: intl.formatMessage({
+                      id: 'pages.account.settings.base.emailRequired',
+                      defaultMessage: '请输入您的邮箱!',
+                    }),
+                  },
+                  {
+                    type: 'email',
+                    message: intl.formatMessage({
+                      id: 'pages.account.settings.base.emailInvalid',
+                      defaultMessage: '请输入有效的邮箱地址!',
+                    }),
                   },
                 ]}
               />
               <ProFormText
                 width="md"
                 name="name"
-                label="昵称"
+                label={intl.formatMessage({
+                  id: 'pages.account.settings.base.name',
+                  defaultMessage: '昵称',
+                })}
                 rules={[
                   {
                     required: true,
-                    message: '请输入您的昵称!',
+                    message: intl.formatMessage({
+                      id: 'pages.account.settings.base.nameRequired',
+                      defaultMessage: '请输入您的昵称!',
+                    }),
                   },
                 ]}
               />
               <ProFormTextArea
                 name="profile"
-                label="个人简介"
+                label={intl.formatMessage({
+                  id: 'pages.account.settings.base.profile',
+                  defaultMessage: '个人简介',
+                })}
                 rules={[
                   {
                     required: true,
-                    message: '请输入个人简介!',
+                    message: intl.formatMessage({
+                      id: 'pages.account.settings.base.profileRequired',
+                      defaultMessage: '请输入个人简介!',
+                    }),
                   },
                 ]}
-                placeholder="个人简介"
+                placeholder={intl.formatMessage({
+                  id: 'pages.account.settings.base.profilePlaceholder',
+                  defaultMessage: '个人简介',
+                })}
               />
               <ProFormSelect
                 width="sm"
                 name="country"
-                label="国家/地区"
+                label={intl.formatMessage({
+                  id: 'pages.account.settings.base.country',
+                  defaultMessage: '国家/地区',
+                })}
                 rules={[
                   {
                     required: true,
-                    message: '请输入您的国家或地区!',
+                    message: intl.formatMessage({
+                      id: 'pages.account.settings.base.countryRequired',
+                      defaultMessage: '请输入您的国家或地区!',
+                    }),
                   },
                 ]}
                 options={[
                   {
-                    label: '中国',
+                    label: intl.formatMessage({
+                      id: 'pages.account.settings.base.countryChina',
+                      defaultMessage: '中国',
+                    }),
                     value: 'China',
                   },
                 ]}
@@ -154,11 +243,17 @@ const BaseView: React.FC = () => {
 
               <ProForm.Group size={8}>
                 <ProFormSelect
-                  label="所在省市"
+                  label={intl.formatMessage({
+                    id: 'pages.account.settings.base.province',
+                    defaultMessage: '所在省市',
+                  })}
                   rules={[
                     {
                       required: true,
-                      message: '请输入您的所在省!',
+                      message: intl.formatMessage({
+                        id: 'pages.account.settings.base.provinceRequired',
+                        defaultMessage: '请输入您的所在省!',
+                      }),
                     },
                   ]}
                   width="sm"
@@ -186,7 +281,10 @@ const BaseView: React.FC = () => {
                         rules={[
                           {
                             required: true,
-                            message: '请输入您的所在城市!',
+                            message: intl.formatMessage({
+                              id: 'pages.account.settings.base.cityRequired',
+                              defaultMessage: '请输入您的所在城市!',
+                            }),
                           },
                         ]}
                         fieldProps={{
@@ -213,24 +311,40 @@ const BaseView: React.FC = () => {
               <ProFormText
                 width="md"
                 name="address"
-                label="街道地址"
+                label={intl.formatMessage({
+                  id: 'pages.account.settings.base.address',
+                  defaultMessage: '街道地址',
+                })}
                 rules={[
                   {
                     required: true,
-                    message: '请输入您的街道地址!',
+                    message: intl.formatMessage({
+                      id: 'pages.account.settings.base.addressRequired',
+                      defaultMessage: '请输入您的街道地址!',
+                    }),
                   },
                 ]}
               />
               <ProFormFieldSet
                 name="phone"
-                label="联系电话"
+                label={intl.formatMessage({
+                  id: 'pages.account.settings.base.phone',
+                  defaultMessage: '联系电话',
+                })}
                 rules={[
                   {
                     required: true,
-                    message: '请输入您的联系电话!',
+                    message: intl.formatMessage({
+                      id: 'pages.account.settings.base.phoneRequired',
+                      defaultMessage: '请输入您的联系电话!',
+                    }),
                   },
                   {
-                    validator: validatorPhone,
+                    validator: (
+                      _rule: any,
+                      value: string[],
+                      callback: (message?: string) => void,
+                    ) => validatorPhone(_rule, value, callback, intl),
                   },
                 ]}
               >
@@ -240,7 +354,11 @@ const BaseView: React.FC = () => {
             </ProForm>
           </div>
           <div className={styles.right}>
-            <AvatarView avatar={getAvatarURL()} />
+            <AvatarView
+              avatar={getAvatarURL()}
+              onAvatarChange={setAvatarUrl}
+              intl={intl}
+            />
           </div>
         </>
       )}
@@ -249,20 +367,55 @@ const BaseView: React.FC = () => {
 };
 export default BaseView;
 
-const AvatarView = ({ avatar }: { avatar: string }) => {
+const AvatarView = ({
+  avatar,
+  onAvatarChange,
+  intl,
+}: {
+  avatar: string;
+  onAvatarChange: (url: string) => void;
+  intl: ReturnType<typeof useIntl>;
+}) => {
   const { styles } = useStyles();
 
   return (
     <>
-      <div className={styles.avatar_title}>头像</div>
+      <div className={styles.avatar_title}>
+        {intl.formatMessage({
+          id: 'pages.account.settings.base.avatar',
+          defaultMessage: '头像',
+        })}
+      </div>
       <div className={styles.avatar}>
         <img src={avatar} alt="avatar" />
       </div>
-      <Upload showUploadList={false}>
+      <Upload
+        showUploadList={false}
+        accept="image/*"
+        beforeUpload={(file) => beforeAvatarUpload(file, 2)}
+        customRequest={({ file }) => {
+          // 本地预览：将上传文件转为 Object URL 用于即时显示
+          const url = URL.createObjectURL(file as File);
+          onAvatarChange(url);
+        }}
+        onChange={(info) => {
+          if (info.file.status === 'error') {
+            message.error(
+              intl.formatMessage({
+                id: 'pages.account.settings.base.uploadFailed',
+                defaultMessage: '头像上传失败',
+              }),
+            );
+          }
+        }}
+      >
         <div className={styles.button_view}>
           <Button>
             <UploadOutlined />
-            更换头像
+            {intl.formatMessage({
+              id: 'pages.account.settings.base.changeAvatar',
+              defaultMessage: '更换头像',
+            })}
           </Button>
         </div>
       </Upload>

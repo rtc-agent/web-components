@@ -6,6 +6,7 @@ import {
 } from '@ant-design/icons';
 import { GridContent } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
+import { useIntl } from '@umijs/max';
 import {
   Avatar,
   Card,
@@ -25,12 +26,15 @@ import Projects from './components/Projects';
 import type { CurrentUser, TagType, tabKeyType } from './data.d';
 import { queryCurrent } from './service';
 
-const operationTabList = [
+const getOperationTabList = (intl: any) => [
   {
     key: 'articles',
     tab: (
       <span>
-        文章{' '}
+        {intl.formatMessage({
+          id: 'pages.account.center.articles',
+          defaultMessage: '文章',
+        })}{' '}
         <span
           style={{
             fontSize: 14,
@@ -45,7 +49,10 @@ const operationTabList = [
     key: 'applications',
     tab: (
       <span>
-        应用{' '}
+        {intl.formatMessage({
+          id: 'pages.account.center.applications',
+          defaultMessage: '应用',
+        })}{' '}
         <span
           style={{
             fontSize: 14,
@@ -60,7 +67,10 @@ const operationTabList = [
     key: 'projects',
     tab: (
       <span>
-        项目{' '}
+        {intl.formatMessage({
+          id: 'pages.account.center.projects',
+          defaultMessage: '项目',
+        })}{' '}
         <span
           style={{
             fontSize: 14,
@@ -76,6 +86,7 @@ const TagList: React.FC<{
   tags: CurrentUser['tags'];
 }> = ({ tags }) => {
   const { styles } = useStyles();
+  const intl = useIntl();
   const ref = useRef<InputRef | null>(null);
   const [newTags, setNewTags] = useState<TagType[]>([]);
   const [inputVisible, setInputVisible] = useState<boolean>(false);
@@ -98,7 +109,7 @@ const TagList: React.FC<{
       tempsTags = [
         ...tempsTags,
         {
-          key: `new-${tempsTags.length}`,
+          key: `new-${Date.now()}`,
           label: inputValue,
         },
       ];
@@ -109,7 +120,12 @@ const TagList: React.FC<{
   };
   return (
     <div className={styles.tags}>
-      <div className={styles.tagsTitle}>标签</div>
+      <div className={styles.tagsTitle}>
+        {intl.formatMessage({
+          id: 'pages.account.center.tags',
+          defaultMessage: '标签',
+        })}
+      </div>
       <Flex wrap gap="small">
         {(tags || []).concat(newTags).map((item) => (
           <Tag key={item.key}>{item.label}</Tag>
@@ -205,11 +221,13 @@ const TabContent: React.FC<{ tabValue: tabKeyType }> = ({ tabValue }) => {
 
 const Center: React.FC = () => {
   const { styles } = useStyles();
+  const intl = useIntl();
   const [tabKey, setTabKey] = useState<tabKeyType>('articles');
+  const operationTabList = getOperationTabList(intl);
 
-  //  获取用户信息
+  // 获取用户信息（使用独立 queryKey 避免与其他页面的 current-user 查询冲突）
   const { data: currentUser, isLoading: loading } = useQuery({
-    queryKey: ['current-user'],
+    queryKey: ['current-user', 'center'],
     queryFn: () => queryCurrent().then((res) => res.data),
   });
 
@@ -227,7 +245,13 @@ const Center: React.FC = () => {
             {!loading && currentUser && (
               <>
                 <div className={styles.avatarHolder}>
-                  <img alt="" src={currentUser.avatar} />
+                  <img
+                    alt={intl.formatMessage({
+                      id: 'pages.account.center.avatar',
+                      defaultMessage: '头像',
+                    })}
+                    src={currentUser.avatar}
+                  />
                   <div className={styles.name}>{currentUser.name}</div>
                   <div>{currentUser?.signature}</div>
                 </div>
@@ -241,7 +265,12 @@ const Center: React.FC = () => {
                   dashed
                 />
                 <div className={styles.team}>
-                  <div className={styles.teamTitle}>团队</div>
+                  <div className={styles.teamTitle}>
+                    {intl.formatMessage({
+                      id: 'pages.account.center.team',
+                      defaultMessage: '团队',
+                    })}
+                  </div>
                   <Row gutter={36}>
                     {currentUser.notice?.map((item) => (
                       <Col key={item.id} lg={24} xl={12}>

@@ -543,9 +543,110 @@ export default {
   'pages.account.center.projects': 'Projects',
   'pages.account.center.tags': 'Tags',
   'pages.account.center.team': 'Team',
+  'pages.account.center.avatar': 'Avatar',
+  'pages.account.center.wan': 'W',
+  'pages.account.center.activeUser': 'Active Users',
+  'pages.account.center.newUser': 'New Users',
+  'pages.account.center.download': 'Download',
+  'pages.account.center.edit': 'Edit',
+  'pages.account.center.share': 'Share',
+  'pages.account.center.designLanguage': 'Design Language',
+  'pages.account.center.antGroup': 'Ant Group',
   // Account Settings
   'pages.account.settings.base': 'Basic Settings',
   'pages.account.settings.security': 'Security Settings',
   'pages.account.settings.binding': 'Account Binding',
   'pages.account.settings.notification': 'New Message Notification',
+  // Account Settings - Base
+  'pages.account.settings.base.email': 'Email',
+  'pages.account.settings.base.emailRequired': 'Please enter your email!',
+  'pages.account.settings.base.emailInvalid':
+    'Please enter a valid email address!',
+  'pages.account.settings.base.name': 'Nickname',
+  'pages.account.settings.base.nameRequired': 'Please enter your nickname!',
+  'pages.account.settings.base.profile': 'Profile',
+  'pages.account.settings.base.profileRequired': 'Please enter your profile!',
+  'pages.account.settings.base.profilePlaceholder': 'Profile description',
+  'pages.account.settings.base.country': 'Country/Region',
+  'pages.account.settings.base.countryRequired':
+    'Please enter your country or region!',
+  'pages.account.settings.base.countryChina': 'China',
+  'pages.account.settings.base.province': 'Province',
+  'pages.account.settings.base.provinceRequired': 'Please enter your province!',
+  'pages.account.settings.base.city': 'City',
+  'pages.account.settings.base.cityRequired': 'Please enter your city!',
+  'pages.account.settings.base.address': 'Street Address',
+  'pages.account.settings.base.addressRequired':
+    'Please enter your street address!',
+  'pages.account.settings.base.phone': 'Phone',
+  'pages.account.settings.base.phoneRequired': 'Please enter your phone!',
+  'pages.account.settings.base.phoneAreaCode': 'Please enter area code!',
+  'pages.account.settings.base.phoneNumber': 'Please enter phone number!',
+  'pages.account.settings.base.updateBasic': 'Update Basic Info',
+  'pages.account.settings.base.updateSuccess':
+    'Basic info updated successfully',
+  'pages.account.settings.base.avatar': 'Avatar',
+  'pages.account.settings.base.changeAvatar': 'Change Avatar',
+  'pages.account.settings.base.avatarSizeError': 'Image size exceeds 2MB!',
+  'pages.account.settings.base.uploadFailed': 'Avatar upload failed',
+  // Account Settings - Security
+  'pages.account.settings.security.password': 'Account Password',
+  'pages.account.settings.security.passwordStrength':
+    'Current password strength: ',
+  'pages.account.settings.security.strong': 'Strong',
+  'pages.account.settings.security.medium': 'Medium',
+  'pages.account.settings.security.weak': 'Weak',
+  'pages.account.settings.security.modify': 'Modify',
+  'pages.account.settings.security.phone': 'Security Phone',
+  'pages.account.settings.security.boundPhone': 'Bound phone: ',
+  'pages.account.settings.security.question': 'Security Question',
+  'pages.account.settings.security.noQuestion':
+    'No security question set. A security question can effectively protect your account.',
+  'pages.account.settings.security.set': 'Set',
+  'pages.account.settings.security.backupEmail': 'Backup Email',
+  'pages.account.settings.security.boundEmail': 'Bound email: ',
+  'pages.account.settings.security.mfa': 'MFA Device',
+  'pages.account.settings.security.noMfa':
+    'No MFA device bound. Bind one to enable two-factor authentication.',
+  'pages.account.settings.security.bind': 'Bind',
+  // Account Settings - Binding
+  'pages.account.settings.binding.taobao': 'Bind Taobao',
+  'pages.account.settings.binding.taobaoDesc':
+    'Currently not bound to Taobao account',
+  'pages.account.settings.binding.alipay': 'Bind Alipay',
+  'pages.account.settings.binding.alipayDesc':
+    'Currently not bound to Alipay account',
+  'pages.account.settings.binding.dingding': 'Bind DingTalk',
+  'pages.account.settings.binding.dingdingDesc':
+    'Currently not bound to DingTalk account',
+  'pages.account.settings.binding.bind': 'Bind',
+  // Account Settings - Notification
+  'pages.account.settings.notification.on': 'On',
+  'pages.account.settings.notification.off': 'Off',
+  'pages.account.settings.notification.userMessage': 'User Messages',
+  'pages.account.settings.notification.userMessageDesc':
+    "Other users' messages will be notified via in-app messages",
+  'pages.account.settings.notification.systemMessage': 'System Messages',
+  'pages.account.settings.notification.systemMessageDesc':
+    'System messages will be notified via in-app messages',
+  'pages.account.settings.notification.todoTask': 'Todo Tasks',
+  'pages.account.settings.notification.todoTaskDesc':
+    'Todo tasks will be notified via in-app messages',
+  // Common
+  'common.loading': 'Loading...',
+  // Dashboard - iframe panel
+  'dashboard.loadFailed': 'Load Failed',
+  'dashboard.retry': 'Click to Retry',
+  'dashboard.timeout': 'Load Timeout',
+  // Dashboard - Grafana sub-page titles
+  'dashboard.title.jaeger': 'Jaeger Tracing',
+  'dashboard.title.pyroscope': 'Pyroscope Profiling',
+  'dashboard.title.grafana.rtcAgent': 'Grafana - rtc-agent',
+  'dashboard.title.grafana.goRuntime': 'Grafana - go-runtime',
+  'dashboard.title.grafana.httpServer': 'Grafana - http-server',
+  'dashboard.title.grafana.errorFeedback': 'Grafana - error-feedback',
+  'dashboard.title.grafana.logs': 'Grafana - Logs Overview',
+  'dashboard.title.grafana.oss3': 'Grafana - OSS3',
+  'dashboard.title.grafana.minio': 'Grafana - MinIO',
+  'dashboard.title.grafana.healthWatchdog': 'Grafana - Health Watchdog',
 };
