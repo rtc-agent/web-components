@@ -1,4 +1,9 @@
-import { DeleteOutlined, EditOutlined, HistoryOutlined, MoreOutlined } from '@ant-design/icons';
+import {
+  DeleteOutlined,
+  EditOutlined,
+  HistoryOutlined,
+  MoreOutlined,
+} from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
 import {
@@ -14,8 +19,8 @@ import {
   Typography,
 } from 'antd';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import ConflictModal from '@/pages/system/configs/components/ConflictModal';
 import { useOptimisticLockConflict } from '@/hooks/useOptimisticLockConflict';
+import ConflictModal from '@/pages/system/configs/components/ConflictModal';
 import type { UserConfigItem } from '@/services/userConfig';
 import {
   deleteUserConfig,
@@ -27,9 +32,9 @@ import {
   useConfigSourceRenderer,
 } from '@/utils/configFormat';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
+import type { RtcUserInfo } from '../data.d';
 import UserConfigEditModal from './UserConfigEditModal';
 import UserConfigHistoryModal from './UserConfigHistoryModal';
-import type { RtcUserInfo } from '../data.d';
 
 const { Text } = Typography;
 
@@ -241,7 +246,9 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
                 size="small"
                 columns={[
                   {
-                    title: 'Key',
+                    title: intl.formatMessage({
+                      id: 'pages.config.user.key',
+                    }),
                     dataIndex: 'key',
                     width: 220,
                     render: (_, record) => (
@@ -345,7 +352,9 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
                                             description={intl.formatMessage({
                                               id: 'pages.config.user.confirmDeleteDesc',
                                             })}
-                                            onConfirm={() => handleDelete(record)}
+                                            onConfirm={() =>
+                                              handleDelete(record)
+                                            }
                                             okText={intl.formatMessage({
                                               id: 'pages.config.user.confirm',
                                             })}
@@ -368,7 +377,11 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
                             }}
                             trigger={['click']}
                           >
-                            <Button type="link" size="small" icon={<MoreOutlined />} />
+                            <Button
+                              type="link"
+                              size="small"
+                              icon={<MoreOutlined />}
+                            />
                           </Dropdown>
                         )}
                       </Space>

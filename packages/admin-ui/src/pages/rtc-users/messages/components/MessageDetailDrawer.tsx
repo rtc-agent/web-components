@@ -9,6 +9,7 @@ import {
   Space,
   Tag,
   Typography,
+  theme,
 } from 'antd';
 import React, { useMemo } from 'react';
 import type { MessageInfo } from '../data';
@@ -92,7 +93,11 @@ function parseContentData(raw: string | null | undefined): ContentData | null {
   return { type: 'text', data: raw };
 }
 
-/** Try to parse a JSON string; return the original string on failure. */
+/**
+ * 尝试格式化 JSON 字符串，美化输出；解析失败时返回原始字符串。
+ * @param value - 待格式化的值，可以是字符串或其他类型
+ * @returns 格式化后的 JSON 字符串（缩进 2 空格），或原始字符串
+ */
 function tryFormatJson(value: unknown): string {
   if (value == null) return '';
   if (typeof value === 'string') {
@@ -206,6 +211,7 @@ const TextContent: React.FC<{ data: unknown }> = ({ data }) => {
 
 /** Render thinking content as a collapsible block. */
 const ThinkingContent: React.FC<{ data: unknown }> = ({ data }) => {
+  const intl = useIntl();
   const text = typeof data === 'string' ? data : JSON.stringify(data);
   if (!text) return <Text type="secondary">-</Text>;
   return (
@@ -214,7 +220,11 @@ const ThinkingContent: React.FC<{ data: unknown }> = ({ data }) => {
       items={[
         {
           key: '1',
-          label: <Text type="secondary">思考过程</Text>,
+          label: (
+            <Text type="secondary">
+              {intl.formatMessage({ id: 'pages.messages.detail.thinking' })}
+            </Text>
+          ),
           children: (
             <div style={{ maxHeight: 400, overflowY: 'auto' }}>
               <XMarkdown>{text}</XMarkdown>
@@ -228,6 +238,7 @@ const ThinkingContent: React.FC<{ data: unknown }> = ({ data }) => {
 
 /** Render a tool call input card. */
 const ToolCallInputContent: React.FC<{ data: unknown }> = ({ data }) => {
+  const intl = useIntl();
   const tc = data as ToolCallData | undefined;
   if (!tc?.tool_name) {
     return (
@@ -346,7 +357,9 @@ const ToolCallInputContent: React.FC<{ data: unknown }> = ({ data }) => {
       size="small"
       title={
         <Space>
-          <Tag color="geekblue">Tool Call</Tag>
+          <Tag color="geekblue">
+            {intl.formatMessage({ id: 'pages.messages.detail.toolCall' })}
+          </Tag>
           <Text strong>{header}</Text>
           {tc.status && <Tag>{tc.status}</Tag>}
         </Space>
@@ -360,6 +373,7 @@ const ToolCallInputContent: React.FC<{ data: unknown }> = ({ data }) => {
 
 /** Render a tool call output card. */
 const ToolCallOutputContent: React.FC<{ data: unknown }> = ({ data }) => {
+  const intl = useIntl();
   const tc = data as ToolCallData | undefined;
   if (!tc?.tool_name) {
     return (
@@ -378,7 +392,9 @@ const ToolCallOutputContent: React.FC<{ data: unknown }> = ({ data }) => {
         size="small"
         title={
           <Space>
-            <Tag color="green">Tool Result</Tag>
+            <Tag color="green">
+              {intl.formatMessage({ id: 'pages.messages.detail.toolResult' })}
+            </Tag>
             <Text>{header}</Text>
           </Space>
         }
@@ -404,7 +420,13 @@ const ToolCallOutputContent: React.FC<{ data: unknown }> = ({ data }) => {
           title={
             <Space>
               <Tag color={isSuccess ? 'green' : 'red'}>
-                {isSuccess ? 'Tool Result' : 'Failed'}
+                {isSuccess
+                  ? intl.formatMessage({
+                      id: 'pages.messages.detail.toolResult',
+                    })
+                  : intl.formatMessage({
+                      id: 'pages.messages.detail.toolFailed',
+                    })}
               </Tag>
               <Text>{header}</Text>
               {duration != null && (
@@ -490,6 +512,7 @@ const ToolCallOutputContent: React.FC<{ data: unknown }> = ({ data }) => {
 
 /** Render error content. */
 const ErrorContent: React.FC<{ data: unknown }> = ({ data }) => {
+  const intl = useIntl();
   const err = data as ErrorContent | undefined;
   if (!err?.title && !err?.message) {
     return (
@@ -536,7 +559,11 @@ const ErrorContent: React.FC<{ data: unknown }> = ({ data }) => {
           items={[
             {
               key: '1',
-              label: <Text type="secondary">Raw Error</Text>,
+              label: (
+                <Text type="secondary">
+                  {intl.formatMessage({ id: 'pages.messages.detail.rawError' })}
+                </Text>
+              ),
               children: (
                 <pre
                   style={{
@@ -591,6 +618,8 @@ const PromptContentView: React.FC<{ data: unknown }> = ({ data }) => {
 
 /** Render summary (context compression) content. */
 const SummaryContent: React.FC<{ data: unknown }> = ({ data }) => {
+  const intl = useIntl();
+  const { token } = theme.useToken();
   const content = data as Record<string, unknown> | undefined;
   const metadata = content?.metadata as Record<string, number> | undefined;
 
@@ -601,22 +630,29 @@ const SummaryContent: React.FC<{ data: unknown }> = ({ data }) => {
 
   return (
     <Tag color="default" style={{ padding: '4px 8px' }}>
-      Compressed context
+      {intl.formatMessage({ id: 'pages.messages.detail.compressedContext' })}
       {tokensSaved !== 0 && (
         <span
           style={{
             marginLeft: 4,
-            color: tokensSaved > 0 ? '#52c41a' : '#faad14',
+            color: tokensSaved > 0 ? token.colorSuccess : token.colorWarning,
           }}
         >
           {tokensSaved > 0
-            ? `released ${tokensSaved.toLocaleString()}`
-            : `increased ${Math.abs(tokensSaved).toLocaleString()}`}{' '}
-          tokens
+            ? intl.formatMessage(
+                { id: 'pages.messages.detail.releasedTokens' },
+                { count: tokensSaved },
+              )
+            : intl.formatMessage(
+                { id: 'pages.messages.detail.increasedTokens' },
+                { count: Math.abs(tokensSaved) },
+              )}{' '}
         </span>
       )}
       {durationMs > 0 && (
-        <span style={{ marginLeft: 4, color: '#8c8c8c' }}>{durationMs}ms</span>
+        <span style={{ marginLeft: 4, color: token.colorTextTertiary }}>
+          {durationMs}ms
+        </span>
       )}
     </Tag>
   );

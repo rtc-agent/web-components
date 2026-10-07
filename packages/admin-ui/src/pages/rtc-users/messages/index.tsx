@@ -2,8 +2,7 @@ import { InboxOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { history, useIntl, useSearchParams } from '@umijs/max';
-import { App, Button, Empty, Tag } from 'antd';
-import dayjs from 'dayjs';
+import { App, Button, Empty, Tag, theme } from 'antd';
 import React, {
   useCallback,
   useEffect,
@@ -12,12 +11,10 @@ import React, {
   useState,
 } from 'react';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
+import { disabledFutureDate, parseTableSort } from '../shared/tableUtils';
 import MessageDetailDrawer from './components/MessageDetailDrawer';
 import type { MessageInfo } from './data';
 import { getMessageList } from './service';
-
-/** 禁用未来日期 */
-const disabledDate = (current: dayjs.Dayjs) => current?.isAfter(dayjs(), 'day');
 
 /**
  * Message 管理页面
@@ -34,6 +31,8 @@ const MessagesPage: React.FC = () => {
     null,
   );
 
+  const { token } = theme.useToken();
+
   // URL 参数变化时刷新表格
   useEffect(() => {
     if (sessionId) {
@@ -46,23 +45,6 @@ const MessagesPage: React.FC = () => {
     setCurrentMessage(record);
     setDrawerOpen(true);
   }, []);
-
-  /** 解析排序参数 */
-  const parseSort = useCallback(
-    (sort: Record<string, 'ascend' | 'descend' | null>) => {
-      const sortField = Object.keys(sort || {}).find(
-        (key) => sort[key] === 'ascend' || sort[key] === 'descend',
-      );
-      if (!sortField) return {};
-      const sortOrder: 'asc' | 'desc' =
-        sort[sortField] === 'ascend' ? 'asc' : 'desc';
-      return {
-        sort_by: sortField,
-        sort_order: sortOrder,
-      };
-    },
-    [],
-  );
 
   /** 表格列定义 */
   const columns: ProColumns<MessageInfo>[] = useMemo(
@@ -97,17 +79,23 @@ const MessagesPage: React.FC = () => {
         valueType: 'select',
         valueEnum: {
           user: {
-            text: 'User',
+            text: intl.formatMessage({ id: 'pages.messages.role.user' }),
             status: 'Processing',
           },
           assistant: {
-            text: 'Assistant',
+            text: intl.formatMessage({ id: 'pages.messages.role.assistant' }),
             status: 'Success',
           },
         },
         render: (_, record) => {
           const isUser = record.role === 'user';
-          return <Tag color={isUser ? 'blue' : 'green'}>{record.role}</Tag>;
+          return (
+            <Tag color={isUser ? 'blue' : 'green'}>
+              {isUser
+                ? intl.formatMessage({ id: 'pages.messages.role.user' })
+                : intl.formatMessage({ id: 'pages.messages.role.assistant' })}
+            </Tag>
+          );
         },
       },
       {
@@ -121,6 +109,9 @@ const MessagesPage: React.FC = () => {
         ellipsis: true,
         width: 400,
         render: (_, record) => {
+          // 消息内容存储为 JSON 字符串: '{"type":"text","data":"hello"}'
+          // 根据 type 字段提取可读的摘要文本用于表格展示
+          // 兼容非 JSON 的纯文本旧数据
           try {
             const parsed = JSON.parse(record.content);
             if (parsed?.type && parsed?.data !== undefined) {
@@ -212,7 +203,7 @@ const MessagesPage: React.FC = () => {
         valueType: 'dateRange',
         hideInTable: true,
         fieldProps: {
-          disabledDate,
+          disabledDate: disabledFutureDate,
         },
         search: {
           transform: (value: [string, string]) => ({
@@ -229,7 +220,11 @@ const MessagesPage: React.FC = () => {
     <PageContainer>
       {!sessionId ? (
         <Empty
-          image={<InboxOutlined style={{ fontSize: 64, color: '#bfbfbf' }} />}
+          image={
+            <InboxOutlined
+              style={{ fontSize: 64, color: token.colorTextTertiary }}
+            />
+          }
           description={intl.formatMessage({
             id: 'pages.messages.emptyHint',
             defaultMessage: '请从对话管理页面选择对话以查看消息列表',
@@ -259,15 +254,22 @@ const MessagesPage: React.FC = () => {
             style: { cursor: 'pointer' },
           })}
           request={async (params, sort) => {
-            const { current, pageSize, session_id, keyword, ...restParams } =
-              params;
-            if (!session_id) {
+            const {
+              current,
+              pageSize,
+              session_id: _session_id,
+              keyword,
+              ...restParams
+            } = params;
+            // 优先使用 URL 参数中的 sessionId，确保导航切换会话时数据正确
+            const effectiveSessionId = sessionId || _session_id;
+            if (!effectiveSessionId) {
               return { data: [], total: 0, success: true };
             }
             try {
-              const sortParams = parseSort(sort || {});
+              const sortParams = parseTableSort(sort || {});
               const response = await getMessageList({
-                session_id,
+                session_id: effectiveSessionId,
                 page: current,
                 page_size: pageSize,
                 role: restParams.role,

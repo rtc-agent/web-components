@@ -71,18 +71,6 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
     },
   ) as { data: TokenStatsResponse | undefined; loading: boolean };
 
-  // Debug: 追踪数据流，确认 useRequest 返回的数据结构正确
-  if (process.env.NODE_ENV === 'development') {
-    console.log('[UserDetailDrawer] user:', user?.id);
-    console.log('[UserDetailDrawer] devicesData:', devicesData);
-    console.log('[UserDetailDrawer] devicesData?.items:', devicesData?.items);
-    console.log('[UserDetailDrawer] statsData:', statsData);
-    console.log(
-      '[UserDetailDrawer] statsData?.top_sessions:',
-      statsData?.top_sessions,
-    );
-  }
-
   // 设备列表列定义
   const deviceColumns = [
     {

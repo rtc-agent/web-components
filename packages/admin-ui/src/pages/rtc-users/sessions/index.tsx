@@ -2,16 +2,12 @@ import { InboxOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { history, useIntl, useSearchParams } from '@umijs/max';
-import { App, Button, Empty, Tag } from 'antd';
-import dayjs from 'dayjs';
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import { App, Button, Empty, Tag, theme } from 'antd';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
+import { disabledFutureDate, parseTableSort } from '../shared/tableUtils';
 import type { SessionInfo } from './data';
 import { getSessionList } from './service';
-
-/** 禁用未来日期 */
-const disabledDate = (current: dayjs.Dayjs) =>
-  current?.isAfter(dayjs(), 'day');
 
 /**
  * Session 管理页面
@@ -30,22 +26,7 @@ const SessionsPage: React.FC = () => {
     }
   }, [userId]);
 
-  /** 解析排序参数 */
-  const parseSort = useCallback(
-    (sort: Record<string, 'ascend' | 'descend' | null>) => {
-      const sortField = Object.keys(sort || {}).find(
-        (key) => sort[key] === 'ascend' || sort[key] === 'descend',
-      );
-      if (!sortField) return {};
-      const sortOrder: 'asc' | 'desc' =
-        sort[sortField] === 'ascend' ? 'asc' : 'desc';
-      return {
-        sort_by: sortField,
-        sort_order: sortOrder,
-      };
-    },
-    [],
-  );
+  const { token } = theme.useToken();
 
   /** 表格列定义 */
   const columns: ProColumns<SessionInfo>[] = useMemo(
@@ -162,7 +143,7 @@ const SessionsPage: React.FC = () => {
         valueType: 'dateRange',
         hideInTable: true,
         fieldProps: {
-          disabledDate,
+          disabledDate: disabledFutureDate,
         },
         search: {
           transform: (value: [string, string]) => ({
@@ -210,7 +191,11 @@ const SessionsPage: React.FC = () => {
     <PageContainer>
       {!userId ? (
         <Empty
-          image={<InboxOutlined style={{ fontSize: 64, color: '#bfbfbf' }} />}
+          image={
+            <InboxOutlined
+              style={{ fontSize: 64, color: token.colorTextTertiary }}
+            />
+          }
           description={intl.formatMessage({
             id: 'pages.sessions.emptyHint',
             defaultMessage: '请从用户管理页面选择用户以查看对话列表',
@@ -236,15 +221,22 @@ const SessionsPage: React.FC = () => {
           rowKey="id"
           columns={columns}
           request={async (params, sort) => {
-            const { current, pageSize, user_id, keyword, ...restParams } =
-              params;
-            if (!user_id) {
+            const {
+              current,
+              pageSize,
+              user_id: _user_id,
+              keyword,
+              ...restParams
+            } = params;
+            // 优先使用 URL 参数中的 userId，确保导航切换用户时数据正确
+            const effectiveUserId = userId || _user_id;
+            if (!effectiveUserId) {
               return { data: [], total: 0, success: true };
             }
             try {
-              const sortParams = parseSort(sort || {});
+              const sortParams = parseTableSort(sort || {});
               const response = await getSessionList({
-                user_id,
+                user_id: effectiveUserId,
                 page: current,
                 page_size: pageSize,
                 status: restParams.status,
