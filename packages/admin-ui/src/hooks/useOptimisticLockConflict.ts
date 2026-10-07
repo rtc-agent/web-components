@@ -33,11 +33,8 @@ export interface PendingOverwriteData {
 export const useOptimisticLockConflict = (
   options: UseOptimisticLockConflictOptions,
 ) => {
-  const {
-    onForceOverwrite,
-    onConflictResolved,
-    forceOverwriteSuccessId,
-  } = options;
+  const { onForceOverwrite, onConflictResolved, forceOverwriteSuccessId } =
+    options;
 
   const [conflictModalOpen, setConflictModalOpen] = useState(false);
   const [conflictData, setConflictData] =
@@ -69,7 +66,9 @@ export const useOptimisticLockConflict = (
     };
 
     if (err?.info?.errorCode === 'OPTIMISTIC_LOCK_CONFLICT') {
-      const conflictInfo = err.info.data as OptimisticLockConflictData | undefined;
+      const conflictInfo = err.info.data as
+        | OptimisticLockConflictData
+        | undefined;
       if (conflictInfo) {
         setConflictData(conflictInfo);
         setPendingOverwrite(editData);
@@ -98,9 +97,7 @@ export const useOptimisticLockConflict = (
     if (!pendingOverwrite) return;
     try {
       await onForceOverwrite(pendingOverwrite);
-      message.success(
-        intl.formatMessage({ id: forceOverwriteSuccessId }),
-      );
+      message.success(intl.formatMessage({ id: forceOverwriteSuccessId }));
       setConflictModalOpen(false);
       setConflictData(null);
       setPendingOverwrite(null);

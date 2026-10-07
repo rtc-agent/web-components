@@ -1,8 +1,7 @@
 import { useIntl } from '@umijs/max';
 import { Button, List } from 'antd';
 import React from 'react';
-
-type Unpacked<T> = T extends (infer U)[] ? U : T;
+import type { Unpacked } from '@/utils/types';
 
 /**
  * 安全设置视图

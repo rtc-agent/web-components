@@ -22,16 +22,6 @@ export const pages: PageDefinition[] = [
     description: 'Monitoring dashboard powered by Grafana',
   },
   {
-    path: '/dashboard/monitor',
-    name: 'Monitor',
-    description: 'System monitoring dashboard',
-  },
-  {
-    path: '/dashboard/workplace',
-    name: 'Workplace',
-    description: 'Personal workplace overview',
-  },
-  {
     path: '/system/users',
     name: 'Admin Users',
     description: 'Manage administrator accounts',

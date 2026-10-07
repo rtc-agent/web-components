@@ -15,6 +15,7 @@ import {
   Flex,
   Input,
   type InputRef,
+  Result,
   Row,
   Tag,
 } from 'antd';
@@ -26,6 +27,10 @@ import Projects from './components/Projects';
 import type { CurrentUser, TagType, tabKeyType } from './data.d';
 import { queryCurrent } from './service';
 
+/**
+ * 构建右侧内容区域的 Tab 列表
+ * 每个 Tab 显示国际化文本及对应的条目数量（当前为静态值）
+ */
 const getOperationTabList = (intl: any) => [
   {
     key: 'articles',
@@ -82,6 +87,7 @@ const getOperationTabList = (intl: any) => [
     ),
   },
 ];
+/** 用户标签列表，支持动态添加新标签 */
 const TagList: React.FC<{
   tags: CurrentUser['tags'];
 }> = ({ tags }) => {
@@ -94,7 +100,7 @@ const TagList: React.FC<{
   const showInput = () => {
     setInputVisible(true);
     if (ref.current) {
-      ref.current?.focus();
+      ref.current.focus();
     }
   };
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -157,8 +163,15 @@ const TagList: React.FC<{
     </div>
   );
 };
+/** 展示用户的基本信息：职位、团队、所在地 */
+const GEOGRAPHIC_DEFAULT = {
+  province: { label: '' },
+  city: { label: '' },
+} as const;
+
 const UserInfo: React.FC<{ user: Partial<CurrentUser> }> = ({ user }) => {
   const { styles } = useStyles();
+  const geographic = user.geographic || GEOGRAPHIC_DEFAULT;
   return (
     <div className={styles.detail}>
       <p>
@@ -183,29 +196,14 @@ const UserInfo: React.FC<{ user: Partial<CurrentUser> }> = ({ user }) => {
             marginRight: 8,
           }}
         />
-        {
-          (
-            user.geographic || {
-              province: {
-                label: '',
-              },
-            }
-          ).province.label
-        }
-        {
-          (
-            user.geographic || {
-              city: {
-                label: '',
-              },
-            }
-          ).city.label
-        }
+        {geographic.province.label}
+        {geographic.city.label}
       </p>
     </div>
   );
 };
 
+/** 根据选中的 Tab 键渲染对应的内容组件 */
 const TabContent: React.FC<{ tabValue: tabKeyType }> = ({ tabValue }) => {
   if (tabValue === 'projects') {
     return <Projects />;
@@ -226,10 +224,31 @@ const Center: React.FC = () => {
   const operationTabList = getOperationTabList(intl);
 
   // 获取用户信息（使用独立 queryKey 避免与其他页面的 current-user 查询冲突）
-  const { data: currentUser, isLoading: loading } = useQuery({
+  const {
+    data: currentUser,
+    isLoading: loading,
+    isError,
+    error,
+  } = useQuery({
     queryKey: ['current-user', 'center'],
     queryFn: () => queryCurrent().then((res) => res.data),
   });
+
+  // API 请求失败时显示错误提示
+  if (isError) {
+    return (
+      <GridContent>
+        <Result
+          status="error"
+          title={intl.formatMessage({
+            id: 'pages.account.center.loadError',
+            defaultMessage: '加载失败',
+          })}
+          subTitle={error?.message}
+        />
+      </GridContent>
+    );
+  }
 
   return (
     <GridContent>

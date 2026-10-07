@@ -550,8 +550,11 @@ export default {
   'pages.account.center.download': 'Baixar',
   'pages.account.center.edit': 'Editar',
   'pages.account.center.share': 'Compartilhar',
+  'pages.account.center.dropdownFirst': '1º item do menu',
+  'pages.account.center.dropdownSecond': '2º item do menu',
   'pages.account.center.designLanguage': 'Linguagem de Design',
   'pages.account.center.antGroup': 'Ant Group',
+  'pages.account.center.loadError': 'Falha ao carregar',
   // Account Settings
   'pages.account.settings.base': 'Configurações Básicas',
   'pages.account.settings.security': 'Configurações de Segurança',
@@ -587,7 +590,9 @@ export default {
     'Informações básicas atualizadas com sucesso',
   'pages.account.settings.base.avatar': 'Avatar',
   'pages.account.settings.base.changeAvatar': 'Mudar Avatar',
-  'pages.account.settings.base.avatarSizeError': 'Tamanho da imagem excede 2MB!',
+  'pages.account.settings.base.avatarSizeError':
+    'Tamanho da imagem excede {size}MB!',
+  'pages.account.settings.base.avatarTypeOnly': 'Apenas arquivos de imagem são permitidos!',
   'pages.account.settings.base.uploadFailed': 'Falha no upload do avatar',
   // Account Settings - Security
   'pages.account.settings.security.password': 'Senha da Conta',

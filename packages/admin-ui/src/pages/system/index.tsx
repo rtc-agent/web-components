@@ -18,9 +18,11 @@ const SystemIndexPage: React.FC = () => {
       history.replace('/system/permissions');
     } else if (access.canAuditLogView) {
       history.replace('/system/audit-logs');
+    } else if (access.canServerConfigView) {
+      history.replace('/system/configs');
     } else {
-      // 如果没有任何权限，重定向到欢迎页
-      history.replace('/welcome');
+      // 如果没有任何权限，重定向到仪表盘
+      history.replace('/dashboard');
     }
   }, [access]);
 

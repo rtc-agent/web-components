@@ -1,7 +1,4 @@
-import {
-  ModalForm,
-  ProFormTextArea,
-} from '@ant-design/pro-components';
+import { ModalForm, ProFormTextArea } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
 import { Alert, App, Form } from 'antd';
 import React, { useEffect } from 'react';
@@ -84,10 +81,7 @@ const ConfigEditModal: React.FC<ConfigEditModalProps> = ({
           style={{ marginBottom: 16 }}
         />
       )}
-      <ConfigValueInput
-        valueType={config.value_type}
-        configKey={config.key}
-      />
+      <ConfigValueInput valueType={config.value_type} configKey={config.key} />
       <ProFormTextArea
         name="change_note"
         label={intl.formatMessage({ id: 'pages.config.system.changeNote' })}

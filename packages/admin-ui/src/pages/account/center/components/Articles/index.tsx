@@ -8,6 +8,7 @@ import type { ListItemDataType } from '../../data.d';
 import { queryFakeList } from '../../service';
 import useStyles from './index.style';
 
+/** 图标与文本的组合展示，用于文章列表的操作统计（收藏、点赞、评论） */
 const IconText: React.FC<{
   icon: React.ReactNode;
   text: React.ReactNode;

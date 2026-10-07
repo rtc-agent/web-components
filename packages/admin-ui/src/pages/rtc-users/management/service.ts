@@ -54,10 +54,7 @@ export async function getUserDevices(userId: string) {
 /**
  * 获取用户 Token 统计
  */
-export async function getUserTokenStats(
-  userId: string,
-  days: number = 30,
-) {
+export async function getUserTokenStats(userId: string, days: number = 30) {
   return request<TokenStatsResponse>('/api/rtc-users/sessions/stats', {
     method: 'GET',
     params: { user_id: userId, days },

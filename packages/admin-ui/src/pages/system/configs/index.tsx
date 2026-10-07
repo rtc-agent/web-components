@@ -2,8 +2,9 @@ import { HistoryOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { useAccess, useIntl } from '@umijs/max';
-import { App, Button, Popconfirm, Space, Tabs, Tag } from 'antd';
+import { App, Button, Popconfirm, Space, Tabs, Tag, theme } from 'antd';
 import React, { useCallback, useRef, useState } from 'react';
+import { useOptimisticLockConflict } from '@/hooks/useOptimisticLockConflict';
 import type { ServerConfigItem } from '@/services/serverConfig';
 import {
   deleteServerConfig,
@@ -16,7 +17,6 @@ import {
   useConfigSourceRenderer,
 } from '@/utils/configFormat';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
-import { useOptimisticLockConflict } from '@/hooks/useOptimisticLockConflict';
 import ConfigEditModal from './components/ConfigEditModal';
 import ConfigHistoryModal from './components/ConfigHistoryModal';
 import ConflictModal from './components/ConflictModal';
@@ -86,6 +86,7 @@ const SystemConfigsPage: React.FC = () => {
   const renderConfigSource = useConfigSourceRenderer();
   const canEdit = access.canServerConfigEdit as boolean;
   const canDelete = access.canServerConfigDelete as boolean;
+  const { token } = theme.useToken();
 
   const [activeCategory, setActiveCategory] = useState('');
   const [editingConfig, setEditingConfig] = useState<ServerConfigItem | null>(
@@ -206,12 +207,23 @@ const SystemConfigsPage: React.FC = () => {
   /** 表格列 */
   const columns: ProColumns<ServerConfigItem>[] = [
     {
-      title: 'Key',
+      title: intl.formatMessage({
+        id: 'pages.config.system.key',
+        defaultMessage: 'Key',
+      }),
       dataIndex: 'key',
       width: 260,
       ellipsis: true,
       render: (_, record) => (
-        <code style={{ fontSize: 12, wordBreak: 'break-all' }}>
+        <code
+          style={{
+            fontSize: 12,
+            wordBreak: 'break-all',
+            background: token.colorBgTextHover,
+            padding: token.paddingXXS,
+            borderRadius: token.borderRadiusSM,
+          }}
+        >
           {record.key}
         </code>
       ),
@@ -296,15 +308,7 @@ const SystemConfigsPage: React.FC = () => {
       valueType: 'dateTime',
       width: 180,
       search: false,
-      sorter: (a, b) => {
-        if (!a.updated_at) return -1;
-        if (!b.updated_at) return 1;
-        return (
-          new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()
-        );
-      },
-      render: (_, record) =>
-        record.updated_at ? new Date(record.updated_at).toLocaleString() : '-',
+      sorter: true,
     },
     {
       title: intl.formatMessage({ id: 'pages.config.system.description' }),

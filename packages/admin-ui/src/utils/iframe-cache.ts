@@ -8,8 +8,6 @@
  * - 支持超时销毁：长时间不访问的 iframe 自动销毁（当前使用的除外）
  */
 
-import type { ReactNode } from 'react';
-
 // 默认超时时间：5 分钟
 const DEFAULT_TIMEOUT = 5 * 60 * 1000;
 
@@ -29,7 +27,7 @@ class IframeCacheManager {
   private activeKey: string | null = null;
 
   // 超时清理定时器
-  private cleanupTimer: NodeJS.Timeout | null = null;
+  private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
   // 超时时间（毫秒）
   private timeout: number = DEFAULT_TIMEOUT;
@@ -144,7 +142,6 @@ class IframeCacheManager {
         }
         this.iframeCache.delete(key);
         this.visitedKeys.delete(key);
-        console.log(`[IframeCache] Destroyed iframe: ${key}`);
       }
     }
   }

@@ -547,8 +547,11 @@ export default {
   'pages.account.center.download': 'Download',
   'pages.account.center.edit': 'Edit',
   'pages.account.center.share': 'Share',
+  'pages.account.center.dropdownFirst': '১ম মেনু আইটেম',
+  'pages.account.center.dropdownSecond': '২য় মেনু আইটেম',
   'pages.account.center.designLanguage': 'Design Language',
   'pages.account.center.antGroup': 'Ant Group',
+  'pages.account.center.loadError': 'লোড করতে ব্যর্থ',
   // Account Settings
   'pages.account.settings.base': 'Basic Settings',
   'pages.account.settings.security': 'Security Settings',
@@ -584,7 +587,9 @@ export default {
     'Basic info updated successfully',
   'pages.account.settings.base.avatar': 'Avatar',
   'pages.account.settings.base.changeAvatar': 'Change Avatar',
-  'pages.account.settings.base.avatarSizeError': 'Image size exceeds 2MB!',
+  'pages.account.settings.base.avatarSizeError':
+    'চিত্রের আকার {size}MB এর বেশি!',
+  'pages.account.settings.base.avatarTypeOnly': 'শুধুমাত্র ইমেজ ফাইল অনুমোদিত!',
   'pages.account.settings.base.uploadFailed': 'Avatar upload failed',
   // Account Settings - Security
   'pages.account.settings.security.password': 'Account Password',

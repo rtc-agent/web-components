@@ -1,7 +1,4 @@
-import {
-  ModalForm,
-  ProFormTextArea,
-} from '@ant-design/pro-components';
+import { ModalForm, ProFormTextArea } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
 import { Alert, App, Form } from 'antd';
 import { useEffect } from 'react';

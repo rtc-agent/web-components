@@ -82,9 +82,7 @@ const ConfigHistoryTable: React.FC<ConfigHistoryTableProps> = ({
       dataIndex: 'version',
       width: 80,
       render: (_, record) => (
-        <Tag
-          color={record.version === currentVersion ? 'blue' : 'default'}
-        >
+        <Tag color={record.version === currentVersion ? 'blue' : 'default'}>
           v{record.version}
         </Tag>
       ),
@@ -99,10 +97,7 @@ const ConfigHistoryTable: React.FC<ConfigHistoryTableProps> = ({
         const text =
           typeof val === 'object' ? JSON.stringify(val) : String(val);
         return (
-          <span
-            title={text}
-            style={{ fontFamily: 'monospace', fontSize: 12 }}
-          >
+          <span title={text} style={{ fontFamily: 'monospace', fontSize: 12 }}>
             {text.length > 50 ? `${text.slice(0, 50)}...` : text}
           </span>
         );
@@ -118,10 +113,7 @@ const ConfigHistoryTable: React.FC<ConfigHistoryTableProps> = ({
         const text =
           typeof val === 'object' ? JSON.stringify(val) : String(val);
         return (
-          <span
-            title={text}
-            style={{ fontFamily: 'monospace', fontSize: 12 }}
-          >
+          <span title={text} style={{ fontFamily: 'monospace', fontSize: 12 }}>
             {text.length > 50 ? `${text.slice(0, 50)}...` : text}
           </span>
         );
@@ -232,9 +224,7 @@ const ConfigHistoryTable: React.FC<ConfigHistoryTableProps> = ({
                   { version: rollbackTarget.version },
                 ),
             );
-            message.success(
-              intl.formatMessage({ id: rollbackSuccessId }),
-            );
+            message.success(intl.formatMessage({ id: rollbackSuccessId }));
             setRollbackModalOpen(false);
             onRollbackSuccess?.();
             actionRef.current?.reload();

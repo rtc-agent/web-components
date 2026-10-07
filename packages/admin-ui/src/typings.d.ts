@@ -75,4 +75,27 @@ declare namespace API {
     items: T[];
     total: number;
   }
+
+  /** 通用响应结构 */
+  interface Response<T = any> {
+    success: boolean;
+    data?: T;
+    error_code?: string;
+    error_message?: string;
+  }
+
+  /** 管理员用户信息 */
+  interface AdminUser {
+    id: string;
+    email: string;
+    name: string;
+    avatar_url?: string;
+    created_at: string;
+    updated_at: string;
+    roles?: Array<{
+      id: string;
+      name: string;
+      display_name: string;
+    }>;
+  }
 }

@@ -1,6 +1,6 @@
 import { ModalForm } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
-import { Alert, Button, Descriptions, Space, Tag } from 'antd';
+import { Alert, Button, Descriptions, Space, Tag, theme } from 'antd';
 import React from 'react';
 import type { OptimisticLockConflictData } from '@/services/serverConfig';
 
@@ -25,6 +25,7 @@ const ConflictModal: React.FC<ConflictModalProps> = ({
   onForceOverwrite,
 }) => {
   const intl = useIntl();
+  const { token } = theme.useToken();
 
   if (!conflictData) return null;
 
@@ -86,7 +87,16 @@ const ConflictModal: React.FC<ConflictModalProps> = ({
             id: 'pages.config.system.conflict.configKey',
           })}
         >
-          <code>{configKey}</code>
+          <code
+            style={{
+              fontSize: 12,
+              background: token.colorBgTextHover,
+              padding: token.paddingXXS,
+              borderRadius: token.borderRadiusSM,
+            }}
+          >
+            {configKey}
+          </code>
         </Descriptions.Item>
         <Descriptions.Item
           label={intl.formatMessage({
@@ -109,6 +119,10 @@ const ConflictModal: React.FC<ConflictModalProps> = ({
               wordBreak: 'break-all',
               maxHeight: 200,
               overflow: 'auto',
+              background: token.colorBgTextHover,
+              color: token.colorText,
+              padding: token.paddingSM,
+              borderRadius: token.borderRadiusSM,
             }}
           >
             {formatValue(conflictData.current_value)}
@@ -126,7 +140,15 @@ const ConflictModal: React.FC<ConflictModalProps> = ({
             id: 'pages.config.system.conflict.changedAt',
           })}
         >
-          {new Date(conflictData.changed_at).toLocaleString()}
+          {new Intl.DateTimeFormat(intl.locale, {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false,
+          }).format(new Date(conflictData.changed_at))}
         </Descriptions.Item>
       </Descriptions>
     </ModalForm>

@@ -34,6 +34,9 @@ export default {
   'pages.getCaptchaSecondText': 'sec(s)',
   'pages.login.rememberMe': 'Remember me',
   'pages.login.forgotPassword': 'Forgot Password ?',
+  'pages.login.configLoadFailed':
+    'Failed to load login config, using default settings',
+  'pages.login.logoAlt': 'Login Page Logo',
   'pages.login.submit': 'Login',
   'pages.login.loginWith': 'Login with :',
   'pages.login.registerAccount': 'Register Account',
@@ -191,6 +194,7 @@ export default {
   'pages.config.system.category.webFetch': 'Fetch',
   'pages.config.system.category.api': 'API',
   'pages.config.system.category.log': 'Log',
+  'pages.config.system.key': 'Config Key',
   'pages.config.system.value': 'Value',
   'pages.config.system.yamlDefault': 'YAML Default',
   'pages.config.system.source': 'Source',
@@ -373,6 +377,8 @@ export default {
   'pages.roles.column.actions': 'Actions',
   'pages.roles.systemRole': 'System Role',
   'pages.roles.customRole': 'Custom Role',
+  'pages.roles.yes': 'Yes',
+  'pages.roles.no': 'No',
   'pages.roles.statusEnabled': 'Enabled',
   'pages.roles.statusDisabled': 'Disabled',
   'pages.roles.systemRoleCannotDisable':
@@ -384,6 +390,8 @@ export default {
   'pages.roles.delete': 'Delete',
   'pages.roles.confirmDelete': 'Are you sure you want to delete this role?',
   'pages.roles.confirmDeleteDesc': 'Cannot be recovered after deletion',
+  'pages.roles.confirmDeleteRoleWarning':
+    'All admins under this role will lose their permissions',
   'pages.roles.confirm': 'Confirm',
   'pages.roles.cancel': 'Cancel',
   'pages.roles.deleteSuccess': 'Deleted successfully',
@@ -485,6 +493,7 @@ export default {
   'pages.auditLogs.column.endTimePlaceholder': 'Select end time',
   'pages.auditLogs.headerTitle': 'Audit Logs',
   'pages.auditLogs.loadFailed': 'Failed to load audit logs',
+  'pages.auditLogs.timeRangeInvalid': 'Start time must be earlier than end time',
   // Admin User Management
   'pages.adminUsers.headerTitle': 'Admin List',
   'pages.adminUsers.column.email': 'Email',
@@ -550,8 +559,11 @@ export default {
   'pages.account.center.download': 'Download',
   'pages.account.center.edit': 'Edit',
   'pages.account.center.share': 'Share',
+  'pages.account.center.dropdownFirst': '1st menu item',
+  'pages.account.center.dropdownSecond': '2nd menu item',
   'pages.account.center.designLanguage': 'Design Language',
   'pages.account.center.antGroup': 'Ant Group',
+  'pages.account.center.loadError': 'Failed to load',
   // Account Settings
   'pages.account.settings.base': 'Basic Settings',
   'pages.account.settings.security': 'Security Settings',
@@ -587,7 +599,9 @@ export default {
     'Basic info updated successfully',
   'pages.account.settings.base.avatar': 'Avatar',
   'pages.account.settings.base.changeAvatar': 'Change Avatar',
-  'pages.account.settings.base.avatarSizeError': 'Image size exceeds 2MB!',
+  'pages.account.settings.base.avatarSizeError':
+    'Image size exceeds {size}MB!',
+  'pages.account.settings.base.avatarTypeOnly': 'Only image files are allowed!',
   'pages.account.settings.base.uploadFailed': 'Avatar upload failed',
   // Account Settings - Security
   'pages.account.settings.security.password': 'Account Password',

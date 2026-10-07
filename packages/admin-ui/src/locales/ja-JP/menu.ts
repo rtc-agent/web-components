@@ -24,8 +24,6 @@ export default {
   'menu.dashboard.grafana.health-watchdog': 'ヘルスウォッチドッグ',
   'menu.dashboard.jaeger': '分散トレーシング',
   'menu.dashboard.pyroscope': 'パフォーマンスプロファイリング',
-  'menu.dashboard.monitor': 'モニター',
-  'menu.dashboard.workplace': 'ワークプレイス',
   'menu.exception.403': '403',
   'menu.exception.404': '404',
   'menu.exception.500': '500',

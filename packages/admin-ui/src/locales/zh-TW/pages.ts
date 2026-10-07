@@ -543,8 +543,11 @@ export default {
   'pages.account.center.download': '下載',
   'pages.account.center.edit': '編輯',
   'pages.account.center.share': '分享',
+  'pages.account.center.dropdownFirst': '第一個選單項目',
+  'pages.account.center.dropdownSecond': '第二個選單項目',
   'pages.account.center.designLanguage': '設計語言',
   'pages.account.center.antGroup': '螞蟻集團',
+  'pages.account.center.loadError': '載入失敗',
   // Account Settings
   'pages.account.settings.base': '基本設置',
   'pages.account.settings.security': '安全設置',
@@ -580,7 +583,8 @@ export default {
     '基本信息更新成功',
   'pages.account.settings.base.avatar': '頭像',
   'pages.account.settings.base.changeAvatar': '更換頭像',
-  'pages.account.settings.base.avatarSizeError': '圖片大小超過2MB！',
+  'pages.account.settings.base.avatarSizeError': '圖片大小超過{size}MB！',
+  'pages.account.settings.base.avatarTypeOnly': '只能上傳圖片檔案！',
   'pages.account.settings.base.uploadFailed': '頭像上傳失敗',
   // Account Settings - Security
   'pages.account.settings.security.password': '賬戶密碼',

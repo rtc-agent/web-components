@@ -42,6 +42,7 @@ function formatWan(val: number, wanText: string) {
   return result;
 }
 
+/** 卡片底部信息区：展示活跃用户数与新增用户数 */
 const CardInfo: React.FC<{
   activeUser: React.ReactNode;
   newUser: React.ReactNode;
@@ -136,11 +137,17 @@ const Applications: React.FC = () => {
                   items: [
                     {
                       key: '1',
-                      title: '1st menu item',
+                      label: intl.formatMessage({
+                        id: 'pages.account.center.dropdownFirst',
+                        defaultMessage: '第一个菜单项',
+                      }),
                     },
                     {
                       key: '2',
-                      title: '2nd menu item',
+                      label: intl.formatMessage({
+                        id: 'pages.account.center.dropdownSecond',
+                        defaultMessage: '第二个菜单项',
+                      }),
                     },
                   ],
                 }}

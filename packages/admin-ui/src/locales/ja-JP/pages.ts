@@ -550,8 +550,11 @@ export default {
   'pages.account.center.download': 'ダウンロード',
   'pages.account.center.edit': '編集',
   'pages.account.center.share': '共有',
+  'pages.account.center.dropdownFirst': '1番目のメニュー項目',
+  'pages.account.center.dropdownSecond': '2番目のメニュー項目',
   'pages.account.center.designLanguage': 'デザイン言語',
   'pages.account.center.antGroup': 'Ant Group',
+  'pages.account.center.loadError': '読み込みに失敗しました',
   // Account Settings
   'pages.account.settings.base': '基本設定',
   'pages.account.settings.security': 'セキュリティ設定',
@@ -587,7 +590,9 @@ export default {
     '基本情報が更新されました',
   'pages.account.settings.base.avatar': 'アバター',
   'pages.account.settings.base.changeAvatar': 'アバターを変更',
-  'pages.account.settings.base.avatarSizeError': '画像サイズが2MBを超えています！',
+  'pages.account.settings.base.avatarSizeError':
+    '画像サイズが{size}MBを超えています！',
+  'pages.account.settings.base.avatarTypeOnly': '画像ファイルのみアップロードできます！',
   'pages.account.settings.base.uploadFailed': 'アバターのアップロードに失敗しました',
   // Account Settings - Security
   'pages.account.settings.security.password': 'アカウントパスワード',

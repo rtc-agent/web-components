@@ -10,8 +10,8 @@ import {
 } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
 import { useIntl } from '@umijs/max';
-import { Button, Input, message, Upload } from 'antd';
-import React, { useState } from 'react';
+import { Button, Input, message, Skeleton, Upload } from 'antd';
+import React, { useEffect, useRef, useState } from 'react';
 import { getCityOptions, provinceOptions } from '@/utils/chinaDivision';
 import type { GeographicItemType } from '../data';
 import { queryCity, queryCurrent, queryProvince } from '../service';
@@ -68,15 +68,32 @@ const toSelectOptions = (items: GeographicItemType[]) =>
     .filter((item): item is { label: string; value: string } => Boolean(item));
 
 /** 头像上传前校验文件类型和大小 */
-const beforeAvatarUpload = (file: File, maxSizeMB: number) => {
+const beforeAvatarUpload = (
+  file: File,
+  maxSizeMB: number,
+  intl: ReturnType<typeof useIntl>,
+) => {
   const isImage = file.type.startsWith('image/');
   if (!isImage) {
-    message.error('Only image files are allowed!');
+    message.error(
+      intl.formatMessage({
+        id: 'pages.account.settings.base.avatarTypeOnly',
+        defaultMessage: '只能上传图片文件!',
+      }),
+    );
     return false;
   }
   const isLt2M = file.size / 1024 / 1024 < maxSizeMB;
   if (!isLt2M) {
-    message.error(`File size exceeds ${maxSizeMB}MB!`);
+    message.error(
+      intl.formatMessage(
+        {
+          id: 'pages.account.settings.base.avatarSizeError',
+          defaultMessage: '图片大小超过 {size}MB!',
+        },
+        { size: maxSizeMB },
+      ),
+    );
     return false;
   }
   return true;
@@ -128,7 +145,9 @@ const BaseView: React.FC = () => {
 
   return (
     <div className={styles.baseView}>
-      {loading ? null : (
+      {loading ? (
+        <Skeleton active paragraph={{ rows: 8 }} />
+      ) : (
         <>
           <div className={styles.left}>
             <ProForm
@@ -377,6 +396,16 @@ const AvatarView = ({
   intl: ReturnType<typeof useIntl>;
 }) => {
   const { styles } = useStyles();
+  // 追踪上一次创建的 Object URL，避免内存泄漏
+  const objectUrlRef = useRef<string>('');
+
+  useEffect(() => {
+    return () => {
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+      }
+    };
+  }, []);
 
   return (
     <>
@@ -392,10 +421,14 @@ const AvatarView = ({
       <Upload
         showUploadList={false}
         accept="image/*"
-        beforeUpload={(file) => beforeAvatarUpload(file, 2)}
+        beforeUpload={(file) => beforeAvatarUpload(file, 2, intl)}
         customRequest={({ file }) => {
-          // 本地预览：将上传文件转为 Object URL 用于即时显示
+          // 释放旧的 Object URL，再创建新的用于即时预览
+          if (objectUrlRef.current) {
+            URL.revokeObjectURL(objectUrlRef.current);
+          }
           const url = URL.createObjectURL(file as File);
+          objectUrlRef.current = url;
           onAvatarChange(url);
         }}
         onChange={(info) => {

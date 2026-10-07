@@ -26,8 +26,8 @@ let isMounting = false;
 
 // RTC Agent Server URL
 // 使用 process.env（构建时替换）而不是 window.env（运行时变量）
-// 如果未配置，使用当前页面 origin（开发环境走 proxy，生产环境同源）
-const RTC_AGENT_URL = process.env.RTC_AGENT_URL || window.location.origin;
+// 如果未配置，不传 server.url，让组件使用内置默认值（VITE_SERVER_URL 或 http://localhost:28080）
+const RTC_AGENT_URL = process.env.RTC_AGENT_URL;
 
 function loadRtcAgentComponent() {
   if (!importPromise) {
@@ -136,7 +136,9 @@ export function mountRtcAgent(userPermissions: Permission[] = []) {
         const agent = createRtcAgent({
           appLabel: 'RTC Agent',
           theme: 'system', // 主题模式：跟随系统
-          server: { url: RTC_AGENT_URL },
+          // 只有在明确配置了 RTC_AGENT_URL 时才传 server.url
+          // 否则让组件使用内置默认值（VITE_SERVER_URL 或 http://localhost:28080）
+          ...(RTC_AGENT_URL && { server: { url: RTC_AGENT_URL } }),
           auth: createAdminAuthProvider(),
           workerURL: '/rtc-agent/shared-worker.js',
           databaseName: 'admin-ui',

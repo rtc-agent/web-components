@@ -549,8 +549,11 @@ export default {
   'pages.account.center.download': 'Download',
   'pages.account.center.edit': 'Edit',
   'pages.account.center.share': 'Share',
+  'pages.account.center.dropdownFirst': 'اولین آیتم منو',
+  'pages.account.center.dropdownSecond': 'دومین آیتم منو',
   'pages.account.center.designLanguage': 'Design Language',
   'pages.account.center.antGroup': 'Ant Group',
+  'pages.account.center.loadError': 'خطا در بارگذاری',
   // Account Settings
   'pages.account.settings.base': 'Basic Settings',
   'pages.account.settings.security': 'Security Settings',
@@ -586,7 +589,9 @@ export default {
     'Basic info updated successfully',
   'pages.account.settings.base.avatar': 'Avatar',
   'pages.account.settings.base.changeAvatar': 'Change Avatar',
-  'pages.account.settings.base.avatarSizeError': 'Image size exceeds 2MB!',
+  'pages.account.settings.base.avatarSizeError':
+    'حجم تصویر از {size}MB بیشتر است!',
+  'pages.account.settings.base.avatarTypeOnly': 'فقط فایل‌های تصویری مجاز هستند!',
   'pages.account.settings.base.uploadFailed': 'Avatar upload failed',
   // Account Settings - Security
   'pages.account.settings.security.password': 'Account Password',

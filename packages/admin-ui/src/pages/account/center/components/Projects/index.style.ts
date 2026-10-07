@@ -37,9 +37,6 @@ const useStyles = createStyles(({ token }) => {
     avatarList: {
       flex: '0 1 auto',
     },
-    cardList: {
-      marginTop: '24px',
-    },
     coverCardList: {
       '.ant-list .ant-list-item-content-single': { maxWidth: '100%' },
     },

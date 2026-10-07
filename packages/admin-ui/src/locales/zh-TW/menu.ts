@@ -24,8 +24,6 @@ export default {
   'menu.dashboard.grafana.health-watchdog': '健康看門狗',
   'menu.dashboard.jaeger': '分佈式追蹤',
   'menu.dashboard.pyroscope': '性能分析',
-  'menu.dashboard.monitor': '監控頁',
-  'menu.dashboard.workplace': '工作臺',
   'menu.exception.403': '403',
   'menu.exception.404': '404',
   'menu.exception.500': '500',

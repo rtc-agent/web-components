@@ -24,8 +24,6 @@ export default {
   'menu.dashboard.grafana.health-watchdog': 'Monitor de Saúde',
   'menu.dashboard.jaeger': 'Rastreamento Distribuído',
   'menu.dashboard.pyroscope': 'Perfil de Desempenho',
-  'menu.dashboard.monitor': 'Monitor',
-  'menu.dashboard.workplace': 'Ambiente de Trabalho',
   'menu.exception.403': '403',
   'menu.exception.404': '404',
   'menu.exception.500': '500',

@@ -6,39 +6,18 @@ import {
   ProFormSelect,
   ProTable,
 } from '@ant-design/pro-components';
-import { Access, useAccess } from '@umijs/max';
+import { Access, useAccess, useIntl } from '@umijs/max';
 import { Button, message, Popconfirm, Space, Tag } from 'antd';
 import React, { useRef } from 'react';
+import { getActionTypes, getResourceTypes } from '@/constants/permissions';
+import { useRoleOptions } from '@/hooks/useRoleOptions';
 import {
   createPermission,
   deletePermission,
   getPermissionList,
 } from '@/services/permission';
-import { getRoleList } from '@/services/role';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import type { PermissionFormValues, PermissionTableItem } from './data.d';
-
-/** 资源类型定义 */
-const RESOURCE_TYPES = [
-  { label: '管理员管理', value: 'admin_user' },
-  { label: '管理员角色管理', value: 'role' },
-  { label: '权限管理', value: 'permission' },
-  { label: '管理员角色关联', value: 'admin_user_role' },
-  { label: '审计日志', value: 'audit_log' },
-  { label: 'RTC 用户管理', value: 'rtc_user' },
-  { label: 'RTC 会话管理', value: 'rtc_session' },
-  { label: 'RTC 消息管理', value: 'rtc_message' },
-  { label: '系统配置', value: 'server_config' },
-  { label: '数据看板', value: 'dashboard' },
-];
-
-/** 操作类型定义 */
-const ACTION_TYPES = [
-  { label: '查看', value: 'read' },
-  { label: '编辑', value: 'write' },
-  { label: '删除', value: 'delete' },
-  { label: '封禁', value: 'ban' },
-];
 
 /**
  * 权限管理页面
@@ -46,41 +25,20 @@ const ACTION_TYPES = [
 const PermissionListPage: React.FC = () => {
   const actionRef = useRef<ActionType>(null);
   const access = useAccess();
+  const intl = useIntl();
   const [modalVisible, setModalVisible] = React.useState(false);
-  const [roleMap, setRoleMap] = React.useState<Map<string, string>>(new Map());
-  const [roleOptions, setRoleOptions] = React.useState<
-    Array<{ label: string; value: string }>
-  >([]);
+  const { roleMap, roleOptions } = useRoleOptions();
 
-  // 加载管理员角色列表，用于映射 role_id 到显示名称
-  React.useEffect(() => {
-    const loadRoles = async () => {
-      try {
-        // 注意：最多加载 1000 个管理员角色，超过部分会显示 role_id
-        const response = await getRoleList({ page: 1, page_size: 1000 });
-        const map = new Map<string, string>();
-        const options: Array<{ label: string; value: string }> = [];
-        response.items.forEach((role) => {
-          const displayName = role.display_name || role.name;
-          map.set(role.id, displayName);
-          options.push({
-            label: `${role.display_name} (${role.name})`,
-            value: role.id,
-          });
-        });
-        setRoleMap(map);
-        setRoleOptions(options);
-      } catch (_error) {
-        // 忽略错误，管理员角色名称会显示为 role_id
-      }
-    };
-    loadRoles();
-  }, []);
+  const RESOURCE_TYPES = getResourceTypes(intl);
+  const ACTION_TYPES = getActionTypes(intl);
 
   /** 表格列定义 */
   const columns: ProColumns<PermissionTableItem>[] = [
     {
-      title: '管理员角色',
+      title: intl.formatMessage({
+        id: 'pages.permissions.column.role',
+        defaultMessage: '管理员角色',
+      }),
       dataIndex: 'role_id',
       valueType: 'text',
       search: false,
@@ -89,7 +47,10 @@ const PermissionListPage: React.FC = () => {
       ),
     },
     {
-      title: '资源',
+      title: intl.formatMessage({
+        id: 'pages.permissions.column.resource',
+        defaultMessage: '资源',
+      }),
       dataIndex: 'resource',
       valueType: 'select',
       valueEnum: RESOURCE_TYPES.reduce(
@@ -107,7 +68,10 @@ const PermissionListPage: React.FC = () => {
       },
     },
     {
-      title: '操作',
+      title: intl.formatMessage({
+        id: 'pages.permissions.column.action',
+        defaultMessage: '操作',
+      }),
       dataIndex: 'action',
       valueType: 'select',
       valueEnum: ACTION_TYPES.reduce(
@@ -123,15 +87,24 @@ const PermissionListPage: React.FC = () => {
       },
     },
     {
-      title: '操作',
+      title: intl.formatMessage({
+        id: 'pages.permissions.column.actions',
+        defaultMessage: '操作',
+      }),
       dataIndex: 'option',
       valueType: 'option',
       render: (_, record) => (
         <Space>
           <Access accessible={access.canPermissionEdit} fallback={null}>
             <Popconfirm
-              title="确定要删除这个权限策略吗？"
-              description="删除后该管理员角色将失去对应权限"
+              title={intl.formatMessage({
+                id: 'pages.permissions.confirmDelete',
+                defaultMessage: '确定要删除这个权限策略吗？',
+              })}
+              description={intl.formatMessage({
+                id: 'pages.permissions.confirmDeleteDesc',
+                defaultMessage: '删除后该管理员角色将失去对应权限',
+              })}
               onConfirm={async () => {
                 try {
                   await deletePermission({
@@ -139,17 +112,39 @@ const PermissionListPage: React.FC = () => {
                     resource: record.resource,
                     action: record.action,
                   });
-                  message.success('删除成功');
+                  message.success(
+                    intl.formatMessage({
+                      id: 'pages.permissions.deleteSuccess',
+                      defaultMessage: '删除成功',
+                    }),
+                  );
                   actionRef.current?.reload();
-                } catch (error: any) {
-                  message.error(getFriendlyErrorMessage(error, '删除失败'));
+                } catch (error: unknown) {
+                  message.error(
+                    getFriendlyErrorMessage(
+                      error,
+                      intl.formatMessage({
+                        id: 'pages.permissions.deleteFailed',
+                        defaultMessage: '删除失败',
+                      }),
+                    ),
+                  );
                 }
               }}
-              okText="确定"
-              cancelText="取消"
+              okText={intl.formatMessage({
+                id: 'pages.permissions.confirm',
+                defaultMessage: '确定',
+              })}
+              cancelText={intl.formatMessage({
+                id: 'pages.permissions.cancel',
+                defaultMessage: '取消',
+              })}
             >
               <Button type="link" danger size="small" icon={<DeleteOutlined />}>
-                删除
+                {intl.formatMessage({
+                  id: 'pages.permissions.delete',
+                  defaultMessage: '删除',
+                })}
               </Button>
             </Popconfirm>
           </Access>
@@ -162,12 +157,25 @@ const PermissionListPage: React.FC = () => {
   const handleSubmit = async (values: PermissionFormValues) => {
     try {
       await createPermission(values);
-      message.success('创建成功');
+      message.success(
+        intl.formatMessage({
+          id: 'pages.permissions.createSuccess',
+          defaultMessage: '创建成功',
+        }),
+      );
       actionRef.current?.reload();
       setModalVisible(false);
       return true;
-    } catch (error: any) {
-      message.error(getFriendlyErrorMessage(error, '创建失败'));
+    } catch (error: unknown) {
+      message.error(
+        getFriendlyErrorMessage(
+          error,
+          intl.formatMessage({
+            id: 'pages.permissions.createFailed',
+            defaultMessage: '创建失败',
+          }),
+        ),
+      );
       return false;
     }
   };
@@ -175,7 +183,10 @@ const PermissionListPage: React.FC = () => {
   return (
     <PageContainer>
       <ProTable<PermissionTableItem>
-        headerTitle="权限策略列表"
+        headerTitle={intl.formatMessage({
+          id: 'pages.permissions.headerTitle',
+          defaultMessage: '权限策略列表',
+        })}
         actionRef={actionRef}
         rowKey={(record) =>
           `${record.role_id}-${record.resource}-${record.action}`
@@ -196,7 +207,10 @@ const PermissionListPage: React.FC = () => {
                 setModalVisible(true);
               }}
             >
-              新建权限策略
+              {intl.formatMessage({
+                id: 'pages.permissions.createPermission',
+                defaultMessage: '新建权限策略',
+              })}
             </Button>
           </Access>,
         ]}
@@ -216,8 +230,16 @@ const PermissionListPage: React.FC = () => {
               total: response.total,
               success: true,
             };
-          } catch (error: any) {
-            message.error(error?.message || '加载权限列表失败');
+          } catch (error: unknown) {
+            message.error(
+              getFriendlyErrorMessage(
+                error,
+                intl.formatMessage({
+                  id: 'pages.permissions.loadFailed',
+                  defaultMessage: '加载权限列表失败',
+                }),
+              ),
+            );
             return {
               data: [],
               total: 0,
@@ -229,7 +251,10 @@ const PermissionListPage: React.FC = () => {
       />
 
       <ModalForm<PermissionFormValues>
-        title="新建权限策略"
+        title={intl.formatMessage({
+          id: 'pages.permissions.createPermission',
+          defaultMessage: '新建权限策略',
+        })}
         open={modalVisible}
         onOpenChange={setModalVisible}
         modalProps={{
@@ -239,23 +264,65 @@ const PermissionListPage: React.FC = () => {
       >
         <ProFormSelect
           name="role_id"
-          label="管理员角色"
-          placeholder="请选择管理员角色"
-          rules={[{ required: true, message: '请选择管理员角色' }]}
+          label={intl.formatMessage({
+            id: 'pages.permissions.roleLabel',
+            defaultMessage: '管理员角色',
+          })}
+          placeholder={intl.formatMessage({
+            id: 'pages.permissions.rolePlaceholder',
+            defaultMessage: '请选择管理员角色',
+          })}
+          rules={[
+            {
+              required: true,
+              message: intl.formatMessage({
+                id: 'pages.permissions.roleRequired',
+                defaultMessage: '请选择管理员角色',
+              }),
+            },
+          ]}
           options={roleOptions}
         />
         <ProFormSelect
           name="resource"
-          label="资源"
-          placeholder="请选择资源类型"
-          rules={[{ required: true, message: '请选择资源类型' }]}
+          label={intl.formatMessage({
+            id: 'pages.permissions.resourceLabel',
+            defaultMessage: '资源',
+          })}
+          placeholder={intl.formatMessage({
+            id: 'pages.permissions.resourcePlaceholder',
+            defaultMessage: '请选择资源类型',
+          })}
+          rules={[
+            {
+              required: true,
+              message: intl.formatMessage({
+                id: 'pages.permissions.resourceRequired',
+                defaultMessage: '请选择资源类型',
+              }),
+            },
+          ]}
           options={RESOURCE_TYPES}
         />
         <ProFormSelect
           name="action"
-          label="操作"
-          placeholder="请选择操作类型"
-          rules={[{ required: true, message: '请选择操作类型' }]}
+          label={intl.formatMessage({
+            id: 'pages.permissions.actionLabel',
+            defaultMessage: '操作',
+          })}
+          placeholder={intl.formatMessage({
+            id: 'pages.permissions.actionPlaceholder',
+            defaultMessage: '请选择操作类型',
+          })}
+          rules={[
+            {
+              required: true,
+              message: intl.formatMessage({
+                id: 'pages.permissions.actionRequired',
+                defaultMessage: '请选择操作类型',
+              }),
+            },
+          ]}
           options={ACTION_TYPES}
         />
       </ModalForm>

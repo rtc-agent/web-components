@@ -18,11 +18,13 @@ import React, { startTransition, useEffect, useState } from 'react';
 import { Footer } from '@/components';
 import {
   getLoginConfig,
+  type LoginResult,
   login,
   loginWithOTP,
   sendEmailOTP,
 } from '@/services/admin-auth';
 import { setTokens, setUserInfo } from '@/utils/auth-storage';
+import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import Settings from '../../../../config/defaultSettings';
 
 /**
@@ -61,6 +63,8 @@ const useStyles = createStyles(({ token }) => {
       flexDirection: 'column',
       height: '100vh',
       overflow: 'auto',
+      // 背景图 + 主题色兜底，保证暗色模式下仍有合适背景
+      backgroundColor: token.colorBgLayout,
       backgroundImage:
         "url('https://mdn.alipayobjects.com/yuyan_qk0oxh/afts/img/V-_oS6r-i7wAAAAAAAAAAAAAFl94AQBr')",
       backgroundSize: '100% 100%',
@@ -93,6 +97,48 @@ const LoginMessage: React.FC<{
   );
 };
 
+/** 登录表单字段类型 */
+type LoginValues = {
+  email: string;
+  password?: string;
+  otp?: string;
+};
+
+/**
+ * 登录成功后的统一处理：保存凭证、提示、拉取用户信息并跳转。
+ * 抽离此函数避免 handlePasswordLogin / handleOTPLogin 重复逻辑。
+ */
+const handleLoginSuccess = async (
+  result: LoginResult,
+  handlers: {
+    setTokensFn: typeof setTokens;
+    setUserInfoFn: typeof setUserInfo;
+    fetchUserInfo: () => Promise<void>;
+    messageSuccess: (msg: string) => void;
+    successText: string;
+  },
+): Promise<boolean> => {
+  if (!result.access_token || !result.refresh_token) return false;
+
+  handlers.setTokensFn(
+    result.access_token,
+    result.refresh_token,
+    result.expires_in || 3600,
+  );
+  handlers.setUserInfoFn(result.user);
+  handlers.messageSuccess(handlers.successText);
+  try {
+    await handlers.fetchUserInfo();
+  } catch {
+    // fetchUserInfo 失败不影响登录流程，后续页面加载会重试
+  }
+
+  const urlParams = new URL(window.location.href).searchParams;
+  const redirectUrl = getSafeRedirectUrl(urlParams.get('redirect'));
+  window.location.href = redirectUrl;
+  return true;
+};
+
 const Login: React.FC = () => {
   const [userLoginState, setUserLoginState] = useState<{
     status?: string;
@@ -103,12 +149,15 @@ const Login: React.FC = () => {
     password_enabled: boolean;
     otp_enabled: boolean;
   } | null>(null);
+  // 提交中状态，用于禁用按钮并展示 loading
+  const [submitting, setSubmitting] = useState(false);
   const { initialState, setInitialState } = useModel('@@initialState');
   const { styles } = useStyles();
   const { message } = App.useApp();
   const intl = useIntl();
 
-  // Fetch login config on mount
+  // 获取登录配置；失败时回退到「密码 + 验证码都启用」的默认值，
+  // 保证登录页在配置接口异常时仍可正常使用。
   useEffect(() => {
     getLoginConfig()
       .then((config) => {
@@ -121,7 +170,13 @@ const Login: React.FC = () => {
         }
       })
       .catch(() => {
-        // If config fetch fails, default to password login
+        // 配置获取失败：默认启用密码与验证码登录，避免因接口异常阻塞用户
+        message.warning(
+          intl.formatMessage({
+            id: 'pages.login.configLoadFailed',
+            defaultMessage: '登录配置加载失败，使用默认设置',
+          }),
+        );
         setLoginConfig({ password_enabled: true, otp_enabled: true });
       });
   }, []);
@@ -138,6 +193,7 @@ const Login: React.FC = () => {
     }
   };
 
+  /** 密码登录 */
   const handlePasswordLogin = async (values: {
     email: string;
     password: string;
@@ -148,27 +204,19 @@ const Login: React.FC = () => {
         password: values.password,
       });
 
-      if (result.access_token && result.refresh_token) {
-        setTokens(
-          result.access_token,
-          result.refresh_token,
-          result.expires_in || 3600,
-        );
-        setUserInfo(result.user);
+      const successText = intl.formatMessage({
+        id: 'pages.login.success',
+        defaultMessage: '登录成功！',
+      });
 
-        const defaultLoginSuccessMessage = intl.formatMessage({
-          id: 'pages.login.success',
-          defaultMessage: '登录成功！',
-        });
-        message.success(defaultLoginSuccessMessage);
-
-        await fetchUserInfo();
-
-        const urlParams = new URL(window.location.href).searchParams;
-        const redirectUrl = getSafeRedirectUrl(urlParams.get('redirect'));
-        window.location.href = redirectUrl;
-        return;
-      }
+      const handled = await handleLoginSuccess(result, {
+        setTokensFn: setTokens,
+        setUserInfoFn: setUserInfo,
+        fetchUserInfo,
+        messageSuccess: message.success,
+        successText,
+      });
+      if (handled) return;
 
       setUserLoginState({
         status: 'error',
@@ -177,13 +225,14 @@ const Login: React.FC = () => {
           defaultMessage: '登录失败，请重试',
         }),
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       const defaultLoginFailureMessage = intl.formatMessage({
         id: 'pages.login.failure',
         defaultMessage: '登录失败，请重试！',
       });
 
-      if (error.response?.status === 401) {
+      const err = error as { response?: { status?: number } };
+      if (err.response?.status === 401) {
         setUserLoginState({
           status: 'error',
           message: intl.formatMessage({
@@ -192,7 +241,9 @@ const Login: React.FC = () => {
           }),
         });
       } else {
-        message.error(defaultLoginFailureMessage);
+        message.error(
+          getFriendlyErrorMessage(error, defaultLoginFailureMessage),
+        );
         setUserLoginState({
           status: 'error',
           message: defaultLoginFailureMessage,
@@ -201,6 +252,7 @@ const Login: React.FC = () => {
     }
   };
 
+  /** 邮箱验证码登录 */
   const handleOTPLogin = async (values: { email: string; otp: string }) => {
     try {
       const result = await loginWithOTP({
@@ -208,27 +260,19 @@ const Login: React.FC = () => {
         otp: values.otp,
       });
 
-      if (result.access_token && result.refresh_token) {
-        setTokens(
-          result.access_token,
-          result.refresh_token,
-          result.expires_in || 3600,
-        );
-        setUserInfo(result.user);
+      const successText = intl.formatMessage({
+        id: 'pages.login.success',
+        defaultMessage: '登录成功！',
+      });
 
-        const defaultLoginSuccessMessage = intl.formatMessage({
-          id: 'pages.login.success',
-          defaultMessage: '登录成功！',
-        });
-        message.success(defaultLoginSuccessMessage);
-
-        await fetchUserInfo();
-
-        const urlParams = new URL(window.location.href).searchParams;
-        const redirectUrl = getSafeRedirectUrl(urlParams.get('redirect'));
-        window.location.href = redirectUrl;
-        return;
-      }
+      const handled = await handleLoginSuccess(result, {
+        setTokensFn: setTokens,
+        setUserInfoFn: setUserInfo,
+        fetchUserInfo,
+        messageSuccess: message.success,
+        successText,
+      });
+      if (handled) return;
 
       setUserLoginState({
         status: 'error',
@@ -237,13 +281,16 @@ const Login: React.FC = () => {
           defaultMessage: '登录失败，请重试',
         }),
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       const defaultLoginFailureMessage = intl.formatMessage({
         id: 'pages.login.failure',
         defaultMessage: '登录失败，请重试！',
       });
 
-      const errorCode = error?.response?.data?.errorCode;
+      const err = error as {
+        response?: { data?: { errorCode?: string } };
+      };
+      const errorCode = err?.response?.data?.errorCode;
       if (errorCode === 'invalid_otp') {
         setUserLoginState({
           status: 'error',
@@ -261,7 +308,9 @@ const Login: React.FC = () => {
           }),
         });
       } else {
-        message.error(defaultLoginFailureMessage);
+        message.error(
+          getFriendlyErrorMessage(error, defaultLoginFailureMessage),
+        );
         setUserLoginState({
           status: 'error',
           message: defaultLoginFailureMessage,
@@ -270,7 +319,56 @@ const Login: React.FC = () => {
     }
   };
 
+  /** 表单提交统一入口，管理 submitting 状态 */
+  const handleSubmit = async (values: LoginValues) => {
+    setSubmitting(true);
+    try {
+      if (type === 'email-otp') {
+        await handleOTPLogin(values as { email: string; otp: string });
+      } else {
+        await handlePasswordLogin(
+          values as { email: string; password: string },
+        );
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const { status } = userLoginState;
+
+  // 邮箱输入框共享配置（账户登录 & 验证码登录复用）
+  const emailFieldConfig = {
+    name: 'email' as const,
+    fieldProps: {
+      size: 'large' as const,
+      prefix: type === 'email-otp' ? <MailOutlined /> : <UserOutlined />,
+    },
+    placeholder: intl.formatMessage({
+      id: 'pages.login.email.placeholder',
+      defaultMessage: '邮箱',
+    }),
+    rules: [
+      {
+        required: true,
+        message: (
+          <FormattedMessage
+            id="pages.login.email.required"
+            defaultMessage="请输入邮箱!"
+          />
+        ),
+      },
+      {
+        type: 'email' as const,
+        message: (
+          <FormattedMessage
+            id="pages.login.email.invalid"
+            defaultMessage="邮箱格式不正确!"
+          />
+        ),
+      },
+    ],
+  };
 
   return (
     <div className={styles.container}>
@@ -295,23 +393,30 @@ const Login: React.FC = () => {
             minWidth: 280,
             maxWidth: '75vw',
           }}
-          logo={<img alt="logo" src="/logo.svg" />}
-          title="RTC Agent"
+          logo={
+            <img
+              alt={intl.formatMessage({
+                id: 'pages.login.logoAlt',
+                defaultMessage: '登录页 Logo',
+              })}
+              src="/logo.svg"
+            />
+          }
+          title={Settings.title || 'RTC Agent'}
           subTitle={intl.formatMessage({
             id: 'pages.layouts.userLayout.title',
+            defaultMessage: 'Ant Design 是西湖区最具影响力的 Web 设计规范',
           })}
           initialValues={{
             autoLogin: true,
           }}
-          onFinish={async (values) => {
-            if (type === 'email-otp') {
-              await handleOTPLogin(values as { email: string; otp: string });
-            } else {
-              await handlePasswordLogin(
-                values as { email: string; password: string },
-              );
-            }
+          submitter={{
+            submitButtonProps: {
+              loading: submitting,
+              disabled: submitting,
+            },
           }}
+          onFinish={handleSubmit}
         >
           <Tabs
             activeKey={type}
@@ -357,37 +462,7 @@ const Login: React.FC = () => {
 
           {type === 'account' && (
             <>
-              <ProFormText
-                name="email"
-                fieldProps={{
-                  size: 'large',
-                  prefix: <UserOutlined />,
-                }}
-                placeholder={intl.formatMessage({
-                  id: 'pages.login.email.placeholder',
-                  defaultMessage: '邮箱',
-                })}
-                rules={[
-                  {
-                    required: true,
-                    message: (
-                      <FormattedMessage
-                        id="pages.login.email.required"
-                        defaultMessage="请输入邮箱!"
-                      />
-                    ),
-                  },
-                  {
-                    type: 'email',
-                    message: (
-                      <FormattedMessage
-                        id="pages.login.email.invalid"
-                        defaultMessage="邮箱格式不正确!"
-                      />
-                    ),
-                  },
-                ]}
-              />
+              <ProFormText {...emailFieldConfig} />
               <ProFormText.Password
                 name="password"
                 fieldProps={{
@@ -415,36 +490,12 @@ const Login: React.FC = () => {
 
           {type === 'email-otp' && (
             <>
+              {/* 邮箱字段复用共享配置，仅覆盖前缀图标 */}
               <ProFormText
-                name="email"
-                fieldProps={{
-                  size: 'large',
-                  prefix: <MailOutlined />,
-                }}
-                placeholder={intl.formatMessage({
-                  id: 'pages.login.email.placeholder',
-                  defaultMessage: '邮箱',
-                })}
-                rules={[
-                  {
-                    required: true,
-                    message: (
-                      <FormattedMessage
-                        id="pages.login.email.required"
-                        defaultMessage="请输入邮箱!"
-                      />
-                    ),
-                  },
-                  {
-                    type: 'email',
-                    message: (
-                      <FormattedMessage
-                        id="pages.login.email.invalid"
-                        defaultMessage="邮箱格式不正确!"
-                      />
-                    ),
-                  },
-                ]}
+                name={emailFieldConfig.name}
+                fieldProps={emailFieldConfig.fieldProps}
+                placeholder={emailFieldConfig.placeholder}
+                rules={emailFieldConfig.rules}
               />
               <ProFormCaptcha
                 fieldProps={{
@@ -503,8 +554,11 @@ const Login: React.FC = () => {
                         defaultMessage: '验证码已发送，请查收邮箱',
                       }),
                     );
-                  } catch (error: any) {
-                    const errorCode = error?.response?.data?.errorCode;
+                  } catch (error: unknown) {
+                    const err = error as {
+                      response?: { data?: { errorCode?: string } };
+                    };
+                    const errorCode = err?.response?.data?.errorCode;
                     if (errorCode === 'rate_limited') {
                       message.warning(
                         intl.formatMessage({
@@ -514,12 +568,16 @@ const Login: React.FC = () => {
                       );
                     } else {
                       message.error(
-                        intl.formatMessage({
-                          id: 'pages.login.captcha.sendFailed',
-                          defaultMessage: '发送验证码失败，请稍后重试',
-                        }),
+                        getFriendlyErrorMessage(
+                          error,
+                          intl.formatMessage({
+                            id: 'pages.login.captcha.sendFailed',
+                            defaultMessage: '发送验证码失败，请稍后重试',
+                          }),
+                        ),
                       );
                     }
+                    // 抛出错误以触发 ProFormCaptcha 内部重置倒计时
                     throw error;
                   }
                 }}

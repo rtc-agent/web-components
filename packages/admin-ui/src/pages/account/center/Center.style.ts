@@ -57,7 +57,7 @@ const useStyles = createStyles(({ token }) => {
         whiteSpace: 'nowrap',
         textOverflow: 'ellipsis',
         wordBreak: 'break-all',
-        transition: 'color 0.3s',
+        transition: `color ${token.motionDurationMid}`,
         '&:hover': {
           color: token.colorPrimary,
         },

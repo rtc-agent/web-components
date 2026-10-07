@@ -57,6 +57,9 @@ vi.mock('@ant-design/pro-components', async () => {
 vi.mock('antd', () => ({
   Button: ({ children }: any) => <button type="button">{children}</button>,
   Input: (props: any) => <input {...props} />,
+  Skeleton: ({ active, paragraph }: any) => (
+    <div data-testid="skeleton">{active && paragraph?.rows}</div>
+  ),
   Upload: ({ children }: any) => <div>{children}</div>,
   message: {
     success: vi.fn(),
@@ -65,6 +68,13 @@ vi.mock('antd', () => ({
 
 vi.mock('@ant-design/icons', () => ({
   UploadOutlined: () => <span />,
+}));
+
+vi.mock('@umijs/max', () => ({
+  useIntl: () => ({
+    formatMessage: ({ defaultMessage }: { defaultMessage: string }) =>
+      defaultMessage,
+  }),
 }));
 
 vi.mock('./index.style', () => ({

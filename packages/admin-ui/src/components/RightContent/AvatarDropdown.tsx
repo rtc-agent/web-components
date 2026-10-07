@@ -6,9 +6,11 @@ import {
 import { history, useModel } from '@umijs/max';
 import type { MenuProps } from 'antd';
 import { Spin } from 'antd';
-import React, { startTransition } from 'react';
+import React, { startTransition, useState } from 'react';
+import ProfileSettingsModal from '../ProfileSettingsModal';
 import { logout as apiLogout } from '@/services/admin-auth';
 import { clearAuth, getRefreshToken } from '@/utils/auth-storage';
+import { iframeCacheManager } from '@/utils/iframe-cache';
 import { unmountRtcAgent } from '@/utils/rtc-agent-manager';
 import HeaderDropdown from '../HeaderDropdown';
 
@@ -51,6 +53,9 @@ const loginOut = async () => {
   // 清除本地存储
   clearAuth();
 
+  // 清除所有 iframe 缓存，避免登出后残留敏感页面（安全清理）
+  iframeCacheManager.clear();
+
   // 销毁全局 RTC Agent 实例
   // 使用 rtc-agent-manager 确保状态一致
   unmountRtcAgent();
@@ -73,6 +78,7 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({
   children,
 }) => {
   const { initialState, setInitialState } = useModel('@@initialState');
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
 
   const onMenuClick: MenuProps['onClick'] = (event) => {
     const { key } = event;
@@ -85,6 +91,10 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({
     }
     if (key === 'theme') {
       setInitialState((s) => ({ ...s, settingDrawerOpen: true }));
+      return;
+    }
+    if (key === 'settings') {
+      setProfileModalOpen(true);
       return;
     }
     history.push(`/account/${key}`);
@@ -101,16 +111,32 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({
   }
 
   return (
-    <HeaderDropdown
-      placement="bottomRight"
-      menu={{
-        selectedKeys: [],
-        onClick: onMenuClick,
-        items: menuItems,
-      }}
-      arrow
-    >
-      {children}
-    </HeaderDropdown>
+    <>
+      <HeaderDropdown
+        placement="bottomRight"
+        menu={{
+          selectedKeys: [],
+          onClick: onMenuClick,
+          items: menuItems,
+        }}
+        arrow
+      >
+        {children}
+      </HeaderDropdown>
+
+      <ProfileSettingsModal
+        open={profileModalOpen}
+        onClose={() => setProfileModalOpen(false)}
+        onSuccess={() => {
+          setProfileModalOpen(false);
+          // 刷新全局用户状态
+          window.location.reload();
+        }}
+        initialValues={{
+          name: currentUser?.name,
+          email: currentUser?.email,
+        }}
+      />
+    </>
   );
 };
