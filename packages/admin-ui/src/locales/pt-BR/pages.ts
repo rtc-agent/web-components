@@ -1,6 +1,6 @@
 export default {
   'pages.layouts.userLayout.title':
-    'Ant Design é a especificação de web design mais influente no distrito de Xihu',
+    'RTC Agent é o seu assistente de operações de IA definitivo',
   'pages.login.accountLogin.tab': 'Login da conta',
   'pages.login.accountLogin.errorMessage':
     'usuário/senha incorreto(admin/ant.design)',

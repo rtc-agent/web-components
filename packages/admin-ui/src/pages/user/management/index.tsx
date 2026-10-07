@@ -1,9 +1,10 @@
-import { PlusOutlined, TeamOutlined } from '@ant-design/icons';
+import { EditOutlined, PlusOutlined, TeamOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import {
   ModalForm,
   PageContainer,
   ProFormSelect,
+  ProFormText,
   ProTable,
 } from '@ant-design/pro-components';
 import { Access, useAccess } from '@umijs/max';
@@ -14,9 +15,11 @@ import { getRoleList } from '@/services/role';
 import type { UserRoleAssignment } from '@/services/userRole';
 import {
   assignUserRoles,
+  createAdminUser,
   getUserList,
   getUserRoles,
   revokeUserRole,
+  updateAdminUser,
 } from '@/services/userRole';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 
@@ -30,6 +33,51 @@ const AdminUserManagementPage: React.FC = () => {
   const [roleModalVisible, setRoleModalVisible] = useState(false);
   const [userRoles, setUserRoles] = useState<UserRoleAssignment[]>([]);
   const [assignModalVisible, setAssignModalVisible] = useState(false);
+  const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+
+  /** 创建管理员 */
+  const handleCreateUser = async (values: {
+    email: string;
+    password: string;
+    name?: string;
+    role_ids?: string[];
+  }) => {
+    try {
+      await createAdminUser({
+        email: values.email,
+        password: values.password,
+        name: values.name,
+        role_ids: values.role_ids,
+      });
+      message.success('创建管理员成功');
+      setCreateModalVisible(false);
+      actionRef.current?.reload();
+      return true;
+    } catch (error: any) {
+      message.error(getFriendlyErrorMessage(error, '创建管理员失败'));
+      return false;
+    }
+  };
+
+  /** 编辑管理员 */
+  const handleUpdateUser = async (values: { name?: string; password?: string }) => {
+    if (!currentRow) return false;
+    try {
+      await updateAdminUser(currentRow.id, {
+        name: values.name,
+        password: values.password,
+      });
+      message.success('更新管理员成功');
+      setEditModalVisible(false);
+      setCurrentRow(undefined);
+      actionRef.current?.reload();
+      return true;
+    } catch (error: any) {
+      message.error(getFriendlyErrorMessage(error, '更新管理员失败'));
+      return false;
+    }
+  };
 
   /** 查看管理员角色 */
   const handleViewRoles = async (user: UserInfo) => {
@@ -114,10 +162,23 @@ const AdminUserManagementPage: React.FC = () => {
             <Button
               type="link"
               size="small"
+              icon={<EditOutlined />}
+              onClick={() => {
+                setCurrentRow(record);
+                setEditModalVisible(true);
+              }}
+            >
+              编辑
+            </Button>
+          </Access>
+          <Access accessible={access.canAdminUserEdit} fallback={null}>
+            <Button
+              type="link"
+              size="small"
               icon={<TeamOutlined />}
               onClick={() => handleViewRoles(record)}
             >
-              管理管理员角色
+              管理角色
             </Button>
           </Access>
         </Space>
@@ -134,6 +195,17 @@ const AdminUserManagementPage: React.FC = () => {
         search={{
           labelWidth: 'auto',
         }}
+        toolBarRender={() => [
+          <Access accessible={access.canAdminUserEdit} key="create">
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => setCreateModalVisible(true)}
+            >
+              创建管理员
+            </Button>
+          </Access>,
+        ]}
         request={async (params) => {
           try {
             const response = await getUserList({
@@ -261,6 +333,91 @@ const AdminUserManagementPage: React.FC = () => {
               return [];
             }
           }}
+        />
+      </ModalForm>
+
+      {/* 创建管理员对话框 */}
+      <ModalForm<{
+        email: string;
+        password: string;
+        name?: string;
+        role_ids?: string[];
+      }>
+        title="创建管理员"
+        open={createModalVisible}
+        onOpenChange={setCreateModalVisible}
+        modalProps={{
+          destroyOnClose: true,
+        }}
+        onFinish={handleCreateUser}
+      >
+        <ProFormText
+          name="email"
+          label="邮箱"
+          placeholder="请输入邮箱"
+          rules={[
+            { required: true, message: '请输入邮箱' },
+            { type: 'email', message: '请输入有效的邮箱地址' },
+          ]}
+        />
+        <ProFormText.Password
+          name="password"
+          label="密码"
+          placeholder="请输入密码（至少6位）"
+          rules={[
+            { required: true, message: '请输入密码' },
+            { min: 6, message: '密码至少6位' },
+          ]}
+        />
+        <ProFormText
+          name="name"
+          label="姓名"
+          placeholder="请输入姓名（可选）"
+        />
+        <ProFormSelect
+          name="role_ids"
+          label="角色"
+          placeholder="请选择角色（可选）"
+          mode="multiple"
+          request={async () => {
+            try {
+              const response = await getRoleList({ page: 1, page_size: 1000 });
+              return response.items.map((item) => ({
+                label: `${item.display_name} (${item.name})`,
+                value: item.id,
+              }));
+            } catch (_error) {
+              return [];
+            }
+          }}
+        />
+      </ModalForm>
+
+      {/* 编辑管理员对话框 */}
+      <ModalForm<{ name?: string; password?: string }>
+        title={`编辑管理员 - ${currentRow?.email}`}
+        open={editModalVisible}
+        onOpenChange={setEditModalVisible}
+        modalProps={{
+          destroyOnClose: true,
+        }}
+        onFinish={handleUpdateUser}
+        initialValues={{
+          name: currentRow?.name,
+        }}
+      >
+        <ProFormText
+          name="name"
+          label="姓名"
+          placeholder="请输入姓名"
+        />
+        <ProFormText.Password
+          name="password"
+          label="新密码"
+          placeholder="留空则不修改密码"
+          rules={[
+            { min: 6, message: '密码至少6位' },
+          ]}
         />
       </ModalForm>
     </PageContainer>

@@ -1,6 +1,6 @@
 export default {
   'pages.layouts.userLayout.title':
-    'طراحی مورچه تأثیرگذارترین مشخصات طراحی وب در منطقه Xihu است',
+    'RTC Agent دستیار عملیات هوش مصنوعی یکبار تنظیم و فراموش کنید',
   'pages.login.accountLogin.tab': 'ورود به حساب کاربری',
   'pages.login.accountLogin.errorMessage':
     'نام کاربری / رمزعبور نادرست (مدیر / ant.design)',

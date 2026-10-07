@@ -5,15 +5,7 @@ import { createStyles } from 'antd-style';
 import React from 'react';
 
 const getRepoUrl = () => {
-  if (!packageJson.repository)
-    return 'https://github.com/ant-design/ant-design-pro';
-  const repo =
-    typeof packageJson.repository === 'string'
-      ? packageJson.repository
-      : (packageJson.repository as { url: string }).url;
-  const match = repo.match(/github\.com[:/]([^/]+)\/([^/.]+)/);
-  if (!match) return 'https://github.com/ant-design/ant-design-pro';
-  return `https://github.com/${match[1]}/${match[2]}`;
+  return `https://github.com/rtc-agent/server.git`;
 };
 
 const REPO_URL = getRepoUrl();
@@ -69,7 +61,7 @@ const Footer: React.FC = () => {
 
   return (
     <div className={styles.footer}>
-      <div className={styles.copyright}>Ant Design Pro &copy; {year}</div>
+      <div className={styles.copyright}>RTC Agent Admin &copy; {year}</div>
       <div className={styles.meta}>
         <span className={styles.group}>
           <span className={styles.label}>ver</span>
@@ -91,30 +83,6 @@ const Footer: React.FC = () => {
               {COMMIT_HASH.slice(0, 7)}
             </a>
           )}
-        </span>
-        <Divider orientation="vertical" className={styles.divider} />
-        <span className={styles.group}>
-          <span className={styles.label}>Umi</span>
-          <a
-            className={styles.link}
-            href="https://umijs.org/"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {__UMI_VERSION__}
-          </a>
-        </span>
-        <Divider orientation="vertical" className={styles.divider} />
-        <span className={styles.group}>
-          <span className={styles.label}>Utoo</span>
-          <a
-            className={styles.link}
-            href="https://utoo.land"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {__UTOO_VERSION__}
-          </a>
         </span>
         <Divider orientation="vertical" className={styles.divider} />
         <a

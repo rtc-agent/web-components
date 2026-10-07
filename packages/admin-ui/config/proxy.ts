@@ -34,6 +34,26 @@ export default {
       target: 'http://localhost:28081',
       changeOrigin: true,
     },
+    // 管理员用户列表接口代理到 admin-server
+    '/api/admin-users': {
+      target: 'http://localhost:28081',
+      changeOrigin: true,
+    },
+    // 角色管理接口代理到 admin-server
+    '/api/roles': {
+      target: 'http://localhost:28081',
+      changeOrigin: true,
+    },
+    // 权限管理接口代理到 admin-server
+    '/api/permissions': {
+      target: 'http://localhost:28081',
+      changeOrigin: true,
+    },
+    // 审计日志接口代理到 admin-server
+    '/api/audit-logs': {
+      target: 'http://localhost:28081',
+      changeOrigin: true,
+    },
     // Prometheus 指标代理到 admin-server
     '/api/metrics': {
       target: 'http://localhost:28081',
@@ -43,16 +63,19 @@ export default {
     '/api/grafana/': {
       target: 'http://localhost:28081',
       changeOrigin: true,
+      ws: true, // WebSocket 支持
     },
     // Jaeger 分布式追踪面板代理到 admin-server
     '/api/jaeger/': {
       target: 'http://localhost:28081',
       changeOrigin: true,
+      ws: true, // WebSocket 支持
     },
     // Pyroscope 性能剖析面板代理到 admin-server
     '/api/pyroscope/': {
       target: 'http://localhost:28081',
       changeOrigin: true,
+      ws: true, // WebSocket 支持
     },
     // RTC Agent Server 代理（Token Exchange + WebSocket）
     '/oauth2/': {

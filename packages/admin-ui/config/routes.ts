@@ -24,18 +24,18 @@ export default [
         path: '/user',
         redirect: '/user/login',
       },
-      {
-        name: 'register-result',
-        icon: 'checkCircle',
-        path: '/user/register-result',
-        component: './user/register-result',
-      },
-      {
-        name: 'register',
-        icon: 'userAdd',
-        path: '/user/register',
-        component: './user/register',
-      },
+      // {
+      //   name: 'register-result',
+      //   icon: 'checkCircle',
+      //   path: '/user/register-result',
+      //   component: './user/register-result',
+      // },
+      // {
+      //   name: 'register',
+      //   icon: 'userAdd',
+      //   path: '/user/register',
+      //   component: './user/register',
+      // },
       {
         name: '404',
         component: './exception/404',
@@ -43,11 +43,77 @@ export default [
       },
     ],
   },
+  // {
+  //   path: '/welcome',
+  //   name: 'welcome',
+  //   icon: 'home',
+  //   component: './Welcome',
+  // },
   {
-    path: '/welcome',
-    name: 'welcome',
-    icon: 'home',
-    component: './Welcome',
+    path: '/dashboard',
+    name: 'dashboard',
+    icon: 'dashboard',
+    component: './dashboard/container',
+    access: 'canDashboardView',
+    routes: [
+      {
+        name: 'jaeger',
+        icon: 'BugOutlined',
+        path: '/dashboard/jaeger',
+      },
+      {
+        name: 'pyroscope',
+        icon: 'profile',
+        path: '/dashboard/pyroscope',
+      },
+      {
+        path: '/dashboard',
+        redirect: '/dashboard/grafana',
+      },
+      {
+        name: 'grafana',
+        icon: 'lineChart',
+        path: '/dashboard/grafana',
+        routes: [
+          {
+            path: '/dashboard/grafana',
+            redirect: '/dashboard/grafana/rtc-agent',
+          },
+          {
+            name: 'rtc-agent',
+            path: '/dashboard/grafana/rtc-agent',
+          },
+          {
+            name: 'go-runtime',
+            path: '/dashboard/grafana/go-runtime',
+          },
+          {
+            name: 'http-server',
+            path: '/dashboard/grafana/http-server',
+          },
+          {
+            name: 'error-feedback',
+            path: '/dashboard/grafana/error-feedback-overview',
+          },
+          {
+            name: 'logs',
+            path: '/dashboard/grafana/logs-overview',
+          },
+          {
+            name: 'oss3',
+            path: '/dashboard/grafana/oss3-overview',
+          },
+          {
+            name: 'minio',
+            path: '/dashboard/grafana/minio-overview',
+          },
+          {
+            name: 'health-watchdog',
+            path: '/dashboard/grafana/system-health-watchdog',
+          },
+        ],
+      },
+    ],
   },
   {
     path: '/rtc-users',
@@ -82,24 +148,24 @@ export default [
       },
     ],
   },
-  {
-    path: '/admin',
-    name: 'admin',
-    icon: 'crown',
-    // 注意：这是 Ant Design Pro 模板遗留的示例页面，不受 RBAC 权限控制
-    // 如需权限控制，请修改为具体的权限点（如 canAdmin 或自定义权限）
-    routes: [
-      {
-        path: '/admin',
-        redirect: '/admin/sub-page',
-      },
-      {
-        path: '/admin/sub-page',
-        name: 'sub-page',
-        component: './Admin',
-      },
-    ],
-  },
+  // {
+  //   path: '/admin',
+  //   name: 'admin',
+  //   icon: 'crown',
+  //   // 注意：这是 Ant Design Pro 模板遗留的示例页面，不受 RBAC 权限控制
+  //   // 如需权限控制，请修改为具体的权限点（如 canAdmin 或自定义权限）
+  //   routes: [
+  //     {
+  //       path: '/admin',
+  //       redirect: '/admin/sub-page',
+  //     },
+  //     {
+  //       path: '/admin/sub-page',
+  //       name: 'sub-page',
+  //       component: './Admin',
+  //     },
+  //   ],
+  // },
   {
     path: '/system',
     name: 'system',
@@ -147,102 +213,7 @@ export default [
       },
     ],
   },
-  {
-    path: '/dashboard',
-    name: 'dashboard',
-    icon: 'dashboard',
-    routes: [
-      {
-        path: '/dashboard',
-        redirect: '/dashboard/grafana',
-      },
-      {
-        name: 'grafana',
-        icon: 'lineChart',
-        path: '/dashboard/grafana',
-        routes: [
-          {
-            path: '/dashboard/grafana',
-            redirect: '/dashboard/grafana/rtc-agent',
-          },
-          {
-            name: 'rtc-agent',
-            path: '/dashboard/grafana/rtc-agent',
-            component: './dashboard/grafana',
-            access: 'canDashboardView',
-          },
-          {
-            name: 'go-runtime',
-            path: '/dashboard/grafana/go-runtime',
-            component: './dashboard/grafana',
-            access: 'canDashboardView',
-          },
-          {
-            name: 'http-server',
-            path: '/dashboard/grafana/http-server',
-            component: './dashboard/grafana',
-            access: 'canDashboardView',
-          },
-          {
-            name: 'error-feedback',
-            path: '/dashboard/grafana/error-feedback-overview',
-            component: './dashboard/grafana',
-            access: 'canDashboardView',
-          },
-          {
-            name: 'logs',
-            path: '/dashboard/grafana/logs-overview',
-            component: './dashboard/grafana',
-            access: 'canDashboardView',
-          },
-          {
-            name: 'oss3',
-            path: '/dashboard/grafana/oss3-overview',
-            component: './dashboard/grafana',
-            access: 'canDashboardView',
-          },
-          {
-            name: 'minio',
-            path: '/dashboard/grafana/minio-overview',
-            component: './dashboard/grafana',
-            access: 'canDashboardView',
-          },
-          {
-            name: 'health-watchdog',
-            path: '/dashboard/grafana/system-health-watchdog',
-            component: './dashboard/grafana',
-            access: 'canDashboardView',
-          },
-        ],
-      },
-      {
-        name: 'jaeger',
-        icon: 'deployment',
-        path: '/dashboard/jaeger',
-        component: './dashboard/jaeger',
-        access: 'canDashboardView',
-      },
-      {
-        name: 'pyroscope',
-        icon: 'profile',
-        path: '/dashboard/pyroscope',
-        component: './dashboard/pyroscope',
-        access: 'canDashboardView',
-      },
-      {
-        name: 'monitor',
-        icon: 'monitor',
-        path: '/dashboard/monitor',
-        component: './dashboard/monitor',
-      },
-      {
-        name: 'workplace',
-        icon: 'desktop',
-        path: '/dashboard/workplace',
-        component: './dashboard/workplace',
-      },
-    ],
-  },
+  /* 
   {
     path: '/form',
     icon: 'form',
@@ -405,8 +376,10 @@ export default [
       },
     ],
   },
+  */
   {
     name: 'account',
+    layout: false,
     icon: 'user',
     path: '/account',
     routes: [
@@ -428,6 +401,7 @@ export default [
       },
     ],
   },
+  /*
   {
     path: '/chatbot',
     name: 'chatbot',
@@ -446,6 +420,7 @@ export default [
     component: './rtc-agent-test',
     hideInMenu: true,
   },
+  */
   {
     path: '/',
     redirect: '/dashboard/grafana/rtc-agent',

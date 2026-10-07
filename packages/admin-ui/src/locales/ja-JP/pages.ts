@@ -1,6 +1,6 @@
 export default {
   'pages.layouts.userLayout.title':
-    'Ant Designは、西湖区で最も影響力のあるWebデザイン仕様です。',
+    'RTC Agentは手間いらずのAI操作アシスタントです',
   'pages.login.accountLogin.tab': 'アカウントログイン',
   'pages.login.accountLogin.errorMessage':
     'ユーザー名/パスワードが正しくありません(admin/ant.design)',

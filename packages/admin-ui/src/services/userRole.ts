@@ -25,6 +25,20 @@ export interface UserListResponse {
   total: number;
 }
 
+/** 创建管理员参数 */
+export interface CreateAdminUserParams {
+  email: string;
+  password: string;
+  name?: string;
+  role_ids?: string[];
+}
+
+/** 更新管理员参数 */
+export interface UpdateAdminUserParams {
+  name?: string;
+  password?: string;
+}
+
 /** 分配管理员角色参数 */
 export interface AssignRolesParams {
   role_ids: string[];
@@ -47,6 +61,34 @@ export async function getUserList(params?: UserListParams) {
   return request<UserListResponse>('/api/admin-users', {
     method: 'GET',
     params,
+  });
+}
+
+/**
+ * 创建管理员
+ * POST /api/admin-users
+ */
+export async function createAdminUser(body: CreateAdminUserParams) {
+  return request<UserInfo>('/api/admin-users', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+  });
+}
+
+/**
+ * 更新管理员
+ * PUT /api/admin-users/:id
+ */
+export async function updateAdminUser(userId: string, body: UpdateAdminUserParams) {
+  return request<UserInfo>(`/api/admin-users/${userId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
   });
 }
 

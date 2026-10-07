@@ -1,4 +1,9 @@
-import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
+import {
+  DeleteOutlined,
+  EditOutlined,
+  PlusOutlined,
+  SafetyOutlined,
+} from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import {
   ModalForm,
@@ -8,8 +13,24 @@ import {
   ProTable,
 } from '@ant-design/pro-components';
 import { Access, useAccess } from '@umijs/max';
-import { Button, message, Popconfirm, Space, Switch, Tag, Tooltip } from 'antd';
+import {
+  Button,
+  Checkbox,
+  Modal,
+  message,
+  Popconfirm,
+  Space,
+  Switch,
+  Tag,
+  Tooltip,
+} from 'antd';
 import React, { useEffect, useRef, useState } from 'react';
+import {
+  createPermission,
+  deletePermission,
+  getPermissionList,
+  type PermissionPolicy,
+} from '@/services/permission';
 import {
   createRole,
   deleteRole,
@@ -21,6 +42,28 @@ import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import type { RoleFormValues, RoleTableItem } from './data.d';
 import type { RolePageAPI } from './page-api';
 
+/** 资源类型 */
+const RESOURCE_TYPES = [
+  { label: '管理员用户', value: 'admin_user' },
+  { label: '角色', value: 'role' },
+  { label: '权限', value: 'permission' },
+  { label: '管理员角色关联', value: 'admin_user_role' },
+  { label: '审计日志', value: 'audit_log' },
+  { label: 'RTC 用户', value: 'rtc_user' },
+  { label: 'RTC 会话', value: 'rtc_session' },
+  { label: 'RTC 消息', value: 'rtc_message' },
+  { label: '服务器配置', value: 'server_config' },
+  { label: '仪表盘', value: 'dashboard' },
+];
+
+/** 操作类型 */
+const ACTION_TYPES = [
+  { label: '读取', value: 'read' },
+  { label: '写入', value: 'write' },
+  { label: '删除', value: 'delete' },
+  { label: '封禁', value: 'ban' },
+];
+
 /**
  * 管理员角色管理页面
  */
@@ -30,6 +73,11 @@ const RoleListPage: React.FC = () => {
   const [currentRow, setCurrentRow] = useState<RoleTableItem>();
   const [modalVisible, setModalVisible] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
+  const [permissionModalVisible, setPermissionModalVisible] = useState(false);
+  const [rolePermissions, setRolePermissions] = useState<PermissionPolicy[]>(
+    [],
+  );
+  const [_allPermissions, setAllPermissions] = useState<PermissionPolicy[]>([]);
 
   // === 注册 Page API ===
   useEffect(() => {
@@ -223,6 +271,16 @@ const RoleListPage: React.FC = () => {
             <Button
               type="link"
               size="small"
+              icon={<SafetyOutlined />}
+              onClick={() => handleManagePermissions(record)}
+            >
+              权限
+            </Button>
+          </Access>
+          <Access accessible={access.canAdminRoleEdit} fallback={null}>
+            <Button
+              type="link"
+              size="small"
               icon={<EditOutlined />}
               onClick={() => {
                 setCurrentRow(record);
@@ -299,6 +357,77 @@ const RoleListPage: React.FC = () => {
       );
       return false;
     }
+  };
+
+  /** 打开权限管理弹窗 */
+  const handleManagePermissions = async (role: RoleTableItem) => {
+    setCurrentRow(role);
+    setPermissionModalVisible(true);
+
+    try {
+      // 加载该角色的权限
+      const rolePerms = await getPermissionList({
+        page: 1,
+        page_size: 1000,
+        role_id: role.id,
+      });
+      setRolePermissions(rolePerms.items);
+
+      // 加载所有可用权限（从所有角色中汇总）
+      const allPerms = await getPermissionList({
+        page: 1,
+        page_size: 1000,
+      });
+      setAllPermissions(allPerms.items);
+    } catch (error: any) {
+      message.error(getFriendlyErrorMessage(error, '加载权限失败'));
+    }
+  };
+
+  /** 切换权限 */
+  const handleTogglePermission = async (
+    resource: string,
+    action: string,
+    checked: boolean,
+  ) => {
+    if (!currentRow) return;
+
+    try {
+      if (checked) {
+        // 添加权限
+        await createPermission({
+          role_id: currentRow.id,
+          resource,
+          action,
+        });
+        message.success('权限已添加');
+      } else {
+        // 删除权限
+        await deletePermission({
+          role_id: currentRow.id,
+          resource,
+          action,
+        });
+        message.success('权限已移除');
+      }
+
+      // 刷新权限列表
+      const rolePerms = await getPermissionList({
+        page: 1,
+        page_size: 1000,
+        role_id: currentRow.id,
+      });
+      setRolePermissions(rolePerms.items);
+    } catch (error: any) {
+      message.error(getFriendlyErrorMessage(error, '操作失败'));
+    }
+  };
+
+  /** 检查角色是否拥有某权限 */
+  const hasPermission = (resource: string, action: string) => {
+    return rolePermissions.some(
+      (p) => p.resource === resource && p.action === action,
+    );
   };
 
   return (
@@ -429,6 +558,88 @@ const RoleListPage: React.FC = () => {
           fieldProps={{ rows: 4 }}
         />
       </ModalForm>
+
+      {/* 权限管理对话框 */}
+      <Modal
+        title={`权限管理 - ${currentRow?.display_name || currentRow?.name}`}
+        open={permissionModalVisible}
+        onCancel={() => {
+          setPermissionModalVisible(false);
+          setCurrentRow(undefined);
+          setRolePermissions([]);
+          setAllPermissions([]);
+        }}
+        footer={[
+          <Button
+            key="close"
+            onClick={() => {
+              setPermissionModalVisible(false);
+              setCurrentRow(undefined);
+              setRolePermissions([]);
+              setAllPermissions([]);
+            }}
+          >
+            关闭
+          </Button>,
+        ]}
+        width={800}
+      >
+        <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid #f0f0f0' }}>
+                <th style={{ textAlign: 'left', padding: '12px 8px' }}>
+                  资源类型
+                </th>
+                <th style={{ textAlign: 'center', padding: '12px 8px' }}>
+                  读取
+                </th>
+                <th style={{ textAlign: 'center', padding: '12px 8px' }}>
+                  写入
+                </th>
+                <th style={{ textAlign: 'center', padding: '12px 8px' }}>
+                  删除
+                </th>
+                <th style={{ textAlign: 'center', padding: '12px 8px' }}>
+                  封禁
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {RESOURCE_TYPES.map((resource) => (
+                <tr
+                  key={resource.value}
+                  style={{ borderBottom: '1px solid #f0f0f0' }}
+                >
+                  <td style={{ padding: '12px 8px' }}>
+                    {resource.label}
+                    <div style={{ fontSize: '12px', color: '#999' }}>
+                      {resource.value}
+                    </div>
+                  </td>
+                  {ACTION_TYPES.map((action) => (
+                    <td
+                      key={action.value}
+                      style={{ textAlign: 'center', padding: '12px 8px' }}
+                    >
+                      <Checkbox
+                        checked={hasPermission(resource.value, action.value)}
+                        onChange={(e) =>
+                          handleTogglePermission(
+                            resource.value,
+                            action.value,
+                            e.target.checked,
+                          )
+                        }
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Modal>
     </PageContainer>
   );
 };

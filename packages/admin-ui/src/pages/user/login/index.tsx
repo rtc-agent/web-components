@@ -1,11 +1,4 @@
-import {
-  AlipayCircleOutlined,
-  LockOutlined,
-  MobileOutlined,
-  TaobaoCircleOutlined,
-  UserOutlined,
-  WeiboCircleOutlined,
-} from '@ant-design/icons';
+import { LockOutlined, MailOutlined, UserOutlined } from '@ant-design/icons';
 import {
   LoginForm,
   ProFormCaptcha,
@@ -21,9 +14,14 @@ import {
 } from '@umijs/max';
 import { Alert, App, Button, Tabs } from 'antd';
 import { createStyles } from 'antd-style';
-import React, { startTransition, useState } from 'react';
+import React, { startTransition, useEffect, useState } from 'react';
 import { Footer } from '@/components';
-import { login } from '@/services/admin-auth';
+import {
+  getLoginConfig,
+  login,
+  loginWithOTP,
+  sendEmailOTP,
+} from '@/services/admin-auth';
 import { setTokens, setUserInfo } from '@/utils/auth-storage';
 import Settings from '../../../../config/defaultSettings';
 
@@ -47,17 +45,6 @@ const getSafeRedirectUrl = (redirect: string | null): string => {
 
 const useStyles = createStyles(({ token }) => {
   return {
-    action: {
-      marginLeft: '8px',
-      color: 'rgba(0, 0, 0, 0.2)',
-      fontSize: '24px',
-      verticalAlign: 'middle',
-      cursor: 'pointer',
-      transition: 'color 0.3s',
-      '&:hover': {
-        color: token.colorPrimaryActive,
-      },
-    },
     lang: {
       width: 42,
       height: 42,
@@ -80,27 +67,6 @@ const useStyles = createStyles(({ token }) => {
     },
   };
 });
-
-const ActionIcons = () => {
-  const { styles } = useStyles();
-
-  return (
-    <>
-      <AlipayCircleOutlined
-        key="AlipayCircleOutlined"
-        className={styles.action}
-      />
-      <TaobaoCircleOutlined
-        key="TaobaoCircleOutlined"
-        className={styles.action}
-      />
-      <WeiboCircleOutlined
-        key="WeiboCircleOutlined"
-        className={styles.action}
-      />
-    </>
-  );
-};
 
 const Lang = () => {
   const { styles } = useStyles();
@@ -133,10 +99,32 @@ const Login: React.FC = () => {
     message?: string;
   }>({});
   const [type, setType] = useState<string>('account');
+  const [loginConfig, setLoginConfig] = useState<{
+    password_enabled: boolean;
+    otp_enabled: boolean;
+  } | null>(null);
   const { initialState, setInitialState } = useModel('@@initialState');
   const { styles } = useStyles();
   const { message } = App.useApp();
   const intl = useIntl();
+
+  // Fetch login config on mount
+  useEffect(() => {
+    getLoginConfig()
+      .then((config) => {
+        setLoginConfig(config);
+        // Set default login method based on what's available
+        if (!config.password_enabled && config.otp_enabled) {
+          setType('email-otp');
+        } else if (config.password_enabled) {
+          setType('account');
+        }
+      })
+      .catch(() => {
+        // If config fetch fails, default to password login
+        setLoginConfig({ password_enabled: true, otp_enabled: true });
+      });
+  }, []);
 
   const fetchUserInfo = async () => {
     const userInfo = await initialState?.fetchUserInfo?.();
@@ -150,24 +138,22 @@ const Login: React.FC = () => {
     }
   };
 
-  const handleSubmit = async (values: { email: string; password: string }) => {
+  const handlePasswordLogin = async (values: {
+    email: string;
+    password: string;
+  }) => {
     try {
-      // 调用真正的登录 API
       const result = await login({
         email: values.email,
         password: values.password,
       });
 
       if (result.access_token && result.refresh_token) {
-        // 存储 token 到 localStorage
-        // expires_in 默认为 1 小时（3600 秒），防止 API 未返回时 token 立即过期
         setTokens(
           result.access_token,
           result.refresh_token,
           result.expires_in || 3600,
         );
-
-        // 存储管理员信息
         setUserInfo(result.user);
 
         const defaultLoginSuccessMessage = intl.formatMessage({
@@ -176,20 +162,20 @@ const Login: React.FC = () => {
         });
         message.success(defaultLoginSuccessMessage);
 
-        // 获取管理员信息
         await fetchUserInfo();
 
-        // 跳转到目标页面
         const urlParams = new URL(window.location.href).searchParams;
         const redirectUrl = getSafeRedirectUrl(urlParams.get('redirect'));
         window.location.href = redirectUrl;
         return;
       }
 
-      // 登录失败
       setUserLoginState({
         status: 'error',
-        message: '登录失败，请重试',
+        message: intl.formatMessage({
+          id: 'pages.login.failure',
+          defaultMessage: '登录失败，请重试',
+        }),
       });
     } catch (error: any) {
       const defaultLoginFailureMessage = intl.formatMessage({
@@ -197,11 +183,13 @@ const Login: React.FC = () => {
         defaultMessage: '登录失败，请重试！',
       });
 
-      // 如果是 401 错误，显示更友好的提示
       if (error.response?.status === 401) {
         setUserLoginState({
           status: 'error',
-          message: '邮箱或密码错误',
+          message: intl.formatMessage({
+            id: 'pages.login.invalidCredentials',
+            defaultMessage: '邮箱或密码错误',
+          }),
         });
       } else {
         message.error(defaultLoginFailureMessage);
@@ -212,8 +200,77 @@ const Login: React.FC = () => {
       }
     }
   };
+
+  const handleOTPLogin = async (values: { email: string; otp: string }) => {
+    try {
+      const result = await loginWithOTP({
+        email: values.email,
+        otp: values.otp,
+      });
+
+      if (result.access_token && result.refresh_token) {
+        setTokens(
+          result.access_token,
+          result.refresh_token,
+          result.expires_in || 3600,
+        );
+        setUserInfo(result.user);
+
+        const defaultLoginSuccessMessage = intl.formatMessage({
+          id: 'pages.login.success',
+          defaultMessage: '登录成功！',
+        });
+        message.success(defaultLoginSuccessMessage);
+
+        await fetchUserInfo();
+
+        const urlParams = new URL(window.location.href).searchParams;
+        const redirectUrl = getSafeRedirectUrl(urlParams.get('redirect'));
+        window.location.href = redirectUrl;
+        return;
+      }
+
+      setUserLoginState({
+        status: 'error',
+        message: intl.formatMessage({
+          id: 'pages.login.failure',
+          defaultMessage: '登录失败，请重试',
+        }),
+      });
+    } catch (error: any) {
+      const defaultLoginFailureMessage = intl.formatMessage({
+        id: 'pages.login.failure',
+        defaultMessage: '登录失败，请重试！',
+      });
+
+      const errorCode = error?.response?.data?.errorCode;
+      if (errorCode === 'invalid_otp') {
+        setUserLoginState({
+          status: 'error',
+          message: intl.formatMessage({
+            id: 'pages.login.captcha.invalidOrExpired',
+            defaultMessage: '验证码错误或已过期',
+          }),
+        });
+      } else if (errorCode === 'locked') {
+        setUserLoginState({
+          status: 'error',
+          message: intl.formatMessage({
+            id: 'pages.login.captcha.locked',
+            defaultMessage: '验证码功能已暂时锁定，请稍后再试',
+          }),
+        });
+      } else {
+        message.error(defaultLoginFailureMessage);
+        setUserLoginState({
+          status: 'error',
+          message: defaultLoginFailureMessage,
+        });
+      }
+    }
+  };
+
   const { status } = userLoginState;
-  const loginType = type; // 使用当前的登录类型
 
   return (
     <div className={styles.container}>
@@ -246,16 +303,14 @@ const Login: React.FC = () => {
           initialValues={{
             autoLogin: true,
           }}
-          actions={[
-            <FormattedMessage
-              key="loginWith"
-              id="pages.login.loginWith"
-              defaultMessage="其他登录方式"
-            />,
-            <ActionIcons key="icons" />,
-          ]}
           onFinish={async (values) => {
-            await handleSubmit(values as { email: string; password: string });
+            if (type === 'email-otp') {
+              await handleOTPLogin(values as { email: string; otp: string });
+            } else {
+              await handlePasswordLogin(
+                values as { email: string; password: string },
+              );
+            }
           }}
         >
           <Tabs
@@ -263,28 +318,43 @@ const Login: React.FC = () => {
             onChange={setType}
             centered
             items={[
-              {
-                key: 'account',
-                label: intl.formatMessage({
-                  id: 'pages.login.accountLogin.tab',
-                  defaultMessage: '账户密码登录',
-                }),
-              },
-              {
-                key: 'mobile',
-                label: intl.formatMessage({
-                  id: 'pages.login.phoneLogin.tab',
-                  defaultMessage: '手机号登录',
-                }),
-              },
+              ...(loginConfig?.password_enabled !== false
+                ? [
+                    {
+                      key: 'account',
+                      label: intl.formatMessage({
+                        id: 'pages.login.accountLogin.tab',
+                        defaultMessage: '账户密码登录',
+                      }),
+                    },
+                  ]
+                : []),
+              ...(loginConfig?.otp_enabled !== false
+                ? [
+                    {
+                      key: 'email-otp',
+                      label: intl.formatMessage({
+                        id: 'pages.login.emailOTP.tab',
+                        defaultMessage: '邮箱验证码登录',
+                      }),
+                    },
+                  ]
+                : []),
             ]}
           />
 
           {status === 'error' && (
             <LoginMessage
-              content={userLoginState.message || '账户或密码错误'}
+              content={
+                userLoginState.message ||
+                intl.formatMessage({
+                  id: 'pages.login.failure',
+                  defaultMessage: '登录失败',
+                })
+              }
             />
           )}
+
           {type === 'account' && (
             <>
               <ProFormText
@@ -343,37 +413,34 @@ const Login: React.FC = () => {
             </>
           )}
 
-          {status === 'error' && loginType === 'mobile' && (
-            <LoginMessage content="验证码错误" />
-          )}
-          {type === 'mobile' && (
+          {type === 'email-otp' && (
             <>
               <ProFormText
+                name="email"
                 fieldProps={{
                   size: 'large',
-                  prefix: <MobileOutlined />,
+                  prefix: <MailOutlined />,
                 }}
-                name="mobile"
                 placeholder={intl.formatMessage({
-                  id: 'pages.login.phoneNumber.placeholder',
-                  defaultMessage: '手机号',
+                  id: 'pages.login.email.placeholder',
+                  defaultMessage: '邮箱',
                 })}
                 rules={[
                   {
                     required: true,
                     message: (
                       <FormattedMessage
-                        id="pages.login.phoneNumber.required"
-                        defaultMessage="请输入手机号！"
+                        id="pages.login.email.required"
+                        defaultMessage="请输入邮箱!"
                       />
                     ),
                   },
                   {
-                    pattern: /^1\d{10}$/,
+                    type: 'email',
                     message: (
                       <FormattedMessage
-                        id="pages.login.phoneNumber.invalid"
-                        defaultMessage="手机号格式错误！"
+                        id="pages.login.email.invalid"
+                        defaultMessage="邮箱格式不正确!"
                       />
                     ),
                   },
@@ -386,6 +453,8 @@ const Login: React.FC = () => {
                 }}
                 captchaProps={{
                   size: 'large',
+                  type: 'primary',
+                  ghost: true,
                 }}
                 placeholder={intl.formatMessage({
                   id: 'pages.login.captcha.placeholder',
@@ -403,7 +472,8 @@ const Login: React.FC = () => {
                     defaultMessage: '获取验证码',
                   });
                 }}
-                name="captcha"
+                name="otp"
+                phoneName="email"
                 rules={[
                   {
                     required: true,
@@ -414,38 +484,75 @@ const Login: React.FC = () => {
                       />
                     ),
                   },
+                  {
+                    len: 6,
+                    message: (
+                      <FormattedMessage
+                        id="pages.login.captcha.invalid"
+                        defaultMessage="验证码为 6 位数字"
+                      />
+                    ),
+                  },
                 ]}
-                onGetCaptcha={async (phone) => {
-                  // Mock 验证码功能（实际不使用）
-                  message.info('验证码功能暂未开放，请使用邮箱登录');
+                onGetCaptcha={async (email) => {
+                  try {
+                    await sendEmailOTP({ email });
+                    message.success(
+                      intl.formatMessage({
+                        id: 'pages.login.captcha.sent',
+                        defaultMessage: '验证码已发送，请查收邮箱',
+                      }),
+                    );
+                  } catch (error: any) {
+                    const errorCode = error?.response?.data?.errorCode;
+                    if (errorCode === 'rate_limited') {
+                      message.warning(
+                        intl.formatMessage({
+                          id: 'pages.login.captcha.rateLimited',
+                          defaultMessage: '请求过于频繁，请稍后再试',
+                        }),
+                      );
+                    } else {
+                      message.error(
+                        intl.formatMessage({
+                          id: 'pages.login.captcha.sendFailed',
+                          defaultMessage: '发送验证码失败，请稍后重试',
+                        }),
+                      );
+                    }
+                    throw error;
+                  }
                 }}
               />
             </>
           )}
-          <div
-            style={{
-              marginBottom: 24,
-            }}
-          >
-            <ProFormCheckbox noStyle name="autoLogin">
-              <FormattedMessage
-                id="pages.login.rememberMe"
-                defaultMessage="自动登录"
-              />
-            </ProFormCheckbox>
-            <Button
-              type="link"
+
+          {loginConfig?.password_enabled !== false && (
+            <div
               style={{
-                float: 'right',
-                padding: 0,
+                marginBottom: 24,
               }}
             >
-              <FormattedMessage
-                id="pages.login.forgotPassword"
-                defaultMessage="忘记密码"
-              />
-            </Button>
-          </div>
+              <ProFormCheckbox noStyle name="autoLogin">
+                <FormattedMessage
+                  id="pages.login.rememberMe"
+                  defaultMessage="自动登录"
+                />
+              </ProFormCheckbox>
+              <Button
+                type="link"
+                style={{
+                  float: 'right',
+                  padding: 0,
+                }}
+              >
+                <FormattedMessage
+                  id="pages.login.forgotPassword"
+                  defaultMessage="忘记密码"
+                />
+              </Button>
+            </div>
+          )}
         </LoginForm>
       </div>
       <Footer />

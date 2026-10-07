@@ -23,7 +23,13 @@ const RESOURCE_TYPES = [
   { label: '管理员管理', value: 'admin_user' },
   { label: '管理员角色管理', value: 'role' },
   { label: '权限管理', value: 'permission' },
+  { label: '管理员角色关联', value: 'admin_user_role' },
   { label: '审计日志', value: 'audit_log' },
+  { label: 'RTC 用户管理', value: 'rtc_user' },
+  { label: 'RTC 会话管理', value: 'rtc_session' },
+  { label: 'RTC 消息管理', value: 'rtc_message' },
+  { label: '系统配置', value: 'server_config' },
+  { label: '数据看板', value: 'dashboard' },
 ];
 
 /** 操作类型定义 */
@@ -31,6 +37,7 @@ const ACTION_TYPES = [
   { label: '查看', value: 'read' },
   { label: '编辑', value: 'write' },
   { label: '删除', value: 'delete' },
+  { label: '封禁', value: 'ban' },
 ];
 
 /**

@@ -142,7 +142,7 @@ export const layout: RunTimeLayoutConfig = ({
         (initialState?.settings as { locale?: boolean })?.locale !== false;
       return [
         <DocLink key="doc" />,
-        <VersionDropdown key="version" />,
+        //<VersionDropdown key="version" />,
         localeEnabled && <LangDropdown key="lang" />,
       ].filter(Boolean);
     },
@@ -191,14 +191,6 @@ export const layout: RunTimeLayoutConfig = ({
         width: '331px',
       },
     ],
-    links: isDev
-      ? [
-          <Link key="openapi" to="/umi/plugin/openapi" target="_blank">
-            <LinkOutlined />
-            <span>OpenAPI 文档</span>
-          </Link>,
-        ]
-      : [],
     // Replace ProLayout's default ErrorBoundary with our offline-aware version,
     // so chunk load errors show friendly messages instead of "Something went wrong."
     ErrorBoundary,

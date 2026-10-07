@@ -1,5 +1,18 @@
 import { request } from '@umijs/max';
 
+/** 登录配置 */
+export interface LoginConfig {
+  password_enabled: boolean;
+  otp_enabled: boolean;
+}
+
+/** 获取登录配置 */
+export async function getLoginConfig() {
+  return request<LoginConfig>('/api/auth/config', {
+    method: 'GET',
+  });
+}
+
 /** 登录请求参数 */
 export interface LoginParams {
   email: string;
@@ -103,6 +116,52 @@ export async function getCurrentUser(options?: { [key: string]: any }) {
  */
 export async function logout(body: { refresh_token: string }, options?: { [key: string]: any }) {
   return request<{ status: string }>('/api/auth/logout', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 发送邮箱验证码请求参数 */
+export interface SendOTPParams {
+  email: string;
+}
+
+/** 发送邮箱验证码响应 */
+export interface SendOTPResult {
+  message: string;
+}
+
+/** 邮箱验证码登录请求参数 */
+export interface OTPLoginParams {
+  email: string;
+  otp: string;
+}
+
+/**
+ * 发送邮箱验证码
+ * POST /api/auth/otp/send
+ */
+export async function sendEmailOTP(body: SendOTPParams, options?: { [key: string]: any }) {
+  return request<SendOTPResult>('/api/auth/otp/send', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/**
+ * 邮箱验证码登录
+ * POST /api/auth/login/otp
+ */
+export async function loginWithOTP(body: OTPLoginParams, options?: { [key: string]: any }) {
+  return request<LoginResult>('/api/auth/login/otp', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

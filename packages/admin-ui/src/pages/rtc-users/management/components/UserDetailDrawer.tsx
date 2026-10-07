@@ -12,11 +12,17 @@ import {
   Table,
   Tabs,
   Typography,
+  theme,
 } from 'antd';
 import dayjs from 'dayjs';
 import React, { useMemo } from 'react';
-import type { DeviceInfo, DeviceListResponse, TopSession, TokenStatsResponse } from '../data';
-import type { RtcUserInfo } from '../data';
+import type {
+  DeviceInfo,
+  DeviceListResponse,
+  RtcUserInfo,
+  TokenStatsResponse,
+  TopSession,
+} from '../data';
 import { getUserDevices, getUserTokenStats } from '../service';
 
 const { Text } = Typography;
@@ -40,6 +46,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
   onClose,
 }) => {
   const intl = useIntl();
+  const { token } = theme.useToken();
 
   // 获取设备列表
   // NOTE: umi 内置的 useRequest 默认 formatResult: result => result?.data，
@@ -70,7 +77,10 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
     console.log('[UserDetailDrawer] devicesData:', devicesData);
     console.log('[UserDetailDrawer] devicesData?.items:', devicesData?.items);
     console.log('[UserDetailDrawer] statsData:', statsData);
-    console.log('[UserDetailDrawer] statsData?.top_sessions:', statsData?.top_sessions);
+    console.log(
+      '[UserDetailDrawer] statsData?.top_sessions:',
+      statsData?.top_sessions,
+    );
   }
 
   // 设备列表列定义
@@ -198,37 +208,39 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
       value: number;
     }> = [];
 
-    statsData.daily_stats.forEach((stat: {
-      date: string;
-      total_input_tokens: number;
-      total_output_tokens: number;
-      total_cached_read_tokens: number;
-    }) => {
-      data.push({
-        date: stat.date,
-        type: intl.formatMessage({
-          id: 'pages.rtcUsers.detail.inputTokens',
-          defaultMessage: 'Input Tokens',
-        }),
-        value: stat.total_input_tokens,
-      });
-      data.push({
-        date: stat.date,
-        type: intl.formatMessage({
-          id: 'pages.rtcUsers.detail.outputTokens',
-          defaultMessage: 'Output Tokens',
-        }),
-        value: stat.total_output_tokens,
-      });
-      data.push({
-        date: stat.date,
-        type: intl.formatMessage({
-          id: 'pages.rtcUsers.detail.cachedTokens',
-          defaultMessage: 'Cached Tokens',
-        }),
-        value: stat.total_cached_read_tokens,
-      });
-    });
+    statsData.daily_stats.forEach(
+      (stat: {
+        date: string;
+        total_input_tokens: number;
+        total_output_tokens: number;
+        total_cached_read_tokens: number;
+      }) => {
+        data.push({
+          date: stat.date,
+          type: intl.formatMessage({
+            id: 'pages.rtcUsers.detail.inputTokens',
+            defaultMessage: 'Input Tokens',
+          }),
+          value: stat.total_input_tokens,
+        });
+        data.push({
+          date: stat.date,
+          type: intl.formatMessage({
+            id: 'pages.rtcUsers.detail.outputTokens',
+            defaultMessage: 'Output Tokens',
+          }),
+          value: stat.total_output_tokens,
+        });
+        data.push({
+          date: stat.date,
+          type: intl.formatMessage({
+            id: 'pages.rtcUsers.detail.cachedTokens',
+            defaultMessage: 'Cached Tokens',
+          }),
+          value: stat.total_cached_read_tokens,
+        });
+      },
+    );
 
     return data;
   }, [statsData, intl]);
@@ -244,6 +256,9 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
         label: {
           autoRotate: true,
           autoHide: false,
+          style: {
+            fill: token.colorTextSecondary,
+          },
         },
       },
       y: {
@@ -251,6 +266,11 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
           if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M`;
           if (v >= 1000) return `${(v / 1000).toFixed(1)}K`;
           return v;
+        },
+        label: {
+          style: {
+            fill: token.colorTextSecondary,
+          },
         },
       },
     },
@@ -260,6 +280,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
     },
     height: 300,
     autoFit: true,
+    theme: token.colorBgContainer === '#ffffff' ? 'classic' : 'classicDark',
   };
 
   const titleSuffix = user ? ` - ${user.email || user.id.slice(0, 8)}` : '';
@@ -379,7 +400,11 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
                   defaultMessage: 'Token 消耗',
                 }),
                 children: (
-                  <Space orientation="vertical" size="large" style={{ width: '100%' }}>
+                  <Space
+                    orientation="vertical"
+                    size="large"
+                    style={{ width: '100%' }}
+                  >
                     {/* 统计卡片 */}
                     <Row gutter={16}>
                       <Col span={6}>

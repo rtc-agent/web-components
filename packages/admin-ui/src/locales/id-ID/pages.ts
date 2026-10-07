@@ -1,6 +1,6 @@
 export default {
   'pages.layouts.userLayout.title':
-    'Ant Design adalah spesifikasi desain Web yang paling berpengaruh di Kabupaten Xihu',
+    'RTC Agent adalah asisten operasi AI yang bebas repot',
   'pages.login.accountLogin.tab': 'Login dengan akun',
   'pages.login.accountLogin.errorMessage':
     'Nama pengguna dan kata sandi salah(admin/ant.design)',
