@@ -7,9 +7,9 @@ import {
   ProFormText,
   ProTable,
 } from '@ant-design/pro-components';
-import { Access, useAccess, useIntl } from '@umijs/max';
+import { Access, useAccess, useIntl, useSearchParams } from '@umijs/max';
 import { Button, List, Modal, message, Popconfirm, Space, Tag } from 'antd';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useRoleOptions } from '@/hooks/useRoleOptions';
 import type { UserInfo } from '@/services/admin-auth';
 import type { UserRoleAssignment } from '@/services/userRole';
@@ -22,15 +22,17 @@ import {
   updateAdminUser,
 } from '@/services/userRole';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
+import type { AdminPageAPI } from './page-api';
 
 /**
- * 管理员管理页面
+ * Admin User Management Page
  */
 const AdminUserManagementPage: React.FC = () => {
   const actionRef = useRef<ActionType>(null);
   const access = useAccess();
   const intl = useIntl();
   const { roleOptions } = useRoleOptions();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [currentRow, setCurrentRow] = useState<UserInfo>();
   const [roleModalVisible, setRoleModalVisible] = useState(false);
   const [userRoles, setUserRoles] = useState<UserRoleAssignment[]>([]);
@@ -38,7 +40,155 @@ const AdminUserManagementPage: React.FC = () => {
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
 
-  /** 创建管理员 */
+  // === Register Page API ===
+  useEffect(() => {
+    const pageAPI: AdminPageAPI = {
+      // Read table data
+      list: async (params = {}) => {
+        const { current = 1, pageSize = 20, keyword } = params;
+
+        // Sync URL (no page refresh)
+        const newSearchParams = new URLSearchParams();
+        if (keyword) {
+          newSearchParams.set('keyword', keyword);
+        }
+        setSearchParams(newSearchParams, { replace: true });
+
+        try {
+          const response = await getUserList({
+            page: current,
+            page_size: pageSize,
+            keyword,
+          });
+
+          return {
+            success: true,
+            data: response.items,
+            total: response.total,
+          };
+        } catch (error) {
+          console.error('[Admin Page API] list failed:', error);
+          return {
+            success: false,
+            data: [],
+            total: 0,
+          };
+        }
+      },
+
+      // Refresh table
+      refresh: async () => {
+        actionRef.current?.reload();
+      },
+
+      // Create admin user
+      create: async (data) => {
+        try {
+          const result = await createAdminUser(data);
+          actionRef.current?.reload();
+          return { success: true, id: result.id };
+        } catch (error) {
+          console.error('[Admin Page API] create failed:', error);
+          return { success: false };
+        }
+      },
+
+      // Update admin user
+      update: async (data) => {
+        try {
+          const { id, ...updateData } = data;
+          await updateAdminUser(id, updateData);
+          actionRef.current?.reload();
+          return { success: true };
+        } catch (error) {
+          console.error('[Admin Page API] update failed:', error);
+          return { success: false };
+        }
+      },
+
+      // Delete admin users
+      remove: async (_ids) => {
+        try {
+          // Note: deleteAdminUser service function is not yet implemented
+          // For now, return success: false
+          console.warn(
+            '[Admin Page API] remove not implemented - delete API not available in service layer',
+          );
+          return { success: false };
+        } catch (error) {
+          console.error('[Admin Page API] remove failed:', error);
+          return { success: false };
+        }
+      },
+
+      // Query roles assigned to a user
+      listUserRoles: async (userId) => {
+        try {
+          const response = await getUserRoles(userId);
+          return {
+            success: true,
+            data: response.items,
+            total: response.total,
+          };
+        } catch (error) {
+          console.error('[Admin Page API] listUserRoles failed:', error);
+          return {
+            success: false,
+            data: [],
+            total: 0,
+          };
+        }
+      },
+
+      // Assign roles to a user
+      assignRoles: async (userId, roleIds) => {
+        try {
+          await assignUserRoles(userId, { role_ids: roleIds });
+          actionRef.current?.reload();
+          return { success: true };
+        } catch (error) {
+          console.error('[Admin Page API] assignRoles failed:', error);
+          return { success: false };
+        }
+      },
+
+      // Revoke a role from a user
+      revokeRole: async (userId, roleId) => {
+        try {
+          await revokeUserRole(userId, roleId);
+          actionRef.current?.reload();
+          return { success: true };
+        } catch (error) {
+          console.error('[Admin Page API] revokeRole failed:', error);
+          return { success: false };
+        }
+      },
+    };
+
+    // Register to global
+    window.__pages__ = window.__pages__ || {};
+    window.__pages__.admin = pageAPI;
+
+    // Dispatch ready event (notify navigation.goto that page API is registered)
+    window.dispatchEvent(
+      new CustomEvent('page-api-ready', { detail: { page: 'admin' } }),
+    );
+
+    console.log('[AdminUserManagementPage] Page API registered');
+
+    // Cleanup
+    return () => {
+      delete window.__pages__?.admin;
+      console.log('[AdminUserManagementPage] Page API unregistered');
+    };
+  }, []);
+
+  // Listen for URL changes, auto-reload table
+  useEffect(() => {
+    actionRef.current?.reload();
+  }, [searchParams]);
+
+  /** Create admin user */
   const handleCreateUser = async (values: {
     email: string;
     password: string;
@@ -75,7 +225,7 @@ const AdminUserManagementPage: React.FC = () => {
     }
   };
 
-  /** 编辑管理员 */
+  /** Edit admin user */
   const handleUpdateUser = async (values: {
     name?: string;
     password?: string;
@@ -110,7 +260,7 @@ const AdminUserManagementPage: React.FC = () => {
     }
   };
 
-  /** 查看管理员角色 */
+  /** View admin user roles */
   const handleViewRoles = async (user: UserInfo) => {
     try {
       const response = await getUserRoles(user.id);
@@ -130,7 +280,7 @@ const AdminUserManagementPage: React.FC = () => {
     }
   };
 
-  /** 分配管理员角色 */
+  /** Assign roles to admin user */
   const handleAssignRoles = async (values: { role_ids: string[] }) => {
     if (!currentRow) return false;
     try {
@@ -142,7 +292,7 @@ const AdminUserManagementPage: React.FC = () => {
         }),
       );
       setAssignModalVisible(false);
-      // 刷新管理员角色列表
+      // Refresh admin user role list
       const response = await getUserRoles(currentRow.id);
       setUserRoles(response.items);
       actionRef.current?.reload();
@@ -161,7 +311,7 @@ const AdminUserManagementPage: React.FC = () => {
     }
   };
 
-  /** 移除管理员角色 */
+  /** Revoke admin user role */
   const handleRevokeRole = async (userId: string, roleId: string) => {
     try {
       await revokeUserRole(userId, roleId);
@@ -171,7 +321,7 @@ const AdminUserManagementPage: React.FC = () => {
           defaultMessage: '移除管理员角色成功',
         }),
       );
-      // 刷新管理员角色列表
+      // Refresh admin user role list
       if (currentRow) {
         const response = await getUserRoles(currentRow.id);
         setUserRoles(response.items);
@@ -190,8 +340,23 @@ const AdminUserManagementPage: React.FC = () => {
     }
   };
 
-  /** 表格列定义 */
+  /** Table column definitions */
   const columns: ProColumns<UserInfo>[] = [
+    {
+      title: intl.formatMessage({
+        id: 'pages.adminUsers.searchPlaceholder',
+        defaultMessage: '输入邮箱或姓名搜索',
+      }),
+      dataIndex: 'keyword',
+      valueType: 'text',
+      hideInTable: true,
+      fieldProps: {
+        placeholder: intl.formatMessage({
+          id: 'pages.adminUsers.searchPlaceholder',
+          defaultMessage: '输入邮箱或姓名搜索',
+        }),
+      },
+    },
     {
       title: intl.formatMessage({
         id: 'pages.adminUsers.column.email',
@@ -199,6 +364,7 @@ const AdminUserManagementPage: React.FC = () => {
       }),
       dataIndex: 'email',
       valueType: 'text',
+      search: false,
     },
     {
       title: intl.formatMessage({
@@ -207,6 +373,7 @@ const AdminUserManagementPage: React.FC = () => {
       }),
       dataIndex: 'name',
       valueType: 'text',
+      search: false,
     },
     {
       title: intl.formatMessage({
@@ -251,7 +418,7 @@ const AdminUserManagementPage: React.FC = () => {
               })}
             </Button>
           </Access>
-          <Access accessible={access.canAdminUserEdit} fallback={null}>
+          <Access accessible={access.canAdminUserRoleEdit} fallback={null}>
             <Button
               type="link"
               size="small"
@@ -281,6 +448,11 @@ const AdminUserManagementPage: React.FC = () => {
         search={{
           labelWidth: 'auto',
         }}
+        form={{
+          initialValues: {
+            keyword: searchParams.get('keyword') || '',
+          },
+        }}
         toolBarRender={() => [
           <Access accessible={access.canAdminUserEdit} key="create">
             <Button
@@ -296,11 +468,13 @@ const AdminUserManagementPage: React.FC = () => {
           </Access>,
         ]}
         request={async (params) => {
+          // Read params from searchParams (URL is single source of truth)
+          const keyword = searchParams.get('keyword') || '';
           try {
             const response = await getUserList({
               page: params.current,
               page_size: params.pageSize,
-              keyword: params.keyword,
+              keyword,
             });
             return {
               data: response.items,
@@ -327,7 +501,7 @@ const AdminUserManagementPage: React.FC = () => {
         columns={columns}
       />
 
-      {/* 管理员角色管理对话框 */}
+      {/* Admin user role management dialog */}
       <Modal
         title={intl.formatMessage(
           {
@@ -344,7 +518,7 @@ const AdminUserManagementPage: React.FC = () => {
         }}
         footer={[
           <Access
-            accessible={access.canAdminUserEdit}
+            accessible={access.canAdminUserRoleEdit}
             key="assign"
             fallback={null}
           >
@@ -383,7 +557,7 @@ const AdminUserManagementPage: React.FC = () => {
             <List.Item
               actions={[
                 <Access
-                  accessible={access.canAdminUserEdit}
+                  accessible={access.canAdminUserRoleEdit}
                   key="revoke"
                   fallback={null}
                 >
@@ -447,7 +621,7 @@ const AdminUserManagementPage: React.FC = () => {
         />
       </Modal>
 
-      {/* 分配管理员角色对话框 */}
+      {/* Assign roles dialog */}
       <ModalForm<{ role_ids: string[] }>
         title={intl.formatMessage(
           {
@@ -487,7 +661,7 @@ const AdminUserManagementPage: React.FC = () => {
         />
       </ModalForm>
 
-      {/* 创建管理员对话框 */}
+      {/* Create admin user dialog */}
       <ModalForm<{
         email: string;
         password: string;
@@ -585,7 +759,7 @@ const AdminUserManagementPage: React.FC = () => {
         />
       </ModalForm>
 
-      {/* 编辑管理员对话框 */}
+      {/* Edit admin user dialog */}
       <ModalForm<{ name?: string; password?: string }>
         title={intl.formatMessage(
           {

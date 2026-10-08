@@ -1,21 +1,112 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { useIntl } from '@umijs/max';
+import { useIntl, useSearchParams } from '@umijs/max';
 import { message, Tag, theme } from 'antd';
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import type { AuditLogItem } from '@/services/auditLog';
 import { getAuditLogList } from '@/services/auditLog';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
+import type { AuditLogPageAPI } from './page-api';
 
 /**
- * 审计日志页面
+ * Audit Logs Page
  */
 const AuditLogsPage: React.FC = () => {
   const actionRef = useRef<ActionType>(null);
   const intl = useIntl();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { token } = theme.useToken();
 
-  /** 事件类型映射（国际化） */
+  // === Register Page API ===
+  useEffect(() => {
+    const pageAPI: AuditLogPageAPI = {
+      // Read table data
+      list: async (params = {}) => {
+        const {
+          current = 1,
+          pageSize = 20,
+          actor_id,
+          resource_type,
+          event_type,
+          target_id,
+          start_time,
+          end_time,
+        } = params;
+
+        // Sync URL (no page refresh)
+        const newSearchParams = new URLSearchParams();
+        if (actor_id) {
+          newSearchParams.set('actor_id', actor_id);
+        }
+        if (resource_type) {
+          newSearchParams.set('resource_type', resource_type);
+        }
+        if (event_type) {
+          newSearchParams.set('event_type', event_type);
+        }
+        if (target_id) {
+          newSearchParams.set('target_id', target_id);
+        }
+        if (start_time) {
+          newSearchParams.set('start_time', start_time);
+        }
+        if (end_time) {
+          newSearchParams.set('end_time', end_time);
+        }
+        setSearchParams(newSearchParams, { replace: true });
+
+        try {
+          const response = await getAuditLogList({
+            page: current,
+            page_size: pageSize,
+            actor_id,
+            resource_type,
+            event_type,
+            target_id,
+            start_time,
+            end_time,
+          });
+
+          return {
+            success: true,
+            data: response.items,
+            total: response.total,
+          };
+        } catch (error) {
+          console.error('[AuditLog Page API] list failed:', error);
+          return {
+            success: false,
+            data: [],
+            total: 0,
+          };
+        }
+      },
+    };
+
+    // Register to global
+    window.__pages__ = window.__pages__ || {};
+    window.__pages__.auditLog = pageAPI;
+
+    // Send ready event (notify navigation.goto that page is loaded)
+    window.dispatchEvent(
+      new CustomEvent('page-api-ready', { detail: { page: 'auditLog' } }),
+    );
+
+    console.log('[AuditLogsPage] Page API registered');
+
+    // Cleanup
+    return () => {
+      delete window.__pages__?.auditLog;
+      console.log('[AuditLogsPage] Page API unregistered');
+    };
+  }, []);
+
+  // Listen for URL changes, auto-reload table
+  useEffect(() => {
+    actionRef.current?.reload();
+  }, [searchParams]);
+
+  /** Event type mapping (i18n) */
   const EVENT_TYPE_MAP: Record<string, { text: string; color: string }> =
     useMemo(
       () => ({
@@ -72,7 +163,7 @@ const AuditLogsPage: React.FC = () => {
       [intl],
     );
 
-  /** 资源类型映射（国际化） */
+  /** Resource type mapping (i18n) */
   const RESOURCE_TYPE_MAP: Record<string, string> = useMemo(
     () => ({
       role: intl.formatMessage({
@@ -91,7 +182,7 @@ const AuditLogsPage: React.FC = () => {
     [intl],
   );
 
-  /** 表格列定义 */
+  /** Table column definitions */
   const columns: ProColumns<AuditLogItem>[] = [
     {
       title: intl.formatMessage({
@@ -191,7 +282,7 @@ const AuditLogsPage: React.FC = () => {
       ellipsis: true,
       render: (_, record) => {
         if (!record.details) return '-';
-        // 使用格式化的 JSON 显示，提升可读性
+        // Use formatted JSON display for better readability
         return (
           <pre
             style={{
@@ -265,11 +356,29 @@ const AuditLogsPage: React.FC = () => {
         search={{
           labelWidth: 'auto',
         }}
+        form={{
+          initialValues: {
+            actor_id: searchParams.get('actor_id') || undefined,
+            resource_type: searchParams.get('resource_type') || undefined,
+            event_type: searchParams.get('event_type') || undefined,
+            resource_id: searchParams.get('target_id') || undefined,
+            start_time: searchParams.get('start_time') || undefined,
+            end_time: searchParams.get('end_time') || undefined,
+          },
+        }}
         request={async (params) => {
-          // 交叉验证：start_time 必须早于 end_time
-          if (params.start_time && params.end_time) {
-            const startTime = new Date(params.start_time).getTime();
-            const endTime = new Date(params.end_time).getTime();
+          // Read params from searchParams (URL is single source of truth)
+          const actor_id = searchParams.get('actor_id') || undefined;
+          const resource_type = searchParams.get('resource_type') || undefined;
+          const event_type = searchParams.get('event_type') || undefined;
+          const target_id = searchParams.get('target_id') || undefined;
+          const start_time = searchParams.get('start_time') || undefined;
+          const end_time = searchParams.get('end_time') || undefined;
+
+          // Cross-validation: start_time must be before end_time
+          if (start_time && end_time) {
+            const startTime = new Date(start_time).getTime();
+            const endTime = new Date(end_time).getTime();
             if (startTime >= endTime) {
               message.warning(
                 intl.formatMessage({
@@ -285,12 +394,12 @@ const AuditLogsPage: React.FC = () => {
             const response = await getAuditLogList({
               page: params.current,
               page_size: params.pageSize,
-              actor_id: params.actor_id,
-              resource_type: params.resource_type,
-              event_type: params.event_type,
-              target_id: params.resource_id,
-              start_time: params.start_time,
-              end_time: params.end_time,
+              actor_id,
+              resource_type,
+              event_type,
+              target_id,
+              start_time,
+              end_time,
             });
             return {
               data: response.items,

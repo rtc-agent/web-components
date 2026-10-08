@@ -7,12 +7,12 @@ import { history, useModel } from '@umijs/max';
 import type { MenuProps } from 'antd';
 import { Spin } from 'antd';
 import React, { startTransition, useState } from 'react';
-import ProfileSettingsModal from '../ProfileSettingsModal';
 import { logout as apiLogout } from '@/services/admin-auth';
 import { clearAuth, getRefreshToken } from '@/utils/auth-storage';
 import { iframeCacheManager } from '@/utils/iframe-cache';
 import { unmountRtcAgent } from '@/utils/rtc-agent-manager';
 import HeaderDropdown from '../HeaderDropdown';
+import ProfileSettingsModal from '../ProfileSettingsModal';
 
 type GlobalHeaderRightProps = {
   children?: React.ReactNode;

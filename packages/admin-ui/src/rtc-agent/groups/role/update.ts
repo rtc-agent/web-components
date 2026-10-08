@@ -15,28 +15,30 @@ import { ensurePageLoaded } from '@/rtc-agent/utils/page-loader';
 export const updateRole: PermissionAwareFunctionDef = {
   name: 'update',
   description:
-    'Update admin role information, the table will auto-refresh after successful update',
+    'Update admin role information on /system/roles page. Requires role id. Can update name, display_name, description, and/or is_enabled. Table auto-refreshes after successful update.',
 
   requiredPermissions: [{ resource: 'role', action: 'write' }],
 
   zodSchema: z.object({
     id: withMeta(z.string(), { example: '01a10622-...' }).describe(
-      'Admin role ID',
+      'Admin role ID to update. Required to identify which role to modify.',
     ),
     name: withMeta(z.string(), { example: 'editor' })
       .optional()
-      .describe('Admin role name'),
+      .describe(
+        'New unique role name identifier. Must remain unique across all roles.',
+      ),
     display_name: withMeta(z.string(), { example: 'Editor' })
       .optional()
-      .describe('Display name'),
+      .describe('New human-readable display name shown in UI.'),
     description: withMeta(z.string(), {
       example: 'A role that can edit content',
     })
       .optional()
-      .describe('Admin role description'),
+      .describe('New description explaining the role purpose and permissions.'),
     is_enabled: withMeta(z.boolean(), { example: true })
       .optional()
-      .describe('Whether enabled'),
+      .describe('Whether the role is active and can be assigned to users.'),
   }),
 
   returns: {

@@ -11,15 +11,15 @@ import type { ConfigHistoryItem } from '@/services/serverConfig';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 
 export interface ConfigHistoryTableProps {
-  /** 弹窗是否打开 */
+  /** Whether the modal is open */
   open: boolean;
-  /** 弹窗开关回调 */
+  /** Modal open/close callback */
   onOpenChange: (open: boolean) => void;
-  /** 配置键名 */
+  /** Configuration key name */
   configKey: string;
-  /** 当前版本号，用于高亮显示 */
+  /** Current version number, used for highlighting */
   currentVersion: number;
-  /** 获取历史记录列表 */
+  /** Fetch history list */
   fetchHistory: (
     key: string,
     params: { page?: number; page_size?: number },
@@ -27,32 +27,32 @@ export interface ConfigHistoryTableProps {
     items: ConfigHistoryItem[];
     total: number;
   }>;
-  /** 执行回滚操作 */
+  /** Execute rollback operation */
   doRollback: (
     key: string,
     targetVersion: number,
     currentVersion: number,
     changeNote?: string,
   ) => Promise<void>;
-  /** 回滚成功后的回调 */
+  /** Callback after successful rollback */
   onRollbackSuccess?: () => void;
-  /** 历史弹窗标题 i18n id */
+  /** History modal title i18n id */
   modalTitleId: string;
-  /** 回滚确认弹窗标题 i18n id */
+  /** Rollback confirm modal title i18n id */
   rollbackTitleId: string;
-  /** 回滚确认文本 i18n id */
+  /** Rollback confirm text i18n id */
   rollbackConfirmId: string;
-  /** 回滚到版本文本 i18n id */
+  /** Rollback to version text i18n id */
   rollbackToVersionId: string;
-  /** 回滚默认变更说明 i18n id */
+  /** Rollback default change note i18n id */
   rollbackDefaultNoteId: string;
-  /** 回滚成功提示 i18n id */
+  /** Rollback success message i18n id */
   rollbackSuccessId: string;
 }
 
 /**
- * 配置历史表格组件
- * 展示配置变更历史并支持回滚操作
+ * Configuration History Table Component
+ * Displays config change history and supports rollback operations
  */
 const ConfigHistoryTable: React.FC<ConfigHistoryTableProps> = ({
   open,
@@ -177,8 +177,8 @@ const ConfigHistoryTable: React.FC<ConfigHistoryTableProps> = ({
       >
         <ProTable<ConfigHistoryItem>
           actionRef={actionRef}
-          // NOTE: version 在单个 configKey 范围内由后端保证唯一性（自增），
-          // 但为防御性编程使用复合 key。
+          // NOTE: version is guaranteed unique per configKey by the backend (auto-increment),
+          // but use composite key for defensive programming.
           rowKey={(record) =>
             `${record.version}-${record.changed_at}-${record.changed_by}`
           }
@@ -205,7 +205,7 @@ const ConfigHistoryTable: React.FC<ConfigHistoryTableProps> = ({
         />
       </ModalForm>
 
-      {/* 回滚确认弹窗 */}
+      {/* Rollback confirmation modal */}
       <ModalForm
         title={intl.formatMessage({ id: rollbackTitleId })}
         open={rollbackModalOpen}

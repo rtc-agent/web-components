@@ -469,6 +469,7 @@ export default {
   'pages.auditLogs.timeRangeInvalid': '开始时间必须早于结束时间',
   // 管理员用户管理
   'pages.adminUsers.headerTitle': '管理员列表',
+  'pages.adminUsers.searchPlaceholder': '输入邮箱或姓名搜索',
   'pages.adminUsers.column.email': '邮箱',
   'pages.adminUsers.column.name': '姓名',
   'pages.adminUsers.column.roles': '管理员角色',

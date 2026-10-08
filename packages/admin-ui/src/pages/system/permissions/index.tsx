@@ -6,9 +6,9 @@ import {
   ProFormSelect,
   ProTable,
 } from '@ant-design/pro-components';
-import { Access, useAccess, useIntl } from '@umijs/max';
+import { Access, useAccess, useIntl, useSearchParams } from '@umijs/max';
 import { Button, message, Popconfirm, Space, Tag } from 'antd';
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { getActionTypes, getResourceTypes } from '@/constants/permissions';
 import { useRoleOptions } from '@/hooks/useRoleOptions';
 import {
@@ -18,21 +18,120 @@ import {
 } from '@/services/permission';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import type { PermissionFormValues, PermissionTableItem } from './data.d';
+import type { PermissionPageAPI } from './page-api';
 
 /**
- * 权限管理页面
+ * Permission Management Page
  */
 const PermissionListPage: React.FC = () => {
   const actionRef = useRef<ActionType>(null);
   const access = useAccess();
   const intl = useIntl();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [modalVisible, setModalVisible] = React.useState(false);
   const { roleMap, roleOptions } = useRoleOptions();
 
   const RESOURCE_TYPES = getResourceTypes(intl);
   const ACTION_TYPES = getActionTypes(intl);
 
-  /** 表格列定义 */
+  // === Register Page API ===
+  useEffect(() => {
+    const pageAPI: PermissionPageAPI = {
+      // Read table data
+      list: async (params = {}) => {
+        const { current = 1, pageSize = 20, role_id, resource } = params;
+
+        // Sync URL (no page refresh)
+        const newSearchParams = new URLSearchParams();
+        if (role_id) {
+          newSearchParams.set('role_id', role_id);
+        }
+        if (resource) {
+          newSearchParams.set('resource', resource);
+        }
+        setSearchParams(newSearchParams, { replace: true });
+
+        try {
+          const response = await getPermissionList({
+            page: current,
+            page_size: pageSize,
+            role_id,
+            resource,
+          });
+
+          return {
+            success: true,
+            data: response.items,
+            total: response.total,
+          };
+        } catch (error) {
+          console.error('[Permission Page API] list failed:', error);
+          return {
+            success: false,
+            data: [],
+            total: 0,
+          };
+        }
+      },
+
+      // Refresh table
+      refresh: async () => {
+        actionRef.current?.reload();
+      },
+
+      // Create permission policy
+      create: async (data) => {
+        try {
+          await createPermission(data);
+          actionRef.current?.reload();
+          return { success: true };
+        } catch (error) {
+          console.error('[Permission Page API] create failed:', error);
+          return { success: false };
+        }
+      },
+
+      // Remove permission policies
+      remove: async (items) => {
+        try {
+          let deletedCount = 0;
+          for (const item of items) {
+            await deletePermission(item);
+            deletedCount++;
+          }
+          actionRef.current?.reload();
+          return { success: true, deletedCount };
+        } catch (error) {
+          console.error('[Permission Page API] remove failed:', error);
+          return { success: false };
+        }
+      },
+    };
+
+    // Register to global
+    window.__pages__ = window.__pages__ || {};
+    window.__pages__.permission = pageAPI;
+
+    // Dispatch ready event (notify navigation.goto that page is loaded)
+    window.dispatchEvent(
+      new CustomEvent('page-api-ready', { detail: { page: 'permission' } }),
+    );
+
+    console.log('[PermissionListPage] Page API registered');
+
+    // Cleanup
+    return () => {
+      delete window.__pages__?.permission;
+      console.log('[PermissionListPage] Page API unregistered');
+    };
+  }, []);
+
+  // Listen for URL changes, auto-reload table
+  useEffect(() => {
+    actionRef.current?.reload();
+  }, [searchParams]);
+
+  /** Table column definitions */
   const columns: ProColumns<PermissionTableItem>[] = [
     {
       title: intl.formatMessage({
@@ -153,7 +252,7 @@ const PermissionListPage: React.FC = () => {
     },
   ];
 
-  /** 提交表单 */
+  /** Submit form */
   const handleSubmit = async (values: PermissionFormValues) => {
     try {
       await createPermission(values);
@@ -194,6 +293,11 @@ const PermissionListPage: React.FC = () => {
         search={{
           labelWidth: 'auto',
         }}
+        form={{
+          initialValues: {
+            resource: searchParams.get('resource') || undefined,
+          },
+        }}
         toolBarRender={() => [
           <Access
             accessible={access.canPermissionEdit}
@@ -216,11 +320,14 @@ const PermissionListPage: React.FC = () => {
         ]}
         request={async (params) => {
           try {
+            // Read all query params from searchParams (URL is single source of truth)
+            const roleId = searchParams.get('role_id') || undefined;
+            const resource = searchParams.get('resource') || undefined;
             const response = await getPermissionList({
               page: params.current,
               page_size: params.pageSize,
-              role_id: params.role_id,
-              resource: params.resource,
+              role_id: roleId,
+              resource,
             });
             return {
               data: response.items.map((item) => ({

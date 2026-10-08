@@ -484,6 +484,7 @@ export default {
   'pages.auditLogs.loadFailed': 'Failed to load audit logs',
   // Admin User Management
   'pages.adminUsers.headerTitle': 'Admin List',
+  'pages.adminUsers.searchPlaceholder': 'ইমেইল বা নাম দিয়ে অনুসন্ধান করুন',
   'pages.adminUsers.column.email': 'Email',
   'pages.adminUsers.column.name': 'Name',
   'pages.adminUsers.column.roles': 'Roles',
@@ -587,8 +588,7 @@ export default {
     'Basic info updated successfully',
   'pages.account.settings.base.avatar': 'Avatar',
   'pages.account.settings.base.changeAvatar': 'Change Avatar',
-  'pages.account.settings.base.avatarSizeError':
-    'চিত্রের আকার {size}MB এর বেশি!',
+  'pages.account.settings.base.avatarSizeError': 'চিত্রের আকার {size}MB এর বেশি!',
   'pages.account.settings.base.avatarTypeOnly': 'শুধুমাত্র ইমেজ ফাইল অনুমোদিত!',
   'pages.account.settings.base.uploadFailed': 'Avatar upload failed',
   // Account Settings - Security

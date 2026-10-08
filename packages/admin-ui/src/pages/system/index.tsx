@@ -2,14 +2,14 @@ import { history, useAccess } from '@umijs/max';
 import React, { useEffect } from 'react';
 
 /**
- * 系统管理首页
- * 根据管理员权限智能重定向到第一个有权限的页面
+ * System Management Index Page
+ * Intelligently redirects to the first accessible page based on admin permissions
  */
 const SystemIndexPage: React.FC = () => {
   const access = useAccess();
 
   useEffect(() => {
-    // 按优先级检查权限，重定向到第一个有权限的页面
+    // Check permissions in priority order, redirect to the first accessible page
     if (access.canAdminUserView) {
       history.replace('/system/users');
     } else if (access.canAdminRoleView) {
@@ -21,7 +21,7 @@ const SystemIndexPage: React.FC = () => {
     } else if (access.canServerConfigView) {
       history.replace('/system/configs');
     } else {
-      // 如果没有任何权限，重定向到仪表盘
+      // If no permissions, redirect to dashboard
       history.replace('/dashboard');
     }
   }, [access]);

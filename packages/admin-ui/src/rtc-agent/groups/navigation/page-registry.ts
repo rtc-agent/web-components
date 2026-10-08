@@ -73,7 +73,7 @@ export function formatPageListForDescription(pages: PageDefinition[]): string {
 export function extractPageName(path: string): string {
   const mapping: Record<string, string> = {
     '/system/roles': 'role',
-    '/system/users': 'user',
+    '/system/users': 'admin',
     '/system/permissions': 'permission',
     '/system/audit-logs': 'auditLog',
   };

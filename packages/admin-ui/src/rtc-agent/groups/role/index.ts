@@ -22,7 +22,7 @@ import { updateRole } from './update';
 export const roleGroup = {
   name: 'role',
   description:
-    'Admin role management module, supports CRUD operations on admin roles. All operations are reflected in the UI table.',
+    'Admin role management module for /system/roles page. Supports CRUD operations (list, create, update, remove) on admin roles. All operations are reflected in the UI table.',
   functions: [
     listRoles,
     createRole,

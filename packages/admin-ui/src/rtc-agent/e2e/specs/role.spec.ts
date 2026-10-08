@@ -1,34 +1,34 @@
 import { expect, test } from '../fixtures/rtc-functions';
 
-test.describe('role Group - 管理员角色管理', () => {
+test.describe('role Group - Admin Role Management', () => {
   test.beforeEach(async ({ page, login }) => {
-    // 登录并导航到管理员角色列表页
+    // Login and navigate to admin role list page
     await login();
     await page.goto('/system/roles');
     await page.waitForLoadState('networkidle');
   });
 
-  test('role.list - 读取表格数据（与 UI 一致）', async ({
+  test('role.list - Read table data (matches UI)', async ({
     page,
     callFunction,
   }) => {
-    // 调用 function
+    // Call function
     const result = await callFunction('role.list', {
       current: 1,
       pageSize: 10,
     });
 
-    // 验证返回值结构
+    // Verify return value structure
     expect(result).toHaveProperty('success', true);
     expect(result).toHaveProperty('data');
     expect(result).toHaveProperty('total');
 
-    // 验证数据与 UI 表格一致
+    // Verify data matches UI table
     const tableRows = await page.locator('.ant-table-tbody tr').count();
     const resultData = (result as any).data;
     expect(resultData.length).toBe(tableRows);
 
-    // 验证第一行数据
+    // Verify first row data
     if (resultData.length > 0) {
       const firstRowName = await page
         .locator('.ant-table-tbody tr:first-child td:nth-child(2)')
@@ -37,68 +37,68 @@ test.describe('role Group - 管理员角色管理', () => {
     }
   });
 
-  test('role.create - 创建管理员角色并刷新表格', async ({
+  test('role.create - Create admin role and refresh table', async ({
     page,
     callFunction,
   }) => {
-    // 记录创建前的行数
+    // Record row count before creation
     const rowsBefore = await page.locator('.ant-table-tbody tr').count();
 
-    // 调用 function
+    // Call function
     const result = await callFunction('role.create', {
       name: 'test_role',
-      display_name: '测试管理员角色',
-      description: 'E2E 测试创建的管理员角色',
+      display_name: 'Test Admin Role',
+      description: 'Admin role created by E2E test',
     });
 
     expect(result).toHaveProperty('success', true);
 
-    // 验证表格已刷新（行数增加）
-    await page.waitForTimeout(500); // 等待刷新完成
+    // Verify table has been refreshed (row count increased)
+    await page.waitForTimeout(500); // Wait for refresh to complete
     const rowsAfter = await page.locator('.ant-table-tbody tr').count();
     expect(rowsAfter).toBe(rowsBefore + 1);
 
-    // 验证新管理员角色出现在表格中
+    // Verify new admin role appears in table
     const newRoleVisible = await page
-      .locator('text=测试管理员角色')
+      .locator('text=Test Admin Role')
       .isVisible();
     expect(newRoleVisible).toBe(true);
   });
 
-  test('role.remove - 删除管理员角色并刷新表格', async ({
+  test('role.remove - Delete admin role and refresh table', async ({
     page,
     callFunction,
   }) => {
-    // 先创建一条管理员角色
+    // First create an admin role
     await callFunction('role.create', {
       name: 'test_delete_role',
-      display_name: '待删除管理员角色',
-      description: '即将被删除',
+      display_name: 'Role To Delete',
+      description: 'Will be deleted',
     });
 
-    // 记录当前行数
+    // Record current row count
     const rowsBefore = await page.locator('.ant-table-tbody tr').count();
 
-    // 找到刚创建的管理员角色
-    const targetRow = await page.locator('tr', { hasText: '待删除管理员角色' });
+    // Find the newly created admin role
+    const targetRow = await page.locator('tr', { hasText: 'Role To Delete' });
     const idCell = await targetRow.locator('td:first-child').textContent();
     const roleId = idCell?.trim() || '';
 
-    // 调用 function 删除
+    // Call function to delete
     const result = await callFunction('role.remove', {
       ids: [roleId],
     });
 
     expect(result).toHaveProperty('success', true);
 
-    // 验证表格已刷新（行数减少）
+    // Verify table has been refreshed (row count decreased)
     await page.waitForTimeout(500);
     const rowsAfter = await page.locator('.ant-table-tbody tr').count();
     expect(rowsAfter).toBe(rowsBefore - 1);
 
-    // 验证管理员角色已从表格消失
+    // Verify admin role has disappeared from table
     const roleStillVisible = await page
-      .locator('text=待删除管理员角色')
+      .locator('text=Role To Delete')
       .isVisible();
     expect(roleStillVisible).toBe(false);
   });

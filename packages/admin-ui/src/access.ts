@@ -15,6 +15,8 @@ export default function access(
       canAdminUserView: false,
       canAdminUserEdit: false,
       canAdminUserDelete: false,
+      canAdminUserRoleView: false,
+      canAdminUserRoleEdit: false,
       canAdminRoleView: false,
       canAdminRoleEdit: false,
       canPermissionView: false,
@@ -38,6 +40,8 @@ export default function access(
   const canAdminUserView = perms?.has('admin_user:read') ?? false;
   const canAdminUserEdit = perms?.has('admin_user:write') ?? false;
   const canAdminUserDelete = perms?.has('admin_user:delete') ?? false;
+  const canAdminUserRoleView = perms?.has('admin_user_role:read') ?? false;
+  const canAdminUserRoleEdit = perms?.has('admin_user_role:write') ?? false;
   const canAdminRoleView = perms?.has('role:read') ?? false;
   const canAdminRoleEdit = perms?.has('role:write') ?? false;
   const canPermissionView = perms?.has('permission:read') ?? false;
@@ -84,6 +88,10 @@ export default function access(
     canAdminUserView,
     canAdminUserEdit,
     canAdminUserDelete,
+
+    // 管理员用户角色管理
+    canAdminUserRoleView,
+    canAdminUserRoleEdit,
 
     // 管理员角色管理（设计文档未定义 canAdminRoleDelete，删除操作使用 canAdminRoleEdit）
     canAdminRoleView,

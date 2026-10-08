@@ -1,5 +1,13 @@
 import type { AgentConfig } from '@rtc-agent/component';
-import { createNavigationGroup, roleGroup } from './groups';
+import {
+  adminGroup,
+  adminRoleGroup,
+  auditLogGroup,
+  createNavigationGroup,
+  permissionGroup,
+  roleGroup,
+  serverConfigGroup,
+} from './groups';
 import type { Permission } from './permission-filter';
 import { buildPermissionSet } from './permission-filter';
 
@@ -9,11 +17,21 @@ import { buildPermissionSet } from './permission-filter';
  * This function creates groups with permission-aware configurations:
  * - navigation group: filters available pages based on user permissions
  * - role group: static, permission filtering happens at function level
+ * - permission group: static, permission filtering happens at function level
+ * - user group: static, permission filtering happens at function level
  */
 export function createAllGroups(userPermissions: Permission[]) {
   const permissionSet = buildPermissionSet(userPermissions);
 
-  return [createNavigationGroup(permissionSet), roleGroup];
+  return [
+    createNavigationGroup(permissionSet),
+    roleGroup,
+    permissionGroup,
+    auditLogGroup,
+    serverConfigGroup,
+    adminGroup,
+    adminRoleGroup,
+  ];
 }
 
 /**

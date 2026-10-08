@@ -4,12 +4,12 @@ import type { Permission } from './permission-filter';
 import { filterGroupsByPermissions } from './permission-filter';
 
 /**
- * 测试桥接模块
+ * Test Harness Module
  *
- * 在开发/测试环境下，将 Function Registry 暴露到 window 对象
- * 供 Playwright E2E 测试直接调用
+ * In development/test environments, exposes the Function Registry
+ * to the window object for Playwright E2E tests to call directly.
  *
- * 用法（在 Playwright 中）：
+ * Usage (in Playwright):
  *   const result = await page.evaluate(() => {
  *     return window.__rtc__.callFunction('role.list', { current: 1 });
  *   });
@@ -17,9 +17,9 @@ import { filterGroupsByPermissions } from './permission-filter';
 
 interface RtcTestHarness {
   /**
-   * 调用指定 Function
-   * @param fullPath - 完整路径，如 'role.list'
-   * @param params - 函数参数
+   * Call a specific Function
+   * @param fullPath - Full path, e.g. 'role.list'
+   * @param params - Function parameters
    */
   callFunction: (
     fullPath: string,
@@ -27,7 +27,7 @@ interface RtcTestHarness {
   ) => Promise<unknown>;
 
   /**
-   * 列出所有可用的 Functions
+   * List all available Functions
    */
   listFunctions: () => Array<{
     group: string;
@@ -43,7 +43,7 @@ function getFilteredGroups() {
   return filterGroupsByPermissions(allGroups, permissions);
 }
 
-// 构建 function map（基于权限过滤后的 groups）
+// Build function map (based on permission-filtered groups)
 function buildFunctionMap(): Map<
   string,
   (params?: Record<string, unknown>) => Promise<unknown>
@@ -64,11 +64,11 @@ function buildFunctionMap(): Map<
 }
 
 /**
- * 初始化测试桥接
- * 仅在开发环境或测试环境生效
+ * Initialize test harness
+ * Only active in development or test environments
  */
 export function initTestHarness(): void {
-  // 安全检查：仅在非生产环境暴露
+  // Safety check: only expose in non-production environments
   if (process.env.NODE_ENV === 'production') {
     return;
   }
@@ -105,7 +105,7 @@ export function initTestHarness(): void {
     },
   };
 
-  // 暴露到 window
+  // Expose to window
   (window as any).__rtc__ = harness;
 
   console.log(

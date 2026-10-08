@@ -17,8 +17,8 @@ export interface ConfigEditModalProps {
 }
 
 /**
- * 配置编辑表单
- * 根据 value_type 渲染不同的输入组件
+ * Configuration Edit Form
+ * Renders different input components based on value_type
  */
 const ConfigEditModal: React.FC<ConfigEditModalProps> = ({
   open,
@@ -52,7 +52,7 @@ const ConfigEditModal: React.FC<ConfigEditModalProps> = ({
       onOpenChange={onOpenChange}
       modalProps={{ destroyOnClose: true }}
       onFinish={async (values) => {
-        // 根据配置类型解析值
+        // Parse value based on config type
         const result = parseConfigValue(values.value, config.value_type);
         if (!result.success) {
           if (result.error === 'json') {

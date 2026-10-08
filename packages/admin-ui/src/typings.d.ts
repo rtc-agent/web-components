@@ -19,9 +19,18 @@ declare const __APP_VERSION__: string;
 declare const __UMI_VERSION__: string;
 declare const __UTOO_VERSION__: string;
 
-// RBAC 权限系统类型定义
+// Page API registry — each page registers its API on mount
+// Individual page-api.ts files extend PagesRegistry via declaration merging
+/** Registry of all page APIs - extend via interface merging */
+// biome-ignore lint/suspicious/noEmptyInterface: Interface merging is required for page-api.ts extensions
+interface PagesRegistry {}
+interface Window {
+  __pages__?: PagesRegistry;
+}
+
+// RBAC Permission System Type Definitions
 declare namespace API {
-  /** 管理员角色信息 */
+  /** Admin role information */
   interface Role {
     id: string;
     name: string;
@@ -33,13 +42,13 @@ declare namespace API {
     updated_at?: string;
   }
 
-  /** 权限信息 */
+  /** Permission information */
   interface Permission {
     resource: string;
     action: string;
   }
 
-  /** 当前管理员信息（登录后返回） */
+  /** Current admin information (returned after login) */
   interface CurrentUser {
     userid?: string;
     name?: string;
@@ -50,14 +59,14 @@ declare namespace API {
     permissions?: Set<string>;
   }
 
-  /** 管理员-管理员角色关联 */
+  /** Admin-to-admin role association */
   interface UserRole {
     user_id: string;
     role_id: string;
     assigned_at: string;
   }
 
-  /** 审计日志 */
+  /** Audit log */
   interface AuditLog {
     id: string;
     operator_id: string;
@@ -70,13 +79,13 @@ declare namespace API {
     created_at: string;
   }
 
-  /** 分页响应 */
+  /** Paginated response */
   interface PaginatedResponse<T> {
     items: T[];
     total: number;
   }
 
-  /** 通用响应结构 */
+  /** Generic response structure */
   interface Response<T = any> {
     success: boolean;
     data?: T;
@@ -84,7 +93,7 @@ declare namespace API {
     error_message?: string;
   }
 
-  /** 管理员用户信息 */
+  /** Admin user information */
   interface AdminUser {
     id: string;
     email: string;

@@ -14,8 +14,8 @@ export interface ConfigHistoryModalProps {
 }
 
 /**
- * 系统配置历史 + 回滚对话框
- * 使用 ConfigHistoryTable 共享组件
+ * System Config History + Rollback Dialog
+ * Uses ConfigHistoryTable shared component
  */
 const ConfigHistoryModal: React.FC<ConfigHistoryModalProps> = ({
   open,

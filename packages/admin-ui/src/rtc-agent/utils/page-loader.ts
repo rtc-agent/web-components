@@ -1,16 +1,18 @@
 /**
- * 确保页面 API 已加载
+ * Ensure page API is loaded
  *
- * 如果页面 API 未注册，自动导航到页面并等待 page-api-ready 事件
+ * If the page API is not registered, automatically navigate to the page and wait for page-api-ready event
  *
- * @param pageName - 页面名称（如 'role', 'user'）
- * @param pagePath - 页面路径（如 '/system/roles'）
+ * @param pageName - Page name (e.g., 'role', 'admin')
+ * @param pagePath - Page path (e.g., '/system/roles')
+ * @param queryParams - Optional query params (only used during initial navigation to avoid data flickering)
  */
 export async function ensurePageLoaded(
   pageName: keyof NonNullable<typeof window.__pages__>,
   pagePath: string,
+  queryParams?: Record<string, string>,
 ): Promise<void> {
-  // 检查页面 API 是否已注册
+  // Page API already registered — return immediately (no URL comparison)
   if (window.__pages__?.[pageName]) {
     return;
   }
@@ -19,33 +21,48 @@ export async function ensurePageLoaded(
     `[ensurePageLoaded] ${pageName} page not loaded, navigating to ${pagePath}...`,
   );
 
-  // 导航到页面
-  if (window.location.pathname !== pagePath) {
-    window.history.pushState({}, '', pagePath);
+  // Build URL with query params (avoid data flickering on initial load)
+  let fullUrl = pagePath;
+  if (queryParams && Object.keys(queryParams).length > 0) {
+    const searchParams = new URLSearchParams(queryParams);
+    fullUrl = `${pagePath}?${searchParams.toString()}`;
+  }
+
+  // Navigate to target page
+  const currentPath = window.location.pathname;
+  if (currentPath !== pagePath) {
+    window.history.pushState({}, '', fullUrl);
     window.dispatchEvent(new PopStateEvent('popstate'));
   }
 
-  // 等待页面 API 注册完成
-  await new Promise<void>((resolve) => {
-    let timeoutId: NodeJS.Timeout;
+  // Wait for page API to be registered
+  await waitForPageApi(pageName);
+}
 
+/**
+ * Wait for page API to be registered
+ */
+function waitForPageApi(
+  pageName: keyof NonNullable<typeof window.__pages__>,
+  timeoutMs = 10000,
+): Promise<void> {
+  return new Promise<void>((resolve) => {
     const handler = (e: Event) => {
       const customEvent = e as CustomEvent<{ page: string }>;
       if (customEvent.detail.page === pageName) {
-        clearTimeout(timeoutId);
         window.removeEventListener('page-api-ready', handler);
         resolve();
       }
     };
     window.addEventListener('page-api-ready', handler);
 
-    // 超时保护：10 秒
-    timeoutId = setTimeout(() => {
+    // Timeout protection
+    setTimeout(() => {
       window.removeEventListener('page-api-ready', handler);
       console.warn(
         `[ensurePageLoaded] Timeout waiting for ${pageName} page API`,
       );
       resolve();
-    }, 10000);
+    }, timeoutMs);
   });
 }

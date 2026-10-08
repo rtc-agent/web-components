@@ -486,6 +486,7 @@ export default {
   'pages.auditLogs.loadFailed': 'Failed to load audit logs',
   // Admin User Management
   'pages.adminUsers.headerTitle': 'Admin List',
+  'pages.adminUsers.searchPlaceholder': 'جستجو بر اساس ایمیل یا نام',
   'pages.adminUsers.column.email': 'Email',
   'pages.adminUsers.column.name': 'Name',
   'pages.adminUsers.column.roles': 'Roles',
@@ -591,7 +592,8 @@ export default {
   'pages.account.settings.base.changeAvatar': 'Change Avatar',
   'pages.account.settings.base.avatarSizeError':
     'حجم تصویر از {size}MB بیشتر است!',
-  'pages.account.settings.base.avatarTypeOnly': 'فقط فایل‌های تصویری مجاز هستند!',
+  'pages.account.settings.base.avatarTypeOnly':
+    'فقط فایل‌های تصویری مجاز هستند!',
   'pages.account.settings.base.uploadFailed': 'Avatar upload failed',
   // Account Settings - Security
   'pages.account.settings.security.password': 'Account Password',

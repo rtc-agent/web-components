@@ -1,13 +1,13 @@
 /**
- * 权限管理共享常量
+ * Permission Management Shared Constants
  *
- * 角色管理和权限管理页面共用的资源类型与操作类型定义。
+ * Resource and action type definitions shared between role and permission management pages.
  */
 import type { useIntl } from '@umijs/max';
 
 type IntlType = ReturnType<typeof useIntl>;
 
-/** 资源类型（国际化） */
+/** Resource types (i18n) */
 export const getResourceTypes = (intl: IntlType) => [
   {
     label: intl.formatMessage({
@@ -81,7 +81,7 @@ export const getResourceTypes = (intl: IntlType) => [
   },
 ];
 
-/** 操作类型（国际化） */
+/** Action types (i18n) */
 export const getActionTypes = (intl: IntlType) => [
   {
     label: intl.formatMessage({

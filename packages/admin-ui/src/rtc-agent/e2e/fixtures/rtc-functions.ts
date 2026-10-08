@@ -2,22 +2,22 @@ import { test as base } from '@playwright/test';
 import type { Permission } from '@/rtc-agent/permission-filter';
 
 type RtcFunctionsFixtures = {
-  /** 调用 RTC Function */
+  /** Call RTC Function */
   callFunction: (
     fullPath: string,
     params?: Record<string, unknown>,
   ) => Promise<unknown>;
-  /** 登录 helper（默认 admin 管理员角色） */
+  /** Login helper (defaults to admin role) */
   login: () => Promise<void>;
-  /** 以指定管理员角色登录 */
+  /** Login as a specific admin role */
   loginAs: (role: 'admin' | 'operator' | 'viewer') => Promise<void>;
-  /** 列出所有已注册的 Functions */
+  /** List all registered Functions */
   listFunctions: () => Promise<
     Array<{ group: string; name: string; description: string }>
   >;
 };
 
-// 管理员角色对应的权限映射（与后端一致）
+// Permission mapping for admin roles (consistent with backend)
 const ROLE_PERMISSIONS: Record<string, Permission[]> = {
   admin: [
     { resource: 'admin_user', action: 'read' },
@@ -33,6 +33,9 @@ const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     { resource: 'admin_user_role', action: 'write' },
     { resource: 'admin_user_role', action: 'delete' },
     { resource: 'audit_log', action: 'read' },
+    { resource: 'server_config', action: 'read' },
+    { resource: 'server_config', action: 'write' },
+    { resource: 'server_config', action: 'delete' },
   ],
   operator: [
     { resource: 'admin_user', action: 'read' },
@@ -70,10 +73,10 @@ export const test = base.extend<RtcFunctionsFixtures>({
     await use(login);
   },
 
-  // === 新增：以指定管理员角色登录 ===
+  // === Login as a specific admin role ===
   loginAs: async ({ page }, use) => {
     const loginAs = async (role: 'admin' | 'operator' | 'viewer') => {
-      // Mock /api/auth/me 接口返回对应管理员角色的权限
+      // Mock /api/auth/me endpoint to return permissions for the specified role
       await page.route('**/api/auth/me', async (route) => {
         await route.fulfill({
           status: 200,
@@ -97,7 +100,7 @@ export const test = base.extend<RtcFunctionsFixtures>({
       await page.click('button[type="submit"]');
       await page.waitForURL('**/dashboard/**');
 
-      // 等待 RTC Agent 初始化完成（带权限过滤）
+      // Wait for RTC Agent initialization to complete (with permission filtering)
       await page.waitForFunction(() => {
         // @ts-expect-error
         return window.__rtc__?.listFunctions !== undefined;
@@ -106,7 +109,7 @@ export const test = base.extend<RtcFunctionsFixtures>({
     await use(loginAs);
   },
 
-  // === 新增：列出已注册的 Functions ===
+  // === List registered Functions ===
   listFunctions: async ({ page }, use) => {
     const listFunctions = async () => {
       return page.evaluate(() => {

@@ -14,7 +14,7 @@ export interface ConflictModalProps {
 }
 
 /**
- * 乐观锁冲突对话框
+ * Optimistic Lock Conflict Dialog
  */
 const ConflictModal: React.FC<ConflictModalProps> = ({
   open,

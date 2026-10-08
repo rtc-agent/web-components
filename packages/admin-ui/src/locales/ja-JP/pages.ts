@@ -24,7 +24,8 @@ export default {
   'pages.login.captcha.required': '確認コードを入力してください！',
   'pages.login.captcha.invalid': 'コードは6桁の数字である必要があります',
   'pages.login.captcha.sent': 'コードを送信しました。メールをご確認ください',
-  'pages.login.captcha.sendFailed': 'コードの送信に失敗しました。もう一度お試しください',
+  'pages.login.captcha.sendFailed':
+    'コードの送信に失敗しました。もう一度お試しください',
   'pages.login.captcha.rateLimited':
     'リクエストが多すぎます。後でもう一度お試しください',
   'pages.login.captcha.invalidOrExpired': '無効または期限切れのコードです',
@@ -112,7 +113,8 @@ export default {
   'pages.rtcUsers.actions': '操作',
   'pages.rtcUsers.ban': '禁止',
   'pages.rtcUsers.unban': '禁止解除',
-  'pages.rtcUsers.confirmUnban': 'このユーザーの禁止を解除してもよろしいですか？',
+  'pages.rtcUsers.confirmUnban':
+    'このユーザーの禁止を解除してもよろしいですか？',
   'pages.rtcUsers.confirm': '確認',
   'pages.rtcUsers.cancel': 'キャンセル',
   'pages.rtcUsers.banUser': 'ユーザーを禁止',
@@ -120,7 +122,8 @@ export default {
   'pages.rtcUsers.banReasonPlaceholder': '禁止理由を入力してください',
   'pages.rtcUsers.banReasonRequired': '禁止理由を入力してください',
   'pages.rtcUsers.banReasonNoWhitespace': '禁止理由を空白にできません',
-  'pages.rtcUsers.banReasonMaxLength': '禁止理由は500文字を超えることはできません',
+  'pages.rtcUsers.banReasonMaxLength':
+    '禁止理由は500文字を超えることはできません',
   'pages.rtcUsers.banSuccess': 'ユーザーを禁止しました',
   'pages.rtcUsers.unbanSuccess': 'ユーザーの禁止を解除しました',
   'pages.rtcUsers.banFailed': 'ユーザーの禁止に失敗しました',
@@ -224,7 +227,8 @@ export default {
     '形式エラー、Go duration形式を入力してください（例：5m、1h30m、500ms）',
   'pages.config.system.durationPlaceholder':
     'Go duration形式、例：5m、1h30m、500ms',
-  'pages.config.system.durationTooltip': 'サポートされる単位：ns、us、ms、s、m、h',
+  'pages.config.system.durationTooltip':
+    'サポートされる単位：ns、us、ms、s、m、h',
   'pages.config.system.jsonNullError': '設定値をnullにすることはできません',
   'pages.config.system.jsonFormatError': '有効なJSON形式を入力してください',
   'pages.config.system.jsonPlaceholder':
@@ -245,8 +249,7 @@ export default {
     '任意、ロールバックの理由を説明してください',
   'pages.config.system.rollbackSuccess': 'ロールバックが成功しました',
   'pages.config.system.rollbackDefaultNote': 'v{version} にロールバック',
-  'pages.config.system.forceOverwriteSuccess':
-    '設定の上書きが成功しました',
+  'pages.config.system.forceOverwriteSuccess': '設定の上書きが成功しました',
   'pages.config.system.forceOverwriteSuffix': '（強制上書き）',
   // Conflict Modal
   'pages.config.system.conflict.title': '設定の競合',
@@ -271,7 +274,8 @@ export default {
   'pages.config.user.edit': '編集',
   'pages.config.user.history': '履歴',
   'pages.config.user.deleteOverride': 'オーバーライドを削除',
-  'pages.config.user.confirmDelete': 'ユーザーオーバーライドの削除を確認しますか？',
+  'pages.config.user.confirmDelete':
+    'ユーザーオーバーライドの削除を確認しますか？',
   'pages.config.user.confirmDeleteDesc':
     '削除後、システムデフォルト値に戻ります',
   'pages.config.user.confirm': '確認',
@@ -280,8 +284,7 @@ export default {
   'pages.config.user.deleteSuccess':
     'ユーザーオーバーライドが削除され、システムデフォルト値に戻りました',
   'pages.config.user.rollbackSuccess': 'ロールバックが成功しました',
-  'pages.config.user.forceOverwriteSuccess':
-    '設定の上書きが成功しました',
+  'pages.config.user.forceOverwriteSuccess': '設定の上書きが成功しました',
   'pages.config.user.editTitle': '設定を編集: ',
   'pages.config.user.historyTitle': '設定履歴: ',
   'pages.config.user.rollbackTitle': 'ロールバック確認',
@@ -314,7 +317,8 @@ export default {
   'pages.rtcUsers.detail.sessionCreatedAt': '作成日時',
   'pages.rtcUsers.detail.viewDetail': '詳細を表示',
   'pages.rtcUsers.detail.loadDevicesFailed': 'デバイスの読み込みに失敗しました',
-  'pages.rtcUsers.detail.loadStatsFailed': 'トークン統計の読み込みに失敗しました',
+  'pages.rtcUsers.detail.loadStatsFailed':
+    'トークン統計の読み込みに失敗しました',
   'pages.rtcUsers.detail.noDevices': 'デバイスがありません',
   'pages.rtcUsers.detail.noStats': '統計データがありません',
   // Dashboard - System Overview
@@ -362,8 +366,7 @@ export default {
   'pages.roles.actionType.write': '書き込み',
   'pages.roles.actionType.delete': '削除',
   'pages.roles.actionType.ban': '禁止',
-  'pages.roles.searchPlaceholder':
-    'ロール名、表示名、説明を入力してください',
+  'pages.roles.searchPlaceholder': 'ロール名、表示名、説明を入力してください',
   'pages.roles.column.name': 'ロール名',
   'pages.roles.column.displayName': '表示名',
   'pages.roles.column.description': '説明',
@@ -401,7 +404,8 @@ export default {
   'pages.roles.editRole': 'ロールを編集',
   'pages.roles.loadFailed': 'ロール一覧の読み込みに失敗しました',
   'pages.roles.nameLabel': 'ロール名',
-  'pages.roles.namePlaceholder': 'ロール名を入力してください（英語、例：admin）',
+  'pages.roles.namePlaceholder':
+    'ロール名を入力してください（英語、例：admin）',
   'pages.roles.nameRequired': 'ロール名を入力してください',
   'pages.roles.nameMinLength': 'ロール名は3文字以上である必要があります',
   'pages.roles.namePattern':
@@ -435,8 +439,7 @@ export default {
   'pages.permissions.column.resource': 'リソース',
   'pages.permissions.column.action': 'アクション',
   'pages.permissions.column.actions': '操作',
-  'pages.permissions.confirmDelete':
-    'この権限を削除してもよろしいですか？',
+  'pages.permissions.confirmDelete': 'この権限を削除してもよろしいですか？',
   'pages.permissions.confirmDeleteDesc':
     '削除後、ロールは対応する権限を失います',
   'pages.permissions.confirm': '確認',
@@ -487,6 +490,7 @@ export default {
   'pages.auditLogs.loadFailed': '監査ログの読み込みに失敗しました',
   // Admin User Management
   'pages.adminUsers.headerTitle': '管理者一覧',
+  'pages.adminUsers.searchPlaceholder': 'メールアドレスまたは名前で検索',
   'pages.adminUsers.column.email': 'メール',
   'pages.adminUsers.column.name': '名前',
   'pages.adminUsers.column.roles': 'ロール',
@@ -508,7 +512,8 @@ export default {
   'pages.adminUsers.assignRoleTitle': 'ロール割り当て - {email}',
   'pages.adminUsers.selectRoles': 'ロールを選択',
   'pages.adminUsers.selectRolesPlaceholder': '割り当てるロールを選択',
-  'pages.adminUsers.selectRolesRequired': '少なくとも1つのロールを選択してください',
+  'pages.adminUsers.selectRolesRequired':
+    '少なくとも1つのロールを選択してください',
   'pages.adminUsers.createTitle': '管理者を作成',
   'pages.adminUsers.emailLabel': 'メール',
   'pages.adminUsers.emailPlaceholder': 'メールを入力してください',
@@ -562,42 +567,45 @@ export default {
   'pages.account.settings.notification': '新着メッセージ通知',
   // Account Settings - Base
   'pages.account.settings.base.email': 'メール',
-  'pages.account.settings.base.emailRequired': 'メールアドレスを入力してください！',
+  'pages.account.settings.base.emailRequired':
+    'メールアドレスを入力してください！',
   'pages.account.settings.base.emailInvalid':
     '有効なメールアドレスを入力してください！',
   'pages.account.settings.base.name': 'ニックネーム',
-  'pages.account.settings.base.nameRequired': 'ニックネームを入力してください！',
+  'pages.account.settings.base.nameRequired':
+    'ニックネームを入力してください！',
   'pages.account.settings.base.profile': 'プロフィール',
-  'pages.account.settings.base.profileRequired': 'プロフィールを入力してください！',
+  'pages.account.settings.base.profileRequired':
+    'プロフィールを入力してください！',
   'pages.account.settings.base.profilePlaceholder': 'プロフィールの説明',
   'pages.account.settings.base.country': '国/地域',
   'pages.account.settings.base.countryRequired':
     '国または地域を入力してください！',
   'pages.account.settings.base.countryChina': '中国',
   'pages.account.settings.base.province': '都道府県',
-  'pages.account.settings.base.provinceRequired': '都道府県を入力してください！',
+  'pages.account.settings.base.provinceRequired':
+    '都道府県を入力してください！',
   'pages.account.settings.base.city': '市区町村',
   'pages.account.settings.base.cityRequired': '市区町村を入力してください！',
   'pages.account.settings.base.address': '住所',
-  'pages.account.settings.base.addressRequired':
-    '住所を入力してください！',
+  'pages.account.settings.base.addressRequired': '住所を入力してください！',
   'pages.account.settings.base.phone': '電話番号',
   'pages.account.settings.base.phoneRequired': '電話番号を入力してください！',
   'pages.account.settings.base.phoneAreaCode': '市外局番を入力してください！',
   'pages.account.settings.base.phoneNumber': '電話番号を入力してください！',
   'pages.account.settings.base.updateBasic': '基本情報を更新',
-  'pages.account.settings.base.updateSuccess':
-    '基本情報が更新されました',
+  'pages.account.settings.base.updateSuccess': '基本情報が更新されました',
   'pages.account.settings.base.avatar': 'アバター',
   'pages.account.settings.base.changeAvatar': 'アバターを変更',
   'pages.account.settings.base.avatarSizeError':
     '画像サイズが{size}MBを超えています！',
-  'pages.account.settings.base.avatarTypeOnly': '画像ファイルのみアップロードできます！',
-  'pages.account.settings.base.uploadFailed': 'アバターのアップロードに失敗しました',
+  'pages.account.settings.base.avatarTypeOnly':
+    '画像ファイルのみアップロードできます！',
+  'pages.account.settings.base.uploadFailed':
+    'アバターのアップロードに失敗しました',
   // Account Settings - Security
   'pages.account.settings.security.password': 'アカウントパスワード',
-  'pages.account.settings.security.passwordStrength':
-    '現在のパスワード強度: ',
+  'pages.account.settings.security.passwordStrength': '現在のパスワード強度: ',
   'pages.account.settings.security.strong': '強',
   'pages.account.settings.security.medium': '中',
   'pages.account.settings.security.weak': '弱',

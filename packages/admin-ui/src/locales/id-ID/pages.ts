@@ -486,6 +486,7 @@ export default {
   'pages.auditLogs.loadFailed': 'Failed to load audit logs',
   // Admin User Management
   'pages.adminUsers.headerTitle': 'Admin List',
+  'pages.adminUsers.searchPlaceholder': 'Cari berdasarkan email atau nama',
   'pages.adminUsers.column.email': 'Email',
   'pages.adminUsers.column.name': 'Name',
   'pages.adminUsers.column.roles': 'Roles',
@@ -591,7 +592,8 @@ export default {
   'pages.account.settings.base.changeAvatar': 'Change Avatar',
   'pages.account.settings.base.avatarSizeError':
     'Ukuran gambar melebihi {size}MB!',
-  'pages.account.settings.base.avatarTypeOnly': 'Hanya file gambar yang diizinkan!',
+  'pages.account.settings.base.avatarTypeOnly':
+    'Hanya file gambar yang diizinkan!',
   'pages.account.settings.base.uploadFailed': 'Avatar upload failed',
   // Account Settings - Security
   'pages.account.settings.security.password': 'Account Password',

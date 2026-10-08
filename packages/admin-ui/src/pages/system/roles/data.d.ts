@@ -1,13 +1,13 @@
 import type { RoleInfo } from '@/services/admin-auth';
 
-/** 管理员角色表单值 */
+/** Admin role form values */
 export interface RoleFormValues {
   name: string;
   display_name: string;
   description?: string;
 }
 
-/** 管理员角色表格项 */
+/** Admin role table item */
 export interface RoleTableItem extends RoleInfo {
   key: string;
 }

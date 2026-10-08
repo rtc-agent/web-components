@@ -493,9 +493,11 @@ export default {
   'pages.auditLogs.column.endTimePlaceholder': 'Select end time',
   'pages.auditLogs.headerTitle': 'Audit Logs',
   'pages.auditLogs.loadFailed': 'Failed to load audit logs',
-  'pages.auditLogs.timeRangeInvalid': 'Start time must be earlier than end time',
+  'pages.auditLogs.timeRangeInvalid':
+    'Start time must be earlier than end time',
   // Admin User Management
   'pages.adminUsers.headerTitle': 'Admin List',
+  'pages.adminUsers.searchPlaceholder': 'Search by email or name',
   'pages.adminUsers.column.email': 'Email',
   'pages.adminUsers.column.name': 'Name',
   'pages.adminUsers.column.roles': 'Roles',
@@ -599,8 +601,7 @@ export default {
     'Basic info updated successfully',
   'pages.account.settings.base.avatar': 'Avatar',
   'pages.account.settings.base.changeAvatar': 'Change Avatar',
-  'pages.account.settings.base.avatarSizeError':
-    'Image size exceeds {size}MB!',
+  'pages.account.settings.base.avatarSizeError': 'Image size exceeds {size}MB!',
   'pages.account.settings.base.avatarTypeOnly': 'Only image files are allowed!',
   'pages.account.settings.base.uploadFailed': 'Avatar upload failed',
   // Account Settings - Security

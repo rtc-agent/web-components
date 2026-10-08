@@ -27,8 +27,13 @@ ${formatPageListForDescription(availablePages)}`,
 
   zodSchema: z.object({
     path: withMeta(z.string(), { example: '/system/roles' }).describe(
-      'Target page path',
+      'Target page path to navigate to. Must be a valid route in the admin system (e.g., /system/users, /system/roles, /system/permissions, /system/audit-logs, /system/configs).',
     ),
+    query: withMeta(z.record(z.string()), { example: { keyword: 'admin' } })
+      .optional()
+      .describe(
+        'Query parameters to append to URL (e.g., { keyword: "admin" } for search filters).',
+      ),
   }),
 
   returns: {
@@ -42,14 +47,25 @@ ${formatPageListForDescription(availablePages)}`,
   },
 
   handler: async (params) => {
-    const { path } = params as { path: string };
+    const { path, query } = params as {
+      path: string;
+      query?: Record<string, string>;
+    };
+
+    // Build full URL with query params
+    let fullUrl = path;
+    if (query && Object.keys(query).length > 0) {
+      const searchParams = new URLSearchParams(query);
+      fullUrl = `${path}?${searchParams.toString()}`;
+    }
 
     // Extract page name (infer page API key from path)
     const pageName = extractPageName(path);
 
-    // 1. Navigate to the new page
-    if (window.location.pathname !== path) {
-      window.history.pushState({}, '', path);
+    // 1. Navigate to the new page (with query params if any)
+    const currentUrl = window.location.pathname + window.location.search;
+    if (currentUrl !== fullUrl) {
+      window.history.pushState({}, '', fullUrl);
       window.dispatchEvent(new PopStateEvent('popstate'));
     }
 
@@ -80,7 +96,7 @@ ${formatPageListForDescription(availablePages)}`,
 
     return {
       success: true,
-      path: window.location.pathname,
+      path: fullUrl,
       title: document.title,
     };
   },

@@ -1,9 +1,9 @@
 import { HistoryOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { useAccess, useIntl } from '@umijs/max';
+import { useAccess, useIntl, useSearchParams } from '@umijs/max';
 import { App, Button, Popconfirm, Space, Tabs, Tag, theme } from 'antd';
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useOptimisticLockConflict } from '@/hooks/useOptimisticLockConflict';
 import type { ServerConfigItem } from '@/services/serverConfig';
 import {
@@ -20,11 +20,12 @@ import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import ConfigEditModal from './components/ConfigEditModal';
 import ConfigHistoryModal from './components/ConfigHistoryModal';
 import ConflictModal from './components/ConflictModal';
+import type { ServerConfigPageAPI } from './page-api';
 
 /**
- * 配置分类列表
- * NOTE: 这些分类应与后端 server/configs 中定义的 category 保持一致。
- * 如果后端新增/修改分类，需同步更新此列表。
+ * Configuration category list
+ * NOTE: These categories should match the categories defined in the backend server/configs.
+ * If the backend adds/modifies categories, this list should be updated accordingly.
  */
 const CATEGORIES = [
   { key: '', labelId: 'pages.config.system.all', defaultLabel: '全部' },
@@ -76,7 +77,7 @@ const CATEGORIES = [
 ];
 
 /**
- * 系统配置管理页面
+ * System Configuration Management Page
  */
 const SystemConfigsPage: React.FC = () => {
   const actionRef = useRef<ActionType>(null);
@@ -87,8 +88,12 @@ const SystemConfigsPage: React.FC = () => {
   const canEdit = access.canServerConfigEdit as boolean;
   const canDelete = access.canServerConfigDelete as boolean;
   const { token } = theme.useToken();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const [activeCategory, setActiveCategory] = useState('');
+  // Initialize active category from URL
+  const [activeCategory, setActiveCategory] = useState(
+    searchParams.get('category') || '',
+  );
   const [editingConfig, setEditingConfig] = useState<ServerConfigItem | null>(
     null,
   );
@@ -97,12 +102,12 @@ const SystemConfigsPage: React.FC = () => {
   const [historyConfigKey, setHistoryConfigKey] = useState<string | null>(null);
   const [historyVersion, setHistoryVersion] = useState(0);
 
-  /** 刷新列表 */
+  /** Reload table */
   const reload = useCallback(() => {
     actionRef.current?.reload();
   }, []);
 
-  /** 强制覆盖操作（设计文档 §4.5：不传 version 跳过版本检查） */
+  /** Force overwrite (design doc 4.5: skip version check by not passing version) */
   const doForceOverwrite = async (data: {
     key: string;
     value: unknown;
@@ -119,7 +124,7 @@ const SystemConfigsPage: React.FC = () => {
     });
   };
 
-  // 乐观锁冲突处理
+  // Optimistic lock conflict handling
   const {
     conflictModalOpen,
     setConflictModalOpen,
@@ -135,20 +140,20 @@ const SystemConfigsPage: React.FC = () => {
     forceOverwriteSuffixId: 'pages.config.system.forceOverwriteSuffix',
   });
 
-  /** 打开编辑 */
+  /** Open edit modal */
   const handleEdit = (record: ServerConfigItem) => {
     setEditingConfig(record);
     setEditModalOpen(true);
   };
 
-  /** 打开历史 */
+  /** Open history modal */
   const handleViewHistory = (record: ServerConfigItem) => {
     setHistoryConfigKey(record.key);
     setHistoryVersion(record.version);
     setHistoryModalOpen(true);
   };
 
-  /** 处理编辑提交 */
+  /** Handle edit submission */
   const handleEditFinish = async (values: {
     value: unknown;
     change_note?: string;
@@ -167,7 +172,7 @@ const SystemConfigsPage: React.FC = () => {
       reload();
       return true;
     } catch (error: unknown) {
-      // 使用 hook 处理乐观锁冲突
+      // Use hook to handle optimistic lock conflict
       const handled = handleEditError(error, {
         key: editingConfig.key,
         value: values.value,
@@ -177,13 +182,13 @@ const SystemConfigsPage: React.FC = () => {
         setEditModalOpen(false);
         return true;
       }
-      // 非冲突错误，显示普通错误消息
+      // Non-conflict error, show normal error message
       message.error(getFriendlyErrorMessage(error));
       return false;
     }
   };
 
-  /** 处理删除 */
+  /** Handle delete */
   const handleDelete = async (record: ServerConfigItem) => {
     try {
       await deleteServerConfig(record.key, record.version);
@@ -192,19 +197,19 @@ const SystemConfigsPage: React.FC = () => {
       );
       reload();
     } catch (error: unknown) {
-      // 冲突错误使用 getFriendlyErrorMessage 内部的错误码映射
+      // Conflict error uses internal error code mapping in getFriendlyErrorMessage
       message.error(getFriendlyErrorMessage(error));
     }
   };
 
-  /** 格式化配置值，bool 特殊处理 */
+  /** Format config value, special handling for bool */
   const formatDisplayValue = (value: unknown, valueType: string): string => {
     if (value === null || value === undefined) return '-';
     if (valueType === 'bool') return value ? 'true' : 'false';
     return formatConfigValue(value);
   };
 
-  /** 表格列 */
+  /** Table columns */
   const columns: ProColumns<ServerConfigItem>[] = [
     {
       title: intl.formatMessage({
@@ -364,12 +369,94 @@ const SystemConfigsPage: React.FC = () => {
     },
   ];
 
+  // Register Page API for function handlers
+  useEffect(() => {
+    const pageAPI: ServerConfigPageAPI = {
+      list: async (params) => {
+        try {
+          // Sync URL with category
+          const newSearchParams = new URLSearchParams();
+          if (params?.category) {
+            newSearchParams.set('category', params.category);
+          }
+          setSearchParams(newSearchParams, { replace: true });
+
+          const response = await getServerConfigList({
+            category: params?.category,
+            page: params?.current,
+            page_size: params?.pageSize,
+          });
+          return {
+            data: response.items,
+            total: response.total,
+            success: true,
+          };
+        } catch (error) {
+          console.error('[ServerConfigPageAPI] list failed:', error);
+          return { data: [], total: 0, success: false };
+        }
+      },
+      refresh: async () => {
+        actionRef.current?.reload();
+      },
+      update: async (data) => {
+        try {
+          await updateServerConfig(data.key, {
+            value: data.value,
+            version: data.version,
+            change_note: data.change_note,
+          });
+          actionRef.current?.reload();
+          return { success: true };
+        } catch (error) {
+          console.error('[ServerConfigPageAPI] update failed:', error);
+          return { success: false };
+        }
+      },
+      remove: async (data) => {
+        try {
+          await deleteServerConfig(data.key, data.version);
+          actionRef.current?.reload();
+          return { success: true };
+        } catch (error) {
+          console.error('[ServerConfigPageAPI] remove failed:', error);
+          return { success: false };
+        }
+      },
+    };
+
+    window.__pages__ ??= {};
+    window.__pages__.serverConfig = pageAPI;
+    window.dispatchEvent(
+      new CustomEvent('page-api-ready', { detail: { page: 'serverConfig' } }),
+    );
+
+    return () => {
+      delete window.__pages__?.serverConfig;
+    };
+  }, []);
+
+  // Listen for URL changes (from Page API), sync active category
+  useEffect(() => {
+    const urlCategory = searchParams.get('category') || '';
+    if (urlCategory !== activeCategory) {
+      setActiveCategory(urlCategory);
+      reload();
+    }
+  }, [searchParams]);
+
   return (
     <PageContainer>
       <Tabs
         activeKey={activeCategory}
         onChange={(key) => {
           setActiveCategory(key);
+          // Sync URL with category change
+          const newSearchParams = new URLSearchParams();
+          if (key) {
+            newSearchParams.set('category', key);
+          }
+          setSearchParams(newSearchParams, { replace: true });
           reload();
         }}
         items={CATEGORIES.map((cat) => ({
@@ -394,8 +481,10 @@ const SystemConfigsPage: React.FC = () => {
         }}
         request={async (params) => {
           try {
+            // Read category from searchParams (URL is single source of truth)
+            const category = searchParams.get('category') || '';
             const response = await getServerConfigList({
-              category: activeCategory || undefined,
+              category: category || undefined,
               page: params.current,
               page_size: params.pageSize,
             });
@@ -417,7 +506,7 @@ const SystemConfigsPage: React.FC = () => {
         ]}
       />
 
-      {/* 编辑弹窗 */}
+      {/* Edit modal */}
       <ConfigEditModal
         open={editModalOpen}
         onOpenChange={setEditModalOpen}
@@ -425,7 +514,7 @@ const SystemConfigsPage: React.FC = () => {
         onFinish={handleEditFinish}
       />
 
-      {/* 历史弹窗 */}
+      {/* History modal */}
       <ConfigHistoryModal
         open={historyModalOpen}
         onOpenChange={setHistoryModalOpen}
@@ -434,7 +523,7 @@ const SystemConfigsPage: React.FC = () => {
         onChanged={reload}
       />
 
-      {/* 冲突弹窗 */}
+      {/* Conflict modal */}
       <ConflictModal
         open={conflictModalOpen}
         onOpenChange={setConflictModalOpen}

@@ -15,25 +15,29 @@ import { ensurePageLoaded } from '@/rtc-agent/utils/page-loader';
 export const createRole: PermissionAwareFunctionDef = {
   name: 'create',
   description:
-    'Create a new admin role, the table will auto-refresh after successful creation',
+    'Create a new admin role on /system/roles page. Requires name, display_name, and optional description and is_enabled. Table auto-refreshes after successful creation.',
 
   requiredPermissions: [{ resource: 'role', action: 'write' }],
 
   zodSchema: z.object({
     name: withMeta(z.string(), { example: 'editor' }).describe(
-      'Admin role name (unique identifier)',
+      'Unique role name identifier. Used internally to reference the role. Must be unique across all roles.',
     ),
     display_name: withMeta(z.string(), { example: 'Editor' }).describe(
-      'Display name',
+      'Human-readable display name shown in UI tables and forms.',
     ),
     description: withMeta(z.string(), {
       example: 'A role that can edit content',
     })
       .optional()
-      .describe('Admin role description'),
+      .describe(
+        'Optional description explaining the role purpose and permissions.',
+      ),
     is_enabled: withMeta(z.boolean(), { example: true })
       .optional()
-      .describe('Whether enabled, defaults to true'),
+      .describe(
+        'Whether the role is active and can be assigned to users. Defaults to true.',
+      ),
   }),
 
   returns: {

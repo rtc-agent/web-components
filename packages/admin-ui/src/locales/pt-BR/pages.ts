@@ -112,15 +112,19 @@ export default {
   'pages.rtcUsers.actions': 'Ações',
   'pages.rtcUsers.ban': 'Banir',
   'pages.rtcUsers.unban': 'Desbanir',
-  'pages.rtcUsers.confirmUnban': 'Tem certeza que deseja desbanir este usuário?',
+  'pages.rtcUsers.confirmUnban':
+    'Tem certeza que deseja desbanir este usuário?',
   'pages.rtcUsers.confirm': 'Confirmar',
   'pages.rtcUsers.cancel': 'Cancelar',
   'pages.rtcUsers.banUser': 'Banir Usuário',
   'pages.rtcUsers.banReasonLabel': 'Motivo do Banimento',
-  'pages.rtcUsers.banReasonPlaceholder': 'Por favor insira o motivo do banimento',
+  'pages.rtcUsers.banReasonPlaceholder':
+    'Por favor insira o motivo do banimento',
   'pages.rtcUsers.banReasonRequired': 'Por favor insira o motivo do banimento',
-  'pages.rtcUsers.banReasonNoWhitespace': 'O motivo do banimento não pode estar em branco',
-  'pages.rtcUsers.banReasonMaxLength': 'O motivo do banimento não pode exceder 500 caracteres',
+  'pages.rtcUsers.banReasonNoWhitespace':
+    'O motivo do banimento não pode estar em branco',
+  'pages.rtcUsers.banReasonMaxLength':
+    'O motivo do banimento não pode exceder 500 caracteres',
   'pages.rtcUsers.banSuccess': 'Usuário banido com sucesso',
   'pages.rtcUsers.unbanSuccess': 'Usuário desbanido com sucesso',
   'pages.rtcUsers.banFailed': 'Falha ao banir usuário',
@@ -216,7 +220,8 @@ export default {
   'pages.config.system.refresh': 'Atualizar',
   'pages.config.system.editTitle': 'Editar Configuração: ',
   'pages.config.system.configValue': 'Valor da Configuração',
-  'pages.config.system.configValueRequired': 'Por favor insira o valor da configuração',
+  'pages.config.system.configValueRequired':
+    'Por favor insira o valor da configuração',
   'pages.config.system.changeNote': 'Nota de Alteração',
   'pages.config.system.changeNotePlaceholder':
     'Opcional, explique o motivo desta alteração',
@@ -224,9 +229,12 @@ export default {
     'Erro de formato, por favor insira o formato de duração do Go (ex: 5m, 1h30m, 500ms)',
   'pages.config.system.durationPlaceholder':
     'Formato de duração do Go, ex: 5m, 1h30m, 500ms',
-  'pages.config.system.durationTooltip': 'Unidades suportadas: ns, us, ms, s, m, h',
-  'pages.config.system.jsonNullError': 'O valor da configuração não pode ser nulo',
-  'pages.config.system.jsonFormatError': 'Por favor insira um formato JSON válido',
+  'pages.config.system.durationTooltip':
+    'Unidades suportadas: ns, us, ms, s, m, h',
+  'pages.config.system.jsonNullError':
+    'O valor da configuração não pode ser nulo',
+  'pages.config.system.jsonFormatError':
+    'Por favor insira um formato JSON válido',
   'pages.config.system.jsonPlaceholder':
     'Por favor insira um JSON válido (array ou objeto)',
   'pages.config.system.historyTitle': 'Histórico da Configuração: ',
@@ -271,12 +279,14 @@ export default {
   'pages.config.user.edit': 'Editar',
   'pages.config.user.history': 'Histórico',
   'pages.config.user.deleteOverride': 'Excluir Substituição',
-  'pages.config.user.confirmDelete': 'Confirmar exclusão da substituição do usuário?',
+  'pages.config.user.confirmDelete':
+    'Confirmar exclusão da substituição do usuário?',
   'pages.config.user.confirmDeleteDesc':
     'Após a exclusão, retornará ao valor padrão do sistema',
   'pages.config.user.confirm': 'Confirmar',
   'pages.config.user.cancel': 'Cancelar',
-  'pages.config.user.updateSuccess': 'Configuração do usuário atualizada com sucesso',
+  'pages.config.user.updateSuccess':
+    'Configuração do usuário atualizada com sucesso',
   'pages.config.user.deleteSuccess':
     'Substituição do usuário excluída, revertida para valor padrão do sistema',
   'pages.config.user.rollbackSuccess': 'Reversão bem-sucedida',
@@ -300,7 +310,7 @@ export default {
   'pages.rtcUsers.detail.lastActiveAt': 'Último Ativo',
   'pages.rtcUsers.detail.registeredAt': 'Registrado em',
   'pages.rtcUsers.detail.status': 'Status',
-  'pages.rtcUsers.detail.todayTokens': "Tokens de Hoje",
+  'pages.rtcUsers.detail.todayTokens': 'Tokens de Hoje',
   'pages.rtcUsers.detail.weekTokens': 'Esta Semana',
   'pages.rtcUsers.detail.monthTokens': 'Este Mês',
   'pages.rtcUsers.detail.totalTokens': 'Total de Tokens',
@@ -314,17 +324,20 @@ export default {
   'pages.rtcUsers.detail.sessionCreatedAt': 'Criado em',
   'pages.rtcUsers.detail.viewDetail': 'Ver Detalhe',
   'pages.rtcUsers.detail.loadDevicesFailed': 'Falha ao carregar dispositivos',
-  'pages.rtcUsers.detail.loadStatsFailed': 'Falha ao carregar estatísticas de tokens',
+  'pages.rtcUsers.detail.loadStatsFailed':
+    'Falha ao carregar estatísticas de tokens',
   'pages.rtcUsers.detail.noDevices': 'Sem dispositivos',
   'pages.rtcUsers.detail.noStats': 'Sem dados estatísticos',
   // Dashboard - System Overview
   'pages.dashboard.analysis.activeConnections': 'Conexões Ativas',
-  'pages.dashboard.analysis.todayMessages': "Mensagens de Hoje",
-  'pages.dashboard.analysis.todayTurns': "Turnos de Hoje",
-  'pages.dashboard.analysis.todayTokens': "Tokens de Hoje",
+  'pages.dashboard.analysis.todayMessages': 'Mensagens de Hoje',
+  'pages.dashboard.analysis.todayTurns': 'Turnos de Hoje',
+  'pages.dashboard.analysis.todayTokens': 'Tokens de Hoje',
   'pages.dashboard.analysis.activeSessions': 'Sessões Ativas',
-  'pages.dashboard.analysis.messageTurnTrend': 'Tendência de Mensagens e Turnos',
-  'pages.dashboard.analysis.tokenTypeDistribution': 'Distribuição de Tipo de Tokens',
+  'pages.dashboard.analysis.messageTurnTrend':
+    'Tendência de Mensagens e Turnos',
+  'pages.dashboard.analysis.tokenTypeDistribution':
+    'Distribuição de Tipo de Tokens',
   'pages.dashboard.analysis.llmLatency': 'Latência de Requisição LLM',
   'pages.dashboard.analysis.errorRateTrend': 'Tendência de Taxa de Erro',
   'pages.dashboard.analysis.queueHealth': 'Saúde da Fila',
@@ -403,11 +416,13 @@ export default {
   'pages.roles.nameLabel': 'Nome da Função',
   'pages.roles.namePlaceholder': 'Digite o nome da função (inglês, ex: admin)',
   'pages.roles.nameRequired': 'Por favor digite o nome da função',
-  'pages.roles.nameMinLength': 'O nome da função deve ter pelo menos 3 caracteres',
+  'pages.roles.nameMinLength':
+    'O nome da função deve ter pelo menos 3 caracteres',
   'pages.roles.namePattern':
     'O nome da função só pode conter letras minúsculas, números e underscores, e deve começar com uma letra',
   'pages.roles.nameExists': 'O nome da função já existe',
-  'pages.roles.nameTooltip': 'O nome da função não pode ser alterado após a criação',
+  'pages.roles.nameTooltip':
+    'O nome da função não pode ser alterado após a criação',
   'pages.roles.displayNameLabel': 'Nome de Exibição',
   'pages.roles.displayNamePlaceholder': 'Digite o nome de exibição (ex: Admin)',
   'pages.roles.displayNameRequired': 'Por favor digite o nome de exibição',
@@ -454,7 +469,8 @@ export default {
   'pages.permissions.roleRequired': 'Por favor selecione uma função',
   'pages.permissions.resourceLabel': 'Recurso',
   'pages.permissions.resourcePlaceholder': 'Selecione um tipo de recurso',
-  'pages.permissions.resourceRequired': 'Por favor selecione um tipo de recurso',
+  'pages.permissions.resourceRequired':
+    'Por favor selecione um tipo de recurso',
   'pages.permissions.actionLabel': 'Ação',
   'pages.permissions.actionPlaceholder': 'Selecione um tipo de ação',
   'pages.permissions.actionRequired': 'Por favor selecione um tipo de ação',
@@ -487,6 +503,7 @@ export default {
   'pages.auditLogs.loadFailed': 'Falha ao carregar logs de auditoria',
   // Admin User Management
   'pages.adminUsers.headerTitle': 'Lista de Admins',
+  'pages.adminUsers.searchPlaceholder': 'Pesquisar por e-mail ou nome',
   'pages.adminUsers.column.email': 'E-mail',
   'pages.adminUsers.column.name': 'Nome',
   'pages.adminUsers.column.roles': 'Funções',
@@ -508,12 +525,14 @@ export default {
   'pages.adminUsers.assignRoleTitle': 'Atribuir Funções - {email}',
   'pages.adminUsers.selectRoles': 'Selecionar Funções',
   'pages.adminUsers.selectRolesPlaceholder': 'Selecione funções para atribuir',
-  'pages.adminUsers.selectRolesRequired': 'Por favor selecione pelo menos uma função',
+  'pages.adminUsers.selectRolesRequired':
+    'Por favor selecione pelo menos uma função',
   'pages.adminUsers.createTitle': 'Criar Admin',
   'pages.adminUsers.emailLabel': 'E-mail',
   'pages.adminUsers.emailPlaceholder': 'Digite e-mail',
   'pages.adminUsers.emailRequired': 'Por favor digite o e-mail',
-  'pages.adminUsers.emailInvalid': 'Por favor digite um endereço de e-mail válido',
+  'pages.adminUsers.emailInvalid':
+    'Por favor digite um endereço de e-mail válido',
   'pages.adminUsers.passwordLabel': 'Senha',
   'pages.adminUsers.passwordPlaceholder':
     'Digite senha (pelo menos 6 caracteres)',
@@ -575,7 +594,8 @@ export default {
     'Por favor digite seu país ou região!',
   'pages.account.settings.base.countryChina': 'China',
   'pages.account.settings.base.province': 'Província',
-  'pages.account.settings.base.provinceRequired': 'Por favor digite sua província!',
+  'pages.account.settings.base.provinceRequired':
+    'Por favor digite sua província!',
   'pages.account.settings.base.city': 'Cidade',
   'pages.account.settings.base.cityRequired': 'Por favor digite sua cidade!',
   'pages.account.settings.base.address': 'Endereço',
@@ -583,8 +603,10 @@ export default {
     'Por favor digite seu endereço!',
   'pages.account.settings.base.phone': 'Telefone',
   'pages.account.settings.base.phoneRequired': 'Por favor digite seu telefone!',
-  'pages.account.settings.base.phoneAreaCode': 'Por favor digite o código de área!',
-  'pages.account.settings.base.phoneNumber': 'Por favor digite o número de telefone!',
+  'pages.account.settings.base.phoneAreaCode':
+    'Por favor digite o código de área!',
+  'pages.account.settings.base.phoneNumber':
+    'Por favor digite o número de telefone!',
   'pages.account.settings.base.updateBasic': 'Atualizar Informações Básicas',
   'pages.account.settings.base.updateSuccess':
     'Informações básicas atualizadas com sucesso',
@@ -592,12 +614,12 @@ export default {
   'pages.account.settings.base.changeAvatar': 'Mudar Avatar',
   'pages.account.settings.base.avatarSizeError':
     'Tamanho da imagem excede {size}MB!',
-  'pages.account.settings.base.avatarTypeOnly': 'Apenas arquivos de imagem são permitidos!',
+  'pages.account.settings.base.avatarTypeOnly':
+    'Apenas arquivos de imagem são permitidos!',
   'pages.account.settings.base.uploadFailed': 'Falha no upload do avatar',
   // Account Settings - Security
   'pages.account.settings.security.password': 'Senha da Conta',
-  'pages.account.settings.security.passwordStrength':
-    'Força da senha atual: ',
+  'pages.account.settings.security.passwordStrength': 'Força da senha atual: ',
   'pages.account.settings.security.strong': 'Forte',
   'pages.account.settings.security.medium': 'Média',
   'pages.account.settings.security.weak': 'Fraca',

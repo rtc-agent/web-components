@@ -1,9 +1,9 @@
 import type { PermissionPolicy } from '@/services/permission';
 
-/** 权限表单值 */
+/** Permission form values */
 export interface PermissionFormValues extends PermissionPolicy {}
 
-/** 权限表格项 */
+/** Permission table item */
 export interface PermissionTableItem extends PermissionPolicy {
   key: string;
 }

@@ -70,17 +70,17 @@ flowchart LR
 flowchart TB
     subgraph RTC["RTC Agent (消费者)"]
         A[AI 推理] --> B[Script Engine]
-        B --> C["rtcAgent.user.list()"]
+        B --> C["rtcAgent.admin.list()"]
     end
 
-    subgraph PERM["权限过滤层"]
-        P1["用户权限: user:read, role:write, ..."] --> P2[filterFunctionsByPermissions]
-        P2 --> P3[只保留有权限的 Functions]
+    subgraph PERM["Permission Filter Layer"]
+        P1["User Permissions: admin_user:read, role:write, ..."] --> P2[filterFunctionsByPermissions]
+        P2 --> P3[Keep only permitted Functions]
     end
 
     subgraph FR["Function Registration (桥接层)"]
         P3 --> D["Function Registry"]
-        D --> E["user.list handler"]
+        D --> E["admin.list handler"]
     end
 
     subgraph E2E["E2E Spec Tests (契约层)"]
@@ -88,7 +88,7 @@ flowchart TB
     end
 
     subgraph PAGE["页面 API 层 (React 管理)"]
-        E -->|"window.__pages__.user.list()"| G["Page API"]
+        E -->|"window.__pages__.admin.list()"| G["Page API"]
         G --> H["actionRef.current?.reload()"]
         G --> I["queryClient.getQueryData()"]
         G --> J["formRef.current?.submit()"]
@@ -139,15 +139,28 @@ src/
 │       ├── roles/                       # 角色管理页面
 │       │   ├── index.tsx
 │       │   └── page-api.ts
-│       └── permissions/                 # 权限管理页面
+│       ├── permissions/                 # 权限管理页面
+│       │   ├── index.tsx
+│       │   └── page-api.ts
+│       ├── audit-logs/                  # 审计日志页面
+│       │   ├── index.tsx
+│       │   └── page-api.ts
+│       └── configs/                     # 系统配置页面
 │           ├── index.tsx
 │           └── page-api.ts
 │
+├── user/
+│   └── management/                      # 管理员管理页面
+│       ├── index.tsx
+│       └── page-api.ts
+│
 ├── rtc-agent/
 │   ├── index.ts                         # 入口：组装 agentConfig（含权限过滤）
-│   ├── types.ts                         # 共享类型
 │   ├── permission-filter.ts             # 权限过滤逻辑
 │   ├── test-harness.ts                  # 测试桥接（暴露给 Playwright）
+│   │
+│   ├── utils/
+│   │   └── page-loader.ts              # ensurePageLoaded 工具函数
 │   │
 │   ├── groups/
 │   │   ├── index.ts                     # 导出所有 groups
@@ -155,21 +168,14 @@ src/
 │   │   ├── navigation/                  # 页面导航（无权限要求）
 │   │   │   ├── index.ts
 │   │   │   ├── goto.ts
-│   │   │   ├── getCurrentPage.ts
-│   │   │   └── listPages.ts
+│   │   │   └── page-registry.ts         # 页面定义和权限过滤
 │   │   │
-│   │   ├── auth/                        # 认证管理（无权限要求）
+│   │   ├── user/                        # 管理员管理（需要 admin_user:* 权限）
 │   │   │   ├── index.ts
-│   │   │   ├── currentUser.ts
-│   │   │   ├── hasPermission.ts
-│   │   │   └── logout.ts
-│   │   │
-│   │   ├── user/                        # 用户管理（需要 user:* 权限）
-│   │   │   ├── index.ts
-│   │   │   ├── list.ts                  # requiredPermissions: [{ resource: 'user', action: 'read' }]
-│   │   │   ├── create.ts               # requiredPermissions: [{ resource: 'user', action: 'write' }]
-│   │   │   ├── update.ts               # requiredPermissions: [{ resource: 'user', action: 'write' }]
-│   │   │   └── remove.ts               # requiredPermissions: [{ resource: 'user', action: 'delete' }]
+│   │   │   ├── list.ts                  # requiredPermissions: [{ resource: 'admin_user', action: 'read' }]
+│   │   │   ├── create.ts               # requiredPermissions: [{ resource: 'admin_user', action: 'write' }]
+│   │   │   ├── update.ts               # requiredPermissions: [{ resource: 'admin_user', action: 'write' }]
+│   │   │   └── remove.ts               # requiredPermissions: [{ resource: 'admin_user', action: 'delete' }]
 │   │   │
 │   │   ├── role/                        # 角色管理（需要 role:read/write 权限）
 │   │   │   ├── index.ts
@@ -182,37 +188,47 @@ src/
 │   │   │   ├── index.ts
 │   │   │   ├── list.ts                  # requiredPermissions: [{ resource: 'permission', action: 'read' }]
 │   │   │   ├── create.ts               # requiredPermissions: [{ resource: 'permission', action: 'write' }]
-│   │   │   ├── update.ts               # requiredPermissions: [{ resource: 'permission', action: 'write' }]
 │   │   │   └── remove.ts               # requiredPermissions: [{ resource: 'permission', action: 'write' }]
 │   │   │
-│   │   ├── userRole/                    # 用户角色分配（需要 user_role:read/write 权限）
+│   │   ├── userRole/                    # 管理员角色分配（需要 admin_user_role:read/write 权限）
 │   │   │   ├── index.ts
-│   │   │   ├── list.ts                  # requiredPermissions: [{ resource: 'user_role', action: 'read' }]
-│   │   │   ├── assign.ts               # requiredPermissions: [{ resource: 'user_role', action: 'write' }]
-│   │   │   └── revoke.ts               # requiredPermissions: [{ resource: 'user_role', action: 'write' }]
+│   │   │   ├── list.ts                  # requiredPermissions: [{ resource: 'admin_user_role', action: 'read' }]
+│   │   │   ├── assign.ts               # requiredPermissions: [{ resource: 'admin_user_role', action: 'write' }]
+│   │   │   └── revoke.ts               # requiredPermissions: [{ resource: 'admin_user_role', action: 'write' }]
 │   │   │
-│   │   └── auditLog/                    # 审计日志（需要 audit_log:read 权限）
+│   │   ├── auditLog/                    # 审计日志（需要 audit_log:read 权限）
+│   │   │   ├── index.ts
+│   │   │   └── list.ts                  # requiredPermissions: [{ resource: 'audit_log', action: 'read' }]
+│   │   │
+│   │   └── serverConfig/                # 系统配置管理（需要 server_config:read/write/delete 权限）
 │   │       ├── index.ts
-│   │       └── list.ts                  # requiredPermissions: [{ resource: 'audit_log', action: 'read' }]
+│   │       ├── list.ts                  # requiredPermissions: [{ resource: 'server_config', action: 'read' }]
+│   │       ├── update.ts               # requiredPermissions: [{ resource: 'server_config', action: 'write' }]
+│   │       └── remove.ts               # requiredPermissions: [{ resource: 'server_config', action: 'delete' }]
 │   │
 │   └── e2e/                             # Playwright E2E 测试
 │       ├── fixtures/
 │       │   └── rtc-functions.ts        # 自定义 fixture：暴露 function 调用（含权限模拟）
 │       └── specs/
-│           ├── navigation.spec.ts
-│           ├── auth.spec.ts
-│           ├── user.spec.ts             # 测试 user:* 权限的 functions
+│           ├── user.spec.ts             # 测试 admin:* 权限的 functions
 │           ├── role.spec.ts
-│           └── permission-filter.spec.ts # 测试权限过滤逻辑
+│           ├── permission.spec.ts
+│           ├── auditLog.spec.ts
+│           ├── serverConfig.spec.ts      # 测试 server_config:* 权限的 functions
+│           └── userRole.spec.ts         # 测试 admin_user_role:* 权限的 functions
 ```
 
-## 4. 代码示例
+## 4. 完整实现示例：角色管理（Role Management）
 
-### 4.1 Page API 定义 (`src/pages/table-list/page-api.ts`)
+> **本节说明**：以角色管理为参考实现，展示完整的 Function 注册模式。后续实现新 Function 时，按照相同的文件结构和代码模式进行。
+
+### 4.1 Step 1: Page API 类型定义
+
+**文件路径**: `src/pages/system/roles/page-api.ts`
 
 ```typescript
 /**
- * TableList 页面的 API 接口
+ * 管理员角色管理页面的 API 接口
  *
  * 页面组件在挂载时注册这些 API 到 window.__pages__
  * Function handler 通过调用这些 API 来操作 UI
@@ -224,23 +240,20 @@ src/
  */
 
 import type { ActionType } from '@ant-design/pro-components';
-import type { QueryClient } from '@tanstack/react-query';
+import type { RoleInfo } from '@/services/admin-auth';
 
-export interface RulePageAPI {
+export interface RolePageAPI {
   /**
    * 读取表格当前显示的数据
-   * 从 React Query 缓存中获取，与 UI 显示一致
+   * 调用 service 函数获取后端数据，与 UI 显示一致
    */
-  list: (params?: { current?: number; pageSize?: number }) => Promise<{
+  list: (params?: {
+    current?: number;
+    pageSize?: number;
+    keyword?: string;
+  }) => Promise<{
     success: boolean;
-    data: Array<{
-      key: number;
-      name: string;
-      desc: string;
-      callNo: number;
-      status: number;
-      updatedAt: string;
-    }>;
+    data: RoleInfo[];
     total: number;
   }>;
 
@@ -251,119 +264,147 @@ export interface RulePageAPI {
   refresh: () => Promise<void>;
 
   /**
-   * 创建规则
+   * 创建管理员角色
    * 触发创建流程（打开弹窗、填充表单、提交）
    */
-  create: (data: { name: string; desc: string }) => Promise<{ success: boolean; id?: number }>;
+  create: (data: {
+    name: string;
+    display_name: string;
+    description?: string;
+    is_enabled?: boolean;
+  }) => Promise<{ success: boolean; id?: string }>;
 
   /**
-   * 更新规则
+   * 更新管理员角色
    * 触发更新流程（打开弹窗、填充数据、提交）
    */
-  update: (data: { key: number; name?: string; desc?: string }) => Promise<{ success: boolean }>;
+  update: (data: {
+    id: string;
+    name?: string;
+    display_name?: string;
+    description?: string;
+    is_enabled?: boolean;
+  }) => Promise<{ success: boolean }>;
 
   /**
-   * 删除规则
-   * 调用 React Query mutation
+   * 删除管理员角色
    */
-  remove: (keys: number[]) => Promise<{ success: boolean }>;
+  remove: (
+    ids: string[],
+  ) => Promise<{ success: boolean; deletedCount?: number }>;
 }
 
 // 全局类型声明
 declare global {
   interface Window {
     __pages__?: {
-      rule?: RulePageAPI;
+      role?: RolePageAPI;
     };
   }
 }
 ```
 
-### 4.2 页面组件注册 API (`src/pages/table-list/index.tsx`)
+### 4.2 Step 2: 页面组件注册 API
+
+**文件路径**: `src/pages/system/roles/index.tsx`
 
 ```typescript
-import type { ActionType } from '@ant-design/pro-components';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import React, { useEffect, useRef } from 'react';
-import type { RulePageAPI } from './page-api';
+import {
+  DeleteOutlined,
+  EditOutlined,
+  PlusOutlined,
+  SafetyOutlined,
+} from '@ant-design/icons';
+import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import {
+  ModalForm,
+  PageContainer,
+  ProFormText,
+  ProFormTextArea,
+  ProTable,
+} from '@ant-design/pro-components';
+import { Access, useAccess, useIntl } from '@umijs/max';
+import {
+  Button,
+  Checkbox,
+  Modal,
+  message,
+  Popconfirm,
+  Space,
+  Switch,
+  Tag,
+  Tooltip,
+  theme,
+} from 'antd';
+import React, { useEffect, useRef, useState } from 'react';
+import { getActionTypes, getResourceTypes } from '@/constants/permissions';
+import {
+  createPermission,
+  deletePermission,
+  getPermissionList,
+  type PermissionPolicy,
+} from '@/services/permission';
+import {
+  createRole,
+  deleteRole,
+  getRoleList,
+  patchRole,
+  updateRole,
+} from '@/services/role';
+import { getFriendlyErrorMessage } from '@/utils/errorHandler';
+import type { RoleFormValues, RoleTableItem } from './data.d';
+import type { RolePageAPI } from './page-api';
 
-const TableList: React.FC = () => {
-  const actionRef = useRef<ActionType | null>(null);
-  const queryClient = useQueryClient();
+/**
+ * 管理员角色管理页面
+ */
+const RoleListPage: React.FC = () => {
+  const actionRef = useRef<ActionType>(null);
+  const access = useAccess();
+  const intl = useIntl();
+  const [currentRow, setCurrentRow] = useState<RoleTableItem>();
+  const [modalVisible, setModalVisible] = useState(false);
+  const { token } = theme.useToken();
+  const [isEdit, setIsEdit] = useState(false);
+  const [permissionModalVisible, setPermissionModalVisible] = useState(false);
+  const [rolePermissions, setRolePermissions] = useState<PermissionPolicy[]>(
+    [],
+  );
+  /** 正在切换中的权限 key（resource:action），防止快速点击导致竞态 */
+  const [togglingPermission, setTogglingPermission] = useState<string | null>(
+    null,
+  );
 
-  // === React Query Mutations（不直接 fetch 后端） ===
-  const createMutation = useMutation({
-    mutationFn: (data: { name: string; desc: string }) =>
-      fetch('/api/rule', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      }).then((r) => r.json()),
-    onSuccess: () => {
-      actionRef.current?.reload();
-      queryClient.invalidateQueries({ queryKey: ['rule'] });
-    },
-  });
-
-  const removeMutation = useMutation({
-    mutationFn: (keys: number[]) =>
-      fetch('/api/removeRule', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: keys }),
-      }).then((r) => r.json()),
-    onSuccess: () => {
-      actionRef.current?.reload();
-      queryClient.invalidateQueries({ queryKey: ['rule'] });
-    },
-  });
+  const RESOURCE_TYPES = getResourceTypes(intl);
+  const ACTION_TYPES = getActionTypes(intl);
 
   // === 注册 Page API ===
   useEffect(() => {
-    const pageAPI: RulePageAPI = {
-      // 读取表格数据（从 React Query 缓存）
+    const pageAPI: RolePageAPI = {
+      // 读取表格数据
       list: async (params = {}) => {
-        const { current = 1, pageSize = 20 } = params;
+        const { current = 1, pageSize = 20, keyword } = params;
 
-        // 从 React Query 缓存获取数据
-        const cachedData = queryClient.getQueryData(['rule', { current, pageSize }]);
+        try {
+          const response = await getRoleList({
+            page: current,
+            page_size: pageSize,
+            keyword,
+          });
 
-        if (cachedData && typeof cachedData === 'object' && 'data' in cachedData) {
           return {
             success: true,
-            data: cachedData.data || [],
-            total: cachedData.total || 0,
+            data: response.items,
+            total: response.total,
+          };
+        } catch (error) {
+          console.error('[Role Page API] list failed:', error);
+          return {
+            success: false,
+            data: [],
+            total: 0,
           };
         }
-
-        // 如果缓存中没有，触发刷新并等待 actionRef 加载
-        // 不使用 setTimeout，而是等待 ProTable 的 request 完成
-        return new Promise((resolve) => {
-          const checkData = () => {
-            const data = queryClient.getQueryData(['rule', { current, pageSize }]);
-            if (data) {
-              resolve({
-                success: true,
-                data: (data as any).data || [],
-                total: (data as any).total || 0,
-              });
-            } else {
-              // 等待 React Query 完成（通过订阅 queryClient）
-              const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
-                if (event?.query.queryKey[0] === 'rule') {
-                  unsubscribe();
-                  resolve({
-                    success: true,
-                    data: (event.query.state.data as any)?.data || [],
-                    total: (event.query.state.data as any)?.total || 0,
-                  });
-                }
-              });
-              actionRef.current?.reload();
-            }
-          };
-          checkData();
-        });
       },
 
       // 刷新表格
@@ -371,263 +412,545 @@ const TableList: React.FC = () => {
         actionRef.current?.reload();
       },
 
-      // 创建规则（通过 React Query mutation，不直接 fetch）
+      // 创建管理员角色
       create: async (data) => {
-        const result = await createMutation.mutateAsync(data);
-        return { success: result.success, id: result.data?.key };
+        try {
+          const result = await createRole(data);
+          actionRef.current?.reload();
+          return { success: true, id: result.id };
+        } catch (error) {
+          console.error('[Role Page API] create failed:', error);
+          return { success: false };
+        }
       },
 
-      // 更新规则
+      // 更新管理员角色
       update: async (data) => {
-        const response = await fetch('/api/rule', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-        });
-        const result = await response.json();
-        actionRef.current?.reload();
-        queryClient.invalidateQueries({ queryKey: ['rule'] });
-        return { success: result.success };
+        try {
+          const { id, ...updateData } = data;
+          await updateRole(id, updateData);
+          actionRef.current?.reload();
+          return { success: true };
+        } catch (error) {
+          console.error('[Role Page API] update failed:', error);
+          return { success: false };
+        }
       },
 
-      // 删除规则（通过 React Query mutation）
-      remove: async (keys) => {
-        const result = await removeMutation.mutateAsync(keys);
-        return { success: result.success };
+      // 删除管理员角色
+      remove: async (ids) => {
+        try {
+          let deletedCount = 0;
+          for (const id of ids) {
+            await deleteRole(id);
+            deletedCount++;
+          }
+          actionRef.current?.reload();
+          return { success: true, deletedCount };
+        } catch (error) {
+          console.error('[Role Page API] remove failed:', error);
+          return { success: false };
+        }
       },
     };
 
     // 注册到全局
     window.__pages__ = window.__pages__ || {};
-    window.__pages__.rule = pageAPI;
+    window.__pages__.role = pageAPI;
 
     // 发送就绪事件（通知 navigation.goto 页面已加载）
     window.dispatchEvent(
-      new CustomEvent('page-api-ready', { detail: { page: 'rule' } })
+      new CustomEvent('page-api-ready', { detail: { page: 'role' } }),
     );
 
-    console.log('[TableList] Page API registered');
+    console.log('[RoleListPage] Page API registered');
 
     // 清理
     return () => {
-      delete window.__pages__?.rule;
-      console.log('[TableList] Page API unregistered');
+      delete window.__pages__?.role;
+      console.log('[RoleListPage] Page API unregistered');
     };
-  }, [queryClient]);
+  }, []);
 
   // ... 原有的 ProTable 代码 ...
 
   return (
     <PageContainer>
-      <ProTable<API.RuleListItem, API.PageParams>
+      <ProTable<RoleTableItem>
         actionRef={actionRef}
-        request={rule}
+        request={async (params) => {
+          const response = await getRoleList({
+            page: params.current,
+            page_size: params.pageSize,
+            keyword: params.keyword,
+          });
+          return {
+            data: response.items,
+            total: response.total,
+            success: true,
+          };
+        }}
         // ... 其他配置
       />
     </PageContainer>
   );
 };
 
-export default TableList;
+export default RoleListPage;
 ```
 
-### 4.3 Function Handler (`src/rtc-agent/groups/rule/list.ts`)
+### 4.3 Step 3: Function Handler 实现
+
+#### 4.3.1 查询操作 (list)
+
+**文件路径**: `src/rtc-agent/groups/role/list.ts`
 
 ```typescript
-import { z, withMeta } from '@rtc-agent/component';
-import type { FunctionDef } from '@rtc-agent/component';
+import { withMeta, z } from '@rtc-agent/component';
+import type { PermissionAwareFunctionDef } from '@/rtc-agent/permission-filter';
+import { ensurePageLoaded } from '@/rtc-agent/utils/page-loader';
 
 /**
- * 查询规则列表
+ * Query admin role list
  *
- * 对应页面：/list/table-list
+ * Permission required: role:read
  *
- * 实现方式：
- * - 调用页面暴露的 React API（window.__pages__.rule.list）
- * - 页面 API 从 React Query 缓存读取数据
- * - 返回的数据 = UI 表格中显示的数据
+ * Implementation:
+ * - Calls the page-exposed React API (window.__pages__.role.list)
+ * - Page API calls the backend API via service function
+ * - Returned data matches what is displayed in the UI table
  *
- * 前提：navigation.goto 已确保页面加载完毕，page API 已注册
+ * Prerequisite: navigation.goto has ensured the page is loaded and page API is registered
  */
-export const listRule: FunctionDef = {
+export const listRoles: PermissionAwareFunctionDef = {
   name: 'list',
-  description: '查询规则列表，返回当前表格中显示的数据',
+  description:
+    'Query admin role list, returns the data currently displayed in the table',
+
+  requiredPermissions: [{ resource: 'role', action: 'read' }],
 
   zodSchema: z.object({
     current: withMeta(z.number().int().positive(), { example: 1 })
       .optional()
-      .describe('当前页码，默认 1'),
+      .describe('Current page number, defaults to 1'),
     pageSize: withMeta(z.number().int().positive(), { example: 20 })
       .optional()
-      .describe('每页条数，默认 20'),
+      .describe('Items per page, defaults to 20'),
+    keyword: withMeta(z.string(), { example: 'admin' })
+      .optional()
+      .describe(
+        'Keyword search (admin role name, display name, or description)',
+      ),
   }),
 
   returns: {
-    zodSchema: z.object({
-      success: z.boolean().describe('是否成功'),
-      data: z.array(z.object({
-        key: z.number().describe('规则 ID'),
-        name: z.string().describe('规则名称'),
-        desc: z.string().describe('描述'),
-        callNo: z.number().describe('调用次数'),
-        status: z.number().describe('状态：0-关闭 1-运行中 2-已上线 3-异常'),
-        updatedAt: z.string().describe('更新时间'),
-      })).describe('规则列表（与 UI 表格显示一致）'),
-      total: z.number().describe('总数'),
-    }).describe('规则列表查询结果'),
+    zodSchema: z
+      .object({
+        success: z.boolean().describe('Whether successful'),
+        data: z
+          .array(
+            z.object({
+              id: z.string().describe('Admin role ID'),
+              name: z.string().describe('Admin role name'),
+              display_name: z.string().describe('Display name'),
+              description: z.string().optional().describe('Description'),
+              is_system: z
+                .boolean()
+                .optional()
+                .describe('Whether it is a system admin role'),
+              is_enabled: z.boolean().optional().describe('Whether enabled'),
+              created_at: z.string().optional().describe('Creation time'),
+              updated_at: z.string().optional().describe('Update time'),
+            }),
+          )
+          .describe('Admin role list (matches UI table display)'),
+        total: z.number().describe('Total count'),
+      })
+      .describe('Admin role list query result'),
   },
 
   handler: async (params) => {
-    const { current = 1, pageSize = 20 } = params as {
+    const {
+      current = 1,
+      pageSize = 20,
+      keyword,
+    } = params as {
       current?: number;
       pageSize?: number;
+      keyword?: string;
     };
 
-    // 页面已加载，直接调用 API
-    return await window.__pages__.rule.list({ current, pageSize });
+    // Ensure page is loaded
+    await ensurePageLoaded('role', '/system/roles');
+
+    // Page is loaded, call API directly
+    const pageAPI = window.__pages__?.role;
+    if (!pageAPI) {
+      throw new Error('Role page failed to load. Please try again.');
+    }
+
+    return await pageAPI.list({ current, pageSize, keyword });
   },
 
   hooks: {
     onStart: () => {
-      console.log('[rule.list] 读取规则列表...');
+      console.log('[role.list] Reading admin role list...');
     },
     onSuccess: (result) => {
-      console.log(`[rule.list] 读取成功，共 ${(result as any).total} 条`);
+      console.log(
+        `[role.list] Read successful, total ${(result as any).total} records`,
+      );
     },
     onError: (error) => {
-      console.error('[rule.list] 读取失败:', error.message);
+      console.error('[role.list] Read failed:', error.message);
     },
   },
 };
 ```
 
-### 4.4 Function Handler - 创建规则 (`src/rtc-agent/groups/rule/create.ts`)
+#### 4.3.2 创建操作 (create)
+
+**文件路径**: `src/rtc-agent/groups/role/create.ts`
 
 ```typescript
-import { z, withMeta } from '@rtc-agent/component';
-import type { FunctionDef } from '@rtc-agent/component';
+import { withMeta, z } from '@rtc-agent/component';
+import type { PermissionAwareFunctionDef } from '@/rtc-agent/permission-filter';
+import { ensurePageLoaded } from '@/rtc-agent/utils/page-loader';
 
 /**
- * 创建规则
+ * Create admin role
  *
- * 实现方式：
- * - 调用页面 API 触发创建流程
- * - 页面 API 内部使用 React 方式操作（actionRef, mutation）
- * - 创建成功后自动刷新表格
+ * Permission required: role:write
+ *
+ * Implementation:
+ * - Calls page API to trigger create flow
+ * - Page API internally uses React patterns (actionRef, mutation)
+ * - Table auto-refreshes after successful creation
  */
-export const createRule: FunctionDef = {
+export const createRole: PermissionAwareFunctionDef = {
   name: 'create',
-  description: '创建新规则，创建成功后表格会自动刷新',
+  description:
+    'Create a new admin role, the table will auto-refresh after successful creation',
+
+  requiredPermissions: [{ resource: 'role', action: 'write' }],
 
   zodSchema: z.object({
-    name: withMeta(z.string(), { example: '新规则' })
-      .describe('规则名称'),
-    desc: withMeta(z.string(), { example: '规则描述' })
-      .describe('规则描述'),
+    name: withMeta(z.string(), { example: 'editor' }).describe(
+      'Admin role name (unique identifier)',
+    ),
+    display_name: withMeta(z.string(), { example: 'Editor' }).describe(
+      'Display name',
+    ),
+    description: withMeta(z.string(), {
+      example: 'A role that can edit content',
+    })
+      .optional()
+      .describe('Admin role description'),
+    is_enabled: withMeta(z.boolean(), { example: true })
+      .optional()
+      .describe('Whether enabled, defaults to true'),
   }),
 
   returns: {
-    zodSchema: z.object({
-      success: z.boolean().describe('是否成功'),
-      id: z.number().optional().describe('新创建的规则 ID'),
-    }).describe('创建结果'),
+    zodSchema: z
+      .object({
+        success: z.boolean().describe('Whether successful'),
+        id: z.string().optional().describe('Newly created admin role ID'),
+      })
+      .describe('Creation result'),
   },
 
   handler: async (params) => {
-    const { name, desc } = params as { name: string; desc: string };
+    const {
+      name,
+      display_name,
+      description,
+      is_enabled = true,
+    } = params as {
+      name: string;
+      display_name: string;
+      description?: string;
+      is_enabled?: boolean;
+    };
 
-    // 页面已加载，直接调用 API
-    return await window.__pages__.rule.create({ name, desc });
+    // Ensure page is loaded
+    await ensurePageLoaded('role', '/system/roles');
+
+    // Page is loaded, call API directly
+    const pageAPI = window.__pages__?.role;
+    if (!pageAPI) {
+      throw new Error('Role page failed to load. Please try again.');
+    }
+
+    return await pageAPI.create({
+      name,
+      display_name,
+      description,
+      is_enabled,
+    });
+  },
+
+  hooks: {
+    onStart: () => {
+      console.log('[role.create] Creating admin role...');
+    },
+    onSuccess: (result) => {
+      console.log(
+        `[role.create] Creation successful, ID: ${(result as any).id}`,
+      );
+    },
+    onError: (error) => {
+      console.error('[role.create] Creation failed:', error.message);
+    },
   },
 };
 ```
 
-### 4.5 Group 定义 (`src/rtc-agent/groups/rule/index.ts`)
+#### 4.3.3 更新操作 (update)
+
+**文件路径**: `src/rtc-agent/groups/role/update.ts`
 
 ```typescript
-import type { AgentFunctionGroup } from '@rtc-agent/component';
-import { listRule } from './list';
-import { createRule } from './create';
-import { updateRule } from './update';
-import { removeRule } from './remove';
+import { withMeta, z } from '@rtc-agent/component';
+import type { PermissionAwareFunctionDef } from '@/rtc-agent/permission-filter';
+import { ensurePageLoaded } from '@/rtc-agent/utils/page-loader';
 
 /**
- * 规则管理 Function Group
+ * Update admin role
  *
- * 对应页面路由：/list/table-list
+ * Permission required: role:write
  *
- * 所有 function 都调用页面暴露的 React API：
- * - window.__pages__.rule.list()
- * - window.__pages__.rule.create()
- * - window.__pages__.rule.update()
- * - window.__pages__.rule.remove()
+ * Implementation:
+ * - Calls page API to trigger update flow
+ * - Page API internally uses React patterns
+ * - Table auto-refreshes after successful update
  */
-export const ruleGroup: AgentFunctionGroup = {
-  name: 'rule',
-  description: '规则管理模块，支持规则的增删改查操作。所有操作都会反映在 UI 表格中。',
-  functions: [
-    listRule,
-    createRule,
-    updateRule,
-    removeRule,
-  ],
+export const updateRole: PermissionAwareFunctionDef = {
+  name: 'update',
+  description:
+    'Update admin role information, the table will auto-refresh after successful update',
+
+  requiredPermissions: [{ resource: 'role', action: 'write' }],
+
+  zodSchema: z.object({
+    id: withMeta(z.string(), { example: '01a10622-...' }).describe(
+      'Admin role ID',
+    ),
+    name: withMeta(z.string(), { example: 'editor' })
+      .optional()
+      .describe('Admin role name'),
+    display_name: withMeta(z.string(), { example: 'Editor' })
+      .optional()
+      .describe('Display name'),
+    description: withMeta(z.string(), {
+      example: 'A role that can edit content',
+    })
+      .optional()
+      .describe('Admin role description'),
+    is_enabled: withMeta(z.boolean(), { example: true })
+      .optional()
+      .describe('Whether enabled'),
+  }),
+
+  returns: {
+    zodSchema: z
+      .object({
+        success: z.boolean().describe('Whether successful'),
+      })
+      .describe('Update result'),
+  },
+
+  handler: async (params) => {
+    const { id, name, display_name, description, is_enabled } = params as {
+      id: string;
+      name?: string;
+      display_name?: string;
+      description?: string;
+      is_enabled?: boolean;
+    };
+
+    // Ensure page is loaded
+    await ensurePageLoaded('role', '/system/roles');
+
+    // Page is loaded, call API directly
+    const pageAPI = window.__pages__?.role;
+    if (!pageAPI) {
+      throw new Error('Role page failed to load. Please try again.');
+    }
+
+    return await pageAPI.update({
+      id,
+      name,
+      display_name,
+      description,
+      is_enabled,
+    });
+  },
+
+  hooks: {
+    onStart: () => {
+      console.log('[role.update] Updating admin role...');
+    },
+    onSuccess: () => {
+      console.log('[role.update] Update successful');
+    },
+    onError: (error) => {
+      console.error('[role.update] Update failed:', error.message);
+    },
+  },
 };
 ```
 
-### 4.6 入口组装（含权限过滤）(`src/rtc-agent/index.ts`)
+#### 4.3.4 删除操作 (remove)
+
+**文件路径**: `src/rtc-agent/groups/role/remove.ts`
+
+```typescript
+import { withMeta, z } from '@rtc-agent/component';
+import type { PermissionAwareFunctionDef } from '@/rtc-agent/permission-filter';
+import { ensurePageLoaded } from '@/rtc-agent/utils/page-loader';
+
+/**
+ * Delete admin role
+ *
+ * Permission required: role:write
+ *
+ * Implementation:
+ * - Calls page API to trigger delete flow
+ * - Page API internally uses React patterns (mutation)
+ * - Table auto-refreshes after successful deletion
+ */
+export const removeRole: PermissionAwareFunctionDef = {
+  name: 'remove',
+  description:
+    'Delete admin roles, the table will auto-refresh after successful deletion',
+
+  requiredPermissions: [{ resource: 'role', action: 'write' }],
+
+  zodSchema: z.object({
+    ids: withMeta(z.array(z.string()), { example: ['01a10622-...'] }).describe(
+      'List of admin role IDs to delete',
+    ),
+  }),
+
+  returns: {
+    zodSchema: z
+      .object({
+        success: z.boolean().describe('Whether successful'),
+        deletedCount: z.number().optional().describe('Number of deleted roles'),
+      })
+      .describe('Deletion result'),
+  },
+
+  handler: async (params) => {
+    const { ids } = params as { ids: string[] };
+
+    // Ensure page is loaded
+    await ensurePageLoaded('role', '/system/roles');
+
+    // Page is loaded, call API directly
+    const pageAPI = window.__pages__?.role;
+    if (!pageAPI) {
+      throw new Error('Role page failed to load. Please try again.');
+    }
+
+    return await pageAPI.remove(ids);
+  },
+
+  hooks: {
+    onStart: (params) => {
+      const ids = (params as any)?.ids || [];
+      console.log(`[role.remove] Deleting ${ids.length} admin role(s)...`);
+    },
+    onSuccess: (result) => {
+      console.log(
+        `[role.remove] Deletion successful, deleted ${(result as any).deletedCount || 1} role(s)`,
+      );
+    },
+    onError: (error) => {
+      console.error('[role.remove] Deletion failed:', error.message);
+    },
+  },
+};
+```
+
+### 4.4 Step 4: Function Group 定义
+
+**文件路径**: `src/rtc-agent/groups/role/index.ts`
+
+```typescript
+import type { PermissionAwareFunctionDef } from '@/rtc-agent/permission-filter';
+import { createRole } from './create';
+import { listRoles } from './list';
+import { removeRole } from './remove';
+import { updateRole } from './update';
+
+/**
+ * Admin Role Management Function Group
+ *
+ * Corresponds to route: /system/roles
+ *
+ * All functions call the page-exposed React API:
+ * - window.__pages__.role.list()
+ * - window.__pages__.role.create()
+ * - window.__pages__.role.update()
+ * - window.__pages__.role.remove()
+ *
+ * Permission requirements:
+ * - list: role:read
+ * - create, update, remove: role:write
+ */
+export const roleGroup = {
+  name: 'role',
+  description:
+    'Admin role management module, supports CRUD operations on admin roles. All operations are reflected in the UI table.',
+  functions: [
+    listRoles,
+    createRole,
+    updateRole,
+    removeRole,
+  ] as PermissionAwareFunctionDef[],
+};
+```
+
+### 4.5 Step 5: 注册到总入口
+
+**文件路径**: `src/rtc-agent/index.ts`
 
 ```typescript
 import type { AgentConfig } from '@rtc-agent/component';
-import { filterGroupsByPermissions } from './permission-filter';
+import { buildPermissionSet } from './permission-filter';
 import type { Permission } from './permission-filter';
-
-// 导入所有 Function Groups
-import { navigationGroup } from './groups/navigation';
-import { authGroup } from './groups/auth';
-import { ruleGroup } from './groups/rule';
-import { userGroup } from './groups/user';
-import { roleGroup } from './groups/role';
-import { permissionGroup } from './groups/permission';
-import { userRoleGroup } from './groups/userRole';
-import { auditLogGroup } from './groups/auditLog';
+import { createNavigationGroup, roleGroup } from './groups';
+// ... 其他 groups
 
 /**
- * 所有 Function Groups（未过滤）
- *
- * - navigation/auth: 无权限要求，所有用户可用
- * - rule: 示例页面，不受 RBAC 控制
- * - user/role/permission/userRole/auditLog: 受 RBAC 权限控制
- */
-const allGroups = [
-  navigationGroup,   // 无权限要求
-  authGroup,         // 无权限要求
-  ruleGroup,         // 示例页面，无权限要求
-  userGroup,         // 需要 user:* 权限
-  roleGroup,         // 需要 role:* 权限
-  permissionGroup,   // 需要 permission:* 权限
-  userRoleGroup,     // 需要 user_role:* 权限
-  auditLogGroup,     // 需要 audit_log:read 权限
-];
-
-/**
- * 创建 admin-ui 的 AgentConfig（根据用户权限过滤 Function Groups）
+ * 创建所有 Function Groups（根据用户权限过滤）
  *
  * @param userPermissions - 当前用户的权限列表（来自 /api/auth/me）
+ */
+export function createAllGroups(userPermissions: Permission[]) {
+  const permissionSet = buildPermissionSet(userPermissions);
+
+  return [createNavigationGroup(permissionSet), roleGroup];
+}
+
+/**
+ * 创建 admin-ui 的 AgentConfig
  *
- * 示例：
- * - admin 用户（所有权限）→ 注册所有 Function Groups
- * - operator 用户（user:read, user:write, role:read）→ 只注册 user 的部分 Functions + role.list
- * - viewer 用户（user:read）→ 只注册 user.list + navigation + auth + rule
+ * Note: Permission filtering is done by rtc-agent-manager.ts before calling this function
+ * This function only assembles the final AgentConfig
+ *
+ * @param filteredGroups - 经过权限过滤后的 Function Groups
  */
 export function createAdminAgentConfig(
-  userPermissions: Permission[] = []
+  filteredGroups: Array<{
+    name: string;
+    description?: string;
+    functions: any[];
+  }>,
 ): Partial<AgentConfig> {
-  // 根据用户权限过滤 Function Groups
-  const filteredGroups = filterGroupsByPermissions(allGroups, userPermissions);
-
-  // 输出过滤结果（开发环境）
   if (process.env.NODE_ENV === 'development') {
-    console.log('[AdminAgentConfig] User permissions:', userPermissions);
     console.log('[AdminAgentConfig] Filtered groups:',
       filteredGroups.map((g) => `${g.name}(${g.functions.length} functions)`)
     );
@@ -635,966 +958,11 @@ export function createAdminAgentConfig(
 
   return {
     name: 'AdminUI',
-    description: 'Ant Design Pro 后台管理系统',
-    persona: `你是一个后台管理系统的 AI 助手。
-你可以帮助用户：
-- 导航到不同的页面
-- 查看当前用户信息和权限
-- 管理用户、角色、权限（根据用户权限）
-
-请始终使用已注册的 Function 来执行操作。
-如果某个 Function 不存在，说明用户没有相应权限。`,
-
-    groups: filteredGroups,
+    description: 'AI assistant for the admin dashboard',
+    persona: `You are the AI assistant of an admin dashboard. You help administrators navigate the system and manage admin roles, permissions, and audit logs through the registered functions. Always act through registered functions. If a function is unavailable, the current admin lacks the required permission — explain this clearly. Be concise, confirm operations with relevant details, and match the user's language.`,
+    groups: filteredGroups as any, // Type cast: PermissionAwareFunctionDef[] is compatible with AgentFunctionGroup
   };
 }
-
-/**
- * 导出所有 Function Groups（供测试使用）
- */
-export { allGroups };
-```
-
-### 4.7 测试桥接 (`src/rtc-agent/test-harness.ts`)
-
-```typescript
-import { allGroups } from './index';
-
-/**
- * 测试桥接模块
- *
- * 在开发/测试环境下，将 Function Registry 暴露到 window 对象
- * 供 Playwright E2E 测试直接调用
- *
- * 用法（在 Playwright 中）：
- *   const result = await page.evaluate(() => {
- *     return window.__rtc__.callFunction('rule.list', { current: 1 });
- *   });
- */
-
-interface RtcTestHarness {
-  /**
-   * 调用指定 Function
-   * @param fullPath - 完整路径，如 'rule.list'
-   * @param params - 函数参数
-   */
-  callFunction: (fullPath: string, params?: Record<string, unknown>) => Promise<unknown>;
-
-  /**
-   * 列出所有可用的 Functions
-   */
-  listFunctions: () => Array<{ group: string; name: string; description: string }>;
-}
-
-// 构建 function map
-function buildFunctionMap(): Map<string, (params?: Record<string, unknown>) => Promise<unknown>> {
-  const map = new Map();
-
-  for (const group of allGroups) {
-    for (const fn of group.functions) {
-      const fullPath = `${group.name}.${fn.name}`;
-      map.set(fullPath, async (params?: Record<string, unknown>) => {
-        return fn.handler(params || {}, () => {});
-      });
-    }
-  }
-
-  return map;
-}
-
-/**
- * 初始化测试桥接
- * 仅在开发环境或测试环境生效
- */
-export function initTestHarness(): void {
-  // 安全检查：仅在非生产环境暴露
-  if (process.env.NODE_ENV === 'production') {
-    return;
-  }
-
-  const functionMap = buildFunctionMap();
-
-  const harness: RtcTestHarness = {
-    callFunction: async (fullPath, params) => {
-      const fn = functionMap.get(fullPath);
-      if (!fn) {
-        throw new Error(`Function not found: ${fullPath}`);
-      }
-      return fn(params);
-    },
-
-    listFunctions: () => {
-      const result: Array<{ group: string; name: string; description: string }> = [];
-      for (const group of allGroups) {
-        for (const fn of group.functions) {
-          result.push({
-            group: group.name,
-            name: fn.name,
-            description: fn.description,
-          });
-        }
-      }
-      return result;
-    },
-  };
-
-  // 暴露到 window
-  (window as any).__rtc__ = harness;
-
-  console.log('[RTC Test Harness] Initialized. Use window.__rtc__ to call functions.');
-}
-```
-
-### 4.8 Navigation Group 示例
-
-导航函数使用**事件机制**确保页面加载完毕后才返回：
-
-```typescript
-// src/rtc-agent/groups/navigation/goto.ts
-import { z, withMeta } from '@rtc-agent/component';
-import type { FunctionDef } from '@rtc-agent/component';
-
-export const goto: FunctionDef = {
-  name: 'goto',
-  description: '导航到指定页面，等待页面加载完毕（page API 注册完成）后返回',
-
-  zodSchema: z.object({
-    path: withMeta(z.string(), { example: '/list/table-list' })
-      .describe('目标页面路径'),
-  }),
-
-  returns: {
-    zodSchema: z.object({
-      success: z.boolean().describe('是否成功'),
-      path: z.string().describe('当前页面路径'),
-      title: z.string().describe('页面标题'),
-    }).describe('导航结果'),
-  },
-
-  handler: async (params) => {
-    const { path } = params as { path: string };
-
-    // 提取页面名称（从路径推断 page API 的 key）
-    const pageName = extractPageName(path); // '/list/table-list' -> 'rule'
-
-    // 1. 导航到新页面
-    window.history.pushState({}, '', path);
-    window.dispatchEvent(new PopStateEvent('popstate'));
-
-    // 2. 等待页面 API 注册完成（确定性等待，不使用 setTimeout）
-    if (!window.__pages__?.[pageName]) {
-      await new Promise<void>((resolve) => {
-        const handler = (e: Event) => {
-          const customEvent = e as CustomEvent<{ page: string }>;
-          if (customEvent.detail.page === pageName) {
-            window.removeEventListener('page-api-ready', handler);
-            resolve();
-          }
-        };
-        window.addEventListener('page-api-ready', handler);
-      });
-    }
-
-    // 3. 此时 page API 已注册，后续 Function 可以直接调用
-
-    return {
-      success: true,
-      path: window.location.pathname,
-      title: document.title,
-    };
-  },
-};
-
-// 辅助函数：从路径提取页面名称
-function extractPageName(path: string): string {
-  const mapping: Record<string, string> = {
-    '/list/table-list': 'rule',
-    '/dashboard/analysis': 'dashboard',
-    // ... 其他映射
-  };
-  return mapping[path] || path.split('/').pop() || '';
-}
-```
-
-**页面组件注册时发送事件**：
-
-```typescript
-// src/pages/table-list/index.tsx
-useEffect(() => {
-  const pageAPI: RulePageAPI = { /* ... */ };
-  
-  // 注册 API
-  window.__pages__ = window.__pages__ || {};
-  window.__pages__.rule = pageAPI;
-
-  // 发送就绪事件（通知 navigation.goto）
-  window.dispatchEvent(
-    new CustomEvent('page-api-ready', { detail: { page: 'rule' } })
-  );
-
-  return () => {
-    delete window.__pages__?.rule;
-  };
-}, []);
-```
-
-**使用示例**：
-
-```typescript
-// AI 调用示例
-await rtcAgent.navigation.goto({ path: '/list/table-list' });
-// ✅ 事件机制确保 page API 已注册
-
-await rtcAgent.rule.list({ current: 1 });
-// ✅ 直接调用，无需等待
-```
-
-### 4.9 E2E 测试 (`src/rtc-agent/e2e/specs/rule.spec.ts`)
-
-```typescript
-import { expect, test } from '../fixtures/rtc-functions';
-
-test.describe('rule Group - 规则管理', () => {
-  test.beforeEach(async ({ page, login }) => {
-    // 登录并导航到规则列表页
-    await login();
-    await page.goto('/list/table-list');
-    await page.waitForLoadState('networkidle');
-  });
-
-  test('rule.list - 读取表格数据（与 UI 一致）', async ({ page, callFunction }) => {
-    // 调用 function
-    const result = await callFunction('rule.list', {
-      current: 1,
-      pageSize: 10,
-    });
-
-    // 验证返回值结构
-    expect(result).toHaveProperty('success', true);
-    expect(result).toHaveProperty('data');
-    expect(result).toHaveProperty('total');
-
-    // 验证数据与 UI 表格一致
-    const tableRows = await page.locator('.ant-table-tbody tr').count();
-    const resultData = (result as any).data;
-    expect(resultData.length).toBe(tableRows);
-
-    // 验证第一行数据
-    if (resultData.length > 0) {
-      const firstRowName = await page.locator('.ant-table-tbody tr:first-child td:nth-child(2)').textContent();
-      expect(resultData[0].name).toBe(firstRowName?.trim());
-    }
-  });
-
-  test('rule.create - 创建规则并刷新表格', async ({ page, callFunction }) => {
-    // 记录创建前的行数
-    const rowsBefore = await page.locator('.ant-table-tbody tr').count();
-
-    // 调用 function
-    const result = await callFunction('rule.create', {
-      name: '测试规则',
-      desc: 'E2E 测试创建的规则',
-    });
-
-    expect(result).toHaveProperty('success', true);
-
-    // 验证表格已刷新（行数增加）
-    await page.waitForTimeout(500); // 等待刷新完成
-    const rowsAfter = await page.locator('.ant-table-tbody tr').count();
-    expect(rowsAfter).toBe(rowsBefore + 1);
-
-    // 验证新规则出现在表格中
-    const newRuleVisible = await page.locator(`text=测试规则`).isVisible();
-    expect(newRuleVisible).toBe(true);
-  });
-
-  test('rule.remove - 删除规则并刷新表格', async ({ page, callFunction }) => {
-    // 先创建一条规则
-    await callFunction('rule.create', {
-      name: '待删除规则',
-      desc: '即将被删除',
-    });
-
-    // 记录当前行数
-    const rowsBefore = await page.locator('.ant-table-tbody tr').count();
-
-    // 找到刚创建的规则
-    const targetRow = await page.locator('tr', { hasText: '待删除规则' });
-    const keyCell = await targetRow.locator('td:first-child').textContent();
-    const ruleKey = parseInt(keyCell || '0');
-
-    // 调用 function 删除
-    const result = await callFunction('rule.remove', {
-      keys: [ruleKey],
-    });
-
-    expect(result).toHaveProperty('success', true);
-
-    // 验证表格已刷新（行数减少）
-    await page.waitForTimeout(500);
-    const rowsAfter = await page.locator('.ant-table-tbody tr').count();
-    expect(rowsAfter).toBe(rowsBefore - 1);
-
-    // 验证规则已从表格消失
-    const ruleStillVisible = await page.locator(`text=待删除规则`).isVisible();
-    expect(ruleStillVisible).toBe(false);
-  });
-});
-```
-
-### 4.10 Playwright Fixture (`src/rtc-agent/e2e/fixtures/rtc-functions.ts`)
-
-```typescript
-import { test as base } from '@playwright/test';
-import type { Permission } from '@/rtc-agent/permission-filter';
-
-type RtcFunctionsFixtures = {
-  /** 调用 RTC Function */
-  callFunction: (fullPath: string, params?: Record<string, unknown>) => Promise<unknown>;
-  /** 登录 helper（默认 admin 角色） */
-  login: () => Promise<void>;
-  /** 以指定角色登录 */
-  loginAs: (role: 'admin' | 'operator' | 'viewer') => Promise<void>;
-  /** 列出所有已注册的 Functions */
-  listFunctions: () => Promise<Array<{ group: string; name: string; description: string }>>;
-};
-
-// 角色对应的权限映射（与后端一致）
-const ROLE_PERMISSIONS: Record<string, Permission[]> = {
-  admin: [
-    { resource: 'user', action: 'read' },
-    { resource: 'user', action: 'write' },
-    { resource: 'user', action: 'delete' },
-    { resource: 'role', action: 'read' },
-    { resource: 'role', action: 'write' },
-    { resource: 'role', action: 'delete' },
-    { resource: 'permission', action: 'read' },
-    { resource: 'permission', action: 'write' },
-    { resource: 'permission', action: 'delete' },
-    { resource: 'user_role', action: 'read' },
-    { resource: 'user_role', action: 'write' },
-    { resource: 'user_role', action: 'delete' },
-    { resource: 'audit_log', action: 'read' },
-  ],
-  operator: [
-    { resource: 'user', action: 'read' },
-    { resource: 'user', action: 'write' },
-    { resource: 'role', action: 'read' },
-  ],
-  viewer: [
-    { resource: 'user', action: 'read' },
-  ],
-};
-
-export const test = base.extend<RtcFunctionsFixtures>({
-  callFunction: async ({ page }, use) => {
-    const callFunction = async (fullPath: string, params?: Record<string, unknown>) => {
-      return page.evaluate(
-        ({ path, args }) => {
-          // @ts-ignore
-          return window.__rtc__?.callFunction(path, args);
-        },
-        { path: fullPath, args: params }
-      );
-    };
-    await use(callFunction);
-  },
-
-  login: async ({ page }, use) => {
-    const login = async () => {
-      await page.goto('/user/login');
-      await page.fill('input[name="email"]', 'admin');
-      await page.fill('input[name="password"]', 'ant.design');
-      await page.click('button[type="submit"]');
-      await page.waitForURL('**/dashboard/**');
-    };
-    await use(login);
-  },
-
-  // === 新增：以指定角色登录 ===
-  loginAs: async ({ page }, use) => {
-    const loginAs = async (role: 'admin' | 'operator' | 'viewer') => {
-      // Mock /api/auth/me 接口返回对应角色的权限
-      await page.route('**/api/auth/me', async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            success: true,
-            data: {
-              id: 'test-user-id',
-              email: `${role}@example.com`,
-              name: role.toUpperCase(),
-              roles: [{ id: 'role-id', name: role, display_name: role }],
-              permissions: ROLE_PERMISSIONS[role],
-            },
-          }),
-        });
-      });
-
-      await page.goto('/user/login');
-      await page.fill('input[name="email"]', role);
-      await page.fill('input[name="password"]', 'ant.design');
-      await page.click('button[type="submit"]');
-      await page.waitForURL('**/dashboard/**');
-
-      // 等待 RTC Agent 初始化完成（带权限过滤）
-      await page.waitForFunction(() => {
-        // @ts-ignore
-        return window.__rtc__?.listFunctions !== undefined;
-      });
-    };
-    await use(loginAs);
-  },
-
-  // === 新增：列出已注册的 Functions ===
-  listFunctions: async ({ page }, use) => {
-    const listFunctions = async () => {
-      return page.evaluate(() => {
-        // @ts-ignore
-        return window.__rtc__?.listFunctions() || [];
-      });
-    };
-    await use(listFunctions);
-  },
-});
-
-export { expect } from '@playwright/test';
-```
-
-### 4.10.1 权限过滤 E2E 测试 (`src/rtc-agent/e2e/specs/permission-filter.spec.ts`)
-
-```typescript
-import { expect, test } from '../fixtures/rtc-functions';
-
-test.describe('权限过滤 - Functions 根据角色权限动态注册', () => {
-  test('admin 角色 - 所有 Functions 可用', async ({ loginAs, listFunctions }) => {
-    await loginAs('admin');
-
-    const functions = await listFunctions();
-
-    // admin 应该能看到所有 groups
-    const groupNames = [...new Set(functions.map((f) => f.group))];
-    expect(groupNames).toContain('navigation');
-    expect(groupNames).toContain('auth');
-    expect(groupNames).toContain('user');
-    expect(groupNames).toContain('role');
-    expect(groupNames).toContain('permission');
-    expect(groupNames).toContain('userRole');
-    expect(groupNames).toContain('auditLog');
-
-    // user group 应该有完整的 CRUD
-    const userFunctions = functions.filter((f) => f.group === 'user');
-    expect(userFunctions.map((f) => f.name)).toEqual(
-      expect.arrayContaining(['list', 'create', 'update', 'remove'])
-    );
-  });
-
-  test('operator 角色 - 只有部分 Functions 可用', async ({ loginAs, listFunctions }) => {
-    await loginAs('operator');
-
-    const functions = await listFunctions();
-    const groupNames = [...new Set(functions.map((f) => f.group))];
-
-    // operator 有 user:read, user:write, role:read
-    expect(groupNames).toContain('navigation');
-    expect(groupNames).toContain('auth');
-    expect(groupNames).toContain('user');
-    expect(groupNames).toContain('role'); // role:read
-
-    // operator 没有 permission, user_role, audit_log 权限
-    expect(groupNames).not.toContain('permission');
-    expect(groupNames).not.toContain('userRole');
-    expect(groupNames).not.toContain('auditLog');
-
-    // user group 只有 list, create, update（没有 delete）
-    const userFunctions = functions.filter((f) => f.group === 'user');
-    expect(userFunctions.map((f) => f.name)).toEqual(
-      expect.arrayContaining(['list', 'create', 'update'])
-    );
-    expect(userFunctions.map((f) => f.name)).not.toContain('remove');
-
-    // role group 只有 list（没有 create, update, remove）
-    const roleFunctions = functions.filter((f) => f.group === 'role');
-    expect(roleFunctions.map((f) => f.name)).toEqual(['list']);
-  });
-
-  test('viewer 角色 - 只有只读 Functions 可用', async ({ loginAs, listFunctions }) => {
-    await loginAs('viewer');
-
-    const functions = await listFunctions();
-    const groupNames = [...new Set(functions.map((f) => f.group))];
-
-    // viewer 只有 user:read
-    expect(groupNames).toContain('navigation');
-    expect(groupNames).toContain('auth');
-    expect(groupNames).toContain('user');
-
-    // viewer 没有其他权限
-    expect(groupNames).not.toContain('role');
-    expect(groupNames).not.toContain('permission');
-    expect(groupNames).not.toContain('userRole');
-    expect(groupNames).not.toContain('auditLog');
-
-    // user group 只有 list
-    const userFunctions = functions.filter((f) => f.group === 'user');
-    expect(userFunctions.map((f) => f.name)).toEqual(['list']);
-  });
-
-  test('无权限的 Function 调用应该失败', async ({ loginAs, callFunction }) => {
-    await loginAs('viewer'); // 只有 user:read
-
-    // viewer 可以尝试调用 user.list（有权限）
-    const listResult = await callFunction('user.list', {});
-    expect(listResult).toBeDefined();
-
-    // viewer 尝试调用 user.remove（没有权限，function 不存在）
-    // 应该抛出错误，因为 function 没有被注册
-    await expect(
-      callFunction('user.remove', { ids: ['test-id'] })
-    ).rejects.toThrow(/Function not found/);
-  });
-});
-```
-
-### 4.11 权限过滤机制 (`src/rtc-agent/permission-filter.ts`)
-
-> **重要说明**：`requiredPermissions` 是 **admin-ui 自定义的扩展属性**，不是 `@rtc-agent/component` 原生支持的字段。`@rtc-agent/component` 的 `FunctionDef` 类型不包含此属性。admin-ui 通过定义 `PermissionAwareFunctionDef` 接口来扩展 `FunctionDef`，在注册前通过 `filterGroupsByPermissions` 过滤掉无权 Function，然后将过滤后的 Function 传给 `@rtc-agent/component`。
-
-**边界情况**：
-
-- **Group 内部分 Function 有权限**：过滤后 Group 仍然存在，只包含有权限的 Function。例如用户有 `user:read` 但没有 `user:delete`，则 `user` Group 只保留 `list` Function。
-- **Group 内所有 Function 无权限**：整个 Group 被移除，AI 完全看不到该 Group 的存在。
-- **权限过滤是一次性的**：在 `createAdminAgentConfig()` 初始化时过滤，之后权限变更需要重新挂载 RTC Agent（刷新页面）。
-
-```typescript
-/**
- * 权限过滤模块
- *
- * 根据用户权限过滤 Functions，只注册用户有权限使用的 Functions
- */
-
-/**
- * 权限定义（与后端 API 返回一致）
- */
-export interface Permission {
-  resource: string;
-  action: string;
-}
-
-/**
- * 带权限要求的 Function 定义
- *
- * 扩展 FunctionDef，添加 requiredPermissions 属性
- */
-export interface PermissionAwareFunctionDef {
-  name: string;
-  description: string;
-  /** 需要的权限列表，为空表示无权限要求（所有用户可用） */
-  requiredPermissions?: Permission[];
-  // ... 其他 FunctionDef 属性
-}
-
-/**
- * 将权限数组转换为 Set<string>，用于 O(1) 查询
- */
-export function buildPermissionSet(permissions: Permission[]): Set<string> {
-  return new Set(permissions.map((p) => `${p.resource}:${p.action}`));
-}
-
-/**
- * 检查用户是否拥有 Function 所需的所有权限
- */
-export function hasRequiredPermissions(
-  fn: PermissionAwareFunctionDef,
-  userPermissionSet: Set<string>,
-): boolean {
-  // 无权限要求 = 所有用户可用
-  if (!fn.requiredPermissions || fn.requiredPermissions.length === 0) {
-    return true;
-  }
-
-  // 检查用户是否拥有所有需要的权限
-  return fn.requiredPermissions.every((p) =>
-    userPermissionSet.has(`${p.resource}:${p.action}`)
-  );
-}
-
-/**
- * 过滤 Functions：只保留用户有权限使用的
- */
-export function filterFunctionsByPermissions<T extends PermissionAwareFunctionDef>(
-  functions: T[],
-  userPermissions: Permission[],
-): T[] {
-  const userPermissionSet = buildPermissionSet(userPermissions);
-
-  const filtered = functions.filter((fn) =>
-    hasRequiredPermissions(fn, userPermissionSet)
-  );
-
-  console.log(
-    `[Permission Filter] ${filtered.length}/${functions.length} functions available`,
-  );
-
-  return filtered;
-}
-
-/**
- * 过滤 Function Group：过滤每个 group 内的 functions，移除空的 group
- */
-export function filterGroupsByPermissions<T extends PermissionAwareFunctionDef>(
-  groups: Array<{ name: string; description?: string; functions: T[] }>,
-  userPermissions: Permission[],
-): Array<{ name: string; description?: string; functions: T[] }> {
-  return groups
-    .map((group) => ({
-      ...group,
-      functions: filterFunctionsByPermissions(group.functions, userPermissions),
-    }))
-    .filter((group) => group.functions.length > 0); // 移除空的 group
-}
-```
-
-### 4.12 带权限声明的 Function 示例 — 查询操作 (`src/rtc-agent/groups/user/list.ts`)
-
-```typescript
-import { z, withMeta } from '@rtc-agent/component';
-import type { FunctionDef } from '@rtc-agent/component';
-
-/**
- * 查询用户列表
- *
- * 权限要求：user:read
- *
- * 如果用户没有 user:read 权限，这个 Function 不会被注册
- */
-export const listUsers: FunctionDef = {
-  name: 'list',
-  description: '查询用户列表，返回当前表格中显示的数据',
-
-  // === 权限声明 ===
-  requiredPermissions: [{ resource: 'user', action: 'read' }],
-
-  zodSchema: z.object({
-    current: withMeta(z.number().int().positive(), { example: 1 })
-      .optional()
-      .describe('当前页码，默认 1'),
-    pageSize: withMeta(z.number().int().positive(), { example: 20 })
-      .optional()
-      .describe('每页条数，默认 20'),
-  }),
-
-  returns: {
-    zodSchema: z.object({
-      success: z.boolean(),
-      data: z.array(z.object({
-        id: z.string(),
-        name: z.string(),
-        email: z.string(),
-        roles: z.array(z.string()),
-      })),
-      total: z.number(),
-    }),
-  },
-
-  handler: async (params) => {
-    // 调用页面 API（不是直接操作 DOM 或后端）
-    return await window.__pages__?.user.list(params);
-  },
-};
-```
-
-### 4.13 带权限声明的 Function 示例 — 删除操作 (`src/rtc-agent/groups/user/remove.ts`)
-
-```typescript
-import { z, withMeta } from '@rtc-agent/component';
-import type { FunctionDef } from '@rtc-agent/component';
-
-/**
- * 删除用户
- *
- * 权限要求：user:delete
- *
- * 注意：这个 Function 需要 user:delete 权限
- * 如果用户只有 user:read/user:write 但没有 user:delete，这个 Function 不会被注册
- */
-export const removeUser: FunctionDef = {
-  name: 'remove',
-  description: '删除用户，删除成功后表格会自动刷新',
-
-  // === 权限声明：需要 delete 权限 ===
-  requiredPermissions: [{ resource: 'user', action: 'delete' }],
-
-  zodSchema: z.object({
-    ids: withMeta(z.array(z.string()), { example: ['01a10622-...'] })
-      .describe('要删除的用户 ID 列表'),
-  }),
-
-  returns: {
-    zodSchema: z.object({
-      success: z.boolean(),
-      deletedCount: z.number(),
-    }),
-  },
-
-  handler: async (params) => {
-    const { ids } = params as { ids: string[] };
-    return await window.__pages__?.user.remove(ids);
-  },
-};
-```
-
-### 4.14 User Function Group 定义 (`src/rtc-agent/groups/user/index.ts`)
-
-```typescript
-import type { AgentFunctionGroup } from '@rtc-agent/component';
-import { listUsers } from './list';
-import { createUser } from './create';
-import { updateUser } from './update';
-import { removeUser } from './remove';
-
-/**
- * 用户管理 Function Group
- *
- * 对应页面路由：/system/users
- * 所需权限：
- * - list: user:read
- * - create: user:write
- * - update: user:write
- * - remove: user:delete
- */
-export const userGroup: AgentFunctionGroup = {
-  name: 'user',
-  description: '用户管理模块，支持用户的增删改查操作',
-  functions: [
-    listUsers,    // requiredPermissions: [{ resource: 'user', action: 'read' }]
-    createUser,   // requiredPermissions: [{ resource: 'user', action: 'write' }]
-    updateUser,   // requiredPermissions: [{ resource: 'user', action: 'write' }]
-    removeUser,   // requiredPermissions: [{ resource: 'user', action: 'delete' }]
-  ],
-};
-```
-
-### 4.15 集成到 rtc-agent-manager.ts（含权限传递）
-
-```typescript
-import type { RtcAgentWithLifecycle } from '@rtc-agent/component';
-import { createAdminAuthProvider } from '@/utils/rtc-auth-provider';
-import { createAdminAgentConfig } from '@/rtc-agent';
-import { initTestHarness } from '@/rtc-agent/test-harness';
-import type { Permission } from '@/rtc-agent/permission-filter';
-
-// Web Component 实例（全局单例）
-let rtcAgentInstance: RtcAgentWithLifecycle | null = null;
-
-// 动态导入标记
-let importPromise: Promise<{
-  createRtcAgent: typeof import('@rtc-agent/component').createRtcAgent;
-}> | null = null;
-
-// 挂载状态标记
-let mountRequested = false;
-let isMounting = false;
-
-// RTC Agent Server URL
-const RTC_AGENT_URL = process.env.RTC_AGENT_URL || window.location.origin;
-
-function loadRtcAgentComponent() {
-  // ... 同之前的实现
-}
-
-/**
- * 挂载 RTC Agent
- *
- * @param userPermissions - 当前用户的权限列表（来自 /api/auth/me）
- *
- * 流程：
- * 1. 等待用户权限信息
- * 2. 根据权限过滤 Functions
- * 3. 创建 RTC Agent（只注册有权限的 Functions）
- */
-export function mountRtcAgent(userPermissions: Permission[] = []) {
-  console.log('[RTC Agent Manager] mountRtcAgent called with permissions:', userPermissions);
-
-  if (rtcAgentInstance) {
-    console.warn('[RTC Agent Manager] RTC Agent already mounted');
-    return;
-  }
-  if (isMounting) {
-    console.warn('[RTC Agent Manager] RTC Agent mount already in progress');
-    return;
-  }
-
-  mountRequested = true;
-  isMounting = true;
-
-  loadRtcAgentComponent()
-    .then(({ createRtcAgent }) => {
-      isMounting = false;
-
-      if (!mountRequested || rtcAgentInstance) {
-        return;
-      }
-
-      console.log('[RTC Agent Manager] Creating RTC Agent instance...');
-      try {
-        // === 根据用户权限创建 Agent Config ===
-        const agentConfig = createAdminAgentConfig(userPermissions);
-
-        const agent = createRtcAgent({
-          appLabel: 'RTC Agent',
-          theme: 'system',
-          server: { url: RTC_AGENT_URL },
-          auth: createAdminAuthProvider(),
-          workerURL: '/rtc-agent/shared-worker.js',
-          databaseName: 'admin-ui',
-          lang: 'zh-CN',
-
-          // === 传入权限过滤后的 Functions ===
-          ...agentConfig,
-
-          window: {
-            defaultMode: 'minimized',
-            bubblePosition: {
-              corner: 'bottom-right',
-              offset: { x: -24, y: 24 },
-            },
-          },
-
-          on: {
-            ready: () => {
-              console.log('[RTC Agent] Ready');
-              initTestHarness();
-            },
-            authLogin: ({ userId }: { userId: string }) => {
-              console.log('[RTC Agent] Authenticated, userId:', userId);
-            },
-            authError: () => {
-              console.error('[RTC Agent] Auth error, scheduling unmount');
-              setTimeout(() => {
-                unmountRtcAgent();
-              }, 0);
-            },
-          },
-        });
-
-        console.log('[RTC Agent Manager] Appending RTC Agent to document.body');
-        document.body.appendChild(agent);
-        rtcAgentInstance = agent;
-        console.log('[RTC Agent Manager] RTC Agent mounted successfully');
-      } catch (error) {
-        console.error('[RTC Agent Manager] Failed to create RTC Agent:', error);
-        mountRequested = false;
-        isMounting = false;
-      }
-    })
-    .catch((error) => {
-      console.error('[RTC Agent Manager] Failed to load @rtc-agent/component:', error);
-      mountRequested = false;
-      isMounting = false;
-    });
-}
-
-export function unmountRtcAgent() {
-  // ... 同之前的实现
-}
-```
-
-### 4.16 GlobalRtcAgent 组件（等待权限信息）
-
-```typescript
-// src/components/GlobalRtcAgent/GlobalRtcAgent.tsx
-
-import React, { useCallback, useEffect, useState } from 'react';
-import { mountRtcAgent, unmountRtcAgent } from '@/utils/rtc-agent-manager';
-import { isAuthenticated, AUTH_STATE_CHANGED_EVENT } from '@/utils/rtc-auth-provider';
-import { useModel } from '@umijs/max';
-import type { Permission } from '@/rtc-agent/permission-filter';
-
-/**
- * 全局 RTC Agent 组件
- *
- * 流程：
- * 1. 检查是否已登录（localStorage token）
- * 2. 等待 getInitialState 完成（获取 currentUser + permissions）
- * 3. 调用 mountRtcAgent(permissions)
- */
-export const GlobalRtcAgent: React.FC = () => {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isSupported, setIsSupported] = useState(true);
-  const [isReady, setIsReady] = useState(false);
-
-  // 使用 useModel 获取 initialState（包含 currentUser + permissions）
-  const { initialState, loading } = useModel('@@initialState');
-
-  // 检查登录状态
-  const checkAuth = useCallback(() => {
-    const authenticated = isAuthenticated();
-    setIsLoggedIn((prev) => {
-      if (prev !== authenticated) {
-        console.log('[GlobalRtcAgent] Auth state changed:', authenticated);
-        return authenticated;
-      }
-      return prev;
-    });
-  }, []);
-
-  // 监听登录状态变化
-  useEffect(() => {
-    checkAuth();
-    window.addEventListener(AUTH_STATE_CHANGED_EVENT, checkAuth);
-    window.addEventListener('storage', checkAuth);
-    const interval = setInterval(checkAuth, 5000);
-
-    return () => {
-      window.removeEventListener(AUTH_STATE_CHANGED_EVENT, checkAuth);
-      window.removeEventListener('storage', checkAuth);
-      clearInterval(interval);
-    };
-  }, [checkAuth]);
-
-  // === 关键：等待 initialState 加载完成 ===
-  useEffect(() => {
-    if (!loading && initialState?.currentUser) {
-      console.log('[GlobalRtcAgent] Initial state ready, currentUser loaded');
-      setIsReady(true);
-    }
-  }, [loading, initialState]);
-
-  // === 挂载/卸载逻辑（需要等待权限信息） ===
-  useEffect(() => {
-    if (!isSupported) return;
-
-    // 需要同时满足：已登录 + initialState 已加载
-    if (isLoggedIn && isReady) {
-      // 从 currentUser.permissions 获取权限列表
-      // 注意：currentUser.permissions 是 Set<string>（由 app.tsx 中的 buildPermissionSet 构建）
-      // 格式为 "resource:action" 的集合，如 "user:read", "role:write"
-      // 这里将其转换回 Permission[] 格式传给 mountRtcAgent
-      const permissions: Permission[] = Array.from(
-        (initialState?.currentUser?.permissions as Set<string>) || []
-      ).map((key) => {
-        const [resource, action] = key.split(':');
-        return { resource, action };
-      });
-
-      console.log('[GlobalRtcAgent] Mounting RTC Agent with permissions:', permissions);
-      mountRtcAgent(permissions);
-    } else {
-      unmountRtcAgent();
-    }
-  }, [isLoggedIn, isReady, isSupported, initialState]);
-
-  // 清理
-  useEffect(() => {
-    return () => {
-      unmountRtcAgent();
-    };
-  }, []);
-
-  return null;
-};
 ```
 
 ## 5. Page API 模式详解
@@ -1655,7 +1023,7 @@ sequenceDiagram
 
 - **actionRef** - 操作 ProTable：`actionRef.current?.reload()`
 - **formRef** - 操作 ProForm：`formRef.current?.submit()`
-- **queryClient** - 访问 React Query 缓存：`queryClient.getQueryData(['rule'])`
+- **queryClient** - 访问 React Query 缓存：`queryClient.getQueryData(['rule'])`（如果使用 React Query）
 - **React State** - 读取/更新组件状态：`setState(newValue)`
 - **组件方法** - 调用组件暴露的方法：`modalRef.current?.open()`
 
@@ -1758,7 +1126,7 @@ const MyPage: React.FC = () => {
   useEffect(() => {
     const pageAPI: MyPageAPI = {
       list: async (params) => {
-        // 从 React Query 缓存读取（与 UI 一致）
+        // 从后端 API 读取（或使用 React Query 缓存）
         return queryClient.getQueryData(['myData', params]);
       },
       create: async (data) => {
@@ -1891,26 +1259,29 @@ test.describe('myGroup', () => {
 |---|---|---|---|---|
 |**navigation**|goto, getCurrentPage, listPages|无（所有用户可用）|所有页面|-|
 |**auth**|currentUser, hasPermission, logout|无（所有用户可用）|-|-|
-|**user**|list|`user:read`|/system/users|canUserView|
-|**user**|create, update|`user:write`|/system/users|canUserEdit|
-|**user**|remove|`user:delete`|/system/users|canUserDelete|
+|**admin**|list|`admin_user:read`|/system/users|canUserView|
+|**admin**|create, update|`admin_user:write`|/system/users|canUserEdit|
+|**admin**|remove|`admin_user:delete`|/system/users|canUserDelete|
 |**role**|list|`role:read`|/system/roles|canRoleView|
 |**role**|create, update, remove|`role:write`|/system/roles|canRoleEdit|
 |**permission**|list|`permission:read`|/system/permissions|canPermissionView|
 |**permission**|create, update, remove|`permission:write`|/system/permissions|canPermissionEdit|
-|**userRole**|list|`user_role:read`|/system/users|canUserView|
-|**userRole**|assign, revoke|`user_role:write`|/system/users|canUserEdit|
+|**adminRole**|list|`admin_user_role:read`|/system/users|canAdminUserRoleView|
+|**adminRole**|assign, revoke|`admin_user_role:write`|/system/users|canAdminUserRoleEdit|
 |**auditLog**|list|`audit_log:read`|/system/audit-logs|canAuditLogView|
+|**serverConfig**|list|`server_config:read`|/system/configs|canServerConfigView|
+|**serverConfig**|update|`server_config:write`|/system/configs|canServerConfigEdit|
+|**serverConfig**|remove|`server_config:delete`|/system/configs|canServerConfigDelete|
 
-*注：`access.ts` 中未定义 `canRoleDelete` / `canPermissionDelete` / `canUserRoleDelete`，删除操作复用对应的 `write` 权限检查。后端权限虽然区分了 `read/write/delete`，但前端 Function 的 `requiredPermissions` 与 `access.ts` 保持一致。*
+*注：`access.ts` 中未定义 `canRoleDelete` / `canPermissionDelete` / `canUserRoleDelete`，删除操作复用对应的 `write` 权限检查。后端权限虽然区分了 `read/write/delete`，但前端 Function 的 `requiredPermissions` 与 `access.ts` 保持一致。`admin_user_role` 是独立权限资源，与 `admin_user` 分离。*
 
 ### 10.2 角色权限映射
 
 |角色|权限|可用的 Functions|
 |---|---|---|
 |**admin**|所有权限|所有 Functions|
-|**operator**|`user:read`, `user:write`, `role:read`|navigation, auth, user.list/create/update, role.list|
-|**viewer**|`user:read`|navigation, auth, user.list|
+|**operator**|`admin_user:read`, `admin_user:write`, `role:read`|navigation, auth, admin.list/create/update, role.list|
+|**viewer**|`admin_user:read`|navigation, auth, admin.list|
 
 ### 10.3 权限过滤流程图
 
@@ -1945,7 +1316,7 @@ flowchart TB
 ## 11. 注意事项
 
 1. **Handler 调用 Page API** - 不直接操作 DOM，不绕过 UI 调后端
-2. **Page API 返回 UI 数据** - 从 React Query 缓存或 actionRef 读取
+2. **Page API 返回 UI 数据** - 从后端 API 或 React Query 缓存读取，确保与 UI 显示一致
 3. **Page API 触发 UI 更新** - 使用 actionRef.reload() 等方法
 4. **错误处理** - Handler 和 Page API 都应该捕获异常并返回结构化错误
 5. **Hooks 是可选的** - 用于提供 UI 反馈（toast 等）
@@ -1957,7 +1328,190 @@ flowchart TB
 11. **等待权限信息** - `GlobalRtcAgent` 必须等待 `getInitialState()` 完成（获取 currentUser + permissions）后才挂载 RTC Agent
 12. **E2E 测试权限** - 测试时使用 `loginAs(role)` 模拟不同角色，验证权限过滤逻辑
 
-## 12. 后续扩展
+## 12. 新 Function Group 验收标准
+
+> **严格验收**：新增 Function Group 必须通过以下所有检查项，否则不允许合并。
+
+### 12.1 代码结构验收
+
+| #   | 检查项 | 验收标准 | 验证方法 |
+| --- | ------ | -------- | -------- |
+| 1.1 | Page API 类型定义文件存在 | `src/pages/<page>/page-api.ts` 已创建，定义了完整的接口 | 文件存在性检查 |
+| 1.2 | Page API 接口完整 | 包含 `list`, `create`, `update`, `remove`（如适用） | 代码审查 |
+| 1.3 | 全局类型声明正确 | `declare global { interface Window { __pages__?: { <page>?: <PageAPI> } } }` | TypeScript 编译通过 |
+| 1.4 | Function Handler 文件存在 | `src/rtc-agent/groups/<group>/{list,create,update,remove}.ts` 已创建 | 文件存在性检查 |
+| 1.5 | Function Group 定义文件存在 | `src/rtc-agent/groups/<group>/index.ts` 已创建并导出 group | 文件存在性检查 |
+| 1.6 | Group 已注册到总入口 | `src/rtc-agent/groups/index.ts` 导出新 group，`src/rtc-agent/index.ts` 引用 | 代码审查 |
+
+### 12.2 Page API 实现验收
+
+| #   | 检查项 | 验收标准 | 验证方法 |
+| --- | ------ | -------- | -------- |
+| 2.1 | 页面组件注册 Page API | `useEffect` 中创建 `pageAPI` 对象并赋值到 `window.__pages__.<page>` | 代码审查 |
+| 2.2 | 发送就绪事件 | `window.dispatchEvent(new CustomEvent('page-api-ready', { detail: { page: '<page>' } }))` | 代码审查 |
+| 2.3 | 清理函数 | `useEffect` 返回清理函数：`delete window.__pages__.<page>` | 代码审查 |
+| 2.4 | 数据一致性 | `list` 返回的数据结构与 UI 表格显示一致 | E2E 测试验证 |
+| 2.5 | 自动刷新 | `create/update/remove` 操作后调用 `actionRef.current?.reload()` | E2E 测试验证 |
+| 2.6 | 错误处理 | 所有 API 方法包裹在 `try/catch` 中，返回 `{ success: false }` | 代码审查 |
+
+### 12.3 Function Handler 验收
+
+| # | 检查项 | 验收标准 | 验证方法 |
+|---|--------|----------|----------|
+| 3.1 | 使用 `PermissionAwareFunctionDef` 类型 | 所有 handler 导出的类型是 `PermissionAwareFunctionDef` | TypeScript 编译通过 |
+| 3.2 | 权限声明 | 每个 handler 声明 `requiredPermissions: [{ resource: '<resource>', action: '<action>' }]` | 代码审查 |
+| 3.3 | 页面加载检查 | handler 开头调用 `await ensurePageLoaded('<page>', '/<route>')` | 代码审查 |
+| 3.4 | Page API 存在性检查 | `if (!pageAPI) throw new Error(...)` | 代码审查 |
+| 3.5 | Zod Schema 完整 | `zodSchema` 定义所有参数，使用 `withMeta` 添加 `example` | TypeScript 编译通过 |
+| 3.6 | 返回值 Schema 完整 | `returns.zodSchema` 定义返回值结构，包含 `success` 字段 | TypeScript 编译通过 |
+| 3.7 | Hooks 实现 | 实现 `onStart`, `onSuccess`, `onError` hooks（console.log/error） | 代码审查 |
+| 3.8 | 英文注释 | 所有 JSDoc 注释使用英文（与代码库保持一致） | 代码审查 |
+
+### 12.4 权限配置验收
+
+| # | 检查项 | 验收标准 | 验证方法 |
+|---|--------|----------|----------|
+| 4.1 | 权限资源定义 | `src/constants/permissions.ts` 添加新 resource type | 代码审查 |
+| 4.2 | 权限矩阵更新 | 本文档 Section 10.1 权限矩阵表更新 | 文档审查 |
+| 4.3 | access.ts 配置 | `src/access.ts` 添加对应的 `can<Page>View/Edit/Delete` 函数 | 代码审查 |
+| 4.4 | 路由配置 | `config/routes.ts` 中页面路由的 `access` 字段正确配置 | 代码审查 |
+| 4.5 | 角色权限映射 | 后端 API 返回的权限列表包含新 resource 的权限 | 集成测试 |
+
+### 12.5 E2E 测试验收
+
+| # | 检查项 | 验收标准 | 验证方法 |
+|---|--------|----------|----------|
+| 5.1 | 测试文件存在 | `src/rtc-agent/e2e/specs/<group>.spec.ts` 已创建 | 文件存在性检查 |
+| 5.2 | list 功能测试 | 测试调用 `callFunction('<group>.list', {})` 返回正确数据 | `npm run test` 通过 |
+| 5.3 | create 功能测试 | 测试创建后表格行数增加，新数据可见 | `npm run test` 通过 |
+| 5.4 | update 功能测试 | 测试更新后表格数据更新 | `npm run test` 通过 |
+| 5.5 | remove 功能测试 | 测试删除后表格行数减少，数据不可见 | `npm run test` 通过 |
+| 5.6 | 权限过滤测试 | 使用 `loginAs('viewer')` 验证无权时 Function 不可用 | `npm run test` 通过 |
+| 5.7 | 数据一致性测试 | 验证 Function 返回数据与 UI 表格显示一致 | `npm run test` 通过 |
+
+### 12.6 集成验收
+
+| # | 检查项 | 验收标准 | 验证方法 |
+|---|--------|----------|----------|
+| 6.1 | 本地开发验证 | `npm run dev` 启动，登录后 AI 助手能列出新 Functions | 手动验证 |
+| 6.2 | 权限过滤验证 | 不同角色登录，验证 Functions 列表符合权限配置 | 手动验证 |
+| 6.3 | AI 调用验证 | AI 能正确调用新 Function 并返回预期结果 | 手动验证 |
+| 6.4 | UI 同步验证 | Function 执行后 UI 自动刷新，数据一致 | 手动验证 |
+| 6.5 | 错误处理验证 | 网络错误、业务错误时返回结构化错误，不崩溃 | 手动验证 |
+
+### 12.7 文档验收
+
+| # | 检查项 | 验收标准 | 验证方法 |
+|---|--------|----------|----------|
+| 7.1 | 本文档更新 | Section 10.1 权限矩阵表添加新 Group | 文档审查 |
+| 7.2 | 目录结构更新 | Section 3 目录结构添加新文件 | 文档审查 |
+| 7.3 | 示例代码（可选） | 如作为参考实现，添加到 Section 4 | 文档审查 |
+
+### 12.8 验收流程
+
+```mermaid
+flowchart TD
+    A[开发者完成代码] --> B{代码结构验收 12.1}
+    B -->|不通过| B1[修复代码]
+    B1 --> B
+    B -->|通过| C{Page API 验收 12.2}
+    C -->|不通过| C1[修复实现]
+    C1 --> C
+    C -->|通过| D{Handler 验收 12.3}
+    D -->|不通过| D1[修复 Handler]
+    D1 --> D
+    D -->|通过| E{权限配置验收 12.4}
+    E -->|不通过| E1[配置权限]
+    E1 --> E
+    E -->|通过| F{E2E 测试验收 12.5}
+    F -->|不通过| F1[修复测试]
+    F1 --> F
+    F -->|通过| G{集成验收 12.6}
+    G -->|不通过| G1[调试修复]
+    G1 --> G
+    G -->|通过| H{文档验收 12.7}
+    H -->|不通过| H1[更新文档]
+    H1 --> H
+    H -->|通过| I[✅ 验收通过，可合并]
+
+    style I fill:#c8e6c9,stroke:#388e3c
+    style B1 fill:#ffcdd2,stroke:#c62828
+    style C1 fill:#ffcdd2,stroke:#c62828
+    style D1 fill:#ffcdd2,stroke:#c62828
+    style E1 fill:#ffcdd2,stroke:#c62828
+    style F1 fill:#ffcdd2,stroke:#c62828
+    style G1 fill:#ffcdd2,stroke:#c62828
+    style H1 fill:#ffcdd2,stroke:#c62828
+```
+
+### 12.9 验收清单模板
+
+复制以下清单用于 PR 验收：
+
+```markdown
+## 新 Function Group 验收清单
+
+**Group 名称**: <group_name>
+**对应页面**: <page_route>
+**所需权限**: <resource:action>
+
+### 代码结构
+- [ ] Page API 类型定义文件 (`src/pages/<page>/page-api.ts`)
+- [ ] Function Handler 文件 (`src/rtc-agent/groups/<group>/{list,create,update,remove}.ts`)
+- [ ] Group 定义文件 (`src/rtc-agent/groups/<group>/index.ts`)
+- [ ] 注册到 `src/rtc-agent/groups/index.ts`
+- [ ] 注册到 `src/rtc-agent/index.ts`
+
+### Page API 实现
+- [ ] `useEffect` 中注册 `window.__pages__.<page>`
+- [ ] 发送 `page-api-ready` 事件
+- [ ] 清理函数 `delete window.__pages__.<page>`
+- [ ] 数据与 UI 一致
+- [ ] 操作后自动刷新
+- [ ] 错误处理完整
+
+### Function Handler
+- [ ] 使用 `PermissionAwareFunctionDef` 类型
+- [ ] 声明 `requiredPermissions`
+- [ ] 调用 `ensurePageLoaded()`
+- [ ] 检查 `pageAPI` 存在性
+- [ ] Zod Schema 完整（含 `withMeta` example）
+- [ ] 返回值 Schema 完整
+- [ ] Hooks 实现（onStart/onSuccess/onError）
+- [ ] 英文注释
+
+### 权限配置
+- [ ] `src/constants/permissions.ts` 添加 resource
+- [ ] `src/access.ts` 添加访问控制函数
+- [ ] `config/routes.ts` 配置 `access` 字段
+- [ ] 本文档 Section 10.1 更新权限矩阵
+
+### E2E 测试
+- [ ] 测试文件 `src/rtc-agent/e2e/specs/<group>.spec.ts`
+- [ ] list 功能测试通过
+- [ ] create 功能测试通过
+- [ ] update 功能测试通过
+- [ ] remove 功能测试通过
+- [ ] 权限过滤测试通过
+- [ ] 数据一致性测试通过
+
+### 集成验证
+- [ ] 本地开发验证通过
+- [ ] 权限过滤验证通过
+- [ ] AI 调用验证通过
+- [ ] UI 同步验证通过
+- [ ] 错误处理验证通过
+
+### 文档
+- [ ] 本文档 Section 10.1 更新
+- [ ] 本文档 Section 3 目录结构更新
+
+**验收人**: ___________
+**验收日期**: ___________
+**验收结果**: ☐ 通过  ☐ 不通过（原因：___________）
+```
+
+## 13. 后续扩展
 
 - **更多 Groups** - 根据 admin-ui 实际业务需求添加（如 dashboard、form 等页面的 Functions）
 - **Scenario 文档** - 为复杂工作流编写 AI 场景文档

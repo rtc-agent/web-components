@@ -15,13 +15,13 @@ import { ensurePageLoaded } from '@/rtc-agent/utils/page-loader';
 export const removeRole: PermissionAwareFunctionDef = {
   name: 'remove',
   description:
-    'Delete admin roles, the table will auto-refresh after successful deletion',
+    'Delete one or more admin roles on /system/roles page. Requires array of role ids. Table auto-refreshes after successful deletion.',
 
   requiredPermissions: [{ resource: 'role', action: 'write' }],
 
   zodSchema: z.object({
     ids: withMeta(z.array(z.string()), { example: ['01a10622-...'] }).describe(
-      'List of admin role IDs to delete',
+      'Array of admin role IDs to delete. All specified roles will be removed from the system.',
     ),
   }),
 

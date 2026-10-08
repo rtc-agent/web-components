@@ -12,7 +12,7 @@ import {
   ProFormTextArea,
   ProTable,
 } from '@ant-design/pro-components';
-import { Access, useAccess, useIntl } from '@umijs/max';
+import { Access, useAccess, useIntl, useSearchParams } from '@umijs/max';
 import {
   Button,
   Checkbox,
@@ -45,12 +45,13 @@ import type { RoleFormValues, RoleTableItem } from './data.d';
 import type { RolePageAPI } from './page-api';
 
 /**
- * 管理员角色管理页面
+ * Admin Role Management Page
  */
 const RoleListPage: React.FC = () => {
   const actionRef = useRef<ActionType>(null);
   const access = useAccess();
   const intl = useIntl();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [currentRow, setCurrentRow] = useState<RoleTableItem>();
   const [modalVisible, setModalVisible] = useState(false);
   const { token } = theme.useToken();
@@ -59,7 +60,7 @@ const RoleListPage: React.FC = () => {
   const [rolePermissions, setRolePermissions] = useState<PermissionPolicy[]>(
     [],
   );
-  /** 正在切换中的权限 key（resource:action），防止快速点击导致竞态 */
+  /** Permission toggle key (resource:action), prevents race condition on rapid clicks */
   const [togglingPermission, setTogglingPermission] = useState<string | null>(
     null,
   );
@@ -67,12 +68,19 @@ const RoleListPage: React.FC = () => {
   const RESOURCE_TYPES = getResourceTypes(intl);
   const ACTION_TYPES = getActionTypes(intl);
 
-  // === 注册 Page API ===
+  // === Register Page API ===
   useEffect(() => {
     const pageAPI: RolePageAPI = {
-      // 读取表格数据
+      // Read table data
       list: async (params = {}) => {
         const { current = 1, pageSize = 20, keyword } = params;
+
+        // Sync URL (no page refresh)
+        const newSearchParams = new URLSearchParams();
+        if (keyword) {
+          newSearchParams.set('keyword', keyword);
+        }
+        setSearchParams(newSearchParams, { replace: true });
 
         try {
           const response = await getRoleList({
@@ -96,12 +104,12 @@ const RoleListPage: React.FC = () => {
         }
       },
 
-      // 刷新表格
+      // Refresh table
       refresh: async () => {
         actionRef.current?.reload();
       },
 
-      // 创建管理员角色
+      // Create admin role
       create: async (data) => {
         try {
           const result = await createRole(data);
@@ -113,7 +121,7 @@ const RoleListPage: React.FC = () => {
         }
       },
 
-      // 更新管理员角色
+      // Update admin role
       update: async (data) => {
         try {
           const { id, ...updateData } = data;
@@ -126,7 +134,7 @@ const RoleListPage: React.FC = () => {
         }
       },
 
-      // 删除管理员角色
+      // Delete admin roles
       remove: async (ids) => {
         try {
           let deletedCount = 0;
@@ -143,25 +151,30 @@ const RoleListPage: React.FC = () => {
       },
     };
 
-    // 注册到全局
+    // Register to global
     window.__pages__ = window.__pages__ || {};
     window.__pages__.role = pageAPI;
 
-    // 发送就绪事件（通知 navigation.goto 页面已加载）
+    // Dispatch ready event (notify navigation.goto that page is loaded)
     window.dispatchEvent(
       new CustomEvent('page-api-ready', { detail: { page: 'role' } }),
     );
 
     console.log('[RoleListPage] Page API registered');
 
-    // 清理
+    // Cleanup
     return () => {
       delete window.__pages__?.role;
       console.log('[RoleListPage] Page API unregistered');
     };
   }, []);
 
-  /** 表格列定义 */
+  // Listen for URL changes, auto-reload table
+  useEffect(() => {
+    actionRef.current?.reload();
+  }, [searchParams]);
+
+  /** Table column definitions */
   const columns: ProColumns<RoleTableItem>[] = [
     {
       title: intl.formatMessage({
@@ -472,7 +485,7 @@ const RoleListPage: React.FC = () => {
     },
   ];
 
-  /** 提交表单 */
+  /** Submit form */
   const handleSubmit = async (values: RoleFormValues) => {
     try {
       if (isEdit && currentRow) {
@@ -516,13 +529,13 @@ const RoleListPage: React.FC = () => {
     }
   };
 
-  /** 打开权限管理弹窗 */
+  /** Open permission management modal */
   const handleManagePermissions = async (role: RoleTableItem) => {
     setCurrentRow(role);
     setPermissionModalVisible(true);
 
     try {
-      // 加载该角色的权限
+      // Load permissions for this role
       const rolePerms = await getPermissionList({
         page: 1,
         page_size: 1000,
@@ -542,7 +555,7 @@ const RoleListPage: React.FC = () => {
     }
   };
 
-  /** 切换权限 */
+  /** Toggle permission */
   const handleTogglePermission = async (
     resource: string,
     action: string,
@@ -551,13 +564,13 @@ const RoleListPage: React.FC = () => {
     if (!currentRow) return;
 
     const permKey = `${resource}:${action}`;
-    // 防止快速点击导致竞态：如果正在切换中，直接返回
+    // Prevent race condition: if already toggling, return early
     if (togglingPermission === permKey) return;
     setTogglingPermission(permKey);
 
     try {
       if (checked) {
-        // 添加权限
+        // Add permission
         await createPermission({
           role_id: currentRow.id,
           resource,
@@ -570,7 +583,7 @@ const RoleListPage: React.FC = () => {
           }),
         );
       } else {
-        // 删除权限
+        // Remove permission
         await deletePermission({
           role_id: currentRow.id,
           resource,
@@ -584,7 +597,7 @@ const RoleListPage: React.FC = () => {
         );
       }
 
-      // 刷新权限列表
+      // Refresh permission list
       const rolePerms = await getPermissionList({
         page: 1,
         page_size: 1000,
@@ -606,7 +619,7 @@ const RoleListPage: React.FC = () => {
     }
   };
 
-  /** 检查角色是否拥有某权限 */
+  /** Check if role has a specific permission */
   const hasPermission = (resource: string, action: string) => {
     return rolePermissions.some(
       (p) => p.resource === resource && p.action === action,
@@ -624,6 +637,11 @@ const RoleListPage: React.FC = () => {
         rowKey="id"
         search={{
           labelWidth: 'auto',
+        }}
+        form={{
+          initialValues: {
+            keyword: searchParams.get('keyword') || '',
+          },
         }}
         toolBarRender={() => [
           <Access
@@ -648,11 +666,13 @@ const RoleListPage: React.FC = () => {
           </Access>,
         ]}
         request={async (params) => {
+          // Read keyword from searchParams (URL is single source of truth)
+          const keyword = searchParams.get('keyword') || '';
           try {
             const response = await getRoleList({
               page: params.current,
               page_size: params.pageSize,
-              keyword: params.keyword,
+              keyword,
             });
             return {
               data: response.items.map((item) => ({
@@ -750,7 +770,7 @@ const RoleListPage: React.FC = () => {
             {
               validator: async (_rule, value) => {
                 if (!value || isEdit) return Promise.resolve();
-                // 异步检查管理员角色名称是否已存在
+                // Async check if role name already exists
                 try {
                   const response = await getRoleList({
                     keyword: value,
@@ -771,7 +791,7 @@ const RoleListPage: React.FC = () => {
                     );
                   }
                 } catch (_error) {
-                  // 忽略错误，让后端验证
+                  // Ignore errors, let backend validate
                 }
                 return Promise.resolve();
               },
@@ -817,7 +837,7 @@ const RoleListPage: React.FC = () => {
         />
       </ModalForm>
 
-      {/* 权限管理对话框 */}
+      {/* Permission management dialog */}
       <Modal
         title={intl.formatMessage(
           {
@@ -851,10 +871,10 @@ const RoleListPage: React.FC = () => {
       >
         <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
           {/*
-           * 使用原生 table 而非 antd Table：
-           * 此处为权限矩阵，需要复杂的合并单元格布局（资源类型行 x 操作类型列），
-           * antd Table 的 column 模型难以自然表达这种矩阵结构，
-           * 且 Checkbox 单元格需要精确的居中对齐控制。
+           * Use native table instead of antd Table:
+           * This is a permission matrix with complex merged cell layout (resource type rows x action type columns).
+           * antd Table's column model cannot naturally express this matrix structure,
+           * and Checkbox cells need precise center alignment control.
            */}
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>

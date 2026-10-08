@@ -17,21 +17,25 @@ import { ensurePageLoaded } from '@/rtc-agent/utils/page-loader';
 export const listRoles: PermissionAwareFunctionDef = {
   name: 'list',
   description:
-    'Query admin role list, returns the data currently displayed in the table',
+    'Query admin role list on /system/roles page. Supports pagination and keyword search. Returns roles currently displayed in the UI table.',
 
   requiredPermissions: [{ resource: 'role', action: 'read' }],
 
   zodSchema: z.object({
     current: withMeta(z.number().int().positive(), { example: 1 })
       .optional()
-      .describe('Current page number, defaults to 1'),
+      .describe(
+        'Current page number for pagination. Defaults to 1. Use with pageSize to control result set size.',
+      ),
     pageSize: withMeta(z.number().int().positive(), { example: 20 })
       .optional()
-      .describe('Items per page, defaults to 20'),
+      .describe(
+        'Number of items per page for pagination. Defaults to 20. Use with current to navigate through results.',
+      ),
     keyword: withMeta(z.string(), { example: 'admin' })
       .optional()
       .describe(
-        'Keyword search (admin role name, display name, or description)',
+        'Search keyword to filter roles by name, display name, or description. Leave empty to return all roles.',
       ),
   }),
 
@@ -72,8 +76,14 @@ export const listRoles: PermissionAwareFunctionDef = {
       keyword?: string;
     };
 
-    // Ensure page is loaded
-    await ensurePageLoaded('role', '/system/roles');
+    // Build query params for URL
+    const queryParams: Record<string, string> = {};
+    if (keyword) {
+      queryParams.keyword = keyword;
+    }
+
+    // Ensure page is loaded (with query params in URL)
+    await ensurePageLoaded('role', '/system/roles', queryParams);
 
     // Page is loaded, call API directly
     const pageAPI = window.__pages__?.role;

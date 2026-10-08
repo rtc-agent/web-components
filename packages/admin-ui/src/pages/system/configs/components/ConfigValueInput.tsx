@@ -9,21 +9,21 @@ import React, { useMemo } from 'react';
 import { isPromptKey } from '@/utils/configFormat';
 
 export interface ConfigValueInputProps {
-  /** 配置值类型 */
+  /** Configuration value type */
   valueType: string;
-  /** 配置键名，用于判断是否为 prompt 类型 */
+  /** Configuration key name, used to determine if it's a prompt type */
   configKey: string;
-  /** prompt 文本区域的行数，默认 10 */
+  /** Number of rows for prompt textarea, default 10 */
   promptRows?: number;
-  /** JSON 文本区域的行数，默认 8 */
+  /** Number of rows for JSON textarea, default 8 */
   jsonRows?: number;
-  /** 是否禁用输入 */
+  /** Whether to disable input */
   disabled?: boolean;
 }
 
 /**
- * 配置值输入组件
- * 根据 value_type 渲染不同的输入组件，支持参数化差异
+ * Configuration Value Input Component
+ * Renders different input components based on value_type with parameterized differences
  */
 const ConfigValueInput: React.FC<ConfigValueInputProps> = ({
   valueType,

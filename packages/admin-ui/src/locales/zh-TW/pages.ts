@@ -24,11 +24,9 @@ export default {
   'pages.login.captcha.invalid': '驗證碼必須是6位數字',
   'pages.login.captcha.sent': '驗證碼已發送，請查看您的電子郵件',
   'pages.login.captcha.sendFailed': '驗證碼發送失敗，請重試',
-  'pages.login.captcha.rateLimited':
-    '請求過多，請稍後再試',
+  'pages.login.captcha.rateLimited': '請求過多，請稍後再試',
   'pages.login.captcha.invalidOrExpired': '驗證碼無效或已過期',
-  'pages.login.captcha.locked':
-    '驗證暫時鎖定，請稍後再試',
+  'pages.login.captcha.locked': '驗證暫時鎖定，請稍後再試',
   'pages.login.phoneLogin.getVerificationCode': '獲取驗證碼',
   'pages.getCaptchaSecondText': '秒後重新獲取',
   'pages.login.rememberMe': '自動登錄',
@@ -140,8 +138,7 @@ export default {
   'pages.sessions.viewMessages': '查看消息',
   'pages.sessions.refresh': '刷新',
   'pages.sessions.loadFailed': '加載會話列表失敗',
-  'pages.sessions.emptyHint':
-    '請從用戶管理頁面選擇用戶以查看會話',
+  'pages.sessions.emptyHint': '請從用戶管理頁面選擇用戶以查看會話',
   'pages.sessions.goToUsers': '前往用戶管理',
   // Message Management
   'pages.messages.title': '消息列表',
@@ -158,8 +155,7 @@ export default {
   'pages.messages.timeRange': '時間範圍',
   'pages.messages.refresh': '刷新',
   'pages.messages.loadFailed': '加載消息列表失敗',
-  'pages.messages.emptyHint':
-    '請從會話管理頁面選擇會話以查看消息',
+  'pages.messages.emptyHint': '請從會話管理頁面選擇會話以查看消息',
   'pages.messages.goToUsers': '前往用戶管理',
   'pages.messages.detail.title': '消息詳情',
   'pages.messages.role.user': '用戶',
@@ -204,15 +200,13 @@ export default {
   'pages.config.system.confirm': '確認',
   'pages.config.system.cancel': '取消',
   'pages.config.system.updateSuccess': '配置更新成功',
-  'pages.config.system.deleteSuccess':
-    '配置已刪除，已恢復為 YAML 默認值',
+  'pages.config.system.deleteSuccess': '配置已刪除，已恢復為 YAML 默認值',
   'pages.config.system.refresh': '刷新',
   'pages.config.system.editTitle': '編輯配置: ',
   'pages.config.system.configValue': '配置值',
   'pages.config.system.configValueRequired': '請輸入配置值',
   'pages.config.system.changeNote': '變更備註',
-  'pages.config.system.changeNotePlaceholder':
-    '可選，說明此次變更的原因',
+  'pages.config.system.changeNotePlaceholder': '可選，說明此次變更的原因',
   'pages.config.system.durationFormat':
     '格式錯誤，請輸入 Go duration 格式（例如 5m, 1h30m, 500ms）',
   'pages.config.system.durationPlaceholder':
@@ -220,8 +214,7 @@ export default {
   'pages.config.system.durationTooltip': '支持的單位: ns, us, ms, s, m, h',
   'pages.config.system.jsonNullError': '配置值不能為 null',
   'pages.config.system.jsonFormatError': '請輸入有效的 JSON 格式',
-  'pages.config.system.jsonPlaceholder':
-    '請輸入有效的 JSON（數組或對象）',
+  'pages.config.system.jsonPlaceholder': '請輸入有效的 JSON（數組或對象）',
   'pages.config.system.historyTitle': '配置歷史: ',
   'pages.config.system.historyVersion': '版本',
   'pages.config.system.historyOldValue': '舊值',
@@ -234,19 +227,16 @@ export default {
   'pages.config.system.rollbackTitle': '確認回滾',
   'pages.config.system.rollbackConfirm': '確定要回滾嗎',
   'pages.config.system.rollbackToVersion': '到版本',
-  'pages.config.system.rollbackNotePlaceholder':
-    '可選，說明回滾的原因',
+  'pages.config.system.rollbackNotePlaceholder': '可選，說明回滾的原因',
   'pages.config.system.rollbackSuccess': '回滾成功',
   'pages.config.system.rollbackDefaultNote': '回滾到 v{version}',
-  'pages.config.system.forceOverwriteSuccess':
-    '配置強制覆蓋成功',
+  'pages.config.system.forceOverwriteSuccess': '配置強制覆蓋成功',
   'pages.config.system.forceOverwriteSuffix': '（強制覆蓋）',
   // Conflict Modal
   'pages.config.system.conflict.title': '配置衝突',
   'pages.config.system.conflict.reload': '重新加載',
   'pages.config.system.conflict.forceOverwrite': '強制覆蓋',
-  'pages.config.system.conflict.warningTitle':
-    '配置已被其他管理員修改',
+  'pages.config.system.conflict.warningTitle': '配置已被其他管理員修改',
   'pages.config.system.conflict.warningDesc':
     '當前配置值已被其他管理員修改，您的更改無法直接提交。請選擇重新加載獲取最新值，或強制覆蓋他人的更改。',
   'pages.config.system.conflict.configKey': '配置鍵',
@@ -265,16 +255,13 @@ export default {
   'pages.config.user.history': '歷史',
   'pages.config.user.deleteOverride': '刪除覆蓋',
   'pages.config.user.confirmDelete': '確認刪除用戶覆蓋配置？',
-  'pages.config.user.confirmDeleteDesc':
-    '刪除後將恢復為系統默認值',
+  'pages.config.user.confirmDeleteDesc': '刪除後將恢復為系統默認值',
   'pages.config.user.confirm': '確認',
   'pages.config.user.cancel': '取消',
   'pages.config.user.updateSuccess': '用戶配置更新成功',
-  'pages.config.user.deleteSuccess':
-    '用戶覆蓋已刪除，已恢復為系統默認值',
+  'pages.config.user.deleteSuccess': '用戶覆蓋已刪除，已恢復為系統默認值',
   'pages.config.user.rollbackSuccess': '回滾成功',
-  'pages.config.user.forceOverwriteSuccess':
-    '配置強制覆蓋成功',
+  'pages.config.user.forceOverwriteSuccess': '配置強制覆蓋成功',
   'pages.config.user.editTitle': '編輯配置: ',
   'pages.config.user.historyTitle': '配置歷史: ',
   'pages.config.user.rollbackTitle': '確認回滾',
@@ -355,8 +342,7 @@ export default {
   'pages.roles.actionType.write': '寫入',
   'pages.roles.actionType.delete': '刪除',
   'pages.roles.actionType.ban': '封禁',
-  'pages.roles.searchPlaceholder':
-    '輸入角色名稱、顯示名稱或描述',
+  'pages.roles.searchPlaceholder': '輸入角色名稱、顯示名稱或描述',
   'pages.roles.column.name': '角色名稱',
   'pages.roles.column.displayName': '顯示名稱',
   'pages.roles.column.description': '描述',
@@ -368,10 +354,8 @@ export default {
   'pages.roles.customRole': '自定義角色',
   'pages.roles.statusEnabled': '已啟用',
   'pages.roles.statusDisabled': '已禁用',
-  'pages.roles.systemRoleCannotDisable':
-    '內置系統角色不能禁用',
-  'pages.roles.systemRoleCannotDelete':
-    '內置系統角色不能刪除',
+  'pages.roles.systemRoleCannotDisable': '內置系統角色不能禁用',
+  'pages.roles.systemRoleCannotDelete': '內置系統角色不能刪除',
   'pages.roles.permission': '權限',
   'pages.roles.edit': '編輯',
   'pages.roles.delete': '刪除',
@@ -428,10 +412,8 @@ export default {
   'pages.permissions.column.resource': '資源',
   'pages.permissions.column.action': '動作',
   'pages.permissions.column.actions': '操作',
-  'pages.permissions.confirmDelete':
-    '您確定要刪除此權限嗎？',
-  'pages.permissions.confirmDeleteDesc':
-    '刪除後角色將失去相應的權限',
+  'pages.permissions.confirmDelete': '您確定要刪除此權限嗎？',
+  'pages.permissions.confirmDeleteDesc': '刪除後角色將失去相應的權限',
   'pages.permissions.confirm': '確認',
   'pages.permissions.cancel': '取消',
   'pages.permissions.deleteSuccess': '刪除成功',
@@ -480,6 +462,7 @@ export default {
   'pages.auditLogs.loadFailed': '加載審計日誌失敗',
   // Admin User Management
   'pages.adminUsers.headerTitle': '管理員列表',
+  'pages.adminUsers.searchPlaceholder': '輸入電子郵件或姓名搜尋',
   'pages.adminUsers.column.email': '電子郵件',
   'pages.adminUsers.column.name': '姓名',
   'pages.adminUsers.column.roles': '角色',
@@ -491,8 +474,7 @@ export default {
   'pages.adminUsers.roleManagementTitle': '角色管理 - {email}',
   'pages.adminUsers.assignRole': '分配角色',
   'pages.adminUsers.close': '關閉',
-  'pages.adminUsers.confirmRevokeRole':
-    '您確定要移除此角色嗎？',
+  'pages.adminUsers.confirmRevokeRole': '您確定要移除此角色嗎？',
   'pages.adminUsers.confirm': '確認',
   'pages.adminUsers.cancel': '取消',
   'pages.adminUsers.revoke': '移除',
@@ -508,8 +490,7 @@ export default {
   'pages.adminUsers.emailRequired': '請輸入電子郵件',
   'pages.adminUsers.emailInvalid': '請輸入有效的電子郵件地址',
   'pages.adminUsers.passwordLabel': '密碼',
-  'pages.adminUsers.passwordPlaceholder':
-    '請輸入密碼（至少6個字符）',
+  'pages.adminUsers.passwordPlaceholder': '請輸入密碼（至少6個字符）',
   'pages.adminUsers.passwordRequired': '請輸入密碼',
   'pages.adminUsers.passwordMin': '密碼必須至少6個字符',
   'pages.adminUsers.nameLabel': '姓名',
@@ -521,8 +502,7 @@ export default {
   'pages.adminUsers.updateTitle': '編輯管理員 - {email}',
   'pages.adminUsers.nameEditPlaceholder': '請輸入姓名',
   'pages.adminUsers.newPasswordLabel': '新密碼',
-  'pages.adminUsers.newPasswordPlaceholder':
-    '留空則保持當前密碼',
+  'pages.adminUsers.newPasswordPlaceholder': '留空則保持當前密碼',
   'pages.adminUsers.updateSuccess': '管理員更新成功',
   'pages.adminUsers.updateFailed': '更新管理員失敗',
   'pages.adminUsers.loadRolesFailed': '加載角色失敗',
@@ -556,31 +536,27 @@ export default {
   // Account Settings - Base
   'pages.account.settings.base.email': '電子郵件',
   'pages.account.settings.base.emailRequired': '請輸入您的電子郵件！',
-  'pages.account.settings.base.emailInvalid':
-    '請輸入有效的電子郵件地址！',
+  'pages.account.settings.base.emailInvalid': '請輸入有效的電子郵件地址！',
   'pages.account.settings.base.name': '昵稱',
   'pages.account.settings.base.nameRequired': '請輸入您的昵稱！',
   'pages.account.settings.base.profile': '個人簡介',
   'pages.account.settings.base.profileRequired': '請輸入您的個人簡介！',
   'pages.account.settings.base.profilePlaceholder': '個人簡介描述',
   'pages.account.settings.base.country': '國家/地區',
-  'pages.account.settings.base.countryRequired':
-    '請輸入您的國家或地區！',
+  'pages.account.settings.base.countryRequired': '請輸入您的國家或地區！',
   'pages.account.settings.base.countryChina': '中國',
   'pages.account.settings.base.province': '省份',
   'pages.account.settings.base.provinceRequired': '請輸入您的省份！',
   'pages.account.settings.base.city': '城市',
   'pages.account.settings.base.cityRequired': '請輸入您的城市！',
   'pages.account.settings.base.address': '街道地址',
-  'pages.account.settings.base.addressRequired':
-    '請輸入您的街道地址！',
+  'pages.account.settings.base.addressRequired': '請輸入您的街道地址！',
   'pages.account.settings.base.phone': '電話',
   'pages.account.settings.base.phoneRequired': '請輸入您的電話！',
   'pages.account.settings.base.phoneAreaCode': '請輸入區號！',
   'pages.account.settings.base.phoneNumber': '請輸入電話號碼！',
   'pages.account.settings.base.updateBasic': '更新基本信息',
-  'pages.account.settings.base.updateSuccess':
-    '基本信息更新成功',
+  'pages.account.settings.base.updateSuccess': '基本信息更新成功',
   'pages.account.settings.base.avatar': '頭像',
   'pages.account.settings.base.changeAvatar': '更換頭像',
   'pages.account.settings.base.avatarSizeError': '圖片大小超過{size}MB！',
@@ -588,8 +564,7 @@ export default {
   'pages.account.settings.base.uploadFailed': '頭像上傳失敗',
   // Account Settings - Security
   'pages.account.settings.security.password': '賬戶密碼',
-  'pages.account.settings.security.passwordStrength':
-    '當前密碼強度: ',
+  'pages.account.settings.security.passwordStrength': '當前密碼強度: ',
   'pages.account.settings.security.strong': '強',
   'pages.account.settings.security.medium': '中',
   'pages.account.settings.security.weak': '弱',
@@ -608,14 +583,11 @@ export default {
   'pages.account.settings.security.bind': '綁定',
   // Account Settings - Binding
   'pages.account.settings.binding.taobao': '綁定淘寶',
-  'pages.account.settings.binding.taobaoDesc':
-    '當前未綁定淘寶賬戶',
+  'pages.account.settings.binding.taobaoDesc': '當前未綁定淘寶賬戶',
   'pages.account.settings.binding.alipay': '綁定支付寶',
-  'pages.account.settings.binding.alipayDesc':
-    '當前未綁定支付寶賬戶',
+  'pages.account.settings.binding.alipayDesc': '當前未綁定支付寶賬戶',
   'pages.account.settings.binding.dingding': '綁定釘釘',
-  'pages.account.settings.binding.dingdingDesc':
-    '當前未綁定釘釘賬戶',
+  'pages.account.settings.binding.dingdingDesc': '當前未綁定釘釘賬戶',
   'pages.account.settings.binding.bind': '綁定',
   // Account Settings - Notification
   'pages.account.settings.notification.on': '開',
