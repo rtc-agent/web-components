@@ -141,6 +141,10 @@ export class RTCAgentClient implements IRTCAgentClient {
     this.setConnectionState('connecting');
 
     this.centrifuge = new Centrifuge(this.options.endpoint, {
+      // Weak network tolerance: increase timeout from default 5s to 15s.
+      // This timeout applies to all RPC calls (including history()),
+      // transport connections, and ready() calls.
+      timeout: 30000,
       getToken: async () => {
         const token = await this.options.getToken();
 
