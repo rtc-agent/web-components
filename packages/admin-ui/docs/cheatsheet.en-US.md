@@ -611,6 +611,36 @@ npx skills add ant-design/ant-design-pro
 
 For other AI assistants (Cursor, etc.), paste the content of `.claude/skills/pro-upgrade/SKILL.md` or `.claude/skills/antd/SKILL.md` into the assistant's context.
 
+## Admin Function Groups
+
+The admin-ui registers AI-callable Function Groups for the RTC Agent. Each group corresponds to a page or feature; functions call page-exposed React APIs (`window.__pages__.*`) rather than directly hitting backend endpoints.
+
+### Available Groups
+
+| Group | Functions | Page API / Route | Permissions |
+| --- | --- | --- | --- |
+| **navigation** | goto, getCurrentPage, listPages | All pages | None (all users) |
+| **auth** | currentUser, hasPermission, logout | — | None (all users) |
+| **admin** | list, create, update, remove | `/system/users` | `admin_user:read/write/delete` |
+| **role** | list, create, update, remove | `/system/roles` | `role:read/write` |
+| **permission** | list, create, update, remove | `/system/permissions` | `permission:read/write` |
+| **userRole** | list, assign, revoke | `/system/users` | `admin_user_role:read/write` |
+| **auditLog** | list | `/system/audit-logs` | `audit_log:read` |
+| **serverConfig** | list, update, remove | `/system/configs` | `server_config:read/write/delete` |
+| **selfAccount** | getProfile, updateProfile | `/account/center`, `/account/settings` | None (all logged-in admins) |
+| **rtcUser** | list, ban, unban, devices, tokenStats | `/rtc-users/management` | `rtc_user:read/ban` |
+| **rtcSession** | list | `/rtc-users/sessions` | `rtc_session:read` |
+| **rtcMessage** | list | `/rtc-users/messages` | `rtc_message:read` |
+
+### Key Notes
+
+- **selfAccount** — Two page APIs (`selfAccountCenter` for getProfile, `selfAccountSettings` for updateProfile). No special permission required; every logged-in admin can use them.
+- **rtcUser** — Five functions: `list` (paginated user list), `ban` / `unban` (status management), `devices` (user device list), `tokenStats` (token consumption statistics).
+- **rtcSession** — Requires `user_id` to filter sessions by user. Supports status filter (active/closed), time range, and sorting.
+- **rtcMessage** — Requires `session_id` to filter messages by session. Supports role filter (user/assistant), time range, and sorting.
+
+→ See [Function Registration Architecture](./function-registration-architecture.md) for the full design.
+
 ## Constraints & Gotchas
 
 - **`src/services/ant-design-pro/`** is auto-generated code. Do NOT edit manually. Modify `config/oneapi.json` and run `npm run openapi` to regenerate.

@@ -149,6 +149,25 @@ src/
 │           ├── index.tsx
 │           └── page-api.ts
 │
+├── account/
+│   ├── center/                          # 个人中心页面（selfAccount.getProfile）
+│   │   ├── index.tsx
+│   │   └── page-api.ts
+│   └── settings/                        # 个人设置页面（selfAccount.updateProfile）
+│       ├── index.tsx
+│       └── page-api.ts
+│
+├── rtc-users/
+│   ├── management/                      # RTC 用户管理页面
+│   │   ├── index.tsx
+│   │   └── page-api.ts
+│   ├── sessions/                        # RTC 会话管理页面
+│   │   ├── index.tsx
+│   │   └── page-api.ts
+│   └── messages/                        # RTC 消息管理页面
+│       ├── index.tsx
+│       └── page-api.ts
+│
 ├── user/
 │   └── management/                      # 管理员管理页面
 │       ├── index.tsx
@@ -205,6 +224,27 @@ src/
 │   │       ├── list.ts                  # requiredPermissions: [{ resource: 'server_config', action: 'read' }]
 │   │       ├── update.ts               # requiredPermissions: [{ resource: 'server_config', action: 'write' }]
 │   │       └── remove.ts               # requiredPermissions: [{ resource: 'server_config', action: 'delete' }]
+│   │   │
+│   │   ├── selfAccount/                 # 个人账号管理（无权限要求，所有已登录管理员可用）
+│   │   │   ├── index.ts
+│   │   │   ├── get-profile.ts           # requiredPermissions: [] (no permission required)
+│   │   │   └── update-profile.ts        # requiredPermissions: [] (no permission required)
+│   │   │
+│   │   ├── rtcUser/                     # RTC 用户管理（需要 rtc_user:read/ban 权限）
+│   │   │   ├── index.ts
+│   │   │   ├── list.ts                  # requiredPermissions: [{ resource: 'rtc_user', action: 'read' }]
+│   │   │   ├── ban.ts                   # requiredPermissions: [{ resource: 'rtc_user', action: 'ban' }]
+│   │   │   ├── unban.ts                 # requiredPermissions: [{ resource: 'rtc_user', action: 'ban' }]
+│   │   │   ├── devices.ts               # requiredPermissions: [{ resource: 'rtc_user', action: 'read' }]
+│   │   │   └── tokenStats.ts            # requiredPermissions: [{ resource: 'rtc_user', action: 'read' }]
+│   │   │
+│   │   ├── rtcSession/                  # RTC 会话管理（需要 rtc_session:read 权限）
+│   │   │   ├── index.ts
+│   │   │   └── list.ts                  # requiredPermissions: [{ resource: 'rtc_session', action: 'read' }]
+│   │   │
+│   │   └── rtcMessage/                  # RTC 消息管理（需要 rtc_message:read 权限）
+│   │       ├── index.ts
+│   │       └── list.ts                  # requiredPermissions: [{ resource: 'rtc_message', action: 'read' }]
 │   │
 │   └── e2e/                             # Playwright E2E 测试
 │       ├── fixtures/
@@ -215,7 +255,11 @@ src/
 │           ├── permission.spec.ts
 │           ├── auditLog.spec.ts
 │           ├── serverConfig.spec.ts      # 测试 server_config:* 权限的 functions
-│           └── userRole.spec.ts         # 测试 admin_user_role:* 权限的 functions
+│           ├── userRole.spec.ts         # 测试 admin_user_role:* 权限的 functions
+│           ├── selfAccount.spec.ts      # 测试 selfAccount（无权限要求）functions
+│           ├── rtcUser.spec.ts          # 测试 rtc_user:* 权限的 functions
+│           ├── rtcSession.spec.ts       # 测试 rtc_session:* 权限的 functions
+│           └── rtcMessage.spec.ts       # 测试 rtc_message:* 权限的 functions
 ```
 
 ## 4. 完整实现示例：角色管理（Role Management）
@@ -1272,16 +1316,23 @@ test.describe('myGroup', () => {
 |**serverConfig**|list|`server_config:read`|/system/configs|canServerConfigView|
 |**serverConfig**|update|`server_config:write`|/system/configs|canServerConfigEdit|
 |**serverConfig**|remove|`server_config:delete`|/system/configs|canServerConfigDelete|
+|**selfAccount**|getProfile|无（所有已登录管理员可用）|/account/center|-|
+|**selfAccount**|updateProfile|无（所有已登录管理员可用）|/account/settings|-|
+|**rtcUser**|list|`rtc_user:read`|/rtc-users/management|canRtcUserView|
+|**rtcUser**|devices, tokenStats|`rtc_user:read`|/rtc-users/management|canRtcUserView|
+|**rtcUser**|ban, unban|`rtc_user:ban`|/rtc-users/management|canRtcUserBan|
+|**rtcSession**|list|`rtc_session:read`|/rtc-users/sessions|canRtcSessionView|
+|**rtcMessage**|list|`rtc_message:read`|/rtc-users/messages|canRtcMessageView|
 
-*注：`access.ts` 中未定义 `canRoleDelete` / `canPermissionDelete` / `canUserRoleDelete`，删除操作复用对应的 `write` 权限检查。后端权限虽然区分了 `read/write/delete`，但前端 Function 的 `requiredPermissions` 与 `access.ts` 保持一致。`admin_user_role` 是独立权限资源，与 `admin_user` 分离。*
+*注：`access.ts` 中未定义 `canRoleDelete` / `canPermissionDelete` / `canUserRoleDelete`，删除操作复用对应的 `write` 权限检查。后端权限虽然区分了 `read/write/delete`，但前端 Function 的 `requiredPermissions` 与 `access.ts` 保持一致。`admin_user_role` 是独立权限资源，与 `admin_user` 分离。`selfAccount` 无需特殊权限，所有已登录管理员可用。`rtc_user` 权限区分 `read` 和 `ban`（ban 操作使用独立的 `ban` action，而非 `write`）。*
 
 ### 10.2 角色权限映射
 
 |角色|权限|可用的 Functions|
 |---|---|---|
 |**admin**|所有权限|所有 Functions|
-|**operator**|`admin_user:read`, `admin_user:write`, `role:read`|navigation, auth, admin.list/create/update, role.list|
-|**viewer**|`admin_user:read`|navigation, auth, admin.list|
+|**operator**|`admin_user:read`, `admin_user:write`, `role:read`|navigation, auth, selfAccount, admin.list/create/update, role.list, rtcUser.list/devices/tokenStats, rtcSession.list, rtcMessage.list|
+|**viewer**|`admin_user:read`|navigation, auth, selfAccount, admin.list|
 
 ### 10.3 权限过滤流程图
 

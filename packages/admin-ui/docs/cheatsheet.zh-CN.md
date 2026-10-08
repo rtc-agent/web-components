@@ -611,6 +611,36 @@ npx skills add ant-design/ant-design-pro
 
 如使用其他 AI 助手（Cursor 等），可将 `.claude/skills/pro-upgrade/SKILL.md` 或 `.claude/skills/antd/SKILL.md` 的内容提供给它。
 
+## 管理后台 Function Groups
+
+admin-ui 为 RTC Agent 注册了可调用的 Function Groups。每个 Group 对应一个页面或功能；Function 调用页面暴露的 React API（`window.__pages__.*`），而不是直接调用后端接口。
+
+### 可用 Groups
+
+| Group | Functions | 页面 API / 路由 | 权限要求 |
+| --- | --- | --- | --- |
+| **navigation** | goto, getCurrentPage, listPages | 所有页面 | 无（所有用户可用） |
+| **auth** | currentUser, hasPermission, logout | — | 无（所有用户可用） |
+| **admin** | list, create, update, remove | `/system/users` | `admin_user:read/write/delete` |
+| **role** | list, create, update, remove | `/system/roles` | `role:read/write` |
+| **permission** | list, create, update, remove | `/system/permissions` | `permission:read/write` |
+| **userRole** | list, assign, revoke | `/system/users` | `admin_user_role:read/write` |
+| **auditLog** | list | `/system/audit-logs` | `audit_log:read` |
+| **serverConfig** | list, update, remove | `/system/configs` | `server_config:read/write/delete` |
+| **selfAccount** | getProfile, updateProfile | `/account/center`, `/account/settings` | 无（所有已登录管理员可用） |
+| **rtcUser** | list, ban, unban, devices, tokenStats | `/rtc-users/management` | `rtc_user:read/ban` |
+| **rtcSession** | list | `/rtc-users/sessions` | `rtc_session:read` |
+| **rtcMessage** | list | `/rtc-users/messages` | `rtc_message:read` |
+
+### 要点说明
+
+- **selfAccount** — 两个页面 API（`selfAccountCenter` 用于 getProfile，`selfAccountSettings` 用于 updateProfile）。无需特殊权限，所有已登录管理员均可使用。
+- **rtcUser** — 五个函数：`list`（分页用户列表）、`ban` / `unban`（状态管理）、`devices`（用户设备列表）、`tokenStats`（Token 消耗统计）。
+- **rtcSession** — 需要 `user_id` 按用户过滤会话。支持状态过滤（active/closed）、时间范围和排序。
+- **rtcMessage** — 需要 `session_id` 按会话过滤消息。支持角色过滤（user/assistant）、时间范围和排序。
+
+→ 完整设计见 [Function Registration 架构文档](./function-registration-architecture.md)
+
 ## 注意事项
 
 - **`src/services/ant-design-pro/`** 为自动生成代码，禁止手动编辑。修改 `config/oneapi.json` 后执行 `npm run openapi` 重新生成
