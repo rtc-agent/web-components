@@ -16,3 +16,19 @@ export async function queryCity(
     ({ data }) => data,
   );
 }
+
+export async function updateCurrentUser(data: {
+  name?: string;
+  email?: string;
+  profile?: string;
+  country?: string;
+  province?: string;
+  city?: string;
+  address?: string;
+  phone?: string;
+}): Promise<{ success: boolean }> {
+  return request('/api/accountSettingCurrentUser', {
+    method: 'PUT',
+    data,
+  });
+}

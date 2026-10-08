@@ -13,17 +13,24 @@ import {
   ProFormTextArea,
   ProTable,
 } from '@ant-design/pro-components';
-import { history, useAccess, useIntl } from '@umijs/max';
+import { history, useAccess, useIntl, useSearchParams } from '@umijs/max';
 import { App, Button, Dropdown, Popconfirm, Space, Tag, Tooltip } from 'antd';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import UserConfigDrawer from './components/UserConfigDrawer';
 import UserDetailDrawer from './components/UserDetailDrawer';
 import type { RtcUserInfo } from './data';
-import { banRtcUser, getRtcUserList, unbanRtcUser } from './service';
+import type { RtcUserPageAPI } from './page-api';
+import {
+  banRtcUser,
+  getRtcUserList,
+  getUserDevices,
+  getUserTokenStats,
+  unbanRtcUser,
+} from './service';
 
 /**
- * RTC 用户管理页面
+ * RTC User Management Page
  */
 const RtcUserManagementPage: React.FC = () => {
   const actionRef = useRef<ActionType>(null);
@@ -36,14 +43,156 @@ const RtcUserManagementPage: React.FC = () => {
   const access = useAccess();
   const intl = useIntl();
   const { message } = App.useApp();
+  const [searchParams, setSearchParams] = useSearchParams();
   const canBan = access.canRtcUserBan;
-  // NOTE: 用户配置权限复用系统配置权限（设计文档明确说明）
-  // 这是有意为之的设计：用户配置管理使用系统配置的编辑/删除权限点
-  // 参考 access.ts 中 canServerConfigEdit/canServerConfigDelete 的定义
+  // NOTE: User config permissions reuse system config permissions (as per design doc)
+  // This is intentional: user config management uses system config's edit/delete permission points
+  // See access.ts for canServerConfigEdit/canServerConfigDelete definitions
   const canConfigEdit = access.canServerConfigEdit as boolean;
   const canConfigDelete = access.canServerConfigDelete as boolean;
 
-  /** 封禁用户 */
+  // === Register Page API ===
+  useEffect(() => {
+    const pageAPI: RtcUserPageAPI = {
+      // Read table data
+      list: async (params = {}) => {
+        const { current = 1, pageSize = 10, search, status } = params;
+
+        // Sync URL (no page refresh)
+        const newSearchParams = new URLSearchParams();
+        if (search) {
+          newSearchParams.set('search', search);
+        }
+        if (status) {
+          newSearchParams.set('status', status);
+        }
+        newSearchParams.set('current', String(current));
+        newSearchParams.set('pageSize', String(pageSize));
+        setSearchParams(newSearchParams, { replace: true });
+
+        try {
+          const response = await getRtcUserList({
+            page: current,
+            page_size: pageSize,
+            search,
+            status,
+          });
+
+          return {
+            success: true,
+            data: response.items,
+            total: response.total,
+          };
+        } catch (error) {
+          console.error('[RtcUser Page API] list failed:', error);
+          return {
+            success: false,
+            data: [],
+            total: 0,
+            error: 'Failed to load RTC user list',
+          };
+        }
+      },
+
+      // Refresh table
+      refresh: async () => {
+        actionRef.current?.reload();
+      },
+
+      // Ban RTC user
+      ban: async (data) => {
+        try {
+          await banRtcUser(data.userId, { reason: data.reason });
+          actionRef.current?.reload();
+          return { success: true };
+        } catch (error) {
+          console.error('[RtcUser Page API] ban failed:', error);
+          return { success: false, error: 'Failed to ban user' };
+        }
+      },
+
+      // Unban RTC user
+      unban: async (userId) => {
+        try {
+          await unbanRtcUser(userId);
+          actionRef.current?.reload();
+          return { success: true };
+        } catch (error) {
+          console.error('[RtcUser Page API] unban failed:', error);
+          return { success: false, error: 'Failed to unban user' };
+        }
+      },
+
+      // Get user devices
+      devices: async (userId) => {
+        try {
+          const response = await getUserDevices(userId);
+          return {
+            success: true,
+            data: response.items,
+          };
+        } catch (error) {
+          console.error('[RtcUser Page API] devices failed:', error);
+          return {
+            success: false,
+            data: [],
+            error: 'Failed to fetch user devices',
+          };
+        }
+      },
+
+      // Get token statistics
+      tokenStats: async (userId, days = 30) => {
+        try {
+          const response = await getUserTokenStats(userId, days);
+          return {
+            success: true,
+            data: response,
+          };
+        } catch (error) {
+          console.error('[RtcUser Page API] tokenStats failed:', error);
+          return {
+            success: false,
+            data: {
+              daily_stats: [],
+              summary: {
+                today_tokens: 0,
+                week_tokens: 0,
+                month_tokens: 0,
+                total_tokens: 0,
+              },
+              top_sessions: [],
+            },
+            error: 'Failed to fetch token statistics',
+          };
+        }
+      },
+    };
+
+    // Register to global
+    window.__pages__ = window.__pages__ || {};
+    window.__pages__.rtcUser = pageAPI;
+
+    // Dispatch ready event
+    window.dispatchEvent(
+      new CustomEvent('page-api-ready', { detail: { page: 'rtcUser' } }),
+    );
+
+    console.log('[RtcUserManagementPage] Page API registered');
+
+    // Cleanup
+    return () => {
+      delete window.__pages__?.rtcUser;
+      console.log('[RtcUserManagementPage] Page API unregistered');
+    };
+  }, []);
+
+  // Listen for URL changes, auto-reload table
+  useEffect(() => {
+    actionRef.current?.reload();
+  }, [searchParams]);
+
+  /** Ban user */
   const handleBanUser = async (values: { reason: string }) => {
     if (!currentRow) return false;
     try {
@@ -71,7 +220,7 @@ const RtcUserManagementPage: React.FC = () => {
     }
   };
 
-  /** 解封用户 */
+  /** Unban user */
   const handleUnbanUser = async (userId: string) => {
     try {
       await unbanRtcUser(userId);
@@ -95,7 +244,7 @@ const RtcUserManagementPage: React.FC = () => {
     }
   };
 
-  /** 表格列定义 */
+  /** Table column definitions */
   const columns: ProColumns<RtcUserInfo>[] = [
     {
       title: intl.formatMessage({
@@ -109,12 +258,28 @@ const RtcUserManagementPage: React.FC = () => {
     },
     {
       title: intl.formatMessage({
+        id: 'pages.rtcUsers.searchPlaceholder',
+        defaultMessage: 'Search by email or name',
+      }),
+      dataIndex: 'search',
+      valueType: 'text',
+      hideInTable: true,
+      fieldProps: {
+        placeholder: intl.formatMessage({
+          id: 'pages.rtcUsers.searchPlaceholder',
+          defaultMessage: 'Search by email or name',
+        }),
+      },
+    },
+    {
+      title: intl.formatMessage({
         id: 'pages.rtcUsers.email',
         defaultMessage: '邮箱',
       }),
       dataIndex: 'email',
       valueType: 'text',
       copyable: true,
+      search: false,
     },
     {
       title: intl.formatMessage({
@@ -123,6 +288,7 @@ const RtcUserManagementPage: React.FC = () => {
       }),
       dataIndex: 'name',
       valueType: 'text',
+      search: false,
     },
     {
       title: intl.formatMessage({
@@ -334,11 +500,17 @@ const RtcUserManagementPage: React.FC = () => {
         rowKey="id"
         columns={columns}
         request={async (params, _sort, _filter) => {
+          // Read params from searchParams (URL is single source of truth)
+          const search = searchParams.get('search') || '';
+          const status = searchParams.get('status') || '';
+          const current = params.current || 1;
+          const pageSize = params.pageSize || 10;
           try {
-            const { email, name, ...restParams } = params;
             const response = await getRtcUserList({
-              ...restParams,
-              search: email || name,
+              page: current,
+              page_size: pageSize,
+              search: search || undefined,
+              status: status || undefined,
             });
             return {
               data: response.items,
@@ -367,6 +539,12 @@ const RtcUserManagementPage: React.FC = () => {
         search={{
           labelWidth: 'auto',
         }}
+        form={{
+          initialValues: {
+            search: searchParams.get('search') || '',
+            status: searchParams.get('status') || undefined,
+          },
+        }}
         toolBarRender={() => [
           <Button key="refresh" onClick={() => actionRef.current?.reload()}>
             {intl.formatMessage({
@@ -377,7 +555,7 @@ const RtcUserManagementPage: React.FC = () => {
         ]}
       />
 
-      {/* 封禁用户弹窗 */}
+      {/* Ban user modal */}
       <ModalForm
         title={intl.formatMessage({
           id: 'pages.rtcUsers.banUser',
@@ -432,7 +610,7 @@ const RtcUserManagementPage: React.FC = () => {
         />
       </ModalForm>
 
-      {/* 用户配置 Drawer */}
+      {/* User config drawer */}
       <UserConfigDrawer
         open={configDrawerOpen}
         onClose={() => {
@@ -444,7 +622,7 @@ const RtcUserManagementPage: React.FC = () => {
         canDelete={canConfigDelete}
       />
 
-      {/* 用户详情 Drawer */}
+      {/* User detail drawer */}
       <UserDetailDrawer
         open={detailOpen}
         user={detailUser}

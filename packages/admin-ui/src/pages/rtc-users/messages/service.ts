@@ -2,7 +2,7 @@ import { request } from '@umijs/max';
 import type { MessageListResponse } from './data';
 
 /**
- * 获取 Message 列表
+ * Get message list
  */
 export async function getMessageList(params: {
   session_id: string;

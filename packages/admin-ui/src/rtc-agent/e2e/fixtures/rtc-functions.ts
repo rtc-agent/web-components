@@ -36,11 +36,18 @@ const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     { resource: 'server_config', action: 'read' },
     { resource: 'server_config', action: 'write' },
     { resource: 'server_config', action: 'delete' },
+    { resource: 'rtc_user', action: 'read' },
+    { resource: 'rtc_user', action: 'ban' },
+    { resource: 'rtc_session', action: 'read' },
+    { resource: 'rtc_message', action: 'read' },
   ],
   operator: [
     { resource: 'admin_user', action: 'read' },
     { resource: 'admin_user', action: 'write' },
     { resource: 'role', action: 'read' },
+    { resource: 'rtc_user', action: 'read' },
+    { resource: 'rtc_session', action: 'read' },
+    { resource: 'rtc_message', action: 'read' },
   ],
   viewer: [{ resource: 'admin_user', action: 'read' }],
 };

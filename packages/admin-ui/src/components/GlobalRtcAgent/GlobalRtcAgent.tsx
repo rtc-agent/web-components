@@ -9,6 +9,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { history } from '@umijs/max';
 import { refreshToken as apiRefreshToken } from '@/services/admin-auth';
 import {
   AUTH_STATE_CHANGED_EVENT,
@@ -19,6 +20,9 @@ import {
   setTokens,
 } from '@/utils/auth-storage';
 import { mountRtcAgent, unmountRtcAgent } from '@/utils/rtc-agent-manager';
+
+// 不需要显示 RTCAgent 的路由
+const EXCLUDED_PATHS = ['/user/login', '/user/register', '/user/register-result'];
 
 /**
  * 全局 RTC Agent 容器组件
@@ -37,6 +41,16 @@ export const GlobalRtcAgent: React.FC = () => {
   const [isSupported, setIsSupported] = useState(true);
   const [permissionsReady, setPermissionsReady] = useState(false);
   const [userInfoReady, setUserInfoReady] = useState(false);
+  const [isExcludedRoute, setIsExcludedRoute] = useState(false);
+
+  // 检查当前路由是否需要排除
+  const checkRoute = useCallback(() => {
+    const { pathname } = history.location;
+    const excluded = EXCLUDED_PATHS.some(
+      (path) => pathname === path || pathname.startsWith(`${path}/`),
+    );
+    setIsExcludedRoute(excluded);
+  }, []);
 
   // 检查浏览器是否支持所需特性
   useEffect(() => {
@@ -53,12 +67,39 @@ export const GlobalRtcAgent: React.FC = () => {
       );
       setIsSupported(false);
     }
-  }, []);
+
+    // 初始检查路由
+    checkRoute();
+  }, [checkRoute]);
+
+  // 监听路由变化
+  useEffect(() => {
+    // 监听 history 变化
+    const unlisten = history.listen(() => {
+      checkRoute();
+    });
+
+    return () => {
+      unlisten();
+    };
+  }, [checkRoute]);
 
   // 防止并发 refresh 请求
   const refreshPromiseRef = useRef<Promise<boolean> | null>(null);
 
   const checkAuth = useCallback(async () => {
+    // 如果在排除的路由上，不检查认证状态
+    if (isExcludedRoute) {
+      setIsLoggedIn((prev) => {
+        if (prev !== false) {
+          console.log('[GlobalRtcAgent] On excluded route, forcing logout');
+          return false;
+        }
+        return prev;
+      });
+      return;
+    }
+
     let authenticated = isAuthenticated();
 
     // Token 过期但 refresh token 仍在？先尝试刷新，避免误判为未登录
@@ -92,7 +133,7 @@ export const GlobalRtcAgent: React.FC = () => {
       }
       return prev;
     });
-  }, []);
+  }, [isExcludedRoute]);
 
   useEffect(() => {
     console.log('[GlobalRtcAgent] Component mounted');
@@ -149,6 +190,12 @@ export const GlobalRtcAgent: React.FC = () => {
       clearInterval(interval);
     };
   }, [checkAuth]);
+
+  // 路由变化时重新检查认证状态
+  useEffect(() => {
+    console.log('[GlobalRtcAgent] Route changed, excluded:', isExcludedRoute);
+    checkAuth();
+  }, [isExcludedRoute, checkAuth]);
 
   // 等待权限信息和用户信息加载完成
   useEffect(() => {

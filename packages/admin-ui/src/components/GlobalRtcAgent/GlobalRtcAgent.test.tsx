@@ -12,6 +12,18 @@ import { GlobalRtcAgent } from '@/components/GlobalRtcAgent/GlobalRtcAgent';
 import * as authStorage from '@/utils/auth-storage';
 import * as rtcAgentManager from '@/utils/rtc-agent-manager';
 
+// Mock @umijs/max history
+const { mockHistory } = vi.hoisted(() => ({
+  mockHistory: {
+    location: { pathname: '/dashboard' },
+    listen: vi.fn(() => vi.fn()),
+  },
+}));
+
+vi.mock('@umijs/max', () => ({
+  history: mockHistory,
+}));
+
 // Mock the dependencies
 vi.mock('@/utils/auth-storage', () => ({
   isAuthenticated: vi.fn(),
@@ -37,6 +49,10 @@ describe('GlobalRtcAgent', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+
+    // Reset history mock
+    mockHistory.location.pathname = '/dashboard';
+    mockHistory.listen.mockClear();
 
     // Mock browser features for tests
     Object.defineProperty(window, 'customElements', {
@@ -269,6 +285,60 @@ describe('GlobalRtcAgent', () => {
     vi.mocked(authStorage.isAuthenticated).mockReturnValue(true);
     window.dispatchEvent(new Event('auth-state-changed'));
 
+    await waitFor(() => {
+      expect(rtcAgentManager.mountRtcAgent).toHaveBeenCalled();
+    });
+  });
+
+  it('should not mount agent on login page', async () => {
+    // Set pathname to login page
+    mockHistory.location.pathname = '/user/login';
+
+    vi.mocked(authStorage.isAuthenticated).mockReturnValue(true);
+    render(<GlobalRtcAgent />);
+
+    // Wait a bit to ensure no mount happens
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Should not mount agent on login page
+    expect(rtcAgentManager.mountRtcAgent).not.toHaveBeenCalled();
+  });
+
+  it('should not mount agent on register page', async () => {
+    // Set pathname to register page
+    mockHistory.location.pathname = '/user/register';
+
+    vi.mocked(authStorage.isAuthenticated).mockReturnValue(true);
+    render(<GlobalRtcAgent />);
+
+    // Wait a bit to ensure no mount happens
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Should not mount agent on register page
+    expect(rtcAgentManager.mountRtcAgent).not.toHaveBeenCalled();
+  });
+
+  it('should mount agent when navigating from login to dashboard', async () => {
+    // Start on login page
+    mockHistory.location.pathname = '/user/login';
+
+    vi.mocked(authStorage.isAuthenticated).mockReturnValue(true);
+    render(<GlobalRtcAgent />);
+
+    // Wait a bit to ensure no mount happens on login page
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(rtcAgentManager.mountRtcAgent).not.toHaveBeenCalled();
+
+    // Simulate navigation to dashboard
+    mockHistory.location.pathname = '/dashboard';
+
+    // Trigger route change by calling the listen callback
+    const listenCallback = mockHistory.listen.mock.calls[0]?.[0];
+    if (listenCallback) {
+      listenCallback({ location: { pathname: '/dashboard' } });
+    }
+
+    // Should mount agent after navigating to dashboard
     await waitFor(() => {
       expect(rtcAgentManager.mountRtcAgent).toHaveBeenCalled();
     });

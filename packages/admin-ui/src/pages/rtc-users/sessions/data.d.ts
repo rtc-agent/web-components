@@ -1,10 +1,10 @@
 /**
- * Session 状态
+ * Session status
  */
 export type SessionStatus = 'active' | 'closed';
 
 /**
- * Session 信息
+ * Session information
  */
 export type SessionInfo = {
   id: string;
@@ -21,7 +21,7 @@ export type SessionInfo = {
 };
 
 /**
- * Session 列表响应
+ * Session list response
  */
 export type SessionListResponse = {
   items: SessionInfo[];

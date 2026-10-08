@@ -19,17 +19,18 @@ import {
   Row,
   Tag,
 } from 'antd';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import useStyles from './Center.style';
 import Applications from './components/Applications';
 import Articles from './components/Articles';
 import Projects from './components/Projects';
 import type { CurrentUser, TagType, tabKeyType } from './data.d';
+import type { SelfAccountCenterPageAPI } from './page-api';
 import { queryCurrent } from './service';
 
 /**
- * 构建右侧内容区域的 Tab 列表
- * 每个 Tab 显示国际化文本及对应的条目数量（当前为静态值）
+ * Build the tab list for the right-side content area.
+ * Each tab displays i18n text and a corresponding item count (currently static).
  */
 const getOperationTabList = (intl: any) => [
   {
@@ -87,7 +88,7 @@ const getOperationTabList = (intl: any) => [
     ),
   },
 ];
-/** 用户标签列表，支持动态添加新标签 */
+/** Tag list component supporting dynamic addition of new tags */
 const TagList: React.FC<{
   tags: CurrentUser['tags'];
 }> = ({ tags }) => {
@@ -163,7 +164,7 @@ const TagList: React.FC<{
     </div>
   );
 };
-/** 展示用户的基本信息：职位、团队、所在地 */
+/** Display user basic info: job title, team, and location */
 const GEOGRAPHIC_DEFAULT = {
   province: { label: '' },
   city: { label: '' },
@@ -203,7 +204,7 @@ const UserInfo: React.FC<{ user: Partial<CurrentUser> }> = ({ user }) => {
   );
 };
 
-/** 根据选中的 Tab 键渲染对应的内容组件 */
+/** Render content component based on the selected tab key */
 const TabContent: React.FC<{ tabValue: tabKeyType }> = ({ tabValue }) => {
   if (tabValue === 'projects') {
     return <Projects />;
@@ -223,7 +224,7 @@ const Center: React.FC = () => {
   const [tabKey, setTabKey] = useState<tabKeyType>('articles');
   const operationTabList = getOperationTabList(intl);
 
-  // 获取用户信息（使用独立 queryKey 避免与其他页面的 current-user 查询冲突）
+  // Fetch user info (use independent queryKey to avoid conflicts with other pages' current-user queries)
   const {
     data: currentUser,
     isLoading: loading,
@@ -234,7 +235,45 @@ const Center: React.FC = () => {
     queryFn: () => queryCurrent().then((res) => res.data),
   });
 
-  // API 请求失败时显示错误提示
+  // Register Page API for selfAccount function group
+  useEffect(() => {
+    const pageAPI: SelfAccountCenterPageAPI = {
+      getProfile: async () => {
+        try {
+          const result = await queryCurrent();
+          return {
+            success: true,
+            data: result.data,
+          };
+        } catch (err) {
+          console.error('[SelfAccountCenter Page API] getProfile failed:', err);
+          return {
+            success: false,
+            data: null,
+            error: 'Failed to get user profile',
+          };
+        }
+      },
+    };
+
+    window.__pages__ = window.__pages__ || {};
+    window.__pages__.selfAccountCenter = pageAPI;
+
+    window.dispatchEvent(
+      new CustomEvent('page-api-ready', {
+        detail: { page: 'selfAccountCenter' },
+      }),
+    );
+
+    console.log('[SelfAccountCenterPage] Page API registered');
+
+    return () => {
+      delete window.__pages__?.selfAccountCenter;
+      console.log('[SelfAccountCenterPage] Page API unregistered');
+    };
+  }, []);
+
+  // Show error result when API request fails
   if (isError) {
     return (
       <GridContent>

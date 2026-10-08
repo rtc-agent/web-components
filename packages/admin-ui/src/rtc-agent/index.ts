@@ -6,6 +6,10 @@ import {
   createNavigationGroup,
   permissionGroup,
   roleGroup,
+  rtcMessageGroup,
+  rtcSessionGroup,
+  rtcUserGroup,
+  selfAccountGroup,
   serverConfigGroup,
 } from './groups';
 import type { Permission } from './permission-filter';
@@ -31,6 +35,10 @@ export function createAllGroups(userPermissions: Permission[]) {
     serverConfigGroup,
     adminGroup,
     adminRoleGroup,
+    rtcUserGroup,
+    rtcSessionGroup,
+    rtcMessageGroup,
+    selfAccountGroup,
   ];
 }
 

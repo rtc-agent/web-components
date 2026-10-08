@@ -7,28 +7,124 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import { disabledFutureDate, parseTableSort } from '../shared/tableUtils';
 import type { SessionInfo } from './data';
+import type { SessionPageAPI } from './page-api';
 import { getSessionList } from './service';
 
 /**
- * Session 管理页面
+ * Session management page
  */
 const SessionsPage: React.FC = () => {
   const actionRef = useRef<ActionType>(null);
   const intl = useIntl();
   const { message } = App.useApp();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const userId = searchParams.get('user_id') || '';
 
-  // URL 参数变化时刷新表格
+  // === Register Page API ===
   useEffect(() => {
-    if (userId) {
-      actionRef.current?.reload();
-    }
-  }, [userId]);
+    const pageAPI: SessionPageAPI = {
+      // Read table data
+      list: async (params = {}) => {
+        const {
+          current = 1,
+          pageSize = 10,
+          userId: listUserId,
+          status,
+          search,
+          startTime,
+          endTime,
+          sortBy,
+          sortOrder,
+        } = params;
+
+        // Sync URL (no page refresh)
+        const newSearchParams = new URLSearchParams();
+        const effectiveUserId = listUserId || userId;
+        if (effectiveUserId) {
+          newSearchParams.set('user_id', effectiveUserId);
+        }
+        if (status) {
+          newSearchParams.set('status', status);
+        }
+        if (search) {
+          newSearchParams.set('search', search);
+        }
+        if (startTime) {
+          newSearchParams.set('start_time', startTime);
+        }
+        if (endTime) {
+          newSearchParams.set('end_time', endTime);
+        }
+        newSearchParams.set('current', String(current));
+        newSearchParams.set('pageSize', String(pageSize));
+        setSearchParams(newSearchParams, { replace: true });
+
+        // Call service
+        if (!effectiveUserId) {
+          return { success: true, data: [], total: 0 };
+        }
+
+        try {
+          const response = await getSessionList({
+            user_id: effectiveUserId,
+            page: current,
+            page_size: pageSize,
+            status,
+            search,
+            start_time: startTime,
+            end_time: endTime,
+            sort_by: sortBy,
+            sort_order: sortOrder,
+          });
+
+          return {
+            success: true,
+            data: response.items,
+            total: response.total,
+          };
+        } catch (error) {
+          console.error('[Session Page API] list failed:', error);
+          return {
+            success: false,
+            data: [],
+            total: 0,
+            error: 'Failed to fetch session list',
+          };
+        }
+      },
+
+      // Refresh table
+      refresh: async () => {
+        actionRef.current?.reload();
+      },
+    };
+
+    // Register to global
+    window.__pages__ = window.__pages__ || {};
+    window.__pages__.rtcSession = pageAPI;
+
+    // Dispatch ready event
+    window.dispatchEvent(
+      new CustomEvent('page-api-ready', { detail: { page: 'rtcSession' } }),
+    );
+
+    console.log('[SessionsPage] Page API registered');
+
+    // Cleanup
+    return () => {
+      delete window.__pages__?.rtcSession;
+      console.log('[SessionsPage] Page API unregistered');
+    };
+  }, []);
+
+  // Listen for URL changes, auto-reload table
+  useEffect(() => {
+    actionRef.current?.reload();
+  }, [searchParams]);
 
   const { token } = theme.useToken();
 
-  /** 表格列定义 */
+  /** Table column definitions */
   const columns: ProColumns<SessionInfo>[] = useMemo(
     () => [
       {
@@ -221,28 +317,27 @@ const SessionsPage: React.FC = () => {
           rowKey="id"
           columns={columns}
           request={async (params, sort) => {
-            const {
-              current,
-              pageSize,
-              user_id: _user_id,
-              keyword,
-              ...restParams
-            } = params;
-            // 优先使用 URL 参数中的 userId，确保导航切换用户时数据正确
-            const effectiveUserId = userId || _user_id;
+            // Read params from searchParams (URL is single source of truth)
+            const effectiveUserId = searchParams.get('user_id') || userId;
             if (!effectiveUserId) {
               return { data: [], total: 0, success: true };
             }
+            const status = searchParams.get('status') || undefined;
+            const search = searchParams.get('search') || undefined;
+            const startTime = searchParams.get('start_time') || undefined;
+            const endTime = searchParams.get('end_time') || undefined;
+            const current = params.current || 1;
+            const pageSize = params.pageSize || 10;
             try {
               const sortParams = parseTableSort(sort || {});
               const response = await getSessionList({
                 user_id: effectiveUserId,
                 page: current,
                 page_size: pageSize,
-                status: restParams.status,
-                search: restParams.search,
-                start_time: restParams.start_time,
-                end_time: restParams.end_time,
+                status,
+                search,
+                start_time: startTime,
+                end_time: endTime,
                 ...sortParams,
               });
               return {
@@ -270,6 +365,13 @@ const SessionsPage: React.FC = () => {
           }}
           search={{
             labelWidth: 'auto',
+          }}
+          form={{
+            initialValues: {
+              user_id: searchParams.get('user_id') || '',
+              status: searchParams.get('status') || undefined,
+              search: searchParams.get('search') || undefined,
+            },
           }}
           options={{
             reload: true,

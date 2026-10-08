@@ -23,8 +23,15 @@ function getCurrentUse(_req: Request, res: Response) {
   });
 }
 
+function updateCurrentUser(_req: Request, res: Response) {
+  return res.json({
+    success: true,
+  });
+}
+
 export default {
   'GET  /api/accountSettingCurrentUser': getCurrentUse,
+  'PUT  /api/accountSettingCurrentUser': updateCurrentUser,
   'GET  /api/geographic/province': getProvince,
   'GET  /api/geographic/city/:province': getCity,
 };

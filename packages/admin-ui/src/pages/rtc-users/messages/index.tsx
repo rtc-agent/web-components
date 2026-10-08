@@ -14,16 +14,17 @@ import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import { disabledFutureDate, parseTableSort } from '../shared/tableUtils';
 import MessageDetailDrawer from './components/MessageDetailDrawer';
 import type { MessageInfo } from './data';
+import type { MessagePageAPI } from './page-api';
 import { getMessageList } from './service';
 
 /**
- * Message 管理页面
+ * Message Management Page
  */
 const MessagesPage: React.FC = () => {
   const actionRef = useRef<ActionType>(null);
   const intl = useIntl();
   const { message } = App.useApp();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const sessionId = searchParams.get('session_id') || '';
 
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -33,20 +34,112 @@ const MessagesPage: React.FC = () => {
 
   const { token } = theme.useToken();
 
-  // URL 参数变化时刷新表格
+  // === Register Page API ===
+  useEffect(() => {
+    const pageAPI: MessagePageAPI = {
+      // Read table data
+      list: async (params = {}) => {
+        const {
+          current = 1,
+          pageSize = 10,
+          sessionId: listSessionId,
+          role,
+          startTime,
+          endTime,
+          sortBy,
+          sortOrder,
+        } = params;
+
+        // Sync URL (no page refresh)
+        const newSearchParams = new URLSearchParams();
+        const effectiveSessionId = listSessionId || sessionId;
+        if (effectiveSessionId) {
+          newSearchParams.set('session_id', effectiveSessionId);
+        }
+        if (role) {
+          newSearchParams.set('role', role);
+        }
+        if (startTime) {
+          newSearchParams.set('created_after', startTime);
+        }
+        if (endTime) {
+          newSearchParams.set('created_before', endTime);
+        }
+        newSearchParams.set('current', String(current));
+        newSearchParams.set('pageSize', String(pageSize));
+        setSearchParams(newSearchParams, { replace: true });
+
+        // Call service
+        if (!effectiveSessionId) {
+          return { success: true, data: [], total: 0 };
+        }
+
+        try {
+          const response = await getMessageList({
+            session_id: effectiveSessionId,
+            page: current,
+            page_size: pageSize,
+            role,
+            created_after: startTime,
+            created_before: endTime,
+            sort_by: sortBy,
+            sort_order: sortOrder,
+          });
+
+          return {
+            success: true,
+            data: response.items,
+            total: response.total,
+          };
+        } catch (error) {
+          console.error('[Message Page API] list failed:', error);
+          return {
+            success: false,
+            data: [],
+            total: 0,
+            error: 'Failed to fetch message list',
+          };
+        }
+      },
+
+      // Refresh table
+      refresh: async () => {
+        actionRef.current?.reload();
+      },
+    };
+
+    // Register to global
+    window.__pages__ = window.__pages__ || {};
+    window.__pages__.rtcMessage = pageAPI;
+
+    // Dispatch ready event
+    window.dispatchEvent(
+      new CustomEvent('page-api-ready', { detail: { page: 'rtcMessage' } }),
+    );
+
+    console.log('[MessagesPage] Page API registered');
+
+    // Cleanup
+    return () => {
+      delete window.__pages__?.rtcMessage;
+      console.log('[MessagesPage] Page API unregistered');
+    };
+  }, []);
+
+  // Listen for URL changes, auto-reload table
   useEffect(() => {
     if (sessionId) {
       actionRef.current?.reload();
     }
-  }, [sessionId]);
+  }, [searchParams]);
 
-  /** 打开消息详情 */
+  /** Open message detail drawer */
   const handleRowClick = useCallback((record: MessageInfo) => {
     setCurrentMessage(record);
     setDrawerOpen(true);
   }, []);
 
-  /** 表格列定义 */
+  /** Table column definitions */
   const columns: ProColumns<MessageInfo>[] = useMemo(
     () => [
       {
@@ -64,7 +157,7 @@ const MessagesPage: React.FC = () => {
               required: true,
               message: intl.formatMessage({
                 id: 'pages.messages.sessionIdRequired',
-                defaultMessage: 'Session ID 为必填项',
+                defaultMessage: 'Session ID is required',
               }),
             },
           ],
@@ -73,7 +166,7 @@ const MessagesPage: React.FC = () => {
       {
         title: intl.formatMessage({
           id: 'pages.messages.role',
-          defaultMessage: '角色',
+          defaultMessage: 'Role',
         }),
         dataIndex: 'role',
         valueType: 'select',
@@ -101,7 +194,7 @@ const MessagesPage: React.FC = () => {
       {
         title: intl.formatMessage({
           id: 'pages.messages.content',
-          defaultMessage: '内容',
+          defaultMessage: 'Content',
         }),
         dataIndex: 'content',
         valueType: 'text',
@@ -109,9 +202,9 @@ const MessagesPage: React.FC = () => {
         ellipsis: true,
         width: 400,
         render: (_, record) => {
-          // 消息内容存储为 JSON 字符串: '{"type":"text","data":"hello"}'
-          // 根据 type 字段提取可读的摘要文本用于表格展示
-          // 兼容非 JSON 的纯文本旧数据
+          // Message content is stored as JSON string: '{"type":"text","data":"hello"}'
+          // Extract readable summary text based on the type field for table display
+          // Fallback to plain text for legacy non-JSON data
           try {
             const parsed = JSON.parse(record.content);
             if (parsed?.type && parsed?.data !== undefined) {
@@ -149,7 +242,7 @@ const MessagesPage: React.FC = () => {
       {
         title: intl.formatMessage({
           id: 'pages.messages.inputTokens',
-          defaultMessage: '输入 Tokens',
+          defaultMessage: 'Input Tokens',
         }),
         dataIndex: 'input_tokens',
         valueType: 'digit',
@@ -163,7 +256,7 @@ const MessagesPage: React.FC = () => {
       {
         title: intl.formatMessage({
           id: 'pages.messages.outputTokens',
-          defaultMessage: '输出 Tokens',
+          defaultMessage: 'Output Tokens',
         }),
         dataIndex: 'output_tokens',
         valueType: 'digit',
@@ -177,7 +270,7 @@ const MessagesPage: React.FC = () => {
       {
         title: intl.formatMessage({
           id: 'pages.messages.createdAt',
-          defaultMessage: '创建时间',
+          defaultMessage: 'Created At',
         }),
         dataIndex: 'created_at',
         valueType: 'dateTime',
@@ -197,7 +290,7 @@ const MessagesPage: React.FC = () => {
       {
         title: intl.formatMessage({
           id: 'pages.messages.timeRange',
-          defaultMessage: '时间范围',
+          defaultMessage: 'Time Range',
         }),
         dataIndex: 'time_range',
         valueType: 'dateRange',
@@ -227,7 +320,8 @@ const MessagesPage: React.FC = () => {
           }
           description={intl.formatMessage({
             id: 'pages.messages.emptyHint',
-            defaultMessage: '请从对话管理页面选择对话以查看消息列表',
+            defaultMessage:
+              'Please select a session from the session management page to view messages',
           })}
         >
           <Button
@@ -236,7 +330,7 @@ const MessagesPage: React.FC = () => {
           >
             {intl.formatMessage({
               id: 'pages.messages.goToUsers',
-              defaultMessage: '前往用户管理',
+              defaultMessage: 'Go to User Management',
             })}
           </Button>
         </Empty>
@@ -244,7 +338,7 @@ const MessagesPage: React.FC = () => {
         <ProTable<MessageInfo>
           headerTitle={intl.formatMessage({
             id: 'pages.messages.headerTitle',
-            defaultMessage: '消息列表',
+            defaultMessage: 'Message List',
           })}
           actionRef={actionRef}
           rowKey="id"
@@ -254,27 +348,27 @@ const MessagesPage: React.FC = () => {
             style: { cursor: 'pointer' },
           })}
           request={async (params, sort) => {
-            const {
-              current,
-              pageSize,
-              session_id: _session_id,
-              keyword,
-              ...restParams
-            } = params;
-            // 优先使用 URL 参数中的 sessionId，确保导航切换会话时数据正确
-            const effectiveSessionId = sessionId || _session_id;
+            // Read params from searchParams (URL is single source of truth)
+            const effectiveSessionId =
+              searchParams.get('session_id') || sessionId;
             if (!effectiveSessionId) {
               return { data: [], total: 0, success: true };
             }
+            const role = searchParams.get('role') || undefined;
+            const createdAfter = searchParams.get('created_after') || undefined;
+            const createdBefore =
+              searchParams.get('created_before') || undefined;
+            const current = params.current || 1;
+            const pageSize = params.pageSize || 10;
             try {
               const sortParams = parseTableSort(sort || {});
               const response = await getMessageList({
                 session_id: effectiveSessionId,
                 page: current,
                 page_size: pageSize,
-                role: restParams.role,
-                created_after: restParams.created_after,
-                created_before: restParams.created_before,
+                role,
+                created_after: createdAfter,
+                created_before: createdBefore,
                 ...sortParams,
               });
               return {
@@ -288,7 +382,7 @@ const MessagesPage: React.FC = () => {
                   error,
                   intl.formatMessage({
                     id: 'pages.messages.loadFailed',
-                    defaultMessage: '加载消息列表失败',
+                    defaultMessage: 'Failed to load message list',
                   }),
                 ),
               );
@@ -303,6 +397,12 @@ const MessagesPage: React.FC = () => {
           search={{
             labelWidth: 'auto',
           }}
+          form={{
+            initialValues: {
+              session_id: searchParams.get('session_id') || '',
+              role: searchParams.get('role') || undefined,
+            },
+          }}
           options={{
             reload: true,
             density: true,
@@ -312,7 +412,7 @@ const MessagesPage: React.FC = () => {
             <Button key="refresh" onClick={() => actionRef.current?.reload()}>
               {intl.formatMessage({
                 id: 'pages.messages.refresh',
-                defaultMessage: '刷新',
+                defaultMessage: 'Refresh',
               })}
             </Button>,
           ]}

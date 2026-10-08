@@ -2,7 +2,7 @@ import { request } from '@umijs/max';
 import type { SessionListResponse } from './data';
 
 /**
- * 获取 Session 列表
+ * Get session list
  */
 export async function getSessionList(params: {
   user_id: string;

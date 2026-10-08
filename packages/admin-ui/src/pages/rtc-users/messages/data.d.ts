@@ -1,10 +1,10 @@
 /**
- * Message 角色
+ * Message role type
  */
 export type MessageRole = 'user' | 'assistant';
 
 /**
- * Message 信息
+ * Message information
  */
 export type MessageInfo = {
   id: string;
@@ -19,7 +19,7 @@ export type MessageInfo = {
 };
 
 /**
- * Message 列表响应
+ * Message list response
  */
 export type MessageListResponse = {
   items: MessageInfo[];

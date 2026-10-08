@@ -1,11 +1,13 @@
 import { GridContent } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
-import { Menu } from 'antd';
-import React, { useLayoutEffect, useRef, useState } from 'react';
+import { Menu, message } from 'antd';
+import React, { useLayoutEffect, useEffect, useRef, useState } from 'react';
 import BaseView from './components/base';
 import BindingView from './components/binding';
 import NotificationView from './components/notification';
 import SecurityView from './components/security';
+import type { SelfAccountSettingsPageAPI } from './page-api';
+import { updateCurrentUser } from './service';
 import useStyles from './style.style';
 
 type SettingsStateKeys = 'base' | 'security' | 'binding' | 'notification';
@@ -70,7 +72,7 @@ const Settings: React.FC = () => {
         return;
       }
       const { offsetWidth } = dom.current;
-      // 容器宽度 > 400 且（容器 < 641 或视口 < 768）时切换为水平菜单
+      // Switch to horizontal menu when container width > 400 and (container < 641 or viewport < 768)
       const isHorizontal =
         offsetWidth > 400 && (offsetWidth < 641 || window.innerWidth < 768);
       setInitConfig((prev) => ({
@@ -89,6 +91,53 @@ const Settings: React.FC = () => {
     handler();
     return () => {
       window.removeEventListener('resize', handler);
+    };
+  }, []);
+
+  // Register Page API for selfAccount function group
+  useEffect(() => {
+    const pageAPI: SelfAccountSettingsPageAPI = {
+      updateProfile: async (data) => {
+        try {
+          // Validate required fields
+          if (!data.name) {
+            return { success: false, error: 'Name is required' };
+          }
+          if (!data.email) {
+            return { success: false, error: 'Email is required' };
+          }
+
+          // Call the real update API
+          await updateCurrentUser(data);
+          message.success('Profile updated successfully');
+          return { success: true };
+        } catch (err) {
+          console.error(
+            '[SelfAccountSettings Page API] updateProfile failed:',
+            err,
+          );
+          return {
+            success: false,
+            error: 'Failed to update profile',
+          };
+        }
+      },
+    };
+
+    window.__pages__ = window.__pages__ || {};
+    window.__pages__.selfAccountSettings = pageAPI;
+
+    window.dispatchEvent(
+      new CustomEvent('page-api-ready', {
+        detail: { page: 'selfAccountSettings' },
+      }),
+    );
+
+    console.log('[SelfAccountSettingsPage] Page API registered');
+
+    return () => {
+      delete window.__pages__?.selfAccountSettings;
+      console.log('[SelfAccountSettingsPage] Page API unregistered');
     };
   }, []);
   return (
