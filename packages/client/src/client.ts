@@ -773,11 +773,11 @@ export class RTCAgentClient implements IRTCAgentClient {
 
     const BATCH_SIZE = 100; // Number of items per RPC call (avoid oversized responses)
     // ACCUMULATE_THRESHOLD: Maximum number of updates to accumulate before flushing.
-    // Must be kept well below UIUpdateBus.MAX_SUSPENDED_EVENTS (1000) to prevent
-    // "Suspended events limit exceeded" errors during gap fill. Each update can
-    // generate multiple UI events (one per entity change), so we use a conservative
-    // threshold to account for this multiplier effect.
-    const ACCUMULATE_THRESHOLD = 800;
+    // Each Update generates multiple UIUpdateEvents (one per entity field change),
+    // so we keep this conservative to stay well below UIUpdateBus.MAX_SUSPENDED_EVENTS (1000).
+    // With ~150 updates × ~5 fields each = ~750 events, safely under the limit.
+    // After each flush, UI is resumed to dispatch events before the next accumulation cycle.
+    const ACCUMULATE_THRESHOLD = 150;
     // Only suspend UI updates for large gaps to prevent UI thrashing.
     // Small gaps (< 100) can update UI normally for real-time feedback.
     const SUSPEND_THRESHOLD = 100;
@@ -794,31 +794,27 @@ export class RTCAgentClient implements IRTCAgentClient {
     let gapOffsets: number[] = [];
     let offset = currentOffset;
 
-    // Track suspend state to avoid nested suspend calls.
-    // Nested suspends cause event accumulation beyond UIUpdateBus.MAX_SUSPENDED_EVENTS (1000).
-    // We use a flag to ensure only the outermost gap fill operation suspends UI updates.
-    const shouldSuspendUI = gapSize > SUSPEND_THRESHOLD;
-    let isUISuspended = false;
+    // Determine if this is a large gap that needs UI suspension.
+    // For large gaps, we show a syncing overlay via onGapFillStart/onGapFillEnd.
+    // The actual UIUpdateBus suspend/resume is handled per-flush by flushGapFillBuffer
+    // to prevent event accumulation beyond the 1000 event limit.
+    const isLargeGap = gapSize > SUSPEND_THRESHOLD;
 
     try {
+      // Notify UI that gap fill is starting (for large gaps only).
+      if (isLargeGap) {
+        log.debug('[BulkUpdate] runGapFill: calling onGapFillStart');
+        this.options.onGapFillStart?.();
+      }
+
       // Outer loop: continue until reaching targetOffset
       while (offset < targetOffset - 1) {
         buffer = [];
         gapOffsets = [];
 
-        // Suspend UI updates once at the start of bulk processing (if needed).
-        // This avoids nested suspend/resume calls which would accumulate events.
-        if (shouldSuspendUI && !isUISuspended) {
-          log.debug('[BulkUpdate] runGapFill: calling onGapFillStart');
-          this.options.onGapFillStart?.();
-          this.options.suspendUIUpdates?.();
-          isUISuspended = true;
-        }
-
         // Inner loop: fetch in batches, accumulate to ACCUMULATE_THRESHOLD+
-        // Note: We no longer call flushGapFillBuffer inside this loop with suspend/resume.
-        // Instead, we accumulate updates and flush them in batches to prevent
-        // exceeding the UI event limit.
+        // Each flush cycle will suspend/resume UIUpdateBus independently to prevent
+        // event accumulation beyond the 1000 event limit.
         while (buffer.length < ACCUMULATE_THRESHOLD && offset < targetOffset - 1) {
           const remaining = targetOffset - offset - 1;
           const limit = Math.min(BATCH_SIZE, remaining);
@@ -878,15 +874,16 @@ export class RTCAgentClient implements IRTCAgentClient {
         }
 
         // Apply current batch buffer content
-        // Pass isUISuspended to indicate UI updates are already suspended at outer level
-        await this.flushGapFillBuffer(channel, buffer, gapOffsets, epoch, isUISuspended);
+        // flushGapFillBuffer handles its own suspend/resume per cycle to prevent
+        // event accumulation beyond the 1000 event limit.
+        await this.flushGapFillBuffer(channel, buffer, gapOffsets, epoch, false);
       }
     } catch (err) {
       // On network error, apply already-fetched buffer content first
       if (buffer.length > 0 || gapOffsets.length > 0) {
         log.debug(`Network error, flushing buffer before error handling: ${buffer.length} updates, ${gapOffsets.length} gap offsets`);
         try {
-          await this.flushGapFillBuffer(channel, buffer, gapOffsets, epoch, isUISuspended);
+          await this.flushGapFillBuffer(channel, buffer, gapOffsets, epoch, false);
         } catch (flushErr) {
           log.error(`Failed to flush buffer on error:`, flushErr);
         }
@@ -908,12 +905,11 @@ export class RTCAgentClient implements IRTCAgentClient {
         serverOffset: targetOffset,
       });
     } finally {
-      // Resume UI updates and notify UI only if we suspended at the outer level.
-      // This check is critical to avoid resuming when suspend was never called,
-      // which would break the suspend depth counter.
-      if (isUISuspended) {
-        log.debug('[BulkUpdate] runGapFill: calling resumeUIUpdates and onGapFillEnd');
-        this.options.resumeUIUpdates?.();
+      // Notify UI that gap fill is complete (for large gaps only).
+      // UIUpdateBus suspend/resume is handled per-flush by flushGapFillBuffer,
+      // so we only need to hide the syncing overlay here.
+      if (isLargeGap) {
+        log.debug('[BulkUpdate] runGapFill: calling onGapFillEnd');
         this.options.onGapFillEnd?.();
       }
     }
