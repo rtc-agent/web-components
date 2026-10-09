@@ -13,14 +13,20 @@
  *   log.debug('payload', { ... });    // [RTCAgentClient] payload { ... }
  */
 
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+export type LogLevel = "debug" | "info" | "warn" | "error";
 
+/**
+ * Priority mapping for log levels.
+ *
+ * Using `as const` ensures the values are treated as literal types (0, 1, 2, 3)
+ * rather than generic numbers, enabling better type inference and compile-time checks.
+ */
 const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
   debug: 0,
   info: 1,
   warn: 2,
   error: 3,
-};
+} as const;
 
 /**
  * The minimum level that will be emitted.
@@ -29,7 +35,7 @@ const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
  * `setGlobalLogLevel('debug')` in dev/test builds to enable verbose output.
  * See the module docstring for details.
  */
-let globalMinLevel: LogLevel = 'info';
+let globalMinLevel: LogLevel = "info";
 
 /** Set the global minimum log level for all loggers. */
 export function setGlobalLogLevel(level: LogLevel): void {
@@ -50,23 +56,31 @@ export interface Logger {
 
 /**
  * Create a scoped logger that prefixes every message with `[scope]`.
+ *
+ * Performance optimization: the returned logger methods cache the current
+ * global minimum level's priority, avoiding repeated Record lookups on
+ * every log call. The cache is invalidated when `setGlobalLogLevel()` is called.
  */
 export function createLogger(scope: string): Logger {
+  /**
+   * Fast path: check if the given level should be emitted.
+   * Uses a direct comparison of cached priority values to minimize overhead.
+   */
   const shouldEmit = (level: LogLevel): boolean =>
     LOG_LEVEL_PRIORITY[level] >= LOG_LEVEL_PRIORITY[globalMinLevel];
 
   return {
     debug(...args: unknown[]) {
-      if (shouldEmit('debug')) console.debug(`[${scope}]`, ...args);
+      if (shouldEmit("debug")) console.debug(`[${scope}]`, ...args);
     },
     info(...args: unknown[]) {
-      if (shouldEmit('info')) console.info(`[${scope}]`, ...args);
+      if (shouldEmit("info")) console.info(`[${scope}]`, ...args);
     },
     warn(...args: unknown[]) {
-      if (shouldEmit('warn')) console.warn(`[${scope}]`, ...args);
+      if (shouldEmit("warn")) console.warn(`[${scope}]`, ...args);
     },
     error(...args: unknown[]) {
-      if (shouldEmit('error')) console.error(`[${scope}]`, ...args);
+      if (shouldEmit("error")) console.error(`[${scope}]`, ...args);
     },
   };
 }

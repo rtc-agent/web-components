@@ -11,13 +11,13 @@
  * - `debug-api-ext.ts` — Extended APIs (session, tools, toast, settings, metrics, network)
  * - `debug-api.ts` — This file: entry point + installDebugAPI()
  */
-import {setGlobalLogLevel} from '@rtc-agent/client';
-import type {RtcAgentDebugAPI} from './debug-api-types.js';
-import {log, installLogCapture} from './debug-api-helpers.js';
-import {buildCoreAPI} from './debug-api-core.js';
-import {buildExtAPI} from './debug-api-ext.js';
+import { setGlobalLogLevel } from "@rtc-agent/client";
+import type { RtcAgentDebugAPI } from "./debug-api-types.js";
+import { log, installLogCapture } from "./debug-api-helpers.js";
+import { buildCoreAPI } from "./debug-api-core.js";
+import { buildExtAPI } from "./debug-api-ext.js";
 
-export type {RtcAgentDebugAPI} from './debug-api-types.js';
+export type { RtcAgentDebugAPI } from "./debug-api-types.js";
 
 /**
  * Build and install the debug API on window.rtcAgentDebug.
@@ -30,48 +30,52 @@ export type {RtcAgentDebugAPI} from './debug-api-types.js';
  * E2E test runs capture the full diagnostic stream.
  */
 export function installDebugAPI(): void {
-    if (typeof window === 'undefined') return;
-    if (window.rtcAgentDebug) {
-        log.warn('Debug API already installed, skipping');
-        return;
-    }
+  if (typeof window === "undefined") return;
+  if (window.rtcAgentDebug) {
+    log.warn("Debug API already installed, skipping");
+    return;
+  }
 
-    // Enable debug-level logging in dev/test builds so that the log buffer
-    // (and the console) captures the full diagnostic stream.
-    setGlobalLogLevel('debug');
+  // Enable debug-level logging in dev/test builds so that the log buffer
+  // (and the console) captures the full diagnostic stream.
+  setGlobalLogLevel("debug");
 
-    // Install log capture first so we capture logs from API construction.
-    installLogCapture();
+  // Install log capture first so we capture logs from API construction.
+  installLogCapture();
 
-    // Compose the API from core and extended implementations.
-    //
-    // We cannot use simple spread because `isOffline` and `logs` are getters
-    // that must remain dynamic — spreading evaluates them once and copies static values.
-    // Strategy: destructure to exclude getter properties, spread the rest, then
-    // re-attach the getters inline so TypeScript can verify structural completeness.
-    const coreAPI = buildCoreAPI();
-    const extAPI = buildExtAPI();
+  // Compose the API from core and extended implementations.
+  //
+  // We cannot use simple spread because `isOffline` and `logs` are getters
+  // that must remain dynamic — spreading evaluates them once and copies static values.
+  // Strategy: destructure to exclude getter properties, spread the rest, then
+  // re-attach the getters inline so TypeScript can verify structural completeness.
+  const coreAPI = buildCoreAPI();
+  const extAPI = buildExtAPI();
 
-    // Destructure out the getter-valued properties so they are excluded from spread.
-    // The discarded values (_logsValue, _isOfflineValue) are the one-shot evaluations
-    // we want to discard — we re-attach them as live getters below.
-    const {logs: _logsValue, clearLogs, ...coreWithoutLogs} = coreAPI;
-    const {isOffline: _isOfflineValue, ...extWithoutOffline} = extAPI;
+  // Destructure out the getter-valued properties so they are excluded from spread.
+  // The discarded values (_logsValue, _isOfflineValue) are the one-shot evaluations
+  // we want to discard — we re-attach them as live getters below.
+  const { logs: _logsValue, clearLogs, ...coreWithoutLogs } = coreAPI;
+  const { isOffline: _isOfflineValue, ...extWithoutOffline } = extAPI;
 
-    const api = {
-        ...coreWithoutLogs,
-        clearLogs,
-        ...extWithoutOffline,
-        get logs() { return coreAPI.logs; },
-        get isOffline() { return extAPI.isOffline; },
-    } satisfies RtcAgentDebugAPI;
+  const api = {
+    ...coreWithoutLogs,
+    clearLogs,
+    ...extWithoutOffline,
+    get logs() {
+      return coreAPI.logs;
+    },
+    get isOffline() {
+      return extAPI.isOffline;
+    },
+  } satisfies RtcAgentDebugAPI;
 
-    Object.defineProperty(window, 'rtcAgentDebug', {
-        value: api,
-        writable: false,
-        configurable: false,
-        enumerable: true,
-    });
+  Object.defineProperty(window, "rtcAgentDebug", {
+    value: api,
+    writable: false,
+    configurable: false,
+    enumerable: true,
+  });
 
-    log.info('Debug API installed on window.rtcAgentDebug');
+  log.info("Debug API installed on window.rtcAgentDebug");
 }

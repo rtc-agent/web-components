@@ -4,14 +4,14 @@
  * Includes: database initialization, log capture, CSS deep selector,
  * element lookup, and network simulation state.
  */
-import {getDatabase} from '@rtc-agent/persistence';
-import {createLogger} from '@rtc-agent/client';
-import type {RtcAgent} from './components/rtc-agent/rtc-agent.js';
+import { getDatabase } from "@rtc-agent/persistence";
+import { createLogger } from "@rtc-agent/client";
+import type { RtcAgent } from "./components/rtc-agent/rtc-agent.js";
 
-export const log = createLogger('DebugAPI');
+export const log = createLogger("DebugAPI");
 
 /** Default database name used by the debug API when persistence is not connected. */
-const DEBUG_DB_NAME = 'rtc-agent-debug';
+const DEBUG_DB_NAME = "rtc-agent-debug";
 
 /**
  * Ensure the database singleton is initialized before VirtualFS operations.
@@ -24,12 +24,12 @@ const DEBUG_DB_NAME = 'rtc-agent-debug';
  * Safe to call multiple times (idempotent).
  */
 export function ensureDatabase(): void {
-    try {
-        getDatabase();
-    } catch {
-        log.info(`Initializing debug database: ${DEBUG_DB_NAME}`);
-        getDatabase(DEBUG_DB_NAME);
-    }
+  try {
+    getDatabase();
+  } catch {
+    log.info(`Initializing debug database: ${DEBUG_DB_NAME}`);
+    getDatabase(DEBUG_DB_NAME);
+  }
 }
 
 // ── Log Capture ──
@@ -37,8 +37,34 @@ export function ensureDatabase(): void {
 /** Maximum number of log entries retained in the ring buffer. */
 export const LOG_BUFFER_MAX = 500;
 
-/** Ring buffer that captures recent log entries for replay in tests. */
+/**
+ * Ring buffer that captures recent log entries for replay in tests.
+ *
+ * **Internal use only** — prefer the controlled access methods below
+ * (`getLogBufferSnapshot()`, `clearLogBuffer()`) over direct manipulation.
+ * Exported as mutable for performance (avoiding array copies on every log call),
+ * but external code should treat it as read-only.
+ */
 export const logBuffer: string[] = [];
+
+/**
+ * Get a snapshot of the current log buffer.
+ *
+ * Returns a shallow copy to prevent external mutation of the internal buffer.
+ * Use this instead of accessing `logBuffer` directly.
+ */
+export function getLogBufferSnapshot(): readonly string[] {
+  return [...logBuffer];
+}
+
+/**
+ * Clear the log buffer.
+ *
+ * Preferred over `logBuffer.length = 0` for clarity and encapsulation.
+ */
+export function clearLogBuffer(): void {
+  logBuffer.length = 0;
+}
 
 /**
  * Format a log entry with timestamp and level.
@@ -47,15 +73,29 @@ export const logBuffer: string[] = [];
  * non-enumerable and would be lost by a plain `JSON.stringify`, which returns
  * `"{}"` for Error instances). Other values fall back to JSON.stringify with
  * a String() safety net for circular references.
+ *
+ * Special cases:
+ * - `undefined` is rendered as "undefined" (JSON.stringify returns undefined, not a string)
+ * - `null` is rendered as "null" (JSON.stringify handles this correctly)
+ * - Functions are rendered as "[Function: name]" to avoid noise
  */
 function formatLogEntry(level: string, args: unknown[]): string {
-    const ts = new Date().toISOString();
-    const msg = args.map(a => {
-        if (typeof a === 'string') return a;
-        if (a instanceof Error) return a.stack ?? `${a.name}: ${a.message}`;
-        try { return JSON.stringify(a); } catch { return String(a); }
-    }).join(' ');
-    return `[${ts}] [${level}] ${msg}`;
+  const ts = new Date().toISOString();
+  const msg = args
+    .map((a) => {
+      if (typeof a === "string") return a;
+      if (a === undefined) return "undefined";
+      if (a === null) return "null";
+      if (typeof a === "function") return `[Function: ${a.name || "anonymous"}]`;
+      if (a instanceof Error) return a.stack ?? `${a.name}: ${a.message}`;
+      try {
+        return JSON.stringify(a);
+      } catch {
+        return String(a);
+      }
+    })
+    .join(" ");
+  return `[${ts}] [${level}] ${msg}`;
 }
 
 /**
@@ -67,23 +107,23 @@ function formatLogEntry(level: string, args: unknown[]): string {
  * Vite HMR module reloads — without this, each HMR cycle wraps console
  * again, causing duplicate log buffer entries.
  */
-const LOG_CAPTURE_GUARD_KEY = '__rtcLogCaptureInstalled';
+const LOG_CAPTURE_GUARD_KEY = "__rtcLogCaptureInstalled";
 
 export function installLogCapture(): void {
-    if ((globalThis as Record<string, unknown>)[LOG_CAPTURE_GUARD_KEY]) return;
-    (globalThis as Record<string, unknown>)[LOG_CAPTURE_GUARD_KEY] = true;
+  if ((globalThis as Record<string, unknown>)[LOG_CAPTURE_GUARD_KEY]) return;
+  (globalThis as Record<string, unknown>)[LOG_CAPTURE_GUARD_KEY] = true;
 
-    const levels = ['debug', 'info', 'warn', 'error'] as const;
-    for (const level of levels) {
-        const original = console[level].bind(console);
-        console[level] = (...args: unknown[]) => {
-            logBuffer.push(formatLogEntry(level, args));
-            if (logBuffer.length > LOG_BUFFER_MAX) {
-                logBuffer.splice(0, logBuffer.length - LOG_BUFFER_MAX);
-            }
-            original(...args);
-        };
-    }
+  const levels = ["debug", "info", "warn", "error"] as const;
+  for (const level of levels) {
+    const original = console[level].bind(console);
+    console[level] = (...args: unknown[]) => {
+      logBuffer.push(formatLogEntry(level, args));
+      if (logBuffer.length > LOG_BUFFER_MAX) {
+        logBuffer.splice(0, logBuffer.length - LOG_BUFFER_MAX);
+      }
+      original(...args);
+    };
+  }
 }
 
 // ── CSS Deep Selector ──
@@ -94,40 +134,43 @@ export function installLogCapture(): void {
  * Supports `>>>` as a shadow-piercing combinator.
  * Example: `'rtc-agent >>> rtc-chat-layout >>> rtc-input-area'`
  */
-export function deepQuerySelector(root: Node, selector: string): Element | null {
-    const parts = selector.split(/\s*>>>\s*/);
-    let current: Node | null = root;
+export function deepQuerySelector(
+  root: Node,
+  selector: string
+): Element | null {
+  const parts = selector.split(/\s*>>>\s*/);
+  let current: Node | null = root;
 
-    for (let i = 0; i < parts.length; i++) {
-        if (!current) return null;
-        const part = parts[i].trim();
-        if (!part) continue;
+  for (let i = 0; i < parts.length; i++) {
+    if (!current) return null;
+    const part = parts[i].trim();
+    if (!part) continue;
 
-        let searchRoot: ParentNode;
-        if (current instanceof ShadowRoot) {
-            searchRoot = current;
-        } else if (current instanceof Element && current.shadowRoot) {
-            searchRoot = current.shadowRoot;
-        } else if (current instanceof Element) {
-            searchRoot = current.ownerDocument ?? document;
-        } else {
-            searchRoot = document;
-        }
-
-        const found: Element | null = searchRoot.querySelector(part);
-        if (!found) return null;
-
-        if (i === parts.length - 1) return found;
-
-        current = (found as Element).shadowRoot ?? found;
+    let searchRoot: ParentNode;
+    if (current instanceof ShadowRoot) {
+      searchRoot = current;
+    } else if (current instanceof Element && current.shadowRoot) {
+      searchRoot = current.shadowRoot;
+    } else if (current instanceof Element) {
+      searchRoot = current.ownerDocument ?? document;
+    } else {
+      searchRoot = document;
     }
 
-    return null;
+    const found: Element | null = searchRoot.querySelector(part);
+    if (!found) return null;
+
+    if (i === parts.length - 1) return found;
+
+    current = (found as Element).shadowRoot ?? found;
+  }
+
+  return null;
 }
 
 // ── Element Lookup ──
 
 /** Get the <rtc-agent> element from the page. */
 export function getAgentElement(): RtcAgent | null {
-    return document.querySelector<RtcAgent>('rtc-agent');
+  return document.querySelector<RtcAgent>("rtc-agent");
 }
