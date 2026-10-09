@@ -662,6 +662,10 @@ export class EventBindingController implements ReactiveController {
      * @param element The element to detach listeners from (typically `this` in rtc-agent.ts)
      */
     unbindEvents(element: Element) {
+        // Safety check: ensure handlers are initialized before removing
+        // (guards against calling unbindEvents before bindEvents)
+        if (!this._boundOnMinimize) return;
+
         // Window control
         element.removeEventListener('rtc-window-minimize', this._boundOnMinimize);
         element.removeEventListener('rtc-window-maximize', this._boundOnMaximize);
