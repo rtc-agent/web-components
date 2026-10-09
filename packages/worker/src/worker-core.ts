@@ -493,7 +493,8 @@ export class WorkerCore implements WorkerPersistenceCore {
 
     // Fix 55: Wrap all writes operations in a single transaction to ensure atomicity.
     // If any write fails, the entire batch is rolled back, preventing partial updates.
-    await db.transaction('rw', db.fileSystemEntries, async () => {
+    // Include ui_updates table to allow UIUpdateBus.publish() to persist events within this transaction.
+    await db.transaction('rw', db.fileSystemEntries, db.ui_updates, async () => {
       for (const file of files) {
         // Check if this is a protected file path (/AGENT.md or /scenarios/*.md)
         const isProtectedPath = this._isProtectedPath(file.path);

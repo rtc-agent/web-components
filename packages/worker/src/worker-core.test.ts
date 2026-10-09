@@ -43,7 +43,12 @@ describe('WorkerCore - batchWriteFiles (Fix 55)', () => {
                 put: vi.fn(),
                 delete: vi.fn(),
             },
-            transaction: vi.fn().mockImplementation(async (_mode, _tables, fn) => {
+            ui_updates: {
+                add: vi.fn(),
+            },
+            transaction: vi.fn().mockImplementation(async (_mode, ...args) => {
+                // Last argument is the transaction function
+                const fn = args[args.length - 1];
                 // Execute the transaction function
                 return fn();
             }),
@@ -97,7 +102,9 @@ describe('WorkerCore - batchWriteFiles (Fix 55)', () => {
             ];
 
             // Mock transaction to simulate failure
-            mockDb.transaction.mockImplementation(async (_mode: string, _tables: any[], fn: () => Promise<any>) => {
+            mockDb.transaction.mockImplementation(async (_mode: string, ...args: any[]) => {
+                // Last argument is the transaction function
+                const fn = args[args.length - 1] as () => Promise<any>;
                 try {
                     return await fn();
                 } catch (err) {
@@ -130,10 +137,11 @@ describe('WorkerCore - batchWriteFiles (Fix 55)', () => {
 
             await workerCore.batchWriteFiles(files);
 
-            // Verify transaction was called with 'rw' mode
+            // Verify transaction was called with 'rw' mode and both tables
             expect(mockDb.transaction).toHaveBeenCalledWith(
                 'rw',
                 mockDb.fileSystemEntries,
+                mockDb.ui_updates,
                 expect.any(Function)
             );
         });
