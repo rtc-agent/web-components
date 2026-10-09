@@ -102,7 +102,11 @@ export class FunctionGroup {
         }
 
         // Unknown property: log a warning to help debug typos or missing registrations
-        log.warn(`Function '${fullName}' is not registered. Available functions: ${Array.from(group.functions.keys()).map(k => k.split('.')[1]).join(', ')}`);
+        const availableFns = Array.from(group.functions.keys()).map(k => k.split('.')[1]);
+        const displayList = availableFns.length > 10
+          ? `${availableFns.slice(0, 10).join(', ')}, ... (${availableFns.length - 10} more)`
+          : availableFns.join(', ');
+        log.warn(`Function '${fullName}' is not registered. Available functions: ${displayList}`);
         return undefined;
       },
     }) as unknown as FunctionGroup & Record<string, (params?: Record<string, unknown>) => Promise<unknown>>;
@@ -406,9 +410,22 @@ export class FunctionRegistry {
     // Use user-defined hooks
     const hooks = funcDef.hooks || {};
 
-    // onStart handled separately; CancelledError is thrown directly without triggering onError
+    // onStart handled separately:
+    // - CancelledError is thrown directly without triggering onError hook (M13 design)
+    // - BUT we still emit 'function:error' event for any onStart exception (including CancelledError)
+    //   to maintain event symmetry: every 'function:start' must have a matching 'function:error' or 'function:success'
+    //   so UI listeners can reliably clean up loading state.
     if (hooks.onStart) {
-      await hooks.onStart(params);
+      try {
+        await hooks.onStart(params);
+      } catch (startErr) {
+        const err = startErr instanceof Error ? startErr : new Error(String(startErr));
+        // Emit error event for UI cleanup (fire-and-forget, like other event emissions)
+        const errorEvent: FunctionErrorEvent = { path, error: err };
+        eventBus.emit('function:error', errorEvent);
+        // Re-throw the original error (preserves CancelledError type for caller)
+        throw startErr;
+      }
     }
 
     // Main execution logic
@@ -652,7 +669,11 @@ export class FunctionRegistry {
         }
 
         // Unknown property: log a warning to help debug typos or missing registrations
-        log.warn(`'${prop}' is not a registered function group or public method. Available groups: ${Array.from(registry.groupProxies.keys()).join(', ')}`);
+        const availableGroups = Array.from(registry.groupProxies.keys());
+        const displayList = availableGroups.length > 10
+          ? `${availableGroups.slice(0, 10).join(', ')}, ... (${availableGroups.length - 10} more)`
+          : availableGroups.join(', ');
+        log.warn(`'${prop}' is not a registered function group or public method. Available groups: ${displayList}`);
         return undefined;
       },
     }) as unknown as FunctionRegistry & Record<string, FunctionGroup>;

@@ -64,16 +64,28 @@ export function schemaToTypeString(schema: OpenAPISchema): string {
  * Recursively generate detailed description table rows for a Schema
  *
  * References openapi-markdown's pathParameters.js logic
+ *
+ * @param schema OpenAPI schema to render
+ * @param name Field name to display
+ * @param required Whether the field is required
+ * @param description Optional field description (overrides schema.description)
+ * @param depth Nesting depth (used for tree-indent visualization)
+ * @param indentCache Cache for indent strings to avoid repeated allocations in recursion
  */
 function schemaToTableRows(
   schema: OpenAPISchema,
   name: string,
   required: boolean,
   description?: string,
-  depth: number = 0
+  depth: number = 0,
+  indentCache: string[] = []
 ): string[] {
   const rows: string[] = [];
-  const indent = ' '.repeat(depth);
+  // Lazy-compute and cache indent string for current depth
+  if (!indentCache[depth]) {
+    indentCache[depth] = ' '.repeat(depth);
+  }
+  const indent = indentCache[depth];
   const displayName = depth > 0 ? `└─ ${name}` : name;
 
   // Generate example value
@@ -100,7 +112,7 @@ function schemaToTableRows(
       const requiredFields = (schema.items.required || []) as string[];
       for (const [propName, propSchema] of Object.entries(schema.items.properties)) {
         const propRequired = requiredFields.includes(propName);
-        rows.push(...schemaToTableRows(propSchema, propName, propRequired, propSchema.description, depth + 1));
+        rows.push(...schemaToTableRows(propSchema, propName, propRequired, propSchema.description, depth + 1, indentCache));
       }
     }
     return rows;
@@ -116,7 +128,7 @@ function schemaToTableRows(
     const requiredFields = (schema.required || []) as string[];
     for (const [propName, propSchema] of Object.entries(schema.properties)) {
       const propRequired = requiredFields.includes(propName);
-      rows.push(...schemaToTableRows(propSchema, propName, propRequired, propSchema.description, depth + 1));
+      rows.push(...schemaToTableRows(propSchema, propName, propRequired, propSchema.description, depth + 1, indentCache));
     }
     return rows;
   }
