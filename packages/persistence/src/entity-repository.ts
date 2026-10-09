@@ -313,10 +313,15 @@ export class EntityRepository {
    *                Pass a smaller value for pagination scenarios.
    *
    * Performance notes:
-   * - This method loads all sessions from IndexedDB into memory, then filters and paginates.
+   * - This method loads ALL sessions from IndexedDB into memory, then filters (soft-delete) and
+   *   sorts in JavaScript. The `updated_at` index is defined in the schema but is NOT used here
+   *   because Dexie cannot combine index-based sorting with in-memory filtering on `deleted_at`.
    * - For typical use cases (< 1000 sessions), performance is acceptable.
-   * - For larger datasets, consider implementing true cursor-based pagination at the database level.
-   * - UI layer (session-tree) does not use virtual scrolling yet; rendering > 1000 sessions may cause lag.
+   * - For larger datasets, consider: (a) adding a compound index on [deleted_at+updated_at],
+   *   (b) using a separate "active sessions" view/table, or (c) implementing true cursor-based
+   *   pagination at the database level.
+   * - UI layer (session-tree) does not use virtual scrolling yet; rendering > 1000 sessions may
+   *   cause lag.
    *
    * @returns Array of active (non-deleted) sessions, ordered by updated_at descending.
    */
@@ -445,16 +450,18 @@ export class EntityRepository {
    * Count pending/running turns for a session in a single pass.
    * Used for write-time aggregation: after writing turn rows, the counts are written
    * back to the session row.
+   *
+   * IMPORTANT: The two queries are run sequentially (not in parallel) to ensure
+   * consistent counts when called within a transaction. Running them in parallel
+   * with Promise.all could interleave with other concurrent transactions (e.g.,
+   * from another tab via Dexie's observability), causing the two counts to see
+   * different snapshots of the turns table.
    */
   async countActiveTurns(sessionClientId: string): Promise<{ pending: number; running: number }> {
     const db = getDatabase();
-    // Dexie does not support multiple where() calls on the same query chain,
-    // and a WhereClause cannot be reused after a terminal call (.count(), .toArray(), etc.).
-    // Two independent queries are required; they run in parallel for performance.
-    const [pending, running] = await Promise.all([
-      db.turns.where('session_client_id').equals(sessionClientId).filter(t => t.status === 'pending').count(),
-      db.turns.where('session_client_id').equals(sessionClientId).filter(t => t.status === 'running').count(),
-    ]);
+    // Sequential queries for transaction consistency (see docstring above)
+    const pending = await db.turns.where('session_client_id').equals(sessionClientId).filter(t => t.status === 'pending').count();
+    const running = await db.turns.where('session_client_id').equals(sessionClientId).filter(t => t.status === 'running').count();
     return { pending, running };
   }
 
@@ -675,9 +682,20 @@ export class EntityRepository {
     };
 
     // Filter by device ID (execution-time filtering).
-    // Lenient mode: RTCs with empty/undefined session_device_id are allowed.
+    //
+    // SECURITY: This is the critical security boundary that prevents cross-device script execution.
+    // Only RTCs whose session_device_id matches the local Device ID are executed on this device.
+    //
+    // LENIENT MODE: RTCs with empty/undefined session_device_id are allowed. This is for backward
+    // compatibility with older RTCs that may not have device_id set. In production environments,
+    // all RTCs should have device_id set by the server. Consider strict mode (reject empty device_id)
+    // for high-security deployments.
+    //
+    // CROSS-TAB SAFETY: Device ID is stored in localStorage and shared across Tabs. If localStorage
+    // is unavailable, each Tab generates a different ephemeral UUID, which may cause RTC filtering
+    // to fail (scripts silently don't execute). Ensure localStorage is available in production.
     const matchesDevice = (rtc: LocalRtc): boolean => {
-      if (!rtc.session_device_id) return true;
+      if (!rtc.session_device_id) return true; // Lenient mode: allow empty device_id
       return rtc.session_device_id === this.deviceId;
     };
 
@@ -705,7 +723,12 @@ export class EntityRepository {
    * List RTCs for a session (ascending by offset).
    *
    * PERFORMANCE: Loads all RTCs for the session into memory before sorting/paginating.
-   * Acceptable for typical sessions; consider database-level pagination for sessions with many tool calls.
+   * Acceptable for typical sessions (<1000 RTCs); consider database-level pagination
+   * or indexed queries for sessions with many tool calls.
+   *
+   * NOTE: Device ID filtering is NOT applied here — this method returns all RTCs for
+   * the session regardless of device. Device filtering is only applied in
+   * getNextRtcToProcess() at execution time.
    */
   async listRtcBySession(
     sessionClientId: string,

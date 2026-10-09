@@ -211,6 +211,7 @@ export class FileCacheRepository {
    * Clear all cached files.
    */
   async clear(): Promise<void> {
+    this._lifecycleGuard.assertActive();  // P1-A: guard check
     const db = getDatabase();
     await db.fileCache.clear();
     log.info('cleared all file cache');
@@ -313,10 +314,14 @@ export class FileCacheRepository {
   /**
    * Update the sync status of a cached file.
    *
+   * Uses atomic `modify()` (not read-then-write) to prevent race conditions
+   * where concurrent operations could overwrite each other's changes.
+   *
    * @param md5 File content MD5 hash
    * @param ext File extension
    * @param status New sync status
    * @param errorMessage Error message (when status='failed')
+   * @throws Error if the entry does not exist
    */
   async updateSyncStatus(
     md5: string,
@@ -326,25 +331,26 @@ export class FileCacheRepository {
   ): Promise<void> {
     this._lifecycleGuard.assertActive();  // P1-A: guard check
     const db = getDatabase();
-    const entry = await db.fileCache.get([md5, ext]);
+    const key = [md5, ext];
 
-    if (!entry) {
+    let found = false;
+    await db.fileCache.where('[md5+ext]').equals(key).modify(entry => {
+      found = true;
+      entry.syncStatus = status;
+
+      if (status === 'synced') {
+        entry.syncedAt = Date.now();
+        entry.errorMessage = undefined;
+      } else if (status === 'failed') {
+        entry.errorMessage = errorMessage;
+        entry.retryCount = (entry.retryCount || 0) + 1;
+      }
+    });
+
+    if (!found) {
       throw new Error(`File cache entry not found: ${md5}.${ext}`);
     }
 
-    const updates: Partial<FileCacheEntry> = {
-      syncStatus: status,
-    };
-
-    if (status === 'synced') {
-      updates.syncedAt = Date.now();
-      updates.errorMessage = undefined;
-    } else if (status === 'failed') {
-      updates.errorMessage = errorMessage;
-      updates.retryCount = (entry.retryCount || 0) + 1;
-    }
-
-    await db.fileCache.update([md5, ext], updates);
     log.debug(`updated sync status: ${md5}.${ext} -> ${status}`);
   }
 
@@ -696,6 +702,9 @@ export class FileCacheRepository {
    * loading all candidates into memory at once. This avoids loading all synced entries
    * (with their Blob data) for a potentially large table.
    *
+   * P3-FIX: Entries with the same lastAccessedAt are processed atomically to prevent
+   * cursor-based pagination from splitting or duplicating them across batches.
+   *
    * @param targetBytes Number of bytes to free
    * @returns Actual evicted count and bytes freed
    */
@@ -704,45 +713,51 @@ export class FileCacheRepository {
     const BATCH_SIZE = 100;
     let evictedBytes = 0;
     let evictedCount = 0;
-
-    // P2-NEW-D: Use composite cursor to handle duplicate lastAccessedAt values
-    let lastProcessedTime = 0;
-    let lastProcessedKey = '';  // md5 + ext composite
+    let lastProcessedTime = -1;
 
     while (evictedBytes < targetBytes) {
-      // P2-F: load one batch at a time, ordered by lastAccessedAt ascending (oldest first)
-      // P2-NEW-D: Use composite condition to skip already-processed entries
+      // Load one batch of synced entries, ordered by lastAccessedAt ascending (oldest first)
       const batch = await db.fileCache
         .where('lastAccessedAt')
-        .aboveOrEqual(lastProcessedTime)
-        .filter(e => {
-          // Only include synced files
-          if (e.syncStatus !== 'synced') return false;
-
-          // P2-NEW-D: Skip entries we've already processed (same timestamp but earlier in sort order)
-          if (e.lastAccessedAt === lastProcessedTime) {
-            const key = `${e.md5}.${e.ext}`;
-            return key > lastProcessedKey;
-          }
-
-          return true;
-        })
+        .above(lastProcessedTime)
+        .filter(e => e.syncStatus === 'synced')
         .limit(BATCH_SIZE)
         .sortBy('lastAccessedAt');
 
       if (batch.length === 0) break;
 
+      // CRITICAL: If the last entry shares its timestamp with earlier entries,
+      // load ALL entries at that timestamp to avoid splitting them across batches.
+      // sortBy('lastAccessedAt') doesn't guarantee order within the same timestamp,
+      // so splitting could cause entries to be skipped or duplicated.
+      const lastTime = batch[batch.length - 1].lastAccessedAt;
+      const firstTimeAtLastIndex = batch.findIndex(e => e.lastAccessedAt === lastTime);
+
+      let entriesToConsider = batch;
+      if (firstTimeAtLastIndex >= 0 && firstTimeAtLastIndex < batch.length - 1) {
+        // Same timestamp spans multiple positions — load all entries at this timestamp
+        const allAtLastTime = await db.fileCache
+          .where('lastAccessedAt')
+          .equals(lastTime)
+          .filter(e => e.syncStatus === 'synced')
+          .toArray();
+        // Replace partial batch entries at lastTime with complete set
+        entriesToConsider = [
+          ...batch.slice(0, firstTimeAtLastIndex),
+          ...allAtLastTime,
+        ];
+      }
+
       const keysToDelete: [string, string][] = [];
-      for (const entry of batch) {
+      for (const entry of entriesToConsider) {
         if (evictedBytes >= targetBytes) break;
         keysToDelete.push([entry.md5, entry.ext]);
         evictedBytes += entry.size ?? 0;
         evictedCount++;
-
-        // P2-NEW-D: Update composite cursor
-        lastProcessedTime = entry.lastAccessedAt;
-        lastProcessedKey = `${entry.md5}.${entry.ext}`;
       }
+
+      // Advance cursor past the last processed timestamp
+      lastProcessedTime = lastTime;
 
       if (keysToDelete.length > 0) {
         await db.fileCache.bulkDelete(keysToDelete);
@@ -767,7 +782,8 @@ export class FileCacheRepository {
    * - Attempt 2: after 2s delay
    * - Attempt 3: after 4s delay (then throws)
    *
-   * Updates syncStatus and retryCount on each attempt.
+   * Updates syncStatus on each attempt. retryCount is managed atomically
+   * by transitionSyncStatus (when transitioning to 'failed').
    *
    * @param md5 File content MD5 hash
    * @param ext File extension
@@ -807,13 +823,14 @@ export class FileCacheRepository {
             return;
           }
           lastError = err as Error;
+          // transitionSyncStatus to 'failed' atomically increments retryCount,
+          // so no separate updateRetryCount call is needed.
           await this.updateSyncStatus(md5, ext, 'failed', String(err));
-          await this.updateRetryCount(md5, ext, attempt + 1);
-          log.warn(`sync attempt ${attempt + 1}/${MAX_RETRY_COUNT} failed for ${md5}.${ext} (retryCount=${attempt + 1}):`, err);
+          log.warn(`sync attempt ${attempt + 1}/${MAX_RETRY_COUNT} failed for ${md5}.${ext}:`, err);
         }
       }
 
-      log.error(`sync failed after ${MAX_RETRY_COUNT} retries for ${md5}.${ext} (final retryCount=${MAX_RETRY_COUNT})`, lastError);
+      log.error(`sync failed after ${MAX_RETRY_COUNT} retries for ${md5}.${ext}`, lastError);
       throw lastError!;
     });
   }
