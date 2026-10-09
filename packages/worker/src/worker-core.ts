@@ -378,6 +378,21 @@ export class WorkerCore implements WorkerPersistenceCore {
   // ========== Lifecycle ==========
 
   async close(): Promise<void> {
+    // Reference counting: only destroy shared resources if this is the last tab
+    // SharedWorker architecture: all tabs share the same core/layer/database
+    // If other tabs are still connected, skip teardown to avoid breaking their operations
+    if (this.callbacks.size > 0) {
+      log.debug(`close() called but ${this.callbacks.size} tabs still connected, skipping teardown`);
+      return;
+    }
+
+    log.info('Last tab disconnected, tearing down shared WorkerCore resources');
+
+    // Reset UIUpdateBus state to prevent publish() from accessing closed database
+    // bus.clear() resets _initialized flag, so subsequent publish() calls skip persistence
+    const bus = getUIUpdateBus();
+    bus.clear();
+
     // P3-R6-02: Abort all ongoing file operations before closing
     for (const [id, ac] of this._operationControllers) {
       log.debug(`aborting file operation: ${id}`);
