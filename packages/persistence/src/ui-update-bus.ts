@@ -319,7 +319,17 @@ export class UIUpdateBus {
         // Await the add() to get the actual auto-increment seq from IndexedDB
         // Type assertion: UIUpdateQueueInput is acceptable for add() since seq is auto-generated
         const input: UIUpdateQueueInput = { event: clonedEvent, timestamp: Date.now() };
-        seq = await db.ui_updates.add(input as UIUpdateQueueEntry);
+
+        // Handle nested transactions: if we're already inside a transaction,
+        // use tx.table() instead of db.ui_updates to avoid "Table not included in parent transaction" error
+        const tx = (db.constructor as any).currentTransaction;
+        if (tx) {
+          // Inside a transaction - use the transaction's table reference
+          seq = await tx.table('ui_updates').add(input);
+        } else {
+          // No transaction - create implicit transaction via db table
+          seq = await db.ui_updates.add(input as UIUpdateQueueEntry);
+        }
       } catch (err) {
         log.warn('Failed to persist UI update to queue (seq not advanced):', err);
       }
