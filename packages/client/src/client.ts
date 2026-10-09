@@ -54,9 +54,14 @@ export class GapFillTimeoutError extends Error {
   constructor(
     readonly channel: string,
     readonly targetOffset: number,
-    readonly elapsedMs: number
+    readonly elapsedMs: number,
+    readonly currentOffset: number,
+    readonly remainingGap: number
   ) {
-    super(`Gap fill timeout after ${elapsedMs}ms: channel=${channel}, target=${targetOffset}`);
+    super(
+      `Gap fill timeout after ${elapsedMs}ms: channel=${channel}, ` +
+      `target=${targetOffset}, current=${currentOffset}, remaining=${remainingGap}`
+    );
     this.name = 'GapFillTimeoutError';
   }
 }
@@ -150,6 +155,10 @@ export class RTCAgentClient implements IRTCAgentClient {
 
         // Only trigger the refresh callback when the token is actually expired,
         // avoiding unnecessary HTTP requests on every reconnect.
+        //
+        // CONCURRENCY: If multiple tabs detect token expiry simultaneously, they may
+        // all call onTokenExpired(). The AuthController's _executeRefreshWithGuard() uses
+        // a shared Promise guard to ensure only one refresh executes; others wait for it.
         if (this._isTokenExpired(token) && this.options.onTokenExpired) {
           log.warn('[Centrifuge] token is expired, requesting refresh...');
           const action: TokenExpiredAction = await this.options.onTokenExpired();
@@ -220,7 +229,12 @@ export class RTCAgentClient implements IRTCAgentClient {
         const oldCentrifuge = this.centrifuge;
         this.centrifuge = null; // Clear reference to prevent subsequent ops on old instance.
         oldCentrifuge?.disconnect(); // Explicit disconnect to stop auto-reconnect.
-        this.handleInvalidToken();
+        // Fire-and-forget: handleInvalidToken() manages its own error handling and
+        // reconnection scheduling. We return here to avoid falling through to the
+        // generic setConnectionState() below — handleInvalidToken() will set the
+        // appropriate connection state itself.
+        void this.handleInvalidToken();
+        return;
       }
 
       // Detect message-size-limit exceeded: server rejects the connection and Centrifuge
@@ -526,12 +540,18 @@ export class RTCAgentClient implements IRTCAgentClient {
   /**
    * Wait for gap fill to reach the target offset.
    * Polls the current offset until it reaches the target or gap fill completes.
+   * Uses exponential backoff (100ms → 200ms → 400ms → ... → 2000ms) to reduce
+   * frequent IndexedDB queries during large gap fills.
    * @throws {GapFillTimeoutError} If gap fill doesn't complete within timeout
    * @throws {Error} If wait is aborted (e.g., during disconnect)
    */
   private async waitForGapFill(channel: string, targetOffset: number): Promise<void> {
     const MAX_WAIT_MS = 30000; // 30 seconds timeout
-    const POLL_INTERVAL_MS = 100;
+    const INITIAL_POLL_INTERVAL_MS = 100;
+    const MAX_POLL_INTERVAL_MS = 2000;
+    const BACKOFF_MULTIPLIER = 2;
+
+    let pollInterval = INITIAL_POLL_INTERVAL_MS;
     const startTime = Date.now();
 
     // Create AbortController for this gap fill wait
@@ -565,19 +585,30 @@ export class RTCAgentClient implements IRTCAgentClient {
           return; // Gap fill completed (or failed) for this channel
         }
 
-        // Wait a bit before checking again, but abortable
+        // Wait with exponential backoff before checking again, but abortable
         await new Promise<void>((resolve, reject) => {
-          const timer = setTimeout(resolve, POLL_INTERVAL_MS);
+          const timer = setTimeout(resolve, pollInterval);
           waitAbort.signal.addEventListener('abort', () => {
             clearTimeout(timer);
             reject(new Error(`Gap fill aborted for channel ${channel}`));
           }, { once: true });
         });
+
+        // Increase poll interval for next iteration (exponential backoff)
+        pollInterval = Math.min(pollInterval * BACKOFF_MULTIPLIER, MAX_POLL_INTERVAL_MS);
       }
 
       // Timeout — throw explicit error instead of silent return
       const elapsedMs = Date.now() - startTime;
-      throw new GapFillTimeoutError(channel, targetOffset, elapsedMs);
+      const position = await this.options.getLastOffset?.(channel);
+      const currentOffset = position?.offset ?? 0;
+      throw new GapFillTimeoutError(
+        channel,
+        targetOffset,
+        elapsedMs,
+        currentOffset,
+        targetOffset - currentOffset
+      );
     } finally {
       // Only delete if this controller is still the stored one (fix: concurrent calls don't clobber)
       if (this._gapFillAbortControllers.get(mapKey) === waitAbort) {
@@ -756,6 +787,11 @@ export class RTCAgentClient implements IRTCAgentClient {
   /**
    * Run gap fill for a channel until reaching targetOffset.
    * Fetches history in batches, accumulates to 100+ updates, then deduplicates at item level.
+   *
+   * RECOVERY: If the connection drops during gap fill, disconnect() clears gapFillTasks
+   * and lastOffsetCache. On reconnect, subscribeChannels() re-detects offset continuity
+   * and re-schedules gap fill from the last persisted offset (in IndexedDB). This may
+   * cause some updates to be re-fetched, but deduplicateUpdates() ensures idempotency.
    */
   private async runGapFill(channel: string, targetOffset: number, epoch: string): Promise<void> {
     const sub = this.subscriptions.get(channel);
@@ -1107,12 +1143,15 @@ export class RTCAgentClient implements IRTCAgentClient {
    * - Token format or signature issues
    *
    * This method calls onTokenExpired and decides whether to reconnect based on the action.
+   * If onTokenExpired throws, treats it as relogin required to prevent infinite retry loops.
    */
   private async handleInvalidToken(): Promise<void> {
     if (!this.options.onTokenExpired) {
       log.warn('invalid token but no onTokenExpired callback provided');
       return;
     }
+
+    log.info('handleInvalidToken: server rejected token, triggering refresh');
 
     try {
       const action: TokenExpiredAction = await this.options.onTokenExpired();
@@ -1135,12 +1174,21 @@ export class RTCAgentClient implements IRTCAgentClient {
         }, RTCAgentClient.RECONNECT_AFTER_TOKEN_REFRESH_DELAY_MS);
       }
     } catch (err) {
-      log.error('handleInvalidToken failed:', err);
+      // SECURITY: onTokenExpired threw an error — treat as relogin required to prevent
+      // infinite retry loops. Log the error but do not expose details to the user.
+      log.error('handleInvalidToken: onTokenExpired threw an error, treating as relogin required:', err);
+      this.shouldReconnect = false;
+      this.centrifuge?.disconnect();
+      this.setConnectionState('disconnected', 'token refresh failed');
     }
   }
 
   /**
    * Check whether a JWT has expired.
+   *
+   * SECURITY: This method only checks the `exp` claim without verifying the signature.
+   * It is used solely to decide whether to trigger a token refresh, NOT for authorization decisions.
+   * The server always validates the signature; a forged token will be rejected at connection time.
    *
    * Parses the exp claim from the JWT payload (Unix timestamp in seconds)
    * and compares it with the current time. Returns false on parse failure

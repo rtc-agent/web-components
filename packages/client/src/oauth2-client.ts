@@ -115,6 +115,10 @@ export class OAuth2Client {
   /**
    * Fetch the OAuth2 authorization URL with PKCE support.
    *
+   * SECURITY: The `state` parameter is generated and validated by the caller (e.g., AuthProvider).
+   * This client only forwards the state to the server; it does not store or verify it.
+   * The server validates state via Redis + Lua GetDel to prevent replay attacks.
+   *
    * @param provider Provider name (e.g. 'github', 'google', 'mock')
    * @param pkce PKCE parameters (code_challenge and code_challenge_method)
    * @returns Response containing redirect_url and state
@@ -194,6 +198,10 @@ export class OAuth2Client {
    *
    * Retry strategy: 1 retry with 1s delay on 502, 503, 504, 429 (network errors).
    * 4xx errors are NOT retried (client error, not transient).
+   *
+   * SECURITY: Retry limit is intentionally low (1 retry) to prevent resource exhaustion
+   * attacks. If the external JWT is invalid or expired, retries would waste resources;
+   * the caller should handle the error and prompt the user to re-authenticate.
    *
    * @param params Token exchange request parameters
    * @returns Token exchange response with RTC JWT
@@ -303,8 +311,10 @@ export class OAuth2Client {
       });
 
       if (!resp.ok) {
-        // Only include HTTP status code in error message to avoid leaking sensitive server response details
-        throw new Error(`OAuth2 API error ${resp.status}: ${resp.statusText || 'Request failed'}`);
+        // SECURITY: Only include HTTP status code in error message to avoid leaking
+        // sensitive server response details (internal paths, database errors, etc.).
+        // This prevents information disclosure attacks.
+        throw new Error(`OAuth2 API error ${resp.status}`);
       }
 
       return resp;
