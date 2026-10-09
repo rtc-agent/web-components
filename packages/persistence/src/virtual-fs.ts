@@ -39,7 +39,7 @@ export class PathError extends Error {
  */
 export function normalizePath(path: string): string {
   if (!path || typeof path !== 'string') {
-    throw new PathError('EINVAL', 'Path must be a non-empty string');
+    throw new PathError('EINVAL', `Path must be a non-empty string, got: ${JSON.stringify(path)}`);
   }
 
   let normalized = path.startsWith('/') ? path : '/' + path;
@@ -273,24 +273,25 @@ export class VirtualFS {
     const children = new Set<string>();
 
     if (normalizedPath === '/') {
-      // Use range query to get all entries efficiently
-      const allEntries = await db.fileSystemEntries.toCollection().toArray();
-      for (const entry of allEntries) {
-        const parts = entry.path.split('/').filter(Boolean);
+      // PERF: Use keys() to avoid loading full entry content (content can be large).
+      // Only the primary key (path) is needed to extract top-level directory names.
+      const allKeys = await db.fileSystemEntries.toCollection().keys();
+      for (const key of allKeys) {
+        const parts = (key as string).split('/').filter(Boolean);
         if (parts.length > 0) {
           children.add(parts[0]);
         }
       }
     } else {
       const prefix = normalizedPath + '/';
-      // Use startsWith for efficient index-based query
-      const entries = await db.fileSystemEntries
+      // Use startsWith for efficient index-based query; keys() avoids loading content
+      const keys = await db.fileSystemEntries
         .where('path')
         .startsWith(prefix)
-        .toArray();
+        .keys();
 
-      for (const entry of entries) {
-        const remaining = entry.path.substring(prefix.length);
+      for (const key of keys) {
+        const remaining = (key as string).substring(prefix.length);
         const parts = remaining.split('/');
         if (parts.length > 0) {
           children.add(parts[0]);
@@ -313,28 +314,29 @@ export class VirtualFS {
     log.debug('find: pattern:', pattern, 'path:', normalizedPath);
     const db = getDatabase();
 
-    let entries: FileSystemEntry[];
+    let paths: string[];
 
     if (normalizedPath === '/') {
-      entries = await db.fileSystemEntries.toCollection().toArray();
+      // PERF: Use keys() — only paths are needed for glob matching, not file content
+      paths = await db.fileSystemEntries.toCollection().keys() as string[];
     } else {
       const prefix = normalizedPath + '/';
-      // Use startsWith for efficient index-based query
-      entries = await db.fileSystemEntries
+      // Use startsWith for efficient index-based query; keys() avoids loading content
+      paths = await db.fileSystemEntries
         .where('path')
         .startsWith(prefix)
-        .toArray();
+        .keys() as string[];
     }
 
     const matches: string[] = [];
 
-    for (const entry of entries) {
+    for (const p of paths) {
       const relativePath = normalizedPath === '/'
-        ? entry.path.substring(1)
-        : entry.path.substring(normalizedPath.length + 1);
+        ? p.substring(1)
+        : p.substring(normalizedPath.length + 1);
 
-      if (matchGlob(pattern, relativePath) || matchGlob(pattern, entry.path)) {
-        matches.push(entry.path);
+      if (matchGlob(pattern, relativePath) || matchGlob(pattern, p)) {
+        matches.push(p);
       }
     }
 

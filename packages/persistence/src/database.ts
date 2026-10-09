@@ -590,33 +590,20 @@ export async function closeDatabase(): Promise<void> {
 
 /**
  * Flush all data (for development/testing).
+ *
+ * Uses Dexie's dynamic table enumeration to avoid maintaining a manual table list.
+ * When new tables are added to the schema, they are automatically included.
  */
 export async function flushAll(): Promise<void> {
   log.warn('flushAll: clearing all database tables');
   const db = getDatabase();
-  const tables = [
-    db.sessions,
-    db.turns,
-    db.messages,
-    db.rtcs,
-    db.offsets,
-    db.fileSystemEntries,
-    db.debugHistory,
-    db.ui_updates,
-    db.fileCache,
-    db.uploadParts,  // P2-3 fix: clear multipart upload progress records
-  ];
+  // Dexie exposes all registered tables via db.tables (derived from version().stores())
+  const tables = db.tables;
+  const tableNames = tables.map(t => t.name);
   await db.transaction('rw', tables, async () => {
-    await db.sessions.clear();
-    await db.turns.clear();
-    await db.messages.clear();
-    await db.rtcs.clear();
-    await db.offsets.clear();
-    await db.fileSystemEntries.clear();
-    await db.debugHistory.clear();
-    await db.ui_updates.clear();
-    await db.fileCache.clear();
-    await db.uploadParts.clear();  // P2-3 fix
+    for (const table of tables) {
+      await table.clear();
+    }
   });
-  log.info(`flushAll: cleared ${tables.length} tables`);
+  log.info(`flushAll: cleared ${tables.length} tables (${tableNames.join(', ')})`);
 }

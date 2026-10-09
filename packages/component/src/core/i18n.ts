@@ -1,9 +1,7 @@
 import { configureLocalization } from '@lit/localize';
 import { createContext } from '@lit/context';
 import type { LocaleModule } from '@lit/localize';
-import {createLogger} from '@rtc-agent/client';
-
-const log = createLogger('I18n');
+import { safeLocalStorageGet, safeLocalStorageSet } from '../utils/safe-local-storage.js';
 
 // 1. Locale codes
 export const sourceLocale = 'zh-CN' as const;
@@ -64,15 +62,12 @@ function getInitialLocale(hostLang?: string): SupportedLocale {
   if (hostLang && isValidLocale(hostLang)) {
     return hostLang;
   }
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved && isValidLocale(saved)) {
-      return saved;
-    }
-  } catch (err) {
-    // localStorage unavailable — fall through to browser language
-    log.debug('localStorage unavailable for reading locale:', err);
+  // 2. Persisted preference in localStorage
+  const saved = safeLocalStorageGet(STORAGE_KEY);
+  if (saved && isValidLocale(saved)) {
+    return saved;
   }
+  // 3. Browser language
   const browserLang = navigator.language;
   if (isValidLocale(browserLang)) {
     return browserLang;
@@ -90,12 +85,7 @@ export async function initLocale(hostLang?: string): Promise<void> {
 }
 
 export function persistLocale(locale: SupportedLocale): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, locale);
-  } catch (err) {
-    // localStorage may be unavailable (private browsing, quota exceeded)
-    log.debug('localStorage unavailable for persisting locale:', err);
-  }
+  safeLocalStorageSet(STORAGE_KEY, locale);
 }
 
 /**

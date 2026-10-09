@@ -1,36 +1,23 @@
 // Data storage module (demo uses localStorage, does not write into the virtual file system)
 
-import {createLogger} from '@rtc-agent/client';
-
-const log = createLogger('Storage');
+import { safeLocalStorageGetJSON, safeLocalStorageSetJSON } from './utils/safe-local-storage.js';
 
 // Use rtc_ prefix to follow localStorage key naming convention
 const STORAGE_KEY = 'rtc_agent_tasks';
 
 export interface Task {
-    id: string;
-    title: string;
-    completed: boolean;
-    priority: 'low' | 'medium' | 'high';
-    dueDate: string | null;
-    createdAt: string;
+  id: string;
+  title: string;
+  completed: boolean;
+  priority: 'low' | 'medium' | 'high';
+  dueDate: string | null;
+  createdAt: string;
 }
 
 export async function loadTasks(): Promise<Task[]> {
-    try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        return raw ? JSON.parse(raw) : [];
-    } catch (err) {
-        log.debug('Failed to load tasks from localStorage:', err);
-        return [];
-    }
+  return safeLocalStorageGetJSON<Task[]>(STORAGE_KEY, []);
 }
 
 export async function saveTasks(tasks: Task[]): Promise<void> {
-    try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
-    } catch (err) {
-        // localStorage may be unavailable (private browsing, quota exceeded)
-        log.debug('Failed to save tasks to localStorage:', err);
-    }
+  safeLocalStorageSetJSON(STORAGE_KEY, tasks);
 }
