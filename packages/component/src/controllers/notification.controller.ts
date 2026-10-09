@@ -111,6 +111,15 @@ export class NotificationController implements ReactiveController {
         this._abortController.abort();
         this._abortController = new AbortController();
         this.host.removeAttribute('data-notification');
+
+        // Fix: Clear dependency references to prevent memory leaks in React StrictMode
+        // double-mount scenario. Dependencies are re-injected by root in connectedCallback.
+        this.sessionController = undefined;
+        this.messageController = undefined;
+        this.toastController = undefined;
+        this.windowStateController = undefined;
+        this.settingsController = undefined;
+        this.persistence = undefined;
     }
 
     // ─── Audio management ──────────────────────────────────

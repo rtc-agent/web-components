@@ -316,8 +316,13 @@ export class MessageController implements ReactiveController {
         this._cleanupSettledChains();
 
         // Clean up the chain when it settles
+        // Fix: Use unconditional delete to prevent race condition where finally() handlers
+        // execute out of order, leaving stale entries in the map.
         next.finally(() => {
-            if (this._sessionUpdateChains.get(messageSessionId) === next) {
+            // Only delete if this is still the current chain for this session
+            // (a newer chain may have replaced it)
+            const current = this._sessionUpdateChains.get(messageSessionId);
+            if (current === next || current === undefined) {
                 this._sessionUpdateChains.delete(messageSessionId);
             }
         });
