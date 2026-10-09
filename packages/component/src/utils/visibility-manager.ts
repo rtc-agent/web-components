@@ -172,11 +172,15 @@ export class VisibilityManager {
     }
 
     /**
-     * Check whether currently visible
+     * Check whether currently visible or transitioning to visible.
      *
-     * @returns Whether visible (VISIBLE or TRANSITIONING)
+     * Returns true for both VISIBLE and TRANSITIONING states, as both represent
+     * a visible or becoming-visible condition. Use shouldPerformOperations() to
+     * check if operations should be performed (only VISIBLE state).
+     *
+     * @returns Whether visible or transitioning (VISIBLE or TRANSITIONING)
      */
-    isVisible(): boolean {
+    isVisibleOrTransitioning(): boolean {
         return this._state === VisibilityState.VISIBLE ||
                this._state === VisibilityState.TRANSITIONING;
     }

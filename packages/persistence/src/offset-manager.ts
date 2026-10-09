@@ -192,7 +192,6 @@ export class OffsetManager {
    * @returns The loaded position, or undefined if not found
    */
   async warmCache(channel: string): Promise<{ offset: number; epoch: string } | undefined> {
-    // This is effectively the same as getPosition, but makes the intent clear
     return this.getPosition(channel);
   }
 

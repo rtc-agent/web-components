@@ -182,17 +182,29 @@ async function emitUIUpdates(
 /**
  * Safely clone an object to ensure it is serializable via the structured clone algorithm.
  *
- * Uses JSON serialize/deserialize to strip non-cloneable objects (functions, DOM elements,
- * circular references, etc.). Returns an empty object if serialization fails to avoid
- * DataCloneError.
+ * Uses `structuredClone()` when available (preferred for performance and correctness),
+ * falling back to JSON serialize/deserialize for environments that don't support it.
+ * JSON fallback strips non-cloneable objects (functions, DOM elements, etc.).
  *
- * Returns Record<string, unknown> since JSON.parse always produces a plain object.
+ * Returns an empty object if serialization fails to avoid DataCloneError.
+ *
+ * Returns Record<string, unknown> since both methods produce plain objects.
  */
 function safeClone(obj: object): Record<string, unknown> {
   try {
+    // Prefer structuredClone for performance and to preserve more data types
+    if (typeof structuredClone === 'function') {
+      return structuredClone(obj) as Record<string, unknown>;
+    }
+  } catch {
+    // structuredClone failed (e.g., non-cloneable object), fall through to JSON
+  }
+
+  try {
+    // Fallback to JSON for environments without structuredClone or when it fails
     return JSON.parse(JSON.stringify(obj)) as Record<string, unknown>;
   } catch {
-    // Serialization failed (e.g. circular reference); return empty object
+    // JSON serialization also failed (e.g. circular reference); return empty object
     log.warn('safeClone: failed to clone object, returning empty object');
     return {};
   }

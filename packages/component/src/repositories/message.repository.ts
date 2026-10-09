@@ -60,11 +60,11 @@ export class MessageRepository {
     /** Per-session subscriber sets. */
     private _subscribers = new Map<string, Set<SessionDataCallback>>();
 
-    /** Tracks sessions with an in-flight loadMore (backward) request. */
-    private _loadingSessions = new Set<string>();
+    /** Tracks sessions with an in-flight backward pagination request (for deduplication). */
+    private _loadingBackwardSessions = new Set<string>();
 
-    /** Tracks sessions with an in-flight loadNewer (forward) request. */
-    private _loadingNewerSessions = new Set<string>();
+    /** Tracks sessions with an in-flight forward pagination request (for deduplication). */
+    private _loadingForwardSessions = new Set<string>();
 
     /** Per-session oldest loaded cursor for backward pagination. Format: "${timestamp}|${clientId}" */
     private _oldestCursors = new Map<string, string>();
@@ -209,7 +209,7 @@ export class MessageRepository {
 
         log.debug(
             `loadMore(${sessionId}) called: hasMore=${current.hasMore}, ` +
-            `isLoading=${this._loadingSessions.has(sessionId)}, cachedMessages=${current.messages.length}`
+            `isLoading=${this._loadingBackwardSessions.has(sessionId)}, cachedMessages=${current.messages.length}`
         );
 
         // Nothing to load
@@ -219,7 +219,7 @@ export class MessageRepository {
         }
 
         // Already loading — return current state
-        if (this._loadingSessions.has(sessionId)) {
+        if (this._loadingBackwardSessions.has(sessionId)) {
             log.debug(`loadMore(${sessionId}): early return - already loading`);
             return current.messages;
         }
@@ -231,7 +231,7 @@ export class MessageRepository {
         );
 
         // Mark loading
-        this._loadingSessions.add(sessionId);
+        this._loadingBackwardSessions.add(sessionId);
         this._setState(sessionId, {...current, isLoadingMore: true});
 
         try {
@@ -260,7 +260,7 @@ export class MessageRepository {
 
             return this._getState(sessionId).messages;
         } finally {
-            this._loadingSessions.delete(sessionId);
+            this._loadingBackwardSessions.delete(sessionId);
         }
     }
 
@@ -281,12 +281,12 @@ export class MessageRepository {
         if (!current.hasMoreNewer) return current.messages;
 
         // Already loading — return current state
-        if (this._loadingNewerSessions.has(sessionId)) return current.messages;
+        if (this._loadingForwardSessions.has(sessionId)) return current.messages;
 
         const newestCursor = this._newestCursors.get(sessionId);
 
         // Mark loading
-        this._loadingNewerSessions.add(sessionId);
+        this._loadingForwardSessions.add(sessionId);
         this._setState(sessionId, {...current, isLoadingNewer: true});
 
         try {
@@ -317,7 +317,7 @@ export class MessageRepository {
 
             return this._getState(sessionId).messages;
         } finally {
-            this._loadingNewerSessions.delete(sessionId);
+            this._loadingForwardSessions.delete(sessionId);
         }
     }
 
@@ -349,8 +349,8 @@ export class MessageRepository {
     evictSession(sessionId: string): void {
         this._sessions.delete(sessionId);
         this._subscribers.delete(sessionId);
-        this._loadingSessions.delete(sessionId);
-        this._loadingNewerSessions.delete(sessionId);
+        this._loadingBackwardSessions.delete(sessionId);
+        this._loadingForwardSessions.delete(sessionId);
         this._oldestCursors.delete(sessionId);
         this._newestCursors.delete(sessionId);
     }

@@ -891,7 +891,7 @@ export class MessageVirtualScroll<T> {
      * @deprecated Use visibilityManager.state instead
      */
     isVisible(): boolean {
-        return this._visibilityManager.isVisible();
+        return this._visibilityManager.isVisibleOrTransitioning();
     }
 
     /**
@@ -1442,7 +1442,7 @@ export class MessageVirtualScroll<T> {
     // ── Viewport Slicing (Hybrid: Timer + Scroll-debounce) ──
 
     /**
-     * Check if the scroll container is currently visible.
+     * Check whether the container is visible or transitioning to visible.
      * Uses the visibility state machine as the single source of truth.
      *
      * The visibility state machine (VisibilityManager) tracks:
@@ -1454,7 +1454,7 @@ export class MessageVirtualScroll<T> {
      * visibility: hidden CSS (which preserves layout dimensions).
      */
     private _isContainerVisible(): boolean {
-        return this._visibilityManager.isVisible();
+        return this._visibilityManager.isVisibleOrTransitioning();
     }
 
     /**
