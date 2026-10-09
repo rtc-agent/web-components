@@ -940,14 +940,20 @@ export class RtcAgent extends LitElement {
     private _fileStorage: FileStorage | null = null;
 
     /**
-     * Initialize FileStorage when WorkerBridge and userId are available
+     * Initialize FileStorage when WorkerBridge and userId are available.
+     *
+     * Delegates to PersistenceController.fileStorage getter to avoid creating
+     * duplicate FileStorage instances — PersistenceController lazily creates
+     * and caches its own instance, so we reuse it as the single source of truth.
      */
     private _initializeFileStorage(): void {
-        const workerBridge = this._persistence.workerBridge;
-        const userId = this._auth.value.state.userId;
-
-        if (workerBridge && userId && !this._fileStorage) {
-            this._fileStorage = new FileStorage(workerBridge, userId);
+        if (!this._fileStorage && this._persistence.isConnected) {
+            try {
+                this._fileStorage = this._persistence.fileStorage;
+            } catch {
+                // fileStorage getter throws if workerBridge or userId is unavailable;
+                // will retry on next updated() cycle when dependencies are ready.
+            }
         }
     }
 
@@ -1040,8 +1046,12 @@ export class RtcAgent extends LitElement {
         // Initialize FileStorage when WorkerBridge is available
         this._initializeFileStorage();
 
-        // Initialize EventBindingController with all dependencies
-        this._eventBindings = new EventBindingController(this, {
+        // Initialize EventBindingController with all dependencies.
+        // Reuse existing instance on re-mount (React StrictMode) to prevent leaking
+        // controllers in Lit's internal controller list. The deps object uses closures
+        // over `this` for all mutable state, so the same controller instance stays current.
+        if (!this._eventBindings) {
+            this._eventBindings = new EventBindingController(this, {
             // Controllers
             windowState: this._windowState,
             auth: this._auth,
@@ -1104,6 +1114,7 @@ export class RtcAgent extends LitElement {
             // Logger
             log,
         });
+        }
 
         // Bind all DOM event listeners via EventBindingController
         this._eventBindings.bindEvents(this);

@@ -530,6 +530,15 @@ describe('NotificationController', () => {
             // Reconnect
             controller.hostConnected();
 
+            // Re-inject dependencies (hostDisconnected clears them; root component
+            // re-injects in connectedCallback, but the test host doesn't do that).
+            controller.sessionController = mockSessionController;
+            controller.messageController = mockMessageController;
+            controller.toastController = mockToastController;
+            controller.windowStateController = mockWindowStateController;
+            controller.settingsController = mockSettingsController;
+            controller.persistence = mockPersistence;
+
             // New AbortController should be active
             expect((controller as any)._abortController.signal.aborted).toBe(false);
 

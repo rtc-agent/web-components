@@ -523,6 +523,17 @@ export class PersistenceController implements ReactiveController {
         // Connect (starts Centrifuge WebSocket inside Worker)
         await bridge.core.connect();
 
+        // Checkpoint: if disconnect() was called during the connect() await,
+        // tear down the just-connected bridge and exit gracefully.
+        // Without this, MasterLock would be created on a disconnected controller,
+        // and the WebSocket connection would remain open without any owner.
+        if (this._workerBridge !== bridge) {
+            log.warn('disconnect() fired during bridge.core.connect(), tearing down');
+            this._layer = undefined;  // Clear layer set at line 521 (disconnect already cleared its copy)
+            await bridge.destroy().catch(() => {});
+            return;
+        }
+
         // Create MasterLock and start election
         const userId = this._auth.state.userId;
         if (userId) {
