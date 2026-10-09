@@ -211,7 +211,7 @@ export class VirtualFS {
     const type = this.inferFileType(normalizedPath);
 
     // Wrap read-modify-write in transaction to prevent race conditions
-    return db.transaction('rw', db.fileSystemEntries, async () => {
+    return db.transaction('rw', db.fileSystemEntries, db.ui_updates, async () => {
       const existing = await db.fileSystemEntries.get(normalizedPath);
 
       // create-new mode: skip write if file already exists
@@ -599,7 +599,7 @@ export class VirtualFS {
     }
 
     // Wrap read-modify-write in transaction to prevent race conditions
-    return db.transaction('rw', db.fileSystemEntries, async () => {
+    return db.transaction('rw', db.fileSystemEntries, db.ui_updates, async () => {
       const entry = await db.fileSystemEntries.get(normalizedPath);
       if (!entry) {
         throw new PathError('ENOENT', `File not found: ${normalizedPath}`);
@@ -671,7 +671,7 @@ export class VirtualFS {
     const db = getDatabase();
 
     // FIX: Perform existence check and delete within the same transaction
-    await db.transaction('rw', db.fileSystemEntries, async () => {
+    await db.transaction('rw', db.fileSystemEntries, db.ui_updates, async () => {
       const entry = await db.fileSystemEntries.get(normalizedPath);
       if (!entry) {
         log.debug('remove: file not found:', normalizedPath);

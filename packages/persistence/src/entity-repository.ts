@@ -224,7 +224,7 @@ export class EntityRepository {
 
     // Wrap read-modify-write in transaction for atomicity.
     // Dexie supports transaction nesting: if already inside a transaction, reuses parent.
-    return db.transaction('rw', db.sessions, async () => {
+    return db.transaction('rw', db.sessions, db.ui_updates, async () => {
       // Look up by client_id (inside transaction)
       let existing: LocalSession | undefined;
       if (session.client_id) {
@@ -356,7 +356,7 @@ export class EntityRepository {
     log.debug(`softDeleteSession: setting deleted_at=${now} for ${clientId}`);
 
     // Perform existence check and upsert within the same transaction
-    return db.transaction('rw', db.sessions, async () => {
+    return db.transaction('rw', db.sessions, db.ui_updates, async () => {
       const existing = await db.sessions.get(clientId);
       if (!existing) {
         throw new Error(`[EntityRepository] softDeleteSession: session not found: ${clientId}`);
@@ -383,7 +383,7 @@ export class EntityRepository {
     const now = nowRFC3339();
 
     // Wrap read-modify-write in transaction for atomicity
-    return db.transaction('rw', db.turns, async () => {
+    return db.transaction('rw', db.turns, db.ui_updates, async () => {
       let existing: LocalTurn | undefined;
       if (turn.client_id) {
         existing = await db.turns.where('client_id').equals(turn.client_id).first();
@@ -457,7 +457,7 @@ export class EntityRepository {
     const now = nowRFC3339();
 
     // Wrap read-modify-write in transaction for atomicity
-    return db.transaction('rw', db.messages, async () => {
+    return db.transaction('rw', db.messages, db.ui_updates, async () => {
       let existing: LocalMessage | undefined;
       if (message.client_id) {
         existing = await db.messages.where('client_id').equals(message.client_id).first();
@@ -588,7 +588,7 @@ export class EntityRepository {
     const now = nowRFC3339();
 
     // Wrap read-modify-write in transaction for atomicity
-    return db.transaction('rw', db.rtcs, async () => {
+    return db.transaction('rw', db.rtcs, db.ui_updates, async () => {
       let existing: LocalRtc | undefined;
       if (rtc.client_id) {
         existing = await db.rtcs.where('client_id').equals(rtc.client_id).first();
@@ -1318,9 +1318,9 @@ export class EntityRepository {
   private getTablesToLock(
     upserts: Map<UpdateEntity, UpsertItem[]>,
     deletes: BatchDeletes
-  ): Table<any, string>[] {
+  ): Table<any, any>[] {
     const db = getDatabase();
-    const tables: Table<any, string>[] = [];
+    const tables: Table<any, any>[] = [];
 
     if ((upserts.get('session')?.length ?? 0) > 0 || deletes.sessions.length > 0) {
       tables.push(db.sessions);
@@ -1334,6 +1334,9 @@ export class EntityRepository {
     if ((upserts.get('rtc')?.length ?? 0) > 0 || deletes.rtcs.length > 0) {
       tables.push(db.rtcs);
     }
+
+    // Always include ui_updates table since emitUIUpdates may be called within this transaction
+    tables.push(db.ui_updates);
 
     return tables;
   }
@@ -1493,7 +1496,7 @@ export class EntityRepository {
     // when concurrent writebackTurnCountsInTx calls interleave on the same session.
     // Dexie's transaction isolation ensures that count + update happen atomically.
     const updatePromises = sessionIds.map(async (sessionId) => {
-      await db.transaction('rw', db.sessions, db.turns, async () => {
+      await db.transaction('rw', db.sessions, db.turns, db.ui_updates, async () => {
         // Re-count within transaction to see the latest turns (including those just written)
         const { pending, running } = await this.countActiveTurns(sessionId);
 
