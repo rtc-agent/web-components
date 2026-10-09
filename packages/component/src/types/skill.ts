@@ -156,9 +156,12 @@ export interface FunctionDef {
   /**
    * Execution function (second parameter is a progress callback, optional)
    *
-   * MD13: Return type is unknown (no longer uses unknown | Promise<unknown>).
-   * Note: handler can be a sync or async function. FunctionRegistry.execute internally awaits the return value,
-   * so Promises returned by async functions are automatically resolved. Sync function returns are wrapped in a resolved Promise.
+   * **IMPORTANT**: Can be a **synchronous or asynchronous** function.
+   * `FunctionRegistry.execute` internally awaits the return value, so:
+   * - Async functions: Promise is automatically resolved
+   * - Sync functions: Return value is wrapped in a resolved Promise
+   *
+   * MD13: Return type is `unknown` (no longer uses `unknown | Promise<unknown>`).
    */
   handler: (
     params: Record<string, unknown>,

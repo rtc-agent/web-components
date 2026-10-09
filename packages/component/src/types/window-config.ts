@@ -98,8 +98,10 @@ export interface WindowConfig {
   /**
    * Minimized bubble position configuration
    *
-   * Uses a mathematical Cartesian coordinate system with the origin at one corner of the host application.
-   * Default: { corner: 'bottom-right', offset: { x: -20, y: 20 } }
+   * Uses a mathematical Cartesian coordinate system with the origin at one corner
+   * of the host application.
+   *
+   * @default { corner: 'bottom-right', offset: { x: -20, y: 20 } }
    */
   bubblePosition?: BubblePosition;
 }

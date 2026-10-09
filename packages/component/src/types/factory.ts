@@ -92,6 +92,10 @@ export interface AuthProvider {
    * to obtain an external JWT from the host application, then exchange it for
    * an RTC JWT via OAuth2Client.tokenExchange().
    *
+   * **SECURITY**: The returned JWT should be a valid, unexpired token from your
+   * external authentication system. The component will validate and exchange it,
+   * but callers should ensure token integrity before returning.
+   *
    * @returns External JWT string (can be sync or async)
    */
   getExchangeToken?(): string | Promise<string>;
@@ -112,14 +116,15 @@ export interface AuthProvider {
   getUserId?(): string;
 
   /**
-   * Device ID — must match the Device ID embedded in the JWT token by the server.
+   * **CRITICAL**: Device ID — must match the Device ID embedded in the JWT token by the server.
    *
    * The server embeds a Device ID into the JWT Claims when issuing tokens.
    * RTCs (Remote Tool Calls / scripts) dispatched by the server carry this Device ID
    * in the `session_device_id` field. The component filters RTCs at execution time:
    * only RTCs whose `session_device_id` matches the local Device ID are executed.
    *
-   * If not provided or mismatched, scripts will silently fail to execute.
+   * **WARNING**: If not provided or mismatched, scripts will **silently fail to execute**.
+   * This is a common source of bugs — always ensure this matches the JWT's device ID.
    *
    * Host backends should return the Device ID alongside the token so the frontend
    * can forward it here.
@@ -400,9 +405,10 @@ export interface RtcAgentConfig {
   /**
    * SVG or HTML string rendered inside the minimized bubble.
    *
-   * **Security note**: The component internally sanitizes this value with
-   * DOMPurify before rendering. However, as a defense-in-depth measure,
-   * callers should still avoid passing content from untrusted sources.
+   * **SECURITY**: The component internally sanitizes this value with DOMPurify
+   * before rendering. However, as a defense-in-depth measure, callers should
+   * **avoid passing content from untrusted sources**. Always validate and sanitize
+   * input at the source.
    *
    * Maps to `RtcAgent.bubbleIcon`.
    */
@@ -424,8 +430,9 @@ export interface RtcAgentConfig {
    *
    * Either field can be omitted; missing variants fall back to the default logo.
    *
-   * **Security note**: Same as `bubbleIcon` — callers should sanitize input
-   * before assignment.
+   * **SECURITY**: Same as `bubbleIcon` — the component sanitizes internally with
+   * DOMPurify, but callers should **avoid passing untrusted content** as a
+   * defense-in-depth measure. Validate and sanitize at the source.
    *
    * Maps to `RtcAgent.logo`.
    */

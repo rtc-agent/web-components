@@ -14,10 +14,17 @@ export type Activity = 'files' | 'chat' | 'settings' | 'functions';
  * Activity Bar configuration
  *
  * Set via the <rtc-agent>.activityBarConfig property.
- * Note: the chat button is always visible and cannot be hidden.
+ *
+ * **Note**: The `chat` activity is always visible and **cannot be disabled**.
+ * This is enforced by the type system (only 'files' | 'settings' | 'functions' are allowed).
  */
 export interface ActivityBarConfig {
-  /** Disabled activities list (chat cannot be disabled) */
+  /**
+   * Disabled activities list
+   *
+   * **Important**: 'chat' cannot be disabled (it's always visible).
+   * Only 'files', 'settings', and 'functions' can be hidden.
+   */
   disabledActivities?: Array<'files' | 'settings' | 'functions'>;
   /** Default activity */
   defaultActivity?: Activity;
