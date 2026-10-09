@@ -1097,7 +1097,7 @@ export class RtcAgent extends LitElement {
             beforeMessageSend: (detail) => this._beforeMessageSend(detail),
             showRestoreConfirmDialog: (path, root) => showRestoreConfirmDialog(path, root),
             handleLoginRequested: (event) => this._handleLoginRequested(event),
-            dispatchClearActiveInput: () => this.dispatchEvent(new CustomEvent('rtc-clear-active-input')),
+            dispatchClearActiveInput: () => this.dispatchEvent(new CustomEvent('rtc-clear-active-input', { bubbles: true, composed: true })),
             getShadowRoot: () => this.shadowRoot!,
             findScrollableParent: (el) => this._findScrollableParent(el),
             scheduleAutoSave: (filePath) => this._scheduleAutoSave(filePath),

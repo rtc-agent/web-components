@@ -183,8 +183,10 @@ export class RtcChatLayout extends LitElement {
         // Listen for rtc-session-tree-new: captures event bubbling up from session-header "+" button
         // (takes effect after Phase 6 changes to session-header; Phase 3 wires up the listener first)
         this.addEventListener('rtc-session-tree-new', this._handleSessionTreeNew);
-        // Listen for rtc-clear-active-input: dispatched by rtc-agent when Escape key cancels a fork
-        this.addEventListener('rtc-clear-active-input', this._boundOnClearActiveInput);
+        // Listen for rtc-clear-active-input: dispatched by rtc-agent (parent component),
+        // bubbles up to document. chat-layout must listen on document because
+        // the event does not propagate down into shadow DOM child components.
+        document.addEventListener('rtc-clear-active-input', this._boundOnClearActiveInput);
         // Listen for rtc-notification-click: event dispatched from rtc-agent (parent component),
         // must listen on document (same as rtc-message-sent)
         document.addEventListener('rtc-notification-click', this._handleNotificationClick);
@@ -206,7 +208,7 @@ export class RtcChatLayout extends LitElement {
         document.removeEventListener('rtc-message-sent', this._boundOnMessageSent);
         this.removeEventListener('rtc-fork-requested', this._boundOnForkRequested);
         this.removeEventListener('rtc-session-tree-new', this._handleSessionTreeNew);
-        this.removeEventListener('rtc-clear-active-input', this._boundOnClearActiveInput);
+        document.removeEventListener('rtc-clear-active-input', this._boundOnClearActiveInput);
         document.removeEventListener('rtc-notification-click', this._handleNotificationClick);
         document.removeEventListener('mousemove', this._boundOnResizeMouseMove);
         document.removeEventListener('mouseup', this._boundOnResizeMouseUp);

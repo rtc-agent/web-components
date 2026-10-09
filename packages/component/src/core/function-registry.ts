@@ -431,7 +431,7 @@ export class FunctionRegistry {
         Promise.resolve()
           .then(() => hooks.onSuccess!(result))
           .catch(err => {
-            log.error(` onSuccess hook failed for ${path}:`, err);
+            log.error(`onSuccess hook failed for ${path}:`, err);
           });
       }
 
@@ -448,7 +448,7 @@ export class FunctionRegistry {
         Promise.resolve()
           .then(() => hooks.onError!(err))
           .catch(hookErr => {
-            log.error(` onError hook failed for ${path}:`, hookErr);
+            log.error(`onError hook failed for ${path}:`, hookErr);
           });
       }
 

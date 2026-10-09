@@ -192,7 +192,7 @@ export class EventBus<TEventMap extends DefaultEventMap = DefaultEventMap> {
   /**
    * Clear all handlers for a specific event
    */
-  clearEvent(event: string): void {
+  clearEvent<K extends keyof TEventMap & string>(event: K): void {
     this.handlers.delete(event);
   }
 }
