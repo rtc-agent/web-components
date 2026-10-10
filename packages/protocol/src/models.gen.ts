@@ -4,1176 +4,1240 @@
  */
 
 export interface paths {
-    "/oauth2/authorize": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * 获取 OAuth2 重定向 URL
-         * @description F-C 调用此接口获取 OAuth2 前端（F-O）的重定向地址
-         */
-        get: operations["getOAuth2RedirectUrl"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+  '/oauth2/authorize': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/oauth2/token": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * OAuth2 令牌交换
-         * @description 支持两种模式，通过 `grant_type` 区分：
-         *     1. **Authorization Code**（默认）：`grant_type` 为 `authorization_code`，使用授权码换取 access_token + refresh_token
-         *     2. **Token Exchange**（RFC 8693）：`grant_type` 为 `urn:ietf:params:oauth:grant-type:token-exchange`，将外部 JWT 换取主服务器 access_token
-         *
-         *     同时支持 `application/json` 和 `application/x-www-form-urlencoded` 两种 Content-Type。
-         */
-        post: operations["oauth2TokenExchange"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * 获取 OAuth2 重定向 URL
+     * @description F-C 调用此接口获取 OAuth2 前端（F-O）的重定向地址
+     */
+    get: operations['getOAuth2RedirectUrl'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/oauth2/token': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/oauth2/refresh": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * OAuth2 令牌刷新
-         * @description 使用 refresh_token 换取新的 access_token
-         */
-        post: operations["oauth2TokenRefresh"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * OAuth2 令牌交换
+     * @description 支持两种模式，通过 `grant_type` 区分：
+     *     1. **Authorization Code**（默认）：`grant_type` 为 `authorization_code`，使用授权码换取 access_token + refresh_token
+     *     2. **Token Exchange**（RFC 8693）：`grant_type` 为 `urn:ietf:params:oauth:grant-type:token-exchange`，将外部 JWT 换取主服务器 access_token
+     *
+     *     同时支持 `application/json` 和 `application/x-www-form-urlencoded` 两种 Content-Type。
+     */
+    post: operations['oauth2TokenExchange'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/oauth2/refresh': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/auth/login": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Admin 登录
-         * @description 管理员使用邮箱和密码登录，获取 JWT 令牌。登录成功后，admin-server 签发的 JWT 可通过主服务器的 token_exchange 机制（RFC 8693）换取主服务器的 access_token。
-         */
-        post: operations["adminLogin"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * OAuth2 令牌刷新
+     * @description 使用 refresh_token 换取新的 access_token
+     */
+    post: operations['oauth2TokenRefresh'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/auth/login': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/auth/refresh": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Admin 令牌刷新
-         * @description 使用 refresh_token 换取新的 access_token（Admin-server 端点）
-         */
-        post: operations["adminRefresh"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Admin 登录
+     * @description 管理员使用邮箱和密码登录，获取 JWT 令牌。登录成功后，admin-server 签发的 JWT 可通过主服务器的 token_exchange 机制（RFC 8693）换取主服务器的 access_token。
+     */
+    post: operations['adminLogin'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/auth/refresh': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/auth/me": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * 获取当前 Admin 用户信息
-         * @description 需要 admin-server JWT 认证
-         */
-        get: operations["adminGetCurrentUser"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Admin 令牌刷新
+     * @description 使用 refresh_token 换取新的 access_token（Admin-server 端点）
+     */
+    post: operations['adminRefresh'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/auth/me': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/auth/logout": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Admin 登出
-         * @description 撤销 refresh_token，需要 JWT 认证
-         */
-        post: operations["adminLogout"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * 获取当前 Admin 用户信息
+     * @description 需要 admin-server JWT 认证
+     */
+    get: operations['adminGetCurrentUser'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/auth/logout': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/.well-known/jwks.json": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Admin-server JWKS 端点
-         * @description 返回 admin-server 的 JSON Web Key Set，主服务器通过此端点获取公钥以验证 admin JWT 签名。
-         *     这是 RFC 8693 Token Exchange 机制的核心端点——主服务器的 `token_exchange.external_issuers` 配置中的 `jwks_uri` 指向此地址。
-         */
-        get: operations["adminJWKS"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Admin 登出
+     * @description 撤销 refresh_token，需要 JWT 认证
+     */
+    post: operations['adminLogout'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/.well-known/jwks.json': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
+    /**
+     * Admin-server JWKS 端点
+     * @description 返回 admin-server 的 JSON Web Key Set，主服务器通过此端点获取公钥以验证 admin JWT 签名。
+     *     这是 RFC 8693 Token Exchange 机制的核心端点——主服务器的 `token_exchange.external_issuers` 配置中的 `jwks_uri` 指向此地址。
+     */
+    get: operations['adminJWKS'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
-    schemas: {
-        /** @description OAuth2 授权重定向信息 */
-        OAuth2AuthorizeResponse: {
-            /** @description OAuth2 Provider 授权页面的完整 URL */
-            redirect_url: string;
-            /** @description CSRF 防护随机状态参数，回调时需原样传回 */
-            state: string;
-        };
-        /** @description OAuth2 通用错误响应 */
-        OAuth2Error: {
-            /**
-             * @description 错误码：
-             *     - `invalid_request`: 请求参数无效
-             *     - `invalid_client`: 客户端认证失败
-             *     - `invalid_grant`: 授权码无效或已过期（Token Exchange 模式下也表示 JWT 签名验证失败或签发方不受信任）
-             *     - `server_error`: 服务器内部错误
-             *     - `temporarily_unavailable`: 身份提供方暂时不可用（RFC 8693 Token Exchange 模式下 JWKS 端点无法访问）
-             */
-            error: string;
-            /** @description 人类可读的错误描述，用于调试 */
-            error_description?: string;
-        };
-        /** @description OAuth2 授权码交换请求（Authorization Code 模式），使用授权码换取 access_token + refresh_token */
-        OAuth2TokenExchangeRequest: {
-            /**
-             * @description 固定为 "authorization_code"（可省略，默认值） (enum property replaced by openapi-typescript)
-             * @enum {string}
-             */
-            grant_type: "authorization_code";
-            /** @description OAuth2 授权码，由授权回调 URL 的 query 参数携带 */
-            code: string;
-            /** @description 必须与授权请求中的 redirect_uri 完全一致 */
-            redirect_uri: string;
-            /** @description CSRF 防护 state，必须与授权请求中的 state 一致且仅使用一次 */
-            state: string;
-            /** @description 前端生成的设备 UUID，用于标识客户端设备 */
-            device_id: string;
-            /** @description 设备显示名称，如 "Chrome on Mac" */
-            device_name?: string;
-            /** @description 客户端 User-Agent 字符串，用于设备识别 */
-            user_agent?: string;
-            /** @description PKCE code_verifier (RFC 7636)，授权请求时传入 code_challenge，交换时传入原始 verifier */
-            code_verifier?: string;
-        };
-        /**
-         * @description RFC 8693 Token Exchange 请求，将外部 JWT（如 admin-server 签发的管理员 JWT）换取主服务器 access_token。
-         *     主服务器需在 config.yaml 中配置 token_exchange.external_issuers 以信任对应的 JWT 签发方。
-         */
-        OAuth2TokenExchangeRFC8693Request: {
-            /**
-             * @description 固定为 "urn:ietf:params:oauth:grant-type:token-exchange" (enum property replaced by openapi-typescript)
-             * @enum {string}
-             */
-            grant_type: "urn:ietf:params:oauth:grant-type:token-exchange";
-            /** @description 外部 JWT（由受信任的签发方签发） */
-            subject_token: string;
-            /**
-             * @description 令牌类型，通常为 "urn:ietf:params:oauth:token-type:access_token"
-             * @enum {string}
-             */
-            subject_token_type: "urn:ietf:params:oauth:token-type:access_token" | "urn:ietf:params:oauth:token-type:jwt";
-            /** @description RTC Agent 扩展字段，客户端设备 UUID（嵌入到签发的 JWT 中） */
-            device_id: string;
-        };
-        /** @description RFC 8693 Token Exchange 成功响应 */
-        OAuth2TokenExchangeRFC8693Response: {
-            /** @description RTC 主服务器签发的 JWT，有效期由 expires_in 指定 */
-            access_token: string;
-            /**
-             * @description 固定为 "urn:ietf:params:oauth:token-type:access_token"
-             * @enum {string}
-             */
-            issued_token_type: "urn:ietf:params:oauth:token-type:access_token";
-            /**
-             * @description 固定为 "Bearer"
-             * @enum {string}
-             */
-            token_type: "Bearer";
-            /**
-             * Format: int64
-             * @description access token 过期时间（秒），通常为 3600（1 小时）
-             */
-            expires_in: number;
-        };
-        /** @description OAuth2 令牌交换成功响应 */
-        OAuth2TokenExchangeResponse: {
-            /** @description JWT access token，有效期由 expires_in 指定 */
-            access_token: string;
-            /** @description refresh token，用于在 access_token 过期后换取新 token */
-            refresh_token: string;
-            /**
-             * Format: int64
-             * @description access token 过期时间（秒），通常为 3600（1 小时）
-             */
-            expires_in: number;
-            /** @description 已认证用户的唯一 ID */
-            user_id: string;
-        };
-        /** @description OAuth2 令牌刷新请求，使用 refresh_token 换取新的 access_token */
-        OAuth2TokenRefreshRequest: {
-            /** @description refresh token，有效期内可多次使用 */
-            refresh_token: string;
-        };
-        /** @description OAuth2 令牌刷新成功响应 */
-        OAuth2TokenRefreshResponse: {
-            /** @description 新的 JWT access token */
-            access_token: string;
-            /**
-             * Format: int64
-             * @description 新 access token 过期时间（秒）
-             */
-            expires_in: number;
-        };
-        /** @description Admin 登录请求 */
-        AdminLoginRequest: {
-            /**
-             * Format: email
-             * @description 管理员邮箱
-             */
-            email: string;
-            /** @description 管理员密码（最少 6 个字符） */
-            password: string;
-        };
-        /**
-         * @description Admin 登录成功响应（Ant Design Pro 统一格式）。
-         *     成功时 `success` 为 `true`，业务数据在 `data` 字段内。
-         */
-        AdminLoginResponse: {
-            /**
-             * @description 固定为 true
-             * @enum {boolean}
-             */
-            success: true;
-            /** @description 登录成功数据 */
-            data: {
-                /** @description Admin JWT access token */
-                access_token: string;
-                /** @description Admin JWT refresh token（支持轮换） */
-                refresh_token: string;
-                /** @description access token 过期时间（秒） */
-                expires_in: number;
-                /** @description 固定为 "Bearer" */
-                token_type: string;
-                user: components["schemas"]["AdminUserResponse"];
-            };
-        };
-        /** @description Admin 令牌刷新请求 */
-        AdminRefreshRequest: {
-            /** @description 之前签发的 refresh token */
-            refresh_token: string;
-        };
-        /**
-         * @description Admin 令牌刷新成功响应（Ant Design Pro 统一格式）。
-         *     成功时 `success` 为 `true`，业务数据在 `data` 字段内。
-         */
-        AdminRefreshResponse: {
-            /**
-             * @description 固定为 true
-             * @enum {boolean}
-             */
-            success: true;
-            /** @description 刷新成功数据（refresh token 轮换） */
-            data: {
-                /** @description 新的 JWT access token */
-                access_token: string;
-                /** @description 新的 JWT refresh token（每次刷新都会轮换） */
-                refresh_token: string;
-                /** @description 新 access token 过期时间（秒） */
-                expires_in: number;
-                /** @description 固定为 "Bearer" */
-                token_type: string;
-            };
-        };
-        /** @description Admin 用户信息（作为 `data` 字段内嵌使用） */
-        AdminUserResponse: {
-            /** @description 用户 UUID */
-            id: string;
-            /** @description 邮箱地址 */
-            email: string;
-            /** @description 显示名称 */
-            name?: string;
-            /** @description 头像 URL */
-            avatar_url?: string;
-        };
-        /** @description Admin 登出请求 */
-        AdminLogoutRequest: {
-            /** @description 要撤销的 refresh token */
-            refresh_token: string;
-        };
-        /**
-         * @description Admin-server 统一错误响应格式（Ant Design Pro 约定）。
-         *     HTTP 状态码始终为 200，客户端通过 `success=false` 和 `errorCode` 判断错误类型。
-         */
-        AdminErrorResponse: {
-            /**
-             * @description 始终为 false
-             * @enum {boolean}
-             */
-            success: false;
-            /**
-             * @description 错误码，可能的值：
-             *     - `invalid_request`：请求参数校验失败
-             *     - `invalid_credentials`：邮箱或密码错误
-             *     - `invalid_grant`：refresh_token 无效/已撤销/已过期
-             *     - `unauthorized`：JWT 认证失败
-             *     - `user_not_found`：用户不存在
-             *     - `server_error`：服务器内部错误
-             */
-            errorCode: string;
-            /** @description 人类可读的错误描述信息 */
-            errorMessage: string;
-        };
-        /** @description protocol 内 UUID 类型，JSON 线上为字符串 */
-        UUID: string;
-        /** @enum {string} */
-        SessionStatus: "active" | "closed" | "idle";
-        /** @enum {string} */
-        TurnStatus: "pending" | "running" | "completed" | "failed" | "cancelled" | "interrupted" | "merged";
-        /** @enum {string} */
-        MessageRole: "user" | "assistant" | "tool" | "system";
-        /** @enum {string} */
-        MessageStreamingStatus: "pending" | "streaming" | "completed" | "failed";
-        /** @enum {string} */
-        ContentType: "markdown" | "summary" | "text" | "thinking" | "toolcall_input" | "toolcall_output" | "user_message" | "error" | "prompt";
-        /** @enum {string} */
-        ErrorCategory: "api" | "stream" | "tool" | "context" | "system" | "network" | "timeout" | "permission";
-        ErrorContent: {
-            category: components["schemas"]["ErrorCategory"];
-            /** @description 简短错误标题 */
-            title: string;
-            /** @description 详细描述（可包含建议操作） */
-            message: string;
-            /** @description 是否可重试 */
-            retryable: boolean;
-            /** @description 原始错误信息（仅当 show_raw_error 为 true 时前端展示） */
-            raw_error?: string;
-            /** @description 服务端控制的 RawError 可见性标志（debug 模式下为 true） */
-            show_raw_error?: boolean;
-        };
-        /** @enum {string} */
-        RtcStatus: "pending" | "sent" | "executing" | "completed" | "failed" | "timeout" | "rejected";
-        Session: {
-            id: components["schemas"]["UUID"];
-            /** @description 客户端生成的幂等 ID */
-            client_id?: string;
-            /** @description 所有者类型（user / system） */
-            owner_kind: string;
-            /** @description 所有者引用 ID（user → user UUID，system → "system"） */
-            owner_ref_id: string;
-            /** @description 创建此 Session 的设备 ID（来自 JWT Token），用于前端判断 RTC 请求归属 */
-            device_id?: string;
-            /** @description 会话标题 */
-            title?: string;
-            status: components["schemas"]["SessionStatus"];
-            /** @description 会话任务列表（对齐 Claude Code 的 TodoWrite 工具） */
-            todo_list?: components["schemas"]["TodoItem"][];
-            /** Format: date-time */
-            created_at: string;
-            /** Format: date-time */
-            updated_at: string;
-            /** @description AGENT.md 内容快照（仅创建时写入，后续只读） */
-            agent_prompt?: string;
-            root_client_session_id?: string;
-            root_server_session_id?: components["schemas"]["UUID"];
-            parent_client_session_id?: string;
-            parent_server_session_id?: components["schemas"]["UUID"];
-            sub_agent_parent_message_id?: components["schemas"]["UUID"];
-            /**
-             * Format: date-time
-             * @description 关闭时间
-             */
-            closed_at?: string;
-            /**
-             * Format: date-time
-             * @description 软删除时间
-             */
-            deleted_at?: string;
-            /**
-             * Format: int64
-             * @description 累计纯输入 token 数（不含 cached read/write）
-             */
-            total_input_tokens?: number;
-            /**
-             * Format: int64
-             * @description 累计输出 token 数
-             */
-            total_output_tokens?: number;
-            /**
-             * Format: int64
-             * @description 累计总 token 数（包含所有类型）
-             */
-            total_tokens?: number;
-            /**
-             * Format: int64
-             * @description 当前上下文实际 token 数（压缩后由 cumulativeTokenCounter 回写，用于前端压缩进度计算）
-             */
-            current_context_tokens?: number;
-            /**
-             * Format: int64
-             * @description 累计缓存读取 token 数
-             */
-            total_cached_read_tokens?: number;
-            /**
-             * Format: int64
-             * @description 累计缓存写入 token 数
-             */
-            total_cached_write_tokens?: number;
-            /**
-             * Format: int64
-             * @description 累计推理 token 数
-             */
-            total_reasoning_tokens?: number;
-            /**
-             * Format: double
-             * @description 累计成本（美元）
-             */
-            total_cost_usd?: number;
-            /**
-             * Format: date-time
-             * @description 最后一次 token 统计更新时间
-             */
-            last_token_update_at?: string;
-            /**
-             * Format: int64
-             * @description 压缩触发阈值（contextTokensLimit - autoCompactBufferTokens），前端用于计算圆环进度
-             */
-            compression_threshold?: number;
-            /**
-             * Format: double
-             * @description 压缩进度 (0-100)，后端实时计算
-             */
-            compression_progress?: number;
-            /** @description 距离压缩的轮次（-1 表示已超过阈值） */
-            rounds_until_compression?: number;
-            /**
-             * Format: int64
-             * @description 预估下一轮 token 数
-             */
-            estimated_next_round_tokens?: number;
-        };
-        /** @description 任务项（对齐 Claude Code 的 TodoItem 结构） */
-        TodoItem: {
-            /** @description 任务描述（祈使句，如 "Run tests"） */
-            content: string;
-            /**
-             * @description 任务状态
-             * @enum {string}
-             */
-            status: "pending" | "in_progress" | "completed";
-            /** @description 执行中的描述（进行时，如 "Running tests"） */
-            active_form: string;
-        };
-        Turn: {
-            id: components["schemas"]["UUID"];
-            /** @description 客户端生成的幂等 ID */
-            client_id?: string;
-            session_id: components["schemas"]["UUID"];
-            status: components["schemas"]["TurnStatus"];
-            /** Format: date-time */
-            created_at: string;
-            /**
-             * Format: date-time
-             * @description 开始执行时间
-             */
-            started_at?: string;
-            /**
-             * Format: date-time
-             * @description 完成时间
-             */
-            completed_at?: string;
-            /** @description 错误信息（失败时） */
-            error_message?: string;
-            /**
-             * Format: date-time
-             * @description 软删除时间
-             */
-            deleted_at?: string;
-        };
-        Message: {
-            id: components["schemas"]["UUID"];
-            /** @description 客户端生成的幂等 ID */
-            client_id?: string;
-            session_id: components["schemas"]["UUID"];
-            /** @description 关联的 Turn ID */
-            turn_id?: components["schemas"]["UUID"];
-            /** @description 关联的父消息 ID（toolcall_output 指向 toolcall_input） */
-            parent_message_id?: components["schemas"]["UUID"];
-            /**
-             * Format: uint32
-             * @description Session 内全局顺序
-             */
-            global_offset: number;
-            /**
-             * Format: uint32
-             * @description Turn 内顺序
-             */
-            turn_offset?: number;
-            role: components["schemas"]["MessageRole"];
-            /** @description 消息内容 */
-            content?: string;
-            streaming_status: components["schemas"]["MessageStreamingStatus"];
-            /** @description 创建者类型（user / system） */
-            creator_kind: string;
-            /** @description 创建者引用 ID */
-            creator_ref_id: string;
-            /** Format: date-time */
-            created_at: string;
-            /** Format: date-time */
-            updated_at: string;
-            /**
-             * Format: date-time
-             * @description 软删除时间
-             */
-            deleted_at?: string;
-            /** @description 输入 token 数（仅 assistant 消息） */
-            input_tokens?: number;
-            /** @description 输出 token 数（仅 assistant 消息） */
-            output_tokens?: number;
-            /** @description 总 token 数（仅 assistant 消息） */
-            total_tokens?: number;
-            /** @description 缓存命中 token 数 */
-            cached_tokens?: number;
-            /** @description 推理 token 数 */
-            reasoning_tokens?: number;
-        };
-        /**
-         * @description 消息内容数据，Type 标识 Data 的具体结构，前端根据 Type 决定如何渲染。
-         *     - `markdown`: Data 为字符串
-         *     - `summary`: Data 为 SummaryItem[]
-         *     - `text`: Data 为字符串
-         *     - `thinking`: Data 为字符串
-         *     - `toolcall_input`: Data 为 ToolCall 对象
-         *     - `toolcall_output`: Data 为 ToolCall 对象
-         *     - `user_message`: Data 为 UserMessageContent 对象
-         *     - `error`: Data 为 ErrorContent 对象
-         *     - `prompt`: Data 为 PromptContent 对象
-         */
-        ContentData: {
-            type: components["schemas"]["ContentType"];
-            /** @description 具体内容（结构由 type 决定），类型取决于 type 字段 */
-            data: unknown;
-        };
-        /** @description 用户消息内容（支持文本 + 场景 + 文件附件） */
-        UserMessageContent: {
-            /** @description 消息文本内容 */
-            text: string;
-            /** @description 文件附件列表 */
-            files?: components["schemas"]["FileAttachment"][];
-            /** @description 场景列表（包含完整内容，无需再读取文件） */
-            scenarios?: components["schemas"]["ScenarioRef"][];
-        };
-        /** @description 系统提示词内容（用于持久化系统级指令） */
-        PromptContent: {
-            /** @description 提示词名称/命令名（如 "goal", "loop", "scenarios"） */
-            name: string;
-            /** @description 提示词标题（可为空，用于前端显示） */
-            title?: string;
-            /** @description 提示词完整内容 */
-            prompt: string;
-            /**
-             * @description 覆盖 message role，控制 LLM 上下文注入角色。缺省为 "system"，可设为 "user"（连续 user messages 会被合并）
-             * @enum {string}
-             */
-            role?: "system" | "user";
-        };
-        /** @description 文件附件 */
-        FileAttachment: {
-            /** @description MIME 类型（如 image/png, application/pdf） */
-            mimetype: string;
-            /** @description 文件唯一标识（用于引用已上传的文件） */
-            fileid: string;
-            /** @description 扩展字段（如文件名、大小等） */
-            extra?: {
-                [key: string]: unknown;
-            };
-        };
-        /** @description 场景引用（包含完整内容） */
-        ScenarioRef: {
-            /** @description 场景标题（如 "Create and Complete a Task"） */
-            title: string;
-            /** @description 场景文件路径（如 "/scenarios/create-and-complete.md"） */
-            filepath: string;
-            /** @description 场景文件完整内容（Markdown 格式） */
-            file_content: string;
-        };
-        ToolCall: {
-            id: components["schemas"]["UUID"];
-            tool_name: string;
-            input: string;
-            output?: string;
-            status?: string;
-        };
-        /** @description 远程 Tool 调用模型 */
-        Rtc: {
-            id: components["schemas"]["UUID"];
-            /** @description 客户端生成的幂等 ID */
-            client_id?: string;
-            session_id: components["schemas"]["UUID"];
-            turn_id: components["schemas"]["UUID"];
-            /** @description 关联的 toolcall_input Message 记录 ID */
-            message_id?: components["schemas"]["UUID"];
-            /** @description 关联的 toolcall_output Message 记录 ID */
-            output_message_id?: components["schemas"]["UUID"];
-            /**
-             * Format: uint32
-             * @description Turn 内的顺序
-             */
-            offset: number;
-            /** @description Tool 名称 */
-            tool_name: string;
-            /** @description Tool 参数（JSON Schema） */
-            parameters?: unknown;
-            status: components["schemas"]["RtcStatus"];
-            /** @description 执行结果 */
-            result?: unknown;
-            /** @description 错误信息（失败时） */
-            error_message?: string;
-            /** Format: date-time */
-            created_at: string;
-            /** Format: date-time */
-            updated_at: string;
-            /**
-             * Format: date-time
-             * @description 完成时间
-             */
-            completed_at?: string;
-            /**
-             * Format: date-time
-             * @description 软删除时间
-             */
-            deleted_at?: string;
-        };
-        /** @enum {string} */
-        UpdateEntity: "session" | "turn" | "message" | "rtc" | "file";
-        /** @enum {string} */
-        UpdateAction: "created" | "updated" | "deleted";
-        /** @enum {string} */
-        UpdateType: "gap";
-        /** @description 单条实体变化记录 */
-        UpdateItem: {
-            entity: components["schemas"]["UpdateEntity"];
-            action: components["schemas"]["UpdateAction"];
-            entity_id: components["schemas"]["UUID"];
-        };
-        /** @description 实体变化事件，随操作类 RPC 响应下发，前端收到后更新本地状态保持实时同步 */
-        Update: {
-            id: components["schemas"]["UUID"];
-            /** @description 变化条目列表 */
-            items: components["schemas"]["UpdateItem"][];
-            /** @description 实体数据（可选，与 items 一一对应） */
-            data_list?: unknown[];
-            /**
-             * Format: uint32
-             * @description 用户维度单调递增 offset
-             */
-            offset: number;
-        };
-        /** @description gap 占位数据，客户端收到后只推进 offset，不做业务处理 */
-        UpdateDataGap: Record<string, never>;
-        CloseSessionRequest: {
-            session_id: components["schemas"]["UUID"];
-            /** @description 客户端生成的幂等 ID */
-            client_id?: string;
-        };
-        CloseSessionResult: {
-            success: boolean;
-        };
-        /** @description 关闭会话响应 */
-        CloseSessionResponse: {
-            result: components["schemas"]["CloseSessionResult"];
-            updates?: components["schemas"]["Update"][];
-        };
-        OpenSessionRequest: {
-            session_id: components["schemas"]["UUID"];
-        };
-        OpenSessionResult: {
-            success: boolean;
-        };
-        /** @description Response for reopening a closed session */
-        OpenSessionResponse: {
-            result: components["schemas"]["OpenSessionResult"];
-            updates?: components["schemas"]["Update"][];
-        };
-        /** @description 更新会话请求（目前仅支持标题） */
-        UpdateSessionRequest: {
-            session_id: components["schemas"]["UUID"];
-            /** @description 新标题（不传表示不修改） */
-            title?: string;
-            /**
-             * Format: date-time
-             * @description 软删除时间
-             */
-            deleted_at?: string;
-        };
-        UpdateSessionResult: {
-            session_id: components["schemas"]["UUID"];
-        };
-        /** @description 更新会话响应 */
-        UpdateSessionResponse: {
-            result: components["schemas"]["UpdateSessionResult"];
-            updates?: components["schemas"]["Update"][];
-        };
-        /** @description 发送消息请求，自动创建 session（如不存在）和 turn */
-        SendMessageRequest: {
-            /** @description 可选，为空时自动创建 session */
-            server_session_id?: components["schemas"]["UUID"];
-            /** @description 必填 */
-            client_session_id: string;
-            content_data: components["schemas"]["ContentData"];
-            /** @description 客户端生成的幂等 ID */
-            client_id: string;
-            /** @description AGENT.md 内容快照，创建 session 时写入，后续每轮通过 attachment 注入 LLM 上下文 */
-            agent_prompt?: string;
-        };
-        SendMessageResult: {
-            session_id: components["schemas"]["UUID"];
-            turn_id: components["schemas"]["UUID"];
-            message_id: components["schemas"]["UUID"];
-        };
-        /** @description 发送消息响应 */
-        SendMessageResponse: {
-            result: components["schemas"]["SendMessageResult"];
-            updates?: components["schemas"]["Update"][];
-        };
-        /** @description 分叉对话 */
-        ForkSessionRequest: {
-            content_data: components["schemas"]["ContentData"];
-            /** @description 客户端生成的幂等 ID */
-            new_client_message_id: string;
-            /** @description 旧 session ID */
-            old_server_session_id: components["schemas"]["UUID"];
-            /** @description 新 session ID */
-            new_client_session_id: components["schemas"]["UUID"];
-            /** @description Fork 多少条消息？默认200；最多1000条； */
-            limit?: number;
-            /** @description 旧 message ID */
-            old_server_message_id: components["schemas"]["UUID"];
-        };
-        ForkSessionResult: {
-            session_id: components["schemas"]["UUID"];
-            turn_id: components["schemas"]["UUID"];
-            message_ids: components["schemas"]["UUID"][];
-        };
-        /** @description Fork对话响应 */
-        ForkSessionResponse: {
-            result: components["schemas"]["ForkSessionResult"];
-            updates?: components["schemas"]["Update"][];
-        };
-        /** @description 手动触发上下文压缩 */
-        CompactSessionRequest: {
-            session_id: components["schemas"]["UUID"];
-            /** @description 自定义摘要指令，覆盖默认压缩 prompt */
-            custom_instruction?: string;
-        };
-        CompactSessionResult: {
-            success: boolean;
-        };
-        /** @description 压缩会话响应 */
-        CompactSessionResponse: {
-            result: components["schemas"]["CompactSessionResult"];
-            updates?: components["schemas"]["Update"][];
-        };
-        StopTurnRequest: {
-            session_id: components["schemas"]["UUID"];
-            /** @description 客户端生成的幂等 ID */
-            client_id?: string;
-        };
-        StopTurnResult: {
-            success: boolean;
-        };
-        /** @description 停止 Turn 响应 */
-        StopTurnResponse: {
-            result: components["schemas"]["StopTurnResult"];
-            updates?: components["schemas"]["Update"][];
-        };
-        UpdateRtcStatusRequest: {
-            rtc_id: components["schemas"]["UUID"];
-            status: components["schemas"]["RtcStatus"];
-            /** @description 客户端生成的幂等 ID */
-            client_id?: string;
-        };
-        UpdateRtcStatusResult: {
-            success: boolean;
-        };
-        /** @description 更新 RTC 状态响应 */
-        UpdateRtcStatusResponse: {
-            result: components["schemas"]["UpdateRtcStatusResult"];
-            updates?: components["schemas"]["Update"][];
-        };
-        /** @description 提交 RTC 执行结果请求 */
-        SubmitRtcResultRequest: {
-            rtc_id: components["schemas"]["UUID"];
-            /** @description 是否执行成功 */
-            success: boolean;
-            /**
-             * Format: json
-             * @description 执行结果（成功时）。保留原始 JSON 字段顺序，确保 LLM 缓存命中。
-             */
-            result?: string;
-            /** @description 错误信息（失败时） */
-            error?: string;
-            /** @description 客户端生成的幂等 ID */
-            client_id?: string;
-        };
-        SubmitRtcResultResult: {
-            success: boolean;
-        };
-        /** @description 提交 RTC 执行结果响应 */
-        SubmitRtcResultResponse: {
-            result: components["schemas"]["SubmitRtcResultResult"];
-            updates?: components["schemas"]["Update"][];
-        };
-        /**
-         * @description RPC 方法名，前后端统一从 protocol 导入，禁止硬编码字符串
-         * @enum {string}
-         */
-        RpcMethod: "v1.session.list" | "v1.session.get" | "v1.session.close" | "v1.session.open" | "v1.session.update" | "v1.session.fork" | "v1.session.compact" | "v1.message.send" | "v1.message.list" | "v1.message.get" | "v1.turn.list" | "v1.turn.get" | "v1.turn.stop" | "v1.rtc.list" | "v1.rtc.get" | "v1.rtc.update_status" | "v1.rtc.submit_result";
-        /** @description 获取会话列表请求 */
-        ListSessionsRequest: {
-            /** @description 分页游标（上一页最后一条的 ID） */
-            cursor?: string;
-            /** @description 每页数量，默认 20 */
-            limit?: number;
-        };
-        ListSessionsResponse: {
-            items: components["schemas"]["Session"][];
-            /** @description 下一页游标，为空表示没有更多数据 */
-            next_cursor?: string;
-        };
-        GetSessionRequest: {
-            session_id: components["schemas"]["UUID"];
-        };
-        GetSessionResponse: {
-            item: components["schemas"]["Session"];
-        };
-        /** @description 获取消息列表请求 */
-        MessageListRequest: {
-            session_id: components["schemas"]["UUID"];
-            /** @description 分页游标（上一页最后一条消息的 global_offset 字符串形式） */
-            cursor?: string;
-            /** @description 每页数量，默认 50 */
-            limit?: number;
-        };
-        MessageListResponse: {
-            items: components["schemas"]["Message"][];
-            /** @description 下一页游标（最后一条消息的 global_offset 字符串形式，为空表示没有更多数据） */
-            next_cursor?: string;
-        };
-        MessageGetRequest: {
-            message_id: components["schemas"]["UUID"];
-        };
-        MessageGetResponse: {
-            item: components["schemas"]["Message"];
-        };
-        /** @description 获取 RTC 列表请求 */
-        RtcListRequest: {
-            session_id: components["schemas"]["UUID"];
-            /** @description 分页游标（上一页最后一条的 ID） */
-            cursor?: string;
-            /** @description 每页数量，默认 50 */
-            limit?: number;
-        };
-        RtcListResponse: {
-            items: components["schemas"]["Rtc"][];
-            /** @description 下一页游标 */
-            next_cursor?: string;
-        };
-        RtcGetRequest: {
-            rtc_id: components["schemas"]["UUID"];
-        };
-        RtcGetResponse: {
-            item: components["schemas"]["Rtc"];
-        };
-        /** @description 获取 Turn 列表请求 */
-        TurnListRequest: {
-            session_id: components["schemas"]["UUID"];
-            /** @description 分页游标（上一页最后一条的 ID） */
-            cursor?: string;
-            /** @description 每页数量，默认 50 */
-            limit?: number;
-        };
-        TurnListResponse: {
-            items: components["schemas"]["Turn"][];
-            /** @description 下一页游标 */
-            next_cursor?: string;
-        };
-        TurnGetRequest: {
-            turn_id: components["schemas"]["UUID"];
-        };
-        TurnGetResponse: {
-            item: components["schemas"]["Turn"];
-        };
+  schemas: {
+    /** @description OAuth2 授权重定向信息 */
+    OAuth2AuthorizeResponse: {
+      /** @description OAuth2 Provider 授权页面的完整 URL */
+      redirect_url: string;
+      /** @description CSRF 防护随机状态参数，回调时需原样传回 */
+      state: string;
     };
-    responses: never;
-    parameters: never;
-    requestBodies: never;
-    headers: never;
-    pathItems: never;
+    /** @description OAuth2 通用错误响应 */
+    OAuth2Error: {
+      /**
+       * @description 错误码：
+       *     - `invalid_request`: 请求参数无效
+       *     - `invalid_client`: 客户端认证失败
+       *     - `invalid_grant`: 授权码无效或已过期（Token Exchange 模式下也表示 JWT 签名验证失败或签发方不受信任）
+       *     - `server_error`: 服务器内部错误
+       *     - `temporarily_unavailable`: 身份提供方暂时不可用（RFC 8693 Token Exchange 模式下 JWKS 端点无法访问）
+       */
+      error: string;
+      /** @description 人类可读的错误描述，用于调试 */
+      error_description?: string;
+    };
+    /** @description OAuth2 授权码交换请求（Authorization Code 模式），使用授权码换取 access_token + refresh_token */
+    OAuth2TokenExchangeRequest: {
+      /**
+       * @description 固定为 "authorization_code"（可省略，默认值） (enum property replaced by openapi-typescript)
+       * @enum {string}
+       */
+      grant_type: 'authorization_code';
+      /** @description OAuth2 授权码，由授权回调 URL 的 query 参数携带 */
+      code: string;
+      /** @description 必须与授权请求中的 redirect_uri 完全一致 */
+      redirect_uri: string;
+      /** @description CSRF 防护 state，必须与授权请求中的 state 一致且仅使用一次 */
+      state: string;
+      /** @description 前端生成的设备 UUID，用于标识客户端设备 */
+      device_id: string;
+      /** @description 设备显示名称，如 "Chrome on Mac" */
+      device_name?: string;
+      /** @description 客户端 User-Agent 字符串，用于设备识别 */
+      user_agent?: string;
+      /** @description PKCE code_verifier (RFC 7636)，授权请求时传入 code_challenge，交换时传入原始 verifier */
+      code_verifier?: string;
+    };
+    /**
+     * @description RFC 8693 Token Exchange 请求，将外部 JWT（如 admin-server 签发的管理员 JWT）换取主服务器 access_token。
+     *     主服务器需在 config.yaml 中配置 token_exchange.external_issuers 以信任对应的 JWT 签发方。
+     */
+    OAuth2TokenExchangeRFC8693Request: {
+      /**
+       * @description 固定为 "urn:ietf:params:oauth:grant-type:token-exchange" (enum property replaced by openapi-typescript)
+       * @enum {string}
+       */
+      grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange';
+      /** @description 外部 JWT（由受信任的签发方签发） */
+      subject_token: string;
+      /**
+       * @description 令牌类型，通常为 "urn:ietf:params:oauth:token-type:access_token"
+       * @enum {string}
+       */
+      subject_token_type:
+        | 'urn:ietf:params:oauth:token-type:access_token'
+        | 'urn:ietf:params:oauth:token-type:jwt';
+      /** @description RTC Agent 扩展字段，客户端设备 UUID（嵌入到签发的 JWT 中） */
+      device_id: string;
+    };
+    /** @description RFC 8693 Token Exchange 成功响应 */
+    OAuth2TokenExchangeRFC8693Response: {
+      /** @description RTC 主服务器签发的 JWT，有效期由 expires_in 指定 */
+      access_token: string;
+      /**
+       * @description 固定为 "urn:ietf:params:oauth:token-type:access_token"
+       * @enum {string}
+       */
+      issued_token_type: 'urn:ietf:params:oauth:token-type:access_token';
+      /**
+       * @description 固定为 "Bearer"
+       * @enum {string}
+       */
+      token_type: 'Bearer';
+      /**
+       * Format: int64
+       * @description access token 过期时间（秒），通常为 3600（1 小时）
+       */
+      expires_in: number;
+    };
+    /** @description OAuth2 令牌交换成功响应 */
+    OAuth2TokenExchangeResponse: {
+      /** @description JWT access token，有效期由 expires_in 指定 */
+      access_token: string;
+      /** @description refresh token，用于在 access_token 过期后换取新 token */
+      refresh_token: string;
+      /**
+       * Format: int64
+       * @description access token 过期时间（秒），通常为 3600（1 小时）
+       */
+      expires_in: number;
+      /** @description 已认证用户的唯一 ID */
+      user_id: string;
+    };
+    /** @description OAuth2 令牌刷新请求，使用 refresh_token 换取新的 access_token */
+    OAuth2TokenRefreshRequest: {
+      /** @description refresh token，有效期内可多次使用 */
+      refresh_token: string;
+    };
+    /** @description OAuth2 令牌刷新成功响应 */
+    OAuth2TokenRefreshResponse: {
+      /** @description 新的 JWT access token */
+      access_token: string;
+      /**
+       * Format: int64
+       * @description 新 access token 过期时间（秒）
+       */
+      expires_in: number;
+    };
+    /** @description Admin 登录请求 */
+    AdminLoginRequest: {
+      /**
+       * Format: email
+       * @description 管理员邮箱
+       */
+      email: string;
+      /** @description 管理员密码（最少 6 个字符） */
+      password: string;
+    };
+    /**
+     * @description Admin 登录成功响应（Ant Design Pro 统一格式）。
+     *     成功时 `success` 为 `true`，业务数据在 `data` 字段内。
+     */
+    AdminLoginResponse: {
+      /**
+       * @description 固定为 true
+       * @enum {boolean}
+       */
+      success: true;
+      /** @description 登录成功数据 */
+      data: {
+        /** @description Admin JWT access token */
+        access_token: string;
+        /** @description Admin JWT refresh token（支持轮换） */
+        refresh_token: string;
+        /** @description access token 过期时间（秒） */
+        expires_in: number;
+        /** @description 固定为 "Bearer" */
+        token_type: string;
+        user: components['schemas']['AdminUserResponse'];
+      };
+    };
+    /** @description Admin 令牌刷新请求 */
+    AdminRefreshRequest: {
+      /** @description 之前签发的 refresh token */
+      refresh_token: string;
+    };
+    /**
+     * @description Admin 令牌刷新成功响应（Ant Design Pro 统一格式）。
+     *     成功时 `success` 为 `true`，业务数据在 `data` 字段内。
+     */
+    AdminRefreshResponse: {
+      /**
+       * @description 固定为 true
+       * @enum {boolean}
+       */
+      success: true;
+      /** @description 刷新成功数据（refresh token 轮换） */
+      data: {
+        /** @description 新的 JWT access token */
+        access_token: string;
+        /** @description 新的 JWT refresh token（每次刷新都会轮换） */
+        refresh_token: string;
+        /** @description 新 access token 过期时间（秒） */
+        expires_in: number;
+        /** @description 固定为 "Bearer" */
+        token_type: string;
+      };
+    };
+    /** @description Admin 用户信息（作为 `data` 字段内嵌使用） */
+    AdminUserResponse: {
+      /** @description 用户 UUID */
+      id: string;
+      /** @description 邮箱地址 */
+      email: string;
+      /** @description 显示名称 */
+      name?: string;
+      /** @description 头像 URL */
+      avatar_url?: string;
+    };
+    /** @description Admin 登出请求 */
+    AdminLogoutRequest: {
+      /** @description 要撤销的 refresh token */
+      refresh_token: string;
+    };
+    /**
+     * @description Admin-server 统一错误响应格式（Ant Design Pro 约定）。
+     *     HTTP 状态码始终为 200，客户端通过 `success=false` 和 `errorCode` 判断错误类型。
+     */
+    AdminErrorResponse: {
+      /**
+       * @description 始终为 false
+       * @enum {boolean}
+       */
+      success: false;
+      /**
+       * @description 错误码，可能的值：
+       *     - `invalid_request`：请求参数校验失败
+       *     - `invalid_credentials`：邮箱或密码错误
+       *     - `invalid_grant`：refresh_token 无效/已撤销/已过期
+       *     - `unauthorized`：JWT 认证失败
+       *     - `user_not_found`：用户不存在
+       *     - `server_error`：服务器内部错误
+       */
+      errorCode: string;
+      /** @description 人类可读的错误描述信息 */
+      errorMessage: string;
+    };
+    /** @description protocol 内 UUID 类型，JSON 线上为字符串 */
+    UUID: string;
+    /** @enum {string} */
+    SessionStatus: 'active' | 'closed' | 'idle';
+    /** @enum {string} */
+    TurnStatus:
+      | 'pending'
+      | 'running'
+      | 'completed'
+      | 'failed'
+      | 'cancelled'
+      | 'interrupted'
+      | 'merged';
+    /** @enum {string} */
+    MessageRole: 'user' | 'assistant' | 'tool' | 'system';
+    /** @enum {string} */
+    MessageStreamingStatus: 'pending' | 'streaming' | 'completed' | 'failed';
+    /** @enum {string} */
+    ContentType:
+      | 'markdown'
+      | 'summary'
+      | 'text'
+      | 'thinking'
+      | 'toolcall_input'
+      | 'toolcall_output'
+      | 'user_message'
+      | 'error'
+      | 'prompt';
+    /** @enum {string} */
+    ErrorCategory:
+      | 'api'
+      | 'stream'
+      | 'tool'
+      | 'context'
+      | 'system'
+      | 'network'
+      | 'timeout'
+      | 'permission';
+    ErrorContent: {
+      category: components['schemas']['ErrorCategory'];
+      /** @description 简短错误标题 */
+      title: string;
+      /** @description 详细描述（可包含建议操作） */
+      message: string;
+      /** @description 是否可重试 */
+      retryable: boolean;
+      /** @description 原始错误信息（仅当 show_raw_error 为 true 时前端展示） */
+      raw_error?: string;
+      /** @description 服务端控制的 RawError 可见性标志（debug 模式下为 true） */
+      show_raw_error?: boolean;
+    };
+    /** @enum {string} */
+    RtcStatus:
+      | 'pending'
+      | 'sent'
+      | 'executing'
+      | 'completed'
+      | 'failed'
+      | 'timeout'
+      | 'rejected';
+    Session: {
+      id: components['schemas']['UUID'];
+      /** @description 客户端生成的幂等 ID */
+      client_id?: string;
+      /** @description 所有者类型（user / system） */
+      owner_kind: string;
+      /** @description 所有者引用 ID（user → user UUID，system → "system"） */
+      owner_ref_id: string;
+      /** @description 创建此 Session 的设备 ID（来自 JWT Token），用于前端判断 RTC 请求归属 */
+      device_id?: string;
+      /** @description 会话标题 */
+      title?: string;
+      status: components['schemas']['SessionStatus'];
+      /** @description 会话任务列表（对齐 Claude Code 的 TodoWrite 工具） */
+      todo_list?: components['schemas']['TodoItem'][];
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      updated_at: string;
+      /** @description AGENT.md 内容快照（仅创建时写入，后续只读） */
+      agent_prompt?: string;
+      root_client_session_id?: string;
+      root_server_session_id?: components['schemas']['UUID'];
+      parent_client_session_id?: string;
+      parent_server_session_id?: components['schemas']['UUID'];
+      sub_agent_parent_message_id?: components['schemas']['UUID'];
+      /**
+       * Format: date-time
+       * @description 关闭时间
+       */
+      closed_at?: string;
+      /**
+       * Format: date-time
+       * @description 软删除时间
+       */
+      deleted_at?: string;
+      /**
+       * Format: int64
+       * @description 累计纯输入 token 数（不含 cached read/write）
+       */
+      total_input_tokens?: number;
+      /**
+       * Format: int64
+       * @description 累计输出 token 数
+       */
+      total_output_tokens?: number;
+      /**
+       * Format: int64
+       * @description 累计总 token 数（包含所有类型）
+       */
+      total_tokens?: number;
+      /**
+       * Format: int64
+       * @description 当前上下文实际 token 数（压缩后由 cumulativeTokenCounter 回写，用于前端压缩进度计算）
+       */
+      current_context_tokens?: number;
+      /**
+       * Format: int64
+       * @description 累计缓存读取 token 数
+       */
+      total_cached_read_tokens?: number;
+      /**
+       * Format: int64
+       * @description 累计缓存写入 token 数
+       */
+      total_cached_write_tokens?: number;
+      /**
+       * Format: int64
+       * @description 累计推理 token 数
+       */
+      total_reasoning_tokens?: number;
+      /**
+       * Format: double
+       * @description 累计成本（美元）
+       */
+      total_cost_usd?: number;
+      /**
+       * Format: date-time
+       * @description 最后一次 token 统计更新时间
+       */
+      last_token_update_at?: string;
+      /**
+       * Format: int64
+       * @description 压缩触发阈值（contextTokensLimit - autoCompactBufferTokens），前端用于计算圆环进度
+       */
+      compression_threshold?: number;
+      /**
+       * Format: double
+       * @description 压缩进度 (0-100)，后端实时计算
+       */
+      compression_progress?: number;
+      /** @description 距离压缩的轮次（-1 表示已超过阈值） */
+      rounds_until_compression?: number;
+      /**
+       * Format: int64
+       * @description 预估下一轮 token 数
+       */
+      estimated_next_round_tokens?: number;
+    };
+    /** @description 任务项（对齐 Claude Code 的 TodoItem 结构） */
+    TodoItem: {
+      /** @description 任务描述（祈使句，如 "Run tests"） */
+      content: string;
+      /**
+       * @description 任务状态
+       * @enum {string}
+       */
+      status: 'pending' | 'in_progress' | 'completed';
+      /** @description 执行中的描述（进行时，如 "Running tests"） */
+      active_form: string;
+    };
+    Turn: {
+      id: components['schemas']['UUID'];
+      /** @description 客户端生成的幂等 ID */
+      client_id?: string;
+      session_id: components['schemas']['UUID'];
+      status: components['schemas']['TurnStatus'];
+      /** Format: date-time */
+      created_at: string;
+      /**
+       * Format: date-time
+       * @description 开始执行时间
+       */
+      started_at?: string;
+      /**
+       * Format: date-time
+       * @description 完成时间
+       */
+      completed_at?: string;
+      /** @description 错误信息（失败时） */
+      error_message?: string;
+      /**
+       * Format: date-time
+       * @description 软删除时间
+       */
+      deleted_at?: string;
+    };
+    Message: {
+      id: components['schemas']['UUID'];
+      /** @description 客户端生成的幂等 ID */
+      client_id?: string;
+      session_id: components['schemas']['UUID'];
+      /** @description 关联的 Turn ID */
+      turn_id?: components['schemas']['UUID'];
+      /** @description 关联的父消息 ID（toolcall_output 指向 toolcall_input） */
+      parent_message_id?: components['schemas']['UUID'];
+      /**
+       * Format: uint32
+       * @description Session 内全局顺序
+       */
+      global_offset: number;
+      /**
+       * Format: uint32
+       * @description Turn 内顺序
+       */
+      turn_offset?: number;
+      role: components['schemas']['MessageRole'];
+      /** @description 消息内容 */
+      content?: string;
+      streaming_status: components['schemas']['MessageStreamingStatus'];
+      /** @description 创建者类型（user / system） */
+      creator_kind: string;
+      /** @description 创建者引用 ID */
+      creator_ref_id: string;
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      updated_at: string;
+      /**
+       * Format: date-time
+       * @description 软删除时间
+       */
+      deleted_at?: string;
+      /** @description 输入 token 数（仅 assistant 消息） */
+      input_tokens?: number;
+      /** @description 输出 token 数（仅 assistant 消息） */
+      output_tokens?: number;
+      /** @description 总 token 数（仅 assistant 消息） */
+      total_tokens?: number;
+      /** @description 缓存命中 token 数 */
+      cached_tokens?: number;
+      /** @description 推理 token 数 */
+      reasoning_tokens?: number;
+    };
+    /**
+     * @description 消息内容数据，Type 标识 Data 的具体结构，前端根据 Type 决定如何渲染。
+     *     - `markdown`: Data 为字符串
+     *     - `summary`: Data 为 SummaryItem[]
+     *     - `text`: Data 为字符串
+     *     - `thinking`: Data 为字符串
+     *     - `toolcall_input`: Data 为 ToolCall 对象
+     *     - `toolcall_output`: Data 为 ToolCall 对象
+     *     - `user_message`: Data 为 UserMessageContent 对象
+     *     - `error`: Data 为 ErrorContent 对象
+     *     - `prompt`: Data 为 PromptContent 对象
+     */
+    ContentData: {
+      type: components['schemas']['ContentType'];
+      /** @description 具体内容（结构由 type 决定），类型取决于 type 字段 */
+      data: unknown;
+    };
+    /** @description 用户消息内容（支持文本 + 场景 + 文件附件） */
+    UserMessageContent: {
+      /** @description 消息文本内容 */
+      text: string;
+      /** @description 文件附件列表 */
+      files?: components['schemas']['FileAttachment'][];
+      /** @description 场景列表（包含完整内容，无需再读取文件） */
+      scenarios?: components['schemas']['ScenarioRef'][];
+    };
+    /** @description 系统提示词内容（用于持久化系统级指令） */
+    PromptContent: {
+      /** @description 提示词名称/命令名（如 "goal", "loop", "scenarios"） */
+      name: string;
+      /** @description 提示词标题（可为空，用于前端显示） */
+      title?: string;
+      /** @description 提示词完整内容 */
+      prompt: string;
+      /**
+       * @description 覆盖 message role，控制 LLM 上下文注入角色。缺省为 "system"，可设为 "user"（连续 user messages 会被合并）
+       * @enum {string}
+       */
+      role?: 'system' | 'user';
+    };
+    /** @description 文件附件 */
+    FileAttachment: {
+      /** @description MIME 类型（如 image/png, application/pdf） */
+      mimetype: string;
+      /** @description 文件唯一标识（用于引用已上传的文件） */
+      fileid: string;
+      /** @description 扩展字段（如文件名、大小等） */
+      extra?: {
+        [key: string]: unknown;
+      };
+    };
+    /** @description 场景引用（包含完整内容） */
+    ScenarioRef: {
+      /** @description 场景标题（如 "Create and Complete a Task"） */
+      title: string;
+      /** @description 场景文件路径（如 "/scenarios/create-and-complete.md"） */
+      filepath: string;
+      /** @description 场景文件完整内容（Markdown 格式） */
+      file_content: string;
+    };
+    ToolCall: {
+      id: components['schemas']['UUID'];
+      tool_name: string;
+      input: string;
+      output?: string;
+      status?: string;
+    };
+    /** @description 远程 Tool 调用模型 */
+    Rtc: {
+      id: components['schemas']['UUID'];
+      /** @description 客户端生成的幂等 ID */
+      client_id?: string;
+      session_id: components['schemas']['UUID'];
+      turn_id: components['schemas']['UUID'];
+      /** @description 关联的 toolcall_input Message 记录 ID */
+      message_id?: components['schemas']['UUID'];
+      /** @description 关联的 toolcall_output Message 记录 ID */
+      output_message_id?: components['schemas']['UUID'];
+      /**
+       * Format: uint32
+       * @description Turn 内的顺序
+       */
+      offset: number;
+      /** @description Tool 名称 */
+      tool_name: string;
+      /** @description Tool 参数（JSON Schema） */
+      parameters?: unknown;
+      status: components['schemas']['RtcStatus'];
+      /** @description 执行结果 */
+      result?: unknown;
+      /** @description 错误信息（失败时） */
+      error_message?: string;
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      updated_at: string;
+      /**
+       * Format: date-time
+       * @description 完成时间
+       */
+      completed_at?: string;
+      /**
+       * Format: date-time
+       * @description 软删除时间
+       */
+      deleted_at?: string;
+    };
+    /** @enum {string} */
+    UpdateEntity: 'session' | 'turn' | 'message' | 'rtc' | 'file';
+    /** @enum {string} */
+    UpdateAction: 'created' | 'updated' | 'deleted';
+    /** @enum {string} */
+    UpdateType: 'gap';
+    /** @description 单条实体变化记录 */
+    UpdateItem: {
+      entity: components['schemas']['UpdateEntity'];
+      action: components['schemas']['UpdateAction'];
+      entity_id: components['schemas']['UUID'];
+    };
+    /** @description 实体变化事件，随操作类 RPC 响应下发，前端收到后更新本地状态保持实时同步 */
+    Update: {
+      id: components['schemas']['UUID'];
+      /** @description 变化条目列表 */
+      items: components['schemas']['UpdateItem'][];
+      /** @description 实体数据（可选，与 items 一一对应） */
+      data_list?: unknown[];
+      /**
+       * Format: uint32
+       * @description 用户维度单调递增 offset
+       */
+      offset: number;
+    };
+    /** @description gap 占位数据，客户端收到后只推进 offset，不做业务处理 */
+    UpdateDataGap: Record<string, never>;
+    CloseSessionRequest: {
+      session_id: components['schemas']['UUID'];
+      /** @description 客户端生成的幂等 ID */
+      client_id?: string;
+    };
+    CloseSessionResult: {
+      success: boolean;
+    };
+    /** @description 关闭会话响应 */
+    CloseSessionResponse: {
+      result: components['schemas']['CloseSessionResult'];
+      updates?: components['schemas']['Update'][];
+    };
+    OpenSessionRequest: {
+      session_id: components['schemas']['UUID'];
+    };
+    OpenSessionResult: {
+      success: boolean;
+    };
+    /** @description Response for reopening a closed session */
+    OpenSessionResponse: {
+      result: components['schemas']['OpenSessionResult'];
+      updates?: components['schemas']['Update'][];
+    };
+    /** @description 更新会话请求（目前仅支持标题） */
+    UpdateSessionRequest: {
+      session_id: components['schemas']['UUID'];
+      /** @description 新标题（不传表示不修改） */
+      title?: string;
+      /**
+       * Format: date-time
+       * @description 软删除时间
+       */
+      deleted_at?: string;
+    };
+    UpdateSessionResult: {
+      session_id: components['schemas']['UUID'];
+    };
+    /** @description 更新会话响应 */
+    UpdateSessionResponse: {
+      result: components['schemas']['UpdateSessionResult'];
+      updates?: components['schemas']['Update'][];
+    };
+    /** @description 发送消息请求，自动创建 session（如不存在）和 turn */
+    SendMessageRequest: {
+      /** @description 可选，为空时自动创建 session */
+      server_session_id?: components['schemas']['UUID'];
+      /** @description 必填 */
+      client_session_id: string;
+      content_data: components['schemas']['ContentData'];
+      /** @description 客户端生成的幂等 ID */
+      client_id: string;
+      /** @description AGENT.md 内容快照，创建 session 时写入，后续每轮通过 attachment 注入 LLM 上下文 */
+      agent_prompt?: string;
+    };
+    SendMessageResult: {
+      session_id: components['schemas']['UUID'];
+      turn_id: components['schemas']['UUID'];
+      message_id: components['schemas']['UUID'];
+    };
+    /** @description 发送消息响应 */
+    SendMessageResponse: {
+      result: components['schemas']['SendMessageResult'];
+      updates?: components['schemas']['Update'][];
+    };
+    /** @description 分叉对话 */
+    ForkSessionRequest: {
+      content_data: components['schemas']['ContentData'];
+      /** @description 客户端生成的幂等 ID */
+      new_client_message_id: string;
+      /** @description 旧 session ID */
+      old_server_session_id: components['schemas']['UUID'];
+      /** @description 新 session ID */
+      new_client_session_id: components['schemas']['UUID'];
+      /** @description Fork 多少条消息？默认200；最多1000条； */
+      limit?: number;
+      /** @description 旧 message ID */
+      old_server_message_id: components['schemas']['UUID'];
+    };
+    ForkSessionResult: {
+      session_id: components['schemas']['UUID'];
+      turn_id: components['schemas']['UUID'];
+      message_ids: components['schemas']['UUID'][];
+    };
+    /** @description Fork对话响应 */
+    ForkSessionResponse: {
+      result: components['schemas']['ForkSessionResult'];
+      updates?: components['schemas']['Update'][];
+    };
+    /** @description 手动触发上下文压缩 */
+    CompactSessionRequest: {
+      session_id: components['schemas']['UUID'];
+      /** @description 自定义摘要指令，覆盖默认压缩 prompt */
+      custom_instruction?: string;
+    };
+    CompactSessionResult: {
+      success: boolean;
+    };
+    /** @description 压缩会话响应 */
+    CompactSessionResponse: {
+      result: components['schemas']['CompactSessionResult'];
+      updates?: components['schemas']['Update'][];
+    };
+    StopTurnRequest: {
+      session_id: components['schemas']['UUID'];
+      /** @description 客户端生成的幂等 ID */
+      client_id?: string;
+    };
+    StopTurnResult: {
+      success: boolean;
+    };
+    /** @description 停止 Turn 响应 */
+    StopTurnResponse: {
+      result: components['schemas']['StopTurnResult'];
+      updates?: components['schemas']['Update'][];
+    };
+    UpdateRtcStatusRequest: {
+      rtc_id: components['schemas']['UUID'];
+      status: components['schemas']['RtcStatus'];
+      /** @description 客户端生成的幂等 ID */
+      client_id?: string;
+    };
+    UpdateRtcStatusResult: {
+      success: boolean;
+    };
+    /** @description 更新 RTC 状态响应 */
+    UpdateRtcStatusResponse: {
+      result: components['schemas']['UpdateRtcStatusResult'];
+      updates?: components['schemas']['Update'][];
+    };
+    /** @description 提交 RTC 执行结果请求 */
+    SubmitRtcResultRequest: {
+      rtc_id: components['schemas']['UUID'];
+      /** @description 是否执行成功 */
+      success: boolean;
+      /**
+       * Format: json
+       * @description 执行结果（成功时）。保留原始 JSON 字段顺序，确保 LLM 缓存命中。
+       */
+      result?: string;
+      /** @description 错误信息（失败时） */
+      error?: string;
+      /** @description 客户端生成的幂等 ID */
+      client_id?: string;
+    };
+    SubmitRtcResultResult: {
+      success: boolean;
+    };
+    /** @description 提交 RTC 执行结果响应 */
+    SubmitRtcResultResponse: {
+      result: components['schemas']['SubmitRtcResultResult'];
+      updates?: components['schemas']['Update'][];
+    };
+    /**
+     * @description RPC 方法名，前后端统一从 protocol 导入，禁止硬编码字符串
+     * @enum {string}
+     */
+    RpcMethod:
+      | 'v1.session.list'
+      | 'v1.session.get'
+      | 'v1.session.close'
+      | 'v1.session.open'
+      | 'v1.session.update'
+      | 'v1.session.fork'
+      | 'v1.session.compact'
+      | 'v1.message.send'
+      | 'v1.message.list'
+      | 'v1.message.get'
+      | 'v1.turn.list'
+      | 'v1.turn.get'
+      | 'v1.turn.stop'
+      | 'v1.rtc.list'
+      | 'v1.rtc.get'
+      | 'v1.rtc.update_status'
+      | 'v1.rtc.submit_result';
+    /** @description 获取会话列表请求 */
+    ListSessionsRequest: {
+      /** @description 分页游标（上一页最后一条的 ID） */
+      cursor?: string;
+      /** @description 每页数量，默认 20 */
+      limit?: number;
+    };
+    ListSessionsResponse: {
+      items: components['schemas']['Session'][];
+      /** @description 下一页游标，为空表示没有更多数据 */
+      next_cursor?: string;
+    };
+    GetSessionRequest: {
+      session_id: components['schemas']['UUID'];
+    };
+    GetSessionResponse: {
+      item: components['schemas']['Session'];
+    };
+    /** @description 获取消息列表请求 */
+    MessageListRequest: {
+      session_id: components['schemas']['UUID'];
+      /** @description 分页游标（上一页最后一条消息的 global_offset 字符串形式） */
+      cursor?: string;
+      /** @description 每页数量，默认 50 */
+      limit?: number;
+    };
+    MessageListResponse: {
+      items: components['schemas']['Message'][];
+      /** @description 下一页游标（最后一条消息的 global_offset 字符串形式，为空表示没有更多数据） */
+      next_cursor?: string;
+    };
+    MessageGetRequest: {
+      message_id: components['schemas']['UUID'];
+    };
+    MessageGetResponse: {
+      item: components['schemas']['Message'];
+    };
+    /** @description 获取 RTC 列表请求 */
+    RtcListRequest: {
+      session_id: components['schemas']['UUID'];
+      /** @description 分页游标（上一页最后一条的 ID） */
+      cursor?: string;
+      /** @description 每页数量，默认 50 */
+      limit?: number;
+    };
+    RtcListResponse: {
+      items: components['schemas']['Rtc'][];
+      /** @description 下一页游标 */
+      next_cursor?: string;
+    };
+    RtcGetRequest: {
+      rtc_id: components['schemas']['UUID'];
+    };
+    RtcGetResponse: {
+      item: components['schemas']['Rtc'];
+    };
+    /** @description 获取 Turn 列表请求 */
+    TurnListRequest: {
+      session_id: components['schemas']['UUID'];
+      /** @description 分页游标（上一页最后一条的 ID） */
+      cursor?: string;
+      /** @description 每页数量，默认 50 */
+      limit?: number;
+    };
+    TurnListResponse: {
+      items: components['schemas']['Turn'][];
+      /** @description 下一页游标 */
+      next_cursor?: string;
+    };
+    TurnGetRequest: {
+      turn_id: components['schemas']['UUID'];
+    };
+    TurnGetResponse: {
+      item: components['schemas']['Turn'];
+    };
+  };
+  responses: never;
+  parameters: never;
+  requestBodies: never;
+  headers: never;
+  pathItems: never;
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    getOAuth2RedirectUrl: {
-        parameters: {
-            query: {
-                /** @description OAuth2 Provider 名称（如 "github"） */
-                provider: string;
-                /** @description 客户端回调地址（Provider 授权完成后重定向到此地址） */
-                redirect_uri: string;
-                /** @description PKCE code_challenge (RFC 7636)，由 code_verifier 经 SHA-256 + base64url 编码得到 */
-                code_challenge?: string;
-                /** @description PKCE challenge 方法，推荐 S256 */
-                code_challenge_method?: "S256" | "plain";
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 成功 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OAuth2AuthorizeResponse"];
-                };
-            };
-        };
+  getOAuth2RedirectUrl: {
+    parameters: {
+      query: {
+        /** @description OAuth2 Provider 名称（如 "github"） */
+        provider: string;
+        /** @description 客户端回调地址（Provider 授权完成后重定向到此地址） */
+        redirect_uri: string;
+        /** @description PKCE code_challenge (RFC 7636)，由 code_verifier 经 SHA-256 + base64url 编码得到 */
+        code_challenge?: string;
+        /** @description PKCE challenge 方法，推荐 S256 */
+        code_challenge_method?: 'S256' | 'plain';
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    oauth2TokenExchange: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description 成功 */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["OAuth2TokenExchangeRequest"] | components["schemas"]["OAuth2TokenExchangeRFC8693Request"];
-                "application/x-www-form-urlencoded": components["schemas"]["OAuth2TokenExchangeRequest"] | components["schemas"]["OAuth2TokenExchangeRFC8693Request"];
-            };
+        content: {
+          'application/json': components['schemas']['OAuth2AuthorizeResponse'];
         };
-        responses: {
-            /** @description 成功 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OAuth2TokenExchangeResponse"] | components["schemas"]["OAuth2TokenExchangeRFC8693Response"];
-                };
-            };
-        };
+      };
     };
-    oauth2TokenRefresh: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["OAuth2TokenRefreshRequest"];
-            };
-        };
-        responses: {
-            /** @description 成功 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OAuth2TokenRefreshResponse"];
-                };
-            };
-        };
+  };
+  oauth2TokenExchange: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    adminLogin: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AdminLoginRequest"];
-            };
-        };
-        responses: {
-            /** @description 登录成功或业务错误（HTTP 状态码始终为 200） */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AdminLoginResponse"] | components["schemas"]["AdminErrorResponse"];
-                };
-            };
-        };
+    requestBody: {
+      content: {
+        'application/json':
+          | components['schemas']['OAuth2TokenExchangeRequest']
+          | components['schemas']['OAuth2TokenExchangeRFC8693Request'];
+        'application/x-www-form-urlencoded':
+          | components['schemas']['OAuth2TokenExchangeRequest']
+          | components['schemas']['OAuth2TokenExchangeRFC8693Request'];
+      };
     };
-    adminRefresh: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    responses: {
+      /** @description 成功 */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AdminRefreshRequest"];
-            };
+        content: {
+          'application/json':
+            | components['schemas']['OAuth2TokenExchangeResponse']
+            | components['schemas']['OAuth2TokenExchangeRFC8693Response'];
         };
-        responses: {
-            /** @description 刷新成功或业务错误（HTTP 状态码始终为 200） */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AdminRefreshResponse"] | components["schemas"]["AdminErrorResponse"];
-                };
-            };
-        };
+      };
     };
-    adminGetCurrentUser: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 成功或业务错误（HTTP 状态码始终为 200） */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @enum {boolean} */
-                        success: true;
-                        data: components["schemas"]["AdminUserResponse"];
-                    } | components["schemas"]["AdminErrorResponse"];
-                };
-            };
-        };
+  };
+  oauth2TokenRefresh: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    adminLogout: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AdminLogoutRequest"];
-            };
-        };
-        responses: {
-            /** @description 登出成功或业务错误（HTTP 状态码始终为 200） */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @enum {boolean} */
-                        success: true;
-                        data: {
-                            /** @enum {string} */
-                            status: "ok";
-                        };
-                    } | components["schemas"]["AdminErrorResponse"];
-                };
-            };
-        };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['OAuth2TokenRefreshRequest'];
+      };
     };
-    adminJWKS: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    responses: {
+      /** @description 成功 */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description JWKS 公钥集合 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        keys: Record<string, never>[];
-                    };
-                };
-            };
+        content: {
+          'application/json': components['schemas']['OAuth2TokenRefreshResponse'];
         };
+      };
     };
+  };
+  adminLogin: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AdminLoginRequest'];
+      };
+    };
+    responses: {
+      /** @description 登录成功或业务错误（HTTP 状态码始终为 200） */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json':
+            | components['schemas']['AdminLoginResponse']
+            | components['schemas']['AdminErrorResponse'];
+        };
+      };
+    };
+  };
+  adminRefresh: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AdminRefreshRequest'];
+      };
+    };
+    responses: {
+      /** @description 刷新成功或业务错误（HTTP 状态码始终为 200） */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json':
+            | components['schemas']['AdminRefreshResponse']
+            | components['schemas']['AdminErrorResponse'];
+        };
+      };
+    };
+  };
+  adminGetCurrentUser: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description 成功或业务错误（HTTP 状态码始终为 200） */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json':
+            | {
+                /** @enum {boolean} */
+                success: true;
+                data: components['schemas']['AdminUserResponse'];
+              }
+            | components['schemas']['AdminErrorResponse'];
+        };
+      };
+    };
+  };
+  adminLogout: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AdminLogoutRequest'];
+      };
+    };
+    responses: {
+      /** @description 登出成功或业务错误（HTTP 状态码始终为 200） */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json':
+            | {
+                /** @enum {boolean} */
+                success: true;
+                data: {
+                  /** @enum {string} */
+                  status: 'ok';
+                };
+              }
+            | components['schemas']['AdminErrorResponse'];
+        };
+      };
+    };
+  };
+  adminJWKS: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description JWKS 公钥集合 */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            keys: Record<string, never>[];
+          };
+        };
+      };
+    };
+  };
 }

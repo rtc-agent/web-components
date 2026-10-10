@@ -4,51 +4,51 @@
 // openapi-typescript 生成的 OpenAPI 规范类型（paths / components / operations）
 export * from './models.gen.js';
 
-import type {components} from './models.gen.js';
+import type { components } from './models.gen.js';
 
-// ---------- 将 components.schemas 下的所有类型重新导出为扁平名称 ----------
-// 保持与旧版手写 TS 的导入兼容：`import { Session } from '@rtc-agent/protocol'`
+// ---------- 枚举类型 ----------
+
+export * from './enums.js';
+
+// ---------- 基础类型 ----------
 
 export type UUID = components['schemas']['UUID'];
 
-// 枚举
-export type SessionStatus = components['schemas']['SessionStatus'];
-export type TurnStatus = components['schemas']['TurnStatus'];
-export type MessageRole = components['schemas']['MessageRole'];
-export type MessageStreamingStatus = components['schemas']['MessageStreamingStatus'];
-export type ContentType = components['schemas']['ContentType'];
-export type ErrorCategory = components['schemas']['ErrorCategory'];
+// ---------- 枚举类型别名（向后兼容） ----------
+
+// 枚举类型已通过 enums.ts 导出，此处保留类型别名以确保向后兼容
+// 新代码应直接使用枚举类型，如：import { SessionStatus } from '@rtc-agent/protocol'
+
+/** Error content structure (not an enum, but a composite type) */
 export type ErrorContent = components['schemas']['ErrorContent'];
-export type RtcStatus = components['schemas']['RtcStatus'];
-export type UpdateEntity = components['schemas']['UpdateEntity'];
-export type UpdateAction = components['schemas']['UpdateAction'];
-export type UpdateType = components['schemas']['UpdateType'];
+
+/** RPC method type (string literal union from OpenAPI) */
 export type RpcMethod = components['schemas']['RpcMethod'];
 
 /** RPC 方法名常量（命名空间对象，供 `RpcMethod.SessionList` 形式访问） */
 export const RpcMethod = {
-    // Session
-    SessionList: 'v1.session.list',
-    SessionGet: 'v1.session.get',
-    SessionClose: 'v1.session.close',
-    SessionOpen: 'v1.session.open',
-    SessionUpdate: 'v1.session.update',
-    SessionFork: 'v1.session.fork',
-    SessionCompact: 'v1.session.compact',
-    // Message
-    MessageSend: 'v1.message.send',
-    MessageList: 'v1.message.list',
-    MessageGet: 'v1.message.get',
-    // Turn
-    TurnList: 'v1.turn.list',
-    TurnGet: 'v1.turn.get',
-    TurnStop: 'v1.turn.stop',
-    // RTC
-    RtcList: 'v1.rtc.list',
-    RtcGet: 'v1.rtc.get',
-    RtcUpdateStatus: 'v1.rtc.update_status',
-    RtcSubmitResult: 'v1.rtc.submit_result',
-} as const;
+  // Session
+  SessionList: 'v1.session.list',
+  SessionGet: 'v1.session.get',
+  SessionClose: 'v1.session.close',
+  SessionOpen: 'v1.session.open',
+  SessionUpdate: 'v1.session.update',
+  SessionFork: 'v1.session.fork',
+  SessionCompact: 'v1.session.compact',
+  // Message
+  MessageSend: 'v1.message.send',
+  MessageList: 'v1.message.list',
+  MessageGet: 'v1.message.get',
+  // Turn
+  TurnList: 'v1.turn.list',
+  TurnGet: 'v1.turn.get',
+  TurnStop: 'v1.turn.stop',
+  // RTC
+  RtcList: 'v1.rtc.list',
+  RtcGet: 'v1.rtc.get',
+  RtcUpdateStatus: 'v1.rtc.update_status',
+  RtcSubmitResult: 'v1.rtc.submit_result',
+} as const satisfies Record<string, components['schemas']['RpcMethod']>;
 
 // 域模型
 export type Session = components['schemas']['Session'];
@@ -71,21 +71,24 @@ export type UpdateDataGap = components['schemas']['UpdateDataGap'];
 // RPC Action：请求 / 结果 / 响应
 // 操作类 RPC 统一响应结构（泛型便利类型）
 export interface RpcActionResponse<T> {
-    result: T;
-    updates?: Update[];
+  result: T;
+  updates?: Update[];
 }
 
 export type CloseSessionRequest = components['schemas']['CloseSessionRequest'];
 export type CloseSessionResult = components['schemas']['CloseSessionResult'];
-export type CloseSessionResponse = components['schemas']['CloseSessionResponse'];
+export type CloseSessionResponse =
+  components['schemas']['CloseSessionResponse'];
 
 export type OpenSessionRequest = components['schemas']['OpenSessionRequest'];
 export type OpenSessionResult = components['schemas']['OpenSessionResult'];
 export type OpenSessionResponse = components['schemas']['OpenSessionResponse'];
 
-export type UpdateSessionRequest = components['schemas']['UpdateSessionRequest'];
+export type UpdateSessionRequest =
+  components['schemas']['UpdateSessionRequest'];
 export type UpdateSessionResult = components['schemas']['UpdateSessionResult'];
-export type UpdateSessionResponse = components['schemas']['UpdateSessionResponse'];
+export type UpdateSessionResponse =
+  components['schemas']['UpdateSessionResponse'];
 
 export type SendMessageRequest = components['schemas']['SendMessageRequest'];
 export type SendMessageResult = components['schemas']['SendMessageResult'];
@@ -99,21 +102,31 @@ export type StopTurnRequest = components['schemas']['StopTurnRequest'];
 export type StopTurnResult = components['schemas']['StopTurnResult'];
 export type StopTurnResponse = components['schemas']['StopTurnResponse'];
 
-export type CompactSessionRequest = components['schemas']['CompactSessionRequest'];
-export type CompactSessionResult = components['schemas']['CompactSessionResult'];
-export type CompactSessionResponse = components['schemas']['CompactSessionResponse'];
+export type CompactSessionRequest =
+  components['schemas']['CompactSessionRequest'];
+export type CompactSessionResult =
+  components['schemas']['CompactSessionResult'];
+export type CompactSessionResponse =
+  components['schemas']['CompactSessionResponse'];
 
-export type UpdateRtcStatusRequest = components['schemas']['UpdateRtcStatusRequest'];
-export type UpdateRtcStatusResult = components['schemas']['UpdateRtcStatusResult'];
-export type UpdateRtcStatusResponse = components['schemas']['UpdateRtcStatusResponse'];
+export type UpdateRtcStatusRequest =
+  components['schemas']['UpdateRtcStatusRequest'];
+export type UpdateRtcStatusResult =
+  components['schemas']['UpdateRtcStatusResult'];
+export type UpdateRtcStatusResponse =
+  components['schemas']['UpdateRtcStatusResponse'];
 
-export type SubmitRtcResultRequest = components['schemas']['SubmitRtcResultRequest'];
-export type SubmitRtcResultResult = components['schemas']['SubmitRtcResultResult'];
-export type SubmitRtcResultResponse = components['schemas']['SubmitRtcResultResponse'];
+export type SubmitRtcResultRequest =
+  components['schemas']['SubmitRtcResultRequest'];
+export type SubmitRtcResultResult =
+  components['schemas']['SubmitRtcResultResult'];
+export type SubmitRtcResultResponse =
+  components['schemas']['SubmitRtcResultResponse'];
 
 // RPC Query：请求 / 响应
 export type ListSessionsRequest = components['schemas']['ListSessionsRequest'];
-export type ListSessionsResponse = components['schemas']['ListSessionsResponse'];
+export type ListSessionsResponse =
+  components['schemas']['ListSessionsResponse'];
 
 export type GetSessionRequest = components['schemas']['GetSessionRequest'];
 export type GetSessionResponse = components['schemas']['GetSessionResponse'];
@@ -137,32 +150,49 @@ export type TurnGetRequest = components['schemas']['TurnGetRequest'];
 export type TurnGetResponse = components['schemas']['TurnGetResponse'];
 
 // HTTP / OAuth2
-export type OAuth2AuthorizeResponse = components['schemas']['OAuth2AuthorizeResponse'];
-export type OAuth2TokenExchangeRequest = components['schemas']['OAuth2TokenExchangeRequest'];
-export type OAuth2TokenExchangeResponse = components['schemas']['OAuth2TokenExchangeResponse'];
-export type OAuth2TokenRefreshRequest = components['schemas']['OAuth2TokenRefreshRequest'];
-export type OAuth2TokenRefreshResponse = components['schemas']['OAuth2TokenRefreshResponse'];
+export type OAuth2AuthorizeResponse =
+  components['schemas']['OAuth2AuthorizeResponse'];
+export type OAuth2TokenExchangeRequest =
+  components['schemas']['OAuth2TokenExchangeRequest'];
+export type OAuth2TokenExchangeResponse =
+  components['schemas']['OAuth2TokenExchangeResponse'];
+export type OAuth2TokenExchangeRFC8693Request =
+  components['schemas']['OAuth2TokenExchangeRFC8693Request'];
+export type OAuth2TokenExchangeRFC8693Response =
+  components['schemas']['OAuth2TokenExchangeRFC8693Response'];
+export type OAuth2TokenRefreshRequest =
+  components['schemas']['OAuth2TokenRefreshRequest'];
+export type OAuth2TokenRefreshResponse =
+  components['schemas']['OAuth2TokenRefreshResponse'];
 export type OAuth2Error = components['schemas']['OAuth2Error'];
 
 // ---------- RPC 错误码（保留手写常量） ----------
 
 export const RpcErrorCode = {
-    // 通用错误 (100-199)
-    InvalidRequest: 100,
-    InternalError: 101,
+  // 通用错误 (100-199)
+  InvalidRequest: 100,
+  InternalError: 101,
 
-    // 幂等性冲突 (200-299)
-    /** client_id 已存在，请求被拒绝 */
-    ClientIdConflict: 200,
+  // 幂等性冲突 (200-299)
+  /** client_id 已存在，请求被拒绝 */
+  ClientIdConflict: 200,
 } as const;
 
 export type RpcErrorCode = (typeof RpcErrorCode)[keyof typeof RpcErrorCode];
 
 export interface RpcError {
-    code: RpcErrorCode;
-    message: string;
+  code: RpcErrorCode;
+  message: string;
 }
 
 // ---------- S3 对象存储 ----------
 
 export * from './s3.js';
+
+// ---------- Type Guards ----------
+
+export * from './type-guards.js';
+
+// ---------- Logger ----------
+
+export * from './logger.js';
