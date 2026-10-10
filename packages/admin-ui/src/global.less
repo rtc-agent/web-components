@@ -74,7 +74,114 @@ ol {
   list-style: none;
 }
 
+/* RTL (Right-to-Left) Language Support */
+[dir='rtl'] {
+  /* Mirror layout for RTL languages */
+  .ant-layout {
+    direction: rtl;
+  }
+
+  /* ProLayout sidebar positioning */
+  .ant-pro-sider.ant-layout-sider.ant-pro-sider-fixed {
+    right: 0;
+    left: auto;
+  }
+
+  .ant-pro-layout .ant-pro-sider-collapsed .ant-pro-sider-link span:not([role='img']) {
+    display: none;
+  }
+
+  /* Menu items text alignment */
+  .ant-menu-item,
+  .ant-menu-submenu-title {
+    text-align: right;
+  }
+
+  /* Breadcrumb separator */
+  .ant-breadcrumb-separator {
+    transform: scaleX(-1);
+  }
+
+  /* Form labels alignment */
+  .ant-form-horizontal .ant-form-item-label {
+    text-align: right;
+  }
+
+  /* Table header alignment */
+  .ant-table-thead > tr > th,
+  .ant-table-tbody > tr > td {
+    text-align: right;
+  }
+
+  /* Card header */
+  .ant-card-head-title {
+    text-align: right;
+  }
+
+  /* Modal and Drawer close button */
+  .ant-modal-close,
+  .ant-drawer-close {
+    left: 16px;
+    right: auto;
+  }
+
+  /* Pagination */
+  .ant-pagination {
+    direction: rtl;
+  }
+
+  /* Tabs */
+  .ant-tabs-tab {
+    direction: rtl;
+  }
+
+  /* Select dropdown */
+  .ant-select-dropdown {
+    direction: rtl;
+  }
+
+  /* Dropdown menu */
+  .ant-dropdown-menu-item {
+    text-align: right;
+  }
+
+  /* Avatar and name in header */
+  .ant-pro-global-header-actions {
+    flex-direction: row-reverse;
+  }
+
+  /* Search input */
+  .ant-input-search {
+    direction: rtl;
+  }
+}
+
+/* CSS Logical Properties for better RTL support */
+[dir='ltr'],
+[dir='rtl'] {
+  /* Use logical properties for margins and paddings */
+  .ant-pro-page-container {
+    padding-inline-start: 24px;
+    padding-inline-end: 24px;
+  }
+
+  .ant-card-body {
+    padding-inline: 24px;
+  }
+
+  .ant-form-item-control {
+    padding-inline-start: 8px;
+  }
+}
+
 @media (max-width: 768px) {
+  /* Dashboard height variable for mobile */
+  :root {
+    /* NOTE: --dashboard-height differs between mobile (120px offset) and desktop (140px offset).
+       Mobile uses a smaller offset due to the compact header layout. */
+    --dashboard-height: calc(100vh - 120px);
+  }
+
   .ant-table {
     width: 100%;
     overflow-x: auto;
@@ -88,5 +195,105 @@ ol {
         }
       }
     }
+  }
+
+  /* ProTable responsive adjustments */
+  .ant-pro-table-search {
+    padding: 12px;
+  }
+
+  .ant-pro-table-list-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+
+    &-title {
+      font-size: 16px;
+    }
+
+    &-setting-item {
+      padding: 4px;
+    }
+  }
+
+  /* Card adjustments */
+  .ant-card {
+    .ant-card-head {
+      padding: 0 12px;
+      min-height: 40px;
+
+      &-title {
+        font-size: 14px;
+      }
+    }
+
+    .ant-card-body {
+      padding: 12px;
+    }
+  }
+
+  /* Form adjustments */
+  .ant-form {
+    &.ant-form-horizontal {
+      .ant-form-item-label {
+        text-align: left;
+      }
+    }
+
+    .ant-form-item {
+      margin-bottom: 12px;
+    }
+  }
+
+  /* RTL support for mobile */
+  [dir='rtl'] .ant-form.ant-form-horizontal .ant-form-item-label {
+    text-align: right;
+  }
+
+  /* Modal adjustments */
+  .ant-modal {
+    width: calc(100vw - 32px) !important;
+    max-width: none;
+    margin: 16px auto;
+
+    .ant-modal-body {
+      padding: 16px;
+    }
+  }
+
+  /* Drawer adjustments */
+  .ant-drawer {
+    width: 100vw !important;
+
+    .ant-drawer-body {
+      padding: 16px;
+    }
+  }
+
+  /* Tabs adjustments */
+  .ant-tabs {
+    &.ant-tabs-top {
+      > .ant-tabs-nav {
+        margin: 0;
+        padding: 0 12px;
+
+        .ant-tabs-tab {
+          padding: 8px 12px;
+          font-size: 13px;
+        }
+      }
+    }
+  }
+
+  /* Button adjustments */
+  .ant-btn {
+    &.ant-btn-sm {
+      padding: 0 8px;
+      font-size: 12px;
+    }
+  }
+
+  /* Space adjustments */
+  .ant-space {
+    gap: 4px !important;
   }
 }

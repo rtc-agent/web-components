@@ -1,4 +1,5 @@
 import { history, useAccess } from '@umijs/max';
+import { Skeleton } from 'antd';
 import React, { useEffect } from 'react';
 
 /**
@@ -26,7 +27,7 @@ const SystemIndexPage: React.FC = () => {
     }
   }, [access]);
 
-  return null;
+  return <Skeleton active style={{ padding: 24 }} />;
 };
 
 export default SystemIndexPage;

@@ -149,7 +149,7 @@ const Welcome: React.FC = () => {
       ? mdContent['zh-CN']
       : mdContent['en-US']);
   const { initialState } = useModel('@@initialState');
-  const isDark = initialState?.settings?.navTheme === 'realDark';
+  const isDark = ['realDark', 'dark'].includes(initialState?.settings?.navTheme || '');
 
   return (
     <PageContainer
