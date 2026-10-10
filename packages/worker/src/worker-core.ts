@@ -969,6 +969,10 @@ export class WorkerCore implements WorkerPersistenceCore {
    * Cancel an ongoing file operation by its operationId.
    *
    * No-op if operationId is not found (operation already completed or invalid).
+   *
+   * Note: The delete() call here is idempotent with the delete() in the finally blocks
+   * of uploadFile()/downloadFile(). Both paths may execute concurrently in race scenarios,
+   * but Map.delete() is safe to call multiple times with the same key.
    */
   cancelFileOperation(operationId: string): void {
     const ac = this._operationControllers.get(operationId);

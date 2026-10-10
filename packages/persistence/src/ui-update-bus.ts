@@ -177,7 +177,16 @@ export class UIUpdateBus {
     // Store the chain for subsequent events
     this._processingChains.set(key, next);
 
-    // Clean up after the chain completes to prevent memory leaks
+    // Clean up after the chain completes to prevent memory leaks.
+    // The .finally() handler removes the chain from the Map once it settles (resolves or rejects).
+    // This is important because:
+    // 1. Each event creates a new chain entry
+    // 2. Without cleanup, the Map would grow unbounded during high-frequency event broadcasting
+    // 3. The CHAIN_TIMEOUT_MS (10s) ensures even stuck listeners eventually complete
+    //
+    // Note: In extreme scenarios (1000+ events/sec), temporary memory growth is possible
+    // because chains accumulate faster than they're cleaned up. The timeout mechanism
+    // guarantees eventual cleanup, but doesn't prevent transient spikes.
     next.finally(() => {
       if (this._processingChains.get(key) === next) {
         this._processingChains.delete(key);
@@ -404,9 +413,14 @@ export class UIUpdateBus {
   /**
    * Force resume: emergency recovery when suspend exceeds safety timeout or host disconnects.
    * Resets depth counter, clears safety timer, and flushes events.
-   * Note: If there are pending processing chains, they will continue running but
-   * suspended events will be flushed immediately. This may cause temporary inconsistency
-   * but is acceptable for emergency recovery.
+   *
+   * Important behavior notes:
+   * 1. Pending processing chains (if any) will continue running in the background.
+   *    They are NOT cancelled, as that could leave listeners in an inconsistent state.
+   * 2. After force resume completes, subsequent publish() calls will immediately dispatch
+   *    events rather than collecting them. This is intentional — the safety timeout indicates
+   *    a serious issue, and we want to restore normal operation as quickly as possible.
+   * 3. Any events collected during suspend (before the timeout) are flushed as a bulk update.
    */
   private _forceResume(): void {
     const pendingChains = this._processingChains.size;

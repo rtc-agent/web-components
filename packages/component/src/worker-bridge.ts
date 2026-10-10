@@ -146,6 +146,19 @@ export class WorkerBridge {
     private _connectionListeners = new Set<(event: ConnectionStateEvent) => void>();
 
     /**
+     * Whether callbacks have been registered with the Worker.
+     *
+     * This flag is set to true immediately after registerCallback() succeeds,
+     * and is used by destroy() to determine whether unregisterCallback() should be called.
+     *
+     * Rationale: _initialized alone is insufficient because it's only set after _doInit() completes.
+     * If _doInit() fails after registerCallback() (e.g., during catch-up), _initialized remains false
+     * but callbacks ARE registered in the Worker. Without this flag, destroy() would skip unregisterCallback(),
+     * leaving orphaned callback references in the Worker and causing memory leaks.
+     */
+    private _callbacksRegistered = false;
+
+    /**
      * Whether sessionStorage cursor has been restored (only once per instance lifetime).
      * Prevents destroy(false) + init() from re-loading a stale sessionStorage cursor.
      */
@@ -616,6 +629,9 @@ export class WorkerBridge {
         // makes the code robust against future changes that might add async event broadcasting to init().
         // This also ensures callbacks are ready to receive events immediately after init() completes.
         await this._core.registerCallback(this._proxiedCallbacks);
+        // Mark callbacks as registered immediately after successful registration.
+        // This ensures destroy() can properly clean up even if subsequent initialization steps fail.
+        this._callbacksRegistered = true;
 
         // Initialize the Worker-side shared state.
         await this._core.init(config);
@@ -658,8 +674,10 @@ export class WorkerBridge {
         //    If initWorker() succeeded but init() didn't complete (or wasn't called),
         //    we still need to close the port to avoid resource leaks.
         if (this._worker) {
-            // Only unregister if init() completed (callbacks were registered)
-            if (this._initialized && this._core) {
+            // Only unregister if callbacks were actually registered (regardless of full init completion).
+            // This handles the case where _doInit() failed after registerCallback() —
+            // _initialized is false but callbacks ARE registered in the Worker.
+            if (this._callbacksRegistered && this._core) {
                 try {
                     await this._core.unregisterCallback(this._proxiedCallbacks);
                 } catch (err) {
@@ -691,6 +709,7 @@ export class WorkerBridge {
         // 5. Clear connection listeners
         this._connectionListeners.clear();
         this._initialized = false;
+        this._callbacksRegistered = false;
 
         // 6. Resolve all pending yield channel Promises before closing the channel.
         //    If we don't resolve them, any code awaiting _yieldToMain() will hang forever
@@ -708,6 +727,9 @@ export class WorkerBridge {
             this._yieldChannel.port2.close();
             this._yieldChannel = undefined;
         }
+        // Defensive reset: ensure the resolves array is empty even though we shifted all items above.
+        // This prevents any accidental references from being held if the array was mutated concurrently.
+        this._yieldResolves.length = 0;
 
         // 8. Only clear cursor state when explicitly requested (e.g., tab close).
         //    Component unmount/remount (clearStorage=false) should keep the cursor
