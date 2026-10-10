@@ -1,5 +1,5 @@
 import { CheckOutlined, GlobalOutlined } from '@ant-design/icons';
-import { getAllLocales, getLocale, setLocale } from '@umijs/max';
+import { getAllLocales, getLocale, setLocale, useIntl } from '@umijs/max';
 import type { MenuProps } from 'antd';
 import { Button } from 'antd';
 import { useMemo } from 'react';
@@ -19,12 +19,22 @@ const localeLabelMap: Record<string, { emoji: string; label: string }> = {
 
 const onLangClick: MenuProps['onClick'] = ({ key }) => {
   if (key.startsWith('lang-')) {
-    setLocale(key.replace('lang-', ''), false);
+    const newLocale = key.replace('lang-', '');
+    setLocale(newLocale, false);
+
+    // Update document direction for RTL/LTR languages
+    const RTL_LOCALES = ['fa-IR', 'ar-EG', 'he-IL'];
+    const isRTL = RTL_LOCALES.some((rtl) =>
+      newLocale.startsWith(rtl.split('-')[0]),
+    );
+    document.documentElement.dir = isRTL ? 'rtl' : 'ltr';
+    document.documentElement.lang = newLocale;
   }
 };
 
 export const LangDropdown: React.FC = () => {
   const { styles } = useHeaderActionStyles();
+  const intl = useIntl();
   const allLocales = useMemo(() => getAllLocales(), []);
   const currentLocale = getLocale();
   const supportLocales = allLocales.filter((l) => l in localeLabelMap);
@@ -55,7 +65,14 @@ export const LangDropdown: React.FC = () => {
         style: { minWidth: 180 },
       }}
     >
-      <Button type="text" className={styles.action} aria-label="语言切换">
+      <Button
+        type="text"
+        className={styles.action}
+        aria-label={intl.formatMessage({
+          id: 'component.globalHeader.langSwitch',
+          defaultMessage: '语言切换',
+        })}
+      >
         <GlobalOutlined />
       </Button>
     </HeaderDropdown>
