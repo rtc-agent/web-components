@@ -47,6 +47,9 @@ export class WorkerCore implements WorkerPersistenceCore {
   /** Timer for periodic UI update queue cleanup (prevents unbounded growth). */
   private _cleanupTimer: ReturnType<typeof setTimeout> | null = null;
 
+  /** Promise-based dedup guard for concurrent init() calls (e.g., React StrictMode). */
+  private _initPromise: Promise<void> | null = null;
+
   /** Callback sets for all connected Tabs */
   private callbacks = new Set<WorkerCallbacks>();
 
@@ -66,6 +69,7 @@ export class WorkerCore implements WorkerPersistenceCore {
    * - Creates PersistenceLayer (internally holds RTCAgentClient + IndexedDB + EntityRepository)
    * - Subscribes to UIUpdateBus for broadcasting to all Tabs
    * - Idempotent (subsequent init calls are ignored)
+   * - Concurrent-safe: concurrent calls (e.g., React StrictMode) share the same Promise
    */
   async init(config: PersistenceConfig): Promise<void> {
     if (this.layer) {
@@ -73,6 +77,25 @@ export class WorkerCore implements WorkerPersistenceCore {
       return;
     }
 
+    // Promise-based dedup: concurrent init() calls share the same initialization
+    // This prevents duplicate bus.subscribe() calls in React StrictMode
+    if (this._initPromise) {
+      log.debug('init() already in progress, reusing existing promise');
+      return this._initPromise;
+    }
+
+    this._initPromise = this._doInit(config);
+    try {
+      await this._initPromise;
+    } finally {
+      this._initPromise = null;
+    }
+  }
+
+  /**
+   * Internal initialization logic (extracted for Promise-based dedup).
+   */
+  private async _doInit(config: PersistenceConfig): Promise<void> {
     // Bridge RTCAgentClient's getToken / onTokenExpired to callbacks.
     // Note: callbacks is still empty at this point, but they are only invoked during connect().
     const bridgedConfig: PersistenceConfig = {
@@ -377,7 +400,24 @@ export class WorkerCore implements WorkerPersistenceCore {
 
   // ========== Lifecycle ==========
 
-  async close(): Promise<void> {
+  /**
+   * Close this Tab's connection to the SharedWorker.
+   *
+   * Reference counting: only destroys shared resources if this is the last tab.
+   * SharedWorker architecture: all tabs share the same core/layer/database.
+   * If other tabs are still connected, skip teardown to avoid breaking their operations.
+   *
+   * @param callerCallback - Optional callback to remove before checking reference count.
+   *                         If provided, ensures the callback is removed even if unregisterCallback
+   *                         failed earlier, preventing the SharedWorker from being kept alive
+   *                         indefinitely by a stale callback reference.
+   */
+  async close(callerCallback?: WorkerCallbacks): Promise<void> {
+    // If provided, remove the callback first (handles unregisterCallback failure cases)
+    if (callerCallback) {
+      this.callbacks.delete(callerCallback);
+    }
+
     // Reference counting: only destroy shared resources if this is the last tab
     // SharedWorker architecture: all tabs share the same core/layer/database
     // If other tabs are still connected, skip teardown to avoid breaking their operations
@@ -397,6 +437,11 @@ export class WorkerCore implements WorkerPersistenceCore {
     for (const [id, ac] of this._operationControllers) {
       log.debug(`aborting file operation: ${id}`);
       ac.abort();
+    }
+    // Give operations a tick to complete finally cleanup
+    // (their Promise chains need to run the finally block to remove themselves from the Map)
+    if (this._operationControllers.size > 0) {
+      await new Promise(resolve => setTimeout(resolve, 0));
     }
     this._operationControllers.clear();
 
@@ -655,12 +700,26 @@ export class WorkerCore implements WorkerPersistenceCore {
 
   /**
    * Broadcast a UIUpdateEvent to all registered Tab callbacks.
+   *
+   * Async-safe: if the callback returns a Promise that rejects, the error is caught
+   * and logged rather than becoming an unhandled rejection.
+   *
+   * Performance note: Checks for `.then` instead of `.catch` to avoid triggering
+   * postMessage roundtrips on Comlink proxies in high-frequency broadcast scenarios.
    */
   private broadcastUIUpdate(event: UIUpdateEvent, seq = 0): void {
     const payload = { event, seq };
     for (const cb of this.callbacks) {
       try {
-        cb.onUIUpdate(payload);
+        // onUIUpdate is typed as returning Promise<void> | void, but at runtime
+        // we need to handle both cases gracefully.
+        const result = cb.onUIUpdate(payload);
+        // Check for Promise-like return value using .then (safer than .catch for Comlink proxies)
+        if (result && typeof result === 'object' && typeof (result as any).then === 'function') {
+          (result as Promise<void>).catch(err => {
+            log.error('onUIUpdate callback async error:', err);
+          });
+        }
       } catch (err) {
         log.error('onUIUpdate callback error:', err);
       }
@@ -720,36 +779,47 @@ export class WorkerCore implements WorkerPersistenceCore {
   /**
    * Request a token (used as RTCAgentClient callback).
    *
-   * - Picks any registered requestToken callback
-   * - On failure, tries the next one
+   * Parallel: tries all registered requestToken callbacks concurrently via Promise.any,
+   * returning the first successful result. This avoids serial latency when multiple tabs
+   * are registered and one is slow to respond.
    */
   private async requestToken(): Promise<string> {
-    for (const cb of this.callbacks) {
-      try {
-        return await cb.requestToken();
-      } catch (err) {
-        log.warn('requestToken failed, trying next:', err);
-      }
+    const promises = Array.from(this.callbacks)
+      .map(cb => cb.requestToken());
+    if (promises.length === 0) {
+      throw new Error('[WorkerCore] no callback available to provide token');
     }
-    throw new Error('[WorkerCore] no callback available to provide token');
+    try {
+      const token = await Promise.any(promises);
+      log.debug('token obtained successfully');
+      return token;
+    } catch (err) {
+      // Promise.any rejects with AggregateError when all promises reject
+      log.error('all requestToken callbacks failed:', err);
+      throw new Error('[WorkerCore] all token callbacks failed');
+    }
   }
 
   /**
    * Request a token refresh (used as RTCAgentClient's onTokenExpired callback).
    *
-   * - Picks any registered requestTokenRefresh callback
-   * - On failure, tries the next one
-   * - When all callbacks fail, returns 'relogin' (requires user to log in again)
+   * Parallel: tries all registered requestTokenRefresh callbacks concurrently via Promise.any,
+   * returning the first successful result. When all callbacks fail, returns 'relogin'
+   * (requires user to log in again).
    */
   private async requestTokenRefresh(): Promise<TokenExpiredAction> {
-    for (const cb of this.callbacks) {
-      try {
-        return await cb.requestTokenRefresh();
-      } catch (err) {
-        log.warn('requestTokenRefresh failed, trying next:', err);
-      }
+    const promises = Array.from(this.callbacks)
+      .map(cb => cb.requestTokenRefresh());
+    if (promises.length === 0) {
+      return 'relogin';
     }
-    return 'relogin';
+    try {
+      return await Promise.any(promises);
+    } catch (err) {
+      // Promise.any rejects with AggregateError when all promises reject
+      log.error('all requestTokenRefresh callbacks failed:', err);
+      return 'relogin';
+    }
   }
 
   private ensureLayer(): PersistenceLayer {

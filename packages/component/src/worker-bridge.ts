@@ -152,6 +152,13 @@ export class WorkerBridge {
     private _hasRestoredFromStorage = false;
 
     /**
+     * Whether catch-up is in progress.
+     * When true, _updateLastProcessedSeq only updates memory to avoid frequent sessionStorage writes.
+     * After catch-up completes, the cursor is persisted in one batch write.
+     */
+    private _isCatchingUp = false;
+
+    /**
      * Last processed UI update sequence number (for catch-up after page refresh).
      * Persisted in sessionStorage to survive page refreshes within the same tab.
      * Updated during both catch-up and real-time broadcasts to minimize redundant replays.
@@ -598,7 +605,11 @@ export class WorkerBridge {
         }
 
         // Open the port (must be called before any communication).
-        this._worker.port.start();
+        try {
+            this._worker.port.start();
+        } catch (err) {
+            log.debug('port.start() failed (likely already started):', err);
+        }
 
         // Register callback BEFORE init() to ensure no events are missed.
         // Although WorkerCore.init() currently doesn't broadcast events, registering first
@@ -1096,6 +1107,9 @@ export class WorkerBridge {
         this._catchUpAbortController = new AbortController();
         const signal = this._catchUpAbortController.signal;
 
+        // Set flag to batch sessionStorage writes (only update memory during catch-up)
+        this._isCatchingUp = true;
+
         try {
             let fromSeq = this._lastProcessedSeq;
             let totalDelivered = 0;
@@ -1148,7 +1162,8 @@ export class WorkerBridge {
                             event: entry.event as UIUpdateEvent,
                             seq: entrySeq,
                         });
-                        // onUIUpdate callback already calls _updateLastProcessedSeq and persists to sessionStorage
+                        // onUIUpdate callback already calls _updateLastProcessedSeq
+                        // (persists to sessionStorage only after catch-up completes)
                         totalDelivered++;
                     } catch (err) {
                         log.error('catchUp: failed to deliver event, stopping:', err);
@@ -1183,6 +1198,9 @@ export class WorkerBridge {
             }
         } finally {
             this._catchUpAbortController = undefined;
+            // Batch persist cursor to sessionStorage after catch-up completes
+            this._isCatchingUp = false;
+            this._saveLastProcessedSeq();
         }
     }
 
@@ -1239,10 +1257,14 @@ export class WorkerBridge {
 
     /**
      * Update the last processed seq and persist to sessionStorage.
+     * During catch-up, only updates memory to avoid frequent synchronous disk writes.
+     * The cursor is persisted in one batch write after catch-up completes.
      */
     private _updateLastProcessedSeq(seq: number): void {
         this._lastProcessedSeq = seq;
-        this._saveLastProcessedSeq();
+        if (!this._isCatchingUp) {
+            this._saveLastProcessedSeq();
+        }
     }
 
     /**

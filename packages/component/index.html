@@ -3,6 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!--
+      NOTE: This CSP is for demo/development only.
+      Production deployments should:
+      1. Remove 'unsafe-inline' from script-src
+      2. Use nonce-based CSP or strict-dynamic
+      3. Extract inline styles to external CSS
+
+      Content Security Policy (CSP) — mitigates XSS / data-injection attacks.
+      'unsafe-inline' for script/style is required because this demo page uses
+      inline handlers and the <rtc-agent> Lit component injects inline styles.
+      connect-src allows the agent to reach its server (same origin or
+      localhost:28080 in dev) and WebSocket endpoints (ws:/wss:).
+    -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src  'self' 'unsafe-inline';
+      style-src   'self' 'unsafe-inline';
+      img-src     'self' data:;
+      connect-src 'self' http://localhost:* ws://localhost:* wss://localhost:*;
+      font-src    'self' data:;
+      frame-ancestors 'none';
+      base-uri    'self';
+      form-action 'self';
+    ">
     <title>Task Manager</title>
     <link rel="stylesheet" href="./styles/main.css">
     <style>
