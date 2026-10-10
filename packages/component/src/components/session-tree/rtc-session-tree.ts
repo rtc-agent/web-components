@@ -15,332 +15,538 @@
  * @fires rtc-session-tree-toggle - User clicks expand/collapse (detail: { sessionId })
  * @fires rtc-session-tree-new - User clicks the new session button
  */
-import {LitElement, html} from 'lit';
-import {customElement, property, state} from 'lit/decorators.js';
-import {consume} from '@lit/context';
-import {localized, msg} from '@lit/localize';
-import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
-import {styles} from './rtc-session-tree.styles.js';
-import {tokens} from '../../styles/tokens.js';
-import {lightTheme} from '../../styles/themes/light.js';
-import {darkTheme} from '../../styles/themes/dark.js';
-import {baseStyles} from '../../styles/base.js';
-import {SessionTreeContext, type SessionTreeContextValue} from '../../contexts/session-tree.js';
-import {plusIcon, refreshIcon} from '../../icons/index.js';
+import { LitElement, html } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import { consume } from '@lit/context';
+import { localized, msg } from '@lit/localize';
+import {
+  localeContext,
+  type LocaleContextValue,
+  sourceLocale,
+  targetLocales,
+} from '../../core/i18n.js';
+import { styles } from './rtc-session-tree.styles.js';
+import { tokens } from '../../styles/tokens.js';
+import { lightTheme } from '../../styles/themes/light.js';
+import { darkTheme } from '../../styles/themes/dark.js';
+import { baseStyles } from '../../styles/base.js';
+import {
+  SessionTreeContext,
+  type SessionTreeContextValue,
+} from '../../contexts/session-tree.js';
+import type { SessionTreeNode } from '../../types/index.js';
+import { plusIcon, refreshIcon } from '../../icons/index.js';
 
 // Sub-component (side-effect import)
 import './rtc-session-tree-item.js';
-import type {RtcSessionTreeItem} from './rtc-session-tree-item.js';
-import { createLogger } from '@rtc-agent/client';
+import type { RtcSessionTreeItem } from './rtc-session-tree-item.js';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('SessionTree');
+
+/* ── Virtual Scroll Configuration ── */
+
+/** Height of each tree item in pixels */
+const ITEM_HEIGHT = 28;
+
+/** Number of items to render above and below the visible area */
+const OVERSCAN_COUNT = 5;
 
 @localized()
 @customElement('rtc-session-tree')
 export class RtcSessionTree extends LitElement {
-    static styles = [tokens, lightTheme, darkTheme, baseStyles, styles];
+  static styles = [tokens, lightTheme, darkTheme, baseStyles, styles];
 
-    @consume({context: localeContext, subscribe: true})
-    @state()
-    private _localeCtx: LocaleContextValue = {
-        locale: sourceLocale,
-        setLocale: async () => {
-            log.warn('Locale context not initialized');
+  @consume({ context: localeContext, subscribe: true })
+  @state()
+  private _localeCtx: LocaleContextValue = {
+    locale: sourceLocale,
+    setLocale: async () => {
+      log.warn('Locale context not initialized');
+    },
+    locales: [sourceLocale, ...targetLocales],
+  };
+
+  /* ── Properties ── */
+
+  /** Theme (inherited from parent) */
+  @property({ type: String, reflect: true })
+  theme: 'light' | 'dark' | 'system' = 'system';
+
+  /* ── Context ── */
+
+  @consume({ context: SessionTreeContext, subscribe: true })
+  @property({ attribute: false })
+  private _treeCtx: SessionTreeContextValue = {
+    state: { rootNodes: [] },
+    actions: {
+      toggleExpand: () => {},
+      expand: () => {},
+      collapse: () => {},
+      rebuildTree: () => {},
+    },
+  };
+
+  /** Currently selected sessionId */
+  @property({ type: String, attribute: 'selected-session-id' })
+  selectedSessionId: string | null = null;
+
+  /** SessionId with current keyboard focus (roving tabindex management) */
+  @state()
+  private _focusedSessionId: string | null = null;
+
+  /** Virtual scroll state */
+  @state()
+  private _scrollTop = 0;
+
+  /** Container height for virtual scroll calculations */
+  @state()
+  private _containerHeight = 0;
+
+  /* ── Virtual Scroll Helpers ── */
+
+  /**
+   * Flatten the tree structure into a list of visible nodes for virtual scrolling.
+   * Respects the expand/collapse state of each node.
+   */
+  private _flattenTree(
+    nodes: SessionTreeNode[],
+    depth = 0,
+  ): Array<{ node: SessionTreeNode; depth: number }> {
+    const result: Array<{ node: SessionTreeNode; depth: number }> = [];
+    for (const node of nodes) {
+      result.push({ node, depth });
+      if (node.isExpanded && node.children.length > 0) {
+        result.push(...this._flattenTree(node.children, depth + 1));
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Calculate the virtual scroll window: which items to render based on scroll position.
+   * Returns the slice of items that should be rendered (visible + overscan).
+   */
+  private _getVisibleRange(
+    totalItems: number,
+    scrollTop: number,
+    containerHeight: number,
+  ): { start: number; end: number; totalHeight: number } {
+    const totalHeight = totalItems * ITEM_HEIGHT;
+
+    // Calculate visible range
+    const visibleStart = Math.floor(scrollTop / ITEM_HEIGHT);
+    const visibleEnd = Math.min(
+      Math.ceil((scrollTop + containerHeight) / ITEM_HEIGHT),
+      totalItems,
+    );
+
+    // Add overscan for smooth scrolling
+    const start = Math.max(0, visibleStart - OVERSCAN_COUNT);
+    const end = Math.min(totalItems, visibleEnd + OVERSCAN_COUNT);
+
+    return { start, end, totalHeight };
+  }
+
+  /* ── Event Handlers ── */
+
+  /** Handle scroll events for virtual scrolling */
+  private _handleScroll(e: Event) {
+    const target = e.target as HTMLElement;
+    const newScrollTop = target.scrollTop;
+    // Only update if scroll position actually changed (avoid unnecessary re-renders)
+    if (Math.abs(newScrollTop - this._scrollTop) > 1) {
+      this._scrollTop = newScrollTop;
+      log.debug('Virtual scroll: scrollTop =', newScrollTop);
+    }
+  }
+
+  /** Handle container resize to update virtual scroll calculations */
+  private _resizeObserver?: ResizeObserver;
+
+  private _setupResizeObserver(element: HTMLElement) {
+    if (this._resizeObserver) {
+      this._resizeObserver.disconnect();
+    }
+    this._resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const newHeight = entry.contentRect.height;
+        // Only update if height actually changed (avoid unnecessary re-renders)
+        if (Math.abs(newHeight - this._containerHeight) > 1) {
+          this._containerHeight = newHeight;
+          log.debug('Virtual scroll: containerHeight =', newHeight);
+        }
+      }
+    });
+    this._resizeObserver.observe(element);
+  }
+
+  private _handleSelect(e: CustomEvent) {
+    const { sessionId } = e.detail;
+    this._setFocusedSessionId(sessionId);
+    this.dispatchEvent(
+      new CustomEvent('rtc-session-tree-select', {
+        bubbles: true,
+        composed: true,
+        detail: { sessionId },
+      }),
+    );
+  }
+
+  private _handleToggle(e: CustomEvent) {
+    const { sessionId } = e.detail;
+    this._setFocusedSessionId(sessionId);
+    this._treeCtx.actions.toggleExpand(sessionId);
+    this.dispatchEvent(
+      new CustomEvent('rtc-session-tree-toggle', {
+        bubbles: true,
+        composed: true,
+        detail: { sessionId },
+      }),
+    );
+  }
+
+  private _handleNewSession() {
+    this.dispatchEvent(
+      new CustomEvent('rtc-session-tree-new', {
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
+  private _handleRefresh() {
+    // Session list is synced in real-time by UIUpdateBus (server changes auto-pushed), no manual refresh logic.
+    // Keep the button but show a toast to avoid user confusion. Can be wired to force-fetch in the future if needed.
+    this.dispatchEvent(
+      new CustomEvent('rtc-toast-requested', {
+        bubbles: true,
+        composed: true,
+        detail: {
+          message: msg('会话列表已自动同步'),
+          type: 'info',
         },
-        locales: [sourceLocale, ...targetLocales],
+      }),
+    );
+  }
+
+  private _handleItemRename(e: CustomEvent) {
+    const { sessionId, title } = e.detail;
+    // Forward upward as a unified rename confirmation event, handled by rtc-agent which calls SessionController directly
+    this.dispatchEvent(
+      new CustomEvent('rtc-session-rename-confirmed', {
+        bubbles: true,
+        composed: true,
+        detail: { sessionId, title },
+      }),
+    );
+  }
+
+  private _handleItemDelete(e: CustomEvent) {
+    const { sessionId } = e.detail;
+    // Forward upward as a unified delete request event, handled by rtc-agent which calls SessionController.deleteSession
+    this.dispatchEvent(
+      new CustomEvent('rtc-session-delete-requested', {
+        bubbles: true,
+        composed: true,
+        detail: { sessionId },
+      }),
+    );
+  }
+
+  /* ── Keyboard Navigation ──
+   *
+   * ARIA Treeview pattern: roving tabindex.
+   * Arrow keys move focus within the visible item list, Enter/Space activates.
+   *
+   * NOTE: Keyboard navigation is based on the data model (flattened tree),
+   * not the DOM. This is necessary because virtual scrolling only renders
+   * visible items, so we cannot rely on DOM traversal to find all tree items.
+   */
+
+  /**
+   * Get all visible tree nodes (based on data model, not DOM).
+   * This is used for keyboard navigation with virtual scrolling.
+   */
+  private _getAllVisibleNodes(): Array<{ node: SessionTreeNode; depth: number }> {
+    if (!this._treeCtx?.state?.rootNodes) return [];
+    return this._flattenTree(this._treeCtx.state.rootNodes);
+  }
+
+  private _setFocusedSessionId(sessionId: string | null) {
+    // Clear old focused item
+    if (this._focusedSessionId) {
+      const oldItem = this._findTreeItemBySessionId(this._focusedSessionId);
+      if (oldItem) {
+        const oldContent = oldItem.shadowRoot?.querySelector(
+          '.tree-item-content',
+        ) as HTMLElement | null;
+        if (oldContent) oldContent.tabIndex = -1;
+      }
+    }
+    this._focusedSessionId = sessionId;
+    // Set new focused item
+    if (sessionId) {
+      const newItem = this._findTreeItemBySessionId(sessionId);
+      if (newItem) {
+        const newContent = newItem.shadowRoot?.querySelector(
+          '.tree-item-content',
+        ) as HTMLElement | null;
+        if (newContent) {
+          newContent.tabIndex = 0;
+          newContent.focus();
+          // Ensure the focused item is scrolled into view
+          this._scrollToItem(sessionId);
+        }
+      }
+    }
+  }
+
+  /**
+   * Scroll the virtual scroll container to make the specified item visible.
+   * This is necessary when keyboard navigation moves focus outside the current viewport.
+   */
+  private _scrollToItem(sessionId: string) {
+    const allNodes = this._getAllVisibleNodes();
+    const targetIndex = allNodes.findIndex(
+      (n) => n.node.session.clientId === sessionId,
+    );
+    if (targetIndex === -1) return;
+
+    const content = this.shadowRoot?.querySelector('.sidebar-content');
+    if (!content) return;
+
+    const itemTop = targetIndex * ITEM_HEIGHT;
+    const itemBottom = itemTop + ITEM_HEIGHT;
+    const viewportTop = content.scrollTop;
+    const viewportBottom = viewportTop + content.clientHeight;
+
+    // If item is already fully visible, no need to scroll
+    if (itemTop >= viewportTop && itemBottom <= viewportBottom) {
+      return;
+    }
+
+    // Scroll to bring the item into view
+    if (itemTop < viewportTop) {
+      // Item is above viewport, scroll up
+      content.scrollTop = itemTop;
+    } else {
+      // Item is below viewport, scroll down
+      content.scrollTop = itemBottom - content.clientHeight;
+    }
+  }
+
+  private _findTreeItemBySessionId(
+    sessionId: string,
+  ): RtcSessionTreeItem | null {
+    // Search in rendered DOM items (only works for visible items in virtual scroll)
+    const content = this.shadowRoot?.querySelector('.sidebar-content');
+    if (!content) return null;
+
+    const walk = (parent: Element | ShadowRoot): RtcSessionTreeItem | null => {
+      for (const child of Array.from(parent.children)) {
+        if (child.tagName === 'RTC-SESSION-TREE-ITEM') {
+          const item = child as RtcSessionTreeItem;
+          if (item.node.session.clientId === sessionId) return item;
+          // Only recurse into children for expanded nodes
+          if (item.node.children.length > 0 && item.node.isExpanded) {
+            const childrenContainer =
+              item.shadowRoot?.querySelector('.children');
+            if (childrenContainer) {
+              const found = walk(childrenContainer);
+              if (found) return found;
+            }
+          }
+        }
+      }
+      return null;
     };
 
-    /* ── Properties ── */
+    return walk(content);
+  }
 
-    /** Theme (inherited from parent) */
-    @property({type: String, reflect: true})
-    theme: 'light' | 'dark' | 'system' = 'system';
+  private _ensureInitialFocus() {
+    if (this._focusedSessionId) return;
+    const allNodes = this._getAllVisibleNodes();
+    if (allNodes.length === 0) return;
+    const target =
+      this.selectedSessionId &&
+      allNodes.some((n) => n.node.session.clientId === this.selectedSessionId)
+        ? this.selectedSessionId
+        : allNodes[0].node.session.clientId;
+    this._focusedSessionId = target;
+    const item = this._findTreeItemBySessionId(target);
+    if (item) {
+      const content = item.shadowRoot?.querySelector(
+        '.tree-item-content',
+      ) as HTMLElement | null;
+      if (content) content.tabIndex = 0;
+    }
+  }
 
-    /* ── Context ── */
+  private _handleKeydown(e: KeyboardEvent) {
+    const allNodes = this._getAllVisibleNodes();
+    if (allNodes.length === 0) return;
 
-    @consume({context: SessionTreeContext, subscribe: true})
-    @property({attribute: false})
-    private _treeCtx: SessionTreeContextValue = {
-        state: {rootNodes: []},
-        actions: {
-            toggleExpand: () => {},
-            expand: () => {},
-            collapse: () => {},
-            rebuildTree: () => {},
-        },
-    };
+    const currentId = this._focusedSessionId ?? this.selectedSessionId;
+    const currentIndex = currentId
+      ? allNodes.findIndex((n) => n.node.session.clientId === currentId)
+      : -1;
 
-    /** Currently selected sessionId */
-    @property({type: String, attribute: 'selected-session-id'})
-    selectedSessionId: string | null = null;
+    let handled = true;
 
-    /** SessionId with current keyboard focus (roving tabindex management) */
-    @state()
-    private _focusedSessionId: string | null = null;
-
-    /* ── Event Handlers ── */
-
-    private _handleSelect(e: CustomEvent) {
-        const {sessionId} = e.detail;
-        this._setFocusedSessionId(sessionId);
-        this.dispatchEvent(
+    switch (e.key) {
+      case 'ArrowDown': {
+        const next = Math.min(currentIndex + 1, allNodes.length - 1);
+        this._setFocusedSessionId(allNodes[next].node.session.clientId);
+        break;
+      }
+      case 'ArrowUp': {
+        const prev = Math.max(currentIndex - 1, 0);
+        this._setFocusedSessionId(allNodes[prev].node.session.clientId);
+        break;
+      }
+      case 'ArrowRight': {
+        if (currentIndex >= 0) {
+          const nodeData = allNodes[currentIndex];
+          if (nodeData.node.children.length > 0 && !nodeData.node.isExpanded) {
+            this._treeCtx.actions.expand(nodeData.node.session.clientId);
+          }
+        }
+        break;
+      }
+      case 'ArrowLeft': {
+        if (currentIndex >= 0) {
+          const nodeData = allNodes[currentIndex];
+          if (nodeData.node.children.length > 0 && nodeData.node.isExpanded) {
+            this._treeCtx.actions.collapse(nodeData.node.session.clientId);
+          }
+        }
+        break;
+      }
+      case 'Enter':
+      case ' ': {
+        if (currentIndex >= 0) {
+          const nodeData = allNodes[currentIndex];
+          const sessionId = nodeData.node.session.clientId;
+          this.dispatchEvent(
             new CustomEvent('rtc-session-tree-select', {
-                bubbles: true,
-                composed: true,
-                detail: {sessionId},
-            })
-        );
-    }
-
-    private _handleToggle(e: CustomEvent) {
-        const {sessionId} = e.detail;
-        this._setFocusedSessionId(sessionId);
-        this._treeCtx.actions.toggleExpand(sessionId);
-        this.dispatchEvent(
-            new CustomEvent('rtc-session-tree-toggle', {
-                bubbles: true,
-                composed: true,
-                detail: {sessionId},
-            })
-        );
-    }
-
-    private _handleNewSession() {
-        this.dispatchEvent(
-            new CustomEvent('rtc-session-tree-new', {
-                bubbles: true,
-                composed: true,
-            })
-        );
-    }
-
-    private _handleRefresh() {
-        // Session list is synced in real-time by UIUpdateBus (server changes auto-pushed), no manual refresh logic.
-        // Keep the button but show a toast to avoid user confusion. Can be wired to force-fetch in the future if needed.
-        this.dispatchEvent(
-            new CustomEvent('rtc-toast-requested', {
-                bubbles: true,
-                composed: true,
-                detail: {
-                    message: msg('会话列表已自动同步'),
-                    type: 'info',
-                },
-            })
-        );
-    }
-
-    private _handleItemRename(e: CustomEvent) {
-        const {sessionId, title} = e.detail;
-        // Forward upward as a unified rename confirmation event, handled by rtc-agent which calls SessionController directly
-        this.dispatchEvent(
-            new CustomEvent('rtc-session-rename-confirmed', {
-                bubbles: true,
-                composed: true,
-                detail: {sessionId, title},
-            })
-        );
-    }
-
-    private _handleItemDelete(e: CustomEvent) {
-        const {sessionId} = e.detail;
-        // Forward upward as a unified delete request event, handled by rtc-agent which calls SessionController.deleteSession
-        this.dispatchEvent(
-            new CustomEvent('rtc-session-delete-requested', {
-                bubbles: true,
-                composed: true,
-                detail: {sessionId},
-            })
-        );
-    }
-
-    /* ── Keyboard Navigation ──
-     *
-     * ARIA Treeview pattern: roving tabindex.
-     * Arrow keys move focus within the visible item list, Enter/Space activates.
-     */
-
-    /**
-     * Depth-first traversal of visible (expanded) tree nodes, returning a flat list.
-     * Walks the composed tree to traverse recursive Shadow DOM.
-     */
-    private _getVisibleTreeItems(): RtcSessionTreeItem[] {
-        const result: RtcSessionTreeItem[] = [];
-        const walk = (parent: Element | ShadowRoot) => {
-            for (const child of Array.from(parent.children)) {
-                if (child.tagName === 'RTC-SESSION-TREE-ITEM') {
-                    const item = child as RtcSessionTreeItem;
-                    result.push(item);
-                    // Only recurse into children for expanded nodes
-                    if (item.node.children.length > 0 && item.node.isExpanded) {
-                        const childrenContainer =
-                            item.shadowRoot?.querySelector('.children');
-                        if (childrenContainer) walk(childrenContainer);
-                    }
-                }
-            }
-        };
-        const content = this.shadowRoot?.querySelector('.sidebar-content');
-        if (content) walk(content);
-        return result;
-    }
-
-    private _setFocusedSessionId(sessionId: string | null) {
-        // Clear old focused item
-        if (this._focusedSessionId) {
-            const oldItem = this._findTreeItemBySessionId(this._focusedSessionId);
-            if (oldItem) {
-                const oldContent = oldItem.shadowRoot?.querySelector('.tree-item-content') as HTMLElement | null;
-                if (oldContent) oldContent.tabIndex = -1;
-            }
+              bubbles: true,
+              composed: true,
+              detail: { sessionId },
+            }),
+          );
         }
-        this._focusedSessionId = sessionId;
-        // Set new focused item
-        if (sessionId) {
-            const newItem = this._findTreeItemBySessionId(sessionId);
-            if (newItem) {
-                const newContent = newItem.shadowRoot?.querySelector('.tree-item-content') as HTMLElement | null;
-                if (newContent) {
-                    newContent.tabIndex = 0;
-                    newContent.focus();
-                }
-            }
-        }
+        break;
+      }
+      case 'Home': {
+        this._setFocusedSessionId(allNodes[0].node.session.clientId);
+        break;
+      }
+      case 'End': {
+        this._setFocusedSessionId(
+          allNodes[allNodes.length - 1].node.session.clientId,
+        );
+        break;
+      }
+      default:
+        handled = false;
     }
 
-    private _findTreeItemBySessionId(sessionId: string): RtcSessionTreeItem | null {
-        for (const item of this._getVisibleTreeItems()) {
-            if (item.node.session.clientId === sessionId) return item;
-        }
-        return null;
+    if (handled) {
+      e.preventDefault();
+      e.stopPropagation();
     }
+  }
 
-    private _ensureInitialFocus() {
-        if (this._focusedSessionId) return;
-        const items = this._getVisibleTreeItems();
-        if (items.length === 0) return;
-        const target = this.selectedSessionId && this._findTreeItemBySessionId(this.selectedSessionId)
-            ? this.selectedSessionId
-            : items[0].node.session.clientId;
-        this._focusedSessionId = target;
-        const item = this._findTreeItemBySessionId(target);
-        if (item) {
-            const content = item.shadowRoot?.querySelector('.tree-item-content') as HTMLElement | null;
-            if (content) content.tabIndex = 0;
-        }
-    }
+  /* ── Render ── */
 
-    private _handleKeydown(e: KeyboardEvent) {
-        const items = this._getVisibleTreeItems();
-        if (items.length === 0) return;
-
-        const currentId = this._focusedSessionId ?? this.selectedSessionId;
-        const currentIndex = currentId
-            ? items.findIndex(it => it.node.session.clientId === currentId)
-            : -1;
-
-        let handled = true;
-
-        switch (e.key) {
-            case 'ArrowDown': {
-                const next = Math.min(currentIndex + 1, items.length - 1);
-                this._setFocusedSessionId(items[next].node.session.clientId);
-                break;
-            }
-            case 'ArrowUp': {
-                const prev = Math.max(currentIndex - 1, 0);
-                this._setFocusedSessionId(items[prev].node.session.clientId);
-                break;
-            }
-            case 'ArrowRight': {
-                if (currentIndex >= 0) {
-                    const item = items[currentIndex];
-                    if (item.node.children.length > 0 && !item.node.isExpanded) {
-                        this._treeCtx.actions.expand(item.node.session.clientId);
-                    }
-                }
-                break;
-            }
-            case 'ArrowLeft': {
-                if (currentIndex >= 0) {
-                    const item = items[currentIndex];
-                    if (item.node.children.length > 0 && item.node.isExpanded) {
-                        this._treeCtx.actions.collapse(item.node.session.clientId);
-                    }
-                }
-                break;
-            }
-            case 'Enter':
-            case ' ': {
-                if (currentIndex >= 0) {
-                    const item = items[currentIndex];
-                    const sessionId = item.node.session.clientId;
-                    this.dispatchEvent(
-                        new CustomEvent('rtc-session-tree-select', {
-                            bubbles: true,
-                            composed: true,
-                            detail: {sessionId},
-                        })
-                    );
-                }
-                break;
-            }
-            case 'Home': {
-                this._setFocusedSessionId(items[0].node.session.clientId);
-                break;
-            }
-            case 'End': {
-                this._setFocusedSessionId(items[items.length - 1].node.session.clientId);
-                break;
-            }
-            default:
-                handled = false;
-        }
-
-        if (handled) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-    }
-
-    /* ── Render ── */
-
-    private _renderEmptyState() {
-        return html`
+  private _renderEmptyState() {
+    return html`
             <div class="empty-state">
                 <span class="empty-state-icon">${refreshIcon}</span>
                 <span class="empty-state-text">${msg('暂无会话')}</span>
             </div>
         `;
+  }
+
+  private _renderTree() {
+    // Defense-in-depth: guard against undefined context (should not happen with proper initialValue)
+    if (!this._treeCtx?.state) {
+      log.warn(
+        '_renderTree: treeCtx or state is undefined, rendering empty state',
+      );
+      return this._renderEmptyState();
+    }
+    const { rootNodes } = this._treeCtx.state;
+    if (rootNodes.length === 0) return this._renderEmptyState();
+
+    // Flatten the tree for virtual scrolling
+    const flatNodes = this._flattenTree(rootNodes);
+    const totalItems = flatNodes.length;
+
+    // If container height is not yet known, render all items (fallback)
+    if (this._containerHeight === 0) {
+      return flatNodes.map(
+        ({ node, depth }) => html`
+          <rtc-session-tree-item
+            .node=${node}
+            .depth=${depth}
+            theme=${this.theme}
+            selected-session-id=${this.selectedSessionId ?? ''}
+            @rtc-session-tree-item-select=${this._handleSelect}
+            @rtc-session-tree-item-toggle=${this._handleToggle}
+            @rtc-session-tree-item-rename=${this._handleItemRename}
+            @rtc-session-tree-item-delete=${this._handleItemDelete}
+          ></rtc-session-tree-item>
+        `,
+      );
     }
 
-    private _renderTree() {
-        // Defense-in-depth: guard against undefined context (should not happen with proper initialValue)
-        if (!this._treeCtx?.state) {
-            log.warn('_renderTree: treeCtx or state is undefined, rendering empty state');
-            return this._renderEmptyState();
-        }
-        const {rootNodes} = this._treeCtx.state;
-        if (rootNodes.length === 0) return this._renderEmptyState();
+    // Calculate visible range
+    const { start, end, totalHeight } = this._getVisibleRange(
+      totalItems,
+      this._scrollTop,
+      this._containerHeight,
+    );
 
-        return rootNodes.map(
-            node => html`
-                <rtc-session-tree-item
-                    .node=${node}
-                    .depth=${0}
-                    theme=${this.theme}
-                    selected-session-id=${this.selectedSessionId ?? ''}
-                    @rtc-session-tree-item-select=${this._handleSelect}
-                    @rtc-session-tree-item-toggle=${this._handleToggle}
-                    @rtc-session-tree-item-rename=${this._handleItemRename}
-                    @rtc-session-tree-item-delete=${this._handleItemDelete}
-                ></rtc-session-tree-item>
-            `
-        );
-    }
+    // Slice the visible items
+    const visibleItems = flatNodes.slice(start, end);
 
-    render() {
-        void this._localeCtx.locale;
-        return html`
+    // Calculate offsets for absolute positioning
+    const offsetY = start * ITEM_HEIGHT;
+
+    return html`
+      <div
+        class="virtual-scroll-container"
+        style="height: ${totalHeight}px; position: relative;"
+      >
+        <div
+          class="virtual-scroll-content"
+          style="transform: translateY(${offsetY}px);"
+        >
+          ${visibleItems.map(
+            ({ node, depth }) => html`
+              <rtc-session-tree-item
+                .node=${node}
+                .depth=${depth}
+                theme=${this.theme}
+                selected-session-id=${this.selectedSessionId ?? ''}
+                @rtc-session-tree-item-select=${this._handleSelect}
+                @rtc-session-tree-item-toggle=${this._handleToggle}
+                @rtc-session-tree-item-rename=${this._handleItemRename}
+                @rtc-session-tree-item-delete=${this._handleItemDelete}
+              ></rtc-session-tree-item>
+            `,
+          )}
+        </div>
+      </div>
+    `;
+  }
+
+  render() {
+    void this._localeCtx.locale;
+    return html`
             <div class="sidebar-header">
                 <span class="sidebar-title">${msg('会话')}</span>
                 <div class="sidebar-actions">
@@ -362,31 +568,51 @@ export class RtcSessionTree extends LitElement {
                 class="sidebar-content"
                 role="tree"
                 aria-label=${msg('会话树')}
+                @scroll=${this._handleScroll}
                 @keydown=${this._handleKeydown}
             >
                 ${this._renderTree()}
             </div>
         `;
+  }
+
+  updated(changed: Map<string, unknown>) {
+    super.updated(changed);
+
+    // Setup ResizeObserver on the sidebar-content element
+    const content = this.shadowRoot?.querySelector('.sidebar-content');
+    if (content && !this._resizeObserver) {
+      this._setupResizeObserver(content as HTMLElement);
     }
 
-    updated(changed: Map<string, unknown>) {
-        super.updated(changed);
-        if (changed.has('_treeCtx') || changed.has('selectedSessionId')) {
-            this._ensureInitialFocus();
-        }
+    if (changed.has('_treeCtx') || changed.has('selectedSessionId')) {
+      this._ensureInitialFocus();
     }
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    // Cleanup ResizeObserver to prevent memory leaks
+    if (this._resizeObserver) {
+      this._resizeObserver.disconnect();
+      this._resizeObserver = undefined;
+    }
+  }
 }
 
 declare global {
-    interface HTMLElementTagNameMap {
-        'rtc-session-tree': RtcSessionTree;
-    }
+  interface HTMLElementTagNameMap {
+    'rtc-session-tree': RtcSessionTree;
+  }
 
-    interface HTMLElementEventMap {
-        'rtc-session-tree-select': CustomEvent<{sessionId: string}>;
-        'rtc-session-tree-toggle': CustomEvent<{sessionId: string}>;
-        'rtc-session-tree-new': CustomEvent<void>;
-        'rtc-session-rename-confirmed': CustomEvent<{sessionId: string; title: string}>;
-        'rtc-session-delete-requested': CustomEvent<{sessionId: string}>;
-    }
+  interface HTMLElementEventMap {
+    'rtc-session-tree-select': CustomEvent<{ sessionId: string }>;
+    'rtc-session-tree-toggle': CustomEvent<{ sessionId: string }>;
+    'rtc-session-tree-new': CustomEvent<void>;
+    'rtc-session-rename-confirmed': CustomEvent<{
+      sessionId: string;
+      title: string;
+    }>;
+    'rtc-session-delete-requested': CustomEvent<{ sessionId: string }>;
+  }
 }

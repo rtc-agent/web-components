@@ -1,4 +1,4 @@
-import {css} from 'lit';
+import { css } from 'lit';
 
 /**
  * Session Tree container styles
@@ -100,6 +100,26 @@ export const styles = css`
         overflow-y: auto;
         overflow-x: hidden;
         padding: var(--rtc-spacing-xs) 0;
+    }
+
+    /* ── Virtual Scroll ── */
+
+    .virtual-scroll-container {
+        position: relative;
+        width: 100%;
+    }
+
+    .virtual-scroll-content {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        will-change: transform;
+    }
+
+    .virtual-scroll-content > rtc-session-tree-item {
+        display: block;
+        height: 28px;
     }
 
     /* ── Empty State ── */
