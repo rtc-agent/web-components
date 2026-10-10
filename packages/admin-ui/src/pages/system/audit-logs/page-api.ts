@@ -31,6 +31,12 @@ export interface AuditLogPageAPI {
     data: AuditLogItem[];
     total: number;
   }>;
+
+  /**
+   * Refresh the table
+   * Calls actionRef.current?.reload()
+   */
+  refresh: () => Promise<void>;
 }
 
 // Extend the global PagesRegistry via declaration merging

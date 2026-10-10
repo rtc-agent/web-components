@@ -81,6 +81,11 @@ const AuditLogsPage: React.FC = () => {
           };
         }
       },
+
+      // Refresh table
+      refresh: async () => {
+        actionRef.current?.reload();
+      },
     };
 
     // Register to global
@@ -183,166 +188,172 @@ const AuditLogsPage: React.FC = () => {
   );
 
   /** Table column definitions */
-  const columns: ProColumns<AuditLogItem>[] = [
-    {
-      title: intl.formatMessage({
-        id: 'pages.auditLogs.column.operator',
-        defaultMessage: '操作者',
-      }),
-      dataIndex: 'operator_name',
-      valueType: 'text',
-      search: false,
-      render: (_, record) => record.operator_name || record.operator_id,
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.auditLogs.column.actorId',
-        defaultMessage: '操作者 ID',
-      }),
-      dataIndex: 'actor_id',
-      valueType: 'text',
-      hideInTable: true,
-      fieldProps: {
-        placeholder: intl.formatMessage({
-          id: 'pages.auditLogs.column.actorIdPlaceholder',
-          defaultMessage: '输入操作者 ID',
+  const columns: ProColumns<AuditLogItem>[] = useMemo(
+    () => [
+      {
+        title: intl.formatMessage({
+          id: 'pages.auditLogs.column.operator',
+          defaultMessage: '操作者',
         }),
+        dataIndex: 'operator_name',
+        valueType: 'text',
+        search: false,
+        render: (_, record) => record.operator_name || record.operator_id,
       },
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.auditLogs.column.operatorIp',
-        defaultMessage: '操作者 IP',
-      }),
-      dataIndex: 'operator_ip',
-      valueType: 'text',
-      search: false,
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.auditLogs.column.eventType',
-        defaultMessage: '事件类型',
-      }),
-      dataIndex: 'event_type',
-      valueType: 'select',
-      valueEnum: Object.fromEntries(
-        Object.entries(EVENT_TYPE_MAP).map(([key, { text }]) => [
-          key,
-          { text },
-        ]),
-      ),
-      render: (_, record) => {
-        const event = EVENT_TYPE_MAP[record.event_type];
-        return (
-          <Tag color={event?.color || 'default'}>
-            {event?.text || record.event_type}
+      {
+        title: intl.formatMessage({
+          id: 'pages.auditLogs.column.actorId',
+          defaultMessage: '操作者 ID',
+        }),
+        dataIndex: 'actor_id',
+        valueType: 'text',
+        hideInTable: true,
+        fieldProps: {
+          placeholder: intl.formatMessage({
+            id: 'pages.auditLogs.column.actorIdPlaceholder',
+            defaultMessage: '输入操作者 ID',
+          }),
+        },
+      },
+      {
+        title: intl.formatMessage({
+          id: 'pages.auditLogs.column.operatorIp',
+          defaultMessage: '操作者 IP',
+        }),
+        dataIndex: 'operator_ip',
+        valueType: 'text',
+        search: false,
+      },
+      {
+        title: intl.formatMessage({
+          id: 'pages.auditLogs.column.eventType',
+          defaultMessage: '事件类型',
+        }),
+        dataIndex: 'event_type',
+        valueType: 'select',
+        valueEnum: Object.fromEntries(
+          Object.entries(EVENT_TYPE_MAP).map(([key, { text }]) => [
+            key,
+            { text },
+          ]),
+        ),
+        render: (_, record) => {
+          const event = EVENT_TYPE_MAP[record.event_type];
+          return (
+            <Tag color={event?.color || 'default'}>
+              {event?.text || record.event_type}
+            </Tag>
+          );
+        },
+      },
+      {
+        title: intl.formatMessage({
+          id: 'pages.auditLogs.column.resourceType',
+          defaultMessage: '资源类型',
+        }),
+        dataIndex: 'resource_type',
+        valueType: 'select',
+        valueEnum: Object.fromEntries(
+          Object.entries(RESOURCE_TYPE_MAP).map(([key, text]) => [
+            key,
+            { text },
+          ]),
+        ),
+        render: (_, record) => (
+          <Tag>
+            {RESOURCE_TYPE_MAP[record.resource_type] || record.resource_type}
           </Tag>
-        );
+        ),
       },
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.auditLogs.column.resourceType',
-        defaultMessage: '资源类型',
-      }),
-      dataIndex: 'resource_type',
-      valueType: 'select',
-      valueEnum: Object.fromEntries(
-        Object.entries(RESOURCE_TYPE_MAP).map(([key, text]) => [key, { text }]),
-      ),
-      render: (_, record) => (
-        <Tag>
-          {RESOURCE_TYPE_MAP[record.resource_type] || record.resource_type}
-        </Tag>
-      ),
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.auditLogs.column.resourceId',
-        defaultMessage: '资源 ID',
-      }),
-      dataIndex: 'resource_id',
-      valueType: 'text',
-      ellipsis: true,
-      fieldProps: {
-        placeholder: intl.formatMessage({
-          id: 'pages.auditLogs.column.resourceIdPlaceholder',
-          defaultMessage: '输入资源 ID',
+      {
+        title: intl.formatMessage({
+          id: 'pages.auditLogs.column.resourceId',
+          defaultMessage: '资源 ID',
         }),
+        dataIndex: 'resource_id',
+        valueType: 'text',
+        ellipsis: true,
+        fieldProps: {
+          placeholder: intl.formatMessage({
+            id: 'pages.auditLogs.column.resourceIdPlaceholder',
+            defaultMessage: '输入资源 ID',
+          }),
+        },
       },
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.auditLogs.column.details',
-        defaultMessage: '详情',
-      }),
-      dataIndex: 'details',
-      valueType: 'text',
-      search: false,
-      ellipsis: true,
-      render: (_, record) => {
-        if (!record.details) return '-';
-        // Use formatted JSON display for better readability
-        return (
-          <pre
-            style={{
-              margin: 0,
-              fontSize: '12px',
-              fontFamily: 'monospace',
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-all',
-              background: token.colorBgTextHover,
-              color: token.colorText,
-              padding: token.paddingSM,
-              borderRadius: token.borderRadiusSM,
-            }}
-          >
-            {JSON.stringify(record.details, null, 2)}
-          </pre>
-        );
-      },
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.auditLogs.column.createdAt',
-        defaultMessage: '操作时间',
-      }),
-      dataIndex: 'created_at',
-      valueType: 'dateTime',
-      search: false,
-      sorter: true,
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.auditLogs.column.startTime',
-        defaultMessage: '开始时间',
-      }),
-      dataIndex: 'start_time',
-      valueType: 'dateTime',
-      hideInTable: true,
-      fieldProps: {
-        placeholder: intl.formatMessage({
-          id: 'pages.auditLogs.column.startTimePlaceholder',
-          defaultMessage: '选择开始时间',
+      {
+        title: intl.formatMessage({
+          id: 'pages.auditLogs.column.details',
+          defaultMessage: '详情',
         }),
+        dataIndex: 'details',
+        valueType: 'text',
+        search: false,
+        ellipsis: true,
+        render: (_, record) => {
+          if (!record.details) return '-';
+          // Use formatted JSON display for better readability
+          return (
+            <pre
+              style={{
+                margin: 0,
+                fontSize: '12px',
+                fontFamily: 'monospace',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-all',
+                background: token.colorBgTextHover,
+                color: token.colorText,
+                padding: token.paddingSM,
+                borderRadius: token.borderRadiusSM,
+              }}
+            >
+              {JSON.stringify(record.details, null, 2)}
+            </pre>
+          );
+        },
       },
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.auditLogs.column.endTime',
-        defaultMessage: '结束时间',
-      }),
-      dataIndex: 'end_time',
-      valueType: 'dateTime',
-      hideInTable: true,
-      fieldProps: {
-        placeholder: intl.formatMessage({
-          id: 'pages.auditLogs.column.endTimePlaceholder',
-          defaultMessage: '选择结束时间',
+      {
+        title: intl.formatMessage({
+          id: 'pages.auditLogs.column.createdAt',
+          defaultMessage: '操作时间',
         }),
+        dataIndex: 'created_at',
+        valueType: 'dateTime',
+        search: false,
+        sorter: true,
       },
-    },
-  ];
+      {
+        title: intl.formatMessage({
+          id: 'pages.auditLogs.column.startTime',
+          defaultMessage: '开始时间',
+        }),
+        dataIndex: 'start_time',
+        valueType: 'dateTime',
+        hideInTable: true,
+        fieldProps: {
+          placeholder: intl.formatMessage({
+            id: 'pages.auditLogs.column.startTimePlaceholder',
+            defaultMessage: '选择开始时间',
+          }),
+        },
+      },
+      {
+        title: intl.formatMessage({
+          id: 'pages.auditLogs.column.endTime',
+          defaultMessage: '结束时间',
+        }),
+        dataIndex: 'end_time',
+        valueType: 'dateTime',
+        hideInTable: true,
+        fieldProps: {
+          placeholder: intl.formatMessage({
+            id: 'pages.auditLogs.column.endTimePlaceholder',
+            defaultMessage: '选择结束时间',
+          }),
+        },
+      },
+    ],
+    [intl, token, EVENT_TYPE_MAP, RESOURCE_TYPE_MAP],
+  );
 
   return (
     <PageContainer>
@@ -366,6 +377,23 @@ const AuditLogsPage: React.FC = () => {
             end_time: searchParams.get('end_time') || undefined,
           },
         }}
+        beforeSearchSubmit={(params) => {
+          // Cross-validation: start_time must be before end_time
+          if (params.start_time && params.end_time) {
+            const startTime = new Date(params.start_time as string).getTime();
+            const endTime = new Date(params.end_time as string).getTime();
+            if (startTime >= endTime) {
+              message.warning(
+                intl.formatMessage({
+                  id: 'pages.auditLogs.timeRangeInvalid',
+                  defaultMessage: '开始时间必须早于结束时间',
+                }),
+              );
+              return false; // Cancel search
+            }
+          }
+          return params;
+        }}
         request={async (params) => {
           // Read params from searchParams (URL is single source of truth)
           const actor_id = searchParams.get('actor_id') || undefined;
@@ -374,21 +402,6 @@ const AuditLogsPage: React.FC = () => {
           const target_id = searchParams.get('target_id') || undefined;
           const start_time = searchParams.get('start_time') || undefined;
           const end_time = searchParams.get('end_time') || undefined;
-
-          // Cross-validation: start_time must be before end_time
-          if (start_time && end_time) {
-            const startTime = new Date(start_time).getTime();
-            const endTime = new Date(end_time).getTime();
-            if (startTime >= endTime) {
-              message.warning(
-                intl.formatMessage({
-                  id: 'pages.auditLogs.timeRangeInvalid',
-                  defaultMessage: '开始时间必须早于结束时间',
-                }),
-              );
-              return { data: [], total: 0, success: false };
-            }
-          }
 
           try {
             const response = await getAuditLogList({

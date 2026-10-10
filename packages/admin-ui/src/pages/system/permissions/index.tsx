@@ -8,7 +8,7 @@ import {
 } from '@ant-design/pro-components';
 import { Access, useAccess, useIntl, useSearchParams } from '@umijs/max';
 import { Button, message, Popconfirm, Space, Tag } from 'antd';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { getActionTypes, getResourceTypes } from '@/constants/permissions';
 import { useRoleOptions } from '@/hooks/useRoleOptions';
 import {
@@ -91,16 +91,18 @@ const PermissionListPage: React.FC = () => {
         }
       },
 
-      // Remove permission policies
+      // Remove permission policies (parallel execution)
       remove: async (items) => {
         try {
-          let deletedCount = 0;
-          for (const item of items) {
-            await deletePermission(item);
-            deletedCount++;
-          }
+          const results = await Promise.all(
+            items.map((item) => deletePermission(item)),
+          );
+          const failures = results.filter((r) => !r.success);
           actionRef.current?.reload();
-          return { success: true, deletedCount };
+          return {
+            success: failures.length === 0,
+            deletedCount: items.length - failures.length,
+          };
         } catch (error) {
           console.error('[Permission Page API] remove failed:', error);
           return { success: false };
@@ -132,125 +134,135 @@ const PermissionListPage: React.FC = () => {
   }, [searchParams]);
 
   /** Table column definitions */
-  const columns: ProColumns<PermissionTableItem>[] = [
-    {
-      title: intl.formatMessage({
-        id: 'pages.permissions.column.role',
-        defaultMessage: '管理员角色',
-      }),
-      dataIndex: 'role_id',
-      valueType: 'text',
-      search: false,
-      render: (_, record) => (
-        <Tag color="blue">{roleMap.get(record.role_id) || record.role_id}</Tag>
-      ),
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.permissions.column.resource',
-        defaultMessage: '资源',
-      }),
-      dataIndex: 'resource',
-      valueType: 'select',
-      valueEnum: RESOURCE_TYPES.reduce(
-        (acc, cur) => {
-          acc[cur.value] = { text: cur.label };
-          return acc;
-        },
-        {} as Record<string, { text: string }>,
-      ),
-      render: (_, record) => {
-        const resource = RESOURCE_TYPES.find(
-          (r) => r.value === record.resource,
-        );
-        return <Tag color="green">{resource?.label || record.resource}</Tag>;
+  const columns: ProColumns<PermissionTableItem>[] = useMemo(
+    () => [
+      {
+        title: intl.formatMessage({
+          id: 'pages.permissions.column.role',
+          defaultMessage: '管理员角色',
+        }),
+        dataIndex: 'role_id',
+        valueType: 'text',
+        search: false,
+        render: (_, record) => (
+          <Tag color="blue">
+            {roleMap.get(record.role_id) || record.role_id}
+          </Tag>
+        ),
       },
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.permissions.column.action',
-        defaultMessage: '操作',
-      }),
-      dataIndex: 'action',
-      valueType: 'select',
-      valueEnum: ACTION_TYPES.reduce(
-        (acc, cur) => {
-          acc[cur.value] = { text: cur.label };
-          return acc;
+      {
+        title: intl.formatMessage({
+          id: 'pages.permissions.column.resource',
+          defaultMessage: '资源',
+        }),
+        dataIndex: 'resource',
+        valueType: 'select',
+        valueEnum: RESOURCE_TYPES.reduce(
+          (acc, cur) => {
+            acc[cur.value] = { text: cur.label };
+            return acc;
+          },
+          {} as Record<string, { text: string }>,
+        ),
+        render: (_, record) => {
+          const resource = RESOURCE_TYPES.find(
+            (r) => r.value === record.resource,
+          );
+          return <Tag color="green">{resource?.label || record.resource}</Tag>;
         },
-        {} as Record<string, { text: string }>,
-      ),
-      render: (_, record) => {
-        const action = ACTION_TYPES.find((a) => a.value === record.action);
-        return <Tag color="orange">{action?.label || record.action}</Tag>;
       },
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.permissions.column.actions',
-        defaultMessage: '操作',
-      }),
-      dataIndex: 'option',
-      valueType: 'option',
-      render: (_, record) => (
-        <Space>
-          <Access accessible={access.canPermissionEdit} fallback={null}>
-            <Popconfirm
-              title={intl.formatMessage({
-                id: 'pages.permissions.confirmDelete',
-                defaultMessage: '确定要删除这个权限策略吗？',
-              })}
-              description={intl.formatMessage({
-                id: 'pages.permissions.confirmDeleteDesc',
-                defaultMessage: '删除后该管理员角色将失去对应权限',
-              })}
-              onConfirm={async () => {
-                try {
-                  await deletePermission({
-                    role_id: record.role_id,
-                    resource: record.resource,
-                    action: record.action,
-                  });
-                  message.success(
-                    intl.formatMessage({
-                      id: 'pages.permissions.deleteSuccess',
-                      defaultMessage: '删除成功',
-                    }),
-                  );
-                  actionRef.current?.reload();
-                } catch (error: unknown) {
-                  message.error(
-                    getFriendlyErrorMessage(
-                      error,
-                      intl.formatMessage({
-                        id: 'pages.permissions.deleteFailed',
-                        defaultMessage: '删除失败',
-                      }),
-                    ),
-                  );
-                }
-              }}
-              okText={intl.formatMessage({
-                id: 'pages.permissions.confirm',
-                defaultMessage: '确定',
-              })}
-              cancelText={intl.formatMessage({
-                id: 'pages.permissions.cancel',
-                defaultMessage: '取消',
-              })}
-            >
-              <Button type="link" danger size="small" icon={<DeleteOutlined />}>
-                {intl.formatMessage({
-                  id: 'pages.permissions.delete',
-                  defaultMessage: '删除',
+      {
+        title: intl.formatMessage({
+          id: 'pages.permissions.column.action',
+          defaultMessage: '操作',
+        }),
+        dataIndex: 'action',
+        valueType: 'select',
+        valueEnum: ACTION_TYPES.reduce(
+          (acc, cur) => {
+            acc[cur.value] = { text: cur.label };
+            return acc;
+          },
+          {} as Record<string, { text: string }>,
+        ),
+        render: (_, record) => {
+          const action = ACTION_TYPES.find((a) => a.value === record.action);
+          return <Tag color="orange">{action?.label || record.action}</Tag>;
+        },
+      },
+      {
+        title: intl.formatMessage({
+          id: 'pages.permissions.column.actions',
+          defaultMessage: '操作',
+        }),
+        dataIndex: 'option',
+        valueType: 'option',
+        render: (_, record) => (
+          <Space>
+            <Access accessible={access.canPermissionEdit} fallback={null}>
+              <Popconfirm
+                title={intl.formatMessage({
+                  id: 'pages.permissions.confirmDelete',
+                  defaultMessage: '确定要删除这个权限策略吗？',
                 })}
-              </Button>
-            </Popconfirm>
-          </Access>
-        </Space>
-      ),
-    },
-  ];
+                description={intl.formatMessage({
+                  id: 'pages.permissions.confirmDeleteDesc',
+                  defaultMessage: '删除后该管理员角色将失去对应权限',
+                })}
+                onConfirm={async () => {
+                  try {
+                    await deletePermission({
+                      role_id: record.role_id,
+                      resource: record.resource,
+                      action: record.action,
+                    });
+                    message.success(
+                      intl.formatMessage({
+                        id: 'pages.permissions.deleteSuccess',
+                        defaultMessage: '删除成功',
+                      }),
+                    );
+                    actionRef.current?.reload();
+                  } catch (error: unknown) {
+                    message.error(
+                      getFriendlyErrorMessage(
+                        error,
+                        intl.formatMessage({
+                          id: 'pages.permissions.deleteFailed',
+                          defaultMessage: '删除失败',
+                        }),
+                      ),
+                    );
+                  }
+                }}
+                okText={intl.formatMessage({
+                  id: 'pages.permissions.confirm',
+                  defaultMessage: '确定',
+                })}
+                cancelText={intl.formatMessage({
+                  id: 'pages.permissions.cancel',
+                  defaultMessage: '取消',
+                })}
+              >
+                <Button
+                  type="link"
+                  danger
+                  size="small"
+                  icon={<DeleteOutlined />}
+                >
+                  {intl.formatMessage({
+                    id: 'pages.permissions.delete',
+                    defaultMessage: '删除',
+                  })}
+                </Button>
+              </Popconfirm>
+            </Access>
+          </Space>
+        ),
+      },
+    ],
+    [intl, access, roleMap, RESOURCE_TYPES, ACTION_TYPES],
+  );
 
   /** Submit form */
   const handleSubmit = async (values: PermissionFormValues) => {

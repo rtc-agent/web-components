@@ -25,7 +25,7 @@ import {
   Tooltip,
   theme,
 } from 'antd';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { getActionTypes, getResourceTypes } from '@/constants/permissions';
 import {
   createPermission,
@@ -134,16 +134,16 @@ const RoleListPage: React.FC = () => {
         }
       },
 
-      // Delete admin roles
+      // Delete admin roles (parallel execution)
       remove: async (ids) => {
         try {
-          let deletedCount = 0;
-          for (const id of ids) {
-            await deleteRole(id);
-            deletedCount++;
-          }
+          const results = await Promise.all(ids.map((id) => deleteRole(id)));
+          const failures = results.filter((r) => !r.success);
           actionRef.current?.reload();
-          return { success: true, deletedCount };
+          return {
+            success: failures.length === 0,
+            deletedCount: ids.length - failures.length,
+          };
         } catch (error) {
           console.error('[Role Page API] remove failed:', error);
           return { success: false };
@@ -175,274 +175,156 @@ const RoleListPage: React.FC = () => {
   }, [searchParams]);
 
   /** Table column definitions */
-  const columns: ProColumns<RoleTableItem>[] = [
-    {
-      title: intl.formatMessage({
-        id: 'pages.roles.searchPlaceholder',
-        defaultMessage: '输入管理员角色名称、显示名称或描述',
-      }),
-      dataIndex: 'keyword',
-      valueType: 'text',
-      hideInTable: true,
-      fieldProps: {
-        placeholder: intl.formatMessage({
+  const columns: ProColumns<RoleTableItem>[] = useMemo(
+    () => [
+      {
+        title: intl.formatMessage({
           id: 'pages.roles.searchPlaceholder',
           defaultMessage: '输入管理员角色名称、显示名称或描述',
         }),
-      },
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.roles.column.name',
-        defaultMessage: '管理员角色名称',
-      }),
-      dataIndex: 'name',
-      valueType: 'text',
-      search: false,
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.roles.column.displayName',
-        defaultMessage: '显示名称',
-      }),
-      dataIndex: 'display_name',
-      valueType: 'text',
-      search: false,
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.roles.column.description',
-        defaultMessage: '描述',
-      }),
-      dataIndex: 'description',
-      valueType: 'text',
-      search: false,
-      ellipsis: true,
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.roles.column.isSystem',
-        defaultMessage: '系统管理员角色',
-      }),
-      dataIndex: 'is_system',
-      valueType: 'select',
-      search: false,
-      valueEnum: {
-        true: {
-          text: intl.formatMessage({
-            id: 'pages.roles.yes',
-            defaultMessage: '是',
+        dataIndex: 'keyword',
+        valueType: 'text',
+        hideInTable: true,
+        fieldProps: {
+          placeholder: intl.formatMessage({
+            id: 'pages.roles.searchPlaceholder',
+            defaultMessage: '输入管理员角色名称、显示名称或描述',
           }),
-          status: 'Default',
-        },
-        false: {
-          text: intl.formatMessage({
-            id: 'pages.roles.no',
-            defaultMessage: '否',
-          }),
-          status: 'Processing',
         },
       },
-      render: (_, record) => (
-        <Tag color={record.is_system ? 'default' : 'processing'}>
-          {record.is_system
-            ? intl.formatMessage({
-                id: 'pages.roles.systemRole',
-                defaultMessage: '系统管理员角色',
-              })
-            : intl.formatMessage({
-                id: 'pages.roles.customRole',
-                defaultMessage: '自定义管理员角色',
-              })}
-        </Tag>
-      ),
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.roles.column.status',
-        defaultMessage: '状态',
-      }),
-      dataIndex: 'is_enabled',
-      valueType: 'select',
-      search: false,
-      valueEnum: {
-        true: {
-          text: intl.formatMessage({
-            id: 'pages.roles.statusEnabled',
-            defaultMessage: '启用',
-          }),
-          status: 'Success',
-        },
-        false: {
-          text: intl.formatMessage({
-            id: 'pages.roles.statusDisabled',
-            defaultMessage: '禁用',
-          }),
-          status: 'Error',
-        },
+      {
+        title: intl.formatMessage({
+          id: 'pages.roles.column.name',
+          defaultMessage: '管理员角色名称',
+        }),
+        dataIndex: 'name',
+        valueType: 'text',
+        search: false,
       },
-      render: (_, record) => (
-        <Access
-          accessible={access.canAdminRoleEdit}
-          fallback={
-            <Tag color={record.is_enabled ? 'success' : 'error'}>
-              {record.is_enabled
-                ? intl.formatMessage({
-                    id: 'pages.roles.statusEnabled',
-                    defaultMessage: '启用',
-                  })
-                : intl.formatMessage({
-                    id: 'pages.roles.statusDisabled',
-                    defaultMessage: '禁用',
-                  })}
-            </Tag>
-          }
-        >
-          <Tooltip
-            title={
-              record.is_system
-                ? intl.formatMessage({
-                    id: 'pages.roles.systemRoleCannotDisable',
-                    defaultMessage: '系统内置管理员角色不可禁用',
-                  })
-                : ''
+      {
+        title: intl.formatMessage({
+          id: 'pages.roles.column.displayName',
+          defaultMessage: '显示名称',
+        }),
+        dataIndex: 'display_name',
+        valueType: 'text',
+        search: false,
+      },
+      {
+        title: intl.formatMessage({
+          id: 'pages.roles.column.description',
+          defaultMessage: '描述',
+        }),
+        dataIndex: 'description',
+        valueType: 'text',
+        search: false,
+        ellipsis: true,
+      },
+      {
+        title: intl.formatMessage({
+          id: 'pages.roles.column.isSystem',
+          defaultMessage: '系统管理员角色',
+        }),
+        dataIndex: 'is_system',
+        valueType: 'select',
+        search: false,
+        valueEnum: {
+          true: {
+            text: intl.formatMessage({
+              id: 'pages.roles.yes',
+              defaultMessage: '是',
+            }),
+            status: 'Default',
+          },
+          false: {
+            text: intl.formatMessage({
+              id: 'pages.roles.no',
+              defaultMessage: '否',
+            }),
+            status: 'Processing',
+          },
+        },
+        render: (_, record) => (
+          <Tag color={record.is_system ? 'default' : 'processing'}>
+            {record.is_system
+              ? intl.formatMessage({
+                  id: 'pages.roles.systemRole',
+                  defaultMessage: '系统管理员角色',
+                })
+              : intl.formatMessage({
+                  id: 'pages.roles.customRole',
+                  defaultMessage: '自定义管理员角色',
+                })}
+          </Tag>
+        ),
+      },
+      {
+        title: intl.formatMessage({
+          id: 'pages.roles.column.status',
+          defaultMessage: '状态',
+        }),
+        dataIndex: 'is_enabled',
+        valueType: 'select',
+        search: false,
+        valueEnum: {
+          true: {
+            text: intl.formatMessage({
+              id: 'pages.roles.statusEnabled',
+              defaultMessage: '启用',
+            }),
+            status: 'Success',
+          },
+          false: {
+            text: intl.formatMessage({
+              id: 'pages.roles.statusDisabled',
+              defaultMessage: '禁用',
+            }),
+            status: 'Error',
+          },
+        },
+        render: (_, record) => (
+          <Access
+            accessible={access.canAdminRoleEdit}
+            fallback={
+              <Tag color={record.is_enabled ? 'success' : 'error'}>
+                {record.is_enabled
+                  ? intl.formatMessage({
+                      id: 'pages.roles.statusEnabled',
+                      defaultMessage: '启用',
+                    })
+                  : intl.formatMessage({
+                      id: 'pages.roles.statusDisabled',
+                      defaultMessage: '禁用',
+                    })}
+              </Tag>
             }
           >
-            <Switch
-              checked={record.is_enabled}
-              disabled={record.is_system}
-              onChange={async (checked) => {
-                try {
-                  await patchRole(record.id, { is_enabled: checked });
-                  message.success(
-                    checked
-                      ? intl.formatMessage({
-                          id: 'pages.roles.statusEnabled',
-                          defaultMessage: '已启用',
-                        })
-                      : intl.formatMessage({
-                          id: 'pages.roles.statusDisabled',
-                          defaultMessage: '已禁用',
-                        }),
-                  );
-                  actionRef.current?.reload();
-                } catch (error: unknown) {
-                  message.error(
-                    getFriendlyErrorMessage(
-                      error,
-                      intl.formatMessage({
-                        id: 'pages.roles.operationFailed',
-                        defaultMessage: '操作失败',
-                      }),
-                    ),
-                  );
-                }
-              }}
-            />
-          </Tooltip>
-        </Access>
-      ),
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.roles.column.createdAt',
-        defaultMessage: '创建时间',
-      }),
-      dataIndex: 'created_at',
-      valueType: 'dateTime',
-      search: false,
-      sorter: true,
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.roles.column.actions',
-        defaultMessage: '操作',
-      }),
-      dataIndex: 'option',
-      valueType: 'option',
-      render: (_, record) => (
-        <Space>
-          <Access accessible={access.canAdminRoleEdit} fallback={null}>
-            <Button
-              type="link"
-              size="small"
-              icon={<SafetyOutlined />}
-              onClick={() => handleManagePermissions(record)}
+            <Tooltip
+              title={
+                record.is_system
+                  ? intl.formatMessage({
+                      id: 'pages.roles.systemRoleCannotDisable',
+                      defaultMessage: '系统内置管理员角色不可禁用',
+                    })
+                  : ''
+              }
             >
-              {intl.formatMessage({
-                id: 'pages.roles.permission',
-                defaultMessage: '权限',
-              })}
-            </Button>
-          </Access>
-          <Access accessible={access.canAdminRoleEdit} fallback={null}>
-            <Button
-              type="link"
-              size="small"
-              icon={<EditOutlined />}
-              onClick={() => {
-                setCurrentRow(record);
-                setIsEdit(true);
-                setModalVisible(true);
-              }}
-            >
-              {intl.formatMessage({
-                id: 'pages.roles.edit',
-                defaultMessage: '编辑',
-              })}
-            </Button>
-          </Access>
-          <Access accessible={access.canAdminRoleEdit} fallback={null}>
-            {record.is_system ? (
-              <Tooltip
-                title={intl.formatMessage({
-                  id: 'pages.roles.systemRoleCannotDelete',
-                  defaultMessage: '系统内置管理员角色不可删除',
-                })}
-              >
-                <Button
-                  type="link"
-                  danger
-                  size="small"
-                  icon={<DeleteOutlined />}
-                  disabled
-                >
-                  {intl.formatMessage({
-                    id: 'pages.roles.delete',
-                    defaultMessage: '删除',
-                  })}
-                </Button>
-              </Tooltip>
-            ) : (
-              <Popconfirm
-                title={intl.formatMessage({
-                  id: 'pages.roles.confirmDelete',
-                  defaultMessage: '确定要删除这个管理员角色吗？',
-                })}
-                description={
-                  <>
-                    <p>
-                      {intl.formatMessage({
-                        id: 'pages.roles.confirmDeleteDesc',
-                        defaultMessage: '删除后无法恢复',
-                      })}
-                    </p>
-                    <p style={{ color: token.colorWarning, fontWeight: 500 }}>
-                      {intl.formatMessage({
-                        id: 'pages.roles.confirmDeleteRoleWarning',
-                        defaultMessage: '该角色下的所有管理员将失去对应权限',
-                      })}
-                    </p>
-                  </>
-                }
-                onConfirm={async () => {
+              <Switch
+                checked={record.is_enabled}
+                disabled={record.is_system}
+                onChange={async (checked) => {
                   try {
-                    await deleteRole(record.id);
+                    await patchRole(record.id, { is_enabled: checked });
                     message.success(
-                      intl.formatMessage({
-                        id: 'pages.roles.deleteSuccess',
-                        defaultMessage: '删除成功',
-                      }),
+                      checked
+                        ? intl.formatMessage({
+                            id: 'pages.roles.statusEnabled',
+                            defaultMessage: '已启用',
+                          })
+                        : intl.formatMessage({
+                            id: 'pages.roles.statusDisabled',
+                            defaultMessage: '已禁用',
+                          }),
                     );
                     actionRef.current?.reload();
                   } catch (error: unknown) {
@@ -450,40 +332,161 @@ const RoleListPage: React.FC = () => {
                       getFriendlyErrorMessage(
                         error,
                         intl.formatMessage({
-                          id: 'pages.roles.deleteFailed',
-                          defaultMessage: '删除失败',
+                          id: 'pages.roles.operationFailed',
+                          defaultMessage: '操作失败',
                         }),
                       ),
                     );
                   }
                 }}
-                okText={intl.formatMessage({
-                  id: 'pages.roles.confirm',
-                  defaultMessage: '确定',
-                })}
-                cancelText={intl.formatMessage({
-                  id: 'pages.roles.cancel',
-                  defaultMessage: '取消',
-                })}
-              >
-                <Button
-                  type="link"
-                  danger
-                  size="small"
-                  icon={<DeleteOutlined />}
-                >
-                  {intl.formatMessage({
-                    id: 'pages.roles.delete',
-                    defaultMessage: '删除',
-                  })}
-                </Button>
-              </Popconfirm>
-            )}
+              />
+            </Tooltip>
           </Access>
-        </Space>
-      ),
-    },
-  ];
+        ),
+      },
+      {
+        title: intl.formatMessage({
+          id: 'pages.roles.column.createdAt',
+          defaultMessage: '创建时间',
+        }),
+        dataIndex: 'created_at',
+        valueType: 'dateTime',
+        search: false,
+        sorter: true,
+      },
+      {
+        title: intl.formatMessage({
+          id: 'pages.roles.column.actions',
+          defaultMessage: '操作',
+        }),
+        dataIndex: 'option',
+        valueType: 'option',
+        render: (_, record) => (
+          <Space>
+            <Access accessible={access.canAdminRoleEdit} fallback={null}>
+              <Button
+                type="link"
+                size="small"
+                icon={<SafetyOutlined />}
+                onClick={() => handleManagePermissions(record)}
+              >
+                {intl.formatMessage({
+                  id: 'pages.roles.permission',
+                  defaultMessage: '权限',
+                })}
+              </Button>
+            </Access>
+            <Access accessible={access.canAdminRoleEdit} fallback={null}>
+              <Button
+                type="link"
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => {
+                  setCurrentRow(record);
+                  setIsEdit(true);
+                  setModalVisible(true);
+                }}
+              >
+                {intl.formatMessage({
+                  id: 'pages.roles.edit',
+                  defaultMessage: '编辑',
+                })}
+              </Button>
+            </Access>
+            <Access accessible={access.canAdminRoleEdit} fallback={null}>
+              {record.is_system ? (
+                <Tooltip
+                  title={intl.formatMessage({
+                    id: 'pages.roles.systemRoleCannotDelete',
+                    defaultMessage: '系统内置管理员角色不可删除',
+                  })}
+                >
+                  <Button
+                    type="link"
+                    danger
+                    size="small"
+                    icon={<DeleteOutlined />}
+                    disabled
+                  >
+                    {intl.formatMessage({
+                      id: 'pages.roles.delete',
+                      defaultMessage: '删除',
+                    })}
+                  </Button>
+                </Tooltip>
+              ) : (
+                <Popconfirm
+                  title={intl.formatMessage({
+                    id: 'pages.roles.confirmDelete',
+                    defaultMessage: '确定要删除这个管理员角色吗？',
+                  })}
+                  description={
+                    <>
+                      <p>
+                        {intl.formatMessage({
+                          id: 'pages.roles.confirmDeleteDesc',
+                          defaultMessage: '删除后无法恢复',
+                        })}
+                      </p>
+                      <p style={{ color: token.colorWarning, fontWeight: 500 }}>
+                        {intl.formatMessage({
+                          id: 'pages.roles.confirmDeleteRoleWarning',
+                          defaultMessage: '该角色下的所有管理员将失去对应权限',
+                        })}
+                      </p>
+                    </>
+                  }
+                  onConfirm={async () => {
+                    try {
+                      await deleteRole(record.id);
+                      message.success(
+                        intl.formatMessage({
+                          id: 'pages.roles.deleteSuccess',
+                          defaultMessage: '删除成功',
+                        }),
+                      );
+                      actionRef.current?.reload();
+                    } catch (error: unknown) {
+                      message.error(
+                        getFriendlyErrorMessage(
+                          error,
+                          intl.formatMessage({
+                            id: 'pages.roles.deleteFailed',
+                            defaultMessage: '删除失败',
+                          }),
+                        ),
+                      );
+                    }
+                  }}
+                  okText={intl.formatMessage({
+                    id: 'pages.roles.confirm',
+                    defaultMessage: '确定',
+                  })}
+                  cancelText={intl.formatMessage({
+                    id: 'pages.roles.cancel',
+                    defaultMessage: '取消',
+                  })}
+                >
+                  <Button
+                    type="link"
+                    danger
+                    size="small"
+                    icon={<DeleteOutlined />}
+                  >
+                    {intl.formatMessage({
+                      id: 'pages.roles.delete',
+                      defaultMessage: '删除',
+                    })}
+                  </Button>
+                </Popconfirm>
+              )}
+            </Access>
+          </Space>
+        ),
+      },
+    ],
+    [intl, access, token],
+  );
 
   /** Submit form */
   const handleSubmit = async (values: RoleFormValues) => {
@@ -833,7 +836,7 @@ const RoleListPage: React.FC = () => {
             id: 'pages.roles.descriptionPlaceholder',
             defaultMessage: '请输入管理员角色描述',
           })}
-          fieldProps={{ rows: 4 }}
+          fieldProps={{ rows: 4, maxLength: 500, showCount: true }}
         />
       </ModalForm>
 

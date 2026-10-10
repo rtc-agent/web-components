@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { history, Link } from '@umijs/max';
+import { history, Link, useIntl } from '@umijs/max';
 import {
   Button,
   Col,
@@ -14,7 +14,7 @@ import {
 } from 'antd';
 import type { Store } from 'antd/es/form/interface';
 import type { FC } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { fakeRegister } from './service';
 import useStyles from './styles';
 
@@ -60,47 +60,67 @@ const PasswordProgress: React.FC<{
 
 const Register: FC = () => {
   const { styles } = useStyles();
+  const intl = useIntl();
   const [count, setCount]: [number, any] = useState(0);
   const [open, setVisible]: [boolean, any] = useState(false);
   const [prefix, setPrefix]: [string, any] = useState('86');
   const [popover, setPopover]: [boolean, any] = useState(false);
-  const confirmDirty = false;
-  let interval: number | undefined;
+  const intervalRef = useRef<number | undefined>(undefined);
   const queryClient = useQueryClient();
 
   const passwordStatusMap = {
     ok: (
       <div className={styles.success}>
-        <span>强度：强</span>
+        <span>
+          {intl.formatMessage({
+            id: 'pages.user.register.strength.strong',
+            defaultMessage: 'Strength: Strong',
+          })}
+        </span>
       </div>
     ),
     pass: (
       <div className={styles.warning}>
-        <span>强度：中</span>
+        <span>
+          {intl.formatMessage({
+            id: 'pages.user.register.strength.medium',
+            defaultMessage: 'Strength: Medium',
+          })}
+        </span>
       </div>
     ),
     poor: (
       <div className={styles.error}>
-        <span>强度：太短</span>
+        <span>
+          {intl.formatMessage({
+            id: 'pages.user.register.strength.short',
+            defaultMessage: 'Strength: Too Short',
+          })}
+        </span>
       </div>
     ),
   };
 
   const [form] = Form.useForm();
-  useEffect(
-    () => () => {
-      clearInterval(interval);
-    },
-    [interval],
-  );
+  useEffect(() => {
+    return () => {
+      // 组件卸载时清理 interval
+      if (intervalRef.current !== undefined) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, []);
   const onGetCaptcha = () => {
     let counts = 59;
     setCount(counts);
-    interval = window.setInterval(() => {
+    intervalRef.current = window.setInterval(() => {
       counts -= 1;
       setCount(counts);
       if (counts === 0) {
-        clearInterval(interval);
+        if (intervalRef.current !== undefined) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = undefined;
+        }
       }
     }, 1000);
   };
@@ -119,11 +139,26 @@ const Register: FC = () => {
     onSuccess: (data, params) => {
       if (data.status === 'ok') {
         queryClient.invalidateQueries({ queryKey: ['current-user'] });
-        message.success('注册成功！');
+        message.success(
+          intl.formatMessage({
+            id: 'pages.user.register.success',
+            defaultMessage: 'Registration successful!',
+          }),
+        );
         history.push({
           pathname: `/user/register-result?account=${params.mail}`,
         });
       }
+    },
+    onError: (error: any) => {
+      const errorMessage =
+        error?.response?.data?.errorMessage ||
+        error?.message ||
+        intl.formatMessage({
+          id: 'pages.user.register.failed',
+          defaultMessage: 'Registration failed',
+        });
+      message.error(errorMessage);
     },
   });
   const onFinish = (values: Store) => {
@@ -132,18 +167,26 @@ const Register: FC = () => {
   const checkConfirm = (_: any, value: string) => {
     const promise = Promise;
     if (value && value !== form.getFieldValue('password')) {
-      return promise.reject('两次输入的密码不匹配!');
+      return promise.reject(
+        intl.formatMessage({
+          id: 'pages.user.register.passwordMismatch',
+          defaultMessage: 'The passwords you entered do not match!',
+        }),
+      );
     }
     return promise.resolve();
   };
   const checkPassword = (_: any, value: string) => {
     const promise = Promise;
-    // 没有值的情况
     if (!value) {
       setVisible(!!value);
-      return promise.reject('请输入密码!');
+      return promise.reject(
+        intl.formatMessage({
+          id: 'pages.user.register.passwordRequired',
+          defaultMessage: 'Please enter a password!',
+        }),
+      );
     }
-    // 有值的情况
     if (!open) {
       setVisible(!!value);
     }
@@ -151,7 +194,7 @@ const Register: FC = () => {
     if (value.length < 6) {
       return promise.reject('');
     }
-    if (value && confirmDirty) {
+    if (value && form.isFieldTouched('confirm')) {
       form.validateFields(['confirm']);
     }
     return promise.resolve();
@@ -163,22 +206,39 @@ const Register: FC = () => {
   const passwordStatus = getPasswordStatus(password);
   return (
     <div className={styles.main}>
-      <h3>注册</h3>
+      <h3>
+        {intl.formatMessage({
+          id: 'pages.user.register.title',
+          defaultMessage: 'Register',
+        })}
+      </h3>
       <Form form={form} name="UserRegister" onFinish={onFinish}>
         <FormItem
           name="email"
           rules={[
             {
               required: true,
-              message: '请输入邮箱地址!',
+              message: intl.formatMessage({
+                id: 'pages.user.register.emailRequired',
+                defaultMessage: 'Please enter your email address!',
+              }),
             },
             {
               type: 'email',
-              message: '邮箱地址格式错误!',
+              message: intl.formatMessage({
+                id: 'pages.user.register.emailInvalid',
+                defaultMessage: 'The email address format is incorrect!',
+              }),
             },
           ]}
         >
-          <Input size="large" placeholder="邮箱" />
+          <Input
+            size="large"
+            placeholder={intl.formatMessage({
+              id: 'pages.user.register.emailPlaceholder',
+              defaultMessage: 'Email',
+            })}
+          />
         </FormItem>
         <Popover
           getPopupContainer={(node) => {
@@ -201,7 +261,13 @@ const Register: FC = () => {
                     marginTop: 10,
                   }}
                 >
-                  <span>请至少输入 6 个字符。请不要使用容易被猜到的密码。</span>
+                  <span>
+                    {intl.formatMessage({
+                      id: 'pages.user.register.passwordTip',
+                      defaultMessage:
+                        'Please enter at least 6 characters. Please do not use a password that is easy to guess.',
+                    })}
+                  </span>
                 </div>
               </div>
             )
@@ -228,7 +294,10 @@ const Register: FC = () => {
             <Input
               size="large"
               type="password"
-              placeholder="至少6位密码，区分大小写"
+              placeholder={intl.formatMessage({
+                id: 'pages.user.register.passwordPlaceholder',
+                defaultMessage: 'At least 6 characters, case sensitive',
+              })}
             />
           </FormItem>
         </Popover>
@@ -237,25 +306,41 @@ const Register: FC = () => {
           rules={[
             {
               required: true,
-              message: '确认密码',
+              message: intl.formatMessage({
+                id: 'pages.user.register.confirmPassword',
+                defaultMessage: 'Confirm Password',
+              }),
             },
             {
               validator: checkConfirm,
             },
           ]}
         >
-          <Input size="large" type="password" placeholder="确认密码" />
+          <Input
+            size="large"
+            type="password"
+            placeholder={intl.formatMessage({
+              id: 'pages.user.register.confirmPasswordPlaceholder',
+              defaultMessage: 'Confirm Password',
+            })}
+          />
         </FormItem>
         <FormItem
           name="mobile"
           rules={[
             {
               required: true,
-              message: '请输入手机号!',
+              message: intl.formatMessage({
+                id: 'pages.user.register.phoneRequired',
+                defaultMessage: 'Please enter your phone number!',
+              }),
             },
             {
               pattern: /^\d{11}$/,
-              message: '手机号格式错误!',
+              message: intl.formatMessage({
+                id: 'pages.user.register.phoneInvalid',
+                defaultMessage: 'The phone number format is incorrect!',
+              }),
             },
           ]}
         >
@@ -272,7 +357,13 @@ const Register: FC = () => {
               <Option value="87">+87</Option>
             </Select>
 
-            <Input size="large" placeholder="手机号" />
+            <Input
+              size="large"
+              placeholder={intl.formatMessage({
+                id: 'pages.user.register.phonePlaceholder',
+                defaultMessage: 'Phone Number',
+              })}
+            />
           </Space.Compact>
         </FormItem>
         <Row gutter={8}>
@@ -282,11 +373,20 @@ const Register: FC = () => {
               rules={[
                 {
                   required: true,
-                  message: '请输入验证码!',
+                  message: intl.formatMessage({
+                    id: 'pages.user.register.captchaRequired',
+                    defaultMessage: 'Please enter the verification code!',
+                  }),
                 },
               ]}
             >
-              <Input size="large" placeholder="验证码" />
+              <Input
+                size="large"
+                placeholder={intl.formatMessage({
+                  id: 'pages.user.register.captchaPlaceholder',
+                  defaultMessage: 'Verification Code',
+                })}
+              />
             </FormItem>
           </Col>
           <Col span={8}>
@@ -296,7 +396,12 @@ const Register: FC = () => {
               className={styles.getCaptcha}
               onClick={onGetCaptcha}
             >
-              {count ? `${count} s` : '获取验证码'}
+              {count
+                ? `${count} s`
+                : intl.formatMessage({
+                    id: 'pages.user.register.getCaptcha',
+                    defaultMessage: 'Get Code',
+                  })}
             </Button>
           </Col>
         </Row>
@@ -309,10 +414,20 @@ const Register: FC = () => {
               type="primary"
               htmlType="submit"
             >
-              <span>注册</span>
+              <span>
+                {intl.formatMessage({
+                  id: 'pages.user.register.register',
+                  defaultMessage: 'Register',
+                })}
+              </span>
             </Button>
             <Link to="/user/login" prefetch>
-              <span>使用已有账户登录</span>
+              <span>
+                {intl.formatMessage({
+                  id: 'pages.user.register.loginLink',
+                  defaultMessage: 'Log in with existing account',
+                })}
+              </span>
             </Link>
           </div>
         </FormItem>
