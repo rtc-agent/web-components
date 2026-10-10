@@ -242,6 +242,7 @@ export class PersistenceController implements ReactiveController {
     private _databaseNameOverride?: string;
     private _workerURL?: string;
     private _fileStorage?: FileStorage;
+    private _host: HTMLElement & {addController(c: ReactiveController): void};
 
     /**
      * In-flight connection promise — prevents concurrent `connect()` calls from
@@ -271,9 +272,10 @@ export class PersistenceController implements ReactiveController {
     private static readonly CONNECT_RETRY_DELAY_MS = 2000;
 
     constructor(
-        host: {addController(c: ReactiveController): void},
+        host: HTMLElement & {addController(c: ReactiveController): void},
         auth: AuthController,
     ) {
+        this._host = host;
         this._auth = auth;
         host.addController(this);
     }
@@ -357,7 +359,11 @@ export class PersistenceController implements ReactiveController {
     }
 
     hostDisconnected() {
-        this.disconnect();
+        // Note: disconnect() is async but lifecycle methods are sync.
+        // Browser will clean up Worker/IndexedDB on page unload.
+        // For DOM re-parenting scenarios, async cleanup may not complete.
+        // The void operator explicitly ignores the Promise (fire-and-forget).
+        void this.disconnect();
     }
 
     /**
@@ -474,7 +480,7 @@ export class PersistenceController implements ReactiveController {
         // Capture bridge instance in a local variable to avoid accessing this._workerBridge after await, which may have been modified by disconnect()
         const bridge = new WorkerBridge(this._auth, {
             workerURL: this._workerURL,
-        });
+        }, this._host);
 
         this._workerBridge = bridge;
 
@@ -545,7 +551,10 @@ export class PersistenceController implements ReactiveController {
                 log.info('this Tab lost Master');
             };
             // Start trying to acquire the lock (may queue)
-            void this._masterLock.acquire();
+            // Catch errors to prevent unhandled promise rejection
+            this._masterLock.acquire().catch(err => {
+                log.warn('MasterLock acquire failed:', err);
+            });
         }
     }
 

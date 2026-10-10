@@ -139,6 +139,8 @@ export class WorkerBridge {
     private _config: WorkerBridgeConfig;
     /** Counter for generating unique operation IDs (for file operation cancellation) */
     private _operationCounter = 0;
+    /** Host element reference for dispatching events (avoids document.querySelector in multi-instance scenarios) */
+    private _hostElement: HTMLElement | null = null;
 
     /** Connection state listeners (main-thread side). */
     private _connectionListeners = new Set<(event: ConnectionStateEvent) => void>();
@@ -185,9 +187,11 @@ export class WorkerBridge {
 
     constructor(
         private readonly _auth: AuthController,
-        config: WorkerBridgeConfig = {}
+        config: WorkerBridgeConfig = {},
+        hostElement?: HTMLElement
     ) {
         this._config = config;
+        this._hostElement = hostElement ?? null;
         // databaseName is not available yet (set in init()). Use a placeholder key.
         // sessionStorage restore is deferred to init() when the actual databaseName is known.
         this._databaseName = 'default';
@@ -269,20 +273,18 @@ export class WorkerBridge {
                     log.debug('sessionStorage unavailable for ban state', e);
                 }
                 // Dispatch event directly (no setTimeout) for immediate handling
-                // NOTE: Uses querySelector to find the rtc-agent element. This works for the
-                // common case of a single rtc-agent on the page. If multiple instances are
-                // needed in the future, pass the host element reference from PersistenceController
-                // to WorkerBridge constructor and use it here instead of querySelector.
-                const rtcAgent = document.querySelector('rtc-agent');
-                if (rtcAgent) {
-                    rtcAgent.dispatchEvent(new CustomEvent('rtc-account-banned', {
+                // Uses host element reference passed from PersistenceController to support
+                // multi-instance scenarios (avoids document.querySelector which would find
+                // the wrong element when multiple rtc-agent instances exist on the page).
+                if (this._hostElement) {
+                    this._hostElement.dispatchEvent(new CustomEvent('rtc-account-banned', {
                         bubbles: true,
                         composed: true,
                         detail: { reason },
                     }));
                     log.warn('dispatched rtc-account-banned event from onAccountBanned callback');
                 } else {
-                    log.error('rtc-agent element not found when handling account banned; ban state saved in sessionStorage');
+                    log.error('host element not available when handling account banned; ban state saved in sessionStorage');
                 }
             },
         };
@@ -525,15 +527,29 @@ export class WorkerBridge {
      * Must be accessed after initWorker().
      */
     get core(): Remote<WorkerPersistenceCore> {
-        return this._core!;
+        return this._ensureCore();
+    }
+
+    /**
+     * Guard: ensure the Comlink-proxied core is available.
+     *
+     * Replaces the non-null assertion (`this._ensureCore()`) with an explicit check
+     * that throws a clear error if the bridge has been destroyed or not yet initialized.
+     */
+    private _ensureCore(): Remote<WorkerPersistenceCore> {
+        if (!this._core) {
+            throw new Error('[WorkerBridge] core is not available — bridge may have been destroyed or not yet initialized');
+        }
+        return this._core;
     }
 
     /**
      * Initialize the bridge.
      *
      * 1. Call Worker's core.init() to initialize shared state.
-     * 2. Register this tab's callbacks (onUIUpdate + requestToken + onConnectionStateChange).
-     * 3. Open the port to start communication.
+     * 2. Open the port to start communication.
+     * 3. Register this tab's callbacks (onUIUpdate + requestToken + onConnectionStateChange).
+     *    Registered before init() so any events broadcast during init() are captured.
      * 4. Catch up on missed UI update events (persisted in Worker's IndexedDB).
      *    Callbacks are registered first so real-time events arriving during catch-up
      *    update _lastProcessedSeq, preventing both loss and duplication.
@@ -584,13 +600,14 @@ export class WorkerBridge {
         // Open the port (must be called before any communication).
         this._worker.port.start();
 
+        // Register callback BEFORE init() to ensure no events are missed.
+        // Although WorkerCore.init() currently doesn't broadcast events, registering first
+        // makes the code robust against future changes that might add async event broadcasting to init().
+        // This also ensures callbacks are ready to receive events immediately after init() completes.
+        await this._core.registerCallback(this._proxiedCallbacks);
+
         // Initialize the Worker-side shared state.
         await this._core.init(config);
-
-        // Register callback FIRST so real-time events update _lastProcessedSeq during catch-up.
-        // Catch-up then queries seq > _lastProcessedSeq, automatically skipping events
-        // that were already delivered in real-time — preventing both loss and duplication.
-        await this._core.registerCallback(this._proxiedCallbacks);
 
         // Catch up on missed UI update events AFTER registering real-time callbacks.
         // Paginated: handles >1000 missed events. Detects gaps from TTL cleanup.
@@ -609,37 +626,81 @@ export class WorkerBridge {
      *                       redundant catch-up. Only clear on actual tab close (beforeunload).
      */
     async destroy(clearStorage = false): Promise<void> {
-        // Cancel ongoing catch-up
+        // 1. Cancel ongoing catch-up
         this._catchUpAbortController?.abort();
 
-        if (!this._initialized) {
-            return;
-        }
-        if (!this._worker || !this._core) {
-            return;
+        // 2. Wait for ongoing init() to complete (or fail) before cleaning up.
+        //    If we don't wait, init() might try to access resources we're about to close
+        //    (e.g., calling port.start() after port.close(), or registerCallback after
+        //    unregisterCallback). The init() caller will receive the result (success or error)
+        //    as usual — we only await here to serialize cleanup.
+        if (this._initPromise) {
+            try {
+                await this._initPromise;
+            } catch {
+                // Init failed — that's fine, we're destroying anyway.
+                // The failure will surface to the init() caller.
+            }
         }
 
-        try {
-            await this._core.unregisterCallback(this._proxiedCallbacks);
-        } catch (err) {
-            log.warn('unregisterCallback failed:', err);
+        // 3. Clean up Worker resources regardless of _initialized state.
+        //    If initWorker() succeeded but init() didn't complete (or wasn't called),
+        //    we still need to close the port to avoid resource leaks.
+        if (this._worker) {
+            // Only unregister if init() completed (callbacks were registered)
+            if (this._initialized && this._core) {
+                try {
+                    await this._core.unregisterCallback(this._proxiedCallbacks);
+                } catch (err) {
+                    log.warn('unregisterCallback failed:', err);
+                }
+
+                // Pass callback to close() to ensure cleanup even if unregisterCallback failed.
+                // This prevents the SharedWorker from being kept alive indefinitely by a stale
+                // callback reference in the Worker's callbacks Set.
+                try {
+                    await this._core.close(this._proxiedCallbacks);
+                } catch (err) {
+                    log.warn('close failed:', err);
+                }
+            }
+
+            try {
+                this._worker.port.close();
+            } catch {
+                // Port may already be closed (e.g., by _cleanupFailedWorker or browser)
+            }
         }
 
+        // 4. Null out references to prevent memory leaks and use-after-destroy bugs.
+        //    Any subsequent access via this.core will throw (expected — bridge is dead).
+        this._worker = null;
+        this._core = null;
+
+        // 5. Clear connection listeners
         this._connectionListeners.clear();
-        this._worker.port.close();
         this._initialized = false;
 
-        // Clean up shared yield channel (prevents memory leak if catch-up was in progress)
+        // 6. Resolve all pending yield channel Promises before closing the channel.
+        //    If we don't resolve them, any code awaiting _yieldToMain() will hang forever
+        //    (the port is about to be closed, so no message will arrive to resolve them).
+        //    Resolving them allows the catch-up loop (if still running) to exit cleanly
+        //    on its next iteration, where it will check signal.aborted and bail out.
+        while (this._yieldResolves.length > 0) {
+            const resolve = this._yieldResolves.shift()!;
+            resolve();
+        }
+
+        // 7. Clean up shared yield channel (prevents memory leak if catch-up was in progress)
         if (this._yieldChannel) {
             this._yieldChannel.port1.close();
             this._yieldChannel.port2.close();
             this._yieldChannel = undefined;
         }
-        this._yieldResolves.length = 0;
 
-        // Only clear cursor state when explicitly requested (e.g., tab close).
-        // Component unmount/remount (clearStorage=false) should keep the cursor
-        // to avoid redundant catch-up on next init().
+        // 8. Only clear cursor state when explicitly requested (e.g., tab close).
+        //    Component unmount/remount (clearStorage=false) should keep the cursor
+        //    to avoid redundant catch-up on next init().
         if (clearStorage) {
             this._lastProcessedSeq = 0;
             this._hasRestoredFromStorage = false;
@@ -659,7 +720,7 @@ export class WorkerBridge {
      * Calls the Worker's getConnectionState() via Comlink.
      */
     async getConnectionState(): Promise<ConnectionState> {
-        return this._core!.getConnectionState();
+        return this._ensureCore().getConnectionState();
     }
 
     /**
@@ -687,7 +748,7 @@ export class WorkerBridge {
      * Note: virtualFS is a module-level singleton; the replacement is global.
      */
     installVirtualFSProxy(): void {
-        const core = this._core!;
+        const core = this._ensureCore();
 
         // Save original implementation for potential restoration
         // (currently one-way; restoration is not needed yet).
@@ -740,7 +801,7 @@ export class WorkerBridge {
         contentType: string,
         ttlMs?: number
     ): Promise<void> {
-        return this._core!.cacheFile(md5, ext, blob, contentType, ttlMs);
+        return this._ensureCore().cacheFile(md5, ext, blob, contentType, ttlMs);
     }
 
     /**
@@ -756,7 +817,7 @@ export class WorkerBridge {
         contentType: string,
         filename?: string
     ): Promise<void> {
-        return this._core!.cacheFilePending(md5, ext, blob, contentType, filename);
+        return this._ensureCore().cacheFilePending(md5, ext, blob, contentType, filename);
     }
 
     /**
@@ -766,14 +827,14 @@ export class WorkerBridge {
         md5: string,
         ext: string
     ): Promise<CachedFileInfo | null> {
-        return this._core!.getCachedFile(md5, ext);
+        return this._ensureCore().getCachedFile(md5, ext);
     }
 
     /**
      * Evict all expired cache entries (proxied to Worker).
      */
     async evictExpiredCache(): Promise<number> {
-        return this._core!.evictExpiredCache();
+        return this._ensureCore().evictExpiredCache();
     }
 
     /**
@@ -786,7 +847,7 @@ export class WorkerBridge {
      * @returns Actual evicted count and bytes freed
      */
     async evictCache(targetBytes?: number): Promise<{ evictedCount: number; evictedBytes: number }> {
-        return this._core!.evictCache(targetBytes);
+        return this._ensureCore().evictCache(targetBytes);
     }
 
     /**
@@ -830,7 +891,7 @@ export class WorkerBridge {
         let cleanupAbortListener: (() => void) | undefined;
         if (signal) {
             const onAbort = () => {
-                this._core!.cancelFileOperation(operationId);
+                this._ensureCore().cancelFileOperation(operationId);
             };
             signal.addEventListener('abort', onAbort, { once: true });
             cleanupAbortListener = () => signal.removeEventListener('abort', onAbort);
@@ -840,7 +901,7 @@ export class WorkerBridge {
         // Use Comlink.proxy() to make the function serializable across postMessage boundary
         const throttled = onProgress ? proxy(throttle(onProgress, 100)) : undefined;
         try {
-            return await this._core!.uploadFile(md5, ext, blob, contentType, filename, operationId, throttled, cacheTtlMs);
+            return await this._ensureCore().uploadFile(md5, ext, blob, contentType, filename, operationId, throttled, cacheTtlMs);
         } finally {
             cleanupAbortListener?.();
         }
@@ -884,7 +945,7 @@ export class WorkerBridge {
         let cleanupAbortListener: (() => void) | undefined;
         if (signal) {
             const onAbort = () => {
-                this._core!.cancelFileOperation(operationId);
+                this._ensureCore().cancelFileOperation(operationId);
             };
             signal.addEventListener('abort', onAbort, { once: true });
             cleanupAbortListener = () => signal.removeEventListener('abort', onAbort);
@@ -895,7 +956,7 @@ export class WorkerBridge {
         const throttled = onProgress ? proxy(throttle(onProgress, 100)) : undefined;
         try {
             // P2-NEW-4 fix: pass forceRefresh to Worker
-            return await this._core!.downloadFile(md5, ext, throttled, operationId, forceRefresh);
+            return await this._ensureCore().downloadFile(md5, ext, throttled, operationId, forceRefresh);
         } finally {
             cleanupAbortListener?.();
         }
@@ -908,7 +969,7 @@ export class WorkerBridge {
      * @param ext File extension
      */
     async deleteFile(md5: string, ext: string): Promise<void> {
-        return this._core!.deleteFile(md5, ext);
+        return this._ensureCore().deleteFile(md5, ext);
     }
 
     /**
@@ -917,35 +978,35 @@ export class WorkerBridge {
      * Runs in the Worker thread to avoid blocking the main thread.
      */
     async calculateFileMD5(blob: Blob): Promise<string> {
-        return this._core!.calculateFileMD5(blob);
+        return this._ensureCore().calculateFileMD5(blob);
     }
 
     /**
      * Get file metadata from S3 without downloading (proxied to Worker).
      */
     async headFile(md5: string, ext: string): Promise<HeadObjectResult> {
-        return this._core!.headFile(md5, ext);
+        return this._ensureCore().headFile(md5, ext);
     }
 
     /**
      * Get a presigned URL for file operations (proxied to Worker).
      */
     async getPresignedUrl(operation: 'get' | 'put', key: string, expiresIn?: number): Promise<string> {
-        return this._core!.getPresignedUrl(operation, key, expiresIn);
+        return this._ensureCore().getPresignedUrl(operation, key, expiresIn);
     }
 
     /**
      * List files by sync status (proxied to Worker).
      */
     async listFiles(syncStatus?: FileSyncStatus, limit: number = 100, offset: number = 0): Promise<FileCacheEntry[]> {
-        return this._core!.listFiles(syncStatus, limit, offset);
+        return this._ensureCore().listFiles(syncStatus, limit, offset);
     }
 
     /**
      * Count files by sync status (proxied to Worker).
      */
     async countFiles(syncStatus?: FileSyncStatus): Promise<number> {
-        return this._core!.countFiles(syncStatus);
+        return this._ensureCore().countFiles(syncStatus);
     }
 
     /**
@@ -963,7 +1024,7 @@ export class WorkerBridge {
         syncedFiles: Array<{ md5: string; ext: string }>;
         failedFiles: Array<{ md5: string; ext: string; errorMessage?: string }>;
     }> {
-        return this._core!.syncPendingFiles();
+        return this._ensureCore().syncPendingFiles();
     }
 
     /**
@@ -980,7 +1041,7 @@ export class WorkerBridge {
       syncedFiles: Array<{ md5: string; ext: string }>;
       failedFiles: Array<{ md5: string; ext: string; errorMessage?: string }>;
     }> {
-        return this._core!.resumeInterruptedUploads();
+        return this._ensureCore().resumeInterruptedUploads();
     }
 
     /**
@@ -996,7 +1057,7 @@ export class WorkerBridge {
         failed: { count: number; size: number };
       };
     }> {
-        return this._core!.getCacheStats();
+        return this._ensureCore().getCacheStats();
     }
 
     /**
@@ -1011,7 +1072,7 @@ export class WorkerBridge {
       ext: string,
       updates: { filename?: string; contentType?: string }
     ): Promise<void> {
-      return this._core!.updateFileMetadata(md5, ext, updates);
+      return this._ensureCore().updateFileMetadata(md5, ext, updates);
     }
 
     // ========== UI Update Catch-Up ==========
