@@ -37,11 +37,13 @@ export default defineConfig({
     alias: {
       '@rtc-agent/client': path.resolve(__dirname, '../client/src/index.ts'),
       '@rtc-agent/persistence': path.resolve(__dirname, '../persistence/src/index.ts'),
+      '@rtc-agent/protocol': path.resolve(__dirname, '../protocol/src/index.ts'),
+      '@rtc-agent/worker': path.resolve(__dirname, '../worker/src/index.ts'),
     },
   },
   optimizeDeps: {
     // 阻止 Vite 预打包 workspace 包，否则其嵌套 import 仍走 dist/
-    exclude: ['@rtc-agent/client', '@rtc-agent/persistence'],
+    exclude: ['@rtc-agent/client', '@rtc-agent/persistence', '@rtc-agent/protocol', '@rtc-agent/worker'],
   },
   build: {
     lib: {
