@@ -8,7 +8,7 @@ import {
 } from '@ant-design/pro-components';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { FormattedMessage, useIntl } from '@umijs/max';
-import { Modal, message } from 'antd';
+import { App, Grid, Modal } from 'antd';
 import React, { cloneElement, useCallback, useState } from 'react';
 import { updateRule } from '@/services/ant-design-pro/api';
 
@@ -26,17 +26,20 @@ const UpdateForm: React.FC<UpdateFormProps> = (props) => {
 
   const [open, setOpen] = useState(false);
 
-  const [messageApi, contextHolder] = message.useMessage();
+  const { message } = App.useApp();
+  const breakpoints = Grid.useBreakpoint();
+  const isMobile = !breakpoints.sm;
+  const modalWidth = isMobile ? '95vw' : 640;
 
   const { mutateAsync: run } = useMutation({
     mutationFn: updateRule,
     onSuccess: () => {
-      messageApi.success('Configuration is successful');
+      message.success('Configuration is successful');
       queryClient.invalidateQueries({ queryKey: ['rule'] });
       onOk?.();
     },
     onError: () => {
-      messageApi.error('Configuration failed, please try again!');
+      message.error('Configuration failed, please try again!');
     },
   });
 
@@ -58,7 +61,6 @@ const UpdateForm: React.FC<UpdateFormProps> = (props) => {
 
   return (
     <>
-      {contextHolder}
       {trigger
         ? cloneElement(trigger, {
             onClick: onOpen,
@@ -71,7 +73,7 @@ const UpdateForm: React.FC<UpdateFormProps> = (props) => {
         stepsFormRender={(dom, submitter) => {
           return (
             <Modal
-              width={640}
+              width={modalWidth}
               styles={{
                 body: {
                   padding: '32px 40px 48px',
@@ -80,7 +82,7 @@ const UpdateForm: React.FC<UpdateFormProps> = (props) => {
               destroyOnHidden
               title={intl.formatMessage({
                 id: 'pages.searchTable.updateForm.ruleConfig',
-                defaultMessage: '规则配置',
+                defaultMessage: 'Rule configuration',
               })}
               open={open}
               footer={submitter}
@@ -96,14 +98,14 @@ const UpdateForm: React.FC<UpdateFormProps> = (props) => {
           initialValues={values}
           title={intl.formatMessage({
             id: 'pages.searchTable.updateForm.basicConfig',
-            defaultMessage: '基本信息',
+            defaultMessage: 'Basic information',
           })}
         >
           <ProFormText
             name="name"
             label={intl.formatMessage({
               id: 'pages.searchTable.updateForm.ruleName.nameLabel',
-              defaultMessage: '规则名称',
+              defaultMessage: 'Rule name',
             })}
             width="md"
             rules={[
@@ -112,7 +114,7 @@ const UpdateForm: React.FC<UpdateFormProps> = (props) => {
                 message: (
                   <FormattedMessage
                     id="pages.searchTable.updateForm.ruleName.nameRules"
-                    defaultMessage="请输入规则名称！"
+                    defaultMessage="Please enter rule name!"
                   />
                 ),
               },
@@ -123,11 +125,11 @@ const UpdateForm: React.FC<UpdateFormProps> = (props) => {
             width="md"
             label={intl.formatMessage({
               id: 'pages.searchTable.updateForm.ruleDesc.descLabel',
-              defaultMessage: '规则描述',
+              defaultMessage: 'Rule description',
             })}
             placeholder={intl.formatMessage({
               id: 'pages.searchTable.updateForm.ruleDesc.descPlaceholder',
-              defaultMessage: '请输入至少五个字符',
+              defaultMessage: 'Please enter at least 5 characters',
             })}
             rules={[
               {
@@ -135,7 +137,7 @@ const UpdateForm: React.FC<UpdateFormProps> = (props) => {
                 message: (
                   <FormattedMessage
                     id="pages.searchTable.updateForm.ruleDesc.descRules"
-                    defaultMessage="请输入至少五个字符的规则描述！"
+                    defaultMessage="Please enter a rule description of at least 5 characters!"
                   />
                 ),
                 min: 5,
@@ -150,7 +152,7 @@ const UpdateForm: React.FC<UpdateFormProps> = (props) => {
           }}
           title={intl.formatMessage({
             id: 'pages.searchTable.updateForm.ruleProps.title',
-            defaultMessage: '配置规则属性',
+            defaultMessage: 'Configure rule properties',
           })}
         >
           <ProFormSelect
@@ -158,7 +160,7 @@ const UpdateForm: React.FC<UpdateFormProps> = (props) => {
             width="md"
             label={intl.formatMessage({
               id: 'pages.searchTable.updateForm.object',
-              defaultMessage: '监控对象',
+              defaultMessage: 'Monitoring target',
             })}
             valueEnum={{
               0: '表一',
@@ -170,7 +172,7 @@ const UpdateForm: React.FC<UpdateFormProps> = (props) => {
             width="md"
             label={intl.formatMessage({
               id: 'pages.searchTable.updateForm.ruleProps.templateLabel',
-              defaultMessage: '规则模板',
+              defaultMessage: 'Rule template',
             })}
             valueEnum={{
               0: '规则模板一',
@@ -181,7 +183,7 @@ const UpdateForm: React.FC<UpdateFormProps> = (props) => {
             name="type"
             label={intl.formatMessage({
               id: 'pages.searchTable.updateForm.ruleProps.typeLabel',
-              defaultMessage: '规则类型',
+              defaultMessage: 'Rule type',
             })}
             options={[
               {
@@ -202,7 +204,7 @@ const UpdateForm: React.FC<UpdateFormProps> = (props) => {
           }}
           title={intl.formatMessage({
             id: 'pages.searchTable.updateForm.schedulingPeriod.title',
-            defaultMessage: '设定调度周期',
+            defaultMessage: 'Set scheduling cycle',
           })}
         >
           <ProFormDateTimePicker
@@ -210,7 +212,7 @@ const UpdateForm: React.FC<UpdateFormProps> = (props) => {
             width="md"
             label={intl.formatMessage({
               id: 'pages.searchTable.updateForm.schedulingPeriod.timeLabel',
-              defaultMessage: '开始时间',
+              defaultMessage: 'Start time',
             })}
             rules={[
               {
@@ -218,7 +220,7 @@ const UpdateForm: React.FC<UpdateFormProps> = (props) => {
                 message: (
                   <FormattedMessage
                     id="pages.searchTable.updateForm.schedulingPeriod.timeRules"
-                    defaultMessage="请选择开始时间！"
+                    defaultMessage="Please select start time!"
                   />
                 ),
               },
@@ -228,7 +230,7 @@ const UpdateForm: React.FC<UpdateFormProps> = (props) => {
             name="frequency"
             label={intl.formatMessage({
               id: 'pages.searchTable.updateForm.object',
-              defaultMessage: '监控对象',
+              defaultMessage: 'Monitoring target',
             })}
             width="md"
             valueEnum={{

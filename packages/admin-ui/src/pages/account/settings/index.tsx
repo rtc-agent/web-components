@@ -1,7 +1,7 @@
 import { GridContent } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
-import { Menu, message } from 'antd';
-import React, { useLayoutEffect, useEffect, useRef, useState } from 'react';
+import { App, Menu } from 'antd';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import BaseView from './components/base';
 import BindingView from './components/binding';
 import NotificationView from './components/notification';
@@ -19,19 +19,19 @@ type SettingsState = {
 const getMenuMap = (intl: any): Record<string, React.ReactNode> => ({
   base: intl.formatMessage({
     id: 'pages.account.settings.base',
-    defaultMessage: '基本设置',
+    defaultMessage: 'Basic settings',
   }),
   security: intl.formatMessage({
     id: 'pages.account.settings.security',
-    defaultMessage: '安全设置',
+    defaultMessage: 'Security settings',
   }),
   binding: intl.formatMessage({
     id: 'pages.account.settings.binding',
-    defaultMessage: '账号绑定',
+    defaultMessage: 'Account binding',
   }),
   notification: intl.formatMessage({
     id: 'pages.account.settings.notification',
-    defaultMessage: '新消息通知',
+    defaultMessage: 'New message notification',
   }),
 });
 
@@ -55,6 +55,7 @@ const SettingsContent: React.FC<{ selectKey: SettingsStateKeys }> = ({
 const Settings: React.FC = () => {
   const { styles } = useStyles();
   const intl = useIntl();
+  const { message } = App.useApp();
   const menuMap = getMenuMap(intl);
   const menuItems = Object.keys(menuMap).map((item) => ({
     key: item,

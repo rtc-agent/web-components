@@ -54,17 +54,29 @@ vi.mock('@ant-design/pro-components', async () => {
   };
 });
 
-vi.mock('antd', () => ({
-  Button: ({ children }: any) => <button type="button">{children}</button>,
-  Input: (props: any) => <input {...props} />,
-  Skeleton: ({ active, paragraph }: any) => (
-    <div data-testid="skeleton">{active && paragraph?.rows}</div>
-  ),
-  Upload: ({ children }: any) => <div>{children}</div>,
-  message: {
-    success: vi.fn(),
-  },
-}));
+vi.mock('antd', async () => {
+  const actual = await vi.importActual('antd');
+  return {
+    ...actual,
+    App: {
+      useApp: () => ({
+        message: {
+          success: vi.fn(),
+          error: vi.fn(),
+        },
+      }),
+    },
+    Button: ({ children }: any) => <button type="button">{children}</button>,
+    Input: (props: any) => <input {...props} />,
+    Skeleton: ({ active, paragraph }: any) => (
+      <div data-testid="skeleton">{active && paragraph?.rows}</div>
+    ),
+    Upload: ({ children }: any) => <div>{children}</div>,
+    message: {
+      success: vi.fn(),
+    },
+  };
+});
 
 vi.mock('@ant-design/icons', () => ({
   UploadOutlined: () => <span />,

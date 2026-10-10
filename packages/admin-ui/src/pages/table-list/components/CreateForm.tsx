@@ -7,7 +7,7 @@ import {
 } from '@ant-design/pro-components';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { FormattedMessage, useIntl } from '@umijs/max';
-import { Button, Grid, message } from 'antd';
+import { App, Button, Grid } from 'antd';
 import type { FC } from 'react';
 import { addRule } from '@/services/ant-design-pro/api';
 
@@ -18,7 +18,7 @@ interface CreateFormProps {
 const CreateForm: FC<CreateFormProps> = (props) => {
   const { reload } = props;
 
-  const [messageApi, contextHolder] = message.useMessage();
+  const { message } = App.useApp();
   const queryClient = useQueryClient();
   /**
    * @en-US International configuration
@@ -32,64 +32,61 @@ const CreateForm: FC<CreateFormProps> = (props) => {
   const { mutateAsync: run, isPending: loading } = useMutation({
     mutationFn: addRule,
     onSuccess: () => {
-      messageApi.success('Added successfully');
+      message.success('Added successfully');
       queryClient.invalidateQueries({ queryKey: ['rule'] });
       reload?.();
     },
     onError: () => {
-      messageApi.error('Adding failed, please try again!');
+      message.error('Adding failed, please try again!');
     },
   });
 
   return (
-    <>
-      {contextHolder}
-      <ModalForm
-        title={intl.formatMessage({
-          id: 'pages.searchTable.createForm.newRule',
-          defaultMessage: 'New rule',
-        })}
-        trigger={
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            aria-label={intl.formatMessage({
-              id: 'pages.searchTable.new',
-              defaultMessage: 'New',
-            })}
-          >
-            <FormattedMessage id="pages.searchTable.new" defaultMessage="New" />
-          </Button>
+    <ModalForm
+      title={intl.formatMessage({
+        id: 'pages.searchTable.createForm.newRule',
+        defaultMessage: 'New rule',
+      })}
+      trigger={
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          aria-label={intl.formatMessage({
+            id: 'pages.searchTable.new',
+            defaultMessage: 'New',
+          })}
+        >
+          <FormattedMessage id="pages.searchTable.new" defaultMessage="New" />
+        </Button>
+      }
+      width={modalWidth}
+      modalProps={{ okButtonProps: { loading } }}
+      onFinish={async (value) => {
+        try {
+          await run({ data: value as API.RuleListItem });
+          return true;
+        } catch {
+          return false;
         }
-        width={modalWidth}
-        modalProps={{ okButtonProps: { loading } }}
-        onFinish={async (value) => {
-          try {
-            await run({ data: value as API.RuleListItem });
-            return true;
-          } catch {
-            return false;
-          }
-        }}
-      >
-        <ProFormText
-          rules={[
-            {
-              required: true,
-              message: (
-                <FormattedMessage
-                  id="pages.searchTable.ruleName"
-                  defaultMessage="Rule name is required"
-                />
-              ),
-            },
-          ]}
-          width="md"
-          name="name"
-        />
-        <ProFormTextArea width="md" name="desc" />
-      </ModalForm>
-    </>
+      }}
+    >
+      <ProFormText
+        rules={[
+          {
+            required: true,
+            message: (
+              <FormattedMessage
+                id="pages.searchTable.ruleName"
+                defaultMessage="Rule name is required"
+              />
+            ),
+          },
+        ]}
+        width="md"
+        name="name"
+      />
+      <ProFormTextArea width="md" name="desc" />
+    </ModalForm>
   );
 };
 

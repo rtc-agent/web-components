@@ -6,13 +6,14 @@
 
 import { PageContainer } from '@ant-design/pro-components';
 import { useIntl, useModel } from '@umijs/max';
-import { Alert, Button, Card, message, Space, Typography } from 'antd';
+import { Alert, App, Button, Card, Space, Typography } from 'antd';
 import React, { useEffect, useRef, useState } from 'react';
 
 const { Title, Text, Paragraph } = Typography;
 
 export default function RtcAgentDiagnosePage() {
   const intl = useIntl();
+  const { message } = App.useApp();
   const [status, setStatus] = useState<'checking' | 'success'>('checking');
   const [agentFound, setAgentFound] = useState(false);
   const checkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -63,12 +64,17 @@ export default function RtcAgentDiagnosePage() {
   const handleTestDynamicImport = async () => {
     // Prevent double-mount
     if (document.querySelector('rtc-agent[data-diagnose-agent="true"]')) {
-      message.warning(intl.formatMessage({ id: 'pages.diagnose.agentAlreadyRunning' }));
+      message.warning(
+        intl.formatMessage({ id: 'pages.diagnose.agentAlreadyRunning' }),
+      );
       return;
     }
 
     try {
-      message.loading(intl.formatMessage({ id: 'pages.diagnose.testingDynamicImport' }), 0);
+      message.loading(
+        intl.formatMessage({ id: 'pages.diagnose.testingDynamicImport' }),
+        0,
+      );
       const { createRtcAgent } = await import('@rtc-agent/component');
 
       const testAgent = createRtcAgent({
@@ -82,12 +88,16 @@ export default function RtcAgentDiagnosePage() {
       // Mark as diagnose agent for identification
       testAgent.setAttribute('data-diagnose-agent', 'true');
       document.body.appendChild(testAgent);
-      message.success(intl.formatMessage({ id: 'pages.diagnose.dynamicImportSuccess' }));
+      message.success(
+        intl.formatMessage({ id: 'pages.diagnose.dynamicImportSuccess' }),
+      );
 
       destroyTimerRef.current = setTimeout(() => {
         try {
           testAgent.destroy();
-          message.info(intl.formatMessage({ id: 'pages.diagnose.testAgentDestroyed' }));
+          message.info(
+            intl.formatMessage({ id: 'pages.diagnose.testAgentDestroyed' }),
+          );
         } catch (e) {
           console.warn('Failed to destroy diagnose agent:', e);
         }
@@ -97,7 +107,7 @@ export default function RtcAgentDiagnosePage() {
       message.error(
         intl.formatMessage(
           { id: 'pages.diagnose.dynamicImportFailed' },
-          { error: e instanceof Error ? e.message : String(e) }
+          { error: e instanceof Error ? e.message : String(e) },
         ),
       );
     }
@@ -107,13 +117,17 @@ export default function RtcAgentDiagnosePage() {
     <PageContainer>
       <Card>
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
-          <Title level={2}>{intl.formatMessage({ id: 'pages.diagnose.title' })}</Title>
+          <Title level={2}>
+            {intl.formatMessage({ id: 'pages.diagnose.title' })}
+          </Title>
 
           {status === 'success' && (
             <Alert
               type="success"
               showIcon
-              message={intl.formatMessage({ id: 'pages.diagnose.integrationNormal' })}
+              message={intl.formatMessage({
+                id: 'pages.diagnose.integrationNormal',
+              })}
               description={
                 agentFound
                   ? intl.formatMessage({ id: 'pages.diagnose.agentMounted' })
@@ -122,18 +136,30 @@ export default function RtcAgentDiagnosePage() {
             />
           )}
 
-          <Card title={intl.formatMessage({ id: 'pages.diagnose.diagnosticInfo' })}>
+          <Card
+            title={intl.formatMessage({ id: 'pages.diagnose.diagnosticInfo' })}
+          >
             <Space direction="vertical">
               <div>
-                <Text strong>{intl.formatMessage({ id: 'pages.diagnose.useModelStatus' })} </Text>
+                <Text strong>
+                  {intl.formatMessage({
+                    id: 'pages.diagnose.useModelStatus',
+                  })}{' '}
+                </Text>
                 <Text code>
                   {modelState
                     ? intl.formatMessage({ id: 'pages.diagnose.statusNormal' })
-                    : intl.formatMessage({ id: 'pages.diagnose.statusAbnormal' })}
+                    : intl.formatMessage({
+                        id: 'pages.diagnose.statusAbnormal',
+                      })}
                 </Text>
               </div>
               <div>
-                <Text strong>{intl.formatMessage({ id: 'pages.diagnose.rtcAgentElement' })} </Text>
+                <Text strong>
+                  {intl.formatMessage({
+                    id: 'pages.diagnose.rtcAgentElement',
+                  })}{' '}
+                </Text>
                 <Text code>
                   {agentFound
                     ? intl.formatMessage({ id: 'pages.diagnose.found' })
@@ -141,7 +167,11 @@ export default function RtcAgentDiagnosePage() {
                 </Text>
               </div>
               <div>
-                <Text strong>{intl.formatMessage({ id: 'pages.diagnose.loginStatus' })} </Text>
+                <Text strong>
+                  {intl.formatMessage({
+                    id: 'pages.diagnose.loginStatus',
+                  })}{' '}
+                </Text>
                 <Text code>
                   {modelState?.initialState?.currentUser
                     ? intl.formatMessage({ id: 'pages.diagnose.loggedIn' })
@@ -162,8 +192,12 @@ export default function RtcAgentDiagnosePage() {
             </Space>
           </Card>
 
-          <Card title={intl.formatMessage({ id: 'pages.diagnose.instructions' })}>
-            <Paragraph>{intl.formatMessage({ id: 'pages.diagnose.consoleErrorHint' })}</Paragraph>
+          <Card
+            title={intl.formatMessage({ id: 'pages.diagnose.instructions' })}
+          >
+            <Paragraph>
+              {intl.formatMessage({ id: 'pages.diagnose.consoleErrorHint' })}
+            </Paragraph>
             <Paragraph code>
               TypeError: Cannot destructure property 'dispatcher' of
               'useContext(...)' as it is null
@@ -171,9 +205,19 @@ export default function RtcAgentDiagnosePage() {
             <Paragraph>
               {intl.formatMessage({ id: 'pages.diagnose.pleaseCheck' })}
               <ul>
-                <li>{intl.formatMessage({ id: 'pages.diagnose.checkClearCache' })}</li>
-                <li>{intl.formatMessage({ id: 'pages.diagnose.checkRestartServer' })}</li>
-                <li>{intl.formatMessage({ id: 'pages.diagnose.checkConsoleStack' })}</li>
+                <li>
+                  {intl.formatMessage({ id: 'pages.diagnose.checkClearCache' })}
+                </li>
+                <li>
+                  {intl.formatMessage({
+                    id: 'pages.diagnose.checkRestartServer',
+                  })}
+                </li>
+                <li>
+                  {intl.formatMessage({
+                    id: 'pages.diagnose.checkConsoleStack',
+                  })}
+                </li>
               </ul>
             </Paragraph>
           </Card>

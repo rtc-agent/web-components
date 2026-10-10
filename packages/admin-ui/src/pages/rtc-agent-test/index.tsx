@@ -4,13 +4,14 @@
  */
 
 import { PageContainer } from '@ant-design/pro-components';
-import { Button, Card, message, Space } from 'antd';
+import { App, Button, Card, Space } from 'antd';
 import React, { useEffect, useRef, useState } from 'react';
 
 export default function RtcAgentTestPage() {
   const [status, setStatus] = useState<string>('Checking...');
   const [error, setError] = useState<string | null>(null);
   const cleanupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { message } = App.useApp();
 
   useEffect(() => {
     // Check if GlobalRtcAgent is mounted

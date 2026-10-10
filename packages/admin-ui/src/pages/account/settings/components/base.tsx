@@ -10,7 +10,7 @@ import {
 } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
 import { useIntl } from '@umijs/max';
-import { Button, Input, message, Skeleton, Upload } from 'antd';
+import { App, Button, Input, Skeleton, Upload } from 'antd';
 import React, { useEffect, useRef, useState } from 'react';
 import { getCityOptions, provinceOptions } from '@/utils/chinaDivision';
 import type { GeographicItemType } from '../data';
@@ -32,7 +32,7 @@ const validatorPhone = (
     callback(
       intl.formatMessage({
         id: 'pages.account.settings.base.phoneAreaCode',
-        defaultMessage: '请输入区号!',
+        defaultMessage: 'Please enter area code!',
       }),
     );
     return;
@@ -41,7 +41,7 @@ const validatorPhone = (
     callback(
       intl.formatMessage({
         id: 'pages.account.settings.base.phoneNumber',
-        defaultMessage: '请输入手机号!',
+        defaultMessage: 'Please enter phone number!',
       }),
     );
     return;
@@ -72,13 +72,14 @@ const beforeAvatarUpload = (
   file: File,
   maxSizeMB: number,
   intl: ReturnType<typeof useIntl>,
+  message: ReturnType<typeof App.useApp>['message'],
 ) => {
   const isImage = file.type.startsWith('image/');
   if (!isImage) {
     message.error(
       intl.formatMessage({
         id: 'pages.account.settings.base.avatarTypeOnly',
-        defaultMessage: '只能上传图片文件!',
+        defaultMessage: 'Only image files can be uploaded!',
       }),
     );
     return false;
@@ -89,7 +90,7 @@ const beforeAvatarUpload = (
       intl.formatMessage(
         {
           id: 'pages.account.settings.base.avatarSizeError',
-          defaultMessage: '图片大小超过 {size}MB!',
+          defaultMessage: 'Image size exceeds {size}MB!',
         },
         { size: maxSizeMB },
       ),
@@ -102,6 +103,7 @@ const beforeAvatarUpload = (
 const BaseView: React.FC = () => {
   const { styles } = useStyles();
   const intl = useIntl();
+  const { message } = App.useApp();
   const formRef = React.useRef<ProFormInstance>(undefined);
   // 头像 URL 状态，用于上传后更新预览
   const [avatarUrl, setAvatarUrl] = useState<string>('');
@@ -138,7 +140,7 @@ const BaseView: React.FC = () => {
     message.success(
       intl.formatMessage({
         id: 'pages.account.settings.base.updateSuccess',
-        defaultMessage: '更新基本信息成功',
+        defaultMessage: 'Basic information updated successfully',
       }),
     );
   };
@@ -159,7 +161,7 @@ const BaseView: React.FC = () => {
                 searchConfig: {
                   submitText: intl.formatMessage({
                     id: 'pages.account.settings.base.updateBasic',
-                    defaultMessage: '更新基本信息',
+                    defaultMessage: 'Update basic information',
                   }),
                 },
                 render: (_, dom) => dom[1],
@@ -177,21 +179,21 @@ const BaseView: React.FC = () => {
                 name="email"
                 label={intl.formatMessage({
                   id: 'pages.account.settings.base.email',
-                  defaultMessage: '邮箱',
+                  defaultMessage: 'Email',
                 })}
                 rules={[
                   {
                     required: true,
                     message: intl.formatMessage({
                       id: 'pages.account.settings.base.emailRequired',
-                      defaultMessage: '请输入您的邮箱!',
+                      defaultMessage: 'Please enter your email!',
                     }),
                   },
                   {
                     type: 'email',
                     message: intl.formatMessage({
                       id: 'pages.account.settings.base.emailInvalid',
-                      defaultMessage: '请输入有效的邮箱地址!',
+                      defaultMessage: 'Please enter a valid email address!',
                     }),
                   },
                 ]}
@@ -201,14 +203,14 @@ const BaseView: React.FC = () => {
                 name="name"
                 label={intl.formatMessage({
                   id: 'pages.account.settings.base.name',
-                  defaultMessage: '昵称',
+                  defaultMessage: 'Nickname',
                 })}
                 rules={[
                   {
                     required: true,
                     message: intl.formatMessage({
                       id: 'pages.account.settings.base.nameRequired',
-                      defaultMessage: '请输入您的昵称!',
+                      defaultMessage: 'Please enter your nickname!',
                     }),
                   },
                 ]}
@@ -217,20 +219,20 @@ const BaseView: React.FC = () => {
                 name="profile"
                 label={intl.formatMessage({
                   id: 'pages.account.settings.base.profile',
-                  defaultMessage: '个人简介',
+                  defaultMessage: 'Profile',
                 })}
                 rules={[
                   {
                     required: true,
                     message: intl.formatMessage({
                       id: 'pages.account.settings.base.profileRequired',
-                      defaultMessage: '请输入个人简介!',
+                      defaultMessage: 'Please enter your profile!',
                     }),
                   },
                 ]}
                 placeholder={intl.formatMessage({
                   id: 'pages.account.settings.base.profilePlaceholder',
-                  defaultMessage: '个人简介',
+                  defaultMessage: 'Profile',
                 })}
               />
               <ProFormSelect
@@ -238,14 +240,14 @@ const BaseView: React.FC = () => {
                 name="country"
                 label={intl.formatMessage({
                   id: 'pages.account.settings.base.country',
-                  defaultMessage: '国家/地区',
+                  defaultMessage: 'Country/Region',
                 })}
                 rules={[
                   {
                     required: true,
                     message: intl.formatMessage({
                       id: 'pages.account.settings.base.countryRequired',
-                      defaultMessage: '请输入您的国家或地区!',
+                      defaultMessage: 'Please enter your country or region!',
                     }),
                   },
                 ]}
@@ -253,7 +255,7 @@ const BaseView: React.FC = () => {
                   {
                     label: intl.formatMessage({
                       id: 'pages.account.settings.base.countryChina',
-                      defaultMessage: '中国',
+                      defaultMessage: 'China',
                     }),
                     value: 'China',
                   },
@@ -264,14 +266,14 @@ const BaseView: React.FC = () => {
                 <ProFormSelect
                   label={intl.formatMessage({
                     id: 'pages.account.settings.base.province',
-                    defaultMessage: '所在省市',
+                    defaultMessage: 'Province/City',
                   })}
                   rules={[
                     {
                       required: true,
                       message: intl.formatMessage({
                         id: 'pages.account.settings.base.provinceRequired',
-                        defaultMessage: '请输入您的所在省!',
+                        defaultMessage: 'Please enter your province!',
                       }),
                     },
                   ]}
@@ -302,7 +304,7 @@ const BaseView: React.FC = () => {
                             required: true,
                             message: intl.formatMessage({
                               id: 'pages.account.settings.base.cityRequired',
-                              defaultMessage: '请输入您的所在城市!',
+                              defaultMessage: 'Please enter your city!',
                             }),
                           },
                         ]}
@@ -332,14 +334,14 @@ const BaseView: React.FC = () => {
                 name="address"
                 label={intl.formatMessage({
                   id: 'pages.account.settings.base.address',
-                  defaultMessage: '街道地址',
+                  defaultMessage: 'Street address',
                 })}
                 rules={[
                   {
                     required: true,
                     message: intl.formatMessage({
                       id: 'pages.account.settings.base.addressRequired',
-                      defaultMessage: '请输入您的街道地址!',
+                      defaultMessage: 'Please enter your street address!',
                     }),
                   },
                 ]}
@@ -348,14 +350,14 @@ const BaseView: React.FC = () => {
                 name="phone"
                 label={intl.formatMessage({
                   id: 'pages.account.settings.base.phone',
-                  defaultMessage: '联系电话',
+                  defaultMessage: 'Contact phone',
                 })}
                 rules={[
                   {
                     required: true,
                     message: intl.formatMessage({
                       id: 'pages.account.settings.base.phoneRequired',
-                      defaultMessage: '请输入您的联系电话!',
+                      defaultMessage: 'Please enter your contact phone!',
                     }),
                   },
                   {
@@ -377,6 +379,7 @@ const BaseView: React.FC = () => {
               avatar={getAvatarURL()}
               onAvatarChange={setAvatarUrl}
               intl={intl}
+              message={message}
             />
           </div>
         </>
@@ -390,10 +393,12 @@ const AvatarView = ({
   avatar,
   onAvatarChange,
   intl,
+  message,
 }: {
   avatar: string;
   onAvatarChange: (url: string) => void;
   intl: ReturnType<typeof useIntl>;
+  message: ReturnType<typeof App.useApp>['message'];
 }) => {
   const { styles } = useStyles();
   // 追踪上一次创建的 Object URL，避免内存泄漏
@@ -412,7 +417,7 @@ const AvatarView = ({
       <div className={styles.avatar_title}>
         {intl.formatMessage({
           id: 'pages.account.settings.base.avatar',
-          defaultMessage: '头像',
+          defaultMessage: 'Avatar',
         })}
       </div>
       <div className={styles.avatar}>
@@ -421,7 +426,7 @@ const AvatarView = ({
       <Upload
         showUploadList={false}
         accept="image/*"
-        beforeUpload={(file) => beforeAvatarUpload(file, 2, intl)}
+        beforeUpload={(file) => beforeAvatarUpload(file, 2, intl, message)}
         customRequest={({ file }) => {
           // 释放旧的 Object URL，再创建新的用于即时预览
           if (objectUrlRef.current) {
@@ -436,7 +441,7 @@ const AvatarView = ({
             message.error(
               intl.formatMessage({
                 id: 'pages.account.settings.base.uploadFailed',
-                defaultMessage: '头像上传失败',
+                defaultMessage: 'Avatar upload failed',
               }),
             );
           }
@@ -447,7 +452,7 @@ const AvatarView = ({
             <UploadOutlined />
             {intl.formatMessage({
               id: 'pages.account.settings.base.changeAvatar',
-              defaultMessage: '更换头像',
+              defaultMessage: 'Change avatar',
             })}
           </Button>
         </div>

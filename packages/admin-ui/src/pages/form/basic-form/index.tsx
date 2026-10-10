@@ -10,7 +10,8 @@ import {
   ProFormTextArea,
 } from '@ant-design/pro-components';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, message } from 'antd';
+import { useIntl } from '@umijs/max';
+import { App, Card } from 'antd';
 import type { FC } from 'react';
 import { fakeSubmitForm } from './service';
 import useStyles from './style.style';
@@ -18,10 +19,17 @@ import useStyles from './style.style';
 const BasicForm: FC<Record<string, any>> = () => {
   const { styles } = useStyles();
   const queryClient = useQueryClient();
+  const intl = useIntl();
+  const { message } = App.useApp();
   const { mutate: run } = useMutation({
     mutationFn: fakeSubmitForm,
     onSuccess: () => {
-      message.success('提交成功');
+      message.success(
+        intl.formatMessage({
+          id: 'pages.form.basicForm.submitSuccess',
+          defaultMessage: 'Submitted successfully',
+        }),
+      );
       queryClient.invalidateQueries({ queryKey: ['basic-form'] });
     },
   });
@@ -29,7 +37,13 @@ const BasicForm: FC<Record<string, any>> = () => {
     run(values);
   };
   return (
-    <PageContainer content="表单页用于向用户收集或验证信息，基础表单常见于数据项较少的表单场景。">
+    <PageContainer
+      content={intl.formatMessage({
+        id: 'pages.form.basicForm.pageContent',
+        defaultMessage:
+          'Form pages are used to collect or validate information from users. Basic forms are common in scenarios with fewer data items.',
+      })}
+    >
       <Card variant="borderless">
         <ProForm
           requiredMark={false}
@@ -47,88 +61,168 @@ const BasicForm: FC<Record<string, any>> = () => {
         >
           <ProFormText
             width="md"
-            label="标题"
+            label={intl.formatMessage({
+              id: 'pages.form.basicForm.title.label',
+              defaultMessage: 'Title',
+            })}
             name="title"
             rules={[
               {
                 required: true,
-                message: '请输入标题',
+                message: intl.formatMessage({
+                  id: 'pages.form.basicForm.title.required',
+                  defaultMessage: 'Please enter title',
+                }),
               },
             ]}
-            placeholder="给目标起个名字"
+            placeholder={intl.formatMessage({
+              id: 'pages.form.basicForm.title.placeholder',
+              defaultMessage: 'Give the target a name',
+            })}
           />
           <ProFormDateRangePicker
-            label="起止日期"
+            label={intl.formatMessage({
+              id: 'pages.form.basicForm.date.label',
+              defaultMessage: 'Date range',
+            })}
             width="md"
             name="date"
             rules={[
               {
                 required: true,
-                message: '请选择起止日期',
+                message: intl.formatMessage({
+                  id: 'pages.form.basicForm.date.required',
+                  defaultMessage: 'Please select date range',
+                }),
               },
             ]}
-            placeholder={['开始日期', '结束日期']}
+            placeholder={[
+              intl.formatMessage({
+                id: 'pages.form.basicForm.date.startPlaceholder',
+                defaultMessage: 'Start date',
+              }),
+              intl.formatMessage({
+                id: 'pages.form.basicForm.date.endPlaceholder',
+                defaultMessage: 'End date',
+              }),
+            ]}
           />
           <ProFormTextArea
-            label="目标描述"
+            label={intl.formatMessage({
+              id: 'pages.form.basicForm.goal.label',
+              defaultMessage: 'Objective description',
+            })}
             width="xl"
             name="goal"
             rules={[
               {
                 required: true,
-                message: '请输入目标描述',
+                message: intl.formatMessage({
+                  id: 'pages.form.basicForm.goal.required',
+                  defaultMessage: 'Please enter objective description',
+                }),
               },
             ]}
-            placeholder="请输入你的阶段性工作目标"
+            placeholder={intl.formatMessage({
+              id: 'pages.form.basicForm.goal.placeholder',
+              defaultMessage: 'Please enter your phased work objectives',
+            })}
           />
 
           <ProFormTextArea
-            label="衡量标准"
+            label={intl.formatMessage({
+              id: 'pages.form.basicForm.standard.label',
+              defaultMessage: 'Metrics',
+            })}
             name="standard"
             width="xl"
             rules={[
               {
                 required: true,
-                message: '请输入衡量标准',
+                message: intl.formatMessage({
+                  id: 'pages.form.basicForm.standard.required',
+                  defaultMessage: 'Please enter metrics',
+                }),
               },
             ]}
-            placeholder="请输入衡量标准"
+            placeholder={intl.formatMessage({
+              id: 'pages.form.basicForm.standard.placeholder',
+              defaultMessage: 'Please enter metrics',
+            })}
           />
 
           <ProFormText
             width="md"
             label={
               <span>
-                客户
-                <em className={styles.optional}>（选填）</em>
+                {intl.formatMessage({
+                  id: 'pages.form.basicForm.client.label',
+                  defaultMessage: 'Client',
+                })}
+                <em className={styles.optional}>
+                  {intl.formatMessage({
+                    id: 'pages.form.basicForm.client.optional',
+                    defaultMessage: '(Optional)',
+                  })}
+                </em>
               </span>
             }
-            tooltip="目标的服务对象"
+            tooltip={intl.formatMessage({
+              id: 'pages.form.basicForm.client.tooltip',
+              defaultMessage: 'Target service recipients',
+            })}
             name="client"
-            placeholder="请描述你服务的客户，内部客户直接 @姓名／工号"
+            placeholder={intl.formatMessage({
+              id: 'pages.form.basicForm.client.placeholder',
+              defaultMessage:
+                'Please describe the customers you serve. For internal customers, directly @name/employee ID',
+            })}
           />
 
           <ProFormText
             width="md"
             label={
               <span>
-                邀评人
-                <em className={styles.optional}>（选填）</em>
+                {intl.formatMessage({
+                  id: 'pages.form.basicForm.invites.label',
+                  defaultMessage: 'Reviewer',
+                })}
+                <em className={styles.optional}>
+                  {intl.formatMessage({
+                    id: 'pages.form.basicForm.invites.optional',
+                    defaultMessage: '(Optional)',
+                  })}
+                </em>
               </span>
             }
             name="invites"
-            placeholder="请直接 @姓名／工号，最多可邀请 5 人"
+            placeholder={intl.formatMessage({
+              id: 'pages.form.basicForm.invites.placeholder',
+              defaultMessage:
+                'Please directly @name/employee ID, you can invite up to 5 people',
+            })}
           />
 
           <ProFormDigit
             label={
               <span>
-                权重
-                <em className={styles.optional}>（选填）</em>
+                {intl.formatMessage({
+                  id: 'pages.form.basicForm.weight.label',
+                  defaultMessage: 'Weight',
+                })}
+                <em className={styles.optional}>
+                  {intl.formatMessage({
+                    id: 'pages.form.basicForm.weight.optional',
+                    defaultMessage: '(Optional)',
+                  })}
+                </em>
               </span>
             }
             name="weight"
-            placeholder="请输入"
+            placeholder={intl.formatMessage({
+              id: 'pages.form.basicForm.weight.placeholder',
+              defaultMessage: 'Please enter',
+            })}
             min={0}
             max={100}
             width="xs"
@@ -142,19 +236,34 @@ const BasicForm: FC<Record<string, any>> = () => {
             options={[
               {
                 value: '1',
-                label: '公开',
+                label: intl.formatMessage({
+                  id: 'pages.form.basicForm.publicType.option.public',
+                  defaultMessage: 'Public',
+                }),
               },
               {
                 value: '2',
-                label: '部分公开',
+                label: intl.formatMessage({
+                  id: 'pages.form.basicForm.publicType.option.partialPublic',
+                  defaultMessage: 'Partially public',
+                }),
               },
               {
                 value: '3',
-                label: '不公开',
+                label: intl.formatMessage({
+                  id: 'pages.form.basicForm.publicType.option.private',
+                  defaultMessage: 'Private',
+                }),
               },
             ]}
-            label="目标公开"
-            help="客户、邀评人默认被分享"
+            label={intl.formatMessage({
+              id: 'pages.form.basicForm.publicType.label',
+              defaultMessage: 'Target public',
+            })}
+            help={intl.formatMessage({
+              id: 'pages.form.basicForm.publicType.help',
+              defaultMessage: 'Clients and reviewers are shared by default',
+            })}
             name="publicType"
           />
           <ProFormDependency name={['publicType']}>
@@ -173,15 +282,24 @@ const BasicForm: FC<Record<string, any>> = () => {
                   options={[
                     {
                       value: '1',
-                      label: '同事甲',
+                      label: intl.formatMessage({
+                        id: 'pages.form.basicForm.publicUsers.option.colleagueA',
+                        defaultMessage: 'Colleague A',
+                      }),
                     },
                     {
                       value: '2',
-                      label: '同事乙',
+                      label: intl.formatMessage({
+                        id: 'pages.form.basicForm.publicUsers.option.colleagueB',
+                        defaultMessage: 'Colleague B',
+                      }),
                     },
                     {
                       value: '3',
-                      label: '同事丙',
+                      label: intl.formatMessage({
+                        id: 'pages.form.basicForm.publicUsers.option.colleagueC',
+                        defaultMessage: 'Colleague C',
+                      }),
                     },
                   ]}
                 />

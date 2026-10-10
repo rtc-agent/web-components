@@ -8,8 +8,17 @@ import {
   ProTable,
 } from '@ant-design/pro-components';
 import { Access, useAccess, useIntl, useSearchParams } from '@umijs/max';
-import { Button, List, Modal, message, Popconfirm, Space, Tag } from 'antd';
-import React, { useEffect, useRef, useState } from 'react';
+import {
+  App,
+  Button,
+  Grid,
+  List,
+  Modal,
+  Popconfirm,
+  Space,
+  Tag,
+} from 'antd';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRoleOptions } from '@/hooks/useRoleOptions';
 import type { UserInfo } from '@/services/admin-auth';
 import type { UserRoleAssignment } from '@/services/userRole';
@@ -32,6 +41,7 @@ const AdminUserManagementPage: React.FC = () => {
   const access = useAccess();
   const intl = useIntl();
   const { roleOptions } = useRoleOptions();
+  const { message } = App.useApp();
   const [searchParams, setSearchParams] = useSearchParams();
   const [currentRow, setCurrentRow] = useState<UserInfo>();
   const [roleModalVisible, setRoleModalVisible] = useState(false);
@@ -39,6 +49,10 @@ const AdminUserManagementPage: React.FC = () => {
   const [assignModalVisible, setAssignModalVisible] = useState(false);
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
+  const breakpoints = Grid.useBreakpoint();
+  const isMobile = !breakpoints.sm;
+  const modalWidth = isMobile ? '95vw' : 520;
+  const roleModalWidth = isMobile ? '95vw' : 600;
 
   // === Register Page API ===
   useEffect(() => {
@@ -107,18 +121,12 @@ const AdminUserManagementPage: React.FC = () => {
       },
 
       // Delete admin users
+      // TODO: deleteAdminUser service function is not yet implemented - returns failure until API is available
       remove: async (_ids) => {
-        try {
-          // Note: deleteAdminUser service function is not yet implemented
-          // For now, return success: false
-          console.warn(
-            '[Admin Page API] remove not implemented - delete API not available in service layer',
-          );
-          return { success: false };
-        } catch (error) {
-          console.error('[Admin Page API] remove failed:', error);
-          return { success: false };
-        }
+        console.warn(
+          '[Admin Page API] remove not implemented - delete API not available in service layer',
+        );
+        return { success: false };
       },
 
       // Query roles assigned to a user
@@ -205,7 +213,7 @@ const AdminUserManagementPage: React.FC = () => {
       message.success(
         intl.formatMessage({
           id: 'pages.adminUsers.createSuccess',
-          defaultMessage: '创建管理员成功',
+          defaultMessage: 'Administrator created successfully',
         }),
       );
       setCreateModalVisible(false);
@@ -217,7 +225,7 @@ const AdminUserManagementPage: React.FC = () => {
           error,
           intl.formatMessage({
             id: 'pages.adminUsers.createFailed',
-            defaultMessage: '创建管理员失败',
+            defaultMessage: 'Failed to create administrator',
           }),
         ),
       );
@@ -239,7 +247,7 @@ const AdminUserManagementPage: React.FC = () => {
       message.success(
         intl.formatMessage({
           id: 'pages.adminUsers.updateSuccess',
-          defaultMessage: '更新管理员成功',
+          defaultMessage: 'Administrator updated successfully',
         }),
       );
       setEditModalVisible(false);
@@ -252,7 +260,7 @@ const AdminUserManagementPage: React.FC = () => {
           error,
           intl.formatMessage({
             id: 'pages.adminUsers.updateFailed',
-            defaultMessage: '更新管理员失败',
+            defaultMessage: 'Failed to update administrator',
           }),
         ),
       );
@@ -273,7 +281,7 @@ const AdminUserManagementPage: React.FC = () => {
           error,
           intl.formatMessage({
             id: 'pages.adminUsers.loadRolesFailed',
-            defaultMessage: '加载管理员角色失败',
+            defaultMessage: 'Failed to load admin role',
           }),
         ),
       );
@@ -288,7 +296,7 @@ const AdminUserManagementPage: React.FC = () => {
       message.success(
         intl.formatMessage({
           id: 'pages.adminUsers.assignRoleSuccess',
-          defaultMessage: '分配管理员角色成功',
+          defaultMessage: 'Admin role assigned successfully',
         }),
       );
       setAssignModalVisible(false);
@@ -303,7 +311,7 @@ const AdminUserManagementPage: React.FC = () => {
           error,
           intl.formatMessage({
             id: 'pages.adminUsers.assignRoleFailed',
-            defaultMessage: '分配管理员角色失败',
+            defaultMessage: 'Failed to assign admin role',
           }),
         ),
       );
@@ -318,7 +326,7 @@ const AdminUserManagementPage: React.FC = () => {
       message.success(
         intl.formatMessage({
           id: 'pages.adminUsers.revokeRoleSuccess',
-          defaultMessage: '移除管理员角色成功',
+          defaultMessage: 'Admin role removed successfully',
         }),
       );
       // Refresh admin user role list
@@ -333,7 +341,7 @@ const AdminUserManagementPage: React.FC = () => {
           error,
           intl.formatMessage({
             id: 'pages.adminUsers.revokeRoleFailed',
-            defaultMessage: '移除管理员角色失败',
+            defaultMessage: 'Failed to remove admin role',
           }),
         ),
       );
@@ -341,107 +349,110 @@ const AdminUserManagementPage: React.FC = () => {
   };
 
   /** Table column definitions */
-  const columns: ProColumns<UserInfo>[] = [
-    {
-      title: intl.formatMessage({
-        id: 'pages.adminUsers.searchPlaceholder',
-        defaultMessage: '输入邮箱或姓名搜索',
-      }),
-      dataIndex: 'keyword',
-      valueType: 'text',
-      hideInTable: true,
-      fieldProps: {
-        placeholder: intl.formatMessage({
+  const columns: ProColumns<UserInfo>[] = useMemo(
+    () => [
+      {
+        title: intl.formatMessage({
           id: 'pages.adminUsers.searchPlaceholder',
-          defaultMessage: '输入邮箱或姓名搜索',
+          defaultMessage: 'Enter email or name to search',
         }),
+        dataIndex: 'keyword',
+        valueType: 'text',
+        hideInTable: true,
+        fieldProps: {
+          placeholder: intl.formatMessage({
+            id: 'pages.adminUsers.searchPlaceholder',
+            defaultMessage: 'Enter email or name to search',
+          }),
+        },
       },
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.adminUsers.column.email',
-        defaultMessage: '邮箱',
-      }),
-      dataIndex: 'email',
-      valueType: 'text',
-      search: false,
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.adminUsers.column.name',
-        defaultMessage: '姓名',
-      }),
-      dataIndex: 'name',
-      valueType: 'text',
-      search: false,
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.adminUsers.column.roles',
-        defaultMessage: '管理员角色',
-      }),
-      dataIndex: 'roles',
-      valueType: 'select',
-      search: false,
-      render: (_, record) => (
-        <Space>
-          {record.roles?.map((role) => (
-            <Tag key={role.id} color="blue">
-              {role.display_name || role.name}
-            </Tag>
-          )) || '-'}
-        </Space>
-      ),
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.adminUsers.column.actions',
-        defaultMessage: '操作',
-      }),
-      dataIndex: 'option',
-      valueType: 'option',
-      render: (_, record) => (
-        <Space>
-          <Access accessible={access.canAdminUserEdit} fallback={null}>
-            <Button
-              type="link"
-              size="small"
-              icon={<EditOutlined />}
-              onClick={() => {
-                setCurrentRow(record);
-                setEditModalVisible(true);
-              }}
-            >
-              {intl.formatMessage({
-                id: 'pages.adminUsers.edit',
-                defaultMessage: '编辑',
-              })}
-            </Button>
-          </Access>
-          <Access accessible={access.canAdminUserRoleEdit} fallback={null}>
-            <Button
-              type="link"
-              size="small"
-              icon={<TeamOutlined />}
-              onClick={() => handleViewRoles(record)}
-            >
-              {intl.formatMessage({
-                id: 'pages.adminUsers.manageRoles',
-                defaultMessage: '管理角色',
-              })}
-            </Button>
-          </Access>
-        </Space>
-      ),
-    },
-  ];
+      {
+        title: intl.formatMessage({
+          id: 'pages.adminUsers.column.email',
+          defaultMessage: 'Email',
+        }),
+        dataIndex: 'email',
+        valueType: 'text',
+        search: false,
+      },
+      {
+        title: intl.formatMessage({
+          id: 'pages.adminUsers.column.name',
+          defaultMessage: 'Name',
+        }),
+        dataIndex: 'name',
+        valueType: 'text',
+        search: false,
+      },
+      {
+        title: intl.formatMessage({
+          id: 'pages.adminUsers.column.roles',
+          defaultMessage: 'Admin role',
+        }),
+        dataIndex: 'roles',
+        valueType: 'select',
+        search: false,
+        render: (_, record) => (
+          <Space>
+            {record.roles?.map((role) => (
+              <Tag key={role.id} color="blue">
+                {role.display_name || role.name}
+              </Tag>
+            )) || '-'}
+          </Space>
+        ),
+      },
+      {
+        title: intl.formatMessage({
+          id: 'pages.adminUsers.column.actions',
+          defaultMessage: 'Action',
+        }),
+        dataIndex: 'option',
+        valueType: 'option',
+        render: (_, record) => (
+          <Space>
+            <Access accessible={access.canAdminUserEdit} fallback={null}>
+              <Button
+                type="link"
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => {
+                  setCurrentRow(record);
+                  setEditModalVisible(true);
+                }}
+              >
+                {intl.formatMessage({
+                  id: 'pages.adminUsers.edit',
+                  defaultMessage: 'Edit',
+                })}
+              </Button>
+            </Access>
+            <Access accessible={access.canAdminUserRoleEdit} fallback={null}>
+              <Button
+                type="link"
+                size="small"
+                icon={<TeamOutlined />}
+                onClick={() => handleViewRoles(record)}
+              >
+                {intl.formatMessage({
+                  id: 'pages.adminUsers.manageRoles',
+                  defaultMessage: 'Manage role',
+                })}
+              </Button>
+            </Access>
+          </Space>
+        ),
+      },
+    ],
+    [intl, access],
+  );
 
   return (
     <PageContainer>
       <ProTable<UserInfo>
         headerTitle={intl.formatMessage({
           id: 'pages.adminUsers.headerTitle',
-          defaultMessage: '管理员列表',
+          defaultMessage: 'Administrator list',
         })}
         actionRef={actionRef}
         rowKey="id"
@@ -462,7 +473,7 @@ const AdminUserManagementPage: React.FC = () => {
             >
               {intl.formatMessage({
                 id: 'pages.adminUsers.create',
-                defaultMessage: '创建管理员',
+                defaultMessage: 'Create administrator',
               })}
             </Button>
           </Access>,
@@ -487,7 +498,7 @@ const AdminUserManagementPage: React.FC = () => {
                 error,
                 intl.formatMessage({
                   id: 'pages.adminUsers.loadFailed',
-                  defaultMessage: '加载管理员列表失败',
+                  defaultMessage: 'Failed to load administrators',
                 }),
               ),
             );
@@ -506,7 +517,7 @@ const AdminUserManagementPage: React.FC = () => {
         title={intl.formatMessage(
           {
             id: 'pages.adminUsers.roleManagementTitle',
-            defaultMessage: '管理员角色管理 - {email}',
+            defaultMessage: 'Admin role management - {email}',
           },
           { email: currentRow?.email },
         )}
@@ -531,7 +542,7 @@ const AdminUserManagementPage: React.FC = () => {
             >
               {intl.formatMessage({
                 id: 'pages.adminUsers.assignRole',
-                defaultMessage: '分配管理员角色',
+                defaultMessage: 'Assign admin role',
               })}
             </Button>
           </Access>,
@@ -545,11 +556,11 @@ const AdminUserManagementPage: React.FC = () => {
           >
             {intl.formatMessage({
               id: 'pages.adminUsers.close',
-              defaultMessage: '关闭',
+              defaultMessage: 'Close',
             })}
           </Button>,
         ]}
-        width={600}
+        width={roleModalWidth}
       >
         <List
           dataSource={userRoles}
@@ -564,7 +575,8 @@ const AdminUserManagementPage: React.FC = () => {
                   <Popconfirm
                     title={intl.formatMessage({
                       id: 'pages.adminUsers.confirmRevokeRole',
-                      defaultMessage: '确定要移除该管理员角色吗？',
+                      defaultMessage:
+                        'Are you sure you want to remove this admin role?',
                     })}
                     onConfirm={() => {
                       if (currentRow) {
@@ -573,17 +585,17 @@ const AdminUserManagementPage: React.FC = () => {
                     }}
                     okText={intl.formatMessage({
                       id: 'pages.adminUsers.confirm',
-                      defaultMessage: '确定',
+                      defaultMessage: 'Confirm',
                     })}
                     cancelText={intl.formatMessage({
                       id: 'pages.adminUsers.cancel',
-                      defaultMessage: '取消',
+                      defaultMessage: 'Cancel',
                     })}
                   >
                     <Button type="link" danger size="small">
                       {intl.formatMessage({
                         id: 'pages.adminUsers.revoke',
-                        defaultMessage: '移除',
+                        defaultMessage: 'Remove',
                       })}
                     </Button>
                   </Popconfirm>
@@ -595,7 +607,7 @@ const AdminUserManagementPage: React.FC = () => {
                 description={intl.formatMessage(
                   {
                     id: 'pages.adminUsers.assignedAt',
-                    defaultMessage: '分配时间：{time}',
+                    defaultMessage: 'Assigned time: {time}',
                   },
                   {
                     time: new Intl.DateTimeFormat(intl.locale, {
@@ -615,7 +627,7 @@ const AdminUserManagementPage: React.FC = () => {
           locale={{
             emptyText: intl.formatMessage({
               id: 'pages.adminUsers.noRoles',
-              defaultMessage: '暂无管理员角色',
+              defaultMessage: 'No admin roles',
             }),
           }}
         />
@@ -626,12 +638,13 @@ const AdminUserManagementPage: React.FC = () => {
         title={intl.formatMessage(
           {
             id: 'pages.adminUsers.assignRoleTitle',
-            defaultMessage: '分配管理员角色 - {email}',
+            defaultMessage: 'Assign admin role - {email}',
           },
           { email: currentRow?.email },
         )}
         open={assignModalVisible}
         onOpenChange={setAssignModalVisible}
+        width={modalWidth}
         modalProps={{
           destroyOnClose: true,
         }}
@@ -641,11 +654,11 @@ const AdminUserManagementPage: React.FC = () => {
           name="role_ids"
           label={intl.formatMessage({
             id: 'pages.adminUsers.selectRoles',
-            defaultMessage: '选择管理员角色',
+            defaultMessage: 'Select admin role',
           })}
           placeholder={intl.formatMessage({
             id: 'pages.adminUsers.selectRolesPlaceholder',
-            defaultMessage: '请选择要分配的管理员角色',
+            defaultMessage: 'Please select admin role to assign',
           })}
           mode="multiple"
           rules={[
@@ -653,7 +666,7 @@ const AdminUserManagementPage: React.FC = () => {
               required: true,
               message: intl.formatMessage({
                 id: 'pages.adminUsers.selectRolesRequired',
-                defaultMessage: '请选择至少一个管理员角色',
+                defaultMessage: 'Please select at least one admin role',
               }),
             },
           ]}
@@ -670,10 +683,11 @@ const AdminUserManagementPage: React.FC = () => {
       }>
         title={intl.formatMessage({
           id: 'pages.adminUsers.createTitle',
-          defaultMessage: '创建管理员',
+          defaultMessage: 'Create administrator',
         })}
         open={createModalVisible}
         onOpenChange={setCreateModalVisible}
+        width={modalWidth}
         modalProps={{
           destroyOnClose: true,
         }}
@@ -683,25 +697,25 @@ const AdminUserManagementPage: React.FC = () => {
           name="email"
           label={intl.formatMessage({
             id: 'pages.adminUsers.emailLabel',
-            defaultMessage: '邮箱',
+            defaultMessage: 'Email',
           })}
           placeholder={intl.formatMessage({
             id: 'pages.adminUsers.emailPlaceholder',
-            defaultMessage: '请输入邮箱',
+            defaultMessage: 'Please enter email',
           })}
           rules={[
             {
               required: true,
               message: intl.formatMessage({
                 id: 'pages.adminUsers.emailRequired',
-                defaultMessage: '请输入邮箱',
+                defaultMessage: 'Please enter email',
               }),
             },
             {
               type: 'email',
               message: intl.formatMessage({
                 id: 'pages.adminUsers.emailInvalid',
-                defaultMessage: '请输入有效的邮箱地址',
+                defaultMessage: 'Please enter a valid email address',
               }),
             },
           ]}
@@ -710,25 +724,25 @@ const AdminUserManagementPage: React.FC = () => {
           name="password"
           label={intl.formatMessage({
             id: 'pages.adminUsers.passwordLabel',
-            defaultMessage: '密码',
+            defaultMessage: 'Password',
           })}
           placeholder={intl.formatMessage({
             id: 'pages.adminUsers.passwordPlaceholder',
-            defaultMessage: '请输入密码（至少6位）',
+            defaultMessage: 'Please enter password (at least 6 characters)',
           })}
           rules={[
             {
               required: true,
               message: intl.formatMessage({
                 id: 'pages.adminUsers.passwordRequired',
-                defaultMessage: '请输入密码',
+                defaultMessage: 'Please enter password',
               }),
             },
             {
               min: 6,
               message: intl.formatMessage({
                 id: 'pages.adminUsers.passwordMin',
-                defaultMessage: '密码至少6位',
+                defaultMessage: 'Password must be at least 6 characters',
               }),
             },
           ]}
@@ -737,22 +751,22 @@ const AdminUserManagementPage: React.FC = () => {
           name="name"
           label={intl.formatMessage({
             id: 'pages.adminUsers.nameLabel',
-            defaultMessage: '姓名',
+            defaultMessage: 'Name',
           })}
           placeholder={intl.formatMessage({
             id: 'pages.adminUsers.namePlaceholder',
-            defaultMessage: '请输入姓名（可选）',
+            defaultMessage: 'Please enter name (optional)',
           })}
         />
         <ProFormSelect
           name="role_ids"
           label={intl.formatMessage({
             id: 'pages.adminUsers.rolesLabel',
-            defaultMessage: '角色',
+            defaultMessage: 'Role',
           })}
           placeholder={intl.formatMessage({
             id: 'pages.adminUsers.rolesPlaceholder',
-            defaultMessage: '请选择角色（可选）',
+            defaultMessage: 'Please select role (optional)',
           })}
           mode="multiple"
           options={roleOptions}
@@ -764,12 +778,13 @@ const AdminUserManagementPage: React.FC = () => {
         title={intl.formatMessage(
           {
             id: 'pages.adminUsers.updateTitle',
-            defaultMessage: '编辑管理员 - {email}',
+            defaultMessage: 'Edit administrator - {email}',
           },
           { email: currentRow?.email },
         )}
         open={editModalVisible}
         onOpenChange={setEditModalVisible}
+        width={modalWidth}
         modalProps={{
           destroyOnClose: true,
         }}
@@ -782,29 +797,29 @@ const AdminUserManagementPage: React.FC = () => {
           name="name"
           label={intl.formatMessage({
             id: 'pages.adminUsers.nameLabel',
-            defaultMessage: '姓名',
+            defaultMessage: 'Name',
           })}
           placeholder={intl.formatMessage({
             id: 'pages.adminUsers.nameEditPlaceholder',
-            defaultMessage: '请输入姓名',
+            defaultMessage: 'Please enter name',
           })}
         />
         <ProFormText.Password
           name="password"
           label={intl.formatMessage({
             id: 'pages.adminUsers.newPasswordLabel',
-            defaultMessage: '新密码',
+            defaultMessage: 'New password',
           })}
           placeholder={intl.formatMessage({
             id: 'pages.adminUsers.newPasswordPlaceholder',
-            defaultMessage: '留空则不修改密码',
+            defaultMessage: 'Leave blank to keep password unchanged',
           })}
           rules={[
             {
               min: 6,
               message: intl.formatMessage({
                 id: 'pages.adminUsers.passwordMin',
-                defaultMessage: '密码至少6位',
+                defaultMessage: 'Password must be at least 6 characters',
               }),
             },
           ]}

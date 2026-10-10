@@ -10,7 +10,8 @@ import {
   ProFormText,
   ProFormTimePicker,
 } from '@ant-design/pro-components';
-import { Button, Card, Col, message, Popover, Row } from 'antd';
+import { useIntl } from '@umijs/max';
+import { App, Button, Card, Col, Popover, Row } from 'antd';
 import type { FC } from 'react';
 import { useRef, useState } from 'react';
 import { fakeSubmitForm } from './service';
@@ -25,20 +26,24 @@ interface TableFormDateType {
   editable?: boolean;
 }
 type InternalNamePath = (string | number)[];
-const fieldLabels = {
-  name: '仓库名',
-  url: '仓库域名',
-  owner: '仓库管理员',
-  approver: '审批人',
-  dateRange: '生效日期',
-  type: '仓库类型',
-  name2: '任务名',
-  url2: '任务描述',
-  owner2: '执行人',
-  approver2: '责任人',
-  dateRange2: '生效日期',
-  type2: '任务类型',
-};
+interface ErrorField {
+  name: InternalNamePath;
+  errors: string[];
+}
+type FieldKey =
+  | 'name'
+  | 'url'
+  | 'owner'
+  | 'approver'
+  | 'dateRange'
+  | 'type'
+  | 'name2'
+  | 'url2'
+  | 'owner2'
+  | 'approver2'
+  | 'dateRange2'
+  | 'type2';
+
 const tableData = [
   {
     key: '1',
@@ -59,14 +64,66 @@ const tableData = [
     department: 'Sidney No. 1 Lake Park',
   },
 ];
-interface ErrorField {
-  name: InternalNamePath;
-  errors: string[];
-}
+
 const AdvancedForm: FC<Record<string, any>> = () => {
   const { styles } = useStyles();
+  const intl = useIntl();
+  const { message } = App.useApp();
   const [error, setError] = useState<ErrorField[]>([]);
   const keyCounter = useRef(0);
+
+  // Localized field labels map, resolved once per render
+  const fieldLabels: Record<FieldKey, string> = {
+    name: intl.formatMessage({
+      id: 'pages.form.advancedForm.field.name',
+      defaultMessage: 'Repository name',
+    }),
+    url: intl.formatMessage({
+      id: 'pages.form.advancedForm.field.url',
+      defaultMessage: 'Repository domain',
+    }),
+    owner: intl.formatMessage({
+      id: 'pages.form.advancedForm.field.owner',
+      defaultMessage: 'Repository administrator',
+    }),
+    approver: intl.formatMessage({
+      id: 'pages.form.advancedForm.field.approver',
+      defaultMessage: 'Approver',
+    }),
+    dateRange: intl.formatMessage({
+      id: 'pages.form.advancedForm.field.dateRange',
+      defaultMessage: 'Effective date',
+    }),
+    type: intl.formatMessage({
+      id: 'pages.form.advancedForm.field.type',
+      defaultMessage: 'Repository type',
+    }),
+    name2: intl.formatMessage({
+      id: 'pages.form.advancedForm.field.name2',
+      defaultMessage: 'Task name',
+    }),
+    url2: intl.formatMessage({
+      id: 'pages.form.advancedForm.field.url2',
+      defaultMessage: 'Task description',
+    }),
+    owner2: intl.formatMessage({
+      id: 'pages.form.advancedForm.field.owner2',
+      defaultMessage: 'Executor',
+    }),
+    approver2: intl.formatMessage({
+      id: 'pages.form.advancedForm.field.approver2',
+      defaultMessage: 'Owner',
+    }),
+    dateRange2: intl.formatMessage({
+      id: 'pages.form.advancedForm.field.dateRange2',
+      defaultMessage: 'Effective date',
+    }),
+    type2: intl.formatMessage({
+      id: 'pages.form.advancedForm.field.type2',
+      defaultMessage: 'Task type',
+    }),
+  } as Record<FieldKey, string>;
+
   const getErrorInfo = (errors: ErrorField[]) => {
     const errorCount = errors.filter((item) => item.errors.length > 0).length;
     if (!errors || errorCount === 0) {
@@ -82,13 +139,7 @@ const AdvancedForm: FC<Record<string, any>> = () => {
       if (!err || err.errors.length === 0) {
         return null;
       }
-      const key = err.name[0] as
-        | 'name'
-        | 'url'
-        | 'owner'
-        | 'approver'
-        | 'dateRange'
-        | 'type';
+      const key = err.name[0] as FieldKey;
       return (
         <button
           key={key}
@@ -105,7 +156,10 @@ const AdvancedForm: FC<Record<string, any>> = () => {
     return (
       <span className={styles.errorIcon}>
         <Popover
-          title="表单校验信息"
+          title={intl.formatMessage({
+            id: 'pages.form.advancedForm.errorPopoverTitle',
+            defaultMessage: 'Form validation message',
+          })}
           content={errorList}
           classNames={{
             root: styles.errorPopover,
@@ -128,35 +182,93 @@ const AdvancedForm: FC<Record<string, any>> = () => {
     setError([]);
     try {
       await fakeSubmitForm(values);
-      message.success('提交成功');
+      message.success(
+        intl.formatMessage({
+          id: 'pages.form.advancedForm.submitSuccess',
+          defaultMessage: 'Submitted successfully',
+        }),
+      );
     } catch {
-      message.error('提交失败，请重试！');
+      message.error(
+        intl.formatMessage({
+          id: 'pages.form.advancedForm.submitFailed',
+          defaultMessage: 'Submission failed, please try again!',
+        }),
+      );
     }
   };
   const onFinishFailed = (errorInfo: any) => {
     setError(errorInfo.errorFields);
   };
+
+  // Owner/approver options shared by multiple fields
+  const ownerOptions = [
+    {
+      label: intl.formatMessage({
+        id: 'pages.form.advancedForm.owner.option.xiao',
+        defaultMessage: 'Fu Xiaoxiao',
+      }),
+      value: 'xiao',
+    },
+    {
+      label: intl.formatMessage({
+        id: 'pages.form.advancedForm.owner.option.mao',
+        defaultMessage: 'Zhou Maomao',
+      }),
+      value: 'mao',
+    },
+  ];
+
+  const typeOptions = [
+    {
+      label: intl.formatMessage({
+        id: 'pages.form.advancedForm.type.option.private',
+        defaultMessage: 'Private',
+      }),
+      value: 'private',
+    },
+    {
+      label: intl.formatMessage({
+        id: 'pages.form.advancedForm.type.option.public',
+        defaultMessage: 'Public',
+      }),
+      value: 'public',
+    },
+  ];
+
   const columns: ProColumnType<TableFormDateType>[] = [
     {
-      title: '成员姓名',
+      title: intl.formatMessage({
+        id: 'pages.form.advancedForm.column.name',
+        defaultMessage: 'Member name',
+      }),
       dataIndex: 'name',
       key: 'name',
       width: '20%',
     },
     {
-      title: '工号',
+      title: intl.formatMessage({
+        id: 'pages.form.advancedForm.column.workId',
+        defaultMessage: 'Employee ID',
+      }),
       dataIndex: 'workId',
       key: 'workId',
       width: '20%',
     },
     {
-      title: '所属部门',
+      title: intl.formatMessage({
+        id: 'pages.form.advancedForm.column.department',
+        defaultMessage: 'Department',
+      }),
       dataIndex: 'department',
       key: 'department',
       width: '40%',
     },
     {
-      title: '操作',
+      title: intl.formatMessage({
+        id: 'pages.form.advancedForm.column.action',
+        defaultMessage: 'Action',
+      }),
       key: 'action',
       valueType: 'option',
       render: (_, record: TableFormDateType, _index, action) => {
@@ -166,7 +278,10 @@ const AdvancedForm: FC<Record<string, any>> = () => {
             type="link"
             onClick={() => action?.startEditable(record.key)}
           >
-            编辑
+            {intl.formatMessage({
+              id: 'pages.form.advancedForm.column.actionEdit',
+              defaultMessage: 'Edit',
+            })}
           </Button>,
         ];
       },
@@ -192,8 +307,21 @@ const AdvancedForm: FC<Record<string, any>> = () => {
       onFinish={onFinish}
       onFinishFailed={onFinishFailed}
     >
-      <PageContainer content="高级表单常见于一次性输入和提交大批量数据的场景。">
-        <Card title="仓库管理" className={styles.card} variant="borderless">
+      <PageContainer
+        content={intl.formatMessage({
+          id: 'pages.form.advancedForm.pageContent',
+          defaultMessage:
+            'Advanced forms are commonly used in scenarios where large amounts of data are entered and submitted at once.',
+        })}
+      >
+        <Card
+          title={intl.formatMessage({
+            id: 'pages.form.advancedForm.cardWarehouse',
+            defaultMessage: 'Repository management',
+          })}
+          className={styles.card}
+          variant="borderless"
+        >
           <Row gutter={16}>
             <Col lg={6} md={12} sm={24}>
               <ProFormText
@@ -202,10 +330,16 @@ const AdvancedForm: FC<Record<string, any>> = () => {
                 rules={[
                   {
                     required: true,
-                    message: '请输入仓库名称',
+                    message: intl.formatMessage({
+                      id: 'pages.form.advancedForm.name.required',
+                      defaultMessage: 'Please enter repository name',
+                    }),
                   },
                 ]}
-                placeholder="请输入仓库名称"
+                placeholder={intl.formatMessage({
+                  id: 'pages.form.advancedForm.name.placeholder',
+                  defaultMessage: 'Please enter repository name',
+                })}
               />
             </Col>
             <Col
@@ -227,7 +361,10 @@ const AdvancedForm: FC<Record<string, any>> = () => {
                 rules={[
                   {
                     required: true,
-                    message: '请选择',
+                    message: intl.formatMessage({
+                      id: 'pages.form.advancedForm.url.required',
+                      defaultMessage: 'Please select',
+                    }),
                   },
                 ]}
                 fieldProps={{
@@ -237,7 +374,10 @@ const AdvancedForm: FC<Record<string, any>> = () => {
                   addonBefore: 'http://',
                   addonAfter: '.com',
                 }}
-                placeholder="请输入"
+                placeholder={intl.formatMessage({
+                  id: 'pages.form.advancedForm.url.placeholder',
+                  defaultMessage: 'Please enter',
+                })}
               />
             </Col>
             <Col
@@ -259,20 +399,17 @@ const AdvancedForm: FC<Record<string, any>> = () => {
                 rules={[
                   {
                     required: true,
-                    message: '请选择管理员',
+                    message: intl.formatMessage({
+                      id: 'pages.form.advancedForm.owner.required',
+                      defaultMessage: 'Please select administrator',
+                    }),
                   },
                 ]}
-                options={[
-                  {
-                    label: '付晓晓',
-                    value: 'xiao',
-                  },
-                  {
-                    label: '周毛毛',
-                    value: 'mao',
-                  },
-                ]}
-                placeholder="请选择管理员"
+                options={ownerOptions}
+                placeholder={intl.formatMessage({
+                  id: 'pages.form.advancedForm.owner.placeholder',
+                  defaultMessage: 'Please select administrator',
+                })}
               />
             </Col>
           </Row>
@@ -284,20 +421,17 @@ const AdvancedForm: FC<Record<string, any>> = () => {
                 rules={[
                   {
                     required: true,
-                    message: '请选择审批员',
+                    message: intl.formatMessage({
+                      id: 'pages.form.advancedForm.approver.required',
+                      defaultMessage: 'Please select approver',
+                    }),
                   },
                 ]}
-                options={[
-                  {
-                    label: '付晓晓',
-                    value: 'xiao',
-                  },
-                  {
-                    label: '周毛毛',
-                    value: 'mao',
-                  },
-                ]}
-                placeholder="请选择审批员"
+                options={ownerOptions}
+                placeholder={intl.formatMessage({
+                  id: 'pages.form.advancedForm.approver.placeholder',
+                  defaultMessage: 'Please select approver',
+                })}
               />
             </Col>
             <Col
@@ -324,7 +458,10 @@ const AdvancedForm: FC<Record<string, any>> = () => {
                 rules={[
                   {
                     required: true,
-                    message: '请选择生效日期',
+                    message: intl.formatMessage({
+                      id: 'pages.form.advancedForm.dateRange.required',
+                      defaultMessage: 'Please select effective date',
+                    }),
                   },
                 ]}
               />
@@ -348,25 +485,29 @@ const AdvancedForm: FC<Record<string, any>> = () => {
                 rules={[
                   {
                     required: true,
-                    message: '请选择仓库类型',
+                    message: intl.formatMessage({
+                      id: 'pages.form.advancedForm.type.required',
+                      defaultMessage: 'Please select repository type',
+                    }),
                   },
                 ]}
-                options={[
-                  {
-                    label: '私密',
-                    value: 'private',
-                  },
-                  {
-                    label: '公开',
-                    value: 'public',
-                  },
-                ]}
-                placeholder="请选择仓库类型"
+                options={typeOptions}
+                placeholder={intl.formatMessage({
+                  id: 'pages.form.advancedForm.type.placeholder',
+                  defaultMessage: 'Please select repository type',
+                })}
               />
             </Col>
           </Row>
         </Card>
-        <Card title="任务管理" className={styles.card} variant="borderless">
+        <Card
+          title={intl.formatMessage({
+            id: 'pages.form.advancedForm.cardTask',
+            defaultMessage: 'Task management',
+          })}
+          className={styles.card}
+          variant="borderless"
+        >
           <Row gutter={16}>
             <Col lg={6} md={12} sm={24}>
               <ProFormText
@@ -375,7 +516,10 @@ const AdvancedForm: FC<Record<string, any>> = () => {
                 rules={[
                   {
                     required: true,
-                    message: '请输入',
+                    message: intl.formatMessage({
+                      id: 'pages.form.advancedForm.name2.required',
+                      defaultMessage: 'Please enter',
+                    }),
                   },
                 ]}
               />
@@ -399,7 +543,10 @@ const AdvancedForm: FC<Record<string, any>> = () => {
                 rules={[
                   {
                     required: true,
-                    message: '请选择',
+                    message: intl.formatMessage({
+                      id: 'pages.form.advancedForm.url2.required',
+                      defaultMessage: 'Please select',
+                    }),
                   },
                 ]}
               />
@@ -423,19 +570,13 @@ const AdvancedForm: FC<Record<string, any>> = () => {
                 rules={[
                   {
                     required: true,
-                    message: '请选择管理员',
+                    message: intl.formatMessage({
+                      id: 'pages.form.advancedForm.owner2.required',
+                      defaultMessage: 'Please select administrator',
+                    }),
                   },
                 ]}
-                options={[
-                  {
-                    label: '付晓晓',
-                    value: 'xiao',
-                  },
-                  {
-                    label: '周毛毛',
-                    value: 'mao',
-                  },
-                ]}
+                options={ownerOptions}
               />
             </Col>
           </Row>
@@ -447,20 +588,17 @@ const AdvancedForm: FC<Record<string, any>> = () => {
                 rules={[
                   {
                     required: true,
-                    message: '请选择审批员',
+                    message: intl.formatMessage({
+                      id: 'pages.form.advancedForm.approver2.required',
+                      defaultMessage: 'Please select approver',
+                    }),
                   },
                 ]}
-                options={[
-                  {
-                    label: '付晓晓',
-                    value: 'xiao',
-                  },
-                  {
-                    label: '周毛毛',
-                    value: 'mao',
-                  },
-                ]}
-                placeholder="请选择审批员"
+                options={ownerOptions}
+                placeholder={intl.formatMessage({
+                  id: 'pages.form.advancedForm.approver2.placeholder',
+                  defaultMessage: 'Please select approver',
+                })}
               />
             </Col>
             <Col
@@ -482,10 +620,16 @@ const AdvancedForm: FC<Record<string, any>> = () => {
                 rules={[
                   {
                     required: true,
-                    message: '请输入',
+                    message: intl.formatMessage({
+                      id: 'pages.form.advancedForm.dateRange2.required',
+                      defaultMessage: 'Please enter',
+                    }),
                   },
                 ]}
-                placeholder="提醒时间"
+                placeholder={intl.formatMessage({
+                  id: 'pages.form.advancedForm.dateRange2.placeholder',
+                  defaultMessage: 'Reminder time',
+                })}
                 fieldProps={{
                   style: {
                     width: '100%',
@@ -512,25 +656,28 @@ const AdvancedForm: FC<Record<string, any>> = () => {
                 rules={[
                   {
                     required: true,
-                    message: '请选择仓库类型',
+                    message: intl.formatMessage({
+                      id: 'pages.form.advancedForm.type2.required',
+                      defaultMessage: 'Please select repository type',
+                    }),
                   },
                 ]}
-                options={[
-                  {
-                    label: '私密',
-                    value: 'private',
-                  },
-                  {
-                    label: '公开',
-                    value: 'public',
-                  },
-                ]}
-                placeholder="请选择仓库类型"
+                options={typeOptions}
+                placeholder={intl.formatMessage({
+                  id: 'pages.form.advancedForm.type2.placeholder',
+                  defaultMessage: 'Please select repository type',
+                })}
               />
             </Col>
           </Row>
         </Card>
-        <Card title="成员管理" variant="borderless">
+        <Card
+          title={intl.formatMessage({
+            id: 'pages.form.advancedForm.cardMembers',
+            defaultMessage: 'Member management',
+          })}
+          variant="borderless"
+        >
           <ProForm.Item name="members">
             <EditableProTable<TableFormDateType>
               recordCreatorProps={{

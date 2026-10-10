@@ -11,7 +11,7 @@ import {
 } from '@ant-design/pro-components';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { FormattedMessage, useIntl } from '@umijs/max';
-import { Button, Drawer, type FormInstance, Input, message } from 'antd';
+import { App, Button, Drawer, type FormInstance, Input } from 'antd';
 import React, { useCallback, useRef, useState } from 'react';
 import { removeRule, rule } from '@/services/ant-design-pro/api';
 import CreateForm from './components/CreateForm';
@@ -31,7 +31,7 @@ const TableList: React.FC = () => {
    * */
   const intl = useIntl();
 
-  const [messageApi, contextHolder] = message.useMessage();
+  const { message } = App.useApp();
 
   const { mutate: delRun, isPending: loading } = useMutation({
     mutationFn: removeRule,
@@ -40,10 +40,10 @@ const TableList: React.FC = () => {
       actionRef.current?.reloadAndRest?.();
       queryClient.invalidateQueries({ queryKey: ['rules', 'list'] });
 
-      messageApi.success('Deleted successfully and will refresh soon');
+      message.success('Deleted successfully and will refresh soon');
     },
     onError: () => {
-      messageApi.error('Delete failed, please try again');
+      message.error('Delete failed, please try again');
     },
   });
 
@@ -93,7 +93,7 @@ const TableList: React.FC = () => {
       renderText: (val: string) =>
         `${val}${intl.formatMessage({
           id: 'pages.searchTable.tenThousand',
-          defaultMessage: ' 万 ',
+          defaultMessage: ' ten thousand ',
         })}`,
     },
     {
@@ -226,7 +226,7 @@ const TableList: React.FC = () => {
   const handleRemove = useCallback(
     async (selectedRows: API.RuleListItem[]) => {
       if (!selectedRows?.length) {
-        messageApi.warning('请选择删除项');
+        message.warning('请选择删除项');
 
         return;
       }
@@ -237,12 +237,11 @@ const TableList: React.FC = () => {
         },
       });
     },
-    [delRun, messageApi.warning],
+    [delRun, message.warning],
   );
 
   return (
     <PageContainer>
-      {contextHolder}
       <ProTable<API.RuleListItem, API.PageParams>
         headerTitle={intl.formatMessage({
           id: 'pages.searchTable.title',
@@ -277,7 +276,7 @@ const TableList: React.FC = () => {
               </span>{' '}
               <FormattedMessage
                 id="pages.searchTable.item"
-                defaultMessage="项"
+                defaultMessage="items"
               />
               &nbsp;&nbsp;
               <span>
@@ -291,7 +290,7 @@ const TableList: React.FC = () => {
                 )}{' '}
                 <FormattedMessage
                   id="pages.searchTable.tenThousand"
-                  defaultMessage="万"
+                  defaultMessage="ten thousand"
                 />
               </span>
             </div>
