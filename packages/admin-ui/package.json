@@ -10,7 +10,7 @@
     "deploy": "cross-env CI=true max build && gh-pages -d dist",
     "dev": "cross-env UMI_ENV=dev MOCK=none max dev",
     "i18n-remove": "node scripts/i18n-remove.js",
-    "lint": "npm run biome:lint && npm run tsc",
+    "lint": "pnpm biome:lint && pnpm tsc",
     "lint-staged": "lint-staged",
     "biome:lint": "biome lint",
     "biome": "biome check --write",
@@ -77,8 +77,8 @@
     "@umijs/max": "^4.7.3",
     "@umijs/max-plugin-openapi": "^2.0.3",
     "@umijs/request-record": "^1.1.4",
-    "@vitest/coverage-v8": "4.1.10",
-    "@vitest/ui": "4.1.10",
+    "@vitest/coverage-v8": "^2.1.9",
+    "@vitest/ui": "^2.1.9",
     "cross-env": "^10.1.0",
     "express": "^5.2.1",
     "geojson": "^0.5.0",
@@ -88,13 +88,12 @@
     "jsdom": "^30.0.1",
     "lint-staged": "^17.3.0",
     "mockjs": "^1.1.0",
-    "playwright": "^1.63.0",
     "react-doctor": "^0.9.11",
     "swagger-ui-dist": "^5.32.8",
     "tailwindcss": "^4.3.2",
     "ts-node": "^10.9.2",
-    "typescript": "^7.0.2",
-    "vitest": "4.1.10"
+    "typescript": "^5.4.0",
+    "vitest": "^2.1.9"
   },
   "overrides": {
     "@umijs/plugins": {

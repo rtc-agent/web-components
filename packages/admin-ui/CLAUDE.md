@@ -4,20 +4,48 @@
 
 Ant Design Pro — React enterprise boilerplate on Umi Max v4, antd v6, ProComponents v3.
 
+### Workspace Integration
+
+admin-ui 是 pnpm monorepo (`web-components/`) 的一部分，但保留了独立的工具链：
+
+- **包管理器**：使用 `pnpm`（通过 workspace 统一管理）
+- **构建工具**：使用 Umi Max 的 `max build`，而非 turbo
+- **Lint 工具**：使用 Biome（与 workspace 一致），但配置继承自根级 `biome.json`
+- **独立项目**：本质上是 Ant Design Pro 模板项目嵌入 monorepo，有自己的 `.husky`、`.commitlintrc` 等配置
+
+**注意**：虽然 package.json 的 engines 字段曾要求 `package-lock.json`，但实际使用 `pnpm` 作为包管理器（workspace 要求）。
+
 ## Commands
 
-`npm start` (dev+mock), `npm run dev` (no mock), `npm run build` (utoopack), `npm run lint` (Biome+tsc), `npm run test` (Jest), `npx antd lint ./src` (antd-specific checks).
+**推荐使用 `pnpm`**：
 
-Other: `npm run openapi` (regenerate `src/services/`), `npm run simple` (**irreversible** — commit first), `npm run biome` (auto-fix), `npm run tsc` (type-check only).
+```bash
+pnpm start              # 开发服务器（dev+mock）
+pnpm run dev            # 开发服务器（no mock）
+pnpm run build          # 构建（Umi Max）
+pnpm run lint           # 代码检查（Biome + tsc）
+pnpm run test           # 运行测试（Vitest）
+pnpm run openapi        # 重新生成 src/services/
+```
+
+**其他命令**：
+
+```bash
+pnpm run simple         # (**不可逆** — 先提交)
+pnpm run biome          # 自动修复格式
+pnpm run tsc            # 仅类型检查
+npx antd lint ./src     # antd 特定检查
+npx antd info <Comp>    # 查询 antd 组件 API
+```
 
 ## Critical Rules
 
-- **Never edit `src/services/ant-design-pro/`** — auto-generated, regenerate with `npm run openapi`
-- **Biome only** — no ESLint, no Prettier. Both `npm run lint` and `npx antd lint ./src` must pass before commit
+- **Never edit `src/services/ant-design-pro/`** — auto-generated, regenerate with `pnpm run openapi`
+- **Biome only** — no ESLint, no Prettier. Both `pnpm run lint` and `npx antd lint ./src` must pass before commit
 - **Always `npx antd info <Component>` before writing antd code** — don't guess APIs from memory
-- **`npm run simple` is irreversible** — always commit/branch first
+- **`pnpm run simple` is irreversible** — always commit/branch first
 - **Conventional commits** required (commitlint enforced)
-- **TypeScript strict** · **Node ≥ 22** · **`package-lock.json`** (not yarn/pnpm)
+- **TypeScript strict** · **Node ≥ 22** · **pnpm ≥ 8** (workspace 统一要求)
 - **`.umi` dir is auto-generated** — delete `src/.umi` and restart if dev server acts up
 
 ## Architecture Essentials
