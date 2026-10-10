@@ -79,6 +79,15 @@ export class EditorAreaController implements ReactiveController {
     /** Cursor position persistence throttle: avoid frequent localStorage writes */
     private _cursorPersistTimer?: ReturnType<typeof setTimeout>;
 
+    /**
+     * CRITICAL FIX: State cache to prevent unnecessary re-renders.
+     * Creating new objects every time triggers consumers even when the state hasn't changed.
+     * Cache the state object and only recreate when dependencies change.
+     */
+    private _cachedState?: EditorAreaState;
+    private _cachedTabs?: EditorTab[];
+    private _cachedActiveFilePath?: string;
+
     readonly actions: EditorAreaActions;
 
     constructor(host: ReactiveControllerHost) {
@@ -164,10 +173,19 @@ export class EditorAreaController implements ReactiveController {
     /* ── Getters ── */
 
     get state(): EditorAreaState {
-        return {
+        // Only create new state object if tabs or activeFilePath changed
+        if (this._cachedState &&
+            this._cachedTabs === this._tabs &&
+            this._cachedActiveFilePath === this._activeFilePath) {
+            return this._cachedState;
+        }
+        this._cachedTabs = this._tabs;
+        this._cachedActiveFilePath = this._activeFilePath;
+        this._cachedState = {
             tabs: this._tabs,
             activeFilePath: this._activeFilePath,
         };
+        return this._cachedState;
     }
 
     get tabs(): readonly EditorTab[] {

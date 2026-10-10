@@ -22,6 +22,18 @@ export class EditorController implements ReactiveController {
     private _host: ReactiveControllerHost;
     private _state: EditorState = {...DEFAULT_EDITOR_STATE};
 
+    /**
+     * CRITICAL FIX: Value cache to prevent unnecessary Context consumer re-renders.
+     * @lit/context uses `===` comparison, so creating new objects every time triggers
+     * consumers even when the state hasn't changed. Cache the value object and only
+     * recreate when state reference changes.
+     */
+    private _cachedValue?: EditorContextValue;
+    private _cachedState?: EditorState;
+
+    /** Cached actions object to prevent unnecessary re-renders */
+    private _cachedActions?: EditorActions;
+
     constructor(host: ReactiveControllerHost) {
         this._host = host;
         host.addController(this);
@@ -34,20 +46,30 @@ export class EditorController implements ReactiveController {
     }
 
     get value(): EditorContextValue {
-        return {
+        // Only create new value object if state reference changed
+        if (this._cachedValue && this._cachedState === this._state) {
+            return this._cachedValue;
+        }
+        this._cachedState = this._state;
+        this._cachedValue = {
             state: this._state,
             actions: this.actions,
         };
+        return this._cachedValue;
     }
 
     get actions(): EditorActions {
-        return {
+        if (this._cachedActions) {
+            return this._cachedActions;
+        }
+        this._cachedActions = {
             setViewMode: (mode: EditorViewMode) => this._setViewMode(mode),
             setCanSave: (value: boolean) => this._setCanSave(value),
             setCanUndo: (value: boolean) => this._setCanUndo(value),
             setCanRedo: (value: boolean) => this._setCanRedo(value),
             reset: () => this._reset(),
         };
+        return this._cachedActions;
     }
 
     /* ── Reactive Controller Lifecycle ── */

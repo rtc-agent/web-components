@@ -51,6 +51,18 @@ export class SkillController implements ReactiveController {
   /** Event unsubscribe functions */
   private _unsubscribes: Array<() => void> = [];
 
+  /**
+   * CRITICAL FIX: Value cache to prevent unnecessary Context consumer re-renders.
+   * @lit/context uses `===` comparison, so creating new objects every time triggers
+   * consumers even when the state hasn't changed. Cache the value object and only
+   * recreate when dependencies change.
+   */
+  private _cachedValue?: SkillContextValue;
+  private _cachedRegistry?: FunctionRegistry | null;
+
+  /** Cached actions object to prevent unnecessary re-renders */
+  private _cachedActions?: SkillActions;
+
   constructor(host: ReactiveControllerHost, config?: SkillControllerConfig) {
     this._host = host;
     this._config = config || {};
@@ -61,16 +73,24 @@ export class SkillController implements ReactiveController {
    * Current state (for Context use)
    */
   get value(): SkillContextValue {
-    return {
+    if (this._cachedValue && this._cachedRegistry === this._registry) {
+      return this._cachedValue;
+    }
+    this._cachedRegistry = this._registry;
+    this._cachedValue = {
       registry: this._registry,
     };
+    return this._cachedValue;
   }
 
   /**
    * Actions (for host application to call)
    */
   get actions(): SkillActions {
-    return {
+    if (this._cachedActions) {
+      return this._cachedActions;
+    }
+    this._cachedActions = {
       getRegistry: () => this._registry,
       setRegistry: (registry: FunctionRegistry) => {
         this._registry = registry;
@@ -81,6 +101,7 @@ export class SkillController implements ReactiveController {
         this._bridgeToolRegistry(registry);
       },
     };
+    return this._cachedActions;
   }
 
   /**
