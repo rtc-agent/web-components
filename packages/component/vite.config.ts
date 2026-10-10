@@ -8,7 +8,7 @@ import { visualizer } from 'rollup-plugin-visualizer';
 // - 输出：dist/index.js（UMD/ESM 兼容）
 // - Lit 的装饰器需要 experimentalDecorators（已在 tsconfig 开启）
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   // 使用相对路径，这样组件部署在任意子路径（如 /rtc-agent/）时资源都能正确解析
   base: './',
   plugins: [
@@ -29,7 +29,8 @@ export default defineConfig({
   ],
   define: {
     // Babel 和其他 Node.js 库可能引用 process.env，在浏览器环境中需要定义
-    'process.env.NODE_ENV': JSON.stringify('development'),
+    // 根据实际构建模式动态设置 NODE_ENV，确保生产构建能正确 tree-shake
+    'process.env.NODE_ENV': JSON.stringify(mode === 'development' ? 'development' : 'production'),
     'process.env': JSON.stringify({}),
   },
   resolve: {
@@ -68,4 +69,4 @@ export default defineConfig({
     // Worker 构建配置：使用 ESM 格式避免 IIFE 与代码分割冲突
     format: 'es',
   },
-});
+}));
