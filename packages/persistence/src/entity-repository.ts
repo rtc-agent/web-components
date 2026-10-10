@@ -12,13 +12,33 @@
  * that are tightly coupled. Splitting by entity type would duplicate the shared
  * infrastructure and obscure the cross-entity consistency guarantees.
  */
-import { getDatabase, type LocalSession, type LocalTurn, type LocalMessage, type LocalRtc, type SyncStatus } from './database.js';
+import {
+  getDatabase,
+  type LocalSession,
+  type LocalTurn,
+  type LocalMessage,
+  type LocalRtc,
+  type SyncStatus,
+} from './database.js';
 import { getUIUpdateBus } from './ui-update-bus.js';
 import { nowRFC3339 } from './time-utils.js';
-import type { Session, Turn, Message, Rtc, Update, UpdateItem, UpdateEntity, UpdateAction } from '@rtc-agent/protocol';
+import type {
+  Update,
+  UpdateItem,
+  UpdateEntity,
+  UpdateAction,
+} from '@rtc-agent/protocol';
+import {
+  isValidSession,
+  isValidTurn,
+  isValidMessage,
+  isValidRtc,
+  extractClientId,
+  extractStringField,
+} from '@rtc-agent/protocol';
 import type { Table } from 'dexie';
 import diff from 'microdiff';
-import { createLogger } from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('EntityRepository');
 
@@ -93,6 +113,12 @@ interface ExistingData {
 }
 
 /**
+ * Entity record type for before-snapshots in UI update emission.
+ * Represents any entity type that has a client_id field.
+ */
+type EntityRecord = Record<string, unknown>;
+
+/**
  * Check whether applying an incoming message's streaming_status would
  * cause a state regression.
  *
@@ -110,7 +136,7 @@ interface ExistingData {
  */
 function isStreamingStatusRegression(
   existingStatus: string | undefined,
-  incomingStatus: string | undefined
+  incomingStatus: string | undefined,
 ): boolean {
   if (!existingStatus || !incomingStatus) return false;
   if (existingStatus === incomingStatus) return false; // Same state: always OK
@@ -141,7 +167,7 @@ async function emitUIUpdates(
   action: UpdateAction,
   entityId: string,
   before: object | undefined,
-  after: object
+  after: object,
 ): Promise<void> {
   const bus = getUIUpdateBus();
 
@@ -219,7 +245,9 @@ export class EntityRepository {
 
   constructor(deviceId: string) {
     if (!deviceId) {
-      throw new Error('[EntityRepository] deviceId is required, got empty value');
+      throw new Error(
+        '[EntityRepository] deviceId is required, got empty value',
+      );
     }
     this.deviceId = deviceId;
   }
@@ -229,7 +257,7 @@ export class EntityRepository {
   async upsertSession(
     session: Partial<LocalSession>,
     syncStatus: SyncStatus = 'synced',
-    options?: UpsertOptions
+    options?: UpsertOptions,
   ): Promise<UpsertResult<LocalSession>> {
     const db = getDatabase();
     const now = nowRFC3339();
@@ -240,10 +268,20 @@ export class EntityRepository {
       // Look up by client_id (inside transaction)
       let existing: LocalSession | undefined;
       if (session.client_id) {
-        existing = await db.sessions.where('client_id').equals(session.client_id).first();
+        existing = await db.sessions
+          .where('client_id')
+          .equals(session.client_id)
+          .first();
       }
 
-      log.debug('upsertSession:', existing ? 'UPDATE' : 'CREATE', 'client_id:', session.client_id, 'title:', session.title);
+      log.debug(
+        'upsertSession:',
+        existing ? 'UPDATE' : 'CREATE',
+        'client_id:',
+        session.client_id,
+        'title:',
+        session.title,
+      );
 
       let result: UpsertResult<LocalSession>;
       let action: UpdateAction;
@@ -253,7 +291,9 @@ export class EntityRepository {
           ...existing,
           ...session,
           // preserveSyncStatus: keep existing sync_status for aggregation updates (e.g. turn counts)
-          sync_status: options?.preserveSyncStatus ? existing.sync_status : syncStatus,
+          sync_status: options?.preserveSyncStatus
+            ? existing.sync_status
+            : syncStatus,
           server_id: session.server_id || existing.server_id,
         };
         await db.sessions.put(updated);
@@ -283,7 +323,13 @@ export class EntityRepository {
       }
 
       if (!options?.silent) {
-        await emitUIUpdates('session', action, result.after.client_id, result.before, result.after);
+        await emitUIUpdates(
+          'session',
+          action,
+          result.after.client_id,
+          result.before,
+          result.after,
+        );
       }
       return result;
     });
@@ -294,12 +340,16 @@ export class EntityRepository {
     return db.sessions.get(clientId);
   }
 
-  async getSessionByServerId(serverId: string): Promise<LocalSession | undefined> {
+  async getSessionByServerId(
+    serverId: string,
+  ): Promise<LocalSession | undefined> {
     const db = getDatabase();
     return db.sessions.where('server_id').equals(serverId).first();
   }
 
-  async getMessageByServerId(serverId: string): Promise<LocalMessage | undefined> {
+  async getMessageByServerId(
+    serverId: string,
+  ): Promise<LocalMessage | undefined> {
     const db = getDatabase();
     return db.messages.where('server_id').equals(serverId).first();
   }
@@ -325,31 +375,43 @@ export class EntityRepository {
    *
    * @returns Array of active (non-deleted) sessions, ordered by updated_at descending.
    */
-  async listSessions(cursor?: string, limit: number = 10000): Promise<LocalSession[]> {
+  async listSessions(
+    cursor?: string,
+    limit: number = 10000,
+  ): Promise<LocalSession[]> {
     const db = getDatabase();
-    const query = db.sessions.orderBy('updated_at').reverse();
-    // PERFORMANCE: Loads all sessions into memory before filtering.
-    // Acceptable for < 1000 sessions; consider database-level pagination for larger datasets.
-    const all = await query.toArray();
 
-    // Filter soft-deleted items (deleted_at non-empty means deleted)
-    const active = all.filter(s => !s.deleted_at);
-
-    log.debug(`listSessions: total=${all.length}, active=${active.length}, deleted=${all.length - active.length}`);
+    // PERFORMANCE: Dexie cannot combine index-based sorting (updated_at) with
+    // non-indexed filtering (deleted_at) — no compound index exists.
+    // Using Dexie's Collection.filter() applies the filter lazily during toArray(),
+    // avoiding an intermediate full array allocation. Combined with a hard limit
+    // to prevent pathological cases (extremely large datasets).
+    //
+    // For datasets > 10000 sessions, consider adding a compound index
+    // [deleted_at+updated_at] or using a separate "active sessions" view.
+    const active = await db.sessions
+      .orderBy('updated_at')
+      .reverse()
+      // Dexie's Collection.filter() filters during iteration (lazy evaluation),
+      // more memory-efficient than post-hoc JS array filtering.
+      .filter((s) => !s.deleted_at)
+      .toArray();
 
     // Performance warning for large datasets
     if (active.length > 1000) {
       log.warn(
-        `listSessions: ${active.length} active sessions detected. ` +
-        `Consider implementing virtual scrolling in the UI layer if performance degrades.`
+        `listSessions: ${active.length} active sessions loaded. ` +
+          `Consider implementing virtual scrolling in the UI layer if performance degrades.`,
       );
     }
 
     // Cursor pagination (for future distributed database scenarios)
     if (cursor) {
-      const startIdx = active.findIndex(s => s.client_id === cursor);
+      const startIdx = active.findIndex((s) => s.client_id === cursor);
       if (startIdx === -1) {
-        log.warn(`listSessions: cursor ${cursor} not found, returning from start`);
+        log.warn(
+          `listSessions: cursor ${cursor} not found, returning from start`,
+        );
         return active.slice(0, limit);
       }
       return active.slice(startIdx + 1, startIdx + 1 + limit);
@@ -367,7 +429,9 @@ export class EntityRepository {
    * Wrapped in a transaction to prevent TOCTOU race where concurrent modifications
    * could see inconsistent state between the existence check and the write.
    */
-  async softDeleteSession(clientId: string): Promise<UpsertResult<LocalSession>> {
+  async softDeleteSession(
+    clientId: string,
+  ): Promise<UpsertResult<LocalSession>> {
     const db = getDatabase();
     const now = nowRFC3339();
     log.debug(`softDeleteSession: setting deleted_at=${now} for ${clientId}`);
@@ -376,7 +440,9 @@ export class EntityRepository {
     return db.transaction('rw', db.sessions, db.ui_updates, async () => {
       const existing = await db.sessions.get(clientId);
       if (!existing) {
-        throw new Error(`[EntityRepository] softDeleteSession: session not found: ${clientId}`);
+        throw new Error(
+          `[EntityRepository] softDeleteSession: session not found: ${clientId}`,
+        );
       }
       return this.upsertSession(
         {
@@ -394,7 +460,7 @@ export class EntityRepository {
   async upsertTurn(
     turn: Partial<LocalTurn>,
     syncStatus: SyncStatus = 'synced',
-    options?: UpsertOptions
+    options?: UpsertOptions,
   ): Promise<UpsertResult<LocalTurn>> {
     const db = getDatabase();
     const now = nowRFC3339();
@@ -403,7 +469,10 @@ export class EntityRepository {
     return db.transaction('rw', db.turns, db.ui_updates, async () => {
       let existing: LocalTurn | undefined;
       if (turn.client_id) {
-        existing = await db.turns.where('client_id').equals(turn.client_id).first();
+        existing = await db.turns
+          .where('client_id')
+          .equals(turn.client_id)
+          .first();
       }
 
       let result: UpsertResult<LocalTurn>;
@@ -413,7 +482,9 @@ export class EntityRepository {
         const updated: LocalTurn = {
           ...existing,
           ...turn,
-          sync_status: options?.preserveSyncStatus ? existing.sync_status : syncStatus,
+          sync_status: options?.preserveSyncStatus
+            ? existing.sync_status
+            : syncStatus,
           server_id: turn.server_id || existing.server_id,
         };
         await db.turns.put(updated);
@@ -434,8 +505,20 @@ export class EntityRepository {
       }
 
       if (!options?.silent) {
-        log.debug('[EntityRepository] Emitting turn UI update:', action, result.after.client_id, 'session:', result.after.session_client_id);
-        await emitUIUpdates('turn', action, result.after.client_id, result.before, result.after);
+        log.debug(
+          '[EntityRepository] Emitting turn UI update:',
+          action,
+          result.after.client_id,
+          'session:',
+          result.after.session_client_id,
+        );
+        await emitUIUpdates(
+          'turn',
+          action,
+          result.after.client_id,
+          result.before,
+          result.after,
+        );
       }
       return result;
     });
@@ -456,12 +539,42 @@ export class EntityRepository {
    * with Promise.all could interleave with other concurrent transactions (e.g.,
    * from another tab via Dexie's observability), causing the two counts to see
    * different snapshots of the turns table.
+   *
+   * Indexed queries (v15+): uses [session_client_id+status] compound index,
+   * directly matching both session and status without in-memory filtering.
+   * Prior implementation used where('session_client_id').filter(status===...),
+   * which required a full scan of the session's turns.
    */
-  async countActiveTurns(sessionClientId: string): Promise<{ pending: number; running: number }> {
+  /**
+   * Count pending/running turns for a session in a single pass.
+   * Used for write-time aggregation: after writing turn rows, the counts are written
+   * back to the session row.
+   *
+   * IMPORTANT: The two queries are run sequentially (not in parallel) to ensure
+   * consistent counts when called within a transaction. Running them in parallel
+   * with Promise.all could interleave with other concurrent transactions (e.g.,
+   * from another tab via Dexie's observability), causing the two counts to see
+   * different snapshots of the turns table.
+   *
+   * Indexed queries (v15+): uses [session_client_id+status] compound index,
+   * directly matching both session and status without in-memory filtering.
+   * Prior implementation used where('session_client_id').filter(status===...),
+   * which required a full scan of the session's turns.
+   */
+  async countActiveTurns(
+    sessionClientId: string,
+  ): Promise<{ pending: number; running: number }> {
     const db = getDatabase();
-    // Sequential queries for transaction consistency (see docstring above)
-    const pending = await db.turns.where('session_client_id').equals(sessionClientId).filter(t => t.status === 'pending').count();
-    const running = await db.turns.where('session_client_id').equals(sessionClientId).filter(t => t.status === 'running').count();
+    // Sequential queries for transaction consistency (see docstring above).
+    // Each query uses the [session_client_id+status] compound index for exact match.
+    const pending = await db.turns
+      .where('[session_client_id+status]')
+      .equals([sessionClientId, 'pending'])
+      .count();
+    const running = await db.turns
+      .where('[session_client_id+status]')
+      .equals([sessionClientId, 'running'])
+      .count();
     return { pending, running };
   }
 
@@ -470,7 +583,7 @@ export class EntityRepository {
   async upsertMessage(
     message: Partial<LocalMessage>,
     syncStatus: SyncStatus = 'synced',
-    options?: UpsertOptions
+    options?: UpsertOptions,
   ): Promise<UpsertResult<LocalMessage>> {
     const db = getDatabase();
     const now = nowRFC3339();
@@ -479,7 +592,10 @@ export class EntityRepository {
     return db.transaction('rw', db.messages, db.ui_updates, async () => {
       let existing: LocalMessage | undefined;
       if (message.client_id) {
-        existing = await db.messages.where('client_id').equals(message.client_id).first();
+        existing = await db.messages
+          .where('client_id')
+          .equals(message.client_id)
+          .first();
       }
 
       let result: UpsertResult<LocalMessage>;
@@ -490,15 +606,20 @@ export class EntityRepository {
         // ── Streaming status monotonic guard (Issue 236) ──
         // Prevent live-channel streaming updates from overwriting
         // topic-channel completed/final state.
-        if (isStreamingStatusRegression(
+        if (
+          isStreamingStatusRegression(
             existing.streaming_status,
-            message.streaming_status
-        )) {
+            message.streaming_status,
+          )
+        ) {
           log.debug(
             'upsertMessage: skip streaming regression',
-            'client_id:', message.client_id,
-            'existing:', existing.streaming_status,
-            'incoming:', message.streaming_status
+            'client_id:',
+            message.client_id,
+            'existing:',
+            existing.streaming_status,
+            'incoming:',
+            message.streaming_status,
           );
           // Return existing state unchanged — the update is a no-op.
           return { before, after: existing };
@@ -507,7 +628,9 @@ export class EntityRepository {
         const updated: LocalMessage = {
           ...existing,
           ...message,
-          sync_status: options?.preserveSyncStatus ? existing.sync_status : syncStatus,
+          sync_status: options?.preserveSyncStatus
+            ? existing.sync_status
+            : syncStatus,
           server_id: message.server_id || existing.server_id,
         };
         await db.messages.put(updated);
@@ -537,7 +660,13 @@ export class EntityRepository {
       }
 
       if (!options?.silent) {
-        await emitUIUpdates('message', action, result.after.client_id, result.before, result.after);
+        await emitUIUpdates(
+          'message',
+          action,
+          result.after.client_id,
+          result.before,
+          result.after,
+        );
       }
       return result;
     });
@@ -552,13 +681,34 @@ export class EntityRepository {
     sessionClientId: string,
     cursor?: string,
     limit: number = 50,
-    direction: 'backward' | 'forward' = 'backward'
+    direction: 'backward' | 'forward' = 'backward',
   ): Promise<LocalMessage[]> {
     const db = getDatabase();
-    const query = db.messages.where('session_client_id').equals(sessionClientId);
-    // PERFORMANCE: Loads all messages for the session into memory before sorting/paginating.
-    // Acceptable for typical chat sessions; consider database-level pagination for very long conversations.
-    const allMessages = await query.toArray();
+    const query = db.messages
+      .where('session_client_id')
+      .equals(sessionClientId);
+
+    // PERFORMANCE: Dexie cannot combine index-based filtering (session_client_id)
+    // with index-based sorting (created_at) via `where(...).sortBy(...)`.
+    // Load all messages for the session into memory, then sort/paginate in JS.
+    //
+    // SAFETY CAP: Load at most 10000 messages to prevent OOM on pathological cases
+    // (e.g., bot sessions with millions of messages). Typical chat sessions have
+    // < 10000 messages, so this cap has no practical impact on normal usage.
+    //
+    // INDEX NOTE: The [session_client_id+created_at] compound index (v15+) is defined
+    // but Dexie's sortBy() cannot target the 2nd column of a compound index independently.
+    // Future optimization: use where('[session_client_id+created_at]').between() with a
+    // cursor to implement DB-level pagination, eliminating the in-memory sort entirely.
+    const MAX_SESSION_MESSAGES = 10000;
+    const allMessages = await query.limit(MAX_SESSION_MESSAGES).toArray();
+
+    if (allMessages.length >= MAX_SESSION_MESSAGES) {
+      log.warn(
+        `listMessagesBySession: session ${sessionClientId} has >= ${MAX_SESSION_MESSAGES} messages, ` +
+          `results may be truncated. Consider adding a compound index for large sessions.`,
+      );
+    }
 
     // Sort strategy: first by created_at, then by client_id (client ID primary key) for ties.
     // This ensures deterministic ordering even when multiple messages are created at the same time.
@@ -580,7 +730,7 @@ export class EntityRepository {
       let filtered = allMessages;
       if (cursorKey) {
         // Strictly less than cursor (open interval) to prevent duplicates
-        filtered = allMessages.filter(m => sortKey(m) < cursorKey!);
+        filtered = allMessages.filter((m) => sortKey(m) < cursorKey!);
       }
       // Take the last `limit` items (newest) and return in ascending order
       const sliced = filtered.slice(-limit);
@@ -590,7 +740,7 @@ export class EntityRepository {
     // Forward pagination: get messages newer than the cursor
     if (cursorKey) {
       // Strictly greater than cursor (open interval) to prevent duplicates
-      const filtered = allMessages.filter(m => sortKey(m) > cursorKey!);
+      const filtered = allMessages.filter((m) => sortKey(m) > cursorKey!);
       return filtered.slice(0, limit);
     }
     return allMessages.slice(0, limit);
@@ -601,7 +751,7 @@ export class EntityRepository {
   async upsertRtc(
     rtc: Partial<LocalRtc>,
     syncStatus: SyncStatus = 'synced',
-    options?: UpsertOptions
+    options?: UpsertOptions,
   ): Promise<UpsertResult<LocalRtc>> {
     const db = getDatabase();
     const now = nowRFC3339();
@@ -610,7 +760,10 @@ export class EntityRepository {
     return db.transaction('rw', db.rtcs, db.ui_updates, async () => {
       let existing: LocalRtc | undefined;
       if (rtc.client_id) {
-        existing = await db.rtcs.where('client_id').equals(rtc.client_id).first();
+        existing = await db.rtcs
+          .where('client_id')
+          .equals(rtc.client_id)
+          .first();
       }
 
       let result: UpsertResult<LocalRtc>;
@@ -620,7 +773,9 @@ export class EntityRepository {
         const updated: LocalRtc = {
           ...existing,
           ...rtc,
-          sync_status: options?.preserveSyncStatus ? existing.sync_status : syncStatus,
+          sync_status: options?.preserveSyncStatus
+            ? existing.sync_status
+            : syncStatus,
           server_id: rtc.server_id || existing.server_id,
         };
         await db.rtcs.put(updated);
@@ -649,7 +804,13 @@ export class EntityRepository {
       }
 
       if (!options?.silent) {
-        await emitUIUpdates('rtc', action, result.after.client_id, result.before, result.after);
+        await emitUIUpdates(
+          'rtc',
+          action,
+          result.after.client_id,
+          result.before,
+          result.after,
+        );
       }
       return result;
     });
@@ -672,7 +833,9 @@ export class EntityRepository {
    *
    * @param sessionClientId Optional session filter
    */
-  async getNextRtcToProcess(sessionClientId?: string): Promise<LocalRtc | undefined> {
+  async getNextRtcToProcess(
+    sessionClientId?: string,
+  ): Promise<LocalRtc | undefined> {
     const db = getDatabase();
 
     // Filter by session (optional)
@@ -705,7 +868,9 @@ export class EntityRepository {
       .equals('failed')
       .sortBy('offset');
 
-    const matchFailed = failed.find(r => matchesSession(r) && matchesDevice(r));
+    const matchFailed = failed.find(
+      (r) => matchesSession(r) && matchesDevice(r),
+    );
     if (matchFailed) {
       return matchFailed;
     }
@@ -713,18 +878,22 @@ export class EntityRepository {
     // 2. Then look for status = 'pending' (new tasks awaiting execution)
     // Regardless of sync_status, status='pending' means not yet executed
     const allPending = await db.rtcs
-      .filter(r => r.status === 'pending')
+      .filter((r) => r.status === 'pending')
       .sortBy('offset');
 
-    return allPending.find(r => matchesSession(r) && matchesDevice(r));
+    return allPending.find((r) => matchesSession(r) && matchesDevice(r));
   }
 
   /**
    * List RTCs for a session (ascending by offset).
    *
-   * PERFORMANCE: Loads all RTCs for the session into memory before sorting/paginating.
-   * Acceptable for typical sessions (<1000 RTCs); consider database-level pagination
-   * or indexed queries for sessions with many tool calls.
+   * PERFORMANCE: Loads all RTCs for the session into memory before sorting.
+   * Acceptable for typical sessions (<1000 RTCs).
+   *
+   * INDEX NOTE: The [session_client_id+offset] compound index (v15+) is defined but
+   * Dexie's sortBy() cannot independently target the 2nd column of a compound index.
+   * Future optimization: use where('[session_client_id+offset]').between() for
+   * DB-level cursor-based pagination, eliminating the in-memory sort.
    *
    * NOTE: Device ID filtering is NOT applied here — this method returns all RTCs for
    * the session regardless of device. Device filtering is only applied in
@@ -733,7 +902,7 @@ export class EntityRepository {
   async listRtcBySession(
     sessionClientId: string,
     cursor?: number,
-    limit: number = 50
+    limit: number = 50,
   ): Promise<LocalRtc[]> {
     const db = getDatabase();
     const items = await db.rtcs
@@ -795,7 +964,9 @@ export class EntityRepository {
       return;
     }
 
-    log.info(`[applyUpdates] Processing ${updates.length} updates, ${totalItems} items`);
+    log.info(
+      `[applyUpdates] Processing ${updates.length} updates, ${totalItems} items`,
+    );
 
     // 2. Load required session mappings on-demand
     const sessionMap = await this.loadRequiredSessionMap(upserts);
@@ -813,8 +984,13 @@ export class EntityRepository {
     const tablesToLock = this.getTablesToLock(upserts, deletes);
 
     // 7. Atomic transaction: bulkGet → merge → bulkPut/bulkDelete
-    const beforeSnapshots = new Map<string, any>();
-    let merged: BatchEntities = { sessions: [], turns: [], messages: [], rtcs: [] };
+    const beforeSnapshots = new Map<string, EntityRecord>();
+    let merged: BatchEntities = {
+      sessions: [],
+      turns: [],
+      messages: [],
+      rtcs: [],
+    };
 
     try {
       await db.transaction('rw', tablesToLock, async () => {
@@ -828,15 +1004,21 @@ export class EntityRepository {
         merged = this.mergeWithExisting(prepared, existingData);
 
         // 7d. bulkPut writes
-        if (merged.sessions.length > 0) await db.sessions.bulkPut(merged.sessions as LocalSession[]);
-        if (merged.turns.length > 0) await db.turns.bulkPut(merged.turns as LocalTurn[]);
-        if (merged.messages.length > 0) await db.messages.bulkPut(merged.messages as LocalMessage[]);
-        if (merged.rtcs.length > 0) await db.rtcs.bulkPut(merged.rtcs as LocalRtc[]);
+        if (merged.sessions.length > 0)
+          await db.sessions.bulkPut(merged.sessions as LocalSession[]);
+        if (merged.turns.length > 0)
+          await db.turns.bulkPut(merged.turns as LocalTurn[]);
+        if (merged.messages.length > 0)
+          await db.messages.bulkPut(merged.messages as LocalMessage[]);
+        if (merged.rtcs.length > 0)
+          await db.rtcs.bulkPut(merged.rtcs as LocalRtc[]);
 
         // 7e. bulkDelete deletes
-        if (deletes.sessions.length > 0) await db.sessions.bulkDelete(deletes.sessions);
+        if (deletes.sessions.length > 0)
+          await db.sessions.bulkDelete(deletes.sessions);
         if (deletes.turns.length > 0) await db.turns.bulkDelete(deletes.turns);
-        if (deletes.messages.length > 0) await db.messages.bulkDelete(deletes.messages);
+        if (deletes.messages.length > 0)
+          await db.messages.bulkDelete(deletes.messages);
         if (deletes.rtcs.length > 0) await db.rtcs.bulkDelete(deletes.rtcs);
 
         // 7f. Turn count writeback (within same transaction, re-read sessions from DB)
@@ -846,16 +1028,19 @@ export class EntityRepository {
       const elapsed = performance.now() - startTime;
       log.info(
         `[applyUpdates] Transaction completed in ${elapsed.toFixed(1)}ms: ` +
-        `${merged.sessions.length} sessions, ${merged.turns.length} turns, ` +
-        `${merged.messages.length} messages, ${merged.rtcs.length} rtcs, ` +
-        `${deletes.sessions.length + deletes.turns.length + deletes.messages.length + deletes.rtcs.length} deletes`
+          `${merged.sessions.length} sessions, ${merged.turns.length} turns, ` +
+          `${merged.messages.length} messages, ${merged.rtcs.length} rtcs, ` +
+          `${deletes.sessions.length + deletes.turns.length + deletes.messages.length + deletes.rtcs.length} deletes`,
       );
 
       // 8. Emit batch UI updates (outside transaction)
       await this.emitBatchUIUpdates(beforeSnapshots, merged, deletes);
     } catch (err) {
       const elapsed = performance.now() - startTime;
-      log.error(`[applyUpdates] Transaction failed after ${elapsed.toFixed(1)}ms:`, err);
+      log.error(
+        `[applyUpdates] Transaction failed after ${elapsed.toFixed(1)}ms:`,
+        err,
+      );
       throw err;
     }
   }
@@ -885,7 +1070,9 @@ export class EntityRepository {
 
         if (item.action === 'deleted') {
           // Deleted action: prefer client_id from data_list
-          const data = update.data_list?.[i] as Record<string, unknown> | undefined;
+          const data = update.data_list?.[i] as
+            | Record<string, unknown>
+            | undefined;
           const clientId = data?.['client_id'] as string | undefined;
 
           if (clientId) {
@@ -895,7 +1082,9 @@ export class EntityRepository {
             if (!deletes._pendingDeleteServerIds.has(item.entity)) {
               deletes._pendingDeleteServerIds.set(item.entity, []);
             }
-            deletes._pendingDeleteServerIds.get(item.entity)!.push(item.entity_id);
+            deletes._pendingDeleteServerIds
+              .get(item.entity)!
+              .push(item.entity_id);
           }
           continue;
         }
@@ -929,16 +1118,18 @@ export class EntityRepository {
    */
   private isBatchEmpty(
     upserts: Map<UpdateEntity, UpsertItem[]>,
-    deletes: BatchDeletes
+    deletes: BatchDeletes,
   ): boolean {
     for (const items of upserts.values()) {
       if (items.length > 0) return false;
     }
-    return deletes.sessions.length === 0
-      && deletes.turns.length === 0
-      && deletes.messages.length === 0
-      && deletes.rtcs.length === 0
-      && deletes._pendingDeleteServerIds.size === 0;
+    return (
+      deletes.sessions.length === 0 &&
+      deletes.turns.length === 0 &&
+      deletes.messages.length === 0 &&
+      deletes.rtcs.length === 0 &&
+      deletes._pendingDeleteServerIds.size === 0
+    );
   }
 
   /**
@@ -947,13 +1138,21 @@ export class EntityRepository {
   private pushDelete(
     deletes: BatchDeletes,
     entity: UpdateEntity,
-    clientId: string
+    clientId: string,
   ): void {
     switch (entity) {
-      case 'session': deletes.sessions.push(clientId); break;
-      case 'turn':    deletes.turns.push(clientId); break;
-      case 'message': deletes.messages.push(clientId); break;
-      case 'rtc':     deletes.rtcs.push(clientId); break;
+      case 'session':
+        deletes.sessions.push(clientId);
+        break;
+      case 'turn':
+        deletes.turns.push(clientId);
+        break;
+      case 'message':
+        deletes.messages.push(clientId);
+        break;
+      case 'rtc':
+        deletes.rtcs.push(clientId);
+        break;
       default:
         log.info(`Unsupported entity type for batch delete: ${entity}`);
     }
@@ -968,7 +1167,7 @@ export class EntityRepository {
    * Much more efficient than full table scan.
    */
   private async loadRequiredSessionMap(
-    upserts: Map<UpdateEntity, UpsertItem[]>
+    upserts: Map<UpdateEntity, UpsertItem[]>,
   ): Promise<Map<string, LocalSession>> {
     const db = getDatabase();
 
@@ -1004,7 +1203,7 @@ export class EntityRepository {
     }
 
     // 3. Batch query DB for remaining sessions not in current batch
-    const missingIds = [...sessionServerIds].filter(id => !map.has(id));
+    const missingIds = [...sessionServerIds].filter((id) => !map.has(id));
     if (missingIds.length > 0) {
       const sessions = await db.sessions
         .where('server_id')
@@ -1028,11 +1227,13 @@ export class EntityRepository {
    */
   private resolveSessionClientId(
     serverId: string,
-    sessionMap: Map<string, LocalSession>
+    sessionMap: Map<string, LocalSession>,
   ): string {
     const session = sessionMap.get(serverId);
     if (!session) {
-      log.warn(`Session ${serverId} not found in map, using server_id as client_id`);
+      log.warn(
+        `Session ${serverId} not found in map, using server_id as client_id`,
+      );
       return serverId;
     }
     return session.client_id;
@@ -1046,7 +1247,7 @@ export class EntityRepository {
    */
   private prepareEntitiesForBatch(
     upserts: Map<UpdateEntity, UpsertItem[]>,
-    sessionMap: Map<string, LocalSession>
+    sessionMap: Map<string, LocalSession>,
   ): BatchEntities {
     const result: BatchEntities = {
       sessions: [],
@@ -1058,12 +1259,15 @@ export class EntityRepository {
     const now = nowRFC3339();
 
     // Sessions
-    for (const { data } of (upserts.get('session') ?? [])) {
+    for (const { data } of upserts.get('session') ?? []) {
       const raw = data as Record<string, unknown>;
       const serverId = raw['id'] as string;
       const clientId = (raw['client_id'] as string) || serverId;
 
       // Fill defaults first, then override with incoming data
+      const { id: _id, ...rest } = raw as Partial<LocalSession> & {
+        id?: string;
+      };
       const mapped: Partial<LocalSession> = {
         owner_kind: '',
         owner_ref_id: '',
@@ -1073,29 +1277,34 @@ export class EntityRepository {
         pending_turn_count: 0,
         running_turn_count: 0,
         agent_prompt: '',
-        ...(raw as Partial<LocalSession>),
+        ...rest,
         // Force override incoming values
         server_id: serverId,
         client_id: clientId,
         sync_status: 'synced',
       };
-      delete (mapped as Record<string, unknown>)['id'];
       result.sessions.push(mapped);
     }
 
     // Turns
-    for (const { data } of (upserts.get('turn') ?? [])) {
+    for (const { data } of upserts.get('turn') ?? []) {
       const raw = data as Record<string, unknown>;
       const serverId = raw['id'] as string;
       const clientId = (raw['client_id'] as string) || serverId;
       const sessionId = raw['session_id'] as string | undefined;
 
+      // Use destructuring to remove protocol-layer fields
+      const {
+        id: _id,
+        session_id: _session_id,
+        ...rest
+      } = raw as Partial<LocalTurn> & { id?: string; session_id?: string };
       const mapped: Partial<LocalTurn> = {
         // Defaults
         session_client_id: '',
         status: 'pending',
         created_at: now,
-        ...(raw as Partial<LocalTurn>),
+        ...rest,
         // Force override
         server_id: serverId,
         client_id: clientId,
@@ -1104,21 +1313,33 @@ export class EntityRepository {
 
       // Field mapping: session_id → session_client_id
       if (sessionId) {
-        mapped.session_client_id = this.resolveSessionClientId(sessionId, sessionMap);
+        mapped.session_client_id = this.resolveSessionClientId(
+          sessionId,
+          sessionMap,
+        );
       }
-      delete (mapped as Record<string, unknown>)['id'];
-      delete (mapped as Record<string, unknown>)['session_id'];
       result.turns.push(mapped);
     }
 
     // Messages
-    for (const { data } of (upserts.get('message') ?? [])) {
+    for (const { data } of upserts.get('message') ?? []) {
       const raw = data as Record<string, unknown>;
       const serverId = raw['id'] as string;
       const clientId = (raw['client_id'] as string) || serverId;
       const sessionId = raw['session_id'] as string | undefined;
       const parentMsgId = raw['parent_message_id'] as string | undefined;
 
+      // Use destructuring to remove protocol-layer fields
+      const {
+        id: _id,
+        session_id: _session_id,
+        parent_message_id: _parent_message_id,
+        ...rest
+      } = raw as Partial<LocalMessage> & {
+        id?: string;
+        session_id?: string;
+        parent_message_id?: string;
+      };
       const mapped: MessageWithPendingParent = {
         // Defaults
         session_client_id: '',
@@ -1132,7 +1353,7 @@ export class EntityRepository {
         global_offset: 0,
         created_at: now,
         updated_at: now,
-        ...(raw as Partial<LocalMessage>),
+        ...rest,
         // Force override
         server_id: serverId,
         client_id: clientId,
@@ -1141,22 +1362,22 @@ export class EntityRepository {
 
       // Field mapping: session_id → session_client_id
       if (sessionId) {
-        mapped.session_client_id = this.resolveSessionClientId(sessionId, sessionMap);
+        mapped.session_client_id = this.resolveSessionClientId(
+          sessionId,
+          sessionMap,
+        );
       }
-      delete (mapped as Record<string, unknown>)['id'];
-      delete (mapped as Record<string, unknown>)['session_id'];
 
       // Field mapping: parent_message_id → parent_client_id
       // Store as _pending_parent_server_id temporarily, resolve later in resolveParentMessageIds
       if (parentMsgId) {
         mapped._pending_parent_server_id = parentMsgId;
       }
-      delete (mapped as Record<string, unknown>)['parent_message_id'];
       result.messages.push(mapped);
     }
 
     // Rtcs
-    for (const { data } of (upserts.get('rtc') ?? [])) {
+    for (const { data } of upserts.get('rtc') ?? []) {
       const raw = data as Record<string, unknown>;
       const serverId = raw['id'] as string;
       const clientId = (raw['client_id'] as string) || serverId;
@@ -1175,6 +1396,12 @@ export class EntityRepository {
         }
       }
 
+      // Use destructuring to remove protocol-layer fields
+      const {
+        id: _id,
+        session_id: _session_id,
+        ...rest
+      } = raw as Partial<LocalRtc> & { id?: string; session_id?: string };
       const mapped: Partial<LocalRtc> = {
         // Defaults
         session_client_id: '',
@@ -1188,7 +1415,7 @@ export class EntityRepository {
         completed_at: undefined,
         created_at: now,
         updated_at: now,
-        ...(raw as Partial<LocalRtc>),
+        ...rest,
         // Force override
         server_id: serverId,
         client_id: clientId,
@@ -1200,8 +1427,6 @@ export class EntityRepository {
       if (sessionClientId) {
         mapped.session_client_id = sessionClientId;
       }
-      delete (mapped as Record<string, unknown>)['id'];
-      delete (mapped as Record<string, unknown>)['session_id'];
       result.rtcs.push(mapped);
     }
 
@@ -1215,7 +1440,7 @@ export class EntityRepository {
    * Modifies messages in-place, setting parent_client_id and removing _pending_parent_server_id.
    */
   private async resolveParentMessageIds(
-    messages: MessageWithPendingParent[]
+    messages: MessageWithPendingParent[],
   ): Promise<void> {
     if (messages.length === 0) return;
 
@@ -1241,7 +1466,7 @@ export class EntityRepository {
 
     // Find unresolved server_ids, need to query DB
     const unresolvedServerIds = [...parentServerIds].filter(
-      id => !batchServerToClient.has(id)
+      (id) => !batchServerToClient.has(id),
     );
 
     // Batch query messages table (by server_id index)
@@ -1266,7 +1491,9 @@ export class EntityRepository {
         if (parentClientId) {
           msg.parent_client_id = parentClientId;
         } else {
-          log.warn(`[applyUpdates:message] parent message ${pendingId} not found in DB or current batch`);
+          log.warn(
+            `[applyUpdates:message] parent message ${pendingId} not found in DB or current batch`,
+          );
         }
         delete msg._pending_parent_server_id;
       }
@@ -1281,7 +1508,7 @@ export class EntityRepository {
    */
   private async resolveDeleteClientIds(
     deletes: BatchDeletes,
-    sessionMap: Map<string, any>
+    sessionMap: Map<string, LocalSession>,
   ): Promise<void> {
     if (deletes._pendingDeleteServerIds.size === 0) return;
 
@@ -1302,27 +1529,38 @@ export class EntityRepository {
             }
           }
           // Query DB for missing ones
-          const missing = serverIds.filter(sid => !sessionMap.has(sid));
+          const missing = serverIds.filter((sid) => !sessionMap.has(sid));
           if (missing.length > 0) {
             const sessions = await db.sessions
-              .where('server_id').anyOf(missing).toArray();
-            clientIds.push(...sessions.map(s => s.client_id));
+              .where('server_id')
+              .anyOf(missing)
+              .toArray();
+            clientIds.push(...sessions.map((s) => s.client_id));
           }
           break;
         }
         case 'turn': {
-          const turns = await db.turns.where('server_id').anyOf(serverIds).toArray();
-          clientIds = turns.map(t => t.client_id);
+          const turns = await db.turns
+            .where('server_id')
+            .anyOf(serverIds)
+            .toArray();
+          clientIds = turns.map((t) => t.client_id);
           break;
         }
         case 'message': {
-          const msgs = await db.messages.where('server_id').anyOf(serverIds).toArray();
-          clientIds = msgs.map(m => m.client_id);
+          const msgs = await db.messages
+            .where('server_id')
+            .anyOf(serverIds)
+            .toArray();
+          clientIds = msgs.map((m) => m.client_id);
           break;
         }
         case 'rtc': {
-          const rtcs = await db.rtcs.where('server_id').anyOf(serverIds).toArray();
-          clientIds = rtcs.map(r => r.client_id);
+          const rtcs = await db.rtcs
+            .where('server_id')
+            .anyOf(serverIds)
+            .toArray();
+          clientIds = rtcs.map((r) => r.client_id);
           break;
         }
       }
@@ -1336,7 +1574,7 @@ export class EntityRepository {
       if (clientIds.length < serverIds.length) {
         log.warn(
           `[applyUpdates:delete] ${entity}: ${serverIds.length - clientIds.length}/${serverIds.length} ` +
-          `server_ids could not be resolved to client_ids (records not found in local DB, will be silently skipped)`
+            `server_ids could not be resolved to client_ids (records not found in local DB, will be silently skipped)`,
         );
       }
     }
@@ -1352,18 +1590,24 @@ export class EntityRepository {
    */
   private getTablesToLock(
     upserts: Map<UpdateEntity, UpsertItem[]>,
-    deletes: BatchDeletes
-  ): Table<any, any>[] {
+    deletes: BatchDeletes,
+  ): Table[] {
     const db = getDatabase();
-    const tables: Table<any, any>[] = [];
+    const tables: Table[] = [];
 
-    if ((upserts.get('session')?.length ?? 0) > 0 || deletes.sessions.length > 0) {
+    if (
+      (upserts.get('session')?.length ?? 0) > 0 ||
+      deletes.sessions.length > 0
+    ) {
       tables.push(db.sessions);
     }
     if ((upserts.get('turn')?.length ?? 0) > 0 || deletes.turns.length > 0) {
       tables.push(db.turns);
     }
-    if ((upserts.get('message')?.length ?? 0) > 0 || deletes.messages.length > 0) {
+    if (
+      (upserts.get('message')?.length ?? 0) > 0 ||
+      deletes.messages.length > 0
+    ) {
       tables.push(db.messages);
     }
     if ((upserts.get('rtc')?.length ?? 0) > 0 || deletes.rtcs.length > 0) {
@@ -1383,35 +1627,44 @@ export class EntityRepository {
    * read-modify-write atomicity.
    */
   private async bulkGetExisting(
-    prepared: BatchEntities
+    prepared: BatchEntities,
   ): Promise<ExistingData> {
     const db = getDatabase();
 
     // Build client_id arrays (for bulkGet by primary key)
-    const sessionIds = prepared.sessions.map(s => s.client_id!).filter(Boolean);
-    const turnIds = prepared.turns.map(t => t.client_id!).filter(Boolean);
-    const msgIds = prepared.messages.map(m => m.client_id!).filter(Boolean);
-    const rtcIds = prepared.rtcs.map(r => r.client_id!).filter(Boolean);
+    const sessionIds = prepared.sessions
+      .map((s) => s.client_id!)
+      .filter(Boolean);
+    const turnIds = prepared.turns.map((t) => t.client_id!).filter(Boolean);
+    const msgIds = prepared.messages.map((m) => m.client_id!).filter(Boolean);
+    const rtcIds = prepared.rtcs.map((r) => r.client_id!).filter(Boolean);
 
     // Parallel bulkGet (parallel within transaction doesn't affect atomicity)
-    const [existingSessions, existingTurns, existingMsgs, existingRtcs] = await Promise.all([
-      sessionIds.length > 0 ? db.sessions.bulkGet(sessionIds) : [],
-      turnIds.length > 0 ? db.turns.bulkGet(turnIds) : [],
-      msgIds.length > 0 ? db.messages.bulkGet(msgIds) : [],
-      rtcIds.length > 0 ? db.rtcs.bulkGet(rtcIds) : [],
-    ]);
+    const [existingSessions, existingTurns, existingMsgs, existingRtcs] =
+      await Promise.all([
+        sessionIds.length > 0 ? db.sessions.bulkGet(sessionIds) : [],
+        turnIds.length > 0 ? db.turns.bulkGet(turnIds) : [],
+        msgIds.length > 0 ? db.messages.bulkGet(msgIds) : [],
+        rtcIds.length > 0 ? db.rtcs.bulkGet(rtcIds) : [],
+      ]);
 
     // Build Maps for easy merge lookup
     const toMap = <T extends { client_id: string }>(
-      ids: string[], records: (T | undefined)[]
+      ids: string[],
+      records: (T | undefined)[],
     ): Map<string, T> => {
       const map = new Map<string, T>();
-      records.forEach((r, i) => { if (r) map.set(ids[i], r); });
+      records.forEach((r, i) => {
+        if (r) map.set(ids[i], r);
+      });
       return map;
     };
 
     return {
-      sessions: toMap(sessionIds, existingSessions as (LocalSession | undefined)[]),
+      sessions: toMap(
+        sessionIds,
+        existingSessions as (LocalSession | undefined)[],
+      ),
       turns: toMap(turnIds, existingTurns as (LocalTurn | undefined)[]),
       messages: toMap(msgIds, existingMsgs as (LocalMessage | undefined)[]),
       rtcs: toMap(rtcIds, existingRtcs as (LocalRtc | undefined)[]),
@@ -1424,20 +1677,20 @@ export class EntityRepository {
    * Must be called after bulkGet but before merge.
    */
   private collectBeforeSnapshots(
-    before: Map<string, any>,
-    existing: ExistingData
+    before: Map<string, EntityRecord>,
+    existing: ExistingData,
   ): void {
     for (const [clientId, session] of existing.sessions) {
-      before.set(`session:${clientId}`, session);
+      before.set(`session:${clientId}`, session as unknown as EntityRecord);
     }
     for (const [clientId, turn] of existing.turns) {
-      before.set(`turn:${clientId}`, turn);
+      before.set(`turn:${clientId}`, turn as unknown as EntityRecord);
     }
     for (const [clientId, msg] of existing.messages) {
-      before.set(`message:${clientId}`, msg);
+      before.set(`message:${clientId}`, msg as unknown as EntityRecord);
     }
     for (const [clientId, rtc] of existing.rtcs) {
-      before.set(`rtc:${clientId}`, rtc);
+      before.set(`rtc:${clientId}`, rtc as unknown as EntityRecord);
     }
   }
 
@@ -1449,12 +1702,13 @@ export class EntityRepository {
    */
   private mergeWithExisting(
     prepared: BatchEntities,
-    existing: ExistingData
+    existing: ExistingData,
   ): BatchEntities {
     const merge = <T extends { client_id?: string }>(
-      items: T[], existingMap: Map<string, T>
+      items: T[],
+      existingMap: Map<string, T>,
     ): T[] => {
-      return items.map(item => {
+      return items.map((item) => {
         const cid = item.client_id!;
         const prev = existingMap.get(cid);
         if (prev) {
@@ -1469,22 +1723,27 @@ export class EntityRepository {
     // Message-specific merge with streaming status monotonic guard (Issue 236)
     const mergeMessages = (
       items: Partial<LocalMessage>[],
-      existingMap: Map<string, Partial<LocalMessage>>
+      existingMap: Map<string, Partial<LocalMessage>>,
     ): Partial<LocalMessage>[] => {
-      return items.map(item => {
+      return items.map((item) => {
         const cid = item.client_id!;
         const prev = existingMap.get(cid);
         if (prev) {
           // Skip if applying this update would cause a streaming status regression
-          if (isStreamingStatusRegression(
+          if (
+            isStreamingStatusRegression(
               prev.streaming_status,
-              item.streaming_status
-          )) {
+              item.streaming_status,
+            )
+          ) {
             log.debug(
               'mergeMessages: skip streaming regression',
-              'client_id:', cid,
-              'existing:', prev.streaming_status,
-              'incoming:', item.streaming_status
+              'client_id:',
+              cid,
+              'existing:',
+              prev.streaming_status,
+              'incoming:',
+              item.streaming_status,
             );
             return prev; // Keep existing record unchanged
           }
@@ -1509,7 +1768,7 @@ export class EntityRepository {
    * Re-reads sessions from DB (not using stale sessionMap) to ensure sync_status etc. are correct.
    */
   private async writebackTurnCountsInTx(
-    turns: Partial<LocalTurn>[]
+    turns: Partial<LocalTurn>[],
   ): Promise<void> {
     if (turns.length === 0) return;
 
@@ -1531,22 +1790,31 @@ export class EntityRepository {
     // when concurrent writebackTurnCountsInTx calls interleave on the same session.
     // Dexie's transaction isolation ensures that count + update happen atomically.
     const updatePromises = sessionIds.map(async (sessionId) => {
-      await db.transaction('rw', db.sessions, db.turns, db.ui_updates, async () => {
-        // Re-count within transaction to see the latest turns (including those just written)
-        const { pending, running } = await this.countActiveTurns(sessionId);
+      await db.transaction(
+        'rw',
+        db.sessions,
+        db.turns,
+        db.ui_updates,
+        async () => {
+          // Re-count within transaction to see the latest turns (including those just written)
+          const { pending, running } = await this.countActiveTurns(sessionId);
 
-        // Read current session to check if counts actually changed
-        const session = await db.sessions.get(sessionId);
-        if (!session) return; // session doesn't exist (may have been deleted), skip
+          // Read current session to check if counts actually changed
+          const session = await db.sessions.get(sessionId);
+          if (!session) return; // session doesn't exist (may have been deleted), skip
 
-        // Only update when count actually changed (reduce unnecessary writes)
-        if (session.pending_turn_count !== pending || session.running_turn_count !== running) {
-          await db.sessions.update(sessionId, {
-            pending_turn_count: pending,
-            running_turn_count: running,
-          });
-        }
-      });
+          // Only update when count actually changed (reduce unnecessary writes)
+          if (
+            session.pending_turn_count !== pending ||
+            session.running_turn_count !== running
+          ) {
+            await db.sessions.update(sessionId, {
+              pending_turn_count: pending,
+              running_turn_count: running,
+            });
+          }
+        },
+      );
     });
 
     await Promise.all(updatePromises);
@@ -1559,14 +1827,23 @@ export class EntityRepository {
    * Before snapshots collected within transaction via collectBeforeSnapshots.
    */
   private async emitBatchUIUpdates(
-    before: Map<string, any>,
+    before: Map<string, EntityRecord>,
     merged: BatchEntities,
-    deletes: BatchDeletes
+    deletes: BatchDeletes,
   ): Promise<void> {
     const entityTypes = ['sessions', 'turns', 'messages', 'rtcs'] as const;
     const typeNames = ['session', 'turn', 'message', 'rtc'] as const;
 
-    log.debug('[EntityRepository] emitBatchUIUpdates: sessions:', merged.sessions.length, 'turns:', merged.turns.length, 'messages:', merged.messages.length, 'rtcs:', merged.rtcs.length);
+    log.debug(
+      '[EntityRepository] emitBatchUIUpdates: sessions:',
+      merged.sessions.length,
+      'turns:',
+      merged.turns.length,
+      'messages:',
+      merged.messages.length,
+      'rtcs:',
+      merged.rtcs.length,
+    );
 
     // 1. Emit upsert UI updates
     for (let idx = 0; idx < entityTypes.length; idx++) {
@@ -1574,19 +1851,30 @@ export class EntityRepository {
       const typeName = typeNames[idx];
 
       for (const record of entities) {
-        const clientId = (record as any).client_id;
+        const recordObj = record as unknown as EntityRecord;
+        const clientId = extractClientId(recordObj);
         const key = `${typeName}:${clientId}`;
         const oldRecord = before.get(key);
         const action = oldRecord ? 'updated' : 'created';
         if (typeName === 'turn') {
-          log.debug('[EntityRepository] Emitting batch turn UI update:', action, clientId, 'session:', (record as any).session_client_id);
+          const sessionClientId = extractStringField(
+            recordObj,
+            'session_client_id',
+          );
+          log.debug(
+            '[EntityRepository] Emitting batch turn UI update:',
+            action,
+            clientId,
+            'session:',
+            sessionClientId,
+          );
         }
         await emitUIUpdates(
           typeName,
           action,
           clientId,
           oldRecord as object | undefined,
-          record as object
+          recordObj as object,
         );
       }
     }
@@ -1604,7 +1892,7 @@ export class EntityRepository {
           'deleted',
           clientId,
           oldRecord as Record<string, unknown> | undefined,
-          {} as Record<string, unknown>
+          {} as Record<string, unknown>,
         );
       }
     }
@@ -1616,12 +1904,18 @@ export class EntityRepository {
    * Returns the client_id if found, or falls back to the original server_id
    * (with a warning) if the session is not yet in the local database.
    */
-  private async _resolveSessionClientId(serverSessionId: string, entityType: string, entityId: string): Promise<string> {
+  private async _resolveSessionClientId(
+    serverSessionId: string,
+    entityType: string,
+    entityId: string,
+  ): Promise<string> {
     const session = await this.getSessionByServerId(serverSessionId);
     if (session) {
       return session.client_id;
     }
-    log.warn(`${entityType} ${entityId} references unknown session ${serverSessionId}`);
+    log.warn(
+      `${entityType} ${entityId} references unknown session ${serverSessionId}`,
+    );
     return serverSessionId;
   }
 
@@ -1634,33 +1928,54 @@ export class EntityRepository {
     }
   }
 
-  private async applyUpdateItem(item: UpdateItem, data: unknown): Promise<void> {
+  private async applyUpdateItem(
+    item: UpdateItem,
+    data: unknown,
+  ): Promise<void> {
     switch (item.entity) {
       case 'session': {
-        const raw = data as Session;
+        if (!isValidSession(data)) {
+          log.warn('[applyUpdateItem:session] Invalid session data, skipping');
+          return;
+        }
+        const raw = data;
+        // Use destructuring to remove protocol-layer id field
+        const { id: _id, ...rest } = raw as {
+          id?: string;
+        } & Partial<LocalSession>;
         const mapped: Partial<LocalSession> = {
-          ...raw,
+          ...rest,
           server_id: raw.id,
           client_id: raw.client_id || raw.id,
         };
-        // Remove protocol-layer id field (Local types do not have id)
-        delete (mapped as Record<string, unknown>)['id'];
 
         await this.upsertSession(mapped, 'synced');
         break;
       }
       case 'turn': {
-        const raw = data as Turn;
+        if (!isValidTurn(data)) {
+          log.warn('[applyUpdateItem:turn] Invalid turn data, skipping');
+          return;
+        }
+        const raw = data;
+        // Use destructuring to remove protocol-layer fields
+        const {
+          id: _id,
+          session_id: _session_id,
+          ...rest
+        } = raw as { id?: string; session_id?: string } & Partial<LocalTurn>;
         const mapped: Partial<LocalTurn> = {
-          ...raw,
+          ...rest,
           server_id: raw.id,
           client_id: raw.client_id || raw.id,
         } as Partial<LocalTurn>;
-        delete (mapped as Record<string, unknown>)['id'];
         if (raw.session_id) {
-          mapped.session_client_id = await this._resolveSessionClientId(raw.session_id, 'Turn', raw.client_id || raw.id);
+          mapped.session_client_id = await this._resolveSessionClientId(
+            raw.session_id,
+            'Turn',
+            raw.client_id || raw.id,
+          );
         }
-        delete (mapped as Record<string, unknown>)['session_id'];
         await this.upsertTurn(mapped, 'synced');
 
         // Write-time aggregation: write pending/running turn counts back to the session row.
@@ -1668,7 +1983,8 @@ export class EntityRepository {
         // both an extra DB query and a sync_status overwrite race.
         const sessionClientId = mapped.session_client_id;
         if (sessionClientId) {
-          const { pending, running } = await this.countActiveTurns(sessionClientId);
+          const { pending, running } =
+            await this.countActiveTurns(sessionClientId);
           await this.upsertSession(
             {
               client_id: sessionClientId,
@@ -1679,45 +1995,75 @@ export class EntityRepository {
             {
               silent: true, // We'll emit turn count events manually below
               preserveSyncStatus: true, // don't overwrite sync_status with stale value
-            }
+            },
           );
 
           // After turn count is persisted, emit session field events so UI layer
           // can refresh turn counts with the latest values (avoids stale reads).
-          await emitUIUpdates('session', 'updated', sessionClientId, {}, {
-            pending_turn_count: pending,
-            running_turn_count: running,
-          });
+          await emitUIUpdates(
+            'session',
+            'updated',
+            sessionClientId,
+            {},
+            {
+              pending_turn_count: pending,
+              running_turn_count: running,
+            },
+          );
         }
         break;
       }
       case 'message': {
-        const raw = data as Message;
+        if (!isValidMessage(data)) {
+          log.warn('[applyUpdateItem:message] Invalid message data, skipping');
+          return;
+        }
+        const raw = data;
+        // Use destructuring to remove protocol-layer fields
+        const {
+          id: _id,
+          session_id: _session_id,
+          parent_message_id: _parent_message_id,
+          ...rest
+        } = raw as {
+          id?: string;
+          session_id?: string;
+          parent_message_id?: string;
+        } & Partial<LocalMessage>;
         const mapped: Partial<LocalMessage> = {
-          ...raw,
+          ...rest,
           server_id: raw.id,
           client_id: raw.client_id || raw.id,
         } as Partial<LocalMessage>;
-        delete (mapped as Record<string, unknown>)['id'];
         if (raw.session_id) {
-          mapped.session_client_id = await this._resolveSessionClientId(raw.session_id, 'Message', raw.client_id || raw.id);
+          mapped.session_client_id = await this._resolveSessionClientId(
+            raw.session_id,
+            'Message',
+            raw.client_id || raw.id,
+          );
         }
-        delete (mapped as Record<string, unknown>)['session_id'];
         // parent_message_id -> parent_client_id: resolve parent message's client_id
         if (raw.parent_message_id) {
-          const parentMsg = await this.getMessageByServerId(raw.parent_message_id);
+          const parentMsg = await this.getMessageByServerId(
+            raw.parent_message_id,
+          );
           if (parentMsg) {
             mapped.parent_client_id = parentMsg.client_id;
           } else {
-            log.warn(`[applyUpdateItem:message] Message ${raw.client_id || raw.id} references unknown parent ${raw.parent_message_id}`);
+            log.warn(
+              `[applyUpdateItem:message] Message ${raw.client_id || raw.id} references unknown parent ${raw.parent_message_id}`,
+            );
           }
         }
-        delete (mapped as Record<string, unknown>)['parent_message_id'];
         await this.upsertMessage(mapped, 'synced');
         break;
       }
       case 'rtc': {
-        const raw = data as Rtc;
+        if (!isValidRtc(data)) {
+          log.warn('[applyUpdateItem:rtc] Invalid RTC data, skipping');
+          return;
+        }
+        const raw = data;
         // session_id -> session_client_id: resolve session's client_id
         // Also extract session.device_id for redundant storage (used in execution-time filtering)
         let sessionClientId: string | undefined;
@@ -1729,20 +2075,26 @@ export class EntityRepository {
             sessionDeviceId = session.device_id;
           } else {
             // Lenient mode: session not found, still write RTC but log warning
-            log.warn(`RTC ${raw.client_id || raw.id} references unknown session ${raw.session_id}`);
+            log.warn(
+              `RTC ${raw.client_id || raw.id} references unknown session ${raw.session_id}`,
+            );
             sessionClientId = raw.session_id;
           }
         }
 
+        // Use destructuring to remove protocol-layer fields
+        const {
+          id: _id,
+          session_id: _session_id,
+          ...rest
+        } = raw as { id?: string; session_id?: string } & Partial<LocalRtc>;
         const mapped: Partial<LocalRtc> = {
-          ...raw,
+          ...rest,
           server_id: raw.id,
           client_id: raw.client_id || raw.id,
           session_client_id: sessionClientId || '',
           session_device_id: sessionDeviceId,
         } as Partial<LocalRtc>;
-        delete (mapped as Record<string, unknown>)['id'];
-        delete (mapped as Record<string, unknown>)['session_id'];
         // When RTC is pushed from the server, data is already synced, but the client must
         // execute it and report results. sync_status represents "whether the execution result
         // has been reported"; it should start as 'pending'.
@@ -1777,7 +2129,9 @@ export function initEntityRepository(deviceId: string): void {
  */
 export function getEntityRepository(): EntityRepository {
   if (!entityRepositoryInstance) {
-    throw new Error('[EntityRepository] Not initialized - call initEntityRepository(deviceId) first');
+    throw new Error(
+      '[EntityRepository] Not initialized - call initEntityRepository(deviceId) first',
+    );
   }
   return entityRepositoryInstance;
 }

@@ -1,7 +1,7 @@
 // File Cache Repository — IndexedDB file cache management
 
 import { getDatabase, type FileCacheEntry } from './database.js';
-import { createLogger } from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
 import SparkMD5 from 'spark-md5';
 import { LifecycleGuard, LifecycleClosedError } from './lifecycle-guard.js';
 import { ResourceScope } from './resource-scope.js';
@@ -42,7 +42,7 @@ export interface CachedFileInfo {
  */
 export interface CacheStats {
   totalFiles: number;
-  totalSize: number;  // bytes
+  totalSize: number; // bytes
   byStatus: {
     pending: { count: number; size: number };
     syncing: { count: number; size: number };
@@ -99,9 +99,9 @@ export class FileCacheRepository {
     ext: string,
     data: Blob,
     contentType: string,
-    ttlMs: number = DEFAULT_TTL_MS
+    ttlMs: number = DEFAULT_TTL_MS,
   ): Promise<void> {
-    this._lifecycleGuard.assertActive();  // P1-A: guard check
+    this._lifecycleGuard.assertActive(); // P1-A: guard check
     const db = getDatabase();
     const now = Date.now();
     const entry: FileCacheEntry = {
@@ -131,7 +131,7 @@ export class FileCacheRepository {
    * @param ext File extension
    */
   async get(md5: string, ext: string): Promise<CachedFileInfo | null> {
-    this._lifecycleGuard.assertActive();  // P1-A: guard check
+    this._lifecycleGuard.assertActive(); // P1-A: guard check
     const db = getDatabase();
     const entry = await db.fileCache.get([md5, ext]);
 
@@ -157,7 +157,7 @@ export class FileCacheRepository {
       syncedAt: entry.syncedAt,
       errorMessage: entry.errorMessage,
       retryCount: entry.retryCount,
-      filename: entry.filename,  // P3-004 fix: include filename from cache
+      filename: entry.filename, // P3-004 fix: include filename from cache
     };
   }
 
@@ -170,7 +170,7 @@ export class FileCacheRepository {
    * @returns Number of entries evicted
    */
   async evictExpired(): Promise<number> {
-    this._lifecycleGuard.assertActive();  // P1-A: guard check
+    this._lifecycleGuard.assertActive(); // P1-A: guard check
     const db = getDatabase();
     const now = Date.now();
 
@@ -179,7 +179,7 @@ export class FileCacheRepository {
     const expired = await db.fileCache
       .where('expiresAt')
       .below(now)
-      .filter(entry => entry.syncStatus === 'synced')
+      .filter((entry) => entry.syncStatus === 'synced')
       .toArray();
 
     if (expired.length === 0) {
@@ -187,7 +187,7 @@ export class FileCacheRepository {
     }
 
     // Delete expired synced entries
-    const keys = expired.map(e => [e.md5, e.ext] as [string, string]);
+    const keys = expired.map((e) => [e.md5, e.ext] as [string, string]);
     await db.fileCache.bulkDelete(keys);
 
     log.info(`evicted ${expired.length} expired synced cache entries`);
@@ -201,7 +201,7 @@ export class FileCacheRepository {
    * @param ext File extension
    */
   async delete(md5: string, ext: string): Promise<void> {
-    this._lifecycleGuard.assertActive();  // P1-A: guard check
+    this._lifecycleGuard.assertActive(); // P1-A: guard check
     const db = getDatabase();
     await db.fileCache.delete([md5, ext]);
     log.info(`deleted file cache entry: ${md5}.${ext}`);
@@ -211,7 +211,7 @@ export class FileCacheRepository {
    * Clear all cached files.
    */
   async clear(): Promise<void> {
-    this._lifecycleGuard.assertActive();  // P1-A: guard check
+    this._lifecycleGuard.assertActive(); // P1-A: guard check
     const db = getDatabase();
     await db.fileCache.clear();
     log.info('cleared all file cache');
@@ -230,7 +230,7 @@ export class FileCacheRepository {
   async downloadWithDedup(
     md5: string,
     ext: string,
-    downloadFn: () => Promise<Blob>
+    downloadFn: () => Promise<Blob>,
   ): Promise<Blob> {
     const key = `${md5}.${ext}`;
 
@@ -259,7 +259,7 @@ export class FileCacheRepository {
    * @returns Promise resolving to 32-character hex MD5 hash
    */
   async calculateMD5(blob: Blob): Promise<string> {
-    this._lifecycleGuard.assertActive();  // P1-A: guard check
+    this._lifecycleGuard.assertActive(); // P1-A: guard check
     const buffer = await blob.arrayBuffer();
     return SparkMD5.ArrayBuffer.hash(buffer);
   }
@@ -287,9 +287,9 @@ export class FileCacheRepository {
     contentType: string,
     syncStatus: 'pending' | 'syncing' | 'synced' | 'failed',
     filename?: string,
-    ttlMs: number = DEFAULT_TTL_MS
+    ttlMs: number = DEFAULT_TTL_MS,
   ): Promise<void> {
-    this._lifecycleGuard.assertActive();  // P1-A: guard check
+    this._lifecycleGuard.assertActive(); // P1-A: guard check
     const db = getDatabase();
     const now = Date.now();
 
@@ -308,7 +308,9 @@ export class FileCacheRepository {
     };
 
     await db.fileCache.put(entry);
-    log.debug(`cached file with sync status: ${md5}.${ext}, status=${syncStatus}, filename=${filename ?? 'n/a'}`);
+    log.debug(
+      `cached file with sync status: ${md5}.${ext}, status=${syncStatus}, filename=${filename ?? 'n/a'}`,
+    );
   }
 
   /**
@@ -327,25 +329,28 @@ export class FileCacheRepository {
     md5: string,
     ext: string,
     status: 'pending' | 'syncing' | 'synced' | 'failed',
-    errorMessage?: string
+    errorMessage?: string,
   ): Promise<void> {
-    this._lifecycleGuard.assertActive();  // P1-A: guard check
+    this._lifecycleGuard.assertActive(); // P1-A: guard check
     const db = getDatabase();
     const key = [md5, ext];
 
     let found = false;
-    await db.fileCache.where('[md5+ext]').equals(key).modify(entry => {
-      found = true;
-      entry.syncStatus = status;
+    await db.fileCache
+      .where('[md5+ext]')
+      .equals(key)
+      .modify((entry) => {
+        found = true;
+        entry.syncStatus = status;
 
-      if (status === 'synced') {
-        entry.syncedAt = Date.now();
-        entry.errorMessage = undefined;
-      } else if (status === 'failed') {
-        entry.errorMessage = errorMessage;
-        entry.retryCount = (entry.retryCount || 0) + 1;
-      }
-    });
+        if (status === 'synced') {
+          entry.syncedAt = Date.now();
+          entry.errorMessage = undefined;
+        } else if (status === 'failed') {
+          entry.errorMessage = errorMessage;
+          entry.retryCount = (entry.retryCount || 0) + 1;
+        }
+      });
 
     if (!found) {
       throw new Error(`File cache entry not found: ${md5}.${ext}`);
@@ -374,35 +379,40 @@ export class FileCacheRepository {
     ext: string,
     from: FileSyncStatus | FileSyncStatus[],
     to: FileSyncStatus,
-    metadata?: { errorMessage?: string; syncedAt?: number }
+    metadata?: { errorMessage?: string; syncedAt?: number },
   ): Promise<boolean> {
-    this._lifecycleGuard.assertActive();  // P1-A: guard check
+    this._lifecycleGuard.assertActive(); // P1-A: guard check
     const db = getDatabase();
     const fromSet = new Set(Array.isArray(from) ? from : [from]);
     const key = [md5, ext];
 
     let transitioned = false;
-    await db.fileCache.where('[md5+ext]').equals(key).modify(entry => {
-      if (!fromSet.has(entry.syncStatus as FileSyncStatus)) {
-        log.debug(
-          `transitionSyncStatus: skipped ${md5}.${ext}, ` +
-          `current=${entry.syncStatus}, expected one of [${[...fromSet].join(',')}], target=${to}`
-        );
-        return;
-      }
-      entry.syncStatus = to;
-      if (to === 'synced') {
-        entry.syncedAt = metadata?.syncedAt ?? Date.now();
-        entry.errorMessage = undefined;
-      } else if (to === 'failed') {
-        entry.errorMessage = metadata?.errorMessage;
-        entry.retryCount = (entry.retryCount || 0) + 1;
-      }
-      transitioned = true;
-    });
+    await db.fileCache
+      .where('[md5+ext]')
+      .equals(key)
+      .modify((entry) => {
+        if (!fromSet.has(entry.syncStatus as FileSyncStatus)) {
+          log.debug(
+            `transitionSyncStatus: skipped ${md5}.${ext}, ` +
+              `current=${entry.syncStatus}, expected one of [${[...fromSet].join(',')}], target=${to}`,
+          );
+          return;
+        }
+        entry.syncStatus = to;
+        if (to === 'synced') {
+          entry.syncedAt = metadata?.syncedAt ?? Date.now();
+          entry.errorMessage = undefined;
+        } else if (to === 'failed') {
+          entry.errorMessage = metadata?.errorMessage;
+          entry.retryCount = (entry.retryCount || 0) + 1;
+        }
+        transitioned = true;
+      });
 
     if (transitioned) {
-      log.debug(`transitionSyncStatus: ${md5}.${ext} -> ${to} (from [${[...fromSet].join(',')}])`);
+      log.debug(
+        `transitionSyncStatus: ${md5}.${ext} -> ${to} (from [${[...fromSet].join(',')}])`,
+      );
     }
     return transitioned;
   }
@@ -418,7 +428,7 @@ export class FileCacheRepository {
    * @returns Number of entries recovered
    */
   async recoverStaleSyncing(): Promise<number> {
-    this._lifecycleGuard.assertActive();  // P1-A: guard check
+    this._lifecycleGuard.assertActive(); // P1-A: guard check
     const db = getDatabase();
     const staleEntries = await db.fileCache
       .where('syncStatus')
@@ -430,12 +440,14 @@ export class FileCacheRepository {
       return 0;
     }
 
-    const keys = staleEntries.map(e => [e.md5, e.ext] as [string, string]);
+    const keys = staleEntries.map((e) => [e.md5, e.ext] as [string, string]);
     await db.fileCache.where('[md5+ext]').anyOf(keys).modify({
       syncStatus: 'pending',
     });
 
-    log.info(`recovered ${staleEntries.length} stale syncing entries -> pending`);
+    log.info(
+      `recovered ${staleEntries.length} stale syncing entries -> pending`,
+    );
     return staleEntries.length;
   }
 
@@ -467,7 +479,7 @@ export class FileCacheRepository {
     ext: string,
     fn: (signal: AbortSignal) => Promise<T>,
     timeoutMs: number = SYNC_LOCK_TIMEOUT_MS,
-    externalSignal?: AbortSignal
+    externalSignal?: AbortSignal,
   ): Promise<T> {
     const key = `${md5}.${ext}`;
     const prev = this._syncLocks.get(key) ?? Promise.resolve();
@@ -483,12 +495,14 @@ export class FileCacheRepository {
 
     const fnWithTimeout = (): Promise<T> => {
       return Promise.race([
-        fn(controller.signal),  // Pass signal to fn
+        fn(controller.signal), // Pass signal to fn
         new Promise<never>((_, reject) => {
           // P1-NEW-A: Use scope.setTimeout for automatic cleanup
           scope.setTimeout(() => {
-            const err = new Error(`withSyncLock timed out for ${key} after ${timeoutMs}ms`);
-            controller.abort(err);  // P1-B: abort underlying operation on timeout
+            const err = new Error(
+              `withSyncLock timed out for ${key} after ${timeoutMs}ms`,
+            );
+            controller.abort(err); // P1-B: abort underlying operation on timeout
             reject(err);
           }, timeoutMs);
           // If external signal aborts first, timer will be cleaned up by scope.dispose()
@@ -501,22 +515,27 @@ export class FileCacheRepository {
 
     const next = prev.then(
       () => fnWithTimeout(),
-      () => fnWithTimeout()
+      () => fnWithTimeout(),
     );
 
     // Store the chained promise (settled when fn completes or throws)
     const settled = next.then(
       (v) => v,
-      (e) => { throw e; }
+      (e) => {
+        throw e;
+      },
     );
-    this._syncLocks.set(key, settled.finally(() => {
-      // Clean up map entry when this is the last operation in the chain
-      if (this._syncLocks.get(key) === settled) {
-        this._syncLocks.delete(key);
-      }
-      // Clean up external signal listener
-      externalSignal?.removeEventListener('abort', onExternalAbort);
-    }));
+    this._syncLocks.set(
+      key,
+      settled.finally(() => {
+        // Clean up map entry when this is the last operation in the chain
+        if (this._syncLocks.get(key) === settled) {
+          this._syncLocks.delete(key);
+        }
+        // Clean up external signal listener
+        externalSignal?.removeEventListener('abort', onExternalAbort);
+      }),
+    );
 
     return next;
   }
@@ -534,7 +553,7 @@ export class FileCacheRepository {
   async syncWithDedup(
     md5: string,
     ext: string,
-    syncFn: () => Promise<void>
+    syncFn: () => Promise<void>,
   ): Promise<void> {
     const key = `${md5}.${ext}`;
     const existing = this.syncInFlight.get(key);
@@ -560,7 +579,7 @@ export class FileCacheRepository {
   async listBySyncStatus(
     syncStatus?: 'pending' | 'syncing' | 'synced' | 'failed',
     limit: number = 100,
-    offset: number = 0
+    offset: number = 0,
   ): Promise<FileCacheEntry[]> {
     const db = getDatabase();
     let collection = db.fileCache.toCollection();
@@ -578,7 +597,7 @@ export class FileCacheRepository {
    * @param syncStatus Filter by sync status (optional, counts all if omitted)
    */
   async countBySyncStatus(
-    syncStatus?: 'pending' | 'syncing' | 'synced' | 'failed'
+    syncStatus?: 'pending' | 'syncing' | 'synced' | 'failed',
   ): Promise<number> {
     const db = getDatabase();
     if (syncStatus) {
@@ -609,14 +628,16 @@ export class FileCacheRepository {
     };
 
     // P2-E: stream through entries one at a time, no full table load
-    await db.fileCache.toCollection().each(entry => {
+    await db.fileCache.toCollection().each((entry) => {
       const status = entry.syncStatus as FileSyncStatus;
       if (stats.byStatus[status]) {
         stats.byStatus[status].count++;
         stats.byStatus[status].size += entry.size ?? 0;
       } else {
         // P3-R6-01: Log unexpected syncStatus values (possible DB corruption)
-        log.warn(`getCacheStats: unexpected syncStatus "${status}" for ${entry.md5}.${entry.ext}`);
+        log.warn(
+          `getCacheStats: unexpected syncStatus "${status}" for ${entry.md5}.${entry.ext}`,
+        );
       }
       stats.totalFiles++;
       stats.totalSize += entry.size ?? 0;
@@ -642,19 +663,24 @@ export class FileCacheRepository {
     md5: string,
     ext: string,
     data: Blob,
-    contentType?: string
+    contentType?: string,
   ): Promise<void> {
     const db = getDatabase();
-    await db.fileCache.where('[md5+ext]').equals([md5, ext]).modify(entry => {
-      entry.data = data;
-      if (contentType !== undefined) {
-        entry.contentType = contentType;
-      }
-      entry.size = data.size;
-      entry.lastAccessedAt = Date.now();
-      // Note: createdAt, syncStatus, syncedAt, filename, retryCount, etc. are NOT modified
-    });
-    log.debug(`updated blob data: ${md5}.${ext}, size=${data.size}, contentType=${contentType ?? 'preserved'}`);
+    await db.fileCache
+      .where('[md5+ext]')
+      .equals([md5, ext])
+      .modify((entry) => {
+        entry.data = data;
+        if (contentType !== undefined) {
+          entry.contentType = contentType;
+        }
+        entry.size = data.size;
+        entry.lastAccessedAt = Date.now();
+        // Note: createdAt, syncStatus, syncedAt, filename, retryCount, etc. are NOT modified
+      });
+    log.debug(
+      `updated blob data: ${md5}.${ext}, size=${data.size}, contentType=${contentType ?? 'preserved'}`,
+    );
   }
 
   /**
@@ -667,14 +693,15 @@ export class FileCacheRepository {
   async updateMetadata(
     md5: string,
     ext: string,
-    updates: { filename?: string; contentType?: string }
+    updates: { filename?: string; contentType?: string },
   ): Promise<void> {
     const db = getDatabase();
     const entry = await db.fileCache.get([md5, ext]);
     if (!entry) throw new Error(`File cache entry not found: ${md5}.${ext}`);
     const partial: Partial<FileCacheEntry> = {};
     if (updates.filename !== undefined) partial.filename = updates.filename;
-    if (updates.contentType !== undefined) partial.contentType = updates.contentType;
+    if (updates.contentType !== undefined)
+      partial.contentType = updates.contentType;
     await db.fileCache.update([md5, ext], partial);
     log.debug(`updated metadata: ${md5}.${ext}`, updates);
   }
@@ -686,7 +713,11 @@ export class FileCacheRepository {
    * @param ext File extension
    * @param retryCount New retry count value
    */
-  async updateRetryCount(md5: string, ext: string, retryCount: number): Promise<void> {
+  async updateRetryCount(
+    md5: string,
+    ext: string,
+    retryCount: number,
+  ): Promise<void> {
     const db = getDatabase();
     await db.fileCache.update([md5, ext], { retryCount });
     log.debug(`updated retry count: ${md5}.${ext} -> ${retryCount}`);
@@ -705,10 +736,20 @@ export class FileCacheRepository {
    * P3-FIX: Entries with the same lastAccessedAt are processed atomically to prevent
    * cursor-based pagination from splitting or duplicating them across batches.
    *
+   * INDEX NOTE: The [syncStatus+lastAccessedAt] compound index (v15+) is defined but
+   * the current query pattern (where('lastAccessedAt').above().filter(syncStatus==='synced'))
+   * cannot directly leverage it. Dexie's compound index requires the 1st column to be the
+   * primary equality filter, while here lastAccessedAt is used for range and syncStatus for
+   * equality filter. Future optimization: rewrite as
+   * where('[syncStatus+lastAccessedAt]').between(['synced', lastProcessedTime], ['synced', Infinity])
+   * to fully utilize the compound index and eliminate the in-memory filter.
+   *
    * @param targetBytes Number of bytes to free
    * @returns Actual evicted count and bytes freed
    */
-  async evictLRU(targetBytes: number): Promise<{ evictedCount: number; evictedBytes: number }> {
+  async evictLRU(
+    targetBytes: number,
+  ): Promise<{ evictedCount: number; evictedBytes: number }> {
     const db = getDatabase();
     const BATCH_SIZE = 100;
     let evictedBytes = 0;
@@ -720,7 +761,7 @@ export class FileCacheRepository {
       const batch = await db.fileCache
         .where('lastAccessedAt')
         .above(lastProcessedTime)
-        .filter(e => e.syncStatus === 'synced')
+        .filter((e) => e.syncStatus === 'synced')
         .limit(BATCH_SIZE)
         .sortBy('lastAccessedAt');
 
@@ -731,15 +772,20 @@ export class FileCacheRepository {
       // sortBy('lastAccessedAt') doesn't guarantee order within the same timestamp,
       // so splitting could cause entries to be skipped or duplicated.
       const lastTime = batch[batch.length - 1].lastAccessedAt;
-      const firstTimeAtLastIndex = batch.findIndex(e => e.lastAccessedAt === lastTime);
+      const firstTimeAtLastIndex = batch.findIndex(
+        (e) => e.lastAccessedAt === lastTime,
+      );
 
       let entriesToConsider = batch;
-      if (firstTimeAtLastIndex >= 0 && firstTimeAtLastIndex < batch.length - 1) {
+      if (
+        firstTimeAtLastIndex >= 0 &&
+        firstTimeAtLastIndex < batch.length - 1
+      ) {
         // Same timestamp spans multiple positions — load all entries at this timestamp
         const allAtLastTime = await db.fileCache
           .where('lastAccessedAt')
           .equals(lastTime)
-          .filter(e => e.syncStatus === 'synced')
+          .filter((e) => e.syncStatus === 'synced')
           .toArray();
         // Replace partial batch entries at lastTime with complete set
         entriesToConsider = [
@@ -765,7 +811,9 @@ export class FileCacheRepository {
     }
 
     if (evictedCount > 0) {
-      log.info(`evictLRU: evicted ${evictedCount} files, freed ${evictedBytes} bytes`);
+      log.info(
+        `evictLRU: evicted ${evictedCount} files, freed ${evictedBytes} bytes`,
+      );
     }
 
     return { evictedCount, evictedBytes };
@@ -793,7 +841,7 @@ export class FileCacheRepository {
   async syncWithRetry(
     md5: string,
     ext: string,
-    uploadFn: () => Promise<void>
+    uploadFn: () => Promise<void>,
   ): Promise<void> {
     // P2-2 fix: wrap entire retry loop with per-file lock so concurrent
     // syncWithRetry calls for the same file queue sequentially instead of
@@ -805,7 +853,9 @@ export class FileCacheRepository {
         try {
           if (attempt > 0) {
             const delay = getRetryDelay(attempt - 1);
-            log.debug(`retry ${attempt}/${MAX_RETRY_COUNT} for ${md5}.${ext} after ${delay}ms`);
+            log.debug(
+              `retry ${attempt}/${MAX_RETRY_COUNT} for ${md5}.${ext} after ${delay}ms`,
+            );
             // P2-R5-06: cancellable delay — respects lifecycle close signal
             await this._cancellableDelay(delay, lockSignal);
           }
@@ -819,18 +869,26 @@ export class FileCacheRepository {
         } catch (err) {
           // P1-A: If lifecycle is closed, stop retrying immediately
           if (err instanceof LifecycleClosedError) {
-            log.warn(`syncWithRetry: lifecycle closed for ${md5}.${ext}, stopping retry`);
+            log.warn(
+              `syncWithRetry: lifecycle closed for ${md5}.${ext}, stopping retry`,
+            );
             return;
           }
           lastError = err as Error;
           // transitionSyncStatus to 'failed' atomically increments retryCount,
           // so no separate updateRetryCount call is needed.
           await this.updateSyncStatus(md5, ext, 'failed', String(err));
-          log.warn(`sync attempt ${attempt + 1}/${MAX_RETRY_COUNT} failed for ${md5}.${ext}:`, err);
+          log.warn(
+            `sync attempt ${attempt + 1}/${MAX_RETRY_COUNT} failed for ${md5}.${ext}:`,
+            err,
+          );
         }
       }
 
-      log.error(`sync failed after ${MAX_RETRY_COUNT} retries for ${md5}.${ext}`, lastError);
+      log.error(
+        `sync failed after ${MAX_RETRY_COUNT} retries for ${md5}.${ext}`,
+        lastError,
+      );
       throw lastError!;
     });
   }
@@ -904,7 +962,7 @@ export function initFileCacheRepository(): FileCacheRepository {
 export function getFileCacheRepository(): FileCacheRepository {
   if (!fileCacheRepositoryInstance) {
     throw new Error(
-      '[FileCacheRepository] not initialized. Call initFileCacheRepository() first.'
+      '[FileCacheRepository] not initialized. Call initFileCacheRepository() first.',
     );
   }
   return fileCacheRepositoryInstance;

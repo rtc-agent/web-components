@@ -1,6 +1,6 @@
 import Dexie, { type Table } from 'dexie';
 import type { Session, Turn, Message, Rtc } from '@rtc-agent/protocol';
-import { createLogger } from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('Database');
 
@@ -325,9 +325,7 @@ export class RTCAgentDatabase extends Dexie {
 
   constructor(databaseName: string) {
     if (!databaseName) {
-      throw new Error(
-        `[RTCAgentDatabase] databaseName must not be empty`
-      );
+      throw new Error(`[RTCAgentDatabase] databaseName must not be empty`);
     }
     log.info('Initializing database:', databaseName);
     super(databaseName);
@@ -340,7 +338,8 @@ export class RTCAgentDatabase extends Dexie {
     this.version(1).stores({
       sessions: 'id, &client_id, sync_status, owner_ref_id, status',
       turns: 'id, &client_id, sync_status, session_id, status',
-      messages: 'id, &client_id, sync_status, session_id, turn_id, global_offset',
+      messages:
+        'id, &client_id, sync_status, session_id, turn_id, global_offset',
       rtcs: 'id, &client_id, sync_status, session_id, turn_id, status',
       offsets: 'channel',
     });
@@ -351,12 +350,15 @@ export class RTCAgentDatabase extends Dexie {
         // Primary key: client_id; indexes: server_id, sync_status, etc.
         sessions: 'client_id, server_id, sync_status, owner_ref_id, status',
         turns: 'client_id, server_id, sync_status, session_client_id, status',
-        messages: 'client_id, server_id, sync_status, session_client_id, turn_id, global_offset',
+        messages:
+          'client_id, server_id, sync_status, session_client_id, turn_id, global_offset',
         rtcs: 'client_id, server_id, sync_status, session_client_id, turn_id, status',
         offsets: 'channel',
       })
       .upgrade(async (tx) => {
-        log.info('Migrating database from v1 to v2: switching to client_id as primary key');
+        log.info(
+          'Migrating database from v1 to v2: switching to client_id as primary key',
+        );
         // Data migration: v1 PK was id (server UUID), v2 PK is client_id.
         // Since update(key, changes) looks up by the new PK, old records may lack client_id,
         // causing update to find no target row and silently fail. Use clear + add instead.
@@ -393,7 +395,10 @@ export class RTCAgentDatabase extends Dexie {
           }
         } catch (err) {
           // Rollback: restore sessions from backup
-          log.error('v2 migration failed during sessions table, rolling back:', err);
+          log.error(
+            'v2 migration failed during sessions table, rolling back:',
+            err,
+          );
           await sessionsTable.clear();
           await sessionsTable.bulkAdd(sessionsBackup);
           throw err;
@@ -435,7 +440,10 @@ export class RTCAgentDatabase extends Dexie {
             }
           } catch (err) {
             // Rollback: restore table from backup
-            log.error(`v2 migration failed during ${name} table, rolling back:`, err);
+            log.error(
+              `v2 migration failed during ${name} table, rolling back:`,
+              err,
+            );
             await table.clear();
             await table.bulkAdd(tableBackup);
             throw err;
@@ -445,36 +453,44 @@ export class RTCAgentDatabase extends Dexie {
 
     // v3: Add updated_at index for sorting
     this.version(3).stores({
-      sessions: 'client_id, server_id, sync_status, owner_ref_id, status, updated_at',
+      sessions:
+        'client_id, server_id, sync_status, owner_ref_id, status, updated_at',
       turns: 'client_id, server_id, sync_status, session_client_id, status',
-      messages: 'client_id, server_id, sync_status, session_client_id, turn_id, global_offset',
+      messages:
+        'client_id, server_id, sync_status, session_client_id, turn_id, global_offset',
       rtcs: 'client_id, server_id, sync_status, session_client_id, turn_id, status',
       offsets: 'channel',
     });
 
     // v4: Add created_at index for message ordering
     this.version(4).stores({
-      sessions: 'client_id, server_id, sync_status, owner_ref_id, status, updated_at',
+      sessions:
+        'client_id, server_id, sync_status, owner_ref_id, status, updated_at',
       turns: 'client_id, server_id, sync_status, session_client_id, status',
-      messages: 'client_id, server_id, sync_status, session_client_id, turn_id, global_offset, created_at',
+      messages:
+        'client_id, server_id, sync_status, session_client_id, turn_id, global_offset, created_at',
       rtcs: 'client_id, server_id, sync_status, session_client_id, turn_id, status',
       offsets: 'channel',
     });
 
     // v5: Add offset index for RTC ordering
     this.version(5).stores({
-      sessions: 'client_id, server_id, sync_status, owner_ref_id, status, updated_at',
+      sessions:
+        'client_id, server_id, sync_status, owner_ref_id, status, updated_at',
       turns: 'client_id, server_id, sync_status, session_client_id, status',
-      messages: 'client_id, server_id, sync_status, session_client_id, turn_id, global_offset, created_at',
+      messages:
+        'client_id, server_id, sync_status, session_client_id, turn_id, global_offset, created_at',
       rtcs: 'client_id, server_id, sync_status, session_client_id, turn_id, status, offset',
       offsets: 'channel',
     });
 
     // v6: Add virtual file system fileSystemEntries table
     this.version(6).stores({
-      sessions: 'client_id, server_id, sync_status, owner_ref_id, status, updated_at',
+      sessions:
+        'client_id, server_id, sync_status, owner_ref_id, status, updated_at',
       turns: 'client_id, server_id, sync_status, session_client_id, status',
-      messages: 'client_id, server_id, sync_status, session_client_id, turn_id, global_offset, created_at',
+      messages:
+        'client_id, server_id, sync_status, session_client_id, turn_id, global_offset, created_at',
       rtcs: 'client_id, server_id, sync_status, session_client_id, turn_id, status, offset',
       offsets: 'channel',
       // fileSystemEntries: primary key path; indexes: type / metadata.group / metadata.tags
@@ -484,9 +500,11 @@ export class RTCAgentDatabase extends Dexie {
 
     // v7: Add device_id index for RTC Device ID filtering
     this.version(7).stores({
-      sessions: 'client_id, server_id, sync_status, owner_ref_id, status, updated_at, device_id',
+      sessions:
+        'client_id, server_id, sync_status, owner_ref_id, status, updated_at, device_id',
       turns: 'client_id, server_id, sync_status, session_client_id, status',
-      messages: 'client_id, server_id, sync_status, session_client_id, turn_id, global_offset, created_at',
+      messages:
+        'client_id, server_id, sync_status, session_client_id, turn_id, global_offset, created_at',
       rtcs: 'client_id, server_id, sync_status, session_client_id, turn_id, status, offset',
       offsets: 'channel',
       fileSystemEntries: 'path, type, metadata.group, *metadata.tags',
@@ -495,40 +513,49 @@ export class RTCAgentDatabase extends Dexie {
     // v8: Add session_device_id index for RTC execution-time filtering.
     // Move Device ID filtering from write-time to execution-time.
     // Backfill existing RTC records: look up session.device_id via session_client_id.
-    this.version(8).stores({
-      sessions: 'client_id, server_id, sync_status, owner_ref_id, status, updated_at, device_id',
-      turns: 'client_id, server_id, sync_status, session_client_id, status',
-      messages: 'client_id, server_id, sync_status, session_client_id, turn_id, global_offset, created_at',
-      rtcs: 'client_id, server_id, sync_status, session_client_id, turn_id, status, offset, session_device_id',
-      offsets: 'channel',
-      fileSystemEntries: 'path, type, metadata.group, *metadata.tags',
-    }).upgrade(async (tx) => {
-      // Backfill session_device_id for existing RTC records
-      // Optimization: Pre-fetch all sessions to avoid N+1 query pattern
-      const sessions = await tx.table('sessions').toArray();
-      const sessionDeviceMap = new Map<string, string>();
-      for (const s of sessions) {
-        if (s.device_id) {
-          sessionDeviceMap.set(s.client_id, s.device_id);
-        }
-      }
-
-      // Single atomic modify pass for all RTC records
-      await tx.table('rtcs').toCollection().modify(rtc => {
-        if (rtc.session_client_id && !rtc.session_device_id) {
-          const deviceId = sessionDeviceMap.get(rtc.session_client_id);
-          if (deviceId) {
-            rtc.session_device_id = deviceId;
+    this.version(8)
+      .stores({
+        sessions:
+          'client_id, server_id, sync_status, owner_ref_id, status, updated_at, device_id',
+        turns: 'client_id, server_id, sync_status, session_client_id, status',
+        messages:
+          'client_id, server_id, sync_status, session_client_id, turn_id, global_offset, created_at',
+        rtcs: 'client_id, server_id, sync_status, session_client_id, turn_id, status, offset, session_device_id',
+        offsets: 'channel',
+        fileSystemEntries: 'path, type, metadata.group, *metadata.tags',
+      })
+      .upgrade(async (tx) => {
+        // Backfill session_device_id for existing RTC records
+        // Optimization: Pre-fetch all sessions to avoid N+1 query pattern
+        const sessions = await tx.table('sessions').toArray();
+        const sessionDeviceMap = new Map<string, string>();
+        for (const s of sessions) {
+          if (s.device_id) {
+            sessionDeviceMap.set(s.client_id, s.device_id);
           }
         }
+
+        // Single atomic modify pass for all RTC records
+        await tx
+          .table('rtcs')
+          .toCollection()
+          .modify((rtc) => {
+            if (rtc.session_client_id && !rtc.session_device_id) {
+              const deviceId = sessionDeviceMap.get(rtc.session_client_id);
+              if (deviceId) {
+                rtc.session_device_id = deviceId;
+              }
+            }
+          });
       });
-    });
 
     // v9: Add debugHistory table for function debugger history persistence
     this.version(9).stores({
-      sessions: 'client_id, server_id, sync_status, owner_ref_id, status, updated_at, device_id',
+      sessions:
+        'client_id, server_id, sync_status, owner_ref_id, status, updated_at, device_id',
       turns: 'client_id, server_id, sync_status, session_client_id, status',
-      messages: 'client_id, server_id, sync_status, session_client_id, turn_id, global_offset, created_at',
+      messages:
+        'client_id, server_id, sync_status, session_client_id, turn_id, global_offset, created_at',
       rtcs: 'client_id, server_id, sync_status, session_client_id, turn_id, status, offset, session_device_id',
       offsets: 'channel',
       fileSystemEntries: 'path, type, metadata.group, *metadata.tags',
@@ -549,17 +576,22 @@ export class RTCAgentDatabase extends Dexie {
 
     // v12: Extend fileCache with offline-first sync status tracking
     // Adds syncStatus index for querying by sync state; migrates existing entries to 'synced'
-    this.version(12).stores({
-      fileCache: '[md5+ext], expiresAt, syncStatus',
-    }).upgrade(async (tx) => {
-      // Smooth migration: treat existing cached files as already synced
-      await tx.table('fileCache').toCollection().modify((entry: Record<string, unknown>) => {
-        if (!entry.syncStatus) {
-          entry.syncStatus = 'synced';
-          entry.retryCount = 0;
-        }
+    this.version(12)
+      .stores({
+        fileCache: '[md5+ext], expiresAt, syncStatus',
+      })
+      .upgrade(async (tx) => {
+        // Smooth migration: treat existing cached files as already synced
+        await tx
+          .table('fileCache')
+          .toCollection()
+          .modify((entry: Record<string, unknown>) => {
+            if (!entry.syncStatus) {
+              entry.syncStatus = 'synced';
+              entry.retryCount = 0;
+            }
+          });
       });
-    });
 
     // v13: Add uploadParts table for multipart upload progress tracking (resume upload)
     this.version(13).stores({
@@ -569,7 +601,34 @@ export class RTCAgentDatabase extends Dexie {
     // v14: Add lastAccessedAt index for efficient LRU eviction queries
     // P2-NEW-1 fix: evictLRU uses sortBy('lastAccessedAt'), adding an index avoids full table scan
     this.version(14).stores({
-      fileCache: '[md5+ext], expiresAt, syncStatus, lastAccessedAt',  // added lastAccessedAt index
+      fileCache: '[md5+ext], expiresAt, syncStatus, lastAccessedAt', // added lastAccessedAt index
+    });
+
+    // v15: Add compound indexes for common multi-field query patterns.
+    //
+    // Compound indexes avoid full-table scans when queries filter by multiple fields.
+    // Dexie compound index syntax: [field1+field2] creates a composite index usable for
+    // exact match (equals), range (above/below/between), and sorted iteration.
+    //
+    // Indexes added:
+    //   messages: [session_client_id+created_at] — listMessagesBySession filters by session
+    //             and orders by created_at; enables future DB-level cursor pagination.
+    //   turns:    [session_client_id+status]     — countActiveTurns filters turns by session
+    //             and status ('pending'/'running'); two indexed queries replace
+    //             where().filter().count() pattern.
+    //   rtcs:     [session_client_id+offset]     — listRtcBySession lists RTCs for a session
+    //             ordered by offset; enables future DB-level sorted retrieval.
+    //   fileCache:[syncStatus+lastAccessedAt]    — evictLRU evicts synced files by LRU order;
+    //             compound index enables future indexed cursor pagination.
+    this.version(15).stores({
+      messages:
+        'client_id, server_id, sync_status, session_client_id, turn_id, global_offset, created_at, [session_client_id+created_at]',
+      turns:
+        'client_id, server_id, sync_status, session_client_id, status, [session_client_id+status]',
+      rtcs:
+        'client_id, server_id, sync_status, session_client_id, turn_id, status, offset, session_device_id, [session_client_id+offset]',
+      fileCache:
+        '[md5+ext], expiresAt, syncStatus, lastAccessedAt, [syncStatus+lastAccessedAt]',
     });
   }
 }
@@ -587,14 +646,12 @@ export function getDatabase(databaseName?: string): RTCAgentDatabase {
     }
     throw new Error(
       `[RTCAgentDatabase] getDatabase() called without a name before any database was initialized. ` +
-      `Pass a databaseName.`
+        `Pass a databaseName.`,
     );
   }
 
   if (!databaseName) {
-    throw new Error(
-      `[RTCAgentDatabase] databaseName must not be empty`
-    );
+    throw new Error(`[RTCAgentDatabase] databaseName must not be empty`);
   }
 
   const name = databaseName;
@@ -630,11 +687,13 @@ export async function flushAll(): Promise<void> {
   const db = getDatabase();
   // Dexie exposes all registered tables via db.tables (derived from version().stores())
   const tables = db.tables;
-  const tableNames = tables.map(t => t.name);
+  const tableNames = tables.map((t) => t.name);
   await db.transaction('rw', tables, async () => {
     for (const table of tables) {
       await table.clear();
     }
   });
-  log.info(`flushAll: cleared ${tables.length} tables (${tableNames.join(', ')})`);
+  log.info(
+    `flushAll: cleared ${tables.length} tables (${tableNames.join(', ')})`,
+  );
 }
