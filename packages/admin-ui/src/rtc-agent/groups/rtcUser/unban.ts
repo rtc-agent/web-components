@@ -1,6 +1,7 @@
 import { withMeta, z } from '@rtc-agent/component';
 import type { PermissionAwareFunctionDef } from '@/rtc-agent/permission-filter';
 import { ensurePageLoaded } from '@/rtc-agent/utils/page-loader';
+import { maskUserID } from '@/utils/mask';
 
 /**
  * Unban an RTC user
@@ -61,7 +62,7 @@ export const unbanRtcUserFn: PermissionAwareFunctionDef = {
   hooks: {
     onStart: (params) => {
       const { userId } = params as { userId: string };
-      console.log(`[rtcUser.unban] Unbanning user: ${userId}...`);
+      console.log(`[rtcUser.unban] Unbanning user: ${maskUserID(userId)}...`);
     },
     onSuccess: (_result) => {
       console.log('[rtcUser.unban] User unbanned successfully');

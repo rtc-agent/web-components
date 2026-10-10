@@ -1,6 +1,7 @@
 import { withMeta, z } from '@rtc-agent/component';
 import type { PermissionAwareFunctionDef } from '@/rtc-agent/permission-filter';
 import { ensurePageLoaded } from '@/rtc-agent/utils/page-loader';
+import { maskUserID } from '@/utils/mask';
 
 /**
  * Get RTC user devices
@@ -75,7 +76,7 @@ export const getRtcUserDevices: PermissionAwareFunctionDef = {
   hooks: {
     onStart: (params) => {
       const { userId } = params as { userId: string };
-      console.log(`[rtcUser.devices] Fetching devices for user: ${userId}...`);
+      console.log(`[rtcUser.devices] Fetching devices for user: ${maskUserID(userId)}...`);
     },
     onSuccess: (result) => {
       const data = (result as any).data;

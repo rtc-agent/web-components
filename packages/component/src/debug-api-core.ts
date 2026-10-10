@@ -5,10 +5,10 @@
  * auth bypass, event simulation, VirtualFS, log capture, UI control,
  * and component reference.
  */
-import { virtualFS } from "@rtc-agent/persistence";
-import { setGlobalLogLevel, getGlobalLogLevel } from "@rtc-agent/client";
-import type { LogLevel } from "@rtc-agent/client";
-import type { RtcAgentDebugAPI } from "./debug-api-types.js";
+import { virtualFS } from '@rtc-agent/persistence';
+import { setGlobalLogLevel, getGlobalLogLevel } from '@rtc-agent/protocol';
+import type { LogLevel } from '@rtc-agent/protocol';
+import type { RtcAgentDebugAPI } from './debug-api-types.js';
 import {
   log,
   ensureDatabase,
@@ -16,8 +16,9 @@ import {
   clearLogBuffer,
   deepQuerySelector,
   getAgentElement,
-} from "./debug-api-helpers.js";
-import type { ContentData } from "./types/index.js";
+} from './debug-api-helpers.js';
+import type { ContentData } from './types/index.js';
+import { maskUserID } from './utils/mask.js';
 
 /**
  * Build core debug API methods.
@@ -27,37 +28,37 @@ import type { ContentData } from "./types/index.js";
  */
 export function buildCoreAPI(): Pick<
   RtcAgentDebugAPI,
-  | "getState"
-  | "clearData"
-  | "seedData"
-  | "loginAs"
-  | "logout"
-  | "triggerEvent"
-  | "listFiles"
-  | "readFile"
-  | "writeFile"
-  | "deleteFile"
-  | "logs"
-  | "clearLogs"
-  | "setLogLevel"
-  | "getLogLevel"
-  | "click"
-  | "scrollIntoView"
-  | "typeText"
-  | "element"
-  | "waitForReady"
-  | "waitForConnected"
-  | "sendMessage"
-  | "getMessages"
-  | "addDemoMessage"
-  | "clearMessages"
+  | 'getState'
+  | 'clearData'
+  | 'seedData'
+  | 'loginAs'
+  | 'logout'
+  | 'triggerEvent'
+  | 'listFiles'
+  | 'readFile'
+  | 'writeFile'
+  | 'deleteFile'
+  | 'logs'
+  | 'clearLogs'
+  | 'setLogLevel'
+  | 'getLogLevel'
+  | 'click'
+  | 'scrollIntoView'
+  | 'typeText'
+  | 'element'
+  | 'waitForReady'
+  | 'waitForConnected'
+  | 'sendMessage'
+  | 'getMessages'
+  | 'addDemoMessage'
+  | 'clearMessages'
 > {
   return {
     // ── State Query ──
 
     getState(): Record<string, unknown> {
       const el = getAgentElement();
-      if (!el) return { error: "rtc-agent element not found" };
+      if (!el) return { error: 'rtc-agent element not found' };
 
       return {
         auth: {
@@ -128,16 +129,16 @@ export function buildCoreAPI(): Pick<
         if (el?.persistenceController?.isConnected) {
           try {
             await el.persistenceController.disconnect();
-            log.info("Persistence layer disconnected");
+            log.info('Persistence layer disconnected');
           } catch (err) {
-            log.warn("Persistence disconnect error (non-fatal):", err);
+            log.warn('Persistence disconnect error (non-fatal):', err);
           }
         }
 
         // Step 2: Reset auth state.
         if (el?.authController?.state.isLoggedIn) {
           el.authController.logout();
-          log.info("Auth state reset");
+          log.info('Auth state reset');
         }
 
         // Step 3: Clear storage.
@@ -149,7 +150,7 @@ export function buildCoreAPI(): Pick<
         // to ensure each database is fully deleted before resolving. Without awaiting,
         // the caller may proceed while deletions are still in-flight, causing race
         // conditions in tests that seed data immediately after clearData().
-        if (typeof indexedDB !== "undefined" && indexedDB.databases) {
+        if (typeof indexedDB !== 'undefined' && indexedDB.databases) {
           const dbs = await indexedDB.databases();
           await Promise.all(
             dbs.map((dbInfo) => {
@@ -169,13 +170,13 @@ export function buildCoreAPI(): Pick<
                   resolve(); // Resolve anyway to not block cleanup
                 };
               });
-            })
+            }),
           );
         }
 
-        log.info("All persistent data cleared");
+        log.info('All persistent data cleared');
       } catch (err) {
-        log.error("clearData failed:", err);
+        log.error('clearData failed:', err);
         throw err;
       }
     },
@@ -191,12 +192,12 @@ export function buildCoreAPI(): Pick<
         const el = getAgentElement();
         if (el) {
           el.authController.setTokens({
-            accessToken: tokens.accessToken ?? "debug-access-token",
-            refreshToken: tokens.refreshToken ?? "debug-refresh-token",
-            userId: tokens.userId ?? "debug-user",
+            accessToken: tokens.accessToken ?? 'debug-access-token',
+            refreshToken: tokens.refreshToken ?? 'debug-refresh-token',
+            userId: tokens.userId ?? 'debug-user',
             expiresIn: tokens.expiresIn ?? 3600,
           });
-          log.info("Seeded auth tokens");
+          log.info('Seeded auth tokens');
         }
       }
 
@@ -204,7 +205,7 @@ export function buildCoreAPI(): Pick<
         ensureDatabase();
         const files = data.files as Array<{ path: string; content: string }>;
         for (const file of files) {
-          await virtualFS.write(file.path, file.content, "overwrite");
+          await virtualFS.write(file.path, file.content, 'overwrite');
         }
         log.info(`Seeded ${files.length} files to VirtualFS`);
       }
@@ -214,11 +215,11 @@ export function buildCoreAPI(): Pick<
 
     loginAs(
       userId: string,
-      tokens?: { accessToken?: string; refreshToken?: string }
+      tokens?: { accessToken?: string; refreshToken?: string },
     ): void {
       const el = getAgentElement();
       if (!el) {
-        log.warn("loginAs: rtc-agent element not found");
+        log.warn('loginAs: rtc-agent element not found');
         return;
       }
       el.authController.setTokens({
@@ -227,17 +228,17 @@ export function buildCoreAPI(): Pick<
         userId,
         expiresIn: 86400,
       });
-      log.info(`loginAs: ${userId}`);
+      log.info(`loginAs: ${maskUserID(userId)}`);
     },
 
     logout(): void {
       const el = getAgentElement();
       if (!el) {
-        log.warn("logout: rtc-agent element not found");
+        log.warn('logout: rtc-agent element not found');
         return;
       }
       el.authController.logout();
-      log.info("logout completed");
+      log.info('logout completed');
     },
 
     // ── Event Simulation ──
@@ -245,7 +246,7 @@ export function buildCoreAPI(): Pick<
     triggerEvent(name: string, detail?: unknown): void {
       const el = getAgentElement();
       if (!el) {
-        log.warn("triggerEvent: rtc-agent element not found");
+        log.warn('triggerEvent: rtc-agent element not found');
         return;
       }
       el.dispatchEvent(
@@ -253,19 +254,19 @@ export function buildCoreAPI(): Pick<
           detail,
           bubbles: true,
           composed: true,
-        })
+        }),
       );
       log.info(`triggerEvent: ${name}`);
     },
 
     // ── VirtualFS ──
 
-    async listFiles(path = "/"): Promise<string[]> {
+    async listFiles(path = '/'): Promise<string[]> {
       ensureDatabase();
       try {
         return await virtualFS.ls(path);
       } catch (err) {
-        log.error("listFiles failed:", err);
+        log.error('listFiles failed:', err);
         return [];
       }
     },
@@ -276,13 +277,13 @@ export function buildCoreAPI(): Pick<
         return await virtualFS.read(path);
       } catch (err) {
         log.error(`readFile failed for ${path}:`, err);
-        return "";
+        return '';
       }
     },
 
     async writeFile(path: string, content: string): Promise<void> {
       ensureDatabase();
-      await virtualFS.write(path, content, "overwrite");
+      await virtualFS.write(path, content, 'overwrite');
       log.info(`writeFile: ${path}`);
     },
 
@@ -339,8 +340,8 @@ export function buildCoreAPI(): Pick<
       }
 
       (target as HTMLElement).scrollIntoView?.({
-        behavior: "smooth",
-        block: "center",
+        behavior: 'smooth',
+        block: 'center',
       });
       log.info(`scrollIntoView: ${selector}`);
       return true;
@@ -363,11 +364,11 @@ export function buildCoreAPI(): Pick<
         target instanceof HTMLTextAreaElement
           ? HTMLTextAreaElement.prototype
           : HTMLInputElement.prototype;
-      const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
+      const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
       setter?.call(target, text);
 
-      target.dispatchEvent(new Event("input", { bubbles: true }));
-      target.dispatchEvent(new Event("change", { bubbles: true }));
+      target.dispatchEvent(new Event('input', { bubbles: true }));
+      target.dispatchEvent(new Event('change', { bubbles: true }));
 
       log.info(`typeText: ${selector} = "${text.slice(0, 50)}..."`);
       return true;
@@ -384,7 +385,7 @@ export function buildCoreAPI(): Pick<
       if (
         existing &&
         existing.isConnected &&
-        existing.shadowRoot?.querySelector("*")
+        existing.shadowRoot?.querySelector('*')
       ) {
         return existing;
       }
@@ -392,7 +393,7 @@ export function buildCoreAPI(): Pick<
       return new Promise<NonNullable<ReturnType<typeof getAgentElement>>>(
         (resolve, reject) => {
           const timer = setTimeout(() => {
-            document.removeEventListener("rtc-agent-ready", handler);
+            document.removeEventListener('rtc-agent-ready', handler);
             reject(new Error(`waitForReady timed out after ${timeoutMs}ms`));
           }, timeoutMs);
 
@@ -403,13 +404,13 @@ export function buildCoreAPI(): Pick<
               resolve(el);
             } else {
               reject(
-                new Error("rtc-agent element not found after ready event")
+                new Error('rtc-agent element not found after ready event'),
               );
             }
           };
 
-          document.addEventListener("rtc-agent-ready", handler, { once: true });
-        }
+          document.addEventListener('rtc-agent-ready', handler, { once: true });
+        },
       );
     },
 
@@ -442,10 +443,10 @@ export function buildCoreAPI(): Pick<
     async sendMessage(content: string): Promise<void> {
       const el = getAgentElement();
       if (!el) {
-        log.warn("sendMessage: rtc-agent element not found");
+        log.warn('sendMessage: rtc-agent element not found');
         return;
       }
-      const contentData: ContentData = { type: "text", data: content };
+      const contentData: ContentData = { type: 'text', data: content };
       await el.messageController.actions.sendMessage(contentData);
       log.info(`sendMessage: "${content.slice(0, 50)}..."`);
     },
@@ -465,30 +466,30 @@ export function buildCoreAPI(): Pick<
 
     addDemoMessage(
       content: string,
-      role: "user" | "assistant" = "assistant"
+      role: 'user' | 'assistant' = 'assistant',
     ): void {
       const el = getAgentElement();
       if (!el) {
-        log.warn("addDemoMessage: rtc-agent element not found");
+        log.warn('addDemoMessage: rtc-agent element not found');
         return;
       }
-      if (role === "assistant") {
+      if (role === 'assistant') {
         el.messageController.addDemoAssistantMessage(content);
       } else {
         const msg = {
           clientId: `msg-${Date.now()}-user`,
-          role: "user" as const,
-          content: { type: "text" as const, data: content },
+          role: 'user' as const,
+          content: { type: 'text' as const, data: content },
           timestamp: Date.now(),
-          syncStatus: "synced" as const,
+          syncStatus: 'synced' as const,
           streaming: false,
         };
         el.dispatchEvent(
-          new CustomEvent("rtc-debug-add-user-message", {
+          new CustomEvent('rtc-debug-add-user-message', {
             detail: { message: msg },
             bubbles: true,
             composed: true,
-          })
+          }),
         );
       }
       log.info(`addDemoMessage: [${role}] "${content.slice(0, 50)}..."`);
@@ -497,11 +498,11 @@ export function buildCoreAPI(): Pick<
     clearMessages(): void {
       const el = getAgentElement();
       if (!el) {
-        log.warn("clearMessages: rtc-agent element not found");
+        log.warn('clearMessages: rtc-agent element not found');
         return;
       }
       el.messageController.actions.clearMessages();
-      log.info("clearMessages: done");
+      log.info('clearMessages: done');
     },
   };
 }

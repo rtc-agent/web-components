@@ -1,6 +1,7 @@
 import { withMeta, z } from '@rtc-agent/component';
 import type { PermissionAwareFunctionDef } from '@/rtc-agent/permission-filter';
 import { ensurePageLoaded } from '@/rtc-agent/utils/page-loader';
+import { maskUserID } from '@/utils/mask';
 
 /**
  * Ban an RTC user
@@ -67,7 +68,7 @@ export const banRtcUserFn: PermissionAwareFunctionDef = {
   hooks: {
     onStart: (params) => {
       const { userId } = params as { userId: string };
-      console.log(`[rtcUser.ban] Banning user: ${userId}...`);
+      console.log(`[rtcUser.ban] Banning user: ${maskUserID(userId)}...`);
     },
     onSuccess: (_result) => {
       console.log('[rtcUser.ban] User banned successfully');
