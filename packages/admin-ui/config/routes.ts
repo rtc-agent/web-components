@@ -33,18 +33,19 @@ export default [
     component: './dashboard/container',
     access: 'canDashboardView',
     routes: [
-      {
-        name: 'jaeger',
-        icon: 'BugOutlined',
-        path: '/dashboard/jaeger',
-        access: 'canDashboardView',
-      },
-      {
-        name: 'pyroscope',
-        icon: 'profile',
-        path: '/dashboard/pyroscope',
-        access: 'canDashboardView',
-      },
+      // TODO: jaeger/pyroscope dashboards not yet implemented
+      // {
+      //   name: 'jaeger',
+      //   icon: 'BugOutlined',
+      //   path: '/dashboard/jaeger',
+      //   access: 'canDashboardView',
+      // },
+      // {
+      //   name: 'pyroscope',
+      //   icon: 'profile',
+      //   path: '/dashboard/pyroscope',
+      //   access: 'canDashboardView',
+      // },
       {
         path: '/dashboard',
         redirect: '/dashboard/grafana',

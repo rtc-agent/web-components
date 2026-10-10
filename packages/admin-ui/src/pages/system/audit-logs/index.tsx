@@ -1,6 +1,6 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { useIntl, useSearchParams } from '@umijs/max';
+import { useAccess, useIntl, useSearchParams } from '@umijs/max';
 import { message, Tag, theme } from 'antd';
 import React, { useEffect, useMemo, useRef } from 'react';
 import type { AuditLogItem } from '@/services/auditLog';
@@ -16,6 +16,7 @@ const AuditLogsPage: React.FC = () => {
   const intl = useIntl();
   const [searchParams, setSearchParams] = useSearchParams();
   const { token } = theme.useToken();
+  const access = useAccess();
 
   // === Register Page API ===
   useEffect(() => {
