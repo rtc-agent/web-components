@@ -360,63 +360,85 @@ export class RTCAgentDatabase extends Dexie {
         // Data migration: v1 PK was id (server UUID), v2 PK is client_id.
         // Since update(key, changes) looks up by the new PK, old records may lack client_id,
         // causing update to find no target row and silently fail. Use clear + add instead.
+        //
+        // SAFETY: Backup data before clearing each table. If migration fails mid-way,
+        // restore the backup to prevent data loss (e.g., browser crash, tab close).
 
         // 1. Migrate sessions table first, building server_id -> client_id mapping
         //    (other tables need to reference session by client_id)
         const sessionsTable = tx.table('sessions');
         const allSessions = await sessionsTable.toArray();
+        const sessionsBackup = allSessions; // Keep backup for rollback
         await sessionsTable.clear();
 
         const sessionIdMap = new Map<string, string>(); // server_id -> client_id
 
-        for (const row of allSessions) {
-          const r = row as Record<string, unknown>;
-          const oldId = r['id'] as string | undefined;
-          const oldClientId = r['client_id'] as string | undefined;
+        try {
+          for (const row of allSessions) {
+            const r = row as Record<string, unknown>;
+            const oldId = r['id'] as string | undefined;
+            const oldClientId = r['client_id'] as string | undefined;
 
-          const newClientId = oldClientId || oldId || crypto.randomUUID();
-          if (oldId) {
-            sessionIdMap.set(oldId, newClientId);
+            const newClientId = oldClientId || oldId || crypto.randomUUID();
+            if (oldId) {
+              sessionIdMap.set(oldId, newClientId);
+            }
+
+            const newRow: Record<string, unknown> = { ...r };
+            newRow['client_id'] = newClientId;
+            newRow['server_id'] = oldId;
+            delete newRow['id'];
+
+            await sessionsTable.add(newRow);
           }
-
-          const newRow: Record<string, unknown> = { ...r };
-          newRow['client_id'] = newClientId;
-          newRow['server_id'] = oldId;
-          delete newRow['id'];
-
-          await sessionsTable.add(newRow);
+        } catch (err) {
+          // Rollback: restore sessions from backup
+          log.error('v2 migration failed during sessions table, rolling back:', err);
+          await sessionsTable.clear();
+          await sessionsTable.bulkAdd(sessionsBackup);
+          throw err;
         }
 
         // 2. Migrate other tables (turns/messages/rtcs)
         for (const name of ['turns', 'messages', 'rtcs'] as const) {
           const table = tx.table(name);
           const allRows = await table.toArray();
+          const tableBackup = allRows; // Keep backup for rollback
+
           await table.clear();
 
-          for (const row of allRows) {
-            const r = row as Record<string, unknown>;
-            const oldId = r['id'] as string | undefined;
-            const oldClientId = r['client_id'] as string | undefined;
-            const oldSessionId = r['session_id'] as string | undefined;
+          try {
+            for (const row of allRows) {
+              const r = row as Record<string, unknown>;
+              const oldId = r['id'] as string | undefined;
+              const oldClientId = r['client_id'] as string | undefined;
+              const oldSessionId = r['session_id'] as string | undefined;
 
-            const newRow: Record<string, unknown> = { ...r };
+              const newRow: Record<string, unknown> = { ...r };
 
-            // client_id: prefer old value, fall back to crypto.randomUUID() to avoid empty PK collision
-            newRow['client_id'] = oldClientId || oldId || crypto.randomUUID();
-            // server_id: preserve old server UUID
-            newRow['server_id'] = oldId;
-            delete newRow['id'];
+              // client_id: prefer old value, fall back to crypto.randomUUID() to avoid empty PK collision
+              newRow['client_id'] = oldClientId || oldId || crypto.randomUUID();
+              // server_id: preserve old server UUID
+              newRow['server_id'] = oldId;
+              delete newRow['id'];
 
-            // session_id -> session_client_id: resolve via session mapping
-            if (oldSessionId) {
-              const sessionClientId = sessionIdMap.get(oldSessionId);
-              newRow['session_client_id'] = sessionClientId || oldSessionId;
-            } else {
-              newRow['session_client_id'] = '';
+              // session_id -> session_client_id: resolve via session mapping
+              if (oldSessionId) {
+                const sessionClientId = sessionIdMap.get(oldSessionId);
+                newRow['session_client_id'] = sessionClientId || oldSessionId;
+              } else {
+                newRow['session_client_id'] = '';
+              }
+              delete newRow['session_id'];
+
+              await table.add(newRow);
             }
-            delete newRow['session_id'];
-
-            await table.add(newRow);
+          } catch (err) {
+            // Rollback: restore table from backup
+            log.error(`v2 migration failed during ${name} table, rolling back:`, err);
+            await table.clear();
+            await table.bulkAdd(tableBackup);
+            throw err;
           }
         }
       });
