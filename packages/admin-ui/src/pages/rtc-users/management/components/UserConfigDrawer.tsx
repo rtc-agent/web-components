@@ -112,20 +112,29 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
     });
   };
 
+  /** 强制删除操作 */
+  const doForceDelete = async (data: { key: string }) => {
+    if (!userId) return;
+    await deleteUserConfig(userId, data.key);
+  };
+
   // 乐观锁冲突处理
   const {
     conflictModalOpen,
     setConflictModalOpen,
     conflictData,
-    pendingOverwrite,
+    pendingAction,
     handleEditError,
+    handleDeleteError,
     handleReload: handleConflictReload,
-    handleForceOverwrite,
+    handleForceAction,
   } = useOptimisticLockConflict({
     onForceOverwrite: doForceOverwrite,
+    onForceDelete: doForceDelete,
     onConflictResolved: loadConfigs,
     forceOverwriteSuccessId: 'pages.config.user.forceOverwriteSuccess',
     forceOverwriteSuffixId: 'pages.config.system.forceOverwriteSuffix',
+    forceDeleteSuccessId: 'pages.config.user.forceDeleteSuccess',
   });
 
   /** 按 category 分组 */
@@ -150,7 +159,12 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
       );
       loadConfigs();
     } catch (error: unknown) {
-      message.error(getFriendlyErrorMessage(error));
+      // Check if it's an optimistic lock conflict
+      const handled = handleDeleteError(error, { key: item.key });
+      if (!handled) {
+        // Non-conflict error, show normal error message
+        message.error(getFriendlyErrorMessage(error));
+      }
     }
   };
 
@@ -381,6 +395,10 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
                               type="link"
                               size="small"
                               icon={<MoreOutlined />}
+                              aria-label={intl.formatMessage({
+                                id: 'pages.config.user.moreActions',
+                                defaultMessage: 'More actions',
+                              })}
                             />
                           </Dropdown>
                         )}
@@ -423,9 +441,10 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
         open={conflictModalOpen}
         onOpenChange={setConflictModalOpen}
         conflictData={conflictData}
-        configKey={pendingOverwrite?.key}
+        configKey={pendingAction?.data.key}
+        actionType={pendingAction?.type}
         onReload={handleConflictReload}
-        onForceOverwrite={handleForceOverwrite}
+        onForceAction={handleForceAction}
       />
     </>
   );

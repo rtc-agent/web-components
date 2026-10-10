@@ -25,6 +25,7 @@ import {
   Steps,
   Table,
   Tooltip,
+  theme,
 } from 'antd';
 import type { IconRenderType, StepsProps } from 'antd/es/steps';
 import type { FC } from 'react';
@@ -87,7 +88,7 @@ const action = (
               }}
               placement="bottomRight"
             >
-              <Button>
+              <Button aria-label="更多操作">
                 <EllipsisOutlined />
               </Button>
             </Dropdown>
@@ -165,25 +166,6 @@ const userInfoItems: DescriptionsProps['items'] = [
     children: '曲丽丽 18100000000 浙江省杭州市西湖区黄姑山路工专路交叉路口',
   },
 ];
-const infoGroupItems: DescriptionsProps['items'] = [
-  { key: '1', label: '某某数据', children: '725' },
-  { key: '2', label: '该数据更新时间', children: '2017-08-08' },
-  {
-    key: '3',
-    label: (
-      <span>
-        某某数据
-        <Tooltip title="数据说明">
-          <InfoCircleOutlined
-            style={{ color: 'rgba(0, 0, 0, 0.43)', marginLeft: 4 }}
-          />
-        </Tooltip>
-      </span>
-    ),
-    children: '725',
-  },
-  { key: '4', label: '该数据更新时间', children: '2017-08-08' },
-];
 const groupItems1: DescriptionsProps['items'] = [
   { key: '1', label: '负责人', children: '林东东' },
   { key: '2', label: '角色码', children: '1234567' },
@@ -208,56 +190,6 @@ const groupItems3: DescriptionsProps['items'] = [
   { key: '1', label: '负责人', children: '付小小' },
   { key: '2', label: '角色码', children: '1234568' },
 ];
-const customDot: IconRenderType = (dot: React.ReactNode, { active }) => {
-  if (active) {
-    const popoverContent = (
-      <div
-        style={{
-          width: 160,
-        }}
-      >
-        吴加号
-        <span
-          style={{
-            float: 'right',
-          }}
-        >
-          <Badge
-            status="default"
-            text={
-              <span
-                style={{
-                  color: 'rgba(0, 0, 0, 0.45)',
-                }}
-              >
-                未响应
-              </span>
-            }
-          />
-        </span>
-        <div
-          style={{
-            marginTop: 4,
-          }}
-        >
-          耗时：2小时25分钟
-        </div>
-      </div>
-    );
-    return (
-      <Popover
-        placement="topLeft"
-        arrow={{
-          pointAtCenter: true,
-        }}
-        content={popoverContent}
-      >
-        <span>{dot}</span>
-      </Popover>
-    );
-  }
-  return dot;
-};
 
 type AdvancedState = {
   operationKey: 'tab1' | 'tab2' | 'tab3';
@@ -265,6 +197,78 @@ type AdvancedState = {
 };
 const Advanced: FC = () => {
   const { styles } = useStyles();
+  const { token } = theme.useToken();
+
+  const infoGroupItems: DescriptionsProps['items'] = [
+    { key: '1', label: '某某数据', children: '725' },
+    { key: '2', label: '该数据更新时间', children: '2017-08-08' },
+    {
+      key: '3',
+      label: (
+        <span>
+          某某数据
+          <Tooltip title="数据说明">
+            <InfoCircleOutlined
+              style={{ color: token.colorTextDescription, marginLeft: 4 }}
+            />
+          </Tooltip>
+        </span>
+      ),
+      children: '725',
+    },
+    { key: '4', label: '该数据更新时间', children: '2017-08-08' },
+  ];
+
+  const customDot: IconRenderType = (dot: React.ReactNode, { active }) => {
+    if (active) {
+      const popoverContent = (
+        <div
+          style={{
+            width: 160,
+          }}
+        >
+          吴加号
+          <span
+            style={{
+              float: 'right',
+            }}
+          >
+            <Badge
+              status="default"
+              text={
+                <span
+                  style={{
+                    color: token.colorTextDescription,
+                  }}
+                >
+                  未响应
+                </span>
+              }
+            />
+          </span>
+          <div
+            style={{
+              marginTop: 4,
+            }}
+          >
+            耗时：2小时25分钟
+          </div>
+        </div>
+      );
+      return (
+        <Popover
+          placement="topLeft"
+          arrow={{
+            pointAtCenter: true,
+          }}
+          content={popoverContent}
+        >
+          <span>{dot}</span>
+        </Popover>
+      );
+    }
+    return dot;
+  };
 
   const extra = (
     <div className={styles.moreInfo}>
@@ -300,7 +304,7 @@ const Advanced: FC = () => {
       周毛毛
       <DingdingOutlined
         style={{
-          color: '#00A0E9',
+          color: token.colorInfo,
           marginLeft: 8,
         }}
       />

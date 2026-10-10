@@ -281,6 +281,13 @@ export default {
   'pages.config.system.conflict.currentValue': 'Current Value',
   'pages.config.system.conflict.changedBy': 'Changed By',
   'pages.config.system.conflict.changedAt': 'Changed At',
+  // Delete operation conflict
+  'pages.config.system.conflict.deleteTitle': 'Delete Conflict',
+  'pages.config.system.conflict.forceDelete': 'Force Delete',
+  'pages.config.system.conflict.deleteWarningDesc':
+    "The current config has been modified by another administrator. Your delete operation cannot be executed directly. You can choose to reload to get the latest status, or force delete the other person's changes.",
+  // Force delete success
+  'pages.config.system.forceDeleteSuccess': 'Config force deleted successfully',
   // User Config Management
   'pages.config.user.key': 'Config Key',
   'pages.config.user.drawerTitle': 'User Configs: ',
@@ -302,8 +309,10 @@ export default {
   'pages.config.user.rollbackSuccess': 'Rollback successful',
   'pages.config.user.forceOverwriteSuccess':
     'Config force overwrite successful',
+  'pages.config.user.forceDeleteSuccess': 'Config force deleted successfully',
   'pages.config.user.editTitle': 'Edit Config: ',
   'pages.config.user.historyTitle': 'Config History: ',
+  'pages.config.user.moreActions': 'More actions',
   'pages.config.user.rollbackTitle': 'Confirm Rollback',
   'pages.config.user.rollbackConfirm': 'Are you sure you want to rollback',
   'pages.config.user.rollbackToVersion': 'to version',
@@ -919,13 +928,16 @@ export default {
   'pages.diagnose.title': 'RTC Agent Integration Diagnosis',
   'pages.diagnose.agentAlreadyRunning': 'Diagnose agent is already running',
   'pages.diagnose.testingDynamicImport': 'Testing dynamic import...',
-  'pages.diagnose.dynamicImportSuccess': 'Dynamic import successful, test agent mounted',
+  'pages.diagnose.dynamicImportSuccess':
+    'Dynamic import successful, test agent mounted',
   'pages.diagnose.testAgentDestroyed': 'Test agent destroyed',
   // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
   'pages.diagnose.dynamicImportFailed': 'Dynamic import failed: ${error}',
   'pages.diagnose.integrationNormal': 'Integration Normal',
-  'pages.diagnose.agentMounted': 'RTC Agent has been successfully mounted to the page',
-  'pages.diagnose.agentNotMounted': 'RTC Agent is not mounted (this may be because you are not logged in)',
+  'pages.diagnose.agentMounted':
+    'RTC Agent has been successfully mounted to the page',
+  'pages.diagnose.agentNotMounted':
+    'RTC Agent is not mounted (this may be because you are not logged in)',
   'pages.diagnose.diagnosticInfo': 'Diagnostic Info',
   'pages.diagnose.useModelStatus': 'useModel Status:',
   'pages.diagnose.statusNormal': 'Normal',
@@ -940,9 +952,13 @@ export default {
   'pages.diagnose.testDynamicImport': 'Test Dynamic Import',
   'pages.diagnose.reloadPage': 'Reload Page',
   'pages.diagnose.instructions': 'Instructions',
-  'pages.diagnose.consoleErrorHint': 'If you see the following error in the browser console:',
+  'pages.diagnose.consoleErrorHint':
+    'If you see the following error in the browser console:',
   'pages.diagnose.pleaseCheck': 'Please check:',
-  'pages.diagnose.checkClearCache': 'Have you cleared browser cache (Cmd+Shift+R / Ctrl+Shift+R)',
-  'pages.diagnose.checkRestartServer': 'Have you restarted the development server',
-  'pages.diagnose.checkConsoleStack': 'Check the full error stack in browser console',
+  'pages.diagnose.checkClearCache':
+    'Have you cleared browser cache (Cmd+Shift+R / Ctrl+Shift+R)',
+  'pages.diagnose.checkRestartServer':
+    'Have you restarted the development server',
+  'pages.diagnose.checkConsoleStack':
+    'Check the full error stack in browser console',
 };

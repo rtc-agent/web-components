@@ -263,6 +263,13 @@ export default {
   'pages.config.system.conflict.currentValue': '当前值',
   'pages.config.system.conflict.changedBy': '修改人',
   'pages.config.system.conflict.changedAt': '修改时间',
+  // 删除操作冲突
+  'pages.config.system.conflict.deleteTitle': '删除冲突',
+  'pages.config.system.conflict.forceDelete': '强制删除',
+  'pages.config.system.conflict.deleteWarningDesc':
+    '当前配置已被其他管理员修改，您的删除操作无法直接执行。可以选择重新加载获取最新状态，或强制删除他人的修改。',
+  // 强制删除成功
+  'pages.config.system.forceDeleteSuccess': '配置强制删除成功',
   // 用户配置管理
   'pages.config.user.key': '配置键',
   'pages.config.user.drawerTitle': '用户配置：',
@@ -281,8 +288,10 @@ export default {
   'pages.config.user.deleteSuccess': '用户覆盖已删除，回退到系统默认值',
   'pages.config.user.rollbackSuccess': '回滚成功',
   'pages.config.user.forceOverwriteSuccess': '配置强制覆盖成功',
+  'pages.config.user.forceDeleteSuccess': '配置强制删除成功',
   'pages.config.user.editTitle': '编辑配置：',
   'pages.config.user.historyTitle': '配置历史：',
+  'pages.config.user.moreActions': '更多操作',
   'pages.config.user.rollbackTitle': '确认回滚',
   'pages.config.user.rollbackConfirm': '确定要将',
   'pages.config.user.rollbackToVersion': '回滚到版本',
@@ -889,7 +898,8 @@ export default {
   'pages.diagnose.instructions': '说明',
   'pages.diagnose.consoleErrorHint': '如果在浏览器控制台看到以下错误：',
   'pages.diagnose.pleaseCheck': '请检查：',
-  'pages.diagnose.checkClearCache': '是否清除了浏览器缓存（Cmd+Shift+R / Ctrl+Shift+R）',
+  'pages.diagnose.checkClearCache':
+    '是否清除了浏览器缓存（Cmd+Shift+R / Ctrl+Shift+R）',
   'pages.diagnose.checkRestartServer': '是否重启了开发服务器',
   'pages.diagnose.checkConsoleStack': '检查浏览器控制台的完整错误堆栈',
 };

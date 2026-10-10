@@ -7,7 +7,7 @@ import {
 } from '@ant-design/pro-components';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { FormattedMessage, useIntl } from '@umijs/max';
-import { Button, message } from 'antd';
+import { Button, Grid, message } from 'antd';
 import type { FC } from 'react';
 import { addRule } from '@/services/ant-design-pro/api';
 
@@ -25,6 +25,9 @@ const CreateForm: FC<CreateFormProps> = (props) => {
    * @zh-CN 国际化配置
    * */
   const intl = useIntl();
+  const breakpoints = Grid.useBreakpoint();
+  const isMobile = !breakpoints.sm;
+  const modalWidth = isMobile ? '95vw' : 400;
 
   const { mutateAsync: run, isPending: loading } = useMutation({
     mutationFn: addRule,
@@ -47,11 +50,18 @@ const CreateForm: FC<CreateFormProps> = (props) => {
           defaultMessage: 'New rule',
         })}
         trigger={
-          <Button type="primary" icon={<PlusOutlined />}>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            aria-label={intl.formatMessage({
+              id: 'pages.searchTable.new',
+              defaultMessage: 'New',
+            })}
+          >
             <FormattedMessage id="pages.searchTable.new" defaultMessage="New" />
           </Button>
         }
-        width="400px"
+        width={modalWidth}
         modalProps={{ okButtonProps: { loading } }}
         onFinish={async (value) => {
           try {
