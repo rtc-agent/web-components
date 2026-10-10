@@ -38,6 +38,7 @@ export interface RefreshTokenResult {
   access_token: string;
   refresh_token: string;
   expires_in: number;
+  refresh_token_expires_in?: number; // Refresh token 过期时间（秒），可选字段
   token_type: string;
 }
 
@@ -76,9 +77,6 @@ export interface UserInfo {
 export async function login(body: LoginParams, options?: { [key: string]: any }) {
   return request<LoginResult>('/api/auth/login', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
     data: body,
     ...(options || {}),
   });
@@ -91,9 +89,6 @@ export async function login(body: LoginParams, options?: { [key: string]: any })
 export async function refreshToken(body: { refresh_token: string }, options?: { [key: string]: any }) {
   return request<RefreshTokenResult>('/api/auth/refresh', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
     data: body,
     ...(options || {}),
   });
@@ -117,9 +112,6 @@ export async function getCurrentUser(options?: { [key: string]: any }) {
 export async function logout(body: { refresh_token: string }, options?: { [key: string]: any }) {
   return request<{ status: string }>('/api/auth/logout', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
     data: body,
     ...(options || {}),
   });
@@ -148,9 +140,6 @@ export interface OTPLoginParams {
 export async function sendEmailOTP(body: SendOTPParams, options?: { [key: string]: any }) {
   return request<SendOTPResult>('/api/auth/otp/send', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
     data: body,
     ...(options || {}),
   });
@@ -163,9 +152,6 @@ export async function sendEmailOTP(body: SendOTPParams, options?: { [key: string
 export async function loginWithOTP(body: OTPLoginParams, options?: { [key: string]: any }) {
   return request<LoginResult>('/api/auth/login/otp', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
     data: body,
     ...(options || {}),
   });
