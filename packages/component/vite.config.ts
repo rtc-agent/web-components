@@ -30,27 +30,44 @@ export default defineConfig(({ mode }) => ({
   define: {
     // Babel 和其他 Node.js 库可能引用 process.env，在浏览器环境中需要定义
     // 根据实际构建模式动态设置 NODE_ENV，确保生产构建能正确 tree-shake
-    'process.env.NODE_ENV': JSON.stringify(mode === 'development' ? 'development' : 'production'),
+    'process.env.NODE_ENV': JSON.stringify(
+      mode === 'development' ? 'development' : 'production',
+    ),
     'process.env': JSON.stringify({}),
   },
   resolve: {
     // 开发时直接解析 workspace 包到源码，跳过 dist/，实现热更新
     alias: {
       '@rtc-agent/client': path.resolve(__dirname, '../client/src/index.ts'),
-      '@rtc-agent/persistence': path.resolve(__dirname, '../persistence/src/index.ts'),
-      '@rtc-agent/protocol': path.resolve(__dirname, '../protocol/src/index.ts'),
+      '@rtc-agent/persistence': path.resolve(
+        __dirname,
+        '../persistence/src/index.ts',
+      ),
+      '@rtc-agent/protocol': path.resolve(
+        __dirname,
+        '../protocol/src/index.ts',
+      ),
       '@rtc-agent/worker': path.resolve(__dirname, '../worker/src/index.ts'),
     },
   },
   optimizeDeps: {
     // 阻止 Vite 预打包 workspace 包，否则其嵌套 import 仍走 dist/
-    exclude: ['@rtc-agent/client', '@rtc-agent/persistence', '@rtc-agent/protocol', '@rtc-agent/worker'],
+    exclude: [
+      '@rtc-agent/client',
+      '@rtc-agent/persistence',
+      '@rtc-agent/protocol',
+      '@rtc-agent/worker',
+    ],
   },
   build: {
+    // 生成 JS sourcemap，便于生产环境调试和问题定位
+    // 生产环境使用 'hidden'：生成 .map 文件但不在 JS 中引用，避免暴露源码
+    // 开发环境使用 true：生成 .map 文件并在 JS 中添加引用
+    sourcemap: mode === 'development' ? true : 'hidden',
     lib: {
       entry: 'src/index.ts',
       formats: ['es', 'umd'],
-      fileName: (format) => format === 'es' ? 'index.js' : 'index.umd.js',
+      fileName: (format) => (format === 'es' ? 'index.js' : 'index.umd.js'),
       name: 'RtcAgentModule',
     },
     rollupOptions: {
@@ -60,9 +77,8 @@ export default defineConfig(({ mode }) => ({
     },
   },
   server: {
-    // 允许从上级 debug 目录访问测试页面
     fs: {
-      allow: [path.resolve('../../debug'), path.resolve('.'), path.resolve('..')],
+      allow: [path.resolve('.'), path.resolve('..')],
     },
   },
   worker: {
