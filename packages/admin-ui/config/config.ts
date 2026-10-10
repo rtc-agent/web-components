@@ -166,7 +166,22 @@ export default defineConfig({
    * @description 使用 react-query 管理服务端状态
    * @doc https://umijs.org/docs/max/react-query
    */
-  reactQuery: {},
+  reactQuery: {
+    queryClient: {
+      defaultOptions: {
+        queries: {
+          refetchOnWindowFocus: false,
+          refetchOnMount: true,
+          retry: false,
+          staleTime: 5 * 60 * 1000,
+          gcTime: 10 * 60 * 1000,
+        },
+        mutations: {
+          gcTime: 0,
+        },
+      },
+    },
+  },
   /**
    * @name 权限插件
    * @description 基于 initialState 的权限插件，必须先打开 initialState
@@ -182,12 +197,50 @@ export default defineConfig({
     ga_v2: 'G-59NF1VHHPF',
   },
   /**
+   * @name <head> 中额外的 meta 标签
+   * @description Content Security Policy (CSP) 防止 XSS / 数据注入攻击。
+   * - 'unsafe-inline' 是必要的：Umi 注入的 loading.js / GA 脚本以及 antd 动态样式。
+   * - connect-src 需要放行 GA（googletagmanager / google-analytics）以及 WS 协议，
+   *   供 rtc-agent 组件连接 Centrifuge WebSocket。
+   * - frame-ancestors 'none' 禁止任何站点嵌套本页面，避免点击劫持。
+   */
+  metas: [
+    {
+      httpEquiv: 'Content-Security-Policy',
+      content: [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com",
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data: blob: https:",
+        "connect-src 'self' https://www.google-analytics.com ws: wss: http: https:",
+        "font-src 'self' data:",
+        "frame-ancestors 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+      ].join('; '),
+    },
+  ],
+  /**
    * @name <head> 中额外的 script
    * @description 配置 <head> 中额外的 script
    */
   headScripts: [
     // 解决首次加载时白屏的问题
     { src: join(PUBLIC_PATH, 'scripts/loading.js'), async: true },
+    // Set document direction based on browser language (early initialization)
+    `
+      (function() {
+        try {
+          var lang = navigator.language || navigator.languages[0] || 'zh-CN';
+          var rtlLocales = ['fa', 'ar', 'he'];
+          var isRTL = rtlLocales.some(function(rtl) { return lang.startsWith(rtl); });
+          document.documentElement.dir = isRTL ? 'rtl' : 'ltr';
+          document.documentElement.lang = lang;
+        } catch(e) {
+          document.documentElement.dir = 'ltr';
+        }
+      })();
+    `,
   ],
 
   //================ pro 插件配置 =================

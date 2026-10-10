@@ -38,7 +38,7 @@ const TableList: React.FC = () => {
     onSuccess: () => {
       setSelectedRows([]);
       actionRef.current?.reloadAndRest?.();
-      queryClient.invalidateQueries({ queryKey: ['rule'] });
+      queryClient.invalidateQueries({ queryKey: ['rules', 'list'] });
 
       messageApi.success('Deleted successfully and will refresh soon');
     },
@@ -318,7 +318,7 @@ const TableList: React.FC = () => {
       )}
 
       <Drawer
-        size={600}
+        width={600}
         open={showDetail}
         onClose={() => {
           setCurrentRow(undefined);
