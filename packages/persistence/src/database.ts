@@ -482,15 +482,24 @@ export class RTCAgentDatabase extends Dexie {
       fileSystemEntries: 'path, type, metadata.group, *metadata.tags',
     }).upgrade(async (tx) => {
       // Backfill session_device_id for existing RTC records
-      const rtcs = await tx.table('rtcs').toArray();
-      for (const rtc of rtcs) {
-        if (rtc.session_client_id && !rtc.session_device_id) {
-          const session = await tx.table('sessions').get(rtc.session_client_id);
-          if (session?.device_id) {
-            await tx.table('rtcs').update(rtc.client_id, { session_device_id: session.device_id });
-          }
+      // Optimization: Pre-fetch all sessions to avoid N+1 query pattern
+      const sessions = await tx.table('sessions').toArray();
+      const sessionDeviceMap = new Map<string, string>();
+      for (const s of sessions) {
+        if (s.device_id) {
+          sessionDeviceMap.set(s.client_id, s.device_id);
         }
       }
+
+      // Single atomic modify pass for all RTC records
+      await tx.table('rtcs').toCollection().modify(rtc => {
+        if (rtc.session_client_id && !rtc.session_device_id) {
+          const deviceId = sessionDeviceMap.get(rtc.session_client_id);
+          if (deviceId) {
+            rtc.session_device_id = deviceId;
+          }
+        }
+      });
     });
 
     // v9: Add debugHistory table for function debugger history persistence
