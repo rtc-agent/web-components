@@ -4,17 +4,31 @@
   "private": true,
   "description": "RTC Agent Web Component monorepo",
   "packageManager": "pnpm@8.15.0",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=8.0.0"
+  },
   "scripts": {
-    "build": "pnpm -r build",
-    "dev": "pnpm --filter @rtc-agent/component dev",
-    "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test",
+    "build": "turbo run build",
+    "dev": "turbo run dev --filter @rtc-agent/component",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
     "test:e2e": "pnpm --filter @rtc-agent/e2e test"
   },
   "dependencies": {
     "@awesome.me/webawesome": "^3.12.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0"
+    "@playwright/test": "^1.63.0",
+    "openapi-typescript": "^7.13.0",
+    "turbo": "^2.5.0",
+    "vitest": "^2.1.9"
+  },
+  "pnpm": {
+    "overrides": {
+      "vitest": "^2.1.9",
+      "@vitest/coverage-v8": "^2.1.9",
+      "@vitest/ui": "^2.1.9"
+    }
   }
 }
