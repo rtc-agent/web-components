@@ -23,9 +23,16 @@ import {
 } from '@rtc-agent/persistence';
 import type { HeadObjectResult } from '@rtc-agent/client';
 import type { ContentData } from '@rtc-agent/protocol';
-import type { ConnectionState, ConnectionStateEvent, TokenExpiredAction } from '@rtc-agent/client';
-import { createLogger } from '@rtc-agent/client';
-import type { WorkerCallbacks, WorkerPersistenceCore } from './core-interface.js';
+import type {
+  ConnectionState,
+  ConnectionStateEvent,
+  TokenExpiredAction,
+} from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
+import type {
+  WorkerCallbacks,
+  WorkerPersistenceCore,
+} from './core-interface.js';
 
 const log = createLogger('WorkerCore');
 
@@ -106,7 +113,8 @@ export class WorkerCore implements WorkerPersistenceCore {
         onTokenExpired: () => this.requestTokenRefresh(),
         onGapFillStart: () => this.broadcastGapFillState(true),
         onGapFillEnd: () => this.broadcastGapFillState(false),
-        onAccountBanned: (reason: string) => this.broadcastAccountBanned(reason),
+        onAccountBanned: (reason: string) =>
+          this.broadcastAccountBanned(reason),
       },
     };
 
@@ -115,9 +123,11 @@ export class WorkerCore implements WorkerPersistenceCore {
     // P2-NEW-3 fix + P2-D update: inject status change listener into FileOpCoordinator
     // Returns a dispose function for teardown.
     const fileOpCoordinator = this.layer.getFileOpCoordinator();
-    this._disposeCoordinator = fileOpCoordinator.onStatusChange((md5, ext, status, errorMessage) => {
-      this._broadcastFileSyncStatus(md5, ext, status, errorMessage);
-    });
+    this._disposeCoordinator = fileOpCoordinator.onStatusChange(
+      (md5, ext, status, errorMessage) => {
+        this._broadcastFileSyncStatus(md5, ext, status, errorMessage);
+      },
+    );
 
     // Initialize UIUpdateBus: set the _initialized flag so publish() persists events.
     const bus = getUIUpdateBus();
@@ -169,14 +179,21 @@ export class WorkerCore implements WorkerPersistenceCore {
    *                issues when a tab has been offline for a long time.
    * @returns entries, hasGap (events were skipped), hasMore (more events available beyond limit)
    */
-  async getCatchUpEvents(fromSeq: number, limit = 1000): Promise<{
+  async getCatchUpEvents(
+    fromSeq: number,
+    limit = 1000,
+  ): Promise<{
     entries: UIUpdateQueueEntry[];
     hasGap: boolean;
     hasMore: boolean;
   }> {
     const db = getDatabase();
     // Fetch limit + 1 to detect if there are more events beyond the limit
-    const entries = await db.ui_updates.where('seq').above(fromSeq).limit(limit + 1).toArray();
+    const entries = await db.ui_updates
+      .where('seq')
+      .above(fromSeq)
+      .limit(limit + 1)
+      .toArray();
     const hasMore = entries.length > limit;
     if (hasMore) entries.pop(); // Remove the extra entry
 
@@ -191,7 +208,9 @@ export class WorkerCore implements WorkerPersistenceCore {
       const minSeq = entries[0].seq;
       if (minSeq > fromSeq + 1) {
         hasGap = true;
-        log.warn(`getCatchUpEvents: gap at start! fromSeq=${fromSeq}, lowest returned seq=${minSeq}`);
+        log.warn(
+          `getCatchUpEvents: gap at start! fromSeq=${fromSeq}, lowest returned seq=${minSeq}`,
+        );
       }
     } else if (fromSeq > 0 && entries.length === 0) {
       // fromSeq > 0 but no events found — either all events were processed (normal)
@@ -201,15 +220,21 @@ export class WorkerCore implements WorkerPersistenceCore {
       if (!latest) {
         // DB is completely empty but fromSeq > 0 — all events were TTL-deleted → gap
         hasGap = true;
-        log.warn(`getCatchUpEvents: gap detected! fromSeq=${fromSeq}, but DB is empty (all events TTL-deleted)`);
+        log.warn(
+          `getCatchUpEvents: gap detected! fromSeq=${fromSeq}, but DB is empty (all events TTL-deleted)`,
+        );
       } else if (latest.seq !== fromSeq) {
         // DB has events beyond fromSeq, but none returned — gap
         hasGap = true;
-        log.warn(`getCatchUpEvents: gap detected! fromSeq=${fromSeq}, but DB has events up to seq=${latest.seq}`);
+        log.warn(
+          `getCatchUpEvents: gap detected! fromSeq=${fromSeq}, but DB has events up to seq=${latest.seq}`,
+        );
       }
     }
 
-    log.debug(`getCatchUpEvents: returning ${entries.length} events from seq ${fromSeq} (hasGap=${hasGap}, hasMore=${hasMore})`);
+    log.debug(
+      `getCatchUpEvents: returning ${entries.length} events from seq ${fromSeq} (hasGap=${hasGap}, hasMore=${hasMore})`,
+    );
     return { entries, hasGap, hasMore };
   }
 
@@ -230,7 +255,10 @@ export class WorkerCore implements WorkerPersistenceCore {
     const layer = this.ensureLayer();
     log.debug('calling layer.connect()');
     await layer.connect();
-    log.debug('layer.connect() returned, client state:', layer.getClient().getConnectionState());
+    log.debug(
+      'layer.connect() returned, client state:',
+      layer.getClient().getConnectionState(),
+    );
     // Subscribe to RTCAgentClient connection state changes and broadcast to all Tabs
     this._subscribeConnectionState(layer);
     log.debug('connection state subscribed, returning from connect()');
@@ -288,7 +316,9 @@ export class WorkerCore implements WorkerPersistenceCore {
     return layer.listRtc(sessionClientId, cursor, limit);
   }
 
-  async getNextRtcToProcess(sessionClientId?: string): Promise<LocalRtc | undefined> {
+  async getNextRtcToProcess(
+    sessionClientId?: string,
+  ): Promise<LocalRtc | undefined> {
     const layer = this.ensureLayer();
     return layer.getNextRtcToProcess(sessionClientId);
   }
@@ -303,7 +333,7 @@ export class WorkerCore implements WorkerPersistenceCore {
   async queryDebugHistory(
     functionName?: string,
     cursor?: string,
-    limit?: number
+    limit?: number,
   ): Promise<PagedResult<DebugHistoryItem>> {
     const layer = this.ensureLayer();
     return layer.queryDebugHistory(functionName, cursor, limit);
@@ -361,7 +391,10 @@ export class WorkerCore implements WorkerPersistenceCore {
     return layer.openSession(sessionClientId);
   }
 
-  async compactSession(sessionClientId: string, customInstruction?: string): Promise<void> {
+  async compactSession(
+    sessionClientId: string,
+    customInstruction?: string,
+  ): Promise<void> {
     const layer = this.ensureLayer();
     return layer.compactSession(sessionClientId, customInstruction);
   }
@@ -393,7 +426,10 @@ export class WorkerCore implements WorkerPersistenceCore {
     return layer.deleteSession(sessionClientId);
   }
 
-  async updateSessionTitle(sessionClientId: string, title: string): Promise<void> {
+  async updateSessionTitle(
+    sessionClientId: string,
+    title: string,
+  ): Promise<void> {
     const layer = this.ensureLayer();
     return layer.updateSessionTitle(sessionClientId, title);
   }
@@ -422,7 +458,9 @@ export class WorkerCore implements WorkerPersistenceCore {
     // SharedWorker architecture: all tabs share the same core/layer/database
     // If other tabs are still connected, skip teardown to avoid breaking their operations
     if (this.callbacks.size > 0) {
-      log.debug(`close() called but ${this.callbacks.size} tabs still connected, skipping teardown`);
+      log.debug(
+        `close() called but ${this.callbacks.size} tabs still connected, skipping teardown`,
+      );
       return;
     }
 
@@ -441,7 +479,7 @@ export class WorkerCore implements WorkerPersistenceCore {
     // Give operations a tick to complete finally cleanup
     // (their Promise chains need to run the finally block to remove themselves from the Map)
     if (this._operationControllers.size > 0) {
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
     }
     this._operationControllers.clear();
 
@@ -483,9 +521,14 @@ export class WorkerCore implements WorkerPersistenceCore {
     try {
       const cutoff = Date.now() - 30 * 60 * 1000; // 30 minutes
       const db = getDatabase();
-      const deleted = await db.ui_updates.where('timestamp').below(cutoff).delete();
+      const deleted = await db.ui_updates
+        .where('timestamp')
+        .below(cutoff)
+        .delete();
       if (deleted > 0) {
-        log.debug(`UI update queue cleanup: removed ${deleted} entries older than 30 minutes`);
+        log.debug(
+          `UI update queue cleanup: removed ${deleted} entries older than 30 minutes`,
+        );
       }
     } catch (err) {
       log.debug('UI update queue cleanup failed (non-fatal):', err);
@@ -533,51 +576,68 @@ export class WorkerCore implements WorkerPersistenceCore {
     }>,
     deletePaths?: string[],
   ): Promise<void> {
-    log.debug('batchWriteFiles called, files count:', files.length, 'deletePaths count:', deletePaths?.length ?? 0);
+    log.debug(
+      'batchWriteFiles called, files count:',
+      files.length,
+      'deletePaths count:',
+      deletePaths?.length ?? 0,
+    );
     const db = getDatabase();
 
     // Fix 55: Wrap all writes operations in a single transaction to ensure atomicity.
     // If any write fails, the entire batch is rolled back, preventing partial updates.
     // Include ui_updates table to allow UIUpdateBus.publish() to persist events within this transaction.
-    await db.transaction('rw', db.fileSystemEntries, db.ui_updates, async () => {
-      for (const file of files) {
-        // Check if this is a protected file path (/AGENT.md or /scenarios/*.md)
-        const isProtectedPath = this._isProtectedPath(file.path);
+    await db.transaction(
+      'rw',
+      db.fileSystemEntries,
+      db.ui_updates,
+      async () => {
+        for (const file of files) {
+          // Check if this is a protected file path (/AGENT.md or /scenarios/*.md)
+          const isProtectedPath = this._isProtectedPath(file.path);
 
-        if (isProtectedPath) {
-          // Check if the file exists and has been edited by the user
-          const existing = await db.fileSystemEntries.get(file.path);
-          if (existing?.metadata?.editedByUser) {
-            log.debug('batchWriteFiles: skipping protected file edited by user:', file.path);
-            continue;
+          if (isProtectedPath) {
+            // Check if the file exists and has been edited by the user
+            const existing = await db.fileSystemEntries.get(file.path);
+            if (existing?.metadata?.editedByUser) {
+              log.debug(
+                'batchWriteFiles: skipping protected file edited by user:',
+                file.path,
+              );
+              continue;
+            }
           }
+
+          // For protected paths, use overwrite mode (since we've already checked editedByUser above)
+          // For other paths, always use overwrite mode
+          const mode: 'overwrite' | 'append' | 'create-new' = 'overwrite';
+
+          // Ensure editedByUser is set to false for system-generated files
+          const metadata = {
+            ...file.metadata,
+            editedByUser: false,
+          };
+
+          await virtualFS.write(file.path, file.content, mode, metadata);
         }
 
-        // For protected paths, use overwrite mode (since we've already checked editedByUser above)
-        // For other paths, always use overwrite mode
-        const mode: 'overwrite' | 'append' | 'create-new' = 'overwrite';
-
-        // Ensure editedByUser is set to false for system-generated files
-        const metadata = {
-          ...file.metadata,
-          editedByUser: false,
-        };
-
-        await virtualFS.write(file.path, file.content, mode, metadata);
-      }
-
-      // Delete stale/orphan paths (doc reconciliation)
-      if (deletePaths && deletePaths.length > 0) {
-        for (const path of deletePaths) {
-          try {
-            await virtualFS.remove(path);
-            log.debug('batchWriteFiles: deleted orphan path:', path);
-          } catch (err) {
-            log.warn('batchWriteFiles: failed to delete orphan path:', path, err);
+        // Delete stale/orphan paths (doc reconciliation)
+        if (deletePaths && deletePaths.length > 0) {
+          for (const path of deletePaths) {
+            try {
+              await virtualFS.remove(path);
+              log.debug('batchWriteFiles: deleted orphan path:', path);
+            } catch (err) {
+              log.warn(
+                'batchWriteFiles: failed to delete orphan path:',
+                path,
+                err,
+              );
+            }
           }
         }
-      }
-    });
+      },
+    );
 
     log.debug('batchWriteFiles completed');
     // Single broadcast for batch write to avoid per-file notifications
@@ -616,7 +676,11 @@ export class WorkerCore implements WorkerPersistenceCore {
 
   // ========== virtualFS proxy (main thread -> Worker) ==========
 
-  async virtualFSRead(path: string, offset?: number, limit?: number): Promise<string> {
+  async virtualFSRead(
+    path: string,
+    offset?: number,
+    limit?: number,
+  ): Promise<string> {
     return virtualFS.read(path, offset, limit);
   }
 
@@ -656,24 +720,33 @@ export class WorkerCore implements WorkerPersistenceCore {
     return virtualFS.grep(pattern, path, caseSensitive, maxResults);
   }
 
-  async virtualFSQueryByType(type: string): Promise<Array<{
-    path: string;
-    type: string;
-    content: string;
-    metadata: {
-      name: string;
-      description: string;
-      tags?: string[];
-      group?: string;
-      createdAt: Date;
-      updatedAt: Date;
-    };
-  }>> {
+  async virtualFSQueryByType(type: string): Promise<
+    Array<{
+      path: string;
+      type: string;
+      content: string;
+      metadata: {
+        name: string;
+        description: string;
+        tags?: string[];
+        group?: string;
+        createdAt: Date;
+        updatedAt: Date;
+      };
+    }>
+  > {
     // Validate the incoming string against the known FileSystemEntryType union
     // to avoid passing an arbitrary string into virtualFS.queryByType.
-    const validTypes: ReadonlyArray<FileSystemEntryType> = ['function', 'scenario', 'script', 'index'];
+    const validTypes: ReadonlyArray<FileSystemEntryType> = [
+      'function',
+      'scenario',
+      'script',
+      'index',
+    ];
     if (!validTypes.includes(type as FileSystemEntryType)) {
-      log.warn(`virtualFSQueryByType: unknown type "${type}", falling back to empty result`);
+      log.warn(
+        `virtualFSQueryByType: unknown type "${type}", falling back to empty result`,
+      );
       return [];
     }
     return virtualFS.queryByType(type as FileSystemEntryType);
@@ -715,8 +788,12 @@ export class WorkerCore implements WorkerPersistenceCore {
         // we need to handle both cases gracefully.
         const result = cb.onUIUpdate(payload);
         // Check for Promise-like return value using .then (safer than .catch for Comlink proxies)
-        if (result && typeof result === 'object' && typeof (result as any).then === 'function') {
-          (result as Promise<void>).catch(err => {
+        if (
+          result &&
+          typeof result === 'object' &&
+          typeof (result as any).then === 'function'
+        ) {
+          (result as Promise<void>).catch((err) => {
             log.error('onUIUpdate callback async error:', err);
           });
         }
@@ -752,7 +829,12 @@ export class WorkerCore implements WorkerPersistenceCore {
    * Broadcast gap fill state change to all registered Tab callbacks.
    */
   private broadcastGapFillState(isSyncing: boolean): void {
-    log.debug('[BulkUpdate] WorkerCore.broadcastGapFillState called, isSyncing:', isSyncing, 'callbacks:', this.callbacks.size);
+    log.debug(
+      '[BulkUpdate] WorkerCore.broadcastGapFillState called, isSyncing:',
+      isSyncing,
+      'callbacks:',
+      this.callbacks.size,
+    );
     for (const cb of this.callbacks) {
       try {
         cb.onGapFillState(isSyncing);
@@ -766,7 +848,12 @@ export class WorkerCore implements WorkerPersistenceCore {
    * Broadcast account banned notification to all registered Tab callbacks.
    */
   private broadcastAccountBanned(reason: string): void {
-    log.warn('broadcastAccountBanned called, reason:', reason, 'callbacks:', this.callbacks.size);
+    log.warn(
+      'broadcastAccountBanned called, reason:',
+      reason,
+      'callbacks:',
+      this.callbacks.size,
+    );
     for (const cb of this.callbacks) {
       try {
         cb.onAccountBanned(reason);
@@ -782,13 +869,18 @@ export class WorkerCore implements WorkerPersistenceCore {
    * Parallel: tries all registered requestToken callbacks concurrently via Promise.any,
    * returning the first successful result. This avoids serial latency when multiple tabs
    * are registered and one is slow to respond.
+   *
+   * Error: if no tabs are registered, the Worker cannot obtain a token. This typically
+   * indicates a lifecycle issue (e.g., connect() called before any tab registered callbacks).
    */
   private async requestToken(): Promise<string> {
-    const promises = Array.from(this.callbacks)
-      .map(cb => cb.requestToken());
-    if (promises.length === 0) {
-      throw new Error('[WorkerCore] no callback available to provide token');
+    if (this.callbacks.size === 0) {
+      throw new Error(
+        '[WorkerCore] cannot request token: no tabs registered. ' +
+          'Ensure WorkerBridge.init() has completed before connect() is called.',
+      );
     }
+    const promises = Array.from(this.callbacks).map((cb) => cb.requestToken());
     try {
       const token = await Promise.any(promises);
       log.debug('token obtained successfully');
@@ -796,7 +888,10 @@ export class WorkerCore implements WorkerPersistenceCore {
     } catch (err) {
       // Promise.any rejects with AggregateError when all promises reject
       log.error('all requestToken callbacks failed:', err);
-      throw new Error('[WorkerCore] all token callbacks failed');
+      throw new Error(
+        `[WorkerCore] all ${this.callbacks.size} token request(s) failed. ` +
+          'Check AuthController state and network connectivity.',
+      );
     }
   }
 
@@ -808,11 +903,13 @@ export class WorkerCore implements WorkerPersistenceCore {
    * (requires user to log in again).
    */
   private async requestTokenRefresh(): Promise<TokenExpiredAction> {
-    const promises = Array.from(this.callbacks)
-      .map(cb => cb.requestTokenRefresh());
-    if (promises.length === 0) {
+    if (this.callbacks.size === 0) {
+      log.error('requestTokenRefresh: no tabs registered, forcing relogin');
       return 'relogin';
     }
+    const promises = Array.from(this.callbacks).map((cb) =>
+      cb.requestTokenRefresh(),
+    );
     try {
       return await Promise.any(promises);
     } catch (err) {
@@ -839,10 +936,18 @@ export class WorkerCore implements WorkerPersistenceCore {
     this._unsubscribeConnectionState();
     const client = layer.getClient();
     log.debug('subscribing to connection state changes');
-    this.unsubscribeConnection = client.on('connection', (event: ConnectionStateEvent) => {
-      log.debug('connection state changed:', event.state, 'reason:', event.reason);
-      this.broadcastConnectionState(event);
-    });
+    this.unsubscribeConnection = client.on(
+      'connection',
+      (event: ConnectionStateEvent) => {
+        log.debug(
+          'connection state changed:',
+          event.state,
+          'reason:',
+          event.reason,
+        );
+        this.broadcastConnectionState(event);
+      },
+    );
   }
 
   /**
@@ -859,7 +964,14 @@ export class WorkerCore implements WorkerPersistenceCore {
    * Broadcast a connection state change to all registered Tab callbacks.
    */
   private broadcastConnectionState(event: ConnectionStateEvent): void {
-    log.debug('broadcastConnectionState called, state:', event.state, 'reason:', event.reason, 'callbacks:', this.callbacks.size);
+    log.debug(
+      'broadcastConnectionState called, state:',
+      event.state,
+      'reason:',
+      event.reason,
+      'callbacks:',
+      this.callbacks.size,
+    );
     for (const cb of this.callbacks) {
       try {
         cb.onConnectionStateChange(event);
@@ -876,7 +988,7 @@ export class WorkerCore implements WorkerPersistenceCore {
     ext: string,
     blob: Blob,
     contentType: string,
-    ttlMs?: number
+    ttlMs?: number,
   ): Promise<void> {
     const layer = this.ensureLayer();
     return layer.cacheFile(md5, ext, blob, contentType, ttlMs);
@@ -887,7 +999,7 @@ export class WorkerCore implements WorkerPersistenceCore {
     ext: string,
     blob: Blob,
     contentType: string,
-    filename?: string
+    filename?: string,
   ): Promise<void> {
     const layer = this.ensureLayer();
     return layer.cacheFilePending(md5, ext, blob, contentType, filename);
@@ -895,7 +1007,7 @@ export class WorkerCore implements WorkerPersistenceCore {
 
   async getCachedFile(
     md5: string,
-    ext: string
+    ext: string,
   ): Promise<CachedFileInfo | null> {
     const layer = this.ensureLayer();
     return layer.getCachedFile(md5, ext);
@@ -906,7 +1018,9 @@ export class WorkerCore implements WorkerPersistenceCore {
     return layer.evictExpiredCache();
   }
 
-  async evictCache(targetBytes?: number): Promise<{ evictedCount: number; evictedBytes: number }> {
+  async evictCache(
+    targetBytes?: number,
+  ): Promise<{ evictedCount: number; evictedBytes: number }> {
     const layer = this.ensureLayer();
     return layer.evictCache(targetBytes);
   }
@@ -919,8 +1033,12 @@ export class WorkerCore implements WorkerPersistenceCore {
     filename?: string,
     operationId?: string,
     onProgress?: (loaded: number, total: number) => void,
-    cacheTtlMs?: number
-  ): Promise<{ syncStatus: 'pending' | 'syncing' | 'synced' | 'failed'; syncedAt?: number; errorMessage?: string }> {
+    cacheTtlMs?: number,
+  ): Promise<{
+    syncStatus: 'pending' | 'syncing' | 'synced' | 'failed';
+    syncedAt?: number;
+    errorMessage?: string;
+  }> {
     const layer = this.ensureLayer();
     // Create AbortController for this operation (allows cancellation via cancelFileOperation)
     const ac = new AbortController();
@@ -928,9 +1046,23 @@ export class WorkerCore implements WorkerPersistenceCore {
       this._operationControllers.set(operationId, ac);
     }
     try {
-      const result = await layer.uploadFile(md5, ext, blob, contentType, filename, ac.signal, onProgress, cacheTtlMs);
+      const result = await layer.uploadFile(
+        md5,
+        ext,
+        blob,
+        contentType,
+        filename,
+        ac.signal,
+        onProgress,
+        cacheTtlMs,
+      );
       // P0-2: broadcast sync status change to all tabs
-      this._broadcastFileSyncStatus(md5, ext, result.syncStatus, result.errorMessage);
+      this._broadcastFileSyncStatus(
+        md5,
+        ext,
+        result.syncStatus,
+        result.errorMessage,
+      );
       return result;
     } finally {
       if (operationId) {
@@ -944,7 +1076,7 @@ export class WorkerCore implements WorkerPersistenceCore {
     ext: string,
     onProgress?: (loaded: number, total: number) => void,
     operationId?: string,
-    forceRefresh?: boolean  // P2-NEW-4 fix: added forceRefresh parameter
+    forceRefresh?: boolean, // P2-NEW-4 fix: added forceRefresh parameter
   ): Promise<Blob> {
     const layer = this.ensureLayer();
     // Create AbortController for this operation (allows cancellation via cancelFileOperation)
@@ -954,7 +1086,13 @@ export class WorkerCore implements WorkerPersistenceCore {
     }
     try {
       // P2-NEW-4 fix: pass forceRefresh to PersistenceLayer
-      const blob = await layer.downloadFile(md5, ext, onProgress, ac.signal, forceRefresh);
+      const blob = await layer.downloadFile(
+        md5,
+        ext,
+        onProgress,
+        ac.signal,
+        forceRefresh,
+      );
       // P0-2: broadcast sync status 'synced' after successful download+cache
       this._broadcastFileSyncStatus(md5, ext, 'synced');
       return blob;
@@ -998,12 +1136,20 @@ export class WorkerCore implements WorkerPersistenceCore {
     return layer.headFile(md5, ext);
   }
 
-  async getPresignedUrl(operation: 'get' | 'put', key: string, expiresIn?: number): Promise<string> {
+  async getPresignedUrl(
+    operation: 'get' | 'put',
+    key: string,
+    expiresIn?: number,
+  ): Promise<string> {
     const layer = this.ensureLayer();
     return layer.getPresignedUrl(operation, key, expiresIn);
   }
 
-  async listFiles(syncStatus?: FileSyncStatus, limit: number = 100, offset: number = 0): Promise<FileCacheEntry[]> {
+  async listFiles(
+    syncStatus?: FileSyncStatus,
+    limit: number = 100,
+    offset: number = 0,
+  ): Promise<FileCacheEntry[]> {
     const layer = this.ensureLayer();
     return layer.listFiles(syncStatus, limit, offset);
   }
@@ -1027,7 +1173,12 @@ export class WorkerCore implements WorkerPersistenceCore {
       this._broadcastFileSyncStatus(file.md5, file.ext, 'synced');
     }
     for (const file of result.failedFiles) {
-      this._broadcastFileSyncStatus(file.md5, file.ext, 'failed', file.errorMessage);
+      this._broadcastFileSyncStatus(
+        file.md5,
+        file.ext,
+        'failed',
+        file.errorMessage,
+      );
     }
 
     return result;
@@ -1048,7 +1199,12 @@ export class WorkerCore implements WorkerPersistenceCore {
       this._broadcastFileSyncStatus(file.md5, file.ext, 'synced');
     }
     for (const file of result.failedFiles) {
-      this._broadcastFileSyncStatus(file.md5, file.ext, 'failed', file.errorMessage);
+      this._broadcastFileSyncStatus(
+        file.md5,
+        file.ext,
+        'failed',
+        file.errorMessage,
+      );
     }
 
     return result;
@@ -1071,7 +1227,7 @@ export class WorkerCore implements WorkerPersistenceCore {
   async updateFileMetadata(
     md5: string,
     ext: string,
-    updates: { filename?: string; contentType?: string }
+    updates: { filename?: string; contentType?: string },
   ): Promise<void> {
     const layer = this.ensureLayer();
     return layer.updateFileMetadata(md5, ext, updates);

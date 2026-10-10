@@ -1,6 +1,10 @@
 import type { UpdateEntity, UpdateAction } from '@rtc-agent/protocol';
-import { createLogger } from '@rtc-agent/client';
-import { getDatabase, type UIUpdateQueueInput, type UIUpdateQueueEntry } from './database.js';
+import { createLogger } from '@rtc-agent/protocol';
+import {
+  getDatabase,
+  type UIUpdateQueueInput,
+  type UIUpdateQueueEntry,
+} from './database.js';
 
 const log = createLogger('UIUpdateBus');
 
@@ -33,7 +37,10 @@ export interface UIUpdateEvent {
  * May return a Promise for async operations. Events for the same (entity, entityId)
  * are queued per listener, ensuring sequential processing and preventing race conditions.
  */
-export type UIUpdateListener = (event: UIUpdateEvent, seq: number) => void | Promise<void>;
+export type UIUpdateListener = (
+  event: UIUpdateEvent,
+  seq: number,
+) => void | Promise<void>;
 
 /**
  * Bulk update event: emitted when a batch of updates completes after suspend.
@@ -111,6 +118,8 @@ export class UIUpdateBus {
   private _suspendedEvents: UIUpdateEvent[] = [];
   /** Track which entities were updated during suspend */
   private _suspendedEntities = new Set<UpdateEntity>();
+  /** Track suspend callers for debugging force resume scenarios */
+  private _suspendCallers: string[] = [];
 
   /**
    * Whether `init()` has been called.
@@ -145,7 +154,11 @@ export class UIUpdateBus {
   /**
    * Build a chain key for a specific (entity, entityId, listener) combination.
    */
-  private _getChainKey(entity: string, entityId: string, listener: UIUpdateListener): string {
+  private _getChainKey(
+    entity: string,
+    entityId: string,
+    listener: UIUpdateListener,
+  ): string {
     return `${entity}:${entityId}:${this._getListenerId(listener)}`;
   }
 
@@ -162,20 +175,40 @@ export class UIUpdateBus {
    * Timeout protection: If a listener Promise never resolves, the chain will
    * timeout after CHAIN_TIMEOUT_MS to prevent permanent blocking.
    */
-  private _dispatchToListener(listener: UIUpdateListener, event: UIUpdateEvent, seq: number): void {
+  private _dispatchToListener(
+    listener: UIUpdateListener,
+    event: UIUpdateEvent,
+    seq: number,
+  ): void {
     const key = this._getChainKey(event.entity, event.entityId, listener);
     const prev = this._processingChains.get(key) ?? Promise.resolve();
 
     // Use .catch() at the end to handle both sync and async errors.
     // try-catch alone cannot catch rejected Promises returned by the listener.
     const next = prev
-      .then(() => this._withTimeout(listener(event, seq), UIUpdateBus.CHAIN_TIMEOUT_MS, key))
-      .catch(err => {
+      .then(() =>
+        this._withTimeout(
+          listener(event, seq),
+          UIUpdateBus.CHAIN_TIMEOUT_MS,
+          key,
+        ),
+      )
+      .catch((err) => {
         log.error('listener error:', err);
       });
 
     // Store the chain for subsequent events
     this._processingChains.set(key, next);
+
+    // Monitor Map size to detect potential memory leaks in extreme scenarios.
+    // The .finally() cleanup should keep this bounded, but high event throughput
+    // can cause temporary spikes. Warning at 1000 entries helps diagnose issues.
+    if (this._processingChains.size > 1000) {
+      log.warn(
+        `_processingChains size exceeded 1000: ${this._processingChains.size}. ` +
+          `This may indicate high event throughput or slow listeners.`,
+      );
+    }
 
     // Clean up after the chain completes to prevent memory leaks.
     // The .finally() handler removes the chain from the Map once it settles (resolves or rejects).
@@ -201,22 +234,23 @@ export class UIUpdateBus {
   private async _withTimeout<T>(
     promise: Promise<T> | void,
     timeoutMs: number,
-    contextKey: string
+    contextKey: string,
   ): Promise<T | void> {
     if (!promise) return;
 
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
     const timeoutPromise = new Promise<never>((_, reject) => {
       timeoutHandle = setTimeout(() => {
-        reject(new Error(`Listener chain timeout after ${timeoutMs}ms for ${contextKey}`));
+        reject(
+          new Error(
+            `Listener chain timeout after ${timeoutMs}ms for ${contextKey}`,
+          ),
+        );
       }, timeoutMs);
     });
 
     try {
-      return await Promise.race([
-        promise,
-        timeoutPromise,
-      ]);
+      return await Promise.race([promise, timeoutPromise]);
     } finally {
       // FIX: Use optional chaining instead of non-null assertion to handle case where
       // timeoutHandle might not be assigned if an error occurs before setTimeout completes
@@ -236,7 +270,7 @@ export class UIUpdateBus {
   subscribe(entity: UpdateEntity, listener: UIUpdateListener): () => void;
   subscribe(
     entityOrListener: UpdateEntity | UIUpdateListener,
-    maybeListener?: UIUpdateListener
+    maybeListener?: UIUpdateListener,
   ): () => void {
     if (typeof entityOrListener === 'function') {
       this.wildcardListeners.add(entityOrListener);
@@ -245,7 +279,14 @@ export class UIUpdateBus {
       };
     }
     const entity = entityOrListener;
-    const listener = maybeListener!;
+    const listener = maybeListener;
+    // Runtime check: listener must be a function when entity is provided.
+    // This catches programming errors early (e.g., swapped arguments, missing callback).
+    if (typeof listener !== 'function') {
+      throw new TypeError(
+        `UIUpdateBus.subscribe(${entity}, ...): listener must be a function, got ${typeof listener}`,
+      );
+    }
     let set = this.entityListeners.get(entity);
     if (!set) {
       set = new Set();
@@ -285,7 +326,10 @@ export class UIUpdateBus {
    *
    * When suspended, events are collected but not dispatched until resume() is called.
    */
-  async publish(event: UIUpdateEvent, options?: { skipPersist?: boolean; seqOverride?: number }): Promise<void> {
+  async publish(
+    event: UIUpdateEvent,
+    options?: { skipPersist?: boolean; seqOverride?: number },
+  ): Promise<void> {
     if (this._suspendDepth > 0) {
       // Collect event for later bulk dispatch.
       // NOTE: suspended events are NOT persisted — they are local-only batching
@@ -296,7 +340,7 @@ export class UIUpdateBus {
       if (this._suspendedEvents.length >= UIUpdateBus.MAX_SUSPENDED_EVENTS) {
         throw new Error(
           `Suspended events limit exceeded (${UIUpdateBus.MAX_SUSPENDED_EVENTS}). ` +
-          'Resume UI updates before publishing more events, or reduce event frequency during suspend.'
+            'Resume UI updates before publishing more events, or reduce event frequency during suspend.',
         );
       }
 
@@ -314,7 +358,11 @@ export class UIUpdateBus {
     // We AWAIT the DB write and capture the actual auto-increment seq,
     // passing it directly to listeners (not via a global tracker).
     let seq = 0;
-    if (!options?.skipPersist && UIUpdateBus.persistEnabled && this._initialized) {
+    if (
+      !options?.skipPersist &&
+      UIUpdateBus.persistEnabled &&
+      this._initialized
+    ) {
       try {
         const db = getDatabase();
         // structuredClone may throw for non-cloneable objects (functions, DOM nodes, etc.)
@@ -327,7 +375,10 @@ export class UIUpdateBus {
         }
         // Await the add() to get the actual auto-increment seq from IndexedDB
         // Type assertion: UIUpdateQueueInput is acceptable for add() since seq is auto-generated
-        const input: UIUpdateQueueInput = { event: clonedEvent, timestamp: Date.now() };
+        const input: UIUpdateQueueInput = {
+          event: clonedEvent,
+          timestamp: Date.now(),
+        };
 
         // Handle nested transactions: if we're already inside a transaction,
         // use tx.table() instead of db.ui_updates to avoid "Table not included in parent transaction" error
@@ -345,7 +396,10 @@ export class UIUpdateBus {
           seq = await db.ui_updates.add(input as UIUpdateQueueEntry);
         }
       } catch (err) {
-        log.warn('Failed to persist UI update to queue (seq not advanced):', err);
+        log.warn(
+          'Failed to persist UI update to queue (seq not advanced):',
+          err,
+        );
       }
     } else if (options?.seqOverride !== undefined) {
       // Use caller-provided seq (e.g., during catch-up replay)
@@ -371,17 +425,33 @@ export class UIUpdateBus {
    *
    * Uses reference counting: multiple suspend() calls require matching resume() calls.
    * Safety timeout (30s) forces resume if suspend exceeds duration to prevent permanent blocking.
+   *
+   * @param callerId - Optional identifier for the caller (e.g., component name, operation type).
+   *                   Used for debugging when force resume is triggered by safety timeout.
    */
-  suspend(): void {
+  suspend(callerId?: string): void {
     this._suspendDepth++;
+    if (callerId) {
+      this._suspendCallers.push(callerId);
+    }
     if (this._suspendDepth === 1) {
+      // Clear any stale timer before starting a new one.
+      // This guards against a non-atomic swap race: if _forceResume() was called
+      // between suspend() calls (resetting depth to 0 and clearing the timer),
+      // but a concurrent suspend() had already incremented depth past 0, we could
+      // end up with an orphaned timer reference. Defensive clear prevents leaks.
+      if (this._suspendSafetyTimer) {
+        clearTimeout(this._suspendSafetyTimer);
+      }
       // Start safety timer to prevent permanent suspend
       this._suspendSafetyTimer = setTimeout(() => {
-        log.error('UIUpdateBus suspend exceeded safety timeout, forcing resume');
+        log.error(
+          'UIUpdateBus suspend exceeded safety timeout, forcing resume',
+        );
         this._forceResume();
       }, UIUpdateBus.MAX_SUSPEND_MS);
     }
-    log.debug(`suspend: depth=${this._suspendDepth}`);
+    log.debug(`suspend: depth=${this._suspendDepth}${callerId ? `, caller=${callerId}` : ''}`);
   }
 
   /**
@@ -405,6 +475,8 @@ export class UIUpdateBus {
         clearTimeout(this._suspendSafetyTimer);
         this._suspendSafetyTimer = undefined;
       }
+      // Clear caller tracking on normal resume completion
+      this._suspendCallers = [];
       this._flushSuspendedEvents();
     }
     log.debug(`resume: depth=${this._suspendDepth}`);
@@ -429,17 +501,27 @@ export class UIUpdateBus {
       // This helps diagnose potential data inconsistency issues
       log.warn(
         `Force resuming with ${pendingChains} pending processing chains. ` +
-        `This may cause temporary state inconsistency. ` +
-        `Pending chains will continue running in background.`
+          `This may cause temporary state inconsistency. ` +
+          `Pending chains will continue running in background.`,
       );
     }
+
+    // Log suspend callers for debugging (helps identify which components held the suspend)
+    if (this._suspendCallers.length > 0) {
+      log.warn(
+        `Force resuming after safety timeout. Suspend callers: ${this._suspendCallers.join(', ')}`,
+      );
+    } else {
+      log.warn('Force resuming after safety timeout (no caller IDs recorded)');
+    }
+
     this._suspendDepth = 0;
+    this._suspendCallers = []; // Clear caller tracking
     if (this._suspendSafetyTimer) {
       clearTimeout(this._suspendSafetyTimer);
       this._suspendSafetyTimer = undefined;
     }
     this._flushSuspendedEvents();
-    log.warn('Force resumed after safety timeout');
   }
 
   /**
