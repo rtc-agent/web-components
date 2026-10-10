@@ -35,6 +35,9 @@ export default {
   'pages.getCaptchaSecondText': '秒',
   'pages.login.rememberMe': 'ログイン状態を保持する',
   'pages.login.forgotPassword': 'パスワードをお忘れですか？',
+  'pages.login.configLoadFailed':
+    'ログイン設定の読み込みに失敗しました。デフォルト設定を使用します',
+  'pages.login.logoAlt': 'ログインページロゴ',
   'pages.login.submit': 'ログイン',
   'pages.login.loginWith': 'その他のログイン方法：',
   'pages.login.registerAccount': 'アカウント登録',
@@ -180,7 +183,9 @@ export default {
   'pages.messages.detail.toolFailed': '失敗',
   'pages.messages.detail.rawError': '生エラー',
   'pages.messages.detail.compressedContext': '圧縮されたコンテキスト',
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
   'pages.messages.detail.releasedTokens': '${count} トークンを解放',
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
   'pages.messages.detail.increasedTokens': '${count} トークンを増加',
   // System Config Management
   'pages.config.system.title': 'システム設定',
@@ -194,6 +199,7 @@ export default {
   'pages.config.system.category.webFetch': 'フェッチ',
   'pages.config.system.category.api': 'API',
   'pages.config.system.category.log': 'ログ',
+  'pages.config.system.key': '設定キー',
   'pages.config.system.value': '値',
   'pages.config.system.yamlDefault': 'YAMLデフォルト',
   'pages.config.system.source': 'ソース',
@@ -376,6 +382,8 @@ export default {
   'pages.roles.column.actions': '操作',
   'pages.roles.systemRole': 'システムロール',
   'pages.roles.customRole': 'カスタムロール',
+  'pages.roles.yes': 'はい',
+  'pages.roles.no': 'いいえ',
   'pages.roles.statusEnabled': '有効',
   'pages.roles.statusDisabled': '無効',
   'pages.roles.systemRoleCannotDisable':
@@ -387,6 +395,8 @@ export default {
   'pages.roles.delete': '削除',
   'pages.roles.confirmDelete': 'このロールを削除してもよろしいですか？',
   'pages.roles.confirmDeleteDesc': '削除後は復元できません',
+  'pages.roles.confirmDeleteRoleWarning':
+    'このロール配下のすべての管理者は対応する権限を失います',
   'pages.roles.confirm': '確認',
   'pages.roles.cancel': 'キャンセル',
   'pages.roles.deleteSuccess': '削除に成功しました',
@@ -488,6 +498,8 @@ export default {
   'pages.auditLogs.column.endTimePlaceholder': '終了時間を選択',
   'pages.auditLogs.headerTitle': '監査ログ',
   'pages.auditLogs.loadFailed': '監査ログの読み込みに失敗しました',
+  'pages.auditLogs.timeRangeInvalid':
+    '開始時間は終了時間より前である必要があります',
   // Admin User Management
   'pages.adminUsers.headerTitle': '管理者一覧',
   'pages.adminUsers.searchPlaceholder': 'メールアドレスまたは名前で検索',
@@ -662,4 +674,96 @@ export default {
   'dashboard.title.grafana.oss3': 'Grafana - OSS3',
   'dashboard.title.grafana.minio': 'Grafana - MinIO',
   'dashboard.title.grafana.healthWatchdog': 'Grafana - ヘルスウォッチドッグ',
+  // 結果ページ - 成功
+  'pages.result.success.title': '送信成功',
+  'pages.result.success.subTitle':
+    '結果ページは一連の操作タスクの処理結果をフィードバックするために使用されます。操作が簡単な場合は、Messageグローバルプロンプトを使用できます。このテキスト領域には簡単な補足説明を表示できます。「帳票」の表示が必要な場合は、下の灰色の領域により複雑な内容を表示できます。',
+  'pages.result.success.descriptionItems.id': 'プロジェクトID',
+  'pages.result.success.descriptionItems.owner': 'オーナー',
+  'pages.result.success.descriptionItems.time': '有効期間',
+  'pages.result.success.extra.back': '一覧に戻る',
+  'pages.result.success.extra.view': 'プロジェクトを見る',
+  'pages.result.success.extra.print': '印刷',
+  'pages.result.success.step.create': 'プロジェクト作成',
+  'pages.result.success.step.review1': '部門レビュー',
+  'pages.result.success.step.review2': '財務レビュー',
+  'pages.result.success.step.done': '完了',
+  'pages.result.success.desc.owner': '曲麗麗',
+  'pages.result.success.desc.hurry': '急かす',
+  'pages.result.success.desc.owner2': '周毛毛',
+  'pages.result.success.desc.projectName': 'プロジェクト名',
+  // 結果ページ - 失敗
+  'pages.result.fail.title': '送信失敗',
+  'pages.result.fail.subTitle':
+    '以下の情報を確認・修正してから、再度送信してください。',
+  'pages.result.fail.errorTitle': '送信された内容に以下のエラーがあります：',
+  'pages.result.fail.error.accountFrozen': 'アカウントが凍結されています',
+  'pages.result.fail.error.unfreeze': '今すぐ凍結解除',
+  'pages.result.fail.error.notQualified':
+    'アカウントはまだ申請資格がありません',
+  'pages.result.fail.error.upgrade': '今すぐアップグレード',
+  'pages.result.fail.extra.back': '戻って修正',
+  // ユーザー登録
+  'pages.user.register.title': '登録',
+  'pages.user.register.strength.strong': '強度：強',
+  'pages.user.register.strength.medium': '強度：中',
+  'pages.user.register.strength.short': '強度：短すぎ',
+  'pages.user.register.success': '登録成功！',
+  'pages.user.register.passwordMismatch':
+    '入力されたパスワードが一致しません！',
+  'pages.user.register.passwordRequired': 'パスワードを入力してください！',
+  'pages.user.register.emailRequired': 'メールアドレスを入力してください！',
+  'pages.user.register.emailInvalid':
+    'メールアドレスの形式が正しくありません！',
+  'pages.user.register.emailPlaceholder': 'メール',
+  'pages.user.register.passwordTip':
+    '少なくとも6文字入力してください。推測されやすいパスワードを使用しないでください。',
+  'pages.user.register.passwordPlaceholder':
+    '少なくとも6文字、大文字と小文字を区別',
+  'pages.user.register.confirmPassword': 'パスワード確認',
+  'pages.user.register.confirmPasswordPlaceholder': 'パスワード確認',
+  'pages.user.register.phoneRequired': '電話番号を入力してください！',
+  'pages.user.register.phoneInvalid': '電話番号の形式が正しくありません！',
+  'pages.user.register.phonePlaceholder': '電話番号',
+  'pages.user.register.captchaRequired': '認証コードを入力してください！',
+  'pages.user.register.captchaPlaceholder': '認証コード',
+  'pages.user.register.getCaptcha': '認証コード取得',
+  'pages.user.register.register': '登録',
+  'pages.user.register.loginLink': '既存アカウントでログイン',
+  // ユーザー登録結果
+  'pages.user.registerResult.viewEmail': 'メールを確認',
+  'pages.user.registerResult.backHome': 'ホームに戻る',
+  'pages.user.registerResult.title': 'アカウント：{email} の登録が完了しました',
+  'pages.user.registerResult.subTitle':
+    'アクティベーションメールが送信されました。メールの有効期間は24時間です。時間内にメールにログインし、メール内のリンクをクリックしてアカウントをアクティベートしてください。',
+  // RTC Agent Diagnosis Page
+  'pages.diagnose.title': 'RTC Agent 統合診断',
+  'pages.diagnose.agentAlreadyRunning': '診断エージェントはすでに実行中です',
+  'pages.diagnose.testingDynamicImport': '動的インポートをテスト中...',
+  'pages.diagnose.dynamicImportSuccess': '動的インポート成功、テストエージェントがマウントされました',
+  'pages.diagnose.testAgentDestroyed': 'テストエージェントが破棄されました',
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
+  'pages.diagnose.dynamicImportFailed': '動的インポート失敗: ${error}',
+  'pages.diagnose.integrationNormal': '統合正常',
+  'pages.diagnose.agentMounted': 'RTC Agent がページに正常にマウントされました',
+  'pages.diagnose.agentNotMounted': 'RTC Agent がマウントされていません（ログインしていない可能性があります）',
+  'pages.diagnose.diagnosticInfo': '診断情報',
+  'pages.diagnose.useModelStatus': 'useModel ステータス:',
+  'pages.diagnose.statusNormal': '正常',
+  'pages.diagnose.statusAbnormal': '異常',
+  'pages.diagnose.rtcAgentElement': 'RTC Agent 要素:',
+  'pages.diagnose.found': '見つかりました',
+  'pages.diagnose.notFound': '見つかりません',
+  'pages.diagnose.loginStatus': 'ログイン状態:',
+  'pages.diagnose.loggedIn': 'ログイン済み',
+  'pages.diagnose.notLoggedIn': '未ログイン',
+  'pages.diagnose.testTools': 'テストツール',
+  'pages.diagnose.testDynamicImport': '動的インポートをテスト',
+  'pages.diagnose.reloadPage': 'ページをリロード',
+  'pages.diagnose.instructions': '説明',
+  'pages.diagnose.consoleErrorHint': 'ブラウザコンソールに次のエラーが表示された場合:',
+  'pages.diagnose.pleaseCheck': '確認してください:',
+  'pages.diagnose.checkClearCache': 'ブラウザキャッシュをクリアしましたか（Cmd+Shift+R / Ctrl+Shift+R）',
+  'pages.diagnose.checkRestartServer': '開発サーバーを再起動しましたか',
+  'pages.diagnose.checkConsoleStack': 'ブラウザコンソールの完全なエラースタックを確認してください',
 };

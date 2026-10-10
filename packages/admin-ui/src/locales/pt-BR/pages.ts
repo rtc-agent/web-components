@@ -35,6 +35,9 @@ export default {
   'pages.getCaptchaSecondText': 'seg(s)',
   'pages.login.rememberMe': 'Lembre-me',
   'pages.login.forgotPassword': 'Perdeu a Senha?',
+  'pages.login.configLoadFailed':
+    'Falha ao carregar configuração de login, usando configurações padrão',
+  'pages.login.logoAlt': 'Logo da Página de Login',
   'pages.login.submit': 'Enviar',
   'pages.login.loginWith': 'Login com :',
   'pages.login.registerAccount': 'Registra Conta',
@@ -181,7 +184,9 @@ export default {
   'pages.messages.detail.toolFailed': 'Falhou',
   'pages.messages.detail.rawError': 'Erro Bruto',
   'pages.messages.detail.compressedContext': 'Contexto Comprimido',
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
   'pages.messages.detail.releasedTokens': 'Liberados ${count} tokens',
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
   'pages.messages.detail.increasedTokens': 'Aumentados ${count} tokens',
   // System Config Management
   'pages.config.system.title': 'Configurações do Sistema',
@@ -195,6 +200,7 @@ export default {
   'pages.config.system.category.webFetch': 'Fetch',
   'pages.config.system.category.api': 'API',
   'pages.config.system.category.log': 'Log',
+  'pages.config.system.key': 'Chave de Configuração',
   'pages.config.system.value': 'Valor',
   'pages.config.system.yamlDefault': 'Padrão YAML',
   'pages.config.system.source': 'Fonte',
@@ -386,6 +392,8 @@ export default {
   'pages.roles.column.actions': 'Ações',
   'pages.roles.systemRole': 'Função do Sistema',
   'pages.roles.customRole': 'Função Personalizada',
+  'pages.roles.yes': 'Sim',
+  'pages.roles.no': 'Não',
   'pages.roles.statusEnabled': 'Ativada',
   'pages.roles.statusDisabled': 'Desativada',
   'pages.roles.systemRoleCannotDisable':
@@ -397,6 +405,8 @@ export default {
   'pages.roles.delete': 'Excluir',
   'pages.roles.confirmDelete': 'Tem certeza que deseja excluir esta função?',
   'pages.roles.confirmDeleteDesc': 'Não pode ser recuperado após a exclusão',
+  'pages.roles.confirmDeleteRoleWarning':
+    'Todos os administradores sob este papel perderão suas permissões',
   'pages.roles.confirm': 'Confirmar',
   'pages.roles.cancel': 'Cancelar',
   'pages.roles.deleteSuccess': 'Excluído com sucesso',
@@ -501,6 +511,8 @@ export default {
   'pages.auditLogs.column.endTimePlaceholder': 'Selecione hora de término',
   'pages.auditLogs.headerTitle': 'Logs de Auditoria',
   'pages.auditLogs.loadFailed': 'Falha ao carregar logs de auditoria',
+  'pages.auditLogs.timeRangeInvalid':
+    'O horário de início deve ser anterior ao horário de término',
   // Admin User Management
   'pages.adminUsers.headerTitle': 'Lista de Admins',
   'pages.adminUsers.searchPlaceholder': 'Pesquisar por e-mail ou nome',
@@ -676,4 +688,101 @@ export default {
   'dashboard.title.grafana.oss3': 'Grafana - OSS3',
   'dashboard.title.grafana.minio': 'Grafana - MinIO',
   'dashboard.title.grafana.healthWatchdog': 'Grafana - Monitor de Saúde',
+  // Resultado - Sucesso
+  'pages.result.success.title': 'Envio Realizado com Sucesso',
+  'pages.result.success.subTitle':
+    'A página de resultado é usada para fornecer feedback sobre o resultado do processamento de uma série de tarefas. Se a operação for simples, você pode usar o prompt global Message para feedback. Esta área de texto pode exibir notas suplementares simples. Se houver necessidade de exibir "documentos" semelhantes, a área cinza abaixo pode apresentar conteúdo mais complexo.',
+  'pages.result.success.descriptionItems.id': 'ID do Projeto',
+  'pages.result.success.descriptionItems.owner': 'Responsável',
+  'pages.result.success.descriptionItems.time': 'Período de Vigência',
+  'pages.result.success.extra.back': 'Voltar para Lista',
+  'pages.result.success.extra.view': 'Ver Projeto',
+  'pages.result.success.extra.print': 'Imprimir',
+  'pages.result.success.step.create': 'Criar Projeto',
+  'pages.result.success.step.review1': 'Revisão do Departamento',
+  'pages.result.success.step.review2': 'Revisão Financeira',
+  'pages.result.success.step.done': 'Concluído',
+  'pages.result.success.desc.owner': 'Qu Lili',
+  'pages.result.success.desc.hurry': 'Apressar',
+  'pages.result.success.desc.owner2': 'Zhou Maomao',
+  'pages.result.success.desc.projectName': 'Nome do Projeto',
+  // Resultado - Falha
+  'pages.result.fail.title': 'Envio Falhou',
+  'pages.result.fail.subTitle':
+    'Por favor, verifique e modifique as seguintes informações antes de reenviar.',
+  'pages.result.fail.errorTitle':
+    'O conteúdo que você enviou tem os seguintes erros:',
+  'pages.result.fail.error.accountFrozen': 'Sua conta foi congelada',
+  'pages.result.fail.error.unfreeze': 'Descongelar Agora',
+  'pages.result.fail.error.notQualified':
+    'Sua conta ainda não é elegível para se candidatar',
+  'pages.result.fail.error.upgrade': 'Atualizar Agora',
+  'pages.result.fail.extra.back': 'Voltar para Modificar',
+  // Cadastro de Usuário
+  'pages.user.register.title': 'Cadastrar',
+  'pages.user.register.strength.strong': 'Força: Forte',
+  'pages.user.register.strength.medium': 'Força: Média',
+  'pages.user.register.strength.short': 'Força: Muito Curta',
+  'pages.user.register.success': 'Cadastro realizado com sucesso!',
+  'pages.user.register.passwordMismatch': 'As senhas inseridas não coincidem!',
+  'pages.user.register.passwordRequired': 'Por favor, insira sua senha!',
+  'pages.user.register.emailRequired':
+    'Por favor, insira seu endereço de e-mail!',
+  'pages.user.register.emailInvalid':
+    'O formato do endereço de e-mail está incorreto!',
+  'pages.user.register.emailPlaceholder': 'E-mail',
+  'pages.user.register.passwordTip':
+    'Por favor, insira pelo menos 6 caracteres. Não use uma senha fácil de adivinhar.',
+  'pages.user.register.passwordPlaceholder':
+    'Pelo menos 6 caracteres, diferencia maiúsculas e minúsculas',
+  'pages.user.register.confirmPassword': 'Confirmar Senha',
+  'pages.user.register.confirmPasswordPlaceholder': 'Confirmar Senha',
+  'pages.user.register.phoneRequired':
+    'Por favor, insira seu número de telefone!',
+  'pages.user.register.phoneInvalid':
+    'O formato do número de telefone está incorreto!',
+  'pages.user.register.phonePlaceholder': 'Número de Telefone',
+  'pages.user.register.captchaRequired':
+    'Por favor, insira o código de verificação!',
+  'pages.user.register.captchaPlaceholder': 'Código de Verificação',
+  'pages.user.register.getCaptcha': 'Obter Código',
+  'pages.user.register.register': 'Cadastrar',
+  'pages.user.register.loginLink': 'Entrar com conta existente',
+  // Resultado do Cadastro
+  'pages.user.registerResult.viewEmail': 'Verificar E-mail',
+  'pages.user.registerResult.backHome': 'Voltar ao Início',
+  'pages.user.registerResult.title':
+    'Sua conta: {email} foi cadastrada com sucesso',
+  'pages.user.registerResult.subTitle':
+    'O e-mail de ativação foi enviado para o seu endereço. O e-mail é válido por 24 horas. Por favor, faça login no seu e-mail a tempo e clique no link para ativar sua conta.',
+  // RTC Agent Diagnosis Page
+  'pages.diagnose.title': 'Diagnóstico de Integração do RTC Agent',
+  'pages.diagnose.agentAlreadyRunning': 'Agent de diagnóstico já está em execução',
+  'pages.diagnose.testingDynamicImport': 'Testando importação dinâmica...',
+  'pages.diagnose.dynamicImportSuccess': 'Importação dinâmica bem-sucedida, agent de teste montado',
+  'pages.diagnose.testAgentDestroyed': 'Agent de teste destruído',
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
+  'pages.diagnose.dynamicImportFailed': 'Falha na importação dinâmica: ${error}',
+  'pages.diagnose.integrationNormal': 'Integração Normal',
+  'pages.diagnose.agentMounted': 'RTC Agent foi montado com sucesso na página',
+  'pages.diagnose.agentNotMounted': 'RTC Agent não está montado (isso pode ser porque você não está logado)',
+  'pages.diagnose.diagnosticInfo': 'Informações de Diagnóstico',
+  'pages.diagnose.useModelStatus': 'Status do useModel:',
+  'pages.diagnose.statusNormal': 'Normal',
+  'pages.diagnose.statusAbnormal': 'Anormal',
+  'pages.diagnose.rtcAgentElement': 'Elemento RTC Agent:',
+  'pages.diagnose.found': 'Encontrado',
+  'pages.diagnose.notFound': 'Não Encontrado',
+  'pages.diagnose.loginStatus': 'Status de Login:',
+  'pages.diagnose.loggedIn': 'Logado',
+  'pages.diagnose.notLoggedIn': 'Não Logado',
+  'pages.diagnose.testTools': 'Ferramentas de Teste',
+  'pages.diagnose.testDynamicImport': 'Testar Importação Dinâmica',
+  'pages.diagnose.reloadPage': 'Recarregar Página',
+  'pages.diagnose.instructions': 'Instruções',
+  'pages.diagnose.consoleErrorHint': 'Se você ver o seguinte erro no console do navegador:',
+  'pages.diagnose.pleaseCheck': 'Por favor, verifique:',
+  'pages.diagnose.checkClearCache': 'Você limpou o cache do navegador (Cmd+Shift+R / Ctrl+Shift+R)',
+  'pages.diagnose.checkRestartServer': 'Você reiniciou o servidor de desenvolvimento',
+  'pages.diagnose.checkConsoleStack': 'Verifique a pilha de erros completa no console do navegador',
 };

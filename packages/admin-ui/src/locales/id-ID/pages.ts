@@ -34,6 +34,9 @@ export default {
   'pages.getCaptchaSecondText': 'detik tersisa',
   'pages.login.rememberMe': 'Ingat saya',
   'pages.login.forgotPassword': 'Lupa Kata Sandi?',
+  'pages.login.configLoadFailed':
+    'Gagal memuat konfigurasi login, menggunakan pengaturan default',
+  'pages.login.logoAlt': 'Logo Halaman Login',
   'pages.login.submit': 'Masuk',
   'pages.login.loginWith': 'Masuk dengan :',
   'pages.login.registerAccount': 'Daftar Akun',
@@ -176,7 +179,9 @@ export default {
   'pages.messages.detail.toolFailed': 'Failed',
   'pages.messages.detail.rawError': 'Raw Error',
   'pages.messages.detail.compressedContext': 'Compressed Context',
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
   'pages.messages.detail.releasedTokens': 'Released ${count} tokens',
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
   'pages.messages.detail.increasedTokens': 'Increased ${count} tokens',
   // System Config Management
   'pages.config.system.title': 'System Configs',
@@ -190,6 +195,7 @@ export default {
   'pages.config.system.category.webFetch': 'Fetch',
   'pages.config.system.category.api': 'API',
   'pages.config.system.category.log': 'Log',
+  'pages.config.system.key': 'Kunci Konfigurasi',
   'pages.config.system.value': 'Value',
   'pages.config.system.yamlDefault': 'YAML Default',
   'pages.config.system.source': 'Source',
@@ -372,6 +378,8 @@ export default {
   'pages.roles.column.actions': 'Actions',
   'pages.roles.systemRole': 'System Role',
   'pages.roles.customRole': 'Custom Role',
+  'pages.roles.yes': 'Ya',
+  'pages.roles.no': 'Tidak',
   'pages.roles.statusEnabled': 'Enabled',
   'pages.roles.statusDisabled': 'Disabled',
   'pages.roles.systemRoleCannotDisable':
@@ -383,6 +391,8 @@ export default {
   'pages.roles.delete': 'Delete',
   'pages.roles.confirmDelete': 'Are you sure you want to delete this role?',
   'pages.roles.confirmDeleteDesc': 'Cannot be recovered after deletion',
+  'pages.roles.confirmDeleteRoleWarning':
+    'Semua admin di bawah peran ini akan kehilangan izin mereka',
   'pages.roles.confirm': 'Confirm',
   'pages.roles.cancel': 'Cancel',
   'pages.roles.deleteSuccess': 'Deleted successfully',
@@ -484,6 +494,8 @@ export default {
   'pages.auditLogs.column.endTimePlaceholder': 'Select end time',
   'pages.auditLogs.headerTitle': 'Audit Logs',
   'pages.auditLogs.loadFailed': 'Failed to load audit logs',
+  'pages.auditLogs.timeRangeInvalid':
+    'Waktu mulai harus lebih awal dari waktu berakhir',
   // Admin User Management
   'pages.adminUsers.headerTitle': 'Admin List',
   'pages.adminUsers.searchPlaceholder': 'Cari berdasarkan email atau nama',
@@ -655,4 +667,97 @@ export default {
   'dashboard.title.grafana.oss3': 'Grafana - OSS3',
   'dashboard.title.grafana.minio': 'Grafana - MinIO',
   'dashboard.title.grafana.healthWatchdog': 'Grafana - Health Watchdog',
+  // Hasil - Sukses
+  'pages.result.success.title': 'Pengiriman Berhasil',
+  'pages.result.success.subTitle':
+    'Halaman hasil digunakan untuk memberikan umpan balik tentang hasil pemrosesan serangkaian tugas. Jika operasinya sederhana, Anda dapat menggunakan prompt global Message untuk umpan balik. Area teks ini dapat menampilkan catatan tambahan sederhana. Jika ada kebutuhan untuk menampilkan "dokumen" serupa, area abu-abu di bawah ini dapat menyajikan konten yang lebih kompleks.',
+  'pages.result.success.descriptionItems.id': 'ID Proyek',
+  'pages.result.success.descriptionItems.owner': 'Pemilik',
+  'pages.result.success.descriptionItems.time': 'Waktu Efektif',
+  'pages.result.success.extra.back': 'Kembali ke Daftar',
+  'pages.result.success.extra.view': 'Lihat Proyek',
+  'pages.result.success.extra.print': 'Cetak',
+  'pages.result.success.step.create': 'Buat Proyek',
+  'pages.result.success.step.review1': 'Tinjauan Departemen',
+  'pages.result.success.step.review2': 'Tinjauan Keuangan',
+  'pages.result.success.step.done': 'Selesai',
+  'pages.result.success.desc.owner': 'Qu Lili',
+  'pages.result.success.desc.hurry': 'Percepat',
+  'pages.result.success.desc.owner2': 'Zhou Maomao',
+  'pages.result.success.desc.projectName': 'Nama Proyek',
+  // Hasil - Gagal
+  'pages.result.fail.title': 'Pengiriman Gagal',
+  'pages.result.fail.subTitle':
+    'Harap verifikasi dan ubah informasi berikut sebelum mengirim ulang.',
+  'pages.result.fail.errorTitle':
+    'Konten yang Anda kirim memiliki kesalahan berikut:',
+  'pages.result.fail.error.accountFrozen': 'Akun Anda telah dibekukan',
+  'pages.result.fail.error.unfreeze': 'Cairkan Sekarang',
+  'pages.result.fail.error.notQualified':
+    'Akun Anda belum memenuhi syarat untuk mengajukan',
+  'pages.result.fail.error.upgrade': 'Tingkatkan Sekarang',
+  'pages.result.fail.extra.back': 'Kembali untuk Mengubah',
+  // Pendaftaran Pengguna
+  'pages.user.register.title': 'Daftar',
+  'pages.user.register.strength.strong': 'Kekuatan: Kuat',
+  'pages.user.register.strength.medium': 'Kekuatan: Sedang',
+  'pages.user.register.strength.short': 'Kekuatan: Terlalu Pendek',
+  'pages.user.register.success': 'Pendaftaran berhasil!',
+  'pages.user.register.passwordMismatch':
+    'Kata sandi yang dimasukkan tidak cocok!',
+  'pages.user.register.passwordRequired': 'Harap masukkan kata sandi Anda!',
+  'pages.user.register.emailRequired': 'Harap masukkan alamat email Anda!',
+  'pages.user.register.emailInvalid': 'Format alamat email salah!',
+  'pages.user.register.emailPlaceholder': 'Email',
+  'pages.user.register.passwordTip':
+    'Harap masukkan setidaknya 6 karakter. Jangan gunakan kata sandi yang mudah ditebak.',
+  'pages.user.register.passwordPlaceholder':
+    'Setidaknya 6 karakter, peka huruf besar-kecil',
+  'pages.user.register.confirmPassword': 'Konfirmasi Kata Sandi',
+  'pages.user.register.confirmPasswordPlaceholder': 'Konfirmasi Kata Sandi',
+  'pages.user.register.phoneRequired': 'Harap masukkan nomor telepon Anda!',
+  'pages.user.register.phoneInvalid': 'Format nomor telepon salah!',
+  'pages.user.register.phonePlaceholder': 'Nomor Telepon',
+  'pages.user.register.captchaRequired': 'Harap masukkan kode verifikasi!',
+  'pages.user.register.captchaPlaceholder': 'Kode Verifikasi',
+  'pages.user.register.getCaptcha': 'Dapatkan Kode',
+  'pages.user.register.register': 'Daftar',
+  'pages.user.register.loginLink': 'Masuk dengan akun yang sudah ada',
+  // Hasil Pendaftaran
+  'pages.user.registerResult.viewEmail': 'Periksa Email',
+  'pages.user.registerResult.backHome': 'Kembali ke Beranda',
+  'pages.user.registerResult.title':
+    'Akun Anda: {email} telah berhasil didaftarkan',
+  'pages.user.registerResult.subTitle':
+    'Email aktivasi telah dikirim ke email Anda. Email berlaku selama 24 jam. Harap segera masuk ke email Anda dan klik tautan di email untuk mengaktifkan akun Anda.',
+  // RTC Agent Diagnosis Page
+  'pages.diagnose.title': 'Diagnosis Integrasi RTC Agent',
+  'pages.diagnose.agentAlreadyRunning': 'Agent diagnosis sudah berjalan',
+  'pages.diagnose.testingDynamicImport': 'Menguji dynamic import...',
+  'pages.diagnose.dynamicImportSuccess': 'Dynamic import berhasil, test agent terpasang',
+  'pages.diagnose.testAgentDestroyed': 'Test agent dihancurkan',
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
+  'pages.diagnose.dynamicImportFailed': 'Dynamic import gagal: ${error}',
+  'pages.diagnose.integrationNormal': 'Integrasi Normal',
+  'pages.diagnose.agentMounted': 'RTC Agent telah berhasil dipasang ke halaman',
+  'pages.diagnose.agentNotMounted': 'RTC Agent tidak terpasang (ini mungkin karena Anda belum login)',
+  'pages.diagnose.diagnosticInfo': 'Info Diagnosis',
+  'pages.diagnose.useModelStatus': 'Status useModel:',
+  'pages.diagnose.statusNormal': 'Normal',
+  'pages.diagnose.statusAbnormal': 'Abnormal',
+  'pages.diagnose.rtcAgentElement': 'Elemen RTC Agent:',
+  'pages.diagnose.found': 'Ditemukan',
+  'pages.diagnose.notFound': 'Tidak Ditemukan',
+  'pages.diagnose.loginStatus': 'Status Login:',
+  'pages.diagnose.loggedIn': 'Sudah Login',
+  'pages.diagnose.notLoggedIn': 'Belum Login',
+  'pages.diagnose.testTools': 'Alat Test',
+  'pages.diagnose.testDynamicImport': 'Test Dynamic Import',
+  'pages.diagnose.reloadPage': 'Muat Ulang Halaman',
+  'pages.diagnose.instructions': 'Instruksi',
+  'pages.diagnose.consoleErrorHint': 'Jika Anda melihat error berikut di konsol browser:',
+  'pages.diagnose.pleaseCheck': 'Harap periksa:',
+  'pages.diagnose.checkClearCache': 'Apakah Anda sudah membersihkan cache browser (Cmd+Shift+R / Ctrl+Shift+R)',
+  'pages.diagnose.checkRestartServer': 'Apakah Anda sudah me-restart development server',
+  'pages.diagnose.checkConsoleStack': 'Periksa stack error lengkap di konsol browser',
 };

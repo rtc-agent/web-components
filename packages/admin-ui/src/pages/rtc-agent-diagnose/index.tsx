@@ -1,27 +1,28 @@
 /**
- * RTC Agent 集成诊断页面
+ * RTC Agent Integration Diagnosis Page
  *
- * 此页面用于诊断 RTC Agent 集成是否正常工作。
+ * This page is used to diagnose whether RTC Agent integration is working properly.
  */
 
 import { PageContainer } from '@ant-design/pro-components';
-import { useModel } from '@umijs/max';
+import { useIntl, useModel } from '@umijs/max';
 import { Alert, Button, Card, message, Space, Typography } from 'antd';
 import React, { useEffect, useRef, useState } from 'react';
 
 const { Title, Text, Paragraph } = Typography;
 
 export default function RtcAgentDiagnosePage() {
+  const intl = useIntl();
   const [status, setStatus] = useState<'checking' | 'success'>('checking');
   const [agentFound, setAgentFound] = useState(false);
   const checkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const destroyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 正常调用 useModel（不能在 try-catch 中调用 Hooks）
+  // Normal hook call (cannot wrap Hooks in try-catch)
   const modelState = useModel('@@initialState');
 
   useEffect(() => {
-    // 检查 RTC Agent 是否已挂载
+    // Check if RTC Agent is mounted
     const checkAgent = () => {
       const agent = document.querySelector('rtc-agent');
       if (agent) {
@@ -32,15 +33,15 @@ export default function RtcAgentDiagnosePage() {
       } else {
         setAgentFound(false);
         if (status === 'checking') {
-          // 等待 2 秒后再检查
+          // Check again after 2 seconds
           checkTimerRef.current = setTimeout(() => {
             const agent2 = document.querySelector('rtc-agent');
             if (agent2) {
               setAgentFound(true);
               setStatus('success');
             }
-            // 注意：如果 2 秒后仍然没有找到 agent，保持 'checking' 状态
-            // 这样用户可以看到诊断信息并手动测试
+            // Note: If agent is still not found after 2 seconds, keep 'checking' status
+            // This allows users to see diagnosis info and test manually
             checkTimerRef.current = null;
           }, 2000);
         }
@@ -62,12 +63,12 @@ export default function RtcAgentDiagnosePage() {
   const handleTestDynamicImport = async () => {
     // Prevent double-mount
     if (document.querySelector('rtc-agent[data-diagnose-agent="true"]')) {
-      message.warning('诊断 agent 已在运行中');
+      message.warning(intl.formatMessage({ id: 'pages.diagnose.agentAlreadyRunning' }));
       return;
     }
 
     try {
-      message.loading('正在测试动态导入...', 0);
+      message.loading(intl.formatMessage({ id: 'pages.diagnose.testingDynamicImport' }), 0);
       const { createRtcAgent } = await import('@rtc-agent/component');
 
       const testAgent = createRtcAgent({
@@ -81,12 +82,12 @@ export default function RtcAgentDiagnosePage() {
       // Mark as diagnose agent for identification
       testAgent.setAttribute('data-diagnose-agent', 'true');
       document.body.appendChild(testAgent);
-      message.success('动态导入成功，测试 agent 已挂载');
+      message.success(intl.formatMessage({ id: 'pages.diagnose.dynamicImportSuccess' }));
 
       destroyTimerRef.current = setTimeout(() => {
         try {
           testAgent.destroy();
-          message.info('测试 agent 已销毁');
+          message.info(intl.formatMessage({ id: 'pages.diagnose.testAgentDestroyed' }));
         } catch (e) {
           console.warn('Failed to destroy diagnose agent:', e);
         }
@@ -94,7 +95,10 @@ export default function RtcAgentDiagnosePage() {
       }, 3000);
     } catch (e) {
       message.error(
-        `动态导入失败: ${e instanceof Error ? e.message : String(e)}`,
+        intl.formatMessage(
+          { id: 'pages.diagnose.dynamicImportFailed' },
+          { error: e instanceof Error ? e.message : String(e) }
+        ),
       );
     }
   };
@@ -103,61 +107,73 @@ export default function RtcAgentDiagnosePage() {
     <PageContainer>
       <Card>
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
-          <Title level={2}>RTC Agent 集成诊断</Title>
+          <Title level={2}>{intl.formatMessage({ id: 'pages.diagnose.title' })}</Title>
 
           {status === 'success' && (
             <Alert
               type="success"
               showIcon
-              message="集成正常"
+              message={intl.formatMessage({ id: 'pages.diagnose.integrationNormal' })}
               description={
                 agentFound
-                  ? 'RTC Agent 已成功挂载到页面'
-                  : 'RTC Agent 未挂载（这可能是因为您未登录）'
+                  ? intl.formatMessage({ id: 'pages.diagnose.agentMounted' })
+                  : intl.formatMessage({ id: 'pages.diagnose.agentNotMounted' })
               }
             />
           )}
 
-          <Card title="诊断信息">
+          <Card title={intl.formatMessage({ id: 'pages.diagnose.diagnosticInfo' })}>
             <Space direction="vertical">
               <div>
-                <Text strong>useModel 状态: </Text>
-                <Text code>{modelState ? '正常' : '异常'}</Text>
-              </div>
-              <div>
-                <Text strong>RTC Agent 元素: </Text>
-                <Text code>{agentFound ? '已找到' : '未找到'}</Text>
-              </div>
-              <div>
-                <Text strong>登录状态: </Text>
+                <Text strong>{intl.formatMessage({ id: 'pages.diagnose.useModelStatus' })} </Text>
                 <Text code>
-                  {modelState?.initialState?.currentUser ? '已登录' : '未登录'}
+                  {modelState
+                    ? intl.formatMessage({ id: 'pages.diagnose.statusNormal' })
+                    : intl.formatMessage({ id: 'pages.diagnose.statusAbnormal' })}
+                </Text>
+              </div>
+              <div>
+                <Text strong>{intl.formatMessage({ id: 'pages.diagnose.rtcAgentElement' })} </Text>
+                <Text code>
+                  {agentFound
+                    ? intl.formatMessage({ id: 'pages.diagnose.found' })
+                    : intl.formatMessage({ id: 'pages.diagnose.notFound' })}
+                </Text>
+              </div>
+              <div>
+                <Text strong>{intl.formatMessage({ id: 'pages.diagnose.loginStatus' })} </Text>
+                <Text code>
+                  {modelState?.initialState?.currentUser
+                    ? intl.formatMessage({ id: 'pages.diagnose.loggedIn' })
+                    : intl.formatMessage({ id: 'pages.diagnose.notLoggedIn' })}
                 </Text>
               </div>
             </Space>
           </Card>
 
-          <Card title="测试工具">
+          <Card title={intl.formatMessage({ id: 'pages.diagnose.testTools' })}>
             <Space>
               <Button type="primary" onClick={handleTestDynamicImport}>
-                测试动态导入
+                {intl.formatMessage({ id: 'pages.diagnose.testDynamicImport' })}
               </Button>
-              <Button onClick={() => window.location.reload()}>刷新页面</Button>
+              <Button onClick={() => window.location.reload()}>
+                {intl.formatMessage({ id: 'pages.diagnose.reloadPage' })}
+              </Button>
             </Space>
           </Card>
 
-          <Card title="说明">
-            <Paragraph>如果在浏览器控制台看到以下错误：</Paragraph>
+          <Card title={intl.formatMessage({ id: 'pages.diagnose.instructions' })}>
+            <Paragraph>{intl.formatMessage({ id: 'pages.diagnose.consoleErrorHint' })}</Paragraph>
             <Paragraph code>
               TypeError: Cannot destructure property 'dispatcher' of
               'useContext(...)' as it is null
             </Paragraph>
             <Paragraph>
-              请检查：
+              {intl.formatMessage({ id: 'pages.diagnose.pleaseCheck' })}
               <ul>
-                <li>是否清除了浏览器缓存（Cmd+Shift+R / Ctrl+Shift+R）</li>
-                <li>是否重启了开发服务器</li>
-                <li>检查浏览器控制台的完整错误堆栈</li>
+                <li>{intl.formatMessage({ id: 'pages.diagnose.checkClearCache' })}</li>
+                <li>{intl.formatMessage({ id: 'pages.diagnose.checkRestartServer' })}</li>
+                <li>{intl.formatMessage({ id: 'pages.diagnose.checkConsoleStack' })}</li>
               </ul>
             </Paragraph>
           </Card>

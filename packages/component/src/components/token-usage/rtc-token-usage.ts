@@ -17,15 +17,22 @@
  * - Hover shows detail panel
  */
 import { LitElement, html, css } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
+import { consume } from '@lit/context';
+import { localized, msg, str } from '@lit/localize';
+import { localeContext, type LocaleContextValue, sourceLocale, targetLocales } from '../../core/i18n.js';
 import { tokens } from '../../styles/tokens.js';
 import { lightTheme } from '../../styles/themes/light.js';
 import { darkTheme } from '../../styles/themes/dark.js';
 import { baseStyles } from '../../styles/base.js';
+import { createLogger } from '@rtc-agent/client';
+
+const log = createLogger('TokenUsage');
 
 /** Default progress bar total (fallback when compressionThreshold is not provided) */
 const DEFAULT_TOKEN_BUDGET = 1_000_000;
 
+@localized()
 @customElement('rtc-token-usage')
 export class RtcTokenUsage extends LitElement {
     static styles = [
@@ -149,6 +156,16 @@ export class RtcTokenUsage extends LitElement {
         `,
     ];
 
+    @consume({context: localeContext, subscribe: true})
+    @state()
+    private _localeCtx: LocaleContextValue = {
+        locale: sourceLocale,
+        setLocale: async () => {
+            log.warn('Locale context not initialized');
+        },
+        locales: [sourceLocale, ...targetLocales],
+    };
+
     /* ── Properties ── */
 
     /** Theme mode */
@@ -225,11 +242,12 @@ export class RtcTokenUsage extends LitElement {
     /* ── Render ── */
 
     render() {
+        void this._localeCtx.locale;
         const { radius, circumference, offset } = this._circleParams;
         const percentageDisplay = Math.round(this._percentage);
 
         return html`
-            <div class="token-circle" title="Token 使用情况">
+            <div class="token-circle" title=${msg('Token Usage')}>
                 <svg viewBox="0 0 24 24">
                     <circle
                         class="circle-bg"
@@ -249,13 +267,13 @@ export class RtcTokenUsage extends LitElement {
             </div>
 
             <div class="token-tooltip">
-                <div class="tooltip-header">Token 使用详情</div>
+                <div class="tooltip-header">${msg('Token Usage Details')}</div>
 
                 ${this.details
                     ? html`
                           ${this.details.input != null
                               ? html`<div class="tooltip-row">
-                                    <span class="label">输入</span>
+                                    <span class="label">${msg('Input')}</span>
                                     <span class="value"
                                         >${this._formatNumber(
                                             this.details.input,
@@ -265,7 +283,7 @@ export class RtcTokenUsage extends LitElement {
                               : ''}
                           ${this.details.output != null
                               ? html`<div class="tooltip-row">
-                                    <span class="label">输出</span>
+                                    <span class="label">${msg('Output')}</span>
                                     <span class="value"
                                         >${this._formatNumber(
                                             this.details.output,
@@ -275,7 +293,7 @@ export class RtcTokenUsage extends LitElement {
                               : ''}
                           ${this.details.cachedRead != null || this.details.cachedWrite != null
                               ? html`<div class="tooltip-row">
-                                    <span class="label">缓存</span>
+                                    <span class="label">${msg('Cache')}</span>
                                     <span class="value"
                                         >${this._formatNumber(
                                             (this.details.cachedRead ?? 0) + (this.details.cachedWrite ?? 0),
@@ -285,13 +303,13 @@ export class RtcTokenUsage extends LitElement {
                               : ''}
                           ${this._cacheHitRate != null
                               ? html`<div class="tooltip-row">
-                                    <span class="label">缓存命中率</span>
+                                    <span class="label">${msg('Cache Hit Rate')}</span>
                                     <span class="value">${this._cacheHitRate}%</span>
                                 </div>`
                               : ''}
                           ${this.details.reasoning != null
                               ? html`<div class="tooltip-row">
-                                    <span class="label">推理</span>
+                                    <span class="label">${msg('Reasoning')}</span>
                                     <span class="value">${this._formatNumber(this.details.reasoning)}</span>
                                 </div>`
                               : ''}
@@ -301,12 +319,12 @@ export class RtcTokenUsage extends LitElement {
                 <div class="tooltip-divider"></div>
 
                 <div class="tooltip-summary">
-                    <span>总计</span>
+                    <span>${msg('Total')}</span>
                     <span>${this._formatNumber(this.totalTokens)}</span>
                 </div>
 
                 <div class="tooltip-row">
-                    <span class="label">预估下轮</span>
+                    <span class="label">${msg('Est. Next Round')}</span>
                     <span class="value"
                         >${this._formatNumber(this.estimatedNext)}
                         (${percentageDisplay}%)</span
@@ -321,7 +339,7 @@ export class RtcTokenUsage extends LitElement {
                               ? 'warning'
                               : ''}"
                       >
-                          ${this.roundsUntilCompression} 轮后压缩
+                          ${msg(str`Compression in ${this.roundsUntilCompression} rounds`)}
                           (${Math.round(this.compressionProgress)}%)
                       </div>`
                     : ''}
@@ -332,13 +350,11 @@ export class RtcTokenUsage extends LitElement {
     /* ── Helpers ── */
 
     private _formatNumber(n: number): string {
-        if (n >= 1_000_000) {
-            return `${(n / 1_000_000).toFixed(1)}M`;
-        }
-        if (n >= 1_000) {
-            return `${(n / 1_000).toFixed(1)}K`;
-        }
-        return String(n);
+        return new Intl.NumberFormat(this._localeCtx.locale, {
+            notation: 'compact',
+            compactDisplay: 'short',
+            maximumFractionDigits: 1,
+        }).format(n);
     }
 }
 
