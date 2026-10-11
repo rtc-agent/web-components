@@ -1,4 +1,7 @@
 import { request } from '@umijs/max';
+import type { RoleInfo, PermissionInfo, UserInfo } from './types';
+
+export type { RoleInfo, PermissionInfo, UserInfo };
 
 /** 登录配置 */
 export interface LoginConfig {
@@ -40,34 +43,6 @@ export interface RefreshTokenResult {
   expires_in: number;
   refresh_token_expires_in?: number; // Refresh token 过期时间（秒），可选字段
   token_type: string;
-}
-
-/** 管理员角色信息 */
-export interface RoleInfo {
-  id: string;
-  name: string;
-  display_name: string;
-  description?: string;
-  is_system?: boolean;
-  is_enabled?: boolean;
-  created_at?: string;
-  updated_at?: string;
-}
-
-/** 权限信息 */
-export interface PermissionInfo {
-  resource: string;
-  action: string;
-}
-
-/** 管理员信息 */
-export interface UserInfo {
-  id: string;
-  email: string;
-  name: string;
-  avatar_url?: string;
-  roles?: RoleInfo[];
-  permissions?: PermissionInfo[];
 }
 
 /**

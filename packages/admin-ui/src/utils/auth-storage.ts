@@ -5,7 +5,7 @@
  *
  * ⚠️ 安全风险提示：
  * 将 refresh_token 存储在 localStorage 中存在 XSS 攻击风险。
- * 如果应用遭受 XSS 攻击，攻击者可能窃取 refresh_token 并长期保持认证状态。
+ * 如果应用遭受 XSS 攻击,攻击者可能窃取 refresh_token 并长期保持认证状态。
  *
  * 📋 迁移计划：
  * 1. 短期（当前）：实现 token rotation 机制，缩短 refresh_token 过期时间
@@ -21,6 +21,9 @@
  */
 
 import { refreshToken as apiRefreshToken } from '@/services/admin-auth';
+import type { RoleInfo, UserInfo } from '@/services/types';
+
+export type { RoleInfo, UserInfo };
 
 const ACCESS_TOKEN_KEY = 'admin_access_token';
 const REFRESH_TOKEN_KEY = 'admin_refresh_token';
@@ -41,26 +44,6 @@ export const AUTH_STATE_CHANGED_EVENT = 'admin-auth-state-changed';
  */
 function notifyAuthStateChanged() {
   window.dispatchEvent(new CustomEvent(AUTH_STATE_CHANGED_EVENT));
-}
-
-export interface RoleInfo {
-  id: string;
-  name: string;
-  display_name: string;
-  description?: string;
-  is_system?: boolean;
-  is_enabled?: boolean;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface UserInfo {
-  id: string;
-  email: string;
-  name: string;
-  avatar_url?: string;
-  roles?: RoleInfo[];
-  permissions?: Array<{ resource: string; action: string }>;
 }
 
 /**
@@ -94,7 +77,10 @@ export const setTokens = (
 
     // 计算并存储 refresh token 过期时间戳
     const refreshExpiryTime = Date.now() + refreshTokenExpiresIn * 1000;
-    localStorage.setItem(REFRESH_TOKEN_EXPIRY_KEY, refreshExpiryTime.toString());
+    localStorage.setItem(
+      REFRESH_TOKEN_EXPIRY_KEY,
+      refreshExpiryTime.toString(),
+    );
 
     // 清除旧的 rotation 标记
     localStorage.removeItem(REFRESH_TOKEN_ROTATION_KEY);
@@ -313,10 +299,12 @@ const markRefreshTokenAsRotated = () => {
  * 1. 刷新前标记旧 refresh token 为已使用（防止重放攻击）
  * 2. 刷新成功后存储新的 refresh token
  * 3. 刷新失败时清除所有认证信息
+ * 4. 超时保护（10 秒）防止 Promise 永远挂起
  *
  * @returns Promise<string | null> 刷新后的 access_token，失败返回 null
  */
 let refreshPromise: Promise<string | null> | null = null;
+let refreshTimeout: NodeJS.Timeout | null = null;
 
 export const refreshAccessToken = async (): Promise<string | null> => {
   const refreshTokenValue = getRefreshToken();
@@ -334,6 +322,13 @@ export const refreshAccessToken = async (): Promise<string | null> => {
   // 在调用 API 之前立即标记旧 token 为已使用
   // 这样可以防止在 API 调用期间的重放攻击
   markRefreshTokenAsRotated();
+
+  // 设置超时保护（10 秒）
+  refreshTimeout = setTimeout(() => {
+    console.error('[refreshAccessToken] Timeout after 10s');
+    refreshPromise = null;
+    refreshTimeout = null;
+  }, 10000);
 
   refreshPromise = (async () => {
     try {
@@ -359,10 +354,28 @@ export const refreshAccessToken = async (): Promise<string | null> => {
       clearAuth();
       return null;
     } finally {
+      // 清理超时定时器
+      if (refreshTimeout) {
+        clearTimeout(refreshTimeout);
+        refreshTimeout = null;
+      }
       // 清除 Promise，允许下次刷新
       refreshPromise = null;
     }
   })();
 
   return refreshPromise;
+};
+
+/**
+ * 取消待处理的刷新请求
+ *
+ * 用于测试或特殊场景下的手动清理
+ */
+export const cancelPendingRefresh = () => {
+  refreshPromise = null;
+  if (refreshTimeout) {
+    clearTimeout(refreshTimeout);
+    refreshTimeout = null;
+  }
 };
