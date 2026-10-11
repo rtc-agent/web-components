@@ -11,6 +11,142 @@ import { msg, str } from '@lit/localize';
 import { getLocale } from '../core/i18n.js';
 
 /**
+ * Format a number with thousand separators using current locale.
+ *
+ * Supports international number formatting:
+ * - zh-CN: 123,456.78
+ * - en-US: 123,456.78
+ * - de-DE: 123.456,78
+ *
+ * @param num - Number to format
+ * @param decimals - Number of decimal places (optional, auto-detect if not provided)
+ * @param locale - Optional locale override (defaults to current locale)
+ * @returns Formatted number string
+ */
+export function formatNumber(
+  num: number | undefined | null,
+  decimals?: number,
+  locale?: string
+): string {
+  if (num === undefined || num === null || !isFinite(num)) return '0';
+
+  const currentLocale = locale || getLocale();
+
+  // If decimals is specified, use toFixed for exact control
+  if (decimals !== undefined) {
+    if (decimals < 0 || decimals > 20) {
+      console.warn(`formatNumber: decimals ${decimals} out of range (0-20), using 0`);
+      decimals = 0;
+    }
+    num = Number(num.toFixed(decimals));
+  }
+
+  try {
+    return num.toLocaleString(currentLocale);
+  } catch {
+    // Fallback to US format if locale is invalid
+    return num.toLocaleString('en-US');
+  }
+}
+
+/**
+ * Format a percentage with current locale.
+ *
+ * @param value - Value to format as percentage (0-1 or 0-100)
+ * @param decimals - Number of decimal places (default: 1)
+ * @param alreadyMultiplied - If true, value is already 0-100, otherwise multiply by 100
+ * @returns Formatted percentage string
+ */
+export function formatPercentage(
+  value: number | undefined | null,
+  decimals: number = 1,
+  alreadyMultiplied: boolean = false
+): string {
+  if (value === undefined || value === null || !isFinite(value)) return '0%';
+
+  const percentValue = alreadyMultiplied ? value : value * 100;
+  const locale = getLocale();
+
+  try {
+    return `${percentValue.toLocaleString(locale, {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals
+    })}%`;
+  } catch {
+    return `${percentValue.toFixed(decimals)}%`;
+  }
+}
+
+/**
+ * Format bytes to human-readable size.
+ *
+ * @param bytes - Number of bytes
+ * @param decimals - Number of decimal places (default: 2)
+ * @returns Human-readable size string (e.g., "1.5 MB")
+ */
+export function formatFileSize(bytes: number | undefined | null, decimals: number = 2): string {
+  if (bytes === undefined || bytes === null || bytes < 0) return '0 B';
+  if (bytes === 0) return '0 B';
+
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(decimals))} ${sizes[i]}`;
+}
+
+/**
+ * Validate a date string or timestamp.
+ *
+ * @param value - Date string, timestamp, or Date object
+ * @returns true if valid date, false otherwise
+ */
+export function isValidDate(value: unknown): boolean {
+  if (value instanceof Date) {
+    return !isNaN(value.getTime());
+  }
+
+  if (typeof value === 'number') {
+    if (!isFinite(value)) return false;
+    const date = new Date(value);
+    return !isNaN(date.getTime());
+  }
+
+  if (typeof value === 'string') {
+    const date = new Date(value);
+    return !isNaN(date.getTime());
+  }
+
+  return false;
+}
+
+/**
+ * Cache for DateTimeFormat instances to avoid repeated allocations.
+ * Key format: `${locale}_${type}_${options_hash}`
+ */
+const dateFormatterCache = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * Get or create a cached DateTimeFormat instance.
+ */
+function getCachedFormatter(
+  locale: string,
+  type: 'date' | 'time' | 'datetime',
+  options?: Intl.DateTimeFormatOptions
+): Intl.DateTimeFormat {
+  const optionsKey = options ? JSON.stringify(options) : '';
+  const cacheKey = `${locale}_${type}_${optionsKey}`;
+
+  let formatter = dateFormatterCache.get(cacheKey);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, options);
+    dateFormatterCache.set(cacheKey, formatter);
+  }
+
+  return formatter;
+}
+
+/**
  * Format a timestamp (ms since epoch) into a locale-aware compact string.
  *
  * Uses `Intl.DateTimeFormat` to produce a format appropriate for the current
@@ -24,10 +160,12 @@ export function formatTimestampCompact(
   timestamp: number | undefined | null,
 ): string {
   if (!timestamp) return '';
-  const date = new Date(timestamp);
-  const locale = getLocale();
 
-  const formatter = new Intl.DateTimeFormat(locale, {
+  const date = new Date(timestamp);
+  if (!isValidDate(date)) return '';
+
+  const locale = getLocale();
+  const formatter = getCachedFormatter(locale, 'datetime', {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
@@ -35,6 +173,71 @@ export function formatTimestampCompact(
     hour12: false,
   });
 
+  return formatter.format(date);
+}
+
+/**
+ * Format a timestamp as a full date and time string.
+ *
+ * @param timestamp - Unix timestamp in milliseconds
+ * @param showSeconds - Whether to show seconds (default: false)
+ * @returns Formatted date-time string
+ */
+export function formatDateTime(
+  timestamp: number | undefined | null,
+  showSeconds: boolean = false
+): string {
+  if (!timestamp) return '';
+
+  const date = new Date(timestamp);
+  if (!isValidDate(date)) return '';
+
+  const locale = getLocale();
+  const options: Intl.DateTimeFormatOptions = {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  };
+
+  if (showSeconds) {
+    options.second = '2-digit';
+  }
+
+  const formatter = getCachedFormatter(locale, 'datetime', options);
+  return formatter.format(date);
+}
+
+/**
+ * Format a timestamp as a time-only string.
+ *
+ * @param timestamp - Unix timestamp in milliseconds
+ * @param showSeconds - Whether to show seconds (default: false)
+ * @returns Formatted time string
+ */
+export function formatTimeOnly(
+  timestamp: number | undefined | null,
+  showSeconds: boolean = false
+): string {
+  if (!timestamp) return '';
+
+  const date = new Date(timestamp);
+  if (!isValidDate(date)) return '';
+
+  const locale = getLocale();
+  const options: Intl.DateTimeFormatOptions = {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  };
+
+  if (showSeconds) {
+    options.second = '2-digit';
+  }
+
+  const formatter = getCachedFormatter(locale, 'time', options);
   return formatter.format(date);
 }
 

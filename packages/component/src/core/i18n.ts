@@ -5,6 +5,9 @@ import {
   safeLocalStorageGet,
   safeLocalStorageSet,
 } from '../utils/safe-local-storage.js';
+import { createLogger } from '@rtc-agent/protocol';
+
+const log = createLogger('i18n');
 
 // 1. Locale codes
 export const sourceLocale = 'zh-CN' as const;
@@ -100,14 +103,77 @@ export function persistLocale(locale: SupportedLocale): void {
 }
 
 /**
+ * Debounce timer for locale switching
+ * Prevents rapid locale switching that could cause performance issues
+ */
+let switchLocaleTimer: ReturnType<typeof setTimeout> | null = null;
+const SWITCH_LOCALE_DEBOUNCE_MS = 150;
+
+/**
  * Switch language and synchronize all related state
  * Components should call this function instead of calling _setLocale directly
+ *
+ * Includes debouncing to prevent rapid switching that could cause performance issues.
+ *
+ * @param locale - Target locale to switch to
+ * @param immediate - If true, skip debouncing and switch immediately (default: false)
  */
-export async function switchLocale(locale: SupportedLocale): Promise<void> {
-  await _setLocale(locale);
-  persistLocale(locale);
-  document.documentElement.lang = locale;
-  document.documentElement.dir = isRTLLocale(locale) ? 'rtl' : 'ltr';
+export async function switchLocale(
+  locale: SupportedLocale,
+  immediate: boolean = false
+): Promise<void> {
+  // Clear any pending switch
+  if (switchLocaleTimer !== null) {
+    clearTimeout(switchLocaleTimer);
+    switchLocaleTimer = null;
+  }
+
+  if (immediate) {
+    await executeLocaleSwitch(locale);
+  } else {
+    // Debounce the locale switch
+    await new Promise<void>((resolve) => {
+      switchLocaleTimer = setTimeout(async () => {
+        switchLocaleTimer = null;
+        await executeLocaleSwitch(locale);
+        resolve();
+      }, SWITCH_LOCALE_DEBOUNCE_MS);
+    });
+  }
+}
+
+/**
+ * Execute the actual locale switch
+ */
+async function executeLocaleSwitch(locale: SupportedLocale): Promise<void> {
+  try {
+    await _setLocale(locale);
+    persistLocale(locale);
+    document.documentElement.lang = locale;
+    document.documentElement.dir = isRTLLocale(locale) ? 'rtl' : 'ltr';
+    log.info(`Locale switched to: ${locale}`);
+  } catch (err) {
+    log.error(`Failed to switch locale to ${locale}:`, err);
+    throw err;
+  }
+}
+
+/**
+ * Warn about missing translation
+ *
+ * Call this when a translation key is not found to help developers
+ * identify missing translations during development.
+ *
+ * @param key - Translation key that is missing
+ * @param fallback - Fallback text that was used
+ */
+export function warnMissingTranslation(key: string, fallback?: string): void {
+  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+    const message = fallback
+      ? `[i18n] Missing translation for key: "${key}" (using fallback: "${fallback}")`
+      : `[i18n] Missing translation for key: "${key}"`;
+    log.warn(message);
+  }
 }
 
 /**

@@ -21,6 +21,56 @@ import { createLogger } from '@rtc-agent/protocol';
 const log = createLogger('MarkdownGenerator');
 
 /**
+ * Escape HTML special characters to prevent XSS
+ *
+ * SECURITY: This function escapes all dangerous HTML characters including:
+ * - & < > " ' (standard HTML entities)
+ * - ` (backtick, prevents template literal injection)
+ *
+ * @param text - Text to escape
+ * @returns Escaped HTML string
+ */
+export function escapeHtml(text: string): string {
+  if (typeof text !== 'string') return '';
+
+  const map: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;',
+    '`': '&#96;',
+  };
+  return text.replace(/[&<>"'`]/g, (char) => map[char]);
+}
+
+/**
+ * Sanitize href attribute to prevent javascript: URLs
+ *
+ * SECURITY: Only allows http/https protocols, rejects javascript:, data:, vbscript:
+ *
+ * @param url - URL to sanitize
+ * @returns Sanitized URL or empty string if unsafe
+ */
+export function sanitizeHref(url: string): string {
+  if (!url || typeof url !== 'string') return '';
+
+  const trimmed = url.trim();
+
+  // Reject dangerous protocols
+  if (/^\s*javascript\s*:/i.test(trimmed)) return '';
+  if (/^\s*data\s*:/i.test(trimmed)) return '';
+  if (/^\s*vbscript\s*:/i.test(trimmed)) return '';
+
+  // Only allow http/https or relative URLs
+  if (/^\s*https?:\/\//i.test(trimmed) || (!/^\s*[a-z][a-z0-9+.-]*:/i.test(trimmed))) {
+    return trimmed;
+  }
+
+  return '';
+}
+
+/**
  * Convert OpenAPI Schema to a readable type string
  *
  * References openapi-markdown's dataTypes.js logic

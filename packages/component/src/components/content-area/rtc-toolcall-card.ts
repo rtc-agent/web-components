@@ -16,6 +16,7 @@
  * Dot color states (via host data attribute):
  *   - "running" — orange pulse (waiting for output)
  *   - "done"    — green static (output received)
+ *   - "error"   — red static (tool call failed)
  *
  * @element rtc-toolcall-card
  * @csspart dot     - The timeline dot
@@ -61,6 +62,7 @@ interface ToolCallData {
   input: unknown;
   output?: string;
   status?: string;
+  error?: string;
 }
 
 /**
@@ -254,7 +256,18 @@ export class RtcToolCallCard extends LitElement {
   }
 
   private _updateStatus() {
-    const status = this.pair.output ? 'done' : 'running';
+    const output = this.pair.output;
+    const inData = parseToolCallData(this.pair.input);
+    const hasError = !!inData?.error || output?.content?.type === 'error';
+
+    let status: string;
+    if (hasError) {
+      status = 'error';
+    } else if (output) {
+      status = 'done';
+    } else {
+      status = 'running';
+    }
     this.setAttribute('data-toolcall-status', status);
   }
 

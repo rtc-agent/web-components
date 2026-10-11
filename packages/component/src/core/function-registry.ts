@@ -2,6 +2,49 @@ import { createLogger } from '@rtc-agent/protocol';
 const log = createLogger('FunctionRegistry');
 
 /**
+ * Validate URL for security (prevent javascript:, data:, etc.)
+ * Only allows http/https protocols.
+ *
+ * @param url - URL string to validate
+ * @returns true if URL is safe, false otherwise
+ */
+export function isValidIconUrl(url: string): boolean {
+  if (!url || typeof url !== 'string') return false;
+
+  // Trim whitespace
+  const trimmed = url.trim();
+
+  // Reject empty strings
+  if (!trimmed) return false;
+
+  // Reject javascript: protocol (case-insensitive)
+  if (/^\s*javascript\s*:/i.test(trimmed)) {
+    log.warn('Rejected javascript: URL');
+    return false;
+  }
+
+  // Reject data: protocol (prevents inline data URIs)
+  if (/^\s*data\s*:/i.test(trimmed)) {
+    log.warn('Rejected data: URL');
+    return false;
+  }
+
+  // Reject vbscript: protocol (case-insensitive)
+  if (/^\s*vbscript\s*:/i.test(trimmed)) {
+    log.warn('Rejected vbscript: URL');
+    return false;
+  }
+
+  // Only allow http/https protocols
+  if (!/^\s*https?:\/\//i.test(trimmed)) {
+    log.warn('Rejected non-http(s) URL protocol');
+    return false;
+  }
+
+  return true;
+}
+
+/**
  * Function Registry
  *
  * Manages function registration, resolution, and chain calls.
