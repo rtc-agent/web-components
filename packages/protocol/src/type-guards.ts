@@ -16,11 +16,19 @@ import type {
   Turn,
   Message,
   Rtc,
+  Update,
+  UpdateItem,
   SessionStatus,
   TurnStatus,
   MessageRole,
   MessageStreamingStatus,
   RtcStatus,
+  ContentType,
+  ToolCall,
+  UserMessageContent,
+  ErrorContent,
+  PromptContent,
+  FileAttachment,
 } from './index.js';
 
 /**
@@ -207,4 +215,290 @@ export function extractStringField(
 ): string | undefined {
   const value = record[fieldName];
   return typeof value === 'string' ? value : undefined;
+}
+
+// ========== ContentData Type Map & Fine-grained Guards ==========
+
+/**
+ * Maps each ContentType discriminator to the concrete type of its `data` field.
+ *
+ * This eliminates the need for unsafe `as` casts when accessing ContentData.data.
+ * Use with TypedContentData<T> or the individual type guards below.
+ *
+ * Type mapping (from OpenAPI spec):
+ * - `markdown` → string
+ * - `summary` → SummaryContentData (object with optional items/metadata)
+ * - `text` → string
+ * - `thinking` → string
+ * - `toolcall_input` → ToolCall
+ * - `toolcall_output` → ToolCall
+ * - `user_message` → UserMessageContent
+ * - `error` → ErrorContent
+ * - `prompt` → PromptContent
+ */
+export interface ContentDataTypeMap {
+  markdown: string;
+  summary: unknown;
+  text: string;
+  thinking: string;
+  toolcall_input: ToolCall;
+  toolcall_output: ToolCall;
+  user_message: UserMessageContent;
+  error: ErrorContent;
+  prompt: PromptContent;
+}
+
+/**
+ * A ContentData narrowed to a specific `type` discriminator.
+ *
+ * Usage:
+ * ```typescript
+ * const md: TypedContentData<'markdown'> = { type: 'markdown', data: '# Hello' };
+ * // md.data is string
+ * ```
+ */
+export type TypedContentData<T extends ContentType> = {
+  type: T;
+  data: ContentDataTypeMap[T];
+};
+
+/**
+ * Type guard for string-based ContentData (markdown, text, thinking).
+ */
+export function isStringContentData(
+  c: ContentData,
+): c is TypedContentData<'markdown'> | TypedContentData<'text'> | TypedContentData<'thinking'> {
+  return (
+    (c.type === 'markdown' || c.type === 'text' || c.type === 'thinking') &&
+    typeof c.data === 'string'
+  );
+}
+
+/**
+ * Type guard for markdown ContentData.
+ */
+export function isMarkdownContent(
+  c: ContentData,
+): c is TypedContentData<'markdown'> {
+  return c.type === 'markdown' && typeof c.data === 'string';
+}
+
+/**
+ * Type guard for text ContentData.
+ */
+export function isTextContent(c: ContentData): c is TypedContentData<'text'> {
+  return c.type === 'text' && typeof c.data === 'string';
+}
+
+/**
+ * Type guard for thinking ContentData.
+ */
+export function isThinkingContent(
+  c: ContentData,
+): c is TypedContentData<'thinking'> {
+  return c.type === 'thinking' && typeof c.data === 'string';
+}
+
+/**
+ * Type guard for toolcall_input ContentData.
+ */
+export function isToolCallInputContent(
+  c: ContentData,
+): c is TypedContentData<'toolcall_input'> {
+  return c.type === 'toolcall_input' && isNonNullObject(c.data);
+}
+
+/**
+ * Type guard for toolcall_output ContentData.
+ */
+export function isToolCallOutputContent(
+  c: ContentData,
+): c is TypedContentData<'toolcall_output'> {
+  return c.type === 'toolcall_output' && isNonNullObject(c.data);
+}
+
+/**
+ * Type guard for user_message ContentData.
+ */
+export function isUserMessageContentData(
+  c: ContentData,
+): c is TypedContentData<'user_message'> {
+  return (
+    c.type === 'user_message' &&
+    isNonNullObject(c.data) &&
+    typeof (c.data as Record<string, unknown>).text === 'string'
+  );
+}
+
+/**
+ * Type guard for error ContentData.
+ */
+export function isErrorContentData(
+  c: ContentData,
+): c is TypedContentData<'error'> {
+  return (
+    c.type === 'error' &&
+    isNonNullObject(c.data) &&
+    typeof (c.data as Record<string, unknown>).category === 'string' &&
+    typeof (c.data as Record<string, unknown>).title === 'string' &&
+    typeof (c.data as Record<string, unknown>).message === 'string' &&
+    typeof (c.data as Record<string, unknown>).retryable === 'boolean'
+  );
+}
+
+/**
+ * Type guard for prompt ContentData.
+ */
+export function isPromptContentData(
+  c: ContentData,
+): c is TypedContentData<'prompt'> {
+  return (
+    c.type === 'prompt' &&
+    isNonNullObject(c.data) &&
+    typeof (c.data as Record<string, unknown>).name === 'string' &&
+    typeof (c.data as Record<string, unknown>).prompt === 'string'
+  );
+}
+
+/**
+ * Type guard for summary ContentData.
+ */
+export function isSummaryContentData(
+  c: ContentData,
+): c is TypedContentData<'summary'> {
+  return c.type === 'summary' && isNonNullObject(c.data);
+}
+
+// ========== Standalone Type Guards for Complex Types ==========
+
+/**
+ * Type guard for ErrorContent.
+ *
+ * Validates required fields: `category` (ErrorCategory enum), `title` (string),
+ * `message` (string), `retryable` (boolean).
+ */
+export function isValidErrorContent(data: unknown): data is ErrorContent {
+  const ERROR_CATEGORIES: ReadonlySet<string> = new Set<string>([
+    'api',
+    'stream',
+    'tool',
+    'context',
+    'system',
+    'network',
+    'timeout',
+    'permission',
+  ]);
+
+  return (
+    isNonNullObject(data) &&
+    typeof data.category === 'string' &&
+    ERROR_CATEGORIES.has(data.category) &&
+    typeof data.title === 'string' &&
+    typeof data.message === 'string' &&
+    typeof data.retryable === 'boolean'
+  );
+}
+
+/**
+ * Type guard for PromptContent.
+ *
+ * Validates required fields: `name` (string), `prompt` (string).
+ * Optional `title` and `role` are not validated unless present.
+ */
+export function isValidPromptContent(data: unknown): data is PromptContent {
+  if (!isNonNullObject(data)) return false;
+  if (typeof data.name !== 'string') return false;
+  if (typeof data.prompt !== 'string') return false;
+
+  // Optional role validation (if present)
+  if ('role' in data && data.role !== undefined) {
+    if (data.role !== 'system' && data.role !== 'user') return false;
+  }
+
+  return true;
+}
+
+/**
+ * Type guard for FileAttachment.
+ *
+ * Validates required fields: `mimetype` (string), `fileid` (string).
+ * Optional `extra` is validated to be an object if present.
+ */
+export function isValidFileAttachment(data: unknown): data is FileAttachment {
+  if (!isNonNullObject(data)) return false;
+  if (typeof data.mimetype !== 'string') return false;
+  if (typeof data.fileid !== 'string') return false;
+
+  // Optional extra validation (if present)
+  if ('extra' in data && data.extra !== undefined) {
+    if (!isNonNullObject(data.extra)) return false;
+  }
+
+  return true;
+}
+
+// ========== Update Type Guard ==========
+
+/**
+ * Valid sets for Update discriminator checks.
+ */
+const UPDATE_ENTITIES: ReadonlySet<string> = new Set<string>([
+  'session',
+  'turn',
+  'message',
+  'rtc',
+  'file',
+]);
+const UPDATE_ACTIONS: ReadonlySet<string> = new Set<string>([
+  'created',
+  'updated',
+  'deleted',
+]);
+
+/**
+ * Type guard for UpdateItem.
+ *
+ * Validates required fields: `entity` (UpdateEntity enum), `action` (UpdateAction enum),
+ * `entity_id` (string UUID).
+ */
+export function isValidUpdateItem(data: unknown): data is UpdateItem {
+  return (
+    isNonNullObject(data) &&
+    typeof data.entity === 'string' &&
+    UPDATE_ENTITIES.has(data.entity) &&
+    typeof data.action === 'string' &&
+    UPDATE_ACTIONS.has(data.action) &&
+    typeof data.entity_id === 'string'
+  );
+}
+
+/**
+ * Type guard for Update.
+ *
+ * Validates required fields: `id` (string), `items` (UpdateItem[]), `offset` (number).
+ * Optional `data_list` is validated to be an array (if present) with length matching items.
+ */
+export function isValidUpdate(data: unknown): data is Update {
+  if (!isNonNullObject(data)) return false;
+  if (typeof data.id !== 'string') return false;
+  if (typeof data.offset !== 'number') return false;
+  if (!Array.isArray(data.items)) return false;
+
+  // Validate each item in the items array
+  for (const item of data.items) {
+    if (!isValidUpdateItem(item)) return false;
+  }
+
+  // Optional data_list: if present, must be an array with matching length
+  if ('data_list' in data && data.data_list !== undefined) {
+    if (!Array.isArray(data.data_list)) return false;
+    if (
+      data.data_list.length !== 0 &&
+      data.data_list.length !== data.items.length
+    ) {
+      return false;
+    }
+  }
+
+  return true;
 }

@@ -149,7 +149,16 @@ export type TurnListResponse = components['schemas']['TurnListResponse'];
 export type TurnGetRequest = components['schemas']['TurnGetRequest'];
 export type TurnGetResponse = components['schemas']['TurnGetResponse'];
 
-// HTTP / OAuth2
+// ---------- Admin Auth ----------
+export type AdminLoginRequest = components['schemas']['AdminLoginRequest'];
+export type AdminLoginResponse = components['schemas']['AdminLoginResponse'];
+export type AdminRefreshRequest = components['schemas']['AdminRefreshRequest'];
+export type AdminRefreshResponse = components['schemas']['AdminRefreshResponse'];
+export type AdminUserResponse = components['schemas']['AdminUserResponse'];
+export type AdminLogoutRequest = components['schemas']['AdminLogoutRequest'];
+export type AdminErrorResponse = components['schemas']['AdminErrorResponse'];
+
+// ---------- HTTP / OAuth2 ----------
 export type OAuth2AuthorizeResponse =
   components['schemas']['OAuth2AuthorizeResponse'];
 export type OAuth2TokenExchangeRequest =
@@ -196,3 +205,7 @@ export * from './type-guards.js';
 // ---------- Logger ----------
 
 export * from './logger.js';
+
+// ---------- Utils ----------
+
+export * from './utils.js';
