@@ -33,6 +33,7 @@ const MessagesPage: React.FC = () => {
   const [currentMessage, setCurrentMessage] = useState<MessageInfo | null>(
     null,
   );
+  const [loading, setLoading] = useState(false);
 
   const { token } = theme.useToken();
 
@@ -322,6 +323,7 @@ const MessagesPage: React.FC = () => {
           actionRef={actionRef}
           rowKey="id"
           columns={columns}
+          loading={loading}
           onRow={(record) => ({
             onClick: () => handleRowClick(record),
             style: { cursor: 'pointer' },
@@ -333,6 +335,7 @@ const MessagesPage: React.FC = () => {
             if (!effectiveSessionId) {
               return { data: [], total: 0, success: true };
             }
+            setLoading(true);
             const role = searchParams.get('role') || undefined;
             const createdAfter = searchParams.get('created_after') || undefined;
             const createdBefore =
@@ -366,6 +369,8 @@ const MessagesPage: React.FC = () => {
                 ),
               );
               return { data: [], total: 0, success: false };
+            } finally {
+              setLoading(false);
             }
           }}
           pagination={{
@@ -395,6 +400,21 @@ const MessagesPage: React.FC = () => {
               })}
             </Button>,
           ]}
+          locale={{
+            emptyText: (
+              <Empty
+                image={
+                  <InboxOutlined
+                    style={{ fontSize: 48, color: token.colorTextTertiary }}
+                  />
+                }
+                description={intl.formatMessage({
+                  id: 'pages.messages.noData',
+                  defaultMessage: 'No messages found',
+                })}
+              />
+            ),
+          }}
         />
       )}
 

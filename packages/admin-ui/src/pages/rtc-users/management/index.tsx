@@ -2,6 +2,7 @@ import {
   CheckCircleOutlined,
   DownOutlined,
   EyeOutlined,
+  InboxOutlined,
   MessageOutlined,
   SettingOutlined,
   StopOutlined,
@@ -18,11 +19,13 @@ import {
   App,
   Button,
   Dropdown,
+  Empty,
   Grid,
   Popconfirm,
   Space,
   Tag,
   Tooltip,
+  theme,
 } from 'antd';
 import React, {
   useCallback,
@@ -220,6 +223,8 @@ const RtcUserManagementPage: React.FC = () => {
   // See access.ts for canServerConfigEdit/canServerConfigDelete definitions
   const canConfigEdit = access.canServerConfigEdit as boolean;
   const canConfigDelete = access.canServerConfigDelete as boolean;
+  const [loading, setLoading] = useState(false);
+  const { token } = theme.useToken();
 
   // === Register Page API ===
   useEffect(() => {
@@ -591,12 +596,14 @@ const RtcUserManagementPage: React.FC = () => {
         rowKey="id"
         columns={columns}
         scroll={{ x: 'max-content' }}
+        loading={loading}
         request={async (params, sort) => {
           // Read params from searchParams (URL is single source of truth)
           const search = searchParams.get('search') || '';
           const status = searchParams.get('status') || '';
           const current = params.current || 1;
           const pageSize = params.pageSize || 10;
+          setLoading(true);
           try {
             const sortParams = parseTableSort(sort || {});
             const response = await getRtcUserList({
@@ -626,6 +633,8 @@ const RtcUserManagementPage: React.FC = () => {
               total: 0,
               success: false,
             };
+          } finally {
+            setLoading(false);
           }
         }}
         pagination={{
@@ -650,6 +659,21 @@ const RtcUserManagementPage: React.FC = () => {
             })}
           </Button>,
         ]}
+        locale={{
+          emptyText: (
+            <Empty
+              image={
+                <InboxOutlined
+                  style={{ fontSize: 48, color: token.colorTextTertiary }}
+                />
+              }
+              description={intl.formatMessage({
+                id: 'pages.rtcUsers.noData',
+                defaultMessage: 'No users found',
+              })}
+            />
+          ),
+        }}
       />
 
       {/* Ban user modal */}

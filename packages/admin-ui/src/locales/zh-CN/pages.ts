@@ -133,6 +133,7 @@ export default {
   'pages.rtcUsers.banFailed': '封禁用户失败',
   'pages.rtcUsers.unbanFailed': '解封用户失败',
   'pages.rtcUsers.loadFailed': '加载用户列表失败',
+  'pages.rtcUsers.noData': '暂无用户数据',
   'pages.rtcUsers.refresh': '刷新',
   'pages.rtcUsers.config': '配置',
   'pages.rtcUsers.viewSessions': '对话',
@@ -154,6 +155,7 @@ export default {
   'pages.sessions.viewMessages': '查看消息',
   'pages.sessions.refresh': '刷新',
   'pages.sessions.loadFailed': '加载对话列表失败',
+  'pages.sessions.noData': '暂无对话数据',
   'pages.sessions.emptyHint': '请从用户管理页面选择用户以查看对话列表',
   'pages.sessions.goToUsers': '前往用户管理',
   // Message 管理
@@ -173,6 +175,7 @@ export default {
   'pages.messages.timeRange': '时间范围',
   'pages.messages.refresh': '刷新',
   'pages.messages.loadFailed': '加载消息列表失败',
+  'pages.messages.noData': '暂无消息数据',
   'pages.messages.emptyHint': '请从对话管理页面选择对话以查看消息列表',
   'pages.messages.goToUsers': '前往用户管理',
   'pages.messages.detail.title': '消息详情',

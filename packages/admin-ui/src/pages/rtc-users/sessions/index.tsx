@@ -3,7 +3,7 @@ import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { history, useIntl, useSearchParams } from '@umijs/max';
 import { App, Button, Empty, Grid, Tag, theme } from 'antd';
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import { disabledFutureDate, parseTableSort } from '../shared/tableUtils';
 import type { SessionInfo } from './data';
@@ -23,6 +23,7 @@ const SessionsPage: React.FC = () => {
   const userId = searchParams.get('user_id') || '';
   const breakpoints = useBreakpoint();
   const isMobile = !breakpoints.md; // < 768px
+  const [loading, setLoading] = useState(false);
 
   // === Register Page API ===
   useEffect(() => {
@@ -297,12 +298,14 @@ const SessionsPage: React.FC = () => {
           rowKey="id"
           columns={columns}
           scroll={{ x: 'max-content' }}
+          loading={loading}
           request={async (params, sort) => {
             // Read params from searchParams (URL is single source of truth)
             const effectiveUserId = searchParams.get('user_id') || userId;
             if (!effectiveUserId) {
               return { data: [], total: 0, success: true };
             }
+            setLoading(true);
             const status = searchParams.get('status') || undefined;
             const search = searchParams.get('search') || undefined;
             const startTime = searchParams.get('start_time') || undefined;
@@ -337,6 +340,8 @@ const SessionsPage: React.FC = () => {
                 ),
               );
               return { data: [], total: 0, success: false };
+            } finally {
+              setLoading(false);
             }
           }}
           pagination={{
@@ -367,6 +372,21 @@ const SessionsPage: React.FC = () => {
               })}
             </Button>,
           ]}
+          locale={{
+            emptyText: (
+              <Empty
+                image={
+                  <InboxOutlined
+                    style={{ fontSize: 48, color: token.colorTextTertiary }}
+                  />
+                }
+                description={intl.formatMessage({
+                  id: 'pages.sessions.noData',
+                  defaultMessage: 'No conversations found',
+                })}
+              />
+            ),
+          }}
         />
       )}
     </PageContainer>

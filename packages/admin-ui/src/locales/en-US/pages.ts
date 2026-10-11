@@ -143,6 +143,7 @@ export default {
   'pages.rtcUsers.banFailed': 'Failed to ban user',
   'pages.rtcUsers.unbanFailed': 'Failed to unban user',
   'pages.rtcUsers.loadFailed': 'Failed to load user list',
+  'pages.rtcUsers.noData': 'No users found',
   'pages.rtcUsers.refresh': 'Refresh',
   'pages.rtcUsers.config': 'Config',
   'pages.rtcUsers.viewSessions': 'Sessions',
@@ -164,6 +165,7 @@ export default {
   'pages.sessions.viewMessages': 'View Messages',
   'pages.sessions.refresh': 'Refresh',
   'pages.sessions.loadFailed': 'Failed to load session list',
+  'pages.sessions.noData': 'No conversations found',
   'pages.sessions.emptyHint':
     'Please select a user from the user management page to view sessions',
   'pages.sessions.goToUsers': 'Go to User Management',
@@ -184,6 +186,7 @@ export default {
   'pages.messages.timeRange': 'Time Range',
   'pages.messages.refresh': 'Refresh',
   'pages.messages.loadFailed': 'Failed to load message list',
+  'pages.messages.noData': 'No messages found',
   'pages.messages.emptyHint':
     'Please select a session from the session management page to view messages',
   'pages.messages.goToUsers': 'Go to User Management',
