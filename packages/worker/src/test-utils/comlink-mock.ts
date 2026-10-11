@@ -46,7 +46,9 @@ import type { PersistenceConfig } from '@rtc-agent/persistence';
 export function createWorkerBridgeMock() {
   return {
     // ========== Initialization ==========
-    init: vi.fn<(config: PersistenceConfig) => Promise<void>>().mockResolvedValue(undefined),
+    init: vi
+      .fn<(config: PersistenceConfig) => Promise<void>>()
+      .mockResolvedValue(undefined),
 
     // ========== Callback Management ==========
     registerCallback: vi.fn<(cb: WorkerCallbacks) => void>(),
@@ -55,7 +57,10 @@ export function createWorkerBridgeMock() {
     // ========== Catch-Up Events ==========
     getCatchUpEvents: vi
       .fn<
-        (fromSeq: number, limit?: number) => Promise<{
+        (
+          fromSeq: number,
+          limit?: number,
+        ) => Promise<{
           entries: any[];
           hasGap: boolean;
           hasMore: boolean;
@@ -79,8 +84,12 @@ export function createWorkerBridgeMock() {
       .mockResolvedValue('disconnected' as ConnectionState),
 
     // ========== Queries ==========
-    listSessions: vi.fn<(cursor?: string, limit?: number) => Promise<any[]>>().mockResolvedValue([]),
-    getSession: vi.fn<(clientId: string) => Promise<any | undefined>>().mockResolvedValue(undefined),
+    listSessions: vi
+      .fn<(cursor?: string, limit?: number) => Promise<any[]>>()
+      .mockResolvedValue([]),
+    getSession: vi
+      .fn<(clientId: string) => Promise<any | undefined>>()
+      .mockResolvedValue(undefined),
     listMessages: vi
       .fn<
         (
@@ -91,16 +100,26 @@ export function createWorkerBridgeMock() {
         ) => Promise<any[]>
       >()
       .mockResolvedValue([]),
-    getMessage: vi.fn<(clientId: string) => Promise<any | undefined>>().mockResolvedValue(undefined),
+    getMessage: vi
+      .fn<(clientId: string) => Promise<any | undefined>>()
+      .mockResolvedValue(undefined),
     listRtc: vi
-      .fn<(sessionClientId: string, cursor?: number, limit?: number) => Promise<any[]>>()
+      .fn<
+        (
+          sessionClientId: string,
+          cursor?: number,
+          limit?: number,
+        ) => Promise<any[]>
+      >()
       .mockResolvedValue([]),
     getNextRtcToProcess: vi
       .fn<(sessionClientId?: string) => Promise<any | undefined>>()
       .mockResolvedValue(undefined),
 
     // ========== Debug History ==========
-    addDebugHistoryItem: vi.fn<(item: any) => Promise<void>>().mockResolvedValue(undefined),
+    addDebugHistoryItem: vi
+      .fn<(item: any) => Promise<void>>()
+      .mockResolvedValue(undefined),
     queryDebugHistory: vi
       .fn<
         (
@@ -110,9 +129,15 @@ export function createWorkerBridgeMock() {
         ) => Promise<{ items: any[]; nextCursor?: string }>
       >()
       .mockResolvedValue({ items: [] }),
-    countDebugHistory: vi.fn<(functionName?: string) => Promise<number>>().mockResolvedValue(0),
-    clearDebugHistory: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
-    batchDeleteDebugHistory: vi.fn<(ids: string[]) => Promise<void>>().mockResolvedValue(undefined),
+    countDebugHistory: vi
+      .fn<(functionName?: string) => Promise<number>>()
+      .mockResolvedValue(0),
+    clearDebugHistory: vi
+      .fn<() => Promise<void>>()
+      .mockResolvedValue(undefined),
+    batchDeleteDebugHistory: vi
+      .fn<(ids: string[]) => Promise<void>>()
+      .mockResolvedValue(undefined),
 
     // ========== Operations ==========
     sendMessage: vi
@@ -140,11 +165,19 @@ export function createWorkerBridgeMock() {
       >()
       .mockResolvedValue({ clientId: 'test-message' }),
 
-    stopTurn: vi.fn<(sessionClientId: string) => Promise<void>>().mockResolvedValue(undefined),
-    closeSession: vi.fn<(sessionClientId: string) => Promise<void>>().mockResolvedValue(undefined),
-    openSession: vi.fn<(sessionClientId: string) => Promise<void>>().mockResolvedValue(undefined),
+    stopTurn: vi
+      .fn<(sessionClientId: string) => Promise<void>>()
+      .mockResolvedValue(undefined),
+    closeSession: vi
+      .fn<(sessionClientId: string) => Promise<void>>()
+      .mockResolvedValue(undefined),
+    openSession: vi
+      .fn<(sessionClientId: string) => Promise<void>>()
+      .mockResolvedValue(undefined),
     compactSession: vi
-      .fn<(sessionClientId: string, customInstruction?: string) => Promise<void>>()
+      .fn<
+        (sessionClientId: string, customInstruction?: string) => Promise<void>
+      >()
       .mockResolvedValue(undefined),
 
     submitRtcResult: vi
@@ -174,17 +207,23 @@ export function createWorkerBridgeMock() {
         message: { clientId: 'new-message' },
       }),
 
-    deleteSession: vi.fn<(sessionClientId: string) => Promise<void>>().mockResolvedValue(undefined),
+    deleteSession: vi
+      .fn<(sessionClientId: string) => Promise<void>>()
+      .mockResolvedValue(undefined),
     updateSessionTitle: vi
       .fn<(sessionClientId: string, title: string) => Promise<void>>()
       .mockResolvedValue(undefined),
 
     // ========== Lifecycle ==========
-    close: vi.fn<(callerCallback?: WorkerCallbacks) => Promise<void>>().mockResolvedValue(undefined),
+    close: vi
+      .fn<(callerCallback?: WorkerCallbacks) => Promise<void>>()
+      .mockResolvedValue(undefined),
     flushAll: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
 
     // ========== Virtual File System ==========
-    initializeVirtualFS: vi.fn<(config?: any) => Promise<void>>().mockResolvedValue(undefined),
+    initializeVirtualFS: vi
+      .fn<(config?: any) => Promise<void>>()
+      .mockResolvedValue(undefined),
 
     batchWriteFiles: vi
       .fn<
@@ -215,8 +254,12 @@ export function createWorkerBridgeMock() {
         ) => Promise<number>
       >()
       .mockResolvedValue(0),
-    virtualFSLs: vi.fn<(path?: string) => Promise<string[]>>().mockResolvedValue([]),
-    virtualFSFind: vi.fn<(pattern: string, path?: string) => Promise<string[]>>().mockResolvedValue([]),
+    virtualFSLs: vi
+      .fn<(path?: string) => Promise<string[]>>()
+      .mockResolvedValue([]),
+    virtualFSFind: vi
+      .fn<(pattern: string, path?: string) => Promise<string[]>>()
+      .mockResolvedValue([]),
     virtualFSGrep: vi
       .fn<
         (
@@ -230,8 +273,12 @@ export function createWorkerBridgeMock() {
     virtualFSQueryByType: vi
       .fn<(type: string) => Promise<any[]>>()
       .mockResolvedValue([]),
-    virtualFSExists: vi.fn<(path: string) => Promise<boolean>>().mockResolvedValue(false),
-    virtualFSRemove: vi.fn<(path: string) => Promise<void>>().mockResolvedValue(undefined),
+    virtualFSExists: vi
+      .fn<(path: string) => Promise<boolean>>()
+      .mockResolvedValue(false),
+    virtualFSRemove: vi
+      .fn<(path: string) => Promise<void>>()
+      .mockResolvedValue(undefined),
 
     // ========== File Cache & S3 Operations ==========
     cacheFile: vi
@@ -265,7 +312,11 @@ export function createWorkerBridgeMock() {
     evictExpiredCache: vi.fn<() => Promise<number>>().mockResolvedValue(0),
 
     evictCache: vi
-      .fn<(targetBytes?: number) => Promise<{ evictedCount: number; evictedBytes: number }>>()
+      .fn<
+        (
+          targetBytes?: number,
+        ) => Promise<{ evictedCount: number; evictedBytes: number }>
+      >()
       .mockResolvedValue({ evictedCount: 0, evictedBytes: 0 }),
 
     uploadFile: vi
@@ -304,7 +355,9 @@ export function createWorkerBridgeMock() {
 
     cancelFileOperation: vi.fn<(operationId: string) => void>(),
 
-    deleteFile: vi.fn<(md5: string, ext: string) => Promise<void>>().mockResolvedValue(undefined),
+    deleteFile: vi
+      .fn<(md5: string, ext: string) => Promise<void>>()
+      .mockResolvedValue(undefined),
 
     // ========== MD5 Calculation ==========
     calculateFileMD5: vi
@@ -322,15 +375,25 @@ export function createWorkerBridgeMock() {
       }),
 
     getPresignedUrl: vi
-      .fn<(operation: 'get' | 'put', key: string, expiresIn?: number) => Promise<string>>()
+      .fn<
+        (
+          operation: 'get' | 'put',
+          key: string,
+          expiresIn?: number,
+        ) => Promise<string>
+      >()
       .mockResolvedValue('https://example.com/presigned-url'),
 
     // ========== File List & Count ==========
     listFiles: vi
-      .fn<(syncStatus?: any, limit?: number, offset?: number) => Promise<any[]>>()
+      .fn<
+        (syncStatus?: any, limit?: number, offset?: number) => Promise<any[]>
+      >()
       .mockResolvedValue([]),
 
-    countFiles: vi.fn<(syncStatus?: any) => Promise<number>>().mockResolvedValue(0),
+    countFiles: vi
+      .fn<(syncStatus?: any) => Promise<number>>()
+      .mockResolvedValue(0),
 
     syncPendingFiles: vi
       .fn<
@@ -338,7 +401,11 @@ export function createWorkerBridgeMock() {
           synced: number;
           failed: number;
           syncedFiles: Array<{ md5: string; ext: string }>;
-          failedFiles: Array<{ md5: string; ext: string; errorMessage?: string }>;
+          failedFiles: Array<{
+            md5: string;
+            ext: string;
+            errorMessage?: string;
+          }>;
         }>
       >()
       .mockResolvedValue({
@@ -355,7 +422,11 @@ export function createWorkerBridgeMock() {
           failed: number;
           expired: number;
           syncedFiles: Array<{ md5: string; ext: string }>;
-          failedFiles: Array<{ md5: string; ext: string; errorMessage?: string }>;
+          failedFiles: Array<{
+            md5: string;
+            ext: string;
+            errorMessage?: string;
+          }>;
         }>
       >()
       .mockResolvedValue({
@@ -423,7 +494,9 @@ export type WorkerBridgeMock = ReturnType<typeof createWorkerBridgeMock>;
 export function createWorkerCallbacksMock() {
   return {
     onUIUpdate: vi.fn<(payload: any) => Promise<void> | void>(),
-    requestToken: vi.fn<() => Promise<string>>().mockResolvedValue('mock-token'),
+    requestToken: vi
+      .fn<() => Promise<string>>()
+      .mockResolvedValue('mock-token'),
     requestTokenRefresh: vi
       .fn<() => Promise<'refresh' | 'relogin'>>()
       .mockResolvedValue('refresh'),

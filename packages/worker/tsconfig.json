@@ -6,5 +6,14 @@
     "lib": ["ES2022", "WebWorker"],
     "types": []
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.integration.test.ts",
+    "**/test-setup.ts",
+    "**/test-utils/**"
+  ]
 }

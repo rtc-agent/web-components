@@ -149,10 +149,9 @@ describe('Comlink Proxy Mock Examples', () => {
 
       await mockBridge.batchWriteFiles(files, ['/old-file.txt']);
 
-      expect(mockBridge.batchWriteFiles).toHaveBeenCalledWith(
-        files,
-        ['/old-file.txt'],
-      );
+      expect(mockBridge.batchWriteFiles).toHaveBeenCalledWith(files, [
+        '/old-file.txt',
+      ]);
     });
   });
 
@@ -246,9 +245,7 @@ describe('Comlink Proxy Mock Examples', () => {
   describe('Debug History', () => {
     it('should mock debug history operations', async () => {
       mockBridge.queryDebugHistory.mockResolvedValue({
-        items: [
-          { id: '1', functionName: 'test', timestamp: Date.now() },
-        ],
+        items: [{ id: '1', functionName: 'test', timestamp: Date.now() }],
         nextCursor: 'cursor-1',
       });
 

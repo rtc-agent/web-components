@@ -1,7 +1,27 @@
 import type { ContentData } from '@rtc-agent/protocol';
-import type { ConnectionState, ConnectionStateEvent, HeadObjectResult } from '@rtc-agent/client';
-import type { PersistenceConfig, AgentMdConfig, FileSystemMetadataOverride, UIUpdateQueueEntry, CachedFileInfo, FileCacheEntry, FileSyncStatus, GrepResult } from '@rtc-agent/persistence';
-import type { UIUpdateEvent, LocalSession, LocalMessage, LocalRtc, DebugHistoryItem, PagedResult } from '@rtc-agent/persistence';
+import type {
+  ConnectionState,
+  ConnectionStateEvent,
+  HeadObjectResult,
+} from '@rtc-agent/client';
+import type {
+  PersistenceConfig,
+  AgentMdConfig,
+  FileSystemMetadataOverride,
+  UIUpdateQueueEntry,
+  CachedFileInfo,
+  FileCacheEntry,
+  FileSyncStatus,
+  GrepResult,
+} from '@rtc-agent/persistence';
+import type {
+  UIUpdateEvent,
+  LocalSession,
+  LocalMessage,
+  LocalRtc,
+  DebugHistoryItem,
+  PagedResult,
+} from '@rtc-agent/persistence';
 
 /**
  * Payload for onUIUpdate callback: includes the event and its persisted seq.
@@ -26,7 +46,7 @@ export interface UIUpdatePayload {
  * - onAccountBanned: Worker broadcasts account ban notification (disconnect code 4501) to this Tab
  */
 export interface WorkerCallbacks {
-  onUIUpdate: (payload: UIUpdatePayload) => void;
+  onUIUpdate: (payload: UIUpdatePayload) => Promise<void> | void;
   requestToken: () => Promise<string>;
   requestTokenRefresh: () => Promise<'refresh' | 'relogin'>;
   onConnectionStateChange: (event: ConnectionStateEvent) => void;
@@ -66,7 +86,10 @@ export interface WorkerPersistenceCore {
    * @param limit - Maximum number of events to return (default: 1000)
    * @returns entries, hasGap (events were skipped), hasMore (more events beyond limit)
    */
-  getCatchUpEvents(fromSeq: number, limit?: number): Promise<{
+  getCatchUpEvents(
+    fromSeq: number,
+    limit?: number,
+  ): Promise<{
     entries: UIUpdateQueueEntry[];
     hasGap: boolean;
     hasMore: boolean;
@@ -108,7 +131,7 @@ export interface WorkerPersistenceCore {
   queryDebugHistory(
     functionName?: string,
     cursor?: string,
-    limit?: number
+    limit?: number,
   ): Promise<PagedResult<DebugHistoryItem>>;
   countDebugHistory(functionName?: string): Promise<number>;
   clearDebugHistory(): Promise<void>;
@@ -138,7 +161,10 @@ export interface WorkerPersistenceCore {
   /** Reopen a closed session */
   openSession(sessionClientId: string): Promise<void>;
 
-  compactSession(sessionClientId: string, customInstruction?: string): Promise<void>;
+  compactSession(
+    sessionClientId: string,
+    customInstruction?: string,
+  ): Promise<void>;
 
   submitRtcResult(params: {
     rtcClientId: string;
@@ -163,7 +189,16 @@ export interface WorkerPersistenceCore {
   updateSessionTitle(sessionClientId: string, title: string): Promise<void>;
 
   // ========== Lifecycle ==========
-  close(): Promise<void>;
+
+  /**
+   * Close this Tab's connection to the SharedWorker.
+   *
+   * Reference counting: only destroys shared resources if this is the last tab.
+   *
+   * @param callerCallback - Optional callback to remove before checking reference count.
+   *                         Ensures cleanup even if unregisterCallback failed earlier.
+   */
+  close(callerCallback?: WorkerCallbacks): Promise<void>;
   flushAll(): Promise<void>;
 
   // ========== Additional capabilities ==========
@@ -249,19 +284,21 @@ export interface WorkerPersistenceCore {
    * Return type matches persistence package's FileSystemEntry;
    * Date fields are preserved as Date instances during Comlink transport.
    */
-  virtualFSQueryByType(type: string): Promise<Array<{
-    path: string;
-    type: string;
-    content: string;
-    metadata: {
-      name: string;
-      description: string;
-      tags?: string[];
-      group?: string;
-      createdAt: Date;
-      updatedAt: Date;
-    };
-  }>>;
+  virtualFSQueryByType(type: string): Promise<
+    Array<{
+      path: string;
+      type: string;
+      content: string;
+      metadata: {
+        name: string;
+        description: string;
+        tags?: string[];
+        group?: string;
+        createdAt: Date;
+        updatedAt: Date;
+      };
+    }>
+  >;
 
   /**
    * Check if a file exists (executed inside Worker).
@@ -289,7 +326,7 @@ export interface WorkerPersistenceCore {
     ext: string,
     blob: Blob,
     contentType: string,
-    ttlMs?: number
+    ttlMs?: number,
   ): Promise<void>;
 
   /**
@@ -310,7 +347,7 @@ export interface WorkerPersistenceCore {
     ext: string,
     blob: Blob,
     contentType: string,
-    filename?: string
+    filename?: string,
   ): Promise<void>;
 
   /**
@@ -321,10 +358,7 @@ export interface WorkerPersistenceCore {
    * @param md5 File content MD5 hash
    * @param ext File extension
    */
-  getCachedFile(
-    md5: string,
-    ext: string
-  ): Promise<CachedFileInfo | null>;
+  getCachedFile(md5: string, ext: string): Promise<CachedFileInfo | null>;
 
   /**
    * Evict all expired cache entries (executed inside Worker).
@@ -342,7 +376,9 @@ export interface WorkerPersistenceCore {
    * @param targetBytes Number of bytes to free (default: 100MB)
    * @returns Actual evicted count and bytes freed
    */
-  evictCache(targetBytes?: number): Promise<{ evictedCount: number; evictedBytes: number }>;
+  evictCache(
+    targetBytes?: number,
+  ): Promise<{ evictedCount: number; evictedBytes: number }>;
 
   /**
    * Upload a file to S3 (executed inside Worker).
@@ -366,8 +402,12 @@ export interface WorkerPersistenceCore {
     filename?: string,
     operationId?: string,
     onProgress?: (loaded: number, total: number) => void,
-    cacheTtlMs?: number
-  ): Promise<{ syncStatus: 'pending' | 'syncing' | 'synced' | 'failed'; syncedAt?: number; errorMessage?: string }>;
+    cacheTtlMs?: number,
+  ): Promise<{
+    syncStatus: 'pending' | 'syncing' | 'synced' | 'failed';
+    syncedAt?: number;
+    errorMessage?: string;
+  }>;
 
   /**
    * Download a file from S3 with local caching (executed inside Worker).
@@ -386,7 +426,13 @@ export interface WorkerPersistenceCore {
    * @param operationId Unique ID for cancellation (optional, generated by WorkerBridge)
    * @param forceRefresh If true, bypass local cache and download from S3 (optional)
    */
-  downloadFile(md5: string, ext: string, onProgress?: (loaded: number, total: number) => void, operationId?: string, forceRefresh?: boolean): Promise<Blob>;
+  downloadFile(
+    md5: string,
+    ext: string,
+    onProgress?: (loaded: number, total: number) => void,
+    operationId?: string,
+    forceRefresh?: boolean,
+  ): Promise<Blob>;
 
   /**
    * Cancel an ongoing file operation (upload or download) by its operationId.
@@ -440,7 +486,11 @@ export interface WorkerPersistenceCore {
    * @param expiresIn Expiration time in seconds (optional)
    * @returns Presigned URL string
    */
-  getPresignedUrl(operation: 'get' | 'put', key: string, expiresIn?: number): Promise<string>;
+  getPresignedUrl(
+    operation: 'get' | 'put',
+    key: string,
+    expiresIn?: number,
+  ): Promise<string>;
 
   // ========== File List & Count ==========
 
@@ -451,7 +501,11 @@ export interface WorkerPersistenceCore {
    * @param limit Maximum number of entries (default: 100)
    * @param offset Number of entries to skip (default: 0)
    */
-  listFiles(syncStatus?: FileSyncStatus, limit?: number, offset?: number): Promise<FileCacheEntry[]>;
+  listFiles(
+    syncStatus?: FileSyncStatus,
+    limit?: number,
+    offset?: number,
+  ): Promise<FileCacheEntry[]>;
 
   /**
    * Count files by sync status (executed inside Worker).
@@ -515,5 +569,9 @@ export interface WorkerPersistenceCore {
    * @param ext File extension
    * @param updates Partial metadata to update (filename and/or contentType)
    */
-  updateFileMetadata(md5: string, ext: string, updates: { filename?: string; contentType?: string }): Promise<void>;
+  updateFileMetadata(
+    md5: string,
+    ext: string,
+    updates: { filename?: string; contentType?: string },
+  ): Promise<void>;
 }
