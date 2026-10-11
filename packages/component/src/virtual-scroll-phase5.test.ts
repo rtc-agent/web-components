@@ -707,4 +707,138 @@ describe('MessageVirtualScroll - Phase 5: User Experience', () => {
     virtualScroll.setVisibility(true);
     expect(isContainerVisible()).toBe(true);
   });
+
+  describe('_settleData() edge cases', () => {
+    it('should handle settleCount = 0 (no items to settle)', () => {
+      const messages = [
+        createMessage('1', 'Message 1'),
+        createMessage('2', 'Message 2'),
+      ];
+
+      virtualScroll = new MessageVirtualScroll<TestMessage>({
+        scrollContainer,
+        innerContainer,
+        renderItem: createRenderFn(),
+        getItemId: (item) => item.id,
+      });
+
+      virtualScroll.setItems(messages);
+
+      // @ts-ignore - accessing private for testing
+      const initialSettledCount = virtualScroll._settledCount;
+
+      // Call _settleData() with items below MAX_HOT_ITEMS threshold
+      // @ts-ignore - accessing private for testing
+      virtualScroll._settleData();
+
+      // Verify no items were settled
+      // @ts-ignore - accessing private for testing
+      expect(virtualScroll._settledCount).toBe(initialSettledCount);
+      // @ts-ignore - accessing private for testing
+      expect(virtualScroll._items.length).toBe(messages.length);
+    });
+
+    it('should handle settleCount > _items.length (all items settled)', () => {
+      // Create more items than MAX_HOT_ITEMS (500)
+      const messages: TestMessage[] = [];
+      for (let i = 0; i < 600; i++) {
+        messages.push(createMessage(`msg-${i}`, `Content ${i}`));
+      }
+
+      virtualScroll = new MessageVirtualScroll<TestMessage>({
+        scrollContainer,
+        innerContainer,
+        renderItem: createRenderFn(),
+        getItemId: (item) => item.id,
+      });
+
+      // Temporarily lower MAX_HOT_ITEMS for testing
+      // @ts-ignore - accessing private for testing
+      virtualScroll.MAX_HOT_ITEMS = 100;
+
+      virtualScroll.setItems(messages);
+
+      // @ts-ignore - accessing private for testing
+      const settledCount = virtualScroll._settledCount;
+
+      // Verify that excess items were settled
+      expect(settledCount).toBeGreaterThan(0);
+      // @ts-ignore - accessing private for testing
+      expect(virtualScroll._items.length).toBeLessThan(messages.length);
+
+      // Verify ID-to-index mapping was rebuilt correctly
+      // @ts-ignore - accessing private for testing
+      for (const [id, index] of virtualScroll._idToIndex.entries()) {
+        // @ts-ignore - accessing private for testing
+        expect(virtualScroll._items[index].id).toBe(id);
+      }
+    });
+
+    it('should handle mixed skeleton and real elements during settlement', () => {
+      // Create items with some skeletonized
+      const messages: TestMessage[] = [];
+      for (let i = 0; i < 150; i++) {
+        messages.push(createMessage(`msg-${i}`, `Content ${i}`));
+      }
+
+      virtualScroll = new MessageVirtualScroll<TestMessage>({
+        scrollContainer,
+        innerContainer,
+        renderItem: createRenderFn(),
+        getItemId: (item) => item.id,
+        isItemStable: () => true,
+      });
+
+      // Set items first (this will trigger initial settlement)
+      virtualScroll.setItems(messages);
+
+      // Now lower MAX_HOT_ITEMS and add more items to trigger another settlement
+      // @ts-ignore - accessing private for testing
+      virtualScroll.MAX_HOT_ITEMS = 50;
+
+      // Add skeleton before triggering settlement
+      // We'll skeletonize msg-60 (which is now at index 60 after first settlement settled first 50)
+      // Actually, after first settlement, items are msg-50 to msg-149 (100 items)
+      // So msg-60 is at index 10
+      const placeholder = document.createElement('div');
+      placeholder.className = 'message-skeleton';
+      placeholder.dataset.itemId = 'msg-60';
+      placeholder.dataset.messageIndex = '10';
+      placeholder.dataset.isSkeleton = 'true';
+      placeholder.style.height = '100px';
+
+      // Get the original element (msg-60 is now at index 10 after first settlement)
+      const originalElement = innerContainer.children[10] as HTMLElement;
+
+      // Update _elementMap to point to the skeleton
+      // @ts-ignore - accessing private for testing
+      virtualScroll._elementMap.set(10, placeholder);
+
+      // Replace in DOM
+      originalElement.replaceWith(placeholder);
+
+      // Add to skeleton tracker
+      // @ts-ignore - accessing private for testing
+      virtualScroll._skeletonTracker.add('msg-60', 10, 1000, placeholder);
+      // @ts-ignore - accessing private for testing
+      virtualScroll._componentStateCache.set('msg-60', { expanded: true });
+
+      // Trigger settlement manually
+      // @ts-ignore - accessing private for testing
+      virtualScroll._settleData();
+
+      // Verify skeleton tracker was cleaned up for settled items
+      // @ts-ignore - accessing private for testing
+      expect(virtualScroll._skeletonTracker.has('msg-60')).toBe(false);
+      // @ts-ignore - accessing private for testing
+      expect(virtualScroll._componentStateCache.has('msg-60')).toBe(false);
+
+      // Verify remaining items' indices are correct
+      // @ts-ignore - accessing private for testing
+      for (const [id, index] of virtualScroll._idToIndex.entries()) {
+        // @ts-ignore - accessing private for testing
+        expect(virtualScroll._items[index].id).toBe(id);
+      }
+    });
+  });
 });

@@ -125,6 +125,13 @@ export interface MessageVirtualScrollOptions<T> {
    * Unstable items (e.g., streaming messages) are not replaced with skeletons.
    */
   isItemStable?: (item: T) => boolean;
+
+  /**
+   * Minimum interval between viewport slice operations (ms).
+   * Prevents excessive slicing during rapid scrolling.
+   * Default: 2000ms
+   */
+  minSliceInterval?: number;
 }
 
 interface ViewportSlicePart<T> {
@@ -241,7 +248,7 @@ export class MessageVirtualScroll<T> {
   // ── Event-Driven Slicing ──
 
   /** Minimum interval between _sliceViewport calls (ms) */
-  private readonly MIN_SLICE_INTERVAL = 2000;
+  private _minSliceInterval: number;
 
   /** Timestamp of last _sliceViewport call (prevents double invocation) */
   private _lastSliceTime: number = 0;
@@ -288,6 +295,7 @@ export class MessageVirtualScroll<T> {
     this._preloadThreshold = options.preloadThreshold ?? 300;
     this._bufferMessages = options.bufferMessages ?? 20;
     this._sliceDebounceDelay = 1500; // 1.5s scroll-debounce: balances responsiveness vs. slice churn
+    this._minSliceInterval = options.minSliceInterval ?? 2000;
 
     // Phase 1: Initialize skeleton placeholder callbacks
     this._createPlaceholder = options.createPlaceholder;
@@ -1733,7 +1741,7 @@ export class MessageVirtualScroll<T> {
 
     // I3: Prevent rapid re-slicing
     const now = Date.now();
-    if (now - this._lastSliceTime < this.MIN_SLICE_INTERVAL) {
+    if (now - this._lastSliceTime < this._minSliceInterval) {
       return;
     }
 

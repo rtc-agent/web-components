@@ -8,12 +8,13 @@
  * Provided by: `<rtc-agent>` (root)
  * Consumed by: `<rtc-input-area>`, `<rtc-mode-panel>`
  */
-import type { ReactiveController, ReactiveControllerHost } from 'lit';
+import type { ReactiveControllerHost } from 'lit';
 import type { Mode, ModeState, ModeActions } from '../types/index.js';
 import type { ModeContextValue } from '../contexts/mode.js';
 import { DEFAULT_MODE_STATE } from '../contexts/mode.js';
 import { STORAGE_KEYS } from '../config/auth.js';
 import { createLogger } from '@rtc-agent/protocol';
+import { CachedContextController } from '../core/cached-context.controller.js';
 
 const log = createLogger('ModeController');
 
@@ -30,61 +31,43 @@ function isValidMode(value: string): value is Mode {
   return VALID_MODES.has(value);
 }
 
-export class ModeController implements ReactiveController {
-  host: ReactiveControllerHost;
-
-  private _state: ModeState = { ...DEFAULT_MODE_STATE };
-
-  readonly actions: ModeActions;
-
-  /**
-   * CRITICAL FIX: Value cache to prevent unnecessary Context consumer re-renders.
-   * @lit/context uses `===` comparison, so creating new objects every time triggers
-   * consumers even when the state hasn't changed. Cache the value object and only
-   * recreate when state reference changes.
-   */
-  private _cachedValue?: ModeContextValue;
-  private _cachedState?: ModeState;
-
-  get value(): ModeContextValue {
-    // Only create new value object if state reference changed
-    if (this._cachedValue && this._cachedState === this._state) {
-      return this._cachedValue;
-    }
-    this._cachedState = this._state;
-    this._cachedValue = { state: this._state, actions: this.actions };
-    return this._cachedValue;
-  }
-
+export class ModeController extends CachedContextController<
+  ModeState,
+  ModeActions
+> {
   constructor(host: ReactiveControllerHost) {
-    this.host = host;
-    this.host.addController(this);
-    this.actions = {
+    // Initialize with default state and actions
+    const actions: ModeActions = {
       setMode: (mode: Mode) => this._setMode(mode),
     };
 
-    // Restore mode from localStorage
-    this._restoreMode();
+    // Restore mode from localStorage before calling super
+    const initialState = ModeController._restoreModeFromStorage();
+
+    super(host, initialState, actions, log);
   }
 
-  hostConnected() {}
-  hostDisconnected() {}
-
   /** Restore mode from localStorage */
-  private _restoreMode() {
+  private static _restoreModeFromStorage(): ModeState {
     try {
       const stored = localStorage.getItem(STORAGE_KEYS.mode);
       if (stored && isValidMode(stored)) {
-        this._state = { currentMode: stored };
+        return { currentMode: stored };
       }
     } catch (e) {
       // localStorage may be unavailable
       log.debug('Failed to restore mode:', e);
     }
+    return { ...DEFAULT_MODE_STATE };
+  }
+
+  /** Override value getter to return ModeContextValue type */
+  get value(): ModeContextValue {
+    return super.value as ModeContextValue;
   }
 
   private _setMode(mode: Mode) {
-    this._state = { currentMode: mode };
+    this._setState({ currentMode: mode });
     this.host.requestUpdate();
 
     // Persist to localStorage

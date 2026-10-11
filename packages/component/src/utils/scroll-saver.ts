@@ -21,6 +21,9 @@ export class ScrollSaver {
   private _scrollHeight: number = 0;
   private _elements: { element: HTMLElement; rect: DOMRect }[] = [];
 
+  /** Maximum number of visible elements to track (safety limit) */
+  private readonly MAX_VISIBLE_ELEMENTS = 1000;
+
   constructor(
     container: HTMLElement,
     query: string = '.message',
@@ -133,6 +136,13 @@ export class ScrollSaver {
         rect.bottom > containerRect.top && rect.top < containerRect.bottom;
 
       if (isVisible) {
+        // Safety limit: warn if too many elements
+        if (this._elements.length >= this.MAX_VISIBLE_ELEMENTS) {
+          log.warn(
+            `Too many visible elements (${this._elements.length}), truncating to ${this.MAX_VISIBLE_ELEMENTS}`,
+          );
+          break;
+        }
         this._elements.push({ element, rect });
       }
       // Note: no early break — elements may not be in strict visual order

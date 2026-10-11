@@ -52,6 +52,9 @@ const ITEM_HEIGHT = 28;
 /** Number of items to render above and below the visible area */
 const OVERSCAN_COUNT = 5;
 
+/** Default container height when actual height is not yet measured (px) */
+const DEFAULT_CONTAINER_HEIGHT = 500;
+
 @localized()
 @customElement('rtc-session-tree')
 export class RtcSessionTree extends LitElement {
@@ -103,24 +106,58 @@ export class RtcSessionTree extends LitElement {
   @state()
   private _containerHeight = 0;
 
+  /** Cached flattened tree nodes (invalidated when tree structure changes) */
+  private _cachedFlatNodes: Array<{ node: SessionTreeNode; depth: number }> | null = null;
+
+  /** Flag to track if tree structure has changed */
+  private _treeStructureChanged = true;
+
+  /** Session ID to element map for O(1) lookup */
+  private _sessionIdToElementMap: Map<string, RtcSessionTreeItem> = new Map();
+
   /* ── Virtual Scroll Helpers ── */
 
   /**
    * Flatten the tree structure into a list of visible nodes for virtual scrolling.
    * Respects the expand/collapse state of each node.
+   * Results are cached and only recalculated when tree structure changes.
    */
   private _flattenTree(
     nodes: SessionTreeNode[],
     depth = 0,
   ): Array<{ node: SessionTreeNode; depth: number }> {
-    const result: Array<{ node: SessionTreeNode; depth: number }> = [];
-    for (const node of nodes) {
-      result.push({ node, depth });
-      if (node.isExpanded && node.children.length > 0) {
-        result.push(...this._flattenTree(node.children, depth + 1));
-      }
+    // Return cached result if tree structure hasn't changed
+    if (!this._treeStructureChanged && this._cachedFlatNodes) {
+      return this._cachedFlatNodes;
     }
+
+    const result: Array<{ node: SessionTreeNode; depth: number }> = [];
+    const flattenRecursive = (
+      nodeList: SessionTreeNode[],
+      currentDepth: number,
+    ) => {
+      for (const node of nodeList) {
+        result.push({ node, depth: currentDepth });
+        if (node.isExpanded && node.children.length > 0) {
+          flattenRecursive(node.children, currentDepth + 1);
+        }
+      }
+    };
+    flattenRecursive(nodes, depth);
+
+    // Cache the result
+    this._cachedFlatNodes = result;
+    this._treeStructureChanged = false;
+
     return result;
+  }
+
+  /**
+   * Invalidate the flattened tree cache.
+   * Called when tree structure changes (expand/collapse, add/remove nodes).
+   */
+  private _invalidateFlatTreeCache(): void {
+    this._treeStructureChanged = true;
   }
 
   /**
@@ -197,6 +234,8 @@ export class RtcSessionTree extends LitElement {
     const { sessionId } = e.detail;
     this._setFocusedSessionId(sessionId);
     this._treeCtx.actions.toggleExpand(sessionId);
+    // Invalidate flattened tree cache after toggle
+    this._invalidateFlatTreeCache();
     this.dispatchEvent(
       new CustomEvent('rtc-session-tree-toggle', {
         bubbles: true,
@@ -342,7 +381,13 @@ export class RtcSessionTree extends LitElement {
   private _findTreeItemBySessionId(
     sessionId: string,
   ): RtcSessionTreeItem | null {
-    // Search in rendered DOM items (only works for visible items in virtual scroll)
+    // Try O(1) lookup first
+    const cachedItem = this._sessionIdToElementMap.get(sessionId);
+    if (cachedItem && cachedItem.isConnected) {
+      return cachedItem;
+    }
+
+    // Fallback: DOM walk (for cases where map is stale)
     const content = this.shadowRoot?.querySelector('.sidebar-content');
     if (!content) return null;
 
@@ -350,7 +395,12 @@ export class RtcSessionTree extends LitElement {
       for (const child of Array.from(parent.children)) {
         if (child.tagName === 'RTC-SESSION-TREE-ITEM') {
           const item = child as RtcSessionTreeItem;
-          if (item.node.session.clientId === sessionId) return item;
+          const itemSessionId = item.node.session.clientId;
+
+          // Update map while walking for future lookups
+          this._sessionIdToElementMap.set(itemSessionId, item);
+
+          if (itemSessionId === sessionId) return item;
           // Only recurse into children for expanded nodes
           if (item.node.children.length > 0 && item.node.isExpanded) {
             const childrenContainer =
@@ -488,7 +538,13 @@ export class RtcSessionTree extends LitElement {
     const flatNodes = this._flattenTree(rootNodes);
     const totalItems = flatNodes.length;
 
-    // If container height is not yet known, render all items (fallback)
+    // Use default height if container height is not yet measured
+    const effectiveHeight =
+      this._containerHeight === 0
+        ? DEFAULT_CONTAINER_HEIGHT
+        : this._containerHeight;
+
+    // If container height is at default, render all items (fallback for initial render)
     if (this._containerHeight === 0) {
       return flatNodes.map(
         ({ node, depth }) => html`
@@ -506,11 +562,11 @@ export class RtcSessionTree extends LitElement {
       );
     }
 
-    // Calculate visible range
+    // Calculate visible range using effective height
     const { start, end, totalHeight } = this._getVisibleRange(
       totalItems,
       this._scrollTop,
-      this._containerHeight,
+      effectiveHeight,
     );
 
     // Slice the visible items
@@ -588,6 +644,11 @@ export class RtcSessionTree extends LitElement {
       this._setupResizeObserver(content as HTMLElement);
     }
 
+    // Invalidate flattened tree cache when tree context changes
+    if (changed.has('_treeCtx')) {
+      this._invalidateFlatTreeCache();
+    }
+
     if (changed.has('_treeCtx') || changed.has('selectedSessionId')) {
       this._ensureInitialFocus();
     }
@@ -600,6 +661,8 @@ export class RtcSessionTree extends LitElement {
       this._resizeObserver.disconnect();
       this._resizeObserver = undefined;
     }
+    // Cleanup session ID to element map
+    this._sessionIdToElementMap.clear();
   }
 }
 
