@@ -160,6 +160,266 @@ sequenceDiagram
 
 ---
 
+## 📦 Workspace 结构
+
+本项目采用 **pnpm monorepo** 架构，包含以下包：
+
+| 包名 | 描述 | 技术栈 |
+| --- | --- | --- |
+| [`@rtc-agent/component`](./packages/component) | 核心 Web Components | Lit, Vite |
+| [`@rtc-agent/client`](./packages/client) | 通信层 | Centrifuge WebSocket |
+| [`@rtc-agent/protocol`](./packages/protocol) | 协议类型定义 | TypeScript |
+| [`@rtc-agent/worker`](./packages/worker) | SharedWorker 层 | Comlink |
+| [`@rtc-agent/persistence`](./packages/persistence) | 本地持久化层 | IndexedDB, Dexie.js |
+| [`@rtc-agent/admin-ui`](./packages/admin-ui) | 管理后台 | React, Ant Design Pro, Umi Max |
+
+### 包依赖关系
+
+```text
+component (主包)
+├── client (通信)
+├── protocol (类型)
+├── worker (后台线程)
+│   ├── client
+│   ├── protocol
+│   └── persistence
+└── persistence (IndexedDB)
+    ├── client
+    └── protocol
+
+admin-ui (独立 React 应用)
+├── component
+├── client
+└── protocol
+```
+
+---
+
+## 🛠️ 开发环境设置
+
+### 环境要求
+
+- **Node.js**: >= 22.0.0（推荐：24.21.0）
+- **pnpm**: >= 8.0.0
+
+### 安装 Node.js
+
+推荐使用 [nvm](https://github.com/nvm-sh/nvm) 管理 Node.js 版本：
+
+```bash
+# 安装正确的 Node.js 版本
+nvm install
+
+# 使用正确的 Node.js 版本
+nvm use
+```
+
+推荐版本存储在 `.nvmrc` 文件中。
+
+### 安装依赖
+
+```bash
+# 如果还没有安装 pnpm，先安装
+npm install -g pnpm
+
+# 安装项目依赖
+pnpm install
+```
+
+---
+
+## 🚀 开发命令
+
+### 根级命令
+
+```bash
+# 构建所有包（使用 turbo 缓存）
+pnpm build
+
+# 开发模式（仅 component）
+pnpm dev
+
+# 类型检查所有包
+pnpm typecheck
+
+# Lint 所有包
+pnpm lint
+
+# 运行测试
+pnpm test
+
+# 格式化代码
+pnpm format
+```
+
+### 单包命令
+
+```bash
+cd packages/<package-name>
+
+# 构建
+pnpm run build
+
+# 开发
+pnpm run dev
+
+# 类型检查
+pnpm run typecheck
+
+# Lint
+pnpm run lint
+
+# 测试
+pnpm run test
+```
+
+### admin-ui 特殊命令
+
+`admin-ui` 包使用 Umi Max 而非 turbo：
+
+```bash
+cd packages/admin-ui
+
+# 开发服务器
+pnpm run dev
+
+# 构建（Umi Max）
+pnpm run build
+
+# Lint（Biome + tsc）
+pnpm run lint
+```
+
+---
+
+## 🧪 测试策略
+
+- **单元测试**: 所有包使用 Vitest
+- **集成测试**: 部分包有 `*.integration.test.ts` 文件
+- **E2E 测试**: `component` 和 `admin-ui` 使用 Playwright
+
+运行所有测试：
+
+```bash
+pnpm test
+```
+
+运行 E2E 测试：
+
+```bash
+pnpm test:e2e
+```
+
+---
+
+## 🏗️ 构建流程
+
+构建过程由 **Turborepo** 编排，具有以下特性：
+
+1. **依赖感知**: 按拓扑顺序构建包
+2. **缓存**: Turborepo 缓存构建输出（`.turbo` 目录）
+3. **并行**: 独立包并行构建
+
+构建输出：
+
+- 大多数包：`dist/` 目录，包含 TypeScript 声明
+- `component`：Vite 打包 + TypeScript 声明
+- `admin-ui`：Umi Max 生产构建
+
+---
+
+## 📝 贡献指南
+
+### 代码风格
+
+- 使用 **Biome** 进行格式化和 lint（`pnpm format`, `pnpm lint`）
+- 启用 TypeScript 严格模式
+- 不允许使用 `any` 类型
+
+### 提交规范
+
+使用 **Conventional Commits**：
+
+```text
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+```
+
+示例：
+
+```text
+feat(component): add dark mode support
+
+Implement theme switching with CSS variables.
+
+Co-Authored-By: Claude Code <noreply@anthropic.com>
+```
+
+```text
+fix(client): reconnect on WebSocket timeout
+```
+
+### PR 流程
+
+1. 从 `dev` 分支创建特性分支
+2. 进行修改
+3. 运行 `pnpm lint` 和 `pnpm test` 确保质量
+4. 使用 conventional commit 信息提交
+5. 推送并创建 PR 到 `dev` 分支
+6. 等待 review
+
+---
+
+## 🔧 故障排查
+
+### 构建失败
+
+```bash
+# 清理缓存并重新安装
+rm -rf node_modules .turbo
+pnpm install
+
+# 重新构建
+pnpm build
+```
+
+### admin-ui 开发服务器问题
+
+```bash
+cd packages/admin-ui
+
+# 删除 Umi 缓存
+rm -rf src/.umi src/.umi-production
+
+# 重启
+pnpm run dev
+```
+
+### 类型检查失败
+
+```bash
+# 查看具体错误
+pnpm typecheck
+
+# 或者直接运行 tsc
+pnpm tsc --noEmit
+```
+
+---
+
+## 📚 文档
+
+- [快速开始](https://rtc-agent.github.io/docs/getting-started/) — 5 分钟接入 RTC Agent
+- [核心概念](https://rtc-agent.github.io/docs/concepts/) — 深入理解 RTC 协议和虚拟文件系统
+- [集成指南](https://rtc-agent.github.io/docs/integration/) — 学习如何注册 Function 和编写 Scenario
+- [Workspace 指南](./WORKSPACE.md) — 详细的 monorepo 结构和工具链
+- [包文档](./packages/) — 各包的独立 README
+
+---
+
 ## 🚀 下一步
 
 - [快速开始](https://rtc-agent.github.io/docs/getting-started/) — 5 分钟接入 RTC Agent

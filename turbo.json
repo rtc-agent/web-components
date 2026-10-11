@@ -1,23 +1,69 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalDependencies": ["tsconfig.base.json"],
+  "globalDependencies": [
+    "tsconfig.base.json",
+    ".npmrc",
+    "pnpm-workspace.yaml",
+    "pnpm-lock.yaml",
+    "biome.json"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**"],
-      "inputs": ["src/**/*.ts", "src/**/*.tsx", "tsconfig.json", "package.json"]
+      "inputs": [
+        "src/**",
+        "public/**",
+        "config/**",
+        "mock/**",
+        "tsconfig.json",
+        "package.json",
+        "vite.config.ts",
+        "tsup.config.ts",
+        "vitest.config.ts",
+        "vitest.integration.config.ts",
+        "tailwind.config.*",
+        "tailwind.css",
+        "lit-localize.json",
+        "!src/**/*.test.ts",
+        "!src/**/*.integration.test.ts"
+      ]
     },
     "typecheck": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**/*.ts", "src/**/*.tsx", "tsconfig.json"]
+      "inputs": [
+        "src/**",
+        "tsconfig.json",
+        "vite.config.ts",
+        "tsup.config.ts",
+        "vitest.config.ts",
+        "vitest.integration.config.ts",
+        "lit-localize.json"
+      ]
     },
     "test": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**/*.ts", "src/**/*.tsx", "vitest.config.ts"]
+      "inputs": [
+        "src/**",
+        "vitest.config.ts",
+        "vitest.integration.config.ts",
+        "vite.config.ts",
+        "tsup.config.ts",
+        "lit-localize.json"
+      ]
     },
     "dev": {
       "cache": false,
       "persistent": true
+    },
+    "lint": {
+      "inputs": ["src/**", "tsconfig.json"]
+    },
+    "lint:fix": {
+      "inputs": ["src/**", "tsconfig.json"]
+    },
+    "format": {
+      "inputs": ["src/**"]
     }
   }
 }

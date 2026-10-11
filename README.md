@@ -159,6 +159,266 @@ sequenceDiagram
 
 ---
 
+## 📦 Workspace Structure
+
+This is a **pnpm monorepo** with the following packages:
+
+| Package | Description | Tech Stack |
+| --- | --- | --- |
+| [`@rtc-agent/component`](./packages/component) | Core Web Components | Lit, Vite |
+| [`@rtc-agent/client`](./packages/client) | Communication layer | Centrifuge WebSocket |
+| [`@rtc-agent/protocol`](./packages/protocol) | Protocol type definitions | TypeScript |
+| [`@rtc-agent/worker`](./packages/worker) | SharedWorker layer | Comlink |
+| [`@rtc-agent/persistence`](./packages/persistence) | Local persistence layer | IndexedDB, Dexie.js |
+| [`@rtc-agent/admin-ui`](./packages/admin-ui) | Admin console | React, Ant Design Pro, Umi Max |
+
+### Package Dependencies
+
+```text
+component (main package)
+├── client (communication)
+├── protocol (types)
+├── worker (background thread)
+│   ├── client
+│   ├── protocol
+│   └── persistence
+└── persistence (IndexedDB)
+    ├── client
+    └── protocol
+
+admin-ui (standalone React app)
+├── component
+├── client
+└── protocol
+```
+
+---
+
+## 🛠️ Development Setup
+
+### Prerequisites
+
+- **Node.js**: >= 22.0.0 (recommended: 24.21.0)
+- **pnpm**: >= 8.0.0
+
+### Installing Node.js
+
+We recommend using [nvm](https://github.com/nvm-sh/nvm) to manage Node.js versions:
+
+```bash
+# Install the correct Node.js version
+nvm install
+
+# Use the correct Node.js version
+nvm use
+```
+
+The recommended version is specified in the `.nvmrc` file.
+
+### Installing Dependencies
+
+```bash
+# Install pnpm if you haven't already
+npm install -g pnpm
+
+# Install project dependencies
+pnpm install
+```
+
+---
+
+## 🚀 Development Commands
+
+### Root-level Commands
+
+```bash
+# Build all packages (with turbo cache)
+pnpm build
+
+# Development mode (component only)
+pnpm dev
+
+# Type check all packages
+pnpm typecheck
+
+# Lint all packages
+pnpm lint
+
+# Run tests
+pnpm test
+
+# Format code
+pnpm format
+```
+
+### Single Package Commands
+
+```bash
+cd packages/<package-name>
+
+# Build
+pnpm run build
+
+# Development
+pnpm run dev
+
+# Type check
+pnpm run typecheck
+
+# Lint
+pnpm run lint
+
+# Test
+pnpm run test
+```
+
+### admin-ui Special Commands
+
+The `admin-ui` package uses Umi Max instead of turbo:
+
+```bash
+cd packages/admin-ui
+
+# Development server
+pnpm run dev
+
+# Build (Umi Max)
+pnpm run build
+
+# Lint (Biome + tsc)
+pnpm run lint
+```
+
+---
+
+## 🧪 Testing Strategy
+
+- **Unit Tests**: Vitest for all packages
+- **Integration Tests**: Some packages have `*.integration.test.ts` files
+- **E2E Tests**: Playwright for `component` and `admin-ui`
+
+Run all tests:
+
+```bash
+pnpm test
+```
+
+Run E2E tests:
+
+```bash
+pnpm test:e2e
+```
+
+---
+
+## 🏗️ Build Process
+
+The build process is orchestrated by **Turborepo** with the following characteristics:
+
+1. **Dependency-aware**: Packages are built in topological order
+2. **Cached**: Turborepo caches build outputs (`.turbo` directory)
+3. **Parallel**: Independent packages build in parallel
+
+Build outputs:
+
+- Most packages: `dist/` directory with TypeScript declarations
+- `component`: Vite bundle + TypeScript declarations
+- `admin-ui`: Umi Max production build
+
+---
+
+## 📝 Contributing
+
+### Code Style
+
+- Use **Biome** for formatting and linting (`pnpm format`, `pnpm lint`)
+- TypeScript strict mode enabled
+- No `any` types allowed
+
+### Commit Convention
+
+We use **Conventional Commits**:
+
+```text
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+```
+
+Examples:
+
+```text
+feat(component): add dark mode support
+
+Implement theme switching with CSS variables.
+
+Co-Authored-By: Claude Code <noreply@anthropic.com>
+```
+
+```text
+fix(client): reconnect on WebSocket timeout
+```
+
+### Pull Request Process
+
+1. Create a feature branch from `dev`
+2. Make your changes
+3. Run `pnpm lint` and `pnpm test` to ensure quality
+4. Commit with conventional commit message
+5. Push and create PR to `dev` branch
+6. Wait for review
+
+---
+
+## 🔧 Troubleshooting
+
+### Build Failures
+
+```bash
+# Clean cache and reinstall
+rm -rf node_modules .turbo
+pnpm install
+
+# Rebuild
+pnpm build
+```
+
+### admin-ui Development Server Issues
+
+```bash
+cd packages/admin-ui
+
+# Remove Umi cache
+rm -rf src/.umi src/.umi-production
+
+# Restart
+pnpm run dev
+```
+
+### Type Check Failures
+
+```bash
+# Check specific errors
+pnpm typecheck
+
+# Or run tsc directly
+pnpm tsc --noEmit
+```
+
+---
+
+## 📚 Documentation
+
+- [Getting Started](https://rtc-agent.github.io/docs/en/getting-started/) — Integrate RTC Agent in 5 minutes
+- [Core Concepts](https://rtc-agent.github.io/docs/en/concepts/) — Deep dive into the RTC protocol and virtual file system
+- [Integration Guide](https://rtc-agent.github.io/docs/en/integration/) — Learn how to register Functions and write Scenarios
+- [Workspace Guide](./WORKSPACE.md) — Detailed monorepo structure and toolchain
+- [Package Documentation](./packages/) — Individual package READMEs
+
+---
+
 ## 🚀 Next Steps
 
 - [Getting Started](https://rtc-agent.github.io/docs/en/getting-started/) — Integrate RTC Agent in 5 minutes
