@@ -29,6 +29,7 @@ import { SyncTaskTracker } from './sync-task-tracker.js';
 import { LifecycleGuard, LifecycleClosedError } from './lifecycle-guard.js';
 import { FileSyncTransaction } from './file-sync-transaction.js';
 import { TrackedBackgroundTask } from './tracked-background-task.js';
+import { DebugHistoryManager } from './debug-history-manager.js';
 
 const log = createLogger('PersistenceLayer');
 
@@ -65,6 +66,7 @@ export { FileSyncTransaction } from './file-sync-transaction.js';
 export { TrackedBackgroundTask } from './tracked-background-task.js';
 export { createBuiltinTools } from './tools/builtin.js';
 export { RtcProcessor, type ConfirmDialogFn, type AskUserDialogFn } from './rtc-processor.js';
+export { DebugHistoryManager } from './debug-history-manager.js';
 
 /**
  * Persistence layer configuration.
@@ -115,6 +117,9 @@ export class PersistenceLayer {
     failedFiles: Array<{ md5: string; ext: string; errorMessage?: string }>;
   }> | null = null;
 
+  /** Debug history manager */
+  private _debugHistoryManager: DebugHistoryManager;
+
   constructor(config: PersistenceConfig) {
     // CRITICAL FIX: Validate required configuration fields to prevent runtime errors
     if (!config.deviceId) {
@@ -150,6 +155,9 @@ export class PersistenceLayer {
 
     // P2-C fix: instance-level FileOpCoordinator (no global singleton)
     this.fileOpCoordinator = new FileOpCoordinator();
+
+    // Initialize DebugHistoryManager
+    this._debugHistoryManager = new DebugHistoryManager(this._lifecycleGuard);
 
     // Create RTCAgentClient, injecting offset and publication callbacks
     const clientOptions: RTCAgentClientOptions = {
@@ -372,10 +380,17 @@ export class PersistenceLayer {
   // ========== Debug History ==========
 
   /**
+   * Get the DebugHistoryManager instance.
+   */
+  getDebugHistoryManager(): DebugHistoryManager {
+    return this._debugHistoryManager;
+  }
+
+  /**
    * Add a debug history item.
    */
   async addDebugHistoryItem(item: DebugHistoryItem): Promise<void> {
-    return this.debugHistoryRepository.add(item);
+    return this._debugHistoryManager.addDebugHistoryItem(item);
   }
 
   /**
@@ -390,28 +405,28 @@ export class PersistenceLayer {
     cursor?: string,
     limit?: number
   ): Promise<PagedResult<DebugHistoryItem>> {
-    return this.debugHistoryRepository.query(functionName, cursor, limit);
+    return this._debugHistoryManager.queryDebugHistory({ functionName, cursor, limit });
   }
 
   /**
    * Count debug history items.
    */
   async countDebugHistory(functionName?: string): Promise<number> {
-    return this.debugHistoryRepository.count(functionName);
+    return this._debugHistoryManager.countDebugHistory(functionName);
   }
 
   /**
    * Clear all debug history.
    */
   async clearDebugHistory(): Promise<void> {
-    return this.debugHistoryRepository.clear();
+    return this._debugHistoryManager.clearDebugHistory();
   }
 
   /**
    * Batch delete debug history items by IDs.
    */
   async batchDeleteDebugHistory(ids: string[]): Promise<void> {
-    return this.debugHistoryRepository.batchDelete(ids);
+    return this._debugHistoryManager.batchDeleteDebugHistory(ids);
   }
 
   // ========== File Cache & S3 Operations ==========
