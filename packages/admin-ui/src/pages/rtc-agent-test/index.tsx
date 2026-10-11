@@ -5,13 +5,15 @@
 
 import { PageContainer } from '@ant-design/pro-components';
 import { App, Button, Card, Space } from 'antd';
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useIntl } from '@umijs/max';
 
 export default function RtcAgentTestPage() {
   const [status, setStatus] = useState<string>('Checking...');
   const [error, setError] = useState<string | null>(null);
   const cleanupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { message } = App.useApp();
+  const intl = useIntl();
 
   useEffect(() => {
     // Check if GlobalRtcAgent is mounted
@@ -46,7 +48,7 @@ export default function RtcAgentTestPage() {
   const handleTestMount = async () => {
     // Prevent double-mount
     if (document.querySelector('rtc-agent[data-test-agent="true"]')) {
-      message.warning('测试 agent 已在运行中');
+      message.warning(intl.formatMessage({ id: 'pages.rtcAgentTest.agentAlreadyRunning' }));
       return;
     }
 

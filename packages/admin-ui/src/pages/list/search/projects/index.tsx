@@ -4,7 +4,8 @@ import dayjs from 'dayjs';
 import type { FC } from 'react';
 import { useState } from 'react';
 import { AvatarList, StandardFormRow, TagSelect } from '@/components';
-import { categoryOptions } from '../../mock';
+import { useIntl } from '@umijs/max';
+import { categoryOptions } from '../../constants';
 import type { ListItemDataType } from './data.d';
 import { queryFakeList } from './service';
 import useStyles from './style.style';
@@ -25,6 +26,7 @@ const formItemLayout = {
 
 const Projects: FC = () => {
   const { styles } = useStyles();
+  const intl = useIntl();
   const [filters, setFilters] = useState<{
     category?: (string | number)[];
     author?: string;
@@ -103,7 +105,7 @@ const Projects: FC = () => {
           }}
         >
           <StandardFormRow
-            title="所属类目"
+            title={intl.formatMessage({ id: 'pages.list.search.category' })}
             block
             style={{
               paddingBottom: 11,
@@ -126,12 +128,12 @@ const Projects: FC = () => {
               </TagSelect>
             </FormItem>
           </StandardFormRow>
-          <StandardFormRow title="其它选项" grid last>
+          <StandardFormRow title={intl.formatMessage({ id: 'pages.list.search.otherOptions' })} grid last>
             <Row gutter={16}>
               <Col lg={8} md={10} sm={10} xs={24}>
-                <FormItem {...formItemLayout} label="作者" name="author">
+                <FormItem {...formItemLayout} label={intl.formatMessage({ id: 'pages.list.search.author' })} name="author">
                   <Select
-                    placeholder="不限"
+                    placeholder={intl.formatMessage({ id: 'pages.list.search.unlimited' })}
                     style={{
                       maxWidth: 200,
                       width: '100%',
@@ -146,20 +148,20 @@ const Projects: FC = () => {
                 </FormItem>
               </Col>
               <Col lg={8} md={10} sm={10} xs={24}>
-                <FormItem {...formItemLayout} label="好评度" name="rate">
+                <FormItem {...formItemLayout} label={intl.formatMessage({ id: 'pages.list.search.praiseRate' })} name="rate">
                   <Select
-                    placeholder="不限"
+                    placeholder={intl.formatMessage({ id: 'pages.list.search.unlimited' })}
                     style={{
                       maxWidth: 200,
                       width: '100%',
                     }}
                     options={[
                       {
-                        label: '优秀',
+                        label: intl.formatMessage({ id: 'pages.list.search.excellent' }),
                         value: 'good',
                       },
                       {
-                        label: '普通',
+                        label: intl.formatMessage({ id: 'pages.list.search.normal' }),
                         value: 'normal',
                       },
                     ]}

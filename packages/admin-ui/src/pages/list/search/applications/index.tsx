@@ -18,9 +18,10 @@ import {
 } from 'antd';
 import type { FC } from 'react';
 import React from 'react';
+import { useIntl } from '@umijs/max';
 import { StandardFormRow, TagSelect } from '@/components';
 import { formatNumber } from '@/utils/format';
-import { categoryOptions } from '../../mock';
+import { categoryOptions } from '../../constants';
 import type { ListItemDataType } from './data.d';
 import { queryFakeList } from './service';
 import useStyles from './style.style';
@@ -64,14 +65,15 @@ const CardInfo: React.FC<{
   newUser: React.ReactNode;
 }> = ({ activeUser, newUser }) => {
   const { styles } = useStyles();
+  const intl = useIntl();
   return (
     <div className={styles.cardInfo}>
       <div>
-        <p>活跃用户</p>
+        <p>{intl.formatMessage({ id: 'pages.list.search.activeUser' })}</p>
         <p>{activeUser}</p>
       </div>
       <div>
-        <p>新增用户</p>
+        <p>{intl.formatMessage({ id: 'pages.list.search.newUser' })}</p>
         <p>{newUser}</p>
       </div>
     </div>
@@ -79,6 +81,7 @@ const CardInfo: React.FC<{
 };
 const Applications: FC<Record<string, any>> = () => {
   const { styles } = useStyles();
+  const intl = useIntl();
   const {
     data,
     isLoading: loading,
@@ -99,7 +102,7 @@ const Applications: FC<Record<string, any>> = () => {
           }}
         >
           <StandardFormRow
-            title="所属类目"
+            title={intl.formatMessage({ id: 'pages.list.search.category' })}
             block
             style={{
               paddingBottom: 11,
@@ -122,12 +125,12 @@ const Applications: FC<Record<string, any>> = () => {
               </TagSelect>
             </Form.Item>
           </StandardFormRow>
-          <StandardFormRow title="其它选项" grid last>
+          <StandardFormRow title={intl.formatMessage({ id: 'pages.list.search.otherOptions' })} grid last>
             <Row gutter={16}>
               <Col lg={8} md={10} sm={10} xs={24}>
-                <Form.Item {...formItemLayout} name="author" label="作者">
+                <Form.Item {...formItemLayout} name="author" label={intl.formatMessage({ id: 'pages.list.search.author' })}>
                   <Select
-                    placeholder="不限"
+                    placeholder={intl.formatMessage({ id: 'pages.list.search.unlimited' })}
                     style={{
                       maxWidth: 200,
                       width: '100%',
@@ -142,20 +145,20 @@ const Applications: FC<Record<string, any>> = () => {
                 </Form.Item>
               </Col>
               <Col lg={8} md={10} sm={10} xs={24}>
-                <Form.Item {...formItemLayout} name="rate" label="好评度">
+                <Form.Item {...formItemLayout} name="rate" label={intl.formatMessage({ id: 'pages.list.search.praiseRate' })}>
                   <Select
-                    placeholder="不限"
+                    placeholder={intl.formatMessage({ id: 'pages.list.search.unlimited' })}
                     style={{
                       maxWidth: 200,
                       width: '100%',
                     }}
                     options={[
                       {
-                        label: '优秀',
+                        label: intl.formatMessage({ id: 'pages.list.search.excellent' }),
                         value: 'good',
                       },
                       {
-                        label: '普通',
+                        label: intl.formatMessage({ id: 'pages.list.search.normal' }),
                         value: 'normal',
                       },
                     ]}
@@ -190,13 +193,13 @@ const Applications: FC<Record<string, any>> = () => {
                 },
               }}
               actions={[
-                <Tooltip key="download" title="下载">
+                <Tooltip key="download" title={intl.formatMessage({ id: 'pages.list.search.download' })}>
                   <DownloadOutlined />
                 </Tooltip>,
-                <Tooltip key="edit" title="编辑">
+                <Tooltip key="edit" title={intl.formatMessage({ id: 'pages.list.search.edit' })}>
                   <EditOutlined />
                 </Tooltip>,
-                <Tooltip title="分享" key="share">
+                <Tooltip title={intl.formatMessage({ id: 'pages.list.search.share' })} key="share">
                   <ShareAltOutlined />
                 </Tooltip>,
                 <Dropdown

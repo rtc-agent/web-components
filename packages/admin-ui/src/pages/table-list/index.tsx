@@ -14,6 +14,7 @@ import { FormattedMessage, useIntl } from '@umijs/max';
 import { App, Button, Drawer, type FormInstance, Input } from 'antd';
 import React, { useCallback, useRef, useState } from 'react';
 import { removeRule, rule } from '@/services/ant-design-pro/api';
+import { queryKeys } from '@/utils/queryKeys';
 import CreateForm from './components/CreateForm';
 import UpdateForm from './components/UpdateForm';
 
@@ -38,7 +39,7 @@ const TableList: React.FC = () => {
     onSuccess: () => {
       setSelectedRows([]);
       actionRef.current?.reloadAndRest?.();
-      queryClient.invalidateQueries({ queryKey: ['rules', 'list'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.rules.list() });
 
       message.success('Deleted successfully and will refresh soon');
     },
@@ -226,7 +227,7 @@ const TableList: React.FC = () => {
   const handleRemove = useCallback(
     async (selectedRows: API.RuleListItem[]) => {
       if (!selectedRows?.length) {
-        message.warning('请选择删除项');
+        message.warning(intl.formatMessage({ id: 'pages.tableList.selectDeleteItem' }));
 
         return;
       }

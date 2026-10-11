@@ -9,8 +9,9 @@ import { Button, Card, Col, Flex, Form, List, Row, Select, Tag } from 'antd';
 import type { DefaultOptionType } from 'antd/es/select';
 import type { FC } from 'react';
 import React, { useMemo, useRef } from 'react';
+import { useIntl } from '@umijs/max';
 import { ArticleListContent, StandardFormRow, TagSelect } from '@/components';
-import { categoryOptions } from '../../mock';
+import { categoryOptions } from '../../constants';
 import type { ListItemDataType } from './data.d';
 import { queryFakeList } from './service';
 import useStyles from './style.style';
@@ -82,6 +83,7 @@ const IconText: React.FC<{
 const Articles: FC = () => {
   const [form] = Form.useForm();
   const { styles } = useStyles();
+  const intl = useIntl();
   const filtersRef = useRef<{
     category?: (string | number)[];
     owner?: string[];
@@ -129,10 +131,10 @@ const Articles: FC = () => {
       <Button onClick={loadMore} style={{ paddingLeft: 48, paddingRight: 48 }}>
         {loadingMore ? (
           <span>
-            <LoadingOutlined /> 加载中...
+            <LoadingOutlined /> {intl.formatMessage({ id: 'pages.list.search.loading' })}
           </span>
         ) : (
-          '加载更多'
+          intl.formatMessage({ id: 'pages.list.search.loadMore' })
         )}
       </Button>
     </div>
@@ -158,7 +160,7 @@ const Articles: FC = () => {
           }}
           onValuesChange={reload}
         >
-          <StandardFormRow title="所属类目" block style={{ paddingBottom: 11 }}>
+          <StandardFormRow title={intl.formatMessage({ id: 'pages.list.search.category' })} block style={{ paddingBottom: 11 }}>
             <FormItem name="category">
               <TagSelect expandable>
                 {categoryOptions.flatMap((category) =>
@@ -180,7 +182,7 @@ const Articles: FC = () => {
             <FormItem name="owner" noStyle>
               <Select
                 mode="multiple"
-                placeholder="选择 owner"
+                placeholder={intl.formatMessage({ id: 'pages.list.search.selectOwner' })}
                 style={{ minWidth: '6rem' }}
                 options={ownerOptions}
               />
@@ -190,15 +192,15 @@ const Articles: FC = () => {
               className={styles.selfTrigger}
               onClick={setOwner}
             >
-              只看自己的
+              {intl.formatMessage({ id: 'pages.list.search.onlyMine' })}
             </Button>
           </StandardFormRow>
-          <StandardFormRow title="其它选项" grid last>
+          <StandardFormRow title={intl.formatMessage({ id: 'pages.list.search.otherOptions' })} grid last>
             <Row gutter={16}>
               <Col xl={8} lg={10} md={12} sm={24} xs={24}>
-                <FormItem {...formItemLayout} label="活跃用户" name="user">
+                <FormItem {...formItemLayout} label={intl.formatMessage({ id: 'pages.list.search.activeUser' })} name="user">
                   <Select
-                    placeholder="不限"
+                    placeholder={intl.formatMessage({ id: 'pages.list.search.unlimited' })}
                     style={{ maxWidth: 200, width: '100%' }}
                     options={[
                       {
@@ -210,13 +212,13 @@ const Articles: FC = () => {
                 </FormItem>
               </Col>
               <Col xl={8} lg={10} md={12} sm={24} xs={24}>
-                <FormItem {...formItemLayout} label="好评度" name="rate">
+                <FormItem {...formItemLayout} label={intl.formatMessage({ id: 'pages.list.search.praiseRate' })} name="rate">
                   <Select
-                    placeholder="不限"
+                    placeholder={intl.formatMessage({ id: 'pages.list.search.unlimited' })}
                     style={{ maxWidth: 200, width: '100%' }}
                     options={[
                       {
-                        label: '优秀',
+                        label: intl.formatMessage({ id: 'pages.list.search.excellent' }),
                         value: 'good',
                       },
                     ]}
@@ -261,8 +263,8 @@ const Articles: FC = () => {
                 description={
                   <Flex wrap gap="small">
                     <Tag>Ant Design</Tag>
-                    <Tag>设计语言</Tag>
-                    <Tag>蚂蚁集团</Tag>
+                    <Tag>{intl.formatMessage({ id: 'pages.account.center.designLanguage' })}</Tag>
+                    <Tag>{intl.formatMessage({ id: 'pages.account.center.antGroup' })}</Tag>
                   </Flex>
                 }
               />
