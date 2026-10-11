@@ -193,15 +193,30 @@ export default defineConfig({
    * @description 使用 GA4 (gtag.js) 进行站点分析
    * @doc https://umijs.org/docs/max/analytics
    */
-  analytics: {
-    ga_v2: 'G-59NF1VHHPF',
-  },
+  analytics: process.env.GA_ID ? {
+    ga_v2: process.env.GA_ID,
+  } : undefined,
   /**
    * @name <head> 中额外的 meta 标签
    * @description Content Security Policy (CSP) 防止 XSS / 数据注入攻击。
-   * - 'unsafe-inline' 是必要的：Umi 注入的 loading.js / GA 脚本以及 antd 动态样式。
+   * - script-src 已移除 'unsafe-inline'，所有脚本通过外部文件或 nonce 方式加载。
+   * - style-src 保留 'unsafe-inline'：antd 动态样式和 CSS-in-JS 需要内联样式支持。
    * - connect-src 需要放行 GA（googletagmanager / google-analytics）以及 WS 协议，
    *   供 rtc-agent 组件连接 Centrifuge WebSocket。
+   *
+   * ⚠️ **安全风险提示**：
+   * 当前 connect-src 使用 `ws: wss: http: https:` 通配，允许连接任意域名。这是为了
+   * 支持 rtc-agent 连接用户配置的任意 Centrifuge 端点（域名不固定）。
+   *
+   * **潜在风险**：
+   * - 恶意脚本可通过 CSP 允许的 connect-src 向任意外域发送数据
+   * - 如果页面存在 XSS 漏洞，攻击者可利用此宽松策略 exfiltrate 敏感信息
+   *
+   * **中期改进方案**（待实施）：
+   * 1. 实现代理层白名单：rtc-agent WebSocket 连接通过后端代理，CSP 仅需放行代理域名
+   * 2. 动态 CSP：在运行时根据用户配置的 Centrifuge 端点动态生成 CSP 策略
+   * 3. 限制协议：至少限制为 `wss:` 和 `https:`，避免不安全的 `ws:` 和 `http:` 协议
+   *
    * - frame-ancestors 'none' 禁止任何站点嵌套本页面，避免点击劫持。
    */
   metas: [
@@ -209,7 +224,7 @@ export default defineConfig({
       httpEquiv: 'Content-Security-Policy',
       content: [
         "default-src 'self'",
-        "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com",
+        "script-src 'self' https://www.googletagmanager.com https://www.google-analytics.com",
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data: blob: https:",
         "connect-src 'self' https://www.google-analytics.com ws: wss: http: https:",
@@ -223,24 +238,13 @@ export default defineConfig({
   /**
    * @name <head> 中额外的 script
    * @description 配置 <head> 中额外的 script
+   * 所有脚本均通过外部文件加载，符合 CSP 规范（不使用 unsafe-inline）
    */
   headScripts: [
     // 解决首次加载时白屏的问题
     { src: join(PUBLIC_PATH, 'scripts/loading.js'), async: true },
     // Set document direction based on browser language (early initialization)
-    `
-      (function() {
-        try {
-          var lang = navigator.language || navigator.languages[0] || 'zh-CN';
-          var rtlLocales = ['fa', 'ar', 'he'];
-          var isRTL = rtlLocales.some(function(rtl) { return lang.startsWith(rtl); });
-          document.documentElement.dir = isRTL ? 'rtl' : 'ltr';
-          document.documentElement.lang = lang;
-        } catch(e) {
-          document.documentElement.dir = 'ltr';
-        }
-      })();
-    `,
+    { src: join(PUBLIC_PATH, 'scripts/set-dir.js') },
   ],
 
   //================ pro 插件配置 =================

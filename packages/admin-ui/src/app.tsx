@@ -4,6 +4,16 @@ import type { RequestConfig, RunTimeLayoutConfig } from '@umijs/max';
 import { getLocale, history, Link } from '@umijs/max';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
+import 'dayjs/locale/zh-cn';
+import 'dayjs/locale/zh-tw';
+import 'dayjs/locale/ja';
+import 'dayjs/locale/ko';
+import 'dayjs/locale/fr';
+import 'dayjs/locale/de';
+import 'dayjs/locale/es';
+import 'dayjs/locale/pt';
+import 'dayjs/locale/ru';
+import 'dayjs/locale/ar';
 import React from 'react';
 
 // Initialize dayjs plugins globally
@@ -47,7 +57,29 @@ const setDocumentDirection = () => {
 };
 
 /**
- * Load theme settings from localStorage, fallback to defaults
+ * Load dayjs locale based on current locale
+ */
+const loadDayjsLocale = () => {
+  const locale = getLocale();
+  // Map locale to dayjs locale format
+  const dayjsLocaleMap: Record<string, string> = {
+    'zh-CN': 'zh-cn',
+    'zh-TW': 'zh-tw',
+    'ja-JP': 'ja',
+    'ko-KR': 'ko',
+    'fr-FR': 'fr',
+    'de-DE': 'de',
+    'es-ES': 'es',
+    'pt-PT': 'pt',
+    'ru-RU': 'ru',
+    'ar-SA': 'ar',
+  };
+  const dayjsLocale = dayjsLocaleMap[locale] || locale.toLowerCase();
+  dayjs.locale(dayjsLocale);
+};
+
+/**
+ * Load theme settings from localStorage, fallback to system preference
  */
 const loadThemeSettings = (): Partial<LayoutSettings> => {
   try {
@@ -58,7 +90,13 @@ const loadThemeSettings = (): Partial<LayoutSettings> => {
   } catch (_e) {
     // Ignore parse errors, use defaults
   }
-  return defaultSettings as Partial<LayoutSettings>;
+
+  // Detect system color scheme preference
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  return {
+    ...defaultSettings,
+    navTheme: prefersDark ? 'realDark' : 'light',
+  } as Partial<LayoutSettings>;
 };
 
 /**
@@ -83,10 +121,21 @@ export async function getInitialState(): Promise<{
   settingDrawerOpen?: boolean;
 }> {
   try {
-    // Set document direction early
+    // Set document direction and load dayjs locale early
     setDocumentDirection();
+    loadDayjsLocale();
 
-    const fetchUserInfo = async () => {
+    // Create AbortController for timeout cancellation
+    const initAbortController = new AbortController();
+
+    const fetchUserInfo = async (
+      signal?: AbortSignal,
+    ): Promise<API.CurrentUser | undefined> => {
+      // Check if already aborted before starting
+      if (signal?.aborted) {
+        return undefined;
+      }
+
       // 先检查 localStorage 是否有有效的 token
       if (!isAuthenticated()) {
         return undefined;
@@ -94,7 +143,15 @@ export async function getInitialState(): Promise<{
 
       try {
         // 调用真正的 API 获取管理员信息
-        const userInfo = await getCurrentUser();
+        const userInfo = await getCurrentUser({ signal });
+
+        // Check if aborted during the request
+        if (signal?.aborted) {
+          console.warn(
+            '[getInitialState] fetchUserInfo aborted after completion, skipping state update',
+          );
+          return undefined;
+        }
 
         // 确保 userInfo 存在
         if (!userInfo) {
@@ -105,10 +162,8 @@ export async function getInitialState(): Promise<{
         // 这样 GlobalRtcAgent 可以读取权限进行 Function 过滤
         setUserInfo(userInfo);
 
-        // 从 localStorage 重新读取权限，确保单一数据源
-        // 避免内存中的 permissions 与持久化存储不一致
-        const persistedUserInfo = getUserInfo();
-        const permissionsArray = persistedUserInfo?.permissions || userInfo.permissions || [];
+        // 直接使用 API 返回的权限数据，避免从 localStorage 回读导致的数据源不一致
+        const permissionsArray = userInfo.permissions || [];
 
         // 构建权限集合和访问级别
         const permissionSet = buildPermissionSet(permissionsArray);
@@ -128,6 +183,12 @@ export async function getInitialState(): Promise<{
           permissions: permissionSet,
         } as API.CurrentUser;
       } catch (_error: any) {
+        // Check if this was an abort
+        if (_error?.name === 'AbortError' || signal?.aborted) {
+          console.warn('[getInitialState] fetchUserInfo aborted');
+          return undefined;
+        }
+
         // 401 错误已由 responseInterceptors 处理（自动刷新 token 或跳转登录）
         // 尝试从 localStorage 读取旧的用户信息作为 fallback
         const cachedUserInfo = getUserInfo();
@@ -160,30 +221,63 @@ export async function getInitialState(): Promise<{
         location.pathname,
       )
     ) {
-      // Use Promise deduplication to prevent race conditions
+      // Single Promise deduplication pattern: concurrent calls await the same promise
+      // This eliminates the need for dual flags (initPromise + isInitializing)
       if (!initPromise) {
-        const timeoutPromise = new Promise<never>((_, reject) => {
-          setTimeout(
-            () => reject(new Error('Initialization timeout')),
-            INIT_TIMEOUT_MS,
-          );
-        });
+        // Set up timeout to abort the request if it takes too long
+        const timeoutId = setTimeout(() => {
+          initAbortController.abort();
+        }, INIT_TIMEOUT_MS);
 
-        initPromise = Promise.race([fetchUserInfo(), timeoutPromise]).finally(
-          () => {
+        initPromise = (async () => {
+          try {
+            return await fetchUserInfo(initAbortController.signal);
+          } catch (error) {
+            // On timeout (abort), try to use cached data
+            if (initAbortController.signal.aborted) {
+              console.warn(
+                '[getInitialState] Initialization timeout, attempting to use cached data',
+              );
+              const cachedUserInfo = getUserInfo();
+              if (cachedUserInfo && isAuthenticated()) {
+                console.warn(
+                  '[getInitialState] Using cached user info after timeout',
+                );
+                const permissionSet = buildPermissionSet(
+                  cachedUserInfo.permissions,
+                );
+                const access = computeAccessLevel(cachedUserInfo.roles);
+                return {
+                  userid: cachedUserInfo.id,
+                  name: cachedUserInfo.name,
+                  avatar: cachedUserInfo.avatar_url || '',
+                  email: cachedUserInfo.email,
+                  access,
+                  roles: cachedUserInfo.roles,
+                  permissions: permissionSet,
+                } as API.CurrentUser;
+              }
+            }
+            // Re-throw other errors
+            throw error;
+          } finally {
+            clearTimeout(timeoutId);
+            // Clear promise after completion to allow future re-initialization
             initPromise = null;
-          },
-        );
+          }
+        })();
       }
 
       try {
         // Wait for initialization to complete
+        // initPromise is guaranteed to be non-null here due to the check above
         const currentUser = await initPromise;
         return {
           fetchUserInfo,
           currentUser,
           settings: loadThemeSettings(),
           settingDrawerOpen: false,
+          loading: false,
         };
       } catch (error) {
         console.error('[getInitialState] Initialization failed:', error);
@@ -194,6 +288,7 @@ export async function getInitialState(): Promise<{
       fetchUserInfo,
       settings: loadThemeSettings(),
       settingDrawerOpen: false,
+      loading: false,
     };
   } catch (error) {
     // 顶层 try-catch：防止未捕获的异常导致页面白屏
@@ -204,6 +299,7 @@ export async function getInitialState(): Promise<{
     return {
       settings: loadThemeSettings(),
       settingDrawerOpen: false,
+      loading: false,
     };
   }
 }
@@ -213,9 +309,6 @@ export const layout: RunTimeLayoutConfig = ({
   initialState,
   setInitialState,
 }) => {
-  // Set document direction based on locale
-  setDocumentDirection();
-
   // 设置全局的 setInitialState 函数，用于 token 刷新后更新权限
   React.useEffect(() => {
     setGlobalSetInitialState(setInitialState);
@@ -262,35 +355,35 @@ export const layout: RunTimeLayoutConfig = ({
     // },
     footerRender: () => <Footer />,
     onPageChange: () => {
-      // 如果正在初始化，不检查登录状态（防止误跳转）
+      // If initialization is in progress, skip login check (prevent false redirects)
       if (initPromise) {
         return;
       }
 
       const { location } = history;
-      // 如果没有登录，重定向到 login
-      if (!initialState?.currentUser && location.pathname !== loginPath) {
-        history.replace(
-          `${loginPath}?redirect=${encodeURIComponent(location.pathname + location.search + location.hash)}`,
-        );
-        return;
-      }
 
       // 根路由智能重定向：根据用户权限动态决定默认页面
+      // 必须在登录检查之前执行，避免未登录用户被重定向到登录页后再跳回
       if (location.pathname === '/') {
         const access = initialState?.currentUser?.permissions;
+
+        // 如果权限信息尚未加载，等待加载完成
         if (!access) return;
 
         // 权限检查优先级：Dashboard > RTC Users > System
         if (access.has('dashboard:read')) {
           history.replace('/dashboard/grafana/rtc-agent');
-        } else if (
+          return;
+        }
+        if (
           access.has('rtc_user:read') ||
           access.has('rtc_session:read') ||
           access.has('rtc_message:read')
         ) {
           history.replace('/rtc-users/management');
-        } else if (
+          return;
+        }
+        if (
           access.has('admin_user:read') ||
           access.has('role:read') ||
           access.has('permission:read') ||
@@ -298,10 +391,19 @@ export const layout: RunTimeLayoutConfig = ({
           access.has('server_config:read')
         ) {
           history.replace('/system');
-        } else {
-          // 无任何权限，跳转到 403 页面
-          history.replace('/exception/403');
+          return;
         }
+        // 无任何权限，跳转到 403 页面
+        history.replace('/exception/403');
+        return;
+      }
+
+      // 如果没有登录，重定向到 login
+      if (!initialState?.currentUser && location.pathname !== loginPath) {
+        history.replace(
+          `${loginPath}?redirect=${encodeURIComponent(location.pathname + location.search + location.hash)}`,
+        );
+        return;
       }
     },
     bgLayoutImgList: [
@@ -331,7 +433,7 @@ export const layout: RunTimeLayoutConfig = ({
     // 自定义 403 页面
     // unAccessible: <div>unAccessible</div>,
     // 增加一个 loading 的状态
-    childrenRender: (children) => {
+    childrenContentRender: (children: React.ReactNode) => {
       // if (initialState?.loading) return <PageLoading />;
       return (
         <>
@@ -375,18 +477,17 @@ export const request: RequestConfig = {
 // Timeout for initialization to prevent permanent pending state
 const INIT_TIMEOUT_MS = 30000; // 30 seconds
 
-// Initialization promise to prevent race conditions during rapid route changes
+// Initialization promise for deduplication during rapid route changes
+// Single Promise pattern: concurrent calls await the same promise
 let initPromise: Promise<API.CurrentUser | undefined> | null = null;
 
 export function rootContainer(container: React.ReactNode) {
   return (
-    <>
+    <ErrorBoundary>
       <OfflineBanner />
-      <ErrorBoundary>
-        {container}
-        {/* 全局 RTC Agent 浮窗 */}
-        <GlobalRtcAgent />
-      </ErrorBoundary>
-    </>
+      {container}
+      {/* 全局 RTC Agent 浮窗 */}
+      <GlobalRtcAgent />
+    </ErrorBoundary>
   );
 }
