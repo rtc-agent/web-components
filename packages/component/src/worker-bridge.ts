@@ -207,6 +207,18 @@ export class WorkerBridge {
   private _databaseName: string;
   private static readonly SESSION_STORAGE_KEY_PREFIX = 'rtc-ui-update-seq';
 
+  /**
+   * CRITICAL: Tracks whether virtualFS proxy has been installed globally.
+   *
+   * WARNING: virtualFS is a module-level singleton. Installing the proxy replaces
+   * its methods with Comlink proxies to a specific WorkerBridge instance's Worker.
+   * If multiple <rtc-agent> instances exist on the same page, each instance will
+   * overwrite the previous instance's proxy, causing unpredictable behavior.
+   *
+   * This flag is used to warn developers about multi-instance conflicts.
+   */
+  private static _virtualFSProxyInstalled = false;
+
   private static readonly MAX_INIT_RETRIES = 3;
   private static readonly INIT_RETRY_DELAY_MS = 1000;
   /** Timeout for worker liveness verification (ping/pong). */
@@ -901,14 +913,37 @@ export class WorkerBridge {
    * function-registry doc writing, scenario-loader, etc.) are automatically routed
    * to the Worker.
    *
-   * Note: virtualFS is a module-level singleton; the replacement is global.
+   * CRITICAL WARNING - Multi-Instance Risk:
+   * virtualFS is a module-level singleton; the replacement is GLOBAL. If multiple
+   * <rtc-agent> instances exist on the same page, each instance will overwrite the
+   * previous instance's proxy. This causes unpredictable behavior where file operations
+   * may be routed to the wrong Worker instance.
+   *
+   * Current Limitations:
+   * - Only one <rtc-agent> instance per page should call this method
+   * - Subsequent calls will overwrite previous proxies without automatic restoration
+   * - The original implementation is preserved in WorkerBridge._originalVirtualFS
+   *   for potential future restoration, but restoration is not currently implemented
+   *
+   * Future Considerations:
+   * - Consider using dependency injection to provide virtualFS instances per component
+   * - Implement instance tracking and automatic restoration on component destruction
+   * - Add a configuration option to disable proxy installation for secondary instances
    */
   installVirtualFSProxy(): void {
+    // Warn if proxy has already been installed (multi-instance conflict)
+    if (WorkerBridge._virtualFSProxyInstalled) {
+      log.warn(
+        'virtualFS proxy already installed by another WorkerBridge instance. ' +
+        'Multiple <rtc-agent> instances on the same page will conflict. ' +
+        'This may cause file operations to be routed to the wrong Worker instance.'
+      );
+    }
+
     const core = this._ensureCore();
 
-    // Save original implementation for potential restoration
-    // (currently one-way; restoration is not needed yet).
-    // const original = { ...virtualFS };
+    // Mark as installed
+    WorkerBridge._virtualFSProxyInstalled = true;
 
     virtualFS.read = ((path: string, offset?: number, limit?: number) =>
       core.virtualFSRead(path, offset, limit)) as typeof virtualFS.read;
