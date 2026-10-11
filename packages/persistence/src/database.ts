@@ -1,6 +1,6 @@
 import Dexie, { type Table } from 'dexie';
 import type { Session, Turn, Message, Rtc } from '@rtc-agent/protocol';
-import { createLogger } from '@rtc-agent/protocol';
+import { createLogger, SyncStatus } from '@rtc-agent/protocol';
 
 const log = createLogger('Database');
 
@@ -9,7 +9,9 @@ export const DB_NAME_PREFIX = 'rtc-agent-';
 
 // ========== Sync status ==========
 
-export type SyncStatus = 'pending' | 'synced' | 'failed';
+// SyncStatus is imported from @rtc-agent/protocol
+// Re-export for backward compatibility
+export { SyncStatus } from '@rtc-agent/protocol';
 
 // ========== Local entities (client_id as primary key, server_id as server UUID) ==========
 
@@ -363,90 +365,66 @@ export class RTCAgentDatabase extends Dexie {
         // Since update(key, changes) looks up by the new PK, old records may lack client_id,
         // causing update to find no target row and silently fail. Use clear + add instead.
         //
-        // SAFETY: Backup data before clearing each table. If migration fails mid-way,
-        // restore the backup to prevent data loss (e.g., browser crash, tab close).
+        // NOTE: Dexie's upgrade() runs within a transaction. If any error occurs,
+        // Dexie automatically rolls back the entire transaction. No manual backup/restore needed.
 
         // 1. Migrate sessions table first, building server_id -> client_id mapping
         //    (other tables need to reference session by client_id)
         const sessionsTable = tx.table('sessions');
         const allSessions = await sessionsTable.toArray();
-        const sessionsBackup = allSessions; // Keep backup for rollback
         await sessionsTable.clear();
 
         const sessionIdMap = new Map<string, string>(); // server_id -> client_id
 
-        try {
-          for (const row of allSessions) {
-            const r = row as Record<string, unknown>;
-            const oldId = r['id'] as string | undefined;
-            const oldClientId = r['client_id'] as string | undefined;
+        for (const row of allSessions) {
+          const r = row as Record<string, unknown>;
+          const oldId = r['id'] as string | undefined;
+          const oldClientId = r['client_id'] as string | undefined;
 
-            const newClientId = oldClientId || oldId || crypto.randomUUID();
-            if (oldId) {
-              sessionIdMap.set(oldId, newClientId);
-            }
-
-            const newRow: Record<string, unknown> = { ...r };
-            newRow['client_id'] = newClientId;
-            newRow['server_id'] = oldId;
-            delete newRow['id'];
-
-            await sessionsTable.add(newRow);
+          const newClientId = oldClientId || oldId || crypto.randomUUID();
+          if (oldId) {
+            sessionIdMap.set(oldId, newClientId);
           }
-        } catch (err) {
-          // Rollback: restore sessions from backup
-          log.error(
-            'v2 migration failed during sessions table, rolling back:',
-            err,
-          );
-          await sessionsTable.clear();
-          await sessionsTable.bulkAdd(sessionsBackup);
-          throw err;
+
+          const newRow: Record<string, unknown> = { ...r };
+          newRow['client_id'] = newClientId;
+          newRow['server_id'] = oldId;
+          delete newRow['id'];
+
+          await sessionsTable.add(newRow);
         }
 
         // 2. Migrate other tables (turns/messages/rtcs)
         for (const name of ['turns', 'messages', 'rtcs'] as const) {
           const table = tx.table(name);
           const allRows = await table.toArray();
-          const tableBackup = allRows; // Keep backup for rollback
 
           await table.clear();
 
-          try {
-            for (const row of allRows) {
-              const r = row as Record<string, unknown>;
-              const oldId = r['id'] as string | undefined;
-              const oldClientId = r['client_id'] as string | undefined;
-              const oldSessionId = r['session_id'] as string | undefined;
+          for (const row of allRows) {
+            const r = row as Record<string, unknown>;
+            const oldId = r['id'] as string | undefined;
+            const oldClientId = r['client_id'] as string | undefined;
+            const oldSessionId = r['session_id'] as string | undefined;
 
-              const newRow: Record<string, unknown> = { ...r };
+            const newRow: Record<string, unknown> = { ...r };
 
-              // client_id: prefer old value, fall back to crypto.randomUUID() to avoid empty PK collision
-              newRow['client_id'] = oldClientId || oldId || crypto.randomUUID();
-              // server_id: preserve old server UUID
-              newRow['server_id'] = oldId;
-              delete newRow['id'];
+            // client_id: prefer old value, fall back to crypto.randomUUID() to avoid empty PK collision
+            newRow['client_id'] = oldClientId || oldId || crypto.randomUUID();
+            // server_id: preserve old server UUID
+            newRow['server_id'] = oldId;
+            delete newRow['id'];
 
-              // session_id -> session_client_id: resolve via session mapping
-              if (oldSessionId) {
-                const sessionClientId = sessionIdMap.get(oldSessionId);
-                newRow['session_client_id'] = sessionClientId || oldSessionId;
-              } else {
-                newRow['session_client_id'] = '';
-              }
-              delete newRow['session_id'];
-
-              await table.add(newRow);
+            // session_id -> session_client_id: resolve via session mapping
+            if (oldSessionId) {
+              const sessionClientId = sessionIdMap.get(oldSessionId);
+              newRow['session_client_id'] = sessionClientId || oldSessionId;
+            } else {
+              newRow['session_client_id'] = '';
             }
-          } catch (err) {
-            // Rollback: restore table from backup
-            log.error(
-              `v2 migration failed during ${name} table, rolling back:`,
-              err,
-            );
-            await table.clear();
-            await table.bulkAdd(tableBackup);
-            throw err;
+            delete newRow['session_id'];
+
+            await table.add(newRow);
           }
         }
       });
@@ -526,7 +504,14 @@ export class RTCAgentDatabase extends Dexie {
       })
       .upgrade(async (tx) => {
         // Backfill session_device_id for existing RTC records
-        // Optimization: Pre-fetch all sessions to avoid N+1 query pattern
+        //
+        // OPTIMIZATION: Pre-fetch all sessions to build a lookup map, avoiding N+1 queries.
+        // The modify() callback processes all RTC records in a single pass, looking up
+        // device_id from the pre-built map. This is efficient for typical datasets.
+        //
+        // NOTE: Dexie's modify() processes records individually but batches writes internally.
+        // For very large datasets (>10k records), consider chunking with offset/limit if
+        // performance becomes an issue. Current implementation is sufficient for expected usage.
         const sessions = await tx.table('sessions').toArray();
         const sessionDeviceMap = new Map<string, string>();
         for (const s of sessions) {
@@ -625,10 +610,48 @@ export class RTCAgentDatabase extends Dexie {
         'client_id, server_id, sync_status, session_client_id, turn_id, global_offset, created_at, [session_client_id+created_at]',
       turns:
         'client_id, server_id, sync_status, session_client_id, status, [session_client_id+status]',
-      rtcs:
-        'client_id, server_id, sync_status, session_client_id, turn_id, status, offset, session_device_id, [session_client_id+offset]',
+      rtcs: 'client_id, server_id, sync_status, session_client_id, turn_id, status, offset, session_device_id, [session_client_id+offset]',
       fileCache:
         '[md5+ext], expiresAt, syncStatus, lastAccessedAt, [syncStatus+lastAccessedAt]',
+    });
+
+    // v16: Add compound indexes for efficient pagination and sorted queries.
+    //
+    // Indexes added:
+    //   sessions: [deleted_at+updated_at] — listSessions filters by deleted_at and orders by updated_at;
+    //             enables DB-level cursor pagination instead of loading all sessions into memory.
+    //   rtcs:     [sync_status+offset]    — getNextRtcToProcess queries failed RTCs ordered by offset;
+    //             [status+offset]         — getNextRtcToProcess queries pending RTCs ordered by offset.
+    //             Both avoid in-memory sortBy('offset') on large datasets.
+    this.version(16).stores({
+      sessions:
+        'client_id, server_id, sync_status, owner_ref_id, status, updated_at, device_id, [deleted_at+updated_at]',
+      rtcs: 'client_id, server_id, sync_status, session_client_id, turn_id, status, offset, session_device_id, [session_client_id+offset], [sync_status+offset], [status+offset]',
+    });
+
+    // P3-FIX: Add schema version detection and degradation warning mechanism.
+    // If migration to v16 fails, IndexedDB will automatically rollback to v15.
+    // However, if migration succeeds but subsequent initialization fails, or if user
+    // downgrades to an older version, we need to detect and warn about schema incompatibility.
+    //
+    // Strategy: Add a post-migration version check in the open() callback.
+    // If actual schema version < expected version, log a warning with recovery guidance.
+    const EXPECTED_SCHEMA_VERSION = 16;
+    this.on('ready', async () => {
+      try {
+        // Dexie's verno property returns the actual schema version of the opened database
+        const actualVersion = this.verno;
+        if (actualVersion < EXPECTED_SCHEMA_VERSION) {
+          log.warn(
+            `Schema version mismatch: expected v${EXPECTED_SCHEMA_VERSION}, got v${actualVersion}. ` +
+            `This may indicate a failed migration or database downgrade. ` +
+            `Some features may not work correctly. ` +
+            `Recovery: Clear IndexedDB data and reload, or upgrade to the latest version.`
+          );
+        }
+      } catch (err) {
+        log.debug('Failed to check schema version (non-fatal):', err);
+      }
     });
   }
 }

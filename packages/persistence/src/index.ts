@@ -979,22 +979,29 @@ export class PersistenceLayer {
       }
 
       // 4. Cache the downloaded file
-      // Gap 2 fix: if an entry already exists, use updateBlob() to only refresh data/contentType
-      // without resetting createdAt (putWithSyncStatus would reset createdAt to Date.now()).
-      // P1-3 fix is also preserved: syncStatus is not modified by updateBlob().
-      const existing = await this.fileCacheRepository.get(md5, ext);
-      if (existing) {
-        log.debug(`downloadFile: entry exists for ${md5}.${ext}, updating blob only (preserving createdAt)`);
-        await this.fileCacheRepository.updateBlob(md5, ext, blob, contentType);
-      } else {
-        await this.fileCacheRepository.putWithSyncStatus(
-          md5,
-          ext,
-          blob,
-          contentType,
-          'synced'
-        );
-      }
+      // P2-FIX: Wrap cache check and write in transaction to prevent TOCTOU race.
+      // In multi-Tab scenarios, between checking `existing` and calling `putWithSyncStatus`,
+      // another Tab might have already created/deleted the entry.
+      // Transaction ensures atomic read-then-write semantics.
+      const db = getDatabase();
+      await db.transaction('rw!', db.fileCache, async () => {
+        const existing = await this.fileCacheRepository.get(md5, ext);
+        if (existing) {
+          // Gap 2 fix: if an entry already exists, use updateBlob() to only refresh data/contentType
+          // without resetting createdAt (putWithSyncStatus would reset createdAt to Date.now()).
+          // P1-3 fix is also preserved: syncStatus is not modified by updateBlob().
+          log.debug(`downloadFile: entry exists for ${md5}.${ext}, updating blob only (preserving createdAt)`);
+          await this.fileCacheRepository.updateBlob(md5, ext, blob, contentType);
+        } else {
+          await this.fileCacheRepository.putWithSyncStatus(
+            md5,
+            ext,
+            blob,
+            contentType,
+            'synced'
+          );
+        }
+      });
 
       return blob;
     } catch (err) {

@@ -1,7 +1,7 @@
 // File Cache Repository — IndexedDB file cache management
 
 import { getDatabase, type FileCacheEntry } from './database.js';
-import { createLogger } from '@rtc-agent/protocol';
+import { createLogger, FileSyncStatus } from '@rtc-agent/protocol';
 import SparkMD5 from 'spark-md5';
 import { LifecycleGuard, LifecycleClosedError } from './lifecycle-guard.js';
 import { ResourceScope } from './resource-scope.js';
@@ -17,8 +17,9 @@ const MAX_RETRY_COUNT = 3;
 /** P2-NEW-5: Default timeout for withSyncLock (5 minutes) */
 export const SYNC_LOCK_TIMEOUT_MS = 5 * 60 * 1000;
 
-/** File sync status lifecycle: pending -> syncing -> synced | failed */
-export type FileSyncStatus = 'pending' | 'syncing' | 'synced' | 'failed';
+// FileSyncStatus is imported from @rtc-agent/protocol
+// Re-export for backward compatibility
+export { FileSyncStatus } from '@rtc-agent/protocol';
 
 /**
  * Cached file information — 所有层（PersistenceLayer、WorkerCore、WorkerBridge）统一使用此类型
@@ -756,59 +757,71 @@ export class FileCacheRepository {
     let evictedCount = 0;
     let lastProcessedTime = -1;
 
-    while (evictedBytes < targetBytes) {
-      // Load one batch of synced entries, ordered by lastAccessedAt ascending (oldest first)
-      const batch = await db.fileCache
-        .where('lastAccessedAt')
-        .above(lastProcessedTime)
-        .filter((e) => e.syncStatus === 'synced')
-        .limit(BATCH_SIZE)
-        .sortBy('lastAccessedAt');
-
-      if (batch.length === 0) break;
-
-      // CRITICAL: If the last entry shares its timestamp with earlier entries,
-      // load ALL entries at that timestamp to avoid splitting them across batches.
-      // sortBy('lastAccessedAt') doesn't guarantee order within the same timestamp,
-      // so splitting could cause entries to be skipped or duplicated.
-      const lastTime = batch[batch.length - 1].lastAccessedAt;
-      const firstTimeAtLastIndex = batch.findIndex(
-        (e) => e.lastAccessedAt === lastTime,
-      );
-
-      let entriesToConsider = batch;
-      if (
-        firstTimeAtLastIndex >= 0 &&
-        firstTimeAtLastIndex < batch.length - 1
-      ) {
-        // Same timestamp spans multiple positions — load all entries at this timestamp
-        const allAtLastTime = await db.fileCache
+    // P1-FIX: Wrap entire LRU eviction in transaction to ensure atomicity.
+    // If bulkDelete fails (e.g., database closed), statistics won't be returned.
+    // Transaction also prevents concurrent Tab interference during read-modify-write cycle.
+    await db.transaction('rw!', db.fileCache, async () => {
+      while (evictedBytes < targetBytes) {
+        // Load one batch of synced entries, ordered by lastAccessedAt ascending (oldest first)
+        const batch = await db.fileCache
           .where('lastAccessedAt')
-          .equals(lastTime)
+          .above(lastProcessedTime)
           .filter((e) => e.syncStatus === 'synced')
-          .toArray();
-        // Replace partial batch entries at lastTime with complete set
-        entriesToConsider = [
-          ...batch.slice(0, firstTimeAtLastIndex),
-          ...allAtLastTime,
-        ];
-      }
+          .limit(BATCH_SIZE)
+          .sortBy('lastAccessedAt');
 
-      const keysToDelete: [string, string][] = [];
-      for (const entry of entriesToConsider) {
-        if (evictedBytes >= targetBytes) break;
-        keysToDelete.push([entry.md5, entry.ext]);
-        evictedBytes += entry.size ?? 0;
-        evictedCount++;
-      }
+        if (batch.length === 0) break;
 
-      // Advance cursor past the last processed timestamp
-      lastProcessedTime = lastTime;
+        // CRITICAL: If the last entry shares its timestamp with earlier entries,
+        // load ALL entries at that timestamp to avoid splitting them across batches.
+        // sortBy('lastAccessedAt') doesn't guarantee order within the same timestamp,
+        // so splitting could cause entries to be skipped or duplicated.
+        const lastTime = batch[batch.length - 1].lastAccessedAt;
+        const firstTimeAtLastIndex = batch.findIndex(
+          (e) => e.lastAccessedAt === lastTime,
+        );
 
-      if (keysToDelete.length > 0) {
-        await db.fileCache.bulkDelete(keysToDelete);
+        let entriesToConsider = batch;
+        if (
+          firstTimeAtLastIndex >= 0 &&
+          firstTimeAtLastIndex < batch.length - 1
+        ) {
+          // Same timestamp spans multiple positions — load all entries at this timestamp
+          const allAtLastTime = await db.fileCache
+            .where('lastAccessedAt')
+            .equals(lastTime)
+            .filter((e) => e.syncStatus === 'synced')
+            .toArray();
+          // Replace partial batch entries at lastTime with complete set
+          entriesToConsider = [
+            ...batch.slice(0, firstTimeAtLastIndex),
+            ...allAtLastTime,
+          ];
+        }
+
+        const keysToDelete: [string, string][] = [];
+        let batchBytes = 0;
+        let batchCount = 0;
+        for (const entry of entriesToConsider) {
+          if (evictedBytes + batchBytes >= targetBytes) break;
+          keysToDelete.push([entry.md5, entry.ext]);
+          batchBytes += entry.size ?? 0;
+          batchCount++;
+        }
+
+        // Advance cursor past the last processed timestamp
+        lastProcessedTime = lastTime;
+
+        if (keysToDelete.length > 0) {
+          // bulkDelete is now within transaction — if it fails, batchBytes/batchCount
+          // won't be committed to evictedBytes/evictedCount
+          await db.fileCache.bulkDelete(keysToDelete);
+          // Only update statistics after successful deletion
+          evictedBytes += batchBytes;
+          evictedCount += batchCount;
+        }
       }
-    }
+    });
 
     if (evictedCount > 0) {
       log.info(
