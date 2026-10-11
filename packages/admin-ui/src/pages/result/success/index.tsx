@@ -78,7 +78,7 @@ const Success: React.FC = () => {
         </span>
         <DingdingOutlined
           style={{
-            marginLeft: 8,
+            marginInlineStart: 8,
             color: token.colorInfo,
           }}
         />
@@ -109,7 +109,7 @@ const Success: React.FC = () => {
           <DingdingOutlined
             style={{
               color: token.colorInfo,
-              marginLeft: 8,
+              marginInlineStart: 8,
             }}
           />
           <span>

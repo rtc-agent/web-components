@@ -26,7 +26,7 @@ export default () => {
       >
         <CloseCircleOutlined
           style={{
-            marginRight: 8,
+            marginInlineEnd: 8,
           }}
           className={styles.error_icon}
         />
@@ -39,7 +39,7 @@ export default () => {
         <Button
           type="link"
           style={{
-            marginLeft: 16,
+            marginInlineStart: 16,
             padding: 0,
           }}
         >
@@ -55,7 +55,7 @@ export default () => {
       <div>
         <CloseCircleOutlined
           style={{
-            marginRight: 8,
+            marginInlineEnd: 8,
           }}
           className={styles.error_icon}
         />
@@ -68,7 +68,7 @@ export default () => {
         <Button
           type="link"
           style={{
-            marginLeft: 16,
+            marginInlineStart: 16,
             padding: 0,
           }}
         >

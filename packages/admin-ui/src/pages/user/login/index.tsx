@@ -606,7 +606,7 @@ const Login: React.FC = () => {
               <Button
                 type="link"
                 style={{
-                  float: 'right',
+                  float: 'inline-end',
                   padding: 0,
                 }}
               >

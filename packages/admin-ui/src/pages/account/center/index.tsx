@@ -178,7 +178,7 @@ const UserInfo: React.FC<{ user: Partial<CurrentUser> }> = ({ user }) => {
       <p>
         <ContactsOutlined
           style={{
-            marginRight: 8,
+            marginInlineEnd: 8,
           }}
         />
         {user.title}
@@ -186,7 +186,7 @@ const UserInfo: React.FC<{ user: Partial<CurrentUser> }> = ({ user }) => {
       <p>
         <ClusterOutlined
           style={{
-            marginRight: 8,
+            marginInlineEnd: 8,
           }}
         />
         {user.group}
@@ -194,7 +194,7 @@ const UserInfo: React.FC<{ user: Partial<CurrentUser> }> = ({ user }) => {
       <p>
         <HomeOutlined
           style={{
-            marginRight: 8,
+            marginInlineEnd: 8,
           }}
         />
         {geographic.province.label}

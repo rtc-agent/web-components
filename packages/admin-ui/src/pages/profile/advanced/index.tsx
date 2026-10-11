@@ -10,6 +10,7 @@ import {
   RouteContext,
 } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
+import { useIntl } from '@umijs/max';
 import type { DescriptionsProps } from 'antd';
 import {
   Badge,
@@ -27,7 +28,6 @@ import {
   Tooltip,
   theme,
 } from 'antd';
-import { useIntl } from '@umijs/max';
 import type { IconRenderType, StepsProps } from 'antd/es/steps';
 import type { FC } from 'react';
 import React, { useState } from 'react';
@@ -69,15 +69,21 @@ const Advanced: FC = () => {
                 items: [
                   {
                     key: '1',
-                    label: intl.formatMessage({ id: 'pages.profile.advanced.action1' }),
+                    label: intl.formatMessage({
+                      id: 'pages.profile.advanced.action1',
+                    }),
                   },
                   {
                     key: '2',
-                    label: intl.formatMessage({ id: 'pages.profile.advanced.action2' }),
+                    label: intl.formatMessage({
+                      id: 'pages.profile.advanced.action2',
+                    }),
                   },
                   {
                     key: '3',
-                    label: intl.formatMessage({ id: 'pages.profile.advanced.action3' }),
+                    label: intl.formatMessage({
+                      id: 'pages.profile.advanced.action3',
+                    }),
                   },
                 ],
               }}
@@ -90,33 +96,49 @@ const Advanced: FC = () => {
         return (
           <Space>
             <Space.Compact>
-              <Button>{intl.formatMessage({ id: 'pages.profile.advanced.action1' })}</Button>
-              <Button>{intl.formatMessage({ id: 'pages.profile.advanced.action2' })}</Button>
+              <Button>
+                {intl.formatMessage({ id: 'pages.profile.advanced.action1' })}
+              </Button>
+              <Button>
+                {intl.formatMessage({ id: 'pages.profile.advanced.action2' })}
+              </Button>
               <Dropdown
                 menu={{
                   items: [
                     {
                       key: '1',
-                      label: intl.formatMessage({ id: 'pages.profile.advanced.option1' }),
+                      label: intl.formatMessage({
+                        id: 'pages.profile.advanced.option1',
+                      }),
                     },
                     {
                       key: '2',
-                      label: intl.formatMessage({ id: 'pages.profile.advanced.option2' }),
+                      label: intl.formatMessage({
+                        id: 'pages.profile.advanced.option2',
+                      }),
                     },
                     {
                       key: '3',
-                      label: intl.formatMessage({ id: 'pages.profile.advanced.option3' }),
+                      label: intl.formatMessage({
+                        id: 'pages.profile.advanced.option3',
+                      }),
                     },
                   ],
                 }}
                 placement="bottomRight"
               >
-                <Button aria-label={intl.formatMessage({ id: 'pages.profile.advanced.moreActions' })}>
+                <Button
+                  aria-label={intl.formatMessage({
+                    id: 'pages.profile.advanced.moreActions',
+                  })}
+                >
                   <EllipsisOutlined />
                 </Button>
               </Dropdown>
             </Space.Compact>
-            <Button type="primary">{intl.formatMessage({ id: 'pages.profile.advanced.mainAction' })}</Button>
+            <Button type="primary">
+              {intl.formatMessage({ id: 'pages.profile.advanced.mainAction' })}
+            </Button>
           </Space>
         );
       }}
@@ -150,14 +172,28 @@ const Advanced: FC = () => {
       key: 'name',
     },
     {
-      title: intl.formatMessage({ id: 'pages.profile.advanced.executionResult' }),
+      title: intl.formatMessage({
+        id: 'pages.profile.advanced.executionResult',
+      }),
       dataIndex: 'status',
       key: 'status',
       render: (text: string) => {
         if (text === 'agree') {
-          return <Badge status="success" text={intl.formatMessage({ id: 'pages.profile.advanced.success' })} />;
+          return (
+            <Badge
+              status="success"
+              text={intl.formatMessage({
+                id: 'pages.profile.advanced.success',
+              })}
+            />
+          );
         }
-        return <Badge status="error" text={intl.formatMessage({ id: 'pages.profile.advanced.reject' })} />;
+        return (
+          <Badge
+            status="error"
+            text={intl.formatMessage({ id: 'pages.profile.advanced.reject' })}
+          />
+        );
       },
     },
     {
@@ -173,71 +209,197 @@ const Advanced: FC = () => {
   ];
 
   const descriptionItems: DescriptionsProps['items'] = [
-    { key: '1', label: intl.formatMessage({ id: 'pages.profile.advanced.creator' }), children: '曲丽丽' },
-    { key: '2', label: intl.formatMessage({ id: 'pages.profile.advanced.product' }), children: 'XX 服务' },
-    { key: '3', label: intl.formatMessage({ id: 'pages.profile.advanced.creationTime' }), children: '2017-07-07' },
-    { key: '4', label: intl.formatMessage({ id: 'pages.profile.advanced.relatedDocument' }), children: <a href="/">12421</a> },
-    { key: '5', label: intl.formatMessage({ id: 'pages.profile.advanced.effectiveDate' }), children: '2017-07-07 ~ 2017-08-08' },
-    { key: '6', label: intl.formatMessage({ id: 'pages.profile.advanced.remark' }), children: '请于两个工作日内确认' },
+    {
+      key: '1',
+      label: intl.formatMessage({ id: 'pages.profile.advanced.creator' }),
+      children: intl.formatMessage({
+        id: 'pages.profile.advanced.desc.creatorName',
+        defaultMessage: 'Qu Lili',
+      }),
+    },
+    {
+      key: '2',
+      label: intl.formatMessage({ id: 'pages.profile.advanced.product' }),
+      children: intl.formatMessage({
+        id: 'pages.profile.advanced.desc.productName',
+        defaultMessage: 'XX Service',
+      }),
+    },
+    {
+      key: '3',
+      label: intl.formatMessage({ id: 'pages.profile.advanced.creationTime' }),
+      children: '2017-07-07',
+    },
+    {
+      key: '4',
+      label: intl.formatMessage({
+        id: 'pages.profile.advanced.relatedDocument',
+      }),
+      children: <a href="/">12421</a>,
+    },
+    {
+      key: '5',
+      label: intl.formatMessage({ id: 'pages.profile.advanced.effectiveDate' }),
+      children: '2017-07-07 ~ 2017-08-08',
+    },
+    {
+      key: '6',
+      label: intl.formatMessage({ id: 'pages.profile.advanced.remark' }),
+      children: intl.formatMessage({
+        id: 'pages.profile.advanced.desc.remarkText',
+        defaultMessage: 'Please confirm within two business days',
+      }),
+    },
   ];
 
   const infoGroupItems: DescriptionsProps['items'] = [
-    { key: '1', label: intl.formatMessage({ id: 'pages.profile.advanced.someData' }), children: '725' },
-    { key: '2', label: intl.formatMessage({ id: 'pages.profile.advanced.dataUpdateTime' }), children: '2017-08-08' },
+    {
+      key: '1',
+      label: intl.formatMessage({ id: 'pages.profile.advanced.someData' }),
+      children: '725',
+    },
+    {
+      key: '2',
+      label: intl.formatMessage({
+        id: 'pages.profile.advanced.dataUpdateTime',
+      }),
+      children: '2017-08-08',
+    },
     {
       key: '3',
       label: (
         <span>
           {intl.formatMessage({ id: 'pages.profile.advanced.someData' })}
-          <Tooltip title={intl.formatMessage({ id: 'pages.profile.advanced.dataNote' })}>
+          <Tooltip
+            title={intl.formatMessage({
+              id: 'pages.profile.advanced.dataNote',
+            })}
+          >
             <InfoCircleOutlined
-              style={{ color: token.colorTextDescription, marginLeft: 4 }}
+              style={{
+                color: token.colorTextDescription,
+                marginInlineStart: 4,
+              }}
             />
           </Tooltip>
         </span>
       ),
       children: '725',
     },
-    { key: '4', label: intl.formatMessage({ id: 'pages.profile.advanced.dataUpdateTime' }), children: '2017-08-08' },
+    {
+      key: '4',
+      label: intl.formatMessage({
+        id: 'pages.profile.advanced.dataUpdateTime',
+      }),
+      children: '2017-08-08',
+    },
   ];
 
   const userInfoItems: DescriptionsProps['items'] = [
-    { key: '1', label: intl.formatMessage({ id: 'pages.profile.advanced.userName' }), children: '付小小' },
-    { key: '2', label: intl.formatMessage({ id: 'pages.profile.advanced.memberCard' }), children: '32943898021309809423' },
-    { key: '3', label: intl.formatMessage({ id: 'pages.profile.advanced.idCard' }), children: '3321944288191034921' },
-    { key: '4', label: intl.formatMessage({ id: 'pages.profile.advanced.contactInfo' }), children: '18112345678' },
+    {
+      key: '1',
+      label: intl.formatMessage({ id: 'pages.profile.advanced.userName' }),
+      children: intl.formatMessage({
+        id: 'pages.profile.advanced.desc.userNameValue',
+        defaultMessage: 'Fu Xiaoxiao',
+      }),
+    },
+    {
+      key: '2',
+      label: intl.formatMessage({ id: 'pages.profile.advanced.memberCard' }),
+      children: '32943898021309809423',
+    },
+    {
+      key: '3',
+      label: intl.formatMessage({ id: 'pages.profile.advanced.idCard' }),
+      children: '3321944288191034921',
+    },
+    {
+      key: '4',
+      label: intl.formatMessage({ id: 'pages.profile.advanced.contactInfo' }),
+      children: '18112345678',
+    },
     {
       key: '5',
-      label: intl.formatMessage({ id: 'pages.profile.advanced.contactAddress' }),
-      children: '曲丽丽 18100000000 浙江省杭州市西湖区黄姑山路工专路交叉路口',
+      label: intl.formatMessage({
+        id: 'pages.profile.advanced.contactAddress',
+      }),
+      children: intl.formatMessage({
+        id: 'pages.profile.advanced.desc.fullAddress',
+        defaultMessage:
+          'Qu Lili 18100000000 Huanggushan Road, Xihu District, Hangzhou, Zhejiang',
+      }),
     },
   ];
 
   const groupItems1: DescriptionsProps['items'] = [
-    { key: '1', label: intl.formatMessage({ id: 'pages.profile.advanced.leader' }), children: '林东东' },
-    { key: '2', label: intl.formatMessage({ id: 'pages.profile.advanced.roleCode' }), children: '1234567' },
-    { key: '3', label: intl.formatMessage({ id: 'pages.profile.advanced.department' }), children: 'XX公司 - YY部' },
-    { key: '4', label: intl.formatMessage({ id: 'pages.profile.advanced.expirationTime' }), children: '2017-08-08' },
+    {
+      key: '1',
+      label: intl.formatMessage({ id: 'pages.profile.advanced.leader' }),
+      children: intl.formatMessage({
+        id: 'pages.profile.advanced.desc.leaderName',
+        defaultMessage: 'Lin Dongdong',
+      }),
+    },
+    {
+      key: '2',
+      label: intl.formatMessage({ id: 'pages.profile.advanced.roleCode' }),
+      children: '1234567',
+    },
+    {
+      key: '3',
+      label: intl.formatMessage({ id: 'pages.profile.advanced.department' }),
+      children: intl.formatMessage({
+        id: 'pages.profile.advanced.desc.departmentName',
+        defaultMessage: 'XX Company - YY Department',
+      }),
+    },
+    {
+      key: '4',
+      label: intl.formatMessage({
+        id: 'pages.profile.advanced.expirationTime',
+      }),
+      children: '2017-08-08',
+    },
     {
       key: '5',
       label: intl.formatMessage({ id: 'pages.profile.advanced.description' }),
-      children:
-        '这段描述很长很长很长很长很长很长很长很长很长很长很长很长很长很长...',
+      children: intl.formatMessage({
+        id: 'pages.profile.advanced.desc.longDescription',
+        defaultMessage:
+          'This description is very long very long very long very long very long very long very long very long very long very long very long very long...',
+      }),
     },
   ];
 
   const groupItems2: DescriptionsProps['items'] = [
     {
       key: '1',
-      label: intl.formatMessage({ id: 'pages.profile.advanced.scientificName' }),
-      children:
-        'Citrullus lanatus (Thunb.) Matsum. et Nakai一年生蔓生藤本；茎、枝粗壮，具明显的棱。卷须较粗..',
+      label: intl.formatMessage({
+        id: 'pages.profile.advanced.scientificName',
+      }),
+      children: intl.formatMessage({
+        id: 'pages.profile.advanced.desc.scientificDescription',
+        defaultMessage:
+          'Citrullus lanatus (Thunb.) Matsum. et Nakai Annual trailing herb; thick stems and branches with prominent ridges. Thick tendrils..',
+      }),
     },
   ];
 
   const groupItems3: DescriptionsProps['items'] = [
-    { key: '1', label: intl.formatMessage({ id: 'pages.profile.advanced.leader' }), children: '付小小' },
-    { key: '2', label: intl.formatMessage({ id: 'pages.profile.advanced.roleCode' }), children: '1234568' },
+    {
+      key: '1',
+      label: intl.formatMessage({ id: 'pages.profile.advanced.leader' }),
+      children: intl.formatMessage({
+        id: 'pages.profile.advanced.desc.userNameValue',
+        defaultMessage: 'Fu Xiaoxiao',
+      }),
+    },
+    {
+      key: '2',
+      label: intl.formatMessage({ id: 'pages.profile.advanced.roleCode' }),
+      children: '1234568',
+    },
   ];
 
   const customDot: IconRenderType = (dot: React.ReactNode, { active }) => {
@@ -248,10 +410,13 @@ const Advanced: FC = () => {
             width: 160,
           }}
         >
-          吴加号
+          {intl.formatMessage({
+            id: 'pages.profile.advanced.desc.stepPersonName',
+            defaultMessage: 'Wu Jiahao',
+          })}
           <span
             style={{
-              float: 'right',
+              float: 'inline-end',
             }}
           >
             <Badge
@@ -262,7 +427,9 @@ const Advanced: FC = () => {
                     color: token.colorTextDescription,
                   }}
                 >
-                  {intl.formatMessage({ id: 'pages.profile.advanced.noResponse' })}
+                  {intl.formatMessage({
+                    id: 'pages.profile.advanced.noResponse',
+                  })}
                 </span>
               }
             />
@@ -293,8 +460,17 @@ const Advanced: FC = () => {
 
   const extra = (
     <div className={styles.moreInfo}>
-      <Statistic title={intl.formatMessage({ id: 'pages.profile.advanced.status' })} value={intl.formatMessage({ id: 'pages.profile.advanced.pendingApproval' })} />
-      <Statistic title={intl.formatMessage({ id: 'pages.profile.advanced.orderAmount' })} value={568.08} prefix="¥" />
+      <Statistic
+        title={intl.formatMessage({ id: 'pages.profile.advanced.status' })}
+        value={intl.formatMessage({
+          id: 'pages.profile.advanced.pendingApproval',
+        })}
+      />
+      <Statistic
+        title={intl.formatMessage({ id: 'pages.profile.advanced.orderAmount' })}
+        value={568.08}
+        prefix="¥"
+      />
     </div>
   );
 
@@ -313,10 +489,13 @@ const Advanced: FC = () => {
 
   const desc1 = (
     <div className={styles.stepDescription}>
-      曲丽丽
+      {intl.formatMessage({
+        id: 'pages.profile.advanced.desc.creatorName',
+        defaultMessage: 'Qu Lili',
+      })}
       <DingdingOutlined
         style={{
-          marginLeft: 8,
+          marginInlineStart: 8,
         }}
       />
       <div>2016-12-12 12:32</div>
@@ -325,11 +504,14 @@ const Advanced: FC = () => {
 
   const desc2 = (
     <div className={styles.stepDescription}>
-      周毛毛
+      {intl.formatMessage({
+        id: 'pages.profile.advanced.desc.reviewerName',
+        defaultMessage: 'Zhou Maomao',
+      })}
       <DingdingOutlined
         style={{
           color: token.colorInfo,
-          marginLeft: 8,
+          marginInlineStart: 8,
         }}
       />
       <div>
@@ -341,8 +523,14 @@ const Advanced: FC = () => {
   );
 
   const stepsItems: StepsProps['items'] = [
-    { title: intl.formatMessage({ id: 'pages.profile.advanced.step1Title' }), content: desc1 },
-    { title: intl.formatMessage({ id: 'pages.profile.advanced.step2Title' }), content: desc2 },
+    {
+      title: intl.formatMessage({ id: 'pages.profile.advanced.step1Title' }),
+      content: desc1,
+    },
+    {
+      title: intl.formatMessage({ id: 'pages.profile.advanced.step2Title' }),
+      content: desc2,
+    },
     { title: intl.formatMessage({ id: 'pages.profile.advanced.step3Title' }) },
     { title: intl.formatMessage({ id: 'pages.profile.advanced.step4Title' }) },
   ];
@@ -411,7 +599,9 @@ const Advanced: FC = () => {
       <div className={styles.main}>
         <GridContent>
           <Card
-            title={intl.formatMessage({ id: 'pages.profile.advanced.processProgress' })}
+            title={intl.formatMessage({
+              id: 'pages.profile.advanced.processProgress',
+            })}
             style={{
               marginBottom: 24,
             }}
@@ -428,7 +618,9 @@ const Advanced: FC = () => {
             </RouteContext.Consumer>
           </Card>
           <Card
-            title={intl.formatMessage({ id: 'pages.profile.advanced.userInfo' })}
+            title={intl.formatMessage({
+              id: 'pages.profile.advanced.userInfo',
+            })}
             style={{
               marginBottom: 24,
             }}
@@ -444,7 +636,9 @@ const Advanced: FC = () => {
               style={{
                 marginBottom: 24,
               }}
-              title={intl.formatMessage({ id: 'pages.profile.advanced.infoGroup' })}
+              title={intl.formatMessage({
+                id: 'pages.profile.advanced.infoGroup',
+              })}
               items={infoGroupItems}
             />
             <h4
@@ -454,16 +648,39 @@ const Advanced: FC = () => {
             >
               {intl.formatMessage({ id: 'pages.profile.advanced.infoGroup' })}
             </h4>
-            <Card type="inner" title={intl.formatMessage({ id: 'pages.profile.advanced.multiLevelInfoGroup' })}>
-              <Descriptions title={intl.formatMessage({ id: 'pages.profile.advanced.groupName' })} items={groupItems1} />
+            <Card
+              type="inner"
+              title={intl.formatMessage({
+                id: 'pages.profile.advanced.multiLevelInfoGroup',
+              })}
+            >
+              <Descriptions
+                title={intl.formatMessage({
+                  id: 'pages.profile.advanced.groupName',
+                })}
+                items={groupItems1}
+              />
               <Divider size="large" />
-              <Descriptions title={intl.formatMessage({ id: 'pages.profile.advanced.groupName' })} column={1} items={groupItems2} />
+              <Descriptions
+                title={intl.formatMessage({
+                  id: 'pages.profile.advanced.groupName',
+                })}
+                column={1}
+                items={groupItems2}
+              />
               <Divider size="large" />
-              <Descriptions title={intl.formatMessage({ id: 'pages.profile.advanced.groupName' })} items={groupItems3} />
+              <Descriptions
+                title={intl.formatMessage({
+                  id: 'pages.profile.advanced.groupName',
+                })}
+                items={groupItems3}
+              />
             </Card>
           </Card>
           <Card
-            title={intl.formatMessage({ id: 'pages.profile.advanced.recentCallRecords' })}
+            title={intl.formatMessage({
+              id: 'pages.profile.advanced.recentCallRecords',
+            })}
             style={{
               marginBottom: 24,
             }}

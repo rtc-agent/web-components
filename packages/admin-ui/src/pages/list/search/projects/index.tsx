@@ -1,11 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
+import { useIntl } from '@umijs/max';
 import { Card, Col, Form, List, Row, Select, Typography } from 'antd';
 import dayjs from 'dayjs';
 import type { FC } from 'react';
 import { useState } from 'react';
 import { AvatarList, StandardFormRow, TagSelect } from '@/components';
-import { useIntl } from '@umijs/max';
-import { categoryOptions } from '../../constants';
+import { getCategoryOptions } from '../../constants';
 import type { ListItemDataType } from './data.d';
 import { queryFakeList } from './service';
 import useStyles from './style.style';
@@ -27,6 +27,7 @@ const formItemLayout = {
 const Projects: FC = () => {
   const { styles } = useStyles();
   const intl = useIntl();
+  const categoryOptions = getCategoryOptions(intl.formatMessage.bind(intl));
   const [filters, setFilters] = useState<{
     category?: (string | number)[];
     author?: string;
@@ -128,12 +129,22 @@ const Projects: FC = () => {
               </TagSelect>
             </FormItem>
           </StandardFormRow>
-          <StandardFormRow title={intl.formatMessage({ id: 'pages.list.search.otherOptions' })} grid last>
+          <StandardFormRow
+            title={intl.formatMessage({ id: 'pages.list.search.otherOptions' })}
+            grid
+            last
+          >
             <Row gutter={16}>
               <Col lg={8} md={10} sm={10} xs={24}>
-                <FormItem {...formItemLayout} label={intl.formatMessage({ id: 'pages.list.search.author' })} name="author">
+                <FormItem
+                  {...formItemLayout}
+                  label={intl.formatMessage({ id: 'pages.list.search.author' })}
+                  name="author"
+                >
                   <Select
-                    placeholder={intl.formatMessage({ id: 'pages.list.search.unlimited' })}
+                    placeholder={intl.formatMessage({
+                      id: 'pages.list.search.unlimited',
+                    })}
                     style={{
                       maxWidth: 200,
                       width: '100%',
@@ -148,20 +159,32 @@ const Projects: FC = () => {
                 </FormItem>
               </Col>
               <Col lg={8} md={10} sm={10} xs={24}>
-                <FormItem {...formItemLayout} label={intl.formatMessage({ id: 'pages.list.search.praiseRate' })} name="rate">
+                <FormItem
+                  {...formItemLayout}
+                  label={intl.formatMessage({
+                    id: 'pages.list.search.praiseRate',
+                  })}
+                  name="rate"
+                >
                   <Select
-                    placeholder={intl.formatMessage({ id: 'pages.list.search.unlimited' })}
+                    placeholder={intl.formatMessage({
+                      id: 'pages.list.search.unlimited',
+                    })}
                     style={{
                       maxWidth: 200,
                       width: '100%',
                     }}
                     options={[
                       {
-                        label: intl.formatMessage({ id: 'pages.list.search.excellent' }),
+                        label: intl.formatMessage({
+                          id: 'pages.list.search.excellent',
+                        }),
                         value: 'good',
                       },
                       {
-                        label: intl.formatMessage({ id: 'pages.list.search.normal' }),
+                        label: intl.formatMessage({
+                          id: 'pages.list.search.normal',
+                        }),
                         value: 'normal',
                       },
                     ]}

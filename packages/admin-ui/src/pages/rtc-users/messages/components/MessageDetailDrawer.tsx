@@ -638,7 +638,7 @@ const SummaryContent: React.FC<{ data: unknown }> = ({ data }) => {
       {tokensSaved !== 0 && (
         <span
           style={{
-            marginLeft: 4,
+            marginInlineStart: 4,
             color: tokensSaved > 0 ? token.colorSuccess : token.colorWarning,
           }}
         >
@@ -654,7 +654,7 @@ const SummaryContent: React.FC<{ data: unknown }> = ({ data }) => {
         </span>
       )}
       {durationMs > 0 && (
-        <span style={{ marginLeft: 4, color: token.colorTextTertiary }}>
+        <span style={{ marginInlineStart: 4, color: token.colorTextTertiary }}>
           {durationMs}ms
         </span>
       )}
@@ -825,7 +825,7 @@ const MessageDetailDrawer: React.FC<MessageDetailDrawerProps> = ({
                 {msg.role}
               </Tag>
               {contentData?.type && (
-                <Tag style={{ marginLeft: 4 }}>{contentData.type}</Tag>
+                <Tag style={{ marginInlineStart: 4 }}>{contentData.type}</Tag>
               )}
             </Descriptions.Item>
             <Descriptions.Item

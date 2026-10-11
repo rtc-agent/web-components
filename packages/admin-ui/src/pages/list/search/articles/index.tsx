@@ -5,13 +5,13 @@ import {
   StarOutlined,
 } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
+import { useIntl } from '@umijs/max';
 import { Button, Card, Col, Flex, Form, List, Row, Select, Tag } from 'antd';
 import type { DefaultOptionType } from 'antd/es/select';
 import type { FC } from 'react';
 import React, { useMemo, useRef } from 'react';
-import { useIntl } from '@umijs/max';
 import { ArticleListContent, StandardFormRow, TagSelect } from '@/components';
-import { categoryOptions } from '../../constants';
+import { getCategoryOptions } from '../../constants';
 import type { ListItemDataType } from './data.d';
 import { queryFakeList } from './service';
 import useStyles from './style.style';
@@ -57,21 +57,21 @@ const IconText: React.FC<{
     case 'star-o':
       return (
         <span>
-          <StarOutlined style={{ marginRight: 8 }} />
+          <StarOutlined style={{ marginInlineEnd: 8 }} />
           {text}
         </span>
       );
     case 'like-o':
       return (
         <span>
-          <LikeOutlined style={{ marginRight: 8 }} />
+          <LikeOutlined style={{ marginInlineEnd: 8 }} />
           {text}
         </span>
       );
     case 'message':
       return (
         <span>
-          <MessageOutlined style={{ marginRight: 8 }} />
+          <MessageOutlined style={{ marginInlineEnd: 8 }} />
           {text}
         </span>
       );
@@ -84,6 +84,7 @@ const Articles: FC = () => {
   const [form] = Form.useForm();
   const { styles } = useStyles();
   const intl = useIntl();
+  const categoryOptions = getCategoryOptions(intl.formatMessage.bind(intl));
   const filtersRef = useRef<{
     category?: (string | number)[];
     owner?: string[];
@@ -131,7 +132,8 @@ const Articles: FC = () => {
       <Button onClick={loadMore} style={{ paddingLeft: 48, paddingRight: 48 }}>
         {loadingMore ? (
           <span>
-            <LoadingOutlined /> {intl.formatMessage({ id: 'pages.list.search.loading' })}
+            <LoadingOutlined />{' '}
+            {intl.formatMessage({ id: 'pages.list.search.loading' })}
           </span>
         ) : (
           intl.formatMessage({ id: 'pages.list.search.loadMore' })
@@ -160,7 +162,11 @@ const Articles: FC = () => {
           }}
           onValuesChange={reload}
         >
-          <StandardFormRow title={intl.formatMessage({ id: 'pages.list.search.category' })} block style={{ paddingBottom: 11 }}>
+          <StandardFormRow
+            title={intl.formatMessage({ id: 'pages.list.search.category' })}
+            block
+            style={{ paddingBottom: 11 }}
+          >
             <FormItem name="category">
               <TagSelect expandable>
                 {categoryOptions.flatMap((category) =>
@@ -182,7 +188,9 @@ const Articles: FC = () => {
             <FormItem name="owner" noStyle>
               <Select
                 mode="multiple"
-                placeholder={intl.formatMessage({ id: 'pages.list.search.selectOwner' })}
+                placeholder={intl.formatMessage({
+                  id: 'pages.list.search.selectOwner',
+                })}
                 style={{ minWidth: '6rem' }}
                 options={ownerOptions}
               />
@@ -195,12 +203,24 @@ const Articles: FC = () => {
               {intl.formatMessage({ id: 'pages.list.search.onlyMine' })}
             </Button>
           </StandardFormRow>
-          <StandardFormRow title={intl.formatMessage({ id: 'pages.list.search.otherOptions' })} grid last>
+          <StandardFormRow
+            title={intl.formatMessage({ id: 'pages.list.search.otherOptions' })}
+            grid
+            last
+          >
             <Row gutter={16}>
               <Col xl={8} lg={10} md={12} sm={24} xs={24}>
-                <FormItem {...formItemLayout} label={intl.formatMessage({ id: 'pages.list.search.activeUser' })} name="user">
+                <FormItem
+                  {...formItemLayout}
+                  label={intl.formatMessage({
+                    id: 'pages.list.search.activeUser',
+                  })}
+                  name="user"
+                >
                   <Select
-                    placeholder={intl.formatMessage({ id: 'pages.list.search.unlimited' })}
+                    placeholder={intl.formatMessage({
+                      id: 'pages.list.search.unlimited',
+                    })}
                     style={{ maxWidth: 200, width: '100%' }}
                     options={[
                       {
@@ -212,13 +232,23 @@ const Articles: FC = () => {
                 </FormItem>
               </Col>
               <Col xl={8} lg={10} md={12} sm={24} xs={24}>
-                <FormItem {...formItemLayout} label={intl.formatMessage({ id: 'pages.list.search.praiseRate' })} name="rate">
+                <FormItem
+                  {...formItemLayout}
+                  label={intl.formatMessage({
+                    id: 'pages.list.search.praiseRate',
+                  })}
+                  name="rate"
+                >
                   <Select
-                    placeholder={intl.formatMessage({ id: 'pages.list.search.unlimited' })}
+                    placeholder={intl.formatMessage({
+                      id: 'pages.list.search.unlimited',
+                    })}
                     style={{ maxWidth: 200, width: '100%' }}
                     options={[
                       {
-                        label: intl.formatMessage({ id: 'pages.list.search.excellent' }),
+                        label: intl.formatMessage({
+                          id: 'pages.list.search.excellent',
+                        }),
                         value: 'good',
                       },
                     ]}
@@ -263,8 +293,16 @@ const Articles: FC = () => {
                 description={
                   <Flex wrap gap="small">
                     <Tag>Ant Design</Tag>
-                    <Tag>{intl.formatMessage({ id: 'pages.account.center.designLanguage' })}</Tag>
-                    <Tag>{intl.formatMessage({ id: 'pages.account.center.antGroup' })}</Tag>
+                    <Tag>
+                      {intl.formatMessage({
+                        id: 'pages.account.center.designLanguage',
+                      })}
+                    </Tag>
+                    <Tag>
+                      {intl.formatMessage({
+                        id: 'pages.account.center.antGroup',
+                      })}
+                    </Tag>
                   </Flex>
                 }
               />

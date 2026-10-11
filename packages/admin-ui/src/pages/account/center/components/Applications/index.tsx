@@ -31,7 +31,7 @@ function formatWan(val: number, wanText: string) {
             top: -2,
             fontSize: 14,
             fontStyle: 'normal',
-            marginLeft: 2,
+            marginInlineStart: 2,
           }}
         >
           {wanText}

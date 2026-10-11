@@ -90,7 +90,7 @@ const Footer: React.FC = () => {
           target="_blank"
           rel="noopener noreferrer"
         >
-          <GithubOutlined style={{ marginRight: 4 }} />
+          <GithubOutlined style={{ marginInlineEnd: 4 }} />
           GitHub
         </a>
       </div>

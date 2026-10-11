@@ -5,6 +5,7 @@ import {
   ShareAltOutlined,
 } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
+import { useIntl } from '@umijs/max';
 import {
   Avatar,
   Card,
@@ -18,10 +19,9 @@ import {
 } from 'antd';
 import type { FC } from 'react';
 import React from 'react';
-import { useIntl } from '@umijs/max';
 import { StandardFormRow, TagSelect } from '@/components';
 import { formatNumber } from '@/utils/format';
-import { categoryOptions } from '../../constants';
+import { getCategoryOptions } from '../../constants';
 import type { ListItemDataType } from './data.d';
 import { queryFakeList } from './service';
 import useStyles from './style.style';
@@ -40,7 +40,7 @@ function formatWan(val: number) {
             top: -2,
             fontSize: 14,
             fontStyle: 'normal',
-            marginLeft: 2,
+            marginInlineStart: 2,
           }}
         >
           万
@@ -82,6 +82,7 @@ const CardInfo: React.FC<{
 const Applications: FC<Record<string, any>> = () => {
   const { styles } = useStyles();
   const intl = useIntl();
+  const categoryOptions = getCategoryOptions(intl.formatMessage.bind(intl));
   const {
     data,
     isLoading: loading,
@@ -125,12 +126,22 @@ const Applications: FC<Record<string, any>> = () => {
               </TagSelect>
             </Form.Item>
           </StandardFormRow>
-          <StandardFormRow title={intl.formatMessage({ id: 'pages.list.search.otherOptions' })} grid last>
+          <StandardFormRow
+            title={intl.formatMessage({ id: 'pages.list.search.otherOptions' })}
+            grid
+            last
+          >
             <Row gutter={16}>
               <Col lg={8} md={10} sm={10} xs={24}>
-                <Form.Item {...formItemLayout} name="author" label={intl.formatMessage({ id: 'pages.list.search.author' })}>
+                <Form.Item
+                  {...formItemLayout}
+                  name="author"
+                  label={intl.formatMessage({ id: 'pages.list.search.author' })}
+                >
                   <Select
-                    placeholder={intl.formatMessage({ id: 'pages.list.search.unlimited' })}
+                    placeholder={intl.formatMessage({
+                      id: 'pages.list.search.unlimited',
+                    })}
                     style={{
                       maxWidth: 200,
                       width: '100%',
@@ -145,20 +156,32 @@ const Applications: FC<Record<string, any>> = () => {
                 </Form.Item>
               </Col>
               <Col lg={8} md={10} sm={10} xs={24}>
-                <Form.Item {...formItemLayout} name="rate" label={intl.formatMessage({ id: 'pages.list.search.praiseRate' })}>
+                <Form.Item
+                  {...formItemLayout}
+                  name="rate"
+                  label={intl.formatMessage({
+                    id: 'pages.list.search.praiseRate',
+                  })}
+                >
                   <Select
-                    placeholder={intl.formatMessage({ id: 'pages.list.search.unlimited' })}
+                    placeholder={intl.formatMessage({
+                      id: 'pages.list.search.unlimited',
+                    })}
                     style={{
                       maxWidth: 200,
                       width: '100%',
                     }}
                     options={[
                       {
-                        label: intl.formatMessage({ id: 'pages.list.search.excellent' }),
+                        label: intl.formatMessage({
+                          id: 'pages.list.search.excellent',
+                        }),
                         value: 'good',
                       },
                       {
-                        label: intl.formatMessage({ id: 'pages.list.search.normal' }),
+                        label: intl.formatMessage({
+                          id: 'pages.list.search.normal',
+                        }),
                         value: 'normal',
                       },
                     ]}
@@ -193,13 +216,24 @@ const Applications: FC<Record<string, any>> = () => {
                 },
               }}
               actions={[
-                <Tooltip key="download" title={intl.formatMessage({ id: 'pages.list.search.download' })}>
+                <Tooltip
+                  key="download"
+                  title={intl.formatMessage({
+                    id: 'pages.list.search.download',
+                  })}
+                >
                   <DownloadOutlined />
                 </Tooltip>,
-                <Tooltip key="edit" title={intl.formatMessage({ id: 'pages.list.search.edit' })}>
+                <Tooltip
+                  key="edit"
+                  title={intl.formatMessage({ id: 'pages.list.search.edit' })}
+                >
                   <EditOutlined />
                 </Tooltip>,
-                <Tooltip title={intl.formatMessage({ id: 'pages.list.search.share' })} key="share">
+                <Tooltip
+                  title={intl.formatMessage({ id: 'pages.list.search.share' })}
+                  key="share"
+                >
                   <ShareAltOutlined />
                 </Tooltip>,
                 <Dropdown
