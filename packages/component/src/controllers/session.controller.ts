@@ -119,84 +119,107 @@ export class SessionController implements ReactiveController {
     id: string,
     title: string,
   ): Promise<{ ok: boolean; error?: string }> {
-    // 1. Persist + sync (fire-and-forget the RPC, but await the local write)
-    if (this.persistence) {
-      try {
-        await this.persistence.updateSessionTitle(id, title);
-      } catch (err) {
-        log.error('persistence rename failed:', err);
-        return { ok: false, error: 'rename-failed' };
-      }
-    }
-
-    // 2. Update in-memory state
-    const sessions = this._state.sessions.map((s) =>
-      s.clientId === id ? { ...s, title, updatedAt: Date.now() } : s,
+    return this._executeSessionOperation(
+      id,
+      'rename',
+      () => this.persistence!.updateSessionTitle(id, title),
+      () => {
+        const sessions = this._state.sessions.map((s) =>
+          s.clientId === id ? { ...s, title, updatedAt: Date.now() } : s,
+        );
+        this._state = { ...this._state, sessions };
+        this.host.requestUpdate();
+        this.host.dispatchEvent(
+          new CustomEvent('rtc-session-renamed', {
+            bubbles: true,
+            composed: true,
+            detail: { id, title },
+          }),
+        );
+      },
     );
-    this._state = { ...this._state, sessions };
-    this.host.requestUpdate();
-    this.host.dispatchEvent(
-      new CustomEvent('rtc-session-renamed', {
-        bubbles: true,
-        composed: true,
-        detail: { id, title },
-      }),
-    );
-    return { ok: true };
   }
 
   private async _deleteSession(
     id: string,
   ): Promise<{ ok: boolean; error?: string }> {
     log.debug('deleteSession id:', id, 'persistence:', !!this.persistence);
+
+    return this._executeSessionOperation(
+      id,
+      'delete',
+      async () => {
+        log.debug('calling persistence.deleteSession');
+        await this.persistence!.deleteSession(id);
+        log.debug('persistence.deleteSession completed');
+      },
+      () => {
+        const sessions = this._state.sessions.filter((s) => s.clientId !== id);
+        const currentSessionId =
+          this._state.currentSessionId === id
+            ? sessions.length > 0
+              ? sessions[sessions.length - 1].clientId
+              : null
+            : this._state.currentSessionId;
+        this._state = { sessions, currentSessionId };
+        this.host.requestUpdate();
+
+        // If we deleted the active session, trigger switch to the new active
+        if (
+          this._state.currentSessionId !== id &&
+          currentSessionId !== this._state.currentSessionId
+        ) {
+          this.onSessionSwitch?.();
+          this.host.dispatchEvent(
+            new CustomEvent('rtc-session-switched', {
+              bubbles: true,
+              composed: true,
+              detail: { id: currentSessionId },
+            }),
+          );
+        }
+
+        this.host.dispatchEvent(
+          new CustomEvent('rtc-session-deleted', {
+            bubbles: true,
+            composed: true,
+            detail: { id },
+          }),
+        );
+      },
+    );
+  }
+
+  /**
+   * Execute a session operation with persistence and error handling.
+   *
+   * Template method that encapsulates the common pattern for rename/delete operations:
+   * 1. Persist to backend (if persistence layer is available)
+   * 2. Update in-memory state only after persistence succeeds
+   * 3. Dispatch events
+   */
+  private async _executeSessionOperation(
+    _sessionId: string,
+    operation: 'rename' | 'delete',
+    persistFn: () => Promise<unknown>,
+    updateStateFn: () => void,
+  ): Promise<{ ok: boolean; error?: string }> {
     // 1. Persist + sync (fire-and-forget the RPC, but await the local write)
     if (this.persistence) {
       try {
-        log.debug('calling persistence.deleteSession');
-        await this.persistence.deleteSession(id);
-        log.debug('persistence.deleteSession completed');
+        await persistFn();
       } catch (err) {
-        log.error('persistence delete failed:', err);
-        return { ok: false, error: 'delete-failed' };
+        log.error(`persistence ${operation} failed:`, err);
+        return { ok: false, error: `${operation}-failed` };
       }
-    } else {
+    } else if (operation === 'delete') {
       log.warn('NO persistence layer, doing in-memory only delete');
     }
 
-    // 2. Update in-memory state
-    const sessions = this._state.sessions.filter((s) => s.clientId !== id);
-    const currentSessionId =
-      this._state.currentSessionId === id
-        ? sessions.length > 0
-          ? sessions[sessions.length - 1].clientId
-          : null
-        : this._state.currentSessionId;
-    this._state = { sessions, currentSessionId };
-    this.host.requestUpdate();
+    // 2. Update in-memory state ONLY after persistence succeeds
+    // This ensures consistency between frontend and backend
+    updateStateFn();
 
-    // 3. If we deleted the active session, trigger switch to the new active
-    if (
-      this._state.currentSessionId !== id &&
-      currentSessionId !== this._state.currentSessionId
-    ) {
-      // currentSessionId changed — fire switch event
-      this.onSessionSwitch?.();
-      this.host.dispatchEvent(
-        new CustomEvent('rtc-session-switched', {
-          bubbles: true,
-          composed: true,
-          detail: { id: currentSessionId },
-        }),
-      );
-    }
-
-    this.host.dispatchEvent(
-      new CustomEvent('rtc-session-deleted', {
-        bubbles: true,
-        composed: true,
-        detail: { id },
-      }),
-    );
     return { ok: true };
   }
 

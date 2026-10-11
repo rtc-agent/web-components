@@ -65,65 +65,87 @@ export class MessageController implements ReactiveController {
     if (!this._repository) {
       this._repository = new MessageRepository({
         fetchMessages: async (sessionId: string) => {
-          if (!this._persistence) return [];
-          const messages = await this._persistence.listMessages(
+          return this._fetchWithPagination({
             sessionId,
-            undefined,
-            MESSAGE_PAGE_SIZE,
-            'backward',
-          );
-          // Track pagination cursors using (created_at, client_id) composite key
-          if (messages.length > 0) {
-            this._repository?.setOldestOffset(
-              sessionId,
-              this._buildCursor(messages[0]),
-            );
-            this._repository?.setNewestOffset(
-              sessionId,
-              this._buildCursor(messages[messages.length - 1]),
-            );
-          }
-          return messages.map((m) => this._localMessageToUI(m));
+            direction: 'backward',
+            isInitialLoad: true,
+          });
         },
         fetchOlderMessages: async (
           sessionId: string,
           beforeCursor?: string,
         ) => {
-          if (!this._persistence) return [];
-          const messages = await this._persistence.listMessages(
+          return this._fetchWithPagination({
             sessionId,
-            beforeCursor,
-            MESSAGE_PAGE_SIZE,
-            'backward',
-          );
-          // Update pagination cursor
-          if (messages.length > 0) {
-            this._repository?.setOldestOffset(
-              sessionId,
-              this._buildCursor(messages[0]),
-            );
-          }
-          return messages.map((m) => this._localMessageToUI(m));
+            cursor: beforeCursor,
+            direction: 'backward',
+            cursorType: 'oldest',
+          });
         },
         fetchNewerMessages: async (sessionId: string, afterCursor?: string) => {
-          if (!this._persistence) return [];
-          const messages = await this._persistence.listMessages(
+          return this._fetchWithPagination({
             sessionId,
-            afterCursor,
-            MESSAGE_PAGE_SIZE,
-            'forward',
-          );
-          // Update pagination cursor
-          if (messages.length > 0) {
-            this._repository?.setNewestOffset(
-              sessionId,
-              this._buildCursor(messages[messages.length - 1]),
-            );
-          }
-          return messages.map((m) => this._localMessageToUI(m));
+            cursor: afterCursor,
+            direction: 'forward',
+            cursorType: 'newest',
+          });
         },
       });
     }
+  }
+
+  /**
+   * Fetch messages with pagination support.
+   *
+   * Consolidates the common logic for fetchMessages, fetchOlderMessages, and fetchNewerMessages.
+   * Handles cursor tracking and pagination state updates.
+   */
+  private async _fetchWithPagination(params: {
+    sessionId: string;
+    cursor?: string;
+    direction: 'backward' | 'forward';
+    cursorType?: 'oldest' | 'newest';
+    isInitialLoad?: boolean;
+  }): Promise<Message[]> {
+    if (!this._persistence) return [];
+
+    const { sessionId, cursor, direction, cursorType, isInitialLoad } = params;
+
+    const messages = await this._persistence.listMessages(
+      sessionId,
+      cursor,
+      MESSAGE_PAGE_SIZE,
+      direction,
+    );
+
+    // Track pagination cursors using (created_at, client_id) composite key
+    if (messages.length > 0) {
+      if (isInitialLoad) {
+        // Initial load: set both oldest and newest cursors
+        this._repository?.setOldestOffset(
+          sessionId,
+          this._buildCursor(messages[0]),
+        );
+        this._repository?.setNewestOffset(
+          sessionId,
+          this._buildCursor(messages[messages.length - 1]),
+        );
+      } else if (cursorType === 'oldest') {
+        // Backward pagination: update oldest cursor
+        this._repository?.setOldestOffset(
+          sessionId,
+          this._buildCursor(messages[0]),
+        );
+      } else if (cursorType === 'newest') {
+        // Forward pagination: update newest cursor
+        this._repository?.setNewestOffset(
+          sessionId,
+          this._buildCursor(messages[messages.length - 1]),
+        );
+      }
+    }
+
+    return messages.map((m) => this._localMessageToUI(m));
   }
 
   /**
@@ -166,8 +188,13 @@ export class MessageController implements ReactiveController {
    * @lit/context uses `===` comparison, so creating new objects every time triggers
    * consumers even when the state hasn't changed. Cache the value object and only
    * recreate when underlying repository state changes.
+   *
+   * Note: We cache the MessageContextValue object itself, but always create fresh
+   * shallow copies of the MessageState to prevent external mutation while still
+   * allowing consumers to detect changes via reference comparison.
    */
-  private _cachedSource?: MessageState;
+  private _cachedValue?: MessageContextValue;
+  private _cachedState?: MessageState;
   private _cachedSessionId?: string | null;
   private _cachedRepoVersion?: number;
 
@@ -182,37 +209,53 @@ export class MessageController implements ReactiveController {
 
     // Check if we need to refresh the cached source state
     const repoVersion = this._repository?.version ?? 0;
+    let stateChanged = false;
+
     if (
-      !this._cachedSource ||
+      !this._cachedState ||
       this._cachedSessionId !== currentSessionId ||
       this._cachedRepoVersion !== repoVersion
     ) {
       this._cachedSessionId = currentSessionId;
       this._cachedRepoVersion = repoVersion;
-      this._cachedSource = {
+      this._cachedState = {
         messages: [...source.messages],
         hasMore: source.hasMore,
         isLoadingMore: source.isLoadingMore,
         hasMoreNewer: source.hasMoreNewer,
         isLoadingNewer: source.isLoadingNewer,
       };
+      stateChanged = true;
     }
 
-    // Always return a fresh shallow copy to prevent external mutation
+    // Always create fresh shallow copies to prevent external mutation
+    // This ensures each access returns a new object reference for change detection
     const state: MessageState = {
-      messages: [...this._cachedSource.messages],
-      hasMore: this._cachedSource.hasMore,
-      isLoadingMore: this._cachedSource.isLoadingMore,
-      hasMoreNewer: this._cachedSource.hasMoreNewer,
-      isLoadingNewer: this._cachedSource.isLoadingNewer,
+      messages: [...this._cachedState.messages],
+      hasMore: this._cachedState.hasMore,
+      isLoadingMore: this._cachedState.isLoadingMore,
+      hasMoreNewer: this._cachedState.hasMoreNewer,
+      isLoadingNewer: this._cachedState.isLoadingNewer,
     };
 
-    return {
-      state,
-      actions: this.actions,
-      getUserMessageHistory: (sessionId: string, limit?: number) =>
-        this.getUserMessageHistory(sessionId, limit),
-    };
+    // Only recreate value object if state changed or first access
+    // This prevents unnecessary object creation on every get() call
+    if (!this._cachedValue || stateChanged) {
+      this._cachedValue = {
+        state,
+        actions: this.actions,
+        getUserMessageHistory: (sessionId: string, limit?: number) =>
+          this.getUserMessageHistory(sessionId, limit),
+      };
+    } else {
+      // State hasn't changed, but we still need to return fresh state object
+      this._cachedValue = {
+        ...this._cachedValue,
+        state,
+      };
+    }
+
+    return this._cachedValue;
   }
 
   constructor(host: ReactiveControllerHost & EventTarget) {
@@ -332,6 +375,7 @@ export class MessageController implements ReactiveController {
    * Called when a tab is closed to free memory.
    */
   evictSession(sessionId: string): void {
+    log.debug(`Evicting session from repository cache: ${sessionId}`);
     this._repository?.evictSession(sessionId);
   }
 
@@ -366,27 +410,21 @@ export class MessageController implements ReactiveController {
     // Multiple concurrent calls for the same session must not interleave.
     const prev =
       this._sessionUpdateChains.get(messageSessionId) ?? Promise.resolve();
-    // Fix 77: Add catch handler to prevent chain breaking when _applyBusUpdate throws.
-    // Without this, an error in one update would break the chain for all subsequent updates.
+    // Errors are logged but not retried — subsequent updates for the same session
+    // will continue through the chain. This prevents duplicate operations while
+    // maintaining chain integrity for future events.
     const next = prev
-      .then(
-        () => {
+      .then(() => {
+        try {
           this._applyBusUpdate(messageSessionId, entityId, localMsg);
-        },
-        (err) => {
-          // Log the error but continue processing to prevent chain breaking
-          // Fix: Correct misleading log - there is no automatic retry, just continue chain for future events
-          log.error(
-            'bus update chain error, continuing chain for future events:',
-            err,
-          );
-          this._applyBusUpdate(messageSessionId, entityId, localMsg);
-        },
-      )
+        } catch (err) {
+          // Catch synchronous errors from _applyBusUpdate to prevent chain breaking
+          log.error('bus update apply error (first attempt), continuing chain:', err);
+        }
+      })
       .catch((err) => {
-        // Catch any synchronous errors from _applyBusUpdate itself
-        log.error('bus update apply error, chain continues:', err);
-        // Don't re-throw: allow chain to continue for next event
+        // Catch any Promise rejections from the chain itself
+        log.error('bus update chain error, chain continues for future events:', err);
       });
     this._sessionUpdateChains.set(messageSessionId, next);
 
@@ -443,16 +481,8 @@ export class MessageController implements ReactiveController {
 
   /**
    * Clean up settled promise chains to prevent memory leak.
-   *
-   * Note: This method uses a heuristic that may not detect all settled chains
-   * due to microtask ordering. The primary cleanup mechanism is the `.finally()`
-   * handler attached in `updateMessageFromBus()`, which reliably removes each
-   * chain when it settles. This method serves as a secondary safety net for
-   * chains that may have been missed (e.g., after session eviction).
-   *
-   * Previous implementation used `Promise.race([chain.then(...), Promise.resolve()])`
-   * which was broken: `Promise.resolve()` always won the race before `chain.then()`
-   * could set the `isSettled` flag, making the detection always return false.
+   * Primary cleanup is done by `.finally()` in `updateMessageFromBus()`.
+   * This method enforces a hard limit as a safety net.
    */
   private _cleanupSettledChains(): void {
     // Primary cleanup is done by .finally() in updateMessageFromBus().
@@ -464,12 +494,6 @@ export class MessageController implements ReactiveController {
     }
 
     // Hard limit exceeded: remove oldest chains (by Map insertion order)
-    // to bring the count down to MAX_SESSION_CHAINS.
-    // Warning: this may remove chains that are still active, but that is
-    // acceptable — the .finally() handler in updateMessageFromBus will clean up
-    // the actual Promise when it settles. Removing the Map entry early just means
-    // we lose the ability to chain subsequent events for that session, which is
-    // preferable to unbounded memory growth.
     const entries = Array.from(this._sessionUpdateChains.keys());
     const toRemove = entries.length - MessageController.MAX_SESSION_CHAINS;
     for (let i = 0; i < toRemove; i++) {
@@ -487,6 +511,9 @@ export class MessageController implements ReactiveController {
    *
    * - With entityId: immutable single-message update (replace matching clientId).
    * - Without entityId: full reload for the current session (from SessionController).
+   *
+   * Race condition protection: If the current session changes during the reload,
+   * the result is discarded to prevent updating the wrong session's messages.
    */
   async reload(entityId?: string) {
     if (!this._persistence) return;
@@ -496,6 +523,16 @@ export class MessageController implements ReactiveController {
       if (localMsg) {
         const messageSessionId = localMsg.session_client_id;
         if (messageSessionId) {
+          // Verify session hasn't changed during async operation
+          const currentSessionId =
+            this._sessionController?.value.state.currentSessionId;
+          if (currentSessionId !== messageSessionId) {
+            log.debug(
+              `Session changed during reload: expected ${messageSessionId}, got ${currentSessionId}. Discarding result.`,
+            );
+            return;
+          }
+
           const newMsg = this._localMessageToUI(localMsg);
           this._upsertMessage(messageSessionId, entityId, newMsg);
           this.host.requestUpdate();
@@ -505,7 +542,19 @@ export class MessageController implements ReactiveController {
       const currentSessionId =
         this._sessionController?.value.state.currentSessionId;
       if (currentSessionId) {
+        // Store the session ID before reload to detect changes
+        const sessionIdBeforeReload = currentSessionId;
         await this._reloadFromDB(currentSessionId);
+
+        // Verify session hasn't changed during reload
+        const currentSessionIdAfterReload =
+          this._sessionController?.value.state.currentSessionId;
+        if (currentSessionIdAfterReload !== sessionIdBeforeReload) {
+          log.warn(
+            `Session changed during full reload: was ${sessionIdBeforeReload}, now ${currentSessionIdAfterReload}. ` +
+            `Messages for ${sessionIdBeforeReload} may be stale.`,
+          );
+        }
       }
     }
   }
@@ -538,6 +587,10 @@ export class MessageController implements ReactiveController {
       // Existing message: update in place (no duplicate)
       messages = [...current.messages];
       messages[existingIndex] = newMsg;
+      log.debug(
+        `[upsert] UPDATE message=${messageId}, session=${sessionId}, ` +
+        `index=${existingIndex}, totalMessages=${messages.length}`
+      );
     } else {
       // New message: insert at correct position (maintain sorted order)
       messages = [...current.messages];
@@ -545,12 +598,31 @@ export class MessageController implements ReactiveController {
       const insertIndex = messages.findIndex(
         (m) => this._compareMessages(newMsg, m) < 0,
       );
+
+      // Defense-in-depth: check for duplicates before inserting
+      // This prevents race conditions where the same message arrives via multiple paths
       if (insertIndex >= 0) {
+        // Check if the previous message has the same clientId (duplicate)
+        if (insertIndex > 0 && messages[insertIndex - 1].clientId === newMsg.clientId) {
+          log.warn(`Duplicate message detected, skipping insert: ${newMsg.clientId}`);
+          return;
+        }
         messages.splice(insertIndex, 0, newMsg);
       } else {
         // newMsg should be at the end
+        // Check if the last message has the same clientId (duplicate)
+        if (messages.length > 0 && messages[messages.length - 1].clientId === newMsg.clientId) {
+          log.warn(`Duplicate message detected, skipping append: ${newMsg.clientId}`);
+          return;
+        }
         messages.push(newMsg);
       }
+
+      const finalIndex = insertIndex >= 0 ? insertIndex : messages.length - 1;
+      log.debug(
+        `[upsert] INSERT message=${newMsg.clientId}, session=${sessionId}, ` +
+        `index=${finalIndex}, totalMessages=${messages.length}`
+      );
     }
 
     this._repository.updateMessages(sessionId, messages);
@@ -653,6 +725,21 @@ export class MessageController implements ReactiveController {
           'title:',
           `"${uiSession.title}"`,
         );
+
+        // Defense-in-depth: re-check session state before mutating
+        // This prevents race conditions where the session changes during the async operation
+        const recheckSessionId =
+          this._sessionController.value.state.currentSessionId;
+        if (
+          recheckSessionId &&
+          recheckSessionId !== result.session.client_id
+        ) {
+          log.warn(
+            `Session changed during _sendMessage: expected ${result.session.client_id}, got ${recheckSessionId}. Skipping update.`,
+          );
+          return;
+        }
+
         this._sessionController.actions.setCurrentSession(uiSession);
 
         // Reload messages from DB to reflect the just-written message.
@@ -769,12 +856,22 @@ export class MessageController implements ReactiveController {
     const existing = this._repository?.getSessionState(sessionClientId);
     const existingMessages = existing?.messages ?? [];
 
+    log.debug(
+      `_reloadFromDB(${sessionClientId}): existingMessages=${existingMessages.length}, ` +
+      `hasMore=${existing?.hasMore ?? 'N/A'}`
+    );
+
     // For new sessions: if messages already exist in repository (loaded by fetchInitialMessages
     // or UIUpdateBus events), skip reload to avoid duplicate/overwrite issues.
     // This prevents race conditions between _reloadFromDB and concurrent message loading.
     if (existingMessages.length > 0) {
+      log.debug(
+        `_reloadFromDB(${sessionClientId}): skipped - messages already loaded (count: ${existingMessages.length})`
+      );
       return;
     }
+
+    log.debug(`_reloadFromDB(${sessionClientId}): loading messages from DB...`);
 
     // Load the latest messages (backward = from newest)
     const localMessages = await this._persistence.listMessages(
@@ -852,10 +949,21 @@ export class MessageController implements ReactiveController {
     const map = new Map<string, Message>();
     for (const msg of existing) map.set(msg.clientId, msg);
     for (const msg of fresh) map.set(msg.clientId, msg); // fresh overwrites existing
+
+    const mergedCount = map.size;
+    const dedupCount = existing.length + fresh.length - mergedCount;
+
     // Composite sort (timestamp, clientId) to match persistence layer (entity-repository.ts)
     // Sorting by timestamp alone is non-deterministic when timestamps are equal
     // (e.g., toolcall_input/output pairs created in the same millisecond)
-    return [...map.values()].sort(this._compareMessages);
+    const result = [...map.values()].sort(this._compareMessages);
+
+    log.debug(
+      `[merge] existing=${existing.length}, fresh=${fresh.length}, ` +
+      `merged=${mergedCount}, dedup=${dedupCount}`
+    );
+
+    return result;
   }
 
   /**
@@ -889,6 +997,23 @@ export class MessageController implements ReactiveController {
   }
 
   /**
+   * Check if a value is a valid ContentData type.
+   * Used to validate JSON.parse results before casting to ContentData.
+   */
+  private _isValidContentDataType(parsed: unknown): parsed is ContentData {
+    if (!parsed || typeof parsed !== 'object' || !('type' in parsed)) {
+      return false;
+    }
+    const type = (parsed as ContentData).type;
+    return (
+      type === 'text' ||
+      type === 'markdown' ||
+      type === 'thinking' ||
+      type === 'user_message'
+    );
+  }
+
+  /**
    * Extract plain text from a message's content field.
    *
    * Content storage formats:
@@ -903,15 +1028,16 @@ export class MessageController implements ReactiveController {
       if (parsed && typeof parsed === 'object') {
         // Current format: full ContentData (contains type field)
         if ('type' in parsed) {
+          const contentData = parsed as ContentData;
           if (
-            parsed.type === 'text' ||
-            parsed.type === 'markdown' ||
-            parsed.type === 'thinking'
+            contentData.type === 'text' ||
+            contentData.type === 'markdown' ||
+            contentData.type === 'thinking'
           ) {
-            return parsed.data ?? '';
-          } else if (parsed.type === 'user_message') {
+            return (contentData.data as string) ?? '';
+          } else if (contentData.type === 'user_message') {
             // user_message type: extract from data.text
-            return parsed.data?.text ?? '';
+            return ((contentData.data as { text?: string })?.text) ?? '';
           }
         } else {
           // Legacy format: no type field, attempt to extract from known fields
@@ -933,8 +1059,8 @@ export class MessageController implements ReactiveController {
     if (local.content) {
       try {
         const parsed = JSON.parse(local.content);
-        if (parsed && typeof parsed === 'object' && 'type' in parsed) {
-          contentData = parsed as ContentData;
+        if (this._isValidContentDataType(parsed)) {
+          contentData = parsed;
         } else {
           // Fallback: treat raw string as text data
           contentData = { type: 'text', data: local.content };

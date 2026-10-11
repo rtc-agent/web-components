@@ -143,12 +143,16 @@ export class MessageRepository {
    *
    * Typically called when new data arrives from WebSocket or initial API load.
    * Notifies all subscribers of the change.
+   *
+   * Note: The input array is stored directly (not copied) for performance.
+   * Callers should not mutate the array after calling this method.
+   * Internal state is protected by _setState's shallow copy.
    */
   updateMessages(sessionId: string, messages: Message[]): void {
     const current = this._getState(sessionId);
     this._setState(sessionId, {
       ...current,
-      messages: [...messages],
+      messages, // Removed redundant spread: callers are expected to pass fresh arrays
     });
   }
 
