@@ -4,8 +4,8 @@
  * Defines the shape of `window.rtcAgentDebug` — the comprehensive debug and
  * testing interface exposed for E2E testing and development introspection.
  */
-import type { LogLevel } from "@rtc-agent/client";
-import type { RtcAgent } from "./components/rtc-agent/rtc-agent.js";
+import type { LogLevel } from '@rtc-agent/protocol';
+import type { RtcAgent } from './components/rtc-agent/rtc-agent.js';
 
 /**
  * The shape of `window.rtcAgentDebug`.
@@ -60,7 +60,7 @@ export interface RtcAgentDebugAPI {
    */
   loginAs(
     userId: string,
-    tokens?: { accessToken?: string; refreshToken?: string }
+    tokens?: { accessToken?: string; refreshToken?: string },
   ): void;
 
   /**
@@ -163,7 +163,7 @@ export interface RtcAgentDebugAPI {
   /** Rename a session by clientId. */
   renameSession(
     sessionId: string,
-    title: string
+    title: string,
   ): Promise<{ ok: boolean; error?: string }>;
 
   /** Get all sessions as a list of plain objects. */
@@ -198,7 +198,7 @@ export interface RtcAgentDebugAPI {
   }>;
 
   /** Add a demo assistant message (for testing message rendering without server). */
-  addDemoMessage(content: string, role?: "user" | "assistant"): void;
+  addDemoMessage(content: string, role?: 'user' | 'assistant'): void;
 
   /** Clear all messages in the current session. */
   clearMessages(): void;
@@ -235,7 +235,7 @@ export interface RtcAgentDebugAPI {
   // ── Toast / Notification ──
 
   /** Show a toast notification. */
-  showToast(message: string, type?: "info" | "success" | "error"): void;
+  showToast(message: string, type?: 'info' | 'success' | 'error'): void;
 
   /** Get current toast notifications. */
   getToasts(): Array<{ id: number; message: string; type: string }>;

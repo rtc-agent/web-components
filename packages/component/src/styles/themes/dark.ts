@@ -10,7 +10,7 @@
  *   - Text (moon color): #E8E8E8
  *   - Background (deep night sky): #0B1127
  */
-import {css} from 'lit';
+import { css } from 'lit';
 
 export const darkTheme = css`
     :host([theme='dark']) {
@@ -57,5 +57,15 @@ export const darkTheme = css`
 
         /* Backdrop */
         --rtc-color-backdrop: rgba(11,17,39,0.6);
+
+        /* Scrollbar */
+        --rtc-color-scrollbar-thumb: rgba(255, 255, 255, 0.3);
+        --rtc-color-scrollbar-thumb-hover: rgba(255, 255, 255, 0.5);
+
+        /* Hover overlays for dark theme */
+        --rtc-color-bg-hover-dark: rgba(255, 255, 255, 0.1);
+        --rtc-color-bg-hover-overlay: rgba(255, 255, 255, 0.15);
+        --rtc-color-bg-hover-overlay-strong: rgba(255, 255, 255, 0.2);
+        --rtc-color-danger-hover-bg-dark: rgba(220, 38, 38, 0.2);
     }
 `;

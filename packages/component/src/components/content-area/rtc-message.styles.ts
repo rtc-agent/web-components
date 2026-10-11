@@ -10,8 +10,8 @@
  *   - Thinking block (collapsible)
  *   - hljs color rules
  */
-import {css} from 'lit';
-import {timelineStyles} from './timeline.styles.js';
+import { css } from 'lit';
+import { timelineStyles } from './timeline.styles.js';
 
 export const styles = [
   timelineStyles,

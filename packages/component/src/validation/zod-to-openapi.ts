@@ -41,7 +41,7 @@ interface ZodMeta {
  */
 export function zodToParams<T extends ZodType>(
   shape: T,
-  descriptions?: Record<string, string>
+  descriptions?: Record<string, string>,
 ): ParameterDef[] {
   const params: ParameterDef[] = [];
   let obj = shape as any;
@@ -50,8 +50,12 @@ export function zodToParams<T extends ZodType>(
   // Handles z.object({...}).optional() case
   while (obj?._def) {
     const typeIdentifier = obj._def.typeName || obj._def.type;
-    if (typeIdentifier === 'ZodOptional' || typeIdentifier === 'optional' ||
-        typeIdentifier === 'ZodDefault' || typeIdentifier === 'default') {
+    if (
+      typeIdentifier === 'ZodOptional' ||
+      typeIdentifier === 'optional' ||
+      typeIdentifier === 'ZodDefault' ||
+      typeIdentifier === 'default'
+    ) {
       obj = obj._def.innerType;
     } else {
       break;
@@ -61,29 +65,37 @@ export function zodToParams<T extends ZodType>(
   // Compatibility with Zod v3 and v4 structural differences
   // Zod v3: _def.typeName === 'ZodObject', _def.shape is a function
   // Zod v4: _def.typeName is undefined, _def.shape is an object
-  const isZodObject = obj?._def && (
-    obj._def.typeName === 'ZodObject' ||  // v3
-    (obj._def.shape !== undefined && typeof obj._def.shape === 'object' && !Array.isArray(obj._def.shape))  // v4
-  );
+  const isZodObject =
+    obj?._def &&
+    (obj._def.typeName === 'ZodObject' || // v3
+      (obj._def.shape !== undefined &&
+        typeof obj._def.shape === 'object' &&
+        !Array.isArray(obj._def.shape))); // v4
 
   if (!obj || !obj._def || !isZodObject) {
-    throw new Error('zodToParams expects a ZodObject schema (got: ' + (obj?._def?.typeName || obj?._def?.type || 'unknown') + ')');
+    throw new Error(
+      'zodToParams expects a ZodObject schema (got: ' +
+        (obj?._def?.typeName || obj?._def?.type || 'unknown') +
+        ')',
+    );
   }
 
   // Get shape: v3 is a function call, v4 is a direct object
-  const shapeEntries = typeof obj._def.shape === 'function'
-    ? obj._def.shape()
-    : obj._def.shape;
+  const shapeEntries =
+    typeof obj._def.shape === 'function' ? obj._def.shape() : obj._def.shape;
 
   for (const [name, fieldSchema] of Object.entries(shapeEntries)) {
     const openAPISchema = zodFieldToOpenAPI(fieldSchema as ZodType);
-    const { isOptional, description, example } = extractFieldInfo(fieldSchema as ZodType);
+    const { isOptional, description, example } = extractFieldInfo(
+      fieldSchema as ZodType,
+    );
 
     params.push({
       name,
       schema: {
         ...openAPISchema,
-        description: descriptions?.[name] || description || openAPISchema.description,
+        description:
+          descriptions?.[name] || description || openAPISchema.description,
         ...(example !== undefined ? { example } : {}),
       },
       required: !isOptional,
@@ -116,8 +128,12 @@ function extractFieldInfo(schema: ZodType): {
   // Recursively handle wrapper types (optional/default)
   // v3: typeName === 'ZodOptional'/'ZodDefault', innerType
   // v4: type === 'optional'/'default', innerType
-  if (typeIdentifier === 'ZodOptional' || typeIdentifier === 'optional' ||
-      typeIdentifier === 'ZodDefault' || typeIdentifier === 'default') {
+  if (
+    typeIdentifier === 'ZodOptional' ||
+    typeIdentifier === 'optional' ||
+    typeIdentifier === 'ZodDefault' ||
+    typeIdentifier === 'default'
+  ) {
     isOptional = true;
     if (def.innerType) {
       const inner = extractFieldInfo(def.innerType);
@@ -147,19 +163,31 @@ function extractFieldInfo(schema: ZodType): {
   const zodBag = (schema as any)._zod?.bag as ZodMeta | undefined;
   if (example === undefined && zodBag?.example !== undefined) {
     example = zodBag.example;
-  } else if (example === undefined && zodBag?.examples && zodBag.examples.length > 0) {
+  } else if (
+    example === undefined &&
+    zodBag?.examples &&
+    zodBag.examples.length > 0
+  ) {
     example = zodBag.examples[0];
   }
 
   // Auto-generate example from enum
   // v3: typeName === 'ZodEnum', values
   // v4: type === 'enum', values
-  if (example === undefined && (typeIdentifier === 'ZodEnum' || typeIdentifier === 'enum') && def.values?.length > 0) {
+  if (
+    example === undefined &&
+    (typeIdentifier === 'ZodEnum' || typeIdentifier === 'enum') &&
+    def.values?.length > 0
+  ) {
     example = def.values[0];
   }
 
   // Auto-generate example from default
-  if (example === undefined && (typeIdentifier === 'ZodDefault' || typeIdentifier === 'default') && typeof def.defaultValue === 'function') {
+  if (
+    example === undefined &&
+    (typeIdentifier === 'ZodDefault' || typeIdentifier === 'default') &&
+    typeof def.defaultValue === 'function'
+  ) {
     try {
       example = def.defaultValue();
     } catch {
@@ -235,7 +263,10 @@ function zodFieldToOpenAPI(schema: ZodType): OpenAPISchema {
 
           if (kind === 'min') result.minimum = value;
           if (kind === 'max') result.maximum = value;
-          if (kind === 'int' || checkDef.type === 'number' && checkDef.format === 'safeint') {
+          if (
+            kind === 'int' ||
+            (checkDef.type === 'number' && checkDef.format === 'safeint')
+          ) {
             isInteger = true;
           }
         }
@@ -268,13 +299,17 @@ function zodFieldToOpenAPI(schema: ZodType): OpenAPISchema {
     case 'default':
       return {
         ...zodFieldToOpenAPI(def.innerType),
-        default: typeof def.defaultValue === 'function' ? def.defaultValue() : def.defaultValue,
+        default:
+          typeof def.defaultValue === 'function'
+            ? def.defaultValue()
+            : def.defaultValue,
       };
 
     case 'ZodObject':
     case 'object': {
       // Get shape: v3 is a function call, v4 is a direct object
-      const shapeEntries = typeof def.shape === 'function' ? def.shape() : def.shape;
+      const shapeEntries =
+        typeof def.shape === 'function' ? def.shape() : def.shape;
       if (!shapeEntries) return { type: 'object' };
 
       const properties: Record<string, OpenAPISchema> = {};
@@ -381,7 +416,9 @@ function zodFieldToOpenAPI(schema: ZodType): OpenAPISchema {
     case 'ZodTuple':
     case 'tuple': {
       // Convert tuple to array with prefixItems (OpenAPI 3.1) or items (simplified)
-      const items = (def.items || []).map((item: ZodType) => zodFieldToOpenAPI(item));
+      const items = (def.items || []).map((item: ZodType) =>
+        zodFieldToOpenAPI(item),
+      );
       return {
         type: 'array',
         items: items.length > 0 ? { oneOf: items } : {},

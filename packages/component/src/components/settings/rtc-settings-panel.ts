@@ -7,54 +7,61 @@
  * @element rtc-settings-panel
  * @fires close - When the panel is closed
  */
-import {LitElement, html} from 'lit';
-import {customElement, state} from 'lit/decorators.js';
-import {localized, msg} from '@lit/localize';
-import {consume} from '@lit/context';
-import {styles} from './rtc-settings-panel.styles.js';
-import {tokens} from '../../styles/tokens.js';
-import {lightTheme} from '../../styles/themes/light.js';
-import {darkTheme} from '../../styles/themes/dark.js';
-import {baseStyles} from '../../styles/base.js';
-import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
+import { LitElement, html } from 'lit';
+import { customElement, state } from 'lit/decorators.js';
+import { localized, msg } from '@lit/localize';
+import { consume } from '@lit/context';
+import { styles } from './rtc-settings-panel.styles.js';
+import { tokens } from '../../styles/tokens.js';
+import { lightTheme } from '../../styles/themes/light.js';
+import { darkTheme } from '../../styles/themes/dark.js';
+import { baseStyles } from '../../styles/base.js';
+import {
+  localeContext,
+  type LocaleContextValue,
+  sourceLocale,
+  targetLocales,
+} from '../../core/i18n.js';
 import '../settings-layout/rtc-settings-layout.js';
-import { createLogger } from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('SettingsPanel');
 
 @localized()
 @customElement('rtc-settings-panel')
 export class RtcSettingsPanel extends LitElement {
-    static styles = [tokens, lightTheme, darkTheme, baseStyles, styles];
+  static styles = [tokens, lightTheme, darkTheme, baseStyles, styles];
 
-    @consume({context: localeContext, subscribe: true})
-    @state()
-    private _localeCtx: LocaleContextValue = {
-        locale: sourceLocale,
-        setLocale: async () => {
-            log.warn('Locale context not initialized');
-        },
-        locales: [sourceLocale, ...targetLocales],
-    };
+  @consume({ context: localeContext, subscribe: true })
+  @state()
+  private _localeCtx: LocaleContextValue = {
+    locale: sourceLocale,
+    setLocale: async () => {
+      log.warn('Locale context not initialized');
+    },
+    locales: [sourceLocale, ...targetLocales],
+  };
 
-    private _handleKeydown(e: KeyboardEvent) {
-        if (e.key === 'Escape') {
-            this._close();
-        }
+  private _handleKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      this._close();
     }
+  }
 
-    private _close() {
-        this.dispatchEvent(new CustomEvent('close', {
-            bubbles: true,
-            composed: true,
-        }));
-    }
+  private _close() {
+    this.dispatchEvent(
+      new CustomEvent('close', {
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
 
-    render() {
-        // Reference locale to ensure re-render on locale change
-        void this._localeCtx.locale;
+  render() {
+    // Reference locale to ensure re-render on locale change
+    void this._localeCtx.locale;
 
-        return html`
+    return html`
             <div class="overlay" @click=${this._close}></div>
             <div class="panel" @keydown=${this._handleKeydown}>
                 <div class="panel-header">
@@ -70,15 +77,15 @@ export class RtcSettingsPanel extends LitElement {
                 </div>
             </div>
         `;
-    }
+  }
 }
 
 declare global {
-    interface HTMLElementTagNameMap {
-        'rtc-settings-panel': RtcSettingsPanel;
-    }
+  interface HTMLElementTagNameMap {
+    'rtc-settings-panel': RtcSettingsPanel;
+  }
 
-    interface HTMLElementEventMap {
-        'close': CustomEvent<void>;
-    }
+  interface HTMLElementEventMap {
+    close: CustomEvent<void>;
+  }
 }

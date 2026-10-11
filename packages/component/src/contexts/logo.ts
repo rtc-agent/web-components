@@ -1,4 +1,4 @@
-import {createContext} from '@lit/context';
+import { createContext } from '@lit/context';
 
 /**
  * Logo Context — custom logo for host application branding.
@@ -10,18 +10,18 @@ import {createContext} from '@lit/context';
  * When both are absent, <rtc-logo> falls back to the default RTC Agent logo.
  */
 export interface LogoContextValue {
-    /** Custom logo SVG/HTML for light theme */
-    light: string;
-    /** Custom logo SVG/HTML for dark theme */
-    dark: string;
+  /** Custom logo SVG/HTML for light theme */
+  light: string;
+  /** Custom logo SVG/HTML for dark theme */
+  dark: string;
 }
 
 export const LogoContext = createContext<LogoContextValue>(
-    Symbol('logo-context')
+  Symbol('logo-context'),
 );
 
 /** Default — no custom logo (empty strings trigger fallback in <rtc-logo>). */
 export const DEFAULT_LOGO: LogoContextValue = {
-    light: '',
-    dark: '',
+  light: '',
+  dark: '',
 };

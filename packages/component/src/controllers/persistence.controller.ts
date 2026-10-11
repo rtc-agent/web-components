@@ -24,8 +24,8 @@ import {
   type AgentMdConfig,
 } from '@rtc-agent/persistence';
 import type { ContentData } from '@rtc-agent/protocol';
+import { createLogger, MessageRole } from '@rtc-agent/protocol';
 import type { ConnectionState, ConnectionStateEvent } from '@rtc-agent/client';
-import { createLogger } from '@rtc-agent/protocol';
 import type { WorkerPersistenceCore } from '@rtc-agent/worker';
 import type { AuthController } from './auth.controller.js';
 import { maskUserID } from '../utils/mask.js';
@@ -138,7 +138,7 @@ class WorkerPersistenceAdapter {
 
   async insertLocalMessage(params: {
     sessionClientId: string;
-    role: 'user' | 'assistant' | 'tool' | 'system';
+    role: MessageRole;
     content: string;
     creatorKind?: string;
     creatorRefId?: string;
@@ -555,14 +555,20 @@ export class PersistenceController implements ReactiveController {
     // so all virtualFS operations (tool execution, script reads, etc.) are automatically routed to the Worker.
     bridge.installVirtualFSProxy();
 
-    // Create adapter that wraps the Comlink proxy
-    // See the top comment of _asPersistenceLayer for cast semantics
-    this._layer = _asPersistenceLayer(
+    // Create adapter that wraps the Comlink proxy.
+    // See the top comment of _asPersistenceLayer for cast semantics.
+    // NOTE: We do NOT assign to this._layer yet — we wait until after bridge.core.connect()
+    // succeeds. If connect() fails, we must not leave a half-initialized layer on the instance,
+    // as callers would see a non-null layer and assume it is connected.
+    const adapter = _asPersistenceLayer(
       new WorkerPersistenceAdapter(bridge.core),
     );
 
     // Connect (starts Centrifuge WebSocket inside Worker)
     await bridge.core.connect();
+
+    // Connect succeeded — now safe to expose the layer.
+    this._layer = adapter;
 
     // Checkpoint: if disconnect() was called during the connect() await,
     // tear down the just-connected bridge and exit gracefully.
@@ -570,7 +576,7 @@ export class PersistenceController implements ReactiveController {
     // and the WebSocket connection would remain open without any owner.
     if (this._workerBridge !== bridge) {
       log.warn('disconnect() fired during bridge.core.connect(), tearing down');
-      this._layer = undefined; // Clear layer set at line 521 (disconnect already cleared its copy)
+      this._layer = undefined; // Clear layer we just set (disconnect already cleared its copy)
       await bridge.destroy().catch(() => {});
       return;
     }
@@ -640,14 +646,18 @@ export class PersistenceController implements ReactiveController {
       this._connecting = undefined;
     }
 
-    // Capture layer and workerBridge in local variables to avoid clearing new instances during await
+    // Capture all mutable references in local variables to avoid operating on
+    // instances that may have been replaced by a new connect() during await.
     const layer = this._layer;
     const workerBridge = this._workerBridge;
+    const masterLock = this._masterLock;
 
-    // P1 Fix: Clear references immediately to prevent new operations from using them during disconnect.
-    // This prevents race conditions where connect() is called during disconnect()'s await operations.
+    // Clear references immediately to prevent new operations from using stale
+    // instances during the async cleanup below.
     this._layer = undefined;
     this._workerBridge = undefined;
+    this._masterLock = undefined;
+    this._fileStorage = undefined;
 
     if (layer) {
       try {
@@ -660,11 +670,13 @@ export class PersistenceController implements ReactiveController {
       }
     }
 
-    // Additional cleanup
+    // Additional cleanup — use captured local references only.
+    // If a new connect() started during our await, it would have created its own
+    // masterLock/workerBridge; we must NOT touch those.
+    if (masterLock) {
+      masterLock.release();
+    }
     if (workerBridge) {
-      this._masterLock?.release();
-      this._masterLock = undefined;
-      this._fileStorage = undefined;
       try {
         await workerBridge.destroy();
       } catch (err) {
@@ -672,10 +684,11 @@ export class PersistenceController implements ReactiveController {
       }
     }
 
-    // P1 Fix: Verify that no new connection was started during our cleanup
-    // If generation changed, a new connect() was called, and we should not interfere
+    // Verify that no new connection was started during our cleanup.
+    // If generation changed, a new connect() was called — our cleanup targeted
+    // only the old captured instances, so the new connection is unaffected.
     if (this._connectGeneration !== gen) {
-      log.warn('disconnect interrupted by new connect, generation changed');
+      log.debug('disconnect completed; new connect() already in progress');
     }
   }
 

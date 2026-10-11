@@ -15,104 +15,128 @@
  * @csspart status-dot - The connection status indicator dot
  * @csspart retry-btn - The connection retry button
  */
-import {LitElement, html, nothing} from 'lit';
-import {customElement, property, state} from 'lit/decorators.js';
-import {localized, msg} from '@lit/localize';
-import {consume} from '@lit/context';
-import {styles} from './rtc-title-bar.styles.js';
-import type {WindowMode} from '../../types/index.js';
-import type {ConnectionState} from '@rtc-agent/client';
-import {minimizeIcon, maximizeIcon, restoreIcon, retryIcon} from '../../icons/index.js';
-import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
-import { createLogger } from '@rtc-agent/client';
+import { LitElement, html, nothing } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import { localized, msg } from '@lit/localize';
+import { consume } from '@lit/context';
+import { styles } from './rtc-title-bar.styles.js';
+import type { WindowMode } from '../../types/index.js';
+import type { ConnectionState } from '@rtc-agent/client';
+import {
+  minimizeIcon,
+  maximizeIcon,
+  restoreIcon,
+  retryIcon,
+} from '../../icons/index.js';
+import {
+  localeContext,
+  type LocaleContextValue,
+  sourceLocale,
+  targetLocales,
+} from '../../core/i18n.js';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('TitleBar');
 
 @localized()
 @customElement('rtc-title-bar')
 export class RtcTitleBar extends LitElement {
-    static styles = styles;
+  static styles = styles;
 
-    @property({type: String, attribute: 'app-label'})
-    appLabel = 'RTC Agent';
+  @property({ type: String, attribute: 'app-label' })
+  appLabel = 'RTC Agent';
 
-    @property({type: String, attribute: 'window-mode'})
-    windowMode: WindowMode = 'normal';
+  @property({ type: String, attribute: 'window-mode' })
+  windowMode: WindowMode = 'normal';
 
-    @property({type: String, attribute: 'connection-state'})
-    connectionState: ConnectionState = 'disconnected';
+  @property({ type: String, attribute: 'connection-state' })
+  connectionState: ConnectionState = 'disconnected';
 
-    /** Whether to show the minimize button */
-    @property({type: Boolean, attribute: 'show-minimize'})
-    showMinimize = true;
+  /** Whether to show the minimize button */
+  @property({ type: Boolean, attribute: 'show-minimize' })
+  showMinimize = true;
 
-    /** Whether to show the maximize button */
-    @property({type: Boolean, attribute: 'show-maximize'})
-    showMaximize = true;
+  /** Whether to show the maximize button */
+  @property({ type: Boolean, attribute: 'show-maximize' })
+  showMaximize = true;
 
-    /** Whether connection has failed (shows retry button) */
-    @property({type: Boolean, attribute: 'connection-failed'})
-    connectionFailed = false;
+  /** Whether connection has failed (shows retry button) */
+  @property({ type: Boolean, attribute: 'connection-failed' })
+  connectionFailed = false;
 
-    /** Error message when connection failed (used for tooltip) */
-    @property({type: String, attribute: 'connection-error'})
-    connectionError = '';
+  /** Error message when connection failed (used for tooltip) */
+  @property({ type: String, attribute: 'connection-error' })
+  connectionError = '';
 
-    @consume({context: localeContext, subscribe: true})
-    @state()
-    private _localeCtx: LocaleContextValue = {
-        locale: sourceLocale,
-        setLocale: async () => {
-            log.warn('Locale context not initialized');
-        },
-        locales: [sourceLocale, ...targetLocales],
-    };
+  @consume({ context: localeContext, subscribe: true })
+  @state()
+  private _localeCtx: LocaleContextValue = {
+    locale: sourceLocale,
+    setLocale: async () => {
+      log.warn('Locale context not initialized');
+    },
+    locales: [sourceLocale, ...targetLocales],
+  };
 
-    private _getStatusText(): string {
-        switch (this.connectionState) {
-            case 'connected': return msg('已连接');
-            case 'connecting': return msg('连接中');
-            case 'reconnecting': return msg('重新连接中');
-            case 'disconnected': return msg('未连接');
-            default: return msg('未知');
-        }
+  private _getStatusText(): string {
+    switch (this.connectionState) {
+      case 'connected':
+        return msg('已连接');
+      case 'connecting':
+        return msg('连接中');
+      case 'reconnecting':
+        return msg('重新连接中');
+      case 'disconnected':
+        return msg('未连接');
+      default:
+        return msg('未知');
     }
+  }
 
-    private _handleMinimize() {
-        this.dispatchEvent(
-            new CustomEvent('rtc-window-minimize', {bubbles: true, composed: true})
-        );
+  private _handleMinimize() {
+    this.dispatchEvent(
+      new CustomEvent('rtc-window-minimize', { bubbles: true, composed: true }),
+    );
+  }
+
+  private _handleMaximizeToggle() {
+    if (this.windowMode === 'maximized') {
+      this.dispatchEvent(
+        new CustomEvent('rtc-window-restore', {
+          bubbles: true,
+          composed: true,
+        }),
+      );
+    } else {
+      this.dispatchEvent(
+        new CustomEvent('rtc-window-maximize', {
+          bubbles: true,
+          composed: true,
+        }),
+      );
     }
+  }
 
-    private _handleMaximizeToggle() {
-        if (this.windowMode === 'maximized') {
-            this.dispatchEvent(
-                new CustomEvent('rtc-window-restore', {bubbles: true, composed: true})
-            );
-        } else {
-            this.dispatchEvent(
-                new CustomEvent('rtc-window-maximize', {bubbles: true, composed: true})
-            );
-        }
-    }
+  private _handleRetry() {
+    this.dispatchEvent(
+      new CustomEvent('rtc-connection-retry', {
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
 
-    private _handleRetry() {
-        this.dispatchEvent(
-            new CustomEvent('rtc-connection-retry', {bubbles: true, composed: true})
-        );
-    }
+  render() {
+    // Reference locale to ensure re-render on locale change
+    void this._localeCtx.locale;
 
-    render() {
-        // Reference locale to ensure re-render on locale change
-        void this._localeCtx.locale;
+    const isMaximized = this.windowMode === 'maximized';
+    const statusText = this.connectionFailed
+      ? `${msg('连接失败')}: ${this.connectionError || msg('点击重试')}`
+      : this._getStatusText();
 
-        const isMaximized = this.windowMode === 'maximized';
-        const statusText = this.connectionFailed
-            ? `${msg('连接失败')}: ${this.connectionError || msg('点击重试')}`
-            : this._getStatusText();
-
-        return html`
-      <div class="title-bar" part="bar" tabindex="0" role="toolbar" aria-label="Window controls">
+    return html`
+      <div class="title-bar" part="bar" tabindex="0" role="toolbar" aria-label=${msg('Window controls')}>
         <span class="app-label" part="label">
           <span
             class="status-dot ${this.connectionFailed ? 'failed' : this.connectionState}"
@@ -123,7 +147,9 @@ export class RtcTitleBar extends LitElement {
           ${this.appLabel}
         </span>
         <div class="window-controls" part="controls">
-          ${this.connectionFailed ? html`
+          ${
+            this.connectionFailed
+              ? html`
           <button
             class="window-btn retry-btn"
             part="retry-btn"
@@ -132,31 +158,41 @@ export class RtcTitleBar extends LitElement {
             title=${msg('点击重新连接')}
             @click=${this._handleRetry}
           >${retryIcon}</button>
-          ` : nothing}
-          ${this.showMinimize ? html`
+          `
+              : nothing
+          }
+          ${
+            this.showMinimize
+              ? html`
           <button
             class="window-btn"
             data-action="minimize"
-            aria-label="Minimize"
+            aria-label=${msg('Minimize')}
             @click=${this._handleMinimize}
           >${minimizeIcon}</button>
-          ` : nothing}
-          ${this.showMaximize ? html`
+          `
+              : nothing
+          }
+          ${
+            this.showMaximize
+              ? html`
           <button
             class="window-btn"
             data-action=${isMaximized ? 'restore' : 'maximize'}
-            aria-label=${isMaximized ? 'Restore' : 'Maximize'}
+            aria-label=${isMaximized ? msg('Restore') : msg('Maximize')}
             @click=${this._handleMaximizeToggle}
           >${isMaximized ? restoreIcon : maximizeIcon}</button>
-          ` : nothing}
+          `
+              : nothing
+          }
         </div>
       </div>
     `;
-    }
+  }
 }
 
 declare global {
-    interface HTMLElementTagNameMap {
-        'rtc-title-bar': RtcTitleBar;
-    }
+  interface HTMLElementTagNameMap {
+    'rtc-title-bar': RtcTitleBar;
+  }
 }

@@ -12,8 +12,8 @@
  *   - Copy button (hover reveal)
  *   - Dot color states (running=orange, done=green)
  */
-import {css} from 'lit';
-import {timelineStyles} from './timeline.styles.js';
+import { css } from 'lit';
+import { timelineStyles } from './timeline.styles.js';
 
 export const styles = [
   timelineStyles,

@@ -18,17 +18,22 @@
  * @csspart header - The clickable reference header
  * @csspart content - The output content area
  */
-import {LitElement, html, nothing} from 'lit';
-import {customElement, property, state} from 'lit/decorators.js';
-import {consume} from '@lit/context';
-import {localized, msg} from '@lit/localize';
-import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
-import {styles} from './rtc-toolcall-reply.styles.js';
-import type {Message} from '../../types/index.js';
-import {formatTimestampCompact} from '../../utils/format.js';
-import type {RtcToolCallCard} from './rtc-toolcall-card.js';
+import { LitElement, html, nothing } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import { consume } from '@lit/context';
+import { localized, msg } from '@lit/localize';
+import {
+  localeContext,
+  type LocaleContextValue,
+  sourceLocale,
+  targetLocales,
+} from '../../core/i18n.js';
+import { styles } from './rtc-toolcall-reply.styles.js';
+import type { Message } from '../../types/index.js';
+import { formatTimestampCompact } from '../../utils/format.js';
+import type { RtcToolCallCard } from './rtc-toolcall-card.js';
 import { copyToClipboard } from '../../utils/clipboard.js';
-import { createLogger } from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
 import './rtc-scroll-container.js';
 
 const log = createLogger('ToolCallReply');
@@ -38,27 +43,27 @@ const log = createLogger('ToolCallReply');
  * Output's ToolCall includes tool_name + input (echoed from input message).
  */
 interface OutputToolCallData {
-    id: string;
-    tool_name: string;
-    input: string;  // JSON string (echoed from input)
-    output: string; // JSON string or plain text
-    status?: string;
+  id: string;
+  tool_name: string;
+  input: string; // JSON string (echoed from input)
+  output: string; // JSON string or plain text
+  status?: string;
 }
 
 /**
  * Parsed script tool output (ToolResult structure).
  */
 interface ScriptOutputData {
-    success: boolean;
-    data?: {
-        logs?: string[];
-        warnings?: string[];
-        errors?: string[];
-        duration_ms?: number;
-        result?: unknown;
-        name?: string;
-    };
-    error?: string;
+  success: boolean;
+  data?: {
+    logs?: string[];
+    warnings?: string[];
+    errors?: string[];
+    duration_ms?: number;
+    result?: unknown;
+    name?: string;
+  };
+  error?: string;
 }
 
 /**
@@ -66,12 +71,12 @@ interface ScriptOutputData {
  * Uses a simple hash algorithm for consistent results.
  */
 function hashToColorIndex(str: string): number {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-        hash = str.charCodeAt(i) + ((hash << 5) - hash);
-        hash = hash & hash; // Convert to 32-bit integer
-    }
-    return Math.abs(hash) % 8;
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  return Math.abs(hash) % 8;
 }
 
 /**
@@ -79,8 +84,8 @@ function hashToColorIndex(str: string): number {
  * Returns a CSS variable like `var(--rtc-color-toolcall-3)`.
  */
 function idToColorVar(id: string): string {
-    const index = hashToColorIndex(id);
-    return `var(--rtc-color-toolcall-${index})`;
+  const index = hashToColorIndex(id);
+  return `var(--rtc-color-toolcall-${index})`;
 }
 
 /**
@@ -94,22 +99,22 @@ function idToColorVar(id: string): string {
  * - 'plain text' → 'plain text' (not JSON)
  */
 function tryParseJson(value: string): unknown {
-    try {
-        let parsed = JSON.parse(value);
-        // Handle double-serialization: if result is a string, try parsing again
-        while (typeof parsed === 'string') {
-            try {
-                const next = JSON.parse(parsed);
-                if (typeof next === 'string' && next === parsed) break; // No progress, stop
-                parsed = next;
-            } catch {
-                break; // Not JSON, return current value
-            }
-        }
-        return parsed;
-    } catch {
-        return value; // Not JSON, return as-is
+  try {
+    let parsed = JSON.parse(value);
+    // Handle double-serialization: if result is a string, try parsing again
+    while (typeof parsed === 'string') {
+      try {
+        const next = JSON.parse(parsed);
+        if (typeof next === 'string' && next === parsed) break; // No progress, stop
+        parsed = next;
+      } catch {
+        break; // Not JSON, return current value
+      }
     }
+    return parsed;
+  } catch {
+    return value; // Not JSON, return as-is
+  }
 }
 
 /**
@@ -119,89 +124,89 @@ function tryParseJson(value: string): unknown {
  * structure without `any` casts.
  */
 interface RawToolCall {
-    id?: string;
-    tool_name?: string;
-    input?: unknown;
-    output?: unknown;
-    status?: string;
-    data?: RawToolCall;
+  id?: string;
+  tool_name?: string;
+  input?: unknown;
+  output?: unknown;
+  status?: string;
+  data?: RawToolCall;
 }
 
 /**
  * Parse tool call data from output message's content.
  */
 function parseOutputToolCall(message: Message): OutputToolCallData | null {
-    try {
-        const data = message.content?.data;
-        if (!data) return null;
+  try {
+    const data = message.content?.data;
+    if (!data) return null;
 
-        let raw: unknown;
-        if (typeof data === 'string') {
-            raw = JSON.parse(data);
-            // Handle double-serialization
-            if (typeof raw === 'string') {
-                raw = JSON.parse(raw);
-            }
-        } else if (typeof data === 'object') {
-            raw = data;
-        } else {
-            return null;
-        }
-
-        // Unwrap: if nested under .data, use that
-        let tc = raw as RawToolCall;
-        if (tc.data?.tool_name) {
-            tc = tc.data;
-        }
-        if (!tc.tool_name) return null;
-
-        // Parse input (handle double-serialization)
-        let input: unknown = tc.input;
-        if (typeof input === 'string') {
-            try {
-                input = JSON.parse(input);
-                // Handle double-serialized input
-                if (typeof input === 'string') {
-                    try {
-                        input = JSON.parse(input);
-                    } catch {
-                        // Keep the string as-is
-                    }
-                }
-            } catch {
-                // Keep the string as-is
-            }
-        }
-
-        // Parse output (handle double-serialization)
-        const rawOutput = tc.output;
-        let output: string;
-        if (typeof rawOutput === 'string') {
-            const parsed = tryParseJson(rawOutput);
-            // If it's a complex object, stringify it; otherwise keep as string
-            if (typeof parsed === 'object' && parsed !== null) {
-                output = JSON.stringify(parsed, null, 2);
-            } else if (typeof parsed === 'string') {
-                output = parsed;
-            } else {
-                output = String(parsed ?? '');
-            }
-        } else if (typeof rawOutput === 'object' && rawOutput !== null) {
-            output = JSON.stringify(rawOutput, null, 2);
-        } else {
-            output = String(rawOutput ?? '');
-        }
-
-        return {
-            id: tc.id || '',
-            tool_name: tc.tool_name,
-            input: typeof input === 'string' ? input : JSON.stringify(input ?? {}),
-            output,
-            status: tc.status,
-        };
-    } catch {
-        return null;
+    let raw: unknown;
+    if (typeof data === 'string') {
+      raw = JSON.parse(data);
+      // Handle double-serialization
+      if (typeof raw === 'string') {
+        raw = JSON.parse(raw);
+      }
+    } else if (typeof data === 'object') {
+      raw = data;
+    } else {
+      return null;
     }
+
+    // Unwrap: if nested under .data, use that
+    let tc = raw as RawToolCall;
+    if (tc.data?.tool_name) {
+      tc = tc.data;
+    }
+    if (!tc.tool_name) return null;
+
+    // Parse input (handle double-serialization)
+    let input: unknown = tc.input;
+    if (typeof input === 'string') {
+      try {
+        input = JSON.parse(input);
+        // Handle double-serialized input
+        if (typeof input === 'string') {
+          try {
+            input = JSON.parse(input);
+          } catch {
+            // Keep the string as-is
+          }
+        }
+      } catch {
+        // Keep the string as-is
+      }
+    }
+
+    // Parse output (handle double-serialization)
+    const rawOutput = tc.output;
+    let output: string;
+    if (typeof rawOutput === 'string') {
+      const parsed = tryParseJson(rawOutput);
+      // If it's a complex object, stringify it; otherwise keep as string
+      if (typeof parsed === 'object' && parsed !== null) {
+        output = JSON.stringify(parsed, null, 2);
+      } else if (typeof parsed === 'string') {
+        output = parsed;
+      } else {
+        output = String(parsed ?? '');
+      }
+    } else if (typeof rawOutput === 'object' && rawOutput !== null) {
+      output = JSON.stringify(rawOutput, null, 2);
+    } else {
+      output = String(rawOutput ?? '');
+    }
+
+    return {
+      id: tc.id || '',
+      tool_name: tc.tool_name,
+      input: typeof input === 'string' ? input : JSON.stringify(input ?? {}),
+      output,
+      status: tc.status,
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -215,49 +220,54 @@ function parseOutputToolCall(message: Message): OutputToolCallData | null {
  * is a serialized object that should be pretty-printed).
  */
 function parseScriptOutput(outputStr: string): ScriptOutputData | null {
-    try {
-        let parsed = JSON.parse(outputStr);
+  try {
+    let parsed = JSON.parse(outputStr);
 
-        // Handle double-serialized JSON: if parsed is a string, try parsing again
-        if (typeof parsed === 'string') {
-            try {
-                parsed = JSON.parse(parsed);
-            } catch {
-                // Not double-serialized, continue with the string
-                return null;
-            }
-        }
-
-        if (typeof parsed !== 'object' || parsed === null) return null;
-
-        // Format 1: ToolResult wrapper with 'success' field
-        if ('success' in parsed) {
-            // Normalize logs/warnings/errors: parse JSON strings and format them
-            normalizeScriptData(parsed.data);
-            return parsed as ScriptOutputData;
-        }
-
-        // Format 2: Direct data (no wrapper) — check if it has script-like fields
-        if ('logs' in parsed || 'duration_ms' in parsed || 'warnings' in parsed || 'errors' in parsed) {
-            const data = {
-                logs: parsed.logs,
-                warnings: parsed.warnings,
-                errors: parsed.errors,
-                duration_ms: parsed.duration_ms,
-                result: parsed.result,
-                name: parsed.name,
-            };
-            normalizeScriptData(data);
-            return {
-                success: true,
-                data,
-            };
-        }
-
+    // Handle double-serialized JSON: if parsed is a string, try parsing again
+    if (typeof parsed === 'string') {
+      try {
+        parsed = JSON.parse(parsed);
+      } catch {
+        // Not double-serialized, continue with the string
         return null;
-    } catch {
-        return null;
+      }
     }
+
+    if (typeof parsed !== 'object' || parsed === null) return null;
+
+    // Format 1: ToolResult wrapper with 'success' field
+    if ('success' in parsed) {
+      // Normalize logs/warnings/errors: parse JSON strings and format them
+      normalizeScriptData(parsed.data);
+      return parsed as ScriptOutputData;
+    }
+
+    // Format 2: Direct data (no wrapper) — check if it has script-like fields
+    if (
+      'logs' in parsed ||
+      'duration_ms' in parsed ||
+      'warnings' in parsed ||
+      'errors' in parsed
+    ) {
+      const data = {
+        logs: parsed.logs,
+        warnings: parsed.warnings,
+        errors: parsed.errors,
+        duration_ms: parsed.duration_ms,
+        result: parsed.result,
+        name: parsed.name,
+      };
+      normalizeScriptData(data);
+      return {
+        success: true,
+        data,
+      };
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -265,260 +275,268 @@ function parseScriptOutput(outputStr: string): ScriptOutputData | null {
  * and format them as pretty-printed JSON.
  */
 function normalizeScriptData(data: ScriptOutputData['data'] | undefined): void {
-    if (!data) return;
+  if (!data) return;
 
-    // Helper to format a single log entry
-    const formatEntry = (entry: unknown): string => {
-        if (typeof entry !== 'string') {
-            // Not a string, stringify it
-            return JSON.stringify(entry, null, 2);
-        }
-        // Try to parse as JSON and pretty-print
-        try {
-            const parsed = JSON.parse(entry);
-            if (typeof parsed === 'object' && parsed !== null) {
-                return JSON.stringify(parsed, null, 2);
-            }
-            return entry;
-        } catch {
-            // Not JSON, return as-is
-            return entry;
-        }
-    };
-
-    // Normalize logs
-    if (Array.isArray(data.logs)) {
-        data.logs = data.logs.map(formatEntry);
+  // Helper to format a single log entry
+  const formatEntry = (entry: unknown): string => {
+    if (typeof entry !== 'string') {
+      // Not a string, stringify it
+      return JSON.stringify(entry, null, 2);
     }
-
-    // Normalize warnings
-    if (Array.isArray(data.warnings)) {
-        data.warnings = data.warnings.map(formatEntry);
+    // Try to parse as JSON and pretty-print
+    try {
+      const parsed = JSON.parse(entry);
+      if (typeof parsed === 'object' && parsed !== null) {
+        return JSON.stringify(parsed, null, 2);
+      }
+      return entry;
+    } catch {
+      // Not JSON, return as-is
+      return entry;
     }
+  };
 
-    // Normalize errors
-    if (Array.isArray(data.errors)) {
-        data.errors = data.errors.map(formatEntry);
-    }
+  // Normalize logs
+  if (Array.isArray(data.logs)) {
+    data.logs = data.logs.map(formatEntry);
+  }
+
+  // Normalize warnings
+  if (Array.isArray(data.warnings)) {
+    data.warnings = data.warnings.map(formatEntry);
+  }
+
+  // Normalize errors
+  if (Array.isArray(data.errors)) {
+    data.errors = data.errors.map(formatEntry);
+  }
 }
 
 /**
  * Parse tool input params from echoed input JSON.
  */
 function parseToolInput(inputStr: string): Record<string, unknown> {
-    try {
-        const parsed = JSON.parse(inputStr);
-        return typeof parsed === 'object' && parsed !== null ? parsed : {};
-    } catch {
-        return {};
-    }
+  try {
+    const parsed = JSON.parse(inputStr);
+    return typeof parsed === 'object' && parsed !== null ? parsed : {};
+  } catch {
+    return {};
+  }
 }
 
 /**
  * Format tool title for the reply header.
  */
 function formatReplyTitle(toolName: string, inputStr: string): string {
-    const input = parseToolInput(inputStr);
+  const input = parseToolInput(inputStr);
 
-    switch (toolName) {
-        case 'script': {
-            const title = (input.title as string) || '';
-            return title ? `script ${title}` : 'script';
-        }
-        case 'read': {
-            const path = (input.path as string) || '';
-            return `read ${path}`;
-        }
-        case 'ls': {
-            const path = (input.path as string) || '/';
-            return `ls ${path}`;
-        }
-        case 'write': {
-            const path = (input.path as string) || '';
-            return `write ${path}`;
-        }
-        case 'grep': {
-            const pattern = (input.pattern as string) || '';
-            return `grep ${pattern}`;
-        }
-        case 'find': {
-            const pattern = (input.pattern as string) || '';
-            return `find ${pattern}`;
-        }
-        case 'todoWrite': {
-            const todos = input.todos as unknown[] | undefined;
-            const count = Array.isArray(todos) ? todos.length : 0;
-            return `todoWrite (${count} tasks)`;
-        }
-        default:
-            return toolName;
+  switch (toolName) {
+    case 'script': {
+      const title = (input.title as string) || '';
+      return title ? `script ${title}` : 'script';
     }
+    case 'read': {
+      const path = (input.path as string) || '';
+      return `read ${path}`;
+    }
+    case 'ls': {
+      const path = (input.path as string) || '/';
+      return `ls ${path}`;
+    }
+    case 'write': {
+      const path = (input.path as string) || '';
+      return `write ${path}`;
+    }
+    case 'grep': {
+      const pattern = (input.pattern as string) || '';
+      return `grep ${pattern}`;
+    }
+    case 'find': {
+      const pattern = (input.pattern as string) || '';
+      return `find ${pattern}`;
+    }
+    case 'todoWrite': {
+      const todos = input.todos as unknown[] | undefined;
+      const count = Array.isArray(todos) ? todos.length : 0;
+      return `todoWrite (${count} tasks)`;
+    }
+    default:
+      return toolName;
+  }
 }
 
 @localized()
 @customElement('rtc-toolcall-reply')
 export class RtcToolCallReply extends LitElement {
-    static styles = styles;
+  static styles = styles;
 
-    @consume({context: localeContext, subscribe: true})
-    @state()
-    private _localeCtx: LocaleContextValue = {
-        locale: sourceLocale,
-        setLocale: async () => {
-            log.warn('Locale context not initialized');
+  @consume({ context: localeContext, subscribe: true })
+  @state()
+  private _localeCtx: LocaleContextValue = {
+    locale: sourceLocale,
+    setLocale: async () => {
+      log.warn('Locale context not initialized');
+    },
+    locales: [sourceLocale, ...targetLocales],
+  };
+
+  /** The toolcall_output message */
+  @property({ type: Object })
+  message!: Message;
+
+  firstUpdated() {
+    // Set initial status attribute after first render.
+    this._updateStatus();
+    // Notify the corresponding input card that output has arrived.
+    // Using firstUpdated (instead of connectedCallback) ensures the input card
+    // is already rendered in the DOM when we traverse to find it, preventing
+    // a race condition where the card hasn't been mounted yet.
+    this._notifyInputCard();
+  }
+
+  updated(changed: Map<string, unknown>) {
+    super.updated(changed);
+    if (changed.has('message')) {
+      this._updateStatus();
+    }
+  }
+
+  private _updateStatus() {
+    const tc = parseOutputToolCall(this.message);
+    const status = tc?.status || 'completed';
+    this.setAttribute('data-status', status);
+  }
+
+  /**
+   * Find the corresponding input card in DOM and update its pair.output.
+   * This switches the card's dot from "running" (orange pulse) to "done" (green).
+   */
+  private _notifyInputCard() {
+    const parentClientId = this.message.parentClientId;
+    if (!parentClientId) return;
+
+    // Look for the input card in the same shadow root's scroll container
+    const root = this.getRootNode() as ShadowRoot | Document;
+    const card = root.querySelector(
+      `rtc-toolcall-card[data-client-id="${parentClientId}"]`,
+    ) as RtcToolCallCard | null;
+
+    if (card && card.pair && !card.pair.output) {
+      card.pair = { ...card.pair, output: this.message };
+    }
+  }
+
+  private get _formattedTimestamp(): string {
+    return formatTimestampCompact(this.message.timestamp);
+  }
+
+  /**
+   * Handle header click: dispatch jump event to scroll to input.
+   */
+  private _handleHeaderClick() {
+    const targetClientId = this.message.parentClientId;
+    if (!targetClientId) {
+      log.warn('No parentClientId for jump');
+      return;
+    }
+
+    this.dispatchEvent(
+      new CustomEvent('rtc-toolcall-jump', {
+        bubbles: true,
+        composed: true,
+        detail: { targetClientId },
+      }),
+    );
+  }
+
+  /**
+   * Handle dot click: copy output content to clipboard.
+   */
+  private async _handleDotClick() {
+    const text = this._getCopyText();
+    if (!text) return;
+
+    const success = await copyToClipboard(text);
+    this.dispatchEvent(
+      new CustomEvent('rtc-toast-requested', {
+        bubbles: true,
+        composed: true,
+        detail: {
+          message: success ? msg('已复制到剪贴板') : msg('复制失败'),
+          type: success ? 'success' : 'error',
         },
-        locales: [sourceLocale, ...targetLocales],
-    };
+      }),
+    );
+  }
 
-    /** The toolcall_output message */
-    @property({type: Object})
-    message!: Message;
+  /**
+   * Get text to copy based on tool type.
+   */
+  private _getCopyText(): string {
+    const tc = parseOutputToolCall(this.message);
+    if (!tc) return '';
 
-    firstUpdated() {
-        // Set initial status attribute after first render.
-        this._updateStatus();
-        // Notify the corresponding input card that output has arrived.
-        // Using firstUpdated (instead of connectedCallback) ensures the input card
-        // is already rendered in the DOM when we traverse to find it, preventing
-        // a race condition where the card hasn't been mounted yet.
-        this._notifyInputCard();
-    }
+    // todoWrite: empty (output height is 0, nothing to copy)
+    if (tc.tool_name === 'todoWrite') return '';
 
-    updated(changed: Map<string, unknown>) {
-        super.updated(changed);
-        if (changed.has('message')) {
-            this._updateStatus();
+    // script: combine logs/warnings/errors
+    if (tc.tool_name === 'script') {
+      const scriptOutput = parseScriptOutput(tc.output);
+      if (scriptOutput?.data) {
+        const parts: string[] = [];
+        if (scriptOutput.data.logs?.length) {
+          parts.push(scriptOutput.data.logs.join('\n'));
         }
-    }
-
-    private _updateStatus() {
-        const tc = parseOutputToolCall(this.message);
-        const status = tc?.status || 'completed';
-        this.setAttribute('data-status', status);
-    }
-
-    /**
-     * Find the corresponding input card in DOM and update its pair.output.
-     * This switches the card's dot from "running" (orange pulse) to "done" (green).
-     */
-    private _notifyInputCard() {
-        const parentClientId = this.message.parentClientId;
-        if (!parentClientId) return;
-
-        // Look for the input card in the same shadow root's scroll container
-        const root = this.getRootNode() as ShadowRoot | Document;
-        const card = root.querySelector(
-            `rtc-toolcall-card[data-client-id="${parentClientId}"]`
-        ) as RtcToolCallCard | null;
-
-        if (card && card.pair && !card.pair.output) {
-            card.pair = { ...card.pair, output: this.message };
+        if (scriptOutput.data.warnings?.length) {
+          parts.push(
+            scriptOutput.data.warnings.map((w) => `[WARN] ${w}`).join('\n'),
+          );
         }
+        if (scriptOutput.data.errors?.length) {
+          parts.push(
+            scriptOutput.data.errors.map((e) => `[ERR] ${e}`).join('\n'),
+          );
+        }
+        return parts.join('\n\n');
+      }
     }
 
-    private get _formattedTimestamp(): string {
-        return formatTimestampCompact(this.message.timestamp);
+    // default: formatted output
+    return tc.output;
+  }
+
+  render() {
+    void this._localeCtx.locale;
+
+    const tc = parseOutputToolCall(this.message);
+    if (!tc) {
+      return this._renderFallback();
     }
 
-    /**
-     * Handle header click: dispatch jump event to scroll to input.
-     */
-    private _handleHeaderClick() {
-        const targetClientId = this.message.parentClientId;
-        if (!targetClientId) {
-            log.warn('No parentClientId for jump');
-            return;
-        }
-
-        this.dispatchEvent(new CustomEvent('rtc-toolcall-jump', {
-            bubbles: true,
-            composed: true,
-            detail: { targetClientId },
-        }));
+    // todoWrite: render as empty (height: 0) since input already shows the full list
+    if (tc.tool_name === 'todoWrite') {
+      return this._renderEmptyReply();
     }
 
-    /**
-     * Handle dot click: copy output content to clipboard.
-     */
-    private async _handleDotClick() {
-        const text = this._getCopyText();
-        if (!text) return;
-
-        const success = await copyToClipboard(text);
-        this.dispatchEvent(new CustomEvent('rtc-toast-requested', {
-            bubbles: true,
-            composed: true,
-            detail: {
-                message: success ? msg('已复制到剪贴板') : msg('复制失败'),
-                type: success ? 'success' : 'error',
-            },
-        }));
+    // Script tool: structured output rendering
+    if (tc.tool_name === 'script') {
+      return this._renderScriptReply(tc);
     }
 
-    /**
-     * Get text to copy based on tool type.
-     */
-    private _getCopyText(): string {
-        const tc = parseOutputToolCall(this.message);
-        if (!tc) return '';
-
-        // todoWrite: empty (output height is 0, nothing to copy)
-        if (tc.tool_name === 'todoWrite') return '';
-
-        // script: combine logs/warnings/errors
-        if (tc.tool_name === 'script') {
-            const scriptOutput = parseScriptOutput(tc.output);
-            if (scriptOutput?.data) {
-                const parts: string[] = [];
-                if (scriptOutput.data.logs?.length) {
-                    parts.push(scriptOutput.data.logs.join('\n'));
-                }
-                if (scriptOutput.data.warnings?.length) {
-                    parts.push(scriptOutput.data.warnings.map(w => `[WARN] ${w}`).join('\n'));
-                }
-                if (scriptOutput.data.errors?.length) {
-                    parts.push(scriptOutput.data.errors.map(e => `[ERR] ${e}`).join('\n'));
-                }
-                return parts.join('\n\n');
-            }
-        }
-
-        // default: formatted output
-        return tc.output;
+    // Read tool: file content with smaller max-height
+    if (tc.tool_name === 'read') {
+      return this._renderReadReply(tc);
     }
 
-    render() {
-        void this._localeCtx.locale;
+    // Default: generic output rendering
+    return this._renderGenericReply(tc);
+  }
 
-        const tc = parseOutputToolCall(this.message);
-        if (!tc) {
-            return this._renderFallback();
-        }
-
-        // todoWrite: render as empty (height: 0) since input already shows the full list
-        if (tc.tool_name === 'todoWrite') {
-            return this._renderEmptyReply();
-        }
-
-        // Script tool: structured output rendering
-        if (tc.tool_name === 'script') {
-            return this._renderScriptReply(tc);
-        }
-
-        // Read tool: file content with smaller max-height
-        if (tc.tool_name === 'read') {
-            return this._renderReadReply(tc);
-        }
-
-        // Default: generic output rendering
-        return this._renderGenericReply(tc);
-    }
-
-    /**
-     * Empty reply: renders with height 0 (for tools like todoWrite where output is not important).
-     */
-    private _renderEmptyReply() {
-        return html`
+  /**
+   * Empty reply: renders with height 0 (for tools like todoWrite where output is not important).
+   */
+  private _renderEmptyReply() {
+    return html`
             <div class="timeline-item reply-empty">
                 <div class="timeline-dot" part="dot" data-timestamp=${this._formattedTimestamp}></div>
                 <div class="timeline-content" part="content">
@@ -526,13 +544,13 @@ export class RtcToolCallReply extends LitElement {
                 </div>
             </div>
         `;
-    }
+  }
 
-    /**
-     * Fallback: unparseable output rendered as plain text.
-     */
-    private _renderFallback() {
-        return html`
+  /**
+   * Fallback: unparseable output rendered as plain text.
+   */
+  private _renderFallback() {
+    return html`
             <div class="timeline-item">
                 <div class="timeline-dot" part="dot" data-timestamp=${this._formattedTimestamp} @click=${this._handleDotClick}></div>
                 <div class="timeline-content" part="content">
@@ -544,29 +562,29 @@ export class RtcToolCallReply extends LitElement {
                 </div>
             </div>
         `;
+  }
+
+  /**
+   * Script tool reply: logs/warnings/errors sections + duration footer.
+   */
+  private _renderScriptReply(tc: OutputToolCallData) {
+    const title = formatReplyTitle(tc.tool_name, tc.input);
+    const headerColor = tc.id ? idToColorVar(tc.id) : '';
+    const scriptOutput = parseScriptOutput(tc.output);
+
+    // If not a structured ToolResult, fall back to generic
+    if (!scriptOutput) {
+      return this._renderGenericReply(tc);
     }
 
-    /**
-     * Script tool reply: logs/warnings/errors sections + duration footer.
-     */
-    private _renderScriptReply(tc: OutputToolCallData) {
-        const title = formatReplyTitle(tc.tool_name, tc.input);
-        const headerColor = tc.id ? idToColorVar(tc.id) : '';
-        const scriptOutput = parseScriptOutput(tc.output);
+    const logs = scriptOutput.data?.logs || [];
+    const warnings = scriptOutput.data?.warnings || [];
+    const errors = scriptOutput.data?.errors || [];
+    const durationMs = scriptOutput.data?.duration_ms;
+    const isSuccess = scriptOutput.success !== false;
+    const errorMsg = scriptOutput.error;
 
-        // If not a structured ToolResult, fall back to generic
-        if (!scriptOutput) {
-            return this._renderGenericReply(tc);
-        }
-
-        const logs = scriptOutput.data?.logs || [];
-        const warnings = scriptOutput.data?.warnings || [];
-        const errors = scriptOutput.data?.errors || [];
-        const durationMs = scriptOutput.data?.duration_ms;
-        const isSuccess = scriptOutput.success !== false;
-        const errorMsg = scriptOutput.error;
-
-        return html`
+    return html`
             <div class="timeline-item">
                 <div class="timeline-dot" part="dot" data-timestamp=${this._formattedTimestamp} @click=${this._handleDotClick}></div>
                 <div class="timeline-content" part="content">
@@ -581,70 +599,101 @@ export class RtcToolCallReply extends LitElement {
                             <span class="reply-status-dot"></span>
                         </div>
 
-                        ${logs.length > 0 ? html`
+                        ${
+                          logs.length > 0
+                            ? html`
                             <div class="reply-section">
                                 <rtc-scroll-container style="--rtc-scroll-max-height-locked: var(--rtc-content-height-md); --rtc-scroll-max-height-unlocked: var(--rtc-content-height-xl);">
                                     <pre class="reply-content reply-logs">${logs.join('\n')}</pre>
                                 </rtc-scroll-container>
                             </div>
-                        ` : nothing}
+                        `
+                            : nothing
+                        }
 
-                        ${warnings.length > 0 ? html`
+                        ${
+                          warnings.length > 0
+                            ? html`
                             <div class="reply-section">
                                 <rtc-scroll-container style="--rtc-scroll-max-height-locked: var(--rtc-content-height-md); --rtc-scroll-max-height-unlocked: var(--rtc-content-height-xl);">
-                                    <pre class="reply-content reply-warnings">${warnings.map(w => `[WARN] ${w}`).join('\n')}</pre>
+                                    <pre class="reply-content reply-warnings">${warnings.map((w) => `[WARN] ${w}`).join('\n')}</pre>
                                 </rtc-scroll-container>
                             </div>
-                        ` : nothing}
+                        `
+                            : nothing
+                        }
 
-                        ${errors.length > 0 ? html`
+                        ${
+                          errors.length > 0
+                            ? html`
                             <div class="reply-section">
                                 <rtc-scroll-container style="--rtc-scroll-max-height-locked: var(--rtc-content-height-md); --rtc-scroll-max-height-unlocked: var(--rtc-content-height-xl);">
-                                    <pre class="reply-content reply-errors">${errors.map(e => `[ERR] ${e}`).join('\n')}</pre>
+                                    <pre class="reply-content reply-errors">${errors.map((e) => `[ERR] ${e}`).join('\n')}</pre>
                                 </rtc-scroll-container>
                             </div>
-                        ` : nothing}
+                        `
+                            : nothing
+                        }
 
-                        ${errorMsg ? html`
+                        ${
+                          errorMsg
+                            ? html`
                             <div class="reply-section">
                                 <rtc-scroll-container style="--rtc-scroll-max-height-locked: var(--rtc-content-height-md); --rtc-scroll-max-height-unlocked: var(--rtc-content-height-xl);">
                                     <pre class="reply-content reply-errors">${errorMsg}</pre>
                                 </rtc-scroll-container>
                             </div>
-                        ` : nothing}
+                        `
+                            : nothing
+                        }
 
-                        ${logs.length === 0 && warnings.length === 0 && errors.length === 0 && !errorMsg ? html`
+                        ${
+                          logs.length === 0 &&
+                          warnings.length === 0 &&
+                          errors.length === 0 &&
+                          !errorMsg
+                            ? html`
                             <div class="reply-section">
                                 <rtc-scroll-container style="--rtc-scroll-max-height-locked: var(--rtc-content-height-md); --rtc-scroll-max-height-unlocked: var(--rtc-content-height-xl);">
                                     <pre class="reply-content reply-empty">${msg('(无输出)')}</pre>
                                 </rtc-scroll-container>
                             </div>
-                        ` : nothing}
+                        `
+                            : nothing
+                        }
 
                         <div class="reply-footer">
-                            ${!isSuccess ? html`
+                            ${
+                              !isSuccess
+                                ? html`
                                 <span class="reply-status-label reply-status-failed">${msg('失败')}</span>
-                            ` : nothing}
-                            ${durationMs != null ? html`
+                            `
+                                : nothing
+                            }
+                            ${
+                              durationMs != null
+                                ? html`
                                 <span class="reply-duration">${durationMs}ms</span>
-                            ` : nothing}
+                            `
+                                : nothing
+                            }
                         </div>
                     </div>
                 </div>
             </div>
         `;
-    }
+  }
 
-    /**
-     * Read tool reply: file content with smaller max-height.
-     */
-    private _renderReadReply(tc: OutputToolCallData) {
-        const title = formatReplyTitle(tc.tool_name, tc.input);
-        const headerColor = tc.id ? idToColorVar(tc.id) : '';
-        // Output is plain text file content — display as-is
-        const content = tc.output;
+  /**
+   * Read tool reply: file content with smaller max-height.
+   */
+  private _renderReadReply(tc: OutputToolCallData) {
+    const title = formatReplyTitle(tc.tool_name, tc.input);
+    const headerColor = tc.id ? idToColorVar(tc.id) : '';
+    // Output is plain text file content — display as-is
+    const content = tc.output;
 
-        return html`
+    return html`
             <div class="timeline-item">
                 <div
                     class="timeline-dot"
@@ -670,24 +719,24 @@ export class RtcToolCallReply extends LitElement {
                 </div>
             </div>
         `;
-    }
+  }
 
-    /**
-     * Generic tool reply: formatted output content.
-     */
-    private _renderGenericReply(tc: OutputToolCallData) {
-        const title = formatReplyTitle(tc.tool_name, tc.input);
-        const headerColor = tc.id ? idToColorVar(tc.id) : '';
-        const outputFormatted = (() => {
-            try {
-                const parsed = JSON.parse(tc.output);
-                return JSON.stringify(parsed, null, 2);
-            } catch {
-                return tc.output;
-            }
-        })();
+  /**
+   * Generic tool reply: formatted output content.
+   */
+  private _renderGenericReply(tc: OutputToolCallData) {
+    const title = formatReplyTitle(tc.tool_name, tc.input);
+    const headerColor = tc.id ? idToColorVar(tc.id) : '';
+    const outputFormatted = (() => {
+      try {
+        const parsed = JSON.parse(tc.output);
+        return JSON.stringify(parsed, null, 2);
+      } catch {
+        return tc.output;
+      }
+    })();
 
-        return html`
+    return html`
             <div class="timeline-item">
                 <div
                     class="timeline-dot"
@@ -713,11 +762,11 @@ export class RtcToolCallReply extends LitElement {
                 </div>
             </div>
         `;
-    }
+  }
 }
 
 declare global {
-    interface HTMLElementTagNameMap {
-        'rtc-toolcall-reply': RtcToolCallReply;
-    }
+  interface HTMLElementTagNameMap {
+    'rtc-toolcall-reply': RtcToolCallReply;
+  }
 }

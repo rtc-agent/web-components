@@ -7,18 +7,18 @@
  * Provided by: <rtc-agent> (root)
  * Consumed by: <rtc-session-tree>, <rtc-session-tree-item>
  */
-import {createContext} from '@lit/context';
-import type {SessionTreeState, SessionTreeActions} from '../types/index.js';
+import { createContext } from '@lit/context';
+import type { SessionTreeState, SessionTreeActions } from '../types/index.js';
 
 export interface SessionTreeContextValue {
-    state: SessionTreeState;
-    actions: SessionTreeActions;
+  state: SessionTreeState;
+  actions: SessionTreeActions;
 }
 
 export const SessionTreeContext = createContext<SessionTreeContextValue>(
-    Symbol('session-tree-context')
+  Symbol('session-tree-context'),
 );
 
 export const DEFAULT_SESSION_TREE_STATE: SessionTreeState = {
-    rootNodes: [],
+  rootNodes: [],
 };

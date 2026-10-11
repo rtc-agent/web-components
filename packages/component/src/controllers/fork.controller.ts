@@ -9,28 +9,33 @@
  *
  * No context — fork state is consumed only by the root component internally.
  */
-import type {ReactiveController, ReactiveControllerHost} from 'lit';
-import {msg, str} from '@lit/localize';
-import type {ContentData} from '../types/index.js';
-import { createLogger } from '@rtc-agent/client';
+import type { ReactiveController, ReactiveControllerHost } from 'lit';
+import { msg, str } from '@lit/localize';
+import type { ContentData } from '../types/index.js';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('ForkController');
 
 /** Fork state: set when user initiates a fork, cleared on submit or cancel. */
 export interface ForkState {
-    oldSessionClientId: string;
-    oldMessageClientId: string;
-    newSessionClientId: string;
-    hintMessage: string;
+  oldSessionClientId: string;
+  oldMessageClientId: string;
+  newSessionClientId: string;
+  hintMessage: string;
 }
 
 export interface ForkActions {
-    /** Initiate a fork from a specific message. newSessionClientId is provided by the caller (chat-layout). */
-    requestFork: (oldSessionClientId: string, oldMessageClientId: string, newSessionClientId: string, content: string) => void;
-    /** Submit the fork: create the new session and send the message. */
-    submitFork: (content: ContentData) => Promise<void>;
-    /** Cancel the fork and return to normal mode. */
-    clearFork: () => void;
+  /** Initiate a fork from a specific message. newSessionClientId is provided by the caller (chat-layout). */
+  requestFork: (
+    oldSessionClientId: string,
+    oldMessageClientId: string,
+    newSessionClientId: string,
+    content: string,
+  ) => void;
+  /** Submit the fork: create the new session and send the message. */
+  submitFork: (content: ContentData) => Promise<void>;
+  /** Cancel the fork and return to normal mode. */
+  clearFork: () => void;
 }
 
 /**
@@ -38,97 +43,106 @@ export interface ForkActions {
  * Set by the root component after construction.
  */
 export interface ForkDeps {
-    /** Clear messages in the message list (switch to blank state). */
-    clearMessages: () => void;
-    /** Clear transient UI params (initialInputValue, noticeMessage) from the tab. */
-    clearTransientParams: (sessionId: string) => void;
-    /** Execute the fork via MessageController. */
-    executeFork: (params: {
-        oldSessionClientId: string;
-        oldMessageClientId: string;
-        newSessionClientId: string;
-        newMessageClientId: string;
-        content: ContentData;
-    }) => Promise<void>;
+  /** Clear messages in the message list (switch to blank state). */
+  clearMessages: () => void;
+  /** Clear transient UI params (initialInputValue, noticeMessage) from the tab. */
+  clearTransientParams: (sessionId: string) => void;
+  /** Execute the fork via MessageController. */
+  executeFork: (params: {
+    oldSessionClientId: string;
+    oldMessageClientId: string;
+    newSessionClientId: string;
+    newMessageClientId: string;
+    content: ContentData;
+  }) => Promise<void>;
 }
 
 export class ForkController implements ReactiveController {
-    private _host: ReactiveControllerHost;
-    private _state: ForkState | null = null;
-    private _deps: ForkDeps | null = null;
+  private _host: ReactiveControllerHost;
+  private _state: ForkState | null = null;
+  private _deps: ForkDeps | null = null;
 
-    readonly actions: ForkActions;
+  readonly actions: ForkActions;
 
-    get state(): ForkState | null {
-        return this._state;
+  get state(): ForkState | null {
+    return this._state;
+  }
+
+  get isActive(): boolean {
+    return this._state !== null;
+  }
+
+  constructor(host: ReactiveControllerHost) {
+    this._host = host;
+    this._host.addController(this);
+    this.actions = {
+      requestFork: (oldSC, oldMC, newSC, content) =>
+        this._requestFork(oldSC, oldMC, newSC, content),
+      submitFork: (content) => this._submitFork(content),
+      clearFork: () => this._clearFork(),
+    };
+  }
+
+  /** Wire dependencies after construction (avoids circular init). */
+  setDeps(deps: ForkDeps) {
+    this._deps = deps;
+  }
+
+  hostConnected() {}
+  hostDisconnected() {}
+
+  private _requestFork(
+    oldSessionClientId: string,
+    oldMessageClientId: string,
+    newSessionClientId: string,
+    _content: string,
+  ) {
+    const truncatedContent =
+      _content.length > 30 ? _content.slice(0, 30) + '...' : _content;
+
+    this._state = {
+      oldSessionClientId,
+      oldMessageClientId,
+      newSessionClientId,
+      hintMessage: msg(str`🔀 从「${truncatedContent}」分叉`),
+    };
+    this._host.requestUpdate();
+
+    // Clear message list (the only required imperative operation)
+    // input value and notice message are passed via tab transient params (set by chat-layout)
+    // Lit rendering automatically passes them to input-area / notice-bar via property binding
+    this._deps?.clearMessages();
+    log.debug(
+      '_requestFork: state set, transient params handled by tab property binding',
+    );
+  }
+
+  private async _submitFork(content: ContentData) {
+    if (!this._state || !this._deps) return;
+
+    const newMessageClientId = `msg-${crypto.randomUUID()}`;
+
+    try {
+      await this._deps.executeFork({
+        oldSessionClientId: this._state.oldSessionClientId,
+        oldMessageClientId: this._state.oldMessageClientId,
+        newSessionClientId: this._state.newSessionClientId,
+        newMessageClientId,
+        content,
+      });
+    } catch (err) {
+      log.error('forkSession failed:', err);
     }
 
-    get isActive(): boolean {
-        return this._state !== null;
+    this._clearFork();
+  }
+
+  private _clearFork() {
+    if (this._state) {
+      // Clear transient params on tab (input value + notice message)
+      this._deps?.clearTransientParams(this._state.newSessionClientId);
     }
-
-    constructor(host: ReactiveControllerHost) {
-        this._host = host;
-        this._host.addController(this);
-        this.actions = {
-            requestFork: (oldSC, oldMC, newSC, content) => this._requestFork(oldSC, oldMC, newSC, content),
-            submitFork: (content) => this._submitFork(content),
-            clearFork: () => this._clearFork(),
-        };
-    }
-
-    /** Wire dependencies after construction (avoids circular init). */
-    setDeps(deps: ForkDeps) {
-        this._deps = deps;
-    }
-
-    hostConnected() {}
-    hostDisconnected() {}
-
-    private _requestFork(oldSessionClientId: string, oldMessageClientId: string, newSessionClientId: string, _content: string) {
-        const truncatedContent = _content.length > 30 ? _content.slice(0, 30) + '...' : _content;
-
-        this._state = {
-            oldSessionClientId,
-            oldMessageClientId,
-            newSessionClientId,
-            hintMessage: msg(str`🔀 从「${truncatedContent}」分叉`),
-        };
-        this._host.requestUpdate();
-
-        // Clear message list (the only required imperative operation)
-        // input value and notice message are passed via tab transient params (set by chat-layout)
-        // Lit rendering automatically passes them to input-area / notice-bar via property binding
-        this._deps?.clearMessages();
-        log.debug('_requestFork: state set, transient params handled by tab property binding');
-    }
-
-    private async _submitFork(content: ContentData) {
-        if (!this._state || !this._deps) return;
-
-        const newMessageClientId = `msg-${crypto.randomUUID()}`;
-
-        try {
-            await this._deps.executeFork({
-                oldSessionClientId: this._state.oldSessionClientId,
-                oldMessageClientId: this._state.oldMessageClientId,
-                newSessionClientId: this._state.newSessionClientId,
-                newMessageClientId,
-                content,
-            });
-        } catch (err) {
-            log.error('forkSession failed:', err);
-        }
-
-        this._clearFork();
-    }
-
-    private _clearFork() {
-        if (this._state) {
-            // Clear transient params on tab (input value + notice message)
-            this._deps?.clearTransientParams(this._state.newSessionClientId);
-        }
-        this._state = null;
-        this._host.requestUpdate();
-    }
+    this._state = null;
+    this._host.requestUpdate();
+  }
 }

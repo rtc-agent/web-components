@@ -4,7 +4,7 @@
  * Tree view styles for the function list.
  * Colors use project Tokens (--rtc-color-*) to ensure dual-theme adaptation.
  */
-import {css} from 'lit';
+import { css } from 'lit';
 
 export const styles = css`
     :host {

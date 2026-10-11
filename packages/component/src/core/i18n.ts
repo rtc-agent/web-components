@@ -1,12 +1,20 @@
 import { configureLocalization } from '@lit/localize';
 import { createContext } from '@lit/context';
 import type { LocaleModule } from '@lit/localize';
-import { safeLocalStorageGet, safeLocalStorageSet } from '../utils/safe-local-storage.js';
+import {
+  safeLocalStorageGet,
+  safeLocalStorageSet,
+} from '../utils/safe-local-storage.js';
 
 // 1. Locale codes
 export const sourceLocale = 'zh-CN' as const;
 export const targetLocales = ['en-US'] as const;
-export type SupportedLocale = typeof targetLocales[number] | typeof sourceLocale;
+export type SupportedLocale =
+  | (typeof targetLocales)[number]
+  | typeof sourceLocale;
+
+// RTL (right-to-left) locale prefixes — used to sync document.dir
+const RTL_LOCALES = ['ar', 'he', 'fa', 'ur'];
 
 // 2. Dynamic import of locale bundles
 const localeModules: Record<string, () => Promise<LocaleModule>> = {
@@ -25,14 +33,14 @@ export const { getLocale, setLocale: _setLocale } = configureLocalization({
     if (!loader) {
       const available = Object.keys(localeModules).join(', ');
       throw new Error(
-        `[i18n] Unknown locale: "${locale}". Available: ${available}`
+        `[i18n] Unknown locale: "${locale}". Available: ${available}`,
       );
     }
     try {
       return await loader();
     } catch (err) {
       throw new Error(
-        `[i18n] Failed to load locale "${locale}": ${err instanceof Error ? err.message : String(err)}`
+        `[i18n] Failed to load locale "${locale}": ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   },
@@ -45,7 +53,9 @@ export interface LocaleContextValue {
   locales: readonly SupportedLocale[];
 }
 
-export const localeContext = createContext<LocaleContextValue>(Symbol('locale'));
+export const localeContext = createContext<LocaleContextValue>(
+  Symbol('locale'),
+);
 
 // 5. Type guard: compile-time type safety
 const validLocales: readonly string[] = [sourceLocale, ...targetLocales];
@@ -80,8 +90,9 @@ export async function initLocale(hostLang?: string): Promise<void> {
   if (initial !== sourceLocale) {
     await _setLocale(initial);
   }
-  // Sync document lang attribute to ensure screen readers use correct pronunciation rules
+  // Sync document lang/dir so screen readers & layout match the active locale
   document.documentElement.lang = initial;
+  document.documentElement.dir = isRTLLocale(initial) ? 'rtl' : 'ltr';
 }
 
 export function persistLocale(locale: SupportedLocale): void {
@@ -96,4 +107,13 @@ export async function switchLocale(locale: SupportedLocale): Promise<void> {
   await _setLocale(locale);
   persistLocale(locale);
   document.documentElement.lang = locale;
+  document.documentElement.dir = isRTLLocale(locale) ? 'rtl' : 'ltr';
+}
+
+/**
+ * Detect whether a locale requires right-to-left layout.
+ * Matches any locale whose prefix appears in RTL_LOCALES (e.g. "fa-IR" -> "fa").
+ */
+function isRTLLocale(locale: string): boolean {
+  return RTL_LOCALES.some((rtl) => locale.startsWith(rtl));
 }

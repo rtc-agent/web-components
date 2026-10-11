@@ -7,8 +7,8 @@
  * Visual: a compact card with a ↩ header bar + tool-specific content sections.
  * No connecting lines — the reply is a self-contained block.
  */
-import {css} from 'lit';
-import {timelineStyles} from './timeline.styles.js';
+import { css } from 'lit';
+import { timelineStyles } from './timeline.styles.js';
 
 export const styles = [
   timelineStyles,

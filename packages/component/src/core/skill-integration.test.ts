@@ -62,12 +62,16 @@ describe('Skill System Integration', () => {
       expect(paths).toContain('/functions/INDEX.md');
       // AGENT.md is written after queryByType (also async); wait for it too.
       await vi.waitFor(() => {
-        const ps = mockVirtualFS.write.mock.calls.map((c: unknown[]) => c[0] as string);
+        const ps = mockVirtualFS.write.mock.calls.map(
+          (c: unknown[]) => c[0] as string,
+        );
         expect(ps).toContain('/AGENT.md');
       });
 
       // Execute
-      const result = await registry.execute('user.register', { email: 'a@b.com' });
+      const result = await registry.execute('user.register', {
+        email: 'a@b.com',
+      });
 
       expect(handler).toHaveBeenCalledWith(
         { email: 'a@b.com' },
@@ -130,7 +134,9 @@ description: "A complete checkout flow"
       const writeCalls = mockVirtualFS.write.mock.calls;
       const paths = writeCalls.map((c: unknown[]) => c[0] as string);
       // CJK characters are preserved in the slug
-      expect(paths.some((p: string) => p.startsWith('/scenarios/用户注册流程'))).toBe(true);
+      expect(
+        paths.some((p: string) => p.startsWith('/scenarios/用户注册流程')),
+      ).toBe(true);
     });
   });
 
@@ -164,7 +170,8 @@ description: "A complete checkout flow"
       expect(startEvent.path).toBe('happy.path');
       expect(startEvent.params).toEqual({});
 
-      const successEvent = successHandler.mock.calls[0][0] as FunctionSuccessEvent;
+      const successEvent = successHandler.mock
+        .calls[0][0] as FunctionSuccessEvent;
       expect(successEvent.path).toBe('happy.path');
       expect(successEvent.result).toBe(42);
     });

@@ -1,4 +1,4 @@
-import {css} from 'lit';
+import { css } from 'lit';
 
 /**
  * Design Tokens — CSS Custom Properties for the RTC Agent component library.

@@ -16,7 +16,15 @@
  *   }
  */
 
-import { existsSync, mkdirSync, copyFileSync, readFileSync, readdirSync, writeFileSync, unlinkSync } from 'fs';
+import {
+  existsSync,
+  mkdirSync,
+  copyFileSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+  unlinkSync,
+} from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -96,7 +104,10 @@ function copyWorkerFiles(targetDir) {
   // Clean up old hashed worker files
   const existingFiles = existsSync(targetDir) ? readdirSync(targetDir) : [];
   const oldWorkerFiles = existingFiles.filter(
-    f => f.startsWith('shared-worker-') && f.endsWith('.js') && f !== 'shared-worker.js'
+    (f) =>
+      f.startsWith('shared-worker-') &&
+      f.endsWith('.js') &&
+      f !== 'shared-worker.js',
   );
 
   for (const oldFile of oldWorkerFiles) {
@@ -111,7 +122,9 @@ function copyWorkerFiles(targetDir) {
 
   // Find the main worker file in dist
   const distFiles = readdirSync(sourceDir);
-  const workerFiles = distFiles.filter(f => f.startsWith('shared-worker') && f.endsWith('.js'));
+  const workerFiles = distFiles.filter(
+    (f) => f.startsWith('shared-worker') && f.endsWith('.js'),
+  );
 
   if (workerFiles.length === 0) {
     console.warn('⚠️  Warning: No shared-worker files found in dist/assets');
@@ -121,7 +134,9 @@ function copyWorkerFiles(targetDir) {
 
   // Find the hashed worker file
   // Vite generates hashes with alphanumeric characters, underscores, and hyphens
-  const hashedWorkerFile = workerFiles.find(f => f !== 'shared-worker.js' && f.match(/shared-worker-[\w-]+\.js/));
+  const hashedWorkerFile = workerFiles.find(
+    (f) => f !== 'shared-worker.js' && f.match(/shared-worker-[\w-]+\.js/),
+  );
 
   if (!hashedWorkerFile) {
     console.warn('⚠️  Warning: No hashed worker file found');
@@ -148,7 +163,7 @@ function copyWorkerFiles(targetDir) {
 
   writeFileSync(
     join(targetDir, 'manifest.json'),
-    JSON.stringify(manifest, null, 2)
+    JSON.stringify(manifest, null, 2),
   );
   console.log(`✅ Created manifest.json (version ${packageJson.version})`);
 
@@ -179,21 +194,25 @@ async function main() {
   if (copiedFiles > 0) {
     console.log('\n✅ Setup complete!');
     console.log('\nNext steps:');
-    console.log('  1. SharedWorker files are now available in your public directory');
+    console.log(
+      '  1. SharedWorker files are now available in your public directory',
+    );
     console.log('  2. Configure createRtcAgent() to use the worker:');
     console.log('     createRtcAgent({');
-    console.log('       workerURL: \'/rtc-agent/shared-worker.js\'');
+    console.log("       workerURL: '/rtc-agent/shared-worker.js'");
     console.log('     })');
     console.log('  3. When upgrading @rtc-agent/component, run:');
     console.log('     npx rtc-agent-setup');
     console.log('     This will update the worker files and manifest.json');
   } else {
     console.log('\n⚠️  Setup completed with warnings');
-    console.log('   Please check if @rtc-agent/component is installed correctly');
+    console.log(
+      '   Please check if @rtc-agent/component is installed correctly',
+    );
   }
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error('❌ Setup failed:', err);
   process.exit(1);
 });

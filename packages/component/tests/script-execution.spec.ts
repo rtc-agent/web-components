@@ -8,7 +8,9 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Task Manager - Script Execution', () => {
-  test('should execute rtcAgent.task.create via script tool', async ({ page }) => {
+  test('should execute rtcAgent.task.create via script tool', async ({
+    page,
+  }) => {
     // Navigate to the Task Manager demo page (served by Vite at port 3000)
     await page.goto('http://localhost:3000');
 
@@ -16,15 +18,21 @@ test.describe('Task Manager - Script Execution', () => {
     await page.waitForSelector('.task-list');
 
     // Wait for registry to be initialized and functions registered
-    await page.waitForFunction(() => {
-      return window.registry && window.registry.listFunctions().length > 0;
-    }, { timeout: 5000 });
+    await page.waitForFunction(
+      () => {
+        return window.registry && window.registry.listFunctions().length > 0;
+      },
+      { timeout: 5000 },
+    );
 
     // Wait for toolRegistry bridge to be established
     // (SkillController bridges rtcAgentAPI into toolRegistry when registry is set on <rtc-agent>)
-    await page.waitForFunction(() => {
-      return window.toolRegistry && window.toolRegistry.has('script');
-    }, { timeout: 5000 });
+    await page.waitForFunction(
+      () => {
+        return window.toolRegistry && window.toolRegistry.has('script');
+      },
+      { timeout: 5000 },
+    );
 
     // Execute the script via the script tool (simulating what the LLM agent does)
     const result = await page.evaluate(async () => {
@@ -36,7 +44,7 @@ test.describe('Task Manager - Script Execution', () => {
       try {
         const result = await scriptTool.execute({
           action: 'eval',
-          code: 'const task = await rtcAgent.task.create({ title: "test" })\nconsole.log("Created:", task)'
+          code: 'const task = await rtcAgent.task.create({ title: "test" })\nconsole.log("Created:", task)',
         });
         return { success: true, result };
       } catch (err) {
@@ -56,7 +64,9 @@ test.describe('Task Manager - Script Execution', () => {
 
     // Verify the task was created in the registry (stored in localStorage by TaskManager)
     const tasks = await page.evaluate(async () => {
-      return await window.registry.execute('task.list', {}) as Array<{ title: string }>;
+      return (await window.registry.execute('task.list', {})) as Array<{
+        title: string;
+      }>;
     });
 
     expect(tasks.length).toBeGreaterThan(0);
@@ -76,9 +86,12 @@ test.describe('Task Manager - Script Execution', () => {
     await page.waitForSelector('.task-list');
 
     // Wait for registry
-    await page.waitForFunction(() => {
-      return window.registry && window.registry.listFunctions().length > 0;
-    }, { timeout: 5000 });
+    await page.waitForFunction(
+      () => {
+        return window.registry && window.registry.listFunctions().length > 0;
+      },
+      { timeout: 5000 },
+    );
 
     // Create a task using the registry directly
     await page.evaluate(async () => {
@@ -90,7 +103,9 @@ test.describe('Task Manager - Script Execution', () => {
     await page.waitForSelector('.task-title');
 
     // Verify task appears in UI
-    const taskTitles = await page.$$eval('.task-title', els => els.map(el => el.textContent));
-    expect(taskTitles.some(t => t?.includes('UI test task'))).toBe(true);
+    const taskTitles = await page.$$eval('.task-title', (els) =>
+      els.map((el) => el.textContent),
+    );
+    expect(taskTitles.some((t) => t?.includes('UI test task'))).toBe(true);
   });
 });

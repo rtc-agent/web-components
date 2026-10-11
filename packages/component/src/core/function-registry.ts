@@ -1,4 +1,4 @@
-import {createLogger} from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
 const log = createLogger('FunctionRegistry');
 
 /**
@@ -22,11 +22,29 @@ import type {
   ScenarioDef,
 } from '../types/skill.js';
 import { virtualFS } from '@rtc-agent/persistence';
-import { generateFunctionMd, generateFunctionsIndex, generateAgentMd, generateScenariosIndex } from './markdown-generator.js';
+import {
+  generateFunctionMd,
+  generateFunctionsIndex,
+  generateAgentMd,
+  generateScenariosIndex,
+} from './markdown-generator.js';
 import { registerBuiltinSystemGroup } from './builtin-system-group.js';
-import { zodToParams, zodToOpenAPISchema } from '../validation/zod-to-openapi.js';
-import { eventBus, type FunctionStartEvent, type FunctionSuccessEvent, type FunctionErrorEvent, type FunctionProgressEvent } from './event-bus.js';
-import { buildValidator, validateParams, formatValidationError } from '../validation/index.js';
+import {
+  zodToParams,
+  zodToOpenAPISchema,
+} from '../validation/zod-to-openapi.js';
+import {
+  eventBus,
+  type FunctionStartEvent,
+  type FunctionSuccessEvent,
+  type FunctionErrorEvent,
+  type FunctionProgressEvent,
+} from './event-bus.js';
+import {
+  buildValidator,
+  validateParams,
+  formatValidationError,
+} from '../validation/index.js';
 
 /**
  * FunctionGroup instance
@@ -75,10 +93,15 @@ export class FunctionGroup {
    * Whitelist methods are returned directly; other property names are treated as function names within the group,
    * returning a function that calls registry.execute('group.funcName', params).
    */
-  createProxy(): FunctionGroup & Record<string, (params?: Record<string, unknown>) => Promise<unknown>> {
+  createProxy(): FunctionGroup &
+    Record<string, (params?: Record<string, unknown>) => Promise<unknown>> {
     const group = this;
 
-    const PUBLIC_METHODS = new Set(['register', 'listFunctions', 'createProxy']);
+    const PUBLIC_METHODS = new Set([
+      'register',
+      'listFunctions',
+      'createProxy',
+    ]);
 
     return new Proxy(this, {
       get(target, prop: string | symbol) {
@@ -98,18 +121,25 @@ export class FunctionGroup {
         // Check if it's a registered function name
         const fullName = `${group.groupName}.${prop}`;
         if (group.functions.has(fullName)) {
-          return (params: Record<string, unknown> = {}) => group.registry.execute(fullName, params);
+          return (params: Record<string, unknown> = {}) =>
+            group.registry.execute(fullName, params);
         }
 
         // Unknown property: log a warning to help debug typos or missing registrations
-        const availableFns = Array.from(group.functions.keys()).map(k => k.split('.')[1]);
-        const displayList = availableFns.length > 10
-          ? `${availableFns.slice(0, 10).join(', ')}, ... (${availableFns.length - 10} more)`
-          : availableFns.join(', ');
-        log.warn(`Function '${fullName}' is not registered. Available functions: ${displayList}`);
+        const availableFns = Array.from(group.functions.keys()).map(
+          (k) => k.split('.')[1],
+        );
+        const displayList =
+          availableFns.length > 10
+            ? `${availableFns.slice(0, 10).join(', ')}, ... (${availableFns.length - 10} more)`
+            : availableFns.join(', ');
+        log.warn(
+          `Function '${fullName}' is not registered. Available functions: ${displayList}`,
+        );
         return undefined;
       },
-    }) as unknown as FunctionGroup & Record<string, (params?: Record<string, unknown>) => Promise<unknown>>;
+    }) as unknown as FunctionGroup &
+      Record<string, (params?: Record<string, unknown>) => Promise<unknown>>;
   }
 }
 
@@ -120,7 +150,11 @@ export class FunctionRegistry {
   private config: RegistryConfig;
   private functions = new Map<string, FunctionDef>();
   private groups = new Map<string, FunctionGroup>();
-  private groupProxies = new Map<string, FunctionGroup & Record<string, (params?: Record<string, unknown>) => Promise<unknown>>>();
+  private groupProxies = new Map<
+    string,
+    FunctionGroup &
+      Record<string, (params?: Record<string, unknown>) => Promise<unknown>>
+  >();
   private groupDefs = new Map<string, FunctionGroupDef>();
 
   constructor(config: RegistryConfig) {
@@ -154,7 +188,9 @@ export class FunctionRegistry {
   registerInternal(funcDef: FunctionDef, groupName?: string): void {
     // Warn on duplicate registration (prevents silent overwrites)
     if (this.functions.has(funcDef.name)) {
-      log.warn(`Function '${funcDef.name}' is already registered and will be overwritten.`);
+      log.warn(
+        `Function '${funcDef.name}' is already registered and will be overwritten.`,
+      );
     }
 
     // Normalize: derive parameters and return schema from zodSchema if not explicitly set
@@ -178,7 +214,10 @@ export class FunctionRegistry {
       try {
         funcDef.parameters = zodToParams(funcDef.zodSchema);
       } catch (err) {
-        log.warn(`Failed to convert zodSchema to parameters for ${funcDef.name}:`, err);
+        log.warn(
+          `Failed to convert zodSchema to parameters for ${funcDef.name}:`,
+          err,
+        );
       }
     }
 
@@ -187,7 +226,10 @@ export class FunctionRegistry {
       try {
         funcDef.returns.schema = zodToOpenAPISchema(funcDef.returns.zodSchema);
       } catch (err) {
-        log.warn(`Failed to convert returns.zodSchema for ${funcDef.name}:`, err);
+        log.warn(
+          `Failed to convert returns.zodSchema for ${funcDef.name}:`,
+          err,
+        );
       }
     }
   }
@@ -198,7 +240,10 @@ export class FunctionRegistry {
    * Returns a Proxy-wrapped FunctionGroup supporting chain calls:
    * rtcAgent.task.list(params) → rtcAgent.execute('task.list', params)
    */
-  createGroup(groupDef: FunctionGroupDef): FunctionGroup & Record<string, (params?: Record<string, unknown>) => Promise<unknown>> {
+  createGroup(
+    groupDef: FunctionGroupDef,
+  ): FunctionGroup &
+    Record<string, (params?: Record<string, unknown>) => Promise<unknown>> {
     if (this.groups.has(groupDef.name)) {
       throw new Error(`FunctionGroup already exists: ${groupDef.name}`);
     }
@@ -316,10 +361,10 @@ export class FunctionRegistry {
    * @returns files: list of files to write, deletePaths: orphan paths to delete
    */
   async generateAllDocsContent(scenarioCount = 0): Promise<{
-    files: Array<{path: string; content: string}>;
+    files: Array<{ path: string; content: string }>;
     deletePaths: string[];
   }> {
-    const files: Array<{path: string; content: string}> = [];
+    const files: Array<{ path: string; content: string }> = [];
 
     // Generate all function documents
     const currentDocPaths = new Set<string>();
@@ -330,7 +375,7 @@ export class FunctionRegistry {
       const path = groupName
         ? `/functions/${groupName}/${funcDef.name.split('.')[1]}.md`
         : `/functions/${funcDef.name}.md`;
-      files.push({path, content: md});
+      files.push({ path, content: md });
       currentDocPaths.add(path);
     }
 
@@ -353,14 +398,17 @@ export class FunctionRegistry {
     let deletePaths: string[] = [];
     try {
       const existingFiles = await virtualFS.find('**', '/functions/');
-      deletePaths = existingFiles.filter(p =>
-        p !== indexPath && !currentDocPaths.has(p)
+      deletePaths = existingFiles.filter(
+        (p) => p !== indexPath && !currentDocPaths.has(p),
       );
       if (deletePaths.length > 0) {
         log.info('Found orphan function docs to delete:', deletePaths);
       }
     } catch (err) {
-      log.warn('Failed to query existing function docs for reconciliation:', err);
+      log.warn(
+        'Failed to query existing function docs for reconciliation:',
+        err,
+      );
     }
 
     return { files, deletePaths };
@@ -380,7 +428,10 @@ export class FunctionRegistry {
    *      onSuccess may complete before or after the function:success event.
    *     For strict ordering, use event listeners instead of hooks.
    */
-  async execute(path: string, params: Record<string, unknown>): Promise<unknown> {
+  async execute(
+    path: string,
+    params: Record<string, unknown>,
+  ): Promise<unknown> {
     const funcDef = this.resolve(path);
     if (!funcDef) {
       throw new Error(`Function not found: ${path}`);
@@ -395,7 +446,11 @@ export class FunctionRegistry {
         const parts = path.split('.');
         const groupName = parts.length > 1 ? parts[0] : 'global';
         const funcName = parts.length > 1 ? parts[1] : parts[0];
-        const errorMsg = formatValidationError(groupName, funcName, validation.errors!);
+        const errorMsg = formatValidationError(
+          groupName,
+          funcName,
+          validation.errors!,
+        );
         throw new Error(errorMsg);
       }
       // Use validated data (may contain default values)
@@ -419,7 +474,8 @@ export class FunctionRegistry {
       try {
         await hooks.onStart(params);
       } catch (startErr) {
-        const err = startErr instanceof Error ? startErr : new Error(String(startErr));
+        const err =
+          startErr instanceof Error ? startErr : new Error(String(startErr));
         // Emit error event for UI cleanup (fire-and-forget, like other event emissions)
         const errorEvent: FunctionErrorEvent = { path, error: err };
         eventBus.emit('function:error', errorEvent);
@@ -447,7 +503,7 @@ export class FunctionRegistry {
       if (hooks.onSuccess) {
         Promise.resolve()
           .then(() => hooks.onSuccess!(result))
-          .catch(err => {
+          .catch((err) => {
             log.error(`onSuccess hook failed for ${path}:`, err);
           });
       }
@@ -464,7 +520,7 @@ export class FunctionRegistry {
       if (hooks.onError) {
         Promise.resolve()
           .then(() => hooks.onError!(err))
-          .catch(hookErr => {
+          .catch((hookErr) => {
             log.error(`onError hook failed for ${path}:`, hookErr);
           });
       }
@@ -496,7 +552,7 @@ export class FunctionRegistry {
     let content = '---\n';
     content += `title: "${scenario.title}"\n`;
     if (scenario.tags && scenario.tags.length > 0) {
-      content += `tags: [${scenario.tags.map(t => `"${t}"`).join(', ')}]\n`;
+      content += `tags: [${scenario.tags.map((t) => `"${t}"`).join(', ')}]\n`;
     }
     content += '---\n\n';
     content += scenario.content;
@@ -511,7 +567,10 @@ export class FunctionRegistry {
   /**
    * Update function documentation
    */
-  private async _updateFunctionDoc(funcDef: FunctionDef, groupName?: string): Promise<void> {
+  private async _updateFunctionDoc(
+    funcDef: FunctionDef,
+    groupName?: string,
+  ): Promise<void> {
     try {
       // Generate single function document
       const md = generateFunctionMd(funcDef, groupName);
@@ -534,7 +593,10 @@ export class FunctionRegistry {
         return;
       }
       if (this.config.onError) {
-        this.config.onError(error, `Failed to update documentation for function: ${funcDef.name}`);
+        this.config.onError(
+          error,
+          `Failed to update documentation for function: ${funcDef.name}`,
+        );
       } else {
         log.error(`Failed to update documentation for ${funcDef.name}:`, err);
       }
@@ -584,7 +646,12 @@ export class FunctionRegistry {
     const groups = this.listGroups();
     const scenarios = await virtualFS.queryByType('scenario');
 
-    const md = generateAgentMd(this.config, functions, groups, scenarios.length);
+    const md = generateAgentMd(
+      this.config,
+      functions,
+      groups,
+      scenarios.length,
+    );
     // Use 'overwrite' mode: AGENT.md is always regenerated to stay consistent with registry
     await virtualFS.write('/AGENT.md', md, 'overwrite');
   }
@@ -670,10 +737,13 @@ export class FunctionRegistry {
 
         // Unknown property: log a warning to help debug typos or missing registrations
         const availableGroups = Array.from(registry.groupProxies.keys());
-        const displayList = availableGroups.length > 10
-          ? `${availableGroups.slice(0, 10).join(', ')}, ... (${availableGroups.length - 10} more)`
-          : availableGroups.join(', ');
-        log.warn(`'${prop}' is not a registered function group or public method. Available groups: ${displayList}`);
+        const displayList =
+          availableGroups.length > 10
+            ? `${availableGroups.slice(0, 10).join(', ')}, ... (${availableGroups.length - 10} more)`
+            : availableGroups.join(', ');
+        log.warn(
+          `'${prop}' is not a registered function group or public method. Available groups: ${displayList}`,
+        );
         return undefined;
       },
     }) as unknown as FunctionRegistry & Record<string, FunctionGroup>;
@@ -686,7 +756,9 @@ export class FunctionRegistry {
  * Automatically registers the built-in system tool group (delay/uuid/now/random/time),
  * allowing scripts to access commonly used platform APIs sandboxed via rtcAgent.system.*.
  */
-export function defineRegistry(config: RegistryConfig): FunctionRegistry & Record<string, FunctionGroup> {
+export function defineRegistry(
+  config: RegistryConfig,
+): FunctionRegistry & Record<string, FunctionGroup> {
   const registry = new FunctionRegistry(config);
   registerBuiltinSystemGroup(registry);
   return registry.createProxy();

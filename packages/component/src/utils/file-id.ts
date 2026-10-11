@@ -17,7 +17,7 @@
  * // { md5: 'abc123def456', ext: 'png' }
  * ```
  */
-export function parseFileId(fileid: string): {md5: string; ext: string} {
+export function parseFileId(fileid: string): { md5: string; ext: string } {
   const lastDot = fileid.lastIndexOf('.');
   if (lastDot === -1) {
     throw new Error(`Invalid fileid format: ${fileid}`);

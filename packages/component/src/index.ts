@@ -4,7 +4,7 @@
  * Public API — only <rtc-agent> is exported.
  * Internal components are registered as side-effects and not exported.
  */
-export {RtcAgent} from './components/rtc-agent/rtc-agent.js';
+export { RtcAgent } from './components/rtc-agent/rtc-agent.js';
 
 // ===== Host Integration (Recommended Entry Points) =====
 
@@ -19,7 +19,7 @@ export {RtcAgent} from './components/rtc-agent/rtc-agent.js';
  * agent.agentConfig = { persona: '...', functions: [...] };
  * ```
  */
-export {whenReady} from './core/ready.js';
+export { whenReady } from './core/ready.js';
 
 /**
  * Internationalization API -- switch language at runtime
@@ -68,7 +68,7 @@ export type { Theme } from './core/theme.js';
  * Used for the <rtc-agent>.agentConfig property -- the primary integration method for host applications.
  * No need to understand internal concepts like FunctionRegistry / toolRegistry.
  */
-export type {AgentConfig, AgentFunctionGroup} from './types/agent-config.js';
+export type { AgentConfig, AgentFunctionGroup } from './types/agent-config.js';
 
 /**
  * Component event detail type mapping (for TypeScript type-safe addEventListener)
@@ -76,7 +76,7 @@ export type {AgentConfig, AgentFunctionGroup} from './types/agent-config.js';
  * Works via global extension of HTMLElementEventMap; the RtcAgent instance returned by
  * document.querySelector('rtc-agent') automatically gets type hints for the rtc-agent-ready event.
  */
-export type {RtcAgentEventDetailMap} from './types/events.js';
+export type { RtcAgentEventDetailMap } from './types/events.js';
 
 /**
  * Global type extensions (HTMLElementTagNameMap, etc.)
@@ -102,11 +102,11 @@ import './elements.js';
  */
 export { createRtcAgent } from './factory.js';
 export type {
-    RtcAgentConfig,
-    RtcAgentWithLifecycle,
-    AuthConfig,
-    AuthProvider,
-    EventCallbacks,
+  RtcAgentConfig,
+  RtcAgentWithLifecycle,
+  AuthConfig,
+  AuthProvider,
+  EventCallbacks,
 } from './types/factory.js';
 
 /**
@@ -130,38 +130,58 @@ export type { ConnectionState } from '@rtc-agent/client';
  */
 export type { WindowConfig } from './types/window-config.js';
 export type {
-    ActivityBarConfig,
-    Activity,
-    ResolvedActivityBarConfig,
+  ActivityBarConfig,
+  Activity,
+  ResolvedActivityBarConfig,
 } from './types/activity-bar-config.js';
 export {
-    DEFAULT_ACTIVITY_BAR_CONFIG,
-    resolveActivityBarConfig,
+  DEFAULT_ACTIVITY_BAR_CONFIG,
+  resolveActivityBarConfig,
 } from './types/activity-bar-config.js';
 
 // ===== Skill System (Advanced API) =====
 
-export { defineRegistry, FunctionRegistry, FunctionGroup } from './core/function-registry.js';
-export { loadScenariosFromURL, loadScenariosContent, parseFrontmatter } from './core/scenario-loader.js';
-export { generateFunctionMd, generateFunctionsIndex, generateScenariosIndex, generateAgentMd } from './core/markdown-generator.js';
+export {
+  defineRegistry,
+  FunctionRegistry,
+  FunctionGroup,
+} from './core/function-registry.js';
+export {
+  loadScenariosFromURL,
+  loadScenariosContent,
+  parseFrontmatter,
+} from './core/scenario-loader.js';
+export {
+  generateFunctionMd,
+  generateFunctionsIndex,
+  generateScenariosIndex,
+  generateAgentMd,
+} from './core/markdown-generator.js';
 export { EventBus, eventBus, createEventBus } from './core/event-bus.js';
-export type { EventHandler, DefaultEventMap, FunctionRegistryEventMap } from './core/event-bus.js';
+export type {
+  EventHandler,
+  DefaultEventMap,
+  FunctionRegistryEventMap,
+} from './core/event-bus.js';
 export { SkillController } from './controllers/skill.controller.js';
-export type { SkillActions, SkillControllerConfig } from './controllers/skill.controller.js';
+export type {
+  SkillActions,
+  SkillControllerConfig,
+} from './controllers/skill.controller.js';
 export { SkillContext, DEFAULT_SKILL_STATE } from './contexts/skill.js';
 export type { SkillContextValue } from './contexts/skill.js';
 
 // Skill Types
 export type {
-    OpenAPISchema,
-    ParameterDef,
-    ReturnDef,
-    VisualHooks,
-    FunctionDef,
-    FunctionGroupDef,
-    RegistryConfig,
-    ScenarioDef,
-    ScenarioManifest,
+  OpenAPISchema,
+  ParameterDef,
+  ReturnDef,
+  VisualHooks,
+  FunctionDef,
+  FunctionGroupDef,
+  RegistryConfig,
+  ScenarioDef,
+  ScenarioManifest,
 } from './types/skill.js';
 
 // Skill Classes
@@ -169,37 +189,37 @@ export { CancelledError } from './types/skill.js';
 
 // Event Types
 export type {
-    FunctionStartEvent,
-    FunctionSuccessEvent,
-    FunctionErrorEvent,
-    FunctionProgressEvent,
+  FunctionStartEvent,
+  FunctionSuccessEvent,
+  FunctionErrorEvent,
+  FunctionProgressEvent,
 } from './core/event-bus.js';
 
 // ===== Validation (Zod Integration) =====
 
 export {
-    z,
-    validateParams,
-    formatValidationError,
-    buildValidator,
-    withValidation,
-    zodToParams,
-    zodToOpenAPISchema,
-    openApiToZod,
-    withMeta,
+  z,
+  validateParams,
+  formatValidationError,
+  buildValidator,
+  withValidation,
+  zodToParams,
+  zodToOpenAPISchema,
+  openApiToZod,
+  withMeta,
 } from './validation/index.js';
 export type {
-    ValidationError,
-    ValidationResult,
+  ValidationError,
+  ValidationResult,
 } from './validation/index.js';
 
 // ===== Function Debugger Types =====
 
 export type {
-    LogLevel,
-    LogEntry,
-    ExecutionStatus,
-    DebugHistoryItem,
-    FunctionDebugState,
-    HistoryPaginationState,
+  LogLevel,
+  LogEntry,
+  ExecutionStatus,
+  DebugHistoryItem,
+  FunctionDebugState,
+  HistoryPaginationState,
 } from './types/functions-debug.js';

@@ -9,7 +9,7 @@
  *   - Error (red): #F44336
  *   - Text (deep night sky): #1A1A2E
  */
-import {css} from 'lit';
+import { css } from 'lit';
 
 export const lightTheme = css`
     :host {
@@ -56,5 +56,15 @@ export const lightTheme = css`
 
         /* Backdrop */
         --rtc-color-backdrop: rgba(0,0,0,0.3);
+
+        /* Scrollbar */
+        --rtc-color-scrollbar-thumb: rgba(0, 0, 0, 0.3);
+        --rtc-color-scrollbar-thumb-hover: rgba(0, 0, 0, 0.5);
+
+        /* Hover overlays for light theme */
+        --rtc-color-bg-hover-light: rgba(0, 0, 0, 0.06);
+        --rtc-color-bg-hover-overlay: rgba(0, 0, 0, 0.08);
+        --rtc-color-bg-hover-overlay-strong: rgba(0, 0, 0, 0.12);
+        --rtc-color-danger-hover-bg-light: rgba(220, 38, 38, 0.1);
     }
 `;

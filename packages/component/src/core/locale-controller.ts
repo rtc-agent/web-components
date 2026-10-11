@@ -19,7 +19,10 @@ import { localeContext, sourceLocale, targetLocales } from './i18n.js';
  * ```
  */
 export class LocaleController implements ReactiveController {
-  private _consumer: ContextConsumer<typeof localeContext, ReactiveControllerHost & HTMLElement>;
+  private _consumer: ContextConsumer<
+    typeof localeContext,
+    ReactiveControllerHost & HTMLElement
+  >;
 
   constructor(host: ReactiveControllerHost & HTMLElement) {
     this._consumer = new ContextConsumer(host, {

@@ -15,7 +15,7 @@
  *   - dot center X    = 15px (left: 15px + translateX(-50%))
  *   - dot center Y    ≈ first line text line-height midpoint Y (top: 9px)
  */
-import {css} from 'lit';
+import { css } from 'lit';
 
 export const timelineStyles = css`
   /* ── Timeline item ────────────────────────────────────────────── */

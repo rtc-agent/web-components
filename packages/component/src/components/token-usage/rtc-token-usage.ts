@@ -20,12 +20,17 @@ import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { consume } from '@lit/context';
 import { localized, msg, str } from '@lit/localize';
-import { localeContext, type LocaleContextValue, sourceLocale, targetLocales } from '../../core/i18n.js';
+import {
+  localeContext,
+  type LocaleContextValue,
+  sourceLocale,
+  targetLocales,
+} from '../../core/i18n.js';
 import { tokens } from '../../styles/tokens.js';
 import { lightTheme } from '../../styles/themes/light.js';
 import { darkTheme } from '../../styles/themes/dark.js';
 import { baseStyles } from '../../styles/base.js';
-import { createLogger } from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('TokenUsage');
 
@@ -35,12 +40,12 @@ const DEFAULT_TOKEN_BUDGET = 1_000_000;
 @localized()
 @customElement('rtc-token-usage')
 export class RtcTokenUsage extends LitElement {
-    static styles = [
-        tokens,
-        lightTheme,
-        darkTheme,
-        baseStyles,
-        css`
+  static styles = [
+    tokens,
+    lightTheme,
+    darkTheme,
+    baseStyles,
+    css`
             :host {
                 display: inline-flex;
                 align-items: center;
@@ -154,99 +159,102 @@ export class RtcTokenUsage extends LitElement {
                 color: var(--rtc-color-warning);
             }
         `,
-    ];
+  ];
 
-    @consume({context: localeContext, subscribe: true})
-    @state()
-    private _localeCtx: LocaleContextValue = {
-        locale: sourceLocale,
-        setLocale: async () => {
-            log.warn('Locale context not initialized');
-        },
-        locales: [sourceLocale, ...targetLocales],
-    };
+  @consume({ context: localeContext, subscribe: true })
+  @state()
+  private _localeCtx: LocaleContextValue = {
+    locale: sourceLocale,
+    setLocale: async () => {
+      log.warn('Locale context not initialized');
+    },
+    locales: [sourceLocale, ...targetLocales],
+  };
 
-    /* ── Properties ── */
+  /* ── Properties ── */
 
-    /** Theme mode */
-    @property({ type: String, reflect: true })
-    theme: 'light' | 'dark' | 'system' = 'system';
+  /** Theme mode */
+  @property({ type: String, reflect: true })
+  theme: 'light' | 'dark' | 'system' = 'system';
 
-    /** Estimated next turn token count */
-    @property({ type: Number, attribute: false })
-    estimatedNext = 0;
+  /** Estimated next turn token count */
+  @property({ type: Number, attribute: false })
+  estimatedNext = 0;
 
-    /** Cumulative total token count */
-    @property({ type: Number, attribute: false })
-    totalTokens = 0;
+  /** Cumulative total token count */
+  @property({ type: Number, attribute: false })
+  totalTokens = 0;
 
-    /** Cumulative cost in USD */
-    @property({ type: Number, attribute: false })
-    totalCostUsd = 0;
+  /** Cumulative cost in USD */
+  @property({ type: Number, attribute: false })
+  totalCostUsd = 0;
 
-    /** Compression trigger threshold (pushed from backend, used as circular progress denominator) */
-    @property({ type: Number, attribute: false })
-    compressionThreshold = 0;
+  /** Compression trigger threshold (pushed from backend, used as circular progress denominator) */
+  @property({ type: Number, attribute: false })
+  compressionThreshold = 0;
 
-    /** Compression progress (0-100) */
-    @property({ type: Number, attribute: false })
-    compressionProgress = 0;
+  /** Compression progress (0-100) */
+  @property({ type: Number, attribute: false })
+  compressionProgress = 0;
 
-    /** Rounds until compression (-1 = threshold already exceeded) */
-    @property({ type: Number, attribute: false })
-    roundsUntilCompression = -1;
+  /** Rounds until compression (-1 = threshold already exceeded) */
+  @property({ type: Number, attribute: false })
+  roundsUntilCompression = -1;
 
-    /** Per-item token data */
-    @property({ type: Object, attribute: false })
-    details?: {
-        input?: number;
-        output?: number;
-        cachedRead?: number;
-        cachedWrite?: number;
-        reasoning?: number;
-    };
+  /** Per-item token data */
+  @property({ type: Object, attribute: false })
+  details?: {
+    input?: number;
+    output?: number;
+    cachedRead?: number;
+    cachedWrite?: number;
+    reasoning?: number;
+  };
 
-    /* ── Computed ── */
+  /* ── Computed ── */
 
-    /** Calculate progress percentage: estimatedNext / compressionThreshold */
-    private get _percentage(): number {
-        const budget = this.compressionThreshold > 0 ? this.compressionThreshold : DEFAULT_TOKEN_BUDGET;
-        return Math.min((this.estimatedNext / budget) * 100, 100);
-    }
+  /** Calculate progress percentage: estimatedNext / compressionThreshold */
+  private get _percentage(): number {
+    const budget =
+      this.compressionThreshold > 0
+        ? this.compressionThreshold
+        : DEFAULT_TOKEN_BUDGET;
+    return Math.min((this.estimatedNext / budget) * 100, 100);
+  }
 
-    /** Calculate color class name */
-    private get _progressClass(): string {
-        if (this._percentage >= 70) return 'danger';
-        if (this._percentage >= 50) return 'warning';
-        return '';
-    }
+  /** Calculate color class name */
+  private get _progressClass(): string {
+    if (this._percentage >= 70) return 'danger';
+    if (this._percentage >= 50) return 'warning';
+    return '';
+  }
 
-    /** Calculate cache hit rate: cachedRead / (cachedRead + input), capped at 99% */
-    private get _cacheHitRate(): number | null {
-        if (!this.details) return null;
-        const cachedRead = this.details.cachedRead ?? 0;
-        const input = this.details.input ?? 0;
-        const denominator = cachedRead + input;
-        if (denominator === 0) return null;
-        return Math.min(99, Math.round((cachedRead / denominator) * 100));
-    }
+  /** Calculate cache hit rate: cachedRead / (cachedRead + input), capped at 99% */
+  private get _cacheHitRate(): number | null {
+    if (!this.details) return null;
+    const cachedRead = this.details.cachedRead ?? 0;
+    const input = this.details.input ?? 0;
+    const denominator = cachedRead + input;
+    if (denominator === 0) return null;
+    return Math.min(99, Math.round((cachedRead / denominator) * 100));
+  }
 
-    /** SVG circle parameters */
-    private get _circleParams() {
-        const radius = 9;
-        const circumference = 2 * Math.PI * radius;
-        const offset = circumference - (this._percentage / 100) * circumference;
-        return { radius, circumference, offset };
-    }
+  /** SVG circle parameters */
+  private get _circleParams() {
+    const radius = 9;
+    const circumference = 2 * Math.PI * radius;
+    const offset = circumference - (this._percentage / 100) * circumference;
+    return { radius, circumference, offset };
+  }
 
-    /* ── Render ── */
+  /* ── Render ── */
 
-    render() {
-        void this._localeCtx.locale;
-        const { radius, circumference, offset } = this._circleParams;
-        const percentageDisplay = Math.round(this._percentage);
+  render() {
+    void this._localeCtx.locale;
+    const { radius, circumference, offset } = this._circleParams;
+    const percentageDisplay = Math.round(this._percentage);
 
-        return html`
+    return html`
             <div class="token-circle" title=${msg('Token Usage')}>
                 <svg viewBox="0 0 24 24">
                     <circle
@@ -269,52 +277,66 @@ export class RtcTokenUsage extends LitElement {
             <div class="token-tooltip">
                 <div class="tooltip-header">${msg('Token Usage Details')}</div>
 
-                ${this.details
+                ${
+                  this.details
                     ? html`
-                          ${this.details.input != null
+                          ${
+                            this.details.input != null
                               ? html`<div class="tooltip-row">
                                     <span class="label">${msg('Input')}</span>
                                     <span class="value"
                                         >${this._formatNumber(
-                                            this.details.input,
+                                          this.details.input,
                                         )}</span
                                     >
                                 </div>`
-                              : ''}
-                          ${this.details.output != null
+                              : ''
+                          }
+                          ${
+                            this.details.output != null
                               ? html`<div class="tooltip-row">
                                     <span class="label">${msg('Output')}</span>
                                     <span class="value"
                                         >${this._formatNumber(
-                                            this.details.output,
+                                          this.details.output,
                                         )}</span
                                     >
                                 </div>`
-                              : ''}
-                          ${this.details.cachedRead != null || this.details.cachedWrite != null
+                              : ''
+                          }
+                          ${
+                            this.details.cachedRead != null ||
+                            this.details.cachedWrite != null
                               ? html`<div class="tooltip-row">
                                     <span class="label">${msg('Cache')}</span>
                                     <span class="value"
                                         >${this._formatNumber(
-                                            (this.details.cachedRead ?? 0) + (this.details.cachedWrite ?? 0),
+                                          (this.details.cachedRead ?? 0) +
+                                            (this.details.cachedWrite ?? 0),
                                         )}</span
                                     >
                                 </div>`
-                              : ''}
-                          ${this._cacheHitRate != null
+                              : ''
+                          }
+                          ${
+                            this._cacheHitRate != null
                               ? html`<div class="tooltip-row">
                                     <span class="label">${msg('Cache Hit Rate')}</span>
                                     <span class="value">${this._cacheHitRate}%</span>
                                 </div>`
-                              : ''}
-                          ${this.details.reasoning != null
+                              : ''
+                          }
+                          ${
+                            this.details.reasoning != null
                               ? html`<div class="tooltip-row">
                                     <span class="label">${msg('Reasoning')}</span>
                                     <span class="value">${this._formatNumber(this.details.reasoning)}</span>
                                 </div>`
-                              : ''}
+                              : ''
+                          }
                       `
-                    : ''}
+                    : ''
+                }
 
                 <div class="tooltip-divider"></div>
 
@@ -331,35 +353,41 @@ export class RtcTokenUsage extends LitElement {
                     >
                 </div>
 
-                ${this.roundsUntilCompression >= 0 &&
-                this.roundsUntilCompression <= 3
+                ${
+                  this.roundsUntilCompression >= 0 &&
+                  this.roundsUntilCompression <= 3
                     ? html`<div
-                          class="tooltip-compression ${this
-                              .roundsUntilCompression <= 1
-                              ? 'warning'
-                              : ''}"
+                          class="tooltip-compression ${
+                            this.roundsUntilCompression <= 1 ? 'warning' : ''
+                          }"
                       >
                           ${msg(str`Compression in ${this.roundsUntilCompression} rounds`)}
                           (${Math.round(this.compressionProgress)}%)
                       </div>`
-                    : ''}
+                    : ''
+                }
             </div>
         `;
-    }
+  }
 
-    /* ── Helpers ── */
+  /* ── Helpers ── */
 
-    private _formatNumber(n: number): string {
-        return new Intl.NumberFormat(this._localeCtx.locale, {
-            notation: 'compact',
-            compactDisplay: 'short',
-            maximumFractionDigits: 1,
-        }).format(n);
-    }
+  /**
+   * Format a number using compact notation (e.g. 1.2K, 3.4M).
+   * `compactDisplay: 'short'` is chosen over `'long'` (which would render "1.2 thousand")
+   * to keep the token-usage UI concise; the surrounding labels already convey the unit.
+   */
+  private _formatNumber(n: number): string {
+    return new Intl.NumberFormat(this._localeCtx.locale, {
+      notation: 'compact',
+      compactDisplay: 'short',
+      maximumFractionDigits: 1,
+    }).format(n);
+  }
 }
 
 declare global {
-    interface HTMLElementTagNameMap {
-        'rtc-token-usage': RtcTokenUsage;
-    }
+  interface HTMLElementTagNameMap {
+    'rtc-token-usage': RtcTokenUsage;
+  }
 }

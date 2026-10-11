@@ -7,7 +7,7 @@
  *   import {renderLogo, renderBubbleLogo} from '../../icons/logo.js';
  *   render() { return html`<div class="logo">${renderLogo(this.theme === 'dark')}</div>`; }
  */
-import {unsafeHTML} from 'lit/directives/unsafe-html.js';
+import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import logoLight from '../assets/logo.svg?raw';
 import logoDark from '../assets/logo-dark.svg?raw';
 
@@ -17,7 +17,7 @@ import logoDark from '../assets/logo-dark.svg?raw';
  * @param dark - `true` returns the night-sky version (dark theme), `false` returns the blue-sky version (light theme)
  */
 export function renderLogo(dark = false): unknown {
-    return unsafeHTML(dark ? logoDark : logoLight);
+  return unsafeHTML(dark ? logoDark : logoLight);
 }
 
 /**
@@ -28,5 +28,5 @@ export function renderLogo(dark = false): unknown {
  * @param dark - `true` returns the night-sky version, `false` returns the blue-sky version
  */
 export function renderBubbleLogo(dark = false): unknown {
-    return unsafeHTML(dark ? logoDark : logoLight);
+  return unsafeHTML(dark ? logoDark : logoLight);
 }

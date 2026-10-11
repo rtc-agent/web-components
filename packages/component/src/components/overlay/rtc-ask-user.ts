@@ -13,15 +13,20 @@
  * @fires rtc-ask-user-dismiss - User cancelled / dismissed
  *   detail: { clientId: string }
  */
-import {LitElement, html, nothing} from 'lit';
-import {customElement, property, state} from 'lit/decorators.js';
-import {consume} from '@lit/context';
-import {localized, msg, str} from '@lit/localize';
-import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
-import type {PropertyValues} from 'lit';
-import {styles} from './rtc-ask-user.styles.js';
-import type {LocalRtc} from '@rtc-agent/persistence';
-import { createLogger } from '@rtc-agent/client';
+import { LitElement, html, nothing } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import { consume } from '@lit/context';
+import { localized, msg, str } from '@lit/localize';
+import {
+  localeContext,
+  type LocaleContextValue,
+  sourceLocale,
+  targetLocales,
+} from '../../core/i18n.js';
+import type { PropertyValues } from 'lit';
+import { styles } from './rtc-ask-user.styles.js';
+import type { LocalRtc } from '@rtc-agent/persistence';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('AskUser');
 
@@ -40,8 +45,8 @@ export interface AskUserOption {
 
 export interface AskUserPayload {
   answers: Record<string, string>;
-  annotations?: Record<string, {preview?: string; notes?: string}>;
-  metadata?: {source?: string};
+  annotations?: Record<string, { preview?: string; notes?: string }>;
+  metadata?: { source?: string };
 }
 
 /** Sentinel index for the auto-appended "Other" option. */
@@ -52,7 +57,7 @@ const OTHER_INDEX = -1;
 export class RtcAskUser extends LitElement {
   static styles = styles;
 
-  @consume({context: localeContext, subscribe: true})
+  @consume({ context: localeContext, subscribe: true })
   @state()
   private _localeCtx: LocaleContextValue = {
     locale: sourceLocale,
@@ -63,7 +68,7 @@ export class RtcAskUser extends LitElement {
   };
 
   /** The RTC record; parameters.questions carries the question list. */
-  @property({type: Object})
+  @property({ type: Object })
   rtc: LocalRtc | null = null;
 
   /** Parsed questions (derived from rtc.parameters.questions). */
@@ -93,7 +98,9 @@ export class RtcAskUser extends LitElement {
   }
 
   private _parseQuestions() {
-    const params = (this.rtc?.parameters as { questions?: AskUserQuestion[] } | undefined) || {};
+    const params =
+      (this.rtc?.parameters as { questions?: AskUserQuestion[] } | undefined) ||
+      {};
     const questions = Array.isArray(params.questions) ? params.questions : [];
     this._questions = questions;
     this._currentTab = 0;
@@ -145,7 +152,7 @@ export class RtcAskUser extends LitElement {
     if (q.multiSelect) {
       // Toggle
       next = current.includes(optIdx)
-        ? current.filter(i => i !== optIdx)
+        ? current.filter((i) => i !== optIdx)
         : [...current, optIdx];
     } else {
       // Single-select: replace (clicking same again deselects)
@@ -187,7 +194,8 @@ export class RtcAskUser extends LitElement {
     if (!this._canSubmit || !this.rtc) return;
 
     const answers: Record<string, string> = {};
-    const annotations: Record<string, {preview?: string; notes?: string}> = {};
+    const annotations: Record<string, { preview?: string; notes?: string }> =
+      {};
 
     for (let qi = 0; qi < this._questions.length; qi++) {
       const q = this._questions[qi];
@@ -199,8 +207,8 @@ export class RtcAskUser extends LitElement {
       // Capture preview from the first selected non-Other option (if any).
       const sel = this._selections[qi] || [];
       const previewOpt = sel
-        .map(i => (i === OTHER_INDEX ? null : q.options[i]))
-        .find(o => o && o.preview);
+        .map((i) => (i === OTHER_INDEX ? null : q.options[i]))
+        .find((o) => o && o.preview);
       if (previewOpt?.preview) {
         annotations[q.question] = { preview: previewOpt.preview };
       }
@@ -219,7 +227,7 @@ export class RtcAskUser extends LitElement {
         bubbles: true,
         composed: true,
         detail: { clientId: this.rtc!.client_id, payload },
-      })
+      }),
     );
   }
 
@@ -230,7 +238,7 @@ export class RtcAskUser extends LitElement {
         bubbles: true,
         composed: true,
         detail: { clientId: this.rtc.client_id },
-      })
+      }),
     );
   }
 
@@ -304,14 +312,16 @@ export class RtcAskUser extends LitElement {
   private _renderTabBar() {
     return html`
       <div class="tab-bar" role="tablist">
-        ${this._questions.map((q, i) => html`
+        ${this._questions.map(
+          (q, i) => html`
           <button
             class="tab-chip"
             role="tab"
             aria-selected=${i === this._currentTab}
             @click=${() => this._goTab(i)}
           >${q.header}</button>
-        `)}
+        `,
+        )}
       </div>
     `;
   }
@@ -319,11 +329,13 @@ export class RtcAskUser extends LitElement {
   private _renderTabContent() {
     return html`
       <div class="tab-content">
-        ${this._questions.map((_, i) => html`
+        ${this._questions.map(
+          (_, i) => html`
           <div class="tab-pane" ?hidden=${i !== this._currentTab}>
             ${this._renderQuestion(i)}
           </div>
-        `)}
+        `,
+        )}
       </div>
     `;
   }
@@ -339,10 +351,10 @@ export class RtcAskUser extends LitElement {
 
     // Preview: show for the currently-selected option that has one.
     const selectedOpts = (this._selections[qIdx] || [])
-      .filter(i => i !== OTHER_INDEX)
-      .map(i => q.options[i])
+      .filter((i) => i !== OTHER_INDEX)
+      .map((i) => q.options[i])
       .filter(Boolean);
-    const previewOpt = selectedOpts.find(o => o.preview);
+    const previewOpt = selectedOpts.find((o) => o.preview);
 
     return html`
       <div class="question">
@@ -354,10 +366,14 @@ export class RtcAskUser extends LitElement {
           ${q.options.map((opt, oi) => this._renderOption(qIdx, oi, opt, inputType, indicatorClass, sel.has(oi)))}
           ${this._renderOther(qIdx, inputType, indicatorClass, sel.has(OTHER_INDEX))}
         </div>
-        ${previewOpt?.preview ? html`
-          <div class="preview-label">${msg("预览")}${previewOpt.label ? msg(str` · ${previewOpt.label}`) : ''}</div>
+        ${
+          previewOpt?.preview
+            ? html`
+          <div class="preview-label">${msg('预览')}${previewOpt.label ? msg(str` · ${previewOpt.label}`) : ''}</div>
           <div class="preview-panel">${previewOpt.preview}</div>
-        ` : nothing}
+        `
+            : nothing
+        }
       </div>
     `;
   }
@@ -386,7 +402,7 @@ export class RtcAskUser extends LitElement {
         <div class="option-body">
           <div class="option-label">
             ${opt.label}
-            ${recMatch ? html`<span class="rec">${msg("（推荐）")}</span>` : nothing}
+            ${recMatch ? html`<span class="rec">${msg('（推荐）')}</span>` : nothing}
           </div>
           <div class="option-desc">${descWithoutRec}</div>
         </div>
@@ -411,18 +427,22 @@ export class RtcAskUser extends LitElement {
           <input type="${inputType}" name="q-${qIdx}-other" .checked=${selected}>
           <span class="indicator"></span>
           <div class="option-body">
-            <div class="option-label">${msg("其他")}</div>
+            <div class="option-label">${msg('其他')}</div>
           </div>
         </label>
-        ${selected ? html`
+        ${
+          selected
+            ? html`
           <input
             class="other-input"
             type="text"
-            placeholder=${msg("请输入你的回答…")}
+            placeholder=${msg('请输入你的回答…')}
             .value=${this._otherTexts[qIdx] || ''}
             @input=${(e: Event) => this._onOtherInput(qIdx, e)}
           >
-        ` : nothing}
+        `
+            : nothing
+        }
       </div>
     `;
   }
@@ -439,29 +459,29 @@ export class RtcAskUser extends LitElement {
             class="action-btn ghost"
             ?disabled=${isFirst}
             @click=${() => this._goTab(this._currentTab - 1)}
-          >${msg("← 上一题")}</button>
+          >${msg('← 上一题')}</button>
           <button
             class="action-btn ghost"
             style=${isLast ? 'visibility: hidden' : ''}
             @click=${() => this._goTab(this._currentTab + 1)}
-          >${msg("下一题 →")}</button>
+          >${msg('下一题 →')}</button>
           <button
             class="action-btn primary"
             ?disabled=${!this._canSubmit}
             @click=${this._submit}
-          >${msg("提交")}</button>
+          >${msg('提交')}</button>
         </div>
       `;
     }
 
     return html`
       <div class="actions">
-        <button class="action-btn ghost" @click=${this._dismiss}>${msg("取消")}</button>
+        <button class="action-btn ghost" @click=${this._dismiss}>${msg('取消')}</button>
         <button
           class="action-btn primary"
           ?disabled=${!this._canSubmit}
           @click=${this._submit}
-        >${msg("提交")}</button>
+        >${msg('提交')}</button>
       </div>
     `;
   }

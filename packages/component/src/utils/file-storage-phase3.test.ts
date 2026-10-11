@@ -2,18 +2,26 @@
  * Phase 3: FileStorage list(), AbortController, and progress semantics tests.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { FileStorage, getFileExtension, generateFilename } from './file-storage.js';
+import {
+  FileStorage,
+  getFileExtension,
+  generateFilename,
+} from './file-storage.js';
 import type { WorkerBridge } from '../worker-bridge.js';
 
 function createMockBridge(overrides: Partial<WorkerBridge> = {}): WorkerBridge {
   return {
-    calculateFileMD5: vi.fn().mockResolvedValue('d41d8cd98f00b204e9800998ecf8427e'),
+    calculateFileMD5: vi
+      .fn()
+      .mockResolvedValue('d41d8cd98f00b204e9800998ecf8427e'),
     uploadFile: vi.fn().mockResolvedValue(undefined),
     downloadFile: vi.fn().mockResolvedValue(new Blob(['test'])),
     getCachedFile: vi.fn().mockResolvedValue(null),
     listFiles: vi.fn().mockResolvedValue([]),
     countFiles: vi.fn().mockResolvedValue(0),
-    headFile: vi.fn().mockResolvedValue({ contentLength: 100, contentType: 'text/plain' }),
+    headFile: vi
+      .fn()
+      .mockResolvedValue({ contentLength: 100, contentType: 'text/plain' }),
     getPresignedUrl: vi.fn().mockResolvedValue('https://example.com/signed'),
     cacheFile: vi.fn().mockResolvedValue(undefined),
     evictExpiredCache: vi.fn().mockResolvedValue(0),
@@ -139,7 +147,7 @@ describe('Phase 3: AbortController support', () => {
     controller.abort();
 
     await expect(
-      fs.upload({ file: new Blob(['test']), signal: controller.signal })
+      fs.upload({ file: new Blob(['test']), signal: controller.signal }),
     ).rejects.toMatchObject({ name: 'AbortError' });
 
     // Bridge methods should NOT be called if signal is already aborted
@@ -155,7 +163,7 @@ describe('Phase 3: AbortController support', () => {
     controller.abort();
 
     await expect(
-      fs.download('md5', 'txt', { signal: controller.signal })
+      fs.download('md5', 'txt', { signal: controller.signal }),
     ).rejects.toMatchObject({ name: 'AbortError' });
 
     expect(bridge.getCachedFile).not.toHaveBeenCalled();
@@ -180,7 +188,7 @@ describe('Phase 3: AbortController support', () => {
       'test.txt',
       undefined,
       controller.signal,
-      undefined
+      undefined,
     );
   });
 
@@ -193,7 +201,13 @@ describe('Phase 3: AbortController support', () => {
     await fs.download('md5', 'txt', { signal: controller.signal });
 
     // downloadFile signature: (md5, ext, onProgress, signal, forceRefresh)
-    expect(bridge.downloadFile).toHaveBeenCalledWith('md5', 'txt', undefined, controller.signal, false);
+    expect(bridge.downloadFile).toHaveBeenCalledWith(
+      'md5',
+      'txt',
+      undefined,
+      controller.signal,
+      false,
+    );
   });
 
   it('upload() should work without signal (backwards compatible)', async () => {
@@ -213,7 +227,7 @@ describe('Phase 3: AbortController support', () => {
       'test.txt',
       undefined,
       undefined,
-      undefined
+      undefined,
     );
   });
 });
@@ -237,7 +251,7 @@ describe('Phase 3: upload() onProgress forwarding', () => {
       'test.txt',
       onProgress,
       undefined,
-      undefined
+      undefined,
     );
   });
 });
@@ -253,7 +267,10 @@ describe('Phase 3: throttle utility', () => {
     // so we test the contract: 100ms throttle -> max ~10 calls/sec)
     // For now, verify the concept with a local implementation matching
     // the one in worker-bridge.ts.
-    function throttle<T extends (...args: any[]) => void>(fn: T, delayMs: number): T {
+    function throttle<T extends (...args: any[]) => void>(
+      fn: T,
+      delayMs: number,
+    ): T {
       let lastCall = 0;
       return ((...args: any[]) => {
         const now = Date.now();

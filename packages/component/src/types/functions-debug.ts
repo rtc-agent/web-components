@@ -6,7 +6,11 @@
  */
 
 import type { FunctionDef } from './skill.js';
-import type { DebugHistoryItem, LogEntry, LogLevel } from '@rtc-agent/persistence';
+import type {
+  DebugHistoryItem,
+  LogEntry,
+  LogLevel,
+} from '@rtc-agent/persistence';
 
 // Re-export for backward compatibility
 export type { DebugHistoryItem, LogEntry, LogLevel };

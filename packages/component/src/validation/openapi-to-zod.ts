@@ -21,7 +21,9 @@ export function openApiToZod(parameters: ParameterDef[]): ZodType {
 
     // Add description
     if (param.description || param.schema.description) {
-      fieldSchema = fieldSchema.describe(param.description || param.schema.description || '');
+      fieldSchema = fieldSchema.describe(
+        param.description || param.schema.description || '',
+      );
     }
 
     // Handle optional/required
@@ -59,7 +61,9 @@ function openApiSchemaToZod(schema: OpenAPISchema): ZodType {
       // Handle enum
       if (schema.enum !== undefined && schema.enum.length > 0) {
         // Safety: ensure all enum values are strings before casting
-        const enumValues = schema.enum.filter((v): v is string => typeof v === 'string');
+        const enumValues = schema.enum.filter(
+          (v): v is string => typeof v === 'string',
+        );
         if (enumValues.length > 0) {
           return z.enum(enumValues as [string, ...string[]]);
         }
@@ -127,7 +131,8 @@ function openApiSchemaToZod(schema: OpenAPISchema): ZodType {
         const requiredFields = (schema.required as string[] | undefined) ?? [];
         for (const [key, propSchema] of Object.entries(schema.properties)) {
           let fieldSchema = openApiSchemaToZod(propSchema);
-          const isRequired = requiredFields.includes(key) || propSchema.required === true;
+          const isRequired =
+            requiredFields.includes(key) || propSchema.required === true;
           if (!isRequired) {
             fieldSchema = fieldSchema.optional();
           }

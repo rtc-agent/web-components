@@ -28,4 +28,6 @@ export const DEFAULT_SKILL_STATE: SkillContextValue = {
 /**
  * Skill Context key
  */
-export const SkillContext = createContext<SkillContextValue>(Symbol('skill-context'));
+export const SkillContext = createContext<SkillContextValue>(
+  Symbol('skill-context'),
+);

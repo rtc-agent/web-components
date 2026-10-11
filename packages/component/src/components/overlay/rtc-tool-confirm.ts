@@ -10,93 +10,105 @@
  * @csspart backdrop - The backdrop overlay
  * @csspart dialog - The dialog card
  */
-import {LitElement, html} from 'lit';
-import {customElement, property, state} from 'lit/decorators.js';
-import {consume} from '@lit/context';
-import {localized, msg} from '@lit/localize';
-import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
-import {styles} from './rtc-tool-confirm.styles.js';
-import type {ToolCall} from '../../types/index.js';
-import { createLogger } from '@rtc-agent/client';
+import { LitElement, html } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import { consume } from '@lit/context';
+import { localized, msg } from '@lit/localize';
+import {
+  localeContext,
+  type LocaleContextValue,
+  sourceLocale,
+  targetLocales,
+} from '../../core/i18n.js';
+import { styles } from './rtc-tool-confirm.styles.js';
+import type { ToolCall } from '../../types/index.js';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('ToolConfirm');
 
 @localized()
 @customElement('rtc-tool-confirm')
 export class RtcToolConfirm extends LitElement {
-    static styles = styles;
+  static styles = styles;
 
-    @consume({context: localeContext, subscribe: true})
-    @state()
-    private _localeCtx: LocaleContextValue = {
-        locale: sourceLocale,
-        setLocale: async () => {
-            log.warn('Locale context not initialized');
-        },
-        locales: [sourceLocale, ...targetLocales],
-    };
+  @consume({ context: localeContext, subscribe: true })
+  @state()
+  private _localeCtx: LocaleContextValue = {
+    locale: sourceLocale,
+    setLocale: async () => {
+      log.warn('Locale context not initialized');
+    },
+    locales: [sourceLocale, ...targetLocales],
+  };
 
-    @property({type: Object})
-    toolCall: ToolCall = {id: '', toolName: '', status: 'pending', parameters: {}};
+  @property({ type: Object })
+  toolCall: ToolCall = {
+    id: '',
+    tool_name: '',
+    input: '',
+  };
 
-    private _approve(allowAll: boolean) {
-        this.dispatchEvent(
-            new CustomEvent('rtc-tool-call-approved', {
-                bubbles: true,
-                composed: true,
-                detail: {toolCallId: this.toolCall.id, allowAll},
-            })
-        );
+  private _approve(allowAll: boolean) {
+    this.dispatchEvent(
+      new CustomEvent('rtc-tool-call-approved', {
+        bubbles: true,
+        composed: true,
+        detail: { toolCallId: this.toolCall.id, allowAll },
+      }),
+    );
+  }
+
+  private _deny() {
+    this.dispatchEvent(
+      new CustomEvent('rtc-tool-call-denied', {
+        bubbles: true,
+        composed: true,
+        detail: { toolCallId: this.toolCall.id },
+      }),
+    );
+  }
+
+  private _onBackdropClick(e: Event) {
+    // Only close if the backdrop itself was clicked (not the dialog)
+    if ((e.target as HTMLElement).classList.contains('backdrop')) {
+      this._deny();
     }
+  }
 
-    private _deny() {
-        this.dispatchEvent(
-            new CustomEvent('rtc-tool-call-denied', {
-                bubbles: true,
-                composed: true,
-                detail: {toolCallId: this.toolCall.id},
-            })
-        );
+  private _renderParams(): string {
+    try {
+      // input is a JSON string from the protocol, parse it for display
+      const parsed = JSON.parse(this.toolCall.input);
+      return JSON.stringify(parsed, null, 2);
+    } catch {
+      // If parsing fails, return the raw input string
+      return this.toolCall.input || '';
     }
+  }
 
-    private _onBackdropClick(e: Event) {
-        // Only close if the backdrop itself was clicked (not the dialog)
-        if ((e.target as HTMLElement).classList.contains('backdrop')) {
-            this._deny();
-        }
-    }
-
-    private _renderParams(): string {
-        try {
-            return JSON.stringify(this.toolCall.parameters, null, 2);
-        } catch {
-            return String(this.toolCall.parameters);
-        }
-    }
-
-    render() {
-        void this._localeCtx.locale;
-        return html`
+  render() {
+    void this._localeCtx.locale;
+    return html`
       <div class="backdrop" part="backdrop" @click=${this._onBackdropClick}></div>
       <div class="dialog" part="dialog" role="dialog" aria-modal="true">
-        <div class="dialog-title">${msg("是否允许此次工具调用？")}</div>
-        <div class="dialog-desc">${msg("AI 想使用一个工具，请查看以下详情。")}</div>
+        <div class="dialog-title">${msg('是否允许此次工具调用？')}</div>
+        <div class="dialog-desc">${msg('AI 想使用一个工具，请查看以下详情。')}</div>
         <div class="tool-info">
-          <div class="tool-name">${this.toolCall.toolName}</div>
+          <div class="tool-name">${this.toolCall.tool_name}</div>
           <div class="tool-params">${this._renderParams()}</div>
         </div>
         <div class="actions">
-          <button class="action-btn primary" data-action="yes" @click=${() => this._approve(false)}>${msg("是")}</button>
+          <button class="action-btn primary" data-action="yes" @click=${() => this._approve(false)}>${msg('是')}</button>
 <!--          <button class="action-btn" data-action="yes-allow">Yes, allow all</button>-->
-          <button class="action-btn danger" data-action="no" @click=${() => this._deny()}>${msg("否")}</button>
+          <button class="action-btn danger" data-action="no" @click=${() => this._deny()}>${msg('否')}</button>
         </div>
       </div>
     `;
-    }
+  }
 }
 
 declare global {
-    interface HTMLElementTagNameMap {
-        'rtc-tool-confirm': RtcToolConfirm;
-    }
+  interface HTMLElementTagNameMap {
+    'rtc-tool-confirm': RtcToolConfirm;
+  }
 }

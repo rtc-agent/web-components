@@ -35,7 +35,7 @@ export interface ValidationResult<T = unknown> {
  */
 export function validateParams<T extends ZodType>(
   schema: T,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
 ): ValidationResult<z.infer<T>> {
   const result = schema.safeParse(params);
 
@@ -58,7 +58,7 @@ export function validateParams<T extends ZodType>(
 export function formatValidationError(
   groupName: string,
   functionName: string,
-  errors: ValidationError[]
+  errors: ValidationError[],
 ): string {
   const errorDetails = errors
     .map((e) => `  - ${e.field}: ${e.message}`)
@@ -78,7 +78,7 @@ export function formatValidationError(
  */
 export function buildValidator(
   zodSchema: ZodType | undefined,
-  parameters: ParameterDef[] | undefined
+  parameters: ParameterDef[] | undefined,
 ): ZodType | null {
   if (zodSchema) {
     return zodSchema;
@@ -103,7 +103,7 @@ export function withValidation<TParams extends ZodType, TResult>(
   groupName: string,
   functionName: string,
   schema: TParams,
-  handler: (params: z.infer<TParams>) => Promise<TResult> | TResult
+  handler: (params: z.infer<TParams>) => Promise<TResult> | TResult,
 ): (params: Record<string, unknown>) => Promise<TResult | { error: string }> {
   return async (params: Record<string, unknown>) => {
     // 1. Parameter validation
@@ -111,7 +111,11 @@ export function withValidation<TParams extends ZodType, TResult>(
 
     if (!validation.success) {
       return {
-        error: formatValidationError(groupName, functionName, validation.errors!),
+        error: formatValidationError(
+          groupName,
+          functionName,
+          validation.errors!,
+        ),
       };
     }
 

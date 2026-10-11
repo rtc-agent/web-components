@@ -20,31 +20,36 @@
  * ## Styling
  * Uses project design tokens (--rtc-color-*), supports light/dark themes.
  */
-import {LitElement, html, nothing} from 'lit';
-import {customElement, property, state} from 'lit/decorators.js';
-import {localized, msg, str} from '@lit/localize';
-import {consume} from '@lit/context';
-import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
-import {styles} from './rtc-editor-toolbar.styles.js';
-import type {EditorViewMode} from '../../types/index.js';
+import { LitElement, html, nothing } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import { localized, msg, str } from '@lit/localize';
+import { consume } from '@lit/context';
 import {
-    saveIcon,
-    undoIcon,
-    redoIcon,
-    boldIcon,
-    italicIcon,
-    codeIcon,
-    linkIcon,
-    eyeIcon,
-    columnsIcon,
-    editIcon,
-    refreshIcon,
+  localeContext,
+  type LocaleContextValue,
+  sourceLocale,
+  targetLocales,
+} from '../../core/i18n.js';
+import { styles } from './rtc-editor-toolbar.styles.js';
+import type { EditorViewMode } from '../../types/index.js';
+import {
+  saveIcon,
+  undoIcon,
+  redoIcon,
+  boldIcon,
+  italicIcon,
+  codeIcon,
+  linkIcon,
+  eyeIcon,
+  columnsIcon,
+  editIcon,
+  refreshIcon,
 } from '../../icons/index.js';
-import {tokens} from '../../styles/tokens.js';
-import {lightTheme} from '../../styles/themes/light.js';
-import {darkTheme} from '../../styles/themes/dark.js';
-import {baseStyles} from '../../styles/base.js';
-import { createLogger } from '@rtc-agent/client';
+import { tokens } from '../../styles/tokens.js';
+import { lightTheme } from '../../styles/themes/light.js';
+import { darkTheme } from '../../styles/themes/dark.js';
+import { baseStyles } from '../../styles/base.js';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('EditorToolbar');
 
@@ -54,115 +59,115 @@ type FormatType = 'bold' | 'italic' | 'code' | 'link';
 @localized()
 @customElement('rtc-editor-toolbar')
 export class RtcEditorToolbar extends LitElement {
-    static styles = [tokens, lightTheme, darkTheme, baseStyles, styles];
+  static styles = [tokens, lightTheme, darkTheme, baseStyles, styles];
 
-    /* ── i18n ── */
+  /* ── i18n ── */
 
-    @consume({context: localeContext, subscribe: true})
-    @state()
-    private _localeCtx: LocaleContextValue = {
-        locale: sourceLocale,
-        setLocale: async () => {
-            log.warn('Locale context not initialized');
-        },
-        locales: [sourceLocale, ...targetLocales],
-    };
+  @consume({ context: localeContext, subscribe: true })
+  @state()
+  private _localeCtx: LocaleContextValue = {
+    locale: sourceLocale,
+    setLocale: async () => {
+      log.warn('Locale context not initialized');
+    },
+    locales: [sourceLocale, ...targetLocales],
+  };
 
-    /* ── Properties ── */
+  /* ── Properties ── */
 
-    /** Whether the save button is enabled */
-    @property({type: Boolean, attribute: 'can-save'})
-    canSave = false;
+  /** Whether the save button is enabled */
+  @property({ type: Boolean, attribute: 'can-save' })
+  canSave = false;
 
-    /** Whether the undo button is enabled */
-    @property({type: Boolean, attribute: 'can-undo'})
-    canUndo = false;
+  /** Whether the undo button is enabled */
+  @property({ type: Boolean, attribute: 'can-undo' })
+  canUndo = false;
 
-    /** Whether the redo button is enabled */
-    @property({type: Boolean, attribute: 'can-redo'})
-    canRedo = false;
+  /** Whether the redo button is enabled */
+  @property({ type: Boolean, attribute: 'can-redo' })
+  canRedo = false;
 
-    /** Whether the restore default button is enabled (only shown for system-generated files) */
-    @property({type: Boolean, attribute: 'can-restore'})
-    canRestore = false;
+  /** Whether the restore default button is enabled (only shown for system-generated files) */
+  @property({ type: Boolean, attribute: 'can-restore' })
+  canRestore = false;
 
-    /** Current view mode */
-    @property({type: String, attribute: 'view-mode'})
-    viewMode: EditorViewMode = 'edit';
+  /** Current view mode */
+  @property({ type: String, attribute: 'view-mode' })
+  viewMode: EditorViewMode = 'edit';
 
-    /** Theme */
-    @property({type: String, reflect: true})
-    theme: 'light' | 'dark' | 'system' = 'system';
+  /** Theme */
+  @property({ type: String, reflect: true })
+  theme: 'light' | 'dark' | 'system' = 'system';
 
-    /* ── Event Handlers ── */
+  /* ── Event Handlers ── */
 
-    private _handleSave() {
-        if (!this.canSave) return;
-        this.dispatchEvent(
-            new CustomEvent('editor-save', {
-                bubbles: true,
-                composed: true,
-            })
-        );
-    }
+  private _handleSave() {
+    if (!this.canSave) return;
+    this.dispatchEvent(
+      new CustomEvent('editor-save', {
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
 
-    private _handleUndo() {
-        if (!this.canUndo) return;
-        this.dispatchEvent(
-            new CustomEvent('editor-undo', {
-                bubbles: true,
-                composed: true,
-            })
-        );
-    }
+  private _handleUndo() {
+    if (!this.canUndo) return;
+    this.dispatchEvent(
+      new CustomEvent('editor-undo', {
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
 
-    private _handleRedo() {
-        if (!this.canRedo) return;
-        this.dispatchEvent(
-            new CustomEvent('editor-redo', {
-                bubbles: true,
-                composed: true,
-            })
-        );
-    }
+  private _handleRedo() {
+    if (!this.canRedo) return;
+    this.dispatchEvent(
+      new CustomEvent('editor-redo', {
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
 
-    private _handleFormat(format: FormatType) {
-        this.dispatchEvent(
-            new CustomEvent('editor-format', {
-                bubbles: true,
-                composed: true,
-                detail: {format},
-            })
-        );
-    }
+  private _handleFormat(format: FormatType) {
+    this.dispatchEvent(
+      new CustomEvent('editor-format', {
+        bubbles: true,
+        composed: true,
+        detail: { format },
+      }),
+    );
+  }
 
-    private _handleViewModeChange(mode: EditorViewMode) {
-        if (this.viewMode === mode) return;
-        this.dispatchEvent(
-            new CustomEvent('editor-view-mode-change', {
-                bubbles: true,
-                composed: true,
-                detail: {viewMode: mode},
-            })
-        );
-    }
+  private _handleViewModeChange(mode: EditorViewMode) {
+    if (this.viewMode === mode) return;
+    this.dispatchEvent(
+      new CustomEvent('editor-view-mode-change', {
+        bubbles: true,
+        composed: true,
+        detail: { viewMode: mode },
+      }),
+    );
+  }
 
-    private _handleRestoreDefault() {
-        if (!this.canRestore) return;
-        this.dispatchEvent(
-            new CustomEvent('editor-restore-default', {
-                bubbles: true,
-                composed: true,
-            })
-        );
-    }
+  private _handleRestoreDefault() {
+    if (!this.canRestore) return;
+    this.dispatchEvent(
+      new CustomEvent('editor-restore-default', {
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
 
-    /* ── Main Render ── */
+  /* ── Main Render ── */
 
-    render() {
-        void this._localeCtx.locale;
-        return html`
-            <div class="toolbar" role="toolbar" aria-label="Editor toolbar">
+  render() {
+    void this._localeCtx.locale;
+    return html`
+            <div class="toolbar" role="toolbar" aria-label=${msg('Editor toolbar')}>
                 <!-- Save (primary button) -->
                 <button
                     class="toolbar-btn primary"
@@ -226,14 +231,18 @@ export class RtcEditorToolbar extends LitElement {
                 <span class="spacer"></span>
 
                 <!-- Restore default (only shown for system-generated files) -->
-                ${this.canRestore ? html`
+                ${
+                  this.canRestore
+                    ? html`
                     <button
                         class="toolbar-btn"
                         title=${msg('恢复默认内容')}
                         aria-label=${msg('恢复默认')}
                         @click=${this._handleRestoreDefault}
                     >${refreshIcon}</button>
-                ` : nothing}
+                `
+                    : nothing
+                }
 
                 <!-- View mode toggle -->
                 <div class="view-toggle" role="group" aria-label=${msg('视图模式')}>
@@ -261,20 +270,20 @@ export class RtcEditorToolbar extends LitElement {
                 </div>
             </div>
         `;
-    }
+  }
 }
 
 declare global {
-    interface HTMLElementTagNameMap {
-        'rtc-editor-toolbar': RtcEditorToolbar;
-    }
+  interface HTMLElementTagNameMap {
+    'rtc-editor-toolbar': RtcEditorToolbar;
+  }
 
-    interface HTMLElementEventMap {
-        'editor-save': CustomEvent<void>;
-        'editor-undo': CustomEvent<void>;
-        'editor-redo': CustomEvent<void>;
-        'editor-format': CustomEvent<{format: FormatType}>;
-        'editor-view-mode-change': CustomEvent<{viewMode: EditorViewMode}>;
-        'editor-restore-default': CustomEvent<void>;
-    }
+  interface HTMLElementEventMap {
+    'editor-save': CustomEvent<void>;
+    'editor-undo': CustomEvent<void>;
+    'editor-redo': CustomEvent<void>;
+    'editor-format': CustomEvent<{ format: FormatType }>;
+    'editor-view-mode-change': CustomEvent<{ viewMode: EditorViewMode }>;
+    'editor-restore-default': CustomEvent<void>;
+  }
 }

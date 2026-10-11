@@ -268,7 +268,10 @@ export class RtcSessionTree extends LitElement {
    * Get all visible tree nodes (based on data model, not DOM).
    * This is used for keyboard navigation with virtual scrolling.
    */
-  private _getAllVisibleNodes(): Array<{ node: SessionTreeNode; depth: number }> {
+  private _getAllVisibleNodes(): Array<{
+    node: SessionTreeNode;
+    depth: number;
+  }> {
     if (!this._treeCtx?.state?.rootNodes) return [];
     return this._flattenTree(this._treeCtx.state.rootNodes);
   }

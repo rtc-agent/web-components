@@ -26,34 +26,37 @@ import type { RtcExportDialog } from '../../overlay/rtc-export-dialog.js';
  * @returns A promise that resolves when the dialog is dismissed
  */
 function createDialogPromise<T>(
-    tagName: string,
-    host: ShadowRoot,
-    setup: (el: HTMLElement, resolve: (value: T) => void) => Array<[string, EventListener]>
+  tagName: string,
+  host: ShadowRoot,
+  setup: (
+    el: HTMLElement,
+    resolve: (value: T) => void,
+  ) => Array<[string, EventListener]>,
 ): Promise<T> {
-    return new Promise((resolve) => {
-        const el = document.createElement(tagName);
-        const listeners = setup(el, resolve);
+  return new Promise((resolve) => {
+    const el = document.createElement(tagName);
+    const listeners = setup(el, resolve);
 
-        const cleanup = () => {
-            for (const [eventName, handler] of listeners) {
-                el.removeEventListener(eventName, handler);
-            }
-            el.remove();
-        };
+    const cleanup = () => {
+      for (const [eventName, handler] of listeners) {
+        el.removeEventListener(eventName, handler);
+      }
+      el.remove();
+    };
 
-        // Wrap handlers to auto-cleanup before resolving
-        for (const [eventName, originalHandler] of listeners) {
-            const wrappedHandler: EventListener = (e) => {
-                cleanup();
-                originalHandler(e);
-            };
-            // Remove original, add wrapped
-            el.removeEventListener(eventName, originalHandler);
-            el.addEventListener(eventName, wrappedHandler);
-        }
+    // Wrap handlers to auto-cleanup before resolving
+    for (const [eventName, originalHandler] of listeners) {
+      const wrappedHandler: EventListener = (e) => {
+        cleanup();
+        originalHandler(e);
+      };
+      // Remove original, add wrapped
+      el.removeEventListener(eventName, originalHandler);
+      el.addEventListener(eventName, wrappedHandler);
+    }
 
-        host.appendChild(el);
-    });
+    host.appendChild(el);
+  });
 }
 
 // ── Tool Confirm Dialog ──
@@ -69,31 +72,36 @@ function createDialogPromise<T>(
  * @param host - The shadow root host to append the dialog to.
  */
 export function showToolConfirmDialog(
-    rtc: LocalRtc,
-    host: ShadowRoot,
+  rtc: LocalRtc,
+  host: ShadowRoot,
 ): Promise<boolean> {
-    return createDialogPromise<boolean>('rtc-tool-confirm', host, (el, resolve) => {
-        const confirm = el as RtcToolConfirm;
-        confirm.toolCall = {
-            id: rtc.client_id,
-            toolName: rtc.tool_name,
-            parameters: rtc.parameters as Record<string, unknown> | undefined,
-            status: "pending",
-        };
+  return createDialogPromise<boolean>(
+    'rtc-tool-confirm',
+    host,
+    (el, resolve) => {
+      const confirm = el as RtcToolConfirm;
+      confirm.toolCall = {
+        id: rtc.client_id,
+        tool_name: rtc.tool_name,
+        // Convert parameters (JSON Schema object) to JSON string for input
+        input: rtc.parameters ? JSON.stringify(rtc.parameters) : '{}',
+        status: rtc.status,
+      };
 
-        return [
-            ['rtc-tool-call-approved', () => resolve(true)],
-            ['rtc-tool-call-denied', () => resolve(false)],
-        ];
-    });
+      return [
+        ['rtc-tool-call-approved', () => resolve(true)],
+        ['rtc-tool-call-denied', () => resolve(false)],
+      ];
+    },
+  );
 }
 
 // ── Ask User Dialog ──
 
 export interface AskUserAnswer {
-    answers: Record<string, string>;
-    annotations?: Record<string, { preview?: string; notes?: string }>;
-    metadata?: { source?: string };
+  answers: Record<string, string>;
+  annotations?: Record<string, { preview?: string; notes?: string }>;
+  metadata?: { source?: string };
 }
 
 /**
@@ -107,24 +115,31 @@ export interface AskUserAnswer {
  * @param host - The shadow root host to append the dialog to.
  */
 export function showAskUserDialog(
-    rtc: LocalRtc,
-    host: ShadowRoot,
+  rtc: LocalRtc,
+  host: ShadowRoot,
 ): Promise<AskUserAnswer | null> {
-    return createDialogPromise<AskUserAnswer | null>('rtc-ask-user', host, (el, resolve) => {
-        const askUser = el as RtcAskUser;
-        askUser.rtc = rtc;
+  return createDialogPromise<AskUserAnswer | null>(
+    'rtc-ask-user',
+    host,
+    (el, resolve) => {
+      const askUser = el as RtcAskUser;
+      askUser.rtc = rtc;
 
-        return [
-            ['rtc-ask-user-submit', (e: Event) => {
-                const detail = (e as CustomEvent).detail as {
-                    clientId: string;
-                    payload: AskUserAnswer;
-                };
-                resolve(detail.payload);
-            }],
-            ['rtc-ask-user-dismiss', () => resolve(null)],
-        ];
-    });
+      return [
+        [
+          'rtc-ask-user-submit',
+          (e: Event) => {
+            const detail = (e as CustomEvent).detail as {
+              clientId: string;
+              payload: AskUserAnswer;
+            };
+            resolve(detail.payload);
+          },
+        ],
+        ['rtc-ask-user-dismiss', () => resolve(null)],
+      ];
+    },
+  );
 }
 
 // ── Restore Confirm Dialog ──
@@ -140,18 +155,22 @@ export function showAskUserDialog(
  * @param host - The shadow root host to append the dialog to.
  */
 export function showRestoreConfirmDialog(
-    filePath: string,
-    host: ShadowRoot,
+  filePath: string,
+  host: ShadowRoot,
 ): Promise<boolean> {
-    return createDialogPromise<boolean>('rtc-restore-confirm', host, (el, resolve) => {
-        const confirm = el as RtcRestoreConfirm;
-        confirm.filePath = filePath;
+  return createDialogPromise<boolean>(
+    'rtc-restore-confirm',
+    host,
+    (el, resolve) => {
+      const confirm = el as RtcRestoreConfirm;
+      confirm.filePath = filePath;
 
-        return [
-            ['rtc-restore-confirmed', () => resolve(true)],
-            ['rtc-restore-cancelled', () => resolve(false)],
-        ];
-    });
+      return [
+        ['rtc-restore-confirmed', () => resolve(true)],
+        ['rtc-restore-cancelled', () => resolve(false)],
+      ];
+    },
+  );
 }
 
 // ── Export Dialog ──
@@ -167,19 +186,26 @@ export function showRestoreConfirmDialog(
  * @param host - The shadow root host to append the dialog to.
  */
 export function showExportDialog(
-    totalMessages: number,
-    host: ShadowRoot,
+  totalMessages: number,
+  host: ShadowRoot,
 ): Promise<ExportOptions | null> {
-    return createDialogPromise<ExportOptions | null>('rtc-export-dialog', host, (el, resolve) => {
-        const dialog = el as RtcExportDialog;
-        dialog.totalMessages = totalMessages;
+  return createDialogPromise<ExportOptions | null>(
+    'rtc-export-dialog',
+    host,
+    (el, resolve) => {
+      const dialog = el as RtcExportDialog;
+      dialog.totalMessages = totalMessages;
 
-        return [
-            ['rtc-export-confirm', (e: Event) => {
-                const detail = (e as CustomEvent<ExportOptions>).detail;
-                resolve(detail);
-            }],
-            ['rtc-export-cancel', () => resolve(null)],
-        ];
-    });
+      return [
+        [
+          'rtc-export-confirm',
+          (e: Event) => {
+            const detail = (e as CustomEvent<ExportOptions>).detail;
+            resolve(detail);
+          },
+        ],
+        ['rtc-export-cancel', () => resolve(null)],
+      ];
+    },
+  );
 }

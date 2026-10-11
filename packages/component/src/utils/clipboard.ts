@@ -5,7 +5,7 @@
  * Prefers navigator.clipboard API, falls back to execCommand.
  */
 
-import {createLogger} from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('Clipboard');
 

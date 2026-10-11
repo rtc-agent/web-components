@@ -14,7 +14,7 @@ import { defineRegistry, loadScenariosFromURL } from '@rtc-agent/component';
 const rtcAgent = defineRegistry({
   name: 'MyApp',
   description: '帮助用户管理订单的智能助手',
-  persona: '你是一个专业的客服助手，负责帮助用户解决订单相关问题。'
+  persona: '你是一个专业的客服助手，负责帮助用户解决订单相关问题。',
 });
 
 // 2. 注册单个 Function
@@ -22,11 +22,25 @@ rtcAgent.register({
   name: 'user.register',
   description: '注册新用户',
   parameters: [
-    { name: 'email', schema: { type: 'string', description: '用户邮箱' }, required: true },
-    { name: 'password', schema: { type: 'string', description: '密码（至少 8 位）' }, required: true },
-    { name: 'name', schema: { type: 'string', description: '用户姓名' }, required: false }
+    {
+      name: 'email',
+      schema: { type: 'string', description: '用户邮箱' },
+      required: true,
+    },
+    {
+      name: 'password',
+      schema: { type: 'string', description: '密码（至少 8 位）' },
+      required: true,
+    },
+    {
+      name: 'name',
+      schema: { type: 'string', description: '用户姓名' },
+      required: false,
+    },
   ],
-  returns: { schema: { type: 'object', description: '用户信息，包含 id 和 email' } },
+  returns: {
+    schema: { type: 'object', description: '用户信息，包含 id 和 email' },
+  },
   hooks: {
     onStart: (params) => {
       console.log('开始注册用户:', params.email);
@@ -36,56 +50,76 @@ rtcAgent.register({
     },
     onError: (error) => {
       console.error('注册失败:', error);
-    }
+    },
   },
   handler: async (params) => {
     // 实际业务逻辑
     const response = await fetch('/api/users', {
       method: 'POST',
-      body: JSON.stringify(params)
+      body: JSON.stringify(params),
     });
     return response.json();
-  }
+  },
 });
 
 // 3. 创建 FunctionGroup（批量注册）
 const orderGroup = rtcAgent.createGroup({
   name: 'order',
-  description: '订单管理'
+  description: '订单管理',
 });
 
 orderGroup.register({
   name: 'create',
   description: '创建新订单',
   parameters: [
-    { name: 'productId', schema: { type: 'string', description: '产品 ID' }, required: true },
-    { name: 'quantity', schema: { type: 'number', description: '数量' }, required: true },
-    { name: 'address', schema: { type: 'object', description: '收货地址' }, required: true }
+    {
+      name: 'productId',
+      schema: { type: 'string', description: '产品 ID' },
+      required: true,
+    },
+    {
+      name: 'quantity',
+      schema: { type: 'number', description: '数量' },
+      required: true,
+    },
+    {
+      name: 'address',
+      schema: { type: 'object', description: '收货地址' },
+      required: true,
+    },
   ],
   returns: { schema: { type: 'object', description: '订单信息' } },
   handler: async (params) => {
     const response = await fetch('/api/orders', {
       method: 'POST',
-      body: JSON.stringify(params)
+      body: JSON.stringify(params),
     });
     return response.json();
-  }
+  },
 });
 
 orderGroup.register({
   name: 'cancel',
   description: '取消订单',
   parameters: [
-    { name: 'orderId', schema: { type: 'string', description: '订单 ID' }, required: true },
-    { name: 'reason', schema: { type: 'string', description: '取消原因' }, required: false }
+    {
+      name: 'orderId',
+      schema: { type: 'string', description: '订单 ID' },
+      required: true,
+    },
+    {
+      name: 'reason',
+      schema: { type: 'string', description: '取消原因' },
+      required: false,
+    },
   ],
   handler: async (params) => {
     const response = await fetch(`/api/orders/${params.orderId}/cancel`, {
       method: 'POST',
-      body: JSON.stringify({ reason: params.reason })
+      body: JSON.stringify({ reason: params.reason }),
     });
     return response.json();
-  }
+  },
 });
 
 // 4. 链式调用（宿主应用内部使用）
@@ -94,13 +128,13 @@ async function exampleUsage() {
   const result1 = await rtcAgent.order.create({
     productId: 'prod_123',
     quantity: 2,
-    address: { city: 'Beijing', street: '...' }
+    address: { city: 'Beijing', street: '...' },
   });
 
   // 方式 2：通过 execute 方法
   const result2 = await rtcAgent.execute('order.cancel', {
     orderId: 'order_456',
-    reason: '不想要了'
+    reason: '不想要了',
   });
 
   console.log(result1, result2);
@@ -147,7 +181,7 @@ async function writeCustomScenario() {
 - 邮箱格式必须符合 RFC 5322
 - 注册成功后自动登录
 `,
-    tags: ['onboarding', 'authentication']
+    tags: ['onboarding', 'authentication'],
   });
 }
 

@@ -1,5 +1,5 @@
-import {describe, it, expect} from 'vitest';
-import {permissionChecker} from '@rtc-agent/persistence';
+import { describe, it, expect } from 'vitest';
+import { permissionChecker } from '@rtc-agent/persistence';
 
 /**
  * Permission tests for the askUser tool.

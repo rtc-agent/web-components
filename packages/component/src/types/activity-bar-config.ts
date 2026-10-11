@@ -49,11 +49,16 @@ export const DEFAULT_ACTIVITY_BAR_CONFIG: ResolvedActivityBarConfig = {
 /**
  * Resolve Activity Bar configuration (merge with defaults)
  */
-export function resolveActivityBarConfig(config?: ActivityBarConfig): ResolvedActivityBarConfig {
+export function resolveActivityBarConfig(
+  config?: ActivityBarConfig,
+): ResolvedActivityBarConfig {
   if (!config) return { ...DEFAULT_ACTIVITY_BAR_CONFIG };
 
   return {
-    disabledActivities: config.disabledActivities ?? [...DEFAULT_ACTIVITY_BAR_CONFIG.disabledActivities],
-    defaultActivity: config.defaultActivity ?? DEFAULT_ACTIVITY_BAR_CONFIG.defaultActivity,
+    disabledActivities: config.disabledActivities ?? [
+      ...DEFAULT_ACTIVITY_BAR_CONFIG.disabledActivities,
+    ],
+    defaultActivity:
+      config.defaultActivity ?? DEFAULT_ACTIVITY_BAR_CONFIG.defaultActivity,
   };
 }

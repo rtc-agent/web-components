@@ -10,11 +10,11 @@
  * @fires rtc-file-preview - File preview requested
  * @csspart preview-area - The scrolling container
  */
-import {LitElement, html} from 'lit';
-import {customElement, property, state} from 'lit/decorators.js';
-import {localized, msg} from '@lit/localize';
-import {styles} from './rtc-file-preview-area.styles.js';
-import type {FileAttachment} from '../../types/index.js';
+import { LitElement, html } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import { localized, msg } from '@lit/localize';
+import { styles } from './rtc-file-preview-area.styles.js';
+import type { FileAttachment } from '../../types/index.js';
 import './rtc-file-thumbnail.js';
 
 @localized()
@@ -23,19 +23,19 @@ export class RtcFilePreviewArea extends LitElement {
   static styles = styles;
 
   /** File attachments to display */
-  @property({type: Array})
+  @property({ type: Array })
   files: FileAttachment[] = [];
 
   /** Readonly mode (no delete buttons) */
-  @property({type: Boolean, reflect: true})
+  @property({ type: Boolean, reflect: true })
   readonly: boolean = false;
 
   /** Upload task progress map (taskId -> progress 0-100) */
-  @property({type: Object})
+  @property({ type: Object })
   uploadProgress: Map<string, number> = new Map();
 
   /** Upload task loading state map (taskId -> state) */
-  @property({type: Object})
+  @property({ type: Object })
   uploadStates: Map<string, string> = new Map();
 
   @state()
@@ -90,36 +90,48 @@ export class RtcFilePreviewArea extends LitElement {
   }
 
   /** Handle thumbnail click */
-  private _handleThumbnailClick(_e: CustomEvent, file: FileAttachment, index: number): void {
+  private _handleThumbnailClick(
+    _e: CustomEvent,
+    file: FileAttachment,
+    index: number,
+  ): void {
     this.dispatchEvent(
       new CustomEvent('rtc-file-preview', {
         bubbles: true,
         composed: true,
-        detail: {file, index},
-      })
+        detail: { file, index },
+      }),
     );
   }
 
   /** Handle thumbnail remove */
-  private _handleThumbnailRemove(_e: CustomEvent, file: FileAttachment, index: number): void {
+  private _handleThumbnailRemove(
+    _e: CustomEvent,
+    file: FileAttachment,
+    index: number,
+  ): void {
     this.dispatchEvent(
       new CustomEvent('rtc-file-remove', {
         bubbles: true,
         composed: true,
-        detail: {file, index},
-      })
+        detail: { file, index },
+      }),
     );
   }
 
   /** Handle thumbnail retry */
-  private _handleThumbnailRetry(_e: CustomEvent, file: FileAttachment, index: number): void {
+  private _handleThumbnailRetry(
+    _e: CustomEvent,
+    file: FileAttachment,
+    index: number,
+  ): void {
     // Dispatch retry event for parent to handle
     this.dispatchEvent(
       new CustomEvent('rtc-file-retry', {
         bubbles: true,
         composed: true,
-        detail: {file, index},
-      })
+        detail: { file, index },
+      }),
     );
   }
 

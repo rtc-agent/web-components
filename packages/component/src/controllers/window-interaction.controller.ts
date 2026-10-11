@@ -29,7 +29,7 @@ import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import interact from 'interactjs';
 import type { InteractEvent } from '@interactjs/core/InteractEvent';
 import type { ResizeEvent } from '@interactjs/actions/resize/plugin';
-import { createLogger } from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('WindowInteractionController');
 
@@ -81,16 +81,25 @@ export class WindowInteractionController implements ReactiveController {
   /** Ghost preview element (lightweight visual feedback during drag/resize) */
   private _ghostElement?: HTMLElement;
   /** Ghost start state (used to compute delta) */
-  private _ghostStartRect?: { left: number; top: number; width: number; height: number };
+  private _ghostStartRect?: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  };
   /** Cumulative drag offset (during drag) */
   private _ghostDragOffset = { x: 0, y: 0 };
   /** Cached margin value (reused during drag/resize to avoid repeated getComputedStyle calls) */
   private _cachedMargin = 20;
 
   /** Bound keydown handler — stored so it can be removed on cleanup. */
-  private _boundOnKeydown = (event: KeyboardEvent) => this._handleKeydown(event);
+  private _boundOnKeydown = (event: KeyboardEvent) =>
+    this._handleKeydown(event);
 
-  constructor(host: ReactiveControllerHost, config?: { draggable?: boolean; resizable?: boolean }) {
+  constructor(
+    host: ReactiveControllerHost,
+    config?: { draggable?: boolean; resizable?: boolean },
+  ) {
     this._host = host;
     this._draggable = config?.draggable ?? true;
     this._resizable = config?.resizable ?? true;
@@ -116,8 +125,10 @@ export class WindowInteractionController implements ReactiveController {
   /** Update config */
   setConfig(config: { draggable?: boolean; resizable?: boolean }): void {
     // Fix 53: Check whether config actually changed
-    const draggableChanged = config.draggable !== undefined && config.draggable !== this._draggable;
-    const resizableChanged = config.resizable !== undefined && config.resizable !== this._resizable;
+    const draggableChanged =
+      config.draggable !== undefined && config.draggable !== this._draggable;
+    const resizableChanged =
+      config.resizable !== undefined && config.resizable !== this._resizable;
 
     if (!draggableChanged && !resizableChanged) {
       return; // No change, skip
@@ -132,7 +143,10 @@ export class WindowInteractionController implements ReactiveController {
 
     this._draggable = config.draggable ?? true;
     this._resizable = config.resizable ?? true;
-    log.debug('setConfig:', {draggable: this._draggable, resizable: this._resizable});
+    log.debug('setConfig:', {
+      draggable: this._draggable,
+      resizable: this._resizable,
+    });
 
     // Destroy existing interact instances first
     if (this._windowElement) {
@@ -186,7 +200,10 @@ export class WindowInteractionController implements ReactiveController {
       interact(this._windowElement).unset();
     }
     if (this._titleBarElement) {
-      this._titleBarElement.removeEventListener('keydown', this._boundOnKeydown);
+      this._titleBarElement.removeEventListener(
+        'keydown',
+        this._boundOnKeydown,
+      );
       interact(this._titleBarElement).unset();
     }
     // Clean up ghost element
@@ -211,13 +228,17 @@ export class WindowInteractionController implements ReactiveController {
       interact(this._windowElement).unset();
     }
     if (this._titleBarElement) {
-      this._titleBarElement.removeEventListener('keydown', this._boundOnKeydown);
+      this._titleBarElement.removeEventListener(
+        'keydown',
+        this._boundOnKeydown,
+      );
       interact(this._titleBarElement).unset();
     }
   }
 
   private _initInteractions(): void {
-    if (!this._isEnabled || !this._windowElement || !this._titleBarElement) return;
+    if (!this._isEnabled || !this._windowElement || !this._titleBarElement)
+      return;
 
     // Initialize drag
     this._initDrag();
@@ -327,8 +348,14 @@ export class WindowInteractionController implements ReactiveController {
       if (!windowElement) return;
       const rect = windowElement.getBoundingClientRect();
       const margin = this._getMargin();
-      const newX = Math.max(margin, Math.min(rect.left + dx, window.innerWidth - rect.width - margin));
-      const newY = Math.max(margin, Math.min(rect.top + dy, window.innerHeight - rect.height - margin));
+      const newX = Math.max(
+        margin,
+        Math.min(rect.left + dx, window.innerWidth - rect.width - margin),
+      );
+      const newY = Math.max(
+        margin,
+        Math.min(rect.top + dy, window.innerHeight - rect.height - margin),
+      );
 
       this.onPositionChange?.(newX, newY);
     }
@@ -368,7 +395,8 @@ export class WindowInteractionController implements ReactiveController {
   }
 
   private _onDragMove(event: InteractEvent): void {
-    if (!this._windowElement || !this._ghostElement || !this._ghostStartRect) return;
+    if (!this._windowElement || !this._ghostElement || !this._ghostStartRect)
+      return;
 
     const margin = this._cachedMargin;
     const viewport = { width: window.innerWidth, height: window.innerHeight };
@@ -386,8 +414,14 @@ export class WindowInteractionController implements ReactiveController {
     const newTop = top + offsetY;
 
     // Clamp to viewport
-    const clampedLeft = Math.max(margin, Math.min(newLeft, viewport.width - width - margin));
-    const clampedTop = Math.max(margin, Math.min(newTop, viewport.height - height - margin));
+    const clampedLeft = Math.max(
+      margin,
+      Math.min(newLeft, viewport.width - width - margin),
+    );
+    const clampedTop = Math.max(
+      margin,
+      Math.min(newTop, viewport.height - height - margin),
+    );
 
     // Update cumulative offset to the clamped value (prevent continued accumulation after hitting the boundary)
     this._ghostDragOffset.x = clampedLeft - left;
@@ -413,7 +447,11 @@ export class WindowInteractionController implements ReactiveController {
     this._host.requestUpdate();
 
     // Fix 53: Handle deferred config update (only when no interaction is in progress)
-    if (this._pendingConfig && !this._state.isDragging && !this._state.isResizing) {
+    if (
+      this._pendingConfig &&
+      !this._state.isDragging &&
+      !this._state.isResizing
+    ) {
       const config = this._pendingConfig;
       this._pendingConfig = undefined;
       this.setConfig(config);
@@ -435,7 +473,8 @@ export class WindowInteractionController implements ReactiveController {
   }
 
   private _onResizeMove(event: ResizeEvent): void {
-    if (!this._windowElement || !this._ghostElement || !this._ghostStartRect) return;
+    if (!this._windowElement || !this._ghostElement || !this._ghostStartRect)
+      return;
 
     const { width, height } = event.rect;
     const margin = this._cachedMargin;
@@ -450,8 +489,14 @@ export class WindowInteractionController implements ReactiveController {
       const newTop = edges.top ? event.rect.top : this._ghostStartRect.top;
 
       // Clamp to viewport
-      const clampedLeft = Math.max(margin, Math.min(newLeft, window.innerWidth - width - margin));
-      const clampedTop = Math.max(margin, Math.min(newTop, window.innerHeight - height - margin));
+      const clampedLeft = Math.max(
+        margin,
+        Math.min(newLeft, window.innerWidth - width - margin),
+      );
+      const clampedTop = Math.max(
+        margin,
+        Math.min(newTop, window.innerHeight - height - margin),
+      );
 
       offsetX = clampedLeft - this._ghostStartRect.left;
       offsetY = clampedTop - this._ghostStartRect.top;
@@ -476,7 +521,10 @@ export class WindowInteractionController implements ReactiveController {
       const finalY = ghostRect.top;
 
       // Commit position first (if changed), then size
-      if (finalX !== this._ghostStartRect.left || finalY !== this._ghostStartRect.top) {
+      if (
+        finalX !== this._ghostStartRect.left ||
+        finalY !== this._ghostStartRect.top
+      ) {
         this.onPositionChange?.(finalX, finalY);
       }
       this.onSizeChange?.(finalWidth, finalHeight);
@@ -487,7 +535,11 @@ export class WindowInteractionController implements ReactiveController {
     this._host.requestUpdate();
 
     // Fix 53: Handle deferred config update (only when no interaction is in progress)
-    if (this._pendingConfig && !this._state.isDragging && !this._state.isResizing) {
+    if (
+      this._pendingConfig &&
+      !this._state.isDragging &&
+      !this._state.isResizing
+    ) {
       const config = this._pendingConfig;
       this._pendingConfig = undefined;
       this.setConfig(config);
@@ -506,7 +558,8 @@ export class WindowInteractionController implements ReactiveController {
     const styles = getComputedStyle(this._windowElement);
     return {
       width: parseInt(styles.getPropertyValue('--rtc-window-min-width')) || 350,
-      height: parseInt(styles.getPropertyValue('--rtc-window-min-height')) || 520,
+      height:
+        parseInt(styles.getPropertyValue('--rtc-window-min-height')) || 520,
     };
   }
 

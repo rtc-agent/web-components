@@ -5,10 +5,10 @@
  * simulation, toast notifications, settings, activity control, performance
  * metrics, and network simulation.
  */
-import type { RtcAgentDebugAPI } from "./debug-api-types.js";
-import type { ToolCall } from "./types/index.js";
-import type { SettingsState } from "./contexts/settings.js";
-import type { Activity } from "./types/index.js";
+import type { RtcAgentDebugAPI } from './debug-api-types.js';
+import type { ToolCall } from './types/index.js';
+import type { SettingsState } from './contexts/settings.js';
+import type { Activity } from './types/index.js';
 
 // ── Non-standard API type augmentations ──
 
@@ -30,7 +30,7 @@ import {
   getLogBufferSnapshot,
   LOG_BUFFER_MAX,
   getAgentElement,
-} from "./debug-api-helpers.js";
+} from './debug-api-helpers.js';
 
 // Re-export mutable state setters for the network simulation
 // Encapsulated in a single object for better cohesion and to survive HMR
@@ -55,27 +55,27 @@ const _networkState: {
  */
 export function buildExtAPI(): Pick<
   RtcAgentDebugAPI,
-  | "createSession"
-  | "switchSession"
-  | "deleteSession"
-  | "renameSession"
-  | "getSessions"
-  | "getCurrentSessionId"
-  | "getToolCalls"
-  | "addPendingToolCall"
-  | "approveToolCall"
-  | "denyToolCall"
-  | "approveAllToolCalls"
-  | "showToast"
-  | "getToasts"
-  | "getSettings"
-  | "updateSettings"
-  | "setActivity"
-  | "getActivity"
-  | "getMetrics"
-  | "simulateOffline"
-  | "restoreNetwork"
-  | "isOffline"
+  | 'createSession'
+  | 'switchSession'
+  | 'deleteSession'
+  | 'renameSession'
+  | 'getSessions'
+  | 'getCurrentSessionId'
+  | 'getToolCalls'
+  | 'addPendingToolCall'
+  | 'approveToolCall'
+  | 'denyToolCall'
+  | 'approveAllToolCalls'
+  | 'showToast'
+  | 'getToasts'
+  | 'getSettings'
+  | 'updateSettings'
+  | 'setActivity'
+  | 'getActivity'
+  | 'getMetrics'
+  | 'simulateOffline'
+  | 'restoreNetwork'
+  | 'isOffline'
 > {
   return {
     // ── Session Management ──
@@ -83,7 +83,7 @@ export function buildExtAPI(): Pick<
     createSession(): string | null {
       const el = getAgentElement();
       if (!el) {
-        log.warn("createSession: rtc-agent element not found");
+        log.warn('createSession: rtc-agent element not found');
         return null;
       }
       const clientId = el.sessionController.actions.createSession();
@@ -94,11 +94,11 @@ export function buildExtAPI(): Pick<
     switchSession(sessionId: string): boolean {
       const el = getAgentElement();
       if (!el) {
-        log.warn("switchSession: rtc-agent element not found");
+        log.warn('switchSession: rtc-agent element not found');
         return false;
       }
       const exists = el.sessionController.value.state.sessions.some(
-        (s) => s.clientId === sessionId
+        (s) => s.clientId === sessionId,
       );
       if (!exists) {
         log.warn(`switchSession: session not found: ${sessionId}`);
@@ -110,33 +110,32 @@ export function buildExtAPI(): Pick<
     },
 
     async deleteSession(
-      sessionId: string
+      sessionId: string,
     ): Promise<{ ok: boolean; error?: string }> {
       const el = getAgentElement();
-      if (!el) return { ok: false, error: "rtc-agent element not found" };
-      const result = await el.sessionController.actions.deleteSession(
-        sessionId
-      );
+      if (!el) return { ok: false, error: 'rtc-agent element not found' };
+      const result =
+        await el.sessionController.actions.deleteSession(sessionId);
       log.info(
-        `deleteSession: ${sessionId} -> ${result.ok ? "ok" : result.error}`
+        `deleteSession: ${sessionId} -> ${result.ok ? 'ok' : result.error}`,
       );
       return result;
     },
 
     async renameSession(
       sessionId: string,
-      title: string
+      title: string,
     ): Promise<{ ok: boolean; error?: string }> {
       const el = getAgentElement();
-      if (!el) return { ok: false, error: "rtc-agent element not found" };
+      if (!el) return { ok: false, error: 'rtc-agent element not found' };
       const result = await el.sessionController.actions.renameSession(
         sessionId,
-        title
+        title,
       );
       log.info(
         `renameSession: ${sessionId} -> "${title}" (${
-          result.ok ? "ok" : result.error
-        })`
+          result.ok ? 'ok' : result.error
+        })`,
       );
       return result;
     },
@@ -165,42 +164,41 @@ export function buildExtAPI(): Pick<
       if (!el) return [];
       return el.toolCallController.value.state.pendingCalls.map((tc) => ({
         id: tc.id,
-        toolName: tc.toolName,
-        command: tc.command,
-        description: tc.description,
-        parameters: tc.parameters,
+        toolName: tc.tool_name,
+        input: tc.input,
+        output: tc.output,
+        status: tc.status,
       }));
     },
 
     addPendingToolCall(call: {
       id?: string;
       toolName: string;
-      command?: string;
-      description?: string;
-      parameters?: Record<string, unknown>;
+      input?: string;
+      output?: string;
+      status?: string;
     }): void {
       const el = getAgentElement();
       if (!el) {
-        log.warn("addPendingToolCall: rtc-agent element not found");
+        log.warn('addPendingToolCall: rtc-agent element not found');
         return;
       }
       const toolCall: ToolCall = {
         id: call.id ?? `tc-${crypto.randomUUID()}`,
-        toolName: call.toolName,
-        command: call.command,
-        description: call.description,
-        parameters: call.parameters,
-        status: "pending",
+        tool_name: call.toolName,
+        input: call.input ?? '{}',
+        output: call.output,
+        status: call.status,
       };
       el.toolCallController.addPendingCall(toolCall);
-      log.info(`addPendingToolCall: ${toolCall.toolName} (${toolCall.id})`);
+      log.info(`addPendingToolCall: ${toolCall.tool_name} (${toolCall.id})`);
     },
 
     approveToolCall(callId: string): boolean {
       const el = getAgentElement();
       if (!el) return false;
       const exists = el.toolCallController.value.state.pendingCalls.some(
-        (tc) => tc.id === callId
+        (tc) => tc.id === callId,
       );
       if (!exists) {
         log.warn(`approveToolCall: not found: ${callId}`);
@@ -215,7 +213,7 @@ export function buildExtAPI(): Pick<
       const el = getAgentElement();
       if (!el) return false;
       const exists = el.toolCallController.value.state.pendingCalls.some(
-        (tc) => tc.id === callId
+        (tc) => tc.id === callId,
       );
       if (!exists) {
         log.warn(`denyToolCall: not found: ${callId}`);
@@ -237,11 +235,11 @@ export function buildExtAPI(): Pick<
 
     showToast(
       message: string,
-      type: "info" | "success" | "error" = "info"
+      type: 'info' | 'success' | 'error' = 'info',
     ): void {
       const el = getAgentElement();
       if (!el) {
-        log.warn("showToast: rtc-agent element not found");
+        log.warn('showToast: rtc-agent element not found');
         return;
       }
       el.toastController.actions.show(message, type);
@@ -269,25 +267,25 @@ export function buildExtAPI(): Pick<
     updateSettings(section: string, patch: Record<string, unknown>): void {
       const el = getAgentElement();
       if (!el) {
-        log.warn("updateSettings: rtc-agent element not found");
+        log.warn('updateSettings: rtc-agent element not found');
         return;
       }
       const actions = el.settingsController.actions;
       switch (section) {
-        case "appearance":
+        case 'appearance':
           actions.updateAppearance(
-            patch as Partial<SettingsState["appearance"]>
+            patch as Partial<SettingsState['appearance']>,
           );
           break;
-        case "chat":
-          actions.updateChat(patch as Partial<SettingsState["chat"]>);
+        case 'chat':
+          actions.updateChat(patch as Partial<SettingsState['chat']>);
           break;
-        case "files":
-          actions.updateFiles(patch as Partial<SettingsState["files"]>);
+        case 'files':
+          actions.updateFiles(patch as Partial<SettingsState['files']>);
           break;
-        case "notifications":
+        case 'notifications':
           actions.updateNotifications(
-            patch as Partial<SettingsState["notifications"]>
+            patch as Partial<SettingsState['notifications']>,
           );
           break;
         default:
@@ -301,15 +299,15 @@ export function buildExtAPI(): Pick<
     setActivity(activity: string): void {
       const el = getAgentElement();
       if (!el) {
-        log.warn("setActivity: rtc-agent element not found");
+        log.warn('setActivity: rtc-agent element not found');
         return;
       }
-      const validActivities: Activity[] = ["files", "chat", "settings"];
+      const validActivities: Activity[] = ['files', 'chat', 'settings'];
       if (!validActivities.includes(activity as Activity)) {
         log.warn(
           `setActivity: invalid activity "${activity}", expected one of: ${validActivities.join(
-            ", "
-          )}`
+            ', ',
+          )}`,
         );
         return;
       }
@@ -319,7 +317,7 @@ export function buildExtAPI(): Pick<
 
     getActivity(): { active: string; sidebarVisible: boolean } {
       const el = getAgentElement();
-      if (!el) return { active: "chat", sidebarVisible: true };
+      if (!el) return { active: 'chat', sidebarVisible: true };
       return {
         active: el.activityController.active,
         sidebarVisible: el.activityController.sidebarVisible,
@@ -333,9 +331,9 @@ export function buildExtAPI(): Pick<
 
       // DOM metrics
       metrics.dom = {
-        nodeCount: document.querySelectorAll("*").length,
+        nodeCount: document.querySelectorAll('*').length,
         rtcAgentChildren:
-          getAgentElement()?.shadowRoot?.querySelectorAll("*").length ?? 0,
+          getAgentElement()?.shadowRoot?.querySelectorAll('*').length ?? 0,
       };
 
       // Memory (Chrome only)
@@ -354,16 +352,16 @@ export function buildExtAPI(): Pick<
       // Navigation timing
       if (performance.getEntriesByType) {
         const nav = performance.getEntriesByType(
-          "navigation"
+          'navigation',
         ) as PerformanceNavigationTiming[];
         if (nav.length > 0) {
           metrics.timing = {
             domContentLoaded: Math.round(
-              nav[0].domContentLoadedEventEnd - nav[0].startTime
+              nav[0].domContentLoadedEventEnd - nav[0].startTime,
             ),
             loadComplete: Math.round(nav[0].loadEventEnd - nav[0].startTime),
             domInteractive: Math.round(
-              nav[0].domInteractive - nav[0].startTime
+              nav[0].domInteractive - nav[0].startTime,
             ),
           };
         }
@@ -371,13 +369,13 @@ export function buildExtAPI(): Pick<
 
       // Resource timing summary
       const resources = performance.getEntriesByType(
-        "resource"
+        'resource',
       ) as PerformanceResourceTiming[];
       metrics.resources = {
         total: resources.length,
         totalTransferSize: resources.reduce(
           (sum, r) => sum + (r.transferSize ?? 0),
-          0
+          0,
         ),
       };
 
@@ -408,7 +406,7 @@ export function buildExtAPI(): Pick<
 
     simulateOffline(): void {
       if (_networkState.isOffline) {
-        log.warn("simulateOffline: already offline");
+        log.warn('simulateOffline: already offline');
         return;
       }
 
@@ -419,9 +417,9 @@ export function buildExtAPI(): Pick<
       window.fetch = (() => {
         return Promise.reject(
           new DOMException(
-            "Failed to fetch (simulated offline)",
-            "NetworkError"
-          )
+            'Failed to fetch (simulated offline)',
+            'NetworkError',
+          ),
         );
       }) as typeof fetch;
 
@@ -440,9 +438,9 @@ export function buildExtAPI(): Pick<
       const OfflineWebSocket = function (
         this: WebSocket,
         url: string | URL,
-        _protocols?: string | string[]
+        _protocols?: string | string[],
       ) {
-        const resolvedUrl = typeof url === "string" ? url : url.href;
+        const resolvedUrl = typeof url === 'string' ? url : url.href;
         log.info(`simulateOffline: blocked WebSocket to ${resolvedUrl}`);
 
         // Use EventTarget as the base and augment with WebSocket-shaped properties.
@@ -458,28 +456,28 @@ export function buildExtAPI(): Pick<
         ws.dispatchEvent = target.dispatchEvent.bind(target);
 
         // Read-only connection metadata.
-        Object.defineProperty(ws, "url", {
+        Object.defineProperty(ws, 'url', {
           value: resolvedUrl,
           enumerable: true,
         });
-        Object.defineProperty(ws, "protocol", { value: "", enumerable: true });
-        Object.defineProperty(ws, "extensions", {
-          value: "",
+        Object.defineProperty(ws, 'protocol', { value: '', enumerable: true });
+        Object.defineProperty(ws, 'extensions', {
+          value: '',
           enumerable: true,
         });
-        Object.defineProperty(ws, "bufferedAmount", {
+        Object.defineProperty(ws, 'bufferedAmount', {
           value: 0,
           enumerable: true,
         });
-        Object.defineProperty(ws, "binaryType", {
-          value: "blob" as BinaryType,
+        Object.defineProperty(ws, 'binaryType', {
+          value: 'blob' as BinaryType,
           writable: true,
           enumerable: true,
         });
 
         // readyState starts at CONNECTING, transitions to CLOSED after the error.
         let state: number = WebSocket.CONNECTING;
-        Object.defineProperty(ws, "readyState", {
+        Object.defineProperty(ws, 'readyState', {
           get: () => state,
           enumerable: true,
         });
@@ -490,10 +488,10 @@ export function buildExtAPI(): Pick<
         // We use accessor properties that forward to the underlying EventTarget,
         // matching the real WebSocket API contract.
         const handlerNames = [
-          "onopen",
-          "onmessage",
-          "onerror",
-          "onclose",
+          'onopen',
+          'onmessage',
+          'onerror',
+          'onclose',
         ] as const;
         for (const name of handlerNames) {
           const eventType = name.slice(2); // 'onopen' → 'open'
@@ -517,10 +515,10 @@ export function buildExtAPI(): Pick<
           if (state !== WebSocket.OPEN) {
             throw new DOMException(
               `WebSocket is not open (readyState=${state})`,
-              "InvalidStateError"
+              'InvalidStateError',
             );
           }
-        }) as WebSocket["send"];
+        }) as WebSocket['send'];
 
         // Guard against duplicate close events: close() and the
         // constructor's async-failure setTimeout can both fire.
@@ -530,11 +528,11 @@ export function buildExtAPI(): Pick<
           closeEventFired = true;
           state = WebSocket.CLOSED;
           ws.dispatchEvent(
-            new CloseEvent("close", {
+            new CloseEvent('close', {
               code: code ?? 1006,
-              reason: reason ?? "Simulated offline",
+              reason: reason ?? 'Simulated offline',
               wasClean: code === undefined || code === 1000,
-            })
+            }),
           );
         };
 
@@ -544,14 +542,14 @@ export function buildExtAPI(): Pick<
           state = WebSocket.CLOSING;
           // Schedule close event to match async WebSocket semantics.
           setTimeout(() => fireCloseEvent(code, reason), 0);
-        }) as WebSocket["close"];
+        }) as WebSocket['close'];
 
         // Simulate the connection failure asynchronously so handlers
         // registered after construction still fire.
         setTimeout(() => {
           if (closeEventFired) return; // close() already handled it
-          ws.dispatchEvent(new Event("error"));
-          fireCloseEvent(1006, "Simulated offline");
+          ws.dispatchEvent(new Event('error'));
+          fireCloseEvent(1006, 'Simulated offline');
         }, 0);
 
         return ws;
@@ -566,13 +564,13 @@ export function buildExtAPI(): Pick<
       window.WebSocket = OfflineWebSocket;
       _networkState.isOffline = true;
       log.info(
-        "simulateOffline: network simulation active (fetch + WebSocket blocked)"
+        'simulateOffline: network simulation active (fetch + WebSocket blocked)',
       );
     },
 
     restoreNetwork(): void {
       if (!_networkState.isOffline) {
-        log.warn("restoreNetwork: not currently offline");
+        log.warn('restoreNetwork: not currently offline');
         return;
       }
 
@@ -585,7 +583,7 @@ export function buildExtAPI(): Pick<
         _networkState.originalWebSocket = null;
       }
       _networkState.isOffline = false;
-      log.info("restoreNetwork: normal network behavior restored");
+      log.info('restoreNetwork: normal network behavior restored');
     },
 
     get isOffline(): boolean {

@@ -20,17 +20,22 @@
  * @csspart dot - The timeline dot (colored by error category)
  * @csspart content - The error content area
  */
-import {LitElement, html, css, nothing} from 'lit';
-import {customElement, property, state} from 'lit/decorators.js';
-import {consume} from '@lit/context';
-import {localized, msg} from '@lit/localize';
-import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
-import {timelineStyles} from './timeline.styles.js';
-import type {ErrorContent, ErrorCategory} from '@rtc-agent/protocol';
-import type {Message} from '../../types/index.js';
-import {formatTimestampCompact} from '../../utils/format.js';
-import { createLogger } from '@rtc-agent/client';
-import type {StatefulComponent} from '../../utils/message-virtual-scroll.js';
+import { LitElement, html, css, nothing } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import { consume } from '@lit/context';
+import { localized, msg } from '@lit/localize';
+import {
+  localeContext,
+  type LocaleContextValue,
+  sourceLocale,
+  targetLocales,
+} from '../../core/i18n.js';
+import { timelineStyles } from './timeline.styles.js';
+import type { ErrorContent, ErrorCategory } from '@rtc-agent/protocol';
+import type { Message } from '../../types/index.js';
+import { formatTimestampCompact } from '../../utils/format.js';
+import { createLogger } from '@rtc-agent/protocol';
+import type { StatefulComponent } from '../../utils/message-virtual-scroll.js';
 
 const log = createLogger('ErrorMessage');
 
@@ -38,9 +43,9 @@ const log = createLogger('ErrorMessage');
  * Category-specific configuration for icon, color, and label.
  */
 interface CategoryConfig {
-    icon: string;
-    color: string;
-    label: string;
+  icon: string;
+  color: string;
+  label: string;
 }
 
 /**
@@ -61,24 +66,27 @@ interface CategoryConfig {
  * avoids the "msg() outside reactive context" pitfall.
  */
 const CATEGORY_CONFIG: Record<ErrorCategory, Omit<CategoryConfig, 'label'>> = {
-    api: {icon: '⚠️', color: '#2563eb'},
-    timeout: {icon: '⏰', color: '#ca8a04'},
-    system: {icon: '❌', color: '#dc2626'},
-    context: {icon: '\u{1F4E6}', color: '#ea580c'},
-    network: {icon: '\u{1F310}', color: '#7c3aed'},
-    permission: {icon: '\u{1F512}', color: '#dc2626'},
-    stream: {icon: '\u{1F4E1}', color: '#6b7280'},
-    tool: {icon: '\u{1F527}', color: '#6b7280'},
+  api: { icon: '⚠️', color: '#2563eb' },
+  timeout: { icon: '⏰', color: '#ca8a04' },
+  system: { icon: '❌', color: '#dc2626' },
+  context: { icon: '\u{1F4E6}', color: '#ea580c' },
+  network: { icon: '\u{1F310}', color: '#7c3aed' },
+  permission: { icon: '\u{1F512}', color: '#dc2626' },
+  stream: { icon: '\u{1F4E1}', color: '#6b7280' },
+  tool: { icon: '\u{1F527}', color: '#6b7280' },
 };
 
-const DEFAULT_CONFIG: Omit<CategoryConfig, 'label'> = {icon: '⚠️', color: '#6b7280'};
+const DEFAULT_CONFIG: Omit<CategoryConfig, 'label'> = {
+  icon: '⚠️',
+  color: '#6b7280',
+};
 
 @localized()
 @customElement('rtc-error-message')
 export class RtcErrorMessage extends LitElement implements StatefulComponent {
-    static styles = [
-        timelineStyles,
-        css`
+  static styles = [
+    timelineStyles,
+    css`
             :host {
                 display: block;
             }
@@ -193,116 +201,132 @@ export class RtcErrorMessage extends LitElement implements StatefulComponent {
                 flex-shrink: 0;
             }
         `,
-    ];
+  ];
 
-    @consume({context: localeContext, subscribe: true})
-    @state()
-    private _localeCtx: LocaleContextValue = {
-        locale: sourceLocale,
-        setLocale: async () => {
-            log.warn('Locale context not initialized');
-        },
-        locales: [sourceLocale, ...targetLocales],
+  @consume({ context: localeContext, subscribe: true })
+  @state()
+  private _localeCtx: LocaleContextValue = {
+    locale: sourceLocale,
+    setLocale: async () => {
+      log.warn('Locale context not initialized');
+    },
+    locales: [sourceLocale, ...targetLocales],
+  };
+
+  /**
+   * The full Message object (for timestamp, clientId, etc.).
+   * The error content is extracted from message.content.data.
+   */
+  @property({ type: Object })
+  message: Message = {
+    clientId: '',
+    role: 'assistant',
+    content: { type: 'error', data: {} },
+    timestamp: 0,
+    syncStatus: 'synced',
+  };
+
+  /**
+   * Whether the raw error detail panel is expanded.
+   * Default collapsed to avoid overwhelming the user with technical details.
+   */
+  @state()
+  private _rawErrorExpanded = false;
+
+  /**
+   * Extract ErrorContent from the message's content data.
+   */
+  private get _errorData(): ErrorContent | null {
+    const data = this.message?.content?.data;
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      return data as ErrorContent;
+    }
+    return null;
+  }
+
+  /**
+   * Look up the visual configuration for the current error category.
+   *
+   * Labels are resolved through lit-localize's `msg()` so they update when
+   * the user switches locale. Each case is a separate `msg()` call so the
+   * extractor can pick them up as translation keys.
+   */
+  private _getCategoryConfig(category: string | undefined): CategoryConfig {
+    const base =
+      category && category in CATEGORY_CONFIG
+        ? CATEGORY_CONFIG[category as ErrorCategory]
+        : DEFAULT_CONFIG;
+    return { ...base, label: this._getCategoryLabel(category) };
+  }
+
+  /**
+   * Resolve the localized label for an error category.
+   *
+   * A switch with one `msg()` per case is required: lit-localize's extractor
+   * needs static string arguments and cannot follow dynamic lookups.
+   */
+  private _getCategoryLabel(category: string | undefined): string {
+    switch (category) {
+      case 'api':
+        return msg('API 错误');
+      case 'timeout':
+        return msg('超时');
+      case 'system':
+        return msg('系统错误');
+      case 'context':
+        return msg('上下文错误');
+      case 'network':
+        return msg('网络错误');
+      case 'permission':
+        return msg('权限错误');
+      case 'stream':
+        return msg('流错误');
+      case 'tool':
+        return msg('工具错误');
+      default:
+        return msg('错误');
+    }
+  }
+
+  private _toggleRawError() {
+    this._rawErrorExpanded = !this._rawErrorExpanded;
+  }
+
+  // ── StatefulComponent Interface (Phase 2) ──
+
+  /**
+   * Extract component state for preservation across virtualization.
+   * Called by MessageVirtualScroll before destroying the element.
+   *
+   * Preserved state:
+   * - rawErrorExpanded: User's expand/collapse preference for raw error details
+   */
+  getState(): Record<string, unknown> {
+    return {
+      rawErrorExpanded: this._rawErrorExpanded,
     };
+  }
 
-    /**
-     * The full Message object (for timestamp, clientId, etc.).
-     * The error content is extracted from message.content.data.
-     */
-    @property({type: Object})
-    message: Message = {clientId: '', role: 'assistant', content: {type: 'error', data: {}}, timestamp: 0, syncStatus: 'synced'};
-
-    /**
-     * Whether the raw error detail panel is expanded.
-     * Default collapsed to avoid overwhelming the user with technical details.
-     */
-    @state()
-    private _rawErrorExpanded = false;
-
-    /**
-     * Extract ErrorContent from the message's content data.
-     */
-    private get _errorData(): ErrorContent | null {
-        const data = this.message?.content?.data;
-        if (data && typeof data === 'object' && !Array.isArray(data)) {
-            return data as ErrorContent;
-        }
-        return null;
+  /**
+   * Inject cached state after restoring from skeleton placeholder.
+   * Called synchronously before first render to avoid flicker.
+   *
+   * @param state - Previously extracted state from getState()
+   */
+  setState(state: Record<string, unknown>): void {
+    if (state.rawErrorExpanded !== undefined) {
+      this._rawErrorExpanded = state.rawErrorExpanded as boolean;
     }
+  }
 
-    /**
-     * Look up the visual configuration for the current error category.
-     *
-     * Labels are resolved through lit-localize's `msg()` so they update when
-     * the user switches locale. Each case is a separate `msg()` call so the
-     * extractor can pick them up as translation keys.
-     */
-    private _getCategoryConfig(category: string | undefined): CategoryConfig {
-        const base = (category && category in CATEGORY_CONFIG)
-            ? CATEGORY_CONFIG[category as ErrorCategory]
-            : DEFAULT_CONFIG;
-        return {...base, label: this._getCategoryLabel(category)};
-    }
+  render() {
+    void this._localeCtx.locale;
+    const errorData = this._errorData;
+    if (!errorData) return nothing;
 
-    /**
-     * Resolve the localized label for an error category.
-     *
-     * A switch with one `msg()` per case is required: lit-localize's extractor
-     * needs static string arguments and cannot follow dynamic lookups.
-     */
-    private _getCategoryLabel(category: string | undefined): string {
-        switch (category) {
-            case 'api': return msg('API 错误');
-            case 'timeout': return msg('超时');
-            case 'system': return msg('系统错误');
-            case 'context': return msg('上下文错误');
-            case 'network': return msg('网络错误');
-            case 'permission': return msg('权限错误');
-            case 'stream': return msg('流错误');
-            case 'tool': return msg('工具错误');
-            default: return msg('错误');
-        }
-    }
+    const config = this._getCategoryConfig(errorData.category);
 
-    private _toggleRawError() {
-        this._rawErrorExpanded = !this._rawErrorExpanded;
-    }
-
-    // ── StatefulComponent Interface (Phase 2) ──
-
-    /**
-     * Extract component state for preservation across virtualization.
-     * Called by MessageVirtualScroll before destroying the element.
-     *
-     * Preserved state:
-     * - rawErrorExpanded: User's expand/collapse preference for raw error details
-     */
-    getState(): Record<string, unknown> {
-        return {
-            rawErrorExpanded: this._rawErrorExpanded,
-        };
-    }
-
-    /**
-     * Inject cached state after restoring from skeleton placeholder.
-     * Called synchronously before first render to avoid flicker.
-     *
-     * @param state - Previously extracted state from getState()
-     */
-    setState(state: Record<string, unknown>): void {
-        if (state.rawErrorExpanded !== undefined) {
-            this._rawErrorExpanded = state.rawErrorExpanded as boolean;
-        }
-    }
-
-    render() {
-        void this._localeCtx.locale;
-        const errorData = this._errorData;
-        if (!errorData) return nothing;
-
-        const config = this._getCategoryConfig(errorData.category);
-
-        return html`
+    return html`
             <div class="timeline-item">
                 <div
                     class="timeline-dot"
@@ -324,7 +348,8 @@ export class RtcErrorMessage extends LitElement implements StatefulComponent {
                             </div>
                             <span class="error-category-label">${config.label}</span>
                         </div>
-                        ${errorData.show_raw_error && errorData.raw_error
+                        ${
+                          errorData.show_raw_error && errorData.raw_error
                             ? html`
                                 <div class="error-actions">
                                     <button class="error-raw-toggle" @click=${this._toggleRawError} aria-expanded=${this._rawErrorExpanded}>
@@ -332,23 +357,26 @@ export class RtcErrorMessage extends LitElement implements StatefulComponent {
                                     </button>
                                 </div>
                             `
-                            : null}
-                        ${this._rawErrorExpanded && errorData.raw_error
+                            : null
+                        }
+                        ${
+                          this._rawErrorExpanded && errorData.raw_error
                             ? html`
                                 <div class="error-raw-panel">
                                     <pre>${errorData.raw_error}</pre>
                                 </div>
                             `
-                            : null}
+                            : null
+                        }
                     </div>
                 </div>
             </div>
         `;
-    }
+  }
 }
 
 declare global {
-    interface HTMLElementTagNameMap {
-        'rtc-error-message': RtcErrorMessage;
-    }
+  interface HTMLElementTagNameMap {
+    'rtc-error-message': RtcErrorMessage;
+  }
 }

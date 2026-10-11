@@ -10,7 +10,7 @@
  * - Skeletons fail to restore when transitioning from hidden back to visible
  */
 
-import {createLogger} from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('VisibilityManager');
 
@@ -18,12 +18,12 @@ const log = createLogger('VisibilityManager');
  * Visibility state
  */
 export enum VisibilityState {
-    /** Visible and active */
-    VISIBLE = 'visible',
-    /** Not visible (tab switch or window out of focus) */
-    HIDDEN = 'hidden',
-    /** Transitioning (transition period from hidden to visible) */
-    TRANSITIONING = 'transitioning'
+  /** Visible and active */
+  VISIBLE = 'visible',
+  /** Not visible (tab switch or window out of focus) */
+  HIDDEN = 'hidden',
+  /** Transitioning (transition period from hidden to visible) */
+  TRANSITIONING = 'transitioning',
 }
 
 /**
@@ -59,137 +59,148 @@ export type VisibilityChangeListener = (state: VisibilityState) => void;
  * ```
  */
 export class VisibilityManager {
-    private _state: VisibilityState = VisibilityState.VISIBLE;
-    private _listeners: Set<VisibilityChangeListener> = new Set();
+  private _state: VisibilityState = VisibilityState.VISIBLE;
+  private _listeners: Set<VisibilityChangeListener> = new Set();
 
-    /**
-     * Get current state
-     */
-    get state(): VisibilityState {
-        return this._state;
+  /**
+   * Get current state
+   */
+  get state(): VisibilityState {
+    return this._state;
+  }
+
+  /**
+   * Update visibility state
+   *
+   * State transition rules:
+   * - VISIBLE -> HIDDEN: direct transition
+   * - HIDDEN -> VISIBLE: via TRANSITIONING intermediate state
+   * - TRANSITIONING -> VISIBLE: auto-transition (after one frame)
+   * - If in TRANSITIONING and receives opposite direction update, cancel transition
+   *
+   * @param isVisible Whether it is visible
+   */
+  update(isVisible: boolean): void {
+    const newState = isVisible
+      ? VisibilityState.VISIBLE
+      : VisibilityState.HIDDEN;
+
+    // No state change, skip
+    if (this._state === newState) {
+      return;
     }
 
-    /**
-     * Update visibility state
-     *
-     * State transition rules:
-     * - VISIBLE -> HIDDEN: direct transition
-     * - HIDDEN -> VISIBLE: via TRANSITIONING intermediate state
-     * - TRANSITIONING -> VISIBLE: auto-transition (after one frame)
-     * - If in TRANSITIONING and receives opposite direction update, cancel transition
-     *
-     * @param isVisible Whether it is visible
-     */
-    update(isVisible: boolean): void {
-        const newState = isVisible ? VisibilityState.VISIBLE : VisibilityState.HIDDEN;
+    // P1 Fix: Handle TRANSITIONING state with better boundary checks
+    // If we're transitioning and receive a new update, handle it carefully
+    if (this._state === VisibilityState.TRANSITIONING) {
+      // If transitioning to VISIBLE but now receiving HIDDEN, cancel transition
+      // and go directly to HIDDEN
+      if (!isVisible) {
+        log.debug(
+          `Visibility update: canceling transition to VISIBLE, going directly to HIDDEN`,
+        );
+        this._transitionTo(VisibilityState.HIDDEN);
+        return;
+      }
+      // Transitioning and receiving VISIBLE again (duplicate): ignore.
+      // We're already on our way to VISIBLE.
+      log.debug(
+        `Visibility update: already transitioning to VISIBLE, ignoring duplicate`,
+      );
+      return;
+    }
 
-        // No state change, skip
-        if (this._state === newState) {
-            return;
-        }
+    log.debug(`Visibility update: ${this._state} → ${newState}`);
 
-        // P1 Fix: Handle TRANSITIONING state with better boundary checks
-        // If we're transitioning and receive a new update, handle it carefully
+    // HIDDEN to VISIBLE must go through TRANSITIONING state
+    if (
+      this._state === VisibilityState.HIDDEN &&
+      newState === VisibilityState.VISIBLE
+    ) {
+      this._transitionTo(VisibilityState.TRANSITIONING);
+
+      // Give browser one frame to complete layout, then transition to VISIBLE
+      requestAnimationFrame(() => {
+        // P1 Fix: Check state again before transitioning, as it may have changed
         if (this._state === VisibilityState.TRANSITIONING) {
-            // If transitioning to VISIBLE but now receiving HIDDEN, cancel transition
-            // and go directly to HIDDEN
-            if (!isVisible) {
-                log.debug(`Visibility update: canceling transition to VISIBLE, going directly to HIDDEN`);
-                this._transitionTo(VisibilityState.HIDDEN);
-                return;
-            }
-            // Transitioning and receiving VISIBLE again (duplicate): ignore.
-            // We're already on our way to VISIBLE.
-            log.debug(`Visibility update: already transitioning to VISIBLE, ignoring duplicate`);
-            return;
+          this._transitionTo(VisibilityState.VISIBLE);
         }
+      });
+    } else {
+      this._transitionTo(newState);
+    }
+  }
 
-        log.debug(`Visibility update: ${this._state} → ${newState}`);
-
-        // HIDDEN to VISIBLE must go through TRANSITIONING state
-        if (this._state === VisibilityState.HIDDEN && newState === VisibilityState.VISIBLE) {
-            this._transitionTo(VisibilityState.TRANSITIONING);
-
-            // Give browser one frame to complete layout, then transition to VISIBLE
-            requestAnimationFrame(() => {
-                // P1 Fix: Check state again before transitioning, as it may have changed
-                if (this._state === VisibilityState.TRANSITIONING) {
-                    this._transitionTo(VisibilityState.VISIBLE);
-                }
-            });
-        } else {
-            this._transitionTo(newState);
-        }
+  /**
+   * Transition to the specified state and notify listeners
+   */
+  private _transitionTo(state: VisibilityState): void {
+    if (this._state === state) {
+      return;
     }
 
-    /**
-     * Transition to the specified state and notify listeners
-     */
-    private _transitionTo(state: VisibilityState): void {
-        if (this._state === state) {
-            return;
-        }
+    const oldState = this._state;
+    this._state = state;
 
-        const oldState = this._state;
-        this._state = state;
+    log.debug(`Visibility state changed: ${oldState} → ${state}`);
 
-        log.debug(`Visibility state changed: ${oldState} → ${state}`);
-
-        // Notify all listeners
-        for (const listener of this._listeners) {
-            try {
-                listener(state);
-            } catch (err) {
-                log.error('Visibility change listener failed:', err);
-            }
-        }
+    // Notify all listeners
+    for (const listener of this._listeners) {
+      try {
+        listener(state);
+      } catch (err) {
+        log.error('Visibility change listener failed:', err);
+      }
     }
+  }
 
-    /**
-     * Register a state change listener
-     *
-     * @param listener Listener function
-     * @returns Unregister function
-     */
-    onStateChange(listener: VisibilityChangeListener): () => void {
-        this._listeners.add(listener);
+  /**
+   * Register a state change listener
+   *
+   * @param listener Listener function
+   * @returns Unregister function
+   */
+  onStateChange(listener: VisibilityChangeListener): () => void {
+    this._listeners.add(listener);
 
-        return () => {
-            this._listeners.delete(listener);
-        };
-    }
+    return () => {
+      this._listeners.delete(listener);
+    };
+  }
 
-    /**
-     * Check whether virtual scroll operations should be performed
-     *
-     * Only VISIBLE state allows operations (skeletonize, restore, etc.).
-     * HIDDEN and TRANSITIONING states should pause all operations.
-     *
-     * @returns Whether operations should be performed
-     */
-    shouldPerformOperations(): boolean {
-        return this._state === VisibilityState.VISIBLE;
-    }
+  /**
+   * Check whether virtual scroll operations should be performed
+   *
+   * Only VISIBLE state allows operations (skeletonize, restore, etc.).
+   * HIDDEN and TRANSITIONING states should pause all operations.
+   *
+   * @returns Whether operations should be performed
+   */
+  shouldPerformOperations(): boolean {
+    return this._state === VisibilityState.VISIBLE;
+  }
 
-    /**
-     * Check whether currently visible or transitioning to visible.
-     *
-     * Returns true for both VISIBLE and TRANSITIONING states, as both represent
-     * a visible or becoming-visible condition. Use shouldPerformOperations() to
-     * check if operations should be performed (only VISIBLE state).
-     *
-     * @returns Whether visible or transitioning (VISIBLE or TRANSITIONING)
-     */
-    isVisibleOrTransitioning(): boolean {
-        return this._state === VisibilityState.VISIBLE ||
-               this._state === VisibilityState.TRANSITIONING;
-    }
+  /**
+   * Check whether currently visible or transitioning to visible.
+   *
+   * Returns true for both VISIBLE and TRANSITIONING states, as both represent
+   * a visible or becoming-visible condition. Use shouldPerformOperations() to
+   * check if operations should be performed (only VISIBLE state).
+   *
+   * @returns Whether visible or transitioning (VISIBLE or TRANSITIONING)
+   */
+  isVisibleOrTransitioning(): boolean {
+    return (
+      this._state === VisibilityState.VISIBLE ||
+      this._state === VisibilityState.TRANSITIONING
+    );
+  }
 
-    /**
-     * Clear all listeners (for dispose)
-     */
-    dispose(): void {
-        this._listeners.clear();
-        this._state = VisibilityState.VISIBLE;
-    }
+  /**
+   * Clear all listeners (for dispose)
+   */
+  dispose(): void {
+    this._listeners.clear();
+    this._state = VisibilityState.VISIBLE;
+  }
 }

@@ -7,9 +7,9 @@
  *
  * @element rtc-content-wrapper
  */
-import {LitElement, html} from 'lit';
-import {customElement} from 'lit/decorators.js';
-import {styles} from './rtc-content-wrapper.styles.js';
+import { LitElement, html } from 'lit';
+import { customElement } from 'lit/decorators.js';
+import { styles } from './rtc-content-wrapper.styles.js';
 
 // Child component registrations
 import '../session-header/rtc-session-header.js';
@@ -20,23 +20,23 @@ import '../overlay/rtc-overlay-manager.js';
 
 @customElement('rtc-content-wrapper')
 export class RtcContentWrapper extends LitElement {
-    static styles = styles;
+  static styles = styles;
 
-    /* ── Render ── */
+  /* ── Render ── */
 
-    render() {
-        return html`
+  render() {
+    return html`
       <rtc-session-header></rtc-session-header>
       <rtc-content-area></rtc-content-area>
       <rtc-notice-bar></rtc-notice-bar>
       <rtc-input-area></rtc-input-area>
       <rtc-overlay-manager></rtc-overlay-manager>
     `;
-    }
+  }
 }
 
 declare global {
-    interface HTMLElementTagNameMap {
-        'rtc-content-wrapper': RtcContentWrapper;
-    }
+  interface HTMLElementTagNameMap {
+    'rtc-content-wrapper': RtcContentWrapper;
+  }
 }

@@ -7,7 +7,7 @@
  * Phase 4 (I3 fix): Theme-aware colors using CSS custom properties.
  */
 
-import {css} from 'lit';
+import { css } from 'lit';
 
 /**
  * Skeleton screen CSS styles

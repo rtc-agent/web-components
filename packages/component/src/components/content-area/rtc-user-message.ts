@@ -35,434 +35,461 @@
  * @csspart show-more - The "Show more" button
  * @csspart more    - The more button (⋯)
  */
-import {LitElement, html, nothing} from 'lit';
-import {customElement, property, state, query} from 'lit/decorators.js';
-import {consume} from '@lit/context';
-import {localized, msg} from '@lit/localize';
-import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
+import { LitElement, html, nothing } from 'lit';
+import { customElement, property, state, query } from 'lit/decorators.js';
+import { consume } from '@lit/context';
+import { localized, msg } from '@lit/localize';
 import {
-    computePosition,
-    flip,
-    shift,
-    offset,
-    autoUpdate,
+  localeContext,
+  type LocaleContextValue,
+  sourceLocale,
+  targetLocales,
+} from '../../core/i18n.js';
+import {
+  computePosition,
+  flip,
+  shift,
+  offset,
+  autoUpdate,
 } from '@floating-ui/dom';
-import {styles} from './rtc-user-message.styles.js';
-import type {Message, UserMessageContent, FileAttachment} from '../../types/index.js';
-import {copyToClipboard} from '../../utils/clipboard.js';
-import {extractTextContent} from '../../utils/format.js';
+import { styles } from './rtc-user-message.styles.js';
+import type {
+  Message,
+  UserMessageContent,
+  FileAttachment,
+} from '../../types/index.js';
+import { copyToClipboard } from '../../utils/clipboard.js';
+import { extractTextContent } from '../../utils/format.js';
 import './rtc-message-more-menu.js';
 import '../file-preview/rtc-file-preview-area.js';
-import {createLogger} from '@rtc-agent/client';
-import type {StatefulComponent} from '../../utils/message-virtual-scroll.js';
+import { createLogger } from '@rtc-agent/protocol';
+import type { StatefulComponent } from '../../utils/message-virtual-scroll.js';
 
 const log = createLogger('UserMessage');
 
 @localized()
 @customElement('rtc-user-message')
 export class RtcUserMessage extends LitElement implements StatefulComponent {
-    static styles = styles;
+  static styles = styles;
 
-    @consume({context: localeContext, subscribe: true})
-    @state()
-    private _localeCtx: LocaleContextValue = {
-        locale: sourceLocale,
-        setLocale: async () => {
-            log.warn('Locale context not initialized');
+  @consume({ context: localeContext, subscribe: true })
+  @state()
+  private _localeCtx: LocaleContextValue = {
+    locale: sourceLocale,
+    setLocale: async () => {
+      log.warn('Locale context not initialized');
+    },
+    locales: [sourceLocale, ...targetLocales],
+  };
+
+  @property({ type: Object })
+  message: Message = {
+    clientId: '',
+    role: 'user',
+    content: { type: 'text', data: '' },
+    timestamp: 0,
+    syncStatus: 'synced',
+  };
+
+  @state() private _isOverflowing = false;
+  @state() private _expanded = false;
+  @state() private _showMoreMenu = false;
+
+  @query('.more-btn')
+  private _moreBtn?: HTMLElement;
+
+  /**
+   * more-menu portal container (teleported to shadow root level, escapes wrapper's stacking context)
+   */
+  private _moreMenuEl: HTMLElement | null = null;
+
+  private _resizeObserver?: ResizeObserver;
+  private _textEl?: HTMLElement;
+  private _contentEl?: HTMLElement;
+  private _cleanupPosition: (() => void) | null = null;
+
+  /** Bound event handler for menu select (stored for clean removal). */
+  private _boundOnMenuSelect = (e: Event) =>
+    this._handleMenuSelect(e as CustomEvent);
+
+  private _onDocClick = (e: MouseEvent) => {
+    if (!this._showMoreMenu) return;
+    const path = e.composedPath();
+    // Don't close if clicking inside this component (menu or trigger button)
+    if (path.includes(this)) return;
+    this._closeMoreMenu();
+  };
+
+  private _onDocKeydown = (e: KeyboardEvent) => {
+    if (!this._showMoreMenu) return;
+    if (e.key === 'Escape') {
+      this._closeMoreMenu();
+    }
+  };
+
+  private _closeMoreMenu() {
+    this._showMoreMenu = false;
+    this.removeAttribute('data-show-more-menu');
+    this._removeMenu();
+  }
+
+  /* ── Lifecycle ── */
+
+  connectedCallback() {
+    super.connectedCallback();
+    // Reflect initial sync status
+    this.setAttribute('data-sync-status', this.message.syncStatus);
+    // Listen for outside clicks to close more menu
+    document.addEventListener('mousedown', this._onDocClick, true);
+    document.addEventListener('keydown', this._onDocKeydown, true);
+  }
+
+  firstUpdated() {
+    this._textEl = this.shadowRoot!.querySelector(
+      '.user-message-text',
+    ) as HTMLElement;
+    // Observe the content wrapper (files + text) for overflow detection,
+    // not just the text element, since file previews also contribute to total height.
+    this._contentEl = this.shadowRoot!.querySelector(
+      '.user-message-content',
+    ) as HTMLElement;
+    const observeTarget = this._contentEl ?? this._textEl;
+    if (observeTarget) {
+      this._resizeObserver = new ResizeObserver(() => this._checkOverflow());
+      this._resizeObserver.observe(observeTarget);
+    }
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this._resizeObserver?.disconnect();
+    this._stopPositioning();
+    this._removeMenu();
+    document.removeEventListener('mousedown', this._onDocClick, true);
+    document.removeEventListener('keydown', this._onDocKeydown, true);
+  }
+
+  updated(changed: Map<string, unknown>) {
+    super.updated(changed);
+    if (changed.has('message')) {
+      // Reflect sync-status attribute for CSS targeting
+      this.setAttribute('data-sync-status', this.message.syncStatus);
+      // Re-check overflow on message change
+      this._checkOverflow();
+    }
+  }
+
+  // ── StatefulComponent Interface (Phase 2) ──
+
+  /**
+   * Extract component state for preservation across virtualization.
+   * Called by MessageVirtualScroll before destroying the element.
+   *
+   * Preserved state:
+   * - expanded: User's expand/collapse preference for long messages
+   * - isOverflowing: Whether text overflows (affects show-more button visibility)
+   */
+  getState(): Record<string, unknown> {
+    return {
+      expanded: this._expanded,
+      isOverflowing: this._isOverflowing,
+    };
+  }
+
+  /**
+   * Inject cached state after restoring from skeleton placeholder.
+   * Called synchronously before first render to avoid flicker.
+   *
+   * @param state - Previously extracted state from getState()
+   */
+  setState(state: Record<string, unknown>): void {
+    if (state.expanded !== undefined) {
+      this._expanded = state.expanded as boolean;
+      // Reflect attribute for CSS
+      if (this._expanded) {
+        this.setAttribute('data-expanded', '');
+      } else {
+        this.removeAttribute('data-expanded');
+      }
+    }
+    if (state.isOverflowing !== undefined) {
+      this._isOverflowing = state.isOverflowing as boolean;
+      if (this._isOverflowing) {
+        this.setAttribute('data-overflow', '');
+      } else {
+        this.removeAttribute('data-overflow');
+      }
+    }
+  }
+
+  /* ── Overflow detection ── */
+
+  private _checkOverflow() {
+    const bubble = this.shadowRoot?.querySelector(
+      '.user-message',
+    ) as HTMLElement | null;
+    if (!bubble) return;
+
+    // Use the content wrapper (files + text) when available, fall back to text-only
+    const contentEl = this._contentEl ?? this._textEl;
+    if (!contentEl) return;
+
+    // When expanded the bubble has `max-height: none`, so its
+    // clientHeight equals the full content height and can no longer
+    // be used to detect overflow.  In that case compare against the
+    // CSS variable that defines the collapsed max-height instead.
+    let effectiveMaxHeight: number;
+    if (this._expanded) {
+      const cssVar = getComputedStyle(bubble)
+        .getPropertyValue('--rtc-user-message-max-height')
+        .trim();
+      effectiveMaxHeight = parseFloat(cssVar);
+      if (isNaN(effectiveMaxHeight)) effectiveMaxHeight = 120;
+    } else {
+      effectiveMaxHeight = bubble.clientHeight;
+    }
+
+    const isOverflowing = contentEl.scrollHeight > effectiveMaxHeight;
+    this._isOverflowing = isOverflowing;
+    if (isOverflowing) {
+      this.setAttribute('data-overflow', '');
+    } else {
+      this.removeAttribute('data-overflow');
+    }
+  }
+
+  /* ── Helpers ── */
+
+  private _getTextContent(): string {
+    return extractTextContent(this.message?.content);
+  }
+
+  /**
+   * Extract structured data of user_message type (if present)
+   */
+  private _getUserMessageData(): UserMessageContent | null {
+    const content = this.message?.content;
+    if (content?.type === 'user_message') {
+      return content.data as UserMessageContent;
+    }
+    return null;
+  }
+
+  /**
+   * Safely extract file list from user message data.
+   * Filters out null/undefined/malformed entries to prevent render crashes.
+   */
+  private _extractFiles(userData: UserMessageContent | null): FileAttachment[] {
+    if (!userData?.files || !Array.isArray(userData.files)) return [];
+    return userData.files.filter(
+      (f): f is FileAttachment =>
+        f != null &&
+        typeof f.mimetype === 'string' &&
+        typeof f.fileid === 'string',
+    );
+  }
+
+  /* ── File Preview Event ── */
+
+  /**
+   * Handle file preview request from rtc-file-preview-area.
+   * Dispatches rtc-file-preview-requested event to bubble up to rtc-agent,
+   * which renders the global preview modal at window-container level.
+   */
+  private _handleFilePreview(e: CustomEvent): void {
+    const { file } = e.detail as { file: FileAttachment; index: number };
+    if (file) {
+      this.dispatchEvent(
+        new CustomEvent('rtc-file-preview-requested', {
+          bubbles: true,
+          composed: true,
+          detail: { file },
+        }),
+      );
+    }
+  }
+
+  /* ── Event handlers ── */
+
+  private _handleShowMore() {
+    this._expanded = !this._expanded;
+    if (this._expanded) {
+      this.setAttribute('data-expanded', '');
+    } else {
+      this.removeAttribute('data-expanded');
+    }
+    this.dispatchEvent(
+      new CustomEvent('rtc-user-message-show-more', {
+        bubbles: true,
+        composed: true,
+        detail: { clientId: this.message.clientId },
+      }),
+    );
+  }
+
+  private _handleMoreClick() {
+    this._showMoreMenu = !this._showMoreMenu;
+    if (this._showMoreMenu) {
+      this.setAttribute('data-show-more-menu', '');
+      this._teleportMenu();
+    } else {
+      this.removeAttribute('data-show-more-menu');
+      this._removeMenu();
+    }
+  }
+
+  /**
+   * Teleport more-menu to shadow root level (escape wrapper's stacking context).
+   * floating-ui uses position: absolute (relative to offset parent); coordinates are unaffected.
+   */
+  private async _teleportMenu() {
+    if (!this.shadowRoot || this._moreMenuEl) return;
+
+    // HTMLElementTagNameMap declaration in rtc-message-more-menu.ts ensures
+    // createElement returns the correctly typed RtcMessageMoreMenu — no unsafe cast needed.
+    const menu = document.createElement('rtc-message-more-menu');
+    menu.syncStatus = this.message.syncStatus;
+    menu.timestamp = this.message.timestamp;
+    menu.addEventListener(
+      'rtc-message-more-menu-select',
+      this._boundOnMenuSelect,
+    );
+
+    this.shadowRoot.appendChild(menu);
+    this._moreMenuEl = menu;
+
+    await this.updateComplete;
+    this._startPositioning();
+  }
+
+  /**
+   * Remove teleported more-menu
+   */
+  private _removeMenu() {
+    this._stopPositioning();
+    if (this._moreMenuEl) {
+      this._moreMenuEl.removeEventListener(
+        'rtc-message-more-menu-select',
+        this._boundOnMenuSelect,
+      );
+      this._moreMenuEl.remove();
+      this._moreMenuEl = null;
+    }
+  }
+
+  private async _startPositioning() {
+    const btn = this._moreBtn;
+    const menu = this._moreMenuEl;
+    if (!btn || !menu) return;
+
+    this._cleanupPosition?.();
+    this._cleanupPosition = autoUpdate(btn, menu, () => this._updatePosition());
+  }
+
+  private async _updatePosition() {
+    const btn = this._moreBtn;
+    const menu = this._moreMenuEl;
+    if (!btn || !menu) return;
+
+    const { x, y } = await computePosition(btn, menu, {
+      placement: 'bottom-end',
+      strategy: 'absolute',
+      middleware: [offset(6), flip({ padding: 8 }), shift({ padding: 8 })],
+    });
+    Object.assign(menu.style, {
+      left: `${x}px`,
+      top: `${y}px`,
+    });
+  }
+
+  private _stopPositioning() {
+    this._cleanupPosition?.();
+    this._cleanupPosition = null;
+  }
+
+  private _handleMenuSelect(event: CustomEvent) {
+    const action = event.detail?.action as string;
+    this._showMoreMenu = false;
+    this.removeAttribute('data-show-more-menu');
+    this._removeMenu();
+
+    switch (action) {
+      case 'copy':
+        this._handleCopy();
+        break;
+      case 'fork':
+        this._handleFork();
+        break;
+      case 'retry':
+        this._handleResend();
+        break;
+    }
+  }
+
+  /**
+   * Copy message content to clipboard
+   */
+  private async _handleCopy() {
+    const text = this._getTextContent();
+    if (!text) return;
+
+    const success = await copyToClipboard(text);
+    this.dispatchEvent(
+      new CustomEvent('rtc-toast-requested', {
+        bubbles: true,
+        composed: true,
+        detail: {
+          message: success ? msg('已复制到剪贴板') : msg('复制失败'),
+          type: success ? 'success' : 'error',
         },
-        locales: [sourceLocale, ...targetLocales],
-    };
+      }),
+    );
+  }
 
-    @property({type: Object})
-    message: Message = {
-        clientId: '',
-        role: 'user',
-        content: {type: 'text', data: ''},
-        timestamp: 0,
-        syncStatus: 'synced',
-    };
+  /**
+   * Fork logic: dispatch custom event, handled by root component
+   */
+  private _handleFork() {
+    this.dispatchEvent(
+      new CustomEvent('rtc-fork-requested', {
+        bubbles: true,
+        composed: true,
+        detail: {
+          oldMessageClientId: this.message.clientId,
+          content: this._getTextContent(),
+        },
+      }),
+    );
+  }
 
-    @state() private _isOverflowing = false;
-    @state() private _expanded = false;
-    @state() private _showMoreMenu = false;
+  private _handleResend() {
+    this.dispatchEvent(
+      new CustomEvent('rtc-user-message-resend', {
+        bubbles: true,
+        composed: true,
+        detail: { message: this.message },
+      }),
+    );
+  }
 
-    @query('.more-btn')
-    private _moreBtn?: HTMLElement;
+  /* ── Render ── */
 
-    /**
-     * more-menu portal container (teleported to shadow root level, escapes wrapper's stacking context)
-     */
-    private _moreMenuEl: HTMLElement | null = null;
+  render() {
+    void this._localeCtx.locale;
+    const userData = this._getUserMessageData();
+    const text = userData?.text ?? this._getTextContent();
+    const files = this._extractFiles(userData);
 
-    private _resizeObserver?: ResizeObserver;
-    private _textEl?: HTMLElement;
-    private _contentEl?: HTMLElement;
-    private _cleanupPosition: (() => void) | null = null;
+    // Guard against undefined message (should not happen, but defensive)
+    const syncStatus = this.message?.syncStatus ?? 'synced';
 
-    /** Bound event handler for menu select (stored for clean removal). */
-    private _boundOnMenuSelect = (e: Event) => this._handleMenuSelect(e as CustomEvent);
-
-    private _onDocClick = (e: MouseEvent) => {
-        if (!this._showMoreMenu) return;
-        const path = e.composedPath();
-        // Don't close if clicking inside this component (menu or trigger button)
-        if (path.includes(this)) return;
-        this._closeMoreMenu();
-    };
-
-    private _onDocKeydown = (e: KeyboardEvent) => {
-        if (!this._showMoreMenu) return;
-        if (e.key === 'Escape') {
-            this._closeMoreMenu();
-        }
-    };
-
-    private _closeMoreMenu() {
-        this._showMoreMenu = false;
-        this.removeAttribute('data-show-more-menu');
-        this._removeMenu();
-    }
-
-    /* ── Lifecycle ── */
-
-    connectedCallback() {
-        super.connectedCallback();
-        // Reflect initial sync status
-        this.setAttribute('data-sync-status', this.message.syncStatus);
-        // Listen for outside clicks to close more menu
-        document.addEventListener('mousedown', this._onDocClick, true);
-        document.addEventListener('keydown', this._onDocKeydown, true);
-    }
-
-    firstUpdated() {
-        this._textEl = this.shadowRoot!.querySelector('.user-message-text') as HTMLElement;
-        // Observe the content wrapper (files + text) for overflow detection,
-        // not just the text element, since file previews also contribute to total height.
-        this._contentEl = this.shadowRoot!.querySelector('.user-message-content') as HTMLElement;
-        const observeTarget = this._contentEl ?? this._textEl;
-        if (observeTarget) {
-            this._resizeObserver = new ResizeObserver(() => this._checkOverflow());
-            this._resizeObserver.observe(observeTarget);
-        }
-    }
-
-    disconnectedCallback() {
-        super.disconnectedCallback();
-        this._resizeObserver?.disconnect();
-        this._stopPositioning();
-        this._removeMenu();
-        document.removeEventListener('mousedown', this._onDocClick, true);
-        document.removeEventListener('keydown', this._onDocKeydown, true);
-    }
-
-    updated(changed: Map<string, unknown>) {
-        super.updated(changed);
-        if (changed.has('message')) {
-            // Reflect sync-status attribute for CSS targeting
-            this.setAttribute('data-sync-status', this.message.syncStatus);
-            // Re-check overflow on message change
-            this._checkOverflow();
-        }
-    }
-
-    // ── StatefulComponent Interface (Phase 2) ──
-
-    /**
-     * Extract component state for preservation across virtualization.
-     * Called by MessageVirtualScroll before destroying the element.
-     *
-     * Preserved state:
-     * - expanded: User's expand/collapse preference for long messages
-     * - isOverflowing: Whether text overflows (affects show-more button visibility)
-     */
-    getState(): Record<string, unknown> {
-        return {
-            expanded: this._expanded,
-            isOverflowing: this._isOverflowing,
-        };
-    }
-
-    /**
-     * Inject cached state after restoring from skeleton placeholder.
-     * Called synchronously before first render to avoid flicker.
-     *
-     * @param state - Previously extracted state from getState()
-     */
-    setState(state: Record<string, unknown>): void {
-        if (state.expanded !== undefined) {
-            this._expanded = state.expanded as boolean;
-            // Reflect attribute for CSS
-            if (this._expanded) {
-                this.setAttribute('data-expanded', '');
-            } else {
-                this.removeAttribute('data-expanded');
-            }
-        }
-        if (state.isOverflowing !== undefined) {
-            this._isOverflowing = state.isOverflowing as boolean;
-            if (this._isOverflowing) {
-                this.setAttribute('data-overflow', '');
-            } else {
-                this.removeAttribute('data-overflow');
-            }
-        }
-    }
-
-    /* ── Overflow detection ── */
-
-    private _checkOverflow() {
-        const bubble = this.shadowRoot?.querySelector('.user-message') as HTMLElement | null;
-        if (!bubble) return;
-
-        // Use the content wrapper (files + text) when available, fall back to text-only
-        const contentEl = this._contentEl ?? this._textEl;
-        if (!contentEl) return;
-
-        // When expanded the bubble has `max-height: none`, so its
-        // clientHeight equals the full content height and can no longer
-        // be used to detect overflow.  In that case compare against the
-        // CSS variable that defines the collapsed max-height instead.
-        let effectiveMaxHeight: number;
-        if (this._expanded) {
-            const cssVar = getComputedStyle(bubble)
-                .getPropertyValue('--rtc-user-message-max-height')
-                .trim();
-            effectiveMaxHeight = parseFloat(cssVar);
-            if (isNaN(effectiveMaxHeight)) effectiveMaxHeight = 120;
-        } else {
-            effectiveMaxHeight = bubble.clientHeight;
-        }
-
-        const isOverflowing = contentEl.scrollHeight > effectiveMaxHeight;
-        this._isOverflowing = isOverflowing;
-        if (isOverflowing) {
-            this.setAttribute('data-overflow', '');
-        } else {
-            this.removeAttribute('data-overflow');
-        }
-    }
-
-    /* ── Helpers ── */
-
-    private _getTextContent(): string {
-        return extractTextContent(this.message?.content);
-    }
-
-    /**
-     * Extract structured data of user_message type (if present)
-     */
-    private _getUserMessageData(): UserMessageContent | null {
-        const content = this.message?.content;
-        if (content?.type === 'user_message') {
-            return content.data as UserMessageContent;
-        }
-        return null;
-    }
-
-    /**
-     * Safely extract file list from user message data.
-     * Filters out null/undefined/malformed entries to prevent render crashes.
-     */
-    private _extractFiles(userData: UserMessageContent | null): FileAttachment[] {
-        if (!userData?.files || !Array.isArray(userData.files)) return [];
-        return userData.files.filter((f): f is FileAttachment =>
-            f != null && typeof f.mimetype === 'string' && typeof f.fileid === 'string'
-        );
-    }
-
-    /* ── File Preview Event ── */
-
-    /**
-     * Handle file preview request from rtc-file-preview-area.
-     * Dispatches rtc-file-preview-requested event to bubble up to rtc-agent,
-     * which renders the global preview modal at window-container level.
-     */
-    private _handleFilePreview(e: CustomEvent): void {
-        const {file} = e.detail as {file: FileAttachment; index: number};
-        if (file) {
-            this.dispatchEvent(new CustomEvent('rtc-file-preview-requested', {
-                bubbles: true,
-                composed: true,
-                detail: {file},
-            }));
-        }
-    }
-
-    /* ── Event handlers ── */
-
-    private _handleShowMore() {
-        this._expanded = !this._expanded;
-        if (this._expanded) {
-            this.setAttribute('data-expanded', '');
-        } else {
-            this.removeAttribute('data-expanded');
-        }
-        this.dispatchEvent(
-            new CustomEvent('rtc-user-message-show-more', {
-                bubbles: true,
-                composed: true,
-                detail: {clientId: this.message.clientId},
-            })
-        );
-    }
-
-    private _handleMoreClick() {
-        this._showMoreMenu = !this._showMoreMenu;
-        if (this._showMoreMenu) {
-            this.setAttribute('data-show-more-menu', '');
-            this._teleportMenu();
-        } else {
-            this.removeAttribute('data-show-more-menu');
-            this._removeMenu();
-        }
-    }
-
-    /**
-     * Teleport more-menu to shadow root level (escape wrapper's stacking context).
-     * floating-ui uses position: absolute (relative to offset parent); coordinates are unaffected.
-     */
-    private async _teleportMenu() {
-        if (!this.shadowRoot || this._moreMenuEl) return;
-
-        // HTMLElementTagNameMap declaration in rtc-message-more-menu.ts ensures
-        // createElement returns the correctly typed RtcMessageMoreMenu — no unsafe cast needed.
-        const menu = document.createElement('rtc-message-more-menu');
-        menu.syncStatus = this.message.syncStatus;
-        menu.timestamp = this.message.timestamp;
-        menu.addEventListener('rtc-message-more-menu-select', this._boundOnMenuSelect);
-
-        this.shadowRoot.appendChild(menu);
-        this._moreMenuEl = menu;
-
-        await this.updateComplete;
-        this._startPositioning();
-    }
-
-    /**
-     * Remove teleported more-menu
-     */
-    private _removeMenu() {
-        this._stopPositioning();
-        if (this._moreMenuEl) {
-            this._moreMenuEl.removeEventListener('rtc-message-more-menu-select', this._boundOnMenuSelect);
-            this._moreMenuEl.remove();
-            this._moreMenuEl = null;
-        }
-    }
-
-    private async _startPositioning() {
-        const btn = this._moreBtn;
-        const menu = this._moreMenuEl;
-        if (!btn || !menu) return;
-
-        this._cleanupPosition?.();
-        this._cleanupPosition = autoUpdate(btn, menu, () => this._updatePosition());
-    }
-
-    private async _updatePosition() {
-        const btn = this._moreBtn;
-        const menu = this._moreMenuEl;
-        if (!btn || !menu) return;
-
-        const {x, y} = await computePosition(btn, menu, {
-            placement: 'bottom-end',
-            strategy: 'absolute',
-            middleware: [
-                offset(6),
-                flip({padding: 8}),
-                shift({padding: 8}),
-            ],
-        });
-        Object.assign(menu.style, {
-            left: `${x}px`,
-            top: `${y}px`,
-        });
-    }
-
-    private _stopPositioning() {
-        this._cleanupPosition?.();
-        this._cleanupPosition = null;
-    }
-
-    private _handleMenuSelect(event: CustomEvent) {
-        const action = event.detail?.action as string;
-        this._showMoreMenu = false;
-        this.removeAttribute('data-show-more-menu');
-        this._removeMenu();
-
-        switch (action) {
-            case 'copy':
-                this._handleCopy();
-                break;
-            case 'fork':
-                this._handleFork();
-                break;
-            case 'retry':
-                this._handleResend();
-                break;
-        }
-    }
-
-    /**
-     * Copy message content to clipboard
-     */
-    private async _handleCopy() {
-        const text = this._getTextContent();
-        if (!text) return;
-
-        const success = await copyToClipboard(text);
-        this.dispatchEvent(new CustomEvent('rtc-toast-requested', {
-            bubbles: true,
-            composed: true,
-            detail: {
-                message: success ? msg('已复制到剪贴板') : msg('复制失败'),
-                type: success ? 'success' : 'error',
-            },
-        }));
-    }
-
-    /**
-     * Fork logic: dispatch custom event, handled by root component
-     */
-    private _handleFork() {
-        this.dispatchEvent(
-            new CustomEvent('rtc-fork-requested', {
-                bubbles: true,
-                composed: true,
-                detail: {
-                    oldMessageClientId: this.message.clientId,
-                    content: this._getTextContent(),
-                },
-            })
-        );
-    }
-
-    private _handleResend() {
-        this.dispatchEvent(
-            new CustomEvent('rtc-user-message-resend', {
-                bubbles: true,
-                composed: true,
-                detail: {message: this.message},
-            })
-        );
-    }
-
-    /* ── Render ── */
-
-    render() {
-        void this._localeCtx.locale;
-        const userData = this._getUserMessageData();
-        const text = userData?.text ?? this._getTextContent();
-        const files = this._extractFiles(userData);
-
-        // Guard against undefined message (should not happen, but defensive)
-        const syncStatus = this.message?.syncStatus ?? 'synced';
-
-        return html`
+    return html`
       <div class="user-message-wrapper" part="wrapper">
         <div class="user-message" part="bubble">
           <div class="user-message-content">
-            ${files.length > 0 ? html`
+            ${
+              files.length > 0
+                ? html`
               <div class="file-preview-section">
                 <rtc-file-preview-area
                   .files=${files}
@@ -470,39 +497,47 @@ export class RtcUserMessage extends LitElement implements StatefulComponent {
                   @rtc-file-preview=${this._handleFilePreview}
                 ></rtc-file-preview-area>
               </div>
-            ` : nothing}
+            `
+                : nothing
+            }
             <div class="user-message-text" part="text">${text}</div>
           </div>
 
-          ${this._isOverflowing
-            ? html`<button
+          ${
+            this._isOverflowing
+              ? html`<button
                 class="show-more-btn"
                 part="show-more"
                 @click=${this._handleShowMore}
               >${this._expanded ? msg('收起') : msg('展开')}</button>`
-            : null}
+              : null
+          }
 
           <button
             class="more-btn"
             part="more"
-            title="More"
+            title=${msg('More')}
             @click=${this._handleMoreClick}
           >⋯</button>
 
-          ${syncStatus === 'pending' ? html`
+          ${
+            syncStatus === 'pending'
+              ? html`
             <div class="sync-indicator" aria-hidden="true">
               <span class="sync-indicator-dot"></span>
               <span class="sync-indicator-text">${msg('发送中')}</span>
             </div>
-          ` : ''}
+          `
+              : ''
+          }
         </div>
       </div>
     `;
-    }
+  }
 }
 
 declare global {
-    interface HTMLElementTagNameMap {
-        'rtc-user-message': RtcUserMessage;
-    }
+  interface HTMLElementTagNameMap {
+    'rtc-user-message': RtcUserMessage;
+  }
 }

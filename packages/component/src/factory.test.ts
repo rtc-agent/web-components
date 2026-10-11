@@ -6,10 +6,10 @@
  * plus Phase 3 event callback registration and cleanup.
  */
 
-import {describe, it, expect, afterEach, vi, beforeEach} from 'vitest';
-import {createRtcAgent} from './factory.js';
-import {cleanupFixtures} from './test-helpers.js';
-import {eventBus} from './core/event-bus.js';
+import { describe, it, expect, afterEach, vi, beforeEach } from 'vitest';
+import { createRtcAgent } from './factory.js';
+import { cleanupFixtures } from './test-helpers.js';
+import { eventBus } from './core/event-bus.js';
 
 // Import the component to trigger @customElement('rtc-agent') registration.
 // Without this, document.createElement('rtc-agent') returns a plain HTMLElement
@@ -31,22 +31,22 @@ describe('createRtcAgent', () => {
   // ── Basic properties ───────────────────────────────────────────
 
   it('should map appLabel', () => {
-    const agent = createRtcAgent({appLabel: 'Test App'});
+    const agent = createRtcAgent({ appLabel: 'Test App' });
     expect(agent.appLabel).toBe('Test App');
   });
 
   it('should map theme', () => {
-    const agent = createRtcAgent({theme: 'dark'});
+    const agent = createRtcAgent({ theme: 'dark' });
     expect(agent.theme).toBe('dark');
   });
 
   it('should map lang', () => {
-    const agent = createRtcAgent({lang: 'en-US'});
+    const agent = createRtcAgent({ lang: 'en-US' });
     expect(agent.lang).toBe('en-US');
   });
 
   it('should map bubbleIcon', () => {
-    const agent = createRtcAgent({bubbleIcon: '<svg>icon</svg>'});
+    const agent = createRtcAgent({ bubbleIcon: '<svg>icon</svg>' });
     expect(agent.bubbleIcon).toBe('<svg>icon</svg>');
   });
 
@@ -65,7 +65,7 @@ describe('createRtcAgent', () => {
 
   it('should map server.url to serverURL', () => {
     const agent = createRtcAgent({
-      server: {url: 'https://api.example.com'},
+      server: { url: 'https://api.example.com' },
     });
     expect(agent.serverURL).toBe('https://api.example.com');
   });
@@ -84,14 +84,14 @@ describe('createRtcAgent', () => {
   // ── Database configuration ─────────────────────────────────────
 
   it('should map databaseName', () => {
-    const agent = createRtcAgent({databaseName: 'my-app'});
+    const agent = createRtcAgent({ databaseName: 'my-app' });
     expect(agent.databaseName).toBe('my-app');
   });
 
   // ── Scenario documents ─────────────────────────────────────────
 
   it('should map scenariosURL to scenariosURL', () => {
-    const agent = createRtcAgent({scenariosURL: '/scenarios'});
+    const agent = createRtcAgent({ scenariosURL: '/scenarios' });
     expect(agent.scenariosURL).toBe('/scenarios');
   });
 
@@ -113,15 +113,15 @@ describe('createRtcAgent', () => {
   it('should map complex window config', () => {
     const windowConfig = {
       defaultMode: 'normal' as const,
-      initialPosition: {x: 100, y: 200},
-      initialSize: {width: 500, height: 700},
+      initialPosition: { x: 100, y: 200 },
+      initialSize: { width: 500, height: 700 },
       minWidth: 300,
       minHeight: 400,
       draggable: false,
       resizable: false,
       embedded: false,
     };
-    const agent = createRtcAgent({window: windowConfig});
+    const agent = createRtcAgent({ window: windowConfig });
     expect(agent.windowConfig).toEqual(windowConfig);
   });
 
@@ -143,23 +143,25 @@ describe('createRtcAgent', () => {
   // ── Agent configuration ────────────────────────────────────────
 
   it('should build AgentConfig from agentName', () => {
-    const agent = createRtcAgent({agentName: 'TestAgent'});
-    expect(agent.agentConfig).toMatchObject({name: 'TestAgent'});
+    const agent = createRtcAgent({ agentName: 'TestAgent' });
+    expect(agent.agentConfig).toMatchObject({ name: 'TestAgent' });
   });
 
   it('should build AgentConfig from agentDescription', () => {
-    const agent = createRtcAgent({agentDescription: 'Test description'});
-    expect(agent.agentConfig).toMatchObject({description: 'Test description'});
+    const agent = createRtcAgent({ agentDescription: 'Test description' });
+    expect(agent.agentConfig).toMatchObject({
+      description: 'Test description',
+    });
   });
 
   it('should build AgentConfig from persona', () => {
-    const agent = createRtcAgent({persona: 'You are helpful'});
-    expect(agent.agentConfig).toMatchObject({persona: 'You are helpful'});
+    const agent = createRtcAgent({ persona: 'You are helpful' });
+    expect(agent.agentConfig).toMatchObject({ persona: 'You are helpful' });
   });
 
   it('should build AgentConfig from functions', () => {
-    const fn = {name: 'test', description: 'Test fn', handler: () => 'ok'};
-    const agent = createRtcAgent({functions: [fn]});
+    const fn = { name: 'test', description: 'Test fn', handler: () => 'ok' };
+    const agent = createRtcAgent({ functions: [fn] });
     expect(agent.agentConfig?.functions).toHaveLength(1);
     expect(agent.agentConfig?.functions?.[0]?.name).toBe('test');
   });
@@ -169,10 +171,12 @@ describe('createRtcAgent', () => {
       {
         name: 'editor',
         description: 'Editor ops',
-        functions: [{name: 'getCode', description: 'Get code', handler: () => ''}],
+        functions: [
+          { name: 'getCode', description: 'Get code', handler: () => '' },
+        ],
       },
     ];
-    const agent = createRtcAgent({groups});
+    const agent = createRtcAgent({ groups });
     expect(agent.agentConfig?.groups).toHaveLength(1);
     expect(agent.agentConfig?.groups?.[0]?.name).toBe('editor');
   });
@@ -182,7 +186,9 @@ describe('createRtcAgent', () => {
       agentName: 'TestAgent',
       agentDescription: 'Test description',
       persona: 'You are helpful',
-      functions: [{name: 'test', description: 'Test fn', handler: () => 'ok'}],
+      functions: [
+        { name: 'test', description: 'Test fn', handler: () => 'ok' },
+      ],
     });
     expect(agent.agentConfig).toMatchObject({
       name: 'TestAgent',
@@ -193,7 +199,7 @@ describe('createRtcAgent', () => {
   });
 
   it('should not set agentConfig when no agent fields are provided', () => {
-    const agent = createRtcAgent({appLabel: 'Test'});
+    const agent = createRtcAgent({ appLabel: 'Test' });
     // agentConfig getter returns null by default (no agent fields set)
     expect(agent.agentConfig).toBeNull();
   });
@@ -223,17 +229,21 @@ describe('createRtcAgent', () => {
   it('should set _pendingAuthProvider for AuthProvider', () => {
     const authProvider = {
       getToken: () => 'provider-token',
-      refreshToken: () => Promise.resolve({accessToken: 'refreshed-token'}),
+      refreshToken: () => Promise.resolve({ accessToken: 'refreshed-token' }),
       isLoggedIn: () => true,
       logout: () => Promise.resolve(),
       deviceId: 'device-123',
     };
 
-    const agent = createRtcAgent({auth: authProvider});
+    const agent = createRtcAgent({ auth: authProvider });
     expect(agent._pendingAuthProvider).toBeDefined();
     expect(agent._pendingAuthProvider!.getToken).toBe(authProvider.getToken);
-    expect(agent._pendingAuthProvider!.refreshToken).toBe(authProvider.refreshToken);
-    expect(agent._pendingAuthProvider!.isLoggedIn).toBe(authProvider.isLoggedIn);
+    expect(agent._pendingAuthProvider!.refreshToken).toBe(
+      authProvider.refreshToken,
+    );
+    expect(agent._pendingAuthProvider!.isLoggedIn).toBe(
+      authProvider.isLoggedIn,
+    );
     expect(agent._pendingAuthProvider!.logout).toBe(authProvider.logout);
   });
 
@@ -241,7 +251,7 @@ describe('createRtcAgent', () => {
     const agent = createRtcAgent({
       auth: {
         getToken: () => 'token',
-        refreshToken: () => Promise.resolve({accessToken: 'new-token'}),
+        refreshToken: () => Promise.resolve({ accessToken: 'new-token' }),
         isLoggedIn: () => true,
         deviceId: 'device-123',
       },
@@ -275,17 +285,24 @@ describe('createRtcAgent', () => {
         },
         databaseName: 'test-db',
         scenariosURL: '/scenarios',
-        window: {defaultMode: 'maximized', embedded: true},
-        activityBar: {disabledActivities: ['settings'], defaultActivity: 'chat'},
+        window: { defaultMode: 'maximized', embedded: true },
+        activityBar: {
+          disabledActivities: ['settings'],
+          defaultActivity: 'chat',
+        },
         agentName: 'FullAgent',
         agentDescription: 'A full agent',
         persona: 'You are a test agent.',
-        functions: [{name: 'fn1', description: 'Function 1', handler: () => 'ok'}],
+        functions: [
+          { name: 'fn1', description: 'Function 1', handler: () => 'ok' },
+        ],
         groups: [
           {
             name: 'group1',
             description: 'Group 1',
-            functions: [{name: 'fn2', description: 'Function 2', handler: () => 'ok'}],
+            functions: [
+              { name: 'fn2', description: 'Function 2', handler: () => 'ok' },
+            ],
           },
         ],
       }),
@@ -302,7 +319,7 @@ describe('createRtcAgent', () => {
     it('should register and trigger ready callback', () => {
       const ready = vi.fn();
       const agent = createRtcAgent({
-        on: {ready},
+        on: { ready },
       });
 
       document.body.appendChild(agent);
@@ -331,22 +348,37 @@ describe('createRtcAgent', () => {
       document.body.appendChild(agent);
 
       // Trigger session events
-      const mockSession = {id: 'session-1', title: 'Test Session', createdAt: new Date()};
-      const createdEvent = new CustomEvent('rtc-session-created', {detail: {session: mockSession}});
+      const mockSession = {
+        id: 'session-1',
+        title: 'Test Session',
+        createdAt: new Date(),
+      };
+      const createdEvent = new CustomEvent('rtc-session-created', {
+        detail: { session: mockSession },
+      });
       agent.dispatchEvent(createdEvent);
-      expect(sessionCreated).toHaveBeenCalledWith({session: mockSession});
+      expect(sessionCreated).toHaveBeenCalledWith({ session: mockSession });
 
-      const switchedEvent = new CustomEvent('rtc-session-switched', {detail: {id: 'session-1'}});
+      const switchedEvent = new CustomEvent('rtc-session-switched', {
+        detail: { id: 'session-1' },
+      });
       agent.dispatchEvent(switchedEvent);
-      expect(sessionSwitched).toHaveBeenCalledWith({id: 'session-1'});
+      expect(sessionSwitched).toHaveBeenCalledWith({ id: 'session-1' });
 
-      const renamedEvent = new CustomEvent('rtc-session-renamed', {detail: {id: 'session-1', title: 'New Title'}});
+      const renamedEvent = new CustomEvent('rtc-session-renamed', {
+        detail: { id: 'session-1', title: 'New Title' },
+      });
       agent.dispatchEvent(renamedEvent);
-      expect(sessionRenamed).toHaveBeenCalledWith({id: 'session-1', title: 'New Title'});
+      expect(sessionRenamed).toHaveBeenCalledWith({
+        id: 'session-1',
+        title: 'New Title',
+      });
 
-      const deletedEvent = new CustomEvent('rtc-session-deleted', {detail: {id: 'session-1'}});
+      const deletedEvent = new CustomEvent('rtc-session-deleted', {
+        detail: { id: 'session-1' },
+      });
       agent.dispatchEvent(deletedEvent);
-      expect(sessionDeleted).toHaveBeenCalledWith({id: 'session-1'});
+      expect(sessionDeleted).toHaveBeenCalledWith({ id: 'session-1' });
     });
 
     it('should register and trigger message callbacks', () => {
@@ -354,19 +386,28 @@ describe('createRtcAgent', () => {
       const messageSent = vi.fn();
 
       const agent = createRtcAgent({
-        on: {messageReceived, messageSent},
+        on: { messageReceived, messageSent },
       });
 
       document.body.appendChild(agent);
 
-      const mockMessage = {id: 'msg-1', content: 'Hello', role: 'user' as const, timestamp: new Date()};
-      const receivedEvent = new CustomEvent('rtc-message-received', {detail: {message: mockMessage}});
+      const mockMessage = {
+        id: 'msg-1',
+        content: 'Hello',
+        role: 'user' as const,
+        timestamp: new Date(),
+      };
+      const receivedEvent = new CustomEvent('rtc-message-received', {
+        detail: { message: mockMessage },
+      });
       agent.dispatchEvent(receivedEvent);
-      expect(messageReceived).toHaveBeenCalledWith({message: mockMessage});
+      expect(messageReceived).toHaveBeenCalledWith({ message: mockMessage });
 
-      const sentEvent = new CustomEvent('rtc-message-sent', {detail: {message: mockMessage}});
+      const sentEvent = new CustomEvent('rtc-message-sent', {
+        detail: { message: mockMessage },
+      });
       agent.dispatchEvent(sentEvent);
-      expect(messageSent).toHaveBeenCalledWith({message: mockMessage});
+      expect(messageSent).toHaveBeenCalledWith({ message: mockMessage });
     });
 
     it('should register and trigger auth/connection callbacks', () => {
@@ -402,29 +443,37 @@ describe('createRtcAgent', () => {
       agent.dispatchEvent(new CustomEvent('rtc-auth-logout'));
       expect(authLogout).toHaveBeenCalled();
 
-      const stateEvent = new CustomEvent('rtc-connection-state-change', {detail: {state: 'connected'}});
+      const stateEvent = new CustomEvent('rtc-connection-state-change', {
+        detail: { state: 'connected' },
+      });
       agent.dispatchEvent(stateEvent);
-      expect(connectionStateChange).toHaveBeenCalledWith({state: 'connected'});
+      expect(connectionStateChange).toHaveBeenCalledWith({
+        state: 'connected',
+      });
 
-      const loginEvent = new CustomEvent('rtc-auth-login', {detail: {userId: 'user-123'}});
+      const loginEvent = new CustomEvent('rtc-auth-login', {
+        detail: { userId: 'user-123' },
+      });
       agent.dispatchEvent(loginEvent);
-      expect(authLogin).toHaveBeenCalledWith({userId: 'user-123'});
+      expect(authLogin).toHaveBeenCalledWith({ userId: 'user-123' });
     });
 
     it('should register and trigger themeChange callback', () => {
       const themeChange = vi.fn();
-      const agent = createRtcAgent({on: {themeChange}});
+      const agent = createRtcAgent({ on: { themeChange } });
 
       document.body.appendChild(agent);
 
-      const event = new CustomEvent('rtc-theme-change', {detail: {theme: 'dark'}});
+      const event = new CustomEvent('rtc-theme-change', {
+        detail: { theme: 'dark' },
+      });
       agent.dispatchEvent(event);
-      expect(themeChange).toHaveBeenCalledWith({theme: 'dark'});
+      expect(themeChange).toHaveBeenCalledWith({ theme: 'dark' });
     });
 
     it('should register and trigger beforeDestroy callback', () => {
       const beforeDestroy = vi.fn();
-      const agent = createRtcAgent({on: {beforeDestroy}});
+      const agent = createRtcAgent({ on: { beforeDestroy } });
 
       document.body.appendChild(agent);
 
@@ -438,7 +487,7 @@ describe('createRtcAgent', () => {
       const sessionCreated = vi.fn();
 
       const agent = createRtcAgent({
-        on: {ready, sessionCreated},
+        on: { ready, sessionCreated },
       });
 
       document.body.appendChild(agent);
@@ -455,7 +504,13 @@ describe('createRtcAgent', () => {
 
       // Events after destroy should not trigger callbacks
       agent.dispatchEvent(new CustomEvent('rtc-agent-ready'));
-      agent.dispatchEvent(new CustomEvent('rtc-session-created', {detail: {session: {id: '1', title: 'test', createdAt: new Date()}}}));
+      agent.dispatchEvent(
+        new CustomEvent('rtc-session-created', {
+          detail: {
+            session: { id: '1', title: 'test', createdAt: new Date() },
+          },
+        }),
+      );
 
       expect(ready).not.toHaveBeenCalled();
       expect(sessionCreated).not.toHaveBeenCalled();
@@ -463,18 +518,24 @@ describe('createRtcAgent', () => {
 
     it('should pass event detail directly to callbacks (not wrapped in CustomEvent)', () => {
       const sessionCreated = vi.fn();
-      const agent = createRtcAgent({on: {sessionCreated}});
+      const agent = createRtcAgent({ on: { sessionCreated } });
 
       document.body.appendChild(agent);
 
-      const mockSession = {id: 'session-1', title: 'Test', createdAt: new Date()};
-      const event = new CustomEvent('rtc-session-created', {detail: {session: mockSession}});
+      const mockSession = {
+        id: 'session-1',
+        title: 'Test',
+        createdAt: new Date(),
+      };
+      const event = new CustomEvent('rtc-session-created', {
+        detail: { session: mockSession },
+      });
       agent.dispatchEvent(event);
 
       // Callback receives the unwrapped detail directly (not the CustomEvent envelope)
       expect(sessionCreated).toHaveBeenCalled();
       const receivedDetail = sessionCreated.mock.calls[0][0];
-      expect(receivedDetail).toEqual({session: mockSession});
+      expect(receivedDetail).toEqual({ session: mockSession });
       expect(receivedDetail).not.toBeInstanceOf(CustomEvent);
     });
   });
@@ -488,7 +549,7 @@ describe('createRtcAgent', () => {
     it('should register and trigger toolCallStart callback', () => {
       const toolCallStart = vi.fn();
       const agent = createRtcAgent({
-        on: {toolCallStart},
+        on: { toolCallStart },
       });
 
       document.body.appendChild(agent);
@@ -496,38 +557,38 @@ describe('createRtcAgent', () => {
       // Simulate EventBus function:start event
       eventBus.emit('function:start', {
         path: 'test.function',
-        params: {arg: 'value'},
+        params: { arg: 'value' },
       });
 
       expect(toolCallStart).toHaveBeenCalledWith({
         path: 'test.function',
-        params: {arg: 'value'},
+        params: { arg: 'value' },
       });
     });
 
     it('should register and trigger toolCallSuccess callback', () => {
       const toolCallSuccess = vi.fn();
       const agent = createRtcAgent({
-        on: {toolCallSuccess},
+        on: { toolCallSuccess },
       });
 
       document.body.appendChild(agent);
 
       eventBus.emit('function:success', {
         path: 'test.function',
-        result: {data: 'success'},
+        result: { data: 'success' },
       });
 
       expect(toolCallSuccess).toHaveBeenCalledWith({
         path: 'test.function',
-        result: {data: 'success'},
+        result: { data: 'success' },
       });
     });
 
     it('should register and trigger toolCallError callback', () => {
       const toolCallError = vi.fn();
       const agent = createRtcAgent({
-        on: {toolCallError},
+        on: { toolCallError },
       });
 
       document.body.appendChild(agent);
@@ -547,7 +608,7 @@ describe('createRtcAgent', () => {
     it('should register and trigger toolCallProgress callback', () => {
       const toolCallProgress = vi.fn();
       const agent = createRtcAgent({
-        on: {toolCallProgress},
+        on: { toolCallProgress },
       });
 
       document.body.appendChild(agent);
@@ -568,13 +629,13 @@ describe('createRtcAgent', () => {
       const toolCallSuccess = vi.fn();
 
       const agent = createRtcAgent({
-        on: {toolCallStart, toolCallSuccess},
+        on: { toolCallStart, toolCallSuccess },
       });
 
       document.body.appendChild(agent);
 
       // Verify callbacks work before destroy
-      eventBus.emit('function:start', {path: 'test.fn', params: {}});
+      eventBus.emit('function:start', { path: 'test.fn', params: {} });
       expect(toolCallStart).toHaveBeenCalledTimes(1);
 
       // Destroy the agent
@@ -584,8 +645,8 @@ describe('createRtcAgent', () => {
       toolCallStart.mockClear();
 
       // EventBus events after destroy should not trigger callbacks
-      eventBus.emit('function:start', {path: 'test.fn', params: {}});
-      eventBus.emit('function:success', {path: 'test.fn', result: null});
+      eventBus.emit('function:start', { path: 'test.fn', params: {} });
+      eventBus.emit('function:success', { path: 'test.fn', result: null });
 
       expect(toolCallStart).not.toHaveBeenCalled();
       expect(toolCallSuccess).not.toHaveBeenCalled();
@@ -600,7 +661,7 @@ describe('createRtcAgent', () => {
     it('should register beforeMessageSend callback as async hook', () => {
       const beforeMessageSend = vi.fn().mockReturnValue(true);
       const agent = createRtcAgent({
-        on: {beforeMessageSend},
+        on: { beforeMessageSend },
       });
 
       document.body.appendChild(agent);
@@ -613,13 +674,13 @@ describe('createRtcAgent', () => {
     it('should call beforeMessageSend callback with message detail', async () => {
       const beforeMessageSend = vi.fn().mockReturnValue(true);
       const agent = createRtcAgent({
-        on: {beforeMessageSend},
+        on: { beforeMessageSend },
       });
 
       document.body.appendChild(agent);
 
       // Call the async hook directly
-      const detail = {message: {content: 'test message'}};
+      const detail = { message: { content: 'test message' } };
       const result = await agent._beforeMessageSendHook!(detail);
 
       expect(beforeMessageSend).toHaveBeenCalledWith(detail);
@@ -629,24 +690,28 @@ describe('createRtcAgent', () => {
     it('should support synchronous return values', async () => {
       const beforeMessageSend = vi.fn().mockReturnValue(true);
       const agent = createRtcAgent({
-        on: {beforeMessageSend},
+        on: { beforeMessageSend },
       });
 
       document.body.appendChild(agent);
 
-      const result = await agent._beforeMessageSendHook!({message: {content: 'test'}});
+      const result = await agent._beforeMessageSendHook!({
+        message: { content: 'test' },
+      });
       expect(result).toBe(true);
     });
 
     it('should support async/Promise return values', async () => {
       const beforeMessageSend = vi.fn().mockResolvedValue(true);
       const agent = createRtcAgent({
-        on: {beforeMessageSend},
+        on: { beforeMessageSend },
       });
 
       document.body.appendChild(agent);
 
-      const result = await agent._beforeMessageSendHook!({message: {content: 'test'}});
+      const result = await agent._beforeMessageSendHook!({
+        message: { content: 'test' },
+      });
       expect(result).toBe(true);
       expect(beforeMessageSend).toHaveBeenCalled();
     });
@@ -654,31 +719,35 @@ describe('createRtcAgent', () => {
     it('should return false when callback returns false (cancellation)', async () => {
       const beforeMessageSend = vi.fn().mockReturnValue(false);
       const agent = createRtcAgent({
-        on: {beforeMessageSend},
+        on: { beforeMessageSend },
       });
 
       document.body.appendChild(agent);
 
-      const result = await agent._beforeMessageSendHook!({message: {content: 'test'}});
+      const result = await agent._beforeMessageSendHook!({
+        message: { content: 'test' },
+      });
       expect(result).toBe(false);
     });
 
     it('should return false when callback resolves to false (async cancellation)', async () => {
       const beforeMessageSend = vi.fn().mockResolvedValue(false);
       const agent = createRtcAgent({
-        on: {beforeMessageSend},
+        on: { beforeMessageSend },
       });
 
       document.body.appendChild(agent);
 
-      const result = await agent._beforeMessageSendHook!({message: {content: 'test'}});
+      const result = await agent._beforeMessageSendHook!({
+        message: { content: 'test' },
+      });
       expect(result).toBe(false);
     });
 
     it('should also register a DOM event listener for rtc-before-message-send', () => {
       const beforeMessageSend = vi.fn().mockReturnValue(true);
       const agent = createRtcAgent({
-        on: {beforeMessageSend},
+        on: { beforeMessageSend },
       });
 
       document.body.appendChild(agent);
@@ -686,7 +755,7 @@ describe('createRtcAgent', () => {
       // Dispatch the DOM event - the factory registers a no-op listener
       // for external listeners, but the async hook is the primary mechanism
       const event = new CustomEvent('rtc-before-message-send', {
-        detail: {message: {content: 'test'}},
+        detail: { message: { content: 'test' } },
         cancelable: true,
       });
       agent.dispatchEvent(event);
@@ -699,7 +768,7 @@ describe('createRtcAgent', () => {
     it('should clean up beforeMessageSend hook on destroy', () => {
       const beforeMessageSend = vi.fn().mockReturnValue(true);
       const agent = createRtcAgent({
-        on: {beforeMessageSend},
+        on: { beforeMessageSend },
       });
 
       document.body.appendChild(agent);
@@ -741,7 +810,7 @@ describe('createRtcAgent', () => {
       expect(ready).toHaveBeenCalledTimes(1);
 
       // EventBus event
-      eventBus.emit('function:start', {path: 'test.fn', params: {}});
+      eventBus.emit('function:start', { path: 'test.fn', params: {} });
       expect(toolCallStart).toHaveBeenCalledTimes(1);
 
       // Async hook
@@ -776,7 +845,7 @@ describe('createRtcAgent', () => {
       const ready = vi.fn();
 
       const agent = createRtcAgent({
-        on: {ready},
+        on: { ready },
       });
 
       document.body.appendChild(agent);
@@ -786,12 +855,17 @@ describe('createRtcAgent', () => {
       expect(ready).toHaveBeenCalledTimes(1);
 
       // Other events should not throw
-      agent.dispatchEvent(new CustomEvent('rtc-session-created', {detail: {session: {id: '1', title: 'test', createdAt: new Date()}}}));
+      agent.dispatchEvent(
+        new CustomEvent('rtc-session-created', {
+          detail: {
+            session: { id: '1', title: 'test', createdAt: new Date() },
+          },
+        }),
+      );
 
       // EventBus should not have listeners
-      eventBus.emit('function:start', {path: 'test.fn', params: {}});
+      eventBus.emit('function:start', { path: 'test.fn', params: {} });
       // No toolCallStart callback was registered, so nothing should happen
     });
   });
-
 });

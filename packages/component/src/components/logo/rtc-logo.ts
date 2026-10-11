@@ -15,15 +15,15 @@
  *
  * @csspart logo - The logo container
  */
-import {LitElement, html, css} from 'lit';
-import {customElement, property, state} from 'lit/decorators.js';
-import {consume} from '@lit/context';
-import {LogoContext, type LogoContextValue} from '../../contexts/logo.js';
-import {renderLogo} from '../../icons/logo.js';
+import { LitElement, html, css } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import { consume } from '@lit/context';
+import { LogoContext, type LogoContextValue } from '../../contexts/logo.js';
+import { renderLogo } from '../../icons/logo.js';
 
 @customElement('rtc-logo')
 export class RtcLogo extends LitElement {
-    static styles = css`
+  static styles = css`
         :host {
             display: inline-flex;
             align-items: center;
@@ -37,56 +37,56 @@ export class RtcLogo extends LitElement {
         }
     `;
 
-    @property({type: String})
-    theme: 'light' | 'dark' | 'system' = 'system';
+  @property({ type: String })
+  theme: 'light' | 'dark' | 'system' = 'system';
 
-    @consume({context: LogoContext, subscribe: true})
-    private _logoCtx: LogoContextValue = {light: '', dark: ''};
+  @consume({ context: LogoContext, subscribe: true })
+  private _logoCtx: LogoContextValue = { light: '', dark: '' };
 
-    /** Tracks system dark mode for 'system' theme resolution. */
-    @state() private _systemDark = false;
+  /** Tracks system dark mode for 'system' theme resolution. */
+  @state() private _systemDark = false;
 
-    private _mq?: MediaQueryList;
-    private _boundOnMediaChange = () => {
-        this._systemDark = this._mq?.matches ?? false;
-    };
+  private _mq?: MediaQueryList;
+  private _boundOnMediaChange = () => {
+    this._systemDark = this._mq?.matches ?? false;
+  };
 
-    connectedCallback() {
-        super.connectedCallback();
-        if (typeof window !== 'undefined') {
-            this._mq = window.matchMedia('(prefers-color-scheme: dark)');
-            this._systemDark = this._mq.matches;
-            this._mq.addEventListener('change', this._boundOnMediaChange);
-        }
+  connectedCallback() {
+    super.connectedCallback();
+    if (typeof window !== 'undefined') {
+      this._mq = window.matchMedia('(prefers-color-scheme: dark)');
+      this._systemDark = this._mq.matches;
+      this._mq.addEventListener('change', this._boundOnMediaChange);
+    }
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this._mq?.removeEventListener('change', this._boundOnMediaChange);
+  }
+
+  /** Resolve effective dark mode. */
+  private get _isDark(): boolean {
+    if (this.theme === 'system') return this._systemDark;
+    return this.theme === 'dark';
+  }
+
+  render() {
+    const dark = this._isDark;
+    const custom = dark ? this._logoCtx.dark : this._logoCtx.light;
+
+    if (custom) {
+      // Custom logo: sanitized by <rtc-agent> before storing in context
+      return html`<span part="logo" .innerHTML=${custom}></span>`;
     }
 
-    disconnectedCallback() {
-        super.disconnectedCallback();
-        this._mq?.removeEventListener('change', this._boundOnMediaChange);
-    }
-
-    /** Resolve effective dark mode. */
-    private get _isDark(): boolean {
-        if (this.theme === 'system') return this._systemDark;
-        return this.theme === 'dark';
-    }
-
-    render() {
-        const dark = this._isDark;
-        const custom = dark ? this._logoCtx.dark : this._logoCtx.light;
-
-        if (custom) {
-            // Custom logo: sanitized by <rtc-agent> before storing in context
-            return html`<span part="logo" .innerHTML=${custom}></span>`;
-        }
-
-        // Default RTC Agent logo
-        return html`<span part="logo">${renderLogo(dark)}</span>`;
-    }
+    // Default RTC Agent logo
+    return html`<span part="logo">${renderLogo(dark)}</span>`;
+  }
 }
 
 declare global {
-    interface HTMLElementTagNameMap {
-        'rtc-logo': RtcLogo;
-    }
+  interface HTMLElementTagNameMap {
+    'rtc-logo': RtcLogo;
+  }
 }

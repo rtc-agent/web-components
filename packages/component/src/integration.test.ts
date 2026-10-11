@@ -70,7 +70,10 @@ describe('createRtcAgent integration', () => {
         databaseName: 'test-db',
         scenariosURL: '/scenarios',
         window: { defaultMode: 'maximized', embedded: true },
-        activityBar: { disabledActivities: ['settings'], defaultActivity: 'chat' },
+        activityBar: {
+          disabledActivities: ['settings'],
+          defaultActivity: 'chat',
+        },
         agentName: 'TestAgent',
         agentDescription: 'Test description',
         persona: 'You are helpful',
@@ -84,8 +87,14 @@ describe('createRtcAgent integration', () => {
       expect(agent.redirectURI).toBe('https://app.com/callback');
       expect(agent.databaseName).toBe('test-db');
       expect(agent.scenariosURL).toBe('/scenarios');
-      expect(agent.windowConfig).toEqual({ defaultMode: 'maximized', embedded: true });
-      expect(agent.activityBarConfig).toEqual({ disabledActivities: ['settings'], defaultActivity: 'chat' });
+      expect(agent.windowConfig).toEqual({
+        defaultMode: 'maximized',
+        embedded: true,
+      });
+      expect(agent.activityBarConfig).toEqual({
+        disabledActivities: ['settings'],
+        defaultActivity: 'chat',
+      });
       expect(agent.agentConfig).toMatchObject({
         name: 'TestAgent',
         description: 'Test description',
@@ -102,7 +111,9 @@ describe('createRtcAgent integration', () => {
     it('should handle AuthProvider integration', () => {
       const authProvider = {
         getToken: vi.fn().mockReturnValue('provider-token'),
-        refreshToken: vi.fn().mockResolvedValue({ accessToken: 'refreshed-token' }),
+        refreshToken: vi
+          .fn()
+          .mockResolvedValue({ accessToken: 'refreshed-token' }),
         isLoggedIn: vi.fn().mockReturnValue(true),
         logout: vi.fn().mockResolvedValue(undefined),
         deviceId: 'device-123',
@@ -113,8 +124,12 @@ describe('createRtcAgent integration', () => {
       // Verify pending auth provider BEFORE mount
       expect(agent._pendingAuthProvider).toBeDefined();
       expect(agent._pendingAuthProvider!.getToken).toBe(authProvider.getToken);
-      expect(agent._pendingAuthProvider!.refreshToken).toBe(authProvider.refreshToken);
-      expect(agent._pendingAuthProvider!.isLoggedIn).toBe(authProvider.isLoggedIn);
+      expect(agent._pendingAuthProvider!.refreshToken).toBe(
+        authProvider.refreshToken,
+      );
+      expect(agent._pendingAuthProvider!.isLoggedIn).toBe(
+        authProvider.isLoggedIn,
+      );
       expect(agent._pendingAuthProvider!.logout).toBe(authProvider.logout);
 
       document.body.appendChild(agent);
@@ -142,17 +157,40 @@ describe('createRtcAgent integration', () => {
       agent.dispatchEvent(new CustomEvent('rtc-agent-ready'));
       expect(ready).toHaveBeenCalledTimes(1);
 
-      const mockSession = { id: 'session-1', title: 'Test', createdAt: new Date() };
-      agent.dispatchEvent(new CustomEvent('rtc-session-created', { detail: { session: mockSession } }));
+      const mockSession = {
+        id: 'session-1',
+        title: 'Test',
+        createdAt: new Date(),
+      };
+      agent.dispatchEvent(
+        new CustomEvent('rtc-session-created', {
+          detail: { session: mockSession },
+        }),
+      );
       expect(sessionCreated).toHaveBeenCalledTimes(1);
 
-      const mockMessage = { id: 'msg-1', content: 'Hello', role: 'user' as const, timestamp: new Date() };
-      agent.dispatchEvent(new CustomEvent('rtc-message-received', { detail: { message: mockMessage } }));
+      const mockMessage = {
+        id: 'msg-1',
+        content: 'Hello',
+        role: 'user' as const,
+        timestamp: new Date(),
+      };
+      agent.dispatchEvent(
+        new CustomEvent('rtc-message-received', {
+          detail: { message: mockMessage },
+        }),
+      );
       expect(messageReceived).toHaveBeenCalledTimes(1);
 
       // Trigger EventBus event
-      eventBus.emit('function:start', { path: 'test.fn', params: { arg: 'value' } });
-      expect(toolCallStart).toHaveBeenCalledWith({ path: 'test.fn', params: { arg: 'value' } });
+      eventBus.emit('function:start', {
+        path: 'test.fn',
+        params: { arg: 'value' },
+      });
+      expect(toolCallStart).toHaveBeenCalledWith({
+        path: 'test.fn',
+        params: { arg: 'value' },
+      });
 
       agent.destroy();
     });
@@ -170,21 +208,39 @@ describe('createRtcAgent integration', () => {
       document.body.appendChild(agent);
 
       // function:start
-      eventBus.emit('function:start', { path: 'group/func1', params: { x: 1 } });
-      expect(toolCallStart).toHaveBeenCalledWith({ path: 'group/func1', params: { x: 1 } });
+      eventBus.emit('function:start', {
+        path: 'group/func1',
+        params: { x: 1 },
+      });
+      expect(toolCallStart).toHaveBeenCalledWith({
+        path: 'group/func1',
+        params: { x: 1 },
+      });
 
       // function:success
-      eventBus.emit('function:success', { path: 'group/func1', result: 'done' });
-      expect(toolCallSuccess).toHaveBeenCalledWith({ path: 'group/func1', result: 'done' });
+      eventBus.emit('function:success', {
+        path: 'group/func1',
+        result: 'done',
+      });
+      expect(toolCallSuccess).toHaveBeenCalledWith({
+        path: 'group/func1',
+        result: 'done',
+      });
 
       // function:error
       const error = new Error('Test error');
       eventBus.emit('function:error', { path: 'group/func1', error });
-      expect(toolCallError).toHaveBeenCalledWith({ path: 'group/func1', error });
+      expect(toolCallError).toHaveBeenCalledWith({
+        path: 'group/func1',
+        error,
+      });
 
       // function:progress
       eventBus.emit('function:progress', { path: 'group/func1', progress: 75 });
-      expect(toolCallProgress).toHaveBeenCalledWith({ path: 'group/func1', progress: 75 });
+      expect(toolCallProgress).toHaveBeenCalledWith({
+        path: 'group/func1',
+        progress: 75,
+      });
 
       agent.destroy();
     });
@@ -348,7 +404,9 @@ describe('createRtcAgent integration', () => {
         persona: 'You are an integration tester',
         auth: {
           getToken: vi.fn().mockReturnValue('integration-token'),
-          refreshToken: vi.fn().mockResolvedValue({ accessToken: 'refreshed-token' }),
+          refreshToken: vi
+            .fn()
+            .mockResolvedValue({ accessToken: 'refreshed-token' }),
           isLoggedIn: vi.fn().mockReturnValue(true),
           deviceId: 'device-123',
         },
@@ -382,8 +440,16 @@ describe('createRtcAgent integration', () => {
       agent.dispatchEvent(new CustomEvent('rtc-agent-ready'));
       expect(ready).toHaveBeenCalledTimes(1);
 
-      const mockSession = { id: 'session-1', title: 'Integration', createdAt: new Date() };
-      agent.dispatchEvent(new CustomEvent('rtc-session-created', { detail: { session: mockSession } }));
+      const mockSession = {
+        id: 'session-1',
+        title: 'Integration',
+        createdAt: new Date(),
+      };
+      agent.dispatchEvent(
+        new CustomEvent('rtc-session-created', {
+          detail: { session: mockSession },
+        }),
+      );
       expect(sessionCreated).toHaveBeenCalledTimes(1);
 
       eventBus.emit('function:start', { path: 'test.fn', params: {} });

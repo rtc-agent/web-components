@@ -4,7 +4,7 @@
  * Centralized configuration for OAuth2 authentication flow.
  */
 
-import {createLogger} from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('AuthConfig');
 
@@ -31,7 +31,7 @@ let _redirectUri: string | null = null;
  * Safe to call multiple times; takes effect immediately for subsequent reads.
  */
 export function setServerUrl(url: string | null): void {
-    _serverURL = url && url.length > 0 ? url.replace(/\/+$/, '') : null;
+  _serverURL = url && url.length > 0 ? url.replace(/\/+$/, '') : null;
 }
 
 /**
@@ -42,80 +42,80 @@ export function setServerUrl(url: string | null): void {
  * Safe to call multiple times; takes effect immediately for subsequent reads.
  */
 export function setRedirectUri(uri: string | null): void {
-    if (!uri || uri.length === 0) {
-        _redirectUri = null;
-        return;
-    }
-    // If starts with '/', treat as path relative to current origin
-    if (uri.startsWith('/')) {
-        _redirectUri = `${window.location.origin}${uri}`;
-    } else {
-        _redirectUri = uri.replace(/\/+$/, '');
-    }
+  if (!uri || uri.length === 0) {
+    _redirectUri = null;
+    return;
+  }
+  // If starts with '/', treat as path relative to current origin
+  if (uri.startsWith('/')) {
+    _redirectUri = `${window.location.origin}${uri}`;
+  } else {
+    _redirectUri = uri.replace(/\/+$/, '');
+  }
 }
 
 /** Get server URL (runtime override > env > default). */
 function getServerUrl(): string {
-    if (_serverURL) return _serverURL;
-    // Vite injects env vars at build time (typed via vite/client in vite-env.d.ts)
-    try {
-        const env = import.meta.env;
-        if (env?.VITE_SERVER_URL) return env.VITE_SERVER_URL;
-    } catch (err) {
-        // import.meta.env may not be available in all contexts (e.g., tests, non-Vite builds)
-        log.debug('import.meta.env not available, using default server URL:', err);
-    }
-    return 'http://localhost:28080';
+  if (_serverURL) return _serverURL;
+  // Vite injects env vars at build time (typed via vite/client in vite-env.d.ts)
+  try {
+    const env = import.meta.env;
+    if (env?.VITE_SERVER_URL) return env.VITE_SERVER_URL;
+  } catch (err) {
+    // import.meta.env may not be available in all contexts (e.g., tests, non-Vite builds)
+    log.debug('import.meta.env not available, using default server URL:', err);
+  }
+  return 'http://localhost:28080';
 }
 
 /** Auth-related configuration */
 export const AUTH_CONFIG = {
-    /** Backend server URL */
-    get serverURL(): string {
-        return getServerUrl();
-    },
+  /** Backend server URL */
+  get serverURL(): string {
+    return getServerUrl();
+  },
 
-    /** Centrifuge WebSocket endpoint (derived from server URL) */
-    get wsEndpoint(): string {
-        const http = getServerUrl();
-        // http:// → ws://, https:// → wss://
-        return http.replace(/^http/, 'ws') + '/connection/websocket';
-    },
+  /** Centrifuge WebSocket endpoint (derived from server URL) */
+  get wsEndpoint(): string {
+    const http = getServerUrl();
+    // http:// → ws://, https:// → wss://
+    return http.replace(/^http/, 'ws') + '/connection/websocket';
+  },
 
-    /** Callback URL (runtime override > dynamically generated from current origin) */
-    get redirectUri(): string {
-        if (_redirectUri) return _redirectUri;
-        return `${window.location.origin}/auth/callback.html`;
-    },
+  /** Callback URL (runtime override > dynamically generated from current origin) */
+  get redirectUri(): string {
+    if (_redirectUri) return _redirectUri;
+    return `${window.location.origin}/auth/callback.html`;
+  },
 
-    /** Token refresh buffer time (5 minutes before expiry) */
-    refreshBufferMs: 5 * 60 * 1000,
+  /** Token refresh buffer time (5 minutes before expiry) */
+  refreshBufferMs: 5 * 60 * 1000,
 } as const;
 
 /** localStorage keys */
 export const STORAGE_KEYS = {
-    tokens: 'rtc_auth_tokens',
-    deviceId: 'rtc_device_id',
-    deviceName: 'rtc_device_name',
-    oauthState: 'rtc_oauth_state',
-    pkceCodeVerifier: 'rtc_pkce_code_verifier',
-    mode: 'rtc_mode',
-    /** Window state: mode, position, size */
-    windowState: 'rtc_window_state',
-    /** Session tree expand state: sessionId → isExpanded */
-    sessionTreeExpanded: 'rtc_session_tree_expanded',
-    /** Activity Bar state: active activity + sidebarVisible */
-    activityBar: 'rtc_activity_bar',
-    /** Editor Area state: open tabs + activeFilePath */
-    editorArea: 'rtc_editor_area',
-    /** Global settings state */
-    settings: 'rtc_settings',
-    /** Input Area height (resize handle position) */
-    inputAreaHeight: 'rtc_input_area_height',
-    /** Function debug history */
-    functionDebugHistory: 'rtc_function_debug_history',
-    /** Function tree expand state: nodeId → isExpanded */
-    functionTreeExpanded: 'rtc_function_tree_expanded',
-    /** Function tree active (selected) function name */
-    functionTreeActive: 'rtc_function_tree_active',
+  tokens: 'rtc_auth_tokens',
+  deviceId: 'rtc_device_id',
+  deviceName: 'rtc_device_name',
+  oauthState: 'rtc_oauth_state',
+  pkceCodeVerifier: 'rtc_pkce_code_verifier',
+  mode: 'rtc_mode',
+  /** Window state: mode, position, size */
+  windowState: 'rtc_window_state',
+  /** Session tree expand state: sessionId → isExpanded */
+  sessionTreeExpanded: 'rtc_session_tree_expanded',
+  /** Activity Bar state: active activity + sidebarVisible */
+  activityBar: 'rtc_activity_bar',
+  /** Editor Area state: open tabs + activeFilePath */
+  editorArea: 'rtc_editor_area',
+  /** Global settings state */
+  settings: 'rtc_settings',
+  /** Input Area height (resize handle position) */
+  inputAreaHeight: 'rtc_input_area_height',
+  /** Function debug history */
+  functionDebugHistory: 'rtc_function_debug_history',
+  /** Function tree expand state: nodeId → isExpanded */
+  functionTreeExpanded: 'rtc_function_tree_expanded',
+  /** Function tree active (selected) function name */
+  functionTreeActive: 'rtc_function_tree_active',
 } as const;

@@ -5,7 +5,7 @@
  *
  * Uses project design tokens (--rtc-color-*), supports light/dark themes.
  */
-import {css} from 'lit';
+import { css } from 'lit';
 
 export const styles = css`
     :host {

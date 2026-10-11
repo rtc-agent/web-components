@@ -5,9 +5,12 @@
  */
 
 import type { ScenarioManifest } from '../types/skill.js';
-import { virtualFS, type FileSystemEntryMetadata } from '@rtc-agent/persistence';
+import {
+  virtualFS,
+  type FileSystemEntryMetadata,
+} from '@rtc-agent/persistence';
 import { generateScenariosIndex } from './markdown-generator.js';
-import {createLogger} from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('ScenarioLoader');
 
@@ -92,7 +95,7 @@ export function parseFrontmatter(content: string): {
         }
         result.tags = value
           .split(',')
-          .map(t => t.trim().replace(/^"|"$/g, ''))
+          .map((t) => t.trim().replace(/^"|"$/g, ''))
           .filter(Boolean);
         break;
       case 'author':
@@ -110,7 +113,10 @@ export function parseFrontmatter(content: string): {
 /**
  * Fetch with timeout
  */
-async function fetchWithTimeout(url: string, timeoutMs: number = 10000): Promise<Response> {
+async function fetchWithTimeout(
+  url: string,
+  timeoutMs: number = 10000,
+): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -129,7 +135,10 @@ async function fetchWithTimeout(url: string, timeoutMs: number = 10000): Promise
  * @param timeoutMs Timeout per request in milliseconds (default 10000)
  * @returns Number of Scenarios loaded
  */
-export async function loadScenariosFromURL(baseURL: string, timeoutMs: number = 10000): Promise<number> {
+export async function loadScenariosFromURL(
+  baseURL: string,
+  timeoutMs: number = 10000,
+): Promise<number> {
   // Ensure baseURL ends with /
   if (!baseURL.endsWith('/')) {
     baseURL += '/';
@@ -157,11 +166,13 @@ export async function loadScenariosFromURL(baseURL: string, timeoutMs: number = 
 
   if (manifest && manifest.scenarios) {
     // Use file list from manifest
-    filesToLoad = manifest.scenarios.map(s => s.file);
+    filesToLoad = manifest.scenarios.map((s) => s.file);
   } else {
     // No manifest — try scanning directory (assumes a list endpoint exists)
     // Simplified: requires host app to provide file list or use manifest
-    log.warn('No manifest.json found. Please provide manifest.json or use writeScenario() API.');
+    log.warn(
+      'No manifest.json found. Please provide manifest.json or use writeScenario() API.',
+    );
     return 0;
   }
 
@@ -201,7 +212,10 @@ export async function loadScenariosFromURL(baseURL: string, timeoutMs: number = 
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         log.error(`Timeout loading ${file}`);
-      } else if (err instanceof Error && err.message.includes('getDatabase() called without a name')) {
+      } else if (
+        err instanceof Error &&
+        err.message.includes('getDatabase() called without a name')
+      ) {
         // Database not yet initialized — expected timing issue, connectedCallback will reload later
         continue;
       } else {
@@ -231,9 +245,13 @@ export async function loadScenariosFromURL(baseURL: string, timeoutMs: number = 
  */
 export async function loadScenariosContent(
   baseURL: string,
-  timeoutMs: number = 10000
+  timeoutMs: number = 10000,
 ): Promise<{
-  files: Array<{path: string; content: string; metadata: {name?: string; description?: string; tags?: string[]}}>
+  files: Array<{
+    path: string;
+    content: string;
+    metadata: { name?: string; description?: string; tags?: string[] };
+  }>;
   deletePaths: string[];
 }> {
   // Ensure baseURL ends with /
@@ -264,8 +282,12 @@ export async function loadScenariosContent(
     return { files: [], deletePaths: [] };
   }
 
-  const filesToLoad = manifest.scenarios.map(s => s.file);
-  const files: Array<{path: string; content: string; metadata: {name?: string; description?: string; tags?: string[]}}> = [];
+  const filesToLoad = manifest.scenarios.map((s) => s.file);
+  const files: Array<{
+    path: string;
+    content: string;
+    metadata: { name?: string; description?: string; tags?: string[] };
+  }> = [];
 
   for (const file of filesToLoad) {
     try {
@@ -283,12 +305,14 @@ export async function loadScenariosContent(
       const filename = file.endsWith('.md') ? file : `${file}.md`;
       const path = `/scenarios/${filename}`;
 
-      const metadata: {name?: string; description?: string; tags?: string[]} = {};
-      if (parsed.title || parsed.name) metadata.name = parsed.title ?? parsed.name;
+      const metadata: { name?: string; description?: string; tags?: string[] } =
+        {};
+      if (parsed.title || parsed.name)
+        metadata.name = parsed.title ?? parsed.name;
       if (parsed.description) metadata.description = parsed.description;
       if (parsed.tags) metadata.tags = parsed.tags;
 
-      files.push({path, content, metadata});
+      files.push({ path, content, metadata });
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         log.error(`Timeout loading ${file}`);
@@ -301,11 +325,11 @@ export async function loadScenariosContent(
   // Compute orphan paths: existing scenario files in VFS not in the current manifest
   let deletePaths: string[] = [];
   try {
-    const currentPaths = new Set(files.map(f => f.path));
+    const currentPaths = new Set(files.map((f) => f.path));
     const existingScenarios = await virtualFS.queryByType('scenario');
     deletePaths = existingScenarios
-      .map(s => s.path)
-      .filter(p => p !== '/scenarios/INDEX.md' && !currentPaths.has(p));
+      .map((s) => s.path)
+      .filter((p) => p !== '/scenarios/INDEX.md' && !currentPaths.has(p));
     if (deletePaths.length > 0) {
       log.info('Found orphan scenario docs to delete:', deletePaths);
     }

@@ -10,29 +10,29 @@
  *   import {getIcon} from '../../icons/icons.js';
  *   const icon = getIcon('minimize');
  */
-import {html} from 'lit';
-import {unsafeHTML} from 'lit/directives/unsafe-html.js';
+import { html } from 'lit';
+import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 
 // Import all SVG files as raw strings
 // Using Vite's ?raw import to get SVG content
 import minimizeSvg from './svg/minimize-16.svg?raw';
-import screenFullSvg from './svg/screen-full-16.svg?raw';  // octicons: screen-full-16
-import restoreSvg from './svg/restore-16.svg?raw';  // octicons: screen-normal-16
+import screenFullSvg from './svg/screen-full-16.svg?raw'; // octicons: screen-full-16
+import restoreSvg from './svg/restore-16.svg?raw'; // octicons: screen-normal-16
 import clockSvg from './svg/clock-16.svg?raw';
 import plusSvg from './svg/plus-16.svg?raw';
-import editSvg from './svg/edit-16.svg?raw';  // octicons: pencil-16
-import deleteSvg from './svg/delete-16.svg?raw';  // octicons: trash-16
-import handSvg from './svg/hand-16.svg?raw';  // octicons: grabber-16
+import editSvg from './svg/edit-16.svg?raw'; // octicons: pencil-16
+import deleteSvg from './svg/delete-16.svg?raw'; // octicons: trash-16
+import handSvg from './svg/hand-16.svg?raw'; // octicons: grabber-16
 import codeSvg from './svg/code-16.svg?raw';
-import planSvg from './svg/plan-16.svg?raw';  // octicons: tasklist-16
+import planSvg from './svg/plan-16.svg?raw'; // octicons: tasklist-16
 import zapSvg from './svg/zap-16.svg?raw';
 import gearSvg from './svg/gear-16.svg?raw';
 import checkSvg from './svg/check-16.svg?raw';
-import attachSvg from './svg/attach-16.svg?raw';  // octicons: paperclip-16
-import toolSvg from './svg/tool-16.svg?raw';  // octicons: tools-16 (singular vs plural)
-import sendSvg from './svg/send-16.svg?raw';  // octicons: paper-airplane-16
-import squareFillSvg from './svg/square-fill-16.svg?raw';  // octicons: square-fill-16
-import micSvg from './svg/mic-16.svg?raw';  // octicons: broadcast-16 (semantic mismatch)
+import attachSvg from './svg/attach-16.svg?raw'; // octicons: paperclip-16
+import toolSvg from './svg/tool-16.svg?raw'; // octicons: tools-16 (singular vs plural)
+import sendSvg from './svg/send-16.svg?raw'; // octicons: paper-airplane-16
+import squareFillSvg from './svg/square-fill-16.svg?raw'; // octicons: square-fill-16
+import micSvg from './svg/mic-16.svg?raw'; // octicons: broadcast-16 (semantic mismatch)
 import checklistSvg from './svg/checklist-16.svg?raw';
 
 // File explorer icons (Phase 1)
@@ -57,8 +57,8 @@ import chevronDownSvg from './svg/chevron-down-16.svg?raw';
 // link: Insert hyperlink.
 // eye: Preview mode.
 // columns: Split-screen view.
-import boldSvg from './svg/text-bold-16.svg?raw';  // octicons: bold-16 (text- prefix added)
-import italicSvg from './svg/text-italic-16.svg?raw';  // octicons: italic-16 (text- prefix added)
+import boldSvg from './svg/text-bold-16.svg?raw'; // octicons: bold-16 (text- prefix added)
+import italicSvg from './svg/text-italic-16.svg?raw'; // octicons: italic-16 (text- prefix added)
 import linkSvg from './svg/link-16.svg?raw';
 import eyeSvg from './svg/eye-16.svg?raw';
 import columnsSvg from './svg/columns-16.svg?raw';
@@ -74,12 +74,12 @@ import alertSvg from './svg/alert-16.svg?raw';
  * Convert SVG string to Lit template using unsafeHTML
  */
 function toLitTemplate(svgString: string) {
-    return html`${unsafeHTML(svgString)}`;
+  return html`${unsafeHTML(svgString)}`;
 }
 
 // Icon templates
 export const minimizeIcon = toLitTemplate(minimizeSvg);
-export const maximizeIcon = toLitTemplate(screenFullSvg);  // Uses octicons screen-full (corner brackets)
+export const maximizeIcon = toLitTemplate(screenFullSvg); // Uses octicons screen-full (corner brackets)
 export const restoreIcon = toLitTemplate(restoreSvg);
 export const clockIcon = toLitTemplate(clockSvg);
 export const plusIcon = toLitTemplate(plusSvg);
@@ -94,7 +94,7 @@ export const checkIcon = toLitTemplate(checkSvg);
 export const attachIcon = toLitTemplate(attachSvg);
 export const toolIcon = toLitTemplate(toolSvg);
 export const sendIcon = toLitTemplate(sendSvg);
-export const stopIcon = toLitTemplate(squareFillSvg);  // Uses octicons square-fill (simple filled square)
+export const stopIcon = toLitTemplate(squareFillSvg); // Uses octicons square-fill (simple filled square)
 export const micIcon = toLitTemplate(micSvg);
 export const checklistIcon = toLitTemplate(checklistSvg);
 
@@ -157,53 +157,53 @@ export const alertIcon = toLitTemplate(alertSvg);
  * Icon name to template mapping
  */
 export const icons = {
-    minimize: minimizeIcon,
-    maximize: maximizeIcon,
-    restore: restoreIcon,
-    clock: clockIcon,
-    plus: plusIcon,
-    edit: editIcon,
-    delete: deleteIcon,
-    hand: handIcon,
-    code: codeIcon,
-    plan: planIcon,
-    zap: zapIcon,
-    gear: gearIcon,
-    check: checkIcon,
-    attach: attachIcon,
-    tool: toolIcon,
-    send: sendIcon,
-    stop: stopIcon,
-    mic: micIcon,
-    checklist: checklistIcon,
-    // File explorer icons (Phase 1)
-    files: filesIcon,
-    chat: chatIcon,
-    folderClosed: folderClosedIcon,
-    folderOpen: folderOpenIcon,
-    fileMarkdown: fileMarkdownIcon,
-    fileScript: fileScriptIcon,
-    fileDefault: fileDefaultIcon,
-    refresh: refreshIcon,
-    retry: retryIcon,
-    save: saveIcon,
-    undo: undoIcon,
-    redo: redoIcon,
-    close: closeIcon,
-    // Session tree icons
-    chevronRight: chevronRightIcon,
-    chevronDown: chevronDownIcon,
-    // Editor toolbar icons (Phase 2.5)
-    bold: boldIcon,
-    italic: italicIcon,
-    link: linkIcon,
-    eye: eyeIcon,
-    columns: columnsIcon,
-    // Scroll lock icons
-    lock: lockIcon,
-    unlock: unlockIcon,
-    // File upload/download icons
-    alert: alertIcon,
+  minimize: minimizeIcon,
+  maximize: maximizeIcon,
+  restore: restoreIcon,
+  clock: clockIcon,
+  plus: plusIcon,
+  edit: editIcon,
+  delete: deleteIcon,
+  hand: handIcon,
+  code: codeIcon,
+  plan: planIcon,
+  zap: zapIcon,
+  gear: gearIcon,
+  check: checkIcon,
+  attach: attachIcon,
+  tool: toolIcon,
+  send: sendIcon,
+  stop: stopIcon,
+  mic: micIcon,
+  checklist: checklistIcon,
+  // File explorer icons (Phase 1)
+  files: filesIcon,
+  chat: chatIcon,
+  folderClosed: folderClosedIcon,
+  folderOpen: folderOpenIcon,
+  fileMarkdown: fileMarkdownIcon,
+  fileScript: fileScriptIcon,
+  fileDefault: fileDefaultIcon,
+  refresh: refreshIcon,
+  retry: retryIcon,
+  save: saveIcon,
+  undo: undoIcon,
+  redo: redoIcon,
+  close: closeIcon,
+  // Session tree icons
+  chevronRight: chevronRightIcon,
+  chevronDown: chevronDownIcon,
+  // Editor toolbar icons (Phase 2.5)
+  bold: boldIcon,
+  italic: italicIcon,
+  link: linkIcon,
+  eye: eyeIcon,
+  columns: columnsIcon,
+  // Scroll lock icons
+  lock: lockIcon,
+  unlock: unlockIcon,
+  // File upload/download icons
+  alert: alertIcon,
 } as const;
 
 export type IconName = keyof typeof icons;
@@ -212,5 +212,5 @@ export type IconName = keyof typeof icons;
  * Get icon template by name
  */
 export function getIcon(name: IconName) {
-    return icons[name];
+  return icons[name];
 }

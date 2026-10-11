@@ -4,14 +4,14 @@
  * Includes: database initialization, log capture, CSS deep selector,
  * element lookup, and network simulation state.
  */
-import { getDatabase } from "@rtc-agent/persistence";
-import { createLogger } from "@rtc-agent/client";
-import type { RtcAgent } from "./components/rtc-agent/rtc-agent.js";
+import { getDatabase } from '@rtc-agent/persistence';
+import { createLogger } from '@rtc-agent/protocol';
+import type { RtcAgent } from './components/rtc-agent/rtc-agent.js';
 
-export const log = createLogger("DebugAPI");
+export const log = createLogger('DebugAPI');
 
 /** Default database name used by the debug API when persistence is not connected. */
-const DEBUG_DB_NAME = "rtc-agent-debug";
+const DEBUG_DB_NAME = 'rtc-agent-debug';
 
 /**
  * Ensure the database singleton is initialized before VirtualFS operations.
@@ -83,10 +83,11 @@ function formatLogEntry(level: string, args: unknown[]): string {
   const ts = new Date().toISOString();
   const msg = args
     .map((a) => {
-      if (typeof a === "string") return a;
-      if (a === undefined) return "undefined";
-      if (a === null) return "null";
-      if (typeof a === "function") return `[Function: ${a.name || "anonymous"}]`;
+      if (typeof a === 'string') return a;
+      if (a === undefined) return 'undefined';
+      if (a === null) return 'null';
+      if (typeof a === 'function')
+        return `[Function: ${a.name || 'anonymous'}]`;
       if (a instanceof Error) return a.stack ?? `${a.name}: ${a.message}`;
       try {
         return JSON.stringify(a);
@@ -94,7 +95,7 @@ function formatLogEntry(level: string, args: unknown[]): string {
         return String(a);
       }
     })
-    .join(" ");
+    .join(' ');
   return `[${ts}] [${level}] ${msg}`;
 }
 
@@ -107,13 +108,13 @@ function formatLogEntry(level: string, args: unknown[]): string {
  * Vite HMR module reloads — without this, each HMR cycle wraps console
  * again, causing duplicate log buffer entries.
  */
-const LOG_CAPTURE_GUARD_KEY = "__rtcLogCaptureInstalled";
+const LOG_CAPTURE_GUARD_KEY = '__rtcLogCaptureInstalled';
 
 export function installLogCapture(): void {
   if ((globalThis as Record<string, unknown>)[LOG_CAPTURE_GUARD_KEY]) return;
   (globalThis as Record<string, unknown>)[LOG_CAPTURE_GUARD_KEY] = true;
 
-  const levels = ["debug", "info", "warn", "error"] as const;
+  const levels = ['debug', 'info', 'warn', 'error'] as const;
   for (const level of levels) {
     const original = console[level].bind(console);
     console[level] = (...args: unknown[]) => {
@@ -136,7 +137,7 @@ export function installLogCapture(): void {
  */
 export function deepQuerySelector(
   root: Node,
-  selector: string
+  selector: string,
 ): Element | null {
   const parts = selector.split(/\s*>>>\s*/);
   let current: Node | null = root;
@@ -172,5 +173,5 @@ export function deepQuerySelector(
 
 /** Get the <rtc-agent> element from the page. */
 export function getAgentElement(): RtcAgent | null {
-  return document.querySelector<RtcAgent>("rtc-agent");
+  return document.querySelector<RtcAgent>('rtc-agent');
 }

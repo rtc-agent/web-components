@@ -9,7 +9,7 @@
  * - Host applications (Flutter) listen to events and forward via postMessage
  */
 
-import {createLogger} from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('EventBus');
 
@@ -50,7 +50,7 @@ export class EventBus<TEventMap extends DefaultEventMap = DefaultEventMap> {
    */
   on<K extends keyof TEventMap & string>(
     event: K,
-    handler: EventHandler<TEventMap[K]>
+    handler: EventHandler<TEventMap[K]>,
   ): () => void {
     if (!this.handlers.has(event)) {
       this.handlers.set(event, new Set());
@@ -79,7 +79,7 @@ export class EventBus<TEventMap extends DefaultEventMap = DefaultEventMap> {
    */
   once<K extends keyof TEventMap & string>(
     event: K,
-    handler: EventHandler<TEventMap[K]>
+    handler: EventHandler<TEventMap[K]>,
   ): () => void {
     const wrapper: EventHandler = (e) => {
       this.off(event, wrapper as EventHandler<TEventMap[K]>);
@@ -93,7 +93,7 @@ export class EventBus<TEventMap extends DefaultEventMap = DefaultEventMap> {
    */
   off<K extends keyof TEventMap & string>(
     event: K,
-    handler: EventHandler<TEventMap[K]>
+    handler: EventHandler<TEventMap[K]>,
   ): void {
     this.handlers.get(event)?.delete(handler as EventHandler);
   }
@@ -126,7 +126,7 @@ export class EventBus<TEventMap extends DefaultEventMap = DefaultEventMap> {
    */
   async emitAsync<K extends keyof TEventMap & string>(
     event: K,
-    data: TEventMap[K]
+    data: TEventMap[K],
   ): Promise<void> {
     const handlers = this.handlers.get(event);
     if (!handlers) return;
@@ -136,9 +136,9 @@ export class EventBus<TEventMap extends DefaultEventMap = DefaultEventMap> {
     const promises: Promise<void>[] = [];
     for (const handler of snapshot) {
       promises.push(
-        Promise.resolve(handler(data)).catch(err => {
+        Promise.resolve(handler(data)).catch((err) => {
           log.error(`Async handler error for event '${event}':`, err);
-        })
+        }),
       );
     }
     await Promise.all(promises);
@@ -169,7 +169,7 @@ export class EventBus<TEventMap extends DefaultEventMap = DefaultEventMap> {
    */
   async emitAsyncStrict<K extends keyof TEventMap & string>(
     event: K,
-    data: TEventMap[K]
+    data: TEventMap[K],
   ): Promise<void> {
     const handlers = this.handlers.get(event);
     if (!handlers) return;
@@ -239,7 +239,9 @@ export interface FunctionRegistryEventMap extends DefaultEventMap {
  * Uses factory function to create new event bus instances, avoiding global singleton issues.
  * The global instance `defaultEventBus` is just the default export; applications can create their own instances.
  */
-export function createEventBus<TEventMap extends DefaultEventMap = DefaultEventMap>(): EventBus<TEventMap> {
+export function createEventBus<
+  TEventMap extends DefaultEventMap = DefaultEventMap,
+>(): EventBus<TEventMap> {
   return new EventBus<TEventMap>();
 }
 

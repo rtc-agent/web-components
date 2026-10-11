@@ -6,74 +6,83 @@
  *
  * No context — toast state is consumed only by <rtc-toast> via root render.
  */
-import type {ReactiveController, ReactiveControllerHost} from 'lit';
-import type {ToastItem, ToastType, ToastAction} from '../components/overlay/rtc-toast.js';
+import type { ReactiveController, ReactiveControllerHost } from 'lit';
+import type {
+  ToastItem,
+  ToastType,
+  ToastAction,
+} from '../components/overlay/rtc-toast.js';
 
-export type {ToastItem, ToastType, ToastAction} from '../components/overlay/rtc-toast.js';
+export type {
+  ToastItem,
+  ToastType,
+  ToastAction,
+} from '../components/overlay/rtc-toast.js';
 
 export interface ToastActions {
-    show: (message: string, type?: ToastType, action?: ToastAction) => void;
-    remove: (id: number) => void;
+  show: (message: string, type?: ToastType, action?: ToastAction) => void;
+  remove: (id: number) => void;
 }
 
 export class ToastController implements ReactiveController {
-    private _host: ReactiveControllerHost;
-    private _toasts: ToastItem[] = [];
-    /** Active auto-dismiss timers, keyed by toast ID */
-    private _timers = new Map<number, ReturnType<typeof setTimeout>>();
+  private _host: ReactiveControllerHost;
+  private _toasts: ToastItem[] = [];
+  /** Active auto-dismiss timers, keyed by toast ID */
+  private _timers = new Map<number, ReturnType<typeof setTimeout>>();
 
-    readonly actions: ToastActions;
+  readonly actions: ToastActions;
 
-    get toasts(): readonly ToastItem[] {
-        return this._toasts;
+  get toasts(): readonly ToastItem[] {
+    return this._toasts;
+  }
+
+  constructor(host: ReactiveControllerHost) {
+    this._host = host;
+    this._host.addController(this);
+    this.actions = {
+      show: (message, type = 'info', action) =>
+        this._show(message, type, action),
+      remove: (id) => this._remove(id),
+    };
+  }
+
+  hostConnected() {}
+
+  hostDisconnected() {
+    // Clean up all pending timers to prevent memory leaks
+    for (const timer of this._timers.values()) {
+      clearTimeout(timer);
     }
+    this._timers.clear();
 
-    constructor(host: ReactiveControllerHost) {
-        this._host = host;
-        this._host.addController(this);
-        this.actions = {
-            show: (message, type = 'info', action) => this._show(message, type, action),
-            remove: (id) => this._remove(id),
-        };
+    // Clear toast list to avoid orphaned toasts on reconnect
+    if (this._toasts.length > 0) {
+      this._toasts = [];
+      this._host.requestUpdate();
     }
+  }
 
-    hostConnected() {}
+  private _show(message: string, type: ToastType, action?: ToastAction) {
+    const id = Date.now() + Math.random();
+    this._toasts = [...this._toasts, { id, message, type, action }];
+    this._host.requestUpdate();
 
-    hostDisconnected() {
-        // Clean up all pending timers to prevent memory leaks
-        for (const timer of this._timers.values()) {
-            clearTimeout(timer);
-        }
-        this._timers.clear();
-
-        // Clear toast list to avoid orphaned toasts on reconnect
-        if (this._toasts.length > 0) {
-            this._toasts = [];
-            this._host.requestUpdate();
-        }
+    // error does not auto-dismiss; other types auto-dismiss
+    const duration = type === 'error' ? 0 : type === 'success' ? 2000 : 2500;
+    if (duration > 0) {
+      const timer = setTimeout(() => this._remove(id), duration);
+      this._timers.set(id, timer);
     }
+  }
 
-    private _show(message: string, type: ToastType, action?: ToastAction) {
-        const id = Date.now() + Math.random();
-        this._toasts = [...this._toasts, {id, message, type, action}];
-        this._host.requestUpdate();
-
-        // error does not auto-dismiss; other types auto-dismiss
-        const duration = type === 'error' ? 0 : type === 'success' ? 2000 : 2500;
-        if (duration > 0) {
-            const timer = setTimeout(() => this._remove(id), duration);
-            this._timers.set(id, timer);
-        }
+  private _remove(id: number) {
+    // Clear the associated timer if it exists
+    const timer = this._timers.get(id);
+    if (timer !== undefined) {
+      clearTimeout(timer);
+      this._timers.delete(id);
     }
-
-    private _remove(id: number) {
-        // Clear the associated timer if it exists
-        const timer = this._timers.get(id);
-        if (timer !== undefined) {
-            clearTimeout(timer);
-            this._timers.delete(id);
-        }
-        this._toasts = this._toasts.filter(t => t.id !== id);
-        this._host.requestUpdate();
-    }
+    this._toasts = this._toasts.filter((t) => t.id !== id);
+    this._host.requestUpdate();
+  }
 }

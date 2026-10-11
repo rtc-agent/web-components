@@ -6,6 +6,78 @@
  * reading, archiving, and sharing. Pure frontend implementation.
  */
 import type { Session, Message } from '../types/index.js';
+import { getLocale } from '../core/i18n.js';
+
+/**
+ * Translation map for session export labels.
+ * Keys are English, values are translations for each supported locale.
+ */
+const EXPORT_LABELS: Record<string, Record<string, string>> = {
+  'context-compression': {
+    'zh-CN': '上下文压缩',
+    'en-US': 'Context compression',
+  },
+  released: {
+    'zh-CN': '释放',
+    'en-US': 'released',
+  },
+  tokens: {
+    'zh-CN': 'tokens',
+    'en-US': 'tokens',
+  },
+  duration: {
+    'zh-CN': '耗时',
+    'en-US': 'duration',
+  },
+  result: {
+    'zh-CN': '结果',
+    'en-US': 'Result',
+  },
+  reasoning: {
+    'zh-CN': '推理过程',
+    'en-US': 'Reasoning',
+  },
+  'conversation-summary': {
+    'zh-CN': '对话摘要',
+    'en-US': 'Conversation Summary',
+  },
+  'created-at': {
+    'zh-CN': '创建时间',
+    'en-US': 'Created at',
+  },
+  'message-count': {
+    'zh-CN': '消息数',
+    'en-US': 'Messages',
+  },
+  'input-tokens': {
+    'zh-CN': '输入 Tokens',
+    'en-US': 'Input Tokens',
+  },
+  'output-tokens': {
+    'zh-CN': '输出 Tokens',
+    'en-US': 'Output Tokens',
+  },
+  'cache-read': {
+    'zh-CN': '缓存读取',
+    'en-US': 'Cache Read',
+  },
+  'cache-write': {
+    'zh-CN': '缓存写入',
+    'en-US': 'Cache Write',
+  },
+  'total-cost': {
+    'zh-CN': '总花费',
+    'en-US': 'Total Cost',
+  },
+};
+
+/**
+ * Get translated label for current locale.
+ */
+function t(key: string): string {
+  const locale = getLocale();
+  return EXPORT_LABELS[key]?.[locale] ?? EXPORT_LABELS[key]?.['en-US'] ?? key;
+}
 
 /**
  * Generate a safe filename from session title and creation date.
@@ -16,21 +88,22 @@ import type { Session, Message } from '../types/index.js';
  * - Truncates title to 50 characters
  */
 export function generateFilename(session: Session): string {
-    const date = new Date(session.createdAt);
-    const dateStr = date.toISOString().slice(0, 10); // YYYY-MM-DD
-    const title = session.title
-        .replace(/[<>:"/\\|?*]/g, '-')   // Replace illegal filename chars
-        .replace(/\s+/g, '-')             // Replace spaces with hyphens
-        .slice(0, 50);                    // Truncate to 50 chars
+  const date = new Date(session.createdAt);
+  const dateStr = date.toISOString().slice(0, 10); // YYYY-MM-DD
+  const title = session.title
+    .replace(/[<>:"/\\|?*]/g, '-') // Replace illegal filename chars
+    .replace(/\s+/g, '-') // Replace spaces with hyphens
+    .slice(0, 50); // Truncate to 50 chars
 
-    return `rtc-${title}-${dateStr}.html`;
+  return `rtc-${title}-${dateStr}.html`;
 }
 
 // Lazy-loaded modules (same pattern as rtc-message.ts:137-156)
 // Types match the actual module shapes used in the project.
 let markedFn: typeof import('marked').marked | null = null;
 let DOMPurifyInstance: typeof import('dompurify').default | null = null;
-let hljsInstance: typeof import('./highlight-languages.js').default | null = null;
+let hljsInstance: typeof import('./highlight-languages.js').default | null =
+  null;
 
 /**
  * Lazy-load marked + DOMPurify + highlight.js modules.
@@ -45,19 +118,19 @@ let hljsInstance: typeof import('./highlight-languages.js').default | null = nul
  *   Note: session-exporter.ts is in src/utils/, same dir as highlight-languages.ts
  */
 async function loadRenderModules() {
-    if (!markedFn) {
-        const mod = await import('marked');
-        markedFn = mod.marked;
-    }
-    if (!DOMPurifyInstance) {
-        const mod = await import('dompurify');
-        DOMPurifyInstance = mod.default;
-    }
-    if (!hljsInstance) {
-        const mod = await import('./highlight-languages.js');
-        hljsInstance = mod.default;
-    }
-    return { marked: markedFn, DOMPurify: DOMPurifyInstance, hljs: hljsInstance };
+  if (!markedFn) {
+    const mod = await import('marked');
+    markedFn = mod.marked;
+  }
+  if (!DOMPurifyInstance) {
+    const mod = await import('dompurify');
+    DOMPurifyInstance = mod.default;
+  }
+  if (!hljsInstance) {
+    const mod = await import('./highlight-languages.js');
+    hljsInstance = mod.default;
+  }
+  return { marked: markedFn, DOMPurify: DOMPurifyInstance, hljs: hljsInstance };
 }
 
 /**
@@ -67,25 +140,30 @@ async function loadRenderModules() {
  * The project's rtc-message.ts uses DOM-based highlightElement(), but for
  * static HTML export we use the string API since we don't have a DOM.
  */
-function highlightCodeBlocks(html: string, hljs: NonNullable<typeof hljsInstance>): string {
-    return html.replace(/<pre><code(?:\s+class="language-(\w+)")?>([\s\S]*?)<\/code><\/pre>/g,
-        (_match, lang, code) => {
-            const decoded = code
-                .replace(/&lt;/g, '<')
-                .replace(/&gt;/g, '>')
-                .replace(/&quot;/g, '"')
-                .replace(/&#039;/g, "'")
-                .replace(/&amp;/g, '&');
-            try {
-                const result = lang && hljs.getLanguage(lang)
-                    ? hljs.highlight(decoded, { language: lang })
-                    : hljs.highlightAuto(decoded);
-                return `<pre><code class="hljs language-${result.language || 'plaintext'}">${result.value}</code></pre>`;
-            } catch {
-                return `<pre><code>${code}</code></pre>`;
-            }
-        }
-    );
+function highlightCodeBlocks(
+  html: string,
+  hljs: NonNullable<typeof hljsInstance>,
+): string {
+  return html.replace(
+    /<pre><code(?:\s+class="language-(\w+)")?>([\s\S]*?)<\/code><\/pre>/g,
+    (_match, lang, code) => {
+      const decoded = code
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#039;/g, "'")
+        .replace(/&amp;/g, '&');
+      try {
+        const result =
+          lang && hljs.getLanguage(lang)
+            ? hljs.highlight(decoded, { language: lang })
+            : hljs.highlightAuto(decoded);
+        return `<pre><code class="hljs language-${result.language || 'plaintext'}">${result.value}</code></pre>`;
+      } catch {
+        return `<pre><code>${code}</code></pre>`;
+      }
+    },
+  );
 }
 
 /**
@@ -95,10 +173,10 @@ function highlightCodeBlocks(html: string, hljs: NonNullable<typeof hljsInstance
  * Same pipeline as rtc-message.ts:215-228.
  */
 async function renderMarkdown(text: string): Promise<string> {
-    const { marked, DOMPurify, hljs } = await loadRenderModules();
-    const rawHtml = (marked.parse(text, { breaks: true }) as string) ?? '';
-    const highlighted = highlightCodeBlocks(rawHtml, hljs);
-    return DOMPurify.sanitize(highlighted);
+  const { marked, DOMPurify, hljs } = await loadRenderModules();
+  const rawHtml = (marked.parse(text, { breaks: true }) as string) ?? '';
+  const highlighted = highlightCodeBlocks(rawHtml, hljs);
+  return DOMPurify.sanitize(highlighted);
 }
 
 /**
@@ -108,10 +186,10 @@ async function renderMarkdown(text: string): Promise<string> {
  * Collapsed: tool calls, thinking, errors, prompts, summaries
  */
 export function shouldExpand(message: Message): boolean {
-    return (
-        message.role === 'user' ||
-        (message.role === 'assistant' && message.content.type === 'markdown')
-    );
+  return (
+    message.role === 'user' ||
+    (message.role === 'assistant' && message.content.type === 'markdown')
+  );
 }
 
 /**
@@ -130,77 +208,91 @@ export function shouldExpand(message: Message): boolean {
  * Field name is `tool_name` (not `name`). See rtc-toolcall-card.ts:53-91.
  */
 export async function renderMessageContent(message: Message): Promise<string> {
-    const { type, data } = message.content;
+  const { type, data } = message.content;
 
-    switch (type) {
-        case 'user_message': {
-            const text = (data as { text?: string })?.text ?? '';
-            return renderMarkdown(text);
-        }
-        case 'markdown': {
-            const text = typeof data === 'string' ? data : JSON.stringify(data);
-            return renderMarkdown(text);
-        }
-        case 'text': {
-            const text = typeof data === 'string' ? data : JSON.stringify(data);
-            return escapeHtml(text);
-        }
-        case 'toolcall_input':
-        case 'toolcall_output': {
-            // Tool call data may be an object or a JSON string.
-            // Field name is `tool_name`. See rtc-toolcall-card.ts.
-            // Uses shared parseContentData() for uniform handling.
-            const parsed = parseContentData(data);
-            const text = parsed ? JSON.stringify(parsed, null, 2) : String(data ?? '');
-            return `<pre><code>${escapeHtml(text)}</code></pre>`;
-        }
-        case 'thinking':
-        case 'error':
-        case 'prompt': {
-            const text = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
-            return `<pre><code>${escapeHtml(text)}</code></pre>`;
-        }
-        case 'summary': {
-            // Summary data has two formats:
-            // - Old: SummaryItem[] (array)
-            // - New: { items?: unknown[], metadata?: { tokens_before, tokens_after, duration_ms? } }
-            let displayText: string;
-            if (Array.isArray(data)) {
-                displayText = JSON.stringify(data, null, 2);
-            } else if (data && typeof data === 'object') {
-                const summaryData = data as { metadata?: { tokens_before?: number; tokens_after?: number; duration_ms?: number } };
-                const meta = summaryData.metadata;
-                if (meta) {
-                    const saved = (meta.tokens_before ?? 0) - (meta.tokens_after ?? 0);
-                    const duration = meta.duration_ms ? `${meta.duration_ms}ms` : 'N/A';
-                    displayText = `上下文压缩: 释放 ${saved} tokens, 耗时 ${duration}`;
-                } else {
-                    displayText = JSON.stringify(data, null, 2);
-                }
-            } else {
-                displayText = String(data ?? '');
-            }
-            return `<pre><code>${escapeHtml(displayText)}</code></pre>`;
-        }
-        default: {
-            const text = typeof data === 'string' ? data : JSON.stringify(data);
-            return escapeHtml(text);
-        }
+  switch (type) {
+    case 'user_message': {
+      const text = (data as { text?: string })?.text ?? '';
+      return renderMarkdown(text);
     }
+    case 'markdown': {
+      const text = typeof data === 'string' ? data : JSON.stringify(data);
+      return renderMarkdown(text);
+    }
+    case 'text': {
+      const text = typeof data === 'string' ? data : JSON.stringify(data);
+      return escapeHtml(text);
+    }
+    case 'toolcall_input':
+    case 'toolcall_output': {
+      // Tool call data may be an object or a JSON string.
+      // Field name is `tool_name`. See rtc-toolcall-card.ts.
+      // Uses shared parseContentData() for uniform handling.
+      const parsed = parseContentData(data);
+      const text = parsed
+        ? JSON.stringify(parsed, null, 2)
+        : String(data ?? '');
+      return `<pre><code>${escapeHtml(text)}</code></pre>`;
+    }
+    case 'thinking':
+    case 'error':
+    case 'prompt': {
+      const text =
+        typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+      return `<pre><code>${escapeHtml(text)}</code></pre>`;
+    }
+    case 'summary': {
+      // Summary data has two formats:
+      // - Old: SummaryItem[] (array)
+      // - New: { items?: unknown[], metadata?: { tokens_before, tokens_after, duration_ms? } }
+      let displayText: string;
+      if (Array.isArray(data)) {
+        displayText = JSON.stringify(data, null, 2);
+      } else if (data && typeof data === 'object') {
+        const summaryData = data as {
+          metadata?: {
+            tokens_before?: number;
+            tokens_after?: number;
+            duration_ms?: number;
+          };
+        };
+        const meta = summaryData.metadata;
+        if (meta) {
+          const saved = (meta.tokens_before ?? 0) - (meta.tokens_after ?? 0);
+          const duration = meta.duration_ms ? `${meta.duration_ms}ms` : 'N/A';
+          displayText = `${t('context-compression')}: ${t('released')} ${saved} ${t('tokens')}, ${t('duration')} ${duration}`;
+        } else {
+          displayText = JSON.stringify(data, null, 2);
+        }
+      } else {
+        displayText = String(data ?? '');
+      }
+      return `<pre><code>${escapeHtml(displayText)}</code></pre>`;
+    }
+    default: {
+      const text = typeof data === 'string' ? data : JSON.stringify(data);
+      return escapeHtml(text);
+    }
+  }
 }
 
 /**
  * Escape HTML special characters to prevent XSS.
+ *
+ * SECURITY: Handles all dangerous HTML characters including:
+ * - & < > " ' (standard HTML entities)
+ * - ` (backtick, prevents template literal injection)
  */
 function escapeHtml(text: string): string {
-    const map: Record<string, string> = {
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#039;',
-    };
-    return text.replace(/[&<>"']/g, (char) => map[char]);
+  const map: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;',
+    '`': '&#96;',
+  };
+  return text.replace(/[&<>"'`]/g, (char) => map[char]);
 }
 
 /**
@@ -211,18 +303,18 @@ function escapeHtml(text: string): string {
  * Shared by renderMessageContent() and getPreviewText().
  */
 function parseContentData(data: unknown): Record<string, unknown> | null {
-    if (data && typeof data === 'object' && !Array.isArray(data)) {
-        return data as Record<string, unknown>;
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    return data as Record<string, unknown>;
+  }
+  if (typeof data === 'string') {
+    try {
+      const parsed = JSON.parse(data);
+      return typeof parsed === 'object' && parsed !== null ? parsed : null;
+    } catch {
+      return null;
     }
-    if (typeof data === 'string') {
-        try {
-            const parsed = JSON.parse(data);
-            return typeof parsed === 'object' && parsed !== null ? parsed : null;
-        } catch {
-            return null;
-        }
-    }
-    return null;
+  }
+  return null;
 }
 
 /**
@@ -233,65 +325,72 @@ function parseContentData(data: unknown): Record<string, unknown> | null {
  * Uses shared parseContentData() for uniform JSON string/object handling.
  */
 export function getPreviewText(message: Message): string {
-    const { type, data } = message.content;
+  const { type, data } = message.content;
 
-    switch (type) {
-        case 'toolcall_input': {
-            const parsed = parseContentData(data);
-            return (parsed?.tool_name as string) || (parsed?.name as string) || 'Tool Call';
-        }
-        case 'toolcall_output': {
-            const parsed = parseContentData(data);
-            const toolName = (parsed?.tool_name as string) || (parsed?.name as string) || 'Tool';
-            return `${toolName} 结果`;
-        }
-        case 'thinking':
-            return '推理过程';
-        case 'error': {
-            const parsed = parseContentData(data);
-            return (parsed?.title as string) || (parsed?.message as string) || 'Error';
-        }
-        case 'prompt': {
-            const parsed = parseContentData(data);
-            return `Prompt: ${(parsed?.name as string) || ''}`;
-        }
-        case 'summary':
-            return '对话摘要';
-        default:
-            return type;
+  switch (type) {
+    case 'toolcall_input': {
+      const parsed = parseContentData(data);
+      return (
+        (parsed?.tool_name as string) || (parsed?.name as string) || 'Tool Call'
+      );
     }
+    case 'toolcall_output': {
+      const parsed = parseContentData(data);
+      const toolName =
+        (parsed?.tool_name as string) || (parsed?.name as string) || 'Tool';
+      return `${toolName} ${t('result')}`;
+    }
+    case 'thinking':
+      return t('reasoning');
+    case 'error': {
+      const parsed = parseContentData(data);
+      return (
+        (parsed?.title as string) || (parsed?.message as string) || 'Error'
+      );
+    }
+    case 'prompt': {
+      const parsed = parseContentData(data);
+      return `Prompt: ${(parsed?.name as string) || ''}`;
+    }
+    case 'summary':
+      return t('conversation-summary');
+    default:
+      return type;
+  }
 }
 
 /**
- * Format number with thousand separators.
+ * Format number with thousand separators using current locale.
  */
 function formatNumber(num: number | undefined): string {
-    if (num === undefined || num === null) return '0';
-    return num.toLocaleString('en-US');
+  if (num === undefined || num === null) return '0';
+  return num.toLocaleString(getLocale());
 }
 
 /**
- * Format timestamp to readable date string.
+ * Format timestamp to readable date string using current locale.
  */
 function formatDateTime(timestamp: number): string {
-    const date = new Date(timestamp);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    return `${year}-${month}-${day} ${hours}:${minutes}`;
+  const date = new Date(timestamp);
+  return date.toLocaleString(getLocale(), {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 /**
- * Format message timestamp to time-only string.
+ * Format message timestamp to time-only string using current locale.
  */
 function formatTime(timestamp: number): string {
-    const date = new Date(timestamp);
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    const seconds = String(date.getSeconds()).padStart(2, '0');
-    return `${hours}:${minutes}:${seconds}`;
+  const date = new Date(timestamp);
+  return date.toLocaleTimeString(getLocale(), {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
 }
 
 /**
@@ -299,40 +398,49 @@ function formatTime(timestamp: number): string {
  *
  * Async because renderMessageContent requires lazy-loaded marked/DOMPurify.
  */
-export async function generateSessionHTML(session: Session, messages: Message[]): Promise<string> {
-    const sessionMeta = `
+export async function generateSessionHTML(
+  session: Session,
+  messages: Message[],
+): Promise<string> {
+  const sessionMeta = `
         <header class="session-header">
             <h1 class="session-title">${escapeHtml(session.title)}</h1>
             <div class="session-meta">
                 <span>
-                    <span class="meta-label">创建时间</span>
+                    <span class="meta-label">${t('created-at')}</span>
                     <span class="meta-value">${formatDateTime(session.createdAt)}</span>
                 </span>
                 <span>
-                    <span class="meta-label">消息数</span>
+                    <span class="meta-label">${t('message-count')}</span>
                     <span class="meta-value">${messages.length}</span>
                 </span>
             </div>
             <div class="token-stats">
-                <span class="token-stat">输入 Tokens: <strong>${formatNumber(session.totalInputTokens)}</strong></span>
-                <span class="token-stat">输出 Tokens: <strong>${formatNumber(session.totalOutputTokens)}</strong></span>
-                <span class="token-stat">缓存读取: <strong>${formatNumber(session.totalCachedReadTokens)}</strong></span>
-                <span class="token-stat">缓存写入: <strong>${formatNumber(session.totalCachedWriteTokens)}</strong></span>
-                <span class="token-stat">总花费: <strong>$${(session.totalCostUsd ?? 0).toFixed(3)}</strong></span>
+                <span class="token-stat">${t('input-tokens')}: <strong>${formatNumber(session.totalInputTokens)}</strong></span>
+                <span class="token-stat">${t('output-tokens')}: <strong>${formatNumber(session.totalOutputTokens)}</strong></span>
+                <span class="token-stat">${t('cache-read')}: <strong>${formatNumber(session.totalCachedReadTokens)}</strong></span>
+                <span class="token-stat">${t('cache-write')}: <strong>${formatNumber(session.totalCachedWriteTokens)}</strong></span>
+                <span class="token-stat">${t('total-cost')}: <strong>$${(session.totalCostUsd ?? 0).toFixed(3)}</strong></span>
             </div>
         </header>
     `;
 
-    // Render all messages (async due to lazy-loaded marked/DOMPurify)
-    const renderedMessages = await Promise.all(messages.map(async (msg) => {
-        const expanded = shouldExpand(msg);
-        const roleClass = msg.role === 'user' ? 'user' : msg.role === 'assistant' ? 'assistant' : 'collapsed';
-        const contentClass = expanded ? roleClass : 'collapsed';
-        const content = await renderMessageContent(msg);
-        const time = formatTime(msg.timestamp);
+  // Render all messages (async due to lazy-loaded marked/DOMPurify)
+  const renderedMessages = await Promise.all(
+    messages.map(async (msg) => {
+      const expanded = shouldExpand(msg);
+      const roleClass =
+        msg.role === 'user'
+          ? 'user'
+          : msg.role === 'assistant'
+            ? 'assistant'
+            : 'collapsed';
+      const contentClass = expanded ? roleClass : 'collapsed';
+      const content = await renderMessageContent(msg);
+      const time = formatTime(msg.timestamp);
 
-        if (expanded) {
-            return `
+      if (expanded) {
+        return `
                 <article class="message ${contentClass}">
                     <div class="message-header">
                         <span class="message-role"><span class="role-dot"></span>${escapeHtml(msg.role)}</span>
@@ -341,9 +449,9 @@ export async function generateSessionHTML(session: Session, messages: Message[])
                     <div class="message-content">${content}</div>
                 </article>
             `;
-        } else {
-            const preview = getPreviewText(msg);
-            return `
+      } else {
+        const preview = getPreviewText(msg);
+        return `
                 <article class="message collapsed">
                     <div class="message-header">
                         <span class="message-role"><span class="role-dot"></span>${escapeHtml(msg.content.type)} <span class="type-badge">${escapeHtml(msg.content.type)}</span></span>
@@ -355,13 +463,14 @@ export async function generateSessionHTML(session: Session, messages: Message[])
                     </details>
                 </article>
             `;
-        }
-    }));
+      }
+    }),
+  );
 
-    const messagesHTML = renderedMessages.join('\n');
+  const messagesHTML = renderedMessages.join('\n');
 
-    return `<!DOCTYPE html>
-<html lang="zh-CN">
+  return `<!DOCTYPE html>
+<html lang="${getLocale()}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -371,9 +480,16 @@ export async function generateSessionHTML(session: Session, messages: Message[])
             --bg-user: #eff6ff;
             --bg-assistant: #ffffff;
             --bg-collapsed: #f9fafb;
+            --bg-page: #fafafa;
+            --bg-card: #ffffff;
+            --bg-code: #f3f4f6;
+            --bg-badge: #e5e7eb;
+            --bg-th: #f9fafb;
             --border-color: #e5e7eb;
+            --border-user: #bfdbfe;
             --text-primary: #111827;
             --text-secondary: #6b7280;
+            --text-code: #374151;
             --accent-user: #3b82f6;
             --accent-assistant: #10b981;
             --accent-collapsed: #9ca3af;
@@ -388,11 +504,11 @@ export async function generateSessionHTML(session: Session, messages: Message[])
             margin: 0 auto;
             padding: 40px 24px 80px;
             color: var(--text-primary);
-            background: #fafafa;
+            background: var(--bg-page);
         }
 
         .session-header {
-            background: #fff;
+            background: var(--bg-card);
             border: 1px solid var(--border-color);
             border-radius: 12px;
             padding: 24px 28px;
@@ -460,7 +576,7 @@ export async function generateSessionHTML(session: Session, messages: Message[])
         }
 
         .message {
-            background: #fff;
+            background: var(--bg-card);
             border: 1px solid var(--border-color);
             border-radius: 10px;
             padding: 18px 22px;
@@ -505,7 +621,7 @@ export async function generateSessionHTML(session: Session, messages: Message[])
 
         .message.user {
             background: var(--bg-user);
-            border-color: #bfdbfe;
+            border-color: var(--border-user);
         }
 
         .message.assistant {
@@ -546,7 +662,7 @@ export async function generateSessionHTML(session: Session, messages: Message[])
         .message-content a:hover { text-decoration: underline; }
 
         .message-content pre {
-            background: #f3f4f6;
+            background: var(--bg-code);
             border: 1px solid var(--border-color);
             padding: 14px 16px;
             border-radius: 8px;
@@ -562,7 +678,7 @@ export async function generateSessionHTML(session: Session, messages: Message[])
         }
 
         .message-content :not(pre) > code {
-            background: #f3f4f6;
+            background: var(--bg-code);
             padding: 2px 5px;
             border-radius: 4px;
         }
@@ -581,7 +697,7 @@ export async function generateSessionHTML(session: Session, messages: Message[])
         }
 
         .message-content th {
-            background: #f9fafb;
+            background: var(--bg-th);
             font-weight: 600;
         }
 
@@ -594,7 +710,7 @@ export async function generateSessionHTML(session: Session, messages: Message[])
 
         .message.collapsed {
             background: var(--bg-collapsed);
-            border-color: #e5e7eb;
+            border-color: var(--border-color);
         }
 
         .message.collapsed details {
@@ -639,7 +755,7 @@ export async function generateSessionHTML(session: Session, messages: Message[])
 
         .message.collapsed details .message-content {
             font-size: 13.5px;
-            color: #374151;
+            color: var(--text-code);
         }
 
         .type-badge {
@@ -650,14 +766,14 @@ export async function generateSessionHTML(session: Session, messages: Message[])
             letter-spacing: 0.05em;
             padding: 2px 6px;
             border-radius: 4px;
-            background: #e5e7eb;
-            color: #6b7280;
+            background: var(--bg-badge);
+            color: var(--text-secondary);
             margin-left: 4px;
             vertical-align: middle;
         }
 
         @media print {
-            body { background: #fff; padding: 20px; }
+            body { background: var(--bg-card); padding: 20px; }
             .message { box-shadow: none; break-inside: avoid; }
             .session-header { box-shadow: none; }
             details[open] summary ~ .message-content { display: block !important; }
@@ -677,13 +793,13 @@ export async function generateSessionHTML(session: Session, messages: Message[])
  * Trigger browser download of HTML content.
  */
 export function triggerDownload(html: string, filename: string): void {
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 /**
@@ -692,8 +808,11 @@ export function triggerDownload(html: string, filename: string): void {
  * Main entry point: generates HTML and triggers download.
  * Async because generateSessionHTML requires lazy-loaded marked/DOMPurify.
  */
-export async function exportSession(session: Session, messages: Message[]): Promise<void> {
-    const html = await generateSessionHTML(session, messages);
-    const filename = generateFilename(session);
-    triggerDownload(html, filename);
+export async function exportSession(
+  session: Session,
+  messages: Message[],
+): Promise<void> {
+  const html = await generateSessionHTML(session, messages);
+  const filename = generateFilename(session);
+  triggerDownload(html, filename);
 }

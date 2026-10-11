@@ -1,4 +1,4 @@
-import {css} from 'lit';
+import { css } from 'lit';
 
 /**
  * Base Styles — CSS reset, font defaults, and motion preferences.

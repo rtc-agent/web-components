@@ -1,6 +1,9 @@
 // Data storage module (demo uses localStorage, does not write into the virtual file system)
 
-import { safeLocalStorageGetJSON, safeLocalStorageSetJSON } from './utils/safe-local-storage.js';
+import {
+  safeLocalStorageGetJSON,
+  safeLocalStorageSetJSON,
+} from './utils/safe-local-storage.js';
 
 // Use rtc_ prefix to follow localStorage key naming convention
 const STORAGE_KEY = 'rtc_agent_tasks';

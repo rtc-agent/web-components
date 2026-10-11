@@ -13,16 +13,19 @@
  * @csspart thumbnail - The thumbnail container
  * @csspart remove-btn - The delete button
  */
-import {LitElement, html, nothing} from 'lit';
-import {customElement, property, state} from 'lit/decorators.js';
-import {consume} from '@lit/context';
-import {localized, msg, str} from '@lit/localize';
-import {styles} from './rtc-file-thumbnail.styles.js';
-import {createLogger} from '@rtc-agent/client';
-import {FileStorageContext, type FileStorageContextValue} from '../../contexts/file-storage.js';
-import {parseFileId} from '../../utils/file-id.js';
-import type {FileAttachment} from '../../types/index.js';
-import {alertIcon, retryIcon} from '../../icons/index.js';
+import { LitElement, html, nothing } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import { consume } from '@lit/context';
+import { localized, msg, str } from '@lit/localize';
+import { styles } from './rtc-file-thumbnail.styles.js';
+import { createLogger } from '@rtc-agent/protocol';
+import {
+  FileStorageContext,
+  type FileStorageContextValue,
+} from '../../contexts/file-storage.js';
+import { parseFileId } from '../../utils/file-id.js';
+import type { FileAttachment } from '../../types/index.js';
+import { alertIcon, retryIcon } from '../../icons/index.js';
 
 const log = createLogger('FileThumbnail');
 
@@ -35,52 +38,52 @@ export class RtcFileThumbnail extends LitElement {
   static styles = styles;
 
   /** File URL (for images) */
-  @property({type: String})
+  @property({ type: String })
   src: string = '';
 
   /** MIME type */
-  @property({type: String})
+  @property({ type: String })
   mimetype: string = '';
 
   /** File name */
-  @property({type: String})
+  @property({ type: String })
   filename: string = '';
 
   /** File size in bytes */
-  @property({type: Number})
+  @property({ type: Number })
   filesize: number = 0;
 
   /** Upload task ID (for progress tracking) */
-  @property({type: String})
+  @property({ type: String })
   taskId: string = '';
 
   /** Upload progress (0-100) */
-  @property({type: Number})
+  @property({ type: Number })
   progress: number = 0;
 
   /** Loading state */
-  @property({type: String})
+  @property({ type: String })
   loadingState: LoadingState = 'idle';
 
   /** Error message */
-  @property({type: String})
+  @property({ type: String })
   errorMessage: string = '';
 
   /** Sync status (for offline uploads) */
-  @property({type: String})
+  @property({ type: String })
   syncStatus?: 'pending' | 'syncing' | 'synced' | 'failed';
 
   /** Readonly mode (no delete button) */
-  @property({type: Boolean, reflect: true})
+  @property({ type: Boolean, reflect: true })
   readonly: boolean = false;
 
   /** File attachment (preferred over src for self-contained loading) */
-  @property({type: Object})
+  @property({ type: Object })
   file: FileAttachment | null = null;
 
-  @consume({context: FileStorageContext, subscribe: true})
+  @consume({ context: FileStorageContext, subscribe: true })
   @state()
-  private _fileStorageCtx: FileStorageContextValue = {fileStorage: null};
+  private _fileStorageCtx: FileStorageContextValue = { fileStorage: null };
 
   @state()
   private _thumbnailUrl: string = '';
@@ -99,8 +102,8 @@ export class RtcFileThumbnail extends LitElement {
       new CustomEvent('rtc-thumbnail-click', {
         bubbles: true,
         composed: true,
-        detail: {taskId: this.taskId},
-      })
+        detail: { taskId: this.taskId },
+      }),
     );
   }
 
@@ -111,8 +114,8 @@ export class RtcFileThumbnail extends LitElement {
       new CustomEvent('rtc-thumbnail-remove', {
         bubbles: true,
         composed: true,
-        detail: {taskId: this.taskId},
-      })
+        detail: { taskId: this.taskId },
+      }),
     );
   }
 
@@ -123,8 +126,8 @@ export class RtcFileThumbnail extends LitElement {
       new CustomEvent('rtc-thumbnail-retry', {
         bubbles: true,
         composed: true,
-        detail: {taskId: this.taskId},
-      })
+        detail: { taskId: this.taskId },
+      }),
     );
   }
 
@@ -148,7 +151,7 @@ export class RtcFileThumbnail extends LitElement {
     if (this.file && this._thumbnailUrl.startsWith('blob:')) {
       try {
         this._fileStorageCtx.fileStorage?.releaseThumbnailUrl(
-          parseFileId(this.file.fileid)
+          parseFileId(this.file.fileid),
         );
       } catch (err) {
         log.warn('Failed to release thumbnail URL:', err);
@@ -178,8 +181,8 @@ export class RtcFileThumbnail extends LitElement {
     }
 
     try {
-      const {md5, ext} = parseFileId(this.file.fileid);
-      this._thumbnailUrl = await fileStorage.getThumbnailUrl({md5, ext});
+      const { md5, ext } = parseFileId(this.file.fileid);
+      this._thumbnailUrl = await fileStorage.getThumbnailUrl({ md5, ext });
     } catch (err) {
       log.warn('Failed to load thumbnail:', err);
       this._thumbnailUrl = '';
@@ -256,9 +259,9 @@ export class RtcFileThumbnail extends LitElement {
     if (!this.syncStatus || this.syncStatus === 'synced') return nothing;
 
     const badges = {
-      pending: {icon: '⏳', label: msg('等待同步')},
-      syncing: {icon: '🔄', label: msg('正在同步...')},
-      failed: {icon: '❌', label: msg('同步失败')},
+      pending: { icon: '⏳', label: msg('等待同步') },
+      syncing: { icon: '🔄', label: msg('正在同步...') },
+      failed: { icon: '❌', label: msg('同步失败') },
     };
     const badge = badges[this.syncStatus as keyof typeof badges];
     if (!badge) return nothing;

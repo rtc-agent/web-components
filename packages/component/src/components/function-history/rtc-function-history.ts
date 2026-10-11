@@ -7,21 +7,32 @@
  *
  * @element rtc-function-history
  */
-import {LitElement, html, nothing, type TemplateResult} from 'lit';
-import {customElement, property, state} from 'lit/decorators.js';
-import {consume} from '@lit/context';
-import {localized, msg, str} from '@lit/localize';
-import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
-import {styles} from './rtc-function-history.styles.js';
-import {tokens} from '../../styles/tokens.js';
-import {lightTheme} from '../../styles/themes/light.js';
-import {darkTheme} from '../../styles/themes/dark.js';
-import {baseStyles} from '../../styles/base.js';
-import {FunctionDebugContext, type FunctionDebugContextValue} from '../../contexts/function-debug.js';
-import type {DebugHistoryItem, LogEntry} from '../../types/functions-debug.js';
-import {chevronRightIcon, chevronDownIcon} from '../../icons/index.js';
-import {copyToClipboard} from '../../utils/clipboard.js';
-import {createLogger} from '@rtc-agent/client';
+import { LitElement, html, nothing, type TemplateResult } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import { consume } from '@lit/context';
+import { localized, msg, str } from '@lit/localize';
+import {
+  localeContext,
+  type LocaleContextValue,
+  sourceLocale,
+  targetLocales,
+} from '../../core/i18n.js';
+import { styles } from './rtc-function-history.styles.js';
+import { tokens } from '../../styles/tokens.js';
+import { lightTheme } from '../../styles/themes/light.js';
+import { darkTheme } from '../../styles/themes/dark.js';
+import { baseStyles } from '../../styles/base.js';
+import {
+  FunctionDebugContext,
+  type FunctionDebugContextValue,
+} from '../../contexts/function-debug.js';
+import type {
+  DebugHistoryItem,
+  LogEntry,
+} from '../../types/functions-debug.js';
+import { chevronRightIcon, chevronDownIcon } from '../../icons/index.js';
+import { copyToClipboard } from '../../utils/clipboard.js';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('FunctionHistory');
 
@@ -29,143 +40,153 @@ const log = createLogger('FunctionHistory');
  * Format relative time (e.g., "2 分钟前", "1 小时前")
  */
 function relativeTime(timestamp: number): string {
-    const diff = Date.now() - timestamp;
-    const seconds = Math.floor(diff / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
+  const diff = Date.now() - timestamp;
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
 
-    if (seconds < 60) return msg('刚刚');
-    if (minutes < 60) return msg(str`${minutes} 分钟前`);
-    if (hours < 24) return msg(str`${hours} 小时前`);
-    return msg(str`${days} 天前`);
+  if (seconds < 60) return msg('刚刚');
+  if (minutes < 60) return msg(str`${minutes} 分钟前`);
+  if (hours < 24) return msg(str`${hours} 小时前`);
+  return msg(str`${days} 天前`);
 }
 
 @localized()
 @customElement('rtc-function-history')
 export class RtcFunctionHistory extends LitElement {
-    static styles = [tokens, lightTheme, darkTheme, baseStyles, styles];
+  static styles = [tokens, lightTheme, darkTheme, baseStyles, styles];
 
-    /** Theme (inherited from parent) */
-    @property({type: String, reflect: true})
-    theme: 'light' | 'dark' | 'system' = 'system';
+  /** Theme (inherited from parent) */
+  @property({ type: String, reflect: true })
+  theme: 'light' | 'dark' | 'system' = 'system';
 
-    @consume({context: FunctionDebugContext, subscribe: true})
-    @property({attribute: false})
-    private _debugCtx: FunctionDebugContextValue | undefined;
+  @consume({ context: FunctionDebugContext, subscribe: true })
+  @property({ attribute: false })
+  private _debugCtx: FunctionDebugContextValue | undefined;
 
-    @consume({context: localeContext, subscribe: true})
-    @state()
-    private _localeCtx: LocaleContextValue = {
-        locale: sourceLocale,
-        setLocale: async () => {
-            log.warn('Locale context not initialized');
+  @consume({ context: localeContext, subscribe: true })
+  @state()
+  private _localeCtx: LocaleContextValue = {
+    locale: sourceLocale,
+    setLocale: async () => {
+      log.warn('Locale context not initialized');
+    },
+    locales: [sourceLocale, ...targetLocales],
+  };
+
+  /** Whether the drawer is open */
+  @state()
+  private _drawerOpen = false;
+
+  /** Set of expanded history item IDs */
+  @state()
+  private _expandedItems = new Set<string>();
+
+  /** Filter input debounce timer */
+  private _filterDebounce?: ReturnType<typeof setTimeout>;
+
+  private _toggleDrawer() {
+    this._drawerOpen = !this._drawerOpen;
+  }
+
+  private _toggleItem(id: string) {
+    const next = new Set(this._expandedItems);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    this._expandedItems = next;
+  }
+
+  private _handleRunClick(e: Event, item: DebugHistoryItem) {
+    e.stopPropagation();
+    if (this._debugCtx) {
+      this._debugCtx.actions.executeFromHistory(item);
+    }
+  }
+
+  private _handleRestoreClick(e: Event, item: DebugHistoryItem) {
+    e.stopPropagation();
+    if (this._debugCtx) {
+      this._debugCtx.actions.loadFromHistory(item);
+    }
+  }
+
+  private _handleFilterInput(e: InputEvent) {
+    e.stopPropagation();
+    const value = (e.target as HTMLInputElement).value.trim();
+    clearTimeout(this._filterDebounce);
+    this._filterDebounce = setTimeout(() => {
+      if (this._debugCtx) {
+        this._debugCtx.actions.setHistoryFilter(value || undefined);
+      }
+    }, 300);
+  }
+
+  private _loadPage(page: number) {
+    if (this._debugCtx) {
+      this._debugCtx.actions.loadHistoryPage(page);
+    }
+  }
+
+  /** Copy text to clipboard with toast feedback */
+  private async _copyToClipboard(text: string) {
+    const success = await copyToClipboard(text);
+    this.dispatchEvent(
+      new CustomEvent('rtc-toast-requested', {
+        bubbles: true,
+        composed: true,
+        detail: {
+          message: success ? msg('已复制到剪贴板') : msg('复制失败'),
+          type: success ? 'success' : 'error',
         },
-        locales: [sourceLocale, ...targetLocales],
-    };
+      }),
+    );
+  }
 
-    /** Whether the drawer is open */
-    @state()
-    private _drawerOpen = false;
-
-    /** Set of expanded history item IDs */
-    @state()
-    private _expandedItems = new Set<string>();
-
-    /** Filter input debounce timer */
-    private _filterDebounce?: ReturnType<typeof setTimeout>;
-
-    private _toggleDrawer() {
-        this._drawerOpen = !this._drawerOpen;
-    }
-
-    private _toggleItem(id: string) {
-        const next = new Set(this._expandedItems);
-        if (next.has(id)) {
-            next.delete(id);
-        } else {
-            next.add(id);
-        }
-        this._expandedItems = next;
-    }
-
-    private _handleRunClick(e: Event, item: DebugHistoryItem) {
-        e.stopPropagation();
-        if (this._debugCtx) {
-            this._debugCtx.actions.executeFromHistory(item);
-        }
-    }
-
-    private _handleRestoreClick(e: Event, item: DebugHistoryItem) {
-        e.stopPropagation();
-        if (this._debugCtx) {
-            this._debugCtx.actions.loadFromHistory(item);
-        }
-    }
-
-    private _handleFilterInput(e: InputEvent) {
-        e.stopPropagation();
-        const value = (e.target as HTMLInputElement).value.trim();
-        clearTimeout(this._filterDebounce);
-        this._filterDebounce = setTimeout(() => {
-            if (this._debugCtx) {
-                this._debugCtx.actions.setHistoryFilter(value || undefined);
-            }
-        }, 300);
-    }
-
-    private _loadPage(page: number) {
-        if (this._debugCtx) {
-            this._debugCtx.actions.loadHistoryPage(page);
-        }
-    }
-
-    /** Copy text to clipboard with toast feedback */
-    private async _copyToClipboard(text: string) {
-        const success = await copyToClipboard(text);
-        this.dispatchEvent(new CustomEvent('rtc-toast-requested', {
-            bubbles: true,
-            composed: true,
-            detail: {
-                message: success ? msg('已复制到剪贴板') : msg('复制失败'),
-                type: success ? 'success' : 'error',
-            },
-        }));
-    }
-
-    /** Format logs array to plain text */
-    private _formatLogsText(logs: LogEntry[]): string {
-        return logs.map(entry => {
-            const data = entry.data !== undefined
-                ? (typeof entry.data === 'string' ? entry.data : JSON.stringify(entry.data, null, 2))
-                : '';
-            const dataStr = data ? `\n${data}` : '';
-            return `${entry.level.toUpperCase()} ${entry.message}${dataStr}`;
-        }).join('\n');
-    }
-
-    /**
-     * Render a log entry with level-specific styling
-     */
-    private _renderLogEntry(entry: LogEntry): TemplateResult {
-        const levelClass = entry.level;
-        const dataStr = entry.data !== undefined
-            ? (typeof entry.data === 'string' ? entry.data : JSON.stringify(entry.data, null, 2))
+  /** Format logs array to plain text */
+  private _formatLogsText(logs: LogEntry[]): string {
+    return logs
+      .map((entry) => {
+        const data =
+          entry.data !== undefined
+            ? typeof entry.data === 'string'
+              ? entry.data
+              : JSON.stringify(entry.data, null, 2)
             : '';
-        return html`
+        const dataStr = data ? `\n${data}` : '';
+        return `${entry.level.toUpperCase()} ${entry.message}${dataStr}`;
+      })
+      .join('\n');
+  }
+
+  /**
+   * Render a log entry with level-specific styling
+   */
+  private _renderLogEntry(entry: LogEntry): TemplateResult {
+    const levelClass = entry.level;
+    const dataStr =
+      entry.data !== undefined
+        ? typeof entry.data === 'string'
+          ? entry.data
+          : JSON.stringify(entry.data, null, 2)
+        : '';
+    return html`
             <div class="log-entry ${levelClass}">
                 <span class="log-level">${entry.level.toUpperCase()}</span>
                 <span class="log-message">${entry.message}</span>
                 ${dataStr ? html`<pre class="log-data">${dataStr}</pre>` : nothing}
             </div>
         `;
-    }
+  }
 
-    /**
-     * Render expanded details for a history item: params, logs, result
-     */
-    private _renderItemDetails(item: DebugHistoryItem): TemplateResult {
-        return html`
+  /**
+   * Render expanded details for a history item: params, logs, result
+   */
+  private _renderItemDetails(item: DebugHistoryItem): TemplateResult {
+    return html`
             <div class="item-details" @click=${(e: Event) => e.stopPropagation()}>
                 <!-- Params -->
                 <div class="detail-section">
@@ -174,41 +195,65 @@ export class RtcFunctionHistory extends LitElement {
                 </div>
 
                 <!-- Logs -->
-                ${item.logs && item.logs.length > 0 ? html`
+                ${
+                  item.logs && item.logs.length > 0
+                    ? html`
                     <div class="detail-section">
                         <div class="detail-label">${msg('日志')}</div>
                         <div class="detail-content logs-content">
-                            ${item.logs.map(entry => this._renderLogEntry(entry))}
+                            ${item.logs.map((entry) => this._renderLogEntry(entry))}
                         </div>
                     </div>
-                ` : nothing}
+                `
+                    : nothing
+                }
 
                 <!-- Result -->
-                ${item.result !== undefined ? html`
+                ${
+                  item.result !== undefined
+                    ? html`
                     <div class="detail-section">
                         <div class="detail-label">${msg('结果')}</div>
                         <pre class="detail-content result-content ${item.success ? 'success' : 'error'}">${typeof item.result === 'string' ? item.result : JSON.stringify(item.result, null, 2)}</pre>
                     </div>
-                ` : nothing}
+                `
+                    : nothing
+                }
 
                 <!-- Error message -->
-                ${item.errorMessage ? html`
+                ${
+                  item.errorMessage
+                    ? html`
                     <div class="detail-section">
                         <div class="detail-label">${msg('错误')}</div>
                         <pre class="detail-content result-content error">${item.errorMessage}</pre>
                     </div>
-                ` : nothing}
+                `
+                    : nothing
+                }
 
                 <!-- Actions -->
                 <div class="detail-actions">
-                    <button class="detail-btn" @click=${(e: Event) => { e.stopPropagation(); void this._copyToClipboard(item.params || '{}'); }}>
+                    <button class="detail-btn" @click=${(e: Event) => {
+                      e.stopPropagation();
+                      void this._copyToClipboard(item.params || '{}');
+                    }}>
                         ${msg('复制参数')}
                     </button>
-                    ${item.logs && item.logs.length > 0 ? html`
-                        <button class="detail-btn" @click=${(e: Event) => { e.stopPropagation(); void this._copyToClipboard(this._formatLogsText(item.logs)); }}>
+                    ${
+                      item.logs && item.logs.length > 0
+                        ? html`
+                        <button class="detail-btn" @click=${(e: Event) => {
+                          e.stopPropagation();
+                          void this._copyToClipboard(
+                            this._formatLogsText(item.logs),
+                          );
+                        }}>
                             ${msg('复制日志')}
                         </button>
-                    ` : nothing}
+                    `
+                        : nothing
+                    }
                     <button class="detail-btn" @click=${(e: Event) => this._handleRestoreClick(e, item)}>
                         ${msg('恢复')}
                     </button>
@@ -218,11 +263,11 @@ export class RtcFunctionHistory extends LitElement {
                 </div>
             </div>
         `;
-    }
+  }
 
-    private _renderHistoryItem(item: DebugHistoryItem): TemplateResult {
-        const isExpanded = this._expandedItems.has(item.id);
-        return html`
+  private _renderHistoryItem(item: DebugHistoryItem): TemplateResult {
+    const isExpanded = this._expandedItems.has(item.id);
+    return html`
             <div class="history-item ${isExpanded ? 'expanded' : ''}" @click=${() => this._toggleItem(item.id)}>
                 <div class="item-header">
                     <span class="item-chevron">
@@ -242,20 +287,20 @@ export class RtcFunctionHistory extends LitElement {
                 ${isExpanded ? this._renderItemDetails(item) : nothing}
             </div>
         `;
-    }
+  }
 
-    render() {
-        void this._localeCtx.locale;
+  render() {
+    void this._localeCtx.locale;
 
-        const pagination = this._debugCtx?.state.historyPagination;
-        const items = pagination?.items ?? [];
-        const page = pagination?.page ?? 1;
-        const totalPages = pagination?.totalPages ?? 0;
-        const total = pagination?.total ?? 0;
-        const filterFunctionName = pagination?.filterFunctionName ?? '';
-        const error = pagination?.error;
+    const pagination = this._debugCtx?.state.historyPagination;
+    const items = pagination?.items ?? [];
+    const page = pagination?.page ?? 1;
+    const totalPages = pagination?.totalPages ?? 0;
+    const total = pagination?.total ?? 0;
+    const filterFunctionName = pagination?.filterFunctionName ?? '';
+    const error = pagination?.error;
 
-        return html`
+    return html`
             <div class="history-drawer ${this._drawerOpen ? 'open' : ''}">
                 <div class="drawer-header" @click=${this._toggleDrawer}>
                     <span class="drawer-title">
@@ -264,11 +309,15 @@ export class RtcFunctionHistory extends LitElement {
                         ${total > 0 ? html`<span class="history-count">(${total})</span>` : nothing}
                     </span>
                     <div class="header-actions" @click=${(e: Event) => e.stopPropagation()}>
-                        ${total > 0 ? html`
+                        ${
+                          total > 0
+                            ? html`
                             <button class="clear-btn" @click=${() => this._debugCtx?.actions.clearHistory()}>
                                 ${msg('清空')}
                             </button>
-                        ` : nothing}
+                        `
+                            : nothing
+                        }
                     </div>
                 </div>
                 <div class="drawer-body">
@@ -285,17 +334,25 @@ export class RtcFunctionHistory extends LitElement {
                     </div>
 
                     <!-- Error message -->
-                    ${error ? html`
+                    ${
+                      error
+                        ? html`
                         <div class="error-message">${error}</div>
-                    ` : nothing}
+                    `
+                        : nothing
+                    }
 
                     <!-- History items -->
-                    ${items.length === 0 && !error
+                    ${
+                      items.length === 0 && !error
                         ? html`<div class="empty-history">${msg('暂无历史记录')}</div>`
-                        : items.map(item => this._renderHistoryItem(item))}
+                        : items.map((item) => this._renderHistoryItem(item))
+                    }
 
                     <!-- Pagination controls -->
-                    ${totalPages > 1 ? html`
+                    ${
+                      totalPages > 1
+                        ? html`
                         <div class="pagination">
                             <button
                                 class="pagination-btn"
@@ -315,15 +372,17 @@ export class RtcFunctionHistory extends LitElement {
                                 ${msg('下一页')}
                             </button>
                         </div>
-                    ` : nothing}
+                    `
+                        : nothing
+                    }
                 </div>
             </div>
         `;
-    }
+  }
 }
 
 declare global {
-    interface HTMLElementTagNameMap {
-        'rtc-function-history': RtcFunctionHistory;
-    }
+  interface HTMLElementTagNameMap {
+    'rtc-function-history': RtcFunctionHistory;
+  }
 }

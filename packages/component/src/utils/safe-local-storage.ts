@@ -8,7 +8,7 @@
  *
  * @module utils/safe-local-storage
  */
-import { createLogger } from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('SafeLocalStorage');
 

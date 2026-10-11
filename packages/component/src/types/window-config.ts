@@ -19,7 +19,11 @@
  * - bottom-left: Quadrant I (x>0, y>0)
  * - bottom-right: Quadrant II (x<0, y>0)
  */
-export type BubbleCorner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+export type BubbleCorner =
+  | 'top-left'
+  | 'top-right'
+  | 'bottom-left'
+  | 'bottom-right';
 
 export interface BubblePosition {
   /** Which corner of the host application is the coordinate origin */
@@ -158,7 +162,9 @@ export const DEFAULT_WINDOW_CONFIG: ResolvedWindowConfig = {
  *
  * embedded: true overrides interaction-related settings.
  */
-export function resolveWindowConfig(config?: WindowConfig): ResolvedWindowConfig {
+export function resolveWindowConfig(
+  config?: WindowConfig,
+): ResolvedWindowConfig {
   if (!config) return { ...DEFAULT_WINDOW_CONFIG };
 
   // embedded mode: disable all interactions
@@ -173,7 +179,8 @@ export function resolveWindowConfig(config?: WindowConfig): ResolvedWindowConfig
       showClose: false,
       // In embedded mode, default to maximized unless explicitly overridden.
       defaultMode: config.defaultMode ?? 'maximized',
-      bubblePosition: config.bubblePosition ?? DEFAULT_WINDOW_CONFIG.bubblePosition,
+      bubblePosition:
+        config.bubblePosition ?? DEFAULT_WINDOW_CONFIG.bubblePosition,
     };
   }
 
@@ -183,8 +190,10 @@ export function resolveWindowConfig(config?: WindowConfig): ResolvedWindowConfig
     // The ?? fallbacks below are necessary: when config carries explicit
     // `undefined` for these fields, the spread would override the DEFAULT
     // values from ...DEFAULT_WINDOW_CONFIG with `undefined`.
-    initialPosition: config.initialPosition ?? DEFAULT_WINDOW_CONFIG.initialPosition,
+    initialPosition:
+      config.initialPosition ?? DEFAULT_WINDOW_CONFIG.initialPosition,
     initialSize: config.initialSize ?? DEFAULT_WINDOW_CONFIG.initialSize,
-    bubblePosition: config.bubblePosition ?? DEFAULT_WINDOW_CONFIG.bubblePosition,
+    bubblePosition:
+      config.bubblePosition ?? DEFAULT_WINDOW_CONFIG.bubblePosition,
   };
 }

@@ -14,7 +14,7 @@
 
 import type { WorkerBridge } from '../worker-bridge.js';
 import type { FileCacheEntry } from '@rtc-agent/persistence';
-import {createLogger} from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('FileStorage');
 
@@ -34,7 +34,7 @@ async function runWithConcurrency<T>(
   tasks: (() => Promise<T>)[],
   concurrency: number,
   onProgress?: (completed: number, total: number) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<(T | Error)[]> {
   const total = tasks.length;
   const results: (T | Error)[] = new Array(total);
@@ -60,9 +60,8 @@ async function runWithConcurrency<T>(
   }
 
   // Start concurrency number of workers
-  const workers = Array.from(
-    { length: Math.min(concurrency, total) },
-    () => runNext()
+  const workers = Array.from({ length: Math.min(concurrency, total) }, () =>
+    runNext(),
   );
 
   await Promise.all(workers);
@@ -299,7 +298,7 @@ export function generateFilename(md5: string, ext: string): string {
 export class FileStorage {
   constructor(
     private readonly bridge: WorkerBridge,
-    private readonly userId: string
+    private readonly userId: string,
   ) {}
 
   /**
@@ -331,11 +330,21 @@ export class FileStorage {
     const ext = filename ? getFileExtension(filename) : 'bin';
 
     // Determine content type
-    const resolvedContentType = contentType || file.type || 'application/octet-stream';
+    const resolvedContentType =
+      contentType || file.type || 'application/octet-stream';
 
     // Upload to S3 (signal is checked at bridge entry; Comlink cannot forward it)
     // P2-R7-04: Pass filename through WorkerBridge so cache stores it
-    const result = await this.bridge.uploadFile(md5, ext, file, resolvedContentType, filename, onProgress, signal, options.cacheTtlMs);
+    const result = await this.bridge.uploadFile(
+      md5,
+      ext,
+      file,
+      resolvedContentType,
+      filename,
+      onProgress,
+      signal,
+      options.cacheTtlMs,
+    );
 
     return {
       md5,
@@ -371,7 +380,7 @@ export class FileStorage {
   async download(
     md5: string,
     ext: string,
-    options?: DownloadOptions
+    options?: DownloadOptions,
   ): Promise<Blob> {
     const { forceRefresh = false, onProgress, signal } = options || {};
 
@@ -382,7 +391,13 @@ export class FileStorage {
 
     // P2-NEW-4 fix: pass forceRefresh to bridge, which will forward it to the worker/persistence layer
     // The cache check is now done in PersistenceLayer.downloadFile, not here
-    const blob = await this.bridge.downloadFile(md5, ext, onProgress, signal, forceRefresh);
+    const blob = await this.bridge.downloadFile(
+      md5,
+      ext,
+      onProgress,
+      signal,
+      forceRefresh,
+    );
 
     return blob;
   }
@@ -445,7 +460,7 @@ export class FileStorage {
         ext,
         size: cached.blob.size,
         contentType: cached.contentType,
-        filename: cached.filename,  // P3-004 fix: return filename from cache
+        filename: cached.filename, // P3-004 fix: return filename from cache
         syncStatus: cached.syncStatus as FileInfo['syncStatus'],
         createdAt: cached.createdAt,
         syncedAt: cached.syncedAt,
@@ -507,7 +522,7 @@ export class FileStorage {
    */
   async getPresignedUrl(
     identifier: FileIdentifier,
-    expiresIn: number = 3600
+    expiresIn: number = 3600,
   ): Promise<string> {
     const { md5, ext } = normalizeIdentifier(identifier);
     const key = `user-${this.userId}/${md5}.${ext}`;
@@ -518,7 +533,7 @@ export class FileStorage {
   // ========== Thumbnail URL Management ==========
 
   /** Shared blob URL cache (md5.ext → {url, refCount}) */
-  private _blobUrlCache = new Map<string, {url: string; refCount: number}>();
+  private _blobUrlCache = new Map<string, { url: string; refCount: number }>();
 
   /** Inflight dedup (md5.ext → Promise) */
   private _inflightThumbnail = new Map<string, Promise<string>>();
@@ -537,7 +552,7 @@ export class FileStorage {
    * @returns URL string (blob: or https:) for use in <img src>
    */
   async getThumbnailUrl(identifier: FileIdentifier): Promise<string> {
-    const {md5, ext} = normalizeIdentifier(identifier);
+    const { md5, ext } = normalizeIdentifier(identifier);
     const key = `${md5}.${ext}`;
 
     // 1. Already have blob URL → return directly
@@ -562,7 +577,7 @@ export class FileStorage {
   private async _resolveThumbnailUrl(
     md5: string,
     ext: string,
-    key: string
+    key: string,
   ): Promise<string> {
     try {
       // 3. Check local cache
@@ -578,9 +593,12 @@ export class FileStorage {
         return this._createBlobUrl(blob, key);
       } catch (downloadErr) {
         // 5. Download failed → fallback to presigned URL
-        log.warn('Download failed, falling back to presigned URL:', downloadErr);
+        log.warn(
+          'Download failed, falling back to presigned URL:',
+          downloadErr,
+        );
         this._inflightThumbnail.delete(key);
-        return await this.getPresignedUrl({md5, ext}, 3600);
+        return await this.getPresignedUrl({ md5, ext }, 3600);
       }
     } catch (err) {
       this._inflightThumbnail.delete(key);
@@ -590,7 +608,7 @@ export class FileStorage {
 
   private _createBlobUrl(blob: Blob, key: string): string {
     const url = URL.createObjectURL(blob);
-    this._blobUrlCache.set(key, {url, refCount: 1});
+    this._blobUrlCache.set(key, { url, refCount: 1 });
     this._inflightThumbnail.delete(key);
     return url;
   }
@@ -604,7 +622,7 @@ export class FileStorage {
    * @param identifier - File identifier (md5 + ext or FileInfo)
    */
   releaseThumbnailUrl(identifier: FileIdentifier): void {
-    const {md5, ext} = normalizeIdentifier(identifier);
+    const { md5, ext } = normalizeIdentifier(identifier);
     const key = `${md5}.${ext}`;
     const entry = this._blobUrlCache.get(key);
     if (!entry) return;
@@ -660,13 +678,9 @@ export class FileStorage {
   private async _batchExecute<T>(
     items: unknown[],
     buildTask: (item: unknown, index: number) => () => Promise<T>,
-    options?: BatchOptions
+    options?: BatchOptions,
   ): Promise<T[]> {
-    const {
-      onProgress,
-      concurrency = 3,
-      onError = 'continue',
-    } = options || {};
+    const { onProgress, concurrency = 3, onError = 'continue' } = options || {};
 
     if (items.length === 0) {
       return [];
@@ -698,7 +712,10 @@ export class FileStorage {
       try {
         return await task();
       } catch (err) {
-        if (onError === 'cancel' && !(err instanceof DOMException && err.name === 'AbortError')) {
+        if (
+          onError === 'cancel' &&
+          !(err instanceof DOMException && err.name === 'AbortError')
+        ) {
           cancelController.abort();
         }
         throw err;
@@ -739,21 +756,22 @@ export class FileStorage {
    */
   async uploadBatch(
     files: Array<{ file: File | Blob; filename?: string }>,
-    options?: BatchUploadOptions
+    options?: BatchUploadOptions,
   ): Promise<FileInfo[]> {
     return this._batchExecute<FileInfo>(
       files,
       (item) => {
         const f = item as { file: File | Blob; filename?: string };
-        return () => this.upload({
-          file: f.file,
-          filename: f.filename,
-          onProgress: options?.onFileProgress,
-          signal: options?.signal,
-          cacheTtlMs: options?.cacheTtlMs,
-        });
+        return () =>
+          this.upload({
+            file: f.file,
+            filename: f.filename,
+            onProgress: options?.onFileProgress,
+            signal: options?.signal,
+            cacheTtlMs: options?.cacheTtlMs,
+          });
       },
-      options
+      options,
     );
   }
 
@@ -775,20 +793,21 @@ export class FileStorage {
    */
   async downloadBatch(
     keys: Array<{ md5: string; ext: string }>,
-    options?: BatchDownloadOptions
+    options?: BatchDownloadOptions,
   ): Promise<Blob[]> {
     return this._batchExecute<Blob>(
       keys,
       (item) => {
         const key = item as { md5: string; ext: string };
         // P3-003 fix: forward options to individual downloads
-        return () => this.download(key.md5, key.ext, {
-          onProgress: options?.onFileProgress,
-          signal: options?.signal,
-          forceRefresh: options?.forceRefresh,
-        });
+        return () =>
+          this.download(key.md5, key.ext, {
+            onProgress: options?.onFileProgress,
+            signal: options?.signal,
+            forceRefresh: options?.forceRefresh,
+          });
       },
-      options
+      options,
     );
   }
 
@@ -819,7 +838,7 @@ export class FileStorage {
    */
   async deleteBatch(
     identifiers: FileIdentifier[],
-    options?: BatchOptions
+    options?: BatchOptions,
   ): Promise<void> {
     await this._batchExecute<void>(
       identifiers,
@@ -827,7 +846,7 @@ export class FileStorage {
         const identifier = item as FileIdentifier;
         return () => this.delete(identifier);
       },
-      options
+      options,
     );
   }
 
@@ -885,7 +904,9 @@ export class FileStorage {
    * console.log(`Evicted ${result.evictedCount} files, freed ${result.evictedBytes} bytes`);
    * ```
    */
-  async evictCache(targetBytes?: number): Promise<{ evictedCount: number; evictedBytes: number }> {
+  async evictCache(
+    targetBytes?: number,
+  ): Promise<{ evictedCount: number; evictedBytes: number }> {
     return this.bridge.evictCache(targetBytes);
   }
 
@@ -908,7 +929,7 @@ export class FileStorage {
    */
   async updateMetadata(
     identifier: FileIdentifier,
-    options: UpdateMetadataOptions
+    options: UpdateMetadataOptions,
   ): Promise<void> {
     const { md5, ext } = normalizeIdentifier(identifier);
     await this.bridge.updateFileMetadata(md5, ext, options);
@@ -923,7 +944,10 @@ type FileIdentifier = { md5: string; ext: string } | FileInfo;
 /**
  * Normalize a file identifier to {md5, ext}.
  */
-function normalizeIdentifier(identifier: FileIdentifier): { md5: string; ext: string } {
+function normalizeIdentifier(identifier: FileIdentifier): {
+  md5: string;
+  ext: string;
+} {
   return { md5: identifier.md5, ext: identifier.ext };
 }
 

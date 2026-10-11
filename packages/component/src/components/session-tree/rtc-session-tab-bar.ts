@@ -10,141 +10,152 @@
  * @fires rtc-session-tab-bar-activate - Switch tab (detail: { sessionId })
  * @fires rtc-session-tab-bar-close - Close tab (detail: { sessionId })
  */
-import {LitElement, html} from 'lit';
-import {customElement, property, state} from 'lit/decorators.js';
-import {consume} from '@lit/context';
-import {localized, msg} from '@lit/localize';
-import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
-import {styles} from './rtc-session-tab-bar.styles.js';
-import {tokens} from '../../styles/tokens.js';
-import {lightTheme} from '../../styles/themes/light.js';
-import {darkTheme} from '../../styles/themes/dark.js';
-import {baseStyles} from '../../styles/base.js';
-import {SessionTabContext, type SessionTabContextValue} from '../../contexts/session-tab.js';
-import {plusIcon} from '../../icons/index.js';
+import { LitElement, html } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import { consume } from '@lit/context';
+import { localized, msg } from '@lit/localize';
+import {
+  localeContext,
+  type LocaleContextValue,
+  sourceLocale,
+  targetLocales,
+} from '../../core/i18n.js';
+import { styles } from './rtc-session-tab-bar.styles.js';
+import { tokens } from '../../styles/tokens.js';
+import { lightTheme } from '../../styles/themes/light.js';
+import { darkTheme } from '../../styles/themes/dark.js';
+import { baseStyles } from '../../styles/base.js';
+import {
+  SessionTabContext,
+  type SessionTabContextValue,
+} from '../../contexts/session-tab.js';
+import { plusIcon } from '../../icons/index.js';
 
 // Sub-components (side-effect imports)
 import './rtc-session-tab.js';
-import { createLogger } from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('SessionTabBar');
 
 @localized()
 @customElement('rtc-session-tab-bar')
 export class RtcSessionTabBar extends LitElement {
-    static styles = [tokens, lightTheme, darkTheme, baseStyles, styles];
+  static styles = [tokens, lightTheme, darkTheme, baseStyles, styles];
 
-    @consume({context: localeContext, subscribe: true})
-    @state()
-    private _localeCtx: LocaleContextValue = {
-        locale: sourceLocale,
-        setLocale: async () => {
-            log.warn('Locale context not initialized');
-        },
-        locales: [sourceLocale, ...targetLocales],
-    };
+  @consume({ context: localeContext, subscribe: true })
+  @state()
+  private _localeCtx: LocaleContextValue = {
+    locale: sourceLocale,
+    setLocale: async () => {
+      log.warn('Locale context not initialized');
+    },
+    locales: [sourceLocale, ...targetLocales],
+  };
 
-    /* ── Properties ─ */
+  /* ── Properties ─ */
 
-    /** Theme (inherited from parent) */
-    @property({type: String, reflect: true})
-    theme: 'light' | 'dark' | 'system' = 'system';
+  /** Theme (inherited from parent) */
+  @property({ type: String, reflect: true })
+  theme: 'light' | 'dark' | 'system' = 'system';
 
-    /* ── Private ── */
+  /* ── Private ── */
 
-    /** Previously activated sessionId, used to detect changes */
-    private _prevActiveSessionId: string | null = null;
+  /** Previously activated sessionId, used to detect changes */
+  private _prevActiveSessionId: string | null = null;
 
-    /* ── Context ── */
+  /* ── Context ── */
 
-    @consume({context: SessionTabContext, subscribe: true})
-    @property({attribute: false})
-    private _tabCtx: SessionTabContextValue = {
-        state: {tabs: [], activeSessionId: null},
-        actions: {
-            openOrActivate: () => {},
-            closeTab: () => {},
-            setActiveTab: () => {},
-            clearAll: () => {},
-            updateTabTitles: () => {},
-            syncTabStatuses: () => {},
-            markSaved: () => {},
-            findUnsavedTab: () => undefined,
-            updateTabStatus: () => {},
-            setTransientParams: () => {},
-            clearTransientParams: () => {},
-            restoreActiveFromStorage: () => false,
-            getStoredActiveSessionId: () => null,
-        },
-    };
+  @consume({ context: SessionTabContext, subscribe: true })
+  @property({ attribute: false })
+  private _tabCtx: SessionTabContextValue = {
+    state: { tabs: [], activeSessionId: null },
+    actions: {
+      openOrActivate: () => {},
+      closeTab: () => {},
+      setActiveTab: () => {},
+      clearAll: () => {},
+      updateTabTitles: () => {},
+      syncTabStatuses: () => {},
+      markSaved: () => {},
+      findUnsavedTab: () => undefined,
+      updateTabStatus: () => {},
+      setTransientParams: () => {},
+      clearTransientParams: () => {},
+      restoreActiveFromStorage: () => false,
+      getStoredActiveSessionId: () => null,
+    },
+  };
 
-    /* ── Event Handlers ── */
+  /* ── Event Handlers ── */
 
-    private _handleActivate(e: CustomEvent) {
-        const {sessionId} = e.detail;
-        this._tabCtx.actions.setActiveTab(sessionId);
-        this.dispatchEvent(
-            new CustomEvent('rtc-session-tab-bar-activate', {
-                bubbles: true,
-                composed: true,
-                detail: {sessionId},
-            })
+  private _handleActivate(e: CustomEvent) {
+    const { sessionId } = e.detail;
+    this._tabCtx.actions.setActiveTab(sessionId);
+    this.dispatchEvent(
+      new CustomEvent('rtc-session-tab-bar-activate', {
+        bubbles: true,
+        composed: true,
+        detail: { sessionId },
+      }),
+    );
+  }
+
+  private _handleClose(e: CustomEvent) {
+    const { sessionId } = e.detail;
+    this._tabCtx.actions.closeTab(sessionId);
+    this.dispatchEvent(
+      new CustomEvent('rtc-session-tab-bar-close', {
+        bubbles: true,
+        composed: true,
+        detail: { sessionId },
+      }),
+    );
+  }
+
+  private _handleNewSession() {
+    // Reuse rtc-session-tree-new event, handled uniformly by chat-layout
+    this.dispatchEvent(
+      new CustomEvent('rtc-session-tree-new', {
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
+  /* ── Lifecycle ── */
+
+  protected updated(): void {
+    const { activeSessionId } = this._tabCtx.state;
+
+    // Detect activeSessionId changes, auto-scroll to the active tab
+    if (activeSessionId && activeSessionId !== this._prevActiveSessionId) {
+      this._prevActiveSessionId = activeSessionId;
+      requestAnimationFrame(() => {
+        const activeTab = this.shadowRoot?.getElementById(
+          `tab-${activeSessionId}`,
         );
-    }
-
-    private _handleClose(e: CustomEvent) {
-        const {sessionId} = e.detail;
-        this._tabCtx.actions.closeTab(sessionId);
-        this.dispatchEvent(
-            new CustomEvent('rtc-session-tab-bar-close', {
-                bubbles: true,
-                composed: true,
-                detail: {sessionId},
-            })
-        );
-    }
-
-    private _handleNewSession() {
-        // Reuse rtc-session-tree-new event, handled uniformly by chat-layout
-        this.dispatchEvent(
-            new CustomEvent('rtc-session-tree-new', {
-                bubbles: true,
-                composed: true,
-            })
-        );
-    }
-
-    /* ── Lifecycle ── */
-
-    protected updated(): void {
-        const {activeSessionId} = this._tabCtx.state;
-
-        // Detect activeSessionId changes, auto-scroll to the active tab
-        if (activeSessionId && activeSessionId !== this._prevActiveSessionId) {
-            this._prevActiveSessionId = activeSessionId;
-            requestAnimationFrame(() => {
-                const activeTab = this.shadowRoot?.getElementById(`tab-${activeSessionId}`);
-                if (activeTab && typeof activeTab.scrollIntoView === 'function') {
-                    activeTab.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'nearest',
-                        inline: 'nearest',
-                    });
-                }
-            });
+        if (activeTab && typeof activeTab.scrollIntoView === 'function') {
+          activeTab.scrollIntoView({
+            behavior: 'smooth',
+            block: 'nearest',
+            inline: 'nearest',
+          });
         }
+      });
     }
+  }
 
-    /* ── Render ── */
+  /* ── Render ── */
 
-    render() {
-        void this._localeCtx.locale;
-        const {tabs, activeSessionId} = this._tabCtx.state;
+  render() {
+    void this._localeCtx.locale;
+    const { tabs, activeSessionId } = this._tabCtx.state;
 
-        return html`
+    return html`
             <div class="tab-bar-wrapper">
                 <div class="tabs-scroll">
-                    ${tabs.map(tab => html`
+                    ${tabs.map(
+                      (tab) => html`
                         <rtc-session-tab
                             id="tab-${tab.sessionId}"
                             session-id=${tab.sessionId}
@@ -156,7 +167,8 @@ export class RtcSessionTabBar extends LitElement {
                             @rtc-session-tab-activate=${this._handleActivate}
                             @rtc-session-tab-close=${this._handleClose}
                         ></rtc-session-tab>
-                    `)}
+                    `,
+                    )}
                 </div>
                 <button
                     class="tab-add"
@@ -166,17 +178,17 @@ export class RtcSessionTabBar extends LitElement {
                 >${plusIcon}</button>
             </div>
         `;
-    }
+  }
 }
 
 declare global {
-    interface HTMLElementTagNameMap {
-        'rtc-session-tab-bar': RtcSessionTabBar;
-    }
+  interface HTMLElementTagNameMap {
+    'rtc-session-tab-bar': RtcSessionTabBar;
+  }
 
-    interface HTMLElementEventMap {
-        'rtc-session-tab-bar-activate': CustomEvent<{sessionId: string}>;
-        'rtc-session-tab-bar-close': CustomEvent<{sessionId: string}>;
-        'rtc-session-tree-new': CustomEvent<void>;
-    }
+  interface HTMLElementEventMap {
+    'rtc-session-tab-bar-activate': CustomEvent<{ sessionId: string }>;
+    'rtc-session-tab-bar-close': CustomEvent<{ sessionId: string }>;
+    'rtc-session-tree-new': CustomEvent<void>;
+  }
 }

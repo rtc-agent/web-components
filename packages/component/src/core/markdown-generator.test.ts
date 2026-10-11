@@ -7,10 +7,12 @@ import type { FunctionDef } from '../types/skill.js';
 describe('generateFunctionMd with zodSchema', () => {
   it('should generate parameters table from zodSchema', () => {
     const liuyaoGetSchema = z.object({
-      id: withMeta(z.number().int().positive('记录 ID 必须是正整数'), { example: 1 })
-        .describe('记录 ID（正整数）'),
-      level: withMeta(z.enum(['year', 'month', 'day', 'hour']).optional(), { example: 'hour' })
-        .describe('查看粒度：year/month/day/hour，可选'),
+      id: withMeta(z.number().int().positive('记录 ID 必须是正整数'), {
+        example: 1,
+      }).describe('记录 ID（正整数）'),
+      level: withMeta(z.enum(['year', 'month', 'day', 'hour']).optional(), {
+        example: 'hour',
+      }).describe('查看粒度：year/month/day/hour，可选'),
     });
 
     const funcDef: FunctionDef = {

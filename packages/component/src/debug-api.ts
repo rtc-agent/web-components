@@ -11,13 +11,13 @@
  * - `debug-api-ext.ts` — Extended APIs (session, tools, toast, settings, metrics, network)
  * - `debug-api.ts` — This file: entry point + installDebugAPI()
  */
-import { setGlobalLogLevel } from "@rtc-agent/client";
-import type { RtcAgentDebugAPI } from "./debug-api-types.js";
-import { log, installLogCapture } from "./debug-api-helpers.js";
-import { buildCoreAPI } from "./debug-api-core.js";
-import { buildExtAPI } from "./debug-api-ext.js";
+import { setGlobalLogLevel } from '@rtc-agent/protocol';
+import type { RtcAgentDebugAPI } from './debug-api-types.js';
+import { log, installLogCapture } from './debug-api-helpers.js';
+import { buildCoreAPI } from './debug-api-core.js';
+import { buildExtAPI } from './debug-api-ext.js';
 
-export type { RtcAgentDebugAPI } from "./debug-api-types.js";
+export type { RtcAgentDebugAPI } from './debug-api-types.js';
 
 /**
  * Build and install the debug API on window.rtcAgentDebug.
@@ -30,15 +30,15 @@ export type { RtcAgentDebugAPI } from "./debug-api-types.js";
  * E2E test runs capture the full diagnostic stream.
  */
 export function installDebugAPI(): void {
-  if (typeof window === "undefined") return;
+  if (typeof window === 'undefined') return;
   if (window.rtcAgentDebug) {
-    log.warn("Debug API already installed, skipping");
+    log.warn('Debug API already installed, skipping');
     return;
   }
 
   // Enable debug-level logging in dev/test builds so that the log buffer
   // (and the console) captures the full diagnostic stream.
-  setGlobalLogLevel("debug");
+  setGlobalLogLevel('debug');
 
   // Install log capture first so we capture logs from API construction.
   installLogCapture();
@@ -70,12 +70,12 @@ export function installDebugAPI(): void {
     },
   } satisfies RtcAgentDebugAPI;
 
-  Object.defineProperty(window, "rtcAgentDebug", {
+  Object.defineProperty(window, 'rtcAgentDebug', {
     value: api,
     writable: false,
     configurable: false,
     enumerable: true,
   });
 
-  log.info("Debug API installed on window.rtcAgentDebug");
+  log.info('Debug API installed on window.rtcAgentDebug');
 }

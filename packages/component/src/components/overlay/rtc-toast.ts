@@ -23,13 +23,18 @@
  *
  * @element rtc-toast
  */
-import {LitElement, html, css, nothing} from 'lit';
-import {customElement, property, state} from 'lit/decorators.js';
-import {repeat} from 'lit/directives/repeat.js';
-import {localized, msg} from '@lit/localize';
-import {consume} from '@lit/context';
-import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
-import { createLogger } from '@rtc-agent/client';
+import { LitElement, html, css, nothing } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import { repeat } from 'lit/directives/repeat.js';
+import { localized, msg } from '@lit/localize';
+import { consume } from '@lit/context';
+import {
+  localeContext,
+  type LocaleContextValue,
+  sourceLocale,
+  targetLocales,
+} from '../../core/i18n.js';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('Toast');
 
@@ -200,17 +205,17 @@ export class RtcToast extends LitElement {
     }
   `;
 
-  @consume({context: localeContext, subscribe: true})
+  @consume({ context: localeContext, subscribe: true })
   @state()
   private _localeCtx: LocaleContextValue = {
-      locale: sourceLocale,
-      setLocale: async () => {
-          log.warn('Locale context not initialized');
-      },
-      locales: [sourceLocale, ...targetLocales],
+    locale: sourceLocale,
+    setLocale: async () => {
+      log.warn('Locale context not initialized');
+    },
+    locales: [sourceLocale, ...targetLocales],
   };
 
-  @property({type: Array})
+  @property({ type: Array })
   toasts: ToastItem[] = [];
 
   private _handleClose(id: number) {
@@ -218,8 +223,8 @@ export class RtcToast extends LitElement {
       new CustomEvent('rtc-toast-close', {
         bubbles: true,
         composed: true,
-        detail: {id},
-      })
+        detail: { id },
+      }),
     );
   }
 
@@ -242,8 +247,8 @@ export class RtcToast extends LitElement {
 
     return repeat(
       this.toasts,
-      toast => toast.id,
-      toast => html`
+      (toast) => toast.id,
+      (toast) => html`
         <div
           class="toast-item"
           part="item"
@@ -256,8 +261,9 @@ export class RtcToast extends LitElement {
             ${toast.type === 'success' ? '✓' : toast.type === 'error' ? '✗' : 'ℹ'}
           </span>
           <span class="toast-message" part="message">${toast.message}</span>
-          ${toast.action
-            ? html`<button
+          ${
+            toast.action
+              ? html`<button
                 class="toast-action"
                 part="action"
                 @click=${(e: Event) => {
@@ -269,12 +275,13 @@ export class RtcToast extends LitElement {
               >
                 ${toast.action.label}
               </button>`
-            : nothing}
+              : nothing
+          }
           <button class="toast-close" part="close" @click=${() => this._handleClose(toast.id)} aria-label=${msg('关闭')}>
             ×
           </button>
         </div>
-      `
+      `,
     );
   }
 }

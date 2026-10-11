@@ -1,4 +1,4 @@
-import {css} from 'lit';
+import { css } from 'lit';
 
 /**
  * Session Tree Item styles
@@ -211,11 +211,11 @@ export const styles = css`
 
     .tree-item-content.selected .action-btn:hover {
         opacity: 1;
-        background-color: rgba(255, 255, 255, 0.15);
+        background-color: var(--rtc-color-bg-hover-overlay, rgba(255, 255, 255, 0.15));
     }
 
     .tree-item-content.selected .action-btn--danger:hover {
-        background-color: rgba(255, 255, 255, 0.2);
+        background-color: var(--rtc-color-bg-hover-overlay-strong, rgba(255, 255, 255, 0.2));
         color: var(--rtc-color-text-inverse, #ffffff);
     }
 
@@ -317,12 +317,12 @@ export const styles = css`
     }
 
     :host([theme='dark']) .action-btn:hover {
-        background-color: rgba(255, 255, 255, 0.1);
+        background-color: var(--rtc-color-bg-hover-dark, rgba(255, 255, 255, 0.1));
         color: var(--rtc-color-text, #cccccc);
     }
 
     :host([theme='dark']) .action-btn--danger:hover {
-        background-color: rgba(220, 38, 38, 0.2);
+        background-color: var(--rtc-color-danger-hover-bg-dark, rgba(220, 38, 38, 0.2));
         color: var(--rtc-color-danger, #f87171);
     }
 
@@ -337,7 +337,7 @@ export const styles = css`
     }
 
     :host([theme='dark']) .rename-btn--cancel:hover {
-        background-color: rgba(255, 255, 255, 0.1);
+        background-color: var(--rtc-color-bg-hover-dark, rgba(255, 255, 255, 0.1));
         color: var(--rtc-color-text, #cccccc);
     }
 
@@ -368,12 +368,12 @@ export const styles = css`
     }
 
     :host([theme='light']) .action-btn:hover {
-        background-color: rgba(0, 0, 0, 0.06);
+        background-color: var(--rtc-color-bg-hover-light, rgba(0, 0, 0, 0.06));
         color: var(--rtc-color-text, #333333);
     }
 
     :host([theme='light']) .action-btn--danger:hover {
-        background-color: rgba(220, 38, 38, 0.1);
+        background-color: var(--rtc-color-danger-hover-bg-light, rgba(220, 38, 38, 0.1));
         color: var(--rtc-color-danger, #dc2626);
     }
 
@@ -388,7 +388,7 @@ export const styles = css`
     }
 
     :host([theme='light']) .rename-btn--cancel:hover {
-        background-color: rgba(0, 0, 0, 0.06);
+        background-color: var(--rtc-color-bg-hover-light, rgba(0, 0, 0, 0.06));
         color: var(--rtc-color-text, #333333);
     }
 

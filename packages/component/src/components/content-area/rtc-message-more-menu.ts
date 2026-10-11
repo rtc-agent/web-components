@@ -15,21 +15,26 @@
  *
  * @element rtc-message-more-menu
  */
-import {LitElement, html, css} from 'lit';
-import {customElement, property, state} from 'lit/decorators.js';
-import {consume} from '@lit/context';
-import {localized, msg} from '@lit/localize';
-import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
-import type {SyncStatus} from '../../types/index.js';
-import {formatTimestampCompact} from '../../utils/format.js';
-import { createLogger } from '@rtc-agent/client';
+import { LitElement, html, css } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import { consume } from '@lit/context';
+import { localized, msg } from '@lit/localize';
+import {
+  localeContext,
+  type LocaleContextValue,
+  sourceLocale,
+  targetLocales,
+} from '../../core/i18n.js';
+import type { SyncStatus } from '../../types/index.js';
+import { formatTimestampCompact } from '../../utils/format.js';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('MessageMoreMenu');
 
 @localized()
 @customElement('rtc-message-more-menu')
 export class RtcMessageMoreMenu extends LitElement {
-    static styles = css`
+  static styles = css`
       :host {
         display: block;
         position: absolute;
@@ -83,58 +88,60 @@ export class RtcMessageMoreMenu extends LitElement {
       }
     `;
 
-    @consume({context: localeContext, subscribe: true})
-    @state()
-    private _localeCtx: LocaleContextValue = {
-        locale: sourceLocale,
-        setLocale: async () => {
-            log.warn('Locale context not initialized');
-        },
-        locales: [sourceLocale, ...targetLocales],
-    };
+  @consume({ context: localeContext, subscribe: true })
+  @state()
+  private _localeCtx: LocaleContextValue = {
+    locale: sourceLocale,
+    setLocale: async () => {
+      log.warn('Locale context not initialized');
+    },
+    locales: [sourceLocale, ...targetLocales],
+  };
 
-    @property({type: String})
-    syncStatus: SyncStatus = 'synced';
+  @property({ type: String })
+  syncStatus: SyncStatus = 'synced';
 
-    @property({type: Number})
-    timestamp = 0;
+  @property({ type: Number })
+  timestamp = 0;
 
-    /** Format timestamp to compact format (delegates to shared utility function) */
-    private get _formattedTimestamp(): string {
-        return formatTimestampCompact(this.timestamp);
-    }
+  /** Format timestamp to compact format (delegates to shared utility function) */
+  private get _formattedTimestamp(): string {
+    return formatTimestampCompact(this.timestamp);
+  }
 
-    private _handleSelect(action: string) {
-        this.dispatchEvent(
-            new CustomEvent('rtc-message-more-menu-select', {
-                bubbles: true,
-                composed: true,
-                detail: {action},
-            })
-        );
-    }
+  private _handleSelect(action: string) {
+    this.dispatchEvent(
+      new CustomEvent('rtc-message-more-menu-select', {
+        bubbles: true,
+        composed: true,
+        detail: { action },
+      }),
+    );
+  }
 
-    render() {
-        void this._localeCtx.locale;
-        return html`
+  render() {
+    void this._localeCtx.locale;
+    return html`
       <div class="more-menu">
         <button @click=${() => this._handleSelect('copy')}>${msg('复制')}</button>
         <button
           ?disabled=${this.syncStatus !== 'synced'}
           @click=${() => this._handleSelect('fork')}
         >${msg('分叉')}</button>
-        ${this.syncStatus === 'failed'
+        ${
+          this.syncStatus === 'failed'
             ? html`<button @click=${() => this._handleSelect('retry')}>${msg('重试')}</button>`
-            : null}
+            : null
+        }
         <div class="divider"></div>
         <div class="footer">${this._formattedTimestamp}</div>
       </div>
     `;
-    }
+  }
 }
 
 declare global {
-    interface HTMLElementTagNameMap {
-        'rtc-message-more-menu': RtcMessageMoreMenu;
-    }
+  interface HTMLElementTagNameMap {
+    'rtc-message-more-menu': RtcMessageMoreMenu;
+  }
 }

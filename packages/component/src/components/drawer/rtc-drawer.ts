@@ -38,73 +38,73 @@
  * with JS setting left to the Activity Bar width (48px), to position it flush against the right side
  * of the Activity Bar.
  */
-import {LitElement, html} from 'lit';
-import {customElement, property} from 'lit/decorators.js';
-import {styles} from './rtc-drawer.styles.js';
+import { LitElement, html } from 'lit';
+import { customElement, property } from 'lit/decorators.js';
+import { styles } from './rtc-drawer.styles.js';
 
 @customElement('rtc-drawer')
 export class RtcDrawer extends LitElement {
-    static styles = styles;
+  static styles = styles;
 
-    /**
-     * Whether the drawer is open
-     *
-     * Controlled via attribute `open` or property.
-     * reflect: true makes the [open] attribute visible in the DOM, driving CSS state.
-     */
-    @property({type: Boolean, reflect: true})
-    open = false;
+  /**
+   * Whether the drawer is open
+   *
+   * Controlled via attribute `open` or property.
+   * reflect: true makes the [open] attribute visible in the DOM, driving CSS state.
+   */
+  @property({ type: Boolean, reflect: true })
+  open = false;
 
-    /* ── Lifecycle ── */
+  /* ── Lifecycle ── */
 
-    connectedCallback() {
-        super.connectedCallback();
-        // Global ESC listener: close when ESC is pressed while open
-        document.addEventListener('keydown', this._boundOnKeydown);
+  connectedCallback() {
+    super.connectedCallback();
+    // Global ESC listener: close when ESC is pressed while open
+    document.addEventListener('keydown', this._boundOnKeydown);
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    document.removeEventListener('keydown', this._boundOnKeydown);
+  }
+
+  /* ── Event Handlers ── */
+
+  /**
+   * Click backdrop overlay
+   *
+   * Dispatches custom event to notify parent component to close the drawer.
+   */
+  private _handleBackdropClick() {
+    this.dispatchEvent(
+      new CustomEvent('rtc-drawer-close', {
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
+  /**
+   * Global ESC key handler
+   *
+   * Only responds when drawer is open and connected in the DOM.
+   */
+  private _boundOnKeydown = (e: KeyboardEvent) => {
+    if (e.key === 'Escape' && this.open) {
+      e.preventDefault();
+      this.dispatchEvent(
+        new CustomEvent('rtc-drawer-close', {
+          bubbles: true,
+          composed: true,
+        }),
+      );
     }
+  };
 
-    disconnectedCallback() {
-        super.disconnectedCallback();
-        document.removeEventListener('keydown', this._boundOnKeydown);
-    }
+  /* ── Render ── */
 
-    /* ── Event Handlers ── */
-
-    /**
-     * Click backdrop overlay
-     *
-     * Dispatches custom event to notify parent component to close the drawer.
-     */
-    private _handleBackdropClick() {
-        this.dispatchEvent(
-            new CustomEvent('rtc-drawer-close', {
-                bubbles: true,
-                composed: true,
-            })
-        );
-    }
-
-    /**
-     * Global ESC key handler
-     *
-     * Only responds when drawer is open and connected in the DOM.
-     */
-    private _boundOnKeydown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape' && this.open) {
-            e.preventDefault();
-            this.dispatchEvent(
-                new CustomEvent('rtc-drawer-close', {
-                    bubbles: true,
-                    composed: true,
-                })
-            );
-        }
-    };
-
-    /* ── Render ── */
-
-    render() {
-        return html`
+  render() {
+    return html`
             <div
                 class="backdrop"
                 part="backdrop"
@@ -120,15 +120,15 @@ export class RtcDrawer extends LitElement {
                 <slot></slot>
             </div>
         `;
-    }
+  }
 }
 
 declare global {
-    interface HTMLElementTagNameMap {
-        'rtc-drawer': RtcDrawer;
-    }
+  interface HTMLElementTagNameMap {
+    'rtc-drawer': RtcDrawer;
+  }
 
-    interface HTMLElementEventMap {
-        'rtc-drawer-close': CustomEvent;
-    }
+  interface HTMLElementEventMap {
+    'rtc-drawer-close': CustomEvent;
+  }
 }

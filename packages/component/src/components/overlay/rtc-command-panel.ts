@@ -9,153 +9,161 @@
  * @fires rtc-command-panel-close - User pressed Escape or clicked outside
  * @csspart list - The command list container
  */
-import {LitElement, html} from 'lit';
-import {customElement, property, state} from 'lit/decorators.js';
-import {classMap} from 'lit/directives/class-map.js';
-import {localized, msg} from '@lit/localize';
-import {consume} from '@lit/context';
-import {localeContext, type LocaleContextValue, sourceLocale, targetLocales} from '../../core/i18n.js';
-import {styles} from './rtc-command-panel.styles.js';
-import {gearIcon, clockIcon, checklistIcon, saveIcon} from '../../icons/index.js';
-import { createLogger } from '@rtc-agent/client';
+import { LitElement, html } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import { classMap } from 'lit/directives/class-map.js';
+import { localized, msg } from '@lit/localize';
+import { consume } from '@lit/context';
+import {
+  localeContext,
+  type LocaleContextValue,
+  sourceLocale,
+  targetLocales,
+} from '../../core/i18n.js';
+import { styles } from './rtc-command-panel.styles.js';
+import {
+  gearIcon,
+  clockIcon,
+  checklistIcon,
+  saveIcon,
+} from '../../icons/index.js';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('CommandPanel');
 
 /** Command configuration */
 export interface CommandConfig {
-    /** Command name (without /) */
-    name: string;
-    /** Display label (with /) */
-    label: string;
-    /** Description */
-    description: string;
-    /** Whether the command is available */
-    available: boolean;
-    /** Icon template */
-    icon: ReturnType<typeof html>;
+  /** Command name (without /) */
+  name: string;
+  /** Display label (with /) */
+  label: string;
+  /** Description (getter for dynamic translation) */
+  get description(): string;
+  /** Whether the command is available */
+  available: boolean;
+  /** Icon template */
+  icon: ReturnType<typeof html>;
 }
 
 /** Static config for all commands */
 export const COMMAND_CONFIGS: CommandConfig[] = [
-    {
-        name: 'compact',
-        label: '/compact',
-        description: '压缩上下文，减少 token 消耗',
-        available: true,
-        icon: gearIcon,
+  {
+    name: 'compact',
+    label: '/compact',
+    get description() {
+      return msg('压缩上下文，减少 token 消耗');
     },
-    {
-        name: 'loop',
-        label: '/loop',
-        description: '循环执行任务',
-        available: true,
-        icon: clockIcon,
+    available: true,
+    icon: gearIcon,
+  },
+  {
+    name: 'loop',
+    label: '/loop',
+    get description() {
+      return msg('循环执行任务');
     },
-    {
-        name: 'goal',
-        label: '/goal',
-        description: '设定目标，持续工作直到达成',
-        available: true,
-        icon: checklistIcon,
+    available: true,
+    icon: clockIcon,
+  },
+  {
+    name: 'goal',
+    label: '/goal',
+    get description() {
+      return msg('设定目标，持续工作直到达成');
     },
-    {
-        name: 'export',
-        label: '/export',
-        description: '导出当前对话为 HTML 文件',
-        available: true,
-        icon: saveIcon,
+    available: true,
+    icon: checklistIcon,
+  },
+  {
+    name: 'export',
+    label: '/export',
+    get description() {
+      return msg('导出当前对话为 HTML 文件');
     },
+    available: true,
+    icon: saveIcon,
+  },
 ];
 
 @localized()
 @customElement('rtc-command-panel')
 export class RtcCommandPanel extends LitElement {
-    static styles = styles;
+  static styles = styles;
 
-    @consume({context: localeContext, subscribe: true})
-    @state()
-    private _localeCtx: LocaleContextValue = {
-        locale: sourceLocale,
-        setLocale: async () => {
-            log.warn('Locale context not initialized');
-        },
-        locales: [sourceLocale, ...targetLocales],
-    };
+  @consume({ context: localeContext, subscribe: true })
+  @state()
+  private _localeCtx: LocaleContextValue = {
+    locale: sourceLocale,
+    setLocale: async () => {
+      log.warn('Locale context not initialized');
+    },
+    locales: [sourceLocale, ...targetLocales],
+  };
 
-    @property({type: Array})
-    commands: CommandConfig[] = COMMAND_CONFIGS;
+  @property({ type: Array })
+  commands: CommandConfig[] = COMMAND_CONFIGS;
 
-    private _handleSelect(command: CommandConfig) {
-        if (!command.available) return;
+  private _handleSelect(command: CommandConfig) {
+    if (!command.available) return;
 
-        this.dispatchEvent(
-            new CustomEvent('rtc-command-selected', {
-                bubbles: true,
-                composed: true,
-                detail: {command: command.name},
-            })
-        );
+    this.dispatchEvent(
+      new CustomEvent('rtc-command-selected', {
+        bubbles: true,
+        composed: true,
+        detail: { command: command.name },
+      }),
+    );
+  }
+
+  private _onKeydown = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      this.dispatchEvent(
+        new CustomEvent('rtc-command-panel-close', {
+          bubbles: true,
+          composed: true,
+        }),
+      );
     }
+  };
 
-    private _onKeydown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') {
-            e.stopPropagation();
-            this.dispatchEvent(
-                new CustomEvent('rtc-command-panel-close', {
-                    bubbles: true,
-                    composed: true,
-                })
-            );
-        }
-    };
+  connectedCallback() {
+    super.connectedCallback();
+    this.addEventListener('keydown', this._onKeydown);
+  }
 
-    connectedCallback() {
-        super.connectedCallback();
-        this.addEventListener('keydown', this._onKeydown);
-    }
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.removeEventListener('keydown', this._onKeydown);
+  }
 
-    disconnectedCallback() {
-        super.disconnectedCallback();
-        this.removeEventListener('keydown', this._onKeydown);
-    }
-
-    render() {
-        void this._localeCtx.locale;
-        return html`
+  render() {
+    void this._localeCtx.locale;
+    return html`
       <div class="command-list" part="list">
         ${this.commands.map(
-            (cmd) => html`
+          (cmd) => html`
                 <div
-                  class="command-item ${classMap({disabled: !cmd.available})}"
+                  class="command-item ${classMap({ disabled: !cmd.available })}"
                   @click=${() => this._handleSelect(cmd)}
-                  title=${cmd.available ? this._translateDesc(cmd.name, cmd.description) : msg('即将推出')}
+                  title=${cmd.available ? cmd.description : msg('即将推出')}
                 >
                   <span class="command-icon">${cmd.icon}</span>
                   <span class="command-text">
                     <span class="command-label">${cmd.label}</span>
-                    <span class="command-desc">${this._translateDesc(cmd.name, cmd.description)}</span>
+                    <span class="command-desc">${cmd.description}</span>
                   </span>
                   ${!cmd.available ? html`<span class="command-badge">${msg('即将推出')}</span>` : ''}
                 </div>
-              `
+              `,
         )}
       </div>
     `;
-    }
-
-    private _translateDesc(name: string, fallback: string): string {
-        switch (name) {
-            case 'compact': return msg('压缩上下文，减少 token 消耗');
-            case 'loop': return msg('循环执行任务');
-            case 'goal': return msg('设定目标，持续工作直到达成');
-            case 'export': return msg('导出当前对话为 HTML 文件');
-            default: return fallback;
-        }
-    }
+  }
 }
 
 declare global {
-    interface HTMLElementTagNameMap {
-        'rtc-command-panel': RtcCommandPanel;
-    }
+  interface HTMLElementTagNameMap {
+    'rtc-command-panel': RtcCommandPanel;
+  }
 }

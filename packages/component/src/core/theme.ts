@@ -1,4 +1,4 @@
-import {createLogger} from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('Theme');
 
@@ -11,9 +11,13 @@ const STORAGE_KEY = 'rtc-agent-theme';
 /**
  * Get the current effective theme (resolves 'system' to 'light' or 'dark')
  */
-export function getEffectiveTheme(theme: Theme = getStoredTheme()): 'light' | 'dark' {
+export function getEffectiveTheme(
+  theme: Theme = getStoredTheme(),
+): 'light' | 'dark' {
   if (theme === 'system') {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    return window.matchMedia('(prefers-color-scheme: dark)').matches
+      ? 'dark'
+      : 'light';
   }
   return theme;
 }
@@ -61,7 +65,7 @@ export function switchTheme(theme: Theme): void {
   const agents = document.querySelectorAll('rtc-agent');
   agents.forEach((agent) => {
     if ('theme' in agent) {
-      (agent as {theme: Theme}).theme = theme;
+      (agent as { theme: Theme }).theme = theme;
     }
   });
 

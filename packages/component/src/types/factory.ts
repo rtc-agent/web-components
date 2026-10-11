@@ -199,7 +199,9 @@ export interface EventCallbacks {
    * Fires when the persistence layer's connection state transitions
    * (e.g. 'disconnected' -> 'connecting' -> 'connected').
    */
-  connectionStateChange?: (detail: { state: import('@rtc-agent/client').ConnectionState }) => void;
+  connectionStateChange?: (detail: {
+    state: import('@rtc-agent/client').ConnectionState;
+  }) => void;
 
   /**
    * Login successful (maps to `rtc-auth-login` event).

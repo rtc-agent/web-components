@@ -14,7 +14,7 @@ import type { FunctionRegistry } from '../core/function-registry.js';
 import { eventBus } from '../core/event-bus.js';
 import type { SkillContextValue } from '../contexts/skill.js';
 import { toolRegistry, virtualFS } from '@rtc-agent/persistence';
-import { createLogger } from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('SkillController');
 
@@ -112,19 +112,27 @@ export class SkillController implements ReactiveController {
    * - Proxy's get trap forwards to registry's group proxy, supporting chain calls (rtcAgent.task.create())
    */
   private _bridgeToolRegistry(registry: FunctionRegistry): void {
-    const rtcAgentAPI = new Proxy({
-      callFunction: (path: string, params: Record<string, unknown>) => registry.execute(path, params),
-      readFile: (path: string) => virtualFS.read(path),
-      writeFile: (path: string, content: string) => virtualFS.write(path, content).then(() => {}),
-      listDir: (path: string) => virtualFS.ls(path),
-    }, {
-      get(target, prop) {
-        // Prefer returning API methods
-        if (prop in target) return (target as Record<string, unknown>)[prop as string];
-        // Otherwise forward to registry (get group proxy)
-        return (registry as unknown as Record<string | symbol, unknown>)[prop];
-      }
-    });
+    const rtcAgentAPI = new Proxy(
+      {
+        callFunction: (path: string, params: Record<string, unknown>) =>
+          registry.execute(path, params),
+        readFile: (path: string) => virtualFS.read(path),
+        writeFile: (path: string, content: string) =>
+          virtualFS.write(path, content).then(() => {}),
+        listDir: (path: string) => virtualFS.ls(path),
+      },
+      {
+        get(target, prop) {
+          // Prefer returning API methods
+          if (prop in target)
+            return (target as Record<string, unknown>)[prop as string];
+          // Otherwise forward to registry (get group proxy)
+          return (registry as unknown as Record<string | symbol, unknown>)[
+            prop
+          ];
+        },
+      },
+    );
 
     toolRegistry.setRtcAgent(rtcAgentAPI);
     log.info('rtcAgent API bridged to ToolRegistry');
@@ -168,19 +176,32 @@ export class SkillController implements ReactiveController {
     this._unsubscribes = [];
 
     // Subscribe to ui:toast event
-    const unsubToast = eventBus.on('ui:toast', (event: { message: string; type: string }) => {
-      if (this._config.onToast) {
-        this._config.onToast(event.message, event.type as 'info' | 'success' | 'error');
-      }
-    });
+    const unsubToast = eventBus.on(
+      'ui:toast',
+      (event: { message: string; type: string }) => {
+        if (this._config.onToast) {
+          this._config.onToast(
+            event.message,
+            event.type as 'info' | 'success' | 'error',
+          );
+        }
+      },
+    );
     this._unsubscribes.push(unsubToast);
 
     // Subscribe to ui:confirm-request event
-    const unsubConfirm = eventBus.on('ui:confirm-request', (event: { requestId: string; path: string; message: string }) => {
-      if (this._config.onConfirmRequest) {
-        this._config.onConfirmRequest(event.requestId, event.path, event.message);
-      }
-    });
+    const unsubConfirm = eventBus.on(
+      'ui:confirm-request',
+      (event: { requestId: string; path: string; message: string }) => {
+        if (this._config.onConfirmRequest) {
+          this._config.onConfirmRequest(
+            event.requestId,
+            event.path,
+            event.message,
+          );
+        }
+      },
+    );
     this._unsubscribes.push(unsubConfirm);
   }
 

@@ -7,42 +7,42 @@
  */
 import { msg, str } from '@lit/localize';
 import { virtualFS } from '@rtc-agent/persistence';
-import type { Logger } from '@rtc-agent/client';
+import type { Logger } from '@rtc-agent/protocol';
 import type { FileNode } from '../../../types/index.js';
 import type { ToastActions } from '../../../controllers/toast.controller.js';
 
 // ── Dependency interfaces ──
 
 export interface VfsDeps {
-    persistenceIsConnected: boolean;
-    fileExplorer: {
-        actions: {
-            setRoot(root: FileNode): void;
-            setLoading(path: string, loading: boolean): void;
-            updateChildren(path: string, children: FileNode[]): void;
-            selectNode(path: string): void;
-        };
-        value: {
-            isExpanded(path: string): boolean;
-        };
+  persistenceIsConnected: boolean;
+  fileExplorer: {
+    actions: {
+      setRoot(root: FileNode): void;
+      setLoading(path: string, loading: boolean): void;
+      updateChildren(path: string, children: FileNode[]): void;
+      selectNode(path: string): void;
     };
-    editorArea: {
-        tabs: ReadonlyArray<{
-            filePath: string;
-            content: string;
-            isDirty: boolean;
-        }>;
-        activeFilePath: string | null;
-        actions: {
-            openFile(path: string, content?: string, viewMode?: string): void;
-            closeFile(path: string): void;
-            loadContent(path: string, content: string): void;
-            saveFile(path: string): void;
-        };
+    value: {
+      isExpanded(path: string): boolean;
     };
-    toast: ToastActions;
-    settingsDefaultViewMode: string;
-    logger: Logger;
+  };
+  editorArea: {
+    tabs: ReadonlyArray<{
+      filePath: string;
+      content: string;
+      isDirty: boolean;
+    }>;
+    activeFilePath: string | null;
+    actions: {
+      openFile(path: string, content?: string, viewMode?: string): void;
+      closeFile(path: string): void;
+      loadContent(path: string, content: string): void;
+      saveFile(path: string): void;
+    };
+  };
+  toast: ToastActions;
+  settingsDefaultViewMode: string;
+  logger: Logger;
 }
 
 // ── File Tree Loading ──
@@ -64,16 +64,16 @@ const _folderLoadGenerations = new Map<string, number>();
  * @returns `true` if the tree was loaded successfully.
  */
 export async function loadFileTree(deps: VfsDeps): Promise<boolean> {
-    if (!deps.persistenceIsConnected) return false;
+  if (!deps.persistenceIsConnected) return false;
 
-    try {
-        const root = await buildFileNodeShallow("/");
-        deps.fileExplorer.actions.setRoot(root);
-        return true;
-    } catch (err) {
-        deps.logger.error("Failed to load file tree:", err);
-        return false;
-    }
+  try {
+    const root = await buildFileNodeShallow('/');
+    deps.fileExplorer.actions.setRoot(root);
+    return true;
+  } catch (err) {
+    deps.logger.error('Failed to load file tree:', err);
+    return false;
+  }
 }
 
 /**
@@ -83,32 +83,32 @@ export async function loadFileTree(deps: VfsDeps): Promise<boolean> {
  * they are loaded on demand by {@link loadFolderChildren} when the user expands them.
  */
 export async function buildFileNodeShallow(path: string): Promise<FileNode> {
-    const name = path === "/" ? "/" : path.split("/").pop()!;
-    const isRoot = path === "/";
+  const name = path === '/' ? '/' : path.split('/').pop()!;
+  const isRoot = path === '/';
 
-    // If the path exists in VFS -> file.
-    if (!isRoot && (await virtualFS.exists(path))) {
-        return { path, name, type: "file" };
+  // If the path exists in VFS -> file.
+  if (!isRoot && (await virtualFS.exists(path))) {
+    return { path, name, type: 'file' };
+  }
+
+  // Otherwise treat as directory; ls to get immediate children.
+  const children: FileNode[] = [];
+  try {
+    const entries = await virtualFS.ls(path);
+    for (const entry of entries) {
+      const childPath = isRoot ? `/${entry}` : `${path}/${entry}`;
+      if (await virtualFS.exists(childPath)) {
+        children.push({ path: childPath, name: entry, type: 'file' });
+      } else {
+        // Directory: children left empty (not loaded), lazy-loaded on expand.
+        children.push({ path: childPath, name: entry, type: 'folder' });
+      }
     }
+  } catch {
+    // ls failed -> empty directory.
+  }
 
-    // Otherwise treat as directory; ls to get immediate children.
-    const children: FileNode[] = [];
-    try {
-        const entries = await virtualFS.ls(path);
-        for (const entry of entries) {
-            const childPath = isRoot ? `/${entry}` : `${path}/${entry}`;
-            if (await virtualFS.exists(childPath)) {
-                children.push({ path: childPath, name: entry, type: "file" });
-            } else {
-                // Directory: children left empty (not loaded), lazy-loaded on expand.
-                children.push({ path: childPath, name: entry, type: "folder" });
-            }
-        }
-    } catch {
-        // ls failed -> empty directory.
-    }
-
-    return { path, name, type: "folder", children };
+  return { path, name, type: 'folder', children };
 }
 
 /**
@@ -121,53 +121,60 @@ export async function buildFileNodeShallow(path: string): Promise<FileNode> {
  * If a newer load starts for the same path, older loads are discarded.
  */
 export async function loadFolderChildren(
-    path: string,
-    deps: VfsDeps,
+  path: string,
+  deps: VfsDeps,
 ): Promise<void> {
-    if (!deps.persistenceIsConnected) return;
+  if (!deps.persistenceIsConnected) return;
 
-    // Increment generation: invalidate any previous loads for this path
-    const myGeneration = (_folderLoadGenerations.get(path) ?? 0) + 1;
-    _folderLoadGenerations.set(path, myGeneration);
+  // Increment generation: invalidate any previous loads for this path
+  const myGeneration = (_folderLoadGenerations.get(path) ?? 0) + 1;
+  _folderLoadGenerations.set(path, myGeneration);
 
-    deps.logger.debug("loadFolderChildren called for:", path, "gen:", myGeneration);
-    deps.fileExplorer.actions.setLoading(path, true);
-    try {
-        const entries = await virtualFS.ls(path);
+  deps.logger.debug(
+    'loadFolderChildren called for:',
+    path,
+    'gen:',
+    myGeneration,
+  );
+  deps.fileExplorer.actions.setLoading(path, true);
+  try {
+    const entries = await virtualFS.ls(path);
 
-        // Checkpoint: if a newer load started during await, discard this result
-        if (_folderLoadGenerations.get(path) !== myGeneration) {
-            deps.logger.debug("loadFolderChildren: stale result, discarding");
-            return;
-        }
-
-        const children: FileNode[] = [];
-        for (const entry of entries) {
-            const childPath = path === "/" ? `/${entry}` : `${path}/${entry}`;
-            if (await virtualFS.exists(childPath)) {
-                children.push({ path: childPath, name: entry, type: "file" });
-            } else {
-                children.push({ path: childPath, name: entry, type: "folder" });
-            }
-        }
-
-        // Second checkpoint: check again after building children
-        if (_folderLoadGenerations.get(path) !== myGeneration) {
-            deps.logger.debug("loadFolderChildren: stale result after building children, discarding");
-            return;
-        }
-
-        deps.fileExplorer.actions.updateChildren(path, children);
-    } catch (err) {
-        deps.logger.error("Failed to load folder children:", path, err);
-    } finally {
-        // Only clear loading state and cleanup if this generation is still current
-        if (_folderLoadGenerations.get(path) === myGeneration) {
-            deps.fileExplorer.actions.setLoading(path, false);
-            // Fix: Clean up the generation entry to prevent memory leak in long-running sessions
-            _folderLoadGenerations.delete(path);
-        }
+    // Checkpoint: if a newer load started during await, discard this result
+    if (_folderLoadGenerations.get(path) !== myGeneration) {
+      deps.logger.debug('loadFolderChildren: stale result, discarding');
+      return;
     }
+
+    const children: FileNode[] = [];
+    for (const entry of entries) {
+      const childPath = path === '/' ? `/${entry}` : `${path}/${entry}`;
+      if (await virtualFS.exists(childPath)) {
+        children.push({ path: childPath, name: entry, type: 'file' });
+      } else {
+        children.push({ path: childPath, name: entry, type: 'folder' });
+      }
+    }
+
+    // Second checkpoint: check again after building children
+    if (_folderLoadGenerations.get(path) !== myGeneration) {
+      deps.logger.debug(
+        'loadFolderChildren: stale result after building children, discarding',
+      );
+      return;
+    }
+
+    deps.fileExplorer.actions.updateChildren(path, children);
+  } catch (err) {
+    deps.logger.error('Failed to load folder children:', path, err);
+  } finally {
+    // Only clear loading state and cleanup if this generation is still current
+    if (_folderLoadGenerations.get(path) === myGeneration) {
+      deps.fileExplorer.actions.setLoading(path, false);
+      // Fix: Clean up the generation entry to prevent memory leak in long-running sessions
+      _folderLoadGenerations.delete(path);
+    }
+  }
 }
 
 // ── File Open / Save ──
@@ -176,21 +183,21 @@ export async function loadFolderChildren(
  * Open a file: read content from VFS and open in editor.
  */
 export async function handleFileOpen(
-    filePath: string,
-    deps: VfsDeps,
+  filePath: string,
+  deps: VfsDeps,
 ): Promise<void> {
-    try {
-        const content = await virtualFS.read(filePath);
-        deps.editorArea.actions.openFile(
-            filePath,
-            content,
-            deps.settingsDefaultViewMode,
-        );
-        deps.fileExplorer.actions.selectNode(filePath);
-    } catch (err) {
-        deps.logger.error("Failed to open file:", filePath, err);
-        deps.toast.show(msg("打开文件失败"), "error");
-    }
+  try {
+    const content = await virtualFS.read(filePath);
+    deps.editorArea.actions.openFile(
+      filePath,
+      content,
+      deps.settingsDefaultViewMode,
+    );
+    deps.fileExplorer.actions.selectNode(filePath);
+  } catch (err) {
+    deps.logger.error('Failed to open file:', filePath, err);
+    deps.toast.show(msg('打开文件失败'), 'error');
+  }
 }
 
 /**
@@ -202,45 +209,52 @@ export async function handleFileOpen(
  * and fills it in. Tabs that fail to read (file no longer exists) are auto-closed.
  */
 export async function restoreEditorAreaContent(
-    fileTreeLoaded: boolean,
-    deps: VfsDeps,
+  fileTreeLoaded: boolean,
+  deps: VfsDeps,
 ): Promise<void> {
-    const tabs = [...deps.editorArea.tabs];
-    if (tabs.length === 0) return;
+  const tabs = [...deps.editorArea.tabs];
+  if (tabs.length === 0) return;
 
-    const activeFilePath = deps.editorArea.activeFilePath;
-    deps.logger.debug("Restoring editor area content for", tabs.length, "tabs");
+  const activeFilePath = deps.editorArea.activeFilePath;
+  deps.logger.debug('Restoring editor area content for', tabs.length, 'tabs');
 
-    for (const tab of tabs) {
-        try {
-            const content = await virtualFS.read(tab.filePath);
+  for (const tab of tabs) {
+    try {
+      const content = await virtualFS.read(tab.filePath);
 
-            // Checkpoint: tab may have been closed during await
-            const stillExists = deps.editorArea.tabs.some(t => t.filePath === tab.filePath);
-            if (!stillExists) {
-                deps.logger.debug('Tab was closed during restore, skipping:', tab.filePath);
-                continue;
-            }
+      // Checkpoint: tab may have been closed during await
+      const stillExists = deps.editorArea.tabs.some(
+        (t) => t.filePath === tab.filePath,
+      );
+      if (!stillExists) {
+        deps.logger.debug(
+          'Tab was closed during restore, skipping:',
+          tab.filePath,
+        );
+        continue;
+      }
 
-            deps.editorArea.actions.loadContent(tab.filePath, content);
-        } catch {
-            // Check if tab still exists before closing (avoid reviving closed tabs)
-            const stillExists = deps.editorArea.tabs.some(t => t.filePath === tab.filePath);
-            if (stillExists) {
-                // File no longer exists in VFS (e.g. deleted by another client), close the tab.
-                deps.logger.warn(
-                    "Restored tab file not found in VFS, closing:",
-                    tab.filePath,
-                );
-                deps.editorArea.actions.closeFile(tab.filePath);
-            }
-        }
+      deps.editorArea.actions.loadContent(tab.filePath, content);
+    } catch {
+      // Check if tab still exists before closing (avoid reviving closed tabs)
+      const stillExists = deps.editorArea.tabs.some(
+        (t) => t.filePath === tab.filePath,
+      );
+      if (stillExists) {
+        // File no longer exists in VFS (e.g. deleted by another client), close the tab.
+        deps.logger.warn(
+          'Restored tab file not found in VFS, closing:',
+          tab.filePath,
+        );
+        deps.editorArea.actions.closeFile(tab.filePath);
+      }
     }
+  }
 
-    // If file tree is loaded, select the currently active file.
-    if (activeFilePath && fileTreeLoaded) {
-        deps.fileExplorer.actions.selectNode(activeFilePath);
-    }
+  // If file tree is loaded, select the currently active file.
+  if (activeFilePath && fileTreeLoaded) {
+    deps.fileExplorer.actions.selectNode(activeFilePath);
+  }
 }
 
 /**
@@ -270,68 +284,68 @@ const _savingFiles = new Set<string>();
  *    at most 1 extra iteration after drift detection.
  */
 export async function handleEditorSave(
-    filePath: string,
-    deps: VfsDeps,
+  filePath: string,
+  deps: VfsDeps,
 ): Promise<void> {
-    // -- Concurrency guard --
-    if (_savingFiles.has(filePath)) {
-        return;  // In-flight save will handle drift via its loop.
+  // -- Concurrency guard --
+  if (_savingFiles.has(filePath)) {
+    return; // In-flight save will handle drift via its loop.
+  }
+
+  _savingFiles.add(filePath);
+  let writeAttempted = false;
+  let lastWriteOk = false;
+
+  try {
+    // Loop until content is stable (no drift detected after write).
+    // Typically 1 iteration; 2 if user typed during the save; rarely more.
+    while (true) {
+      const tab = deps.editorArea.tabs.find((t) => t.filePath === filePath);
+      if (!tab) break; // Tab closed -- nothing to save.
+
+      writeAttempted = true;
+      const contentAtSave = tab.content;
+
+      try {
+        await virtualFS.write(filePath, contentAtSave, 'overwrite', {
+          editedByUser: true,
+        });
+        lastWriteOk = true;
+      } catch (err) {
+        deps.logger.error('Failed to save file:', filePath, err);
+        lastWriteOk = false;
+        break;
+      }
+
+      // -- Post-write consistency check --
+      const currentTab = deps.editorArea.tabs.find(
+        (t) => t.filePath === filePath,
+      );
+      if (!currentTab || currentTab.content === contentAtSave) {
+        break; // Content stable -- save complete.
+      }
+      // Content drifted (user typed during write).
+      // Continue loop -- next iteration reads fresh content.
+      // No need to call updateContent: tab already has latest
+      // content and isDirty=true from the input event handler.
     }
 
-    _savingFiles.add(filePath);
-    let writeAttempted = false;
-    let lastWriteOk = false;
+    // Settle state: one saveFile + one toast for the entire loop.
+    // Only update UI state if tab still exists (user didn't close it).
+    const tabStillExists = deps.editorArea.tabs.some(
+      (t) => t.filePath === filePath,
+    );
 
-    try {
-        // Loop until content is stable (no drift detected after write).
-        // Typically 1 iteration; 2 if user typed during the save; rarely more.
-        while (true) {
-            const tab = deps.editorArea.tabs.find((t) => t.filePath === filePath);
-            if (!tab) break;  // Tab closed -- nothing to save.
-
-            writeAttempted = true;
-            const contentAtSave = tab.content;
-
-            try {
-                await virtualFS.write(filePath, contentAtSave, "overwrite", {
-                    editedByUser: true,
-                });
-                lastWriteOk = true;
-            } catch (err) {
-                deps.logger.error("Failed to save file:", filePath, err);
-                lastWriteOk = false;
-                break;
-            }
-
-            // -- Post-write consistency check --
-            const currentTab = deps.editorArea.tabs.find(
-                (t) => t.filePath === filePath,
-            );
-            if (!currentTab || currentTab.content === contentAtSave) {
-                break;  // Content stable -- save complete.
-            }
-            // Content drifted (user typed during write).
-            // Continue loop -- next iteration reads fresh content.
-            // No need to call updateContent: tab already has latest
-            // content and isDirty=true from the input event handler.
-        }
-
-        // Settle state: one saveFile + one toast for the entire loop.
-        // Only update UI state if tab still exists (user didn't close it).
-        const tabStillExists = deps.editorArea.tabs.some(
-            (t) => t.filePath === filePath
-        );
-
-        if (writeAttempted && lastWriteOk && tabStillExists) {
-            deps.editorArea.actions.saveFile(filePath);
-            deps.toast.show(msg("已保存"), "success");
-        } else if (writeAttempted && !lastWriteOk) {
-            deps.toast.show(msg("保存文件失败"), "error");
-        }
-        // else: tab was closed or never existed, do nothing
-    } finally {
-        _savingFiles.delete(filePath);
+    if (writeAttempted && lastWriteOk && tabStillExists) {
+      deps.editorArea.actions.saveFile(filePath);
+      deps.toast.show(msg('已保存'), 'success');
+    } else if (writeAttempted && !lastWriteOk) {
+      deps.toast.show(msg('保存文件失败'), 'error');
     }
+    // else: tab was closed or never existed, do nothing
+  } finally {
+    _savingFiles.delete(filePath);
+  }
 }
 
 // ── Cross-tab File Change Handling ──
@@ -351,55 +365,55 @@ export async function handleEditorSave(
  * @param loadChildren - Callback to reload a directory's children.
  */
 export async function handleFileChange(
-    filePath: string,
-    field: string,
-    fileTreeLoaded: boolean,
-    deps: VfsDeps,
-    loadTree: () => Promise<void>,
-    loadChildren: (path: string) => Promise<void>,
+  filePath: string,
+  field: string,
+  fileTreeLoaded: boolean,
+  deps: VfsDeps,
+  loadTree: () => Promise<void>,
+  loadChildren: (path: string) => Promise<void>,
 ): Promise<void> {
-    if (field === "batch") {
-        if (fileTreeLoaded) {
-            void loadTree();
-        }
-        return;
-    }
-
-    // Derive parent directory path.
-    const lastSlash = filePath.lastIndexOf("/");
-    const parentPath = lastSlash <= 0 ? "/" : filePath.substring(0, lastSlash);
-
-    // Refresh parent directory's children in the file tree.
+  if (field === 'batch') {
     if (fileTreeLoaded) {
-        if (parentPath === "/") {
-            void loadTree();
-        } else {
-            void loadChildren(parentPath);
-        }
+      void loadTree();
     }
+    return;
+  }
 
-    if (field === "write" || field === "create") {
-        // If the file is open and unmodified, silently reload content.
-        const tab = deps.editorArea.tabs.find((t) => t.filePath === filePath);
-        if (tab && !tab.isDirty) {
-            try {
-                const content = await virtualFS.read(filePath);
-                // Fix 48: Use loadContent instead of openFile to preserve viewMode and cursor position
-                deps.editorArea.actions.loadContent(filePath, content);
-            } catch {
-                // Read failed — keep current content.
-            }
-        } else if (tab?.isDirty) {
-            deps.toast.show(msg(str`文件 ${filePath} 被其他标签页修改`), "info");
-        }
-    } else if (field === "delete") {
-        // File deleted: close tab if open.
-        const tab = deps.editorArea.tabs.find((t) => t.filePath === filePath);
-        if (tab) {
-            deps.editorArea.actions.closeFile(filePath);
-            deps.toast.show(msg(str`文件 ${filePath} 已被删除`), "info");
-        }
+  // Derive parent directory path.
+  const lastSlash = filePath.lastIndexOf('/');
+  const parentPath = lastSlash <= 0 ? '/' : filePath.substring(0, lastSlash);
+
+  // Refresh parent directory's children in the file tree.
+  if (fileTreeLoaded) {
+    if (parentPath === '/') {
+      void loadTree();
+    } else {
+      void loadChildren(parentPath);
     }
+  }
+
+  if (field === 'write' || field === 'create') {
+    // If the file is open and unmodified, silently reload content.
+    const tab = deps.editorArea.tabs.find((t) => t.filePath === filePath);
+    if (tab && !tab.isDirty) {
+      try {
+        const content = await virtualFS.read(filePath);
+        // Fix 48: Use loadContent instead of openFile to preserve viewMode and cursor position
+        deps.editorArea.actions.loadContent(filePath, content);
+      } catch {
+        // Read failed — keep current content.
+      }
+    } else if (tab?.isDirty) {
+      deps.toast.show(msg(str`文件 ${filePath} 被其他标签页修改`), 'info');
+    }
+  } else if (field === 'delete') {
+    // File deleted: close tab if open.
+    const tab = deps.editorArea.tabs.find((t) => t.filePath === filePath);
+    if (tab) {
+      deps.editorArea.actions.closeFile(filePath);
+      deps.toast.show(msg(str`文件 ${filePath} 已被删除`), 'info');
+    }
+  }
 }
 
 // ── Restore Default ──
@@ -408,33 +422,36 @@ export async function handleFileChange(
  * Dependencies for handleRestoreDefault.
  */
 export interface RestoreDefaultDeps {
-    persistence: {
-        workerBridge?: {
-            core: {
-                virtualFSWrite(
-                    path: string,
-                    content: string,
-                    mode: 'overwrite' | 'append',
-                    metadataOverride?: Partial<{ editedByUser: boolean }>,
-                ): Promise<number>;
-            };
-        };
+  persistence: {
+    workerBridge?: {
+      core: {
+        virtualFSWrite(
+          path: string,
+          content: string,
+          mode: 'overwrite' | 'append',
+          metadataOverride?: Partial<{ editedByUser: boolean }>,
+        ): Promise<number>;
+      };
     };
-    editorArea: {
-        actions: {
-            loadContent(path: string, content: string): void;
-        };
+  };
+  editorArea: {
+    actions: {
+      loadContent(path: string, content: string): void;
     };
-    skill: {
-        actions: {
-            getRegistry(): {
-                generateAllDocsContent(scenarioCount?: number): Promise<{files: Array<{path: string; content: string}>; deletePaths: string[]}>;
-            } | null;
-        };
+  };
+  skill: {
+    actions: {
+      getRegistry(): {
+        generateAllDocsContent(scenarioCount?: number): Promise<{
+          files: Array<{ path: string; content: string }>;
+          deletePaths: string[];
+        }>;
+      } | null;
     };
-    scenariosURL: string;
-    toast: ToastActions;
-    logger: Logger;
+  };
+  scenariosURL: string;
+  toast: ToastActions;
+  logger: Logger;
 }
 
 /**
@@ -446,59 +463,67 @@ export interface RestoreDefaultDeps {
  * After restore, sets `editedByUser: false` to allow future system updates.
  */
 export async function handleRestoreDefault(
-    filePath: string,
-    deps: RestoreDefaultDeps,
-): Promise<{success: boolean; error?: string}> {
-    const bridge = deps.persistence.workerBridge;
-    if (!bridge) {
-        return {success: false, error: 'Persistence not connected'};
+  filePath: string,
+  deps: RestoreDefaultDeps,
+): Promise<{ success: boolean; error?: string }> {
+  const bridge = deps.persistence.workerBridge;
+  if (!bridge) {
+    return { success: false, error: 'Persistence not connected' };
+  }
+
+  try {
+    let defaultContent: string | null = null;
+
+    // Determine default content based on file path
+    if (filePath === '/AGENT.md' || filePath.startsWith('/functions/')) {
+      // Generate from registry
+      const registry = deps.skill.actions.getRegistry();
+      if (!registry) {
+        return { success: false, error: 'Registry not available' };
+      }
+      const { files } = await registry.generateAllDocsContent(0);
+      const file = files.find((f) => f.path === filePath);
+      if (file) {
+        defaultContent = file.content;
+      }
+    } else if (filePath.startsWith('/scenarios/')) {
+      // Reload from scenariosURL
+      if (!deps.scenariosURL) {
+        return { success: false, error: 'Scenarios URL not configured' };
+      }
+      // Import scenario-loader dynamically to avoid circular dependency
+      const { loadScenariosContent } = await import(
+        '../../../core/scenario-loader.js'
+      );
+      const { files } = await loadScenariosContent(deps.scenariosURL);
+      const file = files.find((f) => f.path === filePath);
+      if (file) {
+        defaultContent = file.content;
+      }
     }
 
-    try {
-        let defaultContent: string | null = null;
-
-        // Determine default content based on file path
-        if (filePath === '/AGENT.md' || filePath.startsWith('/functions/')) {
-            // Generate from registry
-            const registry = deps.skill.actions.getRegistry();
-            if (!registry) {
-                return {success: false, error: 'Registry not available'};
-            }
-            const {files} = await registry.generateAllDocsContent(0);
-            const file = files.find(f => f.path === filePath);
-            if (file) {
-                defaultContent = file.content;
-            }
-        } else if (filePath.startsWith('/scenarios/')) {
-            // Reload from scenariosURL
-            if (!deps.scenariosURL) {
-                return {success: false, error: 'Scenarios URL not configured'};
-            }
-            // Import scenario-loader dynamically to avoid circular dependency
-            const {loadScenariosContent} = await import('../../../core/scenario-loader.js');
-            const {files} = await loadScenariosContent(deps.scenariosURL);
-            const file = files.find(f => f.path === filePath);
-            if (file) {
-                defaultContent = file.content;
-            }
-        }
-
-        if (defaultContent === null) {
-            return {success: false, error: 'Cannot determine default content for this file'};
-        }
-
-        // Write to VFS with editedByUser: false
-        await bridge.core.virtualFSWrite(filePath, defaultContent, 'overwrite', {
-            editedByUser: false,
-        });
-
-        // Update editor content (silent, no dirty flag)
-        deps.editorArea.actions.loadContent(filePath, defaultContent);
-
-        deps.logger.info('Restored file to default:', filePath);
-        return {success: true};
-    } catch (err) {
-        deps.logger.error('Failed to restore default:', filePath, err);
-        return {success: false, error: err instanceof Error ? err.message : String(err)};
+    if (defaultContent === null) {
+      return {
+        success: false,
+        error: 'Cannot determine default content for this file',
+      };
     }
+
+    // Write to VFS with editedByUser: false
+    await bridge.core.virtualFSWrite(filePath, defaultContent, 'overwrite', {
+      editedByUser: false,
+    });
+
+    // Update editor content (silent, no dirty flag)
+    deps.editorArea.actions.loadContent(filePath, defaultContent);
+
+    deps.logger.info('Restored file to default:', filePath);
+    return { success: true };
+  } catch (err) {
+    deps.logger.error('Failed to restore default:', filePath, err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
 }

@@ -6,24 +6,36 @@
  * rtc-message, rtc-toolcall-card, rtc-user-message, etc.
  */
 
-import type {ContentData, PromptContent} from '../types/index.js';
-import {getLocale} from '../core/i18n.js';
-import {msg, str} from '@lit/localize';
+import type { ContentData, PromptContent } from '../types/index.js';
+import { msg, str } from '@lit/localize';
+import { getLocale } from '../core/i18n.js';
 
 /**
- * Format a timestamp (ms since epoch) into a compact MM-DD HH:mm string.
+ * Format a timestamp (ms since epoch) into a locale-aware compact string.
  *
- * Used in timeline dots and message metadata where full dates are unnecessary.
+ * Uses `Intl.DateTimeFormat` to produce a format appropriate for the current
+ * locale. Only the month, day, hour, and minute are included — the year is
+ * intentionally omitted because this helper is used in timeline dots and
+ * message metadata where a full date would be excessive.
+ *
  * Returns empty string for falsy input.
  */
-export function formatTimestampCompact(timestamp: number | undefined | null): string {
+export function formatTimestampCompact(
+  timestamp: number | undefined | null,
+): string {
   if (!timestamp) return '';
   const date = new Date(timestamp);
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  return `${month}-${day} ${hours}:${minutes}`;
+  const locale = getLocale();
+
+  const formatter = new Intl.DateTimeFormat(locale, {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+
+  return formatter.format(date);
 }
 
 /**
@@ -51,16 +63,20 @@ export function formatBanMessage(reason?: string): string {
  *
  * Used for clipboard copy operations across message components.
  */
-export function extractTextContent(content: ContentData | undefined | null): string {
+export function extractTextContent(
+  content: ContentData | undefined | null,
+): string {
   if (!content) return '';
 
   switch (content.type) {
     case 'text':
     case 'markdown':
     case 'thinking':
-      return typeof content.data === 'string' ? content.data : JSON.stringify(content.data);
+      return typeof content.data === 'string'
+        ? content.data
+        : JSON.stringify(content.data);
     case 'summary':
-      return getLocale() === 'en-US' ? '[Messages compressed]' : '[消息已被压缩]';
+      return msg('[消息已被压缩]');
     case 'prompt': {
       // Extract readable text from prompt for clipboard copy
       const pc = content.data as PromptContent;
@@ -71,10 +87,13 @@ export function extractTextContent(content: ContentData | undefined | null): str
       return parts.join('\n');
     }
     case 'user_message': {
-      const data = content.data as {text?: string; scenarios?: Array<{title: string}>};
+      const data = content.data as {
+        text?: string;
+        scenarios?: Array<{ title: string }>;
+      };
       let result = data?.text ?? '';
       if (data?.scenarios?.length) {
-        const tags = data.scenarios.map(s => `#${s.title}`).join(' ');
+        const tags = data.scenarios.map((s) => `#${s.title}`).join(' ');
         result = `${tags}\n${result}`;
       }
       return result;
@@ -82,19 +101,23 @@ export function extractTextContent(content: ContentData | undefined | null): str
     case 'toolcall_input': {
       // Extract tool name for display
       const data = content.data as { tool_name?: string; name?: string };
-      return data?.tool_name || data?.name || '[工具调用]';
+      return data?.tool_name || data?.name || msg('[工具调用]');
     }
     case 'toolcall_output': {
       // Extract tool name for display
       const data = content.data as { tool_name?: string; name?: string };
-      return data?.tool_name || data?.name || '[工具结果]';
+      return data?.tool_name || data?.name || msg('[工具结果]');
     }
     case 'error': {
       // Extract error title or message for display
       const data = content.data as { title?: string; message?: string };
-      return data?.title || data?.message || '[错误]';
+      return data?.title || data?.message || msg('[错误]');
     }
     default:
-      return typeof content.data === 'string' ? content.data : (content.data != null ? JSON.stringify(content.data) : '');
+      return typeof content.data === 'string'
+        ? content.data
+        : content.data != null
+          ? JSON.stringify(content.data)
+          : '';
   }
 }

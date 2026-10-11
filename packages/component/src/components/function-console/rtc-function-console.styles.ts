@@ -1,4 +1,4 @@
-import {css} from 'lit';
+import { css } from 'lit';
 
 /**
  * Function Console Component Styles

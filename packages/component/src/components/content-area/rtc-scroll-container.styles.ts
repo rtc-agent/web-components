@@ -4,7 +4,7 @@
  * Provides scroll lock functionality with smooth transitions.
  * Uses CSS variables for flexible height configuration.
  */
-import {css} from 'lit';
+import { css } from 'lit';
 
 export const styles = css`
   :host {

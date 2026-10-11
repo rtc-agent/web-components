@@ -1063,6 +1063,162 @@
   <source>拖动滑块选择导出的消息数量</source>
   <target>Drag slider to select number of messages to export</target>
 </trans-unit>
+<trans-unit id="s7c5df153a8288d77">
+  <source>todoWrite (<x id="0" equiv-text="${count}"/> tasks)</source>
+  <target>todoWrite (<x id="0" equiv-text="${count}"/> tasks)</target>
+</trans-unit>
+<trans-unit id="s09243807b5b91d9e">
+  <source>In</source>
+  <target>In</target>
+</trans-unit>
+<trans-unit id="s3643189d1abbb7f4">
+  <source>Code</source>
+  <target>Code</target>
+</trans-unit>
+<trans-unit id="sef49aec68fd1dc66">
+  <source>Name</source>
+  <target>Name</target>
+</trans-unit>
+<trans-unit id="sa442044b586ec8bf">
+  <source>Action</source>
+  <target>Action</target>
+</trans-unit>
+<trans-unit id="s2a4459ebb65a8773">
+  <source>Params</source>
+  <target>Params</target>
+</trans-unit>
+<trans-unit id="sa0903f2fc0126db5">
+  <source>没有附件</source>
+  <target>No attachments</target>
+</trans-unit>
+<trans-unit id="sf3349f071f2bab10">
+  <source>附件列表</source>
+  <target>Attachments</target>
+</trans-unit>
+<trans-unit id="s795fca7acd5146f2">
+  <source>未命名文件</source>
+  <target>Untitled file</target>
+</trans-unit>
+<trans-unit id="se03b0995736ec63d">
+  <source>文件过大，不支持预览</source>
+  <target>File too large to preview</target>
+</trans-unit>
+<trans-unit id="s631275c801a0881f">
+  <source>图片加载失败</source>
+  <target>Failed to load image</target>
+</trans-unit>
+<trans-unit id="s132a9d11517f52d1">
+  <source>文件过大，仅显示部分内容</source>
+  <target>File too large, showing partial content</target>
+</trans-unit>
+<trans-unit id="sea0723ac2f4955af">
+  <source>不支持的文件类型</source>
+  <target>Unsupported file type</target>
+</trans-unit>
+<trans-unit id="s9a9759b2d054bbdc">
+  <source>文件预览</source>
+  <target>File preview</target>
+</trans-unit>
+<trans-unit id="s473e939112690a50">
+  <source>加载失败</source>
+  <target>Load failed</target>
+</trans-unit>
+<trans-unit id="s9d1b66ae2017a0e5">
+  <source>重试上传</source>
+  <target>Retry upload</target>
+</trans-unit>
+<trans-unit id="s19701948ff347238">
+  <source>等待同步</source>
+  <target>Waiting for sync</target>
+</trans-unit>
+<trans-unit id="sac77b3a437c0f21d">
+  <source>正在同步...</source>
+  <target>Syncing...</target>
+</trans-unit>
+<trans-unit id="s2f015ae7a7bb3cec">
+  <source>同步失败</source>
+  <target>Sync failed</target>
+</trans-unit>
+<trans-unit id="sf3bfb0839acc4bb7">
+  <source>删除 <x id="0" equiv-text="${this.filename}"/></source>
+  <target>Delete <x id="0" equiv-text="${this.filename}"/></target>
+</trans-unit>
+<trans-unit id="sf3090d705d4de077">
+  <source>预览 <x id="0" equiv-text="${this.filename}"/></source>
+  <target>Preview <x id="0" equiv-text="${this.filename}"/></target>
+</trans-unit>
+<trans-unit id="s9efa87c074d8d44a">
+  <source>场景 (<x id="0" equiv-text="${this._selectedScenarios.length}"/> 个已选)</source>
+  <target>Scenarios (<x id="0" equiv-text="${this._selectedScenarios.length}"/> selected)</target>
+</trans-unit>
+<trans-unit id="sf2481147b3ce6abe">
+  <source>PKCE code_verifier 丢失，请重试</source>
+  <target>PKCE code_verifier lost, please retry</target>
+</trans-unit>
+<trans-unit id="safeee8e94294ce81">
+  <source>Token Usage</source>
+  <target>Token Usage</target>
+</trans-unit>
+<trans-unit id="sc78573353e0a4d83">
+  <source>Token Usage Details</source>
+  <target>Token Usage Details</target>
+</trans-unit>
+<trans-unit id="sdb1595f5c742dfbb">
+  <source>Input</source>
+  <target>Input</target>
+</trans-unit>
+<trans-unit id="sfd77270c3f54f664">
+  <source>Output</source>
+  <target>Output</target>
+</trans-unit>
+<trans-unit id="sdbf3b8a1280175a5">
+  <source>Cache</source>
+  <target>Cache</target>
+</trans-unit>
+<trans-unit id="s9602e0626cc3c8a2">
+  <source>Cache Hit Rate</source>
+  <target>Cache Hit Rate</target>
+</trans-unit>
+<trans-unit id="sabd480ab5c691fa7">
+  <source>Reasoning</source>
+  <target>Reasoning</target>
+</trans-unit>
+<trans-unit id="sed8ec5e3c64fa25d">
+  <source>Total</source>
+  <target>Total</target>
+</trans-unit>
+<trans-unit id="s1161064ed62e14c4">
+  <source>Est. Next Round</source>
+  <target>Est. Next Round</target>
+</trans-unit>
+<trans-unit id="s2396bfaee7bf06d3">
+  <source>Compression in <x id="0" equiv-text="${this.roundsUntilCompression}"/> rounds</source>
+  <target>Compression in <x id="0" equiv-text="${this.roundsUntilCompression}"/> rounds</target>
+</trans-unit>
+<trans-unit id="s7773cbe732aa7fa3">
+  <source>您的账号已被封禁：<x id="0" equiv-text="${reason}"/></source>
+  <target>Your account has been banned: <x id="0" equiv-text="${reason}"/></target>
+</trans-unit>
+<trans-unit id="sb6ab433486b16078">
+  <source>您的账号已被封禁，请联系管理员</source>
+  <target>Your account has been banned, please contact the administrator</target>
+</trans-unit>
+<trans-unit id="s799a9fd560be9d6f">
+  <source>[消息已被压缩]</source>
+  <target>[Message compressed]</target>
+</trans-unit>
+<trans-unit id="sf2e24055bed5ef70">
+  <source>[工具调用]</source>
+  <target>[Tool call]</target>
+</trans-unit>
+<trans-unit id="s7e07d284ba19cdf4">
+  <source>[工具结果]</source>
+  <target>[Tool result]</target>
+</trans-unit>
+<trans-unit id="sf0c7a6109f6e9f6d">
+  <source>[错误]</source>
+  <target>[Error]</target>
+</trans-unit>
 </body>
 </file>
 </xliff>

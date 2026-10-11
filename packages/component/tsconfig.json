@@ -5,15 +5,16 @@
     "rootDir": "./src",
     "experimentalDecorators": true,
     "useDefineForClassFields": false,
-    "types": [
-      "vitest/globals"
-    ]
+    "types": ["vitest/globals"]
   },
-  "include": [
-    "src/**/*"
-  ],
+  "include": ["src/**/*"],
   "exclude": [
-    "src/**/*.test.ts",
-    "src/**/test-*.ts"
+    "node_modules",
+    "dist",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.integration.test.ts",
+    "**/test-setup.ts",
+    "**/test-utils/**"
   ]
 }

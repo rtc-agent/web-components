@@ -41,5 +41,6 @@ Object.defineProperty(window, 'ResizeObserver', {
 // Used by message-list / scroll containers. jsdom implements scrollIntoView
 // but not scrollTo with options. Provide a no-op stub.
 if (typeof Element.prototype.scrollTo !== 'function') {
-  Element.prototype.scrollTo = function () {} as typeof Element.prototype.scrollTo;
+  Element.prototype.scrollTo =
+    function () {} as typeof Element.prototype.scrollTo;
 }

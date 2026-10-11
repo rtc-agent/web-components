@@ -46,7 +46,9 @@ export interface RtcAgentEventDetailMap {
   // ── Message interception ──
 
   /** Intercept before message send (cancel via preventDefault(), or modify detail.message.content) */
-  'rtc-before-message-send': { message: { content: string; metadata?: Record<string, unknown> } };
+  'rtc-before-message-send': {
+    message: { content: string; metadata?: Record<string, unknown> };
+  };
 
   // ── Connection & Auth ──
 
@@ -89,29 +91,53 @@ declare global {
   interface HTMLElementEventMap {
     // Lifecycle
     'rtc-agent-ready': CustomEvent<RtcAgentEventDetailMap['rtc-agent-ready']>;
-    'rtc-before-destroy': CustomEvent<RtcAgentEventDetailMap['rtc-before-destroy']>;
+    'rtc-before-destroy': CustomEvent<
+      RtcAgentEventDetailMap['rtc-before-destroy']
+    >;
     'rtc-theme-change': CustomEvent<RtcAgentEventDetailMap['rtc-theme-change']>;
 
     // Message interception
-    'rtc-before-message-send': CustomEvent<RtcAgentEventDetailMap['rtc-before-message-send']>;
+    'rtc-before-message-send': CustomEvent<
+      RtcAgentEventDetailMap['rtc-before-message-send']
+    >;
 
     // Connection & Auth
-    'rtc-connection-retry': CustomEvent<RtcAgentEventDetailMap['rtc-connection-retry']>;
-    'rtc-connection-state-change': CustomEvent<RtcAgentEventDetailMap['rtc-connection-state-change']>;
-    'rtc-auth-login-requested': CustomEvent<RtcAgentEventDetailMap['rtc-auth-login-requested']>;
+    'rtc-connection-retry': CustomEvent<
+      RtcAgentEventDetailMap['rtc-connection-retry']
+    >;
+    'rtc-connection-state-change': CustomEvent<
+      RtcAgentEventDetailMap['rtc-connection-state-change']
+    >;
+    'rtc-auth-login-requested': CustomEvent<
+      RtcAgentEventDetailMap['rtc-auth-login-requested']
+    >;
     'rtc-auth-login': CustomEvent<RtcAgentEventDetailMap['rtc-auth-login']>;
-    'rtc-auth-refresh-failed': CustomEvent<RtcAgentEventDetailMap['rtc-auth-refresh-failed']>;
+    'rtc-auth-refresh-failed': CustomEvent<
+      RtcAgentEventDetailMap['rtc-auth-refresh-failed']
+    >;
     'rtc-auth-logout': CustomEvent<RtcAgentEventDetailMap['rtc-auth-logout']>;
-    'rtc-account-banned': CustomEvent<RtcAgentEventDetailMap['rtc-account-banned']>;
+    'rtc-account-banned': CustomEvent<
+      RtcAgentEventDetailMap['rtc-account-banned']
+    >;
 
     // Session
-    'rtc-session-created': CustomEvent<RtcAgentEventDetailMap['rtc-session-created']>;
-    'rtc-session-switched': CustomEvent<RtcAgentEventDetailMap['rtc-session-switched']>;
-    'rtc-session-renamed': CustomEvent<RtcAgentEventDetailMap['rtc-session-renamed']>;
-    'rtc-session-deleted': CustomEvent<RtcAgentEventDetailMap['rtc-session-deleted']>;
+    'rtc-session-created': CustomEvent<
+      RtcAgentEventDetailMap['rtc-session-created']
+    >;
+    'rtc-session-switched': CustomEvent<
+      RtcAgentEventDetailMap['rtc-session-switched']
+    >;
+    'rtc-session-renamed': CustomEvent<
+      RtcAgentEventDetailMap['rtc-session-renamed']
+    >;
+    'rtc-session-deleted': CustomEvent<
+      RtcAgentEventDetailMap['rtc-session-deleted']
+    >;
 
     // Message
-    'rtc-message-received': CustomEvent<RtcAgentEventDetailMap['rtc-message-received']>;
+    'rtc-message-received': CustomEvent<
+      RtcAgentEventDetailMap['rtc-message-received']
+    >;
     'rtc-message-sent': CustomEvent<RtcAgentEventDetailMap['rtc-message-sent']>;
   }
 }

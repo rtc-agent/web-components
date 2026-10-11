@@ -5,9 +5,18 @@
  * Uses OpenAPI Schema format to describe parameters and return values.
  */
 
-import type { FunctionDef, FunctionGroupDef, RegistryConfig, OpenAPISchema, ParameterDef } from '../types/skill.js';
-import { zodToParams, zodToOpenAPISchema } from '../validation/zod-to-openapi.js';
-import {createLogger} from '@rtc-agent/client';
+import type {
+  FunctionDef,
+  FunctionGroupDef,
+  RegistryConfig,
+  OpenAPISchema,
+  ParameterDef,
+} from '../types/skill.js';
+import {
+  zodToParams,
+  zodToOpenAPISchema,
+} from '../validation/zod-to-openapi.js';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('MarkdownGenerator');
 
@@ -27,7 +36,7 @@ export function schemaToTypeString(schema: OpenAPISchema): string {
 
   // Union type (oneOf)
   if (schema.oneOf && schema.oneOf.length > 0) {
-    return schema.oneOf.map(s => schemaToTypeString(s)).join(' | ');
+    return schema.oneOf.map((s) => schemaToTypeString(s)).join(' | ');
   }
 
   // Array type
@@ -78,7 +87,7 @@ function schemaToTableRows(
   required: boolean,
   description?: string,
   depth: number = 0,
-  indentCache: string[] = []
+  indentCache: string[] = [],
 ): string[] {
   const rows: string[] = [];
   // Lazy-compute and cache indent string for current depth
@@ -89,14 +98,17 @@ function schemaToTableRows(
   const displayName = depth > 0 ? `└─ ${name}` : name;
 
   // Generate example value
-  const exampleStr = schema.example !== undefined ? `\`${JSON.stringify(schema.example)}\`` : '';
+  const exampleStr =
+    schema.example !== undefined ? `\`${JSON.stringify(schema.example)}\`` : '';
 
   // Primitive type
   if (schema.type && schema.type !== 'object' && schema.type !== 'array') {
     const typeStr = schemaToTypeString(schema);
     const desc = description || schema.description || '';
     const reqStr = required ? 'Yes' : 'No';
-    rows.push(`| ${indent}${displayName} | ${typeStr} | ${reqStr} | ${desc} | ${exampleStr} |`);
+    rows.push(
+      `| ${indent}${displayName} | ${typeStr} | ${reqStr} | ${desc} | ${exampleStr} |`,
+    );
     return rows;
   }
 
@@ -105,14 +117,27 @@ function schemaToTableRows(
     const typeStr = `${schemaToTypeString(schema.items)}[]`;
     const desc = description || schema.description || '';
     const reqStr = required ? 'Yes' : 'No';
-    rows.push(`| ${indent}${displayName} | ${typeStr} | ${reqStr} | ${desc} | ${exampleStr} |`);
+    rows.push(
+      `| ${indent}${displayName} | ${typeStr} | ${reqStr} | ${desc} | ${exampleStr} |`,
+    );
 
     // If items is an object, expand its properties
     if (schema.items.type === 'object' && schema.items.properties) {
       const requiredFields = (schema.items.required || []) as string[];
-      for (const [propName, propSchema] of Object.entries(schema.items.properties)) {
+      for (const [propName, propSchema] of Object.entries(
+        schema.items.properties,
+      )) {
         const propRequired = requiredFields.includes(propName);
-        rows.push(...schemaToTableRows(propSchema, propName, propRequired, propSchema.description, depth + 1, indentCache));
+        rows.push(
+          ...schemaToTableRows(
+            propSchema,
+            propName,
+            propRequired,
+            propSchema.description,
+            depth + 1,
+            indentCache,
+          ),
+        );
       }
     }
     return rows;
@@ -122,13 +147,24 @@ function schemaToTableRows(
   if (schema.type === 'object' && schema.properties) {
     const desc = description || schema.description || '';
     const reqStr = required ? 'Yes' : 'No';
-    rows.push(`| ${indent}${displayName} | object | ${reqStr} | ${desc} | ${exampleStr} |`);
+    rows.push(
+      `| ${indent}${displayName} | object | ${reqStr} | ${desc} | ${exampleStr} |`,
+    );
 
     // Expand properties
     const requiredFields = (schema.required || []) as string[];
     for (const [propName, propSchema] of Object.entries(schema.properties)) {
       const propRequired = requiredFields.includes(propName);
-      rows.push(...schemaToTableRows(propSchema, propName, propRequired, propSchema.description, depth + 1, indentCache));
+      rows.push(
+        ...schemaToTableRows(
+          propSchema,
+          propName,
+          propRequired,
+          propSchema.description,
+          depth + 1,
+          indentCache,
+        ),
+      );
     }
     return rows;
   }
@@ -137,7 +173,9 @@ function schemaToTableRows(
   const typeStr = schemaToTypeString(schema);
   const desc = description || schema.description || '';
   const reqStr = required ? 'Yes' : 'No';
-  rows.push(`| ${indent}${displayName} | ${typeStr} | ${reqStr} | ${desc} | ${exampleStr} |`);
+  rows.push(
+    `| ${indent}${displayName} | ${typeStr} | ${reqStr} | ${desc} | ${exampleStr} |`,
+  );
   return rows;
 }
 
@@ -146,7 +184,10 @@ function schemaToTableRows(
  *
  * Adds a generation identifier comment at the file header to mark it as auto-generated
  */
-export function generateFunctionMd(funcDef: FunctionDef, groupName?: string): string {
+export function generateFunctionMd(
+  funcDef: FunctionDef,
+  groupName?: string,
+): string {
   // Generate identifier comment (used to identify auto-generated files)
   let md = `<!-- AUTO-GENERATED by rtc-agent FunctionRegistry. Do not edit manually. -->\n\n`;
   md += `# ${funcDef.name}\n\n`;
@@ -158,7 +199,10 @@ export function generateFunctionMd(funcDef: FunctionDef, groupName?: string): st
     try {
       parameters = zodToParams(funcDef.zodSchema);
     } catch (err) {
-      log.warn(`Failed to convert zodSchema to parameters for ${funcDef.name}:`, err);
+      log.warn(
+        `Failed to convert zodSchema to parameters for ${funcDef.name}:`,
+        err,
+      );
     }
   }
 
@@ -168,7 +212,10 @@ export function generateFunctionMd(funcDef: FunctionDef, groupName?: string): st
     try {
       returnSchema = zodToOpenAPISchema(funcDef.returns.zodSchema);
     } catch (err) {
-      log.warn(`Failed to convert returns.zodSchema to OpenAPI schema for ${funcDef.name}:`, err);
+      log.warn(
+        `Failed to convert returns.zodSchema to OpenAPI schema for ${funcDef.name}:`,
+        err,
+      );
     }
   }
 
@@ -183,7 +230,10 @@ export function generateFunctionMd(funcDef: FunctionDef, groupName?: string): st
         param.schema,
         param.name,
         param.required || false,
-        (param.description || param.schema.description)?.replaceAll('\n', '<br/>'),
+        (param.description || param.schema.description)?.replaceAll(
+          '\n',
+          '<br/>',
+        ),
       );
       md += rows.join('\n') + '\n';
     }
@@ -197,8 +247,11 @@ export function generateFunctionMd(funcDef: FunctionDef, groupName?: string): st
     if (returnSchema) {
       // For object types with properties, just show "object" since details are in the table
       // For other types (including arrays), show the full type string
-      const isObjectWithProperties = returnSchema.type === 'object' && !!returnSchema.properties;
-      const returnType = isObjectWithProperties ? 'object' : schemaToTypeString(returnSchema);
+      const isObjectWithProperties =
+        returnSchema.type === 'object' && !!returnSchema.properties;
+      const returnType = isObjectWithProperties
+        ? 'object'
+        : schemaToTypeString(returnSchema);
       md += `**Type:** ${returnType}\n\n`;
       if (funcDef.returns.description || returnSchema.description) {
         md += `${funcDef.returns.description || returnSchema.description}\n\n`;
@@ -210,7 +263,9 @@ export function generateFunctionMd(funcDef: FunctionDef, groupName?: string): st
         md += `|-------|------|----------|-------------|---------|\n`;
 
         const requiredFields = (returnSchema.required || []) as string[];
-        for (const [propName, propSchema] of Object.entries(returnSchema.properties)) {
+        for (const [propName, propSchema] of Object.entries(
+          returnSchema.properties,
+        )) {
           const propRequired = requiredFields.includes(propName);
           const rows = schemaToTableRows(
             propSchema,
@@ -238,7 +293,8 @@ export function generateFunctionMd(funcDef: FunctionDef, groupName?: string): st
   // Add JSDoc comment with return type
   if (returnSchema) {
     const returnTypeStr = schemaToTypeString(returnSchema);
-    const returnDesc = funcDef.returns?.description || returnSchema.description || '';
+    const returnDesc =
+      funcDef.returns?.description || returnSchema.description || '';
     md += `/**\n`;
     md += ` * @returns {${returnTypeStr}}`;
     if (returnDesc) {
@@ -253,8 +309,8 @@ export function generateFunctionMd(funcDef: FunctionDef, groupName?: string): st
     md += `const result = await rtcAgent.${groupName}.${funcName}({\n`;
     if (parameters) {
       const params = parameters
-        .filter(p => p.required)
-        .map(p => `  ${p.name}: ${getExampleValue(p.schema)}`)
+        .filter((p) => p.required)
+        .map((p) => `  ${p.name}: ${getExampleValue(p.schema)}`)
         .join(',\n');
       md += params + '\n';
     }
@@ -264,8 +320,8 @@ export function generateFunctionMd(funcDef: FunctionDef, groupName?: string): st
     md += `const result = await rtcAgent.call('${funcDef.name}', {\n`;
     if (parameters) {
       const params = parameters
-        .filter(p => p.required)
-        .map(p => `  ${p.name}: ${getExampleValue(p.schema)}`)
+        .filter((p) => p.required)
+        .map((p) => `  ${p.name}: ${getExampleValue(p.schema)}`)
         .join(',\n');
       md += params + '\n';
     }
@@ -304,7 +360,8 @@ export function getExampleValue(schema: OpenAPISchema): string {
       if (schema.format === 'date-time') return '"2024-01-01T00:00:00Z"';
       if (schema.format === 'email') return '"user@example.com"';
       if (schema.format === 'uri') return '"https://example.com"';
-      if (schema.format === 'uuid') return '"550e8400-e29b-41d4-a716-446655440000"';
+      if (schema.format === 'uuid')
+        return '"550e8400-e29b-41d4-a716-446655440000"';
       return '"example"';
     case 'number':
     case 'integer':
@@ -327,14 +384,16 @@ export function getExampleValue(schema: OpenAPISchema): string {
  */
 export function generateFunctionsIndex(
   functions: FunctionDef[],
-  groups: FunctionGroupDef[]
+  groups: FunctionGroupDef[],
 ): string {
   let md = '# Functions Index\n\n';
 
   // Organize by group
   if (groups.length > 0) {
     for (const group of groups) {
-      const groupFunctions = functions.filter(f => f.name.startsWith(group.name + '.'));
+      const groupFunctions = functions.filter((f) =>
+        f.name.startsWith(group.name + '.'),
+      );
 
       if (groupFunctions.length > 0) {
         md += `## ${group.name} - ${group.description}\n\n`;
@@ -351,7 +410,7 @@ export function generateFunctionsIndex(
   }
 
   // Ungrouped Functions
-  const ungroupedFunctions = functions.filter(f => !f.name.includes('.'));
+  const ungroupedFunctions = functions.filter((f) => !f.name.includes('.'));
   if (ungroupedFunctions.length > 0) {
     md += `## General Functions\n\n`;
     md += `| Function | Description |\n`;
@@ -371,10 +430,12 @@ export function generateFunctionsIndex(
 /**
  * Generate Scenarios index
  */
-export function generateScenariosIndex(scenarios: Array<{
-  path: string;
-  metadata: { name?: string; tags?: string[]; description?: string };
-}>): string {
+export function generateScenariosIndex(
+  scenarios: Array<{
+    path: string;
+    metadata: { name?: string; tags?: string[]; description?: string };
+  }>,
+): string {
   let md = '# Scenarios Index\n\n';
   md += '| Title | Description | File | Tags |\n';
   md += '|-------|-------------|------|------|\n';
@@ -402,7 +463,7 @@ export function generateAgentMd(
   config: RegistryConfig,
   functions: FunctionDef[],
   groups: FunctionGroupDef[],
-  scenarioCount: number
+  scenarioCount: number,
 ): string {
   const sections = [
     generateAgentHeader(config),
@@ -482,7 +543,10 @@ function generateAgentTools(): string {
 /**
  * Available functions list (organized by group)
  */
-function generateAgentFunctions(functions: FunctionDef[], groups: FunctionGroupDef[]): string {
+function generateAgentFunctions(
+  functions: FunctionDef[],
+  groups: FunctionGroupDef[],
+): string {
   // Return empty if no functions at all
   if (functions.length === 0) return '';
 
@@ -490,7 +554,9 @@ function generateAgentFunctions(functions: FunctionDef[], groups: FunctionGroupD
 
   // List by group
   for (const group of groups) {
-    const groupFunctions = functions.filter(f => f.name.startsWith(group.name + '.'));
+    const groupFunctions = functions.filter((f) =>
+      f.name.startsWith(group.name + '.'),
+    );
     if (groupFunctions.length === 0) continue;
 
     md += `### ${group.name} - ${group.description}\n\n`;
@@ -502,7 +568,7 @@ function generateAgentFunctions(functions: FunctionDef[], groups: FunctionGroupD
   }
 
   // Ungrouped functions
-  const ungroupedFunctions = functions.filter(f => !f.name.includes('.'));
+  const ungroupedFunctions = functions.filter((f) => !f.name.includes('.'));
   if (ungroupedFunctions.length > 0) {
     md += `### General Functions\n\n`;
     for (const func of ungroupedFunctions) {

@@ -1,4 +1,4 @@
-import {createContext} from '@lit/context';
+import { createContext } from '@lit/context';
 
 /**
  * Turn Count Context — Number of active turns in the current session.
@@ -15,15 +15,15 @@ import {createContext} from '@lit/context';
  * Consumed by: <rtc-input-area>
  */
 export interface TurnCountContextValue {
-    pendingTurnCount: number;
-    runningTurnCount: number;
+  pendingTurnCount: number;
+  runningTurnCount: number;
 }
 
 export const TurnCountContext = createContext<TurnCountContextValue>(
-    Symbol('turn-count-context')
+  Symbol('turn-count-context'),
 );
 
 export const DEFAULT_TURN_COUNT: TurnCountContextValue = {
-    pendingTurnCount: 0,
-    runningTurnCount: 0,
+  pendingTurnCount: 0,
+  runningTurnCount: 0,
 };

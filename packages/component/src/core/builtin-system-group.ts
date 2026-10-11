@@ -14,13 +14,15 @@
 import type { FunctionDef } from '../types/skill.js';
 import type { FunctionRegistry } from './function-registry.js';
 import { z, withMeta } from '../validation/index.js';
+import { getLocale } from './i18n.js';
 
 /**
  * system group definition
  */
 export const SYSTEM_GROUP_DEF = {
   name: 'system',
-  description: 'System utilities — delay, UUID, timestamp, random, formatted time. These wrap platform APIs that are blocked in the script sandbox.',
+  description:
+    'System utilities — delay, UUID, timestamp, random, formatted time. These wrap platform APIs that are blocked in the script sandbox.',
 };
 
 /**
@@ -31,7 +33,7 @@ export const SYSTEM_GROUP_DEF = {
  */
 export function registerBuiltinSystemGroup(registry: FunctionRegistry): void {
   // If system group already exists (e.g. duplicate call), skip
-  if (registry.listGroups().some(g => g.name === 'system')) return;
+  if (registry.listGroups().some((g) => g.name === 'system')) return;
 
   const group = registry.createGroup(SYSTEM_GROUP_DEF);
   for (const fn of SYSTEM_FUNCTIONS) {
@@ -48,16 +50,28 @@ export function registerBuiltinSystemGroup(registry: FunctionRegistry): void {
  */
 export const DELAY_DEF: FunctionDef = {
   name: 'delay',
-  description: 'Pause execution for a specified duration. Returns a promise that resolves after the delay.',
+  description:
+    'Pause execution for a specified duration. Returns a promise that resolves after the delay.',
   zodSchema: z.object({
-    ms: z.number().int().min(0).max(60000).describe('Delay duration in milliseconds (0–60000)'),
+    ms: z
+      .number()
+      .int()
+      .min(0)
+      .max(60000)
+      .describe('Delay duration in milliseconds (0–60000)'),
   }),
   returns: {
     schema: {
       type: 'object',
       properties: {
-        completed: { type: 'boolean', description: 'Always true when delay finishes' },
-        elapsed: { type: 'integer', description: 'Actual elapsed time in milliseconds' },
+        completed: {
+          type: 'boolean',
+          description: 'Always true when delay finishes',
+        },
+        elapsed: {
+          type: 'integer',
+          description: 'Actual elapsed time in milliseconds',
+        },
       },
     },
     description: 'Object with completion status and actual elapsed time',
@@ -84,17 +98,34 @@ export const UUID_DEF: FunctionDef = {
   name: 'uuid',
   description: 'Generate a random UUID v4 string.',
   zodSchema: z.object({
-    count: z.number().int().min(1).max(100).default(1).describe('Number of UUIDs to generate (1–100). If omitted, returns a single string.'),
+    count: z
+      .number()
+      .int()
+      .min(1)
+      .max(100)
+      .default(1)
+      .describe(
+        'Number of UUIDs to generate (1–100). If omitted, returns a single string.',
+      ),
   }),
   returns: {
     schema: {
       oneOf: [
-        { type: 'string', format: 'uuid', description: 'A single UUID v4 string (when count is 1 or omitted)' },
-        { type: 'array', items: { type: 'string', format: 'uuid' }, description: 'Array of UUID v4 strings (when count > 1)' },
+        {
+          type: 'string',
+          format: 'uuid',
+          description: 'A single UUID v4 string (when count is 1 or omitted)',
+        },
+        {
+          type: 'array',
+          items: { type: 'string', format: 'uuid' },
+          description: 'Array of UUID v4 strings (when count > 1)',
+        },
       ],
       description: 'UUID v4 string or array of strings depending on count',
     },
-    description: 'UUID v4 string (when count=1) or array of UUID strings (when count>1)',
+    description:
+      'UUID v4 string (when count=1) or array of UUID strings (when count>1)',
   },
   handler: (params) => {
     const { count = 1 } = params as { count: number };
@@ -129,18 +160,29 @@ export const NOW_DEF: FunctionDef = {
  */
 export const RANDOM_DEF: FunctionDef = {
   name: 'random',
-  description: 'Generate a random number within a range. Can produce integers or floating-point values.',
+  description:
+    'Generate a random number within a range. Can produce integers or floating-point values.',
   zodSchema: z.object({
-    min: withMeta(z.number().default(0), { example: 1 }).describe('Minimum value (inclusive)'),
-    max: withMeta(z.number().default(1), { example: 100 }).describe('Maximum value (inclusive for integers, exclusive for floats)'),
-    integer: withMeta(z.boolean().default(false), { example: true }).describe('If true, generate an integer; otherwise generate a float'),
+    min: withMeta(z.number().default(0), { example: 1 }).describe(
+      'Minimum value (inclusive)',
+    ),
+    max: withMeta(z.number().default(1), { example: 100 }).describe(
+      'Maximum value (inclusive for integers, exclusive for floats)',
+    ),
+    integer: withMeta(z.boolean().default(false), { example: true }).describe(
+      'If true, generate an integer; otherwise generate a float',
+    ),
   }),
   returns: {
     schema: { type: 'number', description: 'Random number in [min, max]' },
     description: 'Random number',
   },
   handler: (params) => {
-    const { min, max, integer } = params as { min: number; max: number; integer: boolean };
+    const { min, max, integer } = params as {
+      min: number;
+      max: number;
+      integer: boolean;
+    };
 
     if (integer) {
       const lo = Math.ceil(min);
@@ -160,7 +202,10 @@ export const TIME_DEF: FunctionDef = {
   name: 'time',
   description: 'Get the current time as a formatted string.',
   zodSchema: z.object({
-    format: z.enum(['iso', 'locale', 'timestamp']).default('locale').describe('Output format'),
+    format: z
+      .enum(['iso', 'locale', 'timestamp'])
+      .default('locale')
+      .describe('Output format'),
   }),
   returns: {
     schema: { type: 'string', description: 'Formatted time string' },
@@ -176,7 +221,7 @@ export const TIME_DEF: FunctionDef = {
         return String(Date.now());
       case 'locale':
       default:
-        return now.toLocaleString();
+        return now.toLocaleString(getLocale());
     }
   },
 };
@@ -189,20 +234,27 @@ export const TIME_DEF: FunctionDef = {
  */
 export const TIMEZONE_DEF: FunctionDef = {
   name: 'timezone',
-  description: 'Get the local timezone information, including the IANA timezone name and current UTC offset.',
+  description:
+    'Get the local timezone information, including the IANA timezone name and current UTC offset.',
   returns: {
     schema: {
       type: 'object',
       properties: {
-        name: { type: 'string', description: 'IANA timezone name, e.g. "Asia/Shanghai"' },
-        offset: { type: 'string', description: 'UTC offset string, e.g. "+08:00"' },
+        name: {
+          type: 'string',
+          description: 'IANA timezone name, e.g. "Asia/Shanghai"',
+        },
+        offset: {
+          type: 'string',
+          description: 'UTC offset string, e.g. "+08:00"',
+        },
       },
     },
     description: 'Timezone name and UTC offset',
   },
   handler: () => {
     const name = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const offsetMinutes = -(new Date().getTimezoneOffset());
+    const offsetMinutes = -new Date().getTimezoneOffset();
     const sign = offsetMinutes >= 0 ? '+' : '-';
     const abs = Math.abs(offsetMinutes);
     const pad = (n: number) => String(n).padStart(2, '0');

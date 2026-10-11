@@ -9,209 +9,235 @@
  * Provided by: `<rtc-agent>` (root)
  * Consumed by: `<rtc-settings-layout>`, each feature component
  */
-import type {ReactiveController, ReactiveControllerHost} from 'lit';
+import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import type {
-    SettingsState,
-    SettingsActions,
-    SettingsContextValue,
+  SettingsState,
+  SettingsActions,
+  SettingsContextValue,
 } from '../contexts/settings.js';
-import {DEFAULT_SETTINGS_STATE} from '../contexts/settings.js';
-import {STORAGE_KEYS} from '../config/auth.js';
-import {createLogger} from '@rtc-agent/client';
+import { DEFAULT_SETTINGS_STATE } from '../contexts/settings.js';
+import { STORAGE_KEYS } from '../config/auth.js';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('SettingsController');
 
 export class SettingsController implements ReactiveController {
-    host: ReactiveControllerHost & HTMLElement;
+  host: ReactiveControllerHost & HTMLElement;
 
-    private _state: SettingsState = {...DEFAULT_SETTINGS_STATE};
+  private _state: SettingsState = { ...DEFAULT_SETTINGS_STATE };
 
-    readonly actions: SettingsActions;
+  readonly actions: SettingsActions;
 
-    private _storageListener?: () => void;
-    private _themeMediaQuery?: MediaQueryList;
-    private _themeMediaListener?: () => void;
+  private _storageListener?: () => void;
+  private _themeMediaQuery?: MediaQueryList;
+  private _themeMediaListener?: () => void;
 
-    get value(): SettingsContextValue {
-        return {state: this._state, actions: this.actions};
+  /**
+   * CRITICAL FIX: Value cache to prevent unnecessary Context consumer re-renders.
+   * @lit/context uses `===` comparison, so creating new objects every time triggers
+   * consumers even when the state hasn't changed. Cache the value object and only
+   * recreate when state reference changes.
+   */
+  private _cachedValue?: SettingsContextValue;
+  private _cachedState?: SettingsState;
+
+  get value(): SettingsContextValue {
+    // Only create new value object if state reference changed
+    if (this._cachedValue && this._cachedState === this._state) {
+      return this._cachedValue;
     }
+    this._cachedState = this._state;
+    this._cachedValue = { state: this._state, actions: this.actions };
+    return this._cachedValue;
+  }
 
-    constructor(host: ReactiveControllerHost & HTMLElement) {
-        this.host = host;
-        this.host.addController(this);
-        this.actions = {
-            updateAppearance: (p) => this._update('appearance', p),
-            updateChat: (p) => this._update('chat', p),
-            updateFiles: (p) => this._update('files', p),
-            updateNotifications: (p) => this._update('notifications', p),
-            resetAll: () => this._reset(),
-        };
+  constructor(host: ReactiveControllerHost & HTMLElement) {
+    this.host = host;
+    this.host.addController(this);
+    this.actions = {
+      updateAppearance: (p) => this._update('appearance', p),
+      updateChat: (p) => this._update('chat', p),
+      updateFiles: (p) => this._update('files', p),
+      updateNotifications: (p) => this._update('notifications', p),
+      resetAll: () => this._reset(),
+    };
 
-        // Restore settings from localStorage
-        this._restore();
+    // Restore settings from localStorage
+    this._restore();
+  }
+
+  hostConnected() {
+    // Clean up listeners from a previous connect cycle (disconnect → reconnect)
+    // to prevent leaked event listeners accumulating on window / media query.
+    this._removeGlobalListeners();
+
+    // Initialize theme media query BEFORE _applyTheme() (needed for 'system' resolution)
+    this._themeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    this._themeMediaListener = () => {
+      if (this._state.appearance.theme === 'system') {
+        this._applyTheme();
+      }
+    };
+    this._themeMediaQuery.addEventListener('change', this._themeMediaListener);
+
+    // Check if the user explicitly set the theme attribute before applying settings
+    const rtcAgent = this.host.closest('rtc-agent') || this.host;
+    const userSetTheme = rtcAgent.hasAttribute('theme');
+
+    // Apply initial settings to DOM (skip theme if user set it explicitly)
+    if (!userSetTheme) {
+      this._applyTheme();
     }
+    this._applyFontSize();
 
-    hostConnected() {
-        // Clean up listeners from a previous connect cycle (disconnect → reconnect)
-        // to prevent leaked event listeners accumulating on window / media query.
-        this._removeGlobalListeners();
+    // Listen for multi-tab synchronization
+    this._storageListener = () => this._handleStorageChange();
+    window.addEventListener('storage', this._storageListener);
+  }
 
-        // Initialize theme media query BEFORE _applyTheme() (needed for 'system' resolution)
-        this._themeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-        this._themeMediaListener = () => {
-            if (this._state.appearance.theme === 'system') {
-                this._applyTheme();
-            }
-        };
-        this._themeMediaQuery.addEventListener('change', this._themeMediaListener);
+  hostDisconnected() {
+    this._removeGlobalListeners();
+    // Clean up font size override
+    document.documentElement.style.removeProperty('--rtc-font-size-user');
+  }
 
-        // Check if the user explicitly set the theme attribute before applying settings
-        const rtcAgent = this.host.closest('rtc-agent') || this.host;
-        const userSetTheme = rtcAgent.hasAttribute('theme');
-
-        // Apply initial settings to DOM (skip theme if user set it explicitly)
-        if (!userSetTheme) {
-            this._applyTheme();
-        }
-        this._applyFontSize();
-
-        // Listen for multi-tab synchronization
-        this._storageListener = () => this._handleStorageChange();
-        window.addEventListener('storage', this._storageListener);
+  /** Remove all global event listeners (safe to call even if nothing was added). */
+  private _removeGlobalListeners(): void {
+    if (this._storageListener) {
+      window.removeEventListener('storage', this._storageListener);
+      this._storageListener = undefined;
     }
-
-    hostDisconnected() {
-        this._removeGlobalListeners();
-        // Clean up font size override
-        document.documentElement.style.removeProperty('--rtc-font-size-user');
+    if (this._themeMediaQuery && this._themeMediaListener) {
+      this._themeMediaQuery.removeEventListener(
+        'change',
+        this._themeMediaListener,
+      );
+      this._themeMediaListener = undefined;
     }
+  }
 
-    /** Remove all global event listeners (safe to call even if nothing was added). */
-    private _removeGlobalListeners(): void {
-        if (this._storageListener) {
-            window.removeEventListener('storage', this._storageListener);
-            this._storageListener = undefined;
-        }
-        if (this._themeMediaQuery && this._themeMediaListener) {
-            this._themeMediaQuery.removeEventListener('change', this._themeMediaListener);
-            this._themeMediaListener = undefined;
-        }
+  /** Restore settings from localStorage with validation */
+  private _restore() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.settings);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      // Merge group by group, keeping defaults as fallback and validating value range
+      this._state = {
+        appearance: {
+          theme: this._validateTheme(saved.appearance?.theme),
+          fontSize: this._validateFontSize(saved.appearance?.fontSize),
+        },
+        chat: { ...DEFAULT_SETTINGS_STATE.chat, ...saved.chat },
+        files: { ...DEFAULT_SETTINGS_STATE.files, ...saved.files },
+        notifications: {
+          ...DEFAULT_SETTINGS_STATE.notifications,
+          ...saved.notifications,
+        },
+      };
+    } catch (e) {
+      // localStorage may be unavailable or data corrupted
+      log.debug('Failed to restore settings:', e);
     }
+  }
 
-    /** Restore settings from localStorage with validation */
-    private _restore() {
-        try {
-            const raw = localStorage.getItem(STORAGE_KEYS.settings);
-            if (!raw) return;
-            const saved = JSON.parse(raw);
-            // Merge group by group, keeping defaults as fallback and validating value range
-            this._state = {
-                appearance: {
-                    theme: this._validateTheme(saved.appearance?.theme),
-                    fontSize: this._validateFontSize(saved.appearance?.fontSize),
-                },
-                chat: {...DEFAULT_SETTINGS_STATE.chat, ...saved.chat},
-                files: {...DEFAULT_SETTINGS_STATE.files, ...saved.files},
-                notifications: {...DEFAULT_SETTINGS_STATE.notifications, ...saved.notifications},
-            };
-        } catch (e) {
-            // localStorage may be unavailable or data corrupted
-            log.debug('Failed to restore settings:', e);
-        }
+  private _update<K extends keyof SettingsState>(
+    group: K,
+    partial: Partial<SettingsState[K]>,
+  ) {
+    const oldState = this._state;
+    this._state = {
+      ...this._state,
+      [group]: { ...this._state[group], ...partial },
+    };
+    this._persist();
+
+    // Apply DOM side effects incrementally
+    this._applyDiff(oldState, this._state);
+    this.host.requestUpdate();
+  }
+
+  private _reset() {
+    const oldState = this._state;
+    this._state = { ...DEFAULT_SETTINGS_STATE };
+    this._persist();
+    this._applyDiff(oldState, this._state);
+    this.host.requestUpdate();
+  }
+
+  /** Persist settings to localStorage */
+  private _persist() {
+    try {
+      localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(this._state));
+    } catch (e) {
+      // localStorage may be unavailable
+      log.debug('Failed to persist settings:', e);
     }
+  }
 
-    private _update<K extends keyof SettingsState>(
-        group: K,
-        partial: Partial<SettingsState[K]>
-    ) {
-        const oldState = this._state;
-        this._state = {
-            ...this._state,
-            [group]: {...this._state[group], ...partial},
-        };
-        this._persist();
-
-        // Apply DOM side effects incrementally
-        this._applyDiff(oldState, this._state);
-        this.host.requestUpdate();
+  /** Apply DOM side effects only for changed properties */
+  private _applyDiff(oldState: SettingsState, newState: SettingsState) {
+    if (oldState.appearance.theme !== newState.appearance.theme) {
+      this._applyTheme();
     }
-
-    private _reset() {
-        const oldState = this._state;
-        this._state = {...DEFAULT_SETTINGS_STATE};
-        this._persist();
-        this._applyDiff(oldState, this._state);
-        this.host.requestUpdate();
+    if (oldState.appearance.fontSize !== newState.appearance.fontSize) {
+      this._applyFontSize();
     }
+    // chat/files/notifications changes don't require DOM operations
+    // Consumer components handle these via context subscription
+  }
 
-    /** Persist settings to localStorage */
-    private _persist() {
-        try {
-            localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(this._state));
-        } catch (e) {
-            // localStorage may be unavailable
-            log.debug('Failed to persist settings:', e);
-        }
+  /** Apply theme to rtc-agent element's theme attribute */
+  private _applyTheme() {
+    const theme = this._state.appearance.theme;
+    // Resolve 'system' to 'light' or 'dark' based on OS preference
+    const resolvedTheme =
+      theme === 'system'
+        ? this._themeMediaQuery?.matches
+          ? 'dark'
+          : 'light'
+        : theme;
+    // Find rtc-agent element (host itself or closest ancestor)
+    const rtcAgent = this.host.closest('rtc-agent') || this.host;
+    if ('theme' in rtcAgent) {
+      // 'theme' in rtcAgent confirms the property exists at runtime;
+      // cast to the known property shape rather than `as any`.
+      (rtcAgent as { theme: string }).theme = resolvedTheme;
     }
+  }
 
-    /** Apply DOM side effects only for changed properties */
-    private _applyDiff(oldState: SettingsState, newState: SettingsState) {
-        if (oldState.appearance.theme !== newState.appearance.theme) {
-            this._applyTheme();
-        }
-        if (oldState.appearance.fontSize !== newState.appearance.fontSize) {
-            this._applyFontSize();
-        }
-        // chat/files/notifications changes don't require DOM operations
-        // Consumer components handle these via context subscription
-    }
+  /** Apply font size as CSS variable on document root */
+  private _applyFontSize() {
+    const size = this._state.appearance.fontSize;
+    const clamped = Math.min(24, Math.max(12, size));
+    // Set on document root so it propagates through all shadow DOMs
+    // tokens.ts defines --rtc-font-size-base as var(--rtc-font-size-user, 14px)
+    // so setting --rtc-font-size-user overrides the base size globally
+    document.documentElement.style.setProperty(
+      '--rtc-font-size-user',
+      `${clamped}px`,
+    );
+  }
 
-    /** Apply theme to rtc-agent element's theme attribute */
-    private _applyTheme() {
-        const theme = this._state.appearance.theme;
-        // Resolve 'system' to 'light' or 'dark' based on OS preference
-        const resolvedTheme =
-            theme === 'system'
-                ? (this._themeMediaQuery?.matches ? 'dark' : 'light')
-                : theme;
-        // Find rtc-agent element (host itself or closest ancestor)
-        const rtcAgent = this.host.closest('rtc-agent') || this.host;
-        if ('theme' in rtcAgent) {
-            // 'theme' in rtcAgent confirms the property exists at runtime;
-            // cast to the known property shape rather than `as any`.
-            (rtcAgent as {theme: string}).theme = resolvedTheme;
-        }
-    }
+  /** Handle multi-tab synchronization via storage event */
+  private _handleStorageChange() {
+    const oldState = this._state;
+    this._restore();
+    this._applyDiff(oldState, this._state);
+    this.host.requestUpdate();
+  }
 
-    /** Apply font size as CSS variable on document root */
-    private _applyFontSize() {
-        const size = this._state.appearance.fontSize;
-        const clamped = Math.min(24, Math.max(12, size));
-        // Set on document root so it propagates through all shadow DOMs
-        // tokens.ts defines --rtc-font-size-base as var(--rtc-font-size-user, 14px)
-        // so setting --rtc-font-size-user overrides the base size globally
-        document.documentElement.style.setProperty('--rtc-font-size-user', `${clamped}px`);
+  /** Validate theme value */
+  private _validateTheme(value: unknown): 'light' | 'dark' | 'system' {
+    if (value === 'light' || value === 'dark' || value === 'system') {
+      return value;
     }
+    return 'system';
+  }
 
-    /** Handle multi-tab synchronization via storage event */
-    private _handleStorageChange() {
-        const oldState = this._state;
-        this._restore();
-        this._applyDiff(oldState, this._state);
-        this.host.requestUpdate();
-    }
-
-    /** Validate theme value */
-    private _validateTheme(value: unknown): 'light' | 'dark' | 'system' {
-        if (value === 'light' || value === 'dark' || value === 'system') {
-            return value;
-        }
-        return 'system';
-    }
-
-    /** Validate and clamp font size */
-    private _validateFontSize(value: unknown): number {
-        const num = typeof value === 'number' ? value : 14;
-        return Math.min(24, Math.max(12, num));
-    }
+  /** Validate and clamp font size */
+  private _validateFontSize(value: unknown): number {
+    const num = typeof value === 'number' ? value : 14;
+    return Math.min(24, Math.max(12, num));
+  }
 }

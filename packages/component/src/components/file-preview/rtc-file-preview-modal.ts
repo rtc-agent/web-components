@@ -19,15 +19,18 @@
  * @csspart header - The modal header
  * @csspart body - The modal body
  */
-import {LitElement, html, nothing, type PropertyValues} from 'lit';
-import {customElement, property, state} from 'lit/decorators.js';
-import {consume} from '@lit/context';
-import {localized, msg} from '@lit/localize';
-import {styles} from './rtc-file-preview-modal.styles.js';
-import {createLogger} from '@rtc-agent/client';
-import {FileStorageContext, type FileStorageContextValue} from '../../contexts/file-storage.js';
-import {parseFileId} from '../../utils/file-id.js';
-import type {FileAttachment} from '../../types/index.js';
+import { LitElement, html, nothing, type PropertyValues } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import { consume } from '@lit/context';
+import { localized, msg } from '@lit/localize';
+import { styles } from './rtc-file-preview-modal.styles.js';
+import { createLogger } from '@rtc-agent/protocol';
+import {
+  FileStorageContext,
+  type FileStorageContextValue,
+} from '../../contexts/file-storage.js';
+import { parseFileId } from '../../utils/file-id.js';
+import type { FileAttachment } from '../../types/index.js';
 
 const log = createLogger('FilePreviewModal');
 
@@ -50,18 +53,18 @@ export class RtcFilePreviewModal extends LitElement {
 
   /* ── Context ── */
 
-  @consume({context: FileStorageContext, subscribe: true})
+  @consume({ context: FileStorageContext, subscribe: true })
   @state()
-  private _fileStorageCtx: FileStorageContextValue = {fileStorage: null};
+  private _fileStorageCtx: FileStorageContextValue = { fileStorage: null };
 
   /* ── Public Properties ── */
 
   /** File attachment to preview */
-  @property({type: Object})
+  @property({ type: Object })
   file: FileAttachment | null = null;
 
   /** Whether the modal is open */
-  @property({type: Boolean, reflect: true})
+  @property({ type: Boolean, reflect: true })
   open: boolean = false;
 
   /* ── Internal State ── */
@@ -130,17 +133,22 @@ export class RtcFilePreviewModal extends LitElement {
    * @param triggerElement - Element that triggered the preview (for focus restoration)
    */
   openPreview(file: FileAttachment, triggerElement?: HTMLElement): void {
-    this._triggerElement = triggerElement ?? (document.activeElement as HTMLElement);
+    this._triggerElement =
+      triggerElement ?? (document.activeElement as HTMLElement);
     this.file = file;
     this.open = true;
 
     // Focus close button after render
-    this.updateComplete.then(() => {
-      const closeBtn = this.shadowRoot?.querySelector('.close-btn') as HTMLElement;
-      closeBtn?.focus();
-    }).catch(err => {
-      log.warn('Failed to focus close button:', err);
-    });
+    this.updateComplete
+      .then(() => {
+        const closeBtn = this.shadowRoot?.querySelector(
+          '.close-btn',
+        ) as HTMLElement;
+        closeBtn?.focus();
+      })
+      .catch((err) => {
+        log.warn('Failed to focus close button:', err);
+      });
   }
 
   /** Close the preview modal */
@@ -154,10 +162,12 @@ export class RtcFilePreviewModal extends LitElement {
       this._triggerElement = null;
     }
 
-    this.dispatchEvent(new CustomEvent('rtc-preview-close', {
-      bubbles: true,
-      composed: true,
-    }));
+    this.dispatchEvent(
+      new CustomEvent('rtc-preview-close', {
+        bubbles: true,
+        composed: true,
+      }),
+    );
   }
 
   /* ── Private Methods ── */
@@ -194,10 +204,18 @@ export class RtcFilePreviewModal extends LitElement {
 
   /** Check if MIME type is text */
   private _isText(mimetype: string): boolean {
-    return mimetype.startsWith('text/') ||
-      ['application/json', 'application/xml', 'application/javascript',
-       'application/typescript', 'application/x-yaml', 'application/x-sh',
-       'application/x-shellscript'].includes(mimetype);
+    return (
+      mimetype.startsWith('text/') ||
+      [
+        'application/json',
+        'application/xml',
+        'application/javascript',
+        'application/typescript',
+        'application/x-yaml',
+        'application/x-sh',
+        'application/x-shellscript',
+      ].includes(mimetype)
+    );
   }
 
   /** Get filename from FileAttachment */
@@ -241,7 +259,7 @@ export class RtcFilePreviewModal extends LitElement {
         throw new Error('FileStorage not available');
       }
 
-      const {md5, ext} = parseFileId(this.file.fileid);
+      const { md5, ext } = parseFileId(this.file.fileid);
       const mimetype = this.file.mimetype;
 
       if (this._isImage(mimetype)) {
@@ -258,7 +276,8 @@ export class RtcFilePreviewModal extends LitElement {
       }
       log.error('Failed to load preview:', error);
       this._contentState = 'error';
-      this._errorMessage = error instanceof Error ? error.message : String(error);
+      this._errorMessage =
+        error instanceof Error ? error.message : String(error);
     }
   }
 
@@ -266,7 +285,7 @@ export class RtcFilePreviewModal extends LitElement {
   private async _loadImage(
     fileStorage: NonNullable<FileStorageContextValue['fileStorage']>,
     md5: string,
-    ext: string
+    ext: string,
   ): Promise<void> {
     try {
       // Download file and create Object URL
@@ -283,7 +302,10 @@ export class RtcFilePreviewModal extends LitElement {
       // Fallback: try presigned URL
       log.warn('Download failed, trying presigned URL fallback:', error);
       try {
-        this._fallbackUrl = await fileStorage.getPresignedUrl({md5, ext}, 3600);
+        this._fallbackUrl = await fileStorage.getPresignedUrl(
+          { md5, ext },
+          3600,
+        );
         this._contentState = 'fallback';
       } catch (fallbackError) {
         log.error('Fallback also failed:', fallbackError);
@@ -296,7 +318,7 @@ export class RtcFilePreviewModal extends LitElement {
   private async _loadText(
     fileStorage: NonNullable<FileStorageContextValue['fileStorage']>,
     md5: string,
-    ext: string
+    ext: string,
   ): Promise<void> {
     const filesize = this._getFilesize(this.file!);
 
@@ -386,7 +408,8 @@ export class RtcFilePreviewModal extends LitElement {
 
   /** Render image preview */
   private _renderImagePreview() {
-    const src = this._contentState === 'fallback' ? this._fallbackUrl : this._objectUrl;
+    const src =
+      this._contentState === 'fallback' ? this._fallbackUrl : this._objectUrl;
     if (!src) return nothing;
 
     const filename = this.file ? this._getFilename(this.file) : '';
@@ -408,9 +431,11 @@ export class RtcFilePreviewModal extends LitElement {
   private _renderTextPreview() {
     return html`
       <pre class="preview-text">${this._textContent}</pre>
-      ${this._textTruncated
-        ? html`<div class="truncation-notice">${msg('文件过大，仅显示部分内容')}</div>`
-        : nothing}
+      ${
+        this._textTruncated
+          ? html`<div class="truncation-notice">${msg('文件过大，仅显示部分内容')}</div>`
+          : nothing
+      }
     `;
   }
 
@@ -461,8 +486,12 @@ export class RtcFilePreviewModal extends LitElement {
     if (!this.open) return nothing;
 
     const isImageMode = this.file && this._isImage(this.file.mimetype);
-    const backdropClass = isImageMode ? 'modal-backdrop image-mode' : 'modal-backdrop';
-    const contentClass = isImageMode ? 'modal-content image-mode' : 'modal-content';
+    const backdropClass = isImageMode
+      ? 'modal-backdrop image-mode'
+      : 'modal-backdrop';
+    const contentClass = isImageMode
+      ? 'modal-content image-mode'
+      : 'modal-content';
 
     return html`
       <div

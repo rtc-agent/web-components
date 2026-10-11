@@ -1,5 +1,5 @@
-import {createContext} from '@lit/context';
-import type {AuthState} from '../types/index.js';
+import { createContext } from '@lit/context';
+import type { AuthState } from '../types/index.js';
 
 /**
  * Auth Context — tracks login status and tokens.
@@ -17,20 +17,20 @@ import type {AuthState} from '../types/index.js';
  * than `el.actions.login()`.
  */
 export interface AuthContextValue {
-    state: AuthState;
+  state: AuthState;
 
-    /** Trigger OAuth2 login flow (UI dispatches event; root handles). */
-    login(): void;
+  /** Trigger OAuth2 login flow (UI dispatches event; root handles). */
+  login(): void;
 
-    /** Clear auth state and return to login page. */
-    logout(): void;
+  /** Clear auth state and return to login page. */
+  logout(): void;
 }
 
 export const AuthContext = createContext<AuthContextValue>(
-    Symbol('auth-context')
+  Symbol('auth-context'),
 );
 
 /** Default auth state — not logged in. */
 export const DEFAULT_AUTH_STATE: AuthState = {
-    isLoggedIn: false,
+  isLoggedIn: false,
 };

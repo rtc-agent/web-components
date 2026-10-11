@@ -7,11 +7,11 @@
  *     { setup: (host) => provideContext(host, myContext, mockValue) }
  *   );
  */
-import {html} from 'lit';
-import {LitElement} from 'lit';
-import {customElement} from 'lit/decorators.js';
-import {ContextProvider} from '@lit/context';
-import type {Context} from '@lit/context';
+import { html } from 'lit';
+import { LitElement } from 'lit';
+import { customElement } from 'lit/decorators.js';
+import { ContextProvider } from '@lit/context';
+import type { Context } from '@lit/context';
 
 /**
  * Wrap a context provider around the host element's light DOM parent.
@@ -26,32 +26,36 @@ import type {Context} from '@lit/context';
  * @returns The provider wrapper element. Call wrapper.updateContext(value) to update the context value.
  */
 export function provideContext<T>(
-    host: HTMLElement,
-    context: Context<unknown, T>,
-    value: T
+  host: HTMLElement,
+  context: Context<unknown, T>,
+  value: T,
 ): HTMLElement {
-    const tagName = 'test-context-provider-' + Math.random().toString(36).slice(2, 8);
+  const tagName =
+    'test-context-provider-' + Math.random().toString(36).slice(2, 8);
 
-    @customElement(tagName)
-    class TestProvider extends LitElement {
-        private _provider = new ContextProvider(this, {context, initialValue: value});
+  @customElement(tagName)
+  class TestProvider extends LitElement {
+    private _provider = new ContextProvider(this, {
+      context,
+      initialValue: value,
+    });
 
-        /**
-         * Update the context value.
-         */
-        updateContext(newValue: T) {
-            this._provider.setValue(newValue);
-        }
-
-        render() {
-            return html`<slot></slot>`;
-        }
+    /**
+     * Update the context value.
+     */
+    updateContext(newValue: T) {
+      this._provider.setValue(newValue);
     }
 
-    const wrapper = document.createElement(tagName) as TestProvider;
+    render() {
+      return html`<slot></slot>`;
+    }
+  }
 
-    host.parentNode?.insertBefore(wrapper, host);
-    wrapper.appendChild(host);
+  const wrapper = document.createElement(tagName) as TestProvider;
 
-    return wrapper;
+  host.parentNode?.insertBefore(wrapper, host);
+  wrapper.appendChild(host);
+
+  return wrapper;
 }

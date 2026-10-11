@@ -26,7 +26,7 @@ import SparkMD5 from 'spark-md5';
  */
 export async function calculateFileMD5(
   file: File | Blob,
-  chunkSize: number = 2 * 1024 * 1024 // 2MB
+  chunkSize: number = 2 * 1024 * 1024, // 2MB
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const blobSlice = File.prototype.slice;

@@ -1,14 +1,14 @@
-import {render, TemplateResult, LitElement} from 'lit';
+import { render, TemplateResult, LitElement } from 'lit';
 
 /**
  * Wait for one animation frame — ensures Lit has completed its update cycle.
  */
 export function nextFrame(): Promise<void> {
-    return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+  return new Promise((resolve) => requestAnimationFrame(() => resolve()));
 }
 
 export interface FixtureOptions {
-    setup?: (host: HTMLElement) => void;
+  setup?: (host: HTMLElement) => void;
 }
 
 /**
@@ -25,22 +25,22 @@ export interface FixtureOptions {
  * });
  */
 export async function fixture<T extends HTMLElement>(
-    template: TemplateResult,
-    options?: FixtureOptions
+  template: TemplateResult,
+  options?: FixtureOptions,
 ): Promise<T> {
-    const container = document.createElement('div');
-    document.body.appendChild(container);
-    render(template, container);
-    const el = container.firstElementChild as T;
-    if (options?.setup) {
-        options.setup(el);
-    }
-    await nextFrame();
-    // Wait for Lit update cycle if element is a LitElement
-    if (el instanceof LitElement) {
-        await el.updateComplete;
-    }
-    return el;
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  render(template, container);
+  const el = container.firstElementChild as T;
+  if (options?.setup) {
+    options.setup(el);
+  }
+  await nextFrame();
+  // Wait for Lit update cycle if element is a LitElement
+  if (el instanceof LitElement) {
+    await el.updateComplete;
+  }
+  return el;
 }
 
 /**
@@ -50,10 +50,10 @@ export async function fixture<T extends HTMLElement>(
  * (e.g., AuthController persists tokens which would affect subsequent tests).
  */
 export function cleanupFixtures(): void {
-    document.body.innerHTML = '';
-    try {
-        localStorage.clear();
-    } catch {
-        // Some environments may block storage access; ignore.
-    }
+  document.body.innerHTML = '';
+  try {
+    localStorage.clear();
+  } catch {
+    // Some environments may block storage access; ignore.
+  }
 }

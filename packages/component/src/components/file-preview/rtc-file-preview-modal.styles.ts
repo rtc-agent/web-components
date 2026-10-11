@@ -7,7 +7,7 @@
  *
  * @module components/file-preview/rtc-file-preview-modal.styles
  */
-import {css} from 'lit';
+import { css } from 'lit';
 
 export const styles = css`
   :host {

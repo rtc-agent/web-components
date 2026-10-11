@@ -22,8 +22,12 @@ describe('file-storage utilities', () => {
   describe('generateFilename', () => {
     it('should generate filename from md5 and ext', () => {
       const md5 = 'd41d8cd98f00b204e9800998ecf8427e';
-      expect(generateFilename(md5, 'txt')).toBe('d41d8cd98f00b204e9800998ecf8427e.txt');
-      expect(generateFilename(md5, 'pdf')).toBe('d41d8cd98f00b204e9800998ecf8427e.pdf');
+      expect(generateFilename(md5, 'txt')).toBe(
+        'd41d8cd98f00b204e9800998ecf8427e.txt',
+      );
+      expect(generateFilename(md5, 'pdf')).toBe(
+        'd41d8cd98f00b204e9800998ecf8427e.pdf',
+      );
     });
   });
 });

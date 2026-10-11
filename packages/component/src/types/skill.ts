@@ -28,10 +28,11 @@ export class CancelledError extends Error {
    * More reliable than instanceof (for iframe, Worker, different bundle scenarios, etc.)
    */
   static isCancelledError(error: unknown): error is CancelledError {
-    return (
-      (error instanceof CancelledError) ||
-      (error instanceof Error && (error as CancelledError).isCancelled === true)
-    );
+    if (error instanceof CancelledError) return true;
+    if (error instanceof Error && 'isCancelled' in error) {
+      return (error as { isCancelled: unknown }).isCancelled === true;
+    }
+    return false;
   }
 }
 
@@ -48,7 +49,14 @@ export class CancelledError extends Error {
  */
 export interface OpenAPISchema {
   /** Data type */
-  type?: 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array' | 'null';
+  type?:
+    | 'string'
+    | 'number'
+    | 'integer'
+    | 'boolean'
+    | 'object'
+    | 'array'
+    | 'null';
   /** Data format (e.g. date, date-time, email, uri, uuid, int32, int64, float, double, etc.) */
   format?: string;
   /** Description */
@@ -165,7 +173,7 @@ export interface FunctionDef {
    */
   handler: (
     params: Record<string, unknown>,
-    onProgress?: (progress: number) => void | Promise<void>
+    onProgress?: (progress: number) => void | Promise<void>,
   ) => unknown;
 }
 

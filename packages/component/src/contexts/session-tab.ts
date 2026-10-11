@@ -7,19 +7,19 @@
  * Provided by: <rtc-agent> (root)
  * Consumed by: <rtc-session-tab-bar>, <rtc-chat-layout>
  */
-import {createContext} from '@lit/context';
-import type {SessionTabState, SessionTabActions} from '../types/index.js';
+import { createContext } from '@lit/context';
+import type { SessionTabState, SessionTabActions } from '../types/index.js';
 
 export interface SessionTabContextValue {
-    state: SessionTabState;
-    actions: SessionTabActions;
+  state: SessionTabState;
+  actions: SessionTabActions;
 }
 
 export const SessionTabContext = createContext<SessionTabContextValue>(
-    Symbol('session-tab-context')
+  Symbol('session-tab-context'),
 );
 
 export const DEFAULT_SESSION_TAB_STATE: SessionTabState = {
-    tabs: [],
-    activeSessionId: null,
+  tabs: [],
+  activeSessionId: null,
 };

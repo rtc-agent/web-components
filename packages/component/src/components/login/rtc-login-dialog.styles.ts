@@ -3,7 +3,7 @@
  *
  * Uses project-standard CSS Variables naming.
  */
-import {css} from 'lit';
+import { css } from 'lit';
 
 export const styles = css`
   :host {

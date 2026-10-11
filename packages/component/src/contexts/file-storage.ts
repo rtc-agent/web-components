@@ -9,8 +9,8 @@
  *
  * @module contexts/file-storage
  */
-import {createContext} from '@lit/context';
-import type {FileStorage} from '../utils/file-storage.js';
+import { createContext } from '@lit/context';
+import type { FileStorage } from '../utils/file-storage.js';
 
 /**
  * FileStorage context value shape.
@@ -26,5 +26,5 @@ export interface FileStorageContextValue {
  * Provided by rtc-agent, consumed by file-related components.
  */
 export const FileStorageContext = createContext<FileStorageContextValue>(
-  Symbol('file-storage-context')
+  Symbol('file-storage-context'),
 );

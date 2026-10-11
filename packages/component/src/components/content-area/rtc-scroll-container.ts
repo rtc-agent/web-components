@@ -22,63 +22,67 @@
  * @cssprop --rtc-scroll-max-height-locked - Max height when locked (default: 100px)
  * @cssprop --rtc-scroll-max-height-unlocked - Max height when unlocked (default: 200px)
  */
-import {LitElement, html} from 'lit';
-import {customElement, property, state} from 'lit/decorators.js';
-import {styles} from './rtc-scroll-container.styles.js';
+import { LitElement, html } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import { styles } from './rtc-scroll-container.styles.js';
 
 @customElement('rtc-scroll-container')
 export class RtcScrollContainer extends LitElement {
-    static styles = styles;
+  static styles = styles;
 
-    /** Initial lock state (default: true = locked) */
-    @property({type: Boolean})
-    initialLocked = true;
+  /** Initial lock state (default: true = locked) */
+  @property({ type: Boolean })
+  initialLocked = true;
 
-    /** Whether content is currently scroll-locked */
-    @state()
-    private _scrollLocked = true;
+  /** Whether content is currently scroll-locked */
+  @state()
+  private _scrollLocked = true;
 
-    constructor() {
-        super();
-        this._scrollLocked = this.initialLocked;
-    }
+  constructor() {
+    super();
+    this._scrollLocked = this.initialLocked;
+  }
 
-    /** Toggle scroll lock state */
-    private _toggleScrollLock() {
-        this._scrollLocked = !this._scrollLocked;
-    }
+  /** Toggle scroll lock state */
+  private _toggleScrollLock() {
+    this._scrollLocked = !this._scrollLocked;
+  }
 
-    /** Get current lock state (for external access if needed) */
-    get isLocked(): boolean {
-        return this._scrollLocked;
-    }
+  /** Get current lock state (for external access if needed) */
+  get isLocked(): boolean {
+    return this._scrollLocked;
+  }
 
-    render() {
-        return html`
+  render() {
+    return html`
             <div class="scroll-container ${this._scrollLocked ? 'locked' : 'unlocked'}">
                 <div class="content">
                     <slot></slot>
                 </div>
-                ${this._scrollLocked ? html`
+                ${
+                  this._scrollLocked
+                    ? html`
                     <div class="scroll-indicator" @click=${this._toggleScrollLock}>
                         <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
                             <path d="M8 11L3 6h10l-5 5z"/>
                         </svg>
                     </div>
-                ` : html`
+                `
+                    : html`
                     <div class="scroll-indicator scroll-indicator-up" @click=${this._toggleScrollLock}>
                         <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
                             <path d="M8 5l5 5H3l5-5z"/>
                         </svg>
                     </div>
-                `}
+                `
+                }
             </div>
         `;
-    }
+  }
 }
 
 declare global {
-    interface HTMLElementTagNameMap {
-        'rtc-scroll-container': RtcScrollContainer;
-    }
+  interface HTMLElementTagNameMap {
+    'rtc-scroll-container': RtcScrollContainer;
+  }
 }

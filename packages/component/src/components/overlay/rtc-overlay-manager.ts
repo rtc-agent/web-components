@@ -11,78 +11,95 @@
  * @element rtc-overlay-manager
  * @csspart container - The overlay container
  */
-import {LitElement, html, nothing} from 'lit';
-import {customElement, state} from 'lit/decorators.js';
-import {consume} from '@lit/context';
-import {styles} from './rtc-overlay-manager.styles.js';
-import {ToolCallContext, type ToolCallContextValue} from '../../contexts/tool-call.js';
+import { LitElement, html, nothing } from 'lit';
+import { customElement, state } from 'lit/decorators.js';
+import { consume } from '@lit/context';
+import { styles } from './rtc-overlay-manager.styles.js';
+import {
+  ToolCallContext,
+  type ToolCallContextValue,
+} from '../../contexts/tool-call.js';
 import './rtc-tool-confirm.js';
 
 @customElement('rtc-overlay-manager')
 export class RtcOverlayManager extends LitElement {
-    static styles = styles;
+  static styles = styles;
 
-    @consume({context: ToolCallContext, subscribe: true})
-    @state()
-    private _toolCallCtx: ToolCallContextValue = {
-        state: {pendingCalls: []},
-        actions: {approve: () => {}, approveAll: () => {}, deny: () => {}},
-    };
+  @consume({ context: ToolCallContext, subscribe: true })
+  @state()
+  private _toolCallCtx: ToolCallContextValue = {
+    state: { pendingCalls: [] },
+    actions: { approve: () => {}, approveAll: () => {}, deny: () => {} },
+  };
 
-    /* ── Lifecycle ── */
+  /* ── Lifecycle ── */
 
-    connectedCallback() {
-        super.connectedCallback();
-        this.addEventListener('rtc-tool-call-approved', this._handleApprove as EventListener);
-        this.addEventListener('rtc-tool-call-denied', this._handleDeny as EventListener);
+  connectedCallback() {
+    super.connectedCallback();
+    this.addEventListener(
+      'rtc-tool-call-approved',
+      this._handleApprove as EventListener,
+    );
+    this.addEventListener(
+      'rtc-tool-call-denied',
+      this._handleDeny as EventListener,
+    );
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.removeEventListener(
+      'rtc-tool-call-approved',
+      this._handleApprove as EventListener,
+    );
+    this.removeEventListener(
+      'rtc-tool-call-denied',
+      this._handleDeny as EventListener,
+    );
+  }
+
+  /* ── Event Handlers ── */
+
+  private _handleApprove = (e: CustomEvent) => {
+    const { toolCallId, allowAll } = e.detail;
+    if (allowAll) {
+      // Look up the tool_name from pendingCalls before approving
+      const toolCall = this._toolCallCtx.state.pendingCalls.find(
+        (tc) => tc.id === toolCallId,
+      );
+      if (toolCall) {
+        this._toolCallCtx.actions.approveAll(toolCall.tool_name);
+      }
+    } else {
+      this._toolCallCtx.actions.approve(toolCallId);
     }
+  };
 
-    disconnectedCallback() {
-        super.disconnectedCallback();
-        this.removeEventListener('rtc-tool-call-approved', this._handleApprove as EventListener);
-        this.removeEventListener('rtc-tool-call-denied', this._handleDeny as EventListener);
-    }
+  private _handleDeny = (e: CustomEvent) => {
+    const { toolCallId } = e.detail;
+    this._toolCallCtx.actions.deny(toolCallId);
+  };
 
-    /* ── Event Handlers ── */
+  /* ── Render ── */
 
-    private _handleApprove = (e: CustomEvent) => {
-        const {toolCallId, allowAll} = e.detail;
-        if (allowAll) {
-            // Look up the toolName from pendingCalls before approving
-            const toolCall = this._toolCallCtx.state.pendingCalls.find(tc => tc.id === toolCallId);
-            if (toolCall) {
-                this._toolCallCtx.actions.approveAll(toolCall.toolName);
-            }
-        } else {
-            this._toolCallCtx.actions.approve(toolCallId);
-        }
-    };
+  render() {
+    const pendingCalls = this._toolCallCtx.state.pendingCalls;
+    const hasToolConfirm = pendingCalls.length > 0;
 
-    private _handleDeny = (e: CustomEvent) => {
-        const {toolCallId} = e.detail;
-        this._toolCallCtx.actions.deny(toolCallId);
-    };
+    if (!hasToolConfirm) return nothing;
 
-    /* ── Render ── */
-
-    render() {
-        const pendingCalls = this._toolCallCtx.state.pendingCalls;
-        const hasToolConfirm = pendingCalls.length > 0;
-
-        if (!hasToolConfirm) return nothing;
-
-        return html`
+    return html`
       <div class="panel-host" part="container">
         <rtc-tool-confirm
           .toolCall=${pendingCalls[0]}
         ></rtc-tool-confirm>
       </div>
     `;
-    }
+  }
 }
 
 declare global {
-    interface HTMLElementTagNameMap {
-        'rtc-overlay-manager': RtcOverlayManager;
-    }
+  interface HTMLElementTagNameMap {
+    'rtc-overlay-manager': RtcOverlayManager;
+  }
 }
