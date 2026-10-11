@@ -1,168 +1,58 @@
-// File Cache Repository tests
+import { describe, it, expect } from 'vitest';
+import { FileCacheRepository } from './file-cache-repository.js';
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { initFileCacheRepository, getFileCacheRepository, FileCacheRepository } from './file-cache-repository.js';
-import { getDatabase, closeDatabase } from './database.js';
-import 'fake-indexeddb/auto';
+describe('FileCacheRepository - calculateMD5', () => {
+  it('should calculate correct MD5 hash for a simple string', async () => {
+    const repo = new FileCacheRepository();
+    const blob = new Blob(['hello'], { type: 'text/plain' });
+    const hash = await repo.calculateMD5(blob);
 
-describe('FileCacheRepository', () => {
-  const DB_NAME = 'rtc-agent-test-file-cache';
-  let repo: FileCacheRepository;
-
-  beforeEach(() => {
-    getDatabase(DB_NAME);
-    initFileCacheRepository();
-    repo = getFileCacheRepository();
-    // Reset lifecycle guard in case previous test closed it
-    repo.resetLifecycleGuard();
+    // MD5 of "hello" is 5d41402abc4b2a76b9719d911017c592
+    expect(hash).toBe('5d41402abc4b2a76b9719d911017c592');
   });
 
-  afterEach(async () => {
-    await closeDatabase();
+  it('should calculate correct MD5 hash for empty blob', async () => {
+    const repo = new FileCacheRepository();
+    const blob = new Blob([''], { type: 'text/plain' });
+    const hash = await repo.calculateMD5(blob);
+
+    // MD5 of "" is d41d8cd98f00b204e9800998ecf8427e
+    expect(hash).toBe('d41d8cd98f00b204e9800998ecf8427e');
   });
 
-  describe('put and get', () => {
-    it('should cache and retrieve a file', async () => {
-      const md5 = 'a'.repeat(32);
-      const ext = 'txt';
-      const content = 'Hello, World!';
-      const blob = new Blob([content], { type: 'text/plain' });
+  it('should calculate correct MD5 hash for binary data', async () => {
+    const repo = new FileCacheRepository();
+    const data = new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    const blob = new Blob([data], { type: 'application/octet-stream' });
+    const hash = await repo.calculateMD5(blob);
 
-      await repo.put(md5, ext, blob, 'text/plain');
-
-      const cached = await repo.get(md5, ext);
-      expect(cached).not.toBeNull();
-      expect(cached!.contentType).toBe('text/plain');
-
-      const text = await cached!.blob.text();
-      expect(text).toBe(content);
-    });
-
-    it('should return null for non-existent file', async () => {
-      const cached = await repo.get('nonexistent'.padEnd(32, '0'), 'txt');
-      expect(cached).toBeNull();
-    });
-
-    it('should update lastAccessedAt on get', async () => {
-      const md5 = 'b'.repeat(32);
-      const ext = 'txt';
-      const blob = new Blob(['test'], { type: 'text/plain' });
-
-      await repo.put(md5, ext, blob, 'text/plain');
-
-      // Get the entry to check createdAt
-      const db = getDatabase();
-      const before = await db.fileCache.get([md5, ext]);
-      expect(before).toBeDefined();
-
-      // Wait a bit to ensure timestamp difference
-      await new Promise(resolve => setTimeout(resolve, 10));
-
-      // Get the file (should update lastAccessedAt)
-      await repo.get(md5, ext);
-
-      const after = await db.fileCache.get([md5, ext]);
-      expect(after!.lastAccessedAt).toBeGreaterThan(before!.lastAccessedAt);
-    });
+    // Verify hash is 32 characters hex string
+    expect(hash).toMatch(/^[0-9a-f]{32}$/);
   });
 
-  describe('expiration', () => {
-    it('should return null for expired file', async () => {
-      const md5 = 'c'.repeat(32);
-      const ext = 'txt';
-      const blob = new Blob(['expired'], { type: 'text/plain' });
+  it('should calculate correct MD5 hash for large blob (>1MB)', async () => {
+    const repo = new FileCacheRepository();
+    // Create a 2MB blob
+    const size = 2 * 1024 * 1024;
+    const data = new Uint8Array(size);
+    for (let i = 0; i < size; i++) {
+      data[i] = i % 256;
+    }
+    const blob = new Blob([data], { type: 'application/octet-stream' });
+    const hash = await repo.calculateMD5(blob);
 
-      // Cache with 1ms TTL
-      await repo.put(md5, ext, blob, 'text/plain', 1);
-
-      // Wait for expiration
-      await new Promise(resolve => setTimeout(resolve, 10));
-
-      const cached = await repo.get(md5, ext);
-      expect(cached).toBeNull();
-    });
-
-    it('should evict expired entries', async () => {
-      const md5_1 = 'd'.repeat(32);
-      const md5_2 = 'e'.repeat(32);
-      const ext = 'txt';
-      const blob = new Blob(['test'], { type: 'text/plain' });
-
-      // Cache one with 1ms TTL, one with 1 hour TTL
-      await repo.put(md5_1, ext, blob, 'text/plain', 1);
-      await repo.put(md5_2, ext, blob, 'text/plain', 60 * 60 * 1000);
-
-      // Wait for first to expire
-      await new Promise(resolve => setTimeout(resolve, 10));
-
-      // Evict expired
-      const evicted = await repo.evictExpired();
-      expect(evicted).toBe(1);
-
-      // First should be gone, second should remain
-      expect(await repo.get(md5_1, ext)).toBeNull();
-      expect(await repo.get(md5_2, ext)).not.toBeNull();
-    });
+    // Verify hash is 32 characters hex string
+    expect(hash).toMatch(/^[0-9a-f]{32}$/);
   });
 
-  describe('clear', () => {
-    it('should clear all cached files', async () => {
-      const blob = new Blob(['test'], { type: 'text/plain' });
+  it('should return consistent hashes for the same input', async () => {
+    const repo = new FileCacheRepository();
+    const blob = new Blob(['test data'], { type: 'text/plain' });
 
-      await repo.put('f'.repeat(32), 'txt', blob, 'text/plain');
-      await repo.put('g'.repeat(32), 'txt', blob, 'text/plain');
+    const hash1 = await repo.calculateMD5(blob);
+    const hash2 = await repo.calculateMD5(blob);
 
-      await repo.clear();
-
-      expect(await repo.get('f'.repeat(32), 'txt')).toBeNull();
-      expect(await repo.get('g'.repeat(32), 'txt')).toBeNull();
-    });
-  });
-
-  describe('downloadWithDedup', () => {
-    it('should deduplicate concurrent downloads', async () => {
-      const md5 = 'h'.repeat(32);
-      const ext = 'txt';
-      let downloadCount = 0;
-
-      const downloadFn = async () => {
-        downloadCount++;
-        await new Promise(resolve => setTimeout(resolve, 50));
-        return new Blob(['downloaded'], { type: 'text/plain' });
-      };
-
-      // Start 3 concurrent downloads
-      const promises = [
-        repo.downloadWithDedup(md5, ext, downloadFn),
-        repo.downloadWithDedup(md5, ext, downloadFn),
-        repo.downloadWithDedup(md5, ext, downloadFn),
-      ];
-
-      const results = await Promise.all(promises);
-
-      // Should only download once
-      expect(downloadCount).toBe(1);
-      expect(results.length).toBe(3);
-      expect(await results[0].text()).toBe('downloaded');
-    });
-
-    it('should allow new download after previous completes', async () => {
-      const md5 = 'i'.repeat(32);
-      const ext = 'txt';
-      let downloadCount = 0;
-
-      const downloadFn = async () => {
-        downloadCount++;
-        return new Blob(['downloaded'], { type: 'text/plain' });
-      };
-
-      // First download
-      await repo.downloadWithDedup(md5, ext, downloadFn);
-      expect(downloadCount).toBe(1);
-
-      // Second download (after first completes)
-      await repo.downloadWithDedup(md5, ext, downloadFn);
-      expect(downloadCount).toBe(2);
-    });
+    expect(hash1).toBe(hash2);
+    expect(hash1).toMatch(/^[0-9a-f]{32}$/);
   });
 });

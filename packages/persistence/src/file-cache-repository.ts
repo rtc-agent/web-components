@@ -254,15 +254,98 @@ export class FileCacheRepository {
   /**
    * Calculate MD5 hash of a Blob.
    *
-   * Runs in the Worker thread to avoid blocking the main thread.
+   * Uses Web Worker to avoid blocking the main thread for large files.
+   * Falls back to synchronous computation if Web Workers are unavailable.
    *
    * @param blob Blob to calculate MD5 for
    * @returns Promise resolving to 32-character hex MD5 hash
    */
   async calculateMD5(blob: Blob): Promise<string> {
     this._lifecycleGuard.assertActive(); // P1-A: guard check
+
+    // Try using Web Worker to avoid blocking main thread
+    if (typeof Worker !== 'undefined' && typeof Blob !== 'undefined') {
+      try {
+        return await this._calculateMD5InWorker(blob);
+      } catch (err) {
+        // Fallback to synchronous computation if worker fails
+        log.warn('MD5 worker failed, falling back to main thread:', err);
+      }
+    }
+
+    // Fallback: synchronous computation on main thread
     const buffer = await blob.arrayBuffer();
     return SparkMD5.ArrayBuffer.hash(buffer);
+  }
+
+  /**
+   * Calculate MD5 in a Web Worker to avoid blocking the main thread.
+   *
+   * Creates an inline worker using a Blob URL to compute MD5 asynchronously.
+   * This prevents main thread blocking for large files (>1MB).
+   * Worker computation has a 30-second timeout to prevent indefinite hangs.
+   *
+   * @param blob Blob to calculate MD5 for
+   * @returns Promise resolving to 32-character hex MD5 hash
+   * @throws Error if worker computation fails or times out
+   */
+  private async _calculateMD5InWorker(blob: Blob): Promise<string> {
+    // Create worker that loads SparkMD5 from CDN and computes MD5
+    // Using CDN keeps bundle size small while maintaining reliability
+    const workerScript = `
+      importScripts('https://cdn.jsdelivr.net/npm/spark-md5@3.0.2/spark-md5.min.js');
+
+      self.onmessage = async (e) => {
+        try {
+          const { blob } = e.data;
+          const buffer = await blob.arrayBuffer();
+          const hash = self.SparkMD5.ArrayBuffer.hash(buffer);
+          self.postMessage({ success: true, hash });
+        } catch (err) {
+          self.postMessage({ success: false, error: err.message || String(err) });
+        }
+      };
+    `;
+
+    // Create worker from inline script via Blob URL
+    const workerBlob = new Blob([workerScript], {
+      type: 'application/javascript',
+    });
+    const workerUrl = URL.createObjectURL(workerBlob);
+    const worker = new Worker(workerUrl);
+
+    try {
+      // Send blob to worker and wait for result with timeout
+      const result = await new Promise<string>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          worker.terminate();
+          reject(new Error('MD5 calculation timed out (30s)'));
+        }, 30000);
+
+        worker.onmessage = (e) => {
+          clearTimeout(timeout);
+          if (e.data.success) {
+            resolve(e.data.hash);
+          } else {
+            reject(new Error(e.data.error));
+          }
+        };
+
+        worker.onerror = (err) => {
+          clearTimeout(timeout);
+          reject(new Error(`Worker error: ${err.message || 'Unknown error'}`));
+        };
+
+        // Send blob to worker (blob is cloned, not transferred, for safety)
+        worker.postMessage({ blob });
+      });
+
+      return result;
+    } finally {
+      // Clean up worker and URL to prevent memory leaks
+      worker.terminate();
+      URL.revokeObjectURL(workerUrl);
+    }
   }
 
   // ========== Offline-first sync methods ==========
