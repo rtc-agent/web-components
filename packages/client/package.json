@@ -8,17 +8,24 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     }
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
-    "build": "tsc",
+    "build": "rm -rf dist && tsc",
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests --exclude '**/*.integration.test.ts'",
     "test:watch": "vitest",
-    "test:integration": "vitest run --config vitest.integration.config.ts"
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "lint": "biome lint src/",
+    "lint:fix": "biome check --write src/",
+    "format": "biome format --write src/"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.658.0",
@@ -27,7 +34,7 @@
     "centrifuge": "^5.2.0"
   },
   "devDependencies": {
-    "typescript": "^5.4.0",
-    "vitest": "^2.0.0"
+    "typescript": "5.9.3",
+    "vitest": "^2.1.9"
   }
 }

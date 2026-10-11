@@ -12,7 +12,8 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     }
   },
   "files": [
@@ -21,7 +22,7 @@
     "README.md"
   ],
   "scripts": {
-    "build": "vite build && tsc --emitDeclarationOnly --declaration --declarationMap",
+    "build": "rm -rf dist && vite build && tsc --emitDeclarationOnly --declaration --declarationMap",
     "prebuild": "lit-localize build",
     "dev": "vite",
     "predev": "lit-localize build",
@@ -32,7 +33,10 @@
     "test:e2e": "playwright test",
     "i18n:extract": "lit-localize extract",
     "i18n:build": "lit-localize build",
-    "i18n:lint": "lit-localize lint"
+    "i18n:lint": "lit-localize lint",
+    "lint": "biome lint src/",
+    "lint:fix": "biome check --write src/",
+    "format": "biome format --write src/"
   },
   "dependencies": {
     "@floating-ui/dom": "^1.8.0",
@@ -54,15 +58,16 @@
   },
   "devDependencies": {
     "@lit/localize-tools": "^0.8.2",
+    "@playwright/test": "^1.63.0",
     "@types/dompurify": "^3.2.0",
     "@types/spark-md5": "^3.0.5",
-    "@vitest/coverage-v8": "^5.0.2",
+    "@vitest/coverage-v8": "^2.1.9",
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^30.0.1",
     "rollup-plugin-visualizer": "^7.1.1",
-    "typescript": "^5.4.0",
+    "typescript": "5.9.3",
     "vite": "^5.4.0",
     "vite-plugin-node-polyfills": "^0.28.0",
-    "vitest": "^2.0.0"
+    "vitest": "^2.1.9"
   }
 }
