@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { getRoleList } from '@/services/role';
 
 /**
@@ -8,6 +9,7 @@ import { getRoleList } from '@/services/role';
  * roleOptions（{ label, value }[]）供下拉选择器使用。
  *
  * 注意：最多加载 1000 个管理员角色，超过部分会被忽略。
+ * 使用 react-query 缓存数据，避免重复请求。
  */
 export interface UseRoleOptionsResult {
   /** 角色 ID -> 显示名称的映射 */
@@ -19,50 +21,31 @@ export interface UseRoleOptionsResult {
 }
 
 export function useRoleOptions(): UseRoleOptionsResult {
-  const [roleMap, setRoleMap] = useState<Map<string, string>>(new Map());
-  const [roleOptions, setRoleOptions] = useState<
-    Array<{ label: string; value: string }>
-  >([]);
-  const [loading, setLoading] = useState(false);
+  const { data, isLoading } = useQuery({
+    queryKey: ['roleList'],
+    queryFn: async () => {
+      const response = await getRoleList({ page: 1, page_size: 1000 });
+      return response.items;
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+  });
 
-  useEffect(() => {
-    let cancelled = false;
+  const { roleMap, roleOptions } = useMemo(() => {
+    const map = new Map<string, string>();
+    const options: Array<{ label: string; value: string }> = [];
 
-    const loadRoles = async () => {
-      setLoading(true);
-      try {
-        const response = await getRoleList({ page: 1, page_size: 1000 });
-        if (cancelled) return;
+    data?.forEach((role) => {
+      const displayName = role.display_name || role.name;
+      map.set(role.id, displayName);
+      options.push({
+        label: `${role.display_name} (${role.name})`,
+        value: role.id,
+      });
+    });
 
-        const map = new Map<string, string>();
-        const options: Array<{ label: string; value: string }> = [];
+    return { roleMap: map, roleOptions: options };
+  }, [data]);
 
-        response.items.forEach((role) => {
-          const displayName = role.display_name || role.name;
-          map.set(role.id, displayName);
-          options.push({
-            label: `${role.display_name} (${role.name})`,
-            value: role.id,
-          });
-        });
-
-        setRoleMap(map);
-        setRoleOptions(options);
-      } catch (_error) {
-        // 忽略错误，角色名称会显示为 role_id
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    };
-
-    loadRoles();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return { roleMap, roleOptions, loading };
+  return { roleMap, roleOptions, loading: isLoading };
 }
