@@ -2,7 +2,7 @@ import { InboxOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { history, useIntl, useSearchParams } from '@umijs/max';
-import { App, Button, Empty, Tag, theme } from 'antd';
+import { App, Button, Empty, Grid, Tag, theme } from 'antd';
 import React, {
   useCallback,
   useEffect,
@@ -26,6 +26,8 @@ const MessagesPage: React.FC = () => {
   const { message } = App.useApp();
   const [searchParams, setSearchParams] = useSearchParams();
   const sessionId = searchParams.get('session_id') || '';
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [currentMessage, setCurrentMessage] = useState<MessageInfo | null>(
@@ -37,20 +39,16 @@ const MessagesPage: React.FC = () => {
   // === Register Page API ===
   useEffect(() => {
     const pageAPI: MessagePageAPI = {
-      // Read table data
+      // Sync URL filters and trigger table reload
       list: async (params = {}) => {
         const {
-          current = 1,
-          pageSize = 10,
           sessionId: listSessionId,
           role,
           startTime,
           endTime,
-          sortBy,
-          sortOrder,
         } = params;
 
-        // Sync URL (no page refresh)
+        // Sync filters to URL (no page refresh). Pagination is transient state, not synced.
         const newSearchParams = new URLSearchParams();
         const effectiveSessionId = listSessionId || sessionId;
         if (effectiveSessionId) {
@@ -65,41 +63,16 @@ const MessagesPage: React.FC = () => {
         if (endTime) {
           newSearchParams.set('created_before', endTime);
         }
-        newSearchParams.set('current', String(current));
-        newSearchParams.set('pageSize', String(pageSize));
         setSearchParams(newSearchParams, { replace: true });
 
-        // Call service
-        if (!effectiveSessionId) {
-          return { success: true, data: [], total: 0 };
-        }
+        // Trigger table reload via actionRef (ProTable request will handle data fetching)
+        actionRef.current?.reload();
 
-        try {
-          const response = await getMessageList({
-            session_id: effectiveSessionId,
-            page: current,
-            page_size: pageSize,
-            role,
-            created_after: startTime,
-            created_before: endTime,
-            sort_by: sortBy,
-            sort_order: sortOrder,
-          });
-
-          return {
-            success: true,
-            data: response.items,
-            total: response.total,
-          };
-        } catch (error) {
-          console.error('[Message Page API] list failed:', error);
-          return {
-            success: false,
-            data: [],
-            total: 0,
-            error: 'Failed to fetch message list',
-          };
-        }
+        return {
+          success: true,
+          data: [],
+          total: 0,
+        };
       },
 
       // Refresh table
@@ -205,6 +178,9 @@ const MessagesPage: React.FC = () => {
           // Message content is stored as JSON string: '{"type":"text","data":"hello"}'
           // Extract readable summary text based on the type field for table display
           // Fallback to plain text for legacy non-JSON data
+          if (!record.content) {
+            return '-';
+          }
           try {
             const parsed = JSON.parse(record.content);
             if (parsed?.type && parsed?.data !== undefined) {
@@ -242,35 +218,37 @@ const MessagesPage: React.FC = () => {
       {
         title: intl.formatMessage({
           id: 'pages.messages.inputTokens',
-          defaultMessage: 'Input Tokens',
+          defaultMessage: 'Input tokens',
         }),
         dataIndex: 'input_tokens',
         valueType: 'digit',
         search: false,
         sorter: true,
+        hideInTable: isMobile,
         render: (_, record) =>
-          record.input_tokens !== null
+          record.input_tokens != null
             ? record.input_tokens.toLocaleString()
             : '-',
       },
       {
         title: intl.formatMessage({
           id: 'pages.messages.outputTokens',
-          defaultMessage: 'Output Tokens',
+          defaultMessage: 'Output tokens',
         }),
         dataIndex: 'output_tokens',
         valueType: 'digit',
         search: false,
         sorter: true,
+        hideInTable: isMobile,
         render: (_, record) =>
-          record.output_tokens !== null
+          record.output_tokens != null
             ? record.output_tokens.toLocaleString()
             : '-',
       },
       {
         title: intl.formatMessage({
           id: 'pages.messages.createdAt',
-          defaultMessage: 'Created At',
+          defaultMessage: 'Created at',
         }),
         dataIndex: 'created_at',
         valueType: 'dateTime',
@@ -286,11 +264,12 @@ const MessagesPage: React.FC = () => {
         dataIndex: 'global_offset',
         valueType: 'digit',
         search: false,
+        hideInTable: isMobile,
       },
       {
         title: intl.formatMessage({
           id: 'pages.messages.timeRange',
-          defaultMessage: 'Time Range',
+          defaultMessage: 'Time range',
         }),
         dataIndex: 'time_range',
         valueType: 'dateRange',
@@ -306,7 +285,7 @@ const MessagesPage: React.FC = () => {
         },
       },
     ],
-    [intl, sessionId],
+    [intl, sessionId, isMobile],
   );
 
   return (
@@ -321,7 +300,7 @@ const MessagesPage: React.FC = () => {
           description={intl.formatMessage({
             id: 'pages.messages.emptyHint',
             defaultMessage:
-              'Please select a session from the session management page to view messages',
+              'Please select a conversation from the conversation management page to view messages',
           })}
         >
           <Button
@@ -330,7 +309,7 @@ const MessagesPage: React.FC = () => {
           >
             {intl.formatMessage({
               id: 'pages.messages.goToUsers',
-              defaultMessage: 'Go to User Management',
+              defaultMessage: 'Go to user management',
             })}
           </Button>
         </Empty>
@@ -338,7 +317,7 @@ const MessagesPage: React.FC = () => {
         <ProTable<MessageInfo>
           headerTitle={intl.formatMessage({
             id: 'pages.messages.headerTitle',
-            defaultMessage: 'Message List',
+            defaultMessage: 'Message list',
           })}
           actionRef={actionRef}
           rowKey="id"
@@ -382,7 +361,7 @@ const MessagesPage: React.FC = () => {
                   error,
                   intl.formatMessage({
                     id: 'pages.messages.loadFailed',
-                    defaultMessage: 'Failed to load message list',
+                    defaultMessage: 'Failed to load messages',
                   }),
                 ),
               );

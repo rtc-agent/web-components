@@ -2,13 +2,15 @@ import { InboxOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { history, useIntl, useSearchParams } from '@umijs/max';
-import { App, Button, Empty, Tag, theme } from 'antd';
+import { App, Button, Empty, Grid, Tag, theme } from 'antd';
 import React, { useEffect, useMemo, useRef } from 'react';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import { disabledFutureDate, parseTableSort } from '../shared/tableUtils';
 import type { SessionInfo } from './data';
 import type { SessionPageAPI } from './page-api';
 import { getSessionList } from './service';
+
+const { useBreakpoint } = Grid;
 
 /**
  * Session management page
@@ -19,25 +21,23 @@ const SessionsPage: React.FC = () => {
   const { message } = App.useApp();
   const [searchParams, setSearchParams] = useSearchParams();
   const userId = searchParams.get('user_id') || '';
+  const breakpoints = useBreakpoint();
+  const isMobile = !breakpoints.md; // < 768px
 
   // === Register Page API ===
   useEffect(() => {
     const pageAPI: SessionPageAPI = {
-      // Read table data
+      // Sync URL filters and trigger table reload
       list: async (params = {}) => {
         const {
-          current = 1,
-          pageSize = 10,
           userId: listUserId,
           status,
           search,
           startTime,
           endTime,
-          sortBy,
-          sortOrder,
         } = params;
 
-        // Sync URL (no page refresh)
+        // Sync filters to URL (no page refresh). Pagination is transient state, not synced.
         const newSearchParams = new URLSearchParams();
         const effectiveUserId = listUserId || userId;
         if (effectiveUserId) {
@@ -55,42 +55,16 @@ const SessionsPage: React.FC = () => {
         if (endTime) {
           newSearchParams.set('end_time', endTime);
         }
-        newSearchParams.set('current', String(current));
-        newSearchParams.set('pageSize', String(pageSize));
         setSearchParams(newSearchParams, { replace: true });
 
-        // Call service
-        if (!effectiveUserId) {
-          return { success: true, data: [], total: 0 };
-        }
+        // Trigger table reload via actionRef (ProTable request will handle data fetching)
+        actionRef.current?.reload();
 
-        try {
-          const response = await getSessionList({
-            user_id: effectiveUserId,
-            page: current,
-            page_size: pageSize,
-            status,
-            search,
-            start_time: startTime,
-            end_time: endTime,
-            sort_by: sortBy,
-            sort_order: sortOrder,
-          });
-
-          return {
-            success: true,
-            data: response.items,
-            total: response.total,
-          };
-        } catch (error) {
-          console.error('[Session Page API] list failed:', error);
-          return {
-            success: false,
-            data: [],
-            total: 0,
-            error: 'Failed to fetch session list',
-          };
-        }
+        return {
+          success: true,
+          data: [],
+          total: 0,
+        };
       },
 
       // Refresh table
@@ -130,7 +104,7 @@ const SessionsPage: React.FC = () => {
       {
         title: intl.formatMessage({
           id: 'pages.sessions.userId',
-          defaultMessage: '用户 ID',
+          defaultMessage: 'User ID',
         }),
         dataIndex: 'user_id',
         valueType: 'text',
@@ -142,7 +116,7 @@ const SessionsPage: React.FC = () => {
               required: true,
               message: intl.formatMessage({
                 id: 'pages.sessions.userIdRequired',
-                defaultMessage: '用户 ID 为必填项',
+                defaultMessage: 'User ID is required',
               }),
             },
           ],
@@ -151,7 +125,7 @@ const SessionsPage: React.FC = () => {
       {
         title: intl.formatMessage({
           id: 'pages.sessions.title',
-          defaultMessage: '标题',
+          defaultMessage: 'Title',
         }),
         dataIndex: 'title',
         valueType: 'text',
@@ -161,7 +135,7 @@ const SessionsPage: React.FC = () => {
       {
         title: intl.formatMessage({
           id: 'pages.sessions.status',
-          defaultMessage: '状态',
+          defaultMessage: 'Status',
         }),
         dataIndex: 'status',
         valueType: 'select',
@@ -169,14 +143,14 @@ const SessionsPage: React.FC = () => {
           active: {
             text: intl.formatMessage({
               id: 'pages.sessions.statusActive',
-              defaultMessage: '活跃',
+              defaultMessage: 'Active',
             }),
             status: 'Success',
           },
           closed: {
             text: intl.formatMessage({
               id: 'pages.sessions.statusClosed',
-              defaultMessage: '已关闭',
+              defaultMessage: 'Disabled',
             }),
             status: 'Default',
           },
@@ -188,11 +162,11 @@ const SessionsPage: React.FC = () => {
               {isActive
                 ? intl.formatMessage({
                     id: 'pages.sessions.statusActive',
-                    defaultMessage: '活跃',
+                    defaultMessage: 'Active',
                   })
                 : intl.formatMessage({
                     id: 'pages.sessions.statusClosed',
-                    defaultMessage: '已关闭',
+                    defaultMessage: 'Disabled',
                   })}
             </Tag>
           );
@@ -201,7 +175,7 @@ const SessionsPage: React.FC = () => {
       {
         title: intl.formatMessage({
           id: 'pages.sessions.createdAt',
-          defaultMessage: '创建时间',
+          defaultMessage: 'Created at',
         }),
         dataIndex: 'created_at',
         valueType: 'dateTime',
@@ -212,28 +186,33 @@ const SessionsPage: React.FC = () => {
       {
         title: intl.formatMessage({
           id: 'pages.sessions.updatedAt',
-          defaultMessage: '最后活跃时间',
+          defaultMessage: 'Last active time',
         }),
         dataIndex: 'updated_at',
         valueType: 'dateTime',
         search: false,
         sorter: true,
+        hideInTable: isMobile,
       },
       {
         title: intl.formatMessage({
           id: 'pages.sessions.totalTokens',
-          defaultMessage: 'Token 消耗',
+          defaultMessage: 'Token consumption',
         }),
         dataIndex: 'total_tokens',
         valueType: 'digit',
         search: false,
         sorter: true,
-        render: (_, record) => record.total_tokens.toLocaleString(),
+        render: (_, record) =>
+          record.total_tokens != null
+            ? record.total_tokens.toLocaleString()
+            : '-',
+        hideInTable: isMobile,
       },
       {
         title: intl.formatMessage({
           id: 'pages.sessions.timeRange',
-          defaultMessage: '时间范围',
+          defaultMessage: 'Time range',
         }),
         dataIndex: 'time_range',
         valueType: 'dateRange',
@@ -251,7 +230,7 @@ const SessionsPage: React.FC = () => {
       {
         title: intl.formatMessage({
           id: 'pages.sessions.search',
-          defaultMessage: '搜索',
+          defaultMessage: 'Search',
         }),
         dataIndex: 'search',
         valueType: 'text',
@@ -260,7 +239,7 @@ const SessionsPage: React.FC = () => {
       {
         title: intl.formatMessage({
           id: 'pages.sessions.actions',
-          defaultMessage: '操作',
+          defaultMessage: 'Action',
         }),
         dataIndex: 'option',
         valueType: 'option',
@@ -274,13 +253,13 @@ const SessionsPage: React.FC = () => {
           >
             {intl.formatMessage({
               id: 'pages.sessions.viewMessages',
-              defaultMessage: '查看消息',
+              defaultMessage: 'View messages',
             })}
           </Button>
         ),
       },
     ],
-    [intl, userId],
+    [intl, userId, isMobile],
   );
 
   return (
@@ -294,7 +273,8 @@ const SessionsPage: React.FC = () => {
           }
           description={intl.formatMessage({
             id: 'pages.sessions.emptyHint',
-            defaultMessage: '请从用户管理页面选择用户以查看对话列表',
+            defaultMessage:
+              'Please select a user from the user management page to view conversations',
           })}
         >
           <Button
@@ -303,7 +283,7 @@ const SessionsPage: React.FC = () => {
           >
             {intl.formatMessage({
               id: 'pages.sessions.goToUsers',
-              defaultMessage: '前往用户管理',
+              defaultMessage: 'Go to user management',
             })}
           </Button>
         </Empty>
@@ -311,11 +291,12 @@ const SessionsPage: React.FC = () => {
         <ProTable<SessionInfo>
           headerTitle={intl.formatMessage({
             id: 'pages.sessions.headerTitle',
-            defaultMessage: '对话列表',
+            defaultMessage: 'Conversation list',
           })}
           actionRef={actionRef}
           rowKey="id"
           columns={columns}
+          scroll={{ x: 'max-content' }}
           request={async (params, sort) => {
             // Read params from searchParams (URL is single source of truth)
             const effectiveUserId = searchParams.get('user_id') || userId;
@@ -351,7 +332,7 @@ const SessionsPage: React.FC = () => {
                   error,
                   intl.formatMessage({
                     id: 'pages.sessions.loadFailed',
-                    defaultMessage: '加载对话列表失败',
+                    defaultMessage: 'Failed to load conversations',
                   }),
                 ),
               );
@@ -382,7 +363,7 @@ const SessionsPage: React.FC = () => {
             <Button key="refresh" onClick={() => actionRef.current?.reload()}>
               {intl.formatMessage({
                 id: 'pages.sessions.refresh',
-                defaultMessage: '刷新',
+                defaultMessage: 'Refresh',
               })}
             </Button>,
           ]}

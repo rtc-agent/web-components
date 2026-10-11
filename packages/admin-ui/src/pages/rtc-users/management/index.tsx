@@ -14,9 +14,25 @@ import {
   ProTable,
 } from '@ant-design/pro-components';
 import { history, useAccess, useIntl, useSearchParams } from '@umijs/max';
-import { App, Button, Dropdown, Popconfirm, Space, Tag, Tooltip } from 'antd';
-import React, { useEffect, useRef, useState } from 'react';
+import {
+  App,
+  Button,
+  Dropdown,
+  Grid,
+  Popconfirm,
+  Space,
+  Tag,
+  Tooltip,
+} from 'antd';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
+import { parseTableSort } from '../shared/tableUtils';
 import UserConfigDrawer from './components/UserConfigDrawer';
 import UserDetailDrawer from './components/UserDetailDrawer';
 import type { RtcUserInfo } from './data';
@@ -29,21 +45,175 @@ import {
   unbanRtcUser,
 } from './service';
 
+const { useBreakpoint } = Grid;
+
+/**
+ * Modal state interface for better organization
+ */
+interface ModalState {
+  ban: { visible: boolean; user?: RtcUserInfo };
+  config: { open: boolean; user: RtcUserInfo | null };
+  detail: { open: boolean; user: RtcUserInfo | null };
+}
+
+/**
+ * Action column component with memoization to prevent unnecessary re-renders
+ */
+const ActionColumn = React.memo<{
+  record: RtcUserInfo;
+  intl: any;
+  access: any;
+  canBan: boolean;
+  onBan: (user: RtcUserInfo) => void;
+  onUnban: (userId: string) => void;
+  onConfig: (user: RtcUserInfo) => void;
+  onDetail: (user: RtcUserInfo) => void;
+}>(({ record, intl, access, canBan, onBan, onUnban, onConfig, onDetail }) => {
+  const isBanned = record.status === 'banned';
+
+  // Memoize filtered menu items based on permissions
+  const moreItems = useMemo(() => {
+    const allMoreItems = [
+      {
+        key: 'config',
+        label: intl.formatMessage({
+          id: 'pages.rtcUsers.config',
+          defaultMessage: 'Configuration',
+        }),
+        icon: <SettingOutlined />,
+        onClick: () => onConfig(record),
+      },
+      {
+        key: 'sessions',
+        label: intl.formatMessage({
+          id: 'pages.rtcUsers.viewSessions',
+          defaultMessage: 'Conversation',
+        }),
+        icon: <MessageOutlined />,
+        onClick: () => history.push(`/rtc-users/sessions?user_id=${record.id}`),
+      },
+    ];
+
+    return allMoreItems.filter((item) => {
+      if (item.key === 'config') {
+        return access.canServerConfigEdit;
+      }
+      if (item.key === 'sessions') {
+        return access.canRtcSessionView;
+      }
+      return true;
+    });
+  }, [record, intl, access, onConfig]);
+
+  return (
+    <Space size={0}>
+      <Tooltip
+        title={intl.formatMessage({
+          id: 'pages.rtcUsers.detail.viewDetail',
+          defaultMessage: 'View details',
+        })}
+      >
+        <Button
+          type="text"
+          size="small"
+          icon={<EyeOutlined />}
+          aria-label={intl.formatMessage({
+            id: 'pages.rtcUsers.detail.viewDetail',
+          })}
+          onClick={() => onDetail(record)}
+        />
+      </Tooltip>
+      {!isBanned && canBan && (
+        <Tooltip
+          title={intl.formatMessage({
+            id: 'pages.rtcUsers.ban',
+            defaultMessage: 'Ban',
+          })}
+        >
+          <Button
+            type="text"
+            danger
+            size="small"
+            icon={<StopOutlined />}
+            aria-label={intl.formatMessage({
+              id: 'pages.rtcUsers.ban',
+            })}
+            onClick={() => onBan(record)}
+          />
+        </Tooltip>
+      )}
+      {isBanned && canBan && (
+        <Popconfirm
+          title={intl.formatMessage({
+            id: 'pages.rtcUsers.confirmUnban',
+            defaultMessage: 'Are you sure you want to unban this user?',
+          })}
+          onConfirm={() => onUnban(record.id)}
+          okText={intl.formatMessage({
+            id: 'pages.rtcUsers.confirm',
+            defaultMessage: 'Confirm',
+          })}
+          cancelText={intl.formatMessage({
+            id: 'pages.rtcUsers.cancel',
+            defaultMessage: 'Cancel',
+          })}
+        >
+          <Tooltip
+            title={intl.formatMessage({
+              id: 'pages.rtcUsers.unban',
+              defaultMessage: 'Unban',
+            })}
+          >
+            <Button
+              type="text"
+              size="small"
+              icon={<CheckCircleOutlined />}
+              aria-label={intl.formatMessage({
+                id: 'pages.rtcUsers.unban',
+              })}
+            />
+          </Tooltip>
+        </Popconfirm>
+      )}
+      <Dropdown menu={{ items: moreItems }} trigger={['click']}>
+        <Tooltip
+          title={intl.formatMessage({
+            id: 'pages.rtcUsers.more',
+            defaultMessage: 'More',
+          })}
+        >
+          <Button
+            type="text"
+            size="small"
+            icon={<DownOutlined />}
+            aria-label={intl.formatMessage({
+              id: 'pages.rtcUsers.more',
+            })}
+          />
+        </Tooltip>
+      </Dropdown>
+    </Space>
+  );
+});
+
+ActionColumn.displayName = 'ActionColumn';
+
 /**
  * RTC User Management Page
  */
 const RtcUserManagementPage: React.FC = () => {
   const actionRef = useRef<ActionType>(null);
-  const [currentRow, setCurrentRow] = useState<RtcUserInfo>();
-  const [banModalVisible, setBanModalVisible] = useState(false);
-  const [configDrawerOpen, setConfigDrawerOpen] = useState(false);
-  const [configUser, setConfigUser] = useState<RtcUserInfo | null>(null);
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [detailUser, setDetailUser] = useState<RtcUserInfo | null>(null);
+  const [modalState, setModalState] = useState<ModalState>({
+    ban: { visible: false },
+    config: { open: false, user: null },
+    detail: { open: false, user: null },
+  });
   const access = useAccess();
   const intl = useIntl();
   const { message } = App.useApp();
   const [searchParams, setSearchParams] = useSearchParams();
+  const breakpoints = useBreakpoint();
+  const isMobile = !breakpoints.md; // < 768px
   const canBan = access.canRtcUserBan;
   // NOTE: User config permissions reuse system config permissions (as per design doc)
   // This is intentional: user config management uses system config's edit/delete permission points
@@ -54,11 +224,11 @@ const RtcUserManagementPage: React.FC = () => {
   // === Register Page API ===
   useEffect(() => {
     const pageAPI: RtcUserPageAPI = {
-      // Read table data
+      // Sync URL filters and trigger table reload
       list: async (params = {}) => {
-        const { current = 1, pageSize = 10, search, status } = params;
+        const { search, status } = params;
 
-        // Sync URL (no page refresh)
+        // Sync filters to URL (no page refresh). Pagination is transient state, not synced.
         const newSearchParams = new URLSearchParams();
         if (search) {
           newSearchParams.set('search', search);
@@ -66,32 +236,16 @@ const RtcUserManagementPage: React.FC = () => {
         if (status) {
           newSearchParams.set('status', status);
         }
-        newSearchParams.set('current', String(current));
-        newSearchParams.set('pageSize', String(pageSize));
         setSearchParams(newSearchParams, { replace: true });
 
-        try {
-          const response = await getRtcUserList({
-            page: current,
-            page_size: pageSize,
-            search,
-            status,
-          });
+        // Trigger table reload via actionRef (ProTable request will handle data fetching)
+        actionRef.current?.reload();
 
-          return {
-            success: true,
-            data: response.items,
-            total: response.total,
-          };
-        } catch (error) {
-          console.error('[RtcUser Page API] list failed:', error);
-          return {
-            success: false,
-            data: [],
-            total: 0,
-            error: 'Failed to load RTC user list',
-          };
-        }
+        return {
+          success: true,
+          data: [],
+          total: 0,
+        };
       },
 
       // Refresh table
@@ -194,16 +348,19 @@ const RtcUserManagementPage: React.FC = () => {
 
   /** Ban user */
   const handleBanUser = async (values: { reason: string }) => {
-    if (!currentRow) return false;
+    if (!modalState.ban.user) return false;
     try {
-      await banRtcUser(currentRow.id, { reason: values.reason });
+      await banRtcUser(modalState.ban.user.id, { reason: values.reason });
       message.success(
         intl.formatMessage({
           id: 'pages.rtcUsers.banSuccess',
-          defaultMessage: '封禁用户成功',
+          defaultMessage: 'User banned successfully',
         }),
       );
-      setBanModalVisible(false);
+      setModalState((prev) => ({
+        ...prev,
+        ban: { visible: false },
+      }));
       actionRef.current?.reload();
       return true;
     } catch (error: unknown) {
@@ -212,7 +369,7 @@ const RtcUserManagementPage: React.FC = () => {
           error,
           intl.formatMessage({
             id: 'pages.rtcUsers.banFailed',
-            defaultMessage: '封禁用户失败',
+            defaultMessage: 'Failed to ban user',
           }),
         ),
       );
@@ -227,7 +384,7 @@ const RtcUserManagementPage: React.FC = () => {
       message.success(
         intl.formatMessage({
           id: 'pages.rtcUsers.unbanSuccess',
-          defaultMessage: '解封用户成功',
+          defaultMessage: 'User unbanned successfully',
         }),
       );
       actionRef.current?.reload();
@@ -237,292 +394,232 @@ const RtcUserManagementPage: React.FC = () => {
           error,
           intl.formatMessage({
             id: 'pages.rtcUsers.unbanFailed',
-            defaultMessage: '解封用户失败',
+            defaultMessage: 'Failed to unban user',
           }),
         ),
       );
     }
   };
 
+  // Memoized handlers for action column
+  const handleBanClick = useCallback((user: RtcUserInfo) => {
+    setModalState((prev) => ({
+      ...prev,
+      ban: { visible: true, user },
+    }));
+  }, []);
+
+  const handleConfigClick = useCallback((user: RtcUserInfo) => {
+    setModalState((prev) => ({
+      ...prev,
+      config: { open: true, user },
+    }));
+  }, []);
+
+  const handleDetailClick = useCallback((user: RtcUserInfo) => {
+    setModalState((prev) => ({
+      ...prev,
+      detail: { open: true, user },
+    }));
+  }, []);
+
   /** Table column definitions */
-  const columns: ProColumns<RtcUserInfo>[] = [
-    {
-      title: intl.formatMessage({
-        id: 'pages.rtcUsers.userId',
-        defaultMessage: '用户ID',
-      }),
-      dataIndex: 'id',
-      valueType: 'text',
-      hideInTable: true,
-      search: false,
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.rtcUsers.searchPlaceholder',
-        defaultMessage: 'Search by email or name',
-      }),
-      dataIndex: 'search',
-      valueType: 'text',
-      hideInTable: true,
-      fieldProps: {
-        placeholder: intl.formatMessage({
+  const columns: ProColumns<RtcUserInfo>[] = useMemo(
+    () => [
+      {
+        title: intl.formatMessage({
+          id: 'pages.rtcUsers.userId',
+          defaultMessage: 'User ID',
+        }),
+        dataIndex: 'id',
+        valueType: 'text',
+        hideInTable: true,
+        search: false,
+      },
+      {
+        title: intl.formatMessage({
           id: 'pages.rtcUsers.searchPlaceholder',
           defaultMessage: 'Search by email or name',
         }),
-      },
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.rtcUsers.email',
-        defaultMessage: '邮箱',
-      }),
-      dataIndex: 'email',
-      valueType: 'text',
-      copyable: true,
-      search: false,
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.rtcUsers.name',
-        defaultMessage: '姓名',
-      }),
-      dataIndex: 'name',
-      valueType: 'text',
-      search: false,
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.rtcUsers.provider',
-        defaultMessage: 'Provider',
-      }),
-      dataIndex: 'provider',
-      valueType: 'text',
-      search: false,
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.rtcUsers.status',
-        defaultMessage: '状态',
-      }),
-      dataIndex: 'status',
-      valueType: 'select',
-      valueEnum: {
-        active: {
-          text: intl.formatMessage({
-            id: 'pages.rtcUsers.statusActive',
-            defaultMessage: '正常',
+        dataIndex: 'search',
+        valueType: 'text',
+        hideInTable: true,
+        fieldProps: {
+          placeholder: intl.formatMessage({
+            id: 'pages.rtcUsers.searchPlaceholder',
+            defaultMessage: 'Search by email or name',
           }),
-          status: 'Success',
-        },
-        banned: {
-          text: intl.formatMessage({
-            id: 'pages.rtcUsers.statusBanned',
-            defaultMessage: '已封禁',
-          }),
-          status: 'Error',
         },
       },
-      render: (_, record) => {
-        const isBanned = record.status === 'banned';
-        return (
-          <Tag color={isBanned ? 'red' : 'green'}>
-            {isBanned
-              ? intl.formatMessage({
-                  id: 'pages.rtcUsers.statusBanned',
-                  defaultMessage: '已封禁',
-                })
-              : intl.formatMessage({
-                  id: 'pages.rtcUsers.statusActive',
-                  defaultMessage: '正常',
-                })}
-          </Tag>
-        );
+      {
+        title: intl.formatMessage({
+          id: 'pages.rtcUsers.email',
+          defaultMessage: 'Email',
+        }),
+        dataIndex: 'email',
+        valueType: 'text',
+        copyable: true,
+        search: false,
       },
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.rtcUsers.bannedReason',
-        defaultMessage: '封禁原因',
-      }),
-      dataIndex: 'banned_reason',
-      valueType: 'text',
-      search: false,
-      ellipsis: true,
-      render: (_, record) => record.banned_reason || '-',
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.rtcUsers.bannedAt',
-        defaultMessage: '封禁时间',
-      }),
-      dataIndex: 'banned_at',
-      valueType: 'dateTime',
-      search: false,
-      render: (_, record) => record.banned_at || '-',
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.rtcUsers.createdAt',
-        defaultMessage: '创建时间',
-      }),
-      dataIndex: 'created_at',
-      valueType: 'dateTime',
-      search: false,
-      sorter: true,
-      defaultSortOrder: 'descend',
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.rtcUsers.actions',
-        defaultMessage: '操作',
-      }),
-      dataIndex: 'option',
-      valueType: 'option',
-      width: 160,
-      render: (_, record) => {
-        const isBanned = record.status === 'banned';
-        const moreItems = [
-          {
-            key: 'config',
-            label: intl.formatMessage({
-              id: 'pages.rtcUsers.config',
-              defaultMessage: '配置',
+      {
+        title: intl.formatMessage({
+          id: 'pages.rtcUsers.name',
+          defaultMessage: 'Name',
+        }),
+        dataIndex: 'name',
+        valueType: 'text',
+        search: false,
+      },
+      {
+        title: intl.formatMessage({
+          id: 'pages.rtcUsers.provider',
+          defaultMessage: 'Provider',
+        }),
+        dataIndex: 'provider',
+        valueType: 'text',
+        search: false,
+        hideInTable: isMobile,
+      },
+      {
+        title: intl.formatMessage({
+          id: 'pages.rtcUsers.status',
+          defaultMessage: 'Status',
+        }),
+        dataIndex: 'status',
+        valueType: 'select',
+        valueEnum: {
+          active: {
+            text: intl.formatMessage({
+              id: 'pages.rtcUsers.statusActive',
+              defaultMessage: 'Normal',
             }),
-            icon: <SettingOutlined />,
-            onClick: () => {
-              setConfigUser(record);
-              setConfigDrawerOpen(true);
-            },
+            status: 'Success',
           },
-          {
-            key: 'sessions',
-            label: intl.formatMessage({
-              id: 'pages.rtcUsers.viewSessions',
-              defaultMessage: '对话',
+          banned: {
+            text: intl.formatMessage({
+              id: 'pages.rtcUsers.statusBanned',
+              defaultMessage: 'Banned',
             }),
-            icon: <MessageOutlined />,
-            onClick: () =>
-              history.push(`/rtc-users/sessions?user_id=${record.id}`),
+            status: 'Error',
           },
-        ];
-
-        return (
-          <Space size={0}>
-            <Tooltip
-              title={intl.formatMessage({
-                id: 'pages.rtcUsers.detail.viewDetail',
-                defaultMessage: '查看详情',
-              })}
-            >
-              <Button
-                type="text"
-                size="small"
-                icon={<EyeOutlined />}
-                onClick={() => {
-                  setDetailUser(record);
-                  setDetailOpen(true);
-                }}
-              />
-            </Tooltip>
-            {!isBanned && canBan && (
-              <Tooltip
-                title={intl.formatMessage({
-                  id: 'pages.rtcUsers.ban',
-                  defaultMessage: '封禁',
-                })}
-              >
-                <Button
-                  type="text"
-                  danger
-                  size="small"
-                  icon={<StopOutlined />}
-                  onClick={() => {
-                    setCurrentRow(record);
-                    setBanModalVisible(true);
-                  }}
-                />
-              </Tooltip>
-            )}
-            {isBanned && canBan && (
-              <Popconfirm
-                title={intl.formatMessage({
-                  id: 'pages.rtcUsers.confirmUnban',
-                  defaultMessage: '确认解封该用户吗？',
-                })}
-                onConfirm={() => handleUnbanUser(record.id)}
-                okText={intl.formatMessage({
-                  id: 'pages.rtcUsers.confirm',
-                  defaultMessage: '确认',
-                })}
-                cancelText={intl.formatMessage({
-                  id: 'pages.rtcUsers.cancel',
-                  defaultMessage: '取消',
-                })}
-              >
-                <Tooltip
-                  title={intl.formatMessage({
-                    id: 'pages.rtcUsers.unban',
-                    defaultMessage: '解封',
+        },
+        render: (_, record) => {
+          const isBanned = record.status === 'banned';
+          return (
+            <Tag color={isBanned ? 'red' : 'green'}>
+              {isBanned
+                ? intl.formatMessage({
+                    id: 'pages.rtcUsers.statusBanned',
+                    defaultMessage: 'Banned',
+                  })
+                : intl.formatMessage({
+                    id: 'pages.rtcUsers.statusActive',
+                    defaultMessage: 'Normal',
                   })}
-                >
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={<CheckCircleOutlined />}
-                  />
-                </Tooltip>
-              </Popconfirm>
-            )}
-            <Dropdown menu={{ items: moreItems }} trigger={['click']}>
-              <Tooltip
-                title={intl.formatMessage({
-                  id: 'pages.rtcUsers.more',
-                  defaultMessage: '更多',
-                })}
-              >
-                <Button type="text" size="small" icon={<DownOutlined />} />
-              </Tooltip>
-            </Dropdown>
-          </Space>
-        );
+            </Tag>
+          );
+        },
       },
-    },
-  ];
+      {
+        title: intl.formatMessage({
+          id: 'pages.rtcUsers.bannedReason',
+          defaultMessage: 'Ban reason',
+        }),
+        dataIndex: 'banned_reason',
+        valueType: 'text',
+        search: false,
+        ellipsis: true,
+        hideInTable: isMobile,
+        render: (_, record) => record.banned_reason || '-',
+      },
+      {
+        title: intl.formatMessage({
+          id: 'pages.rtcUsers.bannedAt',
+          defaultMessage: 'Ban time',
+        }),
+        dataIndex: 'banned_at',
+        valueType: 'dateTime',
+        search: false,
+        hideInTable: isMobile,
+        render: (_, record) => record.banned_at || '-',
+      },
+      {
+        title: intl.formatMessage({
+          id: 'pages.rtcUsers.createdAt',
+          defaultMessage: 'Created at',
+        }),
+        dataIndex: 'created_at',
+        valueType: 'dateTime',
+        search: false,
+        sorter: true,
+        defaultSortOrder: 'descend',
+        hideInTable: isMobile,
+      },
+      {
+        title: intl.formatMessage({
+          id: 'pages.rtcUsers.actions',
+          defaultMessage: 'Action',
+        }),
+        dataIndex: 'option',
+        valueType: 'option',
+        width: 160,
+        render: (_, record) => (
+          <ActionColumn
+            record={record}
+            intl={intl}
+            access={access}
+            canBan={canBan}
+            onBan={handleBanClick}
+            onUnban={handleUnbanUser}
+            onConfig={handleConfigClick}
+            onDetail={handleDetailClick}
+          />
+        ),
+      },
+    ],
+    [intl, isMobile, access, canBan],
+  );
 
   return (
     <PageContainer>
       <ProTable<RtcUserInfo>
         headerTitle={intl.formatMessage({
           id: 'pages.rtcUsers.title',
-          defaultMessage: 'RTC 用户列表',
+          defaultMessage: 'RTC user list',
         })}
         actionRef={actionRef}
         rowKey="id"
         columns={columns}
-        request={async (params, _sort, _filter) => {
+        scroll={{ x: 'max-content' }}
+        request={async (params, sort) => {
           // Read params from searchParams (URL is single source of truth)
           const search = searchParams.get('search') || '';
           const status = searchParams.get('status') || '';
           const current = params.current || 1;
           const pageSize = params.pageSize || 10;
           try {
+            const sortParams = parseTableSort(sort || {});
             const response = await getRtcUserList({
               page: current,
               page_size: pageSize,
               search: search || undefined,
               status: status || undefined,
+              ...sortParams,
             });
             return {
               data: response.items,
               total: response.total,
               success: true,
             };
-          } catch (_error) {
+          } catch (error: unknown) {
             message.error(
-              intl.formatMessage({
-                id: 'pages.rtcUsers.loadFailed',
-                defaultMessage: '加载用户列表失败',
-              }),
+              getFriendlyErrorMessage(
+                error,
+                intl.formatMessage({
+                  id: 'pages.rtcUsers.loadFailed',
+                  defaultMessage: 'Failed to load users',
+                }),
+              ),
             );
             return {
               data: [],
@@ -549,7 +646,7 @@ const RtcUserManagementPage: React.FC = () => {
           <Button key="refresh" onClick={() => actionRef.current?.reload()}>
             {intl.formatMessage({
               id: 'pages.rtcUsers.refresh',
-              defaultMessage: '刷新',
+              defaultMessage: 'Refresh',
             })}
           </Button>,
         ]}
@@ -559,13 +656,23 @@ const RtcUserManagementPage: React.FC = () => {
       <ModalForm
         title={intl.formatMessage({
           id: 'pages.rtcUsers.banUser',
-          defaultMessage: '封禁用户',
+          defaultMessage: 'Ban user',
         })}
-        open={banModalVisible}
-        onOpenChange={setBanModalVisible}
+        open={modalState.ban.visible}
+        onOpenChange={(visible) =>
+          setModalState((prev) => ({
+            ...prev,
+            ban: { visible, user: visible ? prev.ban.user : undefined },
+          }))
+        }
+        width={isMobile ? '95vw' : 520}
         modalProps={{
           destroyOnClose: true,
-          onCancel: () => setCurrentRow(undefined),
+          onCancel: () =>
+            setModalState((prev) => ({
+              ...prev,
+              ban: { visible: false },
+            })),
         }}
         onFinish={handleBanUser}
       >
@@ -573,32 +680,32 @@ const RtcUserManagementPage: React.FC = () => {
           name="reason"
           label={intl.formatMessage({
             id: 'pages.rtcUsers.banReasonLabel',
-            defaultMessage: '封禁原因',
+            defaultMessage: 'Ban reason',
           })}
           placeholder={intl.formatMessage({
             id: 'pages.rtcUsers.banReasonPlaceholder',
-            defaultMessage: '请输入封禁原因',
+            defaultMessage: 'Please enter ban reason',
           })}
           rules={[
             {
               required: true,
               message: intl.formatMessage({
                 id: 'pages.rtcUsers.banReasonRequired',
-                defaultMessage: '请输入封禁原因',
+                defaultMessage: 'Please enter ban reason',
               }),
             },
             {
               whitespace: true,
               message: intl.formatMessage({
                 id: 'pages.rtcUsers.banReasonNoWhitespace',
-                defaultMessage: '封禁原因不能为空白字符',
+                defaultMessage: 'Ban reason cannot be blank',
               }),
             },
             {
               max: 500,
               message: intl.formatMessage({
                 id: 'pages.rtcUsers.banReasonMaxLength',
-                defaultMessage: '封禁原因长度不能超过 500 个字符',
+                defaultMessage: 'Ban reason cannot exceed 500 characters',
               }),
             },
           ]}
@@ -612,24 +719,28 @@ const RtcUserManagementPage: React.FC = () => {
 
       {/* User config drawer */}
       <UserConfigDrawer
-        open={configDrawerOpen}
-        onClose={() => {
-          setConfigDrawerOpen(false);
-          setConfigUser(null);
-        }}
-        user={configUser}
+        open={modalState.config.open}
+        onClose={() =>
+          setModalState((prev) => ({
+            ...prev,
+            config: { open: false, user: null },
+          }))
+        }
+        user={modalState.config.user}
         canEdit={canConfigEdit}
         canDelete={canConfigDelete}
       />
 
       {/* User detail drawer */}
       <UserDetailDrawer
-        open={detailOpen}
-        user={detailUser}
-        onClose={() => {
-          setDetailOpen(false);
-          setDetailUser(null);
-        }}
+        open={modalState.detail.open}
+        user={modalState.detail.user}
+        onClose={() =>
+          setModalState((prev) => ({
+            ...prev,
+            detail: { open: false, user: null },
+          }))
+        }
       />
     </PageContainer>
   );
