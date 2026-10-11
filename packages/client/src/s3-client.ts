@@ -11,10 +11,22 @@
  * refresh mechanism. Splitting would scatter the S3 protocol flow across files.
  */
 
-import { S3Client as AWSS3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand, ListObjectsCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, ListPartsCommand } from '@aws-sdk/client-s3';
+import {
+  S3Client as AWSS3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  DeleteObjectCommand,
+  HeadObjectCommand,
+  ListObjectsCommand,
+  CreateMultipartUploadCommand,
+  UploadPartCommand,
+  CompleteMultipartUploadCommand,
+  AbortMultipartUploadCommand,
+  ListPartsCommand,
+} from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import type { TemporaryCredentialsResponse } from '@rtc-agent/protocol';
-import { createLogger } from './logger.js';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('S3Client');
 
@@ -23,6 +35,35 @@ const MULTIPART_THRESHOLD = 5 * 1024 * 1024;
 
 /** Credential early refresh margin: 5 minutes */
 const CREDENTIAL_REFRESH_MARGIN_MS = 5 * 60 * 1000;
+
+/**
+ * Default safe file extensions allowed for upload.
+ *
+ * SECURITY: Defense-in-depth measure to prevent uploading executable content types
+ * (e.g. .html, .js, .svg with scripts) that could be served back and executed in
+ * a browser context. This is a client-side check; the server MUST also validate.
+ *
+ * The list covers common document, image, and data file types. When `allowedExtensions`
+ * is not provided in S3ClientOptions, this default is used. Set `allowedExtensions: []`
+ * (empty array) to disable extension validation entirely (not recommended).
+ */
+const DEFAULT_SAFE_EXTENSIONS: ReadonlySet<string> = new Set([
+  // Images
+  'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'ico', 'tiff', 'tif',
+  // Documents
+  'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp',
+  // Text / Data
+  'txt', 'csv', 'json', 'xml', 'yaml', 'yml', 'md', 'rtf',
+  // Archives
+  'zip', 'gz', 'tar', 'bz2', '7z', 'rar',
+  // Media
+  'mp3', 'mp4', 'wav', 'ogg', 'webm', 'avi', 'mov', 'flac', 'aac', 'm4a',
+  // Code / Config (common for AI agent file exchanges)
+  'py', 'js', 'ts', 'go', 'java', 'c', 'cpp', 'h', 'rs', 'rb', 'sh', 'sql',
+  'html', 'css', 'tsx', 'jsx', 'vue', 'svelte',
+  // Misc
+  'bin', 'dat', 'wasm',
+]);
 
 /**
  * S3 Client configuration options
@@ -36,6 +77,15 @@ export interface S3ClientOptions {
   bucket?: string;
   /** S3 region, default 'us-east-1' */
   region?: string;
+  /**
+   * Allowed file extensions for upload (without dots, lowercase).
+   *
+   * SECURITY: Defense-in-depth validation to block uploading executable content types.
+   * - Undefined (default): uses built-in DEFAULT_SAFE_EXTENSIONS allowlist
+   * - Non-empty array: overrides the default allowlist with custom extensions
+   * - Empty array []: disables extension validation (NOT recommended)
+   */
+  allowedExtensions?: string[];
 }
 
 /**
@@ -97,9 +147,19 @@ export interface UploadedPart {
  * - 自动选择普通上传或分片上传（阈值 1MB）
  */
 export class S3Client {
-  private readonly options: Required<Omit<S3ClientOptions, 'getToken'>> & {
+  private readonly options: Omit<Required<S3ClientOptions>, 'getToken' | 'allowedExtensions'> & {
     getToken: () => string | Promise<string>;
   };
+
+  /**
+   * Allowed file extensions for upload (lowercase, without dots).
+   *
+   * Built from S3ClientOptions.allowedExtensions:
+   * - undefined (default): DEFAULT_SAFE_EXTENSIONS
+   * - non-empty array: custom allowlist (converted to Set)
+   * - empty array: empty Set (validation disabled — NOT recommended)
+   */
+  private readonly allowedExtensions: ReadonlySet<string>;
 
   /** Cached temporary credentials */
   private credentials: TemporaryCredentialsResponse | null = null;
@@ -113,10 +173,21 @@ export class S3Client {
   constructor(options: S3ClientOptions) {
     this.options = {
       serverURL: options.serverURL.replace(/\/$/, ''),
-      getToken: options.getToken,
       bucket: options.bucket ?? 'rtc-agent',
       region: options.region ?? 'us-east-1',
+      getToken: options.getToken,
     };
+
+    // Build allowed extensions set
+    if (options.allowedExtensions === undefined) {
+      // Default: use built-in safe extensions
+      this.allowedExtensions = DEFAULT_SAFE_EXTENSIONS;
+    } else {
+      // Custom list (may be empty to disable validation)
+      this.allowedExtensions = new Set(
+        options.allowedExtensions.map((ext) => ext.toLowerCase()),
+      );
+    }
   }
 
   /**
@@ -137,7 +208,7 @@ export class S3Client {
     md5Hash: string,
     ext: string,
     file: File | Blob,
-    options?: UploadOptions
+    options?: UploadOptions,
   ): Promise<void> {
     const key = this.buildKey(userId, md5Hash, ext);
     const client = await this.getClient();
@@ -156,9 +227,11 @@ export class S3Client {
           Bucket: this.options.bucket,
           Key: key,
           Body: new Uint8Array(await file.arrayBuffer()),
-          ContentType: options?.contentType ?? (file instanceof File ? file.type : undefined),
+          ContentType:
+            options?.contentType ??
+            (file instanceof File ? file.type : undefined),
         }),
-        { abortSignal: options?.signal }
+        { abortSignal: options?.signal },
       );
     } else {
       // Large file: multipart upload
@@ -182,7 +255,9 @@ export class S3Client {
             Bucket: this.options.bucket,
             Key: key,
             Body: file instanceof File ? file.stream() : file,
-            ContentType: options?.contentType ?? (file instanceof File ? file.type : undefined),
+            ContentType:
+              options?.contentType ??
+              (file instanceof File ? file.type : undefined),
           },
           queueSize: 4,
           partSize: 5 * 1024 * 1024, // 5MB per part (S3 minimum)
@@ -191,7 +266,10 @@ export class S3Client {
 
         if (options?.onProgress) {
           upload.on('httpUploadProgress', (progress) => {
-            options.onProgress!(progress.loaded ?? 0, progress.total ?? file.size);
+            options.onProgress!(
+              progress.loaded ?? 0,
+              progress.total ?? file.size,
+            );
           });
         }
 
@@ -220,7 +298,10 @@ export class S3Client {
     userId: string,
     md5Hash: string,
     ext: string,
-    options?: { signal?: AbortSignal; onProgress?: (loaded: number, total: number) => void }
+    options?: {
+      signal?: AbortSignal;
+      onProgress?: (loaded: number, total: number) => void;
+    },
   ): Promise<Blob> {
     const key = this.buildKey(userId, md5Hash, ext);
     const client = await this.getClient();
@@ -237,7 +318,7 @@ export class S3Client {
         Bucket: this.options.bucket,
         Key: key,
       }),
-      { abortSignal: options?.signal }
+      { abortSignal: options?.signal },
     );
 
     if (!response.Body) {
@@ -250,12 +331,19 @@ export class S3Client {
     // read the body stream with progress tracking
     if (options?.onProgress && contentLength > 0) {
       // Use streaming approach for progress tracking
-      const body = response.Body as any;
-      if (typeof body[Symbol.asyncIterator] === 'function') {
+      // response.Body type from AWS SDK is StreamingBlobPayloadOutputTypes
+      // We need to check if it supports async iteration
+      const body = response.Body;
+      // Type guard: check if body supports async iteration (ReadableStream, Node Readable, etc.)
+      if (
+        body &&
+        typeof (body as AsyncIterable<Uint8Array>)[Symbol.asyncIterator] ===
+          'function'
+      ) {
         const chunks: Uint8Array[] = [];
         let loaded = 0;
 
-        for await (const chunk of body) {
+        for await (const chunk of body as AsyncIterable<Uint8Array>) {
           const uint8 = new Uint8Array(chunk);
           chunks.push(uint8);
           loaded += uint8.byteLength;
@@ -278,7 +366,10 @@ export class S3Client {
     // Fallback: AWS SDK Body may be various types, use transformToByteArray for unified handling
     const bytes = await response.Body.transformToByteArray();
     // Convert Uint8Array to ArrayBuffer for Blob compatibility
-    const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+    const buffer = bytes.buffer.slice(
+      bytes.byteOffset,
+      bytes.byteOffset + bytes.byteLength,
+    ) as ArrayBuffer;
     return new Blob([buffer], { type: response.ContentType });
   }
 
@@ -295,10 +386,12 @@ export class S3Client {
 
     log.debug(`delete: key=${key}`);
 
-    await client.send(new DeleteObjectCommand({
-      Bucket: this.options.bucket,
-      Key: key,
-    }));
+    await client.send(
+      new DeleteObjectCommand({
+        Bucket: this.options.bucket,
+        Key: key,
+      }),
+    );
   }
 
   /**
@@ -308,16 +401,22 @@ export class S3Client {
    * @param md5Hash 文件 MD5 哈希
    * @param ext 文件扩展名
    */
-  async head(userId: string, md5Hash: string, ext: string): Promise<HeadObjectResult> {
+  async head(
+    userId: string,
+    md5Hash: string,
+    ext: string,
+  ): Promise<HeadObjectResult> {
     const key = this.buildKey(userId, md5Hash, ext);
     const client = await this.getClient();
 
     log.debug(`head: key=${key}`);
 
-    const response = await client.send(new HeadObjectCommand({
-      Bucket: this.options.bucket,
-      Key: key,
-    }));
+    const response = await client.send(
+      new HeadObjectCommand({
+        Bucket: this.options.bucket,
+        Key: key,
+      }),
+    );
 
     return {
       contentLength: response.ContentLength ?? 0,
@@ -334,21 +433,27 @@ export class S3Client {
    * @param prefix 可选前缀过滤
    * @param marker 分页标记
    */
-  async list(userId: string, prefix?: string, marker?: string): Promise<ListObjectsResult> {
+  async list(
+    userId: string,
+    prefix?: string,
+    marker?: string,
+  ): Promise<ListObjectsResult> {
     const client = await this.getClient();
     const userPrefix = `user-${userId}/`;
     const fullPrefix = prefix ? `${userPrefix}${prefix}` : userPrefix;
 
     log.debug(`list: prefix=${fullPrefix}, marker=${marker}`);
 
-    const response = await client.send(new ListObjectsCommand({
-      Bucket: this.options.bucket,
-      Prefix: fullPrefix,
-      Marker: marker,
-    }));
+    const response = await client.send(
+      new ListObjectsCommand({
+        Bucket: this.options.bucket,
+        Prefix: fullPrefix,
+        Marker: marker,
+      }),
+    );
 
     return {
-      items: (response.Contents ?? []).map(item => ({
+      items: (response.Contents ?? []).map((item) => ({
         key: item.Key ?? '',
         size: item.Size ?? 0,
         lastModified: item.LastModified ?? new Date(),
@@ -368,7 +473,7 @@ export class S3Client {
   async getPresignedUrl(
     operation: 'put' | 'get',
     key: string,
-    expiresIn?: number
+    expiresIn?: number,
   ): Promise<string> {
     const url = `${this.options.serverURL}/api/presigned-url`;
     const token = await this.options.getToken();
@@ -378,7 +483,7 @@ export class S3Client {
     const response = await fetch(url, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${token}`,
+        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -390,10 +495,11 @@ export class S3Client {
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'Unknown error');
-      throw new Error(`Presigned URL API error ${response.status}: ${errorText}`);
+      log.error('presigned URL request failed:', errorText);
+      throw new Error(`Presigned URL API error ${response.status}`);
     }
 
-    const data = await response.json() as { url: string };
+    const data = (await response.json()) as { url: string };
     return data.url;
   }
 
@@ -414,7 +520,7 @@ export class S3Client {
     md5Hash: string,
     ext: string,
     contentType?: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
   ): Promise<string> {
     const key = this.buildKey(userId, md5Hash, ext);
     const client = await this.getClient();
@@ -429,14 +535,16 @@ export class S3Client {
         Key: key,
         ContentType: contentType,
       }),
-      { abortSignal: signal }
+      { abortSignal: signal },
     );
 
     if (!response.UploadId) {
       throw new Error('CreateMultipartUpload returned no UploadId');
     }
 
-    log.debug(`createMultipartUpload: key=${key}, uploadId=${response.UploadId}`);
+    log.debug(
+      `createMultipartUpload: key=${key}, uploadId=${response.UploadId}`,
+    );
     return response.UploadId;
   }
 
@@ -461,7 +569,7 @@ export class S3Client {
     partNumber: number,
     body: Uint8Array,
     onProgress?: (loaded: number, total: number) => void,
-    signal?: AbortSignal
+    signal?: AbortSignal,
   ): Promise<UploadedPart> {
     const key = this.buildKey(userId, md5Hash, ext);
     const client = await this.getClient();
@@ -479,7 +587,7 @@ export class S3Client {
         PartNumber: partNumber,
         Body: body,
       }),
-      { abortSignal: signal }  // P2-008 fix: pass signal to AWS SDK
+      { abortSignal: signal }, // P2-008 fix: pass signal to AWS SDK
     );
 
     onProgress?.(body.length, body.length);
@@ -508,7 +616,7 @@ export class S3Client {
     ext: string,
     uploadId: string,
     parts: UploadedPart[],
-    signal?: AbortSignal
+    signal?: AbortSignal,
   ): Promise<void> {
     const key = this.buildKey(userId, md5Hash, ext);
     const client = await this.getClient();
@@ -526,16 +634,18 @@ export class S3Client {
         Key: key,
         UploadId: uploadId,
         MultipartUpload: {
-          Parts: sortedParts.map(p => ({
+          Parts: sortedParts.map((p) => ({
             PartNumber: p.partNumber,
             ETag: p.etag,
           })),
         },
       }),
-      { abortSignal: signal }
+      { abortSignal: signal },
     );
 
-    log.debug(`completeMultipartUpload: key=${key}, uploadId=${uploadId}, parts=${parts.length}`);
+    log.debug(
+      `completeMultipartUpload: key=${key}, uploadId=${uploadId}, parts=${parts.length}`,
+    );
   }
 
   /**
@@ -554,7 +664,7 @@ export class S3Client {
     md5Hash: string,
     ext: string,
     uploadId: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
   ): Promise<void> {
     const key = this.buildKey(userId, md5Hash, ext);
     const client = await this.getClient();
@@ -565,7 +675,7 @@ export class S3Client {
         Key: key,
         UploadId: uploadId,
       }),
-      { abortSignal: signal }
+      { abortSignal: signal },
     );
 
     log.debug(`abortMultipartUpload: key=${key}, uploadId=${uploadId}`);
@@ -589,7 +699,7 @@ export class S3Client {
     md5Hash: string,
     ext: string,
     uploadId: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
   ): Promise<UploadedPart[]> {
     const key = this.buildKey(userId, md5Hash, ext);
     const client = await this.getClient();
@@ -610,7 +720,7 @@ export class S3Client {
           UploadId: uploadId,
           PartNumberMarker: partNumberMarker,
         }),
-        { abortSignal: signal }
+        { abortSignal: signal },
       );
 
       for (const part of response.Parts ?? []) {
@@ -642,8 +752,44 @@ export class S3Client {
   /**
    * Build object key
    * Format: user-{userId}/{md5Hash}.{ext}
+   *
+   * SECURITY: Validates all inputs to prevent path traversal and unsafe uploads.
+   * - userId: UUID format (alphanumeric + hyphens)
+   * - md5Hash: 32-character hex string
+   * - ext: alphanumeric only (no slashes or dots), AND checked against allowedExtensions
    */
   private buildKey(userId: string, md5Hash: string, ext: string): string {
+    // Validate userId (UUID format: alphanumeric + hyphens, 1-64 chars)
+    if (!userId || !/^[a-zA-Z0-9-]{1,64}$/.test(userId)) {
+      throw new Error(
+        `Invalid userId: must be 1-64 alphanumeric characters or hyphens`,
+      );
+    }
+
+    // Validate md5Hash (32-character hex string)
+    if (!md5Hash || !/^[a-f0-9]{32}$/i.test(md5Hash)) {
+      throw new Error(
+        `Invalid md5Hash: must be a 32-character hexadecimal string`,
+      );
+    }
+
+    // Validate extension format (alphanumeric only, 1-10 chars, no path separators)
+    if (!ext || !/^[a-zA-Z0-9]{1,10}$/.test(ext)) {
+      throw new Error(
+        `Invalid extension: must be 1-10 alphanumeric characters`,
+      );
+    }
+
+    // SECURITY: Validate extension against allowedExtensions allowlist.
+    // Defense-in-depth: prevents uploading executable content types (.html, .js, etc.)
+    // that could be served back and executed in a browser context.
+    const extLower = ext.toLowerCase();
+    if (this.allowedExtensions.size > 0 && !this.allowedExtensions.has(extLower)) {
+      throw new Error(
+        `Invalid extension: '${ext}' is not in the allowed extensions list`,
+      );
+    }
+
     return `user-${userId}/${md5Hash}.${ext}`;
   }
 
@@ -652,9 +798,12 @@ export class S3Client {
    */
   private async getClient(): Promise<AWSS3Client> {
     // Check if credentials are valid (refresh 5 minutes before expiry)
-    if (this.credentials && this.expiresAt &&
-        Date.now() < this.expiresAt.getTime() - CREDENTIAL_REFRESH_MARGIN_MS &&
-        this.awsClient) {
+    if (
+      this.credentials &&
+      this.expiresAt &&
+      Date.now() < this.expiresAt.getTime() - CREDENTIAL_REFRESH_MARGIN_MS &&
+      this.awsClient
+    ) {
       return this.awsClient;
     }
 
@@ -664,9 +813,13 @@ export class S3Client {
       // P2-R6-05: Distinguish "refresh failed" from "client disposed"
       if (!this.awsClient) {
         if (this.credentials === null) {
-          throw new Error('S3Client: credential refresh failed, no credentials available');
+          throw new Error(
+            'S3Client: credential refresh failed, no credentials available',
+          );
         }
-        throw new Error('S3Client: client was disposed during credential refresh');
+        throw new Error(
+          'S3Client: client was disposed during credential refresh',
+        );
       }
       return this.awsClient;
     }
@@ -683,7 +836,9 @@ export class S3Client {
 
     // P2-007 fix: verify awsClient is not null after successful refresh
     if (!this.awsClient) {
-      throw new Error('S3Client: credential refresh succeeded but awsClient is null');
+      throw new Error(
+        'S3Client: credential refresh succeeded but awsClient is null',
+      );
     }
 
     return this.awsClient;
@@ -701,16 +856,19 @@ export class S3Client {
     const response = await fetch(url, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${token}`,
+        Authorization: `Bearer ${token}`,
       },
     });
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'Unknown error');
-      throw new Error(`Failed to get temporary credentials: ${response.status} ${errorText}`);
+      log.error('credential refresh failed:', errorText);
+      throw new Error(
+        `Failed to get temporary credentials: ${response.status}`,
+      );
     }
 
-    this.credentials = await response.json() as TemporaryCredentialsResponse;
+    this.credentials = (await response.json()) as TemporaryCredentialsResponse;
     this.expiresAt = new Date(this.credentials.expires_at);
 
     // Create new AWS S3 Client
@@ -725,6 +883,9 @@ export class S3Client {
       forcePathStyle: true,
     });
 
-    log.debug('credentials refreshed, expires at', this.expiresAt.toISOString());
+    log.debug(
+      'credentials refreshed, expires at',
+      this.expiresAt.toISOString(),
+    );
   }
 }
