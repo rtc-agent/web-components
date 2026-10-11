@@ -25,6 +25,7 @@ import { AUTH_CONFIG, STORAGE_KEYS } from '../config/auth.js';
 import { OAuth2Client } from '@rtc-agent/client';
 import { createLogger, parseJwtPayload } from '@rtc-agent/protocol';
 import { getDeviceName, saveDeviceIdToStorage } from '../utils/device.js';
+import { maskUserID } from '../utils/mask.js';
 
 const log = createLogger('AuthController');
 
@@ -78,6 +79,58 @@ export class AuthController implements ReactiveController {
 
   /** Timestamp when this tab started a refresh (for leader election). */
   private _refreshStartTime?: number;
+
+  /**
+   * Deferred refresh promise for cross-tab coordination.
+   *
+   * When this tab receives 'refresh-start' from another tab and decides to yield
+   * (i.e., the other tab is the leader), this promise is set so that
+   * _executeRefreshWithGuard() can await the other tab's result instead of
+   * starting its own redundant refresh.
+   */
+  private _deferredRefresh?: Promise<boolean>;
+
+  /** Resolve function for the deferred refresh promise (set by broadcast handler). */
+  private _deferredResolve?: (success: boolean) => void;
+
+  /**
+   * Token Exchange concurrency guard — prevents _performTokenExchange() from
+   * conflicting with _executeRefreshWithGuard()'s _refreshing promise.
+   *
+   * Without this separate flag, _performTokenExchange() sets _refreshing = _doTokenExchange()
+   * which is then overwritten by _executeRefreshWithGuard() to _doRefreshWithBroadcast().
+   * When _doTokenExchange() completes, its .finally() clears _refreshing, leaving the
+   * outer guard unprotected and allowing duplicate concurrent operations.
+   */
+  private _tokenExchanging = false;
+
+  /**
+   * StrictMode temporary disconnect flag — prevents BroadcastChannel from being
+   * closed during React StrictMode's unmount/remount cycle.
+   *
+   * React StrictMode simulates unmount+remount to detect side-effect bugs. Without
+   * this flag, hostDisconnected() closes the BroadcastChannel, and the subsequent
+   * hostConnected() reopens it, creating a brief window where cross-tab coordination
+   * fails. By marking the disconnect as "temporary", we skip closing the channel
+   * and simply restore state on reconnect.
+   */
+  private _isTemporaryDisconnect = false;
+
+  /**
+   * Pending Token Exchange flag — allows refresh-success handler to accept tokens
+   * even when isLoggedIn is false during initial token exchange setup.
+   *
+   * During Token Exchange mode initialization, the sequence is:
+   * 1. setAuthProvider() → isLoggedIn may be false initially
+   * 2. _performTokenExchange() starts (async)
+   * 3. Another tab broadcasts refresh-success
+   * 4. Without this flag, the handler rejects the tokens (isLoggedIn === false)
+   * 5. Token exchange completes but may have been redundant
+   *
+   * This flag ensures that if a token exchange is in progress, we accept the
+   * refreshed tokens instead of discarding them.
+   */
+  private _pendingTokenExchange = false;
 
   /**
    * Callback fired when auth state transitions to logged-in.
@@ -167,14 +220,31 @@ export class AuthController implements ReactiveController {
             // This tab is the leader, ignore the other tab's message
             return;
           }
-          // This tab is not the leader (or wasn't refreshing), wait for result
-          log.debug('Another tab is refreshing, waiting for result');
+          // This tab is not the leader — yield to the other tab.
+          // Set up a deferred promise so _executeRefreshWithGuard() waits for
+          // the other tab's result instead of starting its own redundant refresh.
+          log.debug('Yielding to another tab for token refresh');
+          this._deferredRefresh = new Promise<boolean>((resolve) => {
+            this._deferredResolve = resolve;
+          });
+          // Auto-resolve after timeout to prevent indefinite waiting
+          // (e.g., if the leader tab crashes before broadcasting result)
+          setTimeout(() => {
+            if (this._deferredRefresh) {
+              log.debug('Cross-tab refresh deferred timed out, proceeding independently');
+              this._deferredResolve?.(false);
+              this._deferredResolve = undefined;
+              this._deferredRefresh = undefined;
+            }
+          }, 15000);
           break;
 
         case 'refresh-success':
           // Another tab completed refresh successfully. Update this tab's state.
           log.debug('Another tab refreshed successfully, updating state');
-          if (tokens && this._state.isLoggedIn) {
+          // Accept tokens if logged in OR if a token exchange is pending
+          // (Token Exchange mode may have isLoggedIn=false during initial setup)
+          if (tokens && (this._state.isLoggedIn || this._pendingTokenExchange)) {
             this._state = {
               ...this._state,
               accessToken: tokens.accessToken,
@@ -194,6 +264,12 @@ export class AuthController implements ReactiveController {
             this._scheduleRefresh(tokens.expiresAt);
             this.host.requestUpdate();
           }
+          // Resolve deferred refresh (if this tab was waiting)
+          if (this._deferredResolve) {
+            this._deferredResolve(true);
+            this._deferredResolve = undefined;
+            this._deferredRefresh = undefined;
+          }
           this._refreshing = undefined;
           this._refreshStartTime = undefined;
           break;
@@ -201,6 +277,12 @@ export class AuthController implements ReactiveController {
         case 'refresh-failure':
           // Another tab's refresh failed. This tab should also logout.
           log.debug('Another tab refresh failed, clearing _refreshing state');
+          // Resolve deferred refresh (if this tab was waiting)
+          if (this._deferredResolve) {
+            this._deferredResolve(false);
+            this._deferredResolve = undefined;
+            this._deferredRefresh = undefined;
+          }
           this._refreshing = undefined;
           this._refreshStartTime = undefined;
           break;
@@ -236,6 +318,13 @@ export class AuthController implements ReactiveController {
     ) {
       this._scheduleRefresh(this._state.expiresAt);
     }
+
+    // If this is a reconnect after a temporary disconnect (StrictMode),
+    // the BroadcastChannel is still open — no need to reopen it.
+    if (this._isTemporaryDisconnect) {
+      log.debug('Reconnecting after temporary disconnect');
+      this._isTemporaryDisconnect = false;
+    }
   }
 
   /**
@@ -246,6 +335,9 @@ export class AuthController implements ReactiveController {
    * (_authProvider) are intentionally NOT cleared here —
    * they persist across temporary disconnects and are cleared by _performLogout()
    * or when the controller is GC'd with the element.
+   *
+   * BroadcastChannel is NOT closed here to support React StrictMode's rapid
+   * unmount/remount cycle. The channel is closed in _performLogout() instead.
    */
   hostDisconnected() {
     if (this._boundVisibilityHandler) {
@@ -259,11 +351,16 @@ export class AuthController implements ReactiveController {
       clearTimeout(this._refreshTimer);
       this._refreshTimer = undefined;
     }
-    // Close BroadcastChannel to prevent message handler leaks
-    if (this._refreshChannel) {
-      this._refreshChannel.close();
-      this._refreshChannel = undefined;
+    // Resolve any pending deferred refresh before marking disconnect
+    // (prevents dangling promise if another tab was supposed to resolve it)
+    if (this._deferredRefresh) {
+      this._deferredResolve?.(false);
+      this._deferredResolve = undefined;
+      this._deferredRefresh = undefined;
     }
+    // Mark as temporary disconnect — BroadcastChannel stays open for StrictMode remount.
+    // The channel will be closed by _performLogout() on actual logout/destroy.
+    this._isTemporaryDisconnect = true;
   }
 
   /**
@@ -481,16 +578,25 @@ export class AuthController implements ReactiveController {
    * @returns true if exchange succeeded, false otherwise
    */
   private _performTokenExchange(): Promise<boolean> {
-    // Use the _refreshing guard to prevent concurrent token exchange calls
-    // from racing (same pattern as _executeRefreshWithGuard).
-    if (this._refreshing) {
-      return this._refreshing;
+    // Use a separate _tokenExchanging flag to prevent concurrent token exchange calls.
+    // NOTE: We cannot use _refreshing here because _executeRefreshWithGuard() also sets
+    // _refreshing, and the two promises would conflict (inner .finally() clears outer guard).
+    if (this._tokenExchanging) {
+      return Promise.resolve(false);
     }
 
-    this._refreshing = this._doTokenExchange();
-    return this._refreshing.finally(() => {
-      this._refreshing = undefined;
-    });
+    this._tokenExchanging = true;
+    // Mark that a token exchange is pending — allows refresh-success handler
+    // to accept tokens even when isLoggedIn is false during initial setup
+    this._pendingTokenExchange = true;
+    return this._doTokenExchange()
+      .then((success) => {
+        this._pendingTokenExchange = false;
+        return success;
+      })
+      .finally(() => {
+        this._tokenExchanging = false;
+      });
   }
 
   /**
@@ -606,8 +712,8 @@ export class AuthController implements ReactiveController {
         return false;
       }
       log.info(
-        'token_exchange.parsed_userId_from_jwt (first 8 chars):',
-        rtcUserId.substring(0, 8) + '...',
+        'token_exchange.parsed_userId_from_jwt:',
+        maskUserID(rtcUserId),
       );
 
       // Step 4: Update state with RTC JWT
@@ -633,8 +739,8 @@ export class AuthController implements ReactiveController {
       this.host.requestUpdate();
 
       log.info(
-        'token_exchange.succeeded, userId (first 8 chars):',
-        rtcUserId.substring(0, 8) + '...',
+        'token_exchange.succeeded, userId:',
+        maskUserID(rtcUserId),
         'expires at',
         new Date(expiresAt).toISOString(),
       );
@@ -714,6 +820,7 @@ export class AuthController implements ReactiveController {
    * - `_externalTokens`: reset so next login cycle starts clean
    * - `_isTokenExchangeMode`: reset to default
    * - `_oauth2Client`: released for GC
+   * - `_refreshChannel`: closed to prevent message handler leaks
    */
   private _performLogout() {
     this._state = { isLoggedIn: false };
@@ -729,9 +836,26 @@ export class AuthController implements ReactiveController {
     this._isTokenExchangeMode = false;
     this._oauth2Client = undefined;
 
+    // Clear all refresh-related state to prevent orphaned operations
     if (this._refreshTimer) {
       clearTimeout(this._refreshTimer);
       this._refreshTimer = undefined;
+    }
+    this._refreshing = undefined;
+    this._refreshStartTime = undefined;
+    this._tokenExchanging = false;
+    this._pendingTokenExchange = false;
+    // Resolve any pending deferred refresh so awaiters are unblocked
+    if (this._deferredRefresh) {
+      this._deferredResolve?.(false);
+      this._deferredResolve = undefined;
+      this._deferredRefresh = undefined;
+    }
+    // Close BroadcastChannel to prevent message handler leaks
+    // (hostDisconnected no longer closes it to support StrictMode remount)
+    if (this._refreshChannel) {
+      this._refreshChannel.close();
+      this._refreshChannel = undefined;
     }
 
     this.host.dispatchEvent(
@@ -935,6 +1059,23 @@ export class AuthController implements ReactiveController {
     if (this._refreshing) {
       const success = await this._refreshing;
       return success ? 'refresh' : 'relogin';
+    }
+
+    // Check if another tab is already refreshing (cross-tab coordination).
+    // If _deferredRefresh is set, this tab has yielded to another tab via
+    // BroadcastChannel. Await the other tab's result instead of starting
+    // a redundant refresh.
+    if (this._deferredRefresh) {
+      log.debug('Waiting for another tab to complete refresh');
+      const success = await this._deferredRefresh;
+      this._deferredRefresh = undefined;
+      // If the other tab succeeded, state was already updated by the broadcast handler.
+      // If it failed or timed out, fall through to start our own refresh.
+      if (success) {
+        return 'refresh';
+      }
+      // Other tab failed or timed out — proceed with our own refresh below.
+      log.debug('Other tab failed, proceeding with own refresh');
     }
 
     // Record when this tab started refreshing (for leader election)

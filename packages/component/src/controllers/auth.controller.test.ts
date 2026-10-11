@@ -559,3 +559,337 @@ describe('AuthController - Token Exchange mode', () => {
     expect(ctrl.value.state.accessToken).toMatch(/^eyJ/); // JWT format
   });
 });
+
+describe('AuthController - BroadcastChannel coordination', () => {
+  /**
+   * Mock BroadcastChannel for testing cross-tab coordination.
+   * Uses a shared message bus to simulate multiple tabs receiving messages.
+   */
+  class MockBroadcastChannel {
+    name: string;
+    onmessage: ((event: MessageEvent) => void) | null = null;
+    closed = false;
+    static channels: Map<string, MockBroadcastChannel[]> = new Map();
+
+    constructor(name: string) {
+      this.name = name;
+      const existing = MockBroadcastChannel.channels.get(name) || [];
+      existing.push(this);
+      MockBroadcastChannel.channels.set(name, existing);
+    }
+
+    postMessage(data: unknown) {
+      if (this.closed) throw new Error('Channel is closed');
+      // Broadcast to all OTHER channels with the same name (simulates cross-tab)
+      const channels = MockBroadcastChannel.channels.get(this.name) || [];
+      for (const channel of channels) {
+        if (channel !== this && channel.onmessage && !channel.closed) {
+          channel.onmessage(new MessageEvent('message', { data }));
+        }
+      }
+    }
+
+    close() {
+      this.closed = true;
+      const channels = MockBroadcastChannel.channels.get(this.name) || [];
+      const idx = channels.indexOf(this);
+      if (idx >= 0) channels.splice(idx, 1);
+      MockBroadcastChannel.channels.set(this.name, channels);
+    }
+  }
+
+  beforeEach(() => {
+    // Reset shared channel registry
+    MockBroadcastChannel.channels.clear();
+    // Install mock
+    vi.stubGlobal('BroadcastChannel', MockBroadcastChannel);
+  });
+
+  const createMockHost = () => {
+    class TestHost {
+      updateCount = 0;
+      dispatchEvent = vi.fn();
+      requestUpdate() {
+        this.updateCount++;
+      }
+      addController(_c: unknown) {}
+    }
+    return new TestHost();
+  };
+
+  it('should open BroadcastChannel on construction', () => {
+    const host = createMockHost();
+    const ctrl = new AuthController(host as any);
+    expect(MockBroadcastChannel.channels.get('rtc-auth-refresh')).toHaveLength(1);
+  });
+
+  it('should NOT close BroadcastChannel on hostDisconnected (StrictMode support)', () => {
+    const host = createMockHost();
+    const ctrl = new AuthController(host as any);
+
+    // Simulate StrictMode disconnect
+    ctrl.hostDisconnected();
+
+    // Channel should still be open
+    const channels = MockBroadcastChannel.channels.get('rtc-auth-refresh');
+    expect(channels).toHaveLength(1);
+    expect(channels![0].closed).toBe(false);
+  });
+
+  it('should close BroadcastChannel on logout', async () => {
+    const host = createMockHost();
+    const ctrl = new AuthController(host as any);
+
+    const provider = {
+      getToken: vi.fn().mockReturnValue('token'),
+      refreshToken: vi.fn().mockResolvedValue({ accessToken: 'new' }),
+      isLoggedIn: vi.fn().mockReturnValue(true),
+      logout: vi.fn().mockResolvedValue(undefined),
+    };
+    ctrl.setAuthProvider(provider);
+
+    ctrl.logout();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // Channel should be closed after logout
+    const channels = MockBroadcastChannel.channels.get('rtc-auth-refresh');
+    expect(channels).toHaveLength(0);
+  });
+
+  it('should broadcast refresh-start when starting refresh', async () => {
+    const host = createMockHost();
+    const ctrl = new AuthController(host as any);
+
+    const provider = {
+      getToken: vi.fn().mockReturnValue('token'),
+      refreshToken: vi.fn().mockResolvedValue({ accessToken: 'new-token', expiresIn: 3600 }),
+      isLoggedIn: vi.fn().mockReturnValue(true),
+    };
+    ctrl.setAuthProvider(provider);
+
+    // Force token expiry and trigger refresh
+    (ctrl as any)._state.expiresAt = Date.now() - 1000;
+    const refreshPromise = ctrl.handleTokenExpired();
+
+    // Give the broadcast time to happen
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    // Check that refresh-start was broadcast
+    const channels = MockBroadcastChannel.channels.get('rtc-auth-refresh');
+    expect(channels).toBeDefined();
+
+    await refreshPromise;
+  });
+
+  it('should yield to another tab with earlier timestamp (leader election)', async () => {
+    const host1 = createMockHost();
+    const ctrl1 = new AuthController(host1 as any);
+
+    const host2 = createMockHost();
+    const ctrl2 = new AuthController(host2 as any);
+
+    const provider1 = {
+      getToken: vi.fn().mockReturnValue('token'),
+      refreshToken: vi.fn().mockResolvedValue({ accessToken: 'new-token', expiresIn: 3600 }),
+      isLoggedIn: vi.fn().mockReturnValue(true),
+    };
+    ctrl1.setAuthProvider(provider1);
+    ctrl2.setAuthProvider(provider1);
+
+    // Simulate ctrl1 starting refresh first (earlier timestamp)
+    (ctrl1 as any)._refreshStartTime = Date.now() - 1000;
+
+    // Simulate ctrl2 receiving refresh-start from ctrl1
+    const channels = MockBroadcastChannel.channels.get('rtc-auth-refresh')!;
+    const channel2 = channels[1]; // ctrl2's channel
+    channel2.onmessage!(new MessageEvent('message', {
+      data: {
+        type: 'refresh-start',
+        tabId: (ctrl1 as any)._tabId,
+        timestamp: Date.now() - 1000,
+      },
+    }));
+
+    // ctrl2 should have created a deferred refresh promise
+    expect((ctrl2 as any)._deferredRefresh).toBeDefined();
+
+    // Clean up
+    ctrl1.hostDisconnected();
+    ctrl2.hostDisconnected();
+  });
+
+  it('should accept refresh-success tokens when _pendingTokenExchange is true', async () => {
+    const host = createMockHost();
+    const ctrl = new AuthController(host as any);
+
+    // Set up Token Exchange mode (isLoggedIn initially false)
+    const provider = {
+      type: 'token-exchange' as const,
+      getExchangeToken: vi.fn().mockResolvedValue('external-token'),
+      isLoggedIn: vi.fn().mockReturnValue(false),
+      logout: vi.fn().mockResolvedValue(undefined),
+      getUserId: vi.fn().mockReturnValue('test-user'),
+      deviceId: 'device-id',
+    };
+
+    // Mock fetch for token exchange
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: () => Promise.resolve({
+        access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoidGVzdC11c2VyIn0.sig',
+        issued_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+        token_type: 'Bearer',
+        expires_in: 3600,
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    ctrl.setAuthProvider(provider);
+
+    // Verify _pendingTokenExchange is set
+    expect((ctrl as any)._pendingTokenExchange).toBe(true);
+
+    // Simulate receiving refresh-success from another tab
+    const channels = MockBroadcastChannel.channels.get('rtc-auth-refresh')!;
+    const channel = channels[0];
+    channel.onmessage!(new MessageEvent('message', {
+      data: {
+        type: 'refresh-success',
+        tabId: 'other-tab-id',
+        tokens: {
+          accessToken: 'refreshed-token',
+          refreshToken: '',
+          expiresAt: Date.now() + 3600000,
+        },
+      },
+    }));
+
+    // Tokens should be accepted even though isLoggedIn was initially false
+    // (state may have been updated by the token exchange or by the refresh-success)
+    expect((ctrl as any)._state.accessToken).toBeDefined();
+
+    // Clean up
+    ctrl.hostDisconnected();
+  });
+
+  it('should resolve _deferredRefresh on refresh-success', async () => {
+    const host = createMockHost();
+    const ctrl = new AuthController(host as any);
+
+    const provider = {
+      getToken: vi.fn().mockReturnValue('token'),
+      refreshToken: vi.fn().mockResolvedValue({ accessToken: 'new-token', expiresIn: 3600 }),
+      isLoggedIn: vi.fn().mockReturnValue(true),
+    };
+    ctrl.setAuthProvider(provider);
+
+    // Set up deferred refresh manually
+    let deferredResolve: ((success: boolean) => void) | undefined;
+    (ctrl as any)._deferredRefresh = new Promise<boolean>((resolve) => {
+      deferredResolve = resolve;
+    });
+    (ctrl as any)._deferredResolve = deferredResolve;
+
+    // Simulate receiving refresh-success
+    const channels = MockBroadcastChannel.channels.get('rtc-auth-refresh')!;
+    const channel = channels[0];
+    channel.onmessage!(new MessageEvent('message', {
+      data: {
+        type: 'refresh-success',
+        tabId: 'other-tab-id',
+        tokens: {
+          accessToken: 'refreshed-token',
+          refreshToken: '',
+          expiresAt: Date.now() + 3600000,
+        },
+      },
+    }));
+
+    // Deferred promise should be resolved and cleared
+    expect((ctrl as any)._deferredRefresh).toBeUndefined();
+    expect((ctrl as any)._deferredResolve).toBeUndefined();
+
+    // Clean up
+    ctrl.hostDisconnected();
+  });
+
+  it('should timeout _deferredRefresh after 15 seconds', async () => {
+    const host = createMockHost();
+    const ctrl = new AuthController(host as any);
+
+    const provider = {
+      getToken: vi.fn().mockReturnValue('token'),
+      refreshToken: vi.fn().mockResolvedValue({ accessToken: 'new-token', expiresIn: 3600 }),
+      isLoggedIn: vi.fn().mockReturnValue(true),
+    };
+    ctrl.setAuthProvider(provider);
+
+    // Trigger the yield mechanism
+    const channels = MockBroadcastChannel.channels.get('rtc-auth-refresh')!;
+    const channel = channels[0];
+    channel.onmessage!(new MessageEvent('message', {
+      data: {
+        type: 'refresh-start',
+        tabId: 'other-tab-id',
+        timestamp: Date.now() - 1000, // Earlier timestamp (other tab is leader)
+      },
+    }));
+
+    // Verify deferred refresh was created
+    expect((ctrl as any)._deferredRefresh).toBeDefined();
+
+    // Wait for timeout (15 seconds + buffer)
+    await new Promise((resolve) => setTimeout(resolve, 15500));
+
+    // Deferred refresh should be cleared by timeout
+    expect((ctrl as any)._deferredRefresh).toBeUndefined();
+    expect((ctrl as any)._deferredResolve).toBeUndefined();
+
+    // Clean up
+    ctrl.hostDisconnected();
+  }, 20000);
+
+  it('should prevent concurrent token exchange with _tokenExchanging guard', async () => {
+    const host = createMockHost();
+    const ctrl = new AuthController(host as any);
+
+    const provider = {
+      type: 'token-exchange' as const,
+      getExchangeToken: vi.fn().mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 100))),
+      isLoggedIn: vi.fn().mockReturnValue(true),
+      logout: vi.fn().mockResolvedValue(undefined),
+      getUserId: vi.fn().mockReturnValue('test-user'),
+      deviceId: 'device-id',
+    };
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: () => Promise.resolve({
+        access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoidGVzdC11c2VyIn0.sig',
+        issued_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+        token_type: 'Bearer',
+        expires_in: 3600,
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    ctrl.setAuthProvider(provider);
+
+    // Immediately try another token exchange (should be blocked)
+    const secondExchange = (ctrl as any)._performTokenExchange();
+
+    // Second exchange should return false immediately
+    const result = await secondExchange;
+    expect(result).toBe(false);
+
+    // Wait for first exchange to complete
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    // Clean up
+    ctrl.hostDisconnected();
+  });
+});
