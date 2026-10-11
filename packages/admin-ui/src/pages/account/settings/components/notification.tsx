@@ -16,11 +16,11 @@ const NotificationView: React.FC = () => {
       key={key}
       checkedChildren={intl.formatMessage({
         id: 'pages.account.settings.notification.on',
-        defaultMessage: '开',
+        defaultMessage: 'On',
       })}
       unCheckedChildren={intl.formatMessage({
         id: 'pages.account.settings.notification.off',
-        defaultMessage: '关',
+        defaultMessage: 'Off',
       })}
       defaultChecked
     />
@@ -31,11 +31,12 @@ const NotificationView: React.FC = () => {
       key: 'user-message',
       title: intl.formatMessage({
         id: 'pages.account.settings.notification.userMessage',
-        defaultMessage: '用户消息',
+        defaultMessage: 'User message',
       }),
       description: intl.formatMessage({
         id: 'pages.account.settings.notification.userMessageDesc',
-        defaultMessage: '其他用户的消息将以站内信的形式通知',
+        defaultMessage:
+          'Messages from other users will be notified via in-app messages',
       }),
       actions: [notificationAction('user-message-switch')],
     },
@@ -43,11 +44,11 @@ const NotificationView: React.FC = () => {
       key: 'system-message',
       title: intl.formatMessage({
         id: 'pages.account.settings.notification.systemMessage',
-        defaultMessage: '系统消息',
+        defaultMessage: 'System message',
       }),
       description: intl.formatMessage({
         id: 'pages.account.settings.notification.systemMessageDesc',
-        defaultMessage: '系统消息将以站内信的形式通知',
+        defaultMessage: 'System messages will be notified via in-app messages',
       }),
       actions: [notificationAction('system-message-switch')],
     },
@@ -55,11 +56,11 @@ const NotificationView: React.FC = () => {
       key: 'todo-task',
       title: intl.formatMessage({
         id: 'pages.account.settings.notification.todoTask',
-        defaultMessage: '待办任务',
+        defaultMessage: 'To-do tasks',
       }),
       description: intl.formatMessage({
         id: 'pages.account.settings.notification.todoTaskDesc',
-        defaultMessage: '待办任务将以站内信的形式通知',
+        defaultMessage: 'To-do tasks will be notified via in-app messages',
       }),
       actions: [notificationAction('todo-task-switch')],
     },

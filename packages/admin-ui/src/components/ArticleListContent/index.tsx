@@ -27,10 +27,10 @@ const ArticleListContent: React.FC<ArticleListContentProps> = ({
         <a href={href}>{owner}</a>{' '}
         {intl.formatMessage({
           id: 'component.articleListContent.publishedAt',
-          defaultMessage: '发布在',
+          defaultMessage: 'Published at',
         })}{' '}
         <a href={href}>{href}</a>
-        <em>{dayjs(updatedAt).format('YYYY-MM-DD HH:mm')}</em>
+        <em>{dayjs(updatedAt).format('L LT')}</em>
       </div>
     </div>
   );

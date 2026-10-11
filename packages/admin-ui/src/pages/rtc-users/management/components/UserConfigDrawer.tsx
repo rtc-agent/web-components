@@ -82,7 +82,12 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
       const response = await getUserConfigs(userId);
       setConfigs(response.items);
     } catch (error: unknown) {
-      message.error(getFriendlyErrorMessage(error));
+      message.error(
+        getFriendlyErrorMessage(
+          error,
+          intl.formatMessage({ id: 'pages.roles.operationFailed' }),
+        ),
+      );
     } finally {
       setLoading(false);
     }
@@ -163,7 +168,12 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
       const handled = handleDeleteError(error, { key: item.key });
       if (!handled) {
         // Non-conflict error, show normal error message
-        message.error(getFriendlyErrorMessage(error));
+        message.error(
+          getFriendlyErrorMessage(
+            error,
+            intl.formatMessage({ id: 'pages.roles.operationFailed' }),
+          ),
+        );
       }
     }
   };
@@ -204,7 +214,12 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
         return true;
       }
       // 非冲突错误，显示普通错误消息
-      message.error(getFriendlyErrorMessage(error));
+      message.error(
+        getFriendlyErrorMessage(
+          error,
+          intl.formatMessage({ id: 'pages.roles.operationFailed' }),
+        ),
+      );
       return false;
     }
   };

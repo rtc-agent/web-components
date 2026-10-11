@@ -5,6 +5,7 @@ export default {
   'component.globalHeader.search.example3': 'Search example 3',
   'component.globalHeader.help': 'Help',
   'component.globalHeader.historyVersion': 'Previous Versions',
+  'component.globalHeader.langSwitch': 'Language Switch',
   'component.globalHeader.notification': 'Notification',
   'component.globalHeader.notification.empty':
     'You have viewed all notifications.',
@@ -16,4 +17,7 @@ export default {
   'component.noticeIcon.cleared': 'Cleared',
   'component.noticeIcon.empty': 'No notifications',
   'component.noticeIcon.view-more': 'View more',
+  'component.avatarDropdown.settings': 'Personal Settings',
+  'component.avatarDropdown.theme': 'Theme Settings',
+  'component.avatarDropdown.logout': 'Logout',
 };

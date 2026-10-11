@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "target": "esnext",
+    "module": "esnext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
     "esModuleInterop": true,
@@ -8,6 +9,9 @@
     "strict": true,
     "forceConsistentCasingInFileNames": true,
     "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "isolatedModules": true,
     "declaration": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,

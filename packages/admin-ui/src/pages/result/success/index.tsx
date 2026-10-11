@@ -1,25 +1,68 @@
 import { DingdingOutlined } from '@ant-design/icons';
 import { GridContent } from '@ant-design/pro-components';
-import { Button, Card, Descriptions, Result, Steps } from 'antd';
+import { useIntl } from '@umijs/max';
+import { Button, Card, Descriptions, Result, Steps, theme } from 'antd';
 import React from 'react';
 import useStyles from './index.style';
 
-const descriptionItems = [
-  { key: 'id', label: '项目 ID', children: '23421' },
-  { key: 'owner', label: '负责人', children: '曲丽丽' },
-  { key: 'time', label: '生效时间', children: '2016-12-12 ~ 2017-12-12' },
-];
-
-const extra = (
-  <>
-    <Button type="primary">返回列表</Button>
-    <Button>查看项目</Button>
-    <Button>打印</Button>
-  </>
-);
-
 const Success: React.FC = () => {
   const { styles } = useStyles();
+  const intl = useIntl();
+  const { token } = theme.useToken();
+
+  const descriptionItems = [
+    {
+      key: 'id',
+      label: intl.formatMessage({
+        id: 'pages.result.success.descriptionItems.id',
+        defaultMessage: 'Project ID',
+      }),
+      children: '23421',
+    },
+    {
+      key: 'owner',
+      label: intl.formatMessage({
+        id: 'pages.result.success.descriptionItems.owner',
+        defaultMessage: 'Owner',
+      }),
+      children: intl.formatMessage({
+        id: 'pages.result.success.desc.owner',
+        defaultMessage: 'Qu Lili',
+      }),
+    },
+    {
+      key: 'time',
+      label: intl.formatMessage({
+        id: 'pages.result.success.descriptionItems.time',
+        defaultMessage: 'Effective Time',
+      }),
+      children: '2016-12-12 ~ 2017-12-12',
+    },
+  ];
+
+  const extra = (
+    <>
+      <Button type="primary">
+        {intl.formatMessage({
+          id: 'pages.result.success.extra.back',
+          defaultMessage: 'Back to List',
+        })}
+      </Button>
+      <Button>
+        {intl.formatMessage({
+          id: 'pages.result.success.extra.view',
+          defaultMessage: 'View Project',
+        })}
+      </Button>
+      <Button>
+        {intl.formatMessage({
+          id: 'pages.result.success.extra.print',
+          defaultMessage: 'Print',
+        })}
+      </Button>
+    </>
+  );
+
   const desc1 = (
     <div className={styles.title}>
       <div
@@ -27,17 +70,23 @@ const Success: React.FC = () => {
           margin: '8px 0 4px',
         }}
       >
-        <span>曲丽丽</span>
+        <span>
+          {intl.formatMessage({
+            id: 'pages.result.success.desc.owner',
+            defaultMessage: 'Qu Lili',
+          })}
+        </span>
         <DingdingOutlined
           style={{
             marginLeft: 8,
-            color: '#00A0E9',
+            color: token.colorInfo,
           }}
         />
       </div>
       <div>2016-12-12 12:32</div>
     </div>
   );
+
   const desc2 = (
     <div
       style={{
@@ -50,22 +99,39 @@ const Success: React.FC = () => {
           margin: '8px 0 4px',
         }}
       >
-        <span>周毛毛</span>
+        <span>
+          {intl.formatMessage({
+            id: 'pages.result.success.desc.owner2',
+            defaultMessage: 'Zhou Maomao',
+          })}
+        </span>
         <Button type="link" style={{ padding: 0 }}>
           <DingdingOutlined
             style={{
-              color: '#00A0E9',
+              color: token.colorInfo,
               marginLeft: 8,
             }}
           />
-          <span>催一下</span>
+          <span>
+            {intl.formatMessage({
+              id: 'pages.result.success.desc.hurry',
+              defaultMessage: 'Urge',
+            })}
+          </span>
         </Button>
       </div>
     </div>
   );
+
   const content = (
     <>
-      <Descriptions title="项目名称" items={descriptionItems} />
+      <Descriptions
+        title={intl.formatMessage({
+          id: 'pages.result.success.desc.projectName',
+          defaultMessage: 'Project Name',
+        })}
+        items={descriptionItems}
+      />
       <br />
       <Steps
         type="dot"
@@ -78,7 +144,10 @@ const Success: React.FC = () => {
                   fontSize: 14,
                 }}
               >
-                创建项目
+                {intl.formatMessage({
+                  id: 'pages.result.success.step.create',
+                  defaultMessage: 'Create Project',
+                })}
               </span>
             ),
             content: desc1,
@@ -90,7 +159,10 @@ const Success: React.FC = () => {
                   fontSize: 14,
                 }}
               >
-                部门初审
+                {intl.formatMessage({
+                  id: 'pages.result.success.step.review1',
+                  defaultMessage: 'Department Review',
+                })}
               </span>
             ),
             content: desc2,
@@ -102,7 +174,10 @@ const Success: React.FC = () => {
                   fontSize: 14,
                 }}
               >
-                财务复核
+                {intl.formatMessage({
+                  id: 'pages.result.success.step.review2',
+                  defaultMessage: 'Financial Review',
+                })}
               </span>
             ),
           },
@@ -113,7 +188,10 @@ const Success: React.FC = () => {
                   fontSize: 14,
                 }}
               >
-                完成
+                {intl.formatMessage({
+                  id: 'pages.result.success.step.done',
+                  defaultMessage: 'Complete',
+                })}
               </span>
             ),
           },
@@ -121,13 +199,21 @@ const Success: React.FC = () => {
       />
     </>
   );
+
   return (
     <GridContent>
       <Card variant="borderless">
         <Result
           status="success"
-          title="提交成功"
-          subTitle='提交结果页用于反馈一系列操作任务的处理结果， 如果仅是简单操作，使用 Message 全局提示反馈即可。 本文字区域可以展示简单的补充说明，如果有类似展示 "单据"的需求，下面这个灰色区域可以呈现比较复杂的内容。'
+          title={intl.formatMessage({
+            id: 'pages.result.success.title',
+            defaultMessage: 'Submission Successful',
+          })}
+          subTitle={intl.formatMessage({
+            id: 'pages.result.success.subTitle',
+            defaultMessage:
+              'The result page is used to provide feedback on the processing result of a series of tasks.',
+          })}
           extra={extra}
           style={{
             marginBottom: 16,

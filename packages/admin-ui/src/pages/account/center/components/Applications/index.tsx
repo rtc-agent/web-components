@@ -76,27 +76,27 @@ const Applications: React.FC = () => {
 
   const wanText = intl.formatMessage({
     id: 'pages.account.center.wan',
-    defaultMessage: '万',
+    defaultMessage: 'ten thousand',
   });
   const activeUserLabel = intl.formatMessage({
     id: 'pages.account.center.activeUser',
-    defaultMessage: '活跃用户',
+    defaultMessage: 'Active users',
   });
   const newUserLabel = intl.formatMessage({
     id: 'pages.account.center.newUser',
-    defaultMessage: '新增用户',
+    defaultMessage: 'Add user',
   });
   const downloadText = intl.formatMessage({
     id: 'pages.account.center.download',
-    defaultMessage: '下载',
+    defaultMessage: 'Download',
   });
   const editText = intl.formatMessage({
     id: 'pages.account.center.edit',
-    defaultMessage: '编辑',
+    defaultMessage: 'Edit',
   });
   const shareText = intl.formatMessage({
     id: 'pages.account.center.share',
-    defaultMessage: '分享',
+    defaultMessage: 'Share',
   });
 
   return (
@@ -139,14 +139,14 @@ const Applications: React.FC = () => {
                       key: '1',
                       label: intl.formatMessage({
                         id: 'pages.account.center.dropdownFirst',
-                        defaultMessage: '第一个菜单项',
+                        defaultMessage: 'First menu item',
                       }),
                     },
                     {
                       key: '2',
                       label: intl.formatMessage({
                         id: 'pages.account.center.dropdownSecond',
-                        defaultMessage: '第二个菜单项',
+                        defaultMessage: 'Second menu item',
                       }),
                     },
                   ],

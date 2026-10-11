@@ -4,6 +4,8 @@ export default {
   'component.globalHeader.search.example2': 'Contoh 2 Pencarian',
   'component.globalHeader.search.example3': 'Contoh 3 Pencarian',
   'component.globalHeader.help': 'Bantuan',
+  'component.globalHeader.historyVersion': 'Versi Sebelumnya',
+  'component.globalHeader.langSwitch': 'Ganti Bahasa',
   'component.globalHeader.notification': 'Notifikasi',
   'component.globalHeader.notification.empty':
     'Anda telah membaca semua notifikasi',

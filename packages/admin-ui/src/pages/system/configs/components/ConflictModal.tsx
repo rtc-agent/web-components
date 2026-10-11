@@ -1,6 +1,6 @@
 import { ModalForm } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
-import { Alert, Button, Descriptions, Space, Tag, theme } from 'antd';
+import { Alert, Button, Grid, Space } from 'antd';
 import React from 'react';
 import type { OptimisticLockConflictData } from '@/services/serverConfig';
 
@@ -9,38 +9,46 @@ export interface ConflictModalProps {
   onOpenChange: (open: boolean) => void;
   conflictData: OptimisticLockConflictData | null;
   configKey?: string;
+  /** Action type: 'overwrite' for edit, 'delete' for delete */
+  actionType?: 'overwrite' | 'delete';
   onReload: () => void;
-  onForceOverwrite: () => void;
+  onForceAction: () => void;
 }
 
 /**
- * Optimistic Lock Conflict Dialog
+ * Optimistic Lock Conflict Dialog (supports both edit and delete operations)
  */
 const ConflictModal: React.FC<ConflictModalProps> = ({
   open,
   onOpenChange,
   conflictData,
-  configKey,
+  actionType = 'overwrite',
   onReload,
-  onForceOverwrite,
+  onForceAction,
 }) => {
   const intl = useIntl();
-  const { token } = theme.useToken();
+  const breakpoints = Grid.useBreakpoint();
+  const isMobile = !breakpoints.sm;
+  const modalWidth = isMobile ? '95vw' : 480;
 
   if (!conflictData) return null;
 
-  const formatValue = (value: unknown) => {
-    if (value === null || value === undefined) return '-';
-    if (typeof value === 'object') return JSON.stringify(value, null, 2);
-    return String(value);
-  };
+  const isDeleteAction = actionType === 'delete';
 
   return (
     <ModalForm
-      title={intl.formatMessage({ id: 'pages.config.system.conflict.title' })}
+      title={intl.formatMessage({
+        id: isDeleteAction
+          ? 'pages.config.system.conflict.deleteTitle'
+          : 'pages.config.system.conflict.title',
+      })}
       open={open}
       onOpenChange={onOpenChange}
-      modalProps={{ destroyOnClose: true }}
+      width={modalWidth}
+      modalProps={{
+        destroyOnClose: true,
+        style: { maxWidth: modalWidth },
+      }}
       submitter={{
         render: () => (
           <Space>
@@ -59,11 +67,13 @@ const ConflictModal: React.FC<ConflictModalProps> = ({
               danger
               onClick={() => {
                 onOpenChange(false);
-                onForceOverwrite();
+                onForceAction();
               }}
             >
               {intl.formatMessage({
-                id: 'pages.config.system.conflict.forceOverwrite',
+                id: isDeleteAction
+                  ? 'pages.config.system.conflict.forceDelete'
+                  : 'pages.config.system.conflict.forceOverwrite',
               })}
             </Button>
           </Space>
@@ -73,84 +83,16 @@ const ConflictModal: React.FC<ConflictModalProps> = ({
       <Alert
         type="warning"
         showIcon
-        title={intl.formatMessage({
+        message={intl.formatMessage({
           id: 'pages.config.system.conflict.warningTitle',
         })}
         description={intl.formatMessage({
-          id: 'pages.config.system.conflict.warningDesc',
+          id: isDeleteAction
+            ? 'pages.config.system.conflict.deleteWarningDesc'
+            : 'pages.config.system.conflict.warningDesc',
         })}
         style={{ marginBottom: 16 }}
       />
-      <Descriptions column={1} bordered size="small">
-        <Descriptions.Item
-          label={intl.formatMessage({
-            id: 'pages.config.system.conflict.configKey',
-          })}
-        >
-          <code
-            style={{
-              fontSize: 12,
-              background: token.colorBgTextHover,
-              padding: token.paddingXXS,
-              borderRadius: token.borderRadiusSM,
-            }}
-          >
-            {configKey}
-          </code>
-        </Descriptions.Item>
-        <Descriptions.Item
-          label={intl.formatMessage({
-            id: 'pages.config.system.conflict.currentVersion',
-          })}
-        >
-          <Tag color="blue">v{conflictData.current_version}</Tag>
-        </Descriptions.Item>
-        <Descriptions.Item
-          label={intl.formatMessage({
-            id: 'pages.config.system.conflict.currentValue',
-          })}
-        >
-          <pre
-            style={{
-              margin: 0,
-              fontSize: 12,
-              fontFamily: 'monospace',
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-all',
-              maxHeight: 200,
-              overflow: 'auto',
-              background: token.colorBgTextHover,
-              color: token.colorText,
-              padding: token.paddingSM,
-              borderRadius: token.borderRadiusSM,
-            }}
-          >
-            {formatValue(conflictData.current_value)}
-          </pre>
-        </Descriptions.Item>
-        <Descriptions.Item
-          label={intl.formatMessage({
-            id: 'pages.config.system.conflict.changedBy',
-          })}
-        >
-          {conflictData.changed_by}
-        </Descriptions.Item>
-        <Descriptions.Item
-          label={intl.formatMessage({
-            id: 'pages.config.system.conflict.changedAt',
-          })}
-        >
-          {new Intl.DateTimeFormat(intl.locale, {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: false,
-          }).format(new Date(conflictData.changed_at))}
-        </Descriptions.Item>
-      </Descriptions>
     </ModalForm>
   );
 };

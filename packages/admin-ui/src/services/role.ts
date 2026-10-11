@@ -56,9 +56,6 @@ export async function getRole(id: string) {
 export async function createRole(body: CreateRoleParams) {
   return request<RoleInfo>('/api/roles', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
     data: body,
   });
 }
@@ -70,9 +67,6 @@ export async function createRole(body: CreateRoleParams) {
 export async function updateRole(id: string, body: UpdateRoleParams) {
   return request<RoleInfo>(`/api/roles/${id}`, {
     method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-    },
     data: body,
   });
 }
@@ -84,9 +78,6 @@ export async function updateRole(id: string, body: UpdateRoleParams) {
 export async function patchRole(id: string, body: UpdateRoleParams) {
   return request<RoleInfo>(`/api/roles/${id}`, {
     method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-    },
     data: body,
   });
 }

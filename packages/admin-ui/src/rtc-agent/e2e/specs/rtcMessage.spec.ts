@@ -433,9 +433,7 @@ test.describe('rtcMessage Group - RTC Message Management', () => {
     await expect(roleSelect).toBeVisible();
   });
 
-  test('rtcMessage - Form submission updates URL', async ({
-    page,
-  }) => {
+  test('rtcMessage - Form submission updates URL', async ({ page }) => {
     // Navigate to page with session_id
     await page.goto('/rtc-users/messages?session_id=sess_001');
     await page.waitForLoadState('networkidle');
@@ -444,7 +442,10 @@ test.describe('rtcMessage Group - RTC Message Management', () => {
     // Fill in role filter
     const roleSelect = page.locator('#role');
     await roleSelect.click();
-    await page.locator('.ant-select-item-option').filter({ hasText: 'User' }).click();
+    await page
+      .locator('.ant-select-item-option')
+      .filter({ hasText: 'User' })
+      .click();
 
     // Submit form
     await page.locator('button[type="submit"]').click();
@@ -456,9 +457,7 @@ test.describe('rtcMessage Group - RTC Message Management', () => {
     expect(url).toContain('role=user');
   });
 
-  test('rtcMessage - Clearing form removes URL params', async ({
-    page,
-  }) => {
+  test('rtcMessage - Clearing form removes URL params', async ({ page }) => {
     // Navigate with URL params
     await page.goto('/rtc-users/messages?session_id=sess_001&role=user');
     await page.waitForLoadState('networkidle');
@@ -467,7 +466,10 @@ test.describe('rtcMessage Group - RTC Message Management', () => {
     // Clear role filter
     const roleSelect = page.locator('#role');
     await roleSelect.click();
-    await page.locator('.ant-select-item-option').filter({ hasText: 'User' }).click();
+    await page
+      .locator('.ant-select-item-option')
+      .filter({ hasText: 'User' })
+      .click();
 
     // Submit form
     await page.locator('button[type="submit"]').click();

@@ -5,6 +5,7 @@ export default {
   'component.globalHeader.search.example3': '搜索提示三',
   'component.globalHeader.help': '使用文档',
   'component.globalHeader.historyVersion': '历史版本',
+  'component.globalHeader.langSwitch': '语言切换',
   'component.globalHeader.notification': '通知',
   'component.globalHeader.notification.empty': '你已查看所有通知',
   'component.globalHeader.message': '消息',
@@ -15,4 +16,7 @@ export default {
   'component.noticeIcon.cleared': '清空了',
   'component.noticeIcon.empty': '暂无数据',
   'component.noticeIcon.view-more': '查看更多',
+  'component.avatarDropdown.settings': '个人设置',
+  'component.avatarDropdown.theme': '主题设置',
+  'component.avatarDropdown.logout': '退出登录',
 };

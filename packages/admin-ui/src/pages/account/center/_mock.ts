@@ -1,3 +1,18 @@
+/**
+ * Mock handlers for account center page.
+ *
+ * These handlers are ONLY active when Umi's mock plugin is enabled:
+ * - `pnpm start` (mock enabled)
+ * - NOT active with `pnpm run dev` (MOCK=none)
+ * - NOT active in production builds
+ *
+ * Endpoints served:
+ * - GET /api/currentUserDetail    — used by service.ts queryCurrent()
+ * - GET /api/fake_list_Detail     — used by service.ts queryFakeList()
+ *
+ * The real backend does NOT implement these endpoints. Pages depending on them
+ * will 404 in production until the backend provides real implementations.
+ */
 import type { Request, Response } from 'express';
 import {
   avatars,

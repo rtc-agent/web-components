@@ -137,13 +137,15 @@ export async function updateServerConfig(
 /**
  * 删除系统配置（回退到 yaml 默认值）
  * DELETE /api/configs/:key?version=
+ * @param key - Config key
+ * @param version - Version number (optional, omit for force delete)
  */
-export async function deleteServerConfig(key: string, version: number) {
+export async function deleteServerConfig(key: string, version?: number) {
   return request<DeleteServerConfigResponse>(
     `/api/configs/${encodeURIComponent(key)}`,
     {
       method: 'DELETE',
-      params: { version },
+      params: version !== undefined ? { version } : undefined,
     },
   );
 }

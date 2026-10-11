@@ -211,9 +211,14 @@ export default [
       },
     ],
   },
+  // 异常页面：
+  // - 403 页面：用户无任何权限时由 app.tsx 的 onPageChange 重定向
+  // - 404 页面：未匹配的路由
   {
-    path: '/',
-    redirect: '/dashboard/grafana/rtc-agent',
+    path: '/exception/403',
+    name: '403',
+    layout: false,
+    component: './exception/403',
   },
   {
     component: './exception/404',

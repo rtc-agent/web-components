@@ -167,7 +167,7 @@ const IframePanel: FC<IframePanelProps> = ({
 
   const loadingText = intl.formatMessage({
     id: 'common.loading',
-    defaultMessage: '加载中...',
+    defaultMessage: 'Loading...',
   });
 
   // 错误态：显示错误提示与重试按钮
@@ -176,16 +176,16 @@ const IframePanel: FC<IframePanelProps> = ({
       error === 'timeout'
         ? intl.formatMessage({
             id: 'dashboard.timeout',
-            defaultMessage: '加载超时',
+            defaultMessage: 'Loading timeout',
           })
         : intl.formatMessage({
             id: 'dashboard.loadFailed',
-            defaultMessage: '加载失败',
+            defaultMessage: 'Loading failed',
           });
 
     const retryText = intl.formatMessage({
       id: 'dashboard.retry',
-      defaultMessage: '点击重试',
+      defaultMessage: 'Click to retry',
     });
 
     return (

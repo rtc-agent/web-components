@@ -10,6 +10,7 @@ import { FormattedMessage, useIntl } from '@umijs/max';
 import { App, Button, Grid } from 'antd';
 import type { FC } from 'react';
 import { addRule } from '@/services/ant-design-pro/api';
+import { queryKeys } from '@/utils/queryKeys';
 
 interface CreateFormProps {
   reload?: ActionType['reload'];
@@ -33,7 +34,7 @@ const CreateForm: FC<CreateFormProps> = (props) => {
     mutationFn: addRule,
     onSuccess: () => {
       message.success('Added successfully');
-      queryClient.invalidateQueries({ queryKey: ['rule'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.rules.all });
       reload?.();
     },
     onError: () => {

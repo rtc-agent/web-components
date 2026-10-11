@@ -1,14 +1,23 @@
 import { CloseCircleOutlined, RightOutlined } from '@ant-design/icons';
 import { GridContent } from '@ant-design/pro-components';
+import { useIntl } from '@umijs/max';
 import { Button, Card, Result } from 'antd';
 import useStyles from './index.style';
 
 export default () => {
   const { styles } = useStyles();
+  const intl = useIntl();
+
   const Content = (
     <>
       <div className={styles.title}>
-        <span>您提交的内容有如下错误：</span>
+        <span>
+          {intl.formatMessage({
+            id: 'pages.result.fail.errorTitle',
+            defaultMessage:
+              'The content you submitted has the following errors:',
+          })}
+        </span>
       </div>
       <div
         style={{
@@ -21,7 +30,12 @@ export default () => {
           }}
           className={styles.error_icon}
         />
-        <span>您的账户已被冻结</span>
+        <span>
+          {intl.formatMessage({
+            id: 'pages.result.fail.error.accountFrozen',
+            defaultMessage: 'Your account has been frozen',
+          })}
+        </span>
         <Button
           type="link"
           style={{
@@ -29,7 +43,12 @@ export default () => {
             padding: 0,
           }}
         >
-          <span>立即解冻</span>
+          <span>
+            {intl.formatMessage({
+              id: 'pages.result.fail.error.unfreeze',
+              defaultMessage: 'Unfreeze Now',
+            })}
+          </span>
           <RightOutlined />
         </Button>
       </div>
@@ -40,7 +59,12 @@ export default () => {
           }}
           className={styles.error_icon}
         />
-        <span>您的账户还不具备申请资格</span>
+        <span>
+          {intl.formatMessage({
+            id: 'pages.result.fail.error.notQualified',
+            defaultMessage: 'Your account is not yet eligible to apply',
+          })}
+        </span>
         <Button
           type="link"
           style={{
@@ -48,22 +72,40 @@ export default () => {
             padding: 0,
           }}
         >
-          <span>立即升级</span>
+          <span>
+            {intl.formatMessage({
+              id: 'pages.result.fail.error.upgrade',
+              defaultMessage: 'Upgrade Now',
+            })}
+          </span>
           <RightOutlined />
         </Button>
       </div>
     </>
   );
+
   return (
     <GridContent>
       <Card variant="borderless">
         <Result
           status="error"
-          title="提交失败"
-          subTitle="请核对并修改以下信息后，再重新提交。"
+          title={intl.formatMessage({
+            id: 'pages.result.fail.title',
+            defaultMessage: 'Submission Failed',
+          })}
+          subTitle={intl.formatMessage({
+            id: 'pages.result.fail.subTitle',
+            defaultMessage:
+              'Please verify and modify the following information before resubmitting.',
+          })}
           extra={
             <Button type="primary">
-              <span>返回修改</span>
+              <span>
+                {intl.formatMessage({
+                  id: 'pages.result.fail.extra.back',
+                  defaultMessage: 'Back to Modify',
+                })}
+              </span>
             </Button>
           }
           style={{

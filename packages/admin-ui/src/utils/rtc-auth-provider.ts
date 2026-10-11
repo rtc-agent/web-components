@@ -9,10 +9,7 @@
  */
 
 import type { AuthProvider } from '@rtc-agent/component';
-import {
-  logout as apiLogout,
-  refreshToken as apiRefreshToken,
-} from '@/services/admin-auth';
+import { logout as apiLogout } from '@/services/admin-auth';
 import {
   clearAuth,
   getAccessToken,
@@ -21,13 +18,10 @@ import {
   isAuthenticated,
   isTokenExpired,
   isTokenExpiringSoon,
-  setTokens,
+  refreshAccessToken,
 } from '@/utils/auth-storage';
 
 const DEVICE_ID_KEY = 'rtc_device_id';
-
-// Prevent concurrent token refresh attempts
-let refreshPromise: Promise<string> | null = null;
 
 /**
  * 获取或生成 Device ID
@@ -77,38 +71,20 @@ export function createAdminAuthProvider(): AuthProvider {
      *
      * 由 RTC Agent 组件调用，用于 Token Exchange。
      * 如果 admin JWT 即将过期（提前 5 分钟），先刷新再返回。
-     * 使用 refreshPromise 防止并发刷新请求。
+     * 使用统一的 refreshAccessToken 函数防止并发刷新请求。
      */
     getExchangeToken: async (): Promise<string> => {
       // 检查是否需要刷新（提前 5 分钟）
       if (isTokenExpiringSoon()) {
         const refreshToken = getRefreshToken();
         if (refreshToken) {
-          // Reuse existing refresh promise if one is in progress
-          if (!refreshPromise) {
-            refreshPromise = apiRefreshToken({
-              refresh_token: refreshToken,
-            })
-              .then((result) => {
-                // 更新 localStorage 中的 token
-                // expires_in 默认为 1 小时（3600 秒），防止 API 未返回时 token 立即过期
-                setTokens(
-                  result.access_token,
-                  result.refresh_token,
-                  result.expires_in || 3600,
-                );
-                return result.access_token;
-              })
-              .catch((error) => {
-                console.error('Failed to refresh admin token:', error);
-                throw new Error('Failed to refresh admin token');
-              })
-              .finally(() => {
-                // Clear the promise when done (success or failure)
-                refreshPromise = null;
-              });
+          // 使用统一的刷新函数
+          const newToken = await refreshAccessToken();
+          if (newToken) {
+            return newToken;
           }
-          return refreshPromise;
+          // 刷新失败
+          throw new Error('Failed to refresh admin token');
         } else if (isTokenExpired()) {
           // 没有 refresh token 且 token 已过期，无法继续
           throw new Error('Admin token expired and no refresh token available');

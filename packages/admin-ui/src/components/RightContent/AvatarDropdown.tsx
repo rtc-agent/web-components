@@ -3,7 +3,7 @@ import {
   SettingOutlined,
   SkinOutlined,
 } from '@ant-design/icons';
-import { history, useModel } from '@umijs/max';
+import { history, useIntl, useModel } from '@umijs/max';
 import type { MenuProps } from 'antd';
 import { Spin } from 'antd';
 import React, { startTransition, useState } from 'react';
@@ -17,27 +17,6 @@ import ProfileSettingsModal from '../ProfileSettingsModal';
 type GlobalHeaderRightProps = {
   children?: React.ReactNode;
 };
-
-const menuItems: MenuProps['items'] = [
-  {
-    key: 'settings',
-    icon: <SettingOutlined />,
-    label: '个人设置',
-  },
-  {
-    key: 'theme',
-    icon: <SkinOutlined />,
-    label: '主题设置',
-  },
-  {
-    type: 'divider' as const,
-  },
-  {
-    key: 'logout',
-    icon: <LogoutOutlined />,
-    label: '退出登录',
-  },
-];
 
 const loginOut = async () => {
   try {
@@ -77,8 +56,39 @@ const loginOut = async () => {
 export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({
   children,
 }) => {
+  const intl = useIntl();
   const { initialState, setInitialState } = useModel('@@initialState');
   const [profileModalOpen, setProfileModalOpen] = useState(false);
+
+  const menuItems: MenuProps['items'] = [
+    {
+      key: 'settings',
+      icon: <SettingOutlined />,
+      label: intl.formatMessage({
+        id: 'component.avatarDropdown.settings',
+        defaultMessage: 'Personal settings',
+      }),
+    },
+    {
+      key: 'theme',
+      icon: <SkinOutlined />,
+      label: intl.formatMessage({
+        id: 'component.avatarDropdown.theme',
+        defaultMessage: 'Theme settings',
+      }),
+    },
+    {
+      type: 'divider' as const,
+    },
+    {
+      key: 'logout',
+      icon: <LogoutOutlined />,
+      label: intl.formatMessage({
+        id: 'component.avatarDropdown.logout',
+        defaultMessage: 'Log out',
+      }),
+    },
+  ];
 
   const onMenuClick: MenuProps['onClick'] = (event) => {
     const { key } = event;

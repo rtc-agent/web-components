@@ -2,8 +2,14 @@ import { HistoryOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { useAccess, useIntl, useSearchParams } from '@umijs/max';
-import { App, Button, Popconfirm, Space, Tabs, Tag, theme } from 'antd';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { App, Button, Grid, Popconfirm, Space, Tabs, Tag, theme } from 'antd';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useOptimisticLockConflict } from '@/hooks/useOptimisticLockConflict';
 import type { ServerConfigItem } from '@/services/serverConfig';
 import {
@@ -17,10 +23,13 @@ import {
   useConfigSourceRenderer,
 } from '@/utils/configFormat';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
+import { parseTableSort } from '../../rtc-users/shared/tableUtils';
 import ConfigEditModal from './components/ConfigEditModal';
 import ConfigHistoryModal from './components/ConfigHistoryModal';
 import ConflictModal from './components/ConflictModal';
 import type { ServerConfigPageAPI } from './page-api';
+
+const { useBreakpoint } = Grid;
 
 /**
  * Configuration category list
@@ -89,6 +98,8 @@ const SystemConfigsPage: React.FC = () => {
   const canDelete = access.canServerConfigDelete as boolean;
   const { token } = theme.useToken();
   const [searchParams, setSearchParams] = useSearchParams();
+  const breakpoints = useBreakpoint();
+  const isMobile = !breakpoints.md; // < 768px
 
   // Initialize active category from URL
   const [activeCategory, setActiveCategory] = useState(
@@ -124,20 +135,28 @@ const SystemConfigsPage: React.FC = () => {
     });
   };
 
+  /** Force delete (skip version check) */
+  const doForceDelete = async (data: { key: string }) => {
+    await deleteServerConfig(data.key);
+  };
+
   // Optimistic lock conflict handling
   const {
     conflictModalOpen,
     setConflictModalOpen,
     conflictData,
-    pendingOverwrite,
+    pendingAction,
     handleEditError,
+    handleDeleteError,
     handleReload: handleConflictReload,
-    handleForceOverwrite,
+    handleForceAction,
   } = useOptimisticLockConflict({
     onForceOverwrite: doForceOverwrite,
+    onForceDelete: doForceDelete,
     onConflictResolved: reload,
     forceOverwriteSuccessId: 'pages.config.system.forceOverwriteSuccess',
     forceOverwriteSuffixId: 'pages.config.system.forceOverwriteSuffix',
+    forceDeleteSuccessId: 'pages.config.system.forceDeleteSuccess',
   });
 
   /** Open edit modal */
@@ -197,8 +216,12 @@ const SystemConfigsPage: React.FC = () => {
       );
       reload();
     } catch (error: unknown) {
-      // Conflict error uses internal error code mapping in getFriendlyErrorMessage
-      message.error(getFriendlyErrorMessage(error));
+      // Check if it's an optimistic lock conflict
+      const handled = handleDeleteError(error, { key: record.key });
+      if (!handled) {
+        // Non-conflict error, show normal error message
+        message.error(getFriendlyErrorMessage(error));
+      }
     }
   };
 
@@ -210,164 +233,175 @@ const SystemConfigsPage: React.FC = () => {
   };
 
   /** Table columns */
-  const columns: ProColumns<ServerConfigItem>[] = [
-    {
-      title: intl.formatMessage({
-        id: 'pages.config.system.key',
-        defaultMessage: 'Key',
-      }),
-      dataIndex: 'key',
-      width: 260,
-      ellipsis: true,
-      render: (_, record) => (
-        <code
-          style={{
-            fontSize: 12,
-            wordBreak: 'break-all',
-            background: token.colorBgTextHover,
-            padding: token.paddingXXS,
-            borderRadius: token.borderRadiusSM,
-          }}
-        >
-          {record.key}
-        </code>
-      ),
-    },
-    {
-      title: intl.formatMessage({ id: 'pages.config.system.value' }),
-      dataIndex: 'value',
-      ellipsis: true,
-      search: false,
-      render: (_, record) => {
-        const displayValue =
-          record.source === 'yaml' ? record.yaml_default : record.value;
-        const formatted = formatDisplayValue(displayValue, record.value_type);
-        return (
-          <span
-            title={formatted}
+  const columns: ProColumns<ServerConfigItem>[] = useMemo(
+    () => [
+      {
+        title: intl.formatMessage({
+          id: 'pages.config.system.key',
+          defaultMessage: 'Key',
+        }),
+        dataIndex: 'key',
+        width: 260,
+        ellipsis: true,
+        render: (_, record) => (
+          <code
             style={{
-              fontFamily: 'monospace',
               fontSize: 12,
-              maxWidth: 300,
-              display: 'inline-block',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
+              wordBreak: 'break-all',
+              background: token.colorBgTextHover,
+              padding: token.paddingXXS,
+              borderRadius: token.borderRadiusSM,
             }}
           >
-            {formatted}
-          </span>
-        );
-      },
-    },
-    {
-      title: intl.formatMessage({ id: 'pages.config.system.yamlDefault' }),
-      dataIndex: 'yaml_default',
-      ellipsis: true,
-      search: false,
-      width: 150,
-      render: (_, record) => {
-        const formatted = formatDisplayValue(
-          record.yaml_default,
-          record.value_type,
-        );
-        return (
-          <span
-            title={formatted}
-            style={{ fontFamily: 'monospace', fontSize: 12 }}
-          >
-            {truncateValue(formatted, 30)}
-          </span>
-        );
-      },
-    },
-    {
-      title: intl.formatMessage({ id: 'pages.config.system.source' }),
-      dataIndex: 'source',
-      width: 100,
-      search: false,
-      render: (_, record) => renderConfigSource(record.source),
-    },
-    {
-      title: intl.formatMessage({ id: 'pages.config.system.type' }),
-      dataIndex: 'value_type',
-      width: 80,
-      search: false,
-      render: (_, record) => <Tag>{record.value_type}</Tag>,
-    },
-    {
-      title: intl.formatMessage({ id: 'pages.config.system.version' }),
-      dataIndex: 'version',
-      width: 70,
-      search: false,
-      render: (_, record) =>
-        record.version > 0 ? (
-          <Tag color="blue">v{record.version}</Tag>
-        ) : (
-          <Tag>v0</Tag>
+            {record.key}
+          </code>
         ),
-    },
-    {
-      title: intl.formatMessage({ id: 'pages.config.system.updatedAt' }),
-      dataIndex: 'updated_at',
-      valueType: 'dateTime',
-      width: 180,
-      search: false,
-      sorter: true,
-    },
-    {
-      title: intl.formatMessage({ id: 'pages.config.system.description' }),
-      dataIndex: 'description',
-      ellipsis: true,
-      search: false,
-      width: 200,
-    },
-    {
-      title: intl.formatMessage({ id: 'pages.config.system.actions' }),
-      dataIndex: 'option',
-      width: 180,
-      search: false,
-      fixed: 'right',
-      render: (_, record) => (
-        <Space>
-          {canEdit && (
-            <Button type="link" size="small" onClick={() => handleEdit(record)}>
-              {intl.formatMessage({ id: 'pages.config.system.edit' })}
-            </Button>
-          )}
-          {record.version > 0 && (
-            <Button
-              type="link"
-              size="small"
-              icon={<HistoryOutlined />}
-              onClick={() => handleViewHistory(record)}
+      },
+      {
+        title: intl.formatMessage({ id: 'pages.config.system.value' }),
+        dataIndex: 'value',
+        ellipsis: true,
+        search: false,
+        render: (_, record) => {
+          const displayValue =
+            record.source === 'yaml' ? record.yaml_default : record.value;
+          const formatted = formatDisplayValue(displayValue, record.value_type);
+          return (
+            <span
+              title={formatted}
+              style={{
+                fontFamily: 'monospace',
+                fontSize: 12,
+                maxWidth: 300,
+                display: 'inline-block',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
             >
-              {intl.formatMessage({ id: 'pages.config.system.history' })}
-            </Button>
-          )}
-          {canDelete && record.source === 'system' && (
-            <Popconfirm
-              title={intl.formatMessage({
-                id: 'pages.config.system.confirmDelete',
-              })}
-              description={intl.formatMessage({
-                id: 'pages.config.system.confirmDeleteDesc',
-              })}
-              onConfirm={() => handleDelete(record)}
-              okText={intl.formatMessage({ id: 'pages.config.system.confirm' })}
-              cancelText={intl.formatMessage({
-                id: 'pages.config.system.cancel',
-              })}
+              {formatted}
+            </span>
+          );
+        },
+      },
+      {
+        title: intl.formatMessage({ id: 'pages.config.system.yamlDefault' }),
+        dataIndex: 'yaml_default',
+        ellipsis: true,
+        search: false,
+        width: 150,
+        hideInTable: isMobile,
+        render: (_, record) => {
+          const formatted = formatDisplayValue(
+            record.yaml_default,
+            record.value_type,
+          );
+          return (
+            <span
+              title={formatted}
+              style={{ fontFamily: 'monospace', fontSize: 12 }}
             >
-              <Button type="link" size="small" danger>
-                {intl.formatMessage({ id: 'pages.config.system.delete' })}
+              {truncateValue(formatted, 30)}
+            </span>
+          );
+        },
+      },
+      {
+        title: intl.formatMessage({ id: 'pages.config.system.source' }),
+        dataIndex: 'source',
+        width: 100,
+        search: false,
+        render: (_, record) => renderConfigSource(record.source),
+      },
+      {
+        title: intl.formatMessage({ id: 'pages.config.system.type' }),
+        dataIndex: 'value_type',
+        width: 80,
+        search: false,
+        render: (_, record) => <Tag>{record.value_type}</Tag>,
+      },
+      {
+        title: intl.formatMessage({ id: 'pages.config.system.version' }),
+        dataIndex: 'version',
+        width: 70,
+        search: false,
+        render: (_, record) =>
+          record.version > 0 ? (
+            <Tag color="blue">v{record.version}</Tag>
+          ) : (
+            <Tag>v0</Tag>
+          ),
+      },
+      {
+        title: intl.formatMessage({ id: 'pages.config.system.updatedAt' }),
+        dataIndex: 'updated_at',
+        valueType: 'dateTime',
+        width: 180,
+        search: false,
+        sorter: true,
+      },
+      {
+        title: intl.formatMessage({ id: 'pages.config.system.description' }),
+        dataIndex: 'description',
+        ellipsis: true,
+        search: false,
+        width: 200,
+        hideInTable: isMobile,
+      },
+      {
+        title: intl.formatMessage({ id: 'pages.config.system.actions' }),
+        dataIndex: 'option',
+        width: 180,
+        search: false,
+        fixed: 'right',
+        render: (_, record) => (
+          <Space>
+            {canEdit && (
+              <Button
+                type="link"
+                size="small"
+                onClick={() => handleEdit(record)}
+              >
+                {intl.formatMessage({ id: 'pages.config.system.edit' })}
               </Button>
-            </Popconfirm>
-          )}
-        </Space>
-      ),
-    },
-  ];
+            )}
+            {record.version > 0 && (
+              <Button
+                type="link"
+                size="small"
+                icon={<HistoryOutlined />}
+                onClick={() => handleViewHistory(record)}
+              >
+                {intl.formatMessage({ id: 'pages.config.system.history' })}
+              </Button>
+            )}
+            {canDelete && record.source === 'system' && (
+              <Popconfirm
+                title={intl.formatMessage({
+                  id: 'pages.config.system.confirmDelete',
+                })}
+                description={intl.formatMessage({
+                  id: 'pages.config.system.confirmDeleteDesc',
+                })}
+                onConfirm={() => handleDelete(record)}
+                okText={intl.formatMessage({
+                  id: 'pages.config.system.confirm',
+                })}
+                cancelText={intl.formatMessage({
+                  id: 'pages.config.system.cancel',
+                })}
+              >
+                <Button type="link" size="small" danger>
+                  {intl.formatMessage({ id: 'pages.config.system.delete' })}
+                </Button>
+              </Popconfirm>
+            )}
+          </Space>
+        ),
+      },
+    ],
+    [intl, token, isMobile, renderConfigSource, canEdit, canDelete],
+  );
 
   // Register Page API for function handlers
   useEffect(() => {
@@ -473,20 +507,22 @@ const SystemConfigsPage: React.FC = () => {
         actionRef={actionRef}
         rowKey="key"
         search={false}
-        scroll={{ x: 1400 }}
+        scroll={{ x: 'max-content' }}
         pagination={{
           defaultPageSize: 20,
           showSizeChanger: true,
           showQuickJumper: true,
         }}
-        request={async (params) => {
+        request={async (params, sort) => {
           try {
             // Read category from searchParams (URL is single source of truth)
             const category = searchParams.get('category') || '';
+            const sortParams = parseTableSort(sort || {});
             const response = await getServerConfigList({
               category: category || undefined,
               page: params.current,
               page_size: params.pageSize,
+              ...sortParams,
             });
             return {
               data: response.items,
@@ -494,7 +530,12 @@ const SystemConfigsPage: React.FC = () => {
               success: true,
             };
           } catch (error: unknown) {
-            message.error(getFriendlyErrorMessage(error));
+            message.error(
+              getFriendlyErrorMessage(
+                error,
+                intl.formatMessage({ id: 'pages.roles.operationFailed' }),
+              ),
+            );
             return { data: [], total: 0, success: false };
           }
         }}
@@ -528,9 +569,10 @@ const SystemConfigsPage: React.FC = () => {
         open={conflictModalOpen}
         onOpenChange={setConflictModalOpen}
         conflictData={conflictData}
-        configKey={pendingOverwrite?.key}
+        configKey={pendingAction?.data.key}
+        actionType={pendingAction?.type}
         onReload={handleConflictReload}
-        onForceOverwrite={handleForceOverwrite}
+        onForceAction={handleForceAction}
       />
     </PageContainer>
   );

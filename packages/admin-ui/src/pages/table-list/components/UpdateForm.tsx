@@ -11,6 +11,7 @@ import { FormattedMessage, useIntl } from '@umijs/max';
 import { App, Grid, Modal } from 'antd';
 import React, { cloneElement, useCallback, useState } from 'react';
 import { updateRule } from '@/services/ant-design-pro/api';
+import { queryKeys } from '@/utils/queryKeys';
 
 type UpdateFormProps = {
   trigger?: React.ReactElement<any>;
@@ -35,7 +36,7 @@ const UpdateForm: React.FC<UpdateFormProps> = (props) => {
     mutationFn: updateRule,
     onSuccess: () => {
       message.success('Configuration is successful');
-      queryClient.invalidateQueries({ queryKey: ['rule'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.rules.all });
       onOk?.();
     },
     onError: () => {

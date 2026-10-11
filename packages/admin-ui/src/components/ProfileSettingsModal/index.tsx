@@ -1,7 +1,7 @@
 import { LockOutlined, UserOutlined } from '@ant-design/icons';
-import type { ProFormInstance } from '@ant-design/pro-components';
 import { ModalForm, ProFormText } from '@ant-design/pro-components';
-import { message } from 'antd';
+import { useIntl } from '@umijs/max';
+import { App, Grid } from 'antd';
 import React, { useRef } from 'react';
 import { updateProfile } from '@/services/admin-profile';
 
@@ -21,7 +21,12 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
   onSuccess,
   initialValues,
 }) => {
-  const formRef = useRef<ProFormInstance>();
+  const formRef = useRef<any>(null);
+  const intl = useIntl();
+  const { message } = App.useApp();
+  const breakpoints = Grid.useBreakpoint();
+  const isMobile = !breakpoints.sm;
+  const modalWidth = isMobile ? '95vw' : 480;
 
   const handleSubmit = async (values: {
     name?: string;
@@ -30,7 +35,12 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
   }) => {
     // 校验密码一致性
     if (values.password && values.password !== values.confirmPassword) {
-      message.error('两次输入的密码不一致');
+      message.error(
+        intl.formatMessage({
+          id: 'component.profileSettings.passwordMismatch',
+          defaultMessage: 'The two passwords do not match',
+        }),
+      );
       return false;
     }
 
@@ -40,34 +50,54 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
         password: values.password,
       });
 
-      message.success('个人信息更新成功');
+      message.success(
+        intl.formatMessage({
+          id: 'component.profileSettings.updateSuccess',
+          defaultMessage: 'Profile updated successfully',
+        }),
+      );
       onSuccess?.();
       return true;
-    } catch (error) {
-      message.error('更新失败，请重试');
+    } catch (_error) {
+      message.error(
+        intl.formatMessage({
+          id: 'component.profileSettings.updateFailed',
+          defaultMessage: 'Update failed, please try again',
+        }),
+      );
       return false;
     }
   };
 
   return (
     <ModalForm
-      title="个人设置"
+      title={intl.formatMessage({
+        id: 'component.profileSettings.title',
+        defaultMessage: 'Personal settings',
+      })}
       formRef={formRef}
       open={open}
       onFinish={handleSubmit}
       modalProps={{
         destroyOnClose: true,
         onCancel: onClose,
-        okText: '保存',
-        cancelText: '取消',
+        okText: intl.formatMessage({ id: 'component.globalForm.ok' }),
+        cancelText: intl.formatMessage({ id: 'component.globalForm.cancel' }),
+        style: { maxWidth: modalWidth },
       }}
       initialValues={initialValues}
-      width={480}
+      width={modalWidth}
     >
       <ProFormText
         name="email"
-        label="邮箱"
-        placeholder="邮箱"
+        label={intl.formatMessage({
+          id: 'component.profileSettings.email.label',
+          defaultMessage: 'Email',
+        })}
+        placeholder={intl.formatMessage({
+          id: 'component.profileSettings.email.placeholder',
+          defaultMessage: 'Email',
+        })}
         disabled
         fieldProps={{
           prefix: <UserOutlined />,
@@ -75,16 +105,28 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
       />
       <ProFormText
         name="name"
-        label="昵称"
-        placeholder="请输入昵称"
+        label={intl.formatMessage({
+          id: 'component.profileSettings.nickname.label',
+          defaultMessage: 'Nickname',
+        })}
+        placeholder={intl.formatMessage({
+          id: 'component.profileSettings.nickname.placeholder',
+          defaultMessage: 'Please enter nickname',
+        })}
         rules={[
           {
             required: true,
-            message: '请输入昵称',
+            message: intl.formatMessage({
+              id: 'component.profileSettings.nickname.required',
+              defaultMessage: 'Please enter nickname',
+            }),
           },
           {
             max: 100,
-            message: '昵称不能超过100个字符',
+            message: intl.formatMessage({
+              id: 'component.profileSettings.nickname.maxLength',
+              defaultMessage: 'Nickname cannot exceed 100 characters',
+            }),
           },
         ]}
         fieldProps={{
@@ -93,12 +135,21 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
       />
       <ProFormText.Password
         name="password"
-        label="新密码"
-        placeholder="留空则不修改密码"
+        label={intl.formatMessage({
+          id: 'component.profileSettings.newPassword.label',
+          defaultMessage: 'New password',
+        })}
+        placeholder={intl.formatMessage({
+          id: 'component.profileSettings.newPassword.placeholder',
+          defaultMessage: 'Leave blank to keep password unchanged',
+        })}
         rules={[
           {
             min: 6,
-            message: '密码至少6个字符',
+            message: intl.formatMessage({
+              id: 'component.profileSettings.newPassword.minLength',
+              defaultMessage: 'Password must be at least 6 characters',
+            }),
           },
         ]}
         fieldProps={{
@@ -107,8 +158,14 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
       />
       <ProFormText.Password
         name="confirmPassword"
-        label="确认密码"
-        placeholder="再次输入新密码"
+        label={intl.formatMessage({
+          id: 'component.profileSettings.confirmPassword.label',
+          defaultMessage: 'Confirm password',
+        })}
+        placeholder={intl.formatMessage({
+          id: 'component.profileSettings.confirmPassword.placeholder',
+          defaultMessage: 'Enter new password again',
+        })}
         dependencies={['password']}
         rules={[
           {
@@ -116,7 +173,14 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
               if (!value) return Promise.resolve();
               const password = formRef.current?.getFieldValue('password');
               if (password && value !== password) {
-                return Promise.reject(new Error('两次输入的密码不一致'));
+                return Promise.reject(
+                  new Error(
+                    intl.formatMessage({
+                      id: 'component.profileSettings.passwordMismatch',
+                      defaultMessage: 'The two passwords do not match',
+                    }),
+                  ),
+                );
               }
               return Promise.resolve();
             },

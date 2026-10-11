@@ -98,17 +98,20 @@ export async function setUserConfig(
 /**
  * 删除用户配置覆盖
  * DELETE /api/rtc-users/:userId/configs/:key?version=
+ * @param userId - User ID
+ * @param key - Config key
+ * @param version - Version number (optional, omit for force delete)
  */
 export async function deleteUserConfig(
   userId: string,
   key: string,
-  version: number,
+  version?: number,
 ) {
   return request<DeleteUserConfigResponse>(
     `/api/rtc-users/${userId}/configs/${encodeURIComponent(key)}`,
     {
       method: 'DELETE',
-      params: { version },
+      params: version !== undefined ? { version } : undefined,
     },
   );
 }

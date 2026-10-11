@@ -1,11 +1,12 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { useAccess, useIntl, useSearchParams } from '@umijs/max';
-import { message, Tag, theme } from 'antd';
+import { useIntl, useSearchParams } from '@umijs/max';
+import { App, Grid, Tag, theme } from 'antd';
 import React, { useEffect, useMemo, useRef } from 'react';
 import type { AuditLogItem } from '@/services/auditLog';
 import { getAuditLogList } from '@/services/auditLog';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
+import { parseTableSort } from '../../rtc-users/shared/tableUtils';
 import type { AuditLogPageAPI } from './page-api';
 
 /**
@@ -16,7 +17,9 @@ const AuditLogsPage: React.FC = () => {
   const intl = useIntl();
   const [searchParams, setSearchParams] = useSearchParams();
   const { token } = theme.useToken();
-  const access = useAccess();
+  const { message } = App.useApp();
+  const breakpoint = Grid.useBreakpoint();
+  const isMobile = !breakpoint.md;
 
   // === Register Page API ===
   useEffect(() => {
@@ -119,49 +122,49 @@ const AuditLogsPage: React.FC = () => {
         create_role: {
           text: intl.formatMessage({
             id: 'pages.auditLogs.eventType.createRole',
-            defaultMessage: '创建管理员角色',
+            defaultMessage: 'Create admin role',
           }),
           color: 'green',
         },
         update_role: {
           text: intl.formatMessage({
             id: 'pages.auditLogs.eventType.updateRole',
-            defaultMessage: '更新管理员角色',
+            defaultMessage: 'Update admin role',
           }),
           color: 'blue',
         },
         delete_role: {
           text: intl.formatMessage({
             id: 'pages.auditLogs.eventType.deleteRole',
-            defaultMessage: '删除管理员角色',
+            defaultMessage: 'Delete admin role',
           }),
           color: 'red',
         },
         assign_roles: {
           text: intl.formatMessage({
             id: 'pages.auditLogs.eventType.assignRoles',
-            defaultMessage: '分配管理员角色',
+            defaultMessage: 'Assign admin role',
           }),
           color: 'cyan',
         },
         revoke_role: {
           text: intl.formatMessage({
             id: 'pages.auditLogs.eventType.revokeRole',
-            defaultMessage: '撤销管理员角色',
+            defaultMessage: 'Revoke admin role',
           }),
           color: 'orange',
         },
         create_permission: {
           text: intl.formatMessage({
             id: 'pages.auditLogs.eventType.createPermission',
-            defaultMessage: '创建权限',
+            defaultMessage: 'Create permission',
           }),
           color: 'green',
         },
         delete_permission: {
           text: intl.formatMessage({
             id: 'pages.auditLogs.eventType.deletePermission',
-            defaultMessage: '删除权限',
+            defaultMessage: 'Delete permission',
           }),
           color: 'red',
         },
@@ -174,15 +177,15 @@ const AuditLogsPage: React.FC = () => {
     () => ({
       role: intl.formatMessage({
         id: 'pages.auditLogs.resourceType.role',
-        defaultMessage: '管理员角色',
+        defaultMessage: 'Admin role',
       }),
       admin_user: intl.formatMessage({
         id: 'pages.auditLogs.resourceType.adminUser',
-        defaultMessage: '管理员',
+        defaultMessage: 'Administrator',
       }),
       permission: intl.formatMessage({
         id: 'pages.auditLogs.resourceType.permission',
-        defaultMessage: '权限',
+        defaultMessage: 'Permission',
       }),
     }),
     [intl],
@@ -194,7 +197,7 @@ const AuditLogsPage: React.FC = () => {
       {
         title: intl.formatMessage({
           id: 'pages.auditLogs.column.operator',
-          defaultMessage: '操作者',
+          defaultMessage: 'Operator',
         }),
         dataIndex: 'operator_name',
         valueType: 'text',
@@ -204,7 +207,7 @@ const AuditLogsPage: React.FC = () => {
       {
         title: intl.formatMessage({
           id: 'pages.auditLogs.column.actorId',
-          defaultMessage: '操作者 ID',
+          defaultMessage: 'Operator ID',
         }),
         dataIndex: 'actor_id',
         valueType: 'text',
@@ -212,23 +215,24 @@ const AuditLogsPage: React.FC = () => {
         fieldProps: {
           placeholder: intl.formatMessage({
             id: 'pages.auditLogs.column.actorIdPlaceholder',
-            defaultMessage: '输入操作者 ID',
+            defaultMessage: 'Enter operator ID',
           }),
         },
       },
       {
         title: intl.formatMessage({
           id: 'pages.auditLogs.column.operatorIp',
-          defaultMessage: '操作者 IP',
+          defaultMessage: 'Operator IP',
         }),
         dataIndex: 'operator_ip',
         valueType: 'text',
         search: false,
+        hideInTable: isMobile,
       },
       {
         title: intl.formatMessage({
           id: 'pages.auditLogs.column.eventType',
-          defaultMessage: '事件类型',
+          defaultMessage: 'Event type',
         }),
         dataIndex: 'event_type',
         valueType: 'select',
@@ -250,7 +254,7 @@ const AuditLogsPage: React.FC = () => {
       {
         title: intl.formatMessage({
           id: 'pages.auditLogs.column.resourceType',
-          defaultMessage: '资源类型',
+          defaultMessage: 'Resource type',
         }),
         dataIndex: 'resource_type',
         valueType: 'select',
@@ -269,27 +273,29 @@ const AuditLogsPage: React.FC = () => {
       {
         title: intl.formatMessage({
           id: 'pages.auditLogs.column.resourceId',
-          defaultMessage: '资源 ID',
+          defaultMessage: 'Resource ID',
         }),
         dataIndex: 'resource_id',
         valueType: 'text',
         ellipsis: true,
+        hideInTable: isMobile,
         fieldProps: {
           placeholder: intl.formatMessage({
             id: 'pages.auditLogs.column.resourceIdPlaceholder',
-            defaultMessage: '输入资源 ID',
+            defaultMessage: 'Enter resource ID',
           }),
         },
       },
       {
         title: intl.formatMessage({
           id: 'pages.auditLogs.column.details',
-          defaultMessage: '详情',
+          defaultMessage: 'Details',
         }),
         dataIndex: 'details',
         valueType: 'text',
         search: false,
         ellipsis: true,
+        hideInTable: isMobile,
         render: (_, record) => {
           if (!record.details) return '-';
           // Use formatted JSON display for better readability
@@ -315,7 +321,7 @@ const AuditLogsPage: React.FC = () => {
       {
         title: intl.formatMessage({
           id: 'pages.auditLogs.column.createdAt',
-          defaultMessage: '操作时间',
+          defaultMessage: 'Operation time',
         }),
         dataIndex: 'created_at',
         valueType: 'dateTime',
@@ -325,7 +331,7 @@ const AuditLogsPage: React.FC = () => {
       {
         title: intl.formatMessage({
           id: 'pages.auditLogs.column.startTime',
-          defaultMessage: '开始时间',
+          defaultMessage: 'Start time',
         }),
         dataIndex: 'start_time',
         valueType: 'dateTime',
@@ -333,14 +339,14 @@ const AuditLogsPage: React.FC = () => {
         fieldProps: {
           placeholder: intl.formatMessage({
             id: 'pages.auditLogs.column.startTimePlaceholder',
-            defaultMessage: '选择开始时间',
+            defaultMessage: 'Select start time',
           }),
         },
       },
       {
         title: intl.formatMessage({
           id: 'pages.auditLogs.column.endTime',
-          defaultMessage: '结束时间',
+          defaultMessage: 'End time',
         }),
         dataIndex: 'end_time',
         valueType: 'dateTime',
@@ -348,12 +354,12 @@ const AuditLogsPage: React.FC = () => {
         fieldProps: {
           placeholder: intl.formatMessage({
             id: 'pages.auditLogs.column.endTimePlaceholder',
-            defaultMessage: '选择结束时间',
+            defaultMessage: 'Select end time',
           }),
         },
       },
     ],
-    [intl, token, EVENT_TYPE_MAP, RESOURCE_TYPE_MAP],
+    [intl, token, isMobile, EVENT_TYPE_MAP, RESOURCE_TYPE_MAP],
   );
 
   return (
@@ -361,10 +367,11 @@ const AuditLogsPage: React.FC = () => {
       <ProTable<AuditLogItem>
         headerTitle={intl.formatMessage({
           id: 'pages.auditLogs.headerTitle',
-          defaultMessage: '审计日志',
+          defaultMessage: 'Audit logs',
         })}
         actionRef={actionRef}
         rowKey="id"
+        scroll={{ x: 'max-content' }}
         search={{
           labelWidth: 'auto',
         }}
@@ -387,7 +394,7 @@ const AuditLogsPage: React.FC = () => {
               message.warning(
                 intl.formatMessage({
                   id: 'pages.auditLogs.timeRangeInvalid',
-                  defaultMessage: '开始时间必须早于结束时间',
+                  defaultMessage: 'Start time must be earlier than end time',
                 }),
               );
               return false; // Cancel search
@@ -395,7 +402,7 @@ const AuditLogsPage: React.FC = () => {
           }
           return params;
         }}
-        request={async (params) => {
+        request={async (params, sort) => {
           // Read params from searchParams (URL is single source of truth)
           const actor_id = searchParams.get('actor_id') || undefined;
           const resource_type = searchParams.get('resource_type') || undefined;
@@ -405,6 +412,7 @@ const AuditLogsPage: React.FC = () => {
           const end_time = searchParams.get('end_time') || undefined;
 
           try {
+            const sortParams = parseTableSort(sort || {});
             const response = await getAuditLogList({
               page: params.current,
               page_size: params.pageSize,
@@ -414,6 +422,7 @@ const AuditLogsPage: React.FC = () => {
               target_id,
               start_time,
               end_time,
+              ...sortParams,
             });
             return {
               data: response.items,
@@ -426,7 +435,7 @@ const AuditLogsPage: React.FC = () => {
                 error,
                 intl.formatMessage({
                   id: 'pages.auditLogs.loadFailed',
-                  defaultMessage: '加载审计日志失败',
+                  defaultMessage: 'Failed to load audit logs',
                 }),
               ),
             );

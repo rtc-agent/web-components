@@ -62,13 +62,13 @@ const Articles: React.FC = () => {
                 <Tag>
                   {intl.formatMessage({
                     id: 'pages.account.center.designLanguage',
-                    defaultMessage: '设计语言',
+                    defaultMessage: 'Design language',
                   })}
                 </Tag>
                 <Tag>
                   {intl.formatMessage({
                     id: 'pages.account.center.antGroup',
-                    defaultMessage: '蚂蚁集团',
+                    defaultMessage: 'Ant Financial',
                   })}
                 </Tag>
               </Flex>

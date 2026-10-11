@@ -1,25 +1,26 @@
 /**
- * Message role type
+ * Message types - imported from protocol package
+ * @rtc-agent/protocol provides the canonical Message type definition
  */
-export type MessageRole = 'user' | 'assistant';
+import type {
+  Message,
+  MessageRole as ProtocolMessageRole,
+} from '@rtc-agent/protocol';
 
 /**
- * Message information
+ * Message role type (re-exported from protocol for convenience)
  */
-export type MessageInfo = {
-  id: string;
-  session_id: string;
-  role: MessageRole;
-  content: string;
-  created_at: string;
-  global_offset: number;
-  input_tokens: number | null;
-  output_tokens: number | null;
-  total_tokens: number | null;
-};
+export type MessageRole = ProtocolMessageRole;
+
+/**
+ * Message information (alias for protocol Message type)
+ * Using protocol type ensures consistency with backend API
+ */
+export type MessageInfo = Message;
 
 /**
  * Message list response
+ * Admin-server specific pagination wrapper
  */
 export type MessageListResponse = {
   items: MessageInfo[];

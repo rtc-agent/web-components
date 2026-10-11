@@ -1,6 +1,6 @@
 import { ModalForm, ProFormTextArea } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
-import { Alert, App, Form } from 'antd';
+import { Alert, App, Form, Grid } from 'antd';
 import React, { useEffect } from 'react';
 import type { ServerConfigItem } from '@/services/serverConfig';
 import { parseConfigValue } from '@/utils/configFormat';
@@ -29,6 +29,9 @@ const ConfigEditModal: React.FC<ConfigEditModalProps> = ({
   const [form] = Form.useForm<{ value: unknown; change_note?: string }>();
   const intl = useIntl();
   const { message } = App.useApp();
+  const breakpoints = Grid.useBreakpoint();
+  const isMobile = !breakpoints.sm;
+  const modalWidth = isMobile ? '95vw' : 480;
 
   useEffect(() => {
     if (config && open) {
@@ -50,7 +53,11 @@ const ConfigEditModal: React.FC<ConfigEditModalProps> = ({
       form={form}
       open={open}
       onOpenChange={onOpenChange}
-      modalProps={{ destroyOnClose: true }}
+      width={modalWidth}
+      modalProps={{
+        destroyOnClose: true,
+        style: { maxWidth: modalWidth },
+      }}
       onFinish={async (values) => {
         // Parse value based on config type
         const result = parseConfigValue(values.value, config.value_type);
@@ -88,6 +95,15 @@ const ConfigEditModal: React.FC<ConfigEditModalProps> = ({
         placeholder={intl.formatMessage({
           id: 'pages.config.system.changeNotePlaceholder',
         })}
+        rules={[
+          {
+            required: true,
+            message: intl.formatMessage({
+              id: 'pages.config.system.changeNoteRequired',
+              defaultMessage: 'Please enter change description',
+            }),
+          },
+        ]}
         fieldProps={{ rows: 2, maxLength: 500, showCount: true }}
       />
     </ModalForm>

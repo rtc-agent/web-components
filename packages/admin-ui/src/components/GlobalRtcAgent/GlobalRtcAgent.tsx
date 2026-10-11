@@ -8,21 +8,26 @@
  * 此时 model 的 Provider 还未初始化。改为直接读取 localStorage。
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { history } from '@umijs/max';
-import { refreshToken as apiRefreshToken } from '@/services/admin-auth';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   AUTH_STATE_CHANGED_EVENT,
-  getRefreshToken,
   getUserInfo,
   getUserPermissions,
   isAuthenticated,
-  setTokens,
+  refreshAccessToken,
 } from '@/utils/auth-storage';
 import { mountRtcAgent, unmountRtcAgent } from '@/utils/rtc-agent-manager';
 
+// 权限就绪事件名称
+export const PERMISSIONS_READY_EVENT = 'admin-permissions-ready';
+
 // 不需要显示 RTCAgent 的路由
-const EXCLUDED_PATHS = ['/user/login', '/user/register', '/user/register-result'];
+const EXCLUDED_PATHS = [
+  '/user/login',
+  '/user/register',
+  '/user/register-result',
+];
 
 /**
  * 全局 RTC Agent 容器组件
@@ -84,8 +89,7 @@ export const GlobalRtcAgent: React.FC = () => {
     };
   }, [checkRoute]);
 
-  // 防止并发 refresh 请求
-  const refreshPromiseRef = useRef<Promise<boolean> | null>(null);
+  // 防止并发 refresh 请求（已移到 auth-storage.ts 的 refreshAccessToken 中）
 
   const checkAuth = useCallback(async () => {
     // 如果在排除的路由上，不检查认证状态
@@ -103,27 +107,11 @@ export const GlobalRtcAgent: React.FC = () => {
     let authenticated = isAuthenticated();
 
     // Token 过期但 refresh token 仍在？先尝试刷新，避免误判为未登录
-    if (!authenticated && getRefreshToken()) {
-      if (!refreshPromiseRef.current) {
-        refreshPromiseRef.current = (async () => {
-          try {
-            const rt = getRefreshToken();
-            if (!rt) return false;
-            const result = await apiRefreshToken({ refresh_token: rt });
-            setTokens(
-              result.access_token,
-              result.refresh_token,
-              result.expires_in || 3600,
-            );
-            return true;
-          } catch {
-            return false;
-          } finally {
-            refreshPromiseRef.current = null;
-          }
-        })();
+    if (!authenticated) {
+      const newToken = await refreshAccessToken();
+      if (newToken) {
+        authenticated = true;
       }
-      authenticated = await refreshPromiseRef.current;
     }
 
     setIsLoggedIn((prev) => {
@@ -228,11 +216,19 @@ export const GlobalRtcAgent: React.FC = () => {
       return;
     }
 
-    // 如果还没有，轮询等待（最多 5 秒）
+    // 监听权限就绪事件（由 app.tsx 的 fetchUserInfo 成功后触发）
+    const handlePermissionsReady = () => {
+      console.log('[GlobalRtcAgent] Permissions ready event received');
+      checkData();
+    };
+
+    window.addEventListener(PERMISSIONS_READY_EVENT, handlePermissionsReady);
+
+    // 兜底：5 秒超时后强制设置就绪状态
     const startTime = Date.now();
-    const interval = setInterval(() => {
+    const timeout = setInterval(() => {
       if (checkData() || Date.now() - startTime > 5000) {
-        clearInterval(interval);
+        clearInterval(timeout);
         if (!permissionsReady) {
           console.warn(
             '[GlobalRtcAgent] Permissions not loaded after 5s, mounting with empty permissions',
@@ -248,7 +244,13 @@ export const GlobalRtcAgent: React.FC = () => {
       }
     }, 100);
 
-    return () => clearInterval(interval);
+    return () => {
+      window.removeEventListener(
+        PERMISSIONS_READY_EVENT,
+        handlePermissionsReady,
+      );
+      clearInterval(timeout);
+    };
   }, [isLoggedIn]);
 
   // Handle mount/unmount based on auth state, permissions, user info, and browser support.

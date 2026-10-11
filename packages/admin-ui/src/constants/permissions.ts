@@ -12,70 +12,70 @@ export const getResourceTypes = (intl: IntlType) => [
   {
     label: intl.formatMessage({
       id: 'pages.permissions.resource.adminUser',
-      defaultMessage: '管理员管理',
+      defaultMessage: 'Admin User Management',
     }),
     value: 'admin_user',
   },
   {
     label: intl.formatMessage({
       id: 'pages.permissions.resource.role',
-      defaultMessage: '管理员角色管理',
+      defaultMessage: 'Role Management',
     }),
     value: 'role',
   },
   {
     label: intl.formatMessage({
       id: 'pages.permissions.resource.permission',
-      defaultMessage: '权限管理',
+      defaultMessage: 'Permission Management',
     }),
     value: 'permission',
   },
   {
     label: intl.formatMessage({
       id: 'pages.permissions.resource.adminUserRole',
-      defaultMessage: '管理员角色关联',
+      defaultMessage: 'Admin User Role Assignment',
     }),
     value: 'admin_user_role',
   },
   {
     label: intl.formatMessage({
       id: 'pages.permissions.resource.auditLog',
-      defaultMessage: '审计日志',
+      defaultMessage: 'Audit Log',
     }),
     value: 'audit_log',
   },
   {
     label: intl.formatMessage({
       id: 'pages.permissions.resource.rtcUser',
-      defaultMessage: 'RTC 用户管理',
+      defaultMessage: 'RTC User Management',
     }),
     value: 'rtc_user',
   },
   {
     label: intl.formatMessage({
       id: 'pages.permissions.resource.rtcSession',
-      defaultMessage: 'RTC 会话管理',
+      defaultMessage: 'RTC Session Management',
     }),
     value: 'rtc_session',
   },
   {
     label: intl.formatMessage({
       id: 'pages.permissions.resource.rtcMessage',
-      defaultMessage: 'RTC 消息管理',
+      defaultMessage: 'RTC Message Management',
     }),
     value: 'rtc_message',
   },
   {
     label: intl.formatMessage({
       id: 'pages.permissions.resource.serverConfig',
-      defaultMessage: '系统配置',
+      defaultMessage: 'System Configuration',
     }),
     value: 'server_config',
   },
   {
     label: intl.formatMessage({
       id: 'pages.permissions.resource.dashboard',
-      defaultMessage: '数据看板',
+      defaultMessage: 'Dashboard',
     }),
     value: 'dashboard',
   },
@@ -86,28 +86,28 @@ export const getActionTypes = (intl: IntlType) => [
   {
     label: intl.formatMessage({
       id: 'pages.permissions.action.read',
-      defaultMessage: '读取',
+      defaultMessage: 'Read',
     }),
     value: 'read',
   },
   {
     label: intl.formatMessage({
       id: 'pages.permissions.action.write',
-      defaultMessage: '写入',
+      defaultMessage: 'Write',
     }),
     value: 'write',
   },
   {
     label: intl.formatMessage({
       id: 'pages.permissions.action.delete',
-      defaultMessage: '删除',
+      defaultMessage: 'Delete',
     }),
     value: 'delete',
   },
   {
     label: intl.formatMessage({
       id: 'pages.permissions.action.ban',
-      defaultMessage: '封禁',
+      defaultMessage: 'Ban',
     }),
     value: 'ban',
   },

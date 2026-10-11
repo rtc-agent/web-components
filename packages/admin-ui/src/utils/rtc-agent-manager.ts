@@ -10,8 +10,8 @@ import { createAdminAgentConfig, createAllGroups } from '@/rtc-agent';
 import type { Permission } from '@/rtc-agent/permission-filter';
 import { filterGroupsByPermissions } from '@/rtc-agent/permission-filter';
 import { initTestHarness } from '@/rtc-agent/test-harness';
-import { createAdminAuthProvider } from '@/utils/rtc-auth-provider';
 import { maskUserID } from '@/utils/mask';
+import { createAdminAuthProvider } from '@/utils/rtc-auth-provider';
 
 // Web Component 实例（全局单例）
 let rtcAgentInstance: RtcAgentWithLifecycle | null = null;
@@ -162,7 +162,10 @@ export function mountRtcAgent(userPermissions: Permission[] = []) {
               initTestHarness();
             },
             authLogin: ({ userId }: { userId: string }) => {
-              console.log('[RTC Agent] Authenticated, userId:', maskUserID(userId));
+              console.log(
+                '[RTC Agent] Authenticated, userId:',
+                maskUserID(userId),
+              );
             },
             authError: () => {
               console.error('[RTC Agent] Auth error, scheduling unmount');

@@ -5,8 +5,7 @@
  * lifecycle based on authentication state.
  */
 
-import { render, screen, waitFor } from '@testing-library/react';
-import React from 'react';
+import { render, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GlobalRtcAgent } from '@/components/GlobalRtcAgent/GlobalRtcAgent';
 import * as authStorage from '@/utils/auth-storage';
@@ -16,7 +15,7 @@ import * as rtcAgentManager from '@/utils/rtc-agent-manager';
 const { mockHistory } = vi.hoisted(() => ({
   mockHistory: {
     location: { pathname: '/dashboard' },
-    listen: vi.fn(() => vi.fn()),
+    listen: vi.fn<(callback: any) => any>(() => vi.fn()),
   },
 }));
 
@@ -30,6 +29,7 @@ vi.mock('@/utils/auth-storage', () => ({
   getUserPermissions: vi.fn(() => [{ resource: 'test', action: 'test' }]),
   getUserInfo: vi.fn(() => ({ id: 'test-user-id', name: 'Test User' })),
   getRefreshToken: vi.fn(() => null),
+  refreshAccessToken: vi.fn(() => Promise.resolve(null)),
   setTokens: vi.fn(),
   AUTH_STATE_CHANGED_EVENT: 'auth-state-changed',
 }));

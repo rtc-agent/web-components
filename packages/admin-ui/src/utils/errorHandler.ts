@@ -79,7 +79,7 @@ export const ERROR_CODE_MESSAGES: Record<string, string> = {
  */
 export function getFriendlyErrorMessage(
   error: BizError | unknown,
-  defaultMessage = '操作失败',
+  defaultMessage = 'Operation failed',
 ): string {
   // Narrow unknown to a shape we can safely probe
   const err = (error ?? {}) as Record<string, unknown>;

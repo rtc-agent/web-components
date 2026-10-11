@@ -317,4 +317,77 @@ describe('access', () => {
       expect(result.canSystemView).toBe(false);
     });
   });
+
+  describe('canRtcUsersMenu logic', () => {
+    it('should be true when user has rtc_user:read', () => {
+      const result = access({
+        currentUser: {
+          permissions: new Set(['rtc_user:read']),
+        },
+      });
+      expect(result.canRtcUsersMenu).toBe(true);
+      expect(result.canRtcUserView).toBe(true);
+      expect(result.canRtcUserBan).toBe(false);
+    });
+
+    it('should be true when user only has rtc_user:ban', () => {
+      const result = access({
+        currentUser: {
+          permissions: new Set(['rtc_user:ban']),
+        },
+      });
+      expect(result.canRtcUsersMenu).toBe(true);
+      expect(result.canRtcUserView).toBe(false);
+      expect(result.canRtcUserBan).toBe(true);
+    });
+
+    it('should be true when user has any RTC permission', () => {
+      const rtcPermissions = [
+        'rtc_user:read',
+        'rtc_user:ban',
+        'rtc_session:read',
+        'rtc_message:read',
+      ];
+
+      for (const perm of rtcPermissions) {
+        const result = access({
+          currentUser: {
+            permissions: new Set([perm]),
+          },
+        });
+        expect(result.canRtcUsersMenu).toBe(true);
+      }
+    });
+
+    it('should be false when user has no RTC permissions', () => {
+      const result = access({
+        currentUser: {
+          permissions: new Set(['admin_user:read']),
+        },
+      });
+      expect(result.canRtcUsersMenu).toBe(false);
+      expect(result.canRtcUserView).toBe(false);
+      expect(result.canRtcUserBan).toBe(false);
+      expect(result.canRtcSessionView).toBe(false);
+      expect(result.canRtcMessageView).toBe(false);
+    });
+
+    it('should be true when user has all RTC permissions', () => {
+      const result = access({
+        currentUser: {
+          permissions: new Set([
+            'rtc_user:read',
+            'rtc_user:ban',
+            'rtc_session:read',
+            'rtc_message:read',
+          ]),
+        },
+      });
+      expect(result.canRtcUsersMenu).toBe(true);
+      expect(result.canRtcUserView).toBe(true);
+      expect(result.canRtcUserBan).toBe(true);
+      expect(result.canRtcSessionView).toBe(true);
+      expect(result.canRtcMessageView).toBe(true);
+    });
+  });
 });

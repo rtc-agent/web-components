@@ -16,6 +16,7 @@ import {
 } from 'antd';
 import dayjs from 'dayjs';
 import React, { useMemo } from 'react';
+import { useThemeMode } from '@/hooks/useThemeMode';
 import type {
   DeviceInfo,
   DeviceListResponse,
@@ -48,6 +49,9 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
   const intl = useIntl();
   const { token } = theme.useToken();
 
+  // Use custom hook for robust theme detection
+  const isDark = useThemeMode();
+
   // 获取设备列表
   // NOTE: umi 内置的 useRequest 默认 formatResult: result => result?.data，
   // 而 request() 已经通过响应拦截器解包了 { success, data } 结构，
@@ -76,7 +80,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
     {
       title: intl.formatMessage({
         id: 'pages.rtcUsers.detail.deviceName',
-        defaultMessage: '设备名称',
+        defaultMessage: 'Device name',
       }),
       dataIndex: 'name',
       key: 'name',
@@ -85,7 +89,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
     {
       title: intl.formatMessage({
         id: 'pages.rtcUsers.detail.deviceId',
-        defaultMessage: '设备 ID',
+        defaultMessage: 'Device ID',
       }),
       dataIndex: 'device_id',
       key: 'device_id',
@@ -104,7 +108,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
     {
       title: intl.formatMessage({
         id: 'pages.rtcUsers.detail.lastActiveAt',
-        defaultMessage: '最后活跃时间',
+        defaultMessage: 'Last active time',
       }),
       dataIndex: 'last_active_at',
       key: 'last_active_at',
@@ -114,7 +118,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
     {
       title: intl.formatMessage({
         id: 'pages.rtcUsers.detail.registeredAt',
-        defaultMessage: '注册时间',
+        defaultMessage: 'Registration time',
       }),
       dataIndex: 'created_at',
       key: 'created_at',
@@ -124,7 +128,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
     {
       title: intl.formatMessage({
         id: 'pages.rtcUsers.detail.status',
-        defaultMessage: '状态',
+        defaultMessage: 'Status',
       }),
       key: 'status',
       render: (_: unknown, record: DeviceInfo) => (
@@ -134,11 +138,11 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
             record.is_online
               ? intl.formatMessage({
                   id: 'pages.rtcUsers.detail.online',
-                  defaultMessage: '在线',
+                  defaultMessage: 'Online',
                 })
               : intl.formatMessage({
                   id: 'pages.rtcUsers.detail.offline',
-                  defaultMessage: '离线',
+                  defaultMessage: 'Offline',
                 })
           }
         />
@@ -151,7 +155,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
     {
       title: intl.formatMessage({
         id: 'pages.rtcUsers.detail.sessionTitle',
-        defaultMessage: 'Session 标题',
+        defaultMessage: 'Session title',
       }),
       dataIndex: 'title',
       key: 'title',
@@ -165,7 +169,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
     {
       title: intl.formatMessage({
         id: 'pages.rtcUsers.detail.sessionTokens',
-        defaultMessage: 'Token 消耗',
+        defaultMessage: 'Token consumption',
       }),
       dataIndex: 'total_tokens',
       key: 'total_tokens',
@@ -177,7 +181,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
     {
       title: intl.formatMessage({
         id: 'pages.rtcUsers.detail.sessionCreatedAt',
-        defaultMessage: '创建时间',
+        defaultMessage: 'Created at',
       }),
       dataIndex: 'created_at',
       key: 'created_at',
@@ -268,7 +272,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
     },
     height: 300,
     autoFit: true,
-    theme: token.colorBgContainer === '#ffffff' ? 'classic' : 'classicDark',
+    theme: isDark ? 'classicDark' : 'classic',
   };
 
   const titleSuffix = user ? ` - ${user.email || user.id.slice(0, 8)}` : '';
@@ -277,11 +281,11 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
     <Drawer
       title={`${intl.formatMessage({
         id: 'pages.rtcUsers.detail.title',
-        defaultMessage: '用户详情',
+        defaultMessage: 'User details',
       })}${titleSuffix}`}
       open={open}
       onClose={onClose}
-      size={800}
+      width={800}
       destroyOnHidden
     >
       {user && (
@@ -295,7 +299,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
             <Descriptions.Item
               label={intl.formatMessage({
                 id: 'pages.rtcUsers.userId',
-                defaultMessage: '用户ID',
+                defaultMessage: 'User ID',
               })}
             >
               <Text copyable={{ text: user.id }}>{user.id}</Text>
@@ -303,7 +307,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
             <Descriptions.Item
               label={intl.formatMessage({
                 id: 'pages.rtcUsers.email',
-                defaultMessage: '邮箱',
+                defaultMessage: 'Email',
               })}
             >
               {user.email || '-'}
@@ -311,7 +315,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
             <Descriptions.Item
               label={intl.formatMessage({
                 id: 'pages.rtcUsers.name',
-                defaultMessage: '姓名',
+                defaultMessage: 'Name',
               })}
             >
               {user.name || '-'}
@@ -327,7 +331,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
             <Descriptions.Item
               label={intl.formatMessage({
                 id: 'pages.rtcUsers.status',
-                defaultMessage: '状态',
+                defaultMessage: 'Status',
               })}
             >
               <Badge
@@ -336,11 +340,11 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
                   user.status === 'active'
                     ? intl.formatMessage({
                         id: 'pages.rtcUsers.statusActive',
-                        defaultMessage: '正常',
+                        defaultMessage: 'Normal',
                       })
                     : intl.formatMessage({
                         id: 'pages.rtcUsers.statusBanned',
-                        defaultMessage: '已封禁',
+                        defaultMessage: 'Banned',
                       })
                 }
               />
@@ -348,7 +352,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
             <Descriptions.Item
               label={intl.formatMessage({
                 id: 'pages.rtcUsers.createdAt',
-                defaultMessage: '创建时间',
+                defaultMessage: 'Created at',
               })}
             >
               {dayjs(user.created_at).format('YYYY-MM-DD HH:mm:ss')}
@@ -362,7 +366,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
                 key: 'devices',
                 label: intl.formatMessage({
                   id: 'pages.rtcUsers.detail.devices',
-                  defaultMessage: '设备列表',
+                  defaultMessage: 'Device list',
                 }),
                 children: (
                   <Table
@@ -375,7 +379,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
                     locale={{
                       emptyText: intl.formatMessage({
                         id: 'pages.rtcUsers.detail.noDevices',
-                        defaultMessage: '暂无设备',
+                        defaultMessage: 'No devices',
                       }),
                     }}
                   />
@@ -385,7 +389,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
                 key: 'tokens',
                 label: intl.formatMessage({
                   id: 'pages.rtcUsers.detail.tokens',
-                  defaultMessage: 'Token 消耗',
+                  defaultMessage: 'Token consumption',
                 }),
                 children: (
                   <Space
@@ -395,48 +399,48 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
                   >
                     {/* 统计卡片 */}
                     <Row gutter={16}>
-                      <Col span={6}>
+                      <Col xs={12} sm={12} md={6}>
                         <Card size="small">
                           <Statistic
                             title={intl.formatMessage({
                               id: 'pages.rtcUsers.detail.todayTokens',
-                              defaultMessage: '今日 Token',
+                              defaultMessage: "Today's token",
                             })}
                             value={statsData?.summary.today_tokens || 0}
                             loading={statsLoading}
                           />
                         </Card>
                       </Col>
-                      <Col span={6}>
+                      <Col xs={12} sm={12} md={6}>
                         <Card size="small">
                           <Statistic
                             title={intl.formatMessage({
                               id: 'pages.rtcUsers.detail.weekTokens',
-                              defaultMessage: '本周 Token',
+                              defaultMessage: "This week's token",
                             })}
                             value={statsData?.summary.week_tokens || 0}
                             loading={statsLoading}
                           />
                         </Card>
                       </Col>
-                      <Col span={6}>
+                      <Col xs={12} sm={12} md={6}>
                         <Card size="small">
                           <Statistic
                             title={intl.formatMessage({
                               id: 'pages.rtcUsers.detail.monthTokens',
-                              defaultMessage: '本月 Token',
+                              defaultMessage: "This month's token",
                             })}
                             value={statsData?.summary.month_tokens || 0}
                             loading={statsLoading}
                           />
                         </Card>
                       </Col>
-                      <Col span={6}>
+                      <Col xs={12} sm={12} md={6}>
                         <Card size="small">
                           <Statistic
                             title={intl.formatMessage({
                               id: 'pages.rtcUsers.detail.totalTokens',
-                              defaultMessage: '总计 Token',
+                              defaultMessage: 'Total token',
                             })}
                             value={statsData?.summary.total_tokens || 0}
                             loading={statsLoading}
@@ -449,7 +453,8 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
                     <Card
                       title={intl.formatMessage({
                         id: 'pages.rtcUsers.detail.trend',
-                        defaultMessage: 'Token 消耗趋势（最近 30 天）',
+                        defaultMessage:
+                          'Token consumption trend (last 30 days)',
                       })}
                       size="small"
                       loading={statsLoading}
@@ -461,7 +466,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
                           <Text type="secondary">
                             {intl.formatMessage({
                               id: 'pages.rtcUsers.detail.noStats',
-                              defaultMessage: '暂无统计数据',
+                              defaultMessage: 'No statistics data',
                             })}
                           </Text>
                         </div>
@@ -484,7 +489,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
                         locale={{
                           emptyText: intl.formatMessage({
                             id: 'pages.rtcUsers.detail.noStats',
-                            defaultMessage: '暂无统计数据',
+                            defaultMessage: 'No statistics data',
                           }),
                         }}
                       />

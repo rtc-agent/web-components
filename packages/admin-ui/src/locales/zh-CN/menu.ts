@@ -12,6 +12,7 @@ export default {
   'menu.register': '注册',
   'menu.register-result': '注册结果',
   'menu.dashboard': 'Dashboard',
+  'menu.dashboard.analysis': '分析页',
   'menu.dashboard.grafana': '监控面板',
   'menu.dashboard.grafana.rtc-agent': 'RTC Agent',
   'menu.dashboard.grafana.go-runtime': 'Go Runtime',

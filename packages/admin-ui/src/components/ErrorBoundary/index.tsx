@@ -1,3 +1,4 @@
+import { getIntl } from '@umijs/max';
 import { Button, Card, Result } from 'antd';
 import React from 'react';
 
@@ -18,16 +19,56 @@ function renderErrorFallback(
   const isOffline = !isOnline;
   const isChunkError = isChunkLoadError(error);
 
-  // Use plain text fallback instead of getIntl() to avoid Context issues
-  // when ErrorBoundary is rendered outside of Intl provider
-  const title = isChunkError ? 'Failed to load page' : 'Something went wrong';
-
-  const subTitle =
+  // Try to use intl, fallback to plain text if Intl provider is not available
+  let title = isChunkError ? 'Failed to load page' : 'Something went wrong';
+  let subTitle =
     isChunkError && isOffline
       ? 'Your network connection has been lost. Please check your connection and reload.'
       : isChunkError
         ? 'Page resources failed to load. Please reload and try again.'
         : 'Sorry, an error occurred on this page. Please reload or go back to the home page.';
+
+  let retryText = 'Retry';
+  let reloadText = 'Reload Page';
+  let homeText = 'Back Home';
+
+  try {
+    const intl = getIntl();
+    title = isChunkError
+      ? intl.formatMessage({
+          id: 'app.error.chunk.title',
+          defaultMessage: 'Failed to load page',
+        })
+      : intl.formatMessage({
+          id: 'app.error.render.title',
+          defaultMessage: 'Something went wrong',
+        });
+
+    subTitle =
+      isChunkError && isOffline
+        ? intl.formatMessage({
+            id: 'app.error.chunk.description.offline',
+            defaultMessage:
+              'Your network connection has been lost. Please check your connection and reload.',
+          })
+        : isChunkError
+          ? intl.formatMessage({
+              id: 'app.error.chunk.description.online',
+              defaultMessage:
+                'Page resources failed to load. Please reload and try again.',
+            })
+          : intl.formatMessage({
+              id: 'app.error.render.description',
+              defaultMessage:
+                'Sorry, an error occurred on this page. Please reload or go back to the home page.',
+            });
+
+    retryText = intl.formatMessage({ id: 'app.error.retry' });
+    reloadText = intl.formatMessage({ id: 'app.error.reload' });
+    homeText = intl.formatMessage({ id: 'app.error.home' });
+  } catch (_e) {
+    // Intl provider not available, use plain text fallback
+  }
 
   return (
     <Card variant="borderless" style={{ margin: 24 }}>
@@ -38,7 +79,7 @@ function renderErrorFallback(
         extra={[
           isChunkError && (
             <Button type="primary" key="retry" onClick={onRetry}>
-              Retry
+              {retryText}
             </Button>
           ),
           <Button
@@ -46,10 +87,10 @@ function renderErrorFallback(
             key="reload"
             onClick={onReload}
           >
-            Reload Page
+            {reloadText}
           </Button>,
           <Button href="/" key="home">
-            Back Home
+            {homeText}
           </Button>,
         ].filter(Boolean)}
       />

@@ -13,6 +13,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useIntl } from '@umijs/max';
 import { App, Card } from 'antd';
 import type { FC } from 'react';
+import { queryKeys } from '@/utils/queryKeys';
 import { fakeSubmitForm } from './service';
 import useStyles from './style.style';
 
@@ -30,7 +31,7 @@ const BasicForm: FC<Record<string, any>> = () => {
           defaultMessage: 'Submitted successfully',
         }),
       );
-      queryClient.invalidateQueries({ queryKey: ['basic-form'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.basicForm.all });
     },
   });
   const onFinish = async (values: Record<string, any>) => {

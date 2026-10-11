@@ -3,14 +3,15 @@ import XMarkdown from '@ant-design/x-markdown';
 import '@ant-design/x-markdown/es/XMarkdown/index.css';
 import enUS from '@root/docs/cheatsheet.en-US.md';
 import zhCN from '@root/docs/cheatsheet.zh-CN.md';
-import { getLocale, useIntl, useModel } from '@umijs/max';
-import { Card } from 'antd';
+import { getLocale, useIntl } from '@umijs/max';
+import { Card, theme } from 'antd';
 import hljs from 'highlight.js';
 import React from 'react';
 
 import 'highlight.js/styles/github.css';
 import './Welcome.css';
 import './Welcome-dark.css';
+import { useThemeMode } from '@/hooks/useThemeMode';
 
 interface InfoCardProps {
   title: string;
@@ -19,21 +20,28 @@ interface InfoCardProps {
   href: string;
 }
 
-const InfoCard: React.FC<InfoCardProps> = ({ title, index, desc, href }) => (
-  <a href={href} target="_blank" rel="noopener noreferrer" aria-label={title}>
-    <Card hoverable size="small">
-      <div className="flex items-start gap-3">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-[#1677ff] text-base font-bold text-white">
-          {index}
+const InfoCard: React.FC<InfoCardProps> = ({ title, index, desc, href }) => {
+  const { token } = theme.useToken();
+
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" aria-label={title}>
+      <Card hoverable size="small">
+        <div className="flex items-start gap-3">
+          <div
+            className="flex size-10 shrink-0 items-center justify-center rounded-lg text-base font-bold text-white"
+            style={{ backgroundColor: token.colorPrimary }}
+          >
+            {index}
+          </div>
+          <div className="min-w-0 flex-1">
+            <h4 className="mb-1 mt-0 text-sm font-semibold">{title}</h4>
+            <p className="mb-0 line-clamp-2 text-xs text-zinc-500">{desc}</p>
+          </div>
         </div>
-        <div className="min-w-0 flex-1">
-          <h4 className="mb-1 mt-0 text-sm font-semibold">{title}</h4>
-          <p className="mb-0 line-clamp-2 text-xs text-zinc-500">{desc}</p>
-        </div>
-      </div>
-    </Card>
-  </a>
-);
+      </Card>
+    </a>
+  );
+};
 
 const mdContent: Record<string, string> = {
   'zh-CN': zhCN,
@@ -148,8 +156,9 @@ const Welcome: React.FC = () => {
     (normalizedLocale.startsWith('zh')
       ? mdContent['zh-CN']
       : mdContent['en-US']);
-  const { initialState } = useModel('@@initialState');
-  const isDark = ['realDark', 'dark'].includes(initialState?.settings?.navTheme || '');
+
+  // Use custom hook for robust theme detection
+  const isDark = useThemeMode();
 
   return (
     <PageContainer
@@ -158,7 +167,7 @@ const Welcome: React.FC = () => {
           {intl.formatMessage(
             {
               id: 'pages.welcome.celebrationTitle',
-              defaultMessage: '欢迎使用 Ant Design Pro {v6}',
+              defaultMessage: 'Welcome to Ant Design Pro {v6}',
             },
             {
               v6: (

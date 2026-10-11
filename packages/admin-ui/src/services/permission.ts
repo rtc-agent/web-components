@@ -55,9 +55,6 @@ export async function getPermissionList(params?: PermissionListParams) {
 export async function createPermission(body: PermissionPolicy) {
   return request<PermissionPolicy>('/api/permissions', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
     data: body,
   });
 }
@@ -69,9 +66,6 @@ export async function createPermission(body: PermissionPolicy) {
 export async function deletePermission(body: PermissionPolicy) {
   return request<{ success: boolean }>('/api/permissions', {
     method: 'DELETE',
-    headers: {
-      'Content-Type': 'application/json',
-    },
     data: body,
   });
 }
@@ -83,9 +77,6 @@ export async function deletePermission(body: PermissionPolicy) {
 export async function checkPermission(body: CheckPermissionParams) {
   return request<CheckPermissionResponse>('/api/permissions/check', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
     data: body,
   });
 }

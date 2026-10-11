@@ -16,7 +16,7 @@ const SecurityView: React.FC = () => {
       <span className="strong">
         {intl.formatMessage({
           id: 'pages.account.settings.security.strong',
-          defaultMessage: '强',
+          defaultMessage: 'Strong',
         })}
       </span>
     ),
@@ -24,7 +24,7 @@ const SecurityView: React.FC = () => {
       <span className="medium">
         {intl.formatMessage({
           id: 'pages.account.settings.security.medium',
-          defaultMessage: '中',
+          defaultMessage: 'Medium',
         })}
       </span>
     ),
@@ -32,7 +32,7 @@ const SecurityView: React.FC = () => {
       <span className="weak">
         {intl.formatMessage({
           id: 'pages.account.settings.security.weak',
-          defaultMessage: '弱',
+          defaultMessage: 'Weak',
         })}
       </span>
     ),
@@ -42,13 +42,13 @@ const SecurityView: React.FC = () => {
     {
       title: intl.formatMessage({
         id: 'pages.account.settings.security.password',
-        defaultMessage: '账户密码',
+        defaultMessage: 'Account password',
       }),
       description: (
         <>
           {intl.formatMessage({
             id: 'pages.account.settings.security.passwordStrength',
-            defaultMessage: '当前密码强度：',
+            defaultMessage: 'Current password strength: ',
           })}
           {passwordStrength.strong}
         </>
@@ -57,7 +57,7 @@ const SecurityView: React.FC = () => {
         <Button key="Modify" type="link">
           {intl.formatMessage({
             id: 'pages.account.settings.security.modify',
-            defaultMessage: '修改',
+            defaultMessage: 'Edit',
           })}
         </Button>,
       ],
@@ -65,17 +65,17 @@ const SecurityView: React.FC = () => {
     {
       title: intl.formatMessage({
         id: 'pages.account.settings.security.phone',
-        defaultMessage: '密保手机',
+        defaultMessage: 'Security phone',
       }),
       description: `${intl.formatMessage({
         id: 'pages.account.settings.security.boundPhone',
-        defaultMessage: '已绑定手机：',
+        defaultMessage: 'Bound phone: ',
       })}138****8293`,
       actions: [
         <Button key="Modify" type="link">
           {intl.formatMessage({
             id: 'pages.account.settings.security.modify',
-            defaultMessage: '修改',
+            defaultMessage: 'Edit',
           })}
         </Button>,
       ],
@@ -83,17 +83,18 @@ const SecurityView: React.FC = () => {
     {
       title: intl.formatMessage({
         id: 'pages.account.settings.security.question',
-        defaultMessage: '密保问题',
+        defaultMessage: 'Security question',
       }),
       description: intl.formatMessage({
         id: 'pages.account.settings.security.noQuestion',
-        defaultMessage: '未设置密保问题，密保问题可有效保护账户安全',
+        defaultMessage:
+          'Security question not set. Security questions can effectively protect account security',
       }),
       actions: [
         <Button key="Set" type="link">
           {intl.formatMessage({
             id: 'pages.account.settings.security.set',
-            defaultMessage: '设置',
+            defaultMessage: 'Settings',
           })}
         </Button>,
       ],
@@ -101,17 +102,17 @@ const SecurityView: React.FC = () => {
     {
       title: intl.formatMessage({
         id: 'pages.account.settings.security.backupEmail',
-        defaultMessage: '备用邮箱',
+        defaultMessage: 'Backup email',
       }),
       description: `${intl.formatMessage({
         id: 'pages.account.settings.security.boundEmail',
-        defaultMessage: '已绑定邮箱：',
+        defaultMessage: 'Bound email: ',
       })}ant***sign.com`,
       actions: [
         <Button key="Modify" type="link">
           {intl.formatMessage({
             id: 'pages.account.settings.security.modify',
-            defaultMessage: '修改',
+            defaultMessage: 'Edit',
           })}
         </Button>,
       ],
@@ -119,17 +120,18 @@ const SecurityView: React.FC = () => {
     {
       title: intl.formatMessage({
         id: 'pages.account.settings.security.mfa',
-        defaultMessage: 'MFA 设备',
+        defaultMessage: 'MFA device',
       }),
       description: intl.formatMessage({
         id: 'pages.account.settings.security.noMfa',
-        defaultMessage: '未绑定 MFA 设备，绑定后，可以进行二次确认',
+        defaultMessage:
+          'MFA device not bound. After binding, you can enable two-factor authentication',
       }),
       actions: [
         <Button key="bind" type="link">
           {intl.formatMessage({
             id: 'pages.account.settings.security.bind',
-            defaultMessage: '绑定',
+            defaultMessage: 'Bind',
           })}
         </Button>,
       ],

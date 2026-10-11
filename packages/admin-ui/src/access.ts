@@ -15,13 +15,13 @@ export default function access(
       canAdminUserView: false,
       canAdminUserEdit: false,
       canAdminUserDelete: false,
-      canAdminUserRoleView: false,
       canAdminUserRoleEdit: false,
       canAdminRoleView: false,
       canAdminRoleEdit: false,
       canPermissionView: false,
       canPermissionEdit: false,
       canAuditLogView: false,
+      canRtcUsersMenu: false,
       canRtcUserView: false,
       canRtcUserBan: false,
       canRtcSessionView: false,
@@ -34,27 +34,55 @@ export default function access(
   }
 
   // 获取权限集合（Set<string>，O(1) 查询）
-  const perms = currentUser.permissions as Set<string> | undefined;
+  // buildPermissionSet 在 getInitialState 中始终返回 Set，不会为 undefined
+  // 添加运行时类型检查，确保 permissions 是 Set 类型
+  const perms = currentUser.permissions;
+  if (!(perms instanceof Set)) {
+    console.error(
+      '[access] currentUser.permissions is not a Set, returning all permissions as false',
+    );
+    return {
+      canAdmin: false,
+      canSystemView: false,
+      canAdminUserView: false,
+      canAdminUserEdit: false,
+      canAdminUserDelete: false,
+      canAdminUserRoleEdit: false,
+      canAdminRoleView: false,
+      canAdminRoleEdit: false,
+      canPermissionView: false,
+      canPermissionEdit: false,
+      canAuditLogView: false,
+      canRtcUsersMenu: false,
+      canRtcUserView: false,
+      canRtcUserBan: false,
+      canRtcSessionView: false,
+      canRtcMessageView: false,
+      canServerConfigView: false,
+      canServerConfigEdit: false,
+      canServerConfigDelete: false,
+      canDashboardView: false,
+    };
+  }
 
   // 各个权限点（设计文档 §6.2 定义的 13 个权限点）
-  const canAdminUserView = perms?.has('admin_user:read') ?? false;
-  const canAdminUserEdit = perms?.has('admin_user:write') ?? false;
-  const canAdminUserDelete = perms?.has('admin_user:delete') ?? false;
-  const canAdminUserRoleView = perms?.has('admin_user_role:read') ?? false;
-  const canAdminUserRoleEdit = perms?.has('admin_user_role:write') ?? false;
-  const canAdminRoleView = perms?.has('role:read') ?? false;
-  const canAdminRoleEdit = perms?.has('role:write') ?? false;
-  const canPermissionView = perms?.has('permission:read') ?? false;
-  const canPermissionEdit = perms?.has('permission:write') ?? false;
-  const canAuditLogView = perms?.has('audit_log:read') ?? false;
-  const canRtcUserView = perms?.has('rtc_user:read') ?? false;
-  const canRtcUserBan = perms?.has('rtc_user:ban') ?? false;
-  const canRtcSessionView = perms?.has('rtc_session:read') ?? false;
-  const canRtcMessageView = perms?.has('rtc_message:read') ?? false;
-  const canServerConfigView = perms?.has('server_config:read') ?? false;
-  const canServerConfigEdit = perms?.has('server_config:write') ?? false;
-  const canServerConfigDelete = perms?.has('server_config:delete') ?? false;
-  const canDashboardView = perms?.has('dashboard:read') ?? false;
+  const canAdminUserView = perms.has('admin_user:read');
+  const canAdminUserEdit = perms.has('admin_user:write');
+  const canAdminUserDelete = perms.has('admin_user:delete');
+  const canAdminUserRoleEdit = perms.has('admin_user_role:write');
+  const canAdminRoleView = perms.has('role:read');
+  const canAdminRoleEdit = perms.has('role:write');
+  const canPermissionView = perms.has('permission:read');
+  const canPermissionEdit = perms.has('permission:write');
+  const canAuditLogView = perms.has('audit_log:read');
+  const canRtcUserView = perms.has('rtc_user:read');
+  const canRtcUserBan = perms.has('rtc_user:ban');
+  const canRtcSessionView = perms.has('rtc_session:read');
+  const canRtcMessageView = perms.has('rtc_message:read');
+  const canServerConfigView = perms.has('server_config:read');
+  const canServerConfigEdit = perms.has('server_config:write');
+  const canServerConfigDelete = perms.has('server_config:delete');
+  const canDashboardView = perms.has('dashboard:read');
 
   // 判断是否为管理员（基于管理员角色名称）
   const roleNames = currentUser.roles?.map((r) => r.name) || [];
@@ -63,26 +91,20 @@ export default function access(
   return {
     // 管理员权限
     // 需求文档 §6.2：canAdmin 应检查 admin_user:write 权限
-    // 旧后端（perms 为 undefined）：基于 access 字段判断
-    // 新后端（perms 为 Set）：基于 admin_user:write 权限判断
-    canAdmin:
-      perms === undefined
-        ? currentUser.access === 'admin' // 旧后端兼容
-        : perms.has('admin_user:write'), // 新后端：基于 admin_user:write 权限
+    canAdmin: perms.has('admin_user:write'),
 
     // 系统管理菜单可见性
     // 需求文档 §9.2：admin 角色或拥有任一系统权限的用户可见
-    // 实现：isAdmin || canAdminUserView || canAdminRoleView || canPermissionView || canAuditLogView || canRtcUserView
-    // 观察者（admin_user:read）、运营（role:read）、权限管理员（permission:read）、审计查看者（audit_log:read）、RTC用户查看者（rtc_user:read）均可见
+    // 实现：isAdmin || canAdminUserView || canAdminRoleView || canPermissionView || canAuditLogView || canServerConfigView
+    // 观察者（admin_user:read）、运营（role:read）、权限管理员（permission:read）、审计查看者（audit_log:read）、系统配置查看者（server_config:read）均可见
+    // 注意：Dashboard 不在 /system 路径下，不应包含 canDashboardView
     canSystemView:
       isAdmin ||
       canAdminUserView ||
       canAdminRoleView ||
       canPermissionView ||
       canAuditLogView ||
-      canRtcUserView ||
-      canServerConfigView ||
-      canDashboardView,
+      canServerConfigView,
 
     // 管理员管理
     canAdminUserView,
@@ -90,7 +112,6 @@ export default function access(
     canAdminUserDelete,
 
     // 管理员用户角色管理
-    canAdminUserRoleView,
     canAdminUserRoleEdit,
 
     // 管理员角色管理（设计文档未定义 canAdminRoleDelete，删除操作使用 canAdminRoleEdit）
@@ -103,6 +124,11 @@ export default function access(
 
     // 审计日志
     canAuditLogView,
+
+    // RTC 用户管理菜单可见性（组合权限：任一子权限满足即可见）
+    // 解决父路由使用 canRtcUserView 但子路由使用不同权限导致菜单不可见的问题
+    canRtcUsersMenu:
+      canRtcUserView || canRtcUserBan || canRtcSessionView || canRtcMessageView,
 
     // RTC 用户管理
     canRtcUserView,

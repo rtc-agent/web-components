@@ -1,27 +1,18 @@
 /**
- * Session status
+ * Session types - imported from protocol package
+ * @rtc-agent/protocol provides the canonical Session type definition
  */
-export type SessionStatus = 'active' | 'closed';
+import type { Session } from '@rtc-agent/protocol';
 
 /**
- * Session information
+ * Session information (alias for protocol Session type)
+ * Using protocol type ensures consistency with backend API
  */
-export type SessionInfo = {
-  id: string;
-  client_id: string;
-  title: string;
-  status: SessionStatus;
-  created_at: string;
-  updated_at: string;
-  total_input_tokens: number;
-  total_output_tokens: number;
-  total_tokens: number;
-  total_cached_read_tokens: number;
-  total_cost_micros: number;
-};
+export type SessionInfo = Session;
 
 /**
  * Session list response
+ * Admin-server specific pagination wrapper
  */
 export type SessionListResponse = {
   items: SessionInfo[];

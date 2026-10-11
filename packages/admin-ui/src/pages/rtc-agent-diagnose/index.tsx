@@ -7,7 +7,7 @@
 import { PageContainer } from '@ant-design/pro-components';
 import { useIntl, useModel } from '@umijs/max';
 import { Alert, App, Button, Card, Space, Typography } from 'antd';
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const { Title, Text, Paragraph } = Typography;
 

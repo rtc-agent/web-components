@@ -1,6 +1,6 @@
 import { ModalForm, ProFormTextArea } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
-import { Alert, App, Form } from 'antd';
+import { Alert, App, Form, Grid } from 'antd';
 import { useEffect } from 'react';
 import ConfigValueInput from '@/pages/system/configs/components/ConfigValueInput';
 import type { UserConfigItem } from '@/services/userConfig';
@@ -28,6 +28,9 @@ const UserConfigEditModal: React.FC<UserConfigEditModalProps> = ({
   const [form] = Form.useForm<{ value: unknown; change_note?: string }>();
   const intl = useIntl();
   const { message } = App.useApp();
+  const breakpoints = Grid.useBreakpoint();
+  const isMobile = !breakpoints.sm;
+  const modalWidth = isMobile ? '95vw' : 520;
 
   useEffect(() => {
     if (open) {
@@ -47,6 +50,7 @@ const UserConfigEditModal: React.FC<UserConfigEditModalProps> = ({
       form={form}
       open={open}
       onOpenChange={onOpenChange}
+      width={modalWidth}
       modalProps={{ destroyOnClose: true }}
       onFinish={async (values: { value: unknown; change_note?: string }) => {
         // 根据配置类型解析值

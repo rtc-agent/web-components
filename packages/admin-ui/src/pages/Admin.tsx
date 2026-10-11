@@ -15,7 +15,7 @@ const Admin: React.FC = () => {
     >
       <Card>
         <Alert
-          title={intl.formatMessage({
+          message={intl.formatMessage({
             id: 'pages.welcome.alertMessage',
             defaultMessage:
               'Faster and stronger heavy-duty components have been released.',

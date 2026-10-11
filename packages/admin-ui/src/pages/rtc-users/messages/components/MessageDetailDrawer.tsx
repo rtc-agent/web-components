@@ -299,7 +299,9 @@ const ToolCallInputContent: React.FC<{ data: unknown }> = ({ data }) => {
           <Space orientation="vertical" size={4} style={{ width: '100%' }}>
             {parsed.name && (
               <div>
-                <Text type="secondary">Name: </Text>
+                <Text type="secondary">
+                  {intl.formatMessage({ id: 'pages.messages.name' })}:{' '}
+                </Text>
                 <Text code>{parsed.name}</Text>
               </div>
             )}
@@ -490,7 +492,9 @@ const ToolCallOutputContent: React.FC<{ data: unknown }> = ({ data }) => {
       size="small"
       title={
         <Space>
-          <Tag color="green">Tool Result</Tag>
+          <Tag color="green">
+            {intl.formatMessage({ id: 'pages.messages.toolResult' })}
+          </Tag>
           <Text>{header}</Text>
         </Space>
       }
@@ -736,9 +740,9 @@ const ContentRenderer: React.FC<{ content: ContentData | null }> = ({
 
 /* ── Main Component ── */
 
-/** 格式化 Token 数字：null 时显示 '-'，否则千分位 */
-const formatTokens = (value: number | null): string =>
-  value !== null ? value.toLocaleString() : '-';
+/** 格式化 Token 数字：null/undefined 时显示 '-'，否则千分位 */
+const formatTokens = (value: number | null | undefined): string =>
+  value != null ? value.toLocaleString() : '-';
 
 /** 格式化时间戳 */
 const formatDateTime = (value: string): string => {
@@ -788,7 +792,7 @@ const MessageDetailDrawer: React.FC<MessageDetailDrawerProps> = ({
     <Drawer
       title={`${intl.formatMessage({
         id: 'pages.messages.detail.title',
-        defaultMessage: '消息详情',
+        defaultMessage: 'Message details',
       })}${titleSuffix}`}
       open={open}
       onClose={onClose}
@@ -814,7 +818,7 @@ const MessageDetailDrawer: React.FC<MessageDetailDrawerProps> = ({
             <Descriptions.Item
               label={intl.formatMessage({
                 id: 'pages.messages.role',
-                defaultMessage: '角色',
+                defaultMessage: 'Role',
               })}
             >
               <Tag color={msg.role === 'user' ? 'blue' : 'green'}>
@@ -827,7 +831,7 @@ const MessageDetailDrawer: React.FC<MessageDetailDrawerProps> = ({
             <Descriptions.Item
               label={intl.formatMessage({
                 id: 'pages.messages.inputTokens',
-                defaultMessage: '输入 Tokens',
+                defaultMessage: 'Input tokens',
               })}
             >
               {formatTokens(msg.input_tokens)}
@@ -835,7 +839,7 @@ const MessageDetailDrawer: React.FC<MessageDetailDrawerProps> = ({
             <Descriptions.Item
               label={intl.formatMessage({
                 id: 'pages.messages.outputTokens',
-                defaultMessage: '输出 Tokens',
+                defaultMessage: 'Output tokens',
               })}
             >
               {formatTokens(msg.output_tokens)}
@@ -843,7 +847,7 @@ const MessageDetailDrawer: React.FC<MessageDetailDrawerProps> = ({
             <Descriptions.Item
               label={intl.formatMessage({
                 id: 'pages.messages.totalTokens',
-                defaultMessage: '总 Tokens',
+                defaultMessage: 'Total tokens',
               })}
             >
               {formatTokens(msg.total_tokens)}
@@ -851,7 +855,7 @@ const MessageDetailDrawer: React.FC<MessageDetailDrawerProps> = ({
             <Descriptions.Item
               label={intl.formatMessage({
                 id: 'pages.messages.createdAt',
-                defaultMessage: '创建时间',
+                defaultMessage: 'Created at',
               })}
             >
               {formatDateTime(msg.created_at)}
@@ -870,7 +874,7 @@ const MessageDetailDrawer: React.FC<MessageDetailDrawerProps> = ({
             size="small"
             title={intl.formatMessage({
               id: 'pages.messages.content',
-              defaultMessage: '内容',
+              defaultMessage: 'Content',
             })}
           >
             <ContentRenderer content={contentData} />

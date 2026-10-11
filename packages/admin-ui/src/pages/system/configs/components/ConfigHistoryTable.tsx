@@ -5,7 +5,7 @@ import {
   ProTable,
 } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
-import { App, Button, Tag } from 'antd';
+import { App, Button, Grid, Tag } from 'antd';
 import React, { useRef, useState } from 'react';
 import type { ConfigHistoryItem } from '@/services/serverConfig';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
@@ -75,6 +75,9 @@ const ConfigHistoryTable: React.FC<ConfigHistoryTableProps> = ({
   const [rollbackModalOpen, setRollbackModalOpen] = useState(false);
   const intl = useIntl();
   const { message } = App.useApp();
+  const breakpoints = Grid.useBreakpoint();
+  const isMobile = !breakpoints.sm;
+  const modalWidth = isMobile ? '95vw' : 800;
 
   const columns: ProColumns<ConfigHistoryItem>[] = [
     {
@@ -169,9 +172,10 @@ const ConfigHistoryTable: React.FC<ConfigHistoryTableProps> = ({
         title={`${intl.formatMessage({ id: modalTitleId })}${configKey}`}
         open={open}
         onOpenChange={onOpenChange}
+        width={modalWidth}
         modalProps={{
           destroyOnClose: true,
-          style: { minWidth: 800 },
+          style: { maxWidth: modalWidth },
         }}
         submitter={false}
       >

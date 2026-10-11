@@ -19,17 +19,17 @@ const BindingView: React.FC = () => {
     {
       title: intl.formatMessage({
         id: 'pages.account.settings.binding.taobao',
-        defaultMessage: '绑定淘宝',
+        defaultMessage: 'Bind Taobao',
       }),
       description: intl.formatMessage({
         id: 'pages.account.settings.binding.taobaoDesc',
-        defaultMessage: '当前未绑定淘宝账号',
+        defaultMessage: 'Taobao account not bound',
       }),
       actions: [
         <Button key="Bind" type="link">
           {intl.formatMessage({
             id: 'pages.account.settings.binding.bind',
-            defaultMessage: '绑定',
+            defaultMessage: 'Bind',
           })}
         </Button>,
       ],
@@ -38,17 +38,17 @@ const BindingView: React.FC = () => {
     {
       title: intl.formatMessage({
         id: 'pages.account.settings.binding.alipay',
-        defaultMessage: '绑定支付宝',
+        defaultMessage: 'Bind Alipay',
       }),
       description: intl.formatMessage({
         id: 'pages.account.settings.binding.alipayDesc',
-        defaultMessage: '当前未绑定支付宝账号',
+        defaultMessage: 'Alipay account not bound',
       }),
       actions: [
         <Button key="Bind" type="link">
           {intl.formatMessage({
             id: 'pages.account.settings.binding.bind',
-            defaultMessage: '绑定',
+            defaultMessage: 'Bind',
           })}
         </Button>,
       ],
@@ -57,17 +57,17 @@ const BindingView: React.FC = () => {
     {
       title: intl.formatMessage({
         id: 'pages.account.settings.binding.dingding',
-        defaultMessage: '绑定钉钉',
+        defaultMessage: 'Bind DingTalk',
       }),
       description: intl.formatMessage({
         id: 'pages.account.settings.binding.dingdingDesc',
-        defaultMessage: '当前未绑定钉钉账号',
+        defaultMessage: 'DingTalk account not bound',
       }),
       actions: [
         <Button key="Bind" type="link">
           {intl.formatMessage({
             id: 'pages.account.settings.binding.bind',
-            defaultMessage: '绑定',
+            defaultMessage: 'Bind',
           })}
         </Button>,
       ],

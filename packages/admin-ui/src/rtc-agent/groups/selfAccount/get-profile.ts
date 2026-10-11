@@ -81,10 +81,7 @@ export const getProfile: PermissionAwareFunctionDef = {
           })
           .nullable()
           .describe('User profile data (matches personal center display)'),
-        error: z
-          .string()
-          .optional()
-          .describe('Error message if query failed'),
+        error: z.string().optional().describe('Error message if query failed'),
       })
       .describe('Profile query result'),
   },

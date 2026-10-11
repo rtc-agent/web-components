@@ -12,6 +12,7 @@ export default {
   'menu.register': 'Register',
   'menu.register-result': 'Register Result',
   'menu.dashboard': 'Dashboard',
+  'menu.dashboard.analysis': 'Analysis',
   'menu.dashboard.grafana': 'Monitoring',
   'menu.dashboard.grafana.rtc-agent': 'RTC Agent',
   'menu.dashboard.grafana.go-runtime': 'Go Runtime',

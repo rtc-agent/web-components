@@ -6,6 +6,10 @@
  */
 
 import type { FunctionDef } from '@rtc-agent/component';
+import { buildPermissionSet } from '@/utils/permission';
+
+// Re-export for backward compatibility
+export { buildPermissionSet };
 
 /**
  * Permission definition (consistent with backend API response)
@@ -23,13 +27,6 @@ export interface Permission {
 export interface PermissionAwareFunctionDef extends FunctionDef {
   /** Required permissions list; empty means no permission required (available to all admins) */
   requiredPermissions?: Permission[];
-}
-
-/**
- * Convert permission array to Set<string> for O(1) lookup
- */
-export function buildPermissionSet(permissions: Permission[]): Set<string> {
-  return new Set(permissions.map((p) => `${p.resource}:${p.action}`));
 }
 
 /**

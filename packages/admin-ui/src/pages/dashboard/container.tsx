@@ -100,8 +100,9 @@ const DashboardContainer: FC = () => {
     <div
       style={{
         width: '100%',
-        // 140px = header 高度 (64px) + 上下 padding (24px * 2) + 额外间距 (28px)
-        height: 'calc(100vh - 140px)',
+        // Use CSS variable for height calculation
+        // Fallback: 140px = header (64px) + padding (24px * 2) + gap (28px)
+        height: 'var(--dashboard-height, calc(100vh - 140px))',
         background: token.colorBgContainer,
         borderRadius: token.borderRadius,
         overflow: 'hidden',

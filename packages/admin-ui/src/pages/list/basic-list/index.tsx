@@ -1,6 +1,7 @@
 import { DownOutlined, PlusOutlined } from '@ant-design/icons';
 import { PageContainer } from '@ant-design/pro-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useIntl } from '@umijs/max';
 import {
   Avatar,
   Button,
@@ -48,6 +49,7 @@ const ListContent = ({
   data: BasicListItemDataType;
 }) => {
   const { styles } = useStyles();
+  const intl = useIntl();
   return (
     <div>
       <div className={styles.listContentItem}>
@@ -55,7 +57,12 @@ const ListContent = ({
         <p>{owner}</p>
       </div>
       <div className={styles.listContentItem}>
-        <span>开始时间</span>
+        <span>
+          {intl.formatMessage({
+            id: 'pages.list.basicList.startTime',
+            defaultMessage: 'Start time',
+          })}
+        </span>
         <p>{dayjs(createdAt).format('YYYY-MM-DD HH:mm')}</p>
       </div>
       <div className={styles.listContentItem}>
@@ -73,6 +80,7 @@ const ListContent = ({
 };
 const BasicList: FC = () => {
   const { styles } = useStyles();
+  const intl = useIntl();
   const [done, setDone] = useState<boolean>(false);
   const [open, setVisible] = useState<boolean>(false);
   const [current, setCurrent] = useState<
@@ -126,10 +134,22 @@ const BasicList: FC = () => {
     if (key === 'edit') showEditModal(currentItem);
     else if (key === 'delete') {
       Modal.confirm({
-        title: '删除任务',
-        content: '确定删除该任务吗？',
-        okText: '确认',
-        cancelText: '取消',
+        title: intl.formatMessage({
+          id: 'pages.list.basicList.deleteTask',
+          defaultMessage: 'Delete task',
+        }),
+        content: intl.formatMessage({
+          id: 'pages.list.basicList.deleteConfirm',
+          defaultMessage: 'Are you sure you want to delete this task?',
+        }),
+        okText: intl.formatMessage({
+          id: 'pages.list.basicList.okText',
+          defaultMessage: 'Confirm',
+        }),
+        cancelText: intl.formatMessage({
+          id: 'pages.list.basicList.cancelText',
+          defaultMessage: 'Cancel',
+        }),
         onOk: () => deleteItem(currentItem.id),
       });
     }
@@ -139,15 +159,36 @@ const BasicList: FC = () => {
       <Segmented
         defaultValue="all"
         options={[
-          { label: '全部', value: 'all' },
-          { label: '进行中', value: 'progress' },
-          { label: '等待中', value: 'waiting' },
+          {
+            label: intl.formatMessage({
+              id: 'pages.list.basicList.filter.all',
+              defaultMessage: 'All',
+            }),
+            value: 'all',
+          },
+          {
+            label: intl.formatMessage({
+              id: 'pages.list.basicList.filter.progress',
+              defaultMessage: 'In progress',
+            }),
+            value: 'progress',
+          },
+          {
+            label: intl.formatMessage({
+              id: 'pages.list.basicList.filter.waiting',
+              defaultMessage: 'Waiting',
+            }),
+            value: 'waiting',
+          },
         ]}
         // 如有需要可添加 onChange 事件
       />
       <Search
         className={styles.extraContentSearch}
-        placeholder="请输入"
+        placeholder={intl.formatMessage({
+          id: 'pages.list.basicList.searchPlaceholder',
+          defaultMessage: 'Please enter',
+        })}
         onSearch={() => ({})}
         variant="filled"
       />
@@ -162,17 +203,27 @@ const BasicList: FC = () => {
           items: [
             {
               key: 'edit',
-              label: '编辑',
+              label: intl.formatMessage({
+                id: 'pages.list.basicList.action.edit',
+                defaultMessage: 'Edit',
+              }),
             },
             {
               key: 'delete',
-              label: '删除',
+              label: intl.formatMessage({
+                id: 'pages.list.basicList.action.delete',
+                defaultMessage: 'Delete',
+              }),
             },
           ],
         }}
       >
         <Button type="link">
-          更多 <DownOutlined />
+          {intl.formatMessage({
+            id: 'pages.list.basicList.more',
+            defaultMessage: 'More',
+          })}{' '}
+          <DownOutlined />
         </Button>
       </Dropdown>
     );
@@ -195,13 +246,42 @@ const BasicList: FC = () => {
           <Card variant="borderless">
             <Row>
               <Col sm={8} xs={24}>
-                <Info title="我的待办" value="8个任务" bordered />
+                <Info
+                  title={intl.formatMessage({
+                    id: 'pages.list.basicList.info.myTodo',
+                    defaultMessage: 'My to-dos',
+                  })}
+                  value={intl.formatMessage({
+                    id: 'pages.list.basicList.info.myTodoValue',
+                    defaultMessage: '8 tasks',
+                  })}
+                  bordered
+                />
               </Col>
               <Col sm={8} xs={24}>
-                <Info title="本周任务平均处理时间" value="32分钟" bordered />
+                <Info
+                  title={intl.formatMessage({
+                    id: 'pages.list.basicList.info.avgTime',
+                    defaultMessage: 'Average task processing time this week',
+                  })}
+                  value={intl.formatMessage({
+                    id: 'pages.list.basicList.info.avgTimeValue',
+                    defaultMessage: '32 minutes',
+                  })}
+                  bordered
+                />
               </Col>
               <Col sm={8} xs={24}>
-                <Info title="本周完成任务数" value="24个任务" />
+                <Info
+                  title={intl.formatMessage({
+                    id: 'pages.list.basicList.info.completed',
+                    defaultMessage: 'Tasks completed this week',
+                  })}
+                  value={intl.formatMessage({
+                    id: 'pages.list.basicList.info.completedValue',
+                    defaultMessage: '24 tasks',
+                  })}
+                />
               </Col>
             </Row>
           </Card>
@@ -209,7 +289,10 @@ const BasicList: FC = () => {
           <Card
             className={styles.listCard}
             variant="borderless"
-            title="基本列表"
+            title={intl.formatMessage({
+              id: 'pages.list.basicList.cardTitle',
+              defaultMessage: 'Basic list',
+            })}
             style={{
               marginTop: 24,
             }}
@@ -234,7 +317,10 @@ const BasicList: FC = () => {
                       type="link"
                       onClick={() => showEditModal(item)}
                     >
-                      编辑
+                      {intl.formatMessage({
+                        id: 'pages.list.basicList.action.edit',
+                        defaultMessage: 'Edit',
+                      })}
                     </Button>,
                     renderMoreBtn(item),
                   ]}
@@ -264,7 +350,10 @@ const BasicList: FC = () => {
         }}
       >
         <PlusOutlined />
-        添加
+        {intl.formatMessage({
+          id: 'pages.list.basicList.add',
+          defaultMessage: 'Add',
+        })}
       </Button>
       <OperationModal
         done={done}

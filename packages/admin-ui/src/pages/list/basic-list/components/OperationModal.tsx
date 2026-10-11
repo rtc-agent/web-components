@@ -5,7 +5,8 @@ import {
   ProFormText,
   ProFormTextArea,
 } from '@ant-design/pro-components';
-import { Button, Result } from 'antd';
+import { useIntl } from '@umijs/max';
+import { Button, Grid, Result } from 'antd';
 import type { FC } from 'react';
 import type { BasicListItemDataType } from '../data.d';
 import useStyles from '../style.style';
@@ -20,14 +21,30 @@ type OperationModalProps = {
 };
 const OperationModal: FC<OperationModalProps> = (props) => {
   const { styles } = useStyles();
+  const intl = useIntl();
   const { done, open, current, onDone, onSubmit, children } = props;
+  const breakpoints = Grid.useBreakpoint();
+  const isMobile = !breakpoints.sm;
+  const modalWidth = isMobile ? '95vw' : 640;
 
   return (
     <ModalForm<BasicListItemDataType>
       open={open}
-      title={done ? null : `任务${current ? '编辑' : '添加'}`}
+      title={
+        done
+          ? null
+          : current
+            ? intl.formatMessage({
+                id: 'pages.list.basicList.modal.editTitle',
+                defaultMessage: 'Edit task',
+              })
+            : intl.formatMessage({
+                id: 'pages.list.basicList.modal.addTitle',
+                defaultMessage: 'Add task',
+              })
+      }
       className={styles.standardListForm}
-      width={640}
+      width={modalWidth}
       onFinish={async (values) => {
         onSubmit(values);
       }}
@@ -52,22 +69,37 @@ const OperationModal: FC<OperationModalProps> = (props) => {
         <>
           <ProFormText
             name="title"
-            label="任务名称"
+            label={intl.formatMessage({
+              id: 'pages.list.basicList.modal.titleLabel',
+              defaultMessage: 'Task name',
+            })}
             rules={[
               {
                 required: true,
-                message: '请输入任务名称',
+                message: intl.formatMessage({
+                  id: 'pages.list.basicList.modal.titleRequired',
+                  defaultMessage: 'Please enter task name',
+                }),
               },
             ]}
-            placeholder="请输入"
+            placeholder={intl.formatMessage({
+              id: 'pages.list.basicList.modal.titlePlaceholder',
+              defaultMessage: 'Please enter',
+            })}
           />
           <ProFormDateTimePicker
             name="createdAt"
-            label="开始时间"
+            label={intl.formatMessage({
+              id: 'pages.list.basicList.modal.startTimeLabel',
+              defaultMessage: 'Start time',
+            })}
             rules={[
               {
                 required: true,
-                message: '请选择开始时间',
+                message: intl.formatMessage({
+                  id: 'pages.list.basicList.modal.startTimeRequired',
+                  defaultMessage: 'Please select start time',
+                }),
               },
             ]}
             fieldProps={{
@@ -75,49 +107,87 @@ const OperationModal: FC<OperationModalProps> = (props) => {
                 width: '100%',
               },
             }}
-            placeholder="请选择"
+            placeholder={intl.formatMessage({
+              id: 'pages.list.basicList.modal.startTimePlaceholder',
+              defaultMessage: 'Please select',
+            })}
           />
           <ProFormSelect
             name="owner"
-            label="任务负责人"
+            label={intl.formatMessage({
+              id: 'pages.list.basicList.modal.ownerLabel',
+              defaultMessage: 'Task owner',
+            })}
             rules={[
               {
                 required: true,
-                message: '请选择任务负责人',
+                message: intl.formatMessage({
+                  id: 'pages.list.basicList.modal.ownerRequired',
+                  defaultMessage: 'Please select task owner',
+                }),
               },
             ]}
             options={[
               {
-                label: '付晓晓',
+                label: intl.formatMessage({
+                  id: 'pages.list.basicList.modal.ownerOption.xiao',
+                  defaultMessage: 'Fu Xiaoxiao',
+                }),
                 value: 'xiao',
               },
               {
-                label: '周毛毛',
+                label: intl.formatMessage({
+                  id: 'pages.list.basicList.modal.ownerOption.mao',
+                  defaultMessage: 'Zhou Maomao',
+                }),
                 value: 'mao',
               },
             ]}
-            placeholder="请选择管理员"
+            placeholder={intl.formatMessage({
+              id: 'pages.list.basicList.modal.ownerPlaceholder',
+              defaultMessage: 'Please select administrator',
+            })}
           />
           <ProFormTextArea
             name="subDescription"
-            label="产品描述"
+            label={intl.formatMessage({
+              id: 'pages.list.basicList.modal.descLabel',
+              defaultMessage: 'Product description',
+            })}
             rules={[
               {
-                message: '请输入至少五个字符的产品描述！',
+                message: intl.formatMessage({
+                  id: 'pages.list.basicList.modal.descRules',
+                  defaultMessage:
+                    'Please enter a product description of at least 5 characters!',
+                }),
                 min: 5,
               },
             ]}
-            placeholder="请输入至少五个字符"
+            placeholder={intl.formatMessage({
+              id: 'pages.list.basicList.modal.descPlaceholder',
+              defaultMessage: 'Please enter at least 5 characters',
+            })}
           />
         </>
       ) : (
         <Result
           status="success"
-          title="操作成功"
-          subTitle="一系列的信息描述，很短同样也可以带标点。"
+          title={intl.formatMessage({
+            id: 'pages.list.basicList.modal.resultTitle',
+            defaultMessage: 'Operation successful',
+          })}
+          subTitle={intl.formatMessage({
+            id: 'pages.list.basicList.modal.resultSubTitle',
+            defaultMessage:
+              'A series of information descriptions, very short and can also include punctuation.',
+          })}
           extra={
             <Button type="primary" onClick={onDone}>
-              知道了
+              {intl.formatMessage({
+                id: 'pages.list.basicList.modal.resultAction',
+                defaultMessage: 'Got it',
+              })}
             </Button>
           }
           className={styles.formResult}

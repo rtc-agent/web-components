@@ -5,8 +5,8 @@ import type { UserInfo } from './admin-auth';
 export interface UpdateProfileResponse {
   success: boolean;
   data?: UserInfo;
-  error_code?: string;
-  error_message?: string;
+  errorCode?: string;
+  errorMessage?: string;
 }
 
 /**

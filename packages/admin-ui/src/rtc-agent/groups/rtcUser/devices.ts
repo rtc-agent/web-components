@@ -76,7 +76,9 @@ export const getRtcUserDevices: PermissionAwareFunctionDef = {
   hooks: {
     onStart: (params) => {
       const { userId } = params as { userId: string };
-      console.log(`[rtcUser.devices] Fetching devices for user: ${maskUserID(userId)}...`);
+      console.log(
+        `[rtcUser.devices] Fetching devices for user: ${maskUserID(userId)}...`,
+      );
     },
     onSuccess: (result) => {
       const data = (result as any).data;

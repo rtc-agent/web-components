@@ -16,12 +16,16 @@ export interface UseOptimisticLockConflictOptions {
     value: unknown;
     changeNote?: string;
   }) => Promise<void>;
+  /** 强制删除时的实际操作函数 */
+  onForceDelete?: (data: { key: string }) => Promise<void>;
   /** 冲突被解决后（重新加载或强制覆盖成功）的回调 */
   onConflictResolved: () => void;
   /** 强制覆盖成功的提示消息 i18n key */
   forceOverwriteSuccessId: string;
   /** 强制覆盖后缀文本 i18n key */
   forceOverwriteSuffixId: string;
+  /** 强制删除成功的提示消息 i18n key */
+  forceDeleteSuccessId?: string;
 }
 
 export interface PendingOverwriteData {
@@ -30,20 +34,55 @@ export interface PendingOverwriteData {
   changeNote?: string;
 }
 
+export interface PendingDeleteData {
+  key: string;
+}
+
+export type PendingAction =
+  | { type: 'overwrite'; data: PendingOverwriteData }
+  | { type: 'delete'; data: PendingDeleteData };
+
 export const useOptimisticLockConflict = (
   options: UseOptimisticLockConflictOptions,
 ) => {
-  const { onForceOverwrite, onConflictResolved, forceOverwriteSuccessId } =
-    options;
+  const {
+    onForceOverwrite,
+    onForceDelete,
+    onConflictResolved,
+    forceOverwriteSuccessId,
+    forceDeleteSuccessId,
+  } = options;
 
   const [conflictModalOpen, setConflictModalOpen] = useState(false);
   const [conflictData, setConflictData] =
     useState<OptimisticLockConflictData | null>(null);
-  const [pendingOverwrite, setPendingOverwrite] =
-    useState<PendingOverwriteData | null>(null);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(
+    null,
+  );
 
   const intl = useIntl();
   const { message } = App.useApp();
+
+  /**
+   * Check if error is an optimistic lock conflict
+   * @param error - The error to check
+   * @returns The conflict data if it's a conflict error, null otherwise
+   */
+  const getOptimisticLockConflictData = (
+    error: unknown,
+  ): OptimisticLockConflictData | null => {
+    const err = error as {
+      info?: {
+        errorCode?: string;
+        data?: OptimisticLockConflictData;
+      };
+    };
+
+    if (err?.info?.errorCode === 'OPTIMISTIC_LOCK_CONFLICT') {
+      return (err.info.data as OptimisticLockConflictData | undefined) || null;
+    }
+    return null;
+  };
 
   /**
    * 处理编辑操作中的乐观锁冲突错误
@@ -58,25 +97,37 @@ export const useOptimisticLockConflict = (
     error: unknown,
     editData: PendingOverwriteData,
   ): boolean => {
-    const err = error as {
-      info?: {
-        errorCode?: string;
-        data?: OptimisticLockConflictData;
-      };
-    };
+    const conflictInfo = getOptimisticLockConflictData(error);
 
-    if (err?.info?.errorCode === 'OPTIMISTIC_LOCK_CONFLICT') {
-      const conflictInfo = err.info.data as
-        | OptimisticLockConflictData
-        | undefined;
-      if (conflictInfo) {
-        setConflictData(conflictInfo);
-        setPendingOverwrite(editData);
-        setConflictModalOpen(true);
-        return true;
-      }
-      // 后端返回冲突错误但缺少冲突详情，降级为普通错误提示
-      message.error(getFriendlyErrorMessage(error));
+    if (conflictInfo) {
+      setConflictData(conflictInfo);
+      setPendingAction({ type: 'overwrite', data: editData });
+      setConflictModalOpen(true);
+      return true;
+    }
+
+    // 非冲突错误，返回 false 让调用方继续处理
+    return false;
+  };
+
+  /**
+   * 处理删除操作中的乐观锁冲突错误
+   * 如果错误是冲突类型，则打开冲突对话框
+   *
+   * @param error - 捕获的错误对象
+   * @param deleteData - 删除的数据（key）
+   * @returns true 表示错误已被处理（冲突对话框已打开），false 表示需要继续处理
+   */
+  const handleDeleteError = (
+    error: unknown,
+    deleteData: PendingDeleteData,
+  ): boolean => {
+    const conflictInfo = getOptimisticLockConflictData(error);
+
+    if (conflictInfo) {
+      setConflictData(conflictInfo);
+      setPendingAction({ type: 'delete', data: deleteData });
+      setConflictModalOpen(true);
       return true;
     }
 
@@ -88,19 +139,29 @@ export const useOptimisticLockConflict = (
   const handleReload = () => {
     setConflictModalOpen(false);
     setConflictData(null);
-    setPendingOverwrite(null);
+    setPendingAction(null);
     onConflictResolved();
   };
 
-  /** 强制覆盖操作 */
-  const handleForceOverwrite = async () => {
-    if (!pendingOverwrite) return;
+  /** 强制覆盖或删除操作 */
+  const handleForceAction = async () => {
+    if (!pendingAction) return;
+
     try {
-      await onForceOverwrite(pendingOverwrite);
-      message.success(intl.formatMessage({ id: forceOverwriteSuccessId }));
+      if (pendingAction.type === 'overwrite') {
+        await onForceOverwrite(pendingAction.data);
+        message.success(intl.formatMessage({ id: forceOverwriteSuccessId }));
+      } else if (pendingAction.type === 'delete') {
+        if (onForceDelete) {
+          await onForceDelete(pendingAction.data);
+          const successId =
+            forceDeleteSuccessId || 'pages.config.system.deleteSuccess';
+          message.success(intl.formatMessage({ id: successId }));
+        }
+      }
       setConflictModalOpen(false);
       setConflictData(null);
-      setPendingOverwrite(null);
+      setPendingAction(null);
       onConflictResolved();
     } catch (error: unknown) {
       message.error(getFriendlyErrorMessage(error));
@@ -111,9 +172,11 @@ export const useOptimisticLockConflict = (
     conflictModalOpen,
     setConflictModalOpen,
     conflictData,
-    pendingOverwrite,
+    pendingAction,
+    getOptimisticLockConflictData,
     handleEditError,
+    handleDeleteError,
     handleReload,
-    handleForceOverwrite,
+    handleForceAction,
   };
 };

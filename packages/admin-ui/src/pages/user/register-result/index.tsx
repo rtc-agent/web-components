@@ -1,4 +1,4 @@
-import { Link, useSearchParams } from '@umijs/max';
+import { Link, useIntl, useSearchParams } from '@umijs/max';
 import { Button, Result } from 'antd';
 import React from 'react';
 import useStyles from './style.style';
@@ -6,14 +6,25 @@ import useStyles from './style.style';
 const RegisterResult: React.FC<Record<string, unknown>> = () => {
   const { styles } = useStyles();
   const [params] = useSearchParams();
+  const intl = useIntl();
 
   const actions = (
     <div className={styles.actions}>
       <Button size="large" type="primary">
-        <span>查看邮箱</span>
+        <span>
+          {intl.formatMessage({
+            id: 'pages.user.registerResult.viewEmail',
+            defaultMessage: 'Check Email',
+          })}
+        </span>
       </Button>
       <Link to="/" prefetch>
-        <Button size="large">返回首页</Button>
+        <Button size="large">
+          {intl.formatMessage({
+            id: 'pages.user.registerResult.backHome',
+            defaultMessage: 'Back Home',
+          })}
+        </Button>
       </Link>
     </div>
   );
@@ -25,10 +36,23 @@ const RegisterResult: React.FC<Record<string, unknown>> = () => {
       status="success"
       title={
         <div className={styles.title}>
-          <span>你的账户：{email} 注册成功</span>
+          <span>
+            {intl.formatMessage(
+              {
+                id: 'pages.user.registerResult.title',
+                defaultMessage:
+                  'Your account: {email} has been registered successfully',
+              },
+              { email },
+            )}
+          </span>
         </div>
       }
-      subTitle="激活邮件已发送到你的邮箱中，邮件有效期为24小时。请及时登录邮箱，点击邮件中的链接激活帐户。"
+      subTitle={intl.formatMessage({
+        id: 'pages.user.registerResult.subTitle',
+        defaultMessage:
+          'The activation email has been sent to your email. The email is valid for 24 hours. Please log in to your email in time and click the link in the email to activate your account.',
+      })}
       extra={actions}
     />
   );

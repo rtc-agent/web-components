@@ -39,7 +39,7 @@ const getOperationTabList = (intl: any) => [
       <span>
         {intl.formatMessage({
           id: 'pages.account.center.articles',
-          defaultMessage: '文章',
+          defaultMessage: 'Article',
         })}{' '}
         <span
           style={{
@@ -57,7 +57,7 @@ const getOperationTabList = (intl: any) => [
       <span>
         {intl.formatMessage({
           id: 'pages.account.center.applications',
-          defaultMessage: '应用',
+          defaultMessage: 'Application',
         })}{' '}
         <span
           style={{
@@ -75,7 +75,7 @@ const getOperationTabList = (intl: any) => [
       <span>
         {intl.formatMessage({
           id: 'pages.account.center.projects',
-          defaultMessage: '项目',
+          defaultMessage: 'Project',
         })}{' '}
         <span
           style={{
@@ -130,7 +130,7 @@ const TagList: React.FC<{
       <div className={styles.tagsTitle}>
         {intl.formatMessage({
           id: 'pages.account.center.tags',
-          defaultMessage: '标签',
+          defaultMessage: 'Tag',
         })}
       </div>
       <Flex wrap gap="small">
@@ -281,7 +281,7 @@ const Center: React.FC = () => {
           status="error"
           title={intl.formatMessage({
             id: 'pages.account.center.loadError',
-            defaultMessage: '加载失败',
+            defaultMessage: 'Loading failed',
           })}
           subTitle={error?.message}
         />
@@ -306,7 +306,7 @@ const Center: React.FC = () => {
                   <img
                     alt={intl.formatMessage({
                       id: 'pages.account.center.avatar',
-                      defaultMessage: '头像',
+                      defaultMessage: 'Avatar',
                     })}
                     src={currentUser.avatar}
                   />
@@ -326,7 +326,7 @@ const Center: React.FC = () => {
                   <div className={styles.teamTitle}>
                     {intl.formatMessage({
                       id: 'pages.account.center.team',
-                      defaultMessage: '团队',
+                      defaultMessage: 'Team',
                     })}
                   </div>
                   <Row gutter={36}>
