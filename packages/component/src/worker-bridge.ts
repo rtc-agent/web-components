@@ -193,6 +193,14 @@ export class WorkerBridge {
    * Last processed UI update sequence number (for catch-up after page refresh).
    * Persisted in sessionStorage to survive page refreshes within the same tab.
    * Updated during both catch-up and real-time broadcasts to minimize redundant replays.
+   *
+   * RACE CONDITION GUARD:
+   * This field is the key defense against event duplication in the catch-up flow.
+   * - Real-time callbacks (onUIUpdate) update this field synchronously when events arrive
+   * - The catch-up loop checks this field before delivering each event via _isEventProcessed()
+   * - Even if real-time events arrive during the catch-up query (await point), the check
+   *   will correctly skip already-delivered events
+   * See _isEventProcessed() for detailed race condition analysis.
    */
   private _lastProcessedSeq: number;
   /** Database name for scoping sessionStorage key (prevents cross-instance collisions). */
@@ -250,6 +258,11 @@ export class WorkerBridge {
       // 3. UIUpdateBus.publish() has internal try-catch for persistence and listener dispatch
       // However, we add .catch() to prevent unhandled promise rejections in edge cases
       // (e.g., if IndexedDB is closed or bus is in an unexpected state).
+      //
+      // RACE CONDITION NOTE:
+      // This callback updates _lastProcessedSeq synchronously (no await) to ensure
+      // the catch-up loop's idempotency guard (_isEventProcessed) works correctly.
+      // See _isEventProcessed() for detailed race condition analysis.
       onUIUpdate: (payload: UIUpdatePayload) => {
         const bus = getUIUpdateBus();
         bus.publish(payload.event, {
@@ -259,6 +272,7 @@ export class WorkerBridge {
           log.error('onUIUpdate: bus.publish() failed (non-fatal):', err);
         });
         // Advance cursor on real-time delivery to minimize redundant catch-up replays.
+        // This update is synchronous to prevent race conditions with the catch-up loop.
         if (payload.seq > this._lastProcessedSeq) {
           this._updateLastProcessedSeq(payload.seq);
         }
@@ -718,7 +732,7 @@ export class WorkerBridge {
   /**
    * Destroy the bridge.
    *
-   * 1. Unregister callbacks.
+   * 1. Unregister callbacks and close the Worker connection atomically.
    * 2. Close the port.
    * 3. Terminate the Worker (note: SharedWorker only terminates after all ports are closed).
    *
@@ -758,23 +772,40 @@ export class WorkerBridge {
     //    If initWorker() succeeded but init() didn't complete (or wasn't called),
     //    we still need to close the port to avoid resource leaks.
     if (this._worker) {
-      // Only unregister if callbacks were actually registered (regardless of full init completion).
+      // Only cleanup if callbacks were actually registered (regardless of full init completion).
       // This handles the case where _doInit() failed after registerCallback() —
       // _initialized is false but callbacks ARE registered in the Worker.
+      //
+      // ATOMIC CLEANUP: We rely on close() to handle both callback removal and resource
+      // cleanup atomically. This prevents the race condition where unregisterCallback()
+      // succeeds but close() fails, leaving the callback removed but resources not cleaned up.
+      //
+      // The close() method in WorkerCore accepts an optional callerCallback parameter:
+      // - If provided, it removes the callback BEFORE checking reference count
+      // - This ensures cleanup even if a previous unregisterCallback() call failed
+      // - The callback is removed from the Worker's Set, and resources are cleaned up
+      //   if this is the last tab
+      //
+      // Why this is safe:
+      // 1. If close() succeeds: callback is removed AND resources are cleaned up (atomic)
+      // 2. If close() fails: callback might still be in the Worker's Set, but we're about
+      //    to close the port anyway, so the Worker will terminate when all ports are closed
+      // 3. We don't call unregisterCallback() separately to avoid the race condition
       if (this._callbacksRegistered && this._core) {
         try {
-          await this._core.unregisterCallback(this._proxiedCallbacks);
-        } catch (err) {
-          log.warn('unregisterCallback failed:', err);
-        }
-
-        // Pass callback to close() to ensure cleanup even if unregisterCallback failed.
-        // This prevents the SharedWorker from being kept alive indefinitely by a stale
-        // callback reference in the Worker's callbacks Set.
-        try {
+          // close() handles both callback removal and resource cleanup atomically
           await this._core.close(this._proxiedCallbacks);
         } catch (err) {
-          log.warn('close failed:', err);
+          log.warn('close failed (callback may still be registered in Worker):', err);
+          // Fallback: attempt explicit unregisterCallback if close() failed.
+          // This is a best-effort cleanup — if it also fails, the port close below
+          // will still terminate the Worker when all ports are closed.
+          try {
+            await this._core.unregisterCallback(this._proxiedCallbacks);
+            log.debug('fallback unregisterCallback succeeded after close() failure');
+          } catch (fallbackErr) {
+            log.warn('fallback unregisterCallback also failed (non-fatal):', fallbackErr);
+          }
         }
       }
 
@@ -1242,6 +1273,34 @@ export class WorkerBridge {
   // ========== UI Update Catch-Up ==========
 
   /**
+   * Check if an event has already been processed (delivered in real-time).
+   *
+   * RACE CONDITION GUARD:
+   * This method is the key defense against a subtle race condition in the catch-up flow:
+   *
+   * Timeline:
+   * 1. Catch-up loop queries events: `fromSeq = this._lastProcessedSeq` (e.g., 100)
+   * 2. Query is in flight (await point) — real-time events can arrive here
+   * 3. Real-time event arrives with seq=105, onUIUpdate callback updates _lastProcessedSeq to 105
+   * 4. Query returns with events [101, 102, 103, 104, 105]
+   * 5. Without this guard, we'd re-deliver events 101-105 (duplication!)
+   * 6. With this guard, we skip events where seq <= _lastProcessedSeq (105)
+   *
+   * Why this is safe despite the await:
+   * - JavaScript is single-threaded: the check `entrySeq <= this._lastProcessedSeq` runs
+   *   synchronously after the await resolves, so no other code can interleave
+   * - The onUIUpdate callback updates _lastProcessedSeq synchronously (no await)
+   * - Even if _lastProcessedSeq was updated during the await, the check will correctly
+   *   skip already-delivered events
+   *
+   * @param entrySeq - The seq number of the event being considered for delivery
+   * @returns true if the event has already been delivered (should be skipped)
+   */
+  private _isEventProcessed(entrySeq: number): boolean {
+    return entrySeq <= this._lastProcessedSeq;
+  }
+
+  /**
    * Catch up on missed UI update events from the Worker's persistent queue.
    *
    * Called AFTER registerCallback(), so real-time events arriving during catch-up
@@ -1301,7 +1360,8 @@ export class WorkerBridge {
 
           // Idempotency guard: skip events already delivered in real-time
           // (real-time callback updated _lastProcessedSeq between query and now)
-          if (entrySeq <= this._lastProcessedSeq) {
+          // See _isEventProcessed() for detailed race condition analysis.
+          if (this._isEventProcessed(entrySeq)) {
             continue;
           }
 
@@ -1437,6 +1497,12 @@ export class WorkerBridge {
    * Update the last processed seq and persist to sessionStorage.
    * During catch-up, only updates memory to avoid frequent synchronous disk writes.
    * The cursor is persisted in one batch write after catch-up completes.
+   *
+   * RACE CONDITION NOTE:
+   * This method is called synchronously (no await) to ensure _lastProcessedSeq is updated
+   * before the next event can arrive. This is critical for the catch-up loop's idempotency
+   * guard (_isEventProcessed) to work correctly.
+   * See _isEventProcessed() for detailed race condition analysis.
    */
   private _updateLastProcessedSeq(seq: number): void {
     this._lastProcessedSeq = seq;
