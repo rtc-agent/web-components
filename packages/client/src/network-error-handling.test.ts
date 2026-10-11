@@ -59,10 +59,7 @@ describe('OAuth2Client: Network Error Handling', () => {
             if (signal) {
               signal.addEventListener('abort', () => {
                 reject(
-                  new DOMException(
-                    'The operation was aborted.',
-                    'AbortError',
-                  ),
+                  new DOMException('The operation was aborted.', 'AbortError'),
                 );
               });
             }
@@ -166,9 +163,7 @@ describe('OAuth2Client: Network Error Handling', () => {
 
   describe('Connection Refused', () => {
     it('should throw error when connection is refused', async () => {
-      vi.mocked(fetch).mockRejectedValue(
-        new TypeError('Connection refused'),
-      );
+      vi.mocked(fetch).mockRejectedValue(new TypeError('Connection refused'));
 
       await expect(client.getProviders()).rejects.toThrow();
     });
@@ -196,9 +191,7 @@ describe('OAuth2Client: Network Error Handling', () => {
     });
 
     it('should throw error on SSL handshake failure', async () => {
-      vi.mocked(fetch).mockRejectedValue(
-        new TypeError('SSL handshake failed'),
-      );
+      vi.mocked(fetch).mockRejectedValue(new TypeError('SSL handshake failed'));
 
       await expect(
         client.exchangeToken('code', 'state', 'verifier'),
@@ -329,8 +322,7 @@ describe('OAuth2Client: Network Error Handling', () => {
         json: () =>
           Promise.resolve({
             access_token: 'new-token',
-            issued_token_type:
-              'urn:ietf:params:oauth:token-type:access_token',
+            issued_token_type: 'urn:ietf:params:oauth:token-type:access_token',
             token_type: 'Bearer',
             expires_in: 3600,
           }),
@@ -756,9 +748,7 @@ describe('RTCAgentClient: WebSocket Network Error Handling', () => {
     });
 
     it('should handle onTokenExpired throwing an error as relogin required', async () => {
-      mockOnTokenExpired.mockRejectedValue(
-        new Error('refresh endpoint down'),
-      );
+      mockOnTokenExpired.mockRejectedValue(new Error('refresh endpoint down'));
 
       await client.connect();
 

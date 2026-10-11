@@ -11,9 +11,18 @@
  * state machine. Splitting would scatter the protocol flow across files, making
  * it harder to reason about ordering guarantees and error recovery.
  */
-import {Centrifuge, HistoryOptions} from 'centrifuge';
-import {RpcMethod, SendMessageRequest, ForkSessionRequest, Update, UpdateItem} from '@rtc-agent/protocol';
+import { Centrifuge, HistoryOptions } from 'centrifuge';
+import {
+  RpcMethod,
+  SendMessageRequest,
+  ForkSessionRequest,
+  Update,
+  UpdateItem,
+  createLogger,
+  parseJwtPayload,
+} from '@rtc-agent/protocol';
 import type {
+  RtcStatus,
   ListSessionsResponse,
   MessageListResponse,
   TurnListResponse,
@@ -43,7 +52,6 @@ import type {
   TokenExpiredAction,
   PublicationEvent,
 } from './types.js';
-import {createLogger} from './logger.js';
 
 const log = createLogger('RTCAgentClient');
 
@@ -56,11 +64,11 @@ export class GapFillTimeoutError extends Error {
     readonly targetOffset: number,
     readonly elapsedMs: number,
     readonly currentOffset: number,
-    readonly remainingGap: number
+    readonly remainingGap: number,
   ) {
     super(
       `Gap fill timeout after ${elapsedMs}ms: channel=${channel}, ` +
-      `target=${targetOffset}, current=${currentOffset}, remaining=${remainingGap}`
+        `target=${targetOffset}, current=${currentOffset}, remaining=${remainingGap}`,
     );
     this.name = 'GapFillTimeoutError';
   }
@@ -75,12 +83,24 @@ export class GapFillTimeoutError extends Error {
  * - Subscribe to topic channel (topic:u={userId}) for Update events with offline recovery
  * - Subscribe to live channel (live:u={userId}) for streaming messages (no recovery)
  * - Handle token expiration: automatic refresh or stop-and-wait-for-relogin
+ *
+ * NOTE: JSON serialization/deserialization happens on the main thread via Centrifuge's
+ * internal WebSocket handling. For very large messages (>100KB), this may block the main
+ * thread for 10-50ms per message. This is generally acceptable for typical RTC Agent usage
+ * (most messages are <10KB), but could become noticeable with bulk data transfers.
+ *
+ * Future optimization: if large message latency becomes a problem, consider offloading
+ * serialization/deserialization to a Worker thread. This would require architectural changes
+ * to Centrifuge's message handling pipeline or wrapping RPC calls in a Worker-based proxy.
  */
 export class RTCAgentClient implements IRTCAgentClient {
   private readonly options: RTCAgentClientOptions;
   private centrifuge: Centrifuge | null = null;
   private connectionState: ConnectionState = 'disconnected';
-  private readonly listeners = new Map<EventName, Set<EventCallback<EventName>>>();
+  private readonly listeners = new Map<
+    EventName,
+    Set<EventCallback<EventName>>
+  >();
   /** Whether reconnection should continue (set to false when relogin is required). */
   private shouldReconnect = true;
   /** Whether a connection was ever established (distinguishes first connect from reconnect). */
@@ -88,17 +108,26 @@ export class RTCAgentClient implements IRTCAgentClient {
   /** Serialised queue for processing updates. */
   private applyUpdatesQueue: Promise<void> | null = null;
   /** Cached subscription objects keyed by channel name. */
-  private readonly subscriptions = new Map<string, ReturnType<Centrifuge['newSubscription']>>();
+  private readonly subscriptions = new Map<
+    string,
+    ReturnType<Centrifuge['newSubscription']>
+  >();
   /** Cached epoch per channel. */
   private readonly epochCache = new Map<string, string>();
   /** Pending reconnect timer (cleared on explicit disconnect to prevent zombie reconnects). */
   private _reconnectTimer?: ReturnType<typeof setTimeout>;
   /** Active gap fill tasks per channel (for deduplication and merging). */
-  private readonly gapFillTasks = new Map<string, { targetOffset: number; epoch: string }>();
+  private readonly gapFillTasks = new Map<
+    string,
+    { targetOffset: number; epoch: string }
+  >();
   /** Whether gap fill processing is currently running. */
   private isGapFillProcessing = false;
   /** AbortControllers for active gap fill waits (cleared on disconnect). */
-  private readonly _gapFillAbortControllers = new Map<string, AbortController>();
+  private readonly _gapFillAbortControllers = new Map<
+    string,
+    AbortController
+  >();
   /** Current delay for exponential backoff after gap fill failure. Initialized in constructor. */
   private _reconnectDelay!: number;
 
@@ -138,7 +167,10 @@ export class RTCAgentClient implements IRTCAgentClient {
 
   async connect(): Promise<void> {
     log.debug('connect() called, current state:', this.connectionState);
-    if (this.connectionState === 'connected' || this.connectionState === 'connecting') {
+    if (
+      this.connectionState === 'connected' ||
+      this.connectionState === 'connecting'
+    ) {
       log.debug('connect() early return, already', this.connectionState);
       return;
     }
@@ -161,12 +193,16 @@ export class RTCAgentClient implements IRTCAgentClient {
         // a shared Promise guard to ensure only one refresh executes; others wait for it.
         if (this._isTokenExpired(token) && this.options.onTokenExpired) {
           log.warn('[Centrifuge] token is expired, requesting refresh...');
-          const action: TokenExpiredAction = await this.options.onTokenExpired();
+          const action: TokenExpiredAction =
+            await this.options.onTokenExpired();
           if (action === 'relogin') {
             // Relogin required — stop reconnecting.
             this.shouldReconnect = false;
             this.centrifuge?.disconnect();
-            this.setConnectionState('disconnected', 'token expired, relogin required');
+            this.setConnectionState(
+              'disconnected',
+              'token expired, relogin required',
+            );
             throw new Error('Token expired, user needs to re-login');
           }
           // action === 'refresh' — token has been refreshed, fetch the new one.
@@ -197,11 +233,16 @@ export class RTCAgentClient implements IRTCAgentClient {
     });
     this.centrifuge.on('disconnected', (ctx) => {
       log.debug(
-        'centrifuge disconnected, reason:', ctx?.reason,
-        '| code:', ctx?.code,
-        '| wasConnected:', this.wasConnected,
-        '| shouldReconnect:', this.shouldReconnect,
-        '| activeGapFills:', this.gapFillTasks.size
+        'centrifuge disconnected, reason:',
+        ctx?.reason,
+        '| code:',
+        ctx?.code,
+        '| wasConnected:',
+        this.wasConnected,
+        '| shouldReconnect:',
+        this.shouldReconnect,
+        '| activeGapFills:',
+        this.gapFillTasks.size,
       );
 
       // Detect account banned (disconnect code 4501).
@@ -240,13 +281,15 @@ export class RTCAgentClient implements IRTCAgentClient {
       // Detect message-size-limit exceeded: server rejects the connection and Centrifuge
       // does not auto-retry this type of server-side rejection.
       if (ctx?.reason === 'message size limit exceeded') {
-        log.warn('message size limit exceeded, will retry connection after delay');
+        log.warn(
+          'message size limit exceeded, will retry connection after delay',
+        );
         // Delay reconnect to give the server some buffer time.
         this._reconnectTimer = setTimeout(() => {
           this._reconnectTimer = undefined;
           if (this.shouldReconnect && this.connectionState === 'disconnected') {
             log.debug('attempting reconnect after message size limit error');
-            this.reconnect().catch(err => {
+            this.reconnect().catch((err) => {
               log.error('reconnect failed:', err);
             });
           }
@@ -262,7 +305,11 @@ export class RTCAgentClient implements IRTCAgentClient {
 
     log.debug('calling centrifuge.connect() synchronously');
     this.centrifuge.connect();
-    log.debug('centrifuge.connect() returned, state:', this.connectionState, '(WebSocket not yet established)');
+    log.debug(
+      'centrifuge.connect() returned, state:',
+      this.connectionState,
+      '(WebSocket not yet established)',
+    );
   }
 
   disconnect(): void {
@@ -274,7 +321,7 @@ export class RTCAgentClient implements IRTCAgentClient {
       this._reconnectTimer = undefined;
     }
     // Abort all active gap fill waits to prevent zombie timers
-    this._gapFillAbortControllers.forEach(controller => controller.abort());
+    this._gapFillAbortControllers.forEach((controller) => controller.abort());
     this._gapFillAbortControllers.clear();
     // Clear pending gap fill tasks to prevent stale tasks after reconnect
     this.gapFillTasks.clear();
@@ -311,20 +358,32 @@ export class RTCAgentClient implements IRTCAgentClient {
 
   // ========== Sessions ==========
 
-  async listSessions(cursor?: string, limit?: number): Promise<ListSessionsResponse> {
-    return this.rpc<ListSessionsResponse>(RpcMethod.SessionList, { cursor, limit });
+  async listSessions(
+    cursor?: string,
+    limit?: number,
+  ): Promise<ListSessionsResponse> {
+    return this.rpc<ListSessionsResponse>(RpcMethod.SessionList, {
+      cursor,
+      limit,
+    });
   }
 
   async getSession(sessionId: string): Promise<GetSessionResponse> {
-    return this.rpc<GetSessionResponse>(RpcMethod.SessionGet, { session_id: sessionId });
+    return this.rpc<GetSessionResponse>(RpcMethod.SessionGet, {
+      session_id: sessionId,
+    });
   }
 
   async closeSession(sessionId: string): Promise<CloseSessionResponse> {
-    return this.rpc<CloseSessionResponse>(RpcMethod.SessionClose, { session_id: sessionId });
+    return this.rpc<CloseSessionResponse>(RpcMethod.SessionClose, {
+      session_id: sessionId,
+    });
   }
 
   async openSession(sessionId: string): Promise<OpenSessionResponse> {
-    return this.rpc<OpenSessionResponse>(RpcMethod.SessionOpen, { session_id: sessionId });
+    return this.rpc<OpenSessionResponse>(RpcMethod.SessionOpen, {
+      session_id: sessionId,
+    });
   }
 
   async compactSession(
@@ -346,20 +405,18 @@ export class RTCAgentClient implements IRTCAgentClient {
    *
    * @param req - SendMessageRequest; client_id is used by the server for idempotent dedup.
    */
-  async sendMessage(
-    req: SendMessageRequest,
-  ): Promise<SendMessageResponse> {
+  async sendMessage(req: SendMessageRequest): Promise<SendMessageResponse> {
     return this.rpc<SendMessageResponse>(RpcMethod.MessageSend, req);
   }
 
-  async forkSession(
-    req: ForkSessionRequest,
-  ): Promise<ForkSessionResponse> {
+  async forkSession(req: ForkSessionRequest): Promise<ForkSessionResponse> {
     return this.rpc<ForkSessionResponse>(RpcMethod.SessionFork, req);
   }
 
   async stopTurn(server_session_id: string): Promise<StopTurnResponse> {
-    return this.rpc<StopTurnResponse>(RpcMethod.TurnStop, { session_id: server_session_id });
+    return this.rpc<StopTurnResponse>(RpcMethod.TurnStop, {
+      session_id: server_session_id,
+    });
   }
 
   async listMessages(
@@ -400,7 +457,10 @@ export class RTCAgentClient implements IRTCAgentClient {
     });
   }
 
-  async updateRtcStatus(rtcId: string, status: string): Promise<UpdateRtcStatusResponse> {
+  async updateRtcStatus(
+    rtcId: string,
+    status: RtcStatus,
+  ): Promise<UpdateRtcStatusResponse> {
     return this.rpc<UpdateRtcStatusResponse>(RpcMethod.RtcUpdateStatus, {
       rtc_id: rtcId,
       status,
@@ -432,7 +492,10 @@ export class RTCAgentClient implements IRTCAgentClient {
    * @param updates Array of updates to process (ignored if callback is provided).
    * @param callback Optional custom callback for serialised execution (used by subscribed handler).
    */
-  async applyUpdates(updates: Update[], callback?: () => Promise<void>): Promise<void> {
+  async applyUpdates(
+    updates: Update[],
+    callback?: () => Promise<void>,
+  ): Promise<void> {
     // Serialise: chain the current task after the previous one.
     // Critical: must await previousPromise, otherwise concurrent calls will see
     // the same lastOffset and both skip the gap fill, breaking offset continuity.
@@ -502,18 +565,21 @@ export class RTCAgentClient implements IRTCAgentClient {
         // - offset must reach update.offset - 1 (ensuring continuity)
         // - epoch must match expectation (preventing data corruption after server restart)
         const expectedEpoch = this.epochCache.get(channel) ?? '';
-        if (newLastOffset === undefined || newLastOffset !== update.offset - 1) {
+        if (
+          newLastOffset === undefined ||
+          newLastOffset !== update.offset - 1
+        ) {
           // Gap fill failed — reject this update to maintain strict +1 continuity.
           throw new Error(
             `[RTCAgentClient] Offset gap fill failed: expected ${update.offset - 1}, got ${newLastOffset}. ` +
-            `Rejecting update ${update.offset} to maintain strict +1 continuity.`
+              `Rejecting update ${update.offset} to maintain strict +1 continuity.`,
           );
         }
         if (newLastEpoch !== undefined && newLastEpoch !== expectedEpoch) {
           // Epoch changed (possible server restart) — reject to prevent data corruption.
           throw new Error(
             `[RTCAgentClient] Epoch mismatch after gap fill: expected '${expectedEpoch}', got '${newLastEpoch}'. ` +
-            `Rejecting update ${update.offset} to prevent data corruption.`
+              `Rejecting update ${update.offset} to prevent data corruption.`,
           );
         }
       }
@@ -545,7 +611,10 @@ export class RTCAgentClient implements IRTCAgentClient {
    * @throws {GapFillTimeoutError} If gap fill doesn't complete within timeout
    * @throws {Error} If wait is aborted (e.g., during disconnect)
    */
-  private async waitForGapFill(channel: string, targetOffset: number): Promise<void> {
+  private async waitForGapFill(
+    channel: string,
+    targetOffset: number,
+  ): Promise<void> {
     const MAX_WAIT_MS = 30000; // 30 seconds timeout
     const INITIAL_POLL_INTERVAL_MS = 100;
     const MAX_POLL_INTERVAL_MS = 2000;
@@ -588,14 +657,21 @@ export class RTCAgentClient implements IRTCAgentClient {
         // Wait with exponential backoff before checking again, but abortable
         await new Promise<void>((resolve, reject) => {
           const timer = setTimeout(resolve, pollInterval);
-          waitAbort.signal.addEventListener('abort', () => {
-            clearTimeout(timer);
-            reject(new Error(`Gap fill aborted for channel ${channel}`));
-          }, { once: true });
+          waitAbort.signal.addEventListener(
+            'abort',
+            () => {
+              clearTimeout(timer);
+              reject(new Error(`Gap fill aborted for channel ${channel}`));
+            },
+            { once: true },
+          );
         });
 
         // Increase poll interval for next iteration (exponential backoff)
-        pollInterval = Math.min(pollInterval * BACKOFF_MULTIPLIER, MAX_POLL_INTERVAL_MS);
+        pollInterval = Math.min(
+          pollInterval * BACKOFF_MULTIPLIER,
+          MAX_POLL_INTERVAL_MS,
+        );
       }
 
       // Timeout — throw explicit error instead of silent return
@@ -607,7 +683,7 @@ export class RTCAgentClient implements IRTCAgentClient {
         targetOffset,
         elapsedMs,
         currentOffset,
-        targetOffset - currentOffset
+        targetOffset - currentOffset,
       );
     } finally {
       // Only delete if this controller is still the stored one (fix: concurrent calls don't clobber)
@@ -660,8 +736,13 @@ export class RTCAgentClient implements IRTCAgentClient {
     }
 
     // Buffer dedup 2: same offset already in queue
-    if (update.offset > 0 && this.pendingUpdates.some(u => u.offset === update.offset)) {
-      log.debug(`scheduleUpdate: skip duplicate in buffer offset=${update.offset}`);
+    if (
+      update.offset > 0 &&
+      this.pendingUpdates.some((u) => u.offset === update.offset)
+    ) {
+      log.debug(
+        `scheduleUpdate: skip duplicate in buffer offset=${update.offset}`,
+      );
       return;
     }
 
@@ -693,8 +774,14 @@ export class RTCAgentClient implements IRTCAgentClient {
             this.lastOffsetCache.set(channel, update.offset);
           }
         } catch (err) {
-          log.error(`processUpdateQueue failed for offset ${update.offset}:`, err);
-          this.emit('error', err instanceof Error ? err : new Error(String(err)));
+          log.error(
+            `processUpdateQueue failed for offset ${update.offset}:`,
+            err,
+          );
+          this.emit(
+            'error',
+            err instanceof Error ? err : new Error(String(err)),
+          );
 
           // Critical error (e.g., gap fill failure) -> trigger reconnect, same as publication error handling
           if (this.shouldReconnect) {
@@ -707,15 +794,23 @@ export class RTCAgentClient implements IRTCAgentClient {
             });
             this._reconnectTimer = setTimeout(() => {
               this._reconnectTimer = undefined;
-              if (this.shouldReconnect && this.connectionState === 'disconnected') {
-                log.debug('attempting reconnect after update processing failure');
-                this.reconnect().catch(e => log.error('reconnect failed:', e));
+              if (
+                this.shouldReconnect &&
+                this.connectionState === 'disconnected'
+              ) {
+                log.debug(
+                  'attempting reconnect after update processing failure',
+                );
+                this.reconnect().catch((e) =>
+                  log.error('reconnect failed:', e),
+                );
               }
             }, this._reconnectDelay);
             // Exponential backoff for next failure
             this._reconnectDelay = Math.min(
-              this._reconnectDelay * RTCAgentClient.RECONNECT_BACKOFF_MULTIPLIER,
-              RTCAgentClient.RECONNECT_MAX_DELAY_MS
+              this._reconnectDelay *
+                RTCAgentClient.RECONNECT_BACKOFF_MULTIPLIER,
+              RTCAgentClient.RECONNECT_MAX_DELAY_MS,
             );
           }
           // Critical error: stop processing remaining queue — reconnect will clear state
@@ -739,7 +834,11 @@ export class RTCAgentClient implements IRTCAgentClient {
    * @param targetOffset Target offset to reach (exclusive)
    * @param epoch Current epoch
    */
-  private scheduleGapFill(channel: string, targetOffset: number, epoch: string): void {
+  private scheduleGapFill(
+    channel: string,
+    targetOffset: number,
+    epoch: string,
+  ): void {
     const pending = this.gapFillTasks.get(channel);
     if (pending) {
       // Merge: extend to the maximum range, no re-trigger needed.
@@ -747,7 +846,7 @@ export class RTCAgentClient implements IRTCAgentClient {
       pending.epoch = epoch;
       log.debug(
         `scheduleGapFill merged: channel=${channel}, ` +
-        `targetOffset=${pending.targetOffset}, isProcessing=${this.isGapFillProcessing}`
+          `targetOffset=${pending.targetOffset}, isProcessing=${this.isGapFillProcessing}`,
       );
     } else {
       this.gapFillTasks.set(channel, { targetOffset, epoch });
@@ -767,7 +866,9 @@ export class RTCAgentClient implements IRTCAgentClient {
     try {
       while (this.gapFillTasks.size > 0) {
         // Take the first pending channel
-        const [channel, { targetOffset, epoch }] = this.gapFillTasks.entries().next().value!;
+        const [channel, { targetOffset, epoch }] = this.gapFillTasks
+          .entries()
+          .next().value!;
 
         // Run gap fill until caught up
         await this.runGapFill(channel, targetOffset, epoch);
@@ -793,7 +894,11 @@ export class RTCAgentClient implements IRTCAgentClient {
    * and re-schedules gap fill from the last persisted offset (in IndexedDB). This may
    * cause some updates to be re-fetched, but deduplicateUpdates() ensures idempotency.
    */
-  private async runGapFill(channel: string, targetOffset: number, epoch: string): Promise<void> {
+  private async runGapFill(
+    channel: string,
+    targetOffset: number,
+    epoch: string,
+  ): Promise<void> {
     const sub = this.subscriptions.get(channel);
     if (!sub) {
       log.warn(`runGapFill: subscription not found for channel ${channel}`);
@@ -803,8 +908,8 @@ export class RTCAgentClient implements IRTCAgentClient {
     // Debug log: record connection state and subscription state at gap fill start
     log.debug(
       `runGapFill started: channel=${channel}, targetOffset=${targetOffset}, ` +
-      `connectionState=${this.connectionState}, centrifuge=${!!this.centrifuge}, ` +
-      `subState=${sub.state}`
+        `connectionState=${this.connectionState}, centrifuge=${!!this.centrifuge}, ` +
+        `subState=${sub.state}`,
     );
 
     const BATCH_SIZE = 100; // Number of items per RPC call (avoid oversized responses)
@@ -823,7 +928,9 @@ export class RTCAgentClient implements IRTCAgentClient {
     const currentOffset = startPosition?.offset ?? 0;
     const gapSize = targetOffset - currentOffset;
 
-    log.debug(`[BulkUpdate] runGapFill: gapSize=${gapSize}, threshold=${SUSPEND_THRESHOLD}`);
+    log.debug(
+      `[BulkUpdate] runGapFill: gapSize=${gapSize}, threshold=${SUSPEND_THRESHOLD}`,
+    );
 
     // Buffer hoisted outside try so content fetched before disconnect can still be applied
     let buffer: Update[] = [];
@@ -851,7 +958,10 @@ export class RTCAgentClient implements IRTCAgentClient {
         // Inner loop: fetch in batches, accumulate to ACCUMULATE_THRESHOLD+
         // Each flush cycle will suspend/resume UIUpdateBus independently to prevent
         // event accumulation beyond the 1000 event limit.
-        while (buffer.length < ACCUMULATE_THRESHOLD && offset < targetOffset - 1) {
+        while (
+          buffer.length < ACCUMULATE_THRESHOLD &&
+          offset < targetOffset - 1
+        ) {
           const remaining = targetOffset - offset - 1;
           const limit = Math.min(BATCH_SIZE, remaining);
           if (limit <= 0) break;
@@ -865,8 +975,8 @@ export class RTCAgentClient implements IRTCAgentClient {
           // Debug log: record connection state before calling history
           log.debug(
             `Calling sub.history(): offset=${offset}, limit=${limit}, ` +
-            `connectionState=${this.connectionState}, hasCentrifuge=${!!this.centrifuge}, ` +
-            `subState=${sub.state}`
+              `connectionState=${this.connectionState}, hasCentrifuge=${!!this.centrifuge}, ` +
+              `subState=${sub.state}`,
           );
 
           const historyResult = await sub.history(opts);
@@ -886,7 +996,9 @@ export class RTCAgentClient implements IRTCAgentClient {
             const prev = publications[i - 1].offset ?? 0;
             const curr = publications[i].offset ?? 0;
             if (curr !== prev + 1) {
-              throw new Error(`Gap fill non-continuous: offset jumped from ${prev} to ${curr}`);
+              throw new Error(
+                `Gap fill non-continuous: offset jumped from ${prev} to ${curr}`,
+              );
             }
           }
 
@@ -912,14 +1024,28 @@ export class RTCAgentClient implements IRTCAgentClient {
         // Apply current batch buffer content
         // flushGapFillBuffer handles its own suspend/resume per cycle to prevent
         // event accumulation beyond the 1000 event limit.
-        await this.flushGapFillBuffer(channel, buffer, gapOffsets, epoch, false);
+        await this.flushGapFillBuffer(
+          channel,
+          buffer,
+          gapOffsets,
+          epoch,
+          false,
+        );
       }
     } catch (err) {
       // On network error, apply already-fetched buffer content first
       if (buffer.length > 0 || gapOffsets.length > 0) {
-        log.debug(`Network error, flushing buffer before error handling: ${buffer.length} updates, ${gapOffsets.length} gap offsets`);
+        log.debug(
+          `Network error, flushing buffer before error handling: ${buffer.length} updates, ${gapOffsets.length} gap offsets`,
+        );
         try {
-          await this.flushGapFillBuffer(channel, buffer, gapOffsets, epoch, false);
+          await this.flushGapFillBuffer(
+            channel,
+            buffer,
+            gapOffsets,
+            epoch,
+            false,
+          );
         } catch (flushErr) {
           log.error(`Failed to flush buffer on error:`, flushErr);
         }
@@ -932,7 +1058,7 @@ export class RTCAgentClient implements IRTCAgentClient {
         `| connectionState=${this.connectionState}`,
         `| hasCentrifuge=${!!this.centrifuge}`,
         `| targetOffset=${targetOffset}`,
-        `| epoch=${epoch}`
+        `| epoch=${epoch}`,
       );
       this.emit('error', err instanceof Error ? err : new Error(String(err)));
       this.emit('syncRequired', {
@@ -967,10 +1093,13 @@ export class RTCAgentClient implements IRTCAgentClient {
    * Result: keep offset=100 (creation) and offset=102 (final state), apply in order
    */
   private deduplicateUpdates(updates: Update[]): Update[] {
-    const map = new Map<string, {
-      first: { item: UpdateItem; data: unknown; offset: number };
-      last: { item: UpdateItem; data: unknown; offset: number };
-    }>();
+    const map = new Map<
+      string,
+      {
+        first: { item: UpdateItem; data: unknown; offset: number };
+        last: { item: UpdateItem; data: unknown; offset: number };
+      }
+    >();
 
     for (const update of updates) {
       for (let i = 0; i < update.items.length; i++) {
@@ -1048,7 +1177,7 @@ export class RTCAgentClient implements IRTCAgentClient {
     buffer: Update[],
     gapOffsets: number[],
     epoch: string,
-    uiAlreadySuspended: boolean = false
+    uiAlreadySuspended: boolean = false,
   ): Promise<void> {
     // Process accumulated updates: deduplicate then apply in batch
     if (buffer.length > 0) {
@@ -1063,7 +1192,7 @@ export class RTCAgentClient implements IRTCAgentClient {
       try {
         // Prefer batch callback for optimized processing
         if (this.options.onPublications) {
-          const events = deduplicated.map(update => ({
+          const events = deduplicated.map((update) => ({
             channel,
             offset: update.offset,
             data: update,
@@ -1086,7 +1215,7 @@ export class RTCAgentClient implements IRTCAgentClient {
         // Key fix: advance offset to max(gapOffsets, buffer offsets) only after
         // data persistence succeeds. This ensures offset is not advanced without
         // persisted data.
-        const allOffsets = [...gapOffsets, ...buffer.map(u => u.offset)];
+        const allOffsets = [...gapOffsets, ...buffer.map((u) => u.offset)];
         const maxOffset = Math.max(...allOffsets);
         await this.options.updateOffset?.(channel, maxOffset, epoch);
       } finally {
@@ -1105,7 +1234,10 @@ export class RTCAgentClient implements IRTCAgentClient {
 
   // ========== Internal ==========
 
-  private emit<E extends EventName>(event: E, payload: RTCAgentClientEvents[E]): void {
+  private emit<E extends EventName>(
+    event: E,
+    payload: RTCAgentClientEvents[E],
+  ): void {
     const set = this.listeners.get(event);
     if (!set) return;
     for (const cb of set) {
@@ -1121,12 +1253,19 @@ export class RTCAgentClient implements IRTCAgentClient {
   private _connectionReason?: string;
 
   private setConnectionState(state: ConnectionState, reason?: string): void {
-    log.debug('setConnectionState:', state, 'reason:', reason,
-      '| previous:', this.connectionState,
-      '| timestamp:', new Date().toISOString()
+    log.debug(
+      'setConnectionState:',
+      state,
+      'reason:',
+      reason,
+      '| previous:',
+      this.connectionState,
+      '| timestamp:',
+      new Date().toISOString(),
     );
     // Only skip if both state and reason are unchanged
-    if (this.connectionState === state && this._connectionReason === reason) return;
+    if (this.connectionState === state && this._connectionReason === reason)
+      return;
     this.connectionState = state;
     this._connectionReason = reason;
     const event: ConnectionStateEvent = { state, reason };
@@ -1159,7 +1298,10 @@ export class RTCAgentClient implements IRTCAgentClient {
         // Relogin required — stop reconnecting.
         this.shouldReconnect = false;
         this.centrifuge?.disconnect();
-        this.setConnectionState('disconnected', 'token expired, relogin required');
+        this.setConnectionState(
+          'disconnected',
+          'token expired, relogin required',
+        );
       } else {
         // action === 'refresh' — token refreshed, attempt reconnect.
         log.debug('token refreshed, attempting to reconnect');
@@ -1167,7 +1309,7 @@ export class RTCAgentClient implements IRTCAgentClient {
         this._reconnectTimer = setTimeout(() => {
           this._reconnectTimer = undefined;
           if (this.shouldReconnect) {
-            this.reconnect().catch(err => {
+            this.reconnect().catch((err) => {
               log.error('reconnect after token refresh failed:', err);
             });
           }
@@ -1176,7 +1318,10 @@ export class RTCAgentClient implements IRTCAgentClient {
     } catch (err) {
       // SECURITY: onTokenExpired threw an error — treat as relogin required to prevent
       // infinite retry loops. Log the error but do not expose details to the user.
-      log.error('handleInvalidToken: onTokenExpired threw an error, treating as relogin required:', err);
+      log.error(
+        'handleInvalidToken: onTokenExpired threw an error, treating as relogin required:',
+        err,
+      );
       this.shouldReconnect = false;
       this.centrifuge?.disconnect();
       this.setConnectionState('disconnected', 'token refresh failed');
@@ -1195,25 +1340,22 @@ export class RTCAgentClient implements IRTCAgentClient {
    * (to avoid blocking connections due to malformed tokens).
    */
   private _isTokenExpired(token: string): boolean {
-    try {
-      const parts = token.split('.');
-      if (parts.length !== 3) {
-        log.debug('_isTokenExpired: token does not have 3 parts, treating as not expired');
-        return false;
-      }
-      const payload = JSON.parse(atob(parts[1]));
-      if (typeof payload.exp !== 'number') {
-        log.debug('_isTokenExpired: payload.exp is not a number, treating as not expired');
-        return false;
-      }
-      const expired = payload.exp * 1000 < Date.now();
-      log.debug('_isTokenExpired: exp=', payload.exp, 'expired=', expired);
-      return expired;
-    } catch (err) {
-      // JWT parse failed — don't block the connection.
-      log.debug('_isTokenExpired: failed to parse JWT, treating as not expired:', err);
+    const payload = parseJwtPayload(token);
+    if (!payload) {
+      log.debug(
+        '_isTokenExpired: failed to parse JWT, treating as not expired',
+      );
       return false;
     }
+    if (typeof payload.exp !== 'number') {
+      log.debug(
+        '_isTokenExpired: payload.exp is not a number, treating as not expired',
+      );
+      return false;
+    }
+    const expired = payload.exp * 1000 < Date.now();
+    log.debug('_isTokenExpired: exp=', payload.exp, 'expired=', expired);
+    return expired;
   }
 
   /**
@@ -1224,7 +1366,9 @@ export class RTCAgentClient implements IRTCAgentClient {
       throw new Error('RTCAgentClient not connected');
     }
     if (this.connectionState !== 'connected') {
-      throw new Error(`Cannot call RPC '${method}': connection state is ${this.connectionState}`);
+      throw new Error(
+        `Cannot call RPC '${method}': connection state is ${this.connectionState}`,
+      );
     }
 
     try {
@@ -1266,8 +1410,8 @@ export class RTCAgentClient implements IRTCAgentClient {
         // Debug log: record subscribed event trigger
         log.debug(
           `Subscription 'subscribed' event: channel=${topicChannel}, ` +
-          `serverOffset=${ctx.streamPosition?.offset}, epoch=${ctx.streamPosition?.epoch}, ` +
-          `connectionState=${this.connectionState}`
+            `serverOffset=${ctx.streamPosition?.offset}, epoch=${ctx.streamPosition?.epoch}, ` +
+            `connectionState=${this.connectionState}`,
         );
 
         // On successful subscription, detect offset continuity to prevent losing offline messages.
@@ -1284,7 +1428,9 @@ export class RTCAgentClient implements IRTCAgentClient {
 
           // Detect epoch change (e.g. server restart) and reset offset.
           if (position && position.epoch !== epoch) {
-            log.warn(`Epoch changed: '${position.epoch}' -> '${epoch}', resetting offset to 0`);
+            log.warn(
+              `Epoch changed: '${position.epoch}' -> '${epoch}', resetting offset to 0`,
+            );
             await this.options.updateOffset?.(topicChannel, 0, epoch);
             localOffset = 0;
           } else {
@@ -1293,7 +1439,11 @@ export class RTCAgentClient implements IRTCAgentClient {
 
           if (localOffset === undefined) {
             // No local record (first subscription) — use the server offset directly.
-            await this.options.updateOffset?.(topicChannel, serverOffset, epoch);
+            await this.options.updateOffset?.(
+              topicChannel,
+              serverOffset,
+              epoch,
+            );
             localOffset = serverOffset;
           } else if (serverOffset <= localOffset) {
             // Server offset <= local offset: duplicate subscription or rollback — keep local.
@@ -1341,7 +1491,7 @@ export class RTCAgentClient implements IRTCAgentClient {
    */
   private async handlePublication(
     event: PublicationEvent,
-    sub: ReturnType<Centrifuge['newSubscription']>
+    sub: ReturnType<Centrifuge['newSubscription']>,
   ): Promise<void> {
     if (!this.options.onPublication) return;
 

@@ -4,6 +4,7 @@ import type {
   Message,
   Rtc,
   Update,
+  RtcStatus,
   ListSessionsResponse,
   MessageListResponse,
   TurnListResponse,
@@ -25,44 +26,30 @@ import type {
 // ========== Token Exchange ==========
 
 /**
- * Token Exchange request parameters.
+ * Token Exchange request parameters (RFC 8693).
  *
- * Implements RFC 8693 OAuth 2.0 Token Exchange with custom extensions.
- * Used when the host application provides an external JWT that must be
- * exchanged for an RTC JWT.
+ * Extends OAuth2TokenExchangeRFC8693Request from @rtc-agent/protocol with
+ * additional optional fields (device_name, user_agent) that the backend accepts
+ * but are not yet captured in the OpenAPI spec.
  *
  * @see {@link https://datatracker.ietf.org/doc/html/rfc8693|RFC 8693}
  */
-export interface TokenExchangeRequest {
-  /** OAuth2 grant type, must be 'urn:ietf:params:oauth:grant-type:token-exchange' */
-  grant_type: string;
-  /** External JWT issued by the host application */
-  subject_token: string;
-  /** Token type URI, e.g. 'urn:ietf:params:oauth:token-type:jwt' */
-  subject_token_type: string;
-  /** Device ID for RTC filtering */
-  device_id: string;
-  /** Optional device name for display */
-  device_name?: string;
-  /** Optional user agent string */
-  user_agent?: string;
-}
+export type TokenExchangeRequest =
+  import('@rtc-agent/protocol').OAuth2TokenExchangeRFC8693Request & {
+    /** Optional device name for display */
+    device_name?: string;
+    /** Optional user agent string */
+    user_agent?: string;
+  };
 
 /**
- * Token Exchange response from the RTC backend.
+ * Token Exchange response from the RTC backend (RFC 8693).
  *
- * Contains the RTC JWT that should be used for WebSocket connection.
+ * Alias for OAuth2TokenExchangeRFC8693Response from @rtc-agent/protocol.
+ * Provides exact literal types for issued_token_type and token_type.
  */
-export interface TokenExchangeResponse {
-  /** RTC JWT access token */
-  access_token: string;
-  /** Token type URI, e.g. 'urn:ietf:params:oauth:token-type:access_token' */
-  issued_token_type: string;
-  /** Token type, typically 'Bearer' */
-  token_type: string;
-  /** Token lifetime in seconds */
-  expires_in: number;
-}
+export type TokenExchangeResponse =
+  import('@rtc-agent/protocol').OAuth2TokenExchangeRFC8693Response;
 
 /**
  * Token Exchange error with HTTP status code.
@@ -82,7 +69,11 @@ export class TokenExchangeError extends Error {
 
 // ========== Connection State ==========
 
-export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
+export type ConnectionState =
+  | 'disconnected'
+  | 'connecting'
+  | 'connected'
+  | 'reconnecting';
 
 export interface ConnectionStateEvent {
   state: ConnectionState;
@@ -161,7 +152,12 @@ export interface RTCAgentClientOptions {
    *
    * @param channel Channel name, e.g. 'topic:u=xxx'
    */
-  getLastOffset?: (channel: string) => Promise<{ offset: number; epoch: string } | undefined> | { offset: number; epoch: string } | undefined;
+  getLastOffset?: (
+    channel: string,
+  ) =>
+    | Promise<{ offset: number; epoch: string } | undefined>
+    | { offset: number; epoch: string }
+    | undefined;
   /**
    * Optional: persist the offset and epoch after processing.
    *
@@ -169,7 +165,11 @@ export interface RTCAgentClientOptions {
    * @param offset New offset
    * @param epoch New epoch
    */
-  updateOffset?: (channel: string, offset: number, epoch: string) => Promise<void> | void;
+  updateOffset?: (
+    channel: string,
+    offset: number,
+    epoch: string,
+  ) => Promise<void> | void;
   /**
    * Optional: channel publication callback (messages from all channels are forwarded here).
    *
@@ -236,7 +236,9 @@ export interface RTCAgentClientEvents {
 }
 
 export type EventName = keyof RTCAgentClientEvents;
-export type EventCallback<E extends EventName> = (payload: RTCAgentClientEvents[E]) => void;
+export type EventCallback<E extends EventName> = (
+  payload: RTCAgentClientEvents[E],
+) => void;
 
 export interface Unsubscribe {
   (): void;
@@ -273,12 +275,27 @@ export interface IRTCAgentClient {
   // Messages & Turns
   sendMessage(req: SendMessageRequest): Promise<SendMessageResponse>;
   stopTurn(turnId: string): Promise<StopTurnResponse>;
-  listMessages(sessionId: string, cursor?: number, limit?: number): Promise<MessageListResponse>;
-  listTurns(sessionId: string, cursor?: string, limit?: number): Promise<TurnListResponse>;
+  listMessages(
+    sessionId: string,
+    cursor?: number,
+    limit?: number,
+  ): Promise<MessageListResponse>;
+  listTurns(
+    sessionId: string,
+    cursor?: string,
+    limit?: number,
+  ): Promise<TurnListResponse>;
 
   // RTC (Tool Calls)
-  listRtc(sessionId: string, cursor?: string, limit?: number): Promise<RtcListResponse>;
-  updateRtcStatus(rtcId: string, status: string): Promise<UpdateRtcStatusResponse>;
+  listRtc(
+    sessionId: string,
+    cursor?: string,
+    limit?: number,
+  ): Promise<RtcListResponse>;
+  updateRtcStatus(
+    rtcId: string,
+    status: RtcStatus,
+  ): Promise<UpdateRtcStatusResponse>;
   submitRtcResult(
     rtcId: string,
     success: boolean,
@@ -295,7 +312,10 @@ export interface IRTCAgentClient {
    *
    * Both Publication events and RPC responses should call this method.
    */
-  applyUpdates(updates: Update[], callback?: () => Promise<void>): Promise<void>;
+  applyUpdates(
+    updates: Update[],
+    callback?: () => Promise<void>,
+  ): Promise<void>;
 }
 
 // Re-export protocol types for single-import convenience.

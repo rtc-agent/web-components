@@ -32,7 +32,9 @@ describe('Issue #234: flushGapFillBuffer offset advancement', () => {
       endpoint: 'wss://test.example.com/connection',
       getToken: () => 'test-token',
       userId: 'test-user-id',
-      getLastOffset: vi.fn().mockResolvedValue({ offset: 0, epoch: 'test-epoch' }),
+      getLastOffset: vi
+        .fn()
+        .mockResolvedValue({ offset: 0, epoch: 'test-epoch' }),
       updateOffset: mockUpdateOffset,
       onPublications: mockOnPublications,
       onPublication: mockOnPublication,
@@ -45,7 +47,10 @@ describe('Issue #234: flushGapFillBuffer offset advancement', () => {
   });
 
   // Helper to create test updates
-  const createUpdate = (offset: number, entityId: string = 'test-entity'): Update => ({
+  const createUpdate = (
+    offset: number,
+    entityId: string = 'test-entity',
+  ): Update => ({
     id: `update-${offset}`,
     items: [
       {
@@ -70,7 +75,7 @@ describe('Issue #234: flushGapFillBuffer offset advancement', () => {
     channel: string,
     buffer: Update[],
     gapOffsets: number[],
-    epoch: string
+    epoch: string,
   ) => {
     // @ts-expect-error - accessing private method for testing
     return client.flushGapFillBuffer(channel, buffer, gapOffsets, epoch);
@@ -104,7 +109,9 @@ describe('Issue #234: flushGapFillBuffer offset advancement', () => {
       expect(mockOnPublications).toHaveBeenCalledTimes(1);
       const events = mockOnPublications.mock.calls[0][0];
       expect(events).toHaveLength(9);
-      expect(events.map((e: any) => e.offset)).toEqual([1, 2, 4, 5, 6, 7, 8, 9, 10]);
+      expect(events.map((e: any) => e.offset)).toEqual([
+        1, 2, 4, 5, 6, 7, 8, 9, 10,
+      ]);
 
       // Verify offset was advanced to max(3, 10) = 10
       expect(mockUpdateOffset).toHaveBeenCalledTimes(1);
@@ -152,12 +159,14 @@ describe('Issue #234: flushGapFillBuffer offset advancement', () => {
       const gapOffsets = [3];
 
       // Simulate transaction failure
-      mockOnPublications.mockRejectedValueOnce(new Error('IndexedDB transaction failed'));
+      mockOnPublications.mockRejectedValueOnce(
+        new Error('IndexedDB transaction failed'),
+      );
 
       // Execute and expect error
-      await expect(flushGapFillBuffer(channel, buffer, gapOffsets, epoch)).rejects.toThrow(
-        'IndexedDB transaction failed'
-      );
+      await expect(
+        flushGapFillBuffer(channel, buffer, gapOffsets, epoch),
+      ).rejects.toThrow('IndexedDB transaction failed');
 
       // CRITICAL: offset should NOT be advanced
       expect(mockUpdateOffset).not.toHaveBeenCalled();
@@ -178,7 +187,9 @@ describe('Issue #234: flushGapFillBuffer offset advancement', () => {
 
       // First attempt: fails
       mockOnPublications.mockRejectedValueOnce(new Error('Transaction failed'));
-      await expect(flushGapFillBuffer(channel, buffer, gapOffsets, epoch)).rejects.toThrow();
+      await expect(
+        flushGapFillBuffer(channel, buffer, gapOffsets, epoch),
+      ).rejects.toThrow();
       expect(mockUpdateOffset).not.toHaveBeenCalled();
 
       // Second attempt: succeeds
@@ -203,9 +214,9 @@ describe('Issue #234: flushGapFillBuffer offset advancement', () => {
       // Simulate failure in fallback path
       mockOnPublication.mockRejectedValueOnce(new Error('Fallback failed'));
 
-      await expect(flushGapFillBuffer(channel, buffer, gapOffsets, epoch)).rejects.toThrow(
-        'Fallback failed'
-      );
+      await expect(
+        flushGapFillBuffer(channel, buffer, gapOffsets, epoch),
+      ).rejects.toThrow('Fallback failed');
 
       // Offset should NOT be advanced
       expect(mockUpdateOffset).not.toHaveBeenCalled();
@@ -322,7 +333,7 @@ describe('Issue #234: flushGapFillBuffer offset advancement', () => {
 
       // Create 1000 updates
       const buffer: Update[] = Array.from({ length: 1000 }, (_, i) =>
-        createUpdate(i + 1, `session-${i + 1}`)
+        createUpdate(i + 1, `session-${i + 1}`),
       );
       const gapOffsets: number[] = [];
 
@@ -343,7 +354,10 @@ describe('Issue #234: flushGapFillBuffer offset advancement', () => {
 
       const buffer: Update[] = [createUpdate(1001, 'session-1001')];
       // Create 1000 gap offsets
-      const gapOffsets: number[] = Array.from({ length: 1000 }, (_, i) => i + 1);
+      const gapOffsets: number[] = Array.from(
+        { length: 1000 },
+        (_, i) => i + 1,
+      );
 
       const startTime = performance.now();
       await flushGapFillBuffer(channel, buffer, gapOffsets, epoch);
@@ -389,7 +403,9 @@ describe('Issue #234: flushGapFillBuffer offset advancement', () => {
 
       mockOnPublications.mockRejectedValueOnce(new Error('Processing failed'));
 
-      await expect(flushGapFillBuffer(channel, buffer, gapOffsets, epoch)).rejects.toThrow();
+      await expect(
+        flushGapFillBuffer(channel, buffer, gapOffsets, epoch),
+      ).rejects.toThrow();
 
       // UI updates should be resumed even on failure
       expect(mockSuspendUIUpdates).toHaveBeenCalledTimes(1);
@@ -444,7 +460,9 @@ describe('Issue #234: flushGapFillBuffer offset advancement', () => {
       // Simulate failure
       mockOnPublications.mockRejectedValueOnce(new Error('Transaction failed'));
 
-      await expect(flushGapFillBuffer(channel, buffer, gapOffsets, epoch)).rejects.toThrow();
+      await expect(
+        flushGapFillBuffer(channel, buffer, gapOffsets, epoch),
+      ).rejects.toThrow();
 
       // Offset should remain at 0 (or whatever it was before)
       expect(mockUpdateOffset).not.toHaveBeenCalled();
@@ -500,12 +518,15 @@ describe('Fix 24: waitForGapFill timeout and disconnect cleanup', () => {
 
       // Mock gapFillTasks to keep gap fill "running"
       // @ts-expect-error - accessing private field for testing
-      client.gapFillTasks.set(channel, { targetOffset: 100, epoch: 'test-epoch' });
+      client.gapFillTasks.set(channel, {
+        targetOffset: 100,
+        epoch: 'test-epoch',
+      });
 
       const promise = waitForGapFill(channel, targetOffset);
 
       // Catch the rejection immediately to avoid unhandled rejection
-      const resultPromise = promise.catch(err => err);
+      const resultPromise = promise.catch((err) => err);
 
       // Advance time past the 30 second timeout
       await vi.advanceTimersByTimeAsync(31000);
@@ -520,12 +541,15 @@ describe('Fix 24: waitForGapFill timeout and disconnect cleanup', () => {
 
       mockGetLastOffset.mockResolvedValue({ offset: 50, epoch: 'test-epoch' });
       // @ts-expect-error - accessing private field for testing
-      client.gapFillTasks.set(channel, { targetOffset: 100, epoch: 'test-epoch' });
+      client.gapFillTasks.set(channel, {
+        targetOffset: 100,
+        epoch: 'test-epoch',
+      });
 
       const promise = waitForGapFill(channel, targetOffset);
 
       // Catch the rejection immediately
-      const resultPromise = promise.catch(err => err);
+      const resultPromise = promise.catch((err) => err);
 
       await vi.advanceTimersByTimeAsync(31000);
 
@@ -554,7 +578,10 @@ describe('Fix 24: waitForGapFill timeout and disconnect cleanup', () => {
       });
 
       // @ts-expect-error - accessing private field for testing
-      client.gapFillTasks.set(channel, { targetOffset: 100, epoch: 'test-epoch' });
+      client.gapFillTasks.set(channel, {
+        targetOffset: 100,
+        epoch: 'test-epoch',
+      });
 
       const promise = waitForGapFill(channel, targetOffset);
 
@@ -572,7 +599,10 @@ describe('Fix 24: waitForGapFill timeout and disconnect cleanup', () => {
 
       // Start with gap fill task running
       // @ts-expect-error - accessing private field for testing
-      client.gapFillTasks.set(channel, { targetOffset: 100, epoch: 'test-epoch' });
+      client.gapFillTasks.set(channel, {
+        targetOffset: 100,
+        epoch: 'test-epoch',
+      });
 
       const promise = waitForGapFill(channel, targetOffset);
 
@@ -594,10 +624,13 @@ describe('Fix 24: waitForGapFill timeout and disconnect cleanup', () => {
 
       mockGetLastOffset.mockResolvedValue({ offset: 50, epoch: 'test-epoch' });
       // @ts-expect-error - accessing private field for testing
-      client.gapFillTasks.set(channel, { targetOffset: 100, epoch: 'test-epoch' });
+      client.gapFillTasks.set(channel, {
+        targetOffset: 100,
+        epoch: 'test-epoch',
+      });
 
       const promise = waitForGapFill(channel, targetOffset);
-      const resultPromise = promise.catch(err => err);
+      const resultPromise = promise.catch((err) => err);
 
       // Disconnect should abort the wait
       client.disconnect();
@@ -617,16 +650,22 @@ describe('Fix 24: waitForGapFill timeout and disconnect cleanup', () => {
 
       // Start two gap fill waits
       // @ts-expect-error - accessing private field for testing
-      client.gapFillTasks.set(channel1, { targetOffset: 100, epoch: 'test-epoch' });
+      client.gapFillTasks.set(channel1, {
+        targetOffset: 100,
+        epoch: 'test-epoch',
+      });
       // @ts-expect-error - accessing private field for testing
-      client.gapFillTasks.set(channel2, { targetOffset: 200, epoch: 'test-epoch' });
+      client.gapFillTasks.set(channel2, {
+        targetOffset: 200,
+        epoch: 'test-epoch',
+      });
 
       const promise1 = waitForGapFill(channel1, 100);
       const promise2 = waitForGapFill(channel2, 200);
 
       // Catch rejections immediately
-      const result1 = promise1.catch(err => err);
-      const result2 = promise2.catch(err => err);
+      const result1 = promise1.catch((err) => err);
+      const result2 = promise2.catch((err) => err);
 
       // @ts-expect-error - accessing private field for testing
       expect(client._gapFillAbortControllers.size).toBe(2);
@@ -652,7 +691,10 @@ describe('Fix 24: waitForGapFill timeout and disconnect cleanup', () => {
       const newClient = new RTCAgentClient(mockOptions);
 
       // @ts-expect-error - accessing private field for testing
-      newClient.gapFillTasks.set(channel, { targetOffset: 100, epoch: 'test-epoch' });
+      newClient.gapFillTasks.set(channel, {
+        targetOffset: 100,
+        epoch: 'test-epoch',
+      });
       mockGetLastOffset.mockResolvedValue({ offset: 100, epoch: 'test-epoch' });
 
       // @ts-expect-error - accessing private method for testing
@@ -673,10 +715,13 @@ describe('Fix 24: waitForGapFill timeout and disconnect cleanup', () => {
 
       mockGetLastOffset.mockResolvedValue({ offset: 50, epoch: 'test-epoch' });
       // @ts-expect-error - accessing private field for testing
-      client.gapFillTasks.set(channel, { targetOffset: 100, epoch: 'test-epoch' });
+      client.gapFillTasks.set(channel, {
+        targetOffset: 100,
+        epoch: 'test-epoch',
+      });
 
       const promise = waitForGapFill(channel, targetOffset);
-      const resultPromise = promise.catch(err => err);
+      const resultPromise = promise.catch((err) => err);
 
       // Advance to exactly 30 seconds
       await vi.advanceTimersByTimeAsync(30000);
@@ -707,7 +752,10 @@ describe('Fix 24: waitForGapFill timeout and disconnect cleanup', () => {
 
       mockGetLastOffset.mockResolvedValue({ offset: 50, epoch: 'test-epoch' });
       // @ts-expect-error - accessing private field for testing
-      client.gapFillTasks.set(channel, { targetOffset: 100, epoch: 'test-epoch' });
+      client.gapFillTasks.set(channel, {
+        targetOffset: 100,
+        epoch: 'test-epoch',
+      });
 
       const promise = waitForGapFill(channel, targetOffset);
       const resultPromise = promise.catch(() => {});
@@ -725,7 +773,10 @@ describe('Fix 24: waitForGapFill timeout and disconnect cleanup', () => {
 
       mockGetLastOffset.mockResolvedValue({ offset: 50, epoch: 'test-epoch' });
       // @ts-expect-error - accessing private field for testing
-      client.gapFillTasks.set(channel, { targetOffset: 100, epoch: 'test-epoch' });
+      client.gapFillTasks.set(channel, {
+        targetOffset: 100,
+        epoch: 'test-epoch',
+      });
 
       const promise = waitForGapFill(channel, targetOffset);
       const resultPromise = promise.catch(() => {});
@@ -758,7 +809,9 @@ describe('Fix 25: disconnect() comprehensive cleanup', () => {
       endpoint: 'wss://test.example.com/connection',
       getToken: () => 'test-token',
       userId: 'test-user-id',
-      getLastOffset: vi.fn().mockResolvedValue({ offset: 0, epoch: 'test-epoch' }),
+      getLastOffset: vi
+        .fn()
+        .mockResolvedValue({ offset: 0, epoch: 'test-epoch' }),
     };
 
     client = new RTCAgentClient(mockOptions);
@@ -774,7 +827,10 @@ describe('Fix 25: disconnect() comprehensive cleanup', () => {
 
       // Add some gap fill tasks
       // @ts-expect-error - accessing private field for testing
-      client.gapFillTasks.set(channel, { targetOffset: 100, epoch: 'test-epoch' });
+      client.gapFillTasks.set(channel, {
+        targetOffset: 100,
+        epoch: 'test-epoch',
+      });
       // @ts-expect-error - accessing private field for testing
       expect(client.gapFillTasks.size).toBe(1);
 
@@ -786,11 +842,20 @@ describe('Fix 25: disconnect() comprehensive cleanup', () => {
 
     it('should clear multiple gap fill tasks on disconnect', () => {
       // @ts-expect-error - accessing private field for testing
-      client.gapFillTasks.set('channel1', { targetOffset: 100, epoch: 'epoch1' });
+      client.gapFillTasks.set('channel1', {
+        targetOffset: 100,
+        epoch: 'epoch1',
+      });
       // @ts-expect-error - accessing private field for testing
-      client.gapFillTasks.set('channel2', { targetOffset: 200, epoch: 'epoch2' });
+      client.gapFillTasks.set('channel2', {
+        targetOffset: 200,
+        epoch: 'epoch2',
+      });
       // @ts-expect-error - accessing private field for testing
-      client.gapFillTasks.set('channel3', { targetOffset: 300, epoch: 'epoch3' });
+      client.gapFillTasks.set('channel3', {
+        targetOffset: 300,
+        epoch: 'epoch3',
+      });
 
       // @ts-expect-error - accessing private field for testing
       expect(client.gapFillTasks.size).toBe(3);
@@ -844,13 +909,21 @@ describe('Fix 25: disconnect() comprehensive cleanup', () => {
 
       // Set up various async state
       // @ts-expect-error - accessing private fields for testing
-      client.gapFillTasks.set(channel, { targetOffset: 100, epoch: 'test-epoch' });
+      client.gapFillTasks.set(channel, {
+        targetOffset: 100,
+        epoch: 'test-epoch',
+      });
       // @ts-expect-error - accessing private fields for testing
       client.isGapFillProcessing = true;
       // @ts-expect-error - accessing private fields for testing
       client.isUpdateProcessing = true;
       // @ts-expect-error - accessing private fields for testing
-      client.pendingUpdates.push({ id: '1', items: [], data_list: [], offset: 1 });
+      client.pendingUpdates.push({
+        id: '1',
+        items: [],
+        data_list: [],
+        offset: 1,
+      });
       // @ts-expect-error - accessing private fields for testing
       client.lastOffsetCache.set(channel, 50);
 
@@ -878,7 +951,10 @@ describe('Fix 25: disconnect() comprehensive cleanup', () => {
 
       // Simulate active async operations
       // @ts-expect-error - accessing private fields for testing
-      client.gapFillTasks.set(channel, { targetOffset: 100, epoch: 'test-epoch' });
+      client.gapFillTasks.set(channel, {
+        targetOffset: 100,
+        epoch: 'test-epoch',
+      });
       // @ts-expect-error - accessing private fields for testing
       client.isGapFillProcessing = true;
       // @ts-expect-error - accessing private fields for testing
@@ -941,7 +1017,9 @@ describe('deduplicateUpdates: keep first and last offset', () => {
       endpoint: 'wss://test.example.com/connection',
       getToken: () => 'test-token',
       userId: 'test-user-id',
-      getLastOffset: vi.fn().mockResolvedValue({ offset: 0, epoch: 'test-epoch' }),
+      getLastOffset: vi
+        .fn()
+        .mockResolvedValue({ offset: 0, epoch: 'test-epoch' }),
     };
 
     client = new RTCAgentClient(mockOptions);
@@ -963,7 +1041,7 @@ describe('deduplicateUpdates: keep first and last offset', () => {
     entity: 'session' | 'message' | 'turn' | 'rtc' | 'file',
     entityId: string,
     action: 'created' | 'updated' | 'deleted',
-    data: Record<string, unknown>
+    data: Record<string, unknown>,
   ): Update => ({
     id: `update-${offset}`,
     items: [{ entity, entity_id: entityId, action }],
@@ -981,7 +1059,9 @@ describe('deduplicateUpdates: keep first and last offset', () => {
 
     it('should return single update unchanged', () => {
       const updates: Update[] = [
-        createTestUpdate(1, 'session', 'session-1', 'created', { status: 'active' }),
+        createTestUpdate(1, 'session', 'session-1', 'created', {
+          status: 'active',
+        }),
       ];
 
       const result = deduplicateUpdates(updates);
@@ -994,8 +1074,12 @@ describe('deduplicateUpdates: keep first and last offset', () => {
 
     it('should keep both first and last for two updates of same entity', () => {
       const updates: Update[] = [
-        createTestUpdate(1, 'session', 'session-1', 'created', { status: 'pending' }),
-        createTestUpdate(2, 'session', 'session-1', 'updated', { status: 'active' }),
+        createTestUpdate(1, 'session', 'session-1', 'created', {
+          status: 'pending',
+        }),
+        createTestUpdate(2, 'session', 'session-1', 'updated', {
+          status: 'active',
+        }),
       ];
 
       const result = deduplicateUpdates(updates);
@@ -1008,10 +1092,18 @@ describe('deduplicateUpdates: keep first and last offset', () => {
     it('should keep first and last for 5 updates of same entity', () => {
       const updates: Update[] = [
         createTestUpdate(1, 'turn', 'turn-1', 'created', { status: 'running' }),
-        createTestUpdate(2, 'turn', 'turn-1', 'updated', { status: 'processing' }),
-        createTestUpdate(3, 'turn', 'turn-1', 'updated', { status: 'almost_done' }),
-        createTestUpdate(4, 'turn', 'turn-1', 'updated', { status: 'finishing' }),
-        createTestUpdate(5, 'turn', 'turn-1', 'updated', { status: 'completed' }),
+        createTestUpdate(2, 'turn', 'turn-1', 'updated', {
+          status: 'processing',
+        }),
+        createTestUpdate(3, 'turn', 'turn-1', 'updated', {
+          status: 'almost_done',
+        }),
+        createTestUpdate(4, 'turn', 'turn-1', 'updated', {
+          status: 'finishing',
+        }),
+        createTestUpdate(5, 'turn', 'turn-1', 'updated', {
+          status: 'completed',
+        }),
       ];
 
       const result = deduplicateUpdates(updates);
@@ -1020,10 +1112,14 @@ describe('deduplicateUpdates: keep first and last offset', () => {
       expect(result).toHaveLength(2);
       expect(result[0].offset).toBe(1);
       expect(result[0].items[0].action).toBe('created');
-      expect((result[0].data_list![0] as Record<string, unknown>).status).toBe('running');
+      expect((result[0].data_list![0] as Record<string, unknown>).status).toBe(
+        'running',
+      );
       expect(result[1].offset).toBe(5);
       expect(result[1].items[0].action).toBe('updated');
-      expect((result[1].data_list![0] as Record<string, unknown>).status).toBe('completed');
+      expect((result[1].data_list![0] as Record<string, unknown>).status).toBe(
+        'completed',
+      );
     });
   });
 
@@ -1033,12 +1129,20 @@ describe('deduplicateUpdates: keep first and last offset', () => {
     it('should handle multiple entities each with multiple updates', () => {
       const updates: Update[] = [
         // Entity A: 3 updates
-        createTestUpdate(1, 'session', 'session-A', 'created', { status: 'pending' }),
-        createTestUpdate(3, 'session', 'session-A', 'updated', { status: 'active' }),
-        createTestUpdate(5, 'session', 'session-A', 'updated', { status: 'completed' }),
+        createTestUpdate(1, 'session', 'session-A', 'created', {
+          status: 'pending',
+        }),
+        createTestUpdate(3, 'session', 'session-A', 'updated', {
+          status: 'active',
+        }),
+        createTestUpdate(5, 'session', 'session-A', 'updated', {
+          status: 'completed',
+        }),
         // Entity B: 2 updates
         createTestUpdate(2, 'turn', 'turn-B', 'created', { status: 'running' }),
-        createTestUpdate(4, 'turn', 'turn-B', 'updated', { status: 'completed' }),
+        createTestUpdate(4, 'turn', 'turn-B', 'updated', {
+          status: 'completed',
+        }),
       ];
 
       const result = deduplicateUpdates(updates);
@@ -1059,26 +1163,40 @@ describe('deduplicateUpdates: keep first and last offset', () => {
 
     it('should handle entities with single update each', () => {
       const updates: Update[] = [
-        createTestUpdate(1, 'session', 'session-1', 'created', { status: 'active' }),
+        createTestUpdate(1, 'session', 'session-1', 'created', {
+          status: 'active',
+        }),
         createTestUpdate(2, 'turn', 'turn-1', 'created', { status: 'running' }),
-        createTestUpdate(3, 'message', 'msg-1', 'created', { content: 'hello' }),
+        createTestUpdate(3, 'message', 'msg-1', 'created', {
+          content: 'hello',
+        }),
       ];
 
       const result = deduplicateUpdates(updates);
 
       // Each entity has only 1 update, so all are kept
       expect(result).toHaveLength(3);
-      expect(result.map(u => u.offset)).toEqual([1, 2, 3]);
+      expect(result.map((u) => u.offset)).toEqual([1, 2, 3]);
     });
 
     it('should handle mixed: some entities with single update, some with multiple', () => {
       const updates: Update[] = [
-        createTestUpdate(1, 'session', 'session-1', 'created', { status: 'pending' }),
+        createTestUpdate(1, 'session', 'session-1', 'created', {
+          status: 'pending',
+        }),
         createTestUpdate(2, 'turn', 'turn-1', 'created', { status: 'running' }),
-        createTestUpdate(3, 'session', 'session-1', 'updated', { status: 'active' }),
-        createTestUpdate(4, 'turn', 'turn-1', 'updated', { status: 'completed' }),
-        createTestUpdate(5, 'message', 'msg-1', 'created', { content: 'hello' }),
-        createTestUpdate(6, 'session', 'session-1', 'updated', { status: 'completed' }),
+        createTestUpdate(3, 'session', 'session-1', 'updated', {
+          status: 'active',
+        }),
+        createTestUpdate(4, 'turn', 'turn-1', 'updated', {
+          status: 'completed',
+        }),
+        createTestUpdate(5, 'message', 'msg-1', 'created', {
+          content: 'hello',
+        }),
+        createTestUpdate(6, 'session', 'session-1', 'updated', {
+          status: 'completed',
+        }),
       ];
 
       const result = deduplicateUpdates(updates);
@@ -1087,7 +1205,7 @@ describe('deduplicateUpdates: keep first and last offset', () => {
       // turn-1: keep 2 and 4
       // msg-1: keep 5 (only one)
       expect(result).toHaveLength(5);
-      expect(result.map(u => u.offset)).toEqual([1, 2, 4, 5, 6]);
+      expect(result.map((u) => u.offset)).toEqual([1, 2, 4, 5, 6]);
     });
   });
 
@@ -1183,7 +1301,9 @@ describe('deduplicateUpdates: keep first and last offset', () => {
       const updates: Update[] = [
         {
           id: 'update-1',
-          items: [{ entity: 'session', entity_id: 'session-1', action: 'created' }],
+          items: [
+            { entity: 'session', entity_id: 'session-1', action: 'created' },
+          ],
           data_list: [],
           offset: 1,
         },
@@ -1200,9 +1320,15 @@ describe('deduplicateUpdates: keep first and last offset', () => {
   describe('Edge cases', () => {
     it('should handle non-contiguous offsets', () => {
       const updates: Update[] = [
-        createTestUpdate(10, 'session', 'session-1', 'created', { status: 'pending' }),
-        createTestUpdate(50, 'session', 'session-1', 'updated', { status: 'active' }),
-        createTestUpdate(100, 'session', 'session-1', 'updated', { status: 'completed' }),
+        createTestUpdate(10, 'session', 'session-1', 'created', {
+          status: 'pending',
+        }),
+        createTestUpdate(50, 'session', 'session-1', 'updated', {
+          status: 'active',
+        }),
+        createTestUpdate(100, 'session', 'session-1', 'updated', {
+          status: 'completed',
+        }),
       ];
 
       const result = deduplicateUpdates(updates);
@@ -1214,9 +1340,15 @@ describe('deduplicateUpdates: keep first and last offset', () => {
 
     it('should handle updates arriving out of order', () => {
       const updates: Update[] = [
-        createTestUpdate(5, 'session', 'session-1', 'updated', { status: 'active' }),
-        createTestUpdate(1, 'session', 'session-1', 'created', { status: 'pending' }),
-        createTestUpdate(3, 'session', 'session-1', 'updated', { status: 'processing' }),
+        createTestUpdate(5, 'session', 'session-1', 'updated', {
+          status: 'active',
+        }),
+        createTestUpdate(1, 'session', 'session-1', 'created', {
+          status: 'pending',
+        }),
+        createTestUpdate(3, 'session', 'session-1', 'updated', {
+          status: 'processing',
+        }),
       ];
 
       const result = deduplicateUpdates(updates);
@@ -1230,8 +1362,12 @@ describe('deduplicateUpdates: keep first and last offset', () => {
     it('should handle all updates with same offset (same entity)', () => {
       // This is an edge case: same entity, same offset (shouldn't happen in practice)
       const updates: Update[] = [
-        createTestUpdate(1, 'session', 'session-1', 'created', { status: 'pending' }),
-        createTestUpdate(1, 'session', 'session-1', 'updated', { status: 'active' }),
+        createTestUpdate(1, 'session', 'session-1', 'created', {
+          status: 'pending',
+        }),
+        createTestUpdate(1, 'session', 'session-1', 'updated', {
+          status: 'active',
+        }),
       ];
 
       const result = deduplicateUpdates(updates);
@@ -1244,10 +1380,16 @@ describe('deduplicateUpdates: keep first and last offset', () => {
     it('should handle large number of updates for same entity efficiently', () => {
       // 100 updates for the same entity
       const updates: Update[] = Array.from({ length: 100 }, (_, i) =>
-        createTestUpdate(i + 1, 'session', 'session-1', i === 0 ? 'created' : 'updated', {
-          status: i === 0 ? 'pending' : i === 99 ? 'completed' : 'processing',
-          updateNumber: i + 1,
-        })
+        createTestUpdate(
+          i + 1,
+          'session',
+          'session-1',
+          i === 0 ? 'created' : 'updated',
+          {
+            status: i === 0 ? 'pending' : i === 99 ? 'completed' : 'processing',
+            updateNumber: i + 1,
+          },
+        ),
       );
 
       const startTime = performance.now();
@@ -1257,9 +1399,13 @@ describe('deduplicateUpdates: keep first and last offset', () => {
       // Should keep only first (offset=1) and last (offset=100)
       expect(result).toHaveLength(2);
       expect(result[0].offset).toBe(1);
-      expect((result[0].data_list![0] as Record<string, unknown>).status).toBe('pending');
+      expect((result[0].data_list![0] as Record<string, unknown>).status).toBe(
+        'pending',
+      );
       expect(result[1].offset).toBe(100);
-      expect((result[1].data_list![0] as Record<string, unknown>).status).toBe('completed');
+      expect((result[1].data_list![0] as Record<string, unknown>).status).toBe(
+        'completed',
+      );
 
       // Should be efficient (< 100ms)
       expect(elapsed).toBeLessThan(100);
@@ -1270,15 +1416,19 @@ describe('deduplicateUpdates: keep first and last offset', () => {
       const updates: Update[] = [
         createTestUpdate(1, 'session', 'id-1', 'created', { type: 'session' }),
         createTestUpdate(2, 'turn', 'id-1', 'created', { type: 'turn' }),
-        createTestUpdate(3, 'session', 'id-1', 'updated', { type: 'session-updated' }),
-        createTestUpdate(4, 'turn', 'id-1', 'updated', { type: 'turn-updated' }),
+        createTestUpdate(3, 'session', 'id-1', 'updated', {
+          type: 'session-updated',
+        }),
+        createTestUpdate(4, 'turn', 'id-1', 'updated', {
+          type: 'turn-updated',
+        }),
       ];
 
       const result = deduplicateUpdates(updates);
 
       // session:id-1 and turn:id-1 are different entities
       expect(result).toHaveLength(4);
-      expect(result.map(u => u.offset)).toEqual([1, 2, 3, 4]);
+      expect(result.map((u) => u.offset)).toEqual([1, 2, 3, 4]);
     });
 
     it('should preserve data integrity for first and last updates', () => {
@@ -1324,10 +1474,18 @@ describe('deduplicateUpdates: keep first and last offset', () => {
       // Simulates the exact bug scenario: turn goes from running to completed
       // but gap fill was only keeping the first update (running)
       const updates: Update[] = [
-        createTestUpdate(100, 'turn', 'turn-abc', 'created', { status: 'running' }),
-        createTestUpdate(101, 'turn', 'turn-abc', 'updated', { status: 'running' }),
-        createTestUpdate(102, 'turn', 'turn-abc', 'updated', { status: 'running' }),
-        createTestUpdate(103, 'turn', 'turn-abc', 'updated', { status: 'completed' }),
+        createTestUpdate(100, 'turn', 'turn-abc', 'created', {
+          status: 'running',
+        }),
+        createTestUpdate(101, 'turn', 'turn-abc', 'updated', {
+          status: 'running',
+        }),
+        createTestUpdate(102, 'turn', 'turn-abc', 'updated', {
+          status: 'running',
+        }),
+        createTestUpdate(103, 'turn', 'turn-abc', 'updated', {
+          status: 'completed',
+        }),
       ];
 
       const result = deduplicateUpdates(updates);
@@ -1336,42 +1494,72 @@ describe('deduplicateUpdates: keep first and last offset', () => {
 
       // First: turn created with running status
       expect(result[0].offset).toBe(100);
-      expect((result[0].data_list![0] as Record<string, unknown>).status).toBe('running');
+      expect((result[0].data_list![0] as Record<string, unknown>).status).toBe(
+        'running',
+      );
 
       // Last: turn updated to completed status
       expect(result[1].offset).toBe(103);
-      expect((result[1].data_list![0] as Record<string, unknown>).status).toBe('completed');
+      expect((result[1].data_list![0] as Record<string, unknown>).status).toBe(
+        'completed',
+      );
     });
 
     it('should correctly handle message lifecycle: pending → sent → delivered', () => {
       const updates: Update[] = [
-        createTestUpdate(1, 'message', 'msg-1', 'created', { streaming_status: 'pending' }),
-        createTestUpdate(2, 'message', 'msg-1', 'updated', { streaming_status: 'streaming' }),
-        createTestUpdate(3, 'message', 'msg-1', 'updated', { streaming_status: 'streaming' }),
-        createTestUpdate(4, 'message', 'msg-1', 'updated', { streaming_status: 'completed' }),
-        createTestUpdate(5, 'message', 'msg-1', 'updated', { streaming_status: 'completed' }),
+        createTestUpdate(1, 'message', 'msg-1', 'created', {
+          streaming_status: 'pending',
+        }),
+        createTestUpdate(2, 'message', 'msg-1', 'updated', {
+          streaming_status: 'streaming',
+        }),
+        createTestUpdate(3, 'message', 'msg-1', 'updated', {
+          streaming_status: 'streaming',
+        }),
+        createTestUpdate(4, 'message', 'msg-1', 'updated', {
+          streaming_status: 'completed',
+        }),
+        createTestUpdate(5, 'message', 'msg-1', 'updated', {
+          streaming_status: 'completed',
+        }),
       ];
 
       const result = deduplicateUpdates(updates);
 
       expect(result).toHaveLength(2);
       expect(result[0].offset).toBe(1);
-      expect((result[0].data_list![0] as Record<string, unknown>).streaming_status).toBe('pending');
+      expect(
+        (result[0].data_list![0] as Record<string, unknown>).streaming_status,
+      ).toBe('pending');
       expect(result[1].offset).toBe(5);
-      expect((result[1].data_list![0] as Record<string, unknown>).streaming_status).toBe('completed');
+      expect(
+        (result[1].data_list![0] as Record<string, unknown>).streaming_status,
+      ).toBe('completed');
     });
 
     it('should handle concurrent entities with different lifecycles', () => {
       // Multiple entities going through state changes simultaneously
       const updates: Update[] = [
-        createTestUpdate(1, 'session', 'session-1', 'created', { status: 'active' }),
+        createTestUpdate(1, 'session', 'session-1', 'created', {
+          status: 'active',
+        }),
         createTestUpdate(2, 'turn', 'turn-1', 'created', { status: 'running' }),
-        createTestUpdate(3, 'message', 'msg-1', 'created', { streaming_status: 'pending' }),
+        createTestUpdate(3, 'message', 'msg-1', 'created', {
+          streaming_status: 'pending',
+        }),
         createTestUpdate(4, 'turn', 'turn-1', 'updated', { status: 'running' }),
-        createTestUpdate(5, 'message', 'msg-1', 'updated', { streaming_status: 'streaming' }),
-        createTestUpdate(6, 'turn', 'turn-1', 'updated', { status: 'completed' }),
-        createTestUpdate(7, 'message', 'msg-1', 'updated', { streaming_status: 'completed' }),
-        createTestUpdate(8, 'session', 'session-1', 'updated', { status: 'active' }),
+        createTestUpdate(5, 'message', 'msg-1', 'updated', {
+          streaming_status: 'streaming',
+        }),
+        createTestUpdate(6, 'turn', 'turn-1', 'updated', {
+          status: 'completed',
+        }),
+        createTestUpdate(7, 'message', 'msg-1', 'updated', {
+          streaming_status: 'completed',
+        }),
+        createTestUpdate(8, 'session', 'session-1', 'updated', {
+          status: 'active',
+        }),
       ];
 
       const result = deduplicateUpdates(updates);
@@ -1381,15 +1569,19 @@ describe('deduplicateUpdates: keep first and last offset', () => {
       // msg-1: 3, 7
       expect(result).toHaveLength(6);
 
-      const offsets = result.map(u => u.offset);
+      const offsets = result.map((u) => u.offset);
       expect(offsets).toEqual([1, 2, 3, 6, 7, 8]);
 
       // Verify final states
-      const turnLast = result.find(u => u.offset === 6);
-      expect((turnLast!.data_list![0] as Record<string, unknown>).status).toBe('completed');
+      const turnLast = result.find((u) => u.offset === 6);
+      expect((turnLast!.data_list![0] as Record<string, unknown>).status).toBe(
+        'completed',
+      );
 
-      const msgLast = result.find(u => u.offset === 7);
-      expect((msgLast!.data_list![0] as Record<string, unknown>).streaming_status).toBe('completed');
+      const msgLast = result.find((u) => u.offset === 7);
+      expect(
+        (msgLast!.data_list![0] as Record<string, unknown>).streaming_status,
+      ).toBe('completed');
     });
   });
 });

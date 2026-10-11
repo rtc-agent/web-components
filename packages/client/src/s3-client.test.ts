@@ -43,7 +43,7 @@ describe('S3Client', () => {
       // 但 upload 会触发，但由于 AWS SDK 也被 mock 影响，我们不直接测试 upload
       expect(mockFetch).toHaveBeenCalledWith(
         'http://localhost:8888/api/presigned-url',
-        expect.any(Object)
+        expect.any(Object),
       );
     });
 
@@ -54,11 +54,15 @@ describe('S3Client', () => {
       // 模拟凭证刷新
       mockFetch.mockImplementation((url: string) => {
         if (url.includes('credentials/temporary')) {
-          return new Promise(resolve => {
-            setTimeout(() => resolve({
-              ok: true,
-              json: () => Promise.resolve(mockCredentials),
-            }), 50);
+          return new Promise((resolve) => {
+            setTimeout(
+              () =>
+                resolve({
+                  ok: true,
+                  json: () => Promise.resolve(mockCredentials),
+                }),
+              50,
+            );
           });
         }
         return Promise.resolve({
@@ -94,7 +98,7 @@ describe('S3Client', () => {
             operation: 'get',
             key: 'user-123/abc.txt',
           }),
-        })
+        }),
       );
       expect(url).toBe('https://example.com/presigned');
     });
@@ -115,7 +119,7 @@ describe('S3Client', () => {
             key: 'user-123/abc.txt',
             expires_in: 7200,
           }),
-        })
+        }),
       );
     });
 
@@ -126,8 +130,9 @@ describe('S3Client', () => {
         text: () => Promise.resolve('Forbidden'),
       });
 
-      await expect(client.getPresignedUrl('get', 'user-123/abc.txt'))
-        .rejects.toThrow('Presigned URL API error 403');
+      await expect(
+        client.getPresignedUrl('get', 'user-123/abc.txt'),
+      ).rejects.toThrow('Presigned URL API error 403');
     });
   });
 
@@ -171,7 +176,7 @@ describe('S3Client', () => {
 
       expect(mockFetch).toHaveBeenCalledWith(
         'http://localhost:8888/api/presigned-url',
-        expect.any(Object)
+        expect.any(Object),
       );
 
       client.dispose();

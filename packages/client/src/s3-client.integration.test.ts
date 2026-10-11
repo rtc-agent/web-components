@@ -11,7 +11,7 @@ function generateMd5LikeHash(): string {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
   return Array.from(bytes)
-    .map(b => b.toString(16).padStart(2, '0'))
+    .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
 }
 
@@ -51,10 +51,12 @@ async function exchangeRefreshToken(refreshToken: string): Promise<{
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => 'Unknown error');
-    throw new Error(`Failed to exchange refresh token: ${response.status} ${errorText}`);
+    throw new Error(
+      `Failed to exchange refresh token: ${response.status} ${errorText}`,
+    );
   }
 
-  const data = await response.json() as {
+  const data = (await response.json()) as {
     access_token: string;
     expires_in: number;
   };
@@ -124,7 +126,9 @@ describeIntegration('S3Client Integration', () => {
       const result = await client.list(userId);
 
       expect(result.items.length).toBeGreaterThan(0);
-      expect(result.items.some(item => item.key.includes(testMd5))).toBe(true);
+      expect(result.items.some((item) => item.key.includes(testMd5))).toBe(
+        true,
+      );
     });
 
     it('should delete file', async () => {
@@ -188,7 +192,10 @@ describeIntegration('S3Client Integration', () => {
       await client.upload(userId, md5, 'txt', blob);
 
       // 获取预签名 URL
-      const url = await client.getPresignedUrl('get', `user-${userId}/${md5}.txt`);
+      const url = await client.getPresignedUrl(
+        'get',
+        `user-${userId}/${md5}.txt`,
+      );
 
       expect(url).toContain('http');
       expect(url).toContain(md5);
@@ -241,8 +248,8 @@ describeIntegration('S3Client Integration', () => {
       const blob = new Blob(['concurrent test'], { type: 'text/plain' });
       const hashes = Array.from({ length: 5 }, () => generateMd5LikeHash());
 
-      const uploadPromises = hashes.map(md5 =>
-        client.upload(userId, md5, 'txt', blob)
+      const uploadPromises = hashes.map((md5) =>
+        client.upload(userId, md5, 'txt', blob),
       );
 
       // 所有请求应该成功完成

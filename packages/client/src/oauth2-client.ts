@@ -97,6 +97,9 @@ export class OAuth2Client {
   private readonly redirectUri: string;
   private readonly timeout: number;
 
+  /** Delay (ms) before retrying a failed token exchange request. */
+  private static readonly TOKEN_EXCHANGE_RETRY_DELAY_MS = 1000;
+
   constructor(options: OAuth2ClientOptions) {
     this.serverURL = options.serverURL.replace(/\/$/, '');
     this.redirectUri = options.redirectUri;
@@ -180,7 +183,9 @@ export class OAuth2Client {
    * @param refreshToken Refresh token
    * @returns New access token response
    */
-  async refreshToken(refreshToken: string): Promise<OAuth2TokenRefreshResponse> {
+  async refreshToken(
+    refreshToken: string,
+  ): Promise<OAuth2TokenRefreshResponse> {
     const resp = await this.fetchWithTimeout('/oauth2/refresh', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -211,12 +216,14 @@ export class OAuth2Client {
    * const response = await oauth2Client.tokenExchange({
    *   grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
    *   subject_token: externalJWT,
-   *   subject_token_type: 'urn:ietf:params:oauth:token-type:jwt',
+   *   subject_token_type: 'urn:ietf:params:oauth:token-type:access_token',
    *   device_id: 'device-uuid',
    * });
    * ```
    */
-  async tokenExchange(params: TokenExchangeRequest): Promise<TokenExchangeResponse> {
+  async tokenExchange(
+    params: TokenExchangeRequest,
+  ): Promise<TokenExchangeResponse> {
     // Build form-encoded body (application/x-www-form-urlencoded per OAuth2 spec)
     const body = new URLSearchParams();
     body.append('grant_type', params.grant_type);
@@ -249,12 +256,20 @@ export class OAuth2Client {
           const statusCode = resp.status;
 
           // Check if this is a retryable error (502, 503, 504, 429)
-          const isRetryable = statusCode === 502 || statusCode === 503 ||
-                              statusCode === 504 || statusCode === 429;
+          const isRetryable =
+            statusCode === 502 ||
+            statusCode === 503 ||
+            statusCode === 504 ||
+            statusCode === 429;
 
           if (isRetryable && attempt < maxRetries) {
-            // Retry after 1 second delay
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // Retry after delay
+            await new Promise((resolve) =>
+              setTimeout(
+                resolve,
+                OAuth2Client.TOKEN_EXCHANGE_RETRY_DELAY_MS,
+              ),
+            );
             continue;
           }
 
@@ -275,8 +290,13 @@ export class OAuth2Client {
         // Network errors (fetch failures, AbortError) are retryable — they indicate
         // transient connectivity issues, not client errors.
         if (attempt < maxRetries) {
-          // Retry after 1 second delay
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          // Retry after delay
+          await new Promise((resolve) =>
+            setTimeout(
+              resolve,
+              OAuth2Client.TOKEN_EXCHANGE_RETRY_DELAY_MS,
+            ),
+          );
           continue;
         }
 
@@ -290,7 +310,10 @@ export class OAuth2Client {
     }
 
     // Should never reach here, but satisfy TypeScript
-    throw new TokenExchangeError(0, 'Token exchange failed: max retries exceeded');
+    throw new TokenExchangeError(
+      0,
+      'Token exchange failed: max retries exceeded',
+    );
   }
 
   /**

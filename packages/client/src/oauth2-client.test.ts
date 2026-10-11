@@ -29,7 +29,7 @@ describe('OAuth2Client.tokenExchange', () => {
   const createExchangeParams = (): TokenExchangeRequest => ({
     grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
     subject_token: 'external-jwt-token',
-    subject_token_type: 'urn:ietf:params:oauth:token-type:jwt',
+    subject_token_type: 'urn:ietf:params:oauth:token-type:access_token',
     device_id: 'device-uuid-123',
     device_name: 'Test Device',
     user_agent: 'TestAgent/1.0',
@@ -39,12 +39,13 @@ describe('OAuth2Client.tokenExchange', () => {
     ok: true,
     status: 200,
     statusText: 'OK',
-    json: () => Promise.resolve({
-      access_token: 'rtc-jwt-token',
-      issued_token_type: 'urn:ietf:params:oauth:token-type:access_token',
-      token_type: 'Bearer',
-      expires_in: 3600,
-    }),
+    json: () =>
+      Promise.resolve({
+        access_token: 'rtc-jwt-token',
+        issued_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+        token_type: 'Bearer',
+        expires_in: 3600,
+      }),
   });
 
   it('should exchange external JWT for RTC JWT successfully', async () => {
@@ -54,7 +55,9 @@ describe('OAuth2Client.tokenExchange', () => {
     const result = await client.tokenExchange(params);
 
     expect(result.access_token).toBe('rtc-jwt-token');
-    expect(result.issued_token_type).toBe('urn:ietf:params:oauth:token-type:access_token');
+    expect(result.issued_token_type).toBe(
+      'urn:ietf:params:oauth:token-type:access_token',
+    );
     expect(result.token_type).toBe('Bearer');
     expect(result.expires_in).toBe(3600);
 
@@ -70,9 +73,13 @@ describe('OAuth2Client.tokenExchange', () => {
     // Verify body contains required parameters
     const call = vi.mocked(fetch).mock.calls[0];
     const body = call[1]?.body as string;
-    expect(body).toContain('grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Atoken-exchange');
+    expect(body).toContain(
+      'grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Atoken-exchange',
+    );
     expect(body).toContain('subject_token=external-jwt-token');
-    expect(body).toContain('subject_token_type=urn%3Aietf%3Aparams%3Aoauth%3Atoken-type%3Ajwt');
+    expect(body).toContain(
+      'subject_token_type=urn%3Aietf%3Aparams%3Aoauth%3Atoken-type%3Aaccess_token',
+    );
     expect(body).toContain('device_id=device-uuid-123');
     expect(body).toContain('device_name=Test+Device');
     expect(body).toContain('user_agent=TestAgent%2F1.0');
@@ -86,7 +93,9 @@ describe('OAuth2Client.tokenExchange', () => {
       statusText: 'Bad Request',
     } as Response);
 
-    await expect(client.tokenExchange(params)).rejects.toThrow(TokenExchangeError);
+    await expect(client.tokenExchange(params)).rejects.toThrow(
+      TokenExchangeError,
+    );
 
     // Verify only one attempt (no retry for 4xx)
     expect(fetch).toHaveBeenCalledTimes(1);
@@ -100,7 +109,9 @@ describe('OAuth2Client.tokenExchange', () => {
       statusText: 'Unauthorized',
     } as Response);
 
-    await expect(client.tokenExchange(params)).rejects.toThrow(TokenExchangeError);
+    await expect(client.tokenExchange(params)).rejects.toThrow(
+      TokenExchangeError,
+    );
 
     // Verify only one attempt (no retry for 4xx)
     expect(fetch).toHaveBeenCalledTimes(1);
@@ -178,7 +189,9 @@ describe('OAuth2Client.tokenExchange', () => {
       statusText: 'Bad Gateway',
     } as Response);
 
-    await expect(client.tokenExchange(params)).rejects.toThrow(TokenExchangeError);
+    await expect(client.tokenExchange(params)).rejects.toThrow(
+      TokenExchangeError,
+    );
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
@@ -188,7 +201,9 @@ describe('OAuth2Client.tokenExchange', () => {
       .mockRejectedValueOnce(new Error('Network error'))
       .mockRejectedValueOnce(new Error('Network error'));
 
-    await expect(client.tokenExchange(params)).rejects.toThrow(TokenExchangeError);
+    await expect(client.tokenExchange(params)).rejects.toThrow(
+      TokenExchangeError,
+    );
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
@@ -196,7 +211,7 @@ describe('OAuth2Client.tokenExchange', () => {
     const params: TokenExchangeRequest = {
       grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
       subject_token: 'external-jwt-token',
-      subject_token_type: 'urn:ietf:params:oauth:token-type:jwt',
+      subject_token_type: 'urn:ietf:params:oauth:token-type:access_token',
       device_id: 'device-uuid-123',
       // device_name and user_agent are optional
     };
