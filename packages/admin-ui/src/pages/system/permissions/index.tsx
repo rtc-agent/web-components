@@ -7,9 +7,10 @@ import {
   ProTable,
 } from '@ant-design/pro-components';
 import { Access, useAccess, useIntl, useSearchParams } from '@umijs/max';
-import { Button, message, Popconfirm, Space, Tag } from 'antd';
+import { App, Button, Grid, Popconfirm, Space, Tag } from 'antd';
 import React, { useEffect, useMemo, useRef } from 'react';
 import { getActionTypes, getResourceTypes } from '@/constants/permissions';
+import { usePermissionRefresh } from '@/hooks/usePermissionRefresh';
 import { useRoleOptions } from '@/hooks/useRoleOptions';
 import {
   createPermission,
@@ -28,8 +29,13 @@ const PermissionListPage: React.FC = () => {
   const access = useAccess();
   const intl = useIntl();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { message } = App.useApp();
   const [modalVisible, setModalVisible] = React.useState(false);
   const { roleMap, roleOptions } = useRoleOptions();
+  const breakpoints = Grid.useBreakpoint();
+  const isMobile = !breakpoints.sm;
+  const modalWidth = isMobile ? '95vw' : 520;
+  const { refreshPermissions } = usePermissionRefresh();
 
   const RESOURCE_TYPES = getResourceTypes(intl);
   const ACTION_TYPES = getActionTypes(intl);
@@ -139,7 +145,7 @@ const PermissionListPage: React.FC = () => {
       {
         title: intl.formatMessage({
           id: 'pages.permissions.column.role',
-          defaultMessage: '管理员角色',
+          defaultMessage: 'Admin role',
         }),
         dataIndex: 'role_id',
         valueType: 'text',
@@ -153,7 +159,7 @@ const PermissionListPage: React.FC = () => {
       {
         title: intl.formatMessage({
           id: 'pages.permissions.column.resource',
-          defaultMessage: '资源',
+          defaultMessage: 'Resource',
         }),
         dataIndex: 'resource',
         valueType: 'select',
@@ -174,7 +180,7 @@ const PermissionListPage: React.FC = () => {
       {
         title: intl.formatMessage({
           id: 'pages.permissions.column.action',
-          defaultMessage: '操作',
+          defaultMessage: 'Action',
         }),
         dataIndex: 'action',
         valueType: 'select',
@@ -193,7 +199,7 @@ const PermissionListPage: React.FC = () => {
       {
         title: intl.formatMessage({
           id: 'pages.permissions.column.actions',
-          defaultMessage: '操作',
+          defaultMessage: 'Action',
         }),
         dataIndex: 'option',
         valueType: 'option',
@@ -203,11 +209,13 @@ const PermissionListPage: React.FC = () => {
               <Popconfirm
                 title={intl.formatMessage({
                   id: 'pages.permissions.confirmDelete',
-                  defaultMessage: '确定要删除这个权限策略吗？',
+                  defaultMessage:
+                    'Are you sure you want to delete this permission policy?',
                 })}
                 description={intl.formatMessage({
                   id: 'pages.permissions.confirmDeleteDesc',
-                  defaultMessage: '删除后该管理员角色将失去对应权限',
+                  defaultMessage:
+                    'The admin role will lose corresponding permissions after deletion',
                 })}
                 onConfirm={async () => {
                   try {
@@ -219,17 +227,19 @@ const PermissionListPage: React.FC = () => {
                     message.success(
                       intl.formatMessage({
                         id: 'pages.permissions.deleteSuccess',
-                        defaultMessage: '删除成功',
+                        defaultMessage: 'Deleted successfully',
                       }),
                     );
                     actionRef.current?.reload();
+                    // Refresh current user permissions (permission removal may affect access)
+                    await refreshPermissions();
                   } catch (error: unknown) {
                     message.error(
                       getFriendlyErrorMessage(
                         error,
                         intl.formatMessage({
                           id: 'pages.permissions.deleteFailed',
-                          defaultMessage: '删除失败',
+                          defaultMessage: 'Deletion failed',
                         }),
                       ),
                     );
@@ -237,11 +247,11 @@ const PermissionListPage: React.FC = () => {
                 }}
                 okText={intl.formatMessage({
                   id: 'pages.permissions.confirm',
-                  defaultMessage: '确定',
+                  defaultMessage: 'Confirm',
                 })}
                 cancelText={intl.formatMessage({
                   id: 'pages.permissions.cancel',
-                  defaultMessage: '取消',
+                  defaultMessage: 'Cancel',
                 })}
               >
                 <Button
@@ -252,7 +262,7 @@ const PermissionListPage: React.FC = () => {
                 >
                   {intl.formatMessage({
                     id: 'pages.permissions.delete',
-                    defaultMessage: '删除',
+                    defaultMessage: 'Delete',
                   })}
                 </Button>
               </Popconfirm>
@@ -271,11 +281,13 @@ const PermissionListPage: React.FC = () => {
       message.success(
         intl.formatMessage({
           id: 'pages.permissions.createSuccess',
-          defaultMessage: '创建成功',
+          defaultMessage: 'Created successfully',
         }),
       );
       actionRef.current?.reload();
       setModalVisible(false);
+      // Refresh current user permissions (new permission may grant additional access)
+      await refreshPermissions();
       return true;
     } catch (error: unknown) {
       message.error(
@@ -283,7 +295,7 @@ const PermissionListPage: React.FC = () => {
           error,
           intl.formatMessage({
             id: 'pages.permissions.createFailed',
-            defaultMessage: '创建失败',
+            defaultMessage: 'Creation failed',
           }),
         ),
       );
@@ -296,7 +308,7 @@ const PermissionListPage: React.FC = () => {
       <ProTable<PermissionTableItem>
         headerTitle={intl.formatMessage({
           id: 'pages.permissions.headerTitle',
-          defaultMessage: '权限策略列表',
+          defaultMessage: 'Permission policy list',
         })}
         actionRef={actionRef}
         rowKey={(record) =>
@@ -325,7 +337,7 @@ const PermissionListPage: React.FC = () => {
             >
               {intl.formatMessage({
                 id: 'pages.permissions.createPermission',
-                defaultMessage: '新建权限策略',
+                defaultMessage: 'Create permission policy',
               })}
             </Button>
           </Access>,
@@ -355,7 +367,7 @@ const PermissionListPage: React.FC = () => {
                 error,
                 intl.formatMessage({
                   id: 'pages.permissions.loadFailed',
-                  defaultMessage: '加载权限列表失败',
+                  defaultMessage: 'Failed to load permissions',
                 }),
               ),
             );
@@ -372,10 +384,11 @@ const PermissionListPage: React.FC = () => {
       <ModalForm<PermissionFormValues>
         title={intl.formatMessage({
           id: 'pages.permissions.createPermission',
-          defaultMessage: '新建权限策略',
+          defaultMessage: 'Create permission policy',
         })}
         open={modalVisible}
         onOpenChange={setModalVisible}
+        width={modalWidth}
         modalProps={{
           destroyOnClose: true,
         }}
@@ -385,18 +398,18 @@ const PermissionListPage: React.FC = () => {
           name="role_id"
           label={intl.formatMessage({
             id: 'pages.permissions.roleLabel',
-            defaultMessage: '管理员角色',
+            defaultMessage: 'Admin role',
           })}
           placeholder={intl.formatMessage({
             id: 'pages.permissions.rolePlaceholder',
-            defaultMessage: '请选择管理员角色',
+            defaultMessage: 'Please select admin role',
           })}
           rules={[
             {
               required: true,
               message: intl.formatMessage({
                 id: 'pages.permissions.roleRequired',
-                defaultMessage: '请选择管理员角色',
+                defaultMessage: 'Please select admin role',
               }),
             },
           ]}
@@ -406,18 +419,18 @@ const PermissionListPage: React.FC = () => {
           name="resource"
           label={intl.formatMessage({
             id: 'pages.permissions.resourceLabel',
-            defaultMessage: '资源',
+            defaultMessage: 'Resource',
           })}
           placeholder={intl.formatMessage({
             id: 'pages.permissions.resourcePlaceholder',
-            defaultMessage: '请选择资源类型',
+            defaultMessage: 'Please select resource type',
           })}
           rules={[
             {
               required: true,
               message: intl.formatMessage({
                 id: 'pages.permissions.resourceRequired',
-                defaultMessage: '请选择资源类型',
+                defaultMessage: 'Please select resource type',
               }),
             },
           ]}
@@ -427,18 +440,18 @@ const PermissionListPage: React.FC = () => {
           name="action"
           label={intl.formatMessage({
             id: 'pages.permissions.actionLabel',
-            defaultMessage: '操作',
+            defaultMessage: 'Action',
           })}
           placeholder={intl.formatMessage({
             id: 'pages.permissions.actionPlaceholder',
-            defaultMessage: '请选择操作类型',
+            defaultMessage: 'Please select operation type',
           })}
           rules={[
             {
               required: true,
               message: intl.formatMessage({
                 id: 'pages.permissions.actionRequired',
-                defaultMessage: '请选择操作类型',
+                defaultMessage: 'Please select operation type',
               }),
             },
           ]}

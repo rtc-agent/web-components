@@ -1,4 +1,4 @@
-import { EditOutlined, PlusOutlined, TeamOutlined } from '@ant-design/icons';
+import { DeleteOutlined, EditOutlined, PlusOutlined, TeamOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import {
   ModalForm,
@@ -8,23 +8,16 @@ import {
   ProTable,
 } from '@ant-design/pro-components';
 import { Access, useAccess, useIntl, useSearchParams } from '@umijs/max';
-import {
-  App,
-  Button,
-  Grid,
-  List,
-  Modal,
-  Popconfirm,
-  Space,
-  Tag,
-} from 'antd';
+import { App, Button, Grid, List, Modal, Popconfirm, Space, Tag } from 'antd';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { usePermissionRefresh } from '@/hooks/usePermissionRefresh';
 import { useRoleOptions } from '@/hooks/useRoleOptions';
 import type { UserInfo } from '@/services/admin-auth';
 import type { UserRoleAssignment } from '@/services/userRole';
 import {
   assignUserRoles,
   createAdminUser,
+  deleteAdminUser,
   getUserList,
   getUserRoles,
   revokeUserRole,
@@ -50,9 +43,10 @@ const AdminUserManagementPage: React.FC = () => {
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const breakpoints = Grid.useBreakpoint();
-  const isMobile = !breakpoints.sm;
+  const isMobile = !breakpoints.md;
   const modalWidth = isMobile ? '95vw' : 520;
   const roleModalWidth = isMobile ? '95vw' : 600;
+  const { refreshPermissions } = usePermissionRefresh();
 
   // === Register Page API ===
   useEffect(() => {
@@ -120,13 +114,22 @@ const AdminUserManagementPage: React.FC = () => {
         }
       },
 
-      // Delete admin users
-      // TODO: deleteAdminUser service function is not yet implemented - returns failure until API is available
-      remove: async (_ids) => {
-        console.warn(
-          '[Admin Page API] remove not implemented - delete API not available in service layer',
-        );
-        return { success: false };
+      // Delete admin users (parallel execution)
+      remove: async (ids) => {
+        try {
+          const results = await Promise.all(ids.map((id) => deleteAdminUser(id)));
+          const failures = results.filter((r) => !r.success);
+          actionRef.current?.reload();
+          // Refresh current user permissions if needed
+          await refreshPermissions();
+          return {
+            success: failures.length === 0,
+            deletedCount: ids.length - failures.length,
+          };
+        } catch (error) {
+          console.error('[Admin Page API] remove failed:', error);
+          return { success: false };
+        }
       },
 
       // Query roles assigned to a user
@@ -304,6 +307,8 @@ const AdminUserManagementPage: React.FC = () => {
       const response = await getUserRoles(currentRow.id);
       setUserRoles(response.items);
       actionRef.current?.reload();
+      // Refresh current user permissions (may have assigned roles to self)
+      await refreshPermissions();
       return true;
     } catch (error: unknown) {
       message.error(
@@ -335,6 +340,8 @@ const AdminUserManagementPage: React.FC = () => {
         setUserRoles(response.items);
       }
       actionRef.current?.reload();
+      // Refresh current user permissions (may have revoked roles from self)
+      await refreshPermissions();
     } catch (error: unknown) {
       message.error(
         getFriendlyErrorMessage(
@@ -383,6 +390,7 @@ const AdminUserManagementPage: React.FC = () => {
         dataIndex: 'name',
         valueType: 'text',
         search: false,
+        hideInTable: isMobile,
       },
       {
         title: intl.formatMessage({
@@ -440,11 +448,60 @@ const AdminUserManagementPage: React.FC = () => {
                 })}
               </Button>
             </Access>
+            <Access accessible={access.canAdminUserDelete} fallback={null}>
+              <Popconfirm
+                title={intl.formatMessage({
+                  id: 'pages.adminUsers.confirmDelete',
+                  defaultMessage: 'Are you sure you want to delete this admin?',
+                })}
+                description={intl.formatMessage({
+                  id: 'pages.adminUsers.confirmDeleteDesc',
+                  defaultMessage: 'This action cannot be undone',
+                })}
+                onConfirm={async () => {
+                  try {
+                    await deleteAdminUser(record.id);
+                    message.success(
+                      intl.formatMessage({
+                        id: 'pages.adminUsers.deleteSuccess',
+                        defaultMessage: 'Admin deleted successfully',
+                      }),
+                    );
+                    actionRef.current?.reload();
+                  } catch (error: unknown) {
+                    message.error(
+                      getFriendlyErrorMessage(
+                        error,
+                        intl.formatMessage({
+                          id: 'pages.adminUsers.deleteFailed',
+                          defaultMessage: 'Failed to delete admin',
+                        }),
+                      ),
+                    );
+                  }
+                }}
+                okText={intl.formatMessage({
+                  id: 'pages.adminUsers.confirm',
+                  defaultMessage: 'Confirm',
+                })}
+                cancelText={intl.formatMessage({
+                  id: 'pages.adminUsers.cancel',
+                  defaultMessage: 'Cancel',
+                })}
+              >
+                <Button type="link" danger size="small" icon={<DeleteOutlined />}>
+                  {intl.formatMessage({
+                    id: 'pages.adminUsers.delete',
+                    defaultMessage: 'Delete',
+                  })}
+                </Button>
+              </Popconfirm>
+            </Access>
           </Space>
         ),
       },
     ],
-    [intl, access],
+    [intl, access, isMobile],
   );
 
   return (
@@ -743,6 +800,13 @@ const AdminUserManagementPage: React.FC = () => {
               message: intl.formatMessage({
                 id: 'pages.adminUsers.passwordMin',
                 defaultMessage: 'Password must be at least 6 characters',
+              }),
+            },
+            {
+              max: 128,
+              message: intl.formatMessage({
+                id: 'pages.adminUsers.passwordMax',
+                defaultMessage: 'Password cannot exceed 128 characters',
               }),
             },
           ]}

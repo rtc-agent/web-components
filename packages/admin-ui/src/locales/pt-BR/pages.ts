@@ -159,6 +159,8 @@ export default {
   'pages.sessions.goToUsers': 'Ir para Gerenciamento de Usuários',
   // Message Management
   'pages.messages.title': 'Lista de Mensagens',
+  'pages.messages.name': 'Nome',
+  'pages.messages.toolResult': 'Resultado da Ferramenta',
   'pages.messages.headerTitle': 'Lista de Mensagens',
   'pages.messages.sessionId': 'ID da Sessão',
   'pages.messages.sessionIdRequired': 'ID da sessão é obrigatório',
@@ -436,8 +438,12 @@ export default {
   'pages.roles.displayNameLabel': 'Nome de Exibição',
   'pages.roles.displayNamePlaceholder': 'Digite o nome de exibição (ex: Admin)',
   'pages.roles.displayNameRequired': 'Por favor digite o nome de exibição',
+  'pages.roles.displayNameMaxLength':
+    'O nome de exibição não pode exceder 100 caracteres',
   'pages.roles.descriptionLabel': 'Descrição',
   'pages.roles.descriptionPlaceholder': 'Digite a descrição da função',
+  'pages.roles.descriptionWhitespace':
+    'A descrição não pode estar vazia ou conter apenas espaços',
   'pages.roles.permissionManagement': 'Gerenciamento de Permissões - {name}',
   'pages.roles.close': 'Fechar',
   'pages.roles.resourceTypeHeader': 'Tipo de Recurso',
@@ -550,6 +556,7 @@ export default {
     'Digite senha (pelo menos 6 caracteres)',
   'pages.adminUsers.passwordRequired': 'Por favor digite a senha',
   'pages.adminUsers.passwordMin': 'A senha deve ter pelo menos 6 caracteres',
+  'pages.adminUsers.passwordMax': 'A senha não pode exceder 128 caracteres',
   'pages.adminUsers.nameLabel': 'Nome',
   'pages.adminUsers.namePlaceholder': 'Digite nome (opcional)',
   'pages.adminUsers.rolesLabel': 'Funções',
@@ -568,6 +575,11 @@ export default {
   'pages.adminUsers.assignRoleFailed': 'Falha ao atribuir funções',
   'pages.adminUsers.revokeRoleSuccess': 'Função removida com sucesso',
   'pages.adminUsers.revokeRoleFailed': 'Falha ao remover função',
+  'pages.adminUsers.confirmDelete': 'Tem certeza de que deseja excluir este administrador?',
+  'pages.adminUsers.confirmDeleteDesc': 'Esta ação não pode ser desfeita',
+  'pages.adminUsers.deleteSuccess': 'Administrador excluído com sucesso',
+  'pages.adminUsers.deleteFailed': 'Falha ao excluir administrador',
+  'pages.adminUsers.delete': 'Excluir',
   // Account Center
   'pages.account.center.articles': 'Artigos',
   'pages.account.center.applications': 'Aplicações',
@@ -757,15 +769,19 @@ export default {
     'O e-mail de ativação foi enviado para o seu endereço. O e-mail é válido por 24 horas. Por favor, faça login no seu e-mail a tempo e clique no link para ativar sua conta.',
   // RTC Agent Diagnosis Page
   'pages.diagnose.title': 'Diagnóstico de Integração do RTC Agent',
-  'pages.diagnose.agentAlreadyRunning': 'Agent de diagnóstico já está em execução',
+  'pages.diagnose.agentAlreadyRunning':
+    'Agent de diagnóstico já está em execução',
   'pages.diagnose.testingDynamicImport': 'Testando importação dinâmica...',
-  'pages.diagnose.dynamicImportSuccess': 'Importação dinâmica bem-sucedida, agent de teste montado',
+  'pages.diagnose.dynamicImportSuccess':
+    'Importação dinâmica bem-sucedida, agent de teste montado',
   'pages.diagnose.testAgentDestroyed': 'Agent de teste destruído',
   // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
-  'pages.diagnose.dynamicImportFailed': 'Falha na importação dinâmica: ${error}',
+  'pages.diagnose.dynamicImportFailed':
+    'Falha na importação dinâmica: ${error}',
   'pages.diagnose.integrationNormal': 'Integração Normal',
   'pages.diagnose.agentMounted': 'RTC Agent foi montado com sucesso na página',
-  'pages.diagnose.agentNotMounted': 'RTC Agent não está montado (isso pode ser porque você não está logado)',
+  'pages.diagnose.agentNotMounted':
+    'RTC Agent não está montado (isso pode ser porque você não está logado)',
   'pages.diagnose.diagnosticInfo': 'Informações de Diagnóstico',
   'pages.diagnose.useModelStatus': 'Status do useModel:',
   'pages.diagnose.statusNormal': 'Normal',
@@ -780,9 +796,240 @@ export default {
   'pages.diagnose.testDynamicImport': 'Testar Importação Dinâmica',
   'pages.diagnose.reloadPage': 'Recarregar Página',
   'pages.diagnose.instructions': 'Instruções',
-  'pages.diagnose.consoleErrorHint': 'Se você ver o seguinte erro no console do navegador:',
+  'pages.diagnose.consoleErrorHint':
+    'Se você ver o seguinte erro no console do navegador:',
   'pages.diagnose.pleaseCheck': 'Por favor, verifique:',
-  'pages.diagnose.checkClearCache': 'Você limpou o cache do navegador (Cmd+Shift+R / Ctrl+Shift+R)',
-  'pages.diagnose.checkRestartServer': 'Você reiniciou o servidor de desenvolvimento',
-  'pages.diagnose.checkConsoleStack': 'Verifique a pilha de erros completa no console do navegador',
+  'pages.diagnose.checkClearCache':
+    'Você limpou o cache do navegador (Cmd+Shift+R / Ctrl+Shift+R)',
+  'pages.diagnose.checkRestartServer':
+    'Você reiniciou o servidor de desenvolvimento',
+  'pages.diagnose.checkConsoleStack':
+    'Verifique a pilha de erros completa no console do navegador',
+  // Páginas 403/500
+  'pages.403.subTitle':
+    'Desculpe, você não tem permissão para acessar esta página.',
+  'pages.403.backHome': 'Voltar à página inicial',
+  'pages.500.subTitle': 'Desculpe, ocorreu um erro no servidor.',
+  'pages.500.backHome': 'Voltar à página inicial',
+  // Chatbot
+  'pages.chatbot.welcomeText': '🤖 Olá, como posso ajudá-lo?',
+  'pages.chatbot.newConversation': '💬 Nova Conversa',
+  'pages.chatbot.newConversationLabel': 'Nova Conversa',
+  'pages.chatbot.today': 'Hoje',
+  'pages.chatbot.yesterday': 'Ontem',
+  'pages.chatbot.earlier': 'Anterior',
+  'pages.chatbot.delete': 'Excluir',
+  'pages.chatbot.createConversation': 'Nova Conversa',
+  'pages.chatbot.inputPlaceholder':
+    'Digite uma mensagem e pressione Enter para enviar...',
+  // Configuração do Sistema - Conflito de Exclusão
+  'pages.config.system.conflict.deleteTitle': 'Conflito de Exclusão',
+  'pages.config.system.conflict.forceDelete': 'Forçar Exclusão',
+  'pages.config.system.conflict.deleteWarningDesc':
+    'A configuração atual foi modificada por outro administrador. Sua operação de exclusão não pode ser executada diretamente. Você pode escolher recarregar para obter o status mais recente ou forçar a exclusão das alterações da outra pessoa.',
+  'pages.config.system.forceDeleteSuccess':
+    'Configuração forçada excluída com sucesso',
+  // Gerenciamento de Configuração do Usuário - Mais Ações
+  'pages.config.user.moreActions': 'Mais ações',
+  'pages.config.user.forceDeleteSuccess':
+    'Configuração forçada excluída com sucesso',
+  // Formulário Básico
+  'pages.form.basicForm.pageContent':
+    'Páginas de formulário são usadas para coletar ou verificar informações dos usuários. Formulários básicos são comuns em cenários com menos itens de dados.',
+  'pages.form.basicForm.submitSuccess': 'Enviado com sucesso',
+  'pages.form.basicForm.title.label': 'Título',
+  'pages.form.basicForm.title.required': 'Por favor insira um título',
+  'pages.form.basicForm.title.placeholder': 'Dê um nome ao objetivo',
+  'pages.form.basicForm.date.label': 'Data de Início e Fim',
+  'pages.form.basicForm.date.required':
+    'Por favor selecione a data de início e fim',
+  'pages.form.basicForm.date.startPlaceholder': 'Data de início',
+  'pages.form.basicForm.date.endPlaceholder': 'Data de fim',
+  'pages.form.basicForm.goal.label': 'Descrição do Objetivo',
+  'pages.form.basicForm.goal.required':
+    'Por favor insira uma descrição do objetivo',
+  'pages.form.basicForm.goal.placeholder':
+    'Por favor insira seus objetivos de trabalho por fases',
+  'pages.form.basicForm.standard.label': 'Métricas',
+  'pages.form.basicForm.standard.required': 'Por favor insira uma métrica',
+  'pages.form.basicForm.standard.placeholder': 'Por favor insira uma métrica',
+  'pages.form.basicForm.client.label': 'Cliente',
+  'pages.form.basicForm.client.optional': '(opcional)',
+  'pages.form.basicForm.client.tooltip': 'Objeto do serviço alvo',
+  'pages.form.basicForm.client.placeholder':
+    'Por favor descreva o cliente que você atende. Para clientes internos, @nome/ID do funcionário diretamente',
+  'pages.form.basicForm.invites.label': 'Convidados',
+  'pages.form.basicForm.invites.optional': '(opcional)',
+  'pages.form.basicForm.invites.placeholder':
+    'Por favor @nome/ID do funcionário diretamente. Você pode convidar até 5 pessoas',
+  'pages.form.basicForm.weight.label': 'Peso',
+  'pages.form.basicForm.weight.optional': '(opcional)',
+  'pages.form.basicForm.weight.placeholder': 'Por favor insira',
+  'pages.form.basicForm.publicType.label': 'Público',
+  'pages.form.basicForm.publicType.option.public': 'Público',
+  'pages.form.basicForm.publicType.option.partialPublic':
+    'Parcialmente Público',
+  'pages.form.basicForm.publicType.option.private': 'Privado',
+  'pages.form.basicForm.publicType.help':
+    'Clientes e convidados são compartilhados por padrão',
+  'pages.form.basicForm.publicUsers.option.colleagueA': 'Colega A',
+  'pages.form.basicForm.publicUsers.option.colleagueB': 'Colega B',
+  'pages.form.basicForm.publicUsers.option.colleagueC': 'Colega C',
+  // Formulário de Etapas
+  'pages.form.stepForm.pageContent':
+    'Divida uma tarefa de formulário longa ou desconhecida em múltiplas etapas para guiar o usuário a completá-la.',
+  'pages.form.stepForm.payAccount': 'Conta de Pagamento',
+  'pages.form.stepForm.receiverAccount': 'Conta do Destinatário',
+  'pages.form.stepForm.receiverName': 'Nome do Destinatário',
+  'pages.form.stepForm.amount': 'Valor',
+  'pages.form.stepForm.amountSuffix': 'CNY',
+  'pages.form.stepForm.resultTitle': 'Operação Bem-Sucedida',
+  'pages.form.stepForm.resultSubTitle': 'Previsão de chegada em até duas horas',
+  'pages.form.stepForm.resultActionAgain': 'Transferir Novamente',
+  'pages.form.stepForm.resultViewBill': 'Ver Extrato',
+  'pages.form.stepForm.step1Title': 'Preencher Informações de Transferência',
+  'pages.form.stepForm.payAccount.required':
+    'Por favor selecione a conta de pagamento',
+  'pages.form.stepForm.receiverGroup': 'Conta do Destinatário',
+  'pages.form.stepForm.receiverMode.alipay': 'Alipay',
+  'pages.form.stepForm.receiverMode.bank': 'Conta Bancária',
+  'pages.form.stepForm.receiverAccount.required':
+    'Por favor insira a conta do destinatário',
+  'pages.form.stepForm.receiverAccount.emailFormat':
+    'O nome da conta deve estar no formato de e-mail',
+  'pages.form.stepForm.receiverAccount.placeholder': 'test@example.com',
+  'pages.form.stepForm.receiverName.required':
+    'Por favor insira o nome do destinatário',
+  'pages.form.stepForm.receiverName.placeholder':
+    'Por favor insira o nome do destinatário',
+  'pages.form.stepForm.amount.required': 'Por favor insira o valor',
+  'pages.form.stepForm.amount.pattern':
+    'Por favor insira um número de valor válido',
+  'pages.form.stepForm.amount.placeholder': 'Por favor insira o valor',
+  'pages.form.stepForm.step2Title': 'Confirmar Informações de Transferência',
+  'pages.form.stepForm.confirmAlert':
+    'Após confirmar a transferência, os fundos serão transferidos diretamente para a conta da outra parte e não poderão ser reembolsados.',
+  'pages.form.stepForm.password': 'Senha de Pagamento',
+  'pages.form.stepForm.password.required':
+    'A senha de pagamento é necessária para realizar o pagamento',
+  'pages.form.stepForm.step3Title': 'Concluído',
+  'pages.form.stepForm.notice': 'Aviso',
+  'pages.form.stepForm.noticeAlipay': 'Transferir para Conta Alipay',
+  'pages.form.stepForm.noticeBank': 'Transferir para Cartão Bancário',
+  'pages.form.stepForm.noticeDesc':
+    'Se necessário, você pode colocar algumas FAQs sobre o produto aqui. Se necessário, você pode colocar algumas FAQs sobre o produto aqui. Se necessário, você pode colocar algumas FAQs sobre o produto aqui.',
+  // Formulário Avançado
+  'pages.form.advancedForm.pageContent':
+    'Formulários avançados são comumente usados em cenários onde uma grande quantidade de dados é inserida e enviada de uma vez.',
+  'pages.form.advancedForm.submitSuccess': 'Enviado com sucesso',
+  'pages.form.advancedForm.submitFailed':
+    'Falha no envio, por favor tente novamente!',
+  'pages.form.advancedForm.errorPopoverTitle':
+    'Erros de Validação do Formulário',
+  'pages.form.advancedForm.cardWarehouse': 'Gerenciamento de Armazém',
+  'pages.form.advancedForm.cardTask': 'Gerenciamento de Tarefas',
+  'pages.form.advancedForm.cardMembers': 'Gerenciamento de Membros',
+  'pages.form.advancedForm.field.name': 'Nome do Armazém',
+  'pages.form.advancedForm.field.url': 'URL do Armazém',
+  'pages.form.advancedForm.field.owner': 'Administrador do Armazém',
+  'pages.form.advancedForm.field.approver': 'Aprovador',
+  'pages.form.advancedForm.field.dateRange': 'Data de Vigência',
+  'pages.form.advancedForm.field.type': 'Tipo de Armazém',
+  'pages.form.advancedForm.field.name2': 'Nome da Tarefa',
+  'pages.form.advancedForm.field.url2': 'Descrição da Tarefa',
+  'pages.form.advancedForm.field.owner2': 'Executor',
+  'pages.form.advancedForm.field.approver2': 'Pessoa Responsável',
+  'pages.form.advancedForm.field.dateRange2': 'Data de Vigência',
+  'pages.form.advancedForm.field.type2': 'Tipo de Tarefa',
+  'pages.form.advancedForm.name.required': 'Por favor insira o nome do armazém',
+  'pages.form.advancedForm.name.placeholder':
+    'Por favor insira o nome do armazém',
+  'pages.form.advancedForm.url.required': 'Por favor selecione',
+  'pages.form.advancedForm.url.placeholder': 'Por favor insira',
+  'pages.form.advancedForm.owner.required':
+    'Por favor selecione o administrador',
+  'pages.form.advancedForm.owner.placeholder':
+    'Por favor selecione o administrador',
+  'pages.form.advancedForm.owner.option.xiao': 'Fu Xiaoxiao',
+  'pages.form.advancedForm.owner.option.mao': 'Zhou Maomao',
+  'pages.form.advancedForm.approver.required':
+    'Por favor selecione o aprovador',
+  'pages.form.advancedForm.approver.placeholder':
+    'Por favor selecione o aprovador',
+  'pages.form.advancedForm.dateRange.required':
+    'Por favor selecione a data de vigência',
+  'pages.form.advancedForm.type.required':
+    'Por favor selecione o tipo de armazém',
+  'pages.form.advancedForm.type.placeholder':
+    'Por favor selecione o tipo de armazém',
+  'pages.form.advancedForm.type.option.private': 'Privado',
+  'pages.form.advancedForm.type.option.public': 'Público',
+  'pages.form.advancedForm.name2.required': 'Por favor insira',
+  'pages.form.advancedForm.url2.required': 'Por favor selecione',
+  'pages.form.advancedForm.owner2.required':
+    'Por favor selecione o administrador',
+  'pages.form.advancedForm.approver2.required':
+    'Por favor selecione o aprovador',
+  'pages.form.advancedForm.approver2.placeholder':
+    'Por favor selecione o aprovador',
+  'pages.form.advancedForm.dateRange2.required': 'Por favor insira',
+  'pages.form.advancedForm.dateRange2.placeholder': 'Horário do Lembrete',
+  'pages.form.advancedForm.type2.required':
+    'Por favor selecione o tipo de armazém',
+  'pages.form.advancedForm.type2.placeholder':
+    'Por favor selecione o tipo de armazém',
+  'pages.form.advancedForm.column.name': 'Nome do Membro',
+  'pages.form.advancedForm.column.workId': 'ID do Trabalho',
+  'pages.form.advancedForm.column.department': 'Departamento',
+  'pages.form.advancedForm.column.action': 'Ação',
+  'pages.form.advancedForm.column.actionEdit': 'Editar',
+  // Lista Básica
+  'pages.list.basicList.startTime': 'Hora de Início',
+  'pages.list.basicList.deleteTask': 'Excluir Tarefa',
+  'pages.list.basicList.deleteConfirm':
+    'Tem certeza que deseja excluir esta tarefa?',
+  'pages.list.basicList.okText': 'Confirmar',
+  'pages.list.basicList.cancelText': 'Cancelar',
+  'pages.list.basicList.filter.all': 'Todos',
+  'pages.list.basicList.filter.progress': 'Em Progresso',
+  'pages.list.basicList.filter.waiting': 'Aguardando',
+  'pages.list.basicList.searchPlaceholder': 'Por favor insira',
+  'pages.list.basicList.action.edit': 'Editar',
+  'pages.list.basicList.action.delete': 'Excluir',
+  'pages.list.basicList.more': 'Mais',
+  'pages.list.basicList.info.myTodo': 'Minhas Tarefas',
+  'pages.list.basicList.info.myTodoValue': '8 tarefas',
+  'pages.list.basicList.info.avgTime':
+    'Tempo médio de processamento esta semana',
+  'pages.list.basicList.info.avgTimeValue': '32 minutos',
+  'pages.list.basicList.info.completed': 'Tarefas concluídas esta semana',
+  'pages.list.basicList.info.completedValue': '24 tarefas',
+  'pages.list.basicList.cardTitle': 'Lista Básica',
+  'pages.list.basicList.add': 'Adicionar',
+  'pages.list.basicList.modal.editTitle': 'Editar Tarefa',
+  'pages.list.basicList.modal.addTitle': 'Adicionar Tarefa',
+  'pages.list.basicList.modal.titleLabel': 'Nome da Tarefa',
+  'pages.list.basicList.modal.titleRequired':
+    'Por favor insira o nome da tarefa',
+  'pages.list.basicList.modal.titlePlaceholder': 'Por favor insira',
+  'pages.list.basicList.modal.startTimeLabel': 'Hora de Início',
+  'pages.list.basicList.modal.startTimeRequired':
+    'Por favor selecione a hora de início',
+  'pages.list.basicList.modal.startTimePlaceholder': 'Por favor selecione',
+  'pages.list.basicList.modal.ownerLabel': 'Responsável pela Tarefa',
+  'pages.list.basicList.modal.ownerRequired':
+    'Por favor selecione o responsável pela tarefa',
+  'pages.list.basicList.modal.ownerOption.xiao': 'Fu Xiaoxiao',
+  'pages.list.basicList.modal.ownerOption.mao': 'Zhou Maomao',
+  'pages.list.basicList.modal.ownerPlaceholder':
+    'Por favor selecione o administrador',
+  'pages.list.basicList.modal.descLabel': 'Descrição do Produto',
+  'pages.list.basicList.modal.descRules':
+    'Por favor insira uma descrição do produto de pelo menos 5 caracteres!',
+  'pages.list.basicList.modal.descPlaceholder':
+    'Por favor insira pelo menos 5 caracteres',
+  'pages.list.basicList.modal.resultTitle': 'Operação Bem-Sucedida',
+  'pages.list.basicList.modal.resultSubTitle':
+    'Uma série de descrições de informações, curtas e também podem incluir pontuação.',
+  'pages.list.basicList.modal.resultAction': 'Entendi',
 };

@@ -169,6 +169,8 @@ export default {
   'pages.sessions.goToUsers': 'Go to User Management',
   // Message Management
   'pages.messages.title': 'Message List',
+  'pages.messages.name': 'Name',
+  'pages.messages.toolResult': 'Tool Result',
   'pages.messages.headerTitle': 'Message List',
   'pages.messages.sessionId': 'Session ID',
   'pages.messages.sessionIdRequired': 'Session ID is required',
@@ -444,8 +446,12 @@ export default {
   'pages.roles.displayNameLabel': 'Display Name',
   'pages.roles.displayNamePlaceholder': 'Enter display name (e.g. Admin)',
   'pages.roles.displayNameRequired': 'Please enter display name',
+  'pages.roles.displayNameMaxLength':
+    'Display name cannot exceed 100 characters',
   'pages.roles.descriptionLabel': 'Description',
   'pages.roles.descriptionPlaceholder': 'Enter role description',
+  'pages.roles.descriptionWhitespace':
+    'Description cannot be empty or only spaces',
   'pages.roles.permissionManagement': 'Permission Management - {name}',
   'pages.roles.close': 'Close',
   'pages.roles.resourceTypeHeader': 'Resource Type',
@@ -555,6 +561,7 @@ export default {
     'Enter password (at least 6 characters)',
   'pages.adminUsers.passwordRequired': 'Please enter password',
   'pages.adminUsers.passwordMin': 'Password must be at least 6 characters',
+  'pages.adminUsers.passwordMax': 'Password cannot exceed 128 characters',
   'pages.adminUsers.nameLabel': 'Name',
   'pages.adminUsers.namePlaceholder': 'Enter name (optional)',
   'pages.adminUsers.rolesLabel': 'Roles',
@@ -573,6 +580,11 @@ export default {
   'pages.adminUsers.assignRoleFailed': 'Failed to assign roles',
   'pages.adminUsers.revokeRoleSuccess': 'Role removed successfully',
   'pages.adminUsers.revokeRoleFailed': 'Failed to remove role',
+  'pages.adminUsers.confirmDelete': 'Are you sure you want to delete this admin?',
+  'pages.adminUsers.confirmDeleteDesc': 'This action cannot be undone',
+  'pages.adminUsers.deleteSuccess': 'Admin deleted successfully',
+  'pages.adminUsers.deleteFailed': 'Failed to delete admin',
+  'pages.adminUsers.delete': 'Delete',
   // Account Center
   'pages.account.center.articles': 'Articles',
   'pages.account.center.applications': 'Applications',

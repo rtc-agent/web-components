@@ -1,5 +1,5 @@
 import { request } from '@umijs/max';
-import type { RoleInfo, UserInfo } from './admin-auth';
+import type { UserInfo } from './admin-auth';
 
 /**
  * 管理员用户与管理员角色关联响应
@@ -54,8 +54,9 @@ export interface UserRoleListResponse {
  * 查询管理员列表
  * GET /api/admin-users
  *
- * 注意：此 API 需要后端实现。如果后端未实现，此功能将不可用。
- * 开发环境使用 mock 数据（mock/permissionSystem.ts）。
+ * 注意：此 API 代理到后端 admin-server（见 config/proxy.ts）。
+ * 开发环境启用 mock 时（`pnpm start`），Umi mock 插件会拦截此请求
+ * 并返回模拟数据（mock/ 目录下的 handler）。
  */
 export async function getUserList(params?: UserListParams) {
   return request<UserListResponse>('/api/admin-users', {
@@ -71,9 +72,6 @@ export async function getUserList(params?: UserListParams) {
 export async function createAdminUser(body: CreateAdminUserParams) {
   return request<UserInfo>('/api/admin-users', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
     data: body,
   });
 }
@@ -85,10 +83,17 @@ export async function createAdminUser(body: CreateAdminUserParams) {
 export async function updateAdminUser(userId: string, body: UpdateAdminUserParams) {
   return request<UserInfo>(`/api/admin-users/${userId}`, {
     method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-    },
     data: body,
+  });
+}
+
+/**
+ * 删除管理员
+ * DELETE /api/admin-users/:id
+ */
+export async function deleteAdminUser(userId: string) {
+  return request<{ success: boolean }>(`/api/admin-users/${userId}`, {
+    method: 'DELETE',
   });
 }
 
@@ -110,9 +115,6 @@ export async function getUserRoles(userId: string) {
 export async function assignUserRoles(userId: string, body: AssignRolesParams) {
   return request<{ success: boolean }>(`/api/admin-users/${userId}/roles`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
     data: body,
   });
 }

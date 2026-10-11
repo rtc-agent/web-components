@@ -14,10 +14,11 @@ import {
 } from '@ant-design/pro-components';
 import { Access, useAccess, useIntl, useSearchParams } from '@umijs/max';
 import {
+  App,
   Button,
   Checkbox,
+  Grid,
   Modal,
-  message,
   Popconfirm,
   Space,
   Switch,
@@ -27,6 +28,7 @@ import {
 } from 'antd';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { getActionTypes, getResourceTypes } from '@/constants/permissions';
+import { usePermissionRefresh } from '@/hooks/usePermissionRefresh';
 import {
   createPermission,
   deletePermission,
@@ -41,6 +43,7 @@ import {
   updateRole,
 } from '@/services/role';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
+import { parseTableSort } from '../../rtc-users/shared/tableUtils';
 import type { RoleFormValues, RoleTableItem } from './data.d';
 import type { RolePageAPI } from './page-api';
 
@@ -52,6 +55,7 @@ const RoleListPage: React.FC = () => {
   const access = useAccess();
   const intl = useIntl();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { message } = App.useApp();
   const [currentRow, setCurrentRow] = useState<RoleTableItem>();
   const [modalVisible, setModalVisible] = useState(false);
   const { token } = theme.useToken();
@@ -64,6 +68,11 @@ const RoleListPage: React.FC = () => {
   const [togglingPermission, setTogglingPermission] = useState<string | null>(
     null,
   );
+  const breakpoints = Grid.useBreakpoint();
+  const isMobile = !breakpoints.sm;
+  const modalWidth = isMobile ? '95vw' : 520;
+  const permissionModalWidth = isMobile ? '95vw' : 800;
+  const { refreshPermissions } = usePermissionRefresh();
 
   const RESOURCE_TYPES = getResourceTypes(intl);
   const ACTION_TYPES = getActionTypes(intl);
@@ -180,7 +189,7 @@ const RoleListPage: React.FC = () => {
       {
         title: intl.formatMessage({
           id: 'pages.roles.searchPlaceholder',
-          defaultMessage: '输入管理员角色名称、显示名称或描述',
+          defaultMessage: 'Enter admin role name, display name, or description',
         }),
         dataIndex: 'keyword',
         valueType: 'text',
@@ -188,14 +197,15 @@ const RoleListPage: React.FC = () => {
         fieldProps: {
           placeholder: intl.formatMessage({
             id: 'pages.roles.searchPlaceholder',
-            defaultMessage: '输入管理员角色名称、显示名称或描述',
+            defaultMessage:
+              'Enter admin role name, display name, or description',
           }),
         },
       },
       {
         title: intl.formatMessage({
           id: 'pages.roles.column.name',
-          defaultMessage: '管理员角色名称',
+          defaultMessage: 'Admin role name',
         }),
         dataIndex: 'name',
         valueType: 'text',
@@ -204,7 +214,7 @@ const RoleListPage: React.FC = () => {
       {
         title: intl.formatMessage({
           id: 'pages.roles.column.displayName',
-          defaultMessage: '显示名称',
+          defaultMessage: 'Display name',
         }),
         dataIndex: 'display_name',
         valueType: 'text',
@@ -213,7 +223,7 @@ const RoleListPage: React.FC = () => {
       {
         title: intl.formatMessage({
           id: 'pages.roles.column.description',
-          defaultMessage: '描述',
+          defaultMessage: 'Description',
         }),
         dataIndex: 'description',
         valueType: 'text',
@@ -223,7 +233,7 @@ const RoleListPage: React.FC = () => {
       {
         title: intl.formatMessage({
           id: 'pages.roles.column.isSystem',
-          defaultMessage: '系统管理员角色',
+          defaultMessage: 'System administrator role',
         }),
         dataIndex: 'is_system',
         valueType: 'select',
@@ -232,14 +242,14 @@ const RoleListPage: React.FC = () => {
           true: {
             text: intl.formatMessage({
               id: 'pages.roles.yes',
-              defaultMessage: '是',
+              defaultMessage: 'Yes',
             }),
             status: 'Default',
           },
           false: {
             text: intl.formatMessage({
               id: 'pages.roles.no',
-              defaultMessage: '否',
+              defaultMessage: 'No',
             }),
             status: 'Processing',
           },
@@ -249,11 +259,11 @@ const RoleListPage: React.FC = () => {
             {record.is_system
               ? intl.formatMessage({
                   id: 'pages.roles.systemRole',
-                  defaultMessage: '系统管理员角色',
+                  defaultMessage: 'System administrator role',
                 })
               : intl.formatMessage({
                   id: 'pages.roles.customRole',
-                  defaultMessage: '自定义管理员角色',
+                  defaultMessage: 'Custom admin role',
                 })}
           </Tag>
         ),
@@ -261,7 +271,7 @@ const RoleListPage: React.FC = () => {
       {
         title: intl.formatMessage({
           id: 'pages.roles.column.status',
-          defaultMessage: '状态',
+          defaultMessage: 'Status',
         }),
         dataIndex: 'is_enabled',
         valueType: 'select',
@@ -270,14 +280,14 @@ const RoleListPage: React.FC = () => {
           true: {
             text: intl.formatMessage({
               id: 'pages.roles.statusEnabled',
-              defaultMessage: '启用',
+              defaultMessage: 'Enable',
             }),
             status: 'Success',
           },
           false: {
             text: intl.formatMessage({
               id: 'pages.roles.statusDisabled',
-              defaultMessage: '禁用',
+              defaultMessage: 'Disable',
             }),
             status: 'Error',
           },
@@ -290,11 +300,11 @@ const RoleListPage: React.FC = () => {
                 {record.is_enabled
                   ? intl.formatMessage({
                       id: 'pages.roles.statusEnabled',
-                      defaultMessage: '启用',
+                      defaultMessage: 'Enable',
                     })
                   : intl.formatMessage({
                       id: 'pages.roles.statusDisabled',
-                      defaultMessage: '禁用',
+                      defaultMessage: 'Disable',
                     })}
               </Tag>
             }
@@ -304,7 +314,8 @@ const RoleListPage: React.FC = () => {
                 record.is_system
                   ? intl.formatMessage({
                       id: 'pages.roles.systemRoleCannotDisable',
-                      defaultMessage: '系统内置管理员角色不可禁用',
+                      defaultMessage:
+                        'System built-in admin role cannot be disabled',
                     })
                   : ''
               }
@@ -319,21 +330,23 @@ const RoleListPage: React.FC = () => {
                       checked
                         ? intl.formatMessage({
                             id: 'pages.roles.statusEnabled',
-                            defaultMessage: '已启用',
+                            defaultMessage: 'Enabled',
                           })
                         : intl.formatMessage({
                             id: 'pages.roles.statusDisabled',
-                            defaultMessage: '已禁用',
+                            defaultMessage: 'Disabled',
                           }),
                     );
                     actionRef.current?.reload();
+                    // Refresh current user permissions (role status change may affect access)
+                    await refreshPermissions();
                   } catch (error: unknown) {
                     message.error(
                       getFriendlyErrorMessage(
                         error,
                         intl.formatMessage({
                           id: 'pages.roles.operationFailed',
-                          defaultMessage: '操作失败',
+                          defaultMessage: 'Operation failed',
                         }),
                       ),
                     );
@@ -347,7 +360,7 @@ const RoleListPage: React.FC = () => {
       {
         title: intl.formatMessage({
           id: 'pages.roles.column.createdAt',
-          defaultMessage: '创建时间',
+          defaultMessage: 'Created at',
         }),
         dataIndex: 'created_at',
         valueType: 'dateTime',
@@ -357,7 +370,7 @@ const RoleListPage: React.FC = () => {
       {
         title: intl.formatMessage({
           id: 'pages.roles.column.actions',
-          defaultMessage: '操作',
+          defaultMessage: 'Action',
         }),
         dataIndex: 'option',
         valueType: 'option',
@@ -372,7 +385,7 @@ const RoleListPage: React.FC = () => {
               >
                 {intl.formatMessage({
                   id: 'pages.roles.permission',
-                  defaultMessage: '权限',
+                  defaultMessage: 'Permission',
                 })}
               </Button>
             </Access>
@@ -389,7 +402,7 @@ const RoleListPage: React.FC = () => {
               >
                 {intl.formatMessage({
                   id: 'pages.roles.edit',
-                  defaultMessage: '编辑',
+                  defaultMessage: 'Edit',
                 })}
               </Button>
             </Access>
@@ -398,7 +411,8 @@ const RoleListPage: React.FC = () => {
                 <Tooltip
                   title={intl.formatMessage({
                     id: 'pages.roles.systemRoleCannotDelete',
-                    defaultMessage: '系统内置管理员角色不可删除',
+                    defaultMessage:
+                      'System built-in admin role cannot be deleted',
                   })}
                 >
                   <Button
@@ -410,7 +424,7 @@ const RoleListPage: React.FC = () => {
                   >
                     {intl.formatMessage({
                       id: 'pages.roles.delete',
-                      defaultMessage: '删除',
+                      defaultMessage: 'Delete',
                     })}
                   </Button>
                 </Tooltip>
@@ -418,20 +432,22 @@ const RoleListPage: React.FC = () => {
                 <Popconfirm
                   title={intl.formatMessage({
                     id: 'pages.roles.confirmDelete',
-                    defaultMessage: '确定要删除这个管理员角色吗？',
+                    defaultMessage:
+                      'Are you sure you want to delete this admin role?',
                   })}
                   description={
                     <>
                       <p>
                         {intl.formatMessage({
                           id: 'pages.roles.confirmDeleteDesc',
-                          defaultMessage: '删除后无法恢复',
+                          defaultMessage: 'Cannot be recovered after deletion',
                         })}
                       </p>
                       <p style={{ color: token.colorWarning, fontWeight: 500 }}>
                         {intl.formatMessage({
                           id: 'pages.roles.confirmDeleteRoleWarning',
-                          defaultMessage: '该角色下的所有管理员将失去对应权限',
+                          defaultMessage:
+                            'All administrators under this role will lose corresponding permissions',
                         })}
                       </p>
                     </>
@@ -442,17 +458,19 @@ const RoleListPage: React.FC = () => {
                       message.success(
                         intl.formatMessage({
                           id: 'pages.roles.deleteSuccess',
-                          defaultMessage: '删除成功',
+                          defaultMessage: 'Deleted successfully',
                         }),
                       );
                       actionRef.current?.reload();
+                      // Refresh current user permissions (deleted role may have been assigned to current user)
+                      await refreshPermissions();
                     } catch (error: unknown) {
                       message.error(
                         getFriendlyErrorMessage(
                           error,
                           intl.formatMessage({
                             id: 'pages.roles.deleteFailed',
-                            defaultMessage: '删除失败',
+                            defaultMessage: 'Deletion failed',
                           }),
                         ),
                       );
@@ -460,11 +478,11 @@ const RoleListPage: React.FC = () => {
                   }}
                   okText={intl.formatMessage({
                     id: 'pages.roles.confirm',
-                    defaultMessage: '确定',
+                    defaultMessage: 'Confirm',
                   })}
                   cancelText={intl.formatMessage({
                     id: 'pages.roles.cancel',
-                    defaultMessage: '取消',
+                    defaultMessage: 'Cancel',
                   })}
                 >
                   <Button
@@ -475,7 +493,7 @@ const RoleListPage: React.FC = () => {
                   >
                     {intl.formatMessage({
                       id: 'pages.roles.delete',
-                      defaultMessage: '删除',
+                      defaultMessage: 'Delete',
                     })}
                   </Button>
                 </Popconfirm>
@@ -496,7 +514,7 @@ const RoleListPage: React.FC = () => {
         message.success(
           intl.formatMessage({
             id: 'pages.roles.updateSuccess',
-            defaultMessage: '更新成功',
+            defaultMessage: 'Updated successfully',
           }),
         );
       } else {
@@ -504,7 +522,7 @@ const RoleListPage: React.FC = () => {
         message.success(
           intl.formatMessage({
             id: 'pages.roles.createSuccess',
-            defaultMessage: '创建成功',
+            defaultMessage: 'Created successfully',
           }),
         );
       }
@@ -520,11 +538,11 @@ const RoleListPage: React.FC = () => {
           isEdit
             ? intl.formatMessage({
                 id: 'pages.roles.updateFailed',
-                defaultMessage: '更新失败',
+                defaultMessage: 'Update failed',
               })
             : intl.formatMessage({
                 id: 'pages.roles.createFailed',
-                defaultMessage: '创建失败',
+                defaultMessage: 'Creation failed',
               }),
         ),
       );
@@ -551,7 +569,7 @@ const RoleListPage: React.FC = () => {
           error,
           intl.formatMessage({
             id: 'pages.roles.loadPermissionFailed',
-            defaultMessage: '加载权限失败',
+            defaultMessage: 'Failed to load permission',
           }),
         ),
       );
@@ -582,7 +600,7 @@ const RoleListPage: React.FC = () => {
         message.success(
           intl.formatMessage({
             id: 'pages.roles.permissionAdded',
-            defaultMessage: '权限已添加',
+            defaultMessage: 'Permission added',
           }),
         );
       } else {
@@ -595,7 +613,7 @@ const RoleListPage: React.FC = () => {
         message.success(
           intl.formatMessage({
             id: 'pages.roles.permissionRemoved',
-            defaultMessage: '权限已移除',
+            defaultMessage: 'Permission removed',
           }),
         );
       }
@@ -607,13 +625,16 @@ const RoleListPage: React.FC = () => {
         role_id: currentRow.id,
       });
       setRolePermissions(rolePerms.items);
+
+      // Refresh current user permissions (permission change may affect access)
+      await refreshPermissions();
     } catch (error: unknown) {
       message.error(
         getFriendlyErrorMessage(
           error,
           intl.formatMessage({
             id: 'pages.roles.operationFailed',
-            defaultMessage: '操作失败',
+            defaultMessage: 'Operation failed',
           }),
         ),
       );
@@ -634,7 +655,7 @@ const RoleListPage: React.FC = () => {
       <ProTable<RoleTableItem>
         headerTitle={intl.formatMessage({
           id: 'pages.roles.headerTitle',
-          defaultMessage: '管理员角色列表',
+          defaultMessage: 'Admin role list',
         })}
         actionRef={actionRef}
         rowKey="id"
@@ -663,19 +684,21 @@ const RoleListPage: React.FC = () => {
             >
               {intl.formatMessage({
                 id: 'pages.roles.createRole',
-                defaultMessage: '新建管理员角色',
+                defaultMessage: 'Create admin role',
               })}
             </Button>
           </Access>,
         ]}
-        request={async (params) => {
+        request={async (params, sort) => {
           // Read keyword from searchParams (URL is single source of truth)
           const keyword = searchParams.get('keyword') || '';
           try {
+            const sortParams = parseTableSort(sort || {});
             const response = await getRoleList({
               page: params.current,
               page_size: params.pageSize,
               keyword,
+              ...sortParams,
             });
             return {
               data: response.items.map((item) => ({
@@ -691,7 +714,7 @@ const RoleListPage: React.FC = () => {
                 error,
                 intl.formatMessage({
                   id: 'pages.roles.loadFailed',
-                  defaultMessage: '加载管理员角色列表失败',
+                  defaultMessage: 'Failed to load admin roles',
                 }),
               ),
             );
@@ -710,15 +733,16 @@ const RoleListPage: React.FC = () => {
           isEdit
             ? intl.formatMessage({
                 id: 'pages.roles.editRole',
-                defaultMessage: '编辑管理员角色',
+                defaultMessage: 'Edit admin role',
               })
             : intl.formatMessage({
                 id: 'pages.roles.createRole',
-                defaultMessage: '新建管理员角色',
+                defaultMessage: 'Create admin role',
               })
         }
         open={modalVisible}
         onOpenChange={setModalVisible}
+        width={modalWidth}
         modalProps={{
           destroyOnClose: true,
           onCancel: () => {
@@ -741,25 +765,26 @@ const RoleListPage: React.FC = () => {
           name="name"
           label={intl.formatMessage({
             id: 'pages.roles.nameLabel',
-            defaultMessage: '管理员角色名称',
+            defaultMessage: 'Admin role name',
           })}
           placeholder={intl.formatMessage({
             id: 'pages.roles.namePlaceholder',
-            defaultMessage: '请输入管理员角色名称（英文，如 admin）',
+            defaultMessage:
+              'Please enter admin role name (English, e.g., admin)',
           })}
           rules={[
             {
               required: true,
               message: intl.formatMessage({
                 id: 'pages.roles.nameRequired',
-                defaultMessage: '请输入管理员角色名称',
+                defaultMessage: 'Please enter admin role name',
               }),
             },
             {
               min: 3,
               message: intl.formatMessage({
                 id: 'pages.roles.nameMinLength',
-                defaultMessage: '管理员角色名称至少需要 3 个字符',
+                defaultMessage: 'Admin role name must be at least 3 characters',
               }),
             },
             {
@@ -767,7 +792,7 @@ const RoleListPage: React.FC = () => {
               message: intl.formatMessage({
                 id: 'pages.roles.namePattern',
                 defaultMessage:
-                  '管理员角色名称只能包含小写字母、数字和下划线，且以字母开头',
+                  'Admin role name can only contain lowercase letters, numbers, and underscores, and must start with a letter',
               }),
             },
             {
@@ -788,13 +813,18 @@ const RoleListPage: React.FC = () => {
                       new Error(
                         intl.formatMessage({
                           id: 'pages.roles.nameExists',
-                          defaultMessage: '管理员角色名称已存在',
+                          defaultMessage: 'Admin role name already exists',
                         }),
                       ),
                     );
                   }
                 } catch (_error) {
-                  // Ignore errors, let backend validate
+                  // 网络错误或 API 调用失败时，选择放行而不是阻止用户提交。
+                  // 原因：
+                  // 1. 这是前端的前置校验，后端会有最终的唯一性校验
+                  // 2. 网络问题不应阻止用户尝试提交
+                  // 3. 如果后端也失败，会在那时显示更准确的错误信息
+                  // 因此这里选择静默放行，让后端做最终校验
                 }
                 return Promise.resolve();
               },
@@ -803,25 +833,32 @@ const RoleListPage: React.FC = () => {
           disabled={isEdit}
           tooltip={intl.formatMessage({
             id: 'pages.roles.nameTooltip',
-            defaultMessage: '管理员角色名称创建后不可修改',
+            defaultMessage: 'Admin role name cannot be modified after creation',
           })}
         />
         <ProFormText
           name="display_name"
           label={intl.formatMessage({
             id: 'pages.roles.displayNameLabel',
-            defaultMessage: '显示名称',
+            defaultMessage: 'Display name',
           })}
           placeholder={intl.formatMessage({
             id: 'pages.roles.displayNamePlaceholder',
-            defaultMessage: '请输入显示名称（如：管理员）',
+            defaultMessage: 'Please enter display name (e.g., Administrator)',
           })}
           rules={[
             {
               required: true,
               message: intl.formatMessage({
                 id: 'pages.roles.displayNameRequired',
-                defaultMessage: '请输入显示名称',
+                defaultMessage: 'Please enter display name',
+              }),
+            },
+            {
+              max: 100,
+              message: intl.formatMessage({
+                id: 'pages.roles.displayNameMaxLength',
+                defaultMessage: 'Display name cannot exceed 100 characters',
               }),
             },
           ]}
@@ -830,13 +867,22 @@ const RoleListPage: React.FC = () => {
           name="description"
           label={intl.formatMessage({
             id: 'pages.roles.descriptionLabel',
-            defaultMessage: '描述',
+            defaultMessage: 'Description',
           })}
           placeholder={intl.formatMessage({
             id: 'pages.roles.descriptionPlaceholder',
-            defaultMessage: '请输入管理员角色描述',
+            defaultMessage: 'Please enter admin role description',
           })}
           fieldProps={{ rows: 4, maxLength: 500, showCount: true }}
+          rules={[
+            {
+              whitespace: true,
+              message: intl.formatMessage({
+                id: 'pages.roles.descriptionWhitespace',
+                defaultMessage: 'Description cannot be empty or only spaces',
+              }),
+            },
+          ]}
         />
       </ModalForm>
 
@@ -845,7 +891,7 @@ const RoleListPage: React.FC = () => {
         title={intl.formatMessage(
           {
             id: 'pages.roles.permissionManagement',
-            defaultMessage: '权限管理 - {name}',
+            defaultMessage: 'Permission management - {name}',
           },
           { name: currentRow?.display_name || currentRow?.name },
         )}
@@ -866,11 +912,11 @@ const RoleListPage: React.FC = () => {
           >
             {intl.formatMessage({
               id: 'pages.roles.close',
-              defaultMessage: '关闭',
+              defaultMessage: 'Close',
             })}
           </Button>,
         ]}
-        width={800}
+        width={permissionModalWidth}
       >
         <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
           {/*
@@ -889,7 +935,7 @@ const RoleListPage: React.FC = () => {
                 <th style={{ textAlign: 'left', padding: '12px 8px' }}>
                   {intl.formatMessage({
                     id: 'pages.roles.resourceTypeHeader',
-                    defaultMessage: '资源类型',
+                    defaultMessage: 'Resource type',
                   })}
                 </th>
                 {ACTION_TYPES.map((action) => (
