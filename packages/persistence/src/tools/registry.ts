@@ -7,7 +7,7 @@
 import type { Tool, ToolName, ToolParams, ToolResult } from './types.js';
 import { createBuiltinTools, ScriptTool } from './builtin.js';
 import type { RtcAgentAPI } from '../script-engine.js';
-import { createLogger } from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('ToolRegistry');
 
@@ -46,7 +46,9 @@ export class ToolRegistry {
   /** Register a tool (warns on duplicate names) */
   register(tool: Tool): void {
     if (this.tools.has(tool.name)) {
-      log.warn(`Tool '${tool.name}' is already registered and will be overwritten.`);
+      log.warn(
+        `Tool '${tool.name}' is already registered and will be overwritten.`,
+      );
     }
     this.tools.set(tool.name, tool);
   }

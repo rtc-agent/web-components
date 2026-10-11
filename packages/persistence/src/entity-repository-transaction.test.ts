@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EntityRepository, type UpsertResult } from './entity-repository.js';
-import { getDatabase, closeDatabase, type LocalSession, type LocalTurn } from './database.js';
+import {
+  getDatabase,
+  closeDatabase,
+  type LocalSession,
+  type LocalTurn,
+} from './database.js';
 import { getUIUpdateBus, type UIUpdateEvent } from './ui-update-bus.js';
 
 const TEST_DB = 'rtc-agent-test-upsert-transaction';
@@ -128,10 +133,13 @@ describe('upsert transaction safety', () => {
   describe('preserveSyncStatus option', () => {
     it('should preserve sync_status when preserveSyncStatus=true', async () => {
       // Create session with sync_status='pending'
-      await repo.upsertSession({
-        client_id: 's1',
-        title: 'Test',
-      }, 'pending');
+      await repo.upsertSession(
+        {
+          client_id: 's1',
+          title: 'Test',
+        },
+        'pending',
+      );
 
       // Update with preserveSyncStatus=true
       const result = await repo.upsertSession(
@@ -140,7 +148,7 @@ describe('upsert transaction safety', () => {
           pending_turn_count: 5,
         },
         'synced', // This should be ignored
-        { preserveSyncStatus: true }
+        { preserveSyncStatus: true },
       );
 
       // sync_status should remain 'pending'
@@ -149,9 +157,12 @@ describe('upsert transaction safety', () => {
     });
 
     it('should overwrite sync_status when preserveSyncStatus=false', async () => {
-      await repo.upsertSession({
-        client_id: 's1',
-      }, 'pending');
+      await repo.upsertSession(
+        {
+          client_id: 's1',
+        },
+        'pending',
+      );
 
       const result = await repo.upsertSession(
         {
@@ -159,21 +170,27 @@ describe('upsert transaction safety', () => {
           title: 'Updated',
         },
         'synced',
-        { preserveSyncStatus: false }
+        { preserveSyncStatus: false },
       );
 
       expect(result.after.sync_status).toBe('synced');
     });
 
     it('should overwrite sync_status by default (preserveSyncStatus not set)', async () => {
-      await repo.upsertSession({
-        client_id: 's1',
-      }, 'pending');
+      await repo.upsertSession(
+        {
+          client_id: 's1',
+        },
+        'pending',
+      );
 
-      const result = await repo.upsertSession({
-        client_id: 's1',
-        title: 'Updated',
-      }, 'synced');
+      const result = await repo.upsertSession(
+        {
+          client_id: 's1',
+          title: 'Updated',
+        },
+        'synced',
+      );
 
       expect(result.after.sync_status).toBe('synced');
     });
@@ -186,7 +203,7 @@ describe('upsert transaction safety', () => {
           title: 'New',
         },
         'failed',
-        { preserveSyncStatus: true }
+        { preserveSyncStatus: true },
       );
 
       // For new sessions, sync_status comes from the parameter
@@ -205,17 +222,17 @@ describe('upsert transaction safety', () => {
         repo.upsertSession(
           { client_id: 's1', pending_turn_count: 1 },
           'synced',
-          { preserveSyncStatus: true, silent: true }
+          { preserveSyncStatus: true, silent: true },
         ),
         repo.upsertSession(
           { client_id: 's1', pending_turn_count: 2 },
           'synced',
-          { preserveSyncStatus: true, silent: true }
+          { preserveSyncStatus: true, silent: true },
         ),
         repo.upsertSession(
           { client_id: 's1', running_turn_count: 1 },
           'synced',
-          { preserveSyncStatus: true, silent: true }
+          { preserveSyncStatus: true, silent: true },
         ),
       ];
 
@@ -245,13 +262,13 @@ describe('upsert transaction safety', () => {
       });
 
       // Should emit events only for changed fields
-      const titleEvents = collectedEvents.filter(e => e.field === 'title');
+      const titleEvents = collectedEvents.filter((e) => e.field === 'title');
       expect(titleEvents.length).toBeGreaterThan(0);
       expect(titleEvents[0].oldValue).toBe('Old');
       expect(titleEvents[0].newValue).toBe('New');
 
       // status should not emit event (unchanged)
-      const statusEvents = collectedEvents.filter(e => e.field === 'status');
+      const statusEvents = collectedEvents.filter((e) => e.field === 'status');
       expect(statusEvents.length).toBe(0);
     });
 
@@ -263,7 +280,7 @@ describe('upsert transaction safety', () => {
 
       // Should emit events for all top-level fields
       expect(collectedEvents.length).toBeGreaterThan(0);
-      const fields = collectedEvents.map(e => e.field);
+      const fields = collectedEvents.map((e) => e.field);
       expect(fields).toContain('client_id');
       expect(fields).toContain('title');
     });
@@ -280,7 +297,7 @@ describe('upsert transaction safety', () => {
           title: 'Silent Update',
         },
         'synced',
-        { silent: true }
+        { silent: true },
       );
 
       expect(collectedEvents.length).toBe(0);
@@ -299,7 +316,7 @@ describe('upsert transaction safety', () => {
           pending_turn_count: 3,
         },
         'synced',
-        { silent: true, preserveSyncStatus: true }
+        { silent: true, preserveSyncStatus: true },
       );
 
       // No events should be emitted
@@ -330,10 +347,13 @@ describe('upsert transaction safety', () => {
     });
 
     it('should preserve sync_status when preserveSyncStatus=true', async () => {
-      await repo.upsertTurn({
-        client_id: 't1',
-        session_client_id: 's1',
-      }, 'pending');
+      await repo.upsertTurn(
+        {
+          client_id: 't1',
+          session_client_id: 's1',
+        },
+        'pending',
+      );
 
       const result = await repo.upsertTurn(
         {
@@ -341,7 +361,7 @@ describe('upsert transaction safety', () => {
           status: 'completed',
         },
         'synced',
-        { preserveSyncStatus: true }
+        { preserveSyncStatus: true },
       );
 
       expect(result.after.sync_status).toBe('pending');
@@ -369,10 +389,13 @@ describe('upsert transaction safety', () => {
     });
 
     it('should preserve sync_status when preserveSyncStatus=true', async () => {
-      await repo.upsertMessage({
-        client_id: 'm1',
-        session_client_id: 's1',
-      }, 'failed');
+      await repo.upsertMessage(
+        {
+          client_id: 'm1',
+          session_client_id: 's1',
+        },
+        'failed',
+      );
 
       const result = await repo.upsertMessage(
         {
@@ -380,7 +403,7 @@ describe('upsert transaction safety', () => {
           content: 'Retry',
         },
         'synced',
-        { preserveSyncStatus: true }
+        { preserveSyncStatus: true },
       );
 
       expect(result.after.sync_status).toBe('failed');
@@ -408,10 +431,13 @@ describe('upsert transaction safety', () => {
     });
 
     it('should preserve sync_status when preserveSyncStatus=true', async () => {
-      await repo.upsertRtc({
-        client_id: 'r1',
-        session_client_id: 's1',
-      }, 'pending');
+      await repo.upsertRtc(
+        {
+          client_id: 'r1',
+          session_client_id: 's1',
+        },
+        'pending',
+      );
 
       const result = await repo.upsertRtc(
         {
@@ -419,7 +445,7 @@ describe('upsert transaction safety', () => {
           status: 'completed',
         },
         'synced',
-        { preserveSyncStatus: true }
+        { preserveSyncStatus: true },
       );
 
       expect(result.after.sync_status).toBe('pending');
@@ -450,7 +476,7 @@ describe('upsert transaction safety', () => {
 
     it('should handle concurrent upserts to different sessions', async () => {
       const sessions = ['s1', 's2', 's3', 's4', 's5'];
-      const updates = sessions.flatMap(s => [
+      const updates = sessions.flatMap((s) => [
         repo.upsertSession({ client_id: s, title: `${s}-title` }),
         repo.upsertSession({ client_id: s, status: 'active' }),
         repo.upsertSession({ client_id: s, pending_turn_count: 5 }),
@@ -557,7 +583,9 @@ describe('upsert transaction safety', () => {
         title: 'Test with "quotes" and <tags> and & symbols',
       });
 
-      expect(result.after.title).toBe('Test with "quotes" and <tags> and & symbols');
+      expect(result.after.title).toBe(
+        'Test with "quotes" and <tags> and & symbols',
+      );
     });
 
     it('should handle Unicode characters', async () => {
@@ -622,7 +650,7 @@ describe('upsert transaction safety', () => {
           running_turn_count: running,
         },
         'synced',
-        { preserveSyncStatus: true, silent: true }
+        { preserveSyncStatus: true, silent: true },
       );
 
       const session = await repo.getClientSession('s1');

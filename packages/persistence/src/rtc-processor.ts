@@ -4,7 +4,7 @@ import type { Mode } from './permission.js';
 import { permissionChecker } from './permission.js';
 import { toolRegistry } from './tools/index.js';
 import type { ToolName, ToolParams } from './tools/types.js';
-import { createLogger } from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('RtcProcessor');
 
@@ -240,7 +240,14 @@ export class RtcProcessor {
           break;
         }
 
-        log.debug('processing RTC:', rtc.client_id, 'tool:', rtc.tool_name, 'sync_status:', rtc.sync_status);
+        log.debug(
+          'processing RTC:',
+          rtc.client_id,
+          'tool:',
+          rtc.tool_name,
+          'sync_status:',
+          rtc.sync_status,
+        );
         try {
           await this.processOne(rtc);
           log.debug('processOne completed successfully');
@@ -255,7 +262,10 @@ export class RtcProcessor {
           log.error('processOne failed:', err);
           // If it's a connection error, exit the loop and wait for connection recovery
           const errMsg = err instanceof Error ? err.message : String(err);
-          if (errMsg.includes('connection') || errMsg.includes('disconnected')) {
+          if (
+            errMsg.includes('connection') ||
+            errMsg.includes('disconnected')
+          ) {
             log.warn('connection error detected, exiting processLoop');
             break;
           }
@@ -289,7 +299,7 @@ export class RtcProcessor {
       if (retryCount >= MAX_SUBMIT_RETRY_COUNT) {
         log.error(
           `RTC ${rtc.client_id} exceeded max submit retry count (${MAX_SUBMIT_RETRY_COUNT}), abandoning. ` +
-          `The RTC remains in sync_status='failed' and will be retried on the next onRtcUpdate cycle.`,
+            `The RTC remains in sync_status='failed' and will be retried on the next onRtcUpdate cycle.`,
         );
         this.retryCountMap.delete(rtc.client_id);
         // Signal to processLoop that this RTC was silently skipped (no progress made).
@@ -342,13 +352,15 @@ export class RtcProcessor {
             error: 'User denied',
           });
         } catch (err) {
-          log.error('submitRtcResult (denied) failed, marking as synced to prevent retry:', err);
+          log.error(
+            'submitRtcResult (denied) failed, marking as synced to prevent retry:',
+            err,
+          );
           // Fallback: directly mark as synced to prevent repeated prompts
           try {
-            await this.persistence.getEntityRepository().upsertRtc(
-              { client_id: rtc.client_id },
-              'synced'
-            );
+            await this.persistence
+              .getEntityRepository()
+              .upsertRtc({ client_id: rtc.client_id }, 'synced');
           } catch (innerErr) {
             log.error('Failed to mark RTC as synced:', innerErr);
             // Last resort: set retry count to max to trigger give-up path
@@ -371,12 +383,23 @@ export class RtcProcessor {
         const toolExecutionPromise = toolRegistry.execute(toolName, params);
         let timeoutHandle: ReturnType<typeof setTimeout>;
         const timeoutPromise = new Promise<never>((_, reject) => {
-          timeoutHandle = setTimeout(() => reject(new Error(`Tool execution timeout after ${PROCESS_TIMEOUT_MS}ms`)), PROCESS_TIMEOUT_MS);
+          timeoutHandle = setTimeout(
+            () =>
+              reject(
+                new Error(
+                  `Tool execution timeout after ${PROCESS_TIMEOUT_MS}ms`,
+                ),
+              ),
+            PROCESS_TIMEOUT_MS,
+          );
         });
 
         let toolResult;
         try {
-          toolResult = await Promise.race([toolExecutionPromise, timeoutPromise]);
+          toolResult = await Promise.race([
+            toolExecutionPromise,
+            timeoutPromise,
+          ]);
         } finally {
           clearTimeout(timeoutHandle!);
         }

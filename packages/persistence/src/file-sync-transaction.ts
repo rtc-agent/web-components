@@ -1,9 +1,13 @@
 // FileSyncTransaction — Atomic file sync state transitions
 
-import { FileCacheRepository, type CachedFileInfo, type FileSyncStatus } from './file-cache-repository.js';
+import {
+  FileCacheRepository,
+  type CachedFileInfo,
+  type FileSyncStatus,
+} from './file-cache-repository.js';
 import { FileOpCoordinator } from './file-op-coordinator.js';
 import { LifecycleGuard, LifecycleClosedError } from './lifecycle-guard.js';
-import { createLogger } from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('FileSyncTransaction');
 
@@ -101,12 +105,16 @@ export class FileSyncTransaction {
 
     // 3. Transition to intermediate state (checked — P1-001/002 fix)
     const transitioned = await this.coordinator.transitionAndNotify(
-      this.repo, md5, ext, spec.from, spec.to,
+      this.repo,
+      md5,
+      ext,
+      spec.from,
+      spec.to,
     );
     if (!transitioned) {
       log.debug(
         `FileSyncTransaction: transition precondition not met for ${md5}.${ext} ` +
-        `(from [${Array.isArray(spec.from) ? spec.from.join(',') : spec.from}] to ${spec.to})`
+          `(from [${Array.isArray(spec.from) ? spec.from.join(',') : spec.from}] to ${spec.to})`,
       );
       return { success: false, error: 'Transition precondition not met' };
     }
@@ -120,21 +128,29 @@ export class FileSyncTransaction {
       // AbortError: caller cancelled. Leave state in 'syncing' (unchanged).
       // recoverStaleSyncing() on next startup will reset to 'pending'.
       if (err instanceof Error && err.name === 'AbortError') {
-        log.info(`FileSyncTransaction: aborted for ${md5}.${ext}, state unchanged`);
+        log.info(
+          `FileSyncTransaction: aborted for ${md5}.${ext}, state unchanged`,
+        );
         return { success: false, aborted: true };
       }
 
       // LifecycleClosedError: DB closed. Cannot transition at all.
       // State stays in 'syncing'. recoverStaleSyncing() will recover.
       if (err instanceof LifecycleClosedError) {
-        log.debug(`FileSyncTransaction: lifecycle closed for ${md5}.${ext}, state unchanged`);
+        log.debug(
+          `FileSyncTransaction: lifecycle closed for ${md5}.${ext}, state unchanged`,
+        );
         return { success: false, aborted: true };
       }
 
       // OperationalError: genuine failure. Transition to onFailure.
       const errorMessage = err instanceof Error ? err.message : String(err);
       await this.coordinator.transitionAndNotify(
-        this.repo, md5, ext, spec.to, spec.onFailure,
+        this.repo,
+        md5,
+        ext,
+        spec.to,
+        spec.onFailure,
         { errorMessage },
       );
       return { success: false, error: errorMessage };
@@ -144,7 +160,10 @@ export class FileSyncTransaction {
     // The S3 upload succeeded. We MUST transition to 'synced' even if
     // lifecycle is closing. The action already completed on S3.
     const successTransitioned = await this._protectedSuccessTransition(
-      md5, ext, spec.to, spec.onSuccess,
+      md5,
+      ext,
+      spec.to,
+      spec.onSuccess,
     );
 
     if (!successTransitioned) {
@@ -153,7 +172,7 @@ export class FileSyncTransaction {
       // and the next sync will succeed via syncWithDedup (S3 put is idempotent).
       log.warn(
         `FileSyncTransaction: success transition could not complete for ${md5}.${ext}, ` +
-        `will recover on next startup`
+          `will recover on next startup`,
       );
     }
 
@@ -178,12 +197,19 @@ export class FileSyncTransaction {
     // Attempt 1: direct transition
     try {
       const result = await this.coordinator.transitionAndNotify(
-        this.repo, md5, ext, fromState, toState,
+        this.repo,
+        md5,
+        ext,
+        fromState,
+        toState,
       );
       if (result) return true;
     } catch (err) {
       if (!(err instanceof LifecycleClosedError)) {
-        log.warn(`FileSyncTransaction: success transition error for ${md5}.${ext}:`, err);
+        log.warn(
+          `FileSyncTransaction: success transition error for ${md5}.${ext}:`,
+          err,
+        );
       }
     }
 
@@ -192,11 +218,15 @@ export class FileSyncTransaction {
       for (let i = 0; i < 3; i++) {
         const result = await this.guard.run(async () => {
           return await this.coordinator.transitionAndNotify(
-            this.repo, md5, ext, fromState, toState,
+            this.repo,
+            md5,
+            ext,
+            fromState,
+            toState,
           );
         });
         if (result) return true;
-        await new Promise(r => setTimeout(r, 100));
+        await new Promise((r) => setTimeout(r, 100));
       }
     }
 

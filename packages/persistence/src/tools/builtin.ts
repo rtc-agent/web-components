@@ -50,7 +50,9 @@ function validateStringParam(params: ToolParams, name: string): string | null {
     return null;
   }
   if (typeof value !== 'string') {
-    throw new TypeError(`Parameter '${name}' must be a string, got ${typeof value}`);
+    throw new TypeError(
+      `Parameter '${name}' must be a string, got ${typeof value}`,
+    );
   }
   return value;
 }
@@ -73,7 +75,9 @@ function validateNumberParam(params: ToolParams, name: string): number | null {
       return num;
     }
   }
-  throw new TypeError(`Parameter '${name}' must be a number, got ${typeof value}`);
+  throw new TypeError(
+    `Parameter '${name}' must be a number, got ${typeof value}`,
+  );
 }
 
 /**
@@ -92,10 +96,13 @@ function tryParseJsonString(value: string): unknown {
 
 /** write tool mode whitelist (MD4) */
 const VALID_WRITE_MODES = ['overwrite', 'append', 'create-new'] as const;
-type WriteMode = typeof VALID_WRITE_MODES[number];
+type WriteMode = (typeof VALID_WRITE_MODES)[number];
 
 function isValidWriteMode(mode: unknown): mode is WriteMode {
-  return typeof mode === 'string' && (VALID_WRITE_MODES as readonly string[]).includes(mode);
+  return (
+    typeof mode === 'string' &&
+    (VALID_WRITE_MODES as readonly string[]).includes(mode)
+  );
 }
 
 /** ls - list directory contents */
@@ -154,7 +161,10 @@ export class WriteTool implements Tool {
     // MD4: mode whitelist validation
     const rawMode = params.mode ?? 'overwrite';
     if (!isValidWriteMode(rawMode)) {
-      return { success: false, error: `Invalid mode '${rawMode}'. Must be one of: ${VALID_WRITE_MODES.join(', ')}` };
+      return {
+        success: false,
+        error: `Invalid mode '${rawMode}'. Must be one of: ${VALID_WRITE_MODES.join(', ')}`,
+      };
     }
 
     return executeFS(async () => {
@@ -188,7 +198,12 @@ export class EditTool implements Tool {
     const replaceAll = (params.replace_all as boolean) ?? false;
 
     return executeFS(async () => {
-      const result = await virtualFS.edit(path, oldString, newString, replaceAll);
+      const result = await virtualFS.edit(
+        path,
+        oldString,
+        newString,
+        replaceAll,
+      );
       return { path, ...result };
     });
   }
@@ -220,20 +235,29 @@ export class GrepTool implements Tool {
       return { success: false, error: 'pattern is required' };
     }
     const path = validateStringParam(params, 'path') || '/';
-    const caseSensitive = (params['-i'] as boolean) ? false : ((params.case_sensitive as boolean) || false);
+    const caseSensitive = (params['-i'] as boolean)
+      ? false
+      : (params.case_sensitive as boolean) || false;
     const headLimit = validateNumberParam(params, 'head_limit') ?? undefined;
     const offset = validateNumberParam(params, 'offset') ?? 0;
 
     // Context parameters for content mode
     const contextBefore = validateNumberParam(params, '-B') ?? 0;
     const contextAfter = validateNumberParam(params, '-A') ?? 0;
-    const context = validateNumberParam(params, '-C') ?? validateNumberParam(params, 'context') ?? 0;
+    const context =
+      validateNumberParam(params, '-C') ??
+      validateNumberParam(params, 'context') ??
+      0;
     const effectiveContextBefore = context > 0 ? context : contextBefore;
     const effectiveContextAfter = context > 0 ? context : contextAfter;
-    const showLineNumbers = (params['-n'] as boolean) !== undefined ? (params['-n'] as boolean) : true;
+    const showLineNumbers =
+      (params['-n'] as boolean) !== undefined
+        ? (params['-n'] as boolean)
+        : true;
 
     // Output mode
-    const outputMode = (validateStringParam(params, 'output_mode') || 'files_with_matches') as 'content' | 'files_with_matches' | 'count';
+    const outputMode = (validateStringParam(params, 'output_mode') ||
+      'files_with_matches') as 'content' | 'files_with_matches' | 'count';
 
     // Multiline mode
     const multiline = (params.multiline as boolean) || false;
@@ -257,7 +281,7 @@ export class GrepTool implements Tool {
         outputMode,
         multiline,
         glob,
-        type
+        type,
       );
 
       // Format result based on output mode
@@ -282,10 +306,15 @@ export class GrepTool implements Tool {
         }
         let output = result.content;
         output += `\n\nFound ${result.numMatches} total ${result.numMatches !== 1 ? 'occurrences' : 'occurrence'} across ${result.numFiles} ${result.numFiles !== 1 ? 'files' : 'file'}`;
-        if (result.appliedLimit !== undefined || result.appliedOffset !== undefined) {
+        if (
+          result.appliedLimit !== undefined ||
+          result.appliedOffset !== undefined
+        ) {
           output += ' with pagination =';
-          if (result.appliedLimit !== undefined) output += ` limit: ${result.appliedLimit}`;
-          if (result.appliedOffset !== undefined) output += ` offset: ${result.appliedOffset}`;
+          if (result.appliedLimit !== undefined)
+            output += ` limit: ${result.appliedLimit}`;
+          if (result.appliedOffset !== undefined)
+            output += ` offset: ${result.appliedOffset}`;
         }
         return output;
       }
@@ -295,10 +324,15 @@ export class GrepTool implements Tool {
         return 'No matches found';
       }
       let output = result.content;
-      if (result.appliedLimit !== undefined || result.appliedOffset !== undefined) {
+      if (
+        result.appliedLimit !== undefined ||
+        result.appliedOffset !== undefined
+      ) {
         output += '\n\n[Showing results with pagination =';
-        if (result.appliedLimit !== undefined) output += ` limit: ${result.appliedLimit}`;
-        if (result.appliedOffset !== undefined) output += ` offset: ${result.appliedOffset}`;
+        if (result.appliedLimit !== undefined)
+          output += ` limit: ${result.appliedLimit}`;
+        if (result.appliedOffset !== undefined)
+          output += ` offset: ${result.appliedOffset}`;
         output += ']';
       }
       return output;
@@ -313,7 +347,8 @@ export class GrepTool implements Tool {
  */
 export class ScriptTool implements Tool {
   readonly name = 'script';
-  readonly description = 'Save or execute scripts. Actions: save (save script to /scripts/), run (execute saved script), eval (execute inline code)';
+  readonly description =
+    'Save or execute scripts. Actions: save (save script to /scripts/), run (execute saved script), eval (execute inline code)';
 
   private readonly rtcAgent: RtcAgentAPI | null;
 
@@ -337,7 +372,10 @@ export class ScriptTool implements Tool {
     } else if (action === 'eval') {
       return this._evalScript(params);
     } else {
-      return { success: false, error: `Unknown action: ${action}. Use save, run, or eval.` };
+      return {
+        success: false,
+        error: `Unknown action: ${action}. Use save, run, or eval.`,
+      };
     }
   }
 
@@ -366,7 +404,10 @@ export class ScriptTool implements Tool {
       transformTypeScript(code, name);
     } catch (err) {
       if (err instanceof Error && 'isScriptCompileError' in err) {
-        return { success: false, error: `Script syntax check failed: ${(err as ScriptCompileError).message}` };
+        return {
+          success: false,
+          error: `Script syntax check failed: ${(err as ScriptCompileError).message}`,
+        };
       }
       const msg = err instanceof Error ? err.message : String(err);
       return { success: false, error: `Script syntax check failed: ${msg}` };
@@ -433,10 +474,14 @@ export class ScriptTool implements Tool {
     scriptParams: Record<string, unknown>,
     timeout: number,
     inlineCode?: string,
-    title?: string
+    title?: string,
   ): Promise<ToolResult> {
     if (!this.rtcAgent) {
-      return { success: false, error: 'rtcAgent not initialized. Pass rtcAgent to ScriptTool constructor.' };
+      return {
+        success: false,
+        error:
+          'rtcAgent not initialized. Pass rtcAgent to ScriptTool constructor.',
+      };
     }
 
     try {
@@ -455,7 +500,12 @@ export class ScriptTool implements Tool {
 
       // Create output collector
       const output = { logs: [], warns: [], errors: [] };
-      const sandbox = createSandbox(this.rtcAgent, scriptParams, output, title || undefined);
+      const sandbox = createSandbox(
+        this.rtcAgent,
+        scriptParams,
+        output,
+        title || undefined,
+      );
 
       // Timing: record script execution duration
       const startTime = performance.now();
@@ -469,13 +519,19 @@ export class ScriptTool implements Tool {
       // Truncate console output (max 100 entries to prevent oversized data from bloating the database)
       const MAX_LOG_ENTRIES = 100;
       if (output.logs.length > 0) {
-        data.logs = output.logs.slice(0, MAX_LOG_ENTRIES).map(tryParseJsonString);
+        data.logs = output.logs
+          .slice(0, MAX_LOG_ENTRIES)
+          .map(tryParseJsonString);
       }
       if (output.warns.length > 0) {
-        data.warnings = output.warns.slice(0, MAX_LOG_ENTRIES).map(tryParseJsonString);
+        data.warnings = output.warns
+          .slice(0, MAX_LOG_ENTRIES)
+          .map(tryParseJsonString);
       }
       if (output.errors.length > 0) {
-        data.errors = output.errors.slice(0, MAX_LOG_ENTRIES).map(tryParseJsonString);
+        data.errors = output.errors
+          .slice(0, MAX_LOG_ENTRIES)
+          .map(tryParseJsonString);
       }
       data.duration_ms = durationMs;
 
@@ -489,7 +545,10 @@ export class ScriptTool implements Tool {
         return { success: false, error: (err as ScriptTimeoutError).message };
       }
       if (err instanceof Error && 'isScriptCompileError' in err) {
-        return { success: false, error: `Script compile error: ${(err as ScriptCompileError).message}` };
+        return {
+          success: false,
+          error: `Script compile error: ${(err as ScriptCompileError).message}`,
+        };
       }
       // MD6: Properly handle Error objects
       const msg = err instanceof Error ? err.message : String(err);

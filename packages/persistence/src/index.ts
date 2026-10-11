@@ -12,14 +12,53 @@
  * class. Splitting would scatter the integration logic across files, making it
  * harder to understand the data flow between IndexedDB, S3, and the WebSocket client.
  */
-import { RTCAgentClient, type RTCAgentClientOptions, type PublicationEvent, S3Client, type HeadObjectResult } from '@rtc-agent/client';
-import type { Update, ContentData, SendMessageRequest, ForkSessionRequest, CompactSessionRequest } from '@rtc-agent/protocol';
-import { getDatabase, closeDatabase, flushAll, type LocalSession, type LocalMessage, type LocalRtc, type DebugHistoryItem, type FileCacheEntry, type UploadPartRecord } from './database.js';
+import {
+  RTCAgentClient,
+  type RTCAgentClientOptions,
+  type PublicationEvent,
+  S3Client,
+  type HeadObjectResult,
+} from '@rtc-agent/client';
+import type {
+  Update,
+  ContentData,
+  SendMessageRequest,
+  ForkSessionRequest,
+  CompactSessionRequest,
+} from '@rtc-agent/protocol';
+import {
+  getDatabase,
+  closeDatabase,
+  flushAll,
+  type LocalSession,
+  type LocalMessage,
+  type LocalRtc,
+  type DebugHistoryItem,
+  type FileCacheEntry,
+  type UploadPartRecord,
+} from './database.js';
 import { getOffsetManager } from './offset-manager.js';
-import { initEntityRepository, getEntityRepository } from './entity-repository.js';
-import { initDebugHistoryRepository, getDebugHistoryRepository, type PagedResult } from './debug-history-repository.js';
-import { initFileCacheRepository, getFileCacheRepository, SYNC_LOCK_TIMEOUT_MS, type FileCacheRepository, type CachedFileInfo } from './file-cache-repository.js';
-import { initUploadProgressRepository, getUploadProgressRepository, type UploadProgressRepository } from './upload-progress-repository.js';
+import {
+  initEntityRepository,
+  getEntityRepository,
+} from './entity-repository.js';
+import {
+  initDebugHistoryRepository,
+  getDebugHistoryRepository,
+  type PagedResult,
+} from './debug-history-repository.js';
+import {
+  initFileCacheRepository,
+  getFileCacheRepository,
+  SYNC_LOCK_TIMEOUT_MS,
+  type FileCacheRepository,
+  type CachedFileInfo,
+} from './file-cache-repository.js';
+import {
+  initUploadProgressRepository,
+  getUploadProgressRepository,
+  type UploadProgressRepository,
+} from './upload-progress-repository.js';
 import { FileOpCoordinator } from './file-op-coordinator.js';
 import { nowRFC3339 } from './time-utils.js';
 import { virtualFS } from './virtual-fs.js';
@@ -65,7 +104,11 @@ export { ResourceScope } from './resource-scope.js';
 export { FileSyncTransaction } from './file-sync-transaction.js';
 export { TrackedBackgroundTask } from './tracked-background-task.js';
 export { createBuiltinTools } from './tools/builtin.js';
-export { RtcProcessor, type ConfirmDialogFn, type AskUserDialogFn } from './rtc-processor.js';
+export {
+  RtcProcessor,
+  type ConfirmDialogFn,
+  type AskUserDialogFn,
+} from './rtc-processor.js';
 export { DebugHistoryManager } from './debug-history-manager.js';
 
 /**
@@ -123,16 +166,24 @@ export class PersistenceLayer {
   constructor(config: PersistenceConfig) {
     // CRITICAL FIX: Validate required configuration fields to prevent runtime errors
     if (!config.deviceId) {
-      throw new Error('[PersistenceLayer] deviceId is required in PersistenceConfig');
+      throw new Error(
+        '[PersistenceLayer] deviceId is required in PersistenceConfig',
+      );
     }
     if (!config.userId) {
-      throw new Error('[PersistenceLayer] userId is required in PersistenceConfig');
+      throw new Error(
+        '[PersistenceLayer] userId is required in PersistenceConfig',
+      );
     }
     if (!config.serverURL) {
-      throw new Error('[PersistenceLayer] serverURL is required in PersistenceConfig');
+      throw new Error(
+        '[PersistenceLayer] serverURL is required in PersistenceConfig',
+      );
     }
     if (!config.client) {
-      throw new Error('[PersistenceLayer] client is required in PersistenceConfig');
+      throw new Error(
+        '[PersistenceLayer] client is required in PersistenceConfig',
+      );
     }
 
     this._userId = config.userId;
@@ -177,18 +228,26 @@ export class PersistenceLayer {
       onPublications: async (events: PublicationEvent[]) => {
         await this.handlePublications(events);
       },
-      suspendUIUpdates: config.client.suspendUIUpdates ?? (() => {
-        getUIUpdateBus().suspend();
-      }),
-      resumeUIUpdates: config.client.resumeUIUpdates ?? (() => {
-        getUIUpdateBus().resume();
-      }),
-      onGapFillStart: config.client.onGapFillStart ?? (() => {
-        getUIUpdateBus().emitGapFillStart();
-      }),
-      onGapFillEnd: config.client.onGapFillEnd ?? (() => {
-        getUIUpdateBus().emitGapFillEnd();
-      }),
+      suspendUIUpdates:
+        config.client.suspendUIUpdates ??
+        (() => {
+          getUIUpdateBus().suspend();
+        }),
+      resumeUIUpdates:
+        config.client.resumeUIUpdates ??
+        (() => {
+          getUIUpdateBus().resume();
+        }),
+      onGapFillStart:
+        config.client.onGapFillStart ??
+        (() => {
+          getUIUpdateBus().emitGapFillStart();
+        }),
+      onGapFillEnd:
+        config.client.onGapFillEnd ??
+        (() => {
+          getUIUpdateBus().emitGapFillEnd();
+        }),
     };
 
     this.client = new RTCAgentClient(clientOptions);
@@ -201,7 +260,7 @@ export class PersistenceLayer {
 
     // Schedule delayed cache cleanup (5 seconds after initialization)
     this._cleanupTimer = setTimeout(() => {
-      this.fileCacheRepository.evictExpired().catch(err => {
+      this.fileCacheRepository.evictExpired().catch((err) => {
         log.warn('delayed cache cleanup failed:', err);
       });
       this._cleanupTimer = null;
@@ -212,9 +271,10 @@ export class PersistenceLayer {
 
     // P0-1 fix: recover stale 'syncing' entries from previous crashes/aborts.
     // P2-R5-05: tracked in SyncTaskTracker so close() waits for it.
-    const recoverTask = this.fileCacheRepository.recoverStaleSyncing()
-      .then(() => undefined)  // Map to void for SyncTaskTracker
-      .catch(err => {
+    const recoverTask = this.fileCacheRepository
+      .recoverStaleSyncing()
+      .then(() => undefined) // Map to void for SyncTaskTracker
+      .catch((err) => {
         log.warn('recoverStaleSyncing failed (non-fatal):', err);
       });
     this._syncTaskTracker.track(recoverTask, 'recover-stale-syncing');
@@ -322,7 +382,7 @@ export class PersistenceLayer {
    * Uses applyUpdates for batch IndexedDB operations instead of per-item processing.
    */
   private async handlePublications(events: PublicationEvent[]): Promise<void> {
-    const updates = events.map(e => e.data as Update);
+    const updates = events.map((e) => e.data as Update);
     await this.entityRepository.applyUpdates(updates);
   }
 
@@ -347,8 +407,18 @@ export class PersistenceLayer {
    * @param direction 'backward' (default) = newest to oldest; 'forward' = oldest to newest
    * @param cursor Pagination cursor in "${timestamp}|${clientId}" format for (created_at, client_id) compound sort
    */
-  async listMessages(sessionClientId: string, cursor?: string, limit?: number, direction?: 'backward' | 'forward'): Promise<LocalMessage[]> {
-    return this.entityRepository.listMessagesBySession(sessionClientId, cursor, limit, direction);
+  async listMessages(
+    sessionClientId: string,
+    cursor?: string,
+    limit?: number,
+    direction?: 'backward' | 'forward',
+  ): Promise<LocalMessage[]> {
+    return this.entityRepository.listMessagesBySession(
+      sessionClientId,
+      cursor,
+      limit,
+      direction,
+    );
   }
 
   /**
@@ -361,8 +431,16 @@ export class PersistenceLayer {
   /**
    * List RTCs for a session (ascending by offset; cursor is the starting offset).
    */
-  async listRtc(sessionClientId: string, cursor?: number, limit?: number): Promise<LocalRtc[]> {
-    return this.entityRepository.listRtcBySession(sessionClientId, cursor, limit);
+  async listRtc(
+    sessionClientId: string,
+    cursor?: number,
+    limit?: number,
+  ): Promise<LocalRtc[]> {
+    return this.entityRepository.listRtcBySession(
+      sessionClientId,
+      cursor,
+      limit,
+    );
   }
 
   /**
@@ -373,7 +451,9 @@ export class PersistenceLayer {
    *
    * @param sessionClientId Optional session filter
    */
-  async getNextRtcToProcess(sessionClientId?: string): Promise<LocalRtc | undefined> {
+  async getNextRtcToProcess(
+    sessionClientId?: string,
+  ): Promise<LocalRtc | undefined> {
     return this.entityRepository.getNextRtcToProcess(sessionClientId);
   }
 
@@ -403,9 +483,13 @@ export class PersistenceLayer {
   async queryDebugHistory(
     functionName?: string,
     cursor?: string,
-    limit?: number
+    limit?: number,
   ): Promise<PagedResult<DebugHistoryItem>> {
-    return this._debugHistoryManager.queryDebugHistory({ functionName, cursor, limit });
+    return this._debugHistoryManager.queryDebugHistory({
+      functionName,
+      cursor,
+      limit,
+    });
   }
 
   /**
@@ -445,7 +529,7 @@ export class PersistenceLayer {
     ext: string,
     blob: Blob,
     contentType: string,
-    ttlMs?: number
+    ttlMs?: number,
   ): Promise<void> {
     return this.fileCacheRepository.put(md5, ext, blob, contentType, ttlMs);
   }
@@ -468,9 +552,16 @@ export class PersistenceLayer {
     ext: string,
     blob: Blob,
     contentType: string,
-    filename?: string
+    filename?: string,
   ): Promise<void> {
-    return this.fileCacheRepository.putWithSyncStatus(md5, ext, blob, contentType, 'pending', filename);
+    return this.fileCacheRepository.putWithSyncStatus(
+      md5,
+      ext,
+      blob,
+      contentType,
+      'pending',
+      filename,
+    );
   }
 
   /**
@@ -483,7 +574,7 @@ export class PersistenceLayer {
    */
   async getCachedFile(
     md5: string,
-    ext: string
+    ext: string,
   ): Promise<CachedFileInfo | null> {
     return this.fileCacheRepository.get(md5, ext);
   }
@@ -506,8 +597,11 @@ export class PersistenceLayer {
    * @param targetBytes Number of bytes to free (default: 100MB)
    * @returns Actual evicted count and bytes freed
    */
-  async evictCache(targetBytes?: number): Promise<{ evictedCount: number; evictedBytes: number }> {
-    const effectiveTarget = targetBytes && targetBytes > 0 ? targetBytes : 100 * 1024 * 1024;
+  async evictCache(
+    targetBytes?: number,
+  ): Promise<{ evictedCount: number; evictedBytes: number }> {
+    const effectiveTarget =
+      targetBytes && targetBytes > 0 ? targetBytes : 100 * 1024 * 1024;
     try {
       return await this.fileCacheRepository.evictLRU(effectiveTarget);
     } catch (err) {
@@ -547,8 +641,12 @@ export class PersistenceLayer {
     filename?: string,
     signal?: AbortSignal,
     onProgress?: (loaded: number, total: number) => void,
-    cacheTtlMs?: number
-  ): Promise<{ syncStatus: 'pending' | 'syncing' | 'synced' | 'failed'; syncedAt?: number; errorMessage?: string }> {
+    cacheTtlMs?: number,
+  ): Promise<{
+    syncStatus: 'pending' | 'syncing' | 'synced' | 'failed';
+    syncedAt?: number;
+    errorMessage?: string;
+  }> {
     // Check abort signal before starting
     if (signal?.aborted) {
       throw new DOMException('Upload aborted', 'AbortError');
@@ -566,7 +664,7 @@ export class PersistenceLayer {
       contentType || 'application/octet-stream',
       'pending',
       filename,
-      cacheTtlMs
+      cacheTtlMs,
     );
 
     // If offline, report 100% progress after local write
@@ -584,18 +682,39 @@ export class PersistenceLayer {
         await this.fileCacheRepository.withSyncLock(md5, ext, async () => {
           await this.fileCacheRepository.syncWithDedup(md5, ext, async () => {
             // P0-2: use atomic transition with precondition check
-            await this.fileCacheRepository.transitionSyncStatus(md5, ext, 'pending', 'syncing');
+            await this.fileCacheRepository.transitionSyncStatus(
+              md5,
+              ext,
+              'pending',
+              'syncing',
+            );
 
             if (blob.size > MULTIPART_THRESHOLD) {
               // Large file: use multipart upload with resume support
-              await this._uploadMultipart(md5, ext, blob, contentType, signal, onProgress);
+              await this._uploadMultipart(
+                md5,
+                ext,
+                blob,
+                contentType,
+                signal,
+                onProgress,
+              );
             } else {
               // Small file: direct upload (existing logic)
-              await this.s3Client!.upload(this._userId, md5, ext, blob, { contentType, signal, onProgress });
+              await this.s3Client!.upload(this._userId, md5, ext, blob, {
+                contentType,
+                signal,
+                onProgress,
+              });
             }
 
             s3UploadCompleted = true;
-            await this.fileCacheRepository.transitionSyncStatus(md5, ext, 'syncing', 'synced');
+            await this.fileCacheRepository.transitionSyncStatus(
+              md5,
+              ext,
+              'syncing',
+              'synced',
+            );
           });
         });
       } catch (err) {
@@ -605,7 +724,9 @@ export class PersistenceLayer {
           // P3-R7-02: If S3 upload already completed, don't roll back.
           // State stays 'syncing' — recoverStaleSyncing will fix on next startup.
           if (s3UploadCompleted) {
-            log.info(`Upload aborted after S3 completed for ${md5}.${ext}, keeping syncing state`);
+            log.info(
+              `Upload aborted after S3 completed for ${md5}.${ext}, keeping syncing state`,
+            );
             const cached = await this.fileCacheRepository.get(md5, ext);
             return {
               syncStatus: cached?.syncStatus ?? 'syncing',
@@ -622,7 +743,10 @@ export class PersistenceLayer {
             // If another operation already changed it, leave it alone.
             if (cached?.syncStatus === 'syncing') {
               await this.fileCacheRepository.transitionSyncStatus(
-                md5, ext, 'syncing', 'pending'
+                md5,
+                ext,
+                'syncing',
+                'pending',
               );
             }
           });
@@ -635,10 +759,16 @@ export class PersistenceLayer {
         }
         // Sync failed: mark as failed, but file is safely stored locally
         await this.fileCacheRepository.transitionSyncStatus(
-          md5, ext, ['pending', 'syncing'], 'failed',
-          { errorMessage: err instanceof Error ? err.message : String(err) }
+          md5,
+          ext,
+          ['pending', 'syncing'],
+          'failed',
+          { errorMessage: err instanceof Error ? err.message : String(err) },
         );
-        log.warn(`Failed to sync file ${md5}.${ext} to S3 (stored locally, userId=${this._userId}, fileSize=${blob.size}, contentType=${contentType ?? 'n/a'}):`, err);
+        log.warn(
+          `Failed to sync file ${md5}.${ext} to S3 (stored locally, userId=${this._userId}, fileSize=${blob.size}, contentType=${contentType ?? 'n/a'}):`,
+          err,
+        );
       }
     }
 
@@ -677,7 +807,7 @@ export class PersistenceLayer {
     blob: Blob,
     contentType?: string,
     signal?: AbortSignal,
-    onProgress?: (loaded: number, total: number) => void
+    onProgress?: (loaded: number, total: number) => void,
   ): Promise<void> {
     const progressRepo = this.uploadProgressRepository;
     const existing = await progressRepo.get(md5, ext);
@@ -695,14 +825,20 @@ export class PersistenceLayer {
         // Verify uploadId is still valid by listing parts
         // P2-R7-02: Pass signal to listParts for cancellation support
         const serverParts = await this.s3Client!.listParts(
-          this._userId, md5, ext, existing.uploadId, signal
+          this._userId,
+          md5,
+          ext,
+          existing.uploadId,
+          signal,
         );
 
         uploadId = existing.uploadId;
         totalParts = existing.totalParts;
 
         // Build completed parts map from server-confirmed data
-        const serverPartMap = new Map(serverParts.map(p => [p.partNumber, p]));
+        const serverPartMap = new Map(
+          serverParts.map((p) => [p.partNumber, p]),
+        );
         for (const localPart of existing.completedParts) {
           const serverPart = serverPartMap.get(localPart.partNumber);
           if (serverPart) {
@@ -717,9 +853,10 @@ export class PersistenceLayer {
         bytesUploaded = completedParts.reduce((sum, p) => sum + p.size, 0);
         resumeMode = true;
 
-        log.info(`Resuming upload: ${md5}.${ext}, uploadId=${uploadId}, ` +
-          `completed=${completedParts.length}/${totalParts}`);
-
+        log.info(
+          `Resuming upload: ${md5}.${ext}, uploadId=${uploadId}, ` +
+            `completed=${completedParts.length}/${totalParts}`,
+        );
       } catch (err) {
         // uploadId expired or invalid - start fresh
         log.warn(`Cannot resume upload ${md5}.${ext}: ${err}. Starting fresh.`);
@@ -734,16 +871,22 @@ export class PersistenceLayer {
 
       // P2-R7-02: Pass signal to createMultipartUpload for cancellation support
       uploadId = await this.s3Client!.createMultipartUpload(
-        this._userId, md5, ext, contentType, signal
+        this._userId,
+        md5,
+        ext,
+        contentType,
+        signal,
       );
 
       await progressRepo.create(
-        md5, ext, uploadId,
+        md5,
+        ext,
+        uploadId,
         `user-${this._userId}/${md5}.${ext}`,
         blob.size,
         contentType || 'application/octet-stream',
         undefined,
-        partSize
+        partSize,
       );
     }
 
@@ -751,7 +894,7 @@ export class PersistenceLayer {
     try {
       for (let partNum = 1; partNum <= totalParts; partNum++) {
         // Skip already-completed parts
-        if (completedParts.some(p => p.partNumber === partNum)) {
+        if (completedParts.some((p) => p.partNumber === partNum)) {
           continue;
         }
 
@@ -776,12 +919,17 @@ export class PersistenceLayer {
           // Upload part with progress callback
           // P2-R7-02: Pass signal to uploadPart for cancellation support
           const result = await this.s3Client!.uploadPart(
-            this._userId, md5, ext, uploadId, partNum, partData,
+            this._userId,
+            md5,
+            ext,
+            uploadId,
+            partNum,
+            partData,
             (partLoaded, _partTotal) => {
               // Accumulate part progress to global progress
               onProgress?.(partBytesUploaded + partLoaded, blob.size);
             },
-            signal
+            signal,
           );
 
           // Record progress
@@ -803,20 +951,26 @@ export class PersistenceLayer {
       // Complete multipart upload
       // P2-R7-02: Pass signal to completeMultipartUpload for cancellation support
       await this.s3Client!.completeMultipartUpload(
-        this._userId, md5, ext, uploadId,
-        completedParts.map(p => ({ partNumber: p.partNumber, etag: p.etag })),
-        signal
+        this._userId,
+        md5,
+        ext,
+        uploadId,
+        completedParts.map((p) => ({ partNumber: p.partNumber, etag: p.etag })),
+        signal,
       );
 
       // Clean up progress record
       await progressRepo.delete(md5, ext);
 
-      log.info(`Multipart upload completed: ${md5}.${ext}, parts=${totalParts}`);
-
+      log.info(
+        `Multipart upload completed: ${md5}.${ext}, parts=${totalParts}`,
+      );
     } catch (err) {
       // Upload interrupted - progress is saved for resume
-      log.warn(`Multipart upload interrupted: ${md5}.${ext}, ` +
-        `progress saved (${completedParts.length}/${totalParts} parts)`);
+      log.warn(
+        `Multipart upload interrupted: ${md5}.${ext}, ` +
+          `progress saved (${completedParts.length}/${totalParts} parts)`,
+      );
       throw err;
     }
   }
@@ -877,7 +1031,7 @@ export class PersistenceLayer {
     ext: string,
     onProgress?: (loaded: number, total: number) => void,
     signal?: AbortSignal,
-    forceRefresh?: boolean
+    forceRefresh?: boolean,
   ): Promise<Blob> {
     // Check abort signal before starting
     if (signal?.aborted) {
@@ -897,58 +1051,90 @@ export class PersistenceLayer {
 
         // If pending or failed, trigger background sync (don't block the return)
         // For failed files, check retry count to avoid infinite retries
-        const shouldSync = cached.syncStatus === 'pending' ||
-          (cached.syncStatus === 'failed' && (cached.retryCount ?? 0) < MAX_RETRY_COUNT);
+        const shouldSync =
+          cached.syncStatus === 'pending' ||
+          (cached.syncStatus === 'failed' &&
+            (cached.retryCount ?? 0) < MAX_RETRY_COUNT);
 
         if (shouldSync && navigator.onLine) {
-          log.info(`triggering background sync for ${cached.syncStatus} file: ${md5}.${ext}`);
+          log.info(
+            `triggering background sync for ${cached.syncStatus} file: ${md5}.${ext}`,
+          );
           // P1-001/003 fix: use FileSyncTransaction for atomic state transitions
           // FileSyncTransaction handles: re-fetch entry, check transition result, execute action, notify
-          const bgSync = this.fileCacheRepository.withSyncLock(md5, ext, async (lockSignal) => {
-            const tx = new FileSyncTransaction(this.fileCacheRepository, this.fileOpCoordinator, this._lifecycleGuard);
-            const result = await tx.run(md5, ext, {
-              from: ['pending', 'failed'],
-              to: 'syncing',
-              signal: lockSignal,
-              action: async (freshEntry, signal) => {
-                // P1-003: freshEntry is re-fetched inside transaction, guaranteed current
-                // signal is the same as lockSignal (passed through by FileSyncTransaction)
-                if (freshEntry.blob.size > MULTIPART_THRESHOLD) {
-                  await this._uploadMultipart(md5, ext, freshEntry.blob, freshEntry.contentType, signal);
-                } else {
-                  await this.s3Client!.upload(this._userId, md5, ext, freshEntry.blob, {
-                    contentType: freshEntry.contentType,
-                    signal,
-                  });
+          const bgSync = this.fileCacheRepository
+            .withSyncLock(
+              md5,
+              ext,
+              async (lockSignal) => {
+                const tx = new FileSyncTransaction(
+                  this.fileCacheRepository,
+                  this.fileOpCoordinator,
+                  this._lifecycleGuard,
+                );
+                const result = await tx.run(md5, ext, {
+                  from: ['pending', 'failed'],
+                  to: 'syncing',
+                  signal: lockSignal,
+                  action: async (freshEntry, signal) => {
+                    // P1-003: freshEntry is re-fetched inside transaction, guaranteed current
+                    // signal is the same as lockSignal (passed through by FileSyncTransaction)
+                    if (freshEntry.blob.size > MULTIPART_THRESHOLD) {
+                      await this._uploadMultipart(
+                        md5,
+                        ext,
+                        freshEntry.blob,
+                        freshEntry.contentType,
+                        signal,
+                      );
+                    } else {
+                      await this.s3Client!.upload(
+                        this._userId,
+                        md5,
+                        ext,
+                        freshEntry.blob,
+                        {
+                          contentType: freshEntry.contentType,
+                          signal,
+                        },
+                      );
+                    }
+                  },
+                  onSuccess: 'synced',
+                  onFailure: 'failed',
+                });
+
+                if (!result.success) {
+                  // P3-R8-01: Distinguish precondition failure (concurrent state change)
+                  // from actual errors. Precondition failures are expected in concurrent
+                  // scenarios and should be logged at debug level, not warn.
+                  if (result.error === 'Transition precondition not met') {
+                    log.debug(
+                      `background sync: skipped ${md5}.${ext} (state changed concurrently)`,
+                    );
+                  } else {
+                    log.debug(
+                      `background sync: transaction returned '${result.error}' for ${md5}.${ext}`,
+                    );
+                  }
                 }
               },
-              onSuccess: 'synced',
-              onFailure: 'failed',
-            });
-
-            if (!result.success) {
-              // P3-R8-01: Distinguish precondition failure (concurrent state change)
-              // from actual errors. Precondition failures are expected in concurrent
-              // scenarios and should be logged at debug level, not warn.
-              if (result.error === 'Transition precondition not met') {
-                log.debug(`background sync: skipped ${md5}.${ext} (state changed concurrently)`);
-              } else {
-                log.debug(`background sync: transaction returned '${result.error}' for ${md5}.${ext}`);
+              SYNC_LOCK_TIMEOUT_MS,
+              this._closeSignal,
+            )
+            .catch((err) => {
+              // AbortError: don't mark as failed — keep current state for retry
+              if (err instanceof Error && err.name === 'AbortError') {
+                log.info(`background sync cancelled for ${md5}.${ext}`);
+                return;
               }
-            }
-          }, SYNC_LOCK_TIMEOUT_MS, this._closeSignal).catch(err => {
-            // AbortError: don't mark as failed — keep current state for retry
-            if (err instanceof Error && err.name === 'AbortError') {
-              log.info(`background sync cancelled for ${md5}.${ext}`);
-              return;
-            }
-            // LifecycleClosedError: graceful shutdown
-            if (err instanceof LifecycleClosedError) {
-              log.debug('background sync: lifecycle closed, ignoring');
-              return;
-            }
-            log.warn('background sync failed:', err);
-          });
+              // LifecycleClosedError: graceful shutdown
+              if (err instanceof LifecycleClosedError) {
+                log.debug('background sync: lifecycle closed, ignoring');
+                return;
+              }
+              log.warn('background sync failed:', err);
+            });
           this._syncTaskTracker.track(bgSync, `background-sync-${md5}.${ext}`);
         }
 
@@ -964,7 +1150,11 @@ export class PersistenceLayer {
       const blob = await this.fileCacheRepository.downloadWithDedup(
         md5,
         ext,
-        () => this.s3Client!.download(this._userId, md5, ext, { signal, onProgress })
+        () =>
+          this.s3Client!.download(this._userId, md5, ext, {
+            signal,
+            onProgress,
+          }),
       );
 
       // 3. Get content type from head.
@@ -975,7 +1165,10 @@ export class PersistenceLayer {
         const head = await this.s3Client.head(this._userId, md5, ext);
         contentType = head.contentType ?? contentType;
       } catch (headErr) {
-        log.warn(`head() failed for ${md5}.${ext}, using default contentType:`, headErr);
+        log.warn(
+          `head() failed for ${md5}.${ext}, using default contentType:`,
+          headErr,
+        );
       }
 
       // 4. Cache the downloaded file
@@ -990,15 +1183,22 @@ export class PersistenceLayer {
           // Gap 2 fix: if an entry already exists, use updateBlob() to only refresh data/contentType
           // without resetting createdAt (putWithSyncStatus would reset createdAt to Date.now()).
           // P1-3 fix is also preserved: syncStatus is not modified by updateBlob().
-          log.debug(`downloadFile: entry exists for ${md5}.${ext}, updating blob only (preserving createdAt)`);
-          await this.fileCacheRepository.updateBlob(md5, ext, blob, contentType);
+          log.debug(
+            `downloadFile: entry exists for ${md5}.${ext}, updating blob only (preserving createdAt)`,
+          );
+          await this.fileCacheRepository.updateBlob(
+            md5,
+            ext,
+            blob,
+            contentType,
+          );
         } else {
           await this.fileCacheRepository.putWithSyncStatus(
             md5,
             ext,
             blob,
             contentType,
-            'synced'
+            'synced',
           );
         }
       });
@@ -1010,7 +1210,10 @@ export class PersistenceLayer {
         throw err;
       }
       // S3 download failed: nothing was cached, no stale entry to clean up
-      log.error(`download failed for ${md5}.${ext} (userId=${this._userId}):`, err);
+      log.error(
+        `download failed for ${md5}.${ext} (userId=${this._userId}):`,
+        err,
+      );
       throw err;
     }
   }
@@ -1047,7 +1250,11 @@ export class PersistenceLayer {
    * @param expiresIn Expiration time in seconds (default: 3600)
    * @returns Presigned URL string
    */
-  async getPresignedUrl(operation: 'get' | 'put', key: string, expiresIn?: number): Promise<string> {
+  async getPresignedUrl(
+    operation: 'get' | 'put',
+    key: string,
+    expiresIn?: number,
+  ): Promise<string> {
     if (!this.s3Client) {
       throw new Error('S3Client not initialized');
     }
@@ -1064,7 +1271,7 @@ export class PersistenceLayer {
   async listFiles(
     syncStatus?: 'pending' | 'syncing' | 'synced' | 'failed',
     limit: number = 100,
-    offset: number = 0
+    offset: number = 0,
   ): Promise<FileCacheEntry[]> {
     return this.fileCacheRepository.listBySyncStatus(syncStatus, limit, offset);
   }
@@ -1075,7 +1282,7 @@ export class PersistenceLayer {
    * @param syncStatus Filter by sync status (optional, counts all if omitted)
    */
   async countFiles(
-    syncStatus?: 'pending' | 'syncing' | 'synced' | 'failed'
+    syncStatus?: 'pending' | 'syncing' | 'synced' | 'failed',
   ): Promise<number> {
     return this.fileCacheRepository.countBySyncStatus(syncStatus);
   }
@@ -1083,7 +1290,9 @@ export class PersistenceLayer {
   /**
    * Get cache statistics: total files, total size, and breakdown by sync status.
    */
-  async getCacheStats(): Promise<import('./file-cache-repository.js').CacheStats> {
+  async getCacheStats(): Promise<
+    import('./file-cache-repository.js').CacheStats
+  > {
     return this.fileCacheRepository.getCacheStats();
   }
 
@@ -1097,7 +1306,7 @@ export class PersistenceLayer {
   async updateFileMetadata(
     md5: string,
     ext: string,
-    updates: { filename?: string; contentType?: string }
+    updates: { filename?: string; contentType?: string },
   ): Promise<void> {
     return this.fileCacheRepository.updateMetadata(md5, ext, updates);
   }
@@ -1115,7 +1324,11 @@ export class PersistenceLayer {
    * Called during close() to prevent memory leaks.
    */
   private removeNetworkListener(): void {
-    if (this._onlineListener && typeof self !== 'undefined' && typeof self.removeEventListener === 'function') {
+    if (
+      this._onlineListener &&
+      typeof self !== 'undefined' &&
+      typeof self.removeEventListener === 'function'
+    ) {
       self.removeEventListener('online', this._onlineListener);
       this._onlineListener = null;
       log.info('Network listener removed');
@@ -1165,7 +1378,10 @@ export class PersistenceLayer {
     syncedFiles: Array<{ md5: string; ext: string }>;
     failedFiles: Array<{ md5: string; ext: string; errorMessage?: string }>;
   }> {
-    if (!this.s3Client || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+    if (
+      !this.s3Client ||
+      (typeof navigator !== 'undefined' && !navigator.onLine)
+    ) {
       log.debug('syncPendingFiles: offline or no S3Client, skipping');
       return { synced: 0, failed: 0, syncedFiles: [], failedFiles: [] };
     }
@@ -1174,8 +1390,16 @@ export class PersistenceLayer {
     await this.resumeInterruptedUploads();
 
     // Collect pending and failed files
-    const pending = await this.fileCacheRepository.listBySyncStatus('pending', 100, 0);
-    const failed = await this.fileCacheRepository.listBySyncStatus('failed', 100, 0);
+    const pending = await this.fileCacheRepository.listBySyncStatus(
+      'pending',
+      100,
+      0,
+    );
+    const failed = await this.fileCacheRepository.listBySyncStatus(
+      'failed',
+      100,
+      0,
+    );
 
     const toSync = [...pending, ...failed];
     if (toSync.length === 0) {
@@ -1188,52 +1412,84 @@ export class PersistenceLayer {
     let synced = 0;
     let failedCount = 0;
     const syncedFiles: Array<{ md5: string; ext: string }> = [];
-    const failedFiles: Array<{ md5: string; ext: string; errorMessage?: string }> = [];
+    const failedFiles: Array<{
+      md5: string;
+      ext: string;
+      errorMessage?: string;
+    }> = [];
 
     for (const entry of toSync) {
       // P3-R7-03: Early exit when lifecycle is closing.
       // Without this, each entry would immediately abort via withSyncLock's
       // externalSignal, causing N useless iterations and state transitions.
       if (this._closeSignal.aborted) {
-        log.info(`syncPendingFiles: lifecycle closing, stopping sync loop (${toSync.length - synced - failedCount} remaining)`);
+        log.info(
+          `syncPendingFiles: lifecycle closing, stopping sync loop (${toSync.length - synced - failedCount} remaining)`,
+        );
         break;
       }
       try {
-        await this.fileCacheRepository.withSyncLock(entry.md5, entry.ext, async () => {
-          await this.fileCacheRepository.syncWithDedup(entry.md5, entry.ext, async () => {
-            // P1-002/003 fix: use FileSyncTransaction for atomic state transitions
-            const tx = new FileSyncTransaction(this.fileCacheRepository, this.fileOpCoordinator, this._lifecycleGuard);
-            const result = await tx.run(entry.md5, entry.ext, {
-              from: ['pending', 'failed'],
-              to: 'syncing',
-              signal: this._closeSignal,
-              action: async (freshEntry, signal) => {
-                // P1-003: use freshEntry (re-fetched) instead of stale entry.data
-                if (freshEntry.blob.size > MULTIPART_THRESHOLD) {
-                  await this._uploadMultipart(entry.md5, entry.ext, freshEntry.blob, freshEntry.contentType, signal);
-                } else {
-                  await this.s3Client!.upload(this._userId, entry.md5, entry.ext, freshEntry.blob, {
-                    contentType: freshEntry.contentType,
-                    signal,
-                  });
+        await this.fileCacheRepository.withSyncLock(
+          entry.md5,
+          entry.ext,
+          async () => {
+            await this.fileCacheRepository.syncWithDedup(
+              entry.md5,
+              entry.ext,
+              async () => {
+                // P1-002/003 fix: use FileSyncTransaction for atomic state transitions
+                const tx = new FileSyncTransaction(
+                  this.fileCacheRepository,
+                  this.fileOpCoordinator,
+                  this._lifecycleGuard,
+                );
+                const result = await tx.run(entry.md5, entry.ext, {
+                  from: ['pending', 'failed'],
+                  to: 'syncing',
+                  signal: this._closeSignal,
+                  action: async (freshEntry, signal) => {
+                    // P1-003: use freshEntry (re-fetched) instead of stale entry.data
+                    if (freshEntry.blob.size > MULTIPART_THRESHOLD) {
+                      await this._uploadMultipart(
+                        entry.md5,
+                        entry.ext,
+                        freshEntry.blob,
+                        freshEntry.contentType,
+                        signal,
+                      );
+                    } else {
+                      await this.s3Client!.upload(
+                        this._userId,
+                        entry.md5,
+                        entry.ext,
+                        freshEntry.blob,
+                        {
+                          contentType: freshEntry.contentType,
+                          signal,
+                        },
+                      );
+                    }
+                  },
+                  onSuccess: 'synced',
+                  onFailure: 'failed',
+                });
+
+                if (!result.success) {
+                  // P3-R8-02: Differentiate abort from operational failure.
+                  // Abort means lifecycle is closing — leave state in 'syncing',
+                  // recoverStaleSyncing will reset to 'pending' on next startup.
+                  // Operational failure should transition to 'failed' for retry.
+                  if (result.aborted) {
+                    throw new DOMException('Sync aborted', 'AbortError');
+                  }
+                  throw new Error(result.error ?? 'Transaction failed');
                 }
               },
-              onSuccess: 'synced',
-              onFailure: 'failed',
-            });
-
-            if (!result.success) {
-              // P3-R8-02: Differentiate abort from operational failure.
-              // Abort means lifecycle is closing — leave state in 'syncing',
-              // recoverStaleSyncing will reset to 'pending' on next startup.
-              // Operational failure should transition to 'failed' for retry.
-              if (result.aborted) {
-                throw new DOMException('Sync aborted', 'AbortError');
-              }
-              throw new Error(result.error ?? 'Transaction failed');
-            }
-          });
-        }, SYNC_LOCK_TIMEOUT_MS, this._closeSignal);
+            );
+          },
+          SYNC_LOCK_TIMEOUT_MS,
+          this._closeSignal,
+        );
         synced++;
         syncedFiles.push({ md5: entry.md5, ext: entry.ext });
       } catch (err) {
@@ -1243,8 +1499,14 @@ export class PersistenceLayer {
         // Leave state unchanged; recoverStaleSyncing will reset on next startup.
         // Do NOT transition to 'failed' — the file data is valid, just not yet synced.
         if (err instanceof Error && err.name === 'AbortError') {
-          log.info(`sync aborted for ${entry.md5}.${entry.ext} (lifecycle closing)`);
-          failedFiles.push({ md5: entry.md5, ext: entry.ext, errorMessage: 'Aborted' });
+          log.info(
+            `sync aborted for ${entry.md5}.${entry.ext} (lifecycle closing)`,
+          );
+          failedFiles.push({
+            md5: entry.md5,
+            ext: entry.ext,
+            errorMessage: 'Aborted',
+          });
           continue;
         }
         // P3-R5-02: FileSyncTransaction already transitions to 'failed' on operational errors.
@@ -1253,8 +1515,11 @@ export class PersistenceLayer {
         const cached = await this.fileCacheRepository.get(entry.md5, entry.ext);
         if (cached?.syncStatus !== 'failed') {
           await this.fileCacheRepository.transitionSyncStatus(
-            entry.md5, entry.ext, ['pending', 'syncing'], 'failed',
-            { errorMessage }
+            entry.md5,
+            entry.ext,
+            ['pending', 'syncing'],
+            'failed',
+            { errorMessage },
           );
         }
         failedFiles.push({ md5: entry.md5, ext: entry.ext, errorMessage });
@@ -1287,15 +1552,30 @@ export class PersistenceLayer {
     syncedFiles: Array<{ md5: string; ext: string }>;
     failedFiles: Array<{ md5: string; ext: string; errorMessage?: string }>;
   }> {
-    if (!this.s3Client || (typeof navigator !== 'undefined' && !navigator.onLine)) {
-      return { resumed: 0, failed: 0, expired: 0, syncedFiles: [], failedFiles: [] };
+    if (
+      !this.s3Client ||
+      (typeof navigator !== 'undefined' && !navigator.onLine)
+    ) {
+      return {
+        resumed: 0,
+        failed: 0,
+        expired: 0,
+        syncedFiles: [],
+        failedFiles: [],
+      };
     }
 
     const progressRepo = this.uploadProgressRepository;
     const allProgress = await progressRepo.listAll();
 
     if (allProgress.length === 0) {
-      return { resumed: 0, failed: 0, expired: 0, syncedFiles: [], failedFiles: [] };
+      return {
+        resumed: 0,
+        failed: 0,
+        expired: 0,
+        syncedFiles: [],
+        failedFiles: [],
+      };
     }
 
     log.info(`Found ${allProgress.length} interrupted uploads to resume`);
@@ -1304,75 +1584,128 @@ export class PersistenceLayer {
     let failed = 0;
     let expired = 0;
     const syncedFiles: Array<{ md5: string; ext: string }> = [];
-    const failedFiles: Array<{ md5: string; ext: string; errorMessage?: string }> = [];
+    const failedFiles: Array<{
+      md5: string;
+      ext: string;
+      errorMessage?: string;
+    }> = [];
 
     // P2-G fix: use _runWithConcurrency for better readability
-    await this._runWithConcurrency(allProgress, RESUME_CONCURRENCY, async (progress) => {
-      // Check expiration
-      if (progress.expiresAt < Date.now()) {
-        try {
-          await this.s3Client!.abortMultipartUpload(
-            this._userId, progress.md5, progress.ext, progress.uploadId
+    await this._runWithConcurrency(
+      allProgress,
+      RESUME_CONCURRENCY,
+      async (progress) => {
+        // Check expiration
+        if (progress.expiresAt < Date.now()) {
+          try {
+            await this.s3Client!.abortMultipartUpload(
+              this._userId,
+              progress.md5,
+              progress.ext,
+              progress.uploadId,
+            );
+          } catch {
+            /* ignore abort errors */
+          }
+
+          await progressRepo.delete(progress.md5, progress.ext);
+          await this.fileCacheRepository.updateSyncStatus(
+            progress.md5,
+            progress.ext,
+            'failed',
+            'Multipart upload expired (>7 days)',
           );
-        } catch { /* ignore abort errors */ }
+          this.fileOpCoordinator.notifyStatusChange(
+            progress.md5,
+            progress.ext,
+            'failed',
+            'Multipart upload expired (>7 days)',
+          );
+          expired++;
+          failedFiles.push({
+            md5: progress.md5,
+            ext: progress.ext,
+            errorMessage: 'Multipart upload expired',
+          });
+          return;
+        }
 
-        await progressRepo.delete(progress.md5, progress.ext);
-        await this.fileCacheRepository.updateSyncStatus(
-          progress.md5, progress.ext, 'failed',
-          'Multipart upload expired (>7 days)'
-        );
-        this.fileOpCoordinator.notifyStatusChange(
-          progress.md5, progress.ext, 'failed',
-          'Multipart upload expired (>7 days)'
-        );
-        expired++;
-        failedFiles.push({ md5: progress.md5, ext: progress.ext, errorMessage: 'Multipart upload expired' });
-        return;
-      }
-
-      // Try to resume - need the blob from fileCache
-      const cached = await this.fileCacheRepository.get(progress.md5, progress.ext);
-      if (!cached) {
-        await progressRepo.delete(progress.md5, progress.ext);
-        await this.fileCacheRepository.updateSyncStatus(
-          progress.md5, progress.ext, 'failed',
-          'File data not available for resume'
-        );
-        this.fileOpCoordinator.notifyStatusChange(
-          progress.md5, progress.ext, 'failed',
-          'File data not available for resume'
-        );
-        failed++;
-        failedFiles.push({ md5: progress.md5, ext: progress.ext, errorMessage: 'File data not available' });
-        return;
-      }
-
-      try {
-        await this._uploadMultipart(
+        // Try to resume - need the blob from fileCache
+        const cached = await this.fileCacheRepository.get(
           progress.md5,
           progress.ext,
-          cached.blob,
-          progress.contentType,
         );
-        resumed++;
-        syncedFiles.push({ md5: progress.md5, ext: progress.ext });
-        // P2-R8-01: Persist syncStatus to 'synced' in DB. Without this, the file
-        // remains 'pending' in IndexedDB and _doSyncPendingFiles (called immediately
-        // after) would re-upload the entire file, wasting bandwidth.
-        await this.fileCacheRepository.transitionSyncStatus(
-          progress.md5, progress.ext, ['pending', 'syncing'], 'synced'
-        );
-        this.fileOpCoordinator.notifyStatusChange(progress.md5, progress.ext, 'synced');
-      } catch (err) {
-        failed++;
-        const errorMessage = err instanceof Error ? err.message : String(err);
-        log.warn(`Failed to resume upload ${progress.md5}.${progress.ext}:`, err);
-        failedFiles.push({ md5: progress.md5, ext: progress.ext, errorMessage });
-        this.fileOpCoordinator.notifyStatusChange(progress.md5, progress.ext, 'failed', errorMessage);
-      }
-    });
+        if (!cached) {
+          await progressRepo.delete(progress.md5, progress.ext);
+          await this.fileCacheRepository.updateSyncStatus(
+            progress.md5,
+            progress.ext,
+            'failed',
+            'File data not available for resume',
+          );
+          this.fileOpCoordinator.notifyStatusChange(
+            progress.md5,
+            progress.ext,
+            'failed',
+            'File data not available for resume',
+          );
+          failed++;
+          failedFiles.push({
+            md5: progress.md5,
+            ext: progress.ext,
+            errorMessage: 'File data not available',
+          });
+          return;
+        }
 
-    log.info(`Resume complete: ${resumed} resumed, ${failed} failed, ${expired} expired`);
+        try {
+          await this._uploadMultipart(
+            progress.md5,
+            progress.ext,
+            cached.blob,
+            progress.contentType,
+          );
+          resumed++;
+          syncedFiles.push({ md5: progress.md5, ext: progress.ext });
+          // P2-R8-01: Persist syncStatus to 'synced' in DB. Without this, the file
+          // remains 'pending' in IndexedDB and _doSyncPendingFiles (called immediately
+          // after) would re-upload the entire file, wasting bandwidth.
+          await this.fileCacheRepository.transitionSyncStatus(
+            progress.md5,
+            progress.ext,
+            ['pending', 'syncing'],
+            'synced',
+          );
+          this.fileOpCoordinator.notifyStatusChange(
+            progress.md5,
+            progress.ext,
+            'synced',
+          );
+        } catch (err) {
+          failed++;
+          const errorMessage = err instanceof Error ? err.message : String(err);
+          log.warn(
+            `Failed to resume upload ${progress.md5}.${progress.ext}:`,
+            err,
+          );
+          failedFiles.push({
+            md5: progress.md5,
+            ext: progress.ext,
+            errorMessage,
+          });
+          this.fileOpCoordinator.notifyStatusChange(
+            progress.md5,
+            progress.ext,
+            'failed',
+            errorMessage,
+          );
+        }
+      },
+    );
+
+    log.info(
+      `Resume complete: ${resumed} resumed, ${failed} failed, ${expired} expired`,
+    );
     return { resumed, failed, expired, syncedFiles, failedFiles };
   }
 
@@ -1400,7 +1733,7 @@ export class PersistenceLayer {
     if (!drainResult.completed) {
       log.warn(
         `close(): drain timed out, ${drainResult.remainingTasks.length} tasks abandoned:`,
-        drainResult.remainingTasks
+        drainResult.remainingTasks,
       );
     }
 
@@ -1439,7 +1772,8 @@ export class PersistenceLayer {
     const { content, messageClientId, sessionClientId } = params;
 
     // 1. Look up session
-    const existing = await this.entityRepository.getClientSession(sessionClientId);
+    const existing =
+      await this.entityRepository.getClientSession(sessionClientId);
 
     let session: LocalSession;
     let isNewSession: boolean;
@@ -1457,26 +1791,42 @@ export class PersistenceLayer {
       // 2. Found session: touch updated_at, keep existing sync_status and server_id
       const now = nowRFC3339();
       const result = await this.entityRepository.upsertSession(
-        { client_id: existing.client_id, server_id: existing.server_id, updated_at: now, agent_prompt: agentPrompt },
+        {
+          client_id: existing.client_id,
+          server_id: existing.server_id,
+          updated_at: now,
+          agent_prompt: agentPrompt,
+        },
         existing.sync_status,
-        { silent: true }
+        { silent: true },
       );
       session = result.after;
       isNewSession = false;
-      agentPrompt = result.after.agent_prompt ?? "";
+      agentPrompt = result.after.agent_prompt ?? '';
     } else {
       // Generate session title from first message content (first line, max 50 chars)
       const generatedTitle = this._generateSessionTitle(content);
-      log.info('sendMessage: New session created, generated title:', `"${generatedTitle}"`);
+      log.info(
+        'sendMessage: New session created, generated title:',
+        `"${generatedTitle}"`,
+      );
 
       const result = await this.entityRepository.upsertSession(
-        { client_id: sessionClientId, status: 'active', agent_prompt: agentPrompt, title: generatedTitle },
+        {
+          client_id: sessionClientId,
+          status: 'active',
+          agent_prompt: agentPrompt,
+          title: generatedTitle,
+        },
         'pending',
-        { silent: true }
+        { silent: true },
       );
       session = result.after;
       isNewSession = true;
-      log.info('sendMessage: Session after upsert:', { client_id: session.client_id, title: session.title });
+      log.info('sendMessage: Session after upsert:', {
+        client_id: session.client_id,
+        title: session.title,
+      });
     }
 
     // 4. Write message
@@ -1496,7 +1846,7 @@ export class PersistenceLayer {
         updated_at: now,
       },
       'pending',
-      { silent: true }
+      { silent: true },
     );
     const message = msgResult.after;
 
@@ -1505,10 +1855,19 @@ export class PersistenceLayer {
     if (this._closing) {
       log.warn('sendMessage: sync skipped, persistence is closing');
     } else {
-      const syncTask = this._syncToServer(message, session, content, isNewSession, agentPrompt).catch(err => {
+      const syncTask = this._syncToServer(
+        message,
+        session,
+        content,
+        isNewSession,
+        agentPrompt,
+      ).catch((err) => {
         log.error('_syncToServer failed:', err);
       });
-      this._syncTaskTracker.track(syncTask, `sync-message-${message.client_id}`);
+      this._syncTaskTracker.track(
+        syncTask,
+        `sync-message-${message.client_id}`,
+      );
     }
 
     return { session, message };
@@ -1558,7 +1917,7 @@ export class PersistenceLayer {
   private async _runWithConcurrency<T>(
     items: T[],
     concurrency: number,
-    worker: (item: T) => Promise<void>
+    worker: (item: T) => Promise<void>,
   ): Promise<void> {
     const executing = new Set<Promise<void>>();
 
@@ -1584,8 +1943,11 @@ export class PersistenceLayer {
    *
    * Returns the session with `server_id` narrowed to non-undefined string.
    */
-  private async _requireSyncedSession(sessionClientId: string): Promise<LocalSession & { server_id: string }> {
-    const session = await this.entityRepository.getClientSession(sessionClientId);
+  private async _requireSyncedSession(
+    sessionClientId: string,
+  ): Promise<LocalSession & { server_id: string }> {
+    const session =
+      await this.entityRepository.getClientSession(sessionClientId);
     if (!session?.server_id) {
       throw new Error(`Session not found or not synced: ${sessionClientId}`);
     }
@@ -1598,7 +1960,9 @@ export class PersistenceLayer {
    * No-op when the response has no updates. Extracted to eliminate the repeated
    * `if (response.updates && response.updates.length > 0)` guard.
    */
-  private async _applyResponseUpdates(response: { updates?: Update[] }): Promise<void> {
+  private async _applyResponseUpdates(response: {
+    updates?: Update[];
+  }): Promise<void> {
     if (response.updates && response.updates.length > 0) {
       await this.client.applyUpdates(response.updates);
     }
@@ -1618,7 +1982,10 @@ export class PersistenceLayer {
       } else if (content.data && typeof content.data === 'object') {
         // Attempt to extract text from the object
         const obj = content.data as Record<string, unknown>;
-        text = (obj.text as string) || (obj.content as string) || JSON.stringify(content.data);
+        text =
+          (obj.text as string) ||
+          (obj.content as string) ||
+          JSON.stringify(content.data);
       }
 
       // Take first line, trim whitespace
@@ -1626,7 +1993,9 @@ export class PersistenceLayer {
       if (!firstLine) return 'New Chat';
 
       // Truncate to 50 characters
-      return firstLine.length > 50 ? firstLine.substring(0, 50) + '…' : firstLine;
+      return firstLine.length > 50
+        ? firstLine.substring(0, 50) + '…'
+        : firstLine;
     } catch {
       return 'New Chat';
     }
@@ -1673,7 +2042,7 @@ export class PersistenceLayer {
             client_id: message.client_id,
             server_id: response.result.message_id,
           },
-          'synced'
+          'synced',
         );
       });
 
@@ -1686,7 +2055,7 @@ export class PersistenceLayer {
               client_id: session.client_id,
               server_id: response.result.session_id,
             },
-            'synced'
+            'synced',
           );
         });
       }
@@ -1698,7 +2067,7 @@ export class PersistenceLayer {
       await this._lifecycleGuard.run(async () => {
         await this.entityRepository.upsertMessage(
           { client_id: message.client_id },
-          'failed'
+          'failed',
         );
       });
 
@@ -1707,7 +2076,7 @@ export class PersistenceLayer {
         await this._lifecycleGuard.run(async () => {
           await this.entityRepository.upsertSession(
             { client_id: session.client_id },
-            'failed'
+            'failed',
           );
         });
       }
@@ -1744,7 +2113,10 @@ export class PersistenceLayer {
   /**
    * Compact session context.
    */
-  async compactSession(sessionClientId: string, customInstruction?: string): Promise<void> {
+  async compactSession(
+    sessionClientId: string,
+    customInstruction?: string,
+  ): Promise<void> {
     const session = await this._requireSyncedSession(sessionClientId);
     const req: CompactSessionRequest = {
       session_id: session.server_id,
@@ -1764,7 +2136,8 @@ export class PersistenceLayer {
    *    - Failure: exponential backoff retry (max 3 attempts), then sync_status='failed' + notify UI
    */
   async deleteSession(sessionClientId: string): Promise<void> {
-    const session = await this.entityRepository.getClientSession(sessionClientId);
+    const session =
+      await this.entityRepository.getClientSession(sessionClientId);
     if (!session) return;
 
     // Step 1: Optimistic local update (via EntityRepository, triggers UIUpdateBus)
@@ -1774,7 +2147,11 @@ export class PersistenceLayer {
     if (session.server_id) {
       const deletedAt = session.deleted_at ?? nowRFC3339();
       this._syncWithRetry(
-        () => this.client.updateSession({ session_id: session.server_id!, deleted_at: deletedAt }),
+        () =>
+          this.client.updateSession({
+            session_id: session.server_id!,
+            deleted_at: deletedAt,
+          }),
         session.server_id,
         'delete',
       );
@@ -1784,8 +2161,12 @@ export class PersistenceLayer {
   /**
    * Update session title: optimistic local update + async RPC sync.
    */
-  async updateSessionTitle(sessionClientId: string, title: string): Promise<void> {
-    const session = await this.entityRepository.getClientSession(sessionClientId);
+  async updateSessionTitle(
+    sessionClientId: string,
+    title: string,
+  ): Promise<void> {
+    const session =
+      await this.entityRepository.getClientSession(sessionClientId);
     if (!session) return;
 
     // Step 1: Optimistic local update
@@ -1802,7 +2183,8 @@ export class PersistenceLayer {
     // Step 2: Async RPC sync
     if (session.server_id) {
       this._syncWithRetry(
-        () => this.client.updateSession({ session_id: session.server_id!, title }),
+        () =>
+          this.client.updateSession({ session_id: session.server_id!, title }),
         session.server_id,
         'update',
       );
@@ -1826,36 +2208,55 @@ export class PersistenceLayer {
   ): void {
     // P2-005 fix: use TrackedBackgroundTask for lifecycle tracking and cancellable delays
     // P1-R5-02: pass closeSignal so task is aborted when lifecycle closes
-    const task = new TrackedBackgroundTask(this._syncTaskTracker, this._lifecycleGuard, this._closeSignal);
-    task.run(`${action}-session-${serverId}`, async (_signal) => {
-      await rpc();
-      // On success: write back sync_status='synced'
-      await this._markSessionSynced(serverId);
-    }, {
-      retries: PersistenceLayer.SYNC_MAX_RETRIES - 1,
-      baseDelay: PersistenceLayer.SYNC_BASE_DELAY_MS,
-      exponentialBackoff: true,
-    }).catch(err => {
-      // Max retries exceeded: mark as failed
-      log.error(`${action}Session RPC failed after ${PersistenceLayer.SYNC_MAX_RETRIES} attempts:`, err);
-      // Use _lifecycleGuard.run to prevent DB writes after close
-      this._lifecycleGuard.run(async () => {
-        await this._markSessionSyncFailed(serverId);
+    const task = new TrackedBackgroundTask(
+      this._syncTaskTracker,
+      this._lifecycleGuard,
+      this._closeSignal,
+    );
+    task
+      .run(
+        `${action}-session-${serverId}`,
+        async (_signal) => {
+          await rpc();
+          // On success: write back sync_status='synced'
+          await this._markSessionSynced(serverId);
+        },
+        {
+          retries: PersistenceLayer.SYNC_MAX_RETRIES - 1,
+          baseDelay: PersistenceLayer.SYNC_BASE_DELAY_MS,
+          exponentialBackoff: true,
+        },
+      )
+      .catch((err) => {
+        // Max retries exceeded: mark as failed
+        log.error(
+          `${action}Session RPC failed after ${PersistenceLayer.SYNC_MAX_RETRIES} attempts:`,
+          err,
+        );
+        // Use _lifecycleGuard.run to prevent DB writes after close
+        this._lifecycleGuard.run(async () => {
+          await this._markSessionSyncFailed(serverId);
+        });
       });
-    });
   }
 
   private async _markSessionSynced(serverId: string): Promise<void> {
     const session = await this.entityRepository.getSessionByServerId(serverId);
     if (session) {
-      await this.entityRepository.upsertSession({ client_id: session.client_id }, 'synced');
+      await this.entityRepository.upsertSession(
+        { client_id: session.client_id },
+        'synced',
+      );
     }
   }
 
   private async _markSessionSyncFailed(serverId: string): Promise<void> {
     const session = await this.entityRepository.getSessionByServerId(serverId);
     if (session) {
-      await this.entityRepository.upsertSession({ client_id: session.client_id }, 'failed');
+      await this.entityRepository.upsertSession(
+        { client_id: session.client_id },
+        'failed',
+      );
     }
   }
 
@@ -1888,7 +2289,7 @@ export class PersistenceLayer {
           updated_at: now,
         },
         'pending',
-        { silent: true }
+        { silent: true },
       );
 
       // 2. Single submission attempt
@@ -1901,13 +2302,22 @@ export class PersistenceLayer {
       try {
         const resultStr = JSON.stringify(result);
         if (resultStr.length > MAX_RESULT_SIZE) {
-          log.warn('result too large:', resultStr.length, 'bytes, truncating to', MAX_RESULT_SIZE, 'bytes');
+          log.warn(
+            'result too large:',
+            resultStr.length,
+            'bytes, truncating to',
+            MAX_RESULT_SIZE,
+            'bytes',
+          );
           truncated = true;
           // Truncation strategy: keep head and tail, omit middle
           const keepStart = Math.floor(MAX_RESULT_SIZE * 0.8);
           const keepEnd = Math.floor(MAX_RESULT_SIZE * 0.2);
-          const truncatedStr = resultStr.substring(0, keepStart) +
-            '\n\n... [TRUNCATED: original size ' + resultStr.length + ' bytes] ...\n\n' +
+          const truncatedStr =
+            resultStr.substring(0, keepStart) +
+            '\n\n... [TRUNCATED: original size ' +
+            resultStr.length +
+            ' bytes] ...\n\n' +
             resultStr.substring(resultStr.length - keepEnd);
           // Try parsing back to object; on failure keep as string
           try {
@@ -1924,17 +2334,25 @@ export class PersistenceLayer {
         rtc.server_id,
         success,
         resultToSend,
-        truncated ? '[Result truncated due to size limit. Full result stored locally.]' : error
+        truncated
+          ? '[Result truncated due to size limit. Full result stored locally.]'
+          : error,
       );
 
       await this._applyResponseUpdates(response);
 
       // Success: mark as synced
-      await this.entityRepository.upsertRtc({ client_id: rtcClientId }, 'synced');
+      await this.entityRepository.upsertRtc(
+        { client_id: rtcClientId },
+        'synced',
+      );
     } catch (err) {
       // Any error (local write or RPC): mark as failed, next getNextRtcToProcess will retry
       log.error('submitRtcResult failed:', err);
-      await this.entityRepository.upsertRtc({ client_id: rtcClientId }, 'failed');
+      await this.entityRepository.upsertRtc(
+        { client_id: rtcClientId },
+        'failed',
+      );
       throw err;
     }
   }
@@ -1950,17 +2368,25 @@ export class PersistenceLayer {
    * 4. Background sync to server (server copies historical messages)
    */
   async forkSession(params: {
-    oldSessionClientId: string;   // client_id of the old session
-    oldMessageClientId: string;   // client_id of the message to replace
-    newSessionClientId: string;   // client_id for the new session
-    newMessageClientId: string;   // client_id for the new message
-    content: ContentData;         // New content
-    limit?: number;               // How many historical messages to fork
+    oldSessionClientId: string; // client_id of the old session
+    oldMessageClientId: string; // client_id of the message to replace
+    newSessionClientId: string; // client_id for the new session
+    newMessageClientId: string; // client_id for the new message
+    content: ContentData; // New content
+    limit?: number; // How many historical messages to fork
   }): Promise<{ session: LocalSession; message: LocalMessage }> {
-    const { oldSessionClientId, oldMessageClientId, newSessionClientId, newMessageClientId, content, limit } = params;
+    const {
+      oldSessionClientId,
+      oldMessageClientId,
+      newSessionClientId,
+      newMessageClientId,
+      content,
+      limit,
+    } = params;
 
     // 1. Look up old session
-    const oldSession = await this.entityRepository.getClientSession(oldSessionClientId);
+    const oldSession =
+      await this.entityRepository.getClientSession(oldSessionClientId);
     if (!oldSession) {
       throw new Error(`Old session not found: ${oldSessionClientId}`);
     }
@@ -1969,7 +2395,8 @@ export class PersistenceLayer {
     }
 
     // 2. Look up old message
-    const oldMessage = await this.entityRepository.getClientMessage(oldMessageClientId);
+    const oldMessage =
+      await this.entityRepository.getClientMessage(oldMessageClientId);
     if (!oldMessage) {
       throw new Error(`Old message not found: ${oldMessageClientId}`);
     }
@@ -1986,7 +2413,7 @@ export class PersistenceLayer {
         status: 'active',
       },
       'pending',
-      { silent: true }
+      { silent: true },
     );
     const newSession = sessionResult.after;
 
@@ -2002,26 +2429,36 @@ export class PersistenceLayer {
         updated_at: now,
       },
       'pending',
-      { silent: true }
+      { silent: true },
     );
     const newMessage = msgResult.after;
 
     // 5. Return immediately
     // 6. Background sync — P2-006 fix: tracked in SyncTaskTracker with lifecycle guard
     // P1-R5-02: pass closeSignal so task is aborted when lifecycle closes
-    const forkTask = new TrackedBackgroundTask(this._syncTaskTracker, this._lifecycleGuard, this._closeSignal);
-    forkTask.run(`fork-session-${newSession.client_id}`, async (_signal) => {
-      await this._syncForkToServer({
-        oldSession,
-        oldMessage,
-        newSession,
-        newMessage,
-        content,
-        limit,
+    const forkTask = new TrackedBackgroundTask(
+      this._syncTaskTracker,
+      this._lifecycleGuard,
+      this._closeSignal,
+    );
+    forkTask
+      .run(
+        `fork-session-${newSession.client_id}`,
+        async (_signal) => {
+          await this._syncForkToServer({
+            oldSession,
+            oldMessage,
+            newSession,
+            newMessage,
+            content,
+            limit,
+          });
+        },
+        { retries: 2, baseDelay: 1000 },
+      )
+      .catch((err) => {
+        log.error('_syncForkToServer task failed:', err);
       });
-    }, { retries: 2, baseDelay: 1000 }).catch(err => {
-      log.error('_syncForkToServer task failed:', err);
-    });
 
     return { session: newSession, message: newMessage };
   }
@@ -2037,7 +2474,8 @@ export class PersistenceLayer {
     content: ContentData;
     limit?: number;
   }): Promise<void> {
-    const { oldSession, oldMessage, newSession, newMessage, content, limit } = params;
+    const { oldSession, oldMessage, newSession, newMessage, content, limit } =
+      params;
 
     // 1. Build request
     const req: ForkSessionRequest = {
@@ -2065,11 +2503,12 @@ export class PersistenceLayer {
             client_id: newSession.client_id,
             server_id: response.result.session_id,
           },
-          'synced'
+          'synced',
         );
       });
 
-      const newMessageServerId = response.result.message_ids?.[response.result.message_ids.length - 1];
+      const newMessageServerId =
+        response.result.message_ids?.[response.result.message_ids.length - 1];
       if (newMessageServerId) {
         await this._lifecycleGuard.run(async () => {
           await this.entityRepository.upsertMessage(
@@ -2077,7 +2516,7 @@ export class PersistenceLayer {
               client_id: newMessage.client_id,
               server_id: newMessageServerId,
             },
-            'synced'
+            'synced',
           );
         });
       }
@@ -2089,14 +2528,14 @@ export class PersistenceLayer {
       await this._lifecycleGuard.run(async () => {
         await this.entityRepository.upsertMessage(
           { client_id: newMessage.client_id },
-          'failed'
+          'failed',
         );
       });
 
       await this._lifecycleGuard.run(async () => {
         await this.entityRepository.upsertSession(
           { client_id: newSession.client_id },
-          'failed'
+          'failed',
         );
       });
     }
@@ -2106,7 +2545,9 @@ export class PersistenceLayer {
 /**
  * Create a persistence layer instance.
  */
-export function createPersistenceLayer(config: PersistenceConfig): PersistenceLayer {
+export function createPersistenceLayer(
+  config: PersistenceConfig,
+): PersistenceLayer {
   // Initialize database
   getDatabase(config.databaseName);
   return new PersistenceLayer(config);

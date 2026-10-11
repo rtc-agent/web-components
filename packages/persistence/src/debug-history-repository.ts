@@ -1,6 +1,11 @@
 import Dexie from 'dexie';
-import { getDatabase, type DebugHistoryItem, type LocalDebugHistoryItem, type LogEntry } from './database.js';
-import { createLogger } from '@rtc-agent/client';
+import {
+  getDatabase,
+  type DebugHistoryItem,
+  type LocalDebugHistoryItem,
+  type LogEntry,
+} from './database.js';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('DebugHistoryRepository');
 
@@ -94,7 +99,7 @@ export class DebugHistoryRepository {
   async query(
     functionName?: string,
     cursor?: string,
-    limit: number = 20
+    limit: number = 20,
   ): Promise<PagedResult<DebugHistoryItem>> {
     const db = getDatabase();
     const table = db.debugHistory;
@@ -120,12 +125,22 @@ export class DebugHistoryRepository {
             // Get items with timestamp <= cursor timestamp
             return table
               .where('[function_name+timestamp]')
-              .between([functionName, Dexie.minKey], [functionName, ts], true, true)
+              .between(
+                [functionName, Dexie.minKey],
+                [functionName, ts],
+                true,
+                true,
+              )
               .reverse();
           })()
         : table
             .where('[function_name+timestamp]')
-            .between([functionName, Dexie.minKey], [functionName, Dexie.maxKey], true, true)
+            .between(
+              [functionName, Dexie.minKey],
+              [functionName, Dexie.maxKey],
+              true,
+              true,
+            )
             .reverse();
 
       const candidates = await range.toArray();
@@ -135,7 +150,7 @@ export class DebugHistoryRepository {
         const [tsStr, id] = cursor.split('|');
         const ts = parseInt(tsStr, 10);
         items = candidates
-          .filter(item => {
+          .filter((item) => {
             if (item.timestamp < ts) return true;
             if (item.timestamp === ts && item.id < id) return true;
             return false;
@@ -159,7 +174,7 @@ export class DebugHistoryRepository {
 
         // Apply id tiebreaker for same-timestamp items
         items = items
-          .filter(item => {
+          .filter((item) => {
             if (item.timestamp < ts) return true;
             if (item.timestamp === ts && item.id < id) return true;
             return false;
@@ -232,7 +247,7 @@ export function initDebugHistoryRepository(): DebugHistoryRepository {
 export function getDebugHistoryRepository(): DebugHistoryRepository {
   if (!repoInstance) {
     throw new Error(
-      '[DebugHistoryRepository] not initialized. Call initDebugHistoryRepository() first.'
+      '[DebugHistoryRepository] not initialized. Call initDebugHistoryRepository() first.',
     );
   }
   return repoInstance;

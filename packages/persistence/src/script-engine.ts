@@ -14,7 +14,7 @@ import { transformSync } from '@babel/core';
 import presetTypescript from '@babel/preset-typescript';
 import type { TransformOptions } from '@babel/core';
 import { virtualFS } from './virtual-fs.js';
-import { createLogger } from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('ScriptEngine');
 
@@ -38,7 +38,10 @@ export class ScriptTimeoutError extends Error {
  */
 export class ScriptCompileError extends Error {
   readonly isScriptCompileError = true;
-  constructor(message: string, public readonly scriptName?: string) {
+  constructor(
+    message: string,
+    public readonly scriptName?: string,
+  ) {
     super(message);
     this.name = 'ScriptCompileError';
   }
@@ -57,7 +60,10 @@ export class ScriptCompileError extends Error {
  */
 export interface RtcAgentAPI {
   /** Call a registered function */
-  callFunction?: (path: string, params: Record<string, unknown>) => Promise<unknown>;
+  callFunction?: (
+    path: string,
+    params: Record<string, unknown>,
+  ) => Promise<unknown>;
   /** Read a file */
   readFile?: (path: string) => Promise<string>;
   /** Write a file */
@@ -166,20 +172,22 @@ export function createSandbox(
   rtcAgent: RtcAgentAPI,
   params: Record<string, unknown> = {},
   output?: ConsoleOutput,
-  title?: string
+  title?: string,
 ): ScriptSandbox {
   const prefix = title ? `[Script: ${title}]` : '[Script]';
   const formatArgs = (args: unknown[]): string =>
-    args.map(arg => {
-      if (typeof arg === 'object') {
-        try {
-          return JSON.stringify(arg, null, 2);
-        } catch {
-          return String(arg);
+    args
+      .map((arg) => {
+        if (typeof arg === 'object') {
+          try {
+            return JSON.stringify(arg, null, 2);
+          } catch {
+            return String(arg);
+          }
         }
-      }
-      return String(arg);
-    }).join(' ');
+        return String(arg);
+      })
+      .join(' ');
 
   return {
     rtcAgent,
@@ -202,9 +210,24 @@ export function createSandbox(
     },
     params,
     // Language constructors
-    Promise, Date, Math, JSON, Array, Object, String, Number, Boolean, Error,
+    Promise,
+    Date,
+    Math,
+    JSON,
+    Array,
+    Object,
+    String,
+    Number,
+    Boolean,
+    Error,
     // Data structures
-    Map, Set, WeakMap, WeakSet, RegExp, Symbol, BigInt,
+    Map,
+    Set,
+    WeakMap,
+    WeakSet,
+    RegExp,
+    Symbol,
+    BigInt,
     // Error subclasses
     TypeError: TypeError as unknown as ErrorConstructor,
     RangeError: RangeError as unknown as ErrorConstructor,
@@ -213,15 +236,25 @@ export function createSandbox(
     URIError: URIError as unknown as ErrorConstructor,
     AggregateError: AggregateError as unknown as ErrorConstructor,
     // Parsing and encoding
-    parseInt, parseFloat, isNaN, isFinite,
-    encodeURIComponent, decodeURIComponent, encodeURI, decodeURI,
-    atob, btoa,
+    parseInt,
+    parseFloat,
+    isNaN,
+    isFinite,
+    encodeURIComponent,
+    decodeURIComponent,
+    encodeURI,
+    decodeURI,
+    atob,
+    btoa,
     // Utilities
     structuredClone,
     // Special values
-    NaN, Infinity, undefined,
+    NaN,
+    Infinity,
+    undefined,
     // URL
-    URL, URLSearchParams,
+    URL,
+    URLSearchParams,
   };
 }
 
@@ -232,7 +265,9 @@ export function createSandbox(
 /**
  * Cached Babel preset to avoid reconstructing on every transform (M2).
  */
-const cachedPresets = [presetTypescript] as NonNullable<TransformOptions['presets']>;
+const cachedPresets = [presetTypescript] as NonNullable<
+  TransformOptions['presets']
+>;
 
 /**
  * Global identifiers blocked from direct script access (side-effect APIs).
@@ -246,23 +281,58 @@ const cachedPresets = [presetTypescript] as NonNullable<TransformOptions['preset
  */
 const BLOCKED_GLOBALS: ReadonlySet<string> = new Set([
   // Storage APIs -- scripts should use rtcAgent.readFile/writeFile for file access
-  'localStorage', 'sessionStorage', 'indexedDB', 'caches', 'cookieStore',
+  'localStorage',
+  'sessionStorage',
+  'indexedDB',
+  'caches',
+  'cookieStore',
   // Network APIs -- scripts should use rtcAgent.callFunction for external services
-  'fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource', 'BroadcastChannel',
+  'fetch',
+  'XMLHttpRequest',
+  'WebSocket',
+  'EventSource',
+  'BroadcastChannel',
   // DOM / browser environment -- scripts should use rtcAgent for UI manipulation
-  'window', 'self', 'document', 'navigator', 'location', 'history',
-  'screen', 'alert', 'confirm', 'prompt', 'open', 'close', 'print',
-  'postMessage', 'frames', 'parent', 'top', 'opener',
+  'window',
+  'self',
+  'document',
+  'navigator',
+  'location',
+  'history',
+  'screen',
+  'alert',
+  'confirm',
+  'prompt',
+  'open',
+  'close',
+  'print',
+  'postMessage',
+  'frames',
+  'parent',
+  'top',
+  'opener',
   // Metaprogramming / escape -- prevent sandbox breakout
-  'eval', 'Function', 'globalThis', 'global',
+  'eval',
+  'Function',
+  'globalThis',
+  'global',
   // Worker -- prevent creating new execution contexts
-  'Worker', 'SharedWorker', 'ServiceWorker', 'importScripts',
+  'Worker',
+  'SharedWorker',
+  'ServiceWorker',
+  'importScripts',
   // Timers -- prevent escaping timeout control (should use rtcAgent.delay wrappers)
-  'setTimeout', 'setInterval',
+  'setTimeout',
+  'setInterval',
   // Shared memory
-  'SharedArrayBuffer', 'Atomics',
+  'SharedArrayBuffer',
+  'Atomics',
   // Node.js compatibility -- prevent bundler-injected CJS globals
-  'require', 'module', 'exports', '__dirname', '__filename',
+  'require',
+  'module',
+  'exports',
+  '__dirname',
+  '__filename',
 ]);
 
 /**
@@ -312,7 +382,9 @@ const sandboxPlugin = {
       isReferencedIdentifier: () => boolean;
       node: { name: string };
       parent: { type: string };
-      scope: { hasBinding: (name: string, opts?: { noGlobals?: boolean }) => boolean };
+      scope: {
+        hasBinding: (name: string, opts?: { noGlobals?: boolean }) => boolean;
+      };
       buildCodeFrameError: (msg: string) => Error;
     }) {
       if (!path.isReferencedIdentifier()) return;
@@ -334,7 +406,10 @@ const sandboxPlugin = {
 
     // 2. Block prototype chain escape
     MemberExpression(path: {
-      node: { property: { type: string; name?: string; value?: string }; computed: boolean };
+      node: {
+        property: { type: string; name?: string; value?: string };
+        computed: boolean;
+      };
       buildCodeFrameError: (msg: string) => Error;
     }) {
       const { property, computed } = path.node;
@@ -356,9 +431,7 @@ const sandboxPlugin = {
     // 3. Block dynamic import()
     // Note: Babel may parse import() as ImportExpression or as CallExpression
     // with callee.type === 'Import', depending on parser configuration.
-    ImportExpression(path: {
-      buildCodeFrameError: (msg: string) => Error;
-    }) {
+    ImportExpression(path: { buildCodeFrameError: (msg: string) => Error }) {
       throw path.buildCodeFrameError(
         'Dynamic import() is not allowed in scripts.',
       );
@@ -388,7 +461,9 @@ const sandboxPlugin = {
     ForStatement(path: {
       node: { test: unknown; body: unknown };
       buildCodeFrameError: (msg: string) => Error;
-      scope: { generateUidIdentifier: (name: string) => { type: string; name: string } };
+      scope: {
+        generateUidIdentifier: (name: string) => { type: string; name: string };
+      };
       insertBefore: (node: unknown) => void;
     }) {
       // Only intercept for(;;): test === null means no termination condition
@@ -405,11 +480,13 @@ const sandboxPlugin = {
       const counterDecl = {
         type: 'VariableDeclaration',
         kind: 'let',
-        declarations: [{
-          type: 'VariableDeclarator',
-          id: loopId,
-          init: { type: 'NumericLiteral', value: 0 },
-        }],
+        declarations: [
+          {
+            type: 'VariableDeclarator',
+            id: loopId,
+            init: { type: 'NumericLiteral', value: 0 },
+          },
+        ],
       };
 
       // Create the check: if (++__loopCounter > MAX_LOOP_ITERATIONS) throw new Error(...)
@@ -431,14 +508,32 @@ const sandboxPlugin = {
           argument: {
             type: 'NewExpression',
             callee: { type: 'Identifier', name: 'Error' },
-            arguments: [{
-              type: 'TemplateLiteral',
-              quasis: [
-                { type: 'TemplateElement', value: { raw: 'Loop exceeded maximum iterations (', cooked: 'Loop exceeded maximum iterations (' }, tail: false },
-                { type: 'TemplateElement', value: { raw: '). This may indicate an infinite loop.', cooked: '). This may indicate an infinite loop.' }, tail: true },
-              ],
-              expressions: [{ type: 'NumericLiteral', value: MAX_LOOP_ITERATIONS }],
-            }],
+            arguments: [
+              {
+                type: 'TemplateLiteral',
+                quasis: [
+                  {
+                    type: 'TemplateElement',
+                    value: {
+                      raw: 'Loop exceeded maximum iterations (',
+                      cooked: 'Loop exceeded maximum iterations (',
+                    },
+                    tail: false,
+                  },
+                  {
+                    type: 'TemplateElement',
+                    value: {
+                      raw: '). This may indicate an infinite loop.',
+                      cooked: '). This may indicate an infinite loop.',
+                    },
+                    tail: true,
+                  },
+                ],
+                expressions: [
+                  { type: 'NumericLiteral', value: MAX_LOOP_ITERATIONS },
+                ],
+              },
+            ],
           },
         },
       };
@@ -483,11 +578,17 @@ export function transformTypeScript(code: string, name?: string): string {
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    throw new ScriptCompileError(`Babel transformation failed for '${filename}': ${msg}`, name);
+    throw new ScriptCompileError(
+      `Babel transformation failed for '${filename}': ${msg}`,
+      name,
+    );
   }
 
   if (!result) {
-    throw new ScriptCompileError('Babel transformation failed: no output', name);
+    throw new ScriptCompileError(
+      'Babel transformation failed: no output',
+      name,
+    );
   }
 
   // Empty code produces empty output -- this is valid (no-op script)
@@ -512,7 +613,9 @@ export function parseScriptContent(content: string): {
   code: string;
 } {
   // Parse frontmatter
-  const frontmatterMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
+  const frontmatterMatch = content.match(
+    /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/,
+  );
   if (!frontmatterMatch) {
     throw new Error('Invalid script format: missing frontmatter');
   }
@@ -544,7 +647,8 @@ export function parseScriptContent(content: string): {
   }
 
   // Extract all code blocks (M4: support multiple blocks, concatenate all content)
-  const codeBlockRegex = /```(?:typescript|javascript|ts|js)?\r?\n?([\s\S]*?)\r?\n?```/g;
+  const codeBlockRegex =
+    /```(?:typescript|javascript|ts|js)?\r?\n?([\s\S]*?)\r?\n?```/g;
   const codeBlocks: string[] = [];
   let match: RegExpExecArray | null;
   while ((match = codeBlockRegex.exec(body)) !== null) {
@@ -557,7 +661,9 @@ export function parseScriptContent(content: string): {
   }
 
   if (codeBlocks.length > 1) {
-    log.warn(`Found ${codeBlocks.length} code blocks in script, concatenating all.`);
+    log.warn(
+      `Found ${codeBlocks.length} code blocks in script, concatenating all.`,
+    );
   }
 
   const code = codeBlocks.join('\n\n');
@@ -570,7 +676,7 @@ export function parseScriptContent(content: string): {
 export function generateScriptContent(
   name: string,
   code: string,
-  description?: string
+  description?: string,
 ): string {
   const now = new Date().toISOString();
 
@@ -610,14 +716,14 @@ export async function _executeCode(
   code: string,
   sandbox: ScriptSandbox,
   timeoutMs: number,
-  scriptName?: string
+  scriptName?: string,
 ): Promise<unknown> {
   // Transform TypeScript syntax (pass name for error location, MD1)
   const jsCode = transformTypeScript(code, scriptName);
 
   // Create sandbox key-value pairs
   const keys = Object.keys(sandbox);
-  const values = keys.map(k => sandbox[k as keyof ScriptSandbox]);
+  const values = keys.map((k) => sandbox[k as keyof ScriptSandbox]);
 
   // Use Function constructor for execution
   // Wrap in async IIFE to support await
@@ -669,7 +775,7 @@ export async function _executeCode(
 export async function executeScriptCode(
   code: string,
   sandbox: ScriptSandbox,
-  timeoutMs: number = 30000
+  timeoutMs: number = 30000,
 ): Promise<unknown> {
   return _executeCode(code, sandbox, timeoutMs);
 }
@@ -680,7 +786,7 @@ export async function executeScriptCode(
 export async function saveScript(
   name: string,
   code: string,
-  description?: string
+  description?: string,
 ): Promise<string> {
   const content = generateScriptContent(name, code, description);
   const path = `/scripts/${name}.ts`;
@@ -695,7 +801,7 @@ export async function loadAndExecuteScript(
   name: string,
   rtcAgent: RtcAgentAPI,
   params: Record<string, unknown> = {},
-  timeoutMs: number = 30000
+  timeoutMs: number = 30000,
 ): Promise<unknown> {
   const path = `/scripts/${name}.ts`;
   const content = await virtualFS.read(path);

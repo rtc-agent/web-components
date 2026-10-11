@@ -1,6 +1,6 @@
 // Resource Scope — automatically manages lifecycle of timers, listeners, and other resources
 
-import { createLogger } from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('ResourceScope');
 
@@ -49,7 +49,10 @@ export class ResourceScope {
    * @param delay 延迟时间（毫秒）
    * @returns Timer ID（可用于手动 clearTimeout）
    */
-  setTimeout(callback: () => void, delay: number): ReturnType<typeof setTimeout> {
+  setTimeout(
+    callback: () => void,
+    delay: number,
+  ): ReturnType<typeof setTimeout> {
     if (this.disposed) {
       // P2-004 fix: throw instead of silently returning fake timer — fail fast to expose bugs
       throw new Error('ResourceScope.setTimeout called after dispose');
@@ -83,18 +86,23 @@ export class ResourceScope {
     target: EventTarget,
     type: string,
     listener: EventListener,
-    options?: AddEventListenerOptions
+    options?: AddEventListenerOptions,
   ): void {
     if (this.disposed) {
-      log.warn('ResourceScope.addEventListener called after dispose, listener not added');
+      log.warn(
+        'ResourceScope.addEventListener called after dispose, listener not added',
+      );
       return;
     }
 
     const wrappedListener = (event: Event) => {
       // If once listener, auto-remove from scope
       if (options?.once) {
-        const idx = this.listeners.findIndex(l =>
-          l.target === target && l.type === type && l.wrappedListener === wrappedListener
+        const idx = this.listeners.findIndex(
+          (l) =>
+            l.target === target &&
+            l.type === type &&
+            l.wrappedListener === wrappedListener,
         );
         if (idx !== -1) {
           this.listeners.splice(idx, 1);
@@ -108,7 +116,12 @@ export class ResourceScope {
     };
 
     target.addEventListener(type, wrappedListener, options);
-    this.listeners.push({ target, type, originalListener: listener, wrappedListener });
+    this.listeners.push({
+      target,
+      type,
+      originalListener: listener,
+      wrappedListener,
+    });
   }
 
   /**
@@ -137,10 +150,13 @@ export class ResourceScope {
   removeEventListener(
     target: EventTarget,
     type: string,
-    listener: EventListener
+    listener: EventListener,
   ): void {
-    const idx = this.listeners.findIndex(l =>
-      l.target === target && l.type === type && l.originalListener === listener
+    const idx = this.listeners.findIndex(
+      (l) =>
+        l.target === target &&
+        l.type === type &&
+        l.originalListener === listener,
     );
     if (idx !== -1) {
       const entry = this.listeners[idx];
@@ -179,7 +195,7 @@ export class ResourceScope {
 
     if (timerCount > 0 || listenerCount > 0) {
       log.debug(
-        `ResourceScope disposed: cleared ${timerCount} timers, removed ${listenerCount} listeners`
+        `ResourceScope disposed: cleared ${timerCount} timers, removed ${listenerCount} listeners`,
       );
     }
   }

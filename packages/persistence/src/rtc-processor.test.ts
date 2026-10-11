@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { RtcProcessor, type ConfirmDialogFn, type AskUserDialogFn, type MasterLike } from './rtc-processor.js';
+import {
+  RtcProcessor,
+  type ConfirmDialogFn,
+  type AskUserDialogFn,
+  type MasterLike,
+} from './rtc-processor.js';
 import type { PersistenceLayer } from './index.js';
 import type { LocalRtc } from './database.js';
 import type { ToolResult } from './tools/types.js';
@@ -27,8 +32,8 @@ vi.mock('./tools/index.js', () => ({
   },
 }));
 
-// Mock client logger to keep test output clean
-vi.mock('@rtc-agent/client', () => ({
+// Mock protocol logger to keep test output clean
+vi.mock('@rtc-agent/protocol', () => ({
   createLogger: () => ({
     debug: vi.fn(),
     info: vi.fn(),
@@ -38,7 +43,10 @@ vi.mock('@rtc-agent/client', () => ({
 }));
 
 // Mock persistence layer
-function createMockPersistence(): Pick<PersistenceLayer, 'getNextRtcToProcess' | 'submitRtcResult'> {
+function createMockPersistence(): Pick<
+  PersistenceLayer,
+  'getNextRtcToProcess' | 'submitRtcResult'
+> {
   return {
     getNextRtcToProcess: vi.fn(),
     submitRtcResult: vi.fn(),
@@ -91,7 +99,9 @@ describe('RtcProcessor', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     mockPersistence = createMockPersistence();
-    processor = new RtcProcessor(mockPersistence as unknown as PersistenceLayer);
+    processor = new RtcProcessor(
+      mockPersistence as unknown as PersistenceLayer,
+    );
     vi.clearAllMocks();
   });
 
@@ -231,7 +241,7 @@ describe('RtcProcessor', () => {
         .mockResolvedValueOnce(rtc1)
         // Second fetch: returns undefined, but triggers onRtcUpdate which sets pendingCheck
         .mockImplementationOnce(async () => {
-          void processor.onRtcUpdate();  // Sets pendingCheck=true
+          void processor.onRtcUpdate(); // Sets pendingCheck=true
           return undefined;
         })
         // Third fetch (loop continues due to pendingCheck): returns rtc2
@@ -258,7 +268,10 @@ describe('RtcProcessor', () => {
         .mockResolvedValueOnce(rtc)
         .mockResolvedValueOnce(undefined);
       mockNeedsConfirm.mockReturnValue(false);
-      const toolResult: ToolResult = { success: true, data: { files: ['a.ts'] } };
+      const toolResult: ToolResult = {
+        success: true,
+        data: { files: ['a.ts'] },
+      };
       mockToolExecute.mockResolvedValue(toolResult);
 
       await runWithTimers(processor.onRtcUpdate());
@@ -340,7 +353,9 @@ describe('RtcProcessor', () => {
       processor.setConfirmDialog(confirmDialog);
 
       // Mock submitRtcResult to fail
-      mockPersistence.submitRtcResult.mockRejectedValue(new Error('RPC failed'));
+      mockPersistence.submitRtcResult.mockRejectedValue(
+        new Error('RPC failed'),
+      );
 
       // Mock entityRepository.upsertRtc
       const mockUpsertRtc = vi.fn().mockResolvedValue(undefined);
@@ -357,7 +372,7 @@ describe('RtcProcessor', () => {
       });
       expect(mockUpsertRtc).toHaveBeenCalledWith(
         { client_id: 'rtc-001' },
-        'synced'
+        'synced',
       );
     });
 
@@ -372,7 +387,9 @@ describe('RtcProcessor', () => {
       processor.setConfirmDialog(confirmDialog);
 
       // Mock submitRtcResult to fail
-      mockPersistence.submitRtcResult.mockRejectedValue(new Error('RPC failed'));
+      mockPersistence.submitRtcResult.mockRejectedValue(
+        new Error('RPC failed'),
+      );
 
       // Mock entityRepository.upsertRtc to also fail
       const mockUpsertRtc = vi.fn().mockRejectedValue(new Error('DB failed'));
@@ -444,7 +461,10 @@ describe('RtcProcessor', () => {
     });
 
     it('should use empty object when RTC parameters are null', async () => {
-      const rtc = createMockRtc({ tool_name: 'ls', parameters: null as unknown as Record<string, unknown> });
+      const rtc = createMockRtc({
+        tool_name: 'ls',
+        parameters: null as unknown as Record<string, unknown>,
+      });
       mockPersistence.getNextRtcToProcess
         .mockResolvedValueOnce(rtc)
         .mockResolvedValueOnce(undefined);
@@ -481,7 +501,9 @@ describe('RtcProcessor', () => {
         .mockResolvedValueOnce(undefined);
       mockNeedsConfirm.mockReturnValue(false);
       mockToolExecute.mockResolvedValue({ success: true, data: {} });
-      mockPersistence.submitRtcResult.mockRejectedValueOnce(new Error('submit failed'));
+      mockPersistence.submitRtcResult.mockRejectedValueOnce(
+        new Error('submit failed'),
+      );
 
       await runWithTimers(processor.onRtcUpdate());
 
@@ -518,7 +540,10 @@ describe('RtcProcessor', () => {
       mockNeedsConfirm.mockReturnValue(false);
 
       // Mock tool execution to complete quickly
-      mockToolExecute.mockResolvedValue({ success: true, data: { result: 'done' } });
+      mockToolExecute.mockResolvedValue({
+        success: true,
+        data: { result: 'done' },
+      });
 
       await runWithTimers(processor.onRtcUpdate());
 
@@ -543,7 +568,10 @@ describe('RtcProcessor', () => {
         .mockResolvedValueOnce(rtc)
         .mockResolvedValueOnce(undefined);
 
-      const payload = { answers: { q1: 'yes' }, annotations: { q1: { preview: 'ok' } } };
+      const payload = {
+        answers: { q1: 'yes' },
+        annotations: { q1: { preview: 'ok' } },
+      };
       const askUserDialog: AskUserDialogFn = vi.fn().mockResolvedValue(payload);
       processor.setAskUserDialog(askUserDialog);
 
@@ -598,7 +626,9 @@ describe('RtcProcessor', () => {
         .mockResolvedValueOnce(rtc)
         .mockResolvedValueOnce(undefined);
 
-      const askUserDialog: AskUserDialogFn = vi.fn().mockRejectedValue(new Error('dialog crash'));
+      const askUserDialog: AskUserDialogFn = vi
+        .fn()
+        .mockRejectedValue(new Error('dialog crash'));
       processor.setAskUserDialog(askUserDialog);
 
       await runWithTimers(processor.onRtcUpdate());
@@ -616,9 +646,13 @@ describe('RtcProcessor', () => {
         .mockResolvedValueOnce(rtc)
         .mockResolvedValueOnce(undefined);
 
-      const askUserDialog: AskUserDialogFn = vi.fn().mockRejectedValue(new Error('dialog crash'));
+      const askUserDialog: AskUserDialogFn = vi
+        .fn()
+        .mockRejectedValue(new Error('dialog crash'));
       processor.setAskUserDialog(askUserDialog);
-      mockPersistence.submitRtcResult.mockRejectedValueOnce(new Error('submit failed'));
+      mockPersistence.submitRtcResult.mockRejectedValueOnce(
+        new Error('submit failed'),
+      );
 
       // Should not throw
       await runWithTimers(processor.onRtcUpdate());
@@ -630,7 +664,9 @@ describe('RtcProcessor', () => {
         .mockResolvedValueOnce(rtc)
         .mockResolvedValueOnce(undefined);
 
-      const askUserDialog: AskUserDialogFn = vi.fn().mockResolvedValue({ answers: { q: 'a' } });
+      const askUserDialog: AskUserDialogFn = vi
+        .fn()
+        .mockResolvedValue({ answers: { q: 'a' } });
       processor.setAskUserDialog(askUserDialog);
 
       await runWithTimers(processor.onRtcUpdate());
@@ -663,7 +699,7 @@ describe('RtcProcessor', () => {
       expect(mockToolExecute).not.toHaveBeenCalled();
       expect(mockPersistence.submitRtcResult).toHaveBeenCalledWith({
         rtcClientId: 'rtc-001',
-        success: true,  // status === 'completed'
+        success: true, // status === 'completed'
         result: { old: 'data' },
         error: null,
       });
@@ -730,7 +766,9 @@ describe('RtcProcessor', () => {
       await runWithTimers(p);
 
       // Verify a setTimeout was created with 1000ms (backoff for retryCount=0)
-      const backoffCall = setTimeoutSpy.mock.calls.find(([_, ms]) => ms === 1000);
+      const backoffCall = setTimeoutSpy.mock.calls.find(
+        ([_, ms]) => ms === 1000,
+      );
       expect(backoffCall).toBeDefined();
 
       setTimeoutSpy.mockRestore();
@@ -749,8 +787,10 @@ describe('RtcProcessor', () => {
       });
       mockPersistence.getNextRtcToProcess
         .mockResolvedValueOnce(rtc)
-        .mockResolvedValueOnce(undefined);  // Should NOT be called
-      mockPersistence.submitRtcResult.mockRejectedValueOnce(new Error('connection lost'));
+        .mockResolvedValueOnce(undefined); // Should NOT be called
+      mockPersistence.submitRtcResult.mockRejectedValueOnce(
+        new Error('connection lost'),
+      );
 
       const p = processor.onRtcUpdate();
       await runWithTimers(p);
@@ -766,8 +806,10 @@ describe('RtcProcessor', () => {
       });
       mockPersistence.getNextRtcToProcess
         .mockResolvedValueOnce(rtc)
-        .mockResolvedValueOnce(undefined);  // Should NOT be called
-      mockPersistence.submitRtcResult.mockRejectedValueOnce(new Error('client disconnected'));
+        .mockResolvedValueOnce(undefined); // Should NOT be called
+      mockPersistence.submitRtcResult.mockRejectedValueOnce(
+        new Error('client disconnected'),
+      );
 
       const p = processor.onRtcUpdate();
       await runWithTimers(p);
@@ -776,8 +818,16 @@ describe('RtcProcessor', () => {
     });
 
     it('should continue loop when retry submitRtcResult throws non-connection error', async () => {
-      const rtc1 = createMockRtc({ client_id: 'rtc-1', sync_status: 'failed', status: 'completed' });
-      const rtc2 = createMockRtc({ client_id: 'rtc-2', sync_status: 'failed', status: 'completed' });
+      const rtc1 = createMockRtc({
+        client_id: 'rtc-1',
+        sync_status: 'failed',
+        status: 'completed',
+      });
+      const rtc2 = createMockRtc({
+        client_id: 'rtc-2',
+        sync_status: 'failed',
+        status: 'completed',
+      });
 
       mockPersistence.getNextRtcToProcess
         .mockResolvedValueOnce(rtc1)
@@ -893,14 +943,16 @@ describe('RtcProcessor', () => {
   describe('calculateBackoff', () => {
     it('should produce exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s (capped)', () => {
       // Access the private method via type assertion for direct testing
-      const calc = (processor as unknown as { calculateBackoff: (n: number) => number }).calculateBackoff;
+      const calc = (
+        processor as unknown as { calculateBackoff: (n: number) => number }
+      ).calculateBackoff;
 
       expect(calc(0)).toBe(1000);
       expect(calc(1)).toBe(2000);
       expect(calc(2)).toBe(4000);
       expect(calc(3)).toBe(8000);
       expect(calc(4)).toBe(16000);
-      expect(calc(5)).toBe(30000);  // capped
+      expect(calc(5)).toBe(30000); // capped
       expect(calc(10)).toBe(30000); // capped
     });
   });
@@ -944,12 +996,18 @@ describe('RtcProcessor', () => {
     });
 
     it('should abandon RTC after MAX_SUBMIT_RETRY_COUNT and break loop', async () => {
-      const rtc = createMockRtc({ client_id: 'rtc-stuck', sync_status: 'failed', status: 'completed' });
+      const rtc = createMockRtc({
+        client_id: 'rtc-stuck',
+        sync_status: 'failed',
+        status: 'completed',
+      });
 
       // getNextRtcToProcess always returns the same RTC (simulating a permanently failed RTC)
       mockPersistence.getNextRtcToProcess.mockResolvedValue(rtc);
       // submitRtcResult always fails
-      mockPersistence.submitRtcResult.mockRejectedValue(new Error('permanent failure'));
+      mockPersistence.submitRtcResult.mockRejectedValue(
+        new Error('permanent failure'),
+      );
 
       await runWithTimers(processor.onRtcUpdate());
 
@@ -983,7 +1041,7 @@ describe('RtcProcessor', () => {
           (master as { isMaster: boolean }).isMaster = false;
           return rtc1;
         })
-        .mockResolvedValueOnce(rtc2);  // Should NOT be fetched
+        .mockResolvedValueOnce(rtc2); // Should NOT be fetched
 
       mockNeedsConfirm.mockReturnValue(false);
       mockToolExecute.mockResolvedValue({ success: true, data: {} });
@@ -1005,7 +1063,7 @@ describe('RtcProcessor', () => {
       // should detect master=false and exit the loop before fetching more RTCs.
       mockPersistence.getNextRtcToProcess
         .mockResolvedValueOnce(rtc1)
-        .mockResolvedValueOnce(undefined);  // Safety net; should not be reached
+        .mockResolvedValueOnce(undefined); // Safety net; should not be reached
 
       mockNeedsConfirm.mockReturnValue(false);
       let toolCallCount = 0;
@@ -1120,7 +1178,7 @@ describe('RtcProcessor', () => {
 
       mockPersistence.getNextRtcToProcess
         .mockResolvedValueOnce(rtc)
-        .mockResolvedValueOnce(undefined);  // Safety net
+        .mockResolvedValueOnce(undefined); // Safety net
       mockNeedsConfirm.mockReturnValue(false);
       mockToolExecute.mockRejectedValue(new Error('tool error'));
 
@@ -1241,7 +1299,11 @@ describe('RtcProcessor', () => {
 
   describe('sleep with AbortSignal', () => {
     const getSleep = (p: RtcProcessor) =>
-      (p as unknown as { sleep: (ms: number, signal?: AbortSignal) => Promise<void> }).sleep.bind(p);
+      (
+        p as unknown as {
+          sleep: (ms: number, signal?: AbortSignal) => Promise<void>;
+        }
+      ).sleep.bind(p);
 
     it('should resolve normally without signal', async () => {
       const sleep = getSleep(processor);
@@ -1300,7 +1362,10 @@ describe('RtcProcessor', () => {
       await vi.advanceTimersByTimeAsync(100);
       await p;
 
-      expect(removeEventListenerSpy).toHaveBeenCalledWith('abort', expect.any(Function));
+      expect(removeEventListenerSpy).toHaveBeenCalledWith(
+        'abort',
+        expect.any(Function),
+      );
       removeEventListenerSpy.mockRestore();
     });
 
@@ -1335,13 +1400,12 @@ describe('RtcProcessor', () => {
       processor.setMaster(master);
 
       const rtc = createMockRtc();
-      mockPersistence.getNextRtcToProcess
-        .mockImplementationOnce(async () => {
-          // Simultaneously lose master and cancel
-          (master as { isMaster: boolean }).isMaster = false;
-          processor.cancel();
-          return rtc;
-        });
+      mockPersistence.getNextRtcToProcess.mockImplementationOnce(async () => {
+        // Simultaneously lose master and cancel
+        (master as { isMaster: boolean }).isMaster = false;
+        processor.cancel();
+        return rtc;
+      });
       mockNeedsConfirm.mockReturnValue(false);
       mockToolExecute.mockResolvedValue({ success: true, data: {} });
 
@@ -1393,11 +1457,13 @@ describe('RtcProcessor', () => {
     it('should handle cancel during tool execution (tool is not interrupted)', async () => {
       const rtc = createMockRtc({ tool_name: 'slow-tool' });
       let resolveTool: ((v: unknown) => void) | undefined;
-      const toolPromise = new Promise((resolve) => { resolveTool = resolve; });
+      const toolPromise = new Promise((resolve) => {
+        resolveTool = resolve;
+      });
 
       mockPersistence.getNextRtcToProcess
         .mockResolvedValueOnce(rtc)
-        .mockResolvedValueOnce(undefined);  // Safety net; should not be reached
+        .mockResolvedValueOnce(undefined); // Safety net; should not be reached
       mockNeedsConfirm.mockReturnValue(false);
       mockToolExecute.mockReturnValue(toolPromise);
 
@@ -1430,14 +1496,18 @@ describe('RtcProcessor', () => {
     it('should handle cancel during confirm dialog', async () => {
       const rtc = createMockRtc({ tool_name: 'script' });
       let resolveConfirm: ((v: boolean) => void) | undefined;
-      const confirmPromise = new Promise<boolean>((resolve) => { resolveConfirm = resolve; });
+      const confirmPromise = new Promise<boolean>((resolve) => {
+        resolveConfirm = resolve;
+      });
 
       mockPersistence.getNextRtcToProcess
         .mockResolvedValueOnce(rtc)
         .mockResolvedValueOnce(undefined);
       mockNeedsConfirm.mockReturnValue(true);
 
-      const confirmDialog: ConfirmDialogFn = vi.fn().mockReturnValue(confirmPromise);
+      const confirmDialog: ConfirmDialogFn = vi
+        .fn()
+        .mockReturnValue(confirmPromise);
       processor.setConfirmDialog(confirmDialog);
 
       const processPromise = processor.onRtcUpdate();
@@ -1486,8 +1556,11 @@ describe('RtcProcessor', () => {
 
       // Instance A: start processLoop with a slow getNextRtcToProcess
       let resolveFirstGet: ((v: LocalRtc | undefined) => void) | undefined;
-      mockPersistence.getNextRtcToProcess.mockImplementationOnce(() =>
-        new Promise((resolve) => { resolveFirstGet = resolve; }),
+      mockPersistence.getNextRtcToProcess.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirstGet = resolve;
+          }),
       );
 
       const processA = processor.onRtcUpdate();
@@ -1510,7 +1583,9 @@ describe('RtcProcessor', () => {
       // but the key is it didn't continue running).
 
       // Instance B: create a new processor (simulating remount)
-      const processorB = new RtcProcessor(mockPersistence as unknown as PersistenceLayer);
+      const processorB = new RtcProcessor(
+        mockPersistence as unknown as PersistenceLayer,
+      );
       mockPersistence.getNextRtcToProcess
         .mockResolvedValueOnce(rtc2)
         .mockResolvedValueOnce(undefined);

@@ -644,9 +644,9 @@ export class RTCAgentDatabase extends Dexie {
         if (actualVersion < EXPECTED_SCHEMA_VERSION) {
           log.warn(
             `Schema version mismatch: expected v${EXPECTED_SCHEMA_VERSION}, got v${actualVersion}. ` +
-            `This may indicate a failed migration or database downgrade. ` +
-            `Some features may not work correctly. ` +
-            `Recovery: Clear IndexedDB data and reload, or upgrade to the latest version.`
+              `This may indicate a failed migration or database downgrade. ` +
+              `Some features may not work correctly. ` +
+              `Recovery: Clear IndexedDB data and reload, or upgrade to the latest version.`,
           );
         }
       } catch (err) {

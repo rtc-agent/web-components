@@ -27,7 +27,9 @@ export function formatRFC3339(date: Date = new Date()): string {
 
   // Get timezone offset
   const timezoneOffset = -date.getTimezoneOffset();
-  const offsetHours = String(Math.floor(Math.abs(timezoneOffset) / 60)).padStart(2, '0');
+  const offsetHours = String(
+    Math.floor(Math.abs(timezoneOffset) / 60),
+  ).padStart(2, '0');
   const offsetMinutes = String(Math.abs(timezoneOffset) % 60).padStart(2, '0');
   const offsetSign = timezoneOffset >= 0 ? '+' : '-';
 

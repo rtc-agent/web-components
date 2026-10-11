@@ -82,7 +82,12 @@ describe('createSandbox', () => {
   let sandbox: ScriptSandbox;
 
   beforeEach(() => {
-    sandbox = createSandbox(createMockRtcAgent(), { key: 'value' }, createOutput(), 'TestScript');
+    sandbox = createSandbox(
+      createMockRtcAgent(),
+      { key: 'value' },
+      createOutput(),
+      'TestScript',
+    );
   });
 
   it('should create a sandbox with rtcAgent and params', () => {
@@ -564,7 +569,11 @@ describe('generateScriptContent', () => {
   });
 
   it('should include description when provided', () => {
-    const content = generateScriptContent('test', 'const x = 42;', 'A description');
+    const content = generateScriptContent(
+      'test',
+      'const x = 42;',
+      'A description',
+    );
     expect(content).toContain('description: "A description"');
   });
 
@@ -574,7 +583,11 @@ describe('generateScriptContent', () => {
   });
 
   it('should be round-trippable with parseScriptContent', () => {
-    const original = generateScriptContent('roundtrip', 'const x = 42;', 'Test');
+    const original = generateScriptContent(
+      'roundtrip',
+      'const x = 42;',
+      'Test',
+    );
     const parsed = parseScriptContent(original);
     expect(parsed.metadata.name).toBe('roundtrip');
     expect(parsed.metadata.description).toBe('Test');
@@ -590,7 +603,11 @@ describe('_executeCode', () => {
   let sandbox: ScriptSandbox;
 
   beforeEach(() => {
-    sandbox = createSandbox(createMockRtcAgent(), { name: 'test' }, createOutput());
+    sandbox = createSandbox(
+      createMockRtcAgent(),
+      { name: 'test' },
+      createOutput(),
+    );
   });
 
   it('should execute simple JavaScript code', async () => {
@@ -682,8 +699,9 @@ describe('_executeCode', () => {
   });
 
   it('should propagate script errors', async () => {
-    await expect(_executeCode('throw new Error("script error");', sandbox, 5000))
-      .rejects.toThrow('script error');
+    await expect(
+      _executeCode('throw new Error("script error");', sandbox, 5000),
+    ).rejects.toThrow('script error');
   });
 
   it('should timeout on long-running scripts', async () => {
@@ -692,8 +710,9 @@ describe('_executeCode', () => {
       await new Promise(() => {});
       return "done";
     `;
-    await expect(_executeCode(code, sandbox, 50))
-      .rejects.toThrow(ScriptTimeoutError);
+    await expect(_executeCode(code, sandbox, 50)).rejects.toThrow(
+      ScriptTimeoutError,
+    );
   }, 10000);
 
   it('should clear timeout timer on success', async () => {
@@ -703,8 +722,9 @@ describe('_executeCode', () => {
   });
 
   it('should clear timeout timer on error', async () => {
-    await expect(_executeCode('throw new Error("fail");', sandbox, 5000))
-      .rejects.toThrow('fail');
+    await expect(
+      _executeCode('throw new Error("fail");', sandbox, 5000),
+    ).rejects.toThrow('fail');
   });
 
   it('should execute TypeScript syntax (type annotations)', async () => {
@@ -779,8 +799,9 @@ describe('executeScriptCode', () => {
   });
 
   it('should apply sandbox security (block dangerous code)', async () => {
-    await expect(executeScriptCode('return fetch("https://example.com");', sandbox))
-      .rejects.toThrow(ScriptCompileError);
+    await expect(
+      executeScriptCode('return fetch("https://example.com");', sandbox),
+    ).rejects.toThrow(ScriptCompileError);
   });
 });
 
@@ -837,36 +858,48 @@ describe('loadAndExecuteScript', () => {
   });
 
   it('should load and execute a saved script', async () => {
-    await saveScript('hello', `
+    await saveScript(
+      'hello',
+      `
       const greeting = "Hello, " + params.name + "!";
       return greeting;
-    `);
+    `,
+    );
 
-    const result = await loadAndExecuteScript('hello', createMockRtcAgent(), { name: 'World' });
+    const result = await loadAndExecuteScript('hello', createMockRtcAgent(), {
+      name: 'World',
+    });
     expect(result).toBe('Hello, World!');
   });
 
   it('should pass params to script sandbox', async () => {
     await saveScript('params-test', `return params.x + params.y;`);
 
-    const result = await loadAndExecuteScript('params-test', createMockRtcAgent(), { x: 10, y: 20 });
+    const result = await loadAndExecuteScript(
+      'params-test',
+      createMockRtcAgent(),
+      { x: 10, y: 20 },
+    );
     expect(result).toBe(30);
   });
 
   it('should throw when script file does not exist', async () => {
     await expect(
-      loadAndExecuteScript('nonexistent', createMockRtcAgent())
+      loadAndExecuteScript('nonexistent', createMockRtcAgent()),
     ).rejects.toThrow();
   });
 
   it('should apply timeout to loaded script', async () => {
     // Use a never-resolving Promise (setTimeout is blocked by sandbox)
-    await saveScript('timeout-test', `
+    await saveScript(
+      'timeout-test',
+      `
       await new Promise(() => {});
-    `);
+    `,
+    );
 
     await expect(
-      loadAndExecuteScript('timeout-test', createMockRtcAgent(), {}, 50)
+      loadAndExecuteScript('timeout-test', createMockRtcAgent(), {}, 50),
     ).rejects.toThrow(ScriptTimeoutError);
   }, 10000);
 });
@@ -901,10 +934,12 @@ describe('edge cases', () => {
       };
     `;
     const result = await _executeCode(code, sandbox, 5000);
-    expect(result).toEqual(expect.objectContaining({
-      nested: { a: [1, 2, 3] },
-      regex: true,
-    }));
+    expect(result).toEqual(
+      expect.objectContaining({
+        nested: { a: [1, 2, 3] },
+        regex: true,
+      }),
+    );
   });
 
   it('should handle concurrent script executions', async () => {
@@ -997,25 +1032,37 @@ describe('Script Parameters', () => {
     });
 
     it('should access object parameters', async () => {
-      sandbox = createSandbox(createMockRtcAgent(), { user: { name: 'Bob', age: 30 } }, output);
+      sandbox = createSandbox(
+        createMockRtcAgent(),
+        { user: { name: 'Bob', age: 30 } },
+        output,
+      );
       const code = `return \`\${params.user.name} is \${params.user.age} years old\`;`;
       const result = await _executeCode(code, sandbox, 5000);
       expect(result).toBe('Bob is 30 years old');
     });
 
     it('should access array parameters', async () => {
-      sandbox = createSandbox(createMockRtcAgent(), { items: [1, 2, 3] }, output);
+      sandbox = createSandbox(
+        createMockRtcAgent(),
+        { items: [1, 2, 3] },
+        output,
+      );
       const code = `return params.items.reduce((a, b) => a + b, 0);`;
       const result = await _executeCode(code, sandbox, 5000);
       expect(result).toBe(6);
     });
 
     it('should handle multiple parameters', async () => {
-      sandbox = createSandbox(createMockRtcAgent(), {
-        startDate: '2024-01-01',
-        endDate: '2024-12-31',
-        format: 'json'
-      }, output);
+      sandbox = createSandbox(
+        createMockRtcAgent(),
+        {
+          startDate: '2024-01-01',
+          endDate: '2024-12-31',
+          format: 'json',
+        },
+        output,
+      );
       const code = `
         const { startDate, endDate, format } = params;
         return { range: \`\${startDate} to \${endDate}\`, outputFormat: format };
@@ -1023,7 +1070,7 @@ describe('Script Parameters', () => {
       const result = await _executeCode(code, sandbox, 5000);
       expect(result).toEqual({
         range: '2024-01-01 to 2024-12-31',
-        outputFormat: 'json'
+        outputFormat: 'json',
       });
     });
   });
@@ -1040,7 +1087,11 @@ describe('Script Parameters', () => {
     });
 
     it('should handle undefined parameters', async () => {
-      sandbox = createSandbox(createMockRtcAgent(), { name: undefined }, output);
+      sandbox = createSandbox(
+        createMockRtcAgent(),
+        { name: undefined },
+        output,
+      );
       const code = `return params.name || 'default';`;
       const result = await _executeCode(code, sandbox, 5000);
       expect(result).toBe('default');
@@ -1054,7 +1105,11 @@ describe('Script Parameters', () => {
     });
 
     it('should use optional chaining for nested parameters', async () => {
-      sandbox = createSandbox(createMockRtcAgent(), { user: { name: 'Alice' } }, output);
+      sandbox = createSandbox(
+        createMockRtcAgent(),
+        { user: { name: 'Alice' } },
+        output,
+      );
       const code = `return params.user?.age ?? 'unknown';`;
       const result = await _executeCode(code, sandbox, 5000);
       expect(result).toBe('unknown');
@@ -1063,13 +1118,17 @@ describe('Script Parameters', () => {
 
   describe('Parameter types and validation', () => {
     it('should preserve parameter types', async () => {
-      sandbox = createSandbox(createMockRtcAgent(), {
-        str: 'text',
-        num: 123,
-        bool: true,
-        obj: { key: 'value' },
-        arr: [1, 2, 3]
-      }, output);
+      sandbox = createSandbox(
+        createMockRtcAgent(),
+        {
+          str: 'text',
+          num: 123,
+          bool: true,
+          obj: { key: 'value' },
+          arr: [1, 2, 3],
+        },
+        output,
+      );
       const code = `
         return {
           strType: typeof params.str,
@@ -1085,20 +1144,24 @@ describe('Script Parameters', () => {
         numType: 'number',
         boolType: 'boolean',
         objType: 'object',
-        arrType: true
+        arrType: true,
       });
     });
 
     it('should handle complex nested structures', async () => {
-      sandbox = createSandbox(createMockRtcAgent(), {
-        data: {
-          users: [
-            { name: 'Alice', tags: ['admin', 'user'] },
-            { name: 'Bob', tags: ['user'] }
-          ],
-          metadata: { count: 2 }
-        }
-      }, output);
+      sandbox = createSandbox(
+        createMockRtcAgent(),
+        {
+          data: {
+            users: [
+              { name: 'Alice', tags: ['admin', 'user'] },
+              { name: 'Bob', tags: ['user'] },
+            ],
+            metadata: { count: 2 },
+          },
+        },
+        output,
+      );
       const code = `
         return {
           firstUser: params.data.users[0].name,
@@ -1110,14 +1173,18 @@ describe('Script Parameters', () => {
       expect(result).toEqual({
         firstUser: 'Alice',
         firstUserTags: ['admin', 'user'],
-        totalUsers: 2
+        totalUsers: 2,
       });
     });
   });
 
   describe('Parameter usage patterns', () => {
     it('should use params in loops', async () => {
-      sandbox = createSandbox(createMockRtcAgent(), { items: ['a', 'b', 'c'] }, output);
+      sandbox = createSandbox(
+        createMockRtcAgent(),
+        { items: ['a', 'b', 'c'] },
+        output,
+      );
       const code = `
         const result = [];
         for (const item of params.items) {
@@ -1130,7 +1197,11 @@ describe('Script Parameters', () => {
     });
 
     it('should use params in conditional logic', async () => {
-      sandbox = createSandbox(createMockRtcAgent(), { threshold: 10, value: 15 }, output);
+      sandbox = createSandbox(
+        createMockRtcAgent(),
+        { threshold: 10, value: 15 },
+        output,
+      );
       const code = `
         if (params.value > params.threshold) {
           return 'above threshold';
@@ -1143,7 +1214,11 @@ describe('Script Parameters', () => {
     });
 
     it('should use params in function calls', async () => {
-      sandbox = createSandbox(createMockRtcAgent(), { numbers: [1, 2, 3, 4, 5] }, output);
+      sandbox = createSandbox(
+        createMockRtcAgent(),
+        { numbers: [1, 2, 3, 4, 5] },
+        output,
+      );
       const code = `
         function sum(arr) {
           return arr.reduce((a, b) => a + b, 0);
@@ -1155,7 +1230,11 @@ describe('Script Parameters', () => {
     });
 
     it('should use params with async/await', async () => {
-      sandbox = createSandbox(createMockRtcAgent(), { items: [1, 2, 3] }, output);
+      sandbox = createSandbox(
+        createMockRtcAgent(),
+        { items: [1, 2, 3] },
+        output,
+      );
       const code = `
         async function processItems(arr) {
           const results = [];
@@ -1197,14 +1276,18 @@ describe('Script Parameters', () => {
 
   describe('Real-world scenarios', () => {
     it('should handle data transformation with params', async () => {
-      sandbox = createSandbox(createMockRtcAgent(), {
-        data: [
-          { name: 'Alice', score: 85 },
-          { name: 'Bob', score: 92 },
-          { name: 'Charlie', score: 78 }
-        ],
-        minScore: 80
-      }, output);
+      sandbox = createSandbox(
+        createMockRtcAgent(),
+        {
+          data: [
+            { name: 'Alice', score: 85 },
+            { name: 'Bob', score: 92 },
+            { name: 'Charlie', score: 78 },
+          ],
+          minScore: 80,
+        },
+        output,
+      );
       const code = `
         const { data, minScore } = params;
         const passed = data.filter(student => student.score >= minScore);
@@ -1219,15 +1302,19 @@ describe('Script Parameters', () => {
     });
 
     it('should handle date range processing with params', async () => {
-      sandbox = createSandbox(createMockRtcAgent(), {
-        startDate: '2024-01-01',
-        endDate: '2024-01-31',
-        events: [
-          { date: '2024-01-05', title: 'Event 1' },
-          { date: '2024-01-15', title: 'Event 2' },
-          { date: '2024-02-05', title: 'Event 3' }
-        ]
-      }, output);
+      sandbox = createSandbox(
+        createMockRtcAgent(),
+        {
+          startDate: '2024-01-01',
+          endDate: '2024-01-31',
+          events: [
+            { date: '2024-01-05', title: 'Event 1' },
+            { date: '2024-01-15', title: 'Event 2' },
+            { date: '2024-02-05', title: 'Event 3' },
+          ],
+        },
+        output,
+      );
       const code = `
         const { startDate, endDate, events } = params;
         const start = new Date(startDate);
@@ -1245,13 +1332,17 @@ describe('Script Parameters', () => {
     });
 
     it('should handle configuration-based processing', async () => {
-      sandbox = createSandbox(createMockRtcAgent(), {
-        config: {
-          enableLogging: true,
-          maxRetries: 3,
-          timeout: 5000
-        }
-      }, output);
+      sandbox = createSandbox(
+        createMockRtcAgent(),
+        {
+          config: {
+            enableLogging: true,
+            maxRetries: 3,
+            timeout: 5000,
+          },
+        },
+        output,
+      );
       const code = `
         const { config } = params;
         if (config.enableLogging) {
@@ -1269,4 +1360,3 @@ describe('Script Parameters', () => {
     });
   });
 });
-

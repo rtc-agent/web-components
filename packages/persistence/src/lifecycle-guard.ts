@@ -1,4 +1,4 @@
-import { createLogger } from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('LifecycleGuard');
 
@@ -69,7 +69,10 @@ export class LifecycleGuard {
    * @param operation The async operation to guard
    * @param fallback  Value to return when the guard rejects the operation
    */
-  async run<T>(operation: () => Promise<T>, fallback?: T): Promise<T | undefined> {
+  async run<T>(
+    operation: () => Promise<T>,
+    fallback?: T,
+  ): Promise<T | undefined> {
     try {
       this.assertActive();
       return await operation();

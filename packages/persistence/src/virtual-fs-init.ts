@@ -5,7 +5,7 @@
  */
 
 import { virtualFS } from './virtual-fs.js';
-import { createLogger } from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('VirtualFSInit');
 
@@ -25,7 +25,11 @@ export interface AgentMdConfig {
  * Generate AGENT.md content from configuration.
  */
 export function generateAgentMd(config: AgentMdConfig = {}): string {
-  const { name = 'RTC Agent', description = 'Your AI-powered assistant', persona = '' } = config;
+  const {
+    name = 'RTC Agent',
+    description = 'Your AI-powered assistant',
+    persona = '',
+  } = config;
 
   let content = `# ${name}\n\n`;
   content += `${description}\n\n`;
@@ -70,7 +74,9 @@ For business workflows, check \`/scenarios/\` directory.
  *
  * @param config AGENT.md configuration
  */
-export async function initializeVirtualFS(config: AgentMdConfig = {}): Promise<void> {
+export async function initializeVirtualFS(
+  config: AgentMdConfig = {},
+): Promise<void> {
   try {
     // Check whether AGENT.md already exists
     const exists = await virtualFS.exists('/AGENT.md');

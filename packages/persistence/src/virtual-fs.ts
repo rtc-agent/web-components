@@ -11,8 +11,13 @@
  *   database instances or configurations in the future
  */
 
-import { getDatabase, type FileSystemEntry, type FileSystemEntryType, type FileSystemEntryMetadata } from './database.js';
-import { createLogger } from '@rtc-agent/client';
+import {
+  getDatabase,
+  type FileSystemEntry,
+  type FileSystemEntryType,
+  type FileSystemEntryMetadata,
+} from './database.js';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('VirtualFS');
 
@@ -22,7 +27,7 @@ const log = createLogger('VirtualFS');
 export class PathError extends Error {
   constructor(
     public code: 'ENOENT' | 'EINVAL',
-    message: string
+    message: string,
   ) {
     super(message);
     this.name = 'PathError';
@@ -39,12 +44,15 @@ export class PathError extends Error {
  */
 export function normalizePath(path: string): string {
   if (!path || typeof path !== 'string') {
-    throw new PathError('EINVAL', `Path must be a non-empty string, got: ${JSON.stringify(path)}`);
+    throw new PathError(
+      'EINVAL',
+      `Path must be a non-empty string, got: ${JSON.stringify(path)}`,
+    );
   }
 
   let normalized = path.startsWith('/') ? path : '/' + path;
 
-  const segments = normalized.split('/').filter(s => s && s !== '.');
+  const segments = normalized.split('/').filter((s) => s && s !== '.');
 
   for (const segment of segments) {
     if (segment === '..') {
@@ -119,10 +127,10 @@ export function matchGlob(pattern: string, path: string): boolean {
   // Escape regex metacharacters (but not our placeholder)
   const regexStr = processed
     .replace(/[.+^${}()|[\]\\/+]/g, '\\$&')
-    .replace(new RegExp(DOUBLE_STAR_PLACEHOLDER, 'g'), DOT_STAR_PLACEHOLDER)  // ** -> placeholder
-    .replace(/\*/g, '[^\\/]*')   // * matches anything except /
-    .replace(/\?/g, '[^\\/]')   // ? matches single char except /
-    .replace(new RegExp(DOT_STAR_PLACEHOLDER, 'g'), '.*');  // finally replace with .*
+    .replace(new RegExp(DOUBLE_STAR_PLACEHOLDER, 'g'), DOT_STAR_PLACEHOLDER) // ** -> placeholder
+    .replace(/\*/g, '[^\\/]*') // * matches anything except /
+    .replace(/\?/g, '[^\\/]') // ? matches single char except /
+    .replace(new RegExp(DOT_STAR_PLACEHOLDER, 'g'), '.*'); // finally replace with .*
 
   const regex = new RegExp(`^${regexStr}$`);
   return regex.test(path);
@@ -203,7 +211,7 @@ export class VirtualFS {
     path: string,
     content: string,
     mode: 'overwrite' | 'append' | 'create-new' = 'overwrite',
-    metadataOverride?: Partial<FileSystemEntryMetadata>
+    metadataOverride?: Partial<FileSystemEntryMetadata>,
   ): Promise<number> {
     const normalizedPath = normalizePath(path);
     const db = getDatabase();
@@ -211,52 +219,57 @@ export class VirtualFS {
     const type = this.inferFileType(normalizedPath);
 
     // Wrap read-modify-write in transaction to prevent race conditions
-    return db.transaction('rw', db.fileSystemEntries, db.ui_updates, async () => {
-      const existing = await db.fileSystemEntries.get(normalizedPath);
+    return db.transaction(
+      'rw',
+      db.fileSystemEntries,
+      db.ui_updates,
+      async () => {
+        const existing = await db.fileSystemEntries.get(normalizedPath);
 
-      // create-new mode: skip write if file already exists
-      if (mode === 'create-new' && existing) {
-        return existing.content.length;
-      }
+        // create-new mode: skip write if file already exists
+        if (mode === 'create-new' && existing) {
+          return existing.content.length;
+        }
 
-      let finalContent = content;
-      let metadata: FileSystemEntryMetadata;
+        let finalContent = content;
+        let metadata: FileSystemEntryMetadata;
 
-      if (existing && mode === 'append') {
-        finalContent = existing.content + content;
-        metadata = {
-          ...existing.metadata,
-          ...metadataOverride,
-          updatedAt: new Date(),
-        };
-      } else {
-        const now = new Date();
-        metadata = {
-          name: getFileName(normalizedPath),
-          description: '',
-          createdAt: existing?.metadata.createdAt || now,
-          updatedAt: now,
-          ...metadataOverride,
-        };
+        if (existing && mode === 'append') {
+          finalContent = existing.content + content;
+          metadata = {
+            ...existing.metadata,
+            ...metadataOverride,
+            updatedAt: new Date(),
+          };
+        } else {
+          const now = new Date();
+          metadata = {
+            name: getFileName(normalizedPath),
+            description: '',
+            createdAt: existing?.metadata.createdAt || now,
+            updatedAt: now,
+            ...metadataOverride,
+          };
 
-        if (type === 'function') {
-          const group = this.extractGroupFromPath(normalizedPath);
-          if (group) {
-            metadata.group = group;
+          if (type === 'function') {
+            const group = this.extractGroupFromPath(normalizedPath);
+            if (group) {
+              metadata.group = group;
+            }
           }
         }
-      }
 
-      const entry: FileSystemEntry = {
-        path: normalizedPath,
-        type,
-        content: finalContent,
-        metadata,
-      };
+        const entry: FileSystemEntry = {
+          path: normalizedPath,
+          type,
+          content: finalContent,
+          metadata,
+        };
 
-      await db.fileSystemEntries.put(entry);
-      return finalContent.length;
-    });
+        await db.fileSystemEntries.put(entry);
+        return finalContent.length;
+      },
+    );
   }
 
   /**
@@ -318,22 +331,23 @@ export class VirtualFS {
 
     if (normalizedPath === '/') {
       // PERF: Use keys() — only paths are needed for glob matching, not file content
-      paths = await db.fileSystemEntries.toCollection().keys() as string[];
+      paths = (await db.fileSystemEntries.toCollection().keys()) as string[];
     } else {
       const prefix = normalizedPath + '/';
       // Use startsWith for efficient index-based query; keys() avoids loading content
-      paths = await db.fileSystemEntries
+      paths = (await db.fileSystemEntries
         .where('path')
         .startsWith(prefix)
-        .keys() as string[];
+        .keys()) as string[];
     }
 
     const matches: string[] = [];
 
     for (const p of paths) {
-      const relativePath = normalizedPath === '/'
-        ? p.substring(1)
-        : p.substring(normalizedPath.length + 1);
+      const relativePath =
+        normalizedPath === '/'
+          ? p.substring(1)
+          : p.substring(normalizedPath.length + 1);
 
       if (matchGlob(pattern, relativePath) || matchGlob(pattern, p)) {
         matches.push(p);
@@ -369,13 +383,25 @@ export class VirtualFS {
     contextBefore: number = 0,
     contextAfter: number = 0,
     showLineNumbers: boolean = true,
-    outputMode: 'content' | 'files_with_matches' | 'count' = 'files_with_matches',
+    outputMode:
+      | 'content'
+      | 'files_with_matches'
+      | 'count' = 'files_with_matches',
     multiline: boolean = false,
     glob?: string,
-    type?: string
+    type?: string,
   ): Promise<GrepResult> {
     const normalizedPath = normalizePath(path);
-    log.debug('grep: pattern:', pattern, 'path:', normalizedPath, 'caseSensitive:', caseSensitive, 'outputMode:', outputMode);
+    log.debug(
+      'grep: pattern:',
+      pattern,
+      'path:',
+      normalizedPath,
+      'caseSensitive:',
+      caseSensitive,
+      'outputMode:',
+      outputMode,
+    );
     const db = getDatabase();
 
     let regex: RegExp;
@@ -383,7 +409,9 @@ export class VirtualFS {
       // Always include 'g' flag for correct match counting and iteration.
       // Individual test() calls reset lastIndex explicitly to avoid state bugs.
       const flags = (caseSensitive ? '' : 'i') + 'g';
-      const regexPattern = multiline ? pattern.replace(/\./g, '[\\s\\S]') : pattern;
+      const regexPattern = multiline
+        ? pattern.replace(/\./g, '[\\s\\S]')
+        : pattern;
       regex = new RegExp(regexPattern, flags + (multiline ? 'm' : ''));
     } catch (err) {
       log.warn('grep: invalid regex pattern:', pattern, err);
@@ -405,7 +433,7 @@ export class VirtualFS {
 
     // Filter by type if specified
     if (type) {
-      entries = entries.filter(entry => {
+      entries = entries.filter((entry) => {
         const ext = entry.path.split('.').pop()?.toLowerCase();
         return ext === type.toLowerCase();
       });
@@ -413,20 +441,25 @@ export class VirtualFS {
 
     // Filter by glob pattern if specified
     if (glob) {
-      entries = entries.filter(entry => {
+      entries = entries.filter((entry) => {
         const filename = entry.path.split('/').pop() || '';
-        const relativePath = normalizedPath === '/'
-          ? entry.path.substring(1)
-          : entry.path.substring(normalizedPath.length + 1);
-        return matchGlob(glob, filename) || matchGlob(glob, relativePath) || matchGlob(glob, entry.path);
+        const relativePath =
+          normalizedPath === '/'
+            ? entry.path.substring(1)
+            : entry.path.substring(normalizedPath.length + 1);
+        return (
+          matchGlob(glob, filename) ||
+          matchGlob(glob, relativePath) ||
+          matchGlob(glob, entry.path)
+        );
       });
     }
 
     // Exclude VCS directories
     const vcsDirs = ['.git', '.svn', '.hg', '.bzr', '.jj', '.sl'];
-    entries = entries.filter(entry => {
+    entries = entries.filter((entry) => {
       const pathParts = entry.path.split('/');
-      return !pathParts.some(part => vcsDirs.includes(part));
+      return !pathParts.some((part) => vcsDirs.includes(part));
     });
 
     if (outputMode === 'files_with_matches') {
@@ -442,13 +475,19 @@ export class VirtualFS {
       }
 
       // Apply offset and limit
-      const limitedFiles = matchedFiles.slice(offset, offset + (maxResults || matchedFiles.length));
+      const limitedFiles = matchedFiles.slice(
+        offset,
+        offset + (maxResults || matchedFiles.length),
+      );
 
       return {
         mode: 'files_with_matches',
         filenames: limitedFiles,
         numFiles: limitedFiles.length,
-        appliedLimit: maxResults && matchedFiles.length - offset > maxResults ? maxResults : undefined,
+        appliedLimit:
+          maxResults && matchedFiles.length - offset > maxResults
+            ? maxResults
+            : undefined,
         appliedOffset: offset > 0 ? offset : undefined,
       };
     }
@@ -468,20 +507,30 @@ export class VirtualFS {
       }
 
       // Apply offset and limit
-      const limitedResults = countResults.slice(offset, offset + (maxResults || countResults.length));
+      const limitedResults = countResults.slice(
+        offset,
+        offset + (maxResults || countResults.length),
+      );
 
       return {
         mode: 'count',
-        content: limitedResults.map(r => `${r.file}:${r.count}`).join('\n'),
+        content: limitedResults.map((r) => `${r.file}:${r.count}`).join('\n'),
         numFiles: limitedResults.length,
         numMatches: totalMatches,
-        appliedLimit: maxResults && countResults.length - offset > maxResults ? maxResults : undefined,
+        appliedLimit:
+          maxResults && countResults.length - offset > maxResults
+            ? maxResults
+            : undefined,
         appliedOffset: offset > 0 ? offset : undefined,
       };
     }
 
     // outputMode === 'content'
-    const contentResults: Array<{ file: string; lineNumber: number; line: string }> = [];
+    const contentResults: Array<{
+      file: string;
+      lineNumber: number;
+      line: string;
+    }> = [];
 
     for (const entry of entries) {
       // Multiline mode: match against full content, not line-by-line.
@@ -541,10 +590,13 @@ export class VirtualFS {
     }
 
     // Apply offset and limit
-    const limitedResults = contentResults.slice(offset, offset + (maxResults || contentResults.length));
+    const limitedResults = contentResults.slice(
+      offset,
+      offset + (maxResults || contentResults.length),
+    );
 
     // Format output
-    const formattedLines = limitedResults.map(r => {
+    const formattedLines = limitedResults.map((r) => {
       const lineNum = showLineNumbers ? `${r.lineNumber}:` : '';
       return `${r.file}:${lineNum}${r.line}`;
     });
@@ -555,7 +607,10 @@ export class VirtualFS {
       numLines: formattedLines.length,
       filenames: [],
       numFiles: 0,
-      appliedLimit: maxResults && contentResults.length - offset > maxResults ? maxResults : undefined,
+      appliedLimit:
+        maxResults && contentResults.length - offset > maxResults
+          ? maxResults
+          : undefined,
       appliedOffset: offset > 0 ? offset : undefined,
     };
   }
@@ -586,7 +641,7 @@ export class VirtualFS {
     path: string,
     oldString: string,
     newString: string,
-    replaceAll: boolean = false
+    replaceAll: boolean = false,
   ): Promise<{ replaced: number }> {
     const normalizedPath = normalizePath(path);
     log.debug('edit:', normalizedPath, 'replaceAll:', replaceAll);
@@ -597,59 +652,68 @@ export class VirtualFS {
     }
 
     if (oldString === newString) {
-      throw new Error('No changes to make: old_string and new_string are exactly the same');
+      throw new Error(
+        'No changes to make: old_string and new_string are exactly the same',
+      );
     }
 
     // Wrap read-modify-write in transaction to prevent race conditions
-    return db.transaction('rw', db.fileSystemEntries, db.ui_updates, async () => {
-      const entry = await db.fileSystemEntries.get(normalizedPath);
-      if (!entry) {
-        throw new PathError('ENOENT', `File not found: ${normalizedPath}`);
-      }
+    return db.transaction(
+      'rw',
+      db.fileSystemEntries,
+      db.ui_updates,
+      async () => {
+        const entry = await db.fileSystemEntries.get(normalizedPath);
+        if (!entry) {
+          throw new PathError('ENOENT', `File not found: ${normalizedPath}`);
+        }
 
-      const content = entry.content;
+        const content = entry.content;
 
-      // Count matches
-      let matchCount = 0;
-      let idx = 0;
-      while (true) {
-        const pos = content.indexOf(oldString, idx);
-        if (pos === -1) break;
-        matchCount++;
-        idx = pos + oldString.length;
-      }
+        // Count matches
+        let matchCount = 0;
+        let idx = 0;
+        while (true) {
+          const pos = content.indexOf(oldString, idx);
+          if (pos === -1) break;
+          matchCount++;
+          idx = pos + oldString.length;
+        }
 
-      if (matchCount === 0) {
-        throw new Error(`String to replace not found in file.\nString: ${oldString}`);
-      }
+        if (matchCount === 0) {
+          throw new Error(
+            `String to replace not found in file.\nString: ${oldString}`,
+          );
+        }
 
-      if (matchCount > 1 && !replaceAll) {
-        throw new Error(
-          `Found ${matchCount} matches of the string to replace, but replace_all is false. ` +
-          `Either provide more context to make the match unique, or set replace_all to true.`
-        );
-      }
+        if (matchCount > 1 && !replaceAll) {
+          throw new Error(
+            `Found ${matchCount} matches of the string to replace, but replace_all is false. ` +
+              `Either provide more context to make the match unique, or set replace_all to true.`,
+          );
+        }
 
-      // Perform replacement
-      const newContent = replaceAll
-        ? content.split(oldString).join(newString)
-        : content.replace(oldString, newString);
+        // Perform replacement
+        const newContent = replaceAll
+          ? content.split(oldString).join(newString)
+          : content.replace(oldString, newString);
 
-      // Write back
-      const metadata: FileSystemEntryMetadata = {
-        ...entry.metadata,
-        updatedAt: new Date(),
-      };
+        // Write back
+        const metadata: FileSystemEntryMetadata = {
+          ...entry.metadata,
+          updatedAt: new Date(),
+        };
 
-      await db.fileSystemEntries.put({
-        ...entry,
-        content: newContent,
-        metadata,
-      });
+        await db.fileSystemEntries.put({
+          ...entry,
+          content: newContent,
+          metadata,
+        });
 
-      log.debug('edit: success, replaced:', replaceAll ? matchCount : 1);
-      return { replaced: replaceAll ? matchCount : 1 };
-    });
+        log.debug('edit: success, replaced:', replaceAll ? matchCount : 1);
+        return { replaced: replaceAll ? matchCount : 1 };
+      },
+    );
   }
 
   /**
@@ -664,8 +728,16 @@ export class VirtualFS {
 
   /**
    * Delete a file.
+   *
    * CRITICAL FIX: Use transaction to prevent TOCTOU race condition where concurrent
    * write could create a file between the exists() check and delete() call.
+   *
+   * BEHAVIOR: This method is **non-idempotent** (strict mode). It throws ENOENT if the
+   * file does not exist. This is intentional: it allows callers to distinguish between
+   * "file was deleted" and "file never existed", which is important for LLM tool results
+   * where the distinction matters for error reporting.
+   *
+   * If idempotent deletion is needed (delete-if-exists), use `removeIfExists()` instead.
    */
   async remove(path: string): Promise<void> {
     const normalizedPath = normalizePath(path);
@@ -673,15 +745,54 @@ export class VirtualFS {
     const db = getDatabase();
 
     // FIX: Perform existence check and delete within the same transaction
-    await db.transaction('rw', db.fileSystemEntries, db.ui_updates, async () => {
-      const entry = await db.fileSystemEntries.get(normalizedPath);
-      if (!entry) {
-        log.debug('remove: file not found:', normalizedPath);
-        throw new PathError('ENOENT', `File not found: ${normalizedPath}`);
-      }
-      await db.fileSystemEntries.delete(normalizedPath);
-    });
+    await db.transaction(
+      'rw',
+      db.fileSystemEntries,
+      db.ui_updates,
+      async () => {
+        const entry = await db.fileSystemEntries.get(normalizedPath);
+        if (!entry) {
+          log.debug('remove: file not found:', normalizedPath);
+          throw new PathError('ENOENT', `File not found: ${normalizedPath}`);
+        }
+        await db.fileSystemEntries.delete(normalizedPath);
+      },
+    );
     log.debug('remove: success:', normalizedPath);
+  }
+
+  /**
+   * Delete a file if it exists (idempotent).
+   *
+   * Unlike `remove()`, this method does NOT throw ENOENT if the file is missing.
+   * Returns true if the file was deleted, false if it didn't exist.
+   *
+   * Use this when the caller wants "delete if present" semantics without error handling.
+   */
+  async removeIfExists(path: string): Promise<boolean> {
+    const normalizedPath = normalizePath(path);
+    log.debug('removeIfExists:', normalizedPath);
+    const db = getDatabase();
+
+    let deleted = false;
+    await db.transaction(
+      'rw',
+      db.fileSystemEntries,
+      db.ui_updates,
+      async () => {
+        const entry = await db.fileSystemEntries.get(normalizedPath);
+        if (entry) {
+          await db.fileSystemEntries.delete(normalizedPath);
+          deleted = true;
+        }
+      },
+    );
+    log.debug(
+      'removeIfExists:',
+      deleted ? 'deleted' : 'not found',
+      normalizedPath,
+    );
+    return deleted;
   }
 
   /**

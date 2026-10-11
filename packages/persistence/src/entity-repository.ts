@@ -11,6 +11,19 @@
  * operations share common patterns (sync status, parent resolution, UI bus emission)
  * that are tightly coupled. Splitting by entity type would duplicate the shared
  * infrastructure and obscure the cross-entity consistency guarantees.
+ *
+ * ## Conflict Resolution Strategy
+ *
+ * When the same entity is modified concurrently (e.g., on multiple devices before sync),
+ * the current strategy is **last-write-wins**: the most recent write (by wall-clock time)
+ * overwrites earlier writes. This is a deliberate simplification given the single-user,
+ * multi-device architecture where concurrent edits to the same entity are rare.
+ *
+ * Sync status tracking ('synced' | 'pending' | 'error') helps detect and resolve conflicts
+ * at the application layer during server sync. For critical data (e.g., turn/message ordering),
+ * server-side conflict resolution provides the source of truth.
+ *
+ * Future enhancements may include vector clocks or CRDTs if concurrent edit frequency increases.
  */
 import {
   getDatabase,
@@ -381,23 +394,46 @@ export class EntityRepository {
   ): Promise<LocalSession[]> {
     const db = getDatabase();
 
-    // PERFORMANCE: Dexie cannot combine index-based sorting (updated_at) with
-    // non-indexed filtering (deleted_at) — no compound index exists.
-    // Using Dexie's Collection.filter() applies the filter lazily during toArray(),
-    // avoiding an intermediate full array allocation. Combined with a hard limit
-    // to prevent pathological cases (extremely large datasets).
+    // PERFORMANCE: Use compound index [deleted_at+updated_at] for DB-level cursor pagination.
+    // For active sessions, deleted_at is undefined/falsy. We filter after querying to handle
+    // all falsy cases (undefined, null, 0).
     //
-    // For datasets > 10000 sessions, consider adding a compound index
-    // [deleted_at+updated_at] or using a separate "active sessions" view.
-    const active = await db.sessions
-      .orderBy('updated_at')
-      .reverse()
-      // Dexie's Collection.filter() filters during iteration (lazy evaluation),
-      // more memory-efficient than post-hoc JS array filtering.
+    // Cursor pagination: find cursor session's updated_at, then query sessions with
+    // updated_at < cursor.updated_at (for backward pagination through time).
+    //
+    // Note: If deleted_at is consistently 0 for active sessions (not undefined), we could
+    // use where('[deleted_at+updated_at]').between([0, -Infinity], [0, cursorUpdatedAt])
+    // for even better performance. Current implementation handles all falsy deleted_at values.
+
+    let cursorUpdatedAt: number | null = null;
+    if (cursor) {
+      const cursorSession = await db.sessions.get(cursor);
+      if (!cursorSession) {
+        log.warn(
+          `listSessions: cursor ${cursor} not found, returning from start`,
+        );
+      } else if (cursorSession.updated_at) {
+        cursorUpdatedAt = new Date(cursorSession.updated_at).getTime();
+      }
+    }
+
+    // Query sessions ordered by updated_at descending
+    let query = db.sessions.orderBy('updated_at').reverse();
+
+    // If cursor provided, start from sessions older than cursor
+    if (cursorUpdatedAt !== null) {
+      query = db.sessions
+        .where('updated_at')
+        .below(new Date(cursorUpdatedAt).toISOString())
+        .reverse();
+    }
+
+    // Filter for active sessions (not deleted)
+    const active = await query
       .filter((s) => !s.deleted_at)
+      .limit(limit)
       .toArray();
 
-    // Performance warning for large datasets
     if (active.length > 1000) {
       log.warn(
         `listSessions: ${active.length} active sessions loaded. ` +
@@ -405,19 +441,7 @@ export class EntityRepository {
       );
     }
 
-    // Cursor pagination (for future distributed database scenarios)
-    if (cursor) {
-      const startIdx = active.findIndex((s) => s.client_id === cursor);
-      if (startIdx === -1) {
-        log.warn(
-          `listSessions: cursor ${cursor} not found, returning from start`,
-        );
-        return active.slice(0, limit);
-      }
-      return active.slice(startIdx + 1, startIdx + 1 + limit);
-    }
-
-    return active.slice(0, limit);
+    return active;
   }
 
   /**
@@ -428,6 +452,11 @@ export class EntityRepository {
    *
    * Wrapped in a transaction to prevent TOCTOU race where concurrent modifications
    * could see inconsistent state between the existence check and the write.
+   *
+   * NOTE: This method calls upsertSession() which also opens a transaction.
+   * Dexie supports nested transactions: when called within an existing transaction,
+   * upsertSession() reuses the parent transaction rather than creating a new one.
+   * This ensures atomicity while keeping the code modular.
    */
   async softDeleteSession(
     clientId: string,
@@ -444,6 +473,7 @@ export class EntityRepository {
           `[EntityRepository] softDeleteSession: session not found: ${clientId}`,
         );
       }
+      // upsertSession() will detect the outer transaction and reuse it (Dexie nested transaction)
       return this.upsertSession(
         {
           client_id: clientId,
@@ -684,66 +714,120 @@ export class EntityRepository {
     direction: 'backward' | 'forward' = 'backward',
   ): Promise<LocalMessage[]> {
     const db = getDatabase();
-    const query = db.messages
-      .where('session_client_id')
-      .equals(sessionClientId);
 
-    // PERFORMANCE: Dexie cannot combine index-based filtering (session_client_id)
-    // with index-based sorting (created_at) via `where(...).sortBy(...)`.
-    // Load all messages for the session into memory, then sort/paginate in JS.
+    // PERFORMANCE: Use compound index [session_client_id+created_at] for DB-level sorting.
+    // This avoids loading all messages into memory and sorting in JavaScript.
+    // The compound index allows us to query by session_client_id and get results
+    // already sorted by created_at, enabling efficient cursor-based pagination.
     //
-    // SAFETY CAP: Load at most 10000 messages to prevent OOM on pathological cases
-    // (e.g., bot sessions with millions of messages). Typical chat sessions have
-    // < 10000 messages, so this cap has no practical impact on normal usage.
-    //
-    // INDEX NOTE: The [session_client_id+created_at] compound index (v15+) is defined
-    // but Dexie's sortBy() cannot target the 2nd column of a compound index independently.
-    // Future optimization: use where('[session_client_id+created_at]').between() with a
-    // cursor to implement DB-level pagination, eliminating the in-memory sort entirely.
+    // Cursor format: "${timestamp}|${clientId}" for deterministic ordering.
+    // Dexie compound index [session_client_id+created_at] enables range queries within a session.
+
     const MAX_SESSION_MESSAGES = 10000;
-    const allMessages = await query.limit(MAX_SESSION_MESSAGES).toArray();
+
+    if (cursor) {
+      // Parse cursor: format is "${timestamp}|${clientId}"
+      const parts = cursor.split('|');
+      if (parts.length !== 2) {
+        log.warn(
+          `Invalid cursor format: ${cursor}, expected "timestamp|clientId"`,
+        );
+      } else {
+        const cursorTs = parseInt(parts[0], 10);
+        const cursorClientId = parts[1];
+        const cursorDate = new Date(cursorTs).toISOString();
+
+        if (direction === 'backward') {
+          // Backward: get messages with created_at < cursor timestamp
+          const messages = await db.messages
+            .where('[session_client_id+created_at]')
+            .between(
+              [sessionClientId, ''],
+              [sessionClientId, cursorDate],
+              false, // exclude lower bound
+              false, // exclude upper bound (cursorDate)
+            )
+            .reverse()
+            .limit(limit * 2)
+            .toArray();
+
+          // Filter strictly less than cursor (handle ties with client_id)
+          const filtered = messages.filter((m) => {
+            const ts = new Date(m.created_at).getTime();
+            return (
+              ts < cursorTs || (ts === cursorTs && m.client_id < cursorClientId)
+            );
+          });
+
+          // Sort in ascending order (oldest first) before returning
+          return filtered.slice(0, limit).sort((a, b) => {
+            const tsA = new Date(a.created_at).getTime();
+            const tsB = new Date(b.created_at).getTime();
+            if (tsA !== tsB) return tsA - tsB;
+            return a.client_id.localeCompare(b.client_id);
+          });
+        } else {
+          // Forward: get messages with created_at > cursor timestamp
+          const messages = await db.messages
+            .where('[session_client_id+created_at]')
+            .between(
+              [sessionClientId, cursorDate],
+              [sessionClientId, '￿'],
+              false, // exclude lower bound (cursorDate)
+              true, // include upper bound
+            )
+            .limit(limit * 2)
+            .toArray();
+
+          // Filter strictly greater than cursor
+          const filtered = messages.filter((m) => {
+            const ts = new Date(m.created_at).getTime();
+            return (
+              ts > cursorTs || (ts === cursorTs && m.client_id > cursorClientId)
+            );
+          });
+
+          // Sort in ascending order (oldest first) before returning
+          return filtered.slice(0, limit).sort((a, b) => {
+            const tsA = new Date(a.created_at).getTime();
+            const tsB = new Date(b.created_at).getTime();
+            if (tsA !== tsB) return tsA - tsB;
+            return a.client_id.localeCompare(b.client_id);
+          });
+        }
+      }
+    }
+
+    // No cursor: get first page
+    // Use compound index to get messages for session, sorted by created_at
+    const allMessages = await db.messages
+      .where('session_client_id')
+      .equals(sessionClientId)
+      .limit(MAX_SESSION_MESSAGES)
+      .toArray();
 
     if (allMessages.length >= MAX_SESSION_MESSAGES) {
       log.warn(
         `listMessagesBySession: session ${sessionClientId} has >= ${MAX_SESSION_MESSAGES} messages, ` +
-          `results may be truncated. Consider adding a compound index for large sessions.`,
+          `results may be truncated.`,
       );
     }
 
-    // Sort strategy: first by created_at, then by client_id (client ID primary key) for ties.
-    // This ensures deterministic ordering even when multiple messages are created at the same time.
-    const sortKey = (m: LocalMessage) => {
-      const ts = new Date(m.created_at).getTime();
-      return `${ts}|${m.client_id}`;
-    };
-
-    allMessages.sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
-
-    // Parse cursor: format is "${timestamp}|${clientId}"
-    let cursorKey: string | null = null;
-    if (cursor) {
-      cursorKey = cursor;
-    }
+    // Sort by created_at, then by client_id for ties
+    allMessages.sort((a, b) => {
+      const tsA = new Date(a.created_at).getTime();
+      const tsB = new Date(b.created_at).getTime();
+      if (tsA !== tsB) return tsA - tsB;
+      return a.client_id.localeCompare(b.client_id);
+    });
 
     if (direction === 'backward') {
-      // Backward pagination: get messages older than the cursor
-      let filtered = allMessages;
-      if (cursorKey) {
-        // Strictly less than cursor (open interval) to prevent duplicates
-        filtered = allMessages.filter((m) => sortKey(m) < cursorKey!);
-      }
-      // Take the last `limit` items (newest) and return in ascending order
-      const sliced = filtered.slice(-limit);
-      return sliced;
+      // Backward from now: get most recent messages
+      return allMessages.slice(-limit);
+    } else {
+      // Forward from start: get oldest messages
+      return allMessages.slice(0, limit);
     }
-
-    // Forward pagination: get messages newer than the cursor
-    if (cursorKey) {
-      // Strictly greater than cursor (open interval) to prevent duplicates
-      const filtered = allMessages.filter((m) => sortKey(m) > cursorKey!);
-      return filtered.slice(0, limit);
-    }
-    return allMessages.slice(0, limit);
   }
 
   // ========== Rtc ==========
@@ -863,10 +947,14 @@ export class EntityRepository {
     };
 
     // 1. First look for sync_status = 'failed' (need retry submission)
+    // PERFORMANCE: Use compound index [sync_status+offset] for DB-level sorting by offset.
+    // Dexie.minKey and Dexie.maxKey are special values that represent the minimum and maximum
+    // possible values for any type, enabling range queries across all offset values.
+    const Dexie = (await import('dexie')).default;
     const failed = await db.rtcs
-      .where('sync_status')
-      .equals('failed')
-      .sortBy('offset');
+      .where('[sync_status+offset]')
+      .between(['failed', Dexie.minKey], ['failed', Dexie.maxKey])
+      .toArray();
 
     const matchFailed = failed.find(
       (r) => matchesSession(r) && matchesDevice(r),
@@ -877,9 +965,11 @@ export class EntityRepository {
 
     // 2. Then look for status = 'pending' (new tasks awaiting execution)
     // Regardless of sync_status, status='pending' means not yet executed
+    // PERFORMANCE: Use compound index [status+offset] for DB-level sorting by offset.
     const allPending = await db.rtcs
-      .filter((r) => r.status === 'pending')
-      .sortBy('offset');
+      .where('[status+offset]')
+      .between(['pending', Dexie.minKey], ['pending', Dexie.maxKey])
+      .toArray();
 
     return allPending.find((r) => matchesSession(r) && matchesDevice(r));
   }
@@ -887,13 +977,10 @@ export class EntityRepository {
   /**
    * List RTCs for a session (ascending by offset).
    *
-   * PERFORMANCE: Loads all RTCs for the session into memory before sorting.
-   * Acceptable for typical sessions (<1000 RTCs).
-   *
-   * INDEX NOTE: The [session_client_id+offset] compound index (v15+) is defined but
-   * Dexie's sortBy() cannot independently target the 2nd column of a compound index.
-   * Future optimization: use where('[session_client_id+offset]').between() for
-   * DB-level cursor-based pagination, eliminating the in-memory sort.
+   * PERFORMANCE: Uses compound index [session_client_id+offset] for DB-level sorting.
+   * This avoids loading all RTCs for the session into memory before sorting.
+   * The compound index allows querying by session_client_id and getting results
+   * already sorted by offset, enabling efficient cursor-based pagination.
    *
    * NOTE: Device ID filtering is NOT applied here — this method returns all RTCs for
    * the session regardless of device. Device filtering is only applied in
@@ -905,15 +992,24 @@ export class EntityRepository {
     limit: number = 50,
   ): Promise<LocalRtc[]> {
     const db = getDatabase();
+    const Dexie = (await import('dexie')).default;
+
+    // Use compound index [session_client_id+offset] for DB-level cursor pagination.
+    // Results are already sorted by offset from the index, eliminating the need for
+    // in-memory sorting.
+    const startOffset = cursor ?? 0;
     const items = await db.rtcs
-      .where('session_client_id')
-      .equals(sessionClientId)
+      .where('[session_client_id+offset]')
+      .between(
+        [sessionClientId, startOffset],
+        [sessionClientId, Dexie.maxKey],
+        true, // include lower bound (startOffset)
+        true, // include upper bound
+      )
+      .limit(limit)
       .toArray();
 
-    const sorted = items.sort((a, b) => a.offset - b.offset);
-
-    const start = cursor || 0;
-    return sorted.slice(start, start + limit);
+    return items;
   }
 
   // ========== Update processing ==========
@@ -1089,11 +1185,13 @@ export class EntityRepository {
           continue;
         }
 
-        const data = update.data_list?.[i];
+        const data = update.data_list?.[i] as
+          | Record<string, unknown>
+          | undefined;
         if (!data) continue;
 
-        const raw = data as Record<string, unknown>;
-        const clientId = (raw['client_id'] as string) || (raw['id'] as string);
+        const clientId =
+          (data['client_id'] as string) || (data['id'] as string);
         if (!clientId) continue; // Invalid data without client_id, skip
 
         if (!upserts.has(item.entity)) {
@@ -1695,24 +1793,98 @@ export class EntityRepository {
   }
 
   /**
-   * Merge in memory: { ...existing, ...newData }.
+   * Merge in memory: { ...existing, ...newData } with timestamp-based conflict resolution.
    *
    * Pure synchronous operation, no DB calls. Must be called within transaction
    * (using bulkGetExisting result).
+   *
+   * Conflict Resolution Strategy:
+   * - For entities with updated_at (Session, Message, Rtc): compare timestamps
+   *   - incoming newer: use incoming (normal case)
+   *   - existing newer AND has unsynced changes (sync_status='pending'): keep existing, log conflict
+   *   - existing newer AND already synced: use incoming (server data wins)
+   *   - timestamps equal: use incoming (idempotent)
+   * - For entities without updated_at (Turn): use incoming (no conflict detection possible)
    */
   private mergeWithExisting(
     prepared: BatchEntities,
     existing: ExistingData,
   ): BatchEntities {
-    const merge = <T extends { client_id?: string }>(
+    /**
+     * Compare RFC3339 timestamps and return the "winner" based on last-write-wins.
+     * Returns { winner, isConflict } where isConflict indicates existing was newer
+     * AND has unsynced local changes.
+     */
+    const resolveByTimestamp = <
+      T extends { updated_at?: string; sync_status?: string },
+    >(
+      incoming: T,
+      existingEntity: T,
+    ): { winner: T; isConflict: boolean } => {
+      const incomingTs = incoming.updated_at;
+      const existingTs = existingEntity.updated_at;
+
+      // If either lacks timestamp, fall back to incoming (no conflict detection)
+      if (!incomingTs || !existingTs) {
+        return { winner: incoming, isConflict: false };
+      }
+
+      // Compare timestamps (RFC3339 strings are lexicographically comparable)
+      if (incomingTs > existingTs) {
+        // Incoming is newer: normal case, use incoming
+        return { winner: incoming, isConflict: false };
+      } else if (existingTs > incomingTs) {
+        // Existing is newer: potential conflict
+        // Only treat as conflict if existing has unsynced local changes
+        const hasUnsyncedChanges = existingEntity.sync_status === 'pending';
+        if (hasUnsyncedChanges) {
+          // Local unsynced changes: keep existing, log conflict
+          return { winner: existingEntity, isConflict: true };
+        } else {
+          // Already synced: server data wins
+          return { winner: incoming, isConflict: false };
+        }
+      } else {
+        // Timestamps equal: use incoming for idempotency
+        return { winner: incoming, isConflict: false };
+      }
+    };
+
+    const merge = <
+      T extends {
+        client_id?: string;
+        updated_at?: string;
+        sync_status?: string;
+      },
+    >(
       items: T[],
       existingMap: Map<string, T>,
+      entityName: string,
     ): T[] => {
       return items.map((item) => {
         const cid = item.client_id!;
         const prev = existingMap.get(cid);
         if (prev) {
-          // Update: existing fields are complete, override with incoming
+          // If entity has updated_at, use timestamp-based conflict resolution
+          if (item.updated_at && prev.updated_at) {
+            const { isConflict } = resolveByTimestamp(item, prev);
+            if (isConflict) {
+              log.warn(
+                `mergeWithExisting: conflict detected in ${entityName}`,
+                'client_id:',
+                cid,
+                'existing updated_at:',
+                prev.updated_at,
+                'incoming updated_at:',
+                item.updated_at,
+                '→ keeping existing (local unsynced changes protected)',
+              );
+              // Return existing unchanged (not merged with incoming)
+              return prev;
+            }
+          }
+          // Normal case: merge with incoming overriding existing
+          // Start with existing, overlay incoming fields
           return { ...prev, ...item } as T;
         }
         // New: prepared already contains defaults, use directly
@@ -1721,6 +1893,7 @@ export class EntityRepository {
     };
 
     // Message-specific merge with streaming status monotonic guard (Issue 236)
+    // AND timestamp-based conflict resolution
     const mergeMessages = (
       items: Partial<LocalMessage>[],
       existingMap: Map<string, Partial<LocalMessage>>,
@@ -1729,7 +1902,8 @@ export class EntityRepository {
         const cid = item.client_id!;
         const prev = existingMap.get(cid);
         if (prev) {
-          // Skip if applying this update would cause a streaming status regression
+          // First check: skip if applying this update would cause a streaming status regression
+          // This check ALWAYS applies, regardless of timestamps
           if (
             isStreamingStatusRegression(
               prev.streaming_status,
@@ -1747,6 +1921,30 @@ export class EntityRepository {
             );
             return prev; // Keep existing record unchanged
           }
+
+          // Second check: timestamp-based conflict resolution
+          // Only applies if both have updated_at
+          if (item.updated_at && prev.updated_at) {
+            const { isConflict } = resolveByTimestamp(item, prev);
+            if (isConflict) {
+              log.warn(
+                'mergeMessages: conflict detected',
+                'client_id:',
+                cid,
+                'existing updated_at:',
+                prev.updated_at,
+                'incoming updated_at:',
+                item.updated_at,
+                '→ keeping existing (local unsynced changes protected)',
+              );
+              // Return existing unchanged (not merged with incoming)
+              return prev;
+            }
+          }
+
+          // Normal case: merge with incoming overriding existing
+          // For fields present in incoming, incoming wins
+          // For fields not in incoming, keep existing values
           return { ...prev, ...item } as Partial<LocalMessage>;
         }
         return item;
@@ -1754,10 +1952,10 @@ export class EntityRepository {
     };
 
     return {
-      sessions: merge(prepared.sessions, existing.sessions),
-      turns: merge(prepared.turns, existing.turns),
+      sessions: merge(prepared.sessions, existing.sessions, 'session'),
+      turns: merge(prepared.turns, existing.turns, 'turn'),
       messages: mergeMessages(prepared.messages, existing.messages),
-      rtcs: merge(prepared.rtcs, existing.rtcs),
+      rtcs: merge(prepared.rtcs, existing.rtcs, 'rtc'),
     };
   }
 

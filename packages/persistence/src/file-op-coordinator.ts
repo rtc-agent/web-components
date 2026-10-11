@@ -1,7 +1,10 @@
 // FileOpCoordinator — coordinates file operations, broadcasts state changes automatically
 
-import type { FileCacheRepository, FileSyncStatus } from './file-cache-repository.js';
-import { createLogger } from '@rtc-agent/client';
+import type {
+  FileCacheRepository,
+  FileSyncStatus,
+} from './file-cache-repository.js';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('FileOpCoordinator');
 
@@ -18,7 +21,14 @@ const log = createLogger('FileOpCoordinator');
  */
 export class FileOpCoordinator {
   // P2-D fix: support multiple listeners
-  private _listeners = new Set<(md5: string, ext: string, status: FileSyncStatus, errorMessage?: string) => void>();
+  private _listeners = new Set<
+    (
+      md5: string,
+      ext: string,
+      status: FileSyncStatus,
+      errorMessage?: string,
+    ) => void
+  >();
 
   /**
    * Add a status change listener.
@@ -27,13 +37,22 @@ export class FileOpCoordinator {
    * @returns A dispose function that removes the listener when called
    */
   onStatusChange(
-    fn: (md5: string, ext: string, status: FileSyncStatus, errorMessage?: string) => void
+    fn: (
+      md5: string,
+      ext: string,
+      status: FileSyncStatus,
+      errorMessage?: string,
+    ) => void,
   ): () => void {
     this._listeners.add(fn);
-    log.debug(`FileOpCoordinator: listener added, total=${this._listeners.size}`);
+    log.debug(
+      `FileOpCoordinator: listener added, total=${this._listeners.size}`,
+    );
     return () => {
       this._listeners.delete(fn);
-      log.debug(`FileOpCoordinator: listener removed, total=${this._listeners.size}`);
+      log.debug(
+        `FileOpCoordinator: listener removed, total=${this._listeners.size}`,
+      );
     };
   }
 
@@ -64,14 +83,24 @@ export class FileOpCoordinator {
     ext: string,
     from: FileSyncStatus | FileSyncStatus[],
     to: FileSyncStatus,
-    metadata?: { errorMessage?: string; syncedAt?: number }
+    metadata?: { errorMessage?: string; syncedAt?: number },
   ): Promise<boolean> {
-    const result = await repo.transitionSyncStatus(md5, ext, from, to, metadata);
+    const result = await repo.transitionSyncStatus(
+      md5,
+      ext,
+      from,
+      to,
+      metadata,
+    );
     if (result) {
-      log.debug(`transitionAndNotify: ${md5}.${ext} -> ${to}, notifying listeners`);
+      log.debug(
+        `transitionAndNotify: ${md5}.${ext} -> ${to}, notifying listeners`,
+      );
       this._notifyAll(md5, ext, to, metadata?.errorMessage);
     } else {
-      log.debug(`transitionAndNotify: ${md5}.${ext} transition skipped (precondition not met)`);
+      log.debug(
+        `transitionAndNotify: ${md5}.${ext} transition skipped (precondition not met)`,
+      );
     }
     return result;
   }
@@ -90,7 +119,7 @@ export class FileOpCoordinator {
     md5: string,
     ext: string,
     status: FileSyncStatus,
-    errorMessage?: string
+    errorMessage?: string,
   ): void {
     log.debug(`notifyStatusChange: ${md5}.${ext} -> ${status}`);
     this._notifyAll(md5, ext, status, errorMessage);
@@ -100,7 +129,12 @@ export class FileOpCoordinator {
    * Broadcast status change to all registered listeners.
    * Catches and logs errors from individual listeners to prevent one bad listener from breaking others.
    */
-  private _notifyAll(md5: string, ext: string, status: FileSyncStatus, errorMessage?: string): void {
+  private _notifyAll(
+    md5: string,
+    ext: string,
+    status: FileSyncStatus,
+    errorMessage?: string,
+  ): void {
     for (const listener of this._listeners) {
       try {
         listener(md5, ext, status, errorMessage);
@@ -110,4 +144,3 @@ export class FileOpCoordinator {
     }
   }
 }
-

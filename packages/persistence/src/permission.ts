@@ -5,7 +5,7 @@
  */
 
 import type { ToolName } from './tools/types.js';
-import { createLogger } from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('PermissionChecker');
 
@@ -14,9 +14,9 @@ export type Mode = 'manual' | 'edit' | 'plan' | 'auto' | 'bypass';
 
 /** Permission action result */
 export type PermissionAction =
-  | 'allow'   // Auto-approved, no confirmation needed
+  | 'allow' // Auto-approved, no confirmation needed
   | 'confirm' // Requires user confirmation
-  | 'deny';   // Execution denied
+  | 'deny'; // Execution denied
 
 /**
  * Permission rules table
@@ -30,16 +30,64 @@ export type PermissionAction =
  * their columns should be reviewed and adjusted independently.
  */
 const PERMISSION_RULES: Record<ToolName, Record<Mode, PermissionAction>> = {
-  ls:       { manual: 'allow',   edit: 'allow',   plan: 'allow',   auto: 'allow',   bypass: 'allow' },
-  read:     { manual: 'allow',   edit: 'allow',   plan: 'allow',   auto: 'allow',   bypass: 'allow' },
-  find:     { manual: 'allow',   edit: 'allow',   plan: 'allow',   auto: 'allow',   bypass: 'allow' },
-  grep:     { manual: 'allow',   edit: 'allow',   plan: 'allow',   auto: 'allow',   bypass: 'allow' },
-  write:    { manual: 'confirm', edit: 'allow',   plan: 'allow',   auto: 'allow',   bypass: 'allow' },
-  edit:     { manual: 'confirm', edit: 'allow',   plan: 'allow',   auto: 'allow',   bypass: 'allow' },
-  script:   { manual: 'confirm', edit: 'confirm', plan: 'confirm', auto: 'confirm', bypass: 'allow' },
+  ls: {
+    manual: 'allow',
+    edit: 'allow',
+    plan: 'allow',
+    auto: 'allow',
+    bypass: 'allow',
+  },
+  read: {
+    manual: 'allow',
+    edit: 'allow',
+    plan: 'allow',
+    auto: 'allow',
+    bypass: 'allow',
+  },
+  find: {
+    manual: 'allow',
+    edit: 'allow',
+    plan: 'allow',
+    auto: 'allow',
+    bypass: 'allow',
+  },
+  grep: {
+    manual: 'allow',
+    edit: 'allow',
+    plan: 'allow',
+    auto: 'allow',
+    bypass: 'allow',
+  },
+  write: {
+    manual: 'confirm',
+    edit: 'allow',
+    plan: 'allow',
+    auto: 'allow',
+    bypass: 'allow',
+  },
+  edit: {
+    manual: 'confirm',
+    edit: 'allow',
+    plan: 'allow',
+    auto: 'allow',
+    bypass: 'allow',
+  },
+  script: {
+    manual: 'confirm',
+    edit: 'confirm',
+    plan: 'confirm',
+    auto: 'confirm',
+    bypass: 'allow',
+  },
   // askUser is inherently interactive: the "execution" IS the user's selection,
   // so it always requires the ask-user dialog regardless of mode.
-  askUser: { manual: 'confirm', edit: 'confirm', plan: 'confirm', auto: 'confirm', bypass: 'allow' },
+  askUser: {
+    manual: 'confirm',
+    edit: 'confirm',
+    plan: 'confirm',
+    auto: 'confirm',
+    bypass: 'allow',
+  },
 };
 
 /**

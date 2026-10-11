@@ -386,10 +386,12 @@ describe('UIUpdateBus', () => {
 
     it('should queue async listener calls', async () => {
       const order: number[] = [];
-      const listener = vi.fn().mockImplementation(async (event: UIUpdateEvent) => {
-        order.push(parseInt(event.entityId));
-        await new Promise(resolve => setTimeout(resolve, 10));
-      });
+      const listener = vi
+        .fn()
+        .mockImplementation(async (event: UIUpdateEvent) => {
+          order.push(parseInt(event.entityId));
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        });
 
       bus.subscribe(listener);
 
@@ -432,13 +434,15 @@ describe('UIUpdateBus', () => {
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       const callOrder: string[] = [];
 
-      const listener = vi.fn().mockImplementation(async (event: UIUpdateEvent) => {
-        if (event.entityId === 'hang') {
-          // First event hangs forever
-          await new Promise(() => {});
-        }
-        callOrder.push(event.entityId);
-      });
+      const listener = vi
+        .fn()
+        .mockImplementation(async (event: UIUpdateEvent) => {
+          if (event.entityId === 'hang') {
+            // First event hangs forever
+            await new Promise(() => {});
+          }
+          callOrder.push(event.entityId);
+        });
 
       bus.subscribe(listener);
 
@@ -461,7 +465,7 @@ describe('UIUpdateBus', () => {
     it('should not timeout normal async listeners', async () => {
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       const listener = vi.fn().mockImplementation(async () => {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       });
 
       bus.subscribe(listener);
@@ -484,7 +488,7 @@ describe('UIUpdateBus', () => {
       });
 
       const normalListener = vi.fn().mockImplementation(async () => {
-        await new Promise(resolve => setTimeout(resolve, 50));
+        await new Promise((resolve) => setTimeout(resolve, 50));
       });
 
       bus.subscribe(hangingListener);
@@ -507,13 +511,15 @@ describe('UIUpdateBus', () => {
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       const callOrder: string[] = [];
 
-      const listener = vi.fn().mockImplementation(async (event: UIUpdateEvent) => {
-        if (event.entity === 'session' && event.entityId === 'hang') {
-          // Hang only for specific session
-          await new Promise(() => {});
-        }
-        callOrder.push(`${event.entity}:${event.entityId}`);
-      });
+      const listener = vi
+        .fn()
+        .mockImplementation(async (event: UIUpdateEvent) => {
+          if (event.entity === 'session' && event.entityId === 'hang') {
+            // Hang only for specific session
+            await new Promise(() => {});
+          }
+          callOrder.push(`${event.entity}:${event.entityId}`);
+        });
 
       bus.subscribe(listener);
 

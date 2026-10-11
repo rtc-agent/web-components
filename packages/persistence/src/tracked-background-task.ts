@@ -2,7 +2,7 @@
 
 import { SyncTaskTracker } from './sync-task-tracker.js';
 import { LifecycleGuard, LifecycleClosedError } from './lifecycle-guard.js';
-import { createLogger } from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('TrackedBackgroundTask');
 
@@ -74,11 +74,21 @@ export class TrackedBackgroundTask {
         ac.abort();
       } else {
         onCloseAbort = () => ac.abort();
-        this.closeSignal.addEventListener('abort', onCloseAbort, { once: true });
+        this.closeSignal.addEventListener('abort', onCloseAbort, {
+          once: true,
+        });
       }
     }
 
-    const task = this._attempt(ac.signal, action, 0, maxRetries, baseDelay, exponential, label);
+    const task = this._attempt(
+      ac.signal,
+      action,
+      0,
+      maxRetries,
+      baseDelay,
+      exponential,
+      label,
+    );
     // P2-R6-01: Clean up listener when task finishes (success, error, or cancel)
     // to prevent listener accumulation on long-lived closeSignal.
     task.finally(() => {
@@ -106,7 +116,9 @@ export class TrackedBackgroundTask {
     } catch (err) {
       // Lifecycle closed: stop gracefully
       if (err instanceof LifecycleClosedError) {
-        log.debug(`TrackedBackgroundTask: lifecycle closed for ${label}, stopping`);
+        log.debug(
+          `TrackedBackgroundTask: lifecycle closed for ${label}, stopping`,
+        );
         return;
       }
 
@@ -119,7 +131,9 @@ export class TrackedBackgroundTask {
       // Retry if under limit
       if (retry < maxRetries) {
         const delay = exponential ? baseDelay * Math.pow(2, retry) : baseDelay;
-        log.debug(`TrackedBackgroundTask: retry ${retry + 1}/${maxRetries} for ${label} after ${delay}ms`);
+        log.debug(
+          `TrackedBackgroundTask: retry ${retry + 1}/${maxRetries} for ${label} after ${delay}ms`,
+        );
 
         // P3-001 fix: cancellable delay
         await this._cancellableDelay(delay, signal);
@@ -128,15 +142,28 @@ export class TrackedBackgroundTask {
         // on abort, so without this check the recursive _attempt would execute the
         // action one final unwanted time after cancellation.
         if (signal.aborted) {
-          log.debug(`TrackedBackgroundTask: cancelled during delay for ${label}`);
+          log.debug(
+            `TrackedBackgroundTask: cancelled during delay for ${label}`,
+          );
           return;
         }
 
-        return this._attempt(signal, action, retry + 1, maxRetries, baseDelay, exponential, label);
+        return this._attempt(
+          signal,
+          action,
+          retry + 1,
+          maxRetries,
+          baseDelay,
+          exponential,
+          label,
+        );
       }
 
       // Max retries reached: log error and re-throw so caller can handle
-      log.error(`TrackedBackgroundTask: ${label} failed after ${maxRetries + 1} attempts:`, err);
+      log.error(
+        `TrackedBackgroundTask: ${label} failed after ${maxRetries + 1} attempts:`,
+        err,
+      );
       throw err;
     }
   }

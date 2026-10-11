@@ -1,4 +1,4 @@
-import { createLogger } from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('SyncTaskTracker');
 
@@ -14,7 +14,11 @@ const log = createLogger('SyncTaskTracker');
  * - drain 带超时，避免无限等待
  */
 export class SyncTaskTracker {
-  private _tasks = new Set<{ promise: Promise<void>; label: string; startedAt: number }>();
+  private _tasks = new Set<{
+    promise: Promise<void>;
+    label: string;
+    startedAt: number;
+  }>();
   private _closing = false;
 
   /**
@@ -27,7 +31,9 @@ export class SyncTaskTracker {
    */
   track(task: Promise<void>, label: string): void {
     if (this._closing) {
-      log.warn(`SyncTaskTracker: rejecting new task "${label}", tracker is closing`);
+      log.warn(
+        `SyncTaskTracker: rejecting new task "${label}", tracker is closing`,
+      );
       return;
     }
     const entry = { promise: task, label, startedAt: Date.now() };
@@ -44,16 +50,22 @@ export class SyncTaskTracker {
    * @param timeoutMs Maximum wait time (milliseconds), default 5000
    * @returns Object with `completed` boolean and `remainingTasks` array of labels
    */
-  async drain(timeoutMs: number = 5000): Promise<{ completed: boolean; remainingTasks: string[] }> {
+  async drain(
+    timeoutMs: number = 5000,
+  ): Promise<{ completed: boolean; remainingTasks: string[] }> {
     this._closing = true;
     if (this._tasks.size === 0) {
       return { completed: true, remainingTasks: [] };
     }
 
     log.debug(`SyncTaskTracker: draining ${this._tasks.size} tasks`);
-    const timeout = new Promise<'timeout'>(resolve => setTimeout(() => resolve('timeout'), timeoutMs));
+    const timeout = new Promise<'timeout'>((resolve) =>
+      setTimeout(() => resolve('timeout'), timeoutMs),
+    );
     const result = await Promise.race([
-      Promise.allSettled(Array.from(this._tasks).map(t => t.promise)).then(() => 'completed' as const),
+      Promise.allSettled(Array.from(this._tasks).map((t) => t.promise)).then(
+        () => 'completed' as const,
+      ),
       timeout,
     ]);
 
@@ -62,8 +74,11 @@ export class SyncTaskTracker {
     }
 
     // Timeout: collect remaining task labels
-    const remainingTasks = Array.from(this._tasks).map(t => t.label);
-    log.warn(`SyncTaskTracker: drain timed out, ${remainingTasks.length} tasks remaining:`, remainingTasks);
+    const remainingTasks = Array.from(this._tasks).map((t) => t.label);
+    log.warn(
+      `SyncTaskTracker: drain timed out, ${remainingTasks.length} tasks remaining:`,
+      remainingTasks,
+    );
     return { completed: false, remainingTasks };
   }
 

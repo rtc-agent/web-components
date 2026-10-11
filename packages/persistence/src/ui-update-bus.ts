@@ -451,7 +451,9 @@ export class UIUpdateBus {
         this._forceResume();
       }, UIUpdateBus.MAX_SUSPEND_MS);
     }
-    log.debug(`suspend: depth=${this._suspendDepth}${callerId ? `, caller=${callerId}` : ''}`);
+    log.debug(
+      `suspend: depth=${this._suspendDepth}${callerId ? `, caller=${callerId}` : ''}`,
+    );
   }
 
   /**

@@ -10,7 +10,11 @@ import {
   flushAll,
   DB_NAME_PREFIX,
 } from './database.js';
-import { getUIUpdateBus, closeUIUpdateBus, type UIUpdateEvent } from './ui-update-bus.js';
+import {
+  getUIUpdateBus,
+  closeUIUpdateBus,
+  type UIUpdateEvent,
+} from './ui-update-bus.js';
 import type { Update, UpdateItem } from '@rtc-agent/protocol';
 
 const TEST_DB = `${DB_NAME_PREFIX}test-entity-repository`;
@@ -32,7 +36,9 @@ describe('entity-repository', () => {
 
     // Collect UIUpdateBus events for assertions
     collectedEvents = [];
-    getUIUpdateBus().subscribe((e) => { collectedEvents.push(e); });
+    getUIUpdateBus().subscribe((e) => {
+      collectedEvents.push(e);
+    });
   });
 
   afterEach(async () => {
@@ -86,10 +92,7 @@ describe('entity-repository', () => {
     });
 
     it('should apply custom sync_status', async () => {
-      const result = await repo.upsertSession(
-        { client_id: 's1' },
-        'pending',
-      );
+      const result = await repo.upsertSession({ client_id: 's1' }, 'pending');
       expect(result.after.sync_status).toBe('pending');
     });
 
@@ -411,12 +414,7 @@ describe('entity-repository', () => {
 
     it('should limit forward pagination', async () => {
       const cursor = `${new Date('2026-01-01T00:00:00.000Z').getTime()}|m0`;
-      const msgs = await repo.listMessagesBySession(
-        's1',
-        cursor,
-        2,
-        'forward',
-      );
+      const msgs = await repo.listMessagesBySession('s1', cursor, 2, 'forward');
       expect(msgs.map((m) => m.client_id)).toEqual(['m1', 'm2']);
     });
   });
@@ -511,7 +509,11 @@ describe('entity-repository', () => {
     it('should return undefined when no RTCs qualify', async () => {
       // All completed
       for (const id of ['r1', 'r2', 'r3']) {
-        await repo.upsertRtc({ client_id: id, status: 'completed', sync_status: 'synced' });
+        await repo.upsertRtc({
+          client_id: id,
+          status: 'completed',
+          sync_status: 'synced',
+        });
       }
       const next = await repo.getNextRtcToProcess('s1');
       expect(next).toBeUndefined();
@@ -519,20 +521,26 @@ describe('entity-repository', () => {
 
     it('should filter by device_id at execution time', async () => {
       // r1 belongs to local device, r-other belongs to different device
-      await repo.upsertRtc({
-        client_id: 'r1',
-        session_client_id: 's1',
-        session_device_id: TEST_DEVICE_ID,
-        offset: 1,
-        status: 'pending',
-      }, 'failed');
-      await repo.upsertRtc({
-        client_id: 'r-other',
-        session_client_id: 's1',
-        session_device_id: 'other-device',
-        offset: 0, // Smaller offset, but belongs to different device
-        status: 'pending',
-      }, 'failed');
+      await repo.upsertRtc(
+        {
+          client_id: 'r1',
+          session_client_id: 's1',
+          session_device_id: TEST_DEVICE_ID,
+          offset: 1,
+          status: 'pending',
+        },
+        'failed',
+      );
+      await repo.upsertRtc(
+        {
+          client_id: 'r-other',
+          session_client_id: 's1',
+          session_device_id: 'other-device',
+          offset: 0, // Smaller offset, but belongs to different device
+          status: 'pending',
+        },
+        'failed',
+      );
 
       const next = await repo.getNextRtcToProcess('s1');
       // Should return r1 (local device), not r-other (different device)
@@ -541,13 +549,16 @@ describe('entity-repository', () => {
 
     it('should allow RTC with empty session_device_id (lenient mode)', async () => {
       // r1 has empty session_device_id (e.g., session query failed)
-      await repo.upsertRtc({
-        client_id: 'r1',
-        session_client_id: 's1',
-        session_device_id: '', // Empty
-        offset: 1,
-        status: 'pending',
-      }, 'failed');
+      await repo.upsertRtc(
+        {
+          client_id: 'r1',
+          session_client_id: 's1',
+          session_device_id: '', // Empty
+          offset: 1,
+          status: 'pending',
+        },
+        'failed',
+      );
 
       const next = await repo.getNextRtcToProcess('s1');
       // Should be allowed in lenient mode
@@ -556,13 +567,16 @@ describe('entity-repository', () => {
 
     it('should allow RTC with undefined session_device_id (lenient mode)', async () => {
       // r1 has undefined session_device_id
-      await repo.upsertRtc({
-        client_id: 'r1',
-        session_client_id: 's1',
-        // session_device_id not set (undefined)
-        offset: 1,
-        status: 'pending',
-      }, 'failed');
+      await repo.upsertRtc(
+        {
+          client_id: 'r1',
+          session_client_id: 's1',
+          // session_device_id not set (undefined)
+          offset: 1,
+          status: 'pending',
+        },
+        'failed',
+      );
 
       const next = await repo.getNextRtcToProcess('s1');
       // Should be allowed in lenient mode
@@ -1280,7 +1294,8 @@ describe('entity-repository', () => {
       });
 
       it('should handle special characters in content with regression', async () => {
-        const specialContent = 'Hello 世界 🌍 \n\r\t "quotes" \\"escaped\\"\0null';
+        const specialContent =
+          'Hello 世界 🌍 \n\r\t "quotes" \\"escaped\\"\0null';
         await repo.upsertMessage({
           client_id: 'msg-extreme-4',
           streaming_status: 'completed',
@@ -1314,7 +1329,7 @@ describe('entity-repository', () => {
               client_id: 'msg-extreme-5',
               streaming_status: 'streaming',
               content: `streaming ${i}`,
-            })
+            }),
           );
         }
 
@@ -1384,7 +1399,7 @@ describe('entity-repository', () => {
             streaming_status: 'streaming',
             content: 'partial',
           },
-          'pending' // Try to change sync_status
+          'pending', // Try to change sync_status
         );
 
         const msg = await repo.getClientMessage('msg-extreme-7');
@@ -1451,22 +1466,28 @@ describe('entity-repository', () => {
       });
 
       // Simulate batch update with streaming data
-      await repo.applyUpdates([{
-        id: '',
-        items: [{
-          entity: 'message',
-          action: 'updated',
-          entity_id: 'server-msg-batch-1',
-        }],
-        data_list: [{
-          id: 'server-msg-batch-1',
-          client_id: 'msg-batch-1',
-          session_client_id: 'session-1',
-          streaming_status: 'streaming',
-          content: 'partial',
-        }],
-        offset: 1,
-      }]);
+      await repo.applyUpdates([
+        {
+          id: '',
+          items: [
+            {
+              entity: 'message',
+              action: 'updated',
+              entity_id: 'server-msg-batch-1',
+            },
+          ],
+          data_list: [
+            {
+              id: 'server-msg-batch-1',
+              client_id: 'msg-batch-1',
+              session_client_id: 'session-1',
+              streaming_status: 'streaming',
+              content: 'partial',
+            },
+          ],
+          offset: 1,
+        },
+      ]);
 
       const msg = await repo.getClientMessage('msg-batch-1');
       expect(msg?.streaming_status).toBe('completed');
@@ -1481,22 +1502,28 @@ describe('entity-repository', () => {
         session_client_id: 'session-1',
       });
 
-      await repo.applyUpdates([{
-        id: '',
-        items: [{
-          entity: 'message',
-          action: 'updated',
-          entity_id: 'server-msg-batch-2',
-        }],
-        data_list: [{
-          id: 'server-msg-batch-2',
-          client_id: 'msg-batch-2',
-          session_client_id: 'session-1',
-          streaming_status: 'streaming',
-          content: 'chunk 1 chunk 2',
-        }],
-        offset: 1,
-      }]);
+      await repo.applyUpdates([
+        {
+          id: '',
+          items: [
+            {
+              entity: 'message',
+              action: 'updated',
+              entity_id: 'server-msg-batch-2',
+            },
+          ],
+          data_list: [
+            {
+              id: 'server-msg-batch-2',
+              client_id: 'msg-batch-2',
+              session_client_id: 'session-1',
+              streaming_status: 'streaming',
+              content: 'chunk 1 chunk 2',
+            },
+          ],
+          offset: 1,
+        },
+      ]);
 
       const msg = await repo.getClientMessage('msg-batch-2');
       expect(msg?.streaming_status).toBe('streaming');
@@ -1511,22 +1538,28 @@ describe('entity-repository', () => {
         session_client_id: 'session-1',
       });
 
-      await repo.applyUpdates([{
-        id: '',
-        items: [{
-          entity: 'message',
-          action: 'updated',
-          entity_id: 'server-msg-batch-3',
-        }],
-        data_list: [{
-          id: 'server-msg-batch-3',
-          client_id: 'msg-batch-3',
-          session_client_id: 'session-1',
-          streaming_status: 'completed',
-          content: 'full',
-        }],
-        offset: 1,
-      }]);
+      await repo.applyUpdates([
+        {
+          id: '',
+          items: [
+            {
+              entity: 'message',
+              action: 'updated',
+              entity_id: 'server-msg-batch-3',
+            },
+          ],
+          data_list: [
+            {
+              id: 'server-msg-batch-3',
+              client_id: 'msg-batch-3',
+              session_client_id: 'session-1',
+              streaming_status: 'completed',
+              content: 'full',
+            },
+          ],
+          offset: 1,
+        },
+      ]);
 
       const msg = await repo.getClientMessage('msg-batch-3');
       expect(msg?.streaming_status).toBe('completed');
@@ -1550,38 +1583,40 @@ describe('entity-repository', () => {
       });
 
       // Batch update: try to regress 4a, advance 4b
-      await repo.applyUpdates([{
-        id: '',
-        items: [
-          {
-            entity: 'message',
-            action: 'updated',
-            entity_id: 'server-msg-batch-4a',
-          },
-          {
-            entity: 'message',
-            action: 'updated',
-            entity_id: 'server-msg-batch-4b',
-          },
-        ],
-        data_list: [
-          {
-            id: 'server-msg-batch-4a',
-            client_id: 'msg-batch-4a',
-            session_client_id: 'session-1',
-            streaming_status: 'streaming',
-            content: 'should be blocked',
-          },
-          {
-            id: 'server-msg-batch-4b',
-            client_id: 'msg-batch-4b',
-            session_client_id: 'session-1',
-            streaming_status: 'completed',
-            content: 'final B',
-          },
-        ],
-        offset: 1,
-      }]);
+      await repo.applyUpdates([
+        {
+          id: '',
+          items: [
+            {
+              entity: 'message',
+              action: 'updated',
+              entity_id: 'server-msg-batch-4a',
+            },
+            {
+              entity: 'message',
+              action: 'updated',
+              entity_id: 'server-msg-batch-4b',
+            },
+          ],
+          data_list: [
+            {
+              id: 'server-msg-batch-4a',
+              client_id: 'msg-batch-4a',
+              session_client_id: 'session-1',
+              streaming_status: 'streaming',
+              content: 'should be blocked',
+            },
+            {
+              id: 'server-msg-batch-4b',
+              client_id: 'msg-batch-4b',
+              session_client_id: 'session-1',
+              streaming_status: 'completed',
+              content: 'final B',
+            },
+          ],
+          offset: 1,
+        },
+      ]);
 
       const msg4a = await repo.getClientMessage('msg-batch-4a');
       const msg4b = await repo.getClientMessage('msg-batch-4b');

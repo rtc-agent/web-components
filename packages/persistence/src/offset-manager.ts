@@ -1,5 +1,5 @@
 import { getDatabase, type OffsetRecord } from './database.js';
-import { createLogger } from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('OffsetManager');
 
@@ -39,11 +39,20 @@ export class OffsetManager {
    * @param channel Channel identifier
    * @returns Position object with offset and epoch, or undefined if not found
    */
-  async getPosition(channel: string): Promise<{ offset: number; epoch: string } | undefined> {
+  async getPosition(
+    channel: string,
+  ): Promise<{ offset: number; epoch: string } | undefined> {
     // Fast path: synchronous cache hit
     const cached = this.cache.get(channel);
     if (cached !== undefined) {
-      log.debug('getPosition (cache hit):', channel, 'offset:', cached.offset, 'epoch:', cached.epoch);
+      log.debug(
+        'getPosition (cache hit):',
+        channel,
+        'offset:',
+        cached.offset,
+        'epoch:',
+        cached.epoch,
+      );
       // Return a copy to prevent external mutation of cached data
       return { offset: cached.offset, epoch: cached.epoch };
     }
@@ -61,7 +70,14 @@ export class OffsetManager {
     // Populate cache for future synchronous reads
     this.cache.set(channel, position);
 
-    log.debug('getPosition (loaded from DB):', channel, 'offset:', record.offset, 'epoch:', record.epoch);
+    log.debug(
+      'getPosition (loaded from DB):',
+      channel,
+      'offset:',
+      record.offset,
+      'epoch:',
+      record.epoch,
+    );
     // Return a copy to prevent external mutation
     return { offset: position.offset, epoch: position.epoch };
   }
@@ -79,7 +95,11 @@ export class OffsetManager {
    * @param offset New offset value
    * @param epoch New epoch value
    */
-  async updatePosition(channel: string, offset: number, epoch: string): Promise<void> {
+  async updatePosition(
+    channel: string,
+    offset: number,
+    epoch: string,
+  ): Promise<void> {
     log.debug('updatePosition:', channel, 'offset:', offset, 'epoch:', epoch);
 
     // Save previous cache state for potential rollback
@@ -191,7 +211,9 @@ export class OffsetManager {
    * @param channel Channel identifier
    * @returns The loaded position, or undefined if not found
    */
-  async warmCache(channel: string): Promise<{ offset: number; epoch: string } | undefined> {
+  async warmCache(
+    channel: string,
+  ): Promise<{ offset: number; epoch: string } | undefined> {
     return this.getPosition(channel);
   }
 

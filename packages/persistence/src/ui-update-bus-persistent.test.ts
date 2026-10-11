@@ -32,10 +32,18 @@ import type { UIUpdateEvent } from './ui-update-bus';
 const mockStorage: Record<string, string> = {};
 const sessionStorageMock = {
   getItem: vi.fn((key: string) => mockStorage[key] ?? null),
-  setItem: vi.fn((key: string, value: string) => { mockStorage[key] = value; }),
-  removeItem: vi.fn((key: string) => { delete mockStorage[key]; }),
-  clear: vi.fn(() => { Object.keys(mockStorage).forEach(k => delete mockStorage[k]); }),
-  get length() { return Object.keys(mockStorage).length; },
+  setItem: vi.fn((key: string, value: string) => {
+    mockStorage[key] = value;
+  }),
+  removeItem: vi.fn((key: string) => {
+    delete mockStorage[key];
+  }),
+  clear: vi.fn(() => {
+    Object.keys(mockStorage).forEach((k) => delete mockStorage[k]);
+  }),
+  get length() {
+    return Object.keys(mockStorage).length;
+  },
   key: vi.fn((i: number) => Object.keys(mockStorage)[i] ?? null),
 };
 
@@ -48,9 +56,13 @@ let testId = 0;
 /**
  * Create a fresh test database (unique per test to avoid seq counter collision)
  */
-function createTestDB(): Dexie & { ui_updates: Dexie.Table<UIUpdateQueueEntry, number> } {
+function createTestDB(): Dexie & {
+  ui_updates: Dexie.Table<UIUpdateQueueEntry, number>;
+} {
   const dbName = `test-persistent-queue-${++testId}`;
-  const db = new Dexie(dbName) as Dexie & { ui_updates: Dexie.Table<UIUpdateQueueEntry, number> };
+  const db = new Dexie(dbName) as Dexie & {
+    ui_updates: Dexie.Table<UIUpdateQueueEntry, number>;
+  };
   db.version(1).stores({
     ui_updates: '++seq, timestamp',
   });
@@ -88,7 +100,10 @@ describe('Persistent UIUpdateBus Queue - Edge Cases', () => {
     mockState.db = null;
   });
 
-  const createTestEvent = (entityId: string, field = 'content'): UIUpdateEvent => ({
+  const createTestEvent = (
+    entityId: string,
+    field = 'content',
+  ): UIUpdateEvent => ({
     entity: 'session',
     action: 'created',
     entityId,
@@ -126,7 +141,10 @@ describe('Persistent UIUpdateBus Queue - Edge Cases', () => {
 
     private saveToStorage(): void {
       try {
-        sessionStorageMock.setItem(this.storageKey, String(this._lastProcessedSeq));
+        sessionStorageMock.setItem(
+          this.storageKey,
+          String(this._lastProcessedSeq),
+        );
       } catch {
         // sessionStorage unavailable
       }
@@ -168,9 +186,11 @@ describe('Persistent UIUpdateBus Queue - Edge Cases', () => {
     private isValidUIUpdateEvent(event: unknown): event is UIUpdateEvent {
       if (!event || typeof event !== 'object') return false;
       const e = event as Record<string, unknown>;
-      return typeof e.entity === 'string' &&
-             typeof e.action === 'string' &&
-             typeof e.entityId === 'string';
+      return (
+        typeof e.entity === 'string' &&
+        typeof e.action === 'string' &&
+        typeof e.entityId === 'string'
+      );
     }
 
     getReceivedEvents(): UIUpdateEvent[] {
@@ -402,13 +422,18 @@ describe('Persistent UIUpdateBus Queue - Edge Cases', () => {
 
       // Simulate cleanup (normally happens in WorkerCore.close())
       const cutoff = Date.now() - 30 * 60 * 1000; // 30 minutes
-      const deleted = await db.ui_updates.where('timestamp').below(cutoff).delete();
+      const deleted = await db.ui_updates
+        .where('timestamp')
+        .below(cutoff)
+        .delete();
       expect(deleted).toBe(1);
 
       // Verify only recent event remains
       const afterCleanup = await db.ui_updates.toArray();
       expect(afterCleanup).toHaveLength(1);
-      expect((afterCleanup[0].event as UIUpdateEvent).entityId).toBe('session-recent');
+      expect((afterCleanup[0].event as UIUpdateEvent).entityId).toBe(
+        'session-recent',
+      );
     });
 
     it('should not catch up events that were cleaned up', async () => {
@@ -488,7 +513,9 @@ describe('Persistent UIUpdateBus Queue - Edge Cases', () => {
 
       // Publish 1000 events
       for (let i = 1; i <= 1000; i++) {
-        const clonedEvent = JSON.parse(JSON.stringify(createTestEvent(`session-${i}`)));
+        const clonedEvent = JSON.parse(
+          JSON.stringify(createTestEvent(`session-${i}`)),
+        );
         await db.ui_updates.add({ event: clonedEvent, timestamp: Date.now() });
       }
 

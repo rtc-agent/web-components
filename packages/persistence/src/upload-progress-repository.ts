@@ -1,7 +1,11 @@
 // Upload Progress Repository — IndexedDB multipart upload progress management
 
-import { getDatabase, type UploadProgressEntry, type UploadPartRecord } from './database.js';
-import { createLogger } from '@rtc-agent/client';
+import {
+  getDatabase,
+  type UploadProgressEntry,
+  type UploadPartRecord,
+} from './database.js';
+import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('UploadProgressRepository');
 
@@ -19,7 +23,6 @@ const DEFAULT_PART_SIZE = 5 * 1024 * 1024;
  * after interruption (network failure, page close, etc.).
  */
 export class UploadProgressRepository {
-
   /**
    * Create a new upload progress record.
    *
@@ -64,7 +67,9 @@ export class UploadProgressRepository {
     };
 
     await db.uploadParts.put(entry);
-    log.debug(`created upload progress: ${md5}.${ext}, uploadId=${uploadId}, parts=${totalParts}`);
+    log.debug(
+      `created upload progress: ${md5}.${ext}, uploadId=${uploadId}, parts=${totalParts}`,
+    );
     return entry;
   }
 
@@ -95,25 +100,33 @@ export class UploadProgressRepository {
   async markPartCompleted(
     md5: string,
     ext: string,
-    part: UploadPartRecord
+    part: UploadPartRecord,
   ): Promise<void> {
     const db = getDatabase();
 
     // FIX: Use modify() for atomic update within a transaction
     let updated = false;
-    await db.uploadParts.where('[md5+ext]').equals([md5, ext]).modify(entry => {
-      // Add part to completed list (avoid duplicates)
-      const existing = entry.completedParts.findIndex(p => p.partNumber === part.partNumber);
-      if (existing >= 0) {
-        entry.completedParts[existing] = part;
-      } else {
-        entry.completedParts.push(part);
-      }
+    await db.uploadParts
+      .where('[md5+ext]')
+      .equals([md5, ext])
+      .modify((entry) => {
+        // Add part to completed list (avoid duplicates)
+        const existing = entry.completedParts.findIndex(
+          (p) => p.partNumber === part.partNumber,
+        );
+        if (existing >= 0) {
+          entry.completedParts[existing] = part;
+        } else {
+          entry.completedParts.push(part);
+        }
 
-      entry.bytesUploaded = entry.completedParts.reduce((sum, p) => sum + p.size, 0);
-      entry.updatedAt = Date.now();
-      updated = true;
-    });
+        entry.bytesUploaded = entry.completedParts.reduce(
+          (sum, p) => sum + p.size,
+          0,
+        );
+        entry.updatedAt = Date.now();
+        updated = true;
+      });
 
     if (!updated) {
       throw new Error(`Upload progress not found: ${md5}.${ext}`);
@@ -148,10 +161,7 @@ export class UploadProgressRepository {
   async listExpired(): Promise<UploadProgressEntry[]> {
     const db = getDatabase();
     const now = Date.now();
-    return db.uploadParts
-      .where('expiresAt')
-      .below(now)
-      .toArray();
+    return db.uploadParts.where('expiresAt').below(now).toArray();
   }
 
   /**
@@ -167,7 +177,7 @@ export class UploadProgressRepository {
     if (expired.length === 0) return 0;
 
     const db = getDatabase();
-    const keys = expired.map(e => [e.md5, e.ext] as [string, string]);
+    const keys = expired.map((e) => [e.md5, e.ext] as [string, string]);
     await db.uploadParts.bulkDelete(keys);
 
     log.info(`cleaned up ${expired.length} expired upload progress records`);
@@ -196,7 +206,7 @@ export function initUploadProgressRepository(): UploadProgressRepository {
 export function getUploadProgressRepository(): UploadProgressRepository {
   if (!uploadProgressRepoInstance) {
     throw new Error(
-      '[UploadProgressRepository] not initialized. Call initUploadProgressRepository() first.'
+      '[UploadProgressRepository] not initialized. Call initUploadProgressRepository() first.',
     );
   }
   return uploadProgressRepoInstance;
