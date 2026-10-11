@@ -247,15 +247,36 @@ export class RtcAskUser extends LitElement {
   private _goTab(idx: number) {
     if (idx < 0 || idx >= this._questions.length) return;
     this._currentTab = idx;
+    // Focus first option in new tab for accessibility
+    this.updateComplete.then(() => {
+      const firstOption = this.shadowRoot?.querySelector(
+        `.tab-pane:nth-child(${idx + 1}) .option`,
+      ) as HTMLElement;
+      firstOption?.focus();
+    });
   }
 
   private _onKeyDown(e: KeyboardEvent) {
     // ESC dismisses
     if (e.key === 'Escape') {
       e.preventDefault();
+      e.stopPropagation();
       this._dismiss();
       return;
     }
+
+    // Tab/Shift+Tab: trap focus within dialog
+    if (e.key === 'Tab') {
+      this._trapFocus(e);
+      return;
+    }
+
+    // Arrow keys for option navigation
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      this._navigateOptions(e);
+      return;
+    }
+
     // Enter submits if possible
     if (e.key === 'Enter' && this._canSubmit) {
       // Don't steal Enter from the Other text input
@@ -264,6 +285,74 @@ export class RtcAskUser extends LitElement {
       e.preventDefault();
       this._submit();
     }
+  }
+
+  /**
+   * Trap focus within the dialog for accessibility.
+   * Prevents Tab from moving focus outside the modal.
+   */
+  private _trapFocus(e: KeyboardEvent) {
+    const dialog = this.shadowRoot?.querySelector('.dialog') as HTMLElement;
+    if (!dialog) return;
+
+    const focusableSelectors = [
+      'button:not([disabled])',
+      'input:not([disabled])',
+      '[tabindex]:not([tabindex="-1"])',
+      '.option',
+    ].join(',');
+
+    const focusableElements = Array.from(
+      dialog.querySelectorAll(focusableSelectors),
+    ) as HTMLElement[];
+
+    if (focusableElements.length === 0) return;
+
+    const firstFocusable = focusableElements[0];
+    const lastFocusable = focusableElements[focusableElements.length - 1];
+    const activeElement = this.shadowRoot?.activeElement as HTMLElement;
+
+    if (e.shiftKey) {
+      // Shift+Tab: if on first element, wrap to last
+      if (activeElement === firstFocusable) {
+        e.preventDefault();
+        lastFocusable.focus();
+      }
+    } else {
+      // Tab: if on last element, wrap to first
+      if (activeElement === lastFocusable) {
+        e.preventDefault();
+        firstFocusable.focus();
+      }
+    }
+  }
+
+  /**
+   * Navigate between options using arrow keys.
+   */
+  private _navigateOptions(e: KeyboardEvent) {
+    const target = e.target as HTMLElement;
+    // Only navigate when on an option, not when typing in Other input
+    if (target.classList.contains('other-input')) return;
+
+    const options = Array.from(
+      this.shadowRoot?.querySelectorAll('.option') || [],
+    ) as HTMLElement[];
+
+    if (options.length === 0) return;
+
+    const currentIndex = options.indexOf(target.closest('.option') as HTMLElement);
+    if (currentIndex === -1) return;
+
+    let nextIndex: number;
+    if (e.key === 'ArrowDown') {
+      nextIndex = (currentIndex + 1) % options.length;
+    } else {
+      nextIndex = (currentIndex - 1 + options.length) % options.length;
+    }
+
+    e.preventDefault();
+    options[nextIndex]?.focus();
   }
 
   // ────────────────────────── Render ──────────────────────────

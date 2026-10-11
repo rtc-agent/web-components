@@ -256,6 +256,76 @@ export const styles = [
       background: var(--rtc-color-success);
     }
 
+    /* ── Dot state: error ── */
+    :host([data-toolcall-status="error"]) .timeline-dot {
+      background: var(--rtc-color-error, #ef4444);
+    }
+
+    /* ── Status indicator in header ── */
+    .toolcall-status {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-left: auto;
+    }
+
+    .toolcall-status-loading {
+      color: var(--rtc-color-warning);
+      animation: rtc-spin 1s linear infinite;
+    }
+
+    .toolcall-status-success {
+      color: var(--rtc-color-success);
+    }
+
+    .toolcall-status-error {
+      color: var(--rtc-color-error, #ef4444);
+    }
+
+    @keyframes rtc-spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    /* ── Error section ── */
+    .toolcall-error {
+      flex-direction: column;
+      align-items: stretch;
+      background: var(--rtc-color-error-bg, #fef2f2);
+      border-top: 1px solid var(--rtc-color-error, #ef4444);
+    }
+
+    :host-context([theme='dark']) .toolcall-error {
+      background: var(--rtc-color-error-bg-dark, #450a0a20);
+    }
+
+    .toolcall-error-header {
+      display: flex;
+      align-items: center;
+      gap: var(--rtc-spacing-xs);
+      color: var(--rtc-color-error, #ef4444);
+      font-size: var(--rtc-font-size-sm);
+      font-weight: var(--rtc-font-weight-medium, 500);
+    }
+
+    .toolcall-error-message {
+      font-family: var(--rtc-font-family-mono);
+      font-size: var(--rtc-font-size-xs);
+      color: var(--rtc-color-text);
+      white-space: pre-wrap;
+      word-break: break-all;
+      margin: var(--rtc-spacing-xs) 0 0;
+      padding: var(--rtc-spacing-xs);
+      background: var(--rtc-color-bg-secondary);
+      border-radius: var(--rtc-border-radius-sm);
+      max-height: 150px;
+      overflow-y: auto;
+    }
+
+    .has-error .toolcall-card {
+      border-color: var(--rtc-color-error, #ef4444);
+    }
+
     /* ── Override: toolcall card's timeline-content has no nested div ── */
     /* (Unlike rtc-message which wraps innerHTML in a <div>, the card's content
        is a direct .toolcall-card element, so we don't need the div > * margin

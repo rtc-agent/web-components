@@ -9,6 +9,8 @@
  * - Click toggle button to unlock scrolling
  * - Smooth transitions between locked/unlocked states
  * - Configurable max-height via CSS variables
+ * - Passive scroll listeners for better performance
+ * - Scroll position restoration on lock toggle
  *
  * Usage:
  * ```html
@@ -23,7 +25,7 @@
  * @cssprop --rtc-scroll-max-height-unlocked - Max height when unlocked (default: 200px)
  */
 import { LitElement, html } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { customElement, property, state, query } from 'lit/decorators.js';
 import { styles } from './rtc-scroll-container.styles.js';
 
 @customElement('rtc-scroll-container')
@@ -38,19 +40,91 @@ export class RtcScrollContainer extends LitElement {
   @state()
   private _scrollLocked = true;
 
+  /** Reference to the content element for scroll position tracking */
+  @query('.content')
+  private _contentEl!: HTMLDivElement;
+
+  /** Saved scroll position for restoration after lock toggle */
+  private _savedScrollTop = 0;
+
+  /** Bound scroll handler for proper cleanup */
+  private _boundScrollHandler?: () => void;
+
   constructor() {
     super();
     this._scrollLocked = this.initialLocked;
   }
 
-  /** Toggle scroll lock state */
+  connectedCallback() {
+    super.connectedCallback();
+    // Set up passive scroll listener after first render
+    this.updateComplete.then(() => this._setupScrollListener());
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this._removeScrollListener();
+  }
+
+  /** Set up passive scroll event listener for performance */
+  private _setupScrollListener() {
+    if (!this._contentEl) return;
+
+    // Use passive listener for better scroll performance
+    this._boundScrollHandler = this._onContentScroll.bind(this);
+    this._contentEl.addEventListener('scroll', this._boundScrollHandler, {
+      passive: true,
+    });
+  }
+
+  /** Remove scroll event listener */
+  private _removeScrollListener() {
+    if (this._contentEl && this._boundScrollHandler) {
+      this._contentEl.removeEventListener('scroll', this._boundScrollHandler);
+      this._boundScrollHandler = undefined;
+    }
+  }
+
+  /** Handle scroll events (for future analytics or features) */
+  private _onContentScroll() {
+    // Track scroll position for restoration
+    if (this._contentEl && !this._scrollLocked) {
+      this._savedScrollTop = this._contentEl.scrollTop;
+    }
+  }
+
+  /** Toggle scroll lock state with position restoration */
   private _toggleScrollLock() {
-    this._scrollLocked = !this._scrollLocked;
+    const wasLocked = this._scrollLocked;
+    this._scrollLocked = !wasLocked;
+
+    // Restore scroll position when unlocking
+    if (wasLocked && this._contentEl) {
+      // Use requestAnimationFrame to ensure DOM is updated
+      requestAnimationFrame(() => {
+        if (this._contentEl) {
+          this._contentEl.scrollTop = this._savedScrollTop;
+        }
+      });
+    }
   }
 
   /** Get current lock state (for external access if needed) */
   get isLocked(): boolean {
     return this._scrollLocked;
+  }
+
+  /** Get current scroll position */
+  get scrollTop(): number {
+    return this._contentEl?.scrollTop ?? 0;
+  }
+
+  /** Set scroll position programmatically */
+  set scrollTop(value: number) {
+    if (this._contentEl) {
+      this._contentEl.scrollTop = value;
+      this._savedScrollTop = value;
+    }
   }
 
   render() {

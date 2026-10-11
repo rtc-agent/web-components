@@ -28,7 +28,7 @@
  * @csspart scroll - The scroll container
  * @csspart inner - The inner message container
  */
-import { LitElement, html } from 'lit';
+import { LitElement, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { consume } from '@lit/context';
 import { localized, msg } from '@lit/localize';
@@ -146,11 +146,19 @@ export class RtcMessageList extends LitElement {
   @state()
   private _hasMore = false;
 
+  /** Whether initial messages are still loading */
+  @state()
+  private _isLoading = true;
+
   @state()
   private _showNewBtn = false;
 
   @state()
   private _userAtBottom = true;
+
+  /** Debounce timer for loadMore operations to prevent rapid successive calls */
+  private _loadMoreDebounceTimer?: number;
+  private _loadMoreInProgress = false;
 
   /**
    * Follow-invalidation timestamp for auto-scroll.
@@ -395,6 +403,9 @@ export class RtcMessageList extends LitElement {
     this._subscription?.();
     this._subscription = undefined;
 
+    // Reset loading state for new session
+    this._isLoading = true;
+
     // Clear virtual scroll for new session
     this._virtualScroll?.clear();
     // Clear toolcall output index for new session
@@ -419,6 +430,7 @@ export class RtcMessageList extends LitElement {
       this.messageController.fetchInitialMessages(this.sessionId);
     } catch (err) {
       log.debug('Repository not ready:', (err as Error).message);
+      this._isLoading = false;
     }
   }
 
@@ -429,6 +441,11 @@ export class RtcMessageList extends LitElement {
   private _handleMessagesUpdate(data: MessageState) {
     const oldMessages = this._messages;
     const newMessages = data.messages;
+
+    // Update loading state - once we receive any messages, we're done loading
+    if (newMessages.length > 0 || data.hasMore === false) {
+      this._isLoading = false;
+    }
 
     // Rebuild toolcall output index for O(1) lookups during rendering
     this._toolcallOutputIndex.clear();
@@ -573,6 +590,7 @@ export class RtcMessageList extends LitElement {
     clearTimeout(this._highlightTimer);
     clearTimeout(this._scrollToMessageTimer);
     clearTimeout(this._scrollToBottomTimer);
+    clearTimeout(this._loadMoreDebounceTimer);
     this.removeEventListener(
       'rtc-toolcall-jump',
       this._handleToolcallJump as EventListener,
@@ -759,8 +777,43 @@ export class RtcMessageList extends LitElement {
    * IMPORTANT: For bottom direction, first check if repository has messages
    * after the current window (from viewport slicing). If yes, return them
    * directly from cache instead of going to DB.
+   *
+   * Includes debouncing to prevent rapid successive calls from overwhelming
+   * the repository and causing UI jank.
    */
   private async _handleVirtualScrollLoadMore(
+    direction: 'top' | 'bottom',
+    boundary: WindowBoundary,
+  ): Promise<Message[]> {
+    if (!this.sessionId || !this.messageController) return [];
+
+    // Debounce: prevent rapid successive calls (e.g., from scroll events)
+    // If a load is already in progress, wait and retry
+    if (this._loadMoreInProgress) {
+      log.debug('loadMore already in progress, skipping');
+      return [];
+    }
+
+    // Clear any pending debounce timer
+    clearTimeout(this._loadMoreDebounceTimer);
+
+    return new Promise<Message[]>((resolve) => {
+      this._loadMoreDebounceTimer = window.setTimeout(async () => {
+        this._loadMoreInProgress = true;
+        try {
+          const result = await this._doLoadMore(direction, boundary);
+          resolve(result);
+        } finally {
+          this._loadMoreInProgress = false;
+        }
+      }, 150); // 150ms debounce delay
+    });
+  }
+
+  /**
+   * Internal loadMore implementation (extracted for debouncing).
+   */
+  private async _doLoadMore(
     direction: 'top' | 'bottom',
     boundary: WindowBoundary,
   ): Promise<Message[]> {
@@ -1066,11 +1119,15 @@ export class RtcMessageList extends LitElement {
     // _userAtBottom is a @state driving re-render on scroll; consumed implicitly.
     void this._userAtBottom;
 
+    // Show empty state when loading is complete and no messages exist
+    const showEmptyState = !this._isLoading && this._messages.length === 0;
+
     // Virtual scroll manages DOM elements directly.
     // render() only provides the container structure.
     return html`
             <div class="message-list-scroll" part="scroll">
                 <div class="message-list-inner" part="inner">
+                    ${showEmptyState ? this._renderEmptyState() : nothing}
                     <!-- MessageVirtualScroll dynamically inserts message elements here -->
                 </div>
             </div>
@@ -1080,6 +1137,23 @@ export class RtcMessageList extends LitElement {
                 @click=${this._handleNewBtnClick}
             >${msg('↓ 新消息')}</button>
         `;
+  }
+
+  /**
+   * Render empty state placeholder when no messages exist.
+   * Provides friendly feedback to users starting a new conversation.
+   */
+  private _renderEmptyState() {
+    return html`
+      <div class="empty-state">
+        <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M8 12h8M8 8h8M8 16h5" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="4" y="4" width="16" height="16" rx="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div class="empty-state-title">${msg('开始新对话')}</div>
+        <div class="empty-state-description">${msg('发送消息开始与 AI 助手交流')}</div>
+      </div>
+    `;
   }
 }
 

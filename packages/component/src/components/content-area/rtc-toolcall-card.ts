@@ -336,6 +336,7 @@ export class RtcToolCallCard extends LitElement {
     void this._localeCtx.locale;
     const inData = parseToolCallData(this.pair.input);
     const hasOutput = !!this.pair.output;
+    const hasError = !!inData?.error || this.pair.output?.content?.type === 'error';
     const toolName = inData?.tool_name ?? 'unknown';
     const toolCallId = inData?.id || this.pair.input.clientId || '';
     const headerColor = toolCallId ? idToColorVar(toolCallId) : '';
@@ -343,7 +344,8 @@ export class RtcToolCallCard extends LitElement {
     const classes = {
       'timeline-item': true,
       'toolcall-card-item': true,
-      success: this.isLast && hasOutput,
+      'has-error': hasError,
+      success: this.isLast && hasOutput && !hasError,
     };
 
     return html`
@@ -358,10 +360,99 @@ export class RtcToolCallCard extends LitElement {
           <div class="toolcall-card" part="card">
             <div class="toolcall-header" part="header">
               <span class="toolcall-name" style=${headerColor ? `color: ${headerColor}` : ''}>${this._formatHeader(toolName, inData)}</span>
+              ${this._renderStatusIndicator(hasOutput, hasError)}
             </div>
+            ${hasError ? this._renderErrorBlock(inData?.error || this._extractOutputError()) : nothing}
             ${this._renderInputSection(toolName, inData)}
+            ${hasOutput && !hasError ? this._renderOutputSection() : nothing}
           </div>
         </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Render status indicator (loading spinner, success check, or error icon).
+   */
+  private _renderStatusIndicator(hasOutput: boolean, hasError: boolean) {
+    if (hasError) {
+      return html`
+        <span class="toolcall-status toolcall-status-error">
+          <svg viewBox="0 0 16 16" width="14" height="14">
+            <path fill="currentColor" d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06z"/>
+          </svg>
+        </span>
+      `;
+    }
+    if (hasOutput) {
+      return html`
+        <span class="toolcall-status toolcall-status-success">
+          <svg viewBox="0 0 16 16" width="14" height="14">
+            <path fill="currentColor" d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"/>
+          </svg>
+        </span>
+      `;
+    }
+    // Loading state
+    return html`
+      <span class="toolcall-status toolcall-status-loading">
+        <svg viewBox="0 0 16 16" width="14" height="14">
+          <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="11 33" stroke-linecap="round"/>
+        </svg>
+      </span>
+    `;
+  }
+
+  /**
+   * Render error block when tool call fails.
+   */
+  private _renderErrorBlock(errorMessage?: string) {
+    return html`
+      <div class="toolcall-section toolcall-error" part="error">
+        <div class="toolcall-error-header">
+          <svg viewBox="0 0 16 16" width="14" height="14">
+            <path fill="currentColor" d="M8 1.5a6.5 6.5 0 1 0 0 13a6.5 6.5 0 0 0 0-13zM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm9-3a1 1 0 1 1-2 0a1 1 0 0 1 2 0zM6.75 9.75A.75.75 0 0 1 7.5 9h1a.75.75 0 0 1 .75.75v2.5a.75.75 0 0 1-.75.75h-1a.75.75 0 0 1-.75-.75v-2.5z"/>
+          </svg>
+          <span>${msg('工具执行失败')}</span>
+        </div>
+        ${errorMessage ? html`<pre class="toolcall-error-message">${errorMessage}</pre>` : nothing}
+      </div>
+    `;
+  }
+
+  /**
+   * Extract error message from output if it's an error type.
+   */
+  private _extractOutputError(): string | undefined {
+    const output = this.pair.output;
+    if (output?.content?.type === 'error') {
+      const data = output.content.data;
+      if (typeof data === 'string') return data;
+      if (typeof data === 'object' && data !== null) {
+        return (data as Record<string, unknown>).message as string || JSON.stringify(data);
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * Render output section when tool call succeeds.
+   */
+  private _renderOutputSection() {
+    const output = this.pair.output;
+    if (!output) return nothing;
+
+    const outputData = output.content?.data;
+    const outputText = typeof outputData === 'string'
+      ? outputData
+      : JSON.stringify(outputData, null, 2);
+
+    return html`
+      <div class="toolcall-section out" part="out">
+        <span class="toolcall-label">${msg('Out')}</span>
+        <rtc-scroll-container style="--rtc-scroll-max-height-locked: var(--rtc-content-height-sm); --rtc-scroll-max-height-unlocked: var(--rtc-content-height-lg);">
+          <span class="toolcall-value" title=${outputText}>${outputText}</span>
+        </rtc-scroll-container>
       </div>
     `;
   }

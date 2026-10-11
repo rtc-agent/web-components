@@ -123,6 +123,14 @@ export class RtcMessage extends LitElement implements StatefulComponent {
   private _lastParsedContent: string = '';
 
   /**
+   * Error boundary: tracks if markdown parsing failed.
+   * When true, displays raw content instead of rendered HTML.
+   */
+  @state()
+  private _parseError = false;
+  private _lastErrorMessage = '';
+
+  /**
    * Only re-parse Markdown when message changes.
    *
    * Why not watch all properties?
@@ -177,6 +185,7 @@ export class RtcMessage extends LitElement implements StatefulComponent {
     if (!contentData) {
       this._renderedHtml = '';
       this._lastParsedContent = '';
+      this._parseError = false;
       return;
     }
 
@@ -184,6 +193,7 @@ export class RtcMessage extends LitElement implements StatefulComponent {
     if (contentData.type === 'prompt') {
       this._renderedHtml = '';
       this._lastParsedContent = '';
+      this._parseError = false;
       return;
     }
 
@@ -202,6 +212,7 @@ export class RtcMessage extends LitElement implements StatefulComponent {
 
     // Content changed (or first parse), update tracking
     this._lastParsedContent = content;
+    this._parseError = false; // Reset error state on new content
 
     /*
      * Lazy-load the marked + DOMPurify + highlight.js trio (first load is async, then reused).
@@ -216,10 +227,21 @@ export class RtcMessage extends LitElement implements StatefulComponent {
       this._modulesPromise = this._loadModulesWithRetry();
     }
 
-    const { marked, DOMPurify, hljs } = await this._modulesPromise;
+    let modules: Awaited<ReturnType<typeof this._loadModulesWithRetry>>;
+    try {
+      modules = await this._modulesPromise;
+    } catch (err) {
+      log.error('Module loading failed:', err);
+      this._parseError = true;
+      this._lastErrorMessage = '模块加载失败';
+      this._renderedHtml = '';
+      return;
+    }
 
     // Guard: if content changed while we awaited, discard this result.
     if (generation !== this._parseGeneration) return;
+
+    const { marked, DOMPurify, hljs } = modules;
 
     // marked.parse returns Promise<string> in async mode and
     // string | undefined in sync mode. We call it without await, hence cast to string;
@@ -229,6 +251,8 @@ export class RtcMessage extends LitElement implements StatefulComponent {
       rawHtml = (marked.parse(content) as string) ?? '';
     } catch (err) {
       log.error('marked.parse failed:', err);
+      this._parseError = true;
+      this._lastErrorMessage = 'Markdown 解析失败';
       rawHtml = '';
     }
 
@@ -237,9 +261,15 @@ export class RtcMessage extends LitElement implements StatefulComponent {
 
     // Highlight before DOMPurify: hljs adds <span class="hljs-*"> which are preserved,
     // while potentially malicious scripts are removed by subsequent DOMPurify. The order cannot be reversed.
-    const highlighted = this._highlightCodeBlocks(rawHtml, hljs);
-
-    this._renderedHtml = DOMPurify.sanitize(highlighted);
+    try {
+      const highlighted = this._highlightCodeBlocks(rawHtml, hljs);
+      this._renderedHtml = DOMPurify.sanitize(highlighted);
+    } catch (err) {
+      log.error('Sanitization failed:', err);
+      this._parseError = true;
+      this._lastErrorMessage = '内容处理失败';
+      this._renderedHtml = '';
+    }
   }
 
   /**
@@ -373,13 +403,15 @@ export class RtcMessage extends LitElement implements StatefulComponent {
       'thinking-content': isThinking,
       'summary-content': isSummary,
       'prompt-content': isPrompt,
+      'parse-error': this._parseError,
       success:
         isLast &&
         !message.streaming &&
         !isThinking &&
         !isSummary &&
         !isPrompt &&
-        !!message.content?.data,
+        !!message.content?.data &&
+        !this._parseError,
     };
 
     return html`
@@ -391,8 +423,9 @@ export class RtcMessage extends LitElement implements StatefulComponent {
           @click=${this._handleDotClick}
         ></div>
         <div class="timeline-content" part="content">
-          ${
-            isThinking
+          ${this._parseError
+            ? this._renderErrorBlock()
+            : isThinking
               ? this._renderThinkingBlock()
               : isSummary
                 ? this._renderSummaryBlock()
@@ -409,6 +442,25 @@ export class RtcMessage extends LitElement implements StatefulComponent {
                     html`<div .innerHTML=${this._renderedHtml}></div>`
           }
         </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Render error block when parsing fails.
+   * Shows raw content in a <pre> tag with error indicator.
+   */
+  private _renderErrorBlock() {
+    const content = extractTextContent(this.message?.content);
+    return html`
+      <div class="error-block">
+        <div class="error-header">
+          <svg class="error-icon" viewBox="0 0 16 16" width="14" height="14">
+            <path fill="currentColor" d="M8 1.5a6.5 6.5 0 1 0 0 13a6.5 6.5 0 0 0 0-13zM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm9-3a1 1 0 1 1-2 0a1 1 0 0 1 2 0zM6.75 9.75A.75.75 0 0 1 7.5 9h1a.75.75 0 0 1 .75.75v2.5a.75.75 0 0 1-.75.75h-1a.75.75 0 0 1-.75-.75v-2.5z"/>
+          </svg>
+          <span class="error-text">${this._lastErrorMessage || msg('渲染失败')}</span>
+        </div>
+        <pre class="error-content">${content}</pre>
       </div>
     `;
   }

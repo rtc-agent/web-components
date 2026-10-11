@@ -2,13 +2,15 @@
  * RtcAgent Event Type Map
  *
  * Extends HTMLElementEventMap globally to provide type-safe addEventListener
- * for custom events dispatched by <rtc-agent>.
+ * for custom events dispatched by <rtc-agent> and its child components.
  *
  * Design points:
  * - Extend, don't override: preserve type inference for native HTMLElement events
  *   and internal events (e.g. rtc-window-minimize), while adding public events
  *   like rtc-agent-ready.
- * - To add a new public event, simply add an entry to RtcAgentEventMap.
+ * - To add a new public event, simply add an entry to RtcAgentEventDetailMap.
+ * - All custom events follow kebab-case naming convention.
+ * - All events bubble and are composed (cross shadow DOM) by default.
  *
  * @example
  * ```ts
@@ -84,6 +86,53 @@ export interface RtcAgentEventDetailMap {
   'rtc-message-received': { message: Message };
   /** User message sent */
   'rtc-message-sent': { message: Message };
+
+  // ── UI: Toast notifications ──
+
+  /** Request to show a toast notification */
+  'rtc-toast-requested': {
+    message: string;
+    type: 'success' | 'error' | 'warning' | 'info';
+    duration?: number;
+  };
+
+  // ── UI: Command panel ──
+
+  /** User selected a command from the command panel */
+  'rtc-command-selected': { command: string; args?: string };
+  /** Command panel requested to close */
+  'rtc-command-panel-close': void;
+
+  // ── UI: Ask user dialog ──
+
+  /** User submitted answers in ask-user dialog */
+  'rtc-ask-user-submit': {
+    clientId: string;
+    payload: {
+      answers: Record<string, string>;
+      annotations?: Record<string, { preview?: string; notes?: string }>;
+      metadata?: { source?: string };
+    };
+  };
+  /** User dismissed ask-user dialog */
+  'rtc-ask-user-dismiss': { clientId: string };
+
+  // ── UI: Tool confirmation ──
+
+  /** User approved a tool call */
+  'rtc-tool-call-approved': { toolCallId: string; allowAll: boolean };
+  /** User denied a tool call */
+  'rtc-tool-call-denied': { toolCallId: string };
+
+  // ── UI: Todo panel ──
+
+  /** Todo filter changed */
+  'rtc-todo-filter-changed': { filter: 'all' | 'pending' | 'in_progress' | 'completed' };
+
+  // ── UI: Message list ──
+
+  /** Request to jump to a toolcall input message */
+  'rtc-toolcall-jump': { targetClientId: string };
 }
 
 // Globally extend HTMLElementEventMap so addEventListener automatically supports these events
@@ -139,5 +188,44 @@ declare global {
       RtcAgentEventDetailMap['rtc-message-received']
     >;
     'rtc-message-sent': CustomEvent<RtcAgentEventDetailMap['rtc-message-sent']>;
+
+    // UI: Toast notifications
+    'rtc-toast-requested': CustomEvent<
+      RtcAgentEventDetailMap['rtc-toast-requested']
+    >;
+
+    // UI: Command panel
+    'rtc-command-selected': CustomEvent<
+      RtcAgentEventDetailMap['rtc-command-selected']
+    >;
+    'rtc-command-panel-close': CustomEvent<
+      RtcAgentEventDetailMap['rtc-command-panel-close']
+    >;
+
+    // UI: Ask user dialog
+    'rtc-ask-user-submit': CustomEvent<
+      RtcAgentEventDetailMap['rtc-ask-user-submit']
+    >;
+    'rtc-ask-user-dismiss': CustomEvent<
+      RtcAgentEventDetailMap['rtc-ask-user-dismiss']
+    >;
+
+    // UI: Tool confirmation
+    'rtc-tool-call-approved': CustomEvent<
+      RtcAgentEventDetailMap['rtc-tool-call-approved']
+    >;
+    'rtc-tool-call-denied': CustomEvent<
+      RtcAgentEventDetailMap['rtc-tool-call-denied']
+    >;
+
+    // UI: Todo panel
+    'rtc-todo-filter-changed': CustomEvent<
+      RtcAgentEventDetailMap['rtc-todo-filter-changed']
+    >;
+
+    // UI: Message list
+    'rtc-toolcall-jump': CustomEvent<
+      RtcAgentEventDetailMap['rtc-toolcall-jump']
+    >;
   }
 }

@@ -8,11 +8,12 @@
  * @fires rtc-command-selected - User selected a command (detail: { command, args? })
  * @fires rtc-command-panel-close - User pressed Escape or clicked outside
  * @csspart list - The command list container
+ * @csspart search - The search input
  */
-import { LitElement, html } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { LitElement, html, nothing } from 'lit';
+import { customElement, property, state, query } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
-import { localized, msg } from '@lit/localize';
+import { localized, msg, str } from '@lit/localize';
 import { consume } from '@lit/context';
 import {
   localeContext,
@@ -31,6 +32,13 @@ import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('CommandPanel');
 
+/** Search icon (inline SVG since it's not in the icons module) */
+const searchIcon = html`
+  <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+    <path d="M10.68 11.74a6 6 0 0 1-7.922-8.982a6 6 0 0 1 8.982 7.928l3.04 3.04a.749.749 0 0 1-.326 1.275a.749.749 0 0 1-.734-.215ZM11.5 6.5a5 5 0 1 0-10 0a5 5 0 0 0 10 0Z"/>
+  </svg>
+`;
+
 /** Command configuration */
 export interface CommandConfig {
   /** Command name (without /) */
@@ -43,6 +51,8 @@ export interface CommandConfig {
   available: boolean;
   /** Icon template */
   icon: ReturnType<typeof html>;
+  /** Keywords for search matching (optional) */
+  keywords?: string[];
 }
 
 /** Static config for all commands */
@@ -55,6 +65,7 @@ export const COMMAND_CONFIGS: CommandConfig[] = [
     },
     available: true,
     icon: gearIcon,
+    keywords: ['compress', 'context', 'token', '压缩'],
   },
   {
     name: 'loop',
@@ -64,6 +75,7 @@ export const COMMAND_CONFIGS: CommandConfig[] = [
     },
     available: true,
     icon: clockIcon,
+    keywords: ['repeat', 'cycle', '循环', '重复'],
   },
   {
     name: 'goal',
@@ -73,6 +85,7 @@ export const COMMAND_CONFIGS: CommandConfig[] = [
     },
     available: true,
     icon: checklistIcon,
+    keywords: ['target', 'objective', '目标', '任务'],
   },
   {
     name: 'export',
@@ -82,6 +95,7 @@ export const COMMAND_CONFIGS: CommandConfig[] = [
     },
     available: true,
     icon: saveIcon,
+    keywords: ['download', 'save', 'html', '导出', '下载'],
   },
 ];
 
@@ -103,8 +117,81 @@ export class RtcCommandPanel extends LitElement {
   @property({ type: Array })
   commands: CommandConfig[] = COMMAND_CONFIGS;
 
+  /** Search query for filtering commands */
+  @state()
+  private _searchQuery = '';
+
+  /** Index of currently selected command (for keyboard navigation) */
+  @state()
+  private _selectedIndex = 0;
+
+  /** Feedback message shown after command selection */
+  @state()
+  private _feedbackMessage = '';
+
+  @query('.search-input')
+  private _searchInput!: HTMLInputElement;
+
+  /** Feedback timer for clearing the message */
+  private _feedbackTimer?: number;
+
+  /**
+   * Filtered commands based on search query.
+   * Matches against name, label, description, and keywords.
+   */
+  private get _filteredCommands(): CommandConfig[] {
+    const query = this._searchQuery.toLowerCase().trim();
+    if (!query) return this.commands;
+
+    return this.commands.filter((cmd) => {
+      // Match against name
+      if (cmd.name.toLowerCase().includes(query)) return true;
+      // Match against label (without /)
+      if (cmd.label.toLowerCase().replace('/', '').includes(query)) return true;
+      // Match against description
+      if (cmd.description.toLowerCase().includes(query)) return true;
+      // Match against keywords
+      if (cmd.keywords?.some((kw) => kw.toLowerCase().includes(query))) {
+        return true;
+      }
+      return false;
+    });
+  }
+
+  connectedCallback() {
+    super.connectedCallback();
+    this.addEventListener('keydown', this._onKeydown);
+    // Focus search input on connect
+    this.updateComplete.then(() => {
+      this._searchInput?.focus();
+    });
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.removeEventListener('keydown', this._onKeydown);
+    clearTimeout(this._feedbackTimer);
+  }
+
+  private _handleSearchInput(e: Event) {
+    const input = e.target as HTMLInputElement;
+    this._searchQuery = input.value;
+    this._selectedIndex = 0; // Reset selection when search changes
+  }
+
+  private _clearSearch() {
+    this._searchQuery = '';
+    this._selectedIndex = 0;
+    this._searchInput?.focus();
+  }
+
   private _handleSelect(command: CommandConfig) {
-    if (!command.available) return;
+    if (!command.available) {
+      this._showFeedback(msg('该命令即将推出'));
+      return;
+    }
+
+    this._showFeedback(msg(str`已选择 ${command.label}`));
 
     this.dispatchEvent(
       new CustomEvent('rtc-command-selected', {
@@ -115,7 +202,17 @@ export class RtcCommandPanel extends LitElement {
     );
   }
 
+  private _showFeedback(message: string) {
+    this._feedbackMessage = message;
+    clearTimeout(this._feedbackTimer);
+    this._feedbackTimer = window.setTimeout(() => {
+      this._feedbackMessage = '';
+    }, 2000);
+  }
+
   private _onKeydown = (e: KeyboardEvent) => {
+    const filtered = this._filteredCommands;
+
     if (e.key === 'Escape') {
       e.stopPropagation();
       this.dispatchEvent(
@@ -124,39 +221,108 @@ export class RtcCommandPanel extends LitElement {
           composed: true,
         }),
       );
+      return;
+    }
+
+    // Arrow key navigation
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      this._selectedIndex = Math.min(this._selectedIndex + 1, filtered.length - 1);
+      this._scrollSelectedIntoView();
+      return;
+    }
+
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      this._selectedIndex = Math.max(this._selectedIndex - 1, 0);
+      this._scrollSelectedIntoView();
+      return;
+    }
+
+    // Enter to select
+    if (e.key === 'Enter' && filtered[this._selectedIndex]) {
+      e.preventDefault();
+      this._handleSelect(filtered[this._selectedIndex]);
+      return;
+    }
+
+    // Focus search on any printable character
+    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      // If not already in search input, focus it and let the character through
+      const target = e.target as HTMLElement;
+      if (!target.classList.contains('search-input')) {
+        this._searchInput?.focus();
+      }
     }
   };
 
-  connectedCallback() {
-    super.connectedCallback();
-    this.addEventListener('keydown', this._onKeydown);
-  }
-
-  disconnectedCallback() {
-    super.disconnectedCallback();
-    this.removeEventListener('keydown', this._onKeydown);
+  private _scrollSelectedIntoView() {
+    this.updateComplete.then(() => {
+      const selectedEl = this.shadowRoot?.querySelector(
+        `.command-item.selected`,
+      ) as HTMLElement;
+      selectedEl?.scrollIntoView({ block: 'nearest' });
+    });
   }
 
   render() {
     void this._localeCtx.locale;
+    const filtered = this._filteredCommands;
+    const hasSearch = this._searchQuery.length > 0;
+    const noResults = filtered.length === 0 && hasSearch;
+
     return html`
-      <div class="command-list" part="list">
-        ${this.commands.map(
-          (cmd) => html`
-                <div
-                  class="command-item ${classMap({ disabled: !cmd.available })}"
-                  @click=${() => this._handleSelect(cmd)}
-                  title=${cmd.available ? cmd.description : msg('即将推出')}
-                >
-                  <span class="command-icon">${cmd.icon}</span>
-                  <span class="command-text">
-                    <span class="command-label">${cmd.label}</span>
-                    <span class="command-desc">${cmd.description}</span>
-                  </span>
-                  ${!cmd.available ? html`<span class="command-badge">${msg('即将推出')}</span>` : ''}
-                </div>
-              `,
-        )}
+      <div class="command-panel">
+        <div class="search-container" part="search">
+          <span class="search-icon">${searchIcon}</span>
+          <input
+            class="search-input"
+            type="text"
+            placeholder=${msg('搜索命令...')}
+            .value=${this._searchQuery}
+            @input=${this._handleSearchInput}
+          >
+          ${hasSearch
+            ? html`<button class="clear-btn" @click=${this._clearSearch} aria-label=${msg('清除')}>
+                <svg viewBox="0 0 16 16" width="12" height="12">
+                  <path fill="currentColor" d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06z"/>
+                </svg>
+              </button>`
+            : nothing}
+        </div>
+        <div class="command-list" part="list" role="listbox">
+          ${noResults
+            ? html`<div class="no-results">${msg('未找到匹配的命令')}</div>`
+            : filtered.map((cmd, i) => {
+                const isSelected = i === this._selectedIndex;
+                return html`
+                  <div
+                    class=${classMap({
+                      'command-item': true,
+                      disabled: !cmd.available,
+                      selected: isSelected,
+                    })}
+                    role="option"
+                    aria-selected=${isSelected}
+                    @click=${() => this._handleSelect(cmd)}
+                    @mouseenter=${() => (this._selectedIndex = i)}
+                    title=${cmd.available ? cmd.description : msg('即将推出')}
+                  >
+                    <span class="command-icon">${cmd.icon}</span>
+                    <span class="command-text">
+                      <span class="command-label">${cmd.label}</span>
+                      <span class="command-desc">${cmd.description}</span>
+                    </span>
+                    ${!cmd.available
+                      ? html`<span class="command-badge">${msg('即将推出')}</span>`
+                      : nothing}
+                  </div>
+                `;
+              })}
+        </div>
+        ${this._feedbackMessage
+          ? html`<div class="feedback-bar">${this._feedbackMessage}</div>`
+          : nothing}
       </div>
     `;
   }

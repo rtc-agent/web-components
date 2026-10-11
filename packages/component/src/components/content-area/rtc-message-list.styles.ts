@@ -91,4 +91,37 @@ export const styles = css`
     0% { box-shadow: 0 0 0 2px var(--rtc-color-warning, gold); }
     100% { box-shadow: none; }
   }
+
+  /* ── Empty state ── */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--rtc-spacing-xl) var(--rtc-spacing-lg);
+    margin: auto;
+    text-align: center;
+    color: var(--rtc-color-text-tertiary);
+    max-width: 320px;
+  }
+
+  .empty-state-icon {
+    width: 48px;
+    height: 48px;
+    margin-bottom: var(--rtc-spacing-md);
+    opacity: 0.5;
+  }
+
+  .empty-state-title {
+    font-size: var(--rtc-font-size-lg);
+    font-weight: var(--rtc-font-weight-medium, 500);
+    color: var(--rtc-color-text-secondary);
+    margin-bottom: var(--rtc-spacing-xs);
+  }
+
+  .empty-state-description {
+    font-size: var(--rtc-font-size-sm);
+    color: var(--rtc-color-text-tertiary);
+    line-height: var(--rtc-line-height-base);
+  }
 `;

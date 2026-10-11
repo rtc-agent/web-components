@@ -527,5 +527,68 @@ export const styles = [
       white-space: pre-wrap;
       word-break: break-word;
     }
+
+    /*
+     * ── Error block (parse failure fallback) ────────────────────────────────
+     *
+     * Structure:
+     *   .error-block
+     *     ├── .error-header
+     *     │     ├── .error-icon  (warning SVG)
+     *     │     └── .error-text  (error message)
+     *     └── pre.error-content  (raw content fallback)
+     *
+     * Design decisions:
+     * - Uses warning color scheme (red/orange border + background)
+     * - Shows raw content in <pre> as fallback
+     * - Compact design to not overwhelm the UI
+     */
+    .error-block {
+      border: 1px solid var(--rtc-color-error, #ef4444);
+      border-radius: var(--rtc-border-radius);
+      background: var(--rtc-color-error-bg, #fef2f2);
+      overflow: hidden;
+    }
+
+    :host-context([theme='dark']) .error-block {
+      background: var(--rtc-color-error-bg-dark, #450a0a);
+    }
+
+    .error-header {
+      display: flex;
+      align-items: center;
+      gap: var(--rtc-spacing-xs);
+      padding: var(--rtc-spacing-xs) var(--rtc-spacing-sm);
+      background: var(--rtc-color-error, #ef4444);
+      color: white;
+      font-size: var(--rtc-font-size-sm);
+      font-weight: var(--rtc-font-weight-medium, 500);
+    }
+
+    .error-icon {
+      flex-shrink: 0;
+    }
+
+    .error-text {
+      flex: 1;
+    }
+
+    pre.error-content {
+      font-family: var(--rtc-font-family-mono);
+      font-size: var(--rtc-font-size-sm);
+      line-height: var(--rtc-line-height-base);
+      color: var(--rtc-color-text);
+      max-height: 200px;
+      overflow: auto;
+      margin: 0;
+      padding: var(--rtc-spacing-sm);
+      background: var(--rtc-color-bg-secondary);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .parse-error .timeline-dot {
+      background: var(--rtc-color-error, #ef4444) !important;
+    }
   `,
 ];
