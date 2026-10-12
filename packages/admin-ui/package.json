@@ -9,6 +9,7 @@
     "build": "max build",
     "deploy": "cross-env CI=true max build && gh-pages -d dist",
     "dev": "cross-env UMI_ENV=dev MOCK=none max dev",
+    "i18n:check": "tsx scripts/check-i18n-coverage.ts",
     "i18n-remove": "node scripts/i18n-remove.js",
     "lint": "biome lint src/ && tsc --noEmit",
     "lint:fix": "biome check --write src/",
@@ -42,7 +43,6 @@
     "@ant-design/x": "^2.9.0",
     "@ant-design/x-markdown": "^2.9.0",
     "@ant-design/x-sdk": "^2.9.0",
-    "@rtc-agent/client": "workspace:*",
     "@rtc-agent/component": "workspace:*",
     "@rtc-agent/protocol": "workspace:*",
     "@tanstack/react-query": "^5.101.2",
@@ -93,6 +93,7 @@
     "swagger-ui-dist": "^5.32.8",
     "tailwindcss": "^4.3.2",
     "ts-node": "^10.9.2",
+    "tsx": "^4.23.15",
     "typescript": "5.9.3",
     "vitest": "^2.1.9"
   },
