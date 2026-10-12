@@ -16,6 +16,11 @@ vi.mock('@umijs/max', () => ({
   getIntl: vi.fn(() => ({
     formatMessage: vi.fn(({ defaultMessage }) => defaultMessage),
   })),
+  history: {
+    location: { pathname: '/', search: '', hash: '' },
+    replace: vi.fn(),
+  },
+  request: vi.fn(),
 }));
 
 describe('requestErrorConfig', () => {
@@ -221,7 +226,7 @@ describe('requestErrorConfig', () => {
       errorHandler(error, {});
 
       expect(message.error).toHaveBeenCalledWith(
-        'None response! Please retry.',
+        'No response! Please retry.',
       );
     });
 
@@ -263,6 +268,100 @@ describe('requestErrorConfig', () => {
       const result = interceptor(config);
 
       expect(result.url).toBeUndefined();
+    });
+  });
+
+  describe('retry interceptor', () => {
+    // 重试拦截器是 responseInterceptors 数组的第二个元素，格式为 tuple
+    const retryInterceptor = errorConfig.responseInterceptors?.[1] as [
+      (response: any) => any,
+      (error: any) => Promise<any>,
+    ];
+    const successHandler = retryInterceptor[0];
+    const errorHandler = retryInterceptor[1];
+
+    it('should pass through successful responses', () => {
+      const response = { data: { success: true, data: { id: 1 } } };
+      const result = successHandler(response);
+      expect(result).toBe(response);
+    });
+
+    it('should retry on network error (no response)', async () => {
+      const error: any = new Error('Network error');
+      error.request = {};
+      error.config = {
+        url: '/api/test',
+        method: 'GET',
+        _retryCount: 0,
+      };
+
+      // Import mocked request
+      const { request } = await import('@umijs/max');
+      const mockRequest = request as ReturnType<typeof vi.fn>;
+      mockRequest.mockResolvedValueOnce({
+        data: { success: true, data: { id: 1 } },
+      });
+
+      const result = await errorHandler(error);
+
+      expect(error.config._retryCount).toBe(1);
+      expect(mockRequest).toHaveBeenCalled();
+      expect(result).toBeDefined();
+    });
+
+    it('should retry on 5xx error', async () => {
+      const error: any = new Error('Server error');
+      error.response = { status: 500 };
+      error.config = {
+        url: '/api/test',
+        method: 'POST',
+        _retryCount: 0,
+      };
+
+      const { request } = await import('@umijs/max');
+      const mockRequest = request as ReturnType<typeof vi.fn>;
+      mockRequest.mockResolvedValueOnce({
+        data: { success: true, data: { id: 1 } },
+      });
+
+      const result = await errorHandler(error);
+
+      expect(error.config._retryCount).toBe(1);
+      expect(mockRequest).toHaveBeenCalled();
+      expect(result).toBeDefined();
+    });
+
+    it('should not retry on 4xx error', async () => {
+      const error: any = new Error('Client error');
+      error.response = { status: 404 };
+      error.config = {
+        url: '/api/test',
+        method: 'GET',
+        _retryCount: 0,
+      };
+
+      await expect(errorHandler(error)).rejects.toBe(error);
+      expect(error.config._retryCount).toBe(0);
+    });
+
+    it('should not retry beyond max attempts', async () => {
+      const error: any = new Error('Network error');
+      error.request = {};
+      error.config = {
+        url: '/api/test',
+        method: 'GET',
+        _retryCount: 2, // Already at max retries
+      };
+
+      await expect(errorHandler(error)).rejects.toBe(error);
+      expect(error.config._retryCount).toBe(2);
+    });
+
+    it('should reject if config is missing', async () => {
+      const error: any = new Error('Unknown error');
+      // No config property
+
+      await expect(errorHandler(error)).rejects.toBe(error);
     });
   });
 });
