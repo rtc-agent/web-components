@@ -282,6 +282,15 @@ export class MessageVirtualScroll<T> {
   /** Maximum items in hot storage before settling to cold */
   private readonly MAX_HOT_ITEMS = 500;
 
+  /** Whether virtual scroll is ready for operations (initial render complete). */
+  private _isReady = false;
+
+  /** Promise resolve function for whenReady(). */
+  private _readyResolver?: () => void;
+
+  /** Promise that resolves when virtual scroll is ready. */
+  private _readyPromise?: Promise<void>;
+
   constructor(options: MessageVirtualScrollOptions<T>) {
     this._scrollContainer = options.scrollContainer;
     this._innerContainer = options.innerContainer;
@@ -369,6 +378,24 @@ export class MessageVirtualScroll<T> {
         onDocumentVisibilityChange,
       );
     };
+  }
+
+  /** Whether virtual scroll is ready for operations. */
+  get isReady(): boolean {
+    return this._isReady;
+  }
+
+  /** Returns a promise that resolves when virtual scroll is ready. */
+  whenReady(): Promise<void> {
+    if (this._isReady) {
+      return Promise.resolve();
+    }
+    if (!this._readyPromise) {
+      this._readyPromise = new Promise<void>((resolve) => {
+        this._readyResolver = resolve;
+      });
+    }
+    return this._readyPromise;
   }
 
   /**
@@ -2248,6 +2275,12 @@ export class MessageVirtualScroll<T> {
     });
 
     this._innerContainer.appendChild(fragment);
+
+    // Mark as ready after initial render
+    if (!this._isReady) {
+      this._isReady = true;
+      this._readyResolver?.();
+    }
   }
 
   /**

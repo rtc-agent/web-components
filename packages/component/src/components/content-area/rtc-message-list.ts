@@ -190,6 +190,12 @@ export class RtcMessageList extends LitElement {
   private _scrollToMessageTimer?: number;
   private _scrollToBottomTimer?: number;
 
+  /** Debounce timer for scroll-to-bottom operations */
+  private _scrollDebounceTimer?: number;
+
+  /** Flag to track if new messages arrived while Tab was hidden */
+  private _hasNewMessagesWhileHidden = false;
+
   /** Virtual scroll instance for efficient rendering */
   private _virtualScroll?: MessageVirtualScroll<Message>;
 
@@ -214,7 +220,43 @@ export class RtcMessageList extends LitElement {
    */
   scrollToBottom() {
     this._followInvalidatedUntil = 0; // Resume follow intent
-    this._scrollToBottom();
+    this._scrollToBottom(true);
+  }
+
+  /**
+   * Unified scroll-to-bottom method with optional debouncing.
+   *
+   * @param immediate - If true, scrolls immediately. If false, debounces by 50ms.
+   *
+   * This is the single entry point for all scroll-to-bottom operations.
+   * It checks virtual scroll readiness and applies debouncing to prevent
+   * rapid successive scrolls from causing jank.
+   */
+  private _scrollToBottom(immediate = false) {
+    if (immediate) {
+      this._doScrollToBottom();
+    } else {
+      // Debounce: clear any pending scroll and schedule a new one
+      clearTimeout(this._scrollDebounceTimer);
+      this._scrollDebounceTimer = window.setTimeout(() => {
+        this._doScrollToBottom();
+      }, 50);
+    }
+  }
+
+  /**
+   * Internal scroll-to-bottom execution.
+   * Only scrolls if virtual scroll is ready.
+   */
+  private _doScrollToBottom() {
+    if (!this._virtualScroll?.isReady) {
+      log.debug('Virtual scroll not ready, skipping scroll to bottom');
+      return;
+    }
+
+    this._virtualScroll.scrollToBottom();
+    this._userAtBottom = true;
+    this._showNewBtn = false;
   }
 
   /**
@@ -357,7 +399,8 @@ export class RtcMessageList extends LitElement {
         clearTimeout(this._resizeDebounceTimer);
         this._resizeDebounceTimer = window.setTimeout(() => {
           if (this._shouldAutoScroll() && !this._isVirtualScrollOperation) {
-            this._scrollToBottom();
+            // Use debounced scroll to prevent rapid successive scrolls
+            this._scrollToBottom(false);
           }
         }, 100);
       });
@@ -442,6 +485,16 @@ export class RtcMessageList extends LitElement {
     const oldMessages = this._messages;
     const newMessages = data.messages;
 
+    // Track if new messages arrived while Tab was hidden
+    // This is used by onTabVisibilityChange to scroll to bottom when Tab becomes visible
+    if (this._virtualScroll && newMessages.length > oldMessages.length) {
+      // Check if Tab is currently hidden (virtual scroll is not visible)
+      const isTabHidden = !this._virtualScroll.isVisible();
+      if (isTabHidden) {
+        this._hasNewMessagesWhileHidden = true;
+      }
+    }
+
     // Update loading state - once we receive any messages, we're done loading
     if (newMessages.length > 0 || data.hasMore === false) {
       this._isLoading = false;
@@ -480,7 +533,8 @@ export class RtcMessageList extends LitElement {
       newMessages.length > 0 &&
       this._shouldAutoScroll()
     ) {
-      this._virtualScroll.scrollToBottom();
+      // Initial load: scroll to bottom immediately
+      this._scrollToBottom(true);
     }
 
     // Reset flag after a short delay to allow ResizeObserver to fire and be ignored
@@ -565,9 +619,8 @@ export class RtcMessageList extends LitElement {
       queueMicrotask(() => {
         this._subscribeToSession();
         this._followInvalidatedUntil = 0; // Reset behavioral intent: follow new session
-        this._virtualScroll?.scrollToBottom();
-        this._userAtBottom = true;
-        this._showNewBtn = false;
+        // Session switch: scroll to bottom immediately
+        this._scrollToBottom(true);
       });
     }
 
@@ -591,6 +644,7 @@ export class RtcMessageList extends LitElement {
     clearTimeout(this._scrollToMessageTimer);
     clearTimeout(this._scrollToBottomTimer);
     clearTimeout(this._loadMoreDebounceTimer);
+    clearTimeout(this._scrollDebounceTimer);
     this.removeEventListener(
       'rtc-toolcall-jump',
       this._handleToolcallJump as EventListener,
@@ -628,6 +682,12 @@ export class RtcMessageList extends LitElement {
   onTabVisibilityChange(visible: boolean): void {
     if (this._virtualScroll) {
       this._virtualScroll.setVisibility(visible);
+
+      // Tab became visible: if new messages arrived while hidden, scroll to bottom
+      if (visible && this._hasNewMessagesWhileHidden && this._shouldAutoScroll()) {
+        this._scrollToBottom(true);
+        this._hasNewMessagesWhileHidden = false;
+      }
     }
   }
 
@@ -684,23 +744,12 @@ export class RtcMessageList extends LitElement {
         // Re-check follow intent before scrolling — user may have scrolled
         // up while we were waiting for updateComplete.
         if (!this._shouldAutoScroll()) return;
-        this._scrollToBottom();
+        // Use debounced scroll for async content updates
+        this._scrollToBottom(false);
       })
       .catch((err) => {
         log.error('Scheduled scroll after update failed:', err);
       });
-  }
-
-  private _scrollToBottom() {
-    if (!this._scrollEl) return;
-    // Set scrollTop directly. _onScroll will fire and update geometric state
-    // (_userAtBottom = true, since distanceFromBottom ≈ 0). We also set it
-    // here for immediate UI feedback before the async scroll event fires.
-    this._setScrollPositionSilently(this._scrollEl.scrollHeight);
-    this._userAtBottom = true;
-    this._showNewBtn = false;
-    // NOTE: This does NOT affect _followInvalidatedUntil (behavioral intent).
-    // Programmatic scrolls don't change user intent — only input events do.
   }
 
   /**
@@ -712,10 +761,6 @@ export class RtcMessageList extends LitElement {
    * The virtual scroll's scroll handler may fire, but it has its own guards
    * (1.5s debounce, stability checks, _isVirtualScrollOperation) so this is harmless.
    */
-  private _setScrollPositionSilently(value: number) {
-    if (!this._scrollEl) return;
-    this._scrollEl.scrollTop = value;
-  }
 
   /**
    * Register user input event listeners to invalidate follow intent.
