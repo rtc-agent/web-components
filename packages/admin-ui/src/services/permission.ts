@@ -23,6 +23,8 @@ export interface PermissionListParams {
 export interface PermissionListResponse {
   items: PermissionPolicy[];
   total: number;
+  page: number;
+  page_size: number;
 }
 
 /** 权限检查参数 */
@@ -53,7 +55,7 @@ export async function getPermissionList(params?: PermissionListParams) {
  * POST /api/permissions
  */
 export async function createPermission(body: PermissionPolicy) {
-  return request<PermissionPolicy>('/api/permissions', {
+  return request<{ status: string }>('/api/permissions', {
     method: 'POST',
     data: body,
   });
@@ -61,13 +63,15 @@ export async function createPermission(body: PermissionPolicy) {
 
 /**
  * 删除权限策略
- * DELETE /api/permissions
+ * DELETE /api/permissions/:role_id/:resource/:action
  */
-export async function deletePermission(body: PermissionPolicy) {
-  return request<{ success: boolean }>('/api/permissions', {
-    method: 'DELETE',
-    data: body,
-  });
+export async function deletePermission(policy: PermissionPolicy) {
+  return request<{ status: string }>(
+    `/api/permissions/${encodeURIComponent(policy.role_id)}/${encodeURIComponent(policy.resource)}/${encodeURIComponent(policy.action)}`,
+    {
+      method: 'DELETE',
+    },
+  );
 }
 
 /**

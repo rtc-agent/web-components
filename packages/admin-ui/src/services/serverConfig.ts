@@ -27,6 +27,8 @@ export interface ServerConfigListParams {
   category?: string;
   page?: number;
   page_size?: number;
+  sort_by?: string;
+  sort_order?: 'asc' | 'desc';
 }
 
 /** 更新系统配置请求（version 可选：强制覆盖时不传 version，设计文档 §4.5） */
@@ -138,14 +140,14 @@ export async function updateServerConfig(
  * 删除系统配置（回退到 yaml 默认值）
  * DELETE /api/configs/:key?version=
  * @param key - Config key
- * @param version - Version number (optional, omit for force delete)
+ * @param version - Version number (required for optimistic lock)
  */
-export async function deleteServerConfig(key: string, version?: number) {
+export async function deleteServerConfig(key: string, version: number) {
   return request<DeleteServerConfigResponse>(
     `/api/configs/${encodeURIComponent(key)}`,
     {
       method: 'DELETE',
-      params: version !== undefined ? { version } : undefined,
+      params: { version },
     },
   );
 }

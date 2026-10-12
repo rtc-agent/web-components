@@ -28,12 +28,7 @@ export interface LoginResult {
   refresh_token: string;
   expires_in: number;
   token_type: string;
-  user: {
-    id: string;
-    email: string;
-    name: string;
-    avatar_url?: string;
-  };
+  user: UserInfo;
 }
 
 /** 刷新 Token 响应 */

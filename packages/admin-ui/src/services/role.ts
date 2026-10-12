@@ -1,5 +1,6 @@
 import { request } from '@umijs/max';
 import type { RoleInfo } from './admin-auth';
+import type { PermissionPolicy } from './permission';
 
 /** 管理员角色列表查询参数 */
 export interface RoleListParams {
@@ -12,6 +13,8 @@ export interface RoleListParams {
 export interface RoleListResponse {
   items: RoleInfo[];
   total: number;
+  page: number;
+  page_size: number;
 }
 
 /** 创建管理员角色参数 */
@@ -87,7 +90,17 @@ export async function patchRole(id: string, body: UpdateRoleParams) {
  * DELETE /api/roles/:id
  */
 export async function deleteRole(id: string) {
-  return request<{ success: boolean }>(`/api/roles/${id}`, {
+  return request<{ status: string }>(`/api/roles/${id}`, {
     method: 'DELETE',
+  });
+}
+
+/**
+ * 查询角色关联的权限策略
+ * GET /api/roles/:id/policies
+ */
+export async function getRolePolicies(id: string) {
+  return request<PermissionPolicy[]>(`/api/roles/${id}/policies`, {
+    method: 'GET',
   });
 }
