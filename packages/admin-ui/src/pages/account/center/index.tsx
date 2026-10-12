@@ -7,6 +7,8 @@ import {
 import { GridContent } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
 import { useIntl } from '@umijs/max';
+import { queryKeys } from '@/utils/queryKeys';
+import { USER_CACHE } from '@/utils/queryCacheConfig';
 import {
   Avatar,
   Card,
@@ -224,15 +226,17 @@ const Center: React.FC = () => {
   const [tabKey, setTabKey] = useState<tabKeyType>('articles');
   const operationTabList = getOperationTabList(intl);
 
-  // Fetch user info (use independent queryKey to avoid conflicts with other pages' current-user queries)
+  // Fetch user info (scoped under currentUser.center to avoid cache conflicts)
   const {
     data: currentUser,
     isLoading: loading,
     isError,
     error,
   } = useQuery({
-    queryKey: ['current-user', 'center'],
+    queryKey: queryKeys.currentUser.center(),
     queryFn: () => queryCurrent().then((res) => res.data),
+    staleTime: USER_CACHE.staleTime, // 5 minutes
+    gcTime: USER_CACHE.gcTime, // 30 minutes
   });
 
   // Register Page API for selfAccount function group

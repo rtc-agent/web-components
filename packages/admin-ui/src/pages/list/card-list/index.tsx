@@ -2,6 +2,8 @@ import { PlusOutlined } from '@ant-design/icons';
 import { PageContainer } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
 import { Button, Card, List, Typography } from 'antd';
+import { queryKeys } from '@/utils/queryKeys';
+import { LIST_CACHE } from '@/utils/queryCacheConfig';
 import type { CardListItemDataType } from './data.d';
 import { queryFakeList } from './service';
 import useStyles from './style.style';
@@ -12,8 +14,10 @@ const nullData: Partial<CardListItemDataType> = {};
 const CardList = () => {
   const { styles } = useStyles();
   const { data, isLoading: loading } = useQuery({
-    queryKey: ['card-list'],
+    queryKey: queryKeys.cardList.all,
     queryFn: () => queryFakeList({ count: 8 }).then((res) => res.data),
+    staleTime: LIST_CACHE.staleTime, // 2 minutes
+    gcTime: LIST_CACHE.gcTime, // 10 minutes
   });
   const list = data?.list || [];
   const content = (

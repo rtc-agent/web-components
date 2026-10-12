@@ -21,6 +21,8 @@ import type { FC } from 'react';
 import React from 'react';
 import { StandardFormRow, TagSelect } from '@/components';
 import { formatNumber } from '@/utils/format';
+import { queryKeys } from '@/utils/queryKeys';
+import { SEARCH_CACHE } from '@/utils/queryCacheConfig';
 import { getCategoryOptions } from '../../constants';
 import type { ListItemDataType } from './data.d';
 import { queryFakeList } from './service';
@@ -88,8 +90,10 @@ const Applications: FC<Record<string, any>> = () => {
     isLoading: loading,
     refetch,
   } = useQuery({
-    queryKey: ['search-applications'],
+    queryKey: queryKeys.search.applications(),
     queryFn: () => queryFakeList({ count: 8 }).then((res) => res.data),
+    staleTime: SEARCH_CACHE.staleTime, // 30 seconds
+    gcTime: SEARCH_CACHE.gcTime, // 5 minutes
   });
 
   const list = data?.list || [];

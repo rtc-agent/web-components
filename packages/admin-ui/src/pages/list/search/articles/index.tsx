@@ -11,6 +11,8 @@ import type { DefaultOptionType } from 'antd/es/select';
 import type { FC } from 'react';
 import React, { useMemo, useRef } from 'react';
 import { ArticleListContent, StandardFormRow, TagSelect } from '@/components';
+import { queryKeys } from '@/utils/queryKeys';
+import { SEARCH_CACHE } from '@/utils/queryCacheConfig';
 import { getCategoryOptions } from '../../constants';
 import type { ListItemDataType } from './data.d';
 import { queryFakeList } from './service';
@@ -96,11 +98,13 @@ const Articles: FC = () => {
     isFetching,
     refetch,
   } = useQuery({
-    queryKey: ['search-articles', pageSize, filtersRef.current],
+    queryKey: queryKeys.search.articles(pageSize, filtersRef.current),
     queryFn: () =>
       queryFakeList({ count: pageSize, ...filtersRef.current }).then(
         (res) => res.data,
       ),
+    staleTime: SEARCH_CACHE.staleTime, // 30 seconds
+    gcTime: SEARCH_CACHE.gcTime, // 5 minutes
   });
 
   const loadMore = () => {

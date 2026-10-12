@@ -11,6 +11,8 @@ import {
 } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
 import { useIntl } from '@umijs/max';
+import { queryKeys } from '@/utils/queryKeys';
+import { PROFILE_CACHE } from '@/utils/queryCacheConfig';
 import type { DescriptionsProps } from 'antd';
 import {
   Badge,
@@ -51,8 +53,10 @@ const Advanced: FC = () => {
   });
 
   const { data = {}, isLoading: loading } = useQuery<AdvancedProfileData>({
-    queryKey: ['profile-advanced'],
+    queryKey: queryKeys.profile.advanced(),
     queryFn: () => queryAdvancedProfile().then((res) => res.data),
+    staleTime: PROFILE_CACHE.staleTime, // 5 minutes
+    gcTime: PROFILE_CACHE.gcTime, // 30 minutes
   });
   const { advancedOperation1, advancedOperation2, advancedOperation3 } = data;
 

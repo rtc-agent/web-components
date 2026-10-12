@@ -4,6 +4,8 @@ import { useIntl } from '@umijs/max';
 import { Flex, List, Tag } from 'antd';
 import React from 'react';
 import { ArticleListContent } from '@/components';
+import { queryKeys } from '@/utils/queryKeys';
+import { LIST_CACHE } from '@/utils/queryCacheConfig';
 import type { ListItemDataType } from '../../data.d';
 import { queryFakeList } from '../../service';
 import useStyles from './index.style';
@@ -24,8 +26,10 @@ const Articles: React.FC = () => {
 
   // 获取tab列表数据
   const { data: listData } = useQuery({
-    queryKey: ['articles-list', 30],
+    queryKey: queryKeys.accountCenter.articles(30),
     queryFn: () => queryFakeList({ count: 30 }).then((res) => res.data),
+    staleTime: LIST_CACHE.staleTime, // 2 minutes
+    gcTime: LIST_CACHE.gcTime, // 10 minutes
   });
   return (
     <List<ListItemDataType>

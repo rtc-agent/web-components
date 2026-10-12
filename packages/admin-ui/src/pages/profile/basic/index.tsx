@@ -1,124 +1,167 @@
 import type { ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
+import { useIntl } from '@umijs/max';
 import type { DescriptionsProps } from 'antd';
 import { Badge, Card, Descriptions, Divider, Table } from 'antd';
 import type { FC } from 'react';
 import React from 'react';
+import { queryKeys } from '@/utils/queryKeys';
+import { PROFILE_CACHE } from '@/utils/queryCacheConfig';
 import type { BasicGood, BasicProgress } from './data.d';
 import { queryBasicProfile } from './service';
 
-const progressColumns: ProColumns<BasicProgress>[] = [
-  {
-    title: '时间',
-    dataIndex: 'time',
-  },
-  {
-    title: '当前进度',
-    dataIndex: 'rate',
-  },
-  {
-    title: '状态',
-    dataIndex: 'status',
-    render: (text: React.ReactNode) => {
-      if (text === 'success') {
-        return <Badge status="success" text="成功" />;
-      }
-      return <Badge status="processing" text="进行中" />;
-    },
-  },
-  {
-    title: '操作员ID',
-    dataIndex: 'operator',
-  },
-  {
-    title: '耗时',
-    dataIndex: 'cost',
-  },
-];
-const goodsColumns: ProColumns<BasicGood>[] = [
-  {
-    title: '商品编号',
-    dataIndex: 'id',
-  },
-  {
-    title: '商品名称',
-    dataIndex: 'name',
-  },
-  {
-    title: '商品条码',
-    dataIndex: 'barcode',
-  },
-  {
-    title: '单价',
-    dataIndex: 'price',
-  },
-  {
-    title: '数量（件）',
-    dataIndex: 'num',
-    align: 'right',
-  },
-  {
-    title: '金额',
-    dataIndex: 'amount',
-    align: 'right',
-  },
-];
-
-const Descriptions1: DescriptionsProps['items'] = [
-  {
-    key: '1',
-    label: '取货单号',
-    children: '1000000000',
-  },
-  {
-    key: '2',
-    label: '状态',
-    children: '已取货',
-  },
-  {
-    key: '3',
-    label: '销售单号',
-    children: '1234123421',
-  },
-  {
-    key: '4',
-    label: '子订单',
-    children: '3214321432',
-  },
-];
-const Descriptions2: DescriptionsProps['items'] = [
-  {
-    key: '1',
-    label: '用户姓名',
-    children: '付小小',
-  },
-  {
-    key: '2',
-    label: '联系电话',
-    children: '18100000000',
-  },
-  {
-    key: '3',
-    label: '常用快递',
-    children: '菜鸟仓储',
-  },
-  {
-    key: '4',
-    label: '取货地址',
-    children: '浙江省杭州市西湖区万塘路18号',
-  },
-  {
-    key: '5',
-    label: '备注',
-    children: '无',
-  },
-];
-
 const Basic: FC = () => {
+  const intl = useIntl();
+
+  const progressColumns: ProColumns<BasicProgress>[] = [
+    {
+      title: intl.formatMessage({ id: 'pages.profile.basic.column.time' }),
+      dataIndex: 'time',
+    },
+    {
+      title: intl.formatMessage({ id: 'pages.profile.basic.column.rate' }),
+      dataIndex: 'rate',
+    },
+    {
+      title: intl.formatMessage({ id: 'pages.profile.basic.column.status' }),
+      dataIndex: 'status',
+      render: (text: React.ReactNode) => {
+        if (text === 'success') {
+          return (
+            <Badge
+              status="success"
+              text={intl.formatMessage({
+                id: 'pages.profile.basic.status.success',
+              })}
+            />
+          );
+        }
+        return (
+          <Badge
+            status="processing"
+            text={intl.formatMessage({
+              id: 'pages.profile.basic.status.processing',
+            })}
+          />
+        );
+      },
+    },
+    {
+      title: intl.formatMessage({ id: 'pages.profile.basic.column.operator' }),
+      dataIndex: 'operator',
+    },
+    {
+      title: intl.formatMessage({ id: 'pages.profile.basic.column.cost' }),
+      dataIndex: 'cost',
+    },
+  ];
+
+  const goodsColumns: ProColumns<BasicGood>[] = [
+    {
+      title: intl.formatMessage({ id: 'pages.profile.basic.column.id' }),
+      dataIndex: 'id',
+    },
+    {
+      title: intl.formatMessage({ id: 'pages.profile.basic.column.name' }),
+      dataIndex: 'name',
+    },
+    {
+      title: intl.formatMessage({ id: 'pages.profile.basic.column.barcode' }),
+      dataIndex: 'barcode',
+    },
+    {
+      title: intl.formatMessage({ id: 'pages.profile.basic.column.price' }),
+      dataIndex: 'price',
+    },
+    {
+      title: intl.formatMessage({ id: 'pages.profile.basic.column.num' }),
+      dataIndex: 'num',
+      align: 'right',
+    },
+    {
+      title: intl.formatMessage({ id: 'pages.profile.basic.column.amount' }),
+      dataIndex: 'amount',
+      align: 'right',
+    },
+  ];
+
+  const Descriptions1: DescriptionsProps['items'] = [
+    {
+      key: '1',
+      label: intl.formatMessage({
+        id: 'pages.profile.basic.desc.pickupOrderNo',
+      }),
+      children: intl.formatMessage({
+        id: 'pages.profile.basic.mock.pickupOrderNo',
+      }),
+    },
+    {
+      key: '2',
+      label: intl.formatMessage({ id: 'pages.profile.basic.desc.status' }),
+      children: intl.formatMessage({
+        id: 'pages.profile.basic.desc.statusValue.picked',
+      }),
+    },
+    {
+      key: '3',
+      label: intl.formatMessage({
+        id: 'pages.profile.basic.desc.salesOrderNo',
+      }),
+      children: intl.formatMessage({
+        id: 'pages.profile.basic.mock.salesOrderNo',
+      }),
+    },
+    {
+      key: '4',
+      label: intl.formatMessage({ id: 'pages.profile.basic.desc.subOrder' }),
+      children: intl.formatMessage({
+        id: 'pages.profile.basic.mock.subOrder',
+      }),
+    },
+  ];
+
+  const Descriptions2: DescriptionsProps['items'] = [
+    {
+      key: '1',
+      label: intl.formatMessage({ id: 'pages.profile.basic.desc.userName' }),
+      children: intl.formatMessage({
+        id: 'pages.profile.basic.mock.userName',
+      }),
+    },
+    {
+      key: '2',
+      label: intl.formatMessage({ id: 'pages.profile.basic.desc.phone' }),
+      children: intl.formatMessage({ id: 'pages.profile.basic.mock.phone' }),
+    },
+    {
+      key: '3',
+      label: intl.formatMessage({ id: 'pages.profile.basic.desc.express' }),
+      children: intl.formatMessage({
+        id: 'pages.profile.basic.mock.express',
+      }),
+    },
+    {
+      key: '4',
+      label: intl.formatMessage({ id: 'pages.profile.basic.desc.address' }),
+      children: intl.formatMessage({
+        id: 'pages.profile.basic.mock.address',
+      }),
+    },
+    {
+      key: '5',
+      label: intl.formatMessage({ id: 'pages.profile.basic.desc.remark' }),
+      children: intl.formatMessage({
+        id: 'pages.profile.basic.desc.remarkNone',
+      }),
+    },
+  ];
+
   const { data, isLoading: loading } = useQuery({
-    queryKey: ['profile-basic'],
+    queryKey: queryKeys.profile.basic(),
     queryFn: () => queryBasicProfile().then((res) => res.data),
+    staleTime: PROFILE_CACHE.staleTime, // 5 minutes
+    gcTime: PROFILE_CACHE.gcTime, // 30 minutes
   });
   const { basicGoods, basicProgress } = data || {
     basicGoods: [],
@@ -127,12 +170,24 @@ const Basic: FC = () => {
   return (
     <PageContainer>
       <Card variant="borderless">
-        <Descriptions title="退款申请" items={Descriptions1} />
+        <Descriptions
+          title={intl.formatMessage({
+            id: 'pages.profile.basic.title.refundApplication',
+          })}
+          items={Descriptions1}
+        />
         <Divider size="large" />
-        <Descriptions title="用户信息" items={Descriptions2} />
+        <Descriptions
+          title={intl.formatMessage({
+            id: 'pages.profile.basic.title.userInfo',
+          })}
+          items={Descriptions2}
+        />
         <Divider size="large" />
         <ProTable
-          headerTitle="退货商品"
+          headerTitle={intl.formatMessage({
+            id: 'pages.profile.basic.title.returnedGoods',
+          })}
           style={{
             marginBottom: 24,
           }}
@@ -154,7 +209,9 @@ const Basic: FC = () => {
             return (
               <Table.Summary.Row>
                 <Table.Summary.Cell index={0} colSpan={4}>
-                  <span style={{ fontWeight: 600 }}>总计</span>
+                  <span style={{ fontWeight: 600 }}>
+                    {intl.formatMessage({ id: 'pages.profile.basic.total' })}
+                  </span>
                 </Table.Summary.Cell>
                 <Table.Summary.Cell index={4} align="right">
                   <span style={{ fontWeight: 600 }}>{totalNum}</span>
@@ -167,7 +224,9 @@ const Basic: FC = () => {
           }}
         />
         <ProTable
-          headerTitle="退货进度"
+          headerTitle={intl.formatMessage({
+            id: 'pages.profile.basic.title.returnProgress',
+          })}
           pagination={false}
           loading={loading}
           search={false}

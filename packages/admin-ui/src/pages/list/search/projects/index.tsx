@@ -5,6 +5,8 @@ import dayjs from 'dayjs';
 import type { FC } from 'react';
 import { useState } from 'react';
 import { AvatarList, StandardFormRow, TagSelect } from '@/components';
+import { queryKeys } from '@/utils/queryKeys';
+import { SEARCH_CACHE } from '@/utils/queryCacheConfig';
 import { getCategoryOptions } from '../../constants';
 import type { ListItemDataType } from './data.d';
 import { queryFakeList } from './service';
@@ -33,9 +35,11 @@ const Projects: FC = () => {
     author?: string;
   }>({});
   const { data, isLoading: loading } = useQuery({
-    queryKey: ['search-projects', filters],
+    queryKey: queryKeys.search.projects(filters),
     queryFn: () =>
       queryFakeList({ count: 8, ...filters }).then((res) => res.data),
+    staleTime: SEARCH_CACHE.staleTime, // 30 seconds
+    gcTime: SEARCH_CACHE.gcTime, // 5 minutes
   });
 
   const run = (values: any) => {

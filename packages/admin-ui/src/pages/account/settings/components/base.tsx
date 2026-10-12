@@ -13,6 +13,8 @@ import { useIntl } from '@umijs/max';
 import { App, Button, Input, Skeleton, Upload } from 'antd';
 import React, { useEffect, useRef, useState } from 'react';
 import { getCityOptions, provinceOptions } from '@/utils/chinaDivision';
+import { queryKeys } from '@/utils/queryKeys';
+import { USER_CACHE } from '@/utils/queryCacheConfig';
 import type { GeographicItemType } from '../data';
 import { queryCity, queryCurrent, queryProvince } from '../service';
 import useStyles from './index.style';
@@ -114,10 +116,11 @@ const BaseView: React.FC = () => {
     }
   };
 
-  // 使用独立的 queryKey 避免与其他页面的 current-user 查询冲突
   const { data: currentUser, isLoading: loading } = useQuery({
-    queryKey: ['current-user', 'settings'],
+    queryKey: queryKeys.currentUser.settings(),
     queryFn: () => queryCurrent().then((res) => res.data),
+    staleTime: USER_CACHE.staleTime, // 5 minutes
+    gcTime: USER_CACHE.gcTime, // 30 minutes
   });
 
   const getAvatarURL = () => {

@@ -9,6 +9,8 @@ import { useIntl } from '@umijs/max';
 import { Avatar, Card, Dropdown, List, Tooltip } from 'antd';
 import React from 'react';
 import { formatNumber } from '@/utils/format';
+import { queryKeys } from '@/utils/queryKeys';
+import { LIST_CACHE } from '@/utils/queryCacheConfig';
 import type { ListItemDataType } from '../../data.d';
 import { queryFakeList } from '../../service';
 import useStyles from './index.style';
@@ -70,8 +72,10 @@ const Applications: React.FC = () => {
 
   // 获取tab列表数据
   const { data: listData } = useQuery({
-    queryKey: ['applications-list', 30],
+    queryKey: queryKeys.accountCenter.applications(30),
     queryFn: () => queryFakeList({ count: 30 }).then((res) => res.data),
+    staleTime: LIST_CACHE.staleTime, // 2 minutes
+    gcTime: LIST_CACHE.gcTime, // 10 minutes
   });
 
   const wanText = intl.formatMessage({

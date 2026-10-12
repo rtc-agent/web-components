@@ -18,6 +18,8 @@ import {
 import dayjs from 'dayjs';
 import type { FC } from 'react';
 import React, { useState } from 'react';
+import { queryKeys } from '@/utils/queryKeys';
+import { LIST_CACHE } from '@/utils/queryCacheConfig';
 import OperationModal from './components/OperationModal';
 import type { BasicListItemDataType } from './data.d';
 import {
@@ -53,7 +55,7 @@ const ListContent = ({
   return (
     <div>
       <div className={styles.listContentItem}>
-        <span>Owner</span>
+        <span>{intl.formatMessage({ id: 'pages.list.basicList.owner' })}</span>
         <p>{owner}</p>
       </div>
       <div className={styles.listContentItem}>
@@ -87,8 +89,10 @@ const BasicList: FC = () => {
     Partial<BasicListItemDataType> | undefined
   >(undefined);
   const { data: listData, isLoading: loading } = useQuery({
-    queryKey: ['basic-list'],
+    queryKey: queryKeys.basicList.all,
     queryFn: () => queryFakeList({ count: 50 }).then((res) => res.data),
+    staleTime: LIST_CACHE.staleTime, // 2 minutes
+    gcTime: LIST_CACHE.gcTime, // 10 minutes
   });
 
   const queryClient = useQueryClient();
@@ -103,7 +107,7 @@ const BasicList: FC = () => {
       return addFakeList(params);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['basic-list'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.basicList.all });
     },
   });
 
