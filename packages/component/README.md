@@ -2,12 +2,41 @@
 
 基于 Lit 的 Web Component 组件库，提供浮窗式 RTC Agent 交互界面。
 
+## 目录
+
+- [快速开始](#快速开始)
+- [基础使用](#基础使用)
+- [API 参考](#api-参考)
+- [使用示例](#使用示例)
+- [SharedWorker 配置](#sharedworker-配置)
+- [CDN 使用](#cdn-使用)
+- [架构说明](#架构说明)
+- [常见问题](#常见问题)
+
+---
+
 ## 快速开始
 
 ### 安装
 
 ```bash
 pnpm add @rtc-agent/component
+```
+
+**配置 SharedWorker**（必需）：
+
+```bash
+npx rtc-agent-setup
+```
+
+或在 `package.json` 中添加 postinstall 钩子：
+
+```json
+{
+  "scripts": {
+    "postinstall": "rtc-agent-setup"
+  }
+}
 ```
 
 ### 使用工厂函数（推荐）
@@ -35,8 +64,6 @@ document.body.appendChild(agent);
 agent.destroy();
 ```
 
-完整 API 文档见 [API.md](./API.md)，更多示例见 [EXAMPLES.md](./EXAMPLES.md)。
-
 ### 使用 HTML 元素
 
 ```html
@@ -51,36 +78,11 @@ agent.destroy();
 ></rtc-agent>
 ```
 
-## 导出
+---
 
-### 组件
+## 基础使用
 
-- `<rtc-agent>` — 根组件（唯一公开注册的 custom element）
-  - 所有子组件均通过 side-effect 导入，在根组件 shadow DOM 内使用
-
-### 类
-
-- `RtcAgent` — 根组件 class，可直接 import 用于类型标注
-
-```ts
-import { RtcAgent } from '@rtc-agent/component';
-const agent = document.querySelector<RtcAgent>('rtc-agent')!;
-```
-
-### 工厂函数
-
-- `createRtcAgent` — 声明式创建 `<rtc-agent>` 实例
-
-```ts
-import { createRtcAgent } from '@rtc-agent/component';
-const agent = createRtcAgent({ /* ... */ });
-```
-
-详细配置见 [API.md](./API.md)。
-
-## 用法
-
-### 工厂函数（推荐）
+### 示例 1: 最简集成
 
 ```ts
 import { createRtcAgent } from '@rtc-agent/component';
@@ -88,199 +90,399 @@ import { createRtcAgent } from '@rtc-agent/component';
 const agent = createRtcAgent({
   appLabel: 'My Assistant',
   server: { url: 'https://api.example.com' },
-  workerURL: '/rtc-agent/shared-worker.js',
+});
+
+document.body.appendChild(agent);
+```
+
+### 示例 2: 动态 Token 认证（推荐）
+
+```ts
+const agent = createRtcAgent({
+  appLabel: 'My Assistant',
+  server: { url: 'https://api.example.com' },
   auth: {
-    getToken: () => localStorage.getItem('token'),
+    getToken: () => localStorage.getItem('access_token') ?? '',
     refreshToken: async () => {
-      const res = await fetch('/api/refresh');
-      const data = await res.json();
-      return { accessToken: data.token };
+      const response = await fetch('/api/auth/refresh', { method: 'POST' });
+      const data = await response.json();
+      return {
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+        expiresIn: data.expiresIn,
+      };
     },
     userId: 'user-123',
-  },
-  on: {
-    ready: () => console.log('RTC Agent ready'),
-    themeChange: ({ theme }) => console.log('Theme:', theme),
-    toolCallStart: ({ path, params }) => console.log('Tool call:', path),
   },
 });
 
 document.body.appendChild(agent);
-
-// 不再需要时销毁
-agent.destroy();
 ```
 
-### HTML 元素
+### 示例 3: 监听事件
+
+```ts
+const agent = createRtcAgent({
+  appLabel: 'My Assistant',
+  server: { url: 'https://api.example.com' },
+  on: {
+    ready: () => console.log('Agent ready!'),
+    sessionCreated: ({ session }) => console.log('New session:', session.title),
+    messageReceived: ({ message }) => console.log('Received:', message),
+  },
+});
+
+document.body.appendChild(agent);
+```
+
+---
+
+## API 参考
+
+### createRtcAgent(config: RtcAgentConfig)
+
+创建并配置 `<rtc-agent>` 实例的工厂函数。
+
+**参数**：
+
+| 属性 | 类型 | 默认值 | 描述 |
+| --- | --- | --- | --- |
+| `appLabel` | `string` | `'RTC Agent'` | 标题栏 / 气泡 tooltip 文本 |
+| `theme` | `'light' \| 'dark' \| 'system'` | `'system'` | 视觉主题 |
+| `lang` | `string` | `'zh-CN'` | BCP 47 语言标签 |
+| `bubbleIcon` | `string` | — | 最小化气泡内的 SVG / HTML |
+| `logo` | `{ light?: string; dark?: string } \| null` | `null` | 自定义 Logo（light/dark 两套） |
+| `workerURL` | `string` | `undefined` | SharedWorker 文件 URL |
+| `databaseName` | `string` | `rtc-agent-${userId}` | IndexedDB 数据库名前缀 |
+| `scenariosURL` | `string` | — | 场景文档 URL |
+
+### 服务端配置
+
+```ts
+server: {
+  url: string;        // 后端服务 URL（必填）
+  redirectUri?: string; // OAuth 重定向 URI
+}
+```
+
+### 认证配置
+
+支持三种模式：
+
+#### 模式 1: 静态 Token
+
+```ts
+auth: {
+  accessToken: string;
+  refreshToken?: string;
+  userId: string;
+  expiresIn?: number;
+}
+```
+
+#### 模式 2: 动态 Token（推荐）
+
+```ts
+auth: {
+  getToken: () => string | Promise<string>;
+  refreshToken?: () => Promise<{
+    accessToken: string;
+    refreshToken?: string;
+    expiresIn?: number;
+  }>;
+  userId: string;
+}
+```
+
+#### 模式 3: AuthProvider
+
+```ts
+auth: {
+  getToken: () => string | Promise<string>;
+  refreshToken: () => Promise<{ accessToken: string }>;
+  isLoggedIn: () => boolean;
+  logout?: () => Promise<void>;
+}
+```
+
+**窗口配置**：
+
+```ts
+window: {
+  defaultMode?: 'normal' | 'maximized' | 'minimized';
+  embedded?: boolean;
+  initialSize?: { width: number; height: number };
+  // ... 更多配置见类型定义
+}
+```
+
+**事件回调**：
+
+```ts
+on: {
+  ready?: () => void;
+  sessionCreated?: (detail: { session: Session }) => void;
+  messageReceived?: (detail: { message: Message }) => void;
+  toolCallStart?: (detail: { path: string; params: Record<string, unknown> }) => void;
+  // ... 更多事件见类型定义
+}
+```
+
+**返回值**：`RtcAgentWithLifecycle`（DOM 元素，附带 `destroy()` 方法）
+
+---
+
+## 使用示例
+
+### 拦截消息发送
+
+```ts
+const agent = createRtcAgent({
+  appLabel: 'My Assistant',
+  server: { url: 'https://api.example.com' },
+  on: {
+    beforeMessageSend: ({ message }) => {
+      if (message.content.includes('spam')) {
+        return false; // 取消发送
+      }
+      message.content = message.content.trim();
+      return true; // 继续发送
+    },
+  },
+});
+```
+
+### 注册 Agent 函数
+
+```ts
+const agent = createRtcAgent({
+  appLabel: 'Code Editor',
+  server: { url: 'https://api.example.com' },
+  groups: [
+    {
+      name: 'editor',
+      description: 'Code editor operations',
+      functions: [
+        {
+          name: 'getCode',
+          description: 'Get current code',
+          handler: () => editorAPI.getCode(),
+        },
+      ],
+    },
+  ],
+});
+```
+
+### 嵌入模式
+
+```ts
+const agent = createRtcAgent({
+  appLabel: 'Embedded Assistant',
+  server: { url: 'https://api.example.com' },
+  window: {
+    embedded: true,
+  },
+});
+
+document.getElementById('container')!.appendChild(agent);
+```
+
+---
+
+## SharedWorker 配置
+
+### 为什么需要配置？
+
+SharedWorker 文件必须在浏览器中可访问，但 NPM 包的 worker 文件位于 `node_modules` 内部，无法直接加载。
+
+### 自动配置（推荐）
+
+```bash
+npx rtc-agent-setup
+```
+
+工具会自动：
+
+- 检测项目类型（Vite/Webpack/SvelteKit）
+- 复制 worker 文件到 public 目录
+- 创建稳定的文件名 `shared-worker.js`
+
+### 手动配置
+
+**Vite / SvelteKit**：
+
+```bash
+mkdir -p public/rtc-agent
+cp node_modules/@rtc-agent/component/dist/assets/shared-worker-*.js \
+   public/rtc-agent/shared-worker.js
+```
+
+**配置 workerURL**：
+
+```ts
+const agent = createRtcAgent({
+  workerURL: '/rtc-agent/shared-worker.js',
+  // ... 其他配置
+});
+```
+
+### 验证配置
+
+打开浏览器控制台，应该看到：
+
+```text
+[WorkerBridge] Using custom workerURL: /rtc-agent/shared-worker.js
+```
+
+### 故障排除
+
+**Worker 验证超时**：
+
+1. 访问 `chrome://inspect/#workers`
+2. 终止名为 `rtc-agent-worker` 的 SharedWorker
+3. 刷新页面
+
+**动态模块加载失败**：
+
+清除浏览器缓存（硬刷新），组件会自动重试 2 次。
+
+---
+
+## CDN 使用
 
 ```html
 <script type="module">
-  import '@rtc-agent/component';
+  import { createRtcAgent } from 'https://cdn.example.com/@rtc-agent/component/dist/index.js';
+  
+  const agent = createRtcAgent({
+    appLabel: 'My Assistant',
+    server: { url: 'https://api.example.com' },
+    auth: {
+      accessToken: 'your-token',
+      userId: 'user-123',
+    },
+  });
+  
+  document.body.appendChild(agent);
 </script>
-
-<rtc-agent
-  theme="system"
-  app-label="RTC Agent"
-  scenarios-url="./scenarios/"
-></rtc-agent>
 ```
 
-### 架构
+**注意**：CDN 链接需根据实际部署地址调整。
+
+---
+
+## 架构说明
 
 RTC Agent 使用 SharedWorker + Comlink 架构实现多 Tab 共享：
 
-- 单 WebSocket 连接（SharedWorker 内）
-- 共享 IndexedDB 存储
-- Master Tab 选举（Web Locks API）
+- **单 WebSocket 连接**（SharedWorker 内）
+- **共享 IndexedDB 存储**
+- **Master Tab 选举**（Web Locks API）
 
-详细配置见 [SharedWorker 配置指南](./SHARED-WORKER-SETUP.md)。
+### 导出
+
+**组件**：
+
+- `<rtc-agent>` — 根组件（唯一公开注册的 custom element）
+
+**类**：
+
+```ts
+import { RtcAgent } from '@rtc-agent/component';
+const agent = document.querySelector<RtcAgent>('rtc-agent')!;
+```
+
+**工厂函数**：
+
+```ts
+import { createRtcAgent } from '@rtc-agent/component';
+const agent = createRtcAgent({ /* ... */ });
+```
 
 ### 公开属性
 
 | 属性 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
 | `theme` | `'light' \| 'dark' \| 'system'` | `'system'` | 主题 |
-| `app-label` | `string` | `'RTC Agent'` | 标题栏 / 气泡 tooltip 文本 |
-| `bubble-icon` | `string` | `''` | 最小化气泡内的 SVG / HTML |
-| `logo` | `{ light?: string; dark?: string } \| null` | `null` | 自定义 Logo（light/dark 两套） |
-| `worker-url` | `string` | `''` | SharedWorker 文件 URL |
-| `scenarios-url` | `string` | `''` | Scenario 文档 URL |
-| `agentConfig` | `AgentConfig \| null` | `null` | 声明式函数注册 |
-| `registry` | `FunctionRegistry \| null` | `null` | 命令式函数注册（高级） |
+| `app-label` | `string` | `'RTC Agent'` | 标题栏文本 |
+| `worker-url` | `string` | `''` | SharedWorker URL |
+| `scenarios-url` | `string` | `''` | 场景文档 URL |
 
 ### 公开事件
 
-所有公开事件遵循 `rtc-<event>` 命名模式：
-
-**生命周期事件：**
+**生命周期事件**：
 
 - `rtc-agent-ready` — 组件就绪
 - `rtc-before-destroy` — 组件即将销毁
 - `rtc-theme-change` — 主题变化
 
-**消息拦截事件：**
-
-- `rtc-before-message-send` — 消息发送前（可取消或修改）
-
-**工具调用事件（EventBus 桥接，通过 `on` 配置注册）：**
-
-- `toolCallStart` — 工具调用开始
-- `toolCallSuccess` — 工具调用成功
-- `toolCallError` — 工具调用失败
-- `toolCallProgress` — 工具调用进度
-
-**会话和消息事件：**
+**会话事件**：
 
 - `rtc-session-created` / `rtc-session-switched` / `rtc-session-renamed` / `rtc-session-deleted`
+
+**消息事件**：
+
 - `rtc-message-sent` / `rtc-message-received`
 
-**认证事件：**
+**认证事件**：
 
-- `rtc-auth-login-requested` / `rtc-auth-login` / `rtc-auth-refresh-failed` / `rtc-auth-logout`
+- `rtc-auth-login` / `rtc-auth-logout` / `rtc-auth-refresh-failed`
 
-### 控制器访问
+### 代码高亮
+
+消息中的代码块使用 highlight.js 进行语法高亮。组件按需注册了 15 种常用语言：
+
+| 类别 | 语言 |
+| --- | --- |
+| Web 开发 | JavaScript, TypeScript, XML, CSS, JSON |
+| 后端/系统 | Python, Go, Bash, YAML, SQL |
+| 配置/标记 | Markdown, Diff, Plaintext |
+
+---
+
+## 常见问题
+
+### Q: 为什么需要 SharedWorker？
+
+SharedWorker 允许多个 Tab 共享同一个 WebSocket 连接和 IndexedDB 数据，避免重复连接和数据不一致。
+
+### Q: 如何自定义主题？
+
+通过 `theme` 属性设置为 `'light'`、`'dark'` 或 `'system'`（跟随系统偏好）。
+
+### Q: 如何监听工具调用？
+
+通过 `on` 配置注册事件回调：
 
 ```ts
-agent.authController.login();
-agent.authController.logout();
-agent.sessionController.actions.switchSession(id);
-agent.messageController.actions.sendMessage(content);
-agent.skillController.actions.setRegistry(registry);
+on: {
+  toolCallStart: ({ path, params }) => console.log('Tool call:', path),
+  toolCallSuccess: ({ path, result }) => console.log('Success:', result),
+  toolCallError: ({ path, error }) => console.error('Error:', error),
+}
 ```
 
-## 代码高亮
+### Q: 如何拦截消息发送？
 
-消息中的代码块使用 highlight.js 进行语法高亮。为控制包体积，组件按需注册了 15 种常用语言（含别名）：
+使用 `beforeMessageSend` 回调：
 
-| 类别 | 语言 | 别名 |
-| --- | --- | --- |
-| Web 开发 | JavaScript, TypeScript, XML, CSS, JSON | `js`, `ts`, `html`, `yml` |
-| 后端/系统 | Python, Go, Bash, YAML, SQL | `py`, `golang`, `sh`, `shell` |
-| 配置/标记 | Markdown, Diff, Plaintext | `md`, `text` |
+```ts
+on: {
+  beforeMessageSend: ({ message }) => {
+    // 返回 false 取消发送
+    // 返回 true 继续发送
+    // 可以修改 message.content
+    return true;
+  },
+}
+```
 
-未注册的语言将回退到无高亮纯文本渲染。如需扩展支持的语言，可在宿主应用中通过 `hljs.registerLanguage()` 注册额外语言包（需自行引入 highlight.js）。
+### Q: 升级后如何更新 SharedWorker？
 
-## 稳定性与已知问题
+重新运行 `npx rtc-agent-setup`，或在 `package.json` 中配置 postinstall 钩子自动更新。
 
-### v0.2.8-rc.0 会话导出与 Function Debugger
-
-本次发布引入会话导出功能和 Function Debugger 面板，并包含多项稳定性修复。
-
-**会话导出功能**：
-
-- 新增 `/export` 斜杠命令，支持将当前会话导出为静态 HTML 文件
-- 导出选项对话框支持配置：消息数量限制、是否包含 tool calls、是否包含 thinking
-- HTML 导出使用 highlight.js 代码高亮，支持离线阅读和分享
-- 消息分类渲染：用户/助手消息展开显示，tool calls/thinking 等折叠显示
-
-**Function Debugger**：
-
-- 新增 Function Debugger 面板，支持查看函数调用历史
-- 历史记录迁移到 IndexedDB，支持分页加载
-- Activity Bar 配置重构，functions 显隐统一到 `disabledActivities` 数组
-
-**Tool Call 增强**：
-
-- `todoWrite` 工具支持专门的渲染卡片
-- Tool call 卡片支持点击复制 function name
-
-**稳定性修复**：
-
-- 修复 AuthProvider 未传递 `getUserId` 导致数据库隔离问题
-- 修复 Vite HMR 时 React StrictMode 下的登出问题
-- 修复 SharedWorker 连接在 tab 强制关闭后的 stale 连接问题
-- 修复 JSON console output 的双重序列化问题
-
-**文档更新**：
-
-- 添加代码高亮文档，说明支持的 15 种语言
-- 更新 SharedWorker 设置指南
-- 同步事件系统文档与实现
-
-### v0.2.7-rc.3 稳定性改进
-
-本次发布包含多项稳定性和数据一致性修复：
-
-**Worker 连接稳定性**：
-
-- 开发模式下使用带时间戳的 Worker 名称（`rtc-agent-worker-dev-{timestamp}`），避免连接到调试会话残留的 stale Worker
-- 改进 Worker 验证超时错误信息，提供清晰的 `chrome://inspect/#workers` 手动清理指引
-- 动态模块加载（DOMPurify、highlight.js）增加自动重试机制（2 次尝试），处理 chunk hash 过期问题
-
-**数据一致性保护**：
-
-- VirtualFS 读-改-写操作包装在事务中，防止并发写入导致数据损坏
-- `handleEditorSave` 增加 per-file 并发锁，防止 Ctrl+S 与自动-save 并行写入时旧内容覆盖新内容
-- `flushGapFillBuffer` 延迟 offset 推进，确保数据持久化成功后才移动游标，防止永久数据丢失
-
-**React StrictMode 兼容**：
-
-- 修复 `connectedCallback → disconnectedCallback → connectedCallback` 生命周期竞态
-- `RtcProcessor` 增加 `cancel()` 方法，支持组件卸载时优雅关闭 RTC 循环
-- Master Tab 切换时立即退出处理循环，防止与新 Master 并发执行
-
-**UI 与事件系统**：
-
-- 提取 `EventBindingController`，集中管理 30+ DOM 事件监听器
-- 验证错误消息翻译为英文，与 Agent 提示语言保持一致
-
-### 开发环境注意事项
-
-**SharedWorker 残留问题**：
-
-如果在调试过程中遇到无限递归或其他严重错误导致 Tab 强制终止，SharedWorker 可能处于不一致状态。解决方法：
-
-1. 访问 `chrome://inspect/#workers`
-2. 终止名为 `rtc-agent-worker` 的 SharedWorker 实例
-3. 刷新页面
-
-开发模式下会自动避免此问题（每次加载创建新的 Worker 实例）。
-
-**动态模块加载失败**：
-
-组件库热重载后，如果遇到 "Failed to fetch dynamically imported module" 错误，组件会自动重试 2 次。如果仍然失败，清除浏览器缓存并重启开发服务器。
-
-详细故障排除指南见 [SharedWorker 配置指南](./SHARED-WORKER-SETUP.md#故障排除)。
+---
 
 ## License
 
