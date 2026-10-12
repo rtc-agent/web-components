@@ -4,6 +4,7 @@ import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { history, useIntl, useSearchParams } from '@umijs/max';
 import { Button, Empty, Grid, Tag, theme } from 'antd';
 import React, { useEffect, useMemo, useRef } from 'react';
+import { TableEmptyState } from '@/components';
 import { disabledFutureDate, parseTableSort } from '../shared/tableUtils';
 import type { SessionInfo } from './data';
 import type { SessionPageAPI } from './page-api';
@@ -354,16 +355,9 @@ const SessionsPage: React.FC = () => {
           ]}
           locale={{
             emptyText: (
-              <Empty
-                image={
-                  <InboxOutlined
-                    style={{ fontSize: 48, color: token.colorTextTertiary }}
-                  />
-                }
-                description={intl.formatMessage({
-                  id: 'pages.sessions.noData',
-                  defaultMessage: 'No conversations found',
-                })}
+              <TableEmptyState
+                descriptionId="pages.sessions.noData"
+                defaultDescription="No conversations found"
               />
             ),
           }}

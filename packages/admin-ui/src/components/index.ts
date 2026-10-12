@@ -18,6 +18,7 @@ export { default as ErrorBoundary } from './ErrorBoundary';
 export { GlobalRtcAgent } from './GlobalRtcAgent';
 export { default as OfflineBanner } from './OfflineBanner';
 export { default as StandardFormRow } from './StandardFormRow';
+export { default as TableEmptyState } from './TableEmptyState';
 export { default as TagSelect } from './TagSelect';
 
 export { AvatarDropdown, DocLink, Footer, LangDropdown, VersionDropdown };

@@ -2,7 +2,6 @@ import {
   CheckCircleOutlined,
   DownOutlined,
   EyeOutlined,
-  InboxOutlined,
   MessageOutlined,
   SettingOutlined,
   StopOutlined,
@@ -19,13 +18,11 @@ import {
   App,
   Button,
   Dropdown,
-  Empty,
   Grid,
   Popconfirm,
   Space,
   Tag,
   Tooltip,
-  theme,
 } from 'antd';
 import React, {
   useCallback,
@@ -34,6 +31,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { TableEmptyState } from '@/components';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import { parseTableSort } from '../shared/tableUtils';
 import UserConfigDrawer from './components/UserConfigDrawer';
@@ -223,7 +221,6 @@ const RtcUserManagementPage: React.FC = () => {
   // See access.ts for canServerConfigEdit/canServerConfigDelete definitions
   const canConfigEdit = access.canServerConfigEdit as boolean;
   const canConfigDelete = access.canServerConfigDelete as boolean;
-  const { token } = theme.useToken();
 
   // === Register Page API ===
   useEffect(() => {
@@ -679,16 +676,9 @@ const RtcUserManagementPage: React.FC = () => {
         ]}
         locale={{
           emptyText: (
-            <Empty
-              image={
-                <InboxOutlined
-                  style={{ fontSize: 48, color: token.colorTextTertiary }}
-                />
-              }
-              description={intl.formatMessage({
-                id: 'pages.rtcUsers.noData',
-                defaultMessage: 'No users found',
-              })}
+            <TableEmptyState
+              descriptionId="pages.rtcUsers.noData"
+              defaultDescription="No users found"
             />
           ),
         }}

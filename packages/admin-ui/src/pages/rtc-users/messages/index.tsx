@@ -10,6 +10,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { TableEmptyState } from '@/components';
 import { disabledFutureDate, parseTableSort } from '../shared/tableUtils';
 import MessageDetailDrawer from './components/MessageDetailDrawer';
 import type { MessageInfo } from './data';
@@ -377,16 +378,9 @@ const MessagesPage: React.FC = () => {
           ]}
           locale={{
             emptyText: (
-              <Empty
-                image={
-                  <InboxOutlined
-                    style={{ fontSize: 48, color: token.colorTextTertiary }}
-                  />
-                }
-                description={intl.formatMessage({
-                  id: 'pages.messages.noData',
-                  defaultMessage: 'No messages found',
-                })}
+              <TableEmptyState
+                descriptionId="pages.messages.noData"
+                defaultDescription="No messages found"
               />
             ),
           }}
