@@ -131,17 +131,6 @@ export class RtcMessageList extends LitElement {
   @state()
   private _messages: Message[] = [];
 
-  /**
-   * Index: parentClientId → toolcall_output Message.
-   *
-   * Pre-built when _messages changes, so that toolcall_input rendering
-   * can look up the corresponding toolcall_output in O(1) instead of O(n) scan.
-   *
-   * Only toolcall_output messages are indexed (other types are irrelevant).
-   * Key is the parentClientId of the toolcall_output message.
-   */
-  private _toolcallOutputIndex: Map<string, Message> = new Map();
-
   /** Whether older messages are available (backward pagination). */
   @state()
   private _hasMore = false;
@@ -451,8 +440,6 @@ export class RtcMessageList extends LitElement {
 
     // Clear virtual scroll for new session
     this._virtualScroll?.clear();
-    // Clear toolcall output index for new session
-    this._toolcallOutputIndex.clear();
     // Only assign a new empty array if current _messages is non-empty.
     // Avoids creating a new reference (and triggering @state change detection)
     // when _messages is already empty.
@@ -498,14 +485,6 @@ export class RtcMessageList extends LitElement {
     // Update loading state - once we receive any messages, we're done loading
     if (newMessages.length > 0 || data.hasMore === false) {
       this._isLoading = false;
-    }
-
-    // Rebuild toolcall output index for O(1) lookups during rendering
-    this._toolcallOutputIndex.clear();
-    for (const m of newMessages) {
-      if (m.content?.type === 'toolcall_output' && m.parentClientId) {
-        this._toolcallOutputIndex.set(m.parentClientId, m);
-      }
     }
 
     if (!this._virtualScroll) {
@@ -663,7 +642,6 @@ export class RtcMessageList extends LitElement {
     this._subscription = undefined;
     this._virtualScroll?.dispose();
     this._virtualScroll = undefined;
-    this._toolcallOutputIndex.clear();
   }
 
   /**
@@ -988,14 +966,11 @@ export class RtcMessageList extends LitElement {
       return el;
     }
 
-    // Toolcall input → card
+    // Toolcall input → card (output is rendered separately as reply)
     if (msg.content?.type === 'toolcall_input') {
       const el = document.createElement('rtc-toolcall-card');
       el.setAttribute('data-client-id', msg.clientId);
-      // rtc-toolcall-card expects a `pair` property: { input, output? }
-      // Find corresponding output from pre-built index (O(1) instead of O(n) scan)
-      const output = this._toolcallOutputIndex.get(msg.clientId);
-      el.pair = { input: msg, output };
+      el.pair = { input: msg };
       if (isLast) el.setAttribute('is-last', '');
       return el;
     }
@@ -1068,12 +1043,9 @@ export class RtcMessageList extends LitElement {
 
     // Update the appropriate property based on element type
     if (tagName === 'rtc-toolcall-card') {
-      // Toolcall card: update the pair (input + output)
-      // Use pre-built index for O(1) lookup instead of O(n) scan
-      const output = this._toolcallOutputIndex.get(msg.clientId);
+      // Toolcall card: update the pair (input only, output is rendered separately)
       (el as HTMLElementTagNameMap['rtc-toolcall-card']).pair = {
         input: msg,
-        output,
       };
     } else {
       // rtc-message, rtc-error-message, rtc-user-message, rtc-toolcall-reply: all have `message`

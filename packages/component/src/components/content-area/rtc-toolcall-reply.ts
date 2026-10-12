@@ -31,7 +31,6 @@ import {
 import { styles } from './rtc-toolcall-reply.styles.js';
 import type { Message } from '../../types/index.js';
 import { formatTimestampCompact } from '../../utils/format.js';
-import type { RtcToolCallCard } from './rtc-toolcall-card.js';
 import { copyToClipboard } from '../../utils/clipboard.js';
 import { createLogger } from '@rtc-agent/protocol';
 import './rtc-scroll-container.js';
@@ -387,11 +386,6 @@ export class RtcToolCallReply extends LitElement {
   firstUpdated() {
     // Set initial status attribute after first render.
     this._updateStatus();
-    // Notify the corresponding input card that output has arrived.
-    // Using firstUpdated (instead of connectedCallback) ensures the input card
-    // is already rendered in the DOM when we traverse to find it, preventing
-    // a race condition where the card hasn't been mounted yet.
-    this._notifyInputCard();
   }
 
   updated(changed: Map<string, unknown>) {
@@ -405,25 +399,6 @@ export class RtcToolCallReply extends LitElement {
     const tc = parseOutputToolCall(this.message);
     const status = tc?.status || 'completed';
     this.setAttribute('data-status', status);
-  }
-
-  /**
-   * Find the corresponding input card in DOM and update its pair.output.
-   * This switches the card's dot from "running" (orange pulse) to "done" (green).
-   */
-  private _notifyInputCard() {
-    const parentClientId = this.message.parentClientId;
-    if (!parentClientId) return;
-
-    // Look for the input card in the same shadow root's scroll container
-    const root = this.getRootNode() as ShadowRoot | Document;
-    const card = root.querySelector(
-      `rtc-toolcall-card[data-client-id="${parentClientId}"]`,
-    ) as RtcToolCallCard | null;
-
-    if (card && card.pair && !card.pair.output) {
-      card.pair = { ...card.pair, output: this.message };
-    }
   }
 
   private get _formattedTimestamp(): string {
