@@ -559,6 +559,7 @@ export default {
   'pages.adminUsers.emailPlaceholder': 'Enter email',
   'pages.adminUsers.emailRequired': 'Please enter email',
   'pages.adminUsers.emailInvalid': 'Please enter a valid email address',
+  'pages.adminUsers.emailMax': 'Email address cannot exceed 255 characters',
   'pages.adminUsers.passwordLabel': 'Password',
   'pages.adminUsers.passwordPlaceholder':
     'Enter password (at least 6 characters)',
@@ -573,6 +574,8 @@ export default {
   'pages.adminUsers.createFailed': 'Failed to create admin',
   'pages.adminUsers.updateTitle': 'Edit Admin - {email}',
   'pages.adminUsers.nameEditPlaceholder': 'Enter name',
+  'pages.adminUsers.nameWhitespace': 'Name cannot be all spaces',
+  'pages.adminUsers.nameMax': 'Name cannot exceed 100 characters',
   'pages.adminUsers.newPasswordLabel': 'New Password',
   'pages.adminUsers.newPasswordPlaceholder':
     'Leave blank to keep current password',
@@ -583,7 +586,8 @@ export default {
   'pages.adminUsers.assignRoleFailed': 'Failed to assign roles',
   'pages.adminUsers.revokeRoleSuccess': 'Role removed successfully',
   'pages.adminUsers.revokeRoleFailed': 'Failed to remove role',
-  'pages.adminUsers.confirmDelete': 'Are you sure you want to delete this admin?',
+  'pages.adminUsers.confirmDelete':
+    'Are you sure you want to delete this admin?',
   'pages.adminUsers.confirmDeleteDesc': 'This action cannot be undone',
   'pages.adminUsers.deleteSuccess': 'Admin deleted successfully',
   'pages.adminUsers.deleteFailed': 'Failed to delete admin',
@@ -687,6 +691,45 @@ export default {
   'pages.account.settings.notification.todoTask': 'Todo Tasks',
   'pages.account.settings.notification.todoTaskDesc':
     'Todo tasks will be notified via in-app messages',
+  // Basic Profile
+  'pages.profile.basic.column.time': 'Time',
+  'pages.profile.basic.column.rate': 'Current Progress',
+  'pages.profile.basic.column.status': 'Status',
+  'pages.profile.basic.status.success': 'Success',
+  'pages.profile.basic.status.processing': 'Processing',
+  'pages.profile.basic.column.operator': 'Operator ID',
+  'pages.profile.basic.column.cost': 'Cost',
+  'pages.profile.basic.column.id': 'Product ID',
+  'pages.profile.basic.column.name': 'Product Name',
+  'pages.profile.basic.column.barcode': 'Product Barcode',
+  'pages.profile.basic.column.price': 'Unit Price',
+  'pages.profile.basic.column.num': 'Quantity (pcs)',
+  'pages.profile.basic.column.amount': 'Amount',
+  'pages.profile.basic.desc.pickupOrderNo': 'Pickup Order No.',
+  'pages.profile.basic.desc.status': 'Status',
+  'pages.profile.basic.desc.statusValue.picked': 'Picked Up',
+  'pages.profile.basic.desc.salesOrderNo': 'Sales Order No.',
+  'pages.profile.basic.desc.subOrder': 'Sub-order',
+  'pages.profile.basic.desc.userName': 'User Name',
+  'pages.profile.basic.desc.phone': 'Phone Number',
+  'pages.profile.basic.desc.express': 'Express Service',
+  'pages.profile.basic.desc.address': 'Pickup Address',
+  'pages.profile.basic.desc.remark': 'Remark',
+  'pages.profile.basic.desc.remarkNone': 'None',
+  'pages.profile.basic.title.refundApplication': 'Refund Application',
+  'pages.profile.basic.title.userInfo': 'User Information',
+  'pages.profile.basic.title.returnedGoods': 'Returned Goods',
+  'pages.profile.basic.total': 'Total',
+  'pages.profile.basic.title.returnProgress': 'Return Progress',
+  // Basic Profile - Mock Data
+  'pages.profile.basic.mock.pickupOrderNo': '1000000000',
+  'pages.profile.basic.mock.salesOrderNo': '1234123421',
+  'pages.profile.basic.mock.subOrder': '3214321432',
+  'pages.profile.basic.mock.userName': 'Fu Xiaoxiao',
+  'pages.profile.basic.mock.phone': '18100000000',
+  'pages.profile.basic.mock.express': 'Cainiao Warehouse',
+  'pages.profile.basic.mock.address':
+    'No. 18 Wantang Road, Xihu District, Hangzhou, Zhejiang',
   // Advanced Profile
   'pages.profile.advanced.orderNumber': 'Order No: 234231029431',
   'pages.profile.advanced.detail': 'Detail',
@@ -695,7 +738,8 @@ export default {
   'pages.profile.advanced.userInfo': 'User Information',
   'pages.profile.advanced.infoGroup': 'Information Group',
   'pages.profile.advanced.multiLevelInfoGroup': 'Multi-level Information Group',
-  'pages.profile.advanced.recentCallRecords': 'Recent Call Records in the Last 6 Months',
+  'pages.profile.advanced.recentCallRecords':
+    'Recent Call Records in the Last 6 Months',
   'pages.profile.advanced.operationLog1': 'Operation Log 1',
   'pages.profile.advanced.operationLog2': 'Operation Log 2',
   'pages.profile.advanced.operationLog3': 'Operation Log 3',
@@ -747,13 +791,17 @@ export default {
   // Profile Advanced - Mock Data
   'pages.profile.advanced.desc.creatorName': 'Qu Lili',
   'pages.profile.advanced.desc.productName': 'XX Service',
-  'pages.profile.advanced.desc.remarkText': 'Please confirm within two business days',
+  'pages.profile.advanced.desc.remarkText':
+    'Please confirm within two business days',
   'pages.profile.advanced.desc.userNameValue': 'Fu Xiaoxiao',
-  'pages.profile.advanced.desc.fullAddress': 'Qu Lili 18100000000 Huanggushan Road, Xihu District, Hangzhou, Zhejiang',
+  'pages.profile.advanced.desc.fullAddress':
+    'Qu Lili 18100000000 Huanggushan Road, Xihu District, Hangzhou, Zhejiang',
   'pages.profile.advanced.desc.leaderName': 'Lin Dongdong',
   'pages.profile.advanced.desc.departmentName': 'XX Company - YY Department',
-  'pages.profile.advanced.desc.longDescription': 'This description is very long very long very long very long very long very long very long very long very long very long very long very long...',
-  'pages.profile.advanced.desc.scientificDescription': 'Citrullus lanatus (Thunb.) Matsum. et Nakai Annual trailing herb; thick stems and branches with prominent ridges. Thick tendrils..',
+  'pages.profile.advanced.desc.longDescription':
+    'This description is very long very long very long very long very long very long very long very long very long very long very long very long...',
+  'pages.profile.advanced.desc.scientificDescription':
+    'Citrullus lanatus (Thunb.) Matsum. et Nakai Annual trailing herb; thick stems and branches with prominent ridges. Thick tendrils..',
   'pages.profile.advanced.desc.reviewerName': 'Zhou Maomao',
   'pages.profile.advanced.desc.stepPersonName': 'Wu Jiahao',
   // List Search
@@ -776,6 +824,14 @@ export default {
   'pages.list.search.edit': 'Edit',
   'pages.list.search.share': 'Share',
   // RTC Agent Test
+  'pages.rtcAgentTest.title': 'RTC Agent Integration Test',
+  'pages.rtcAgentTest.status': 'Status',
+  'pages.rtcAgentTest.actions': 'Actions',
+  'pages.rtcAgentTest.testDynamicImport': 'Test Dynamic Import',
+  'pages.rtcAgentTest.reloadPage': 'Reload Page',
+  'pages.rtcAgentTest.console': 'Console',
+  'pages.rtcAgentTest.consoleHint': 'Open the browser console to see detailed logs.',
+  'pages.rtcAgentTest.typeErrorHint': 'If you see "TypeError: Cannot destructure property \'dispatcher\' of \'useContext(...)\'" in the console, the integration is broken.',
   'pages.rtcAgentTest.agentAlreadyRunning': 'Test agent is already running',
   // Table List
   'pages.tableList.selectDeleteItem': 'Please select items to delete',
@@ -988,6 +1044,7 @@ export default {
   'pages.form.advancedForm.column.action': 'Action',
   'pages.form.advancedForm.column.actionEdit': 'Edit',
   // Basic List
+  'pages.list.basicList.owner': 'Owner',
   'pages.list.basicList.startTime': 'Start Time',
   'pages.list.basicList.deleteTask': 'Delete Task',
   'pages.list.basicList.deleteConfirm':
@@ -1098,4 +1155,11 @@ export default {
   'error.forbidden': 'You do not have permission to perform this operation',
   'error.badRequest': 'Request parameter error',
   'error.internalError': 'Internal server error',
+  // Request Error Messages
+  'pages.request.permissionSyncFailed':
+    'Permission data synchronization failed. Some features may be limited. It is recommended to refresh the page to get the latest permissions.',
+  'pages.request.noResponse': 'No response! Please retry.',
+  'pages.request.error': 'Request error, please retry.',
+  'pages.request.responseError':
+    'Response processing error, please refresh the page and try again',
 };

@@ -91,7 +91,11 @@ async function refreshTokenAndUpdatePermissions(): Promise<string | null> {
     // 权限数据刷新失败时，通知管理员可能需要刷新页面
     // 但不阻断 token 刷新流程
     message.warning(
-      '权限数据同步失败，部分功能可能受限。建议刷新页面获取最新权限。',
+      getIntl().formatMessage({
+        id: 'pages.request.permissionSyncFailed',
+        defaultMessage:
+          'Permission data synchronization failed. Some features may be limited. It is recommended to refresh the page to get the latest permissions.',
+      }),
     );
   }
 
@@ -105,6 +109,33 @@ interface ResponseStructure {
   errorCode?: string;
   errorMessage?: string;
   showType?: ErrorShowType;
+}
+
+// 自动重试配置：针对瞬态网络错误和服务端错误
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 1000;
+
+/**
+ * 判断错误是否可重试
+ * 仅对网络错误（无响应）和 5xx 服务端错误进行重试
+ */
+function isRetryableError(error: any): boolean {
+  // 网络错误：请求已发出但无响应（超时、断网等）
+  if (error.request && !error.response) {
+    return true;
+  }
+  // 5xx 服务端错误
+  if (error.response && error.response.status >= 500) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * 延迟指定毫秒数
+ */
+function retryDelay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -203,9 +234,19 @@ export const errorConfig: RequestConfig = {
           }),
         );
       } else if (error.request) {
-        message.error('None response! Please retry.');
+        message.error(
+          getIntl().formatMessage({
+            id: 'pages.request.noResponse',
+            defaultMessage: 'No response! Please retry.',
+          }),
+        );
       } else {
-        message.error('Request error, please retry.');
+        message.error(
+          getIntl().formatMessage({
+            id: 'pages.request.error',
+            defaultMessage: 'Request error, please retry.',
+          }),
+        );
       }
     },
   },
@@ -227,6 +268,7 @@ export const errorConfig: RequestConfig = {
 
   // 响应拦截器 - 统一解包 { success, data } 格式 + 处理 401 token 刷新
   responseInterceptors: [
+    // 数据解包和 401 处理
     async (response: any) => {
       try {
         const { data } = response;
@@ -318,8 +360,51 @@ export const errorConfig: RequestConfig = {
               : String(interceptorError),
           timestamp: new Date().toISOString(),
         });
+        message.error(
+          getIntl().formatMessage({
+            id: 'pages.request.responseError',
+            defaultMessage:
+              'Response processing error, please refresh the page and try again',
+          }),
+        );
         return Promise.reject(interceptorError);
       }
     },
+    // 自动重试拦截器：对瞬态错误（网络错误、5xx）进行自动重试
+    // 使用 tuple 格式 [successHandler, errorHandler]
+    // NOTE: IErrorInterceptor 类型定义为 (error: Error) => Promise<Error>，
+    // 但 axios 运行时允许错误拦截器返回响应（resolve）以完成重试。
+    // 类型断言用于绕过 TypeScript 限制。
+    [
+      // Success handler: 直接通过，由前一个拦截器处理
+      (response: any) => response,
+      // Error handler: 自动重试网络错误和 5xx 错误
+      async (error: any) => {
+        const config = error?.config;
+
+        // 无法获取配置或已跳过错误处理，直接拒绝
+        if (!config) {
+          return Promise.reject(error);
+        }
+
+        // 检查是否可重试且未达到最大重试次数
+        const retryCount = config._retryCount || 0;
+        if (isRetryableError(error) && retryCount < MAX_RETRIES) {
+          config._retryCount = retryCount + 1;
+
+          console.warn(
+            `[Retry] Attempt ${retryCount + 1}/${MAX_RETRIES} for ${config.method?.toUpperCase()} ${config.url}`,
+          );
+
+          await retryDelay(RETRY_DELAY_MS * (retryCount + 1));
+
+          // 重试请求，使用 getResponse: true 获取完整响应对象
+          return request(config.url, { ...config, getResponse: true });
+        }
+
+        // 不可重试或已达最大重试次数，传递错误
+        return Promise.reject(error);
+      },
+    ] as any,
   ],
 };

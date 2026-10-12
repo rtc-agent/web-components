@@ -41,7 +41,8 @@ export default {
   'pages.login.loginWith': '다른 방법으로 로그인:',
   'pages.login.registerAccount': '계정 등록',
   'pages.welcome.link': '환영합니다',
-  'pages.welcome.celebrationTitle': 'Ant Design Pro {v6}에 오신 것을 환영합니다',
+  'pages.welcome.celebrationTitle':
+    'Ant Design Pro {v6}에 오신 것을 환영합니다',
   'pages.welcome.alertMessage':
     '더욱 빠르고 강력한 고성능 컴포넌트가 출시되었습니다.',
   'pages.welcome.infoCard.umi.title': 'umi 알아보기',
@@ -87,8 +88,7 @@ export default {
   'pages.searchTable.updateForm.object': '모니터링 객체',
   'pages.searchTable.updateForm.ruleProps.templateLabel': '규칙 템플릿',
   'pages.searchTable.updateForm.ruleProps.typeLabel': '규칙 유형',
-  'pages.searchTable.updateForm.schedulingPeriod.title':
-    '스케줄링 기간 설정',
+  'pages.searchTable.updateForm.schedulingPeriod.title': '스케줄링 기간 설정',
   'pages.searchTable.updateForm.schedulingPeriod.timeLabel': '시작 시간',
   'pages.searchTable.updateForm.schedulingPeriod.timeRules':
     '시작 시간을 선택해주세요!',
@@ -136,8 +136,7 @@ export default {
   'pages.rtcUsers.banReasonPlaceholder': '차단 사유를 입력해주세요',
   'pages.rtcUsers.banReasonRequired': '차단 사유를 입력해주세요',
   'pages.rtcUsers.banReasonNoWhitespace': '차단 사유는 비어있을 수 없습니다',
-  'pages.rtcUsers.banReasonMaxLength':
-    '차단 사유는 500자를 초과할 수 없습니다',
+  'pages.rtcUsers.banReasonMaxLength': '차단 사유는 500자를 초과할 수 없습니다',
   'pages.rtcUsers.banSuccess': '사용자가 성공적으로 차단되었습니다',
   'pages.rtcUsers.unbanSuccess': '사용자 차단이 성공적으로 해제되었습니다',
   'pages.rtcUsers.banFailed': '사용자 차단 실패',
@@ -270,8 +269,7 @@ export default {
     '선택 사항, 롤백 사유를 설명해주세요',
   'pages.config.system.rollbackSuccess': '롤백 성공',
   'pages.config.system.rollbackDefaultNote': 'v{version}으로 롤백',
-  'pages.config.system.forceOverwriteSuccess':
-    '설정 강제 덮어쓰기 성공',
+  'pages.config.system.forceOverwriteSuccess': '설정 강제 덮어쓰기 성공',
   'pages.config.system.forceOverwriteSuffix': '(강제 덮어쓰기)',
   // Conflict Modal
   'pages.config.system.conflict.title': '설정 충돌',
@@ -304,16 +302,15 @@ export default {
   'pages.config.user.history': '이력',
   'pages.config.user.deleteOverride': '재정의 삭제',
   'pages.config.user.confirmDelete': '사용자 재정의를 삭제하시겠습니까?',
-  'pages.config.user.confirmDeleteDesc':
-    '삭제 후 시스템 기본값으로 복원됩니다',
+  'pages.config.user.confirmDeleteDesc': '삭제 후 시스템 기본값으로 복원됩니다',
   'pages.config.user.confirm': '확인',
   'pages.config.user.cancel': '취소',
-  'pages.config.user.updateSuccess': '사용자 설정이 성공적으로 업데이트되었습니다',
+  'pages.config.user.updateSuccess':
+    '사용자 설정이 성공적으로 업데이트되었습니다',
   'pages.config.user.deleteSuccess':
     '사용자 재정의가 삭제되어 시스템 기본값으로 복원되었습니다',
   'pages.config.user.rollbackSuccess': '롤백 성공',
-  'pages.config.user.forceOverwriteSuccess':
-    '설정 강제 덮어쓰기 성공',
+  'pages.config.user.forceOverwriteSuccess': '설정 강제 덮어쓰기 성공',
   'pages.config.user.forceDeleteSuccess': '설정 강제 삭제 성공',
   'pages.config.user.editTitle': '설정 편집: ',
   'pages.config.user.historyTitle': '설정 이력: ',
@@ -334,7 +331,7 @@ export default {
   'pages.rtcUsers.detail.lastActiveAt': '마지막 활동',
   'pages.rtcUsers.detail.registeredAt': '등록 일시',
   'pages.rtcUsers.detail.status': '상태',
-  'pages.rtcUsers.detail.todayTokens': "오늘의 토큰",
+  'pages.rtcUsers.detail.todayTokens': '오늘의 토큰',
   'pages.rtcUsers.detail.weekTokens': '이번 주',
   'pages.rtcUsers.detail.monthTokens': '이번 달',
   'pages.rtcUsers.detail.totalTokens': '총 토큰',
@@ -353,9 +350,9 @@ export default {
   'pages.rtcUsers.detail.noStats': '통계 데이터 없음',
   // Dashboard - System Overview
   'pages.dashboard.analysis.activeConnections': '활성 연결',
-  'pages.dashboard.analysis.todayMessages': "오늘의 메시지",
-  'pages.dashboard.analysis.todayTurns': "오늘의 턴",
-  'pages.dashboard.analysis.todayTokens': "오늘의 토큰",
+  'pages.dashboard.analysis.todayMessages': '오늘의 메시지',
+  'pages.dashboard.analysis.todayTurns': '오늘의 턴',
+  'pages.dashboard.analysis.todayTokens': '오늘의 토큰',
   'pages.dashboard.analysis.activeSessions': '활성 세션',
   'pages.dashboard.analysis.messageTurnTrend': '메시지 & 턴 추세',
   'pages.dashboard.analysis.tokenTypeDistribution': '토큰 유형 분포',
@@ -396,8 +393,7 @@ export default {
   'pages.roles.actionType.write': '쓰기',
   'pages.roles.actionType.delete': '삭제',
   'pages.roles.actionType.ban': '차단',
-  'pages.roles.searchPlaceholder':
-    '역할 이름, 표시 이름 또는 설명 입력',
+  'pages.roles.searchPlaceholder': '역할 이름, 표시 이름 또는 설명 입력',
   'pages.roles.column.name': '역할 이름',
   'pages.roles.column.displayName': '표시 이름',
   'pages.roles.column.description': '설명',
@@ -413,8 +409,7 @@ export default {
   'pages.roles.statusDisabled': '비활성화',
   'pages.roles.systemRoleCannotDisable':
     '내장 시스템 역할은 비활성화할 수 없습니다',
-  'pages.roles.systemRoleCannotDelete':
-    '내장 시스템 역할은 삭제할 수 없습니다',
+  'pages.roles.systemRoleCannotDelete': '내장 시스템 역할은 삭제할 수 없습니다',
   'pages.roles.permission': '권한',
   'pages.roles.edit': '편집',
   'pages.roles.delete': '삭제',
@@ -449,8 +444,7 @@ export default {
   'pages.roles.displayNameLabel': '표시 이름',
   'pages.roles.displayNamePlaceholder': '표시 이름 입력 (예: Admin)',
   'pages.roles.displayNameRequired': '표시 이름을 입력해주세요',
-  'pages.roles.displayNameMaxLength':
-    '표시 이름은 100자를 초과할 수 없습니다',
+  'pages.roles.displayNameMaxLength': '표시 이름은 100자를 초과할 수 없습니다',
   'pages.roles.descriptionLabel': '설명',
   'pages.roles.descriptionPlaceholder': '역할 설명 입력',
   'pages.roles.descriptionWhitespace':
@@ -477,8 +471,7 @@ export default {
   'pages.permissions.column.resource': '리소스',
   'pages.permissions.column.action': '작업',
   'pages.permissions.column.actions': '작업들',
-  'pages.permissions.confirmDelete':
-    '이 권한을 삭제하시겠습니까?',
+  'pages.permissions.confirmDelete': '이 권한을 삭제하시겠습니까?',
   'pages.permissions.confirmDeleteDesc':
     '삭제 후 역할이 해당 권한을 잃게 됩니다',
   'pages.permissions.confirm': '확인',
@@ -543,8 +536,7 @@ export default {
   'pages.adminUsers.roleManagementTitle': '역할 관리 - {email}',
   'pages.adminUsers.assignRole': '역할 할당',
   'pages.adminUsers.close': '닫기',
-  'pages.adminUsers.confirmRevokeRole':
-    '이 역할을 제거하시겠습니까?',
+  'pages.adminUsers.confirmRevokeRole': '이 역할을 제거하시겠습니까?',
   'pages.adminUsers.confirm': '확인',
   'pages.adminUsers.cancel': '취소',
   'pages.adminUsers.revoke': '제거',
@@ -559,9 +551,9 @@ export default {
   'pages.adminUsers.emailPlaceholder': '이메일 입력',
   'pages.adminUsers.emailRequired': '이메일을 입력해주세요',
   'pages.adminUsers.emailInvalid': '유효한 이메일 주소를 입력해주세요',
+  'pages.adminUsers.emailMax': '이메일 주소는 255자를 초과할 수 없습니다',
   'pages.adminUsers.passwordLabel': '비밀번호',
-  'pages.adminUsers.passwordPlaceholder':
-    '비밀번호 입력 (최소 6자)',
+  'pages.adminUsers.passwordPlaceholder': '비밀번호 입력 (최소 6자)',
   'pages.adminUsers.passwordRequired': '비밀번호를 입력해주세요',
   'pages.adminUsers.passwordMin': '비밀번호는 최소 6자 이상이어야 합니다',
   'pages.adminUsers.passwordMax': '비밀번호는 128자를 초과할 수 없습니다',
@@ -573,9 +565,10 @@ export default {
   'pages.adminUsers.createFailed': '관리자 생성 실패',
   'pages.adminUsers.updateTitle': '관리자 편집 - {email}',
   'pages.adminUsers.nameEditPlaceholder': '이름 입력',
+  'pages.adminUsers.nameWhitespace': '이름은 모두 공백일 수 없습니다',
+  'pages.adminUsers.nameMax': '이름은 100자를 초과할 수 없습니다',
   'pages.adminUsers.newPasswordLabel': '새 비밀번호',
-  'pages.adminUsers.newPasswordPlaceholder':
-    '변경하지 않으려면 비워두세요',
+  'pages.adminUsers.newPasswordPlaceholder': '변경하지 않으려면 비워두세요',
   'pages.adminUsers.updateSuccess': '관리자가 성공적으로 업데이트되었습니다',
   'pages.adminUsers.updateFailed': '관리자 업데이트 실패',
   'pages.adminUsers.loadRolesFailed': '역할 로드 실패',
@@ -630,8 +623,7 @@ export default {
   'pages.account.settings.base.city': '시',
   'pages.account.settings.base.cityRequired': '시를 입력해주세요!',
   'pages.account.settings.base.address': '도로명 주소',
-  'pages.account.settings.base.addressRequired':
-    '도로명 주소를 입력해주세요!',
+  'pages.account.settings.base.addressRequired': '도로명 주소를 입력해주세요!',
   'pages.account.settings.base.phone': '전화번호',
   'pages.account.settings.base.phoneRequired': '전화번호를 입력해주세요!',
   'pages.account.settings.base.phoneAreaCode': '지역 코드를 입력해주세요!',
@@ -641,13 +633,13 @@ export default {
     '기본 정보가 성공적으로 업데이트되었습니다',
   'pages.account.settings.base.avatar': '아바타',
   'pages.account.settings.base.changeAvatar': '아바타 변경',
-  'pages.account.settings.base.avatarSizeError': '이미지 크기가 {size}MB를 초과합니다!',
+  'pages.account.settings.base.avatarSizeError':
+    '이미지 크기가 {size}MB를 초과합니다!',
   'pages.account.settings.base.avatarTypeOnly': '이미지 파일만 허용됩니다!',
   'pages.account.settings.base.uploadFailed': '아바타 업로드 실패',
   // Account Settings - Security
   'pages.account.settings.security.password': '계정 비밀번호',
-  'pages.account.settings.security.passwordStrength':
-    '현재 비밀번호 강도: ',
+  'pages.account.settings.security.passwordStrength': '현재 비밀번호 강도: ',
   'pages.account.settings.security.strong': '강함',
   'pages.account.settings.security.medium': '보통',
   'pages.account.settings.security.weak': '약함',
@@ -687,6 +679,44 @@ export default {
   'pages.account.settings.notification.todoTask': '할 일 작업',
   'pages.account.settings.notification.todoTaskDesc':
     '할 일 작업은 앱 내 메시지로 알림이 전송됩니다',
+  // Basic Profile
+  'pages.profile.basic.column.time': '시간',
+  'pages.profile.basic.column.rate': '현재 진행률',
+  'pages.profile.basic.column.status': '상태',
+  'pages.profile.basic.status.success': '성공',
+  'pages.profile.basic.status.processing': '처리 중',
+  'pages.profile.basic.column.operator': '운영자 ID',
+  'pages.profile.basic.column.cost': '소요 시간',
+  'pages.profile.basic.column.id': '상품 번호',
+  'pages.profile.basic.column.name': '상품 이름',
+  'pages.profile.basic.column.barcode': '상품 바코드',
+  'pages.profile.basic.column.price': '단가',
+  'pages.profile.basic.column.num': '수량 (개)',
+  'pages.profile.basic.column.amount': '금액',
+  'pages.profile.basic.desc.pickupOrderNo': '수령 주문 번호',
+  'pages.profile.basic.desc.status': '상태',
+  'pages.profile.basic.desc.statusValue.picked': '수령 완료',
+  'pages.profile.basic.desc.salesOrderNo': '판매 주문 번호',
+  'pages.profile.basic.desc.subOrder': '하위 주문',
+  'pages.profile.basic.desc.userName': '사용자 이름',
+  'pages.profile.basic.desc.phone': '연락처',
+  'pages.profile.basic.desc.express': '택배 회사',
+  'pages.profile.basic.desc.address': '수령 주소',
+  'pages.profile.basic.desc.remark': '비고',
+  'pages.profile.basic.desc.remarkNone': '없음',
+  'pages.profile.basic.title.refundApplication': '환불 신청',
+  'pages.profile.basic.title.userInfo': '사용자 정보',
+  'pages.profile.basic.title.returnedGoods': '반품 상품',
+  'pages.profile.basic.total': '합계',
+  'pages.profile.basic.title.returnProgress': '반품 진행 상황',
+  // Basic Profile - Mock Data
+  'pages.profile.basic.mock.pickupOrderNo': '1000000000',
+  'pages.profile.basic.mock.salesOrderNo': '1234123421',
+  'pages.profile.basic.mock.subOrder': '3214321432',
+  'pages.profile.basic.mock.userName': '푸 샤오샤오',
+  'pages.profile.basic.mock.phone': '18100000000',
+  'pages.profile.basic.mock.express': '차이냐오 창고',
+  'pages.profile.basic.mock.address': '절강성 항저우시 시후구 완탕로 18호',
   // Advanced Profile
   'pages.profile.advanced.orderNumber': '주문 번호: 234231029431',
   'pages.profile.advanced.detail': '상세',
@@ -763,7 +793,16 @@ export default {
   'pages.list.search.edit': '편집',
   'pages.list.search.share': '공유',
   // RTC Agent Test
-  'pages.rtcAgentTest.agentAlreadyRunning': '테스트 에이전트가 이미 실행 중입니다',
+  'pages.rtcAgentTest.title': 'RTC Agent 통합 테스트',
+  'pages.rtcAgentTest.status': '상태',
+  'pages.rtcAgentTest.actions': '작업',
+  'pages.rtcAgentTest.testDynamicImport': '동적 가져오기 테스트',
+  'pages.rtcAgentTest.reloadPage': '페이지 새로고침',
+  'pages.rtcAgentTest.console': '콘솔',
+  'pages.rtcAgentTest.consoleHint': '브라우저 콘솔을 열어 상세 로그를 확인하세요.',
+  'pages.rtcAgentTest.typeErrorHint': '콘솔에 "TypeError: Cannot destructure property \'dispatcher\' of \'useContext(...)\'"가 표시되면 통합이 깨진 것입니다.',
+  'pages.rtcAgentTest.agentAlreadyRunning':
+    '테스트 에이전트가 이미 실행 중입니다',
   // Table List
   'pages.tableList.selectDeleteItem': '삭제할 항목을 선택해주세요',
   // Common
@@ -809,8 +848,7 @@ export default {
     '제출한 콘텐츠에 다음과 같은 오류가 있습니다:',
   'pages.result.fail.error.accountFrozen': '계정이 동결되었습니다',
   'pages.result.fail.error.unfreeze': '지금 동결 해제',
-  'pages.result.fail.error.notQualified':
-    '계정이 아직 신청 자격이 없습니다',
+  'pages.result.fail.error.notQualified': '계정이 아직 신청 자격이 없습니다',
   'pages.result.fail.error.upgrade': '지금 업그레이드',
   'pages.result.fail.extra.back': '수정하러 가기',
   // User Register
@@ -827,8 +865,7 @@ export default {
   'pages.user.register.emailPlaceholder': '이메일',
   'pages.user.register.passwordTip':
     '최소 6자를 입력해주세요. 추측하기 쉬운 비밀번호를 사용하지 마세요.',
-  'pages.user.register.passwordPlaceholder':
-    '최소 6자, 대소문자 구분',
+  'pages.user.register.passwordPlaceholder': '최소 6자, 대소문자 구분',
   'pages.user.register.confirmPassword': '비밀번호 확인',
   'pages.user.register.confirmPasswordPlaceholder': '비밀번호 확인',
   'pages.user.register.phoneRequired': '전화번호를 입력해주세요!',
@@ -859,8 +896,7 @@ export default {
   'pages.form.basicForm.date.endPlaceholder': '종료 날짜',
   'pages.form.basicForm.goal.label': '목표 설명',
   'pages.form.basicForm.goal.required': '목표 설명을 입력해주세요',
-  'pages.form.basicForm.goal.placeholder':
-    '단계별 작업 목표를 입력해주세요',
+  'pages.form.basicForm.goal.placeholder': '단계별 작업 목표를 입력해주세요',
   'pages.form.basicForm.standard.label': '지표',
   'pages.form.basicForm.standard.required': '지표를 입력해주세요',
   'pages.form.basicForm.standard.placeholder': '지표를 입력해주세요',
@@ -902,8 +938,7 @@ export default {
   'pages.form.stepForm.receiverGroup': '수신 계정',
   'pages.form.stepForm.receiverMode.alipay': '알리페이',
   'pages.form.stepForm.receiverMode.bank': '은행 계좌',
-  'pages.form.stepForm.receiverAccount.required':
-    '수신 계정을 입력해주세요',
+  'pages.form.stepForm.receiverAccount.required': '수신 계정을 입력해주세요',
   'pages.form.stepForm.receiverAccount.emailFormat':
     '계정 이름은 이메일 형식이어야 합니다',
   'pages.form.stepForm.receiverAccount.placeholder': 'test@example.com',
@@ -975,10 +1010,10 @@ export default {
   'pages.form.advancedForm.column.action': '작업',
   'pages.form.advancedForm.column.actionEdit': '편집',
   // Basic List
+  'pages.list.basicList.owner': '소유자',
   'pages.list.basicList.startTime': '시작 시간',
   'pages.list.basicList.deleteTask': '작업 삭제',
-  'pages.list.basicList.deleteConfirm':
-    '이 작업을 삭제하시겠습니까?',
+  'pages.list.basicList.deleteConfirm': '이 작업을 삭제하시겠습니까?',
   'pages.list.basicList.okText': '확인',
   'pages.list.basicList.cancelText': '취소',
   'pages.list.basicList.filter.all': '전체',
@@ -1012,8 +1047,7 @@ export default {
   'pages.list.basicList.modal.descLabel': '제품 설명',
   'pages.list.basicList.modal.descRules':
     '최소 5자 이상의 제품 설명을 입력해주세요!',
-  'pages.list.basicList.modal.descPlaceholder':
-    '최소 5자를 입력해주세요',
+  'pages.list.basicList.modal.descPlaceholder': '최소 5자를 입력해주세요',
   'pages.list.basicList.modal.resultTitle': '작업 성공',
   'pages.list.basicList.modal.resultSubTitle':
     '일련의 정보 설명, 짧으며 구두점을 포함할 수도 있습니다.',
@@ -1046,13 +1080,11 @@ export default {
   'pages.diagnose.testDynamicImport': '동적 가져오기 테스트',
   'pages.diagnose.reloadPage': '페이지 새로고침',
   'pages.diagnose.instructions': '지침',
-  'pages.diagnose.consoleErrorHint':
-    '브라우저 콘솔에서 다음 오류가 표시되면:',
+  'pages.diagnose.consoleErrorHint': '브라우저 콘솔에서 다음 오류가 표시되면:',
   'pages.diagnose.pleaseCheck': '확인해주세요:',
   'pages.diagnose.checkClearCache':
     '브라우저 캐시를 삭제하셨나요 (Cmd+Shift+R / Ctrl+Shift+R)',
-  'pages.diagnose.checkRestartServer':
-    '개발 서버를 재시작하셨나요',
+  'pages.diagnose.checkRestartServer': '개발 서버를 재시작하셨나요',
   'pages.diagnose.checkConsoleStack':
     '브라우저 콘솔에서 전체 오류 스택을 확인하세요',
   // Error Messages
@@ -1067,7 +1099,8 @@ export default {
   'error.invalidResource': '유효하지 않은 리소스 유형',
   'error.invalidAction': '유효하지 않은 작업 유형',
   'error.adminUserNotFound': '관리자를 찾을 수 없습니다',
-  'error.adminUserHasNoRole': '관리자가 해당 관리자 역할을 가지고 있지 않습니다',
+  'error.adminUserHasNoRole':
+    '관리자가 해당 관리자 역할을 가지고 있지 않습니다',
   'error.cannotRemoveSelf': '자신의 관리자 역할을 제거할 수 없습니다',
   'error.loginLocked': '로그인 시도가 너무 많습니다. 나중에 다시 시도해주세요',
   'error.invalidCredentials': '관리자 이메일 또는 비밀번호가 올바르지 않습니다',
@@ -1085,4 +1118,24 @@ export default {
   'error.forbidden': '이 작업을 수행할 권한이 없습니다',
   'error.badRequest': '요청 매개변수 오류',
   'error.internalError': '내부 서버 오류',
+  'pages.list.search.categoryOption': '카테고리 {index}',
+  'pages.list.search.categoryOption': '카테고리 {index}',
+  'pages.profile.advanced.desc.creatorName': '취려리',
+  'pages.profile.advanced.desc.departmentName': 'XX 회사 - YY 부서',
+  'pages.profile.advanced.desc.fullAddress': '취려리 18100000000 저장성 항저우시 시후구 황구산로',
+  'pages.profile.advanced.desc.leaderName': '림동동',
+  'pages.profile.advanced.desc.longDescription': '이 설명은 매우 깁니다 매우 깁니다 매우 깁니다 매우 깁니다...',
+  'pages.profile.advanced.desc.productName': 'XX 서비스',
+  'pages.profile.advanced.desc.remarkText': '2영업일 이내에 확인해 주세요',
+  'pages.profile.advanced.desc.reviewerName': '주모모',
+  'pages.profile.advanced.desc.scientificDescription': '수박과 수박속의 1년생 덩굴성 식물; 줄기와 가지가 굵고 뚜렷한 능선이 있음...',
+  'pages.profile.advanced.desc.stepPersonName': '오가호',
+  'pages.profile.advanced.desc.userNameValue': '부효효',
+  // Request Error Messages
+  'pages.request.permissionSyncFailed':
+    '권한 데이터 동기화에 실패했습니다. 일부 기능이 제한될 수 있습니다. 최신 권한을 얻으려면 페이지를 새로고침하는 것이 좋습니다.',
+  'pages.request.noResponse': '응답이 없습니다. 다시 시도해주세요.',
+  'pages.request.error': '요청 오류가 발생했습니다. 다시 시도해주세요.',
+  'pages.request.responseError':
+    '응답 처리 중 오류가 발생했습니다. 페이지를 새로고침하고 다시 시도해주세요.',
 };
