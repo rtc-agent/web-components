@@ -1,7 +1,7 @@
 import { HistoryOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { useAccess, useIntl, useSearchParams } from '@umijs/max';
+import { Access, useAccess, useIntl, useSearchParams } from '@umijs/max';
 import { App, Button, Grid, Popconfirm, Space, Tabs, Tag, theme } from 'antd';
 import React, {
   useCallback,
@@ -11,12 +11,12 @@ import React, {
   useState,
 } from 'react';
 import { useOptimisticLockConflict } from '@/hooks/useOptimisticLockConflict';
-import type { ServerConfigItem } from '@/services/serverConfig';
+import type { ServerConfigItem } from '@/services/server-config';
 import {
   deleteServerConfig,
   getServerConfigList,
   updateServerConfig,
-} from '@/services/serverConfig';
+} from '@/services/server-config';
 import {
   formatConfigValue,
   truncateValue,
@@ -94,8 +94,6 @@ const SystemConfigsPage: React.FC = () => {
   const intl = useIntl();
   const { message } = App.useApp();
   const renderConfigSource = useConfigSourceRenderer();
-  const canEdit = access.canServerConfigEdit as boolean;
-  const canDelete = access.canServerConfigDelete as boolean;
   const { token } = theme.useToken();
   const [searchParams, setSearchParams] = useSearchParams();
   const breakpoints = useBreakpoint();
@@ -359,7 +357,7 @@ const SystemConfigsPage: React.FC = () => {
         fixed: 'right',
         render: (_, record) => (
           <Space>
-            {canEdit && (
+            <Access accessible={access.canServerConfigEdit} fallback={null}>
               <Button
                 type="link"
                 size="small"
@@ -367,7 +365,7 @@ const SystemConfigsPage: React.FC = () => {
               >
                 {intl.formatMessage({ id: 'pages.config.system.edit' })}
               </Button>
-            )}
+            </Access>
             {record.version > 0 && (
               <Button
                 type="link"
@@ -378,27 +376,29 @@ const SystemConfigsPage: React.FC = () => {
                 {intl.formatMessage({ id: 'pages.config.system.history' })}
               </Button>
             )}
-            {canDelete && record.source === 'system' && (
-              <Popconfirm
-                title={intl.formatMessage({
-                  id: 'pages.config.system.confirmDelete',
-                })}
-                description={intl.formatMessage({
-                  id: 'pages.config.system.confirmDeleteDesc',
-                })}
-                onConfirm={() => handleDelete(record)}
-                okText={intl.formatMessage({
-                  id: 'pages.config.system.confirm',
-                })}
-                cancelText={intl.formatMessage({
-                  id: 'pages.config.system.cancel',
-                })}
-              >
-                <Button type="link" size="small" danger>
-                  {intl.formatMessage({ id: 'pages.config.system.delete' })}
-                </Button>
-              </Popconfirm>
-            )}
+            <Access accessible={access.canServerConfigDelete} fallback={null}>
+              {record.source === 'system' && (
+                <Popconfirm
+                  title={intl.formatMessage({
+                    id: 'pages.config.system.confirmDelete',
+                  })}
+                  description={intl.formatMessage({
+                    id: 'pages.config.system.confirmDeleteDesc',
+                  })}
+                  onConfirm={() => handleDelete(record)}
+                  okText={intl.formatMessage({
+                    id: 'pages.config.system.confirm',
+                  })}
+                  cancelText={intl.formatMessage({
+                    id: 'pages.config.system.cancel',
+                  })}
+                >
+                  <Button type="link" size="small" danger>
+                    {intl.formatMessage({ id: 'pages.config.system.delete' })}
+                  </Button>
+                </Popconfirm>
+              )}
+            </Access>
           </Space>
         ),
       },
@@ -408,8 +408,6 @@ const SystemConfigsPage: React.FC = () => {
       token,
       isMobile,
       renderConfigSource,
-      canEdit,
-      canDelete,
       formatDisplayValue,
     ],
   );
