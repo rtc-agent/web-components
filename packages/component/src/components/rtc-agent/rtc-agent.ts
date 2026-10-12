@@ -337,6 +337,8 @@ export class RtcAgent extends LitElement {
     // CRITICAL FIX: Sanitize logo HTML to prevent XSS
     void this._sanitizeLogo(value)
       .then((sanitized) => {
+        // Guard: component may have been destroyed while sanitization was in-flight.
+        if (this._isDestroyed) return;
         this._logoProvider.setValue({
           light: sanitized?.light ?? '',
           dark: sanitized?.dark ?? '',
@@ -344,6 +346,8 @@ export class RtcAgent extends LitElement {
       })
       .catch((err) => {
         log.error('Logo sanitization failed:', err);
+        // Guard: component may have been destroyed while sanitization was in-flight.
+        if (this._isDestroyed) return;
         this._logoProvider.setValue({ light: '', dark: '' });
       });
   }
@@ -932,6 +936,19 @@ export class RtcAgent extends LitElement {
   /** RTC processor (instantiated after persistence connect). */
   private _rtcProcessor?: RtcProcessor;
 
+  /**
+   * Guard flag to prevent state updates after component destruction.
+   *
+   * Set to true in disconnectedCallback, reset to false in connectedCallback.
+   * Async operations (e.g., logo sanitization, bubble icon sanitization) check
+   * this flag before updating state to prevent memory leaks and errors when
+   * the component is unmounted while async work is in-flight.
+   *
+   * Note: disconnectedCallback may fire for temporary removal (e.g., DOM reordering),
+   * so the flag is reset in connectedCallback to support reconnect scenarios.
+   */
+  private _isDestroyed = false;
+
   /* ── Public Controller Accessors ──
    *
    * Expose controllers as readonly for demo page and external consumers.
@@ -1155,6 +1172,9 @@ export class RtcAgent extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+
+    // Reset destruction guard (supports reconnect after temporary removal).
+    this._isDestroyed = false;
 
     // Check for pending account ban state (survived component remount).
     // If found, handle immediately: show toast and trigger logout.
@@ -1606,6 +1626,9 @@ export class RtcAgent extends LitElement {
    * The factory's destroy() method provides permanent cleanup.
    */
   disconnectedCallback() {
+    // Set destruction guard to prevent async operations from updating state.
+    this._isDestroyed = true;
+
     // Dispatch beforeDestroy event before any cleanup logic.
     // Note: disconnectedCallback may fire for temporary removal (e.g. DOM reordering),
     // not just permanent destroy. Use factory's destroy() for permanent cleanup.
@@ -2294,11 +2317,15 @@ export class RtcAgent extends LitElement {
     if (changed.has('bubbleIcon') && this.bubbleIcon) {
       void this._sanitizeBubbleIcon(this.bubbleIcon)
         .then((sanitized) => {
+          // Guard: component may have been destroyed while sanitization was in-flight.
+          if (this._isDestroyed) return;
           this._sanitizedBubbleIcon = sanitized;
           this.requestUpdate();
         })
         .catch((err) => {
           log.error('Bubble icon sanitization failed:', err);
+          // Guard: component may have been destroyed while sanitization was in-flight.
+          if (this._isDestroyed) return;
           this._sanitizedBubbleIcon = '';
         });
     }
