@@ -10,64 +10,49 @@
  * Corresponds to: `SessionTreeContext` (contexts/session-tree.ts)
  * Consumed by: <rtc-session-tree>, <rtc-session-tree-item>
  */
-import type { ReactiveController, ReactiveControllerHost } from 'lit';
+import type { ReactiveControllerHost } from 'lit';
 import type {
   Session,
   SessionTreeNode,
   SessionTreeState,
   SessionTreeActions,
 } from '../types/index.js';
+import type { SessionTreeContextValue } from '../contexts/session-tree.js';
 import { STORAGE_KEYS } from '../config/auth.js';
+import { CachedContextController } from '../core/cached-context.controller.js';
 
 /** Expanded state: sessionId → isExpanded */
 type ExpandedMap = Record<string, boolean>;
 
-export class SessionTreeController implements ReactiveController {
-  host: ReactiveControllerHost;
-
-  private _state: SessionTreeState = { rootNodes: [] };
+export class SessionTreeController extends CachedContextController<
+  SessionTreeState,
+  SessionTreeActions
+> {
   /** Expanded state Map: sessionId → isExpanded. Default is all collapsed. */
   private _expanded = new Map<string, boolean>();
 
-  readonly actions: SessionTreeActions;
-
-  /**
-   * CRITICAL FIX: Value cache to prevent unnecessary Context consumer re-renders.
-   * @lit/context uses `===` comparison, so creating new objects every time triggers
-   * consumers even when the state hasn't changed. Cache the value object and only
-   * recreate when state reference changes.
-   */
-  private _cachedValue?: {
-    state: SessionTreeState;
-    actions: SessionTreeActions;
-  };
-  private _cachedState?: SessionTreeState;
-
-  get value(): { state: SessionTreeState; actions: SessionTreeActions } {
-    // Only create new value object if state reference changed
-    if (this._cachedValue && this._cachedState === this._state) {
-      return this._cachedValue;
-    }
-    this._cachedState = this._state;
-    this._cachedValue = { state: this._state, actions: this.actions };
-    return this._cachedValue;
-  }
-
   constructor(host: ReactiveControllerHost) {
-    this.host = host;
-    this.host.addController(this);
-    this.actions = {
+    const actions: SessionTreeActions = {
       toggleExpand: (id: string) => this._toggleExpand(id),
       expand: (id: string) => this._setExpanded(id, true),
       collapse: (id: string) => this._setExpanded(id, false),
       rebuildTree: (sessions: Session[]) => this._rebuildTree(sessions),
     };
 
+    super(host, { rootNodes: [] }, actions);
+
     this._restoreExpanded();
   }
 
-  hostConnected() {}
-  hostDisconnected() {}
+  /** Public actions getter for external access */
+  get actions(): SessionTreeActions {
+    return super.actions;
+  }
+
+  /** Override value getter to return SessionTreeContextValue type */
+  get value(): SessionTreeContextValue {
+    return super.value as SessionTreeContextValue;
+  }
 
   /* ── Persistence ── */
 
@@ -96,6 +81,15 @@ export class SessionTreeController implements ReactiveController {
     } catch {
       // localStorage may be unavailable
     }
+  }
+
+  /* ── ReactiveController lifecycle ── */
+
+  hostDisconnected() {
+    // CRITICAL FIX: Clear cached sessions to prevent memory leak
+    // Without this, the cached sessions array would prevent GC of session objects
+    // when the component is destroyed or disconnected from the DOM
+    this._cachedSessions = undefined;
   }
 
   /* ── Private ── */
@@ -152,7 +146,7 @@ export class SessionTreeController implements ReactiveController {
     // 3. Sort by updatedAt descending (most recent on top)
     rootNodes.sort((a, b) => b.session.updatedAt - a.session.updatedAt);
 
-    this._state = { rootNodes };
+    this._setState({ rootNodes });
     this.host.requestUpdate();
   }
 
