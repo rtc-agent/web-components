@@ -15,7 +15,7 @@ export function buildPermissionSet(
 ): Set<string> {
   return new Set(
     (permissions || [])
-      .filter((p) => p && p.resource && p.action) // 过滤无效元素
+      .filter((p) => p?.resource && p.action) // 过滤无效元素
       .map((p) => `${p.resource}:${p.action}`),
   );
 }

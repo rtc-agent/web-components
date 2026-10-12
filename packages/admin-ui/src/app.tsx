@@ -33,6 +33,7 @@ import {
   OfflineBanner,
 } from '@/components';
 import { getCurrentUser } from '@/services/admin-auth';
+import type { UserInfo } from '@/services/types';
 import {
   getUserInfo,
   isAuthenticated,
@@ -44,11 +45,34 @@ import { errorConfig, setGlobalSetInitialState } from './requestErrorConfig';
 
 const loginPath = '/user/login';
 
+// Paths that don't require authentication
+const PUBLIC_PATHS = [loginPath, '/user/register', '/user/register-result'];
+
 // RTL (Right-to-Left) languages
 const RTL_LOCALES = ['fa-IR', 'ar-EG', 'he-IL'];
 
 // localStorage key for theme settings persistence
 const THEME_SETTINGS_KEY = 'admin_ui_theme';
+
+/**
+ * Build CurrentUser object from UserInfo
+ * Centralizes the conversion logic to avoid duplication
+ */
+function buildCurrentUser(userInfo: UserInfo): API.CurrentUser {
+  const permissionsArray = userInfo.permissions || [];
+  const permissionSet = buildPermissionSet(permissionsArray);
+  const access = computeAccessLevel(userInfo.roles);
+
+  return {
+    userid: userInfo.id,
+    name: userInfo.name,
+    avatar: userInfo.avatar_url || '',
+    email: userInfo.email,
+    access,
+    roles: userInfo.roles,
+    permissions: permissionSet,
+  };
+}
 
 /**
  * Set document direction (ltr/rtl) based on current locale
@@ -169,26 +193,11 @@ export async function getInitialState(): Promise<{
         // 这样 GlobalRtcAgent 可以读取权限进行 Function 过滤
         setUserInfo(userInfo);
 
-        // 直接使用 API 返回的权限数据，避免从 localStorage 回读导致的数据源不一致
-        const permissionsArray = userInfo.permissions || [];
-
-        // 构建权限集合和访问级别
-        const permissionSet = buildPermissionSet(permissionsArray);
-        const access = computeAccessLevel(userInfo.roles);
-
-        // 通知权限数据已就绪（事件驱动，替代轮询）
+        // 通知权限数据已就绪（事件驱动,替代轮询）
         window.dispatchEvent(new CustomEvent('admin-permissions-ready'));
 
         // 转换为 Ant Design Pro 的 CurrentUser 格式
-        return {
-          userid: userInfo.id,
-          name: userInfo.name,
-          avatar: userInfo.avatar_url || '',
-          email: userInfo.email,
-          access,
-          roles: userInfo.roles,
-          permissions: permissionSet,
-        } as API.CurrentUser;
+        return buildCurrentUser(userInfo);
       } catch (_error: any) {
         // Check if this was an abort
         if (_error?.name === 'AbortError' || signal?.aborted) {
@@ -203,18 +212,7 @@ export async function getInitialState(): Promise<{
           console.warn(
             '[getInitialState] fetchUserInfo failed, using cached user info as fallback',
           );
-          const permissionSet = buildPermissionSet(cachedUserInfo.permissions);
-          const access = computeAccessLevel(cachedUserInfo.roles);
-
-          return {
-            userid: cachedUserInfo.id,
-            name: cachedUserInfo.name,
-            avatar: cachedUserInfo.avatar_url || '',
-            email: cachedUserInfo.email,
-            access,
-            roles: cachedUserInfo.roles,
-            permissions: permissionSet,
-          } as API.CurrentUser;
+          return buildCurrentUser(cachedUserInfo);
         }
 
         return undefined;
@@ -223,11 +221,7 @@ export async function getInitialState(): Promise<{
 
     // 如果不是登录页面，执行
     const { location } = history;
-    if (
-      ![loginPath, '/user/register', '/user/register-result'].includes(
-        location.pathname,
-      )
-    ) {
+    if (!PUBLIC_PATHS.includes(location.pathname)) {
       // Single Promise deduplication pattern: concurrent calls await the same promise
       // This eliminates the need for dual flags (initPromise + isInitializing)
       if (!initPromise) {
@@ -250,19 +244,7 @@ export async function getInitialState(): Promise<{
                 console.warn(
                   '[getInitialState] Using cached user info after timeout',
                 );
-                const permissionSet = buildPermissionSet(
-                  cachedUserInfo.permissions,
-                );
-                const access = computeAccessLevel(cachedUserInfo.roles);
-                return {
-                  userid: cachedUserInfo.id,
-                  name: cachedUserInfo.name,
-                  avatar: cachedUserInfo.avatar_url || '',
-                  email: cachedUserInfo.email,
-                  access,
-                  roles: cachedUserInfo.roles,
-                  permissions: permissionSet,
-                } as API.CurrentUser;
+                return buildCurrentUser(cachedUserInfo);
               }
             }
             // Re-throw other errors
