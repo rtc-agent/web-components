@@ -950,6 +950,8 @@ export class MessageVirtualScroll<T> {
     this._items = [];
     this._elementMap.clear();
     this._idToIndex.clear();
+    // Now safe to use innerHTML - the container only has virtual scroll managed elements
+    // (empty state is rendered outside .message-list-inner by parent component)
     this._innerContainer.innerHTML = '';
     this._loadedTop = true;
     this._loadedBottom = true;
@@ -2211,6 +2213,8 @@ export class MessageVirtualScroll<T> {
   // ── Rendering ──
 
   private _renderAll() {
+    // Now safe to use innerHTML - the container only has virtual scroll managed elements
+    // (empty state is rendered outside .message-list-inner by parent component)
     this._innerContainer.innerHTML = '';
     this._elementMap.clear();
     this._idToIndex.clear();
