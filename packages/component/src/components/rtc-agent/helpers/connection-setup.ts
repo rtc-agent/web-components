@@ -157,7 +157,7 @@ export async function connectWithRetry(
       // Listen for connection state changes.
       deps.logger.info('[connectWithRetry] Setting up connection listener...');
       const { unsubConnection, connectionState } =
-        await setupConnectionListener(deps);
+        await setupConnectionListener(deps, rtcProcessor);
       deps.logger.info(
         '[connectWithRetry] Connection listener setup complete, state:',
         connectionState,
@@ -232,9 +232,14 @@ async function initRtcProcessor(
  * Set up connection state listener.
  *
  * Uses PersistenceController.onConnectionStateChange to get connection state change events.
+ * Also triggers RTC processor retry when connection is restored (fixes issue where
+ * RTC result submission fails during reconnection and doesn't retry after recovery).
+ *
+ * @param rtcProcessor - The RTC processor instance to trigger on connection recovery
  */
 async function setupConnectionListener(
   deps: ConnectionDeps,
+  rtcProcessor: RtcProcessor,
 ): Promise<{ unsubConnection: () => void; connectionState: ConnectionState }> {
   // Use unified API to get initial connection state.
   const connectionState = await deps.persistence.getConnectionState();
@@ -250,6 +255,21 @@ async function setupConnectionListener(
 
     // Notify the component to update its UI state
     deps.onConnectionStateChange?.(event.state, event.reason);
+
+    // When connection is restored, trigger RTC processor to retry any pending RTCs
+    // that failed during disconnection. This fixes the issue where submitRtcResult
+    // fails with "connection state is reconnecting" and processLoop exits without retry.
+    if (event.state === 'connected') {
+      deps.logger.info(
+        '[connection-setup] connection restored, triggering RTC processor retry',
+      );
+      rtcProcessor.onRtcUpdate().catch((err) => {
+        deps.logger.error(
+          '[connection-setup] onRtcUpdate after connection restore failed:',
+          err,
+        );
+      });
+    }
   });
 
   return { unsubConnection, connectionState };
