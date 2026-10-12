@@ -120,6 +120,13 @@ export class UIUpdateBus {
   private _suspendedEntities = new Set<UpdateEntity>();
   /** Track suspend callers for debugging force resume scenarios */
   private _suspendCallers: string[] = [];
+  /**
+   * Batch mode: when true, collect events without persisting or dispatching.
+   * Used for gap fill scenarios to avoid exceeding MAX_SUSPENDED_EVENTS.
+   * Events are released as a single bulk update when batch mode ends.
+   */
+  private _batchMode = false;
+  private _batchEvents: UIUpdateEvent[] = [];
 
   /**
    * Whether `init()` has been called.
@@ -136,6 +143,69 @@ export class UIUpdateBus {
   async init(): Promise<void> {
     if (this._initialized) return;
     this._initialized = true;
+  }
+
+  /**
+   * Start batch mode: collect events without persisting or dispatching.
+   *
+   * Use case: Gap fill operations that process thousands of updates at once.
+   * Without batch mode, each update would create a suspended event (if UI is suspended)
+   * or a persisted event (if UI is not suspended), both of which have problems:
+   * - Suspended: exceeds MAX_SUSPENDED_EVENTS limit (1000)
+   * - Persisted: creates thousands of IndexedDB writes, slowing down gap fill
+   *
+   * In batch mode:
+   * - Events are collected in memory (no persist, no dispatch)
+   * - When endBatch() is called, all collected events are emitted as a single bulk update
+   * - Listeners can then reload data from IndexedDB in one operation
+   *
+   * @param id - Identifier for debugging (e.g., "gap-fill-topic:u=xxx")
+   */
+  startBatch(id: string): void {
+    if (this._batchMode) {
+      log.warn(`startBatch(${id}): already in batch mode, ignoring`);
+      return;
+    }
+    log.debug(`startBatch(${id}): entering batch mode`);
+    this._batchMode = true;
+    this._batchEvents = [];
+  }
+
+  /**
+   * End batch mode and emit all collected events as a bulk update.
+   *
+   * @param id - Identifier for debugging (should match startBatch call)
+   */
+  endBatch(id: string): void {
+    if (!this._batchMode) {
+      log.warn(`endBatch(${id}): not in batch mode, ignoring`);
+      return;
+    }
+    log.debug(`endBatch(${id}): exiting batch mode, collected ${this._batchEvents.length} events`);
+    this._batchMode = false;
+
+    // Emit bulk update with all collected entities
+    if (this._batchEvents.length > 0) {
+      const entities = new Set<UpdateEntity>();
+      for (const event of this._batchEvents) {
+        entities.add(event.entity);
+      }
+
+      const bulkEvent: BulkUpdateEvent = {
+        entities,
+        eventCount: this._batchEvents.length,
+      };
+
+      for (const listener of this.bulkUpdateListeners) {
+        try {
+          listener(bulkEvent);
+        } catch (err) {
+          log.error('bulk update listener error:', err);
+        }
+      }
+    }
+
+    this._batchEvents = [];
   }
 
   /**
@@ -330,6 +400,12 @@ export class UIUpdateBus {
     event: UIUpdateEvent,
     options?: { skipPersist?: boolean; seqOverride?: number },
   ): Promise<void> {
+    // Batch mode: collect events without persisting or dispatching
+    if (this._batchMode) {
+      this._batchEvents.push(event);
+      return;
+    }
+
     if (this._suspendDepth > 0) {
       // Collect event for later bulk dispatch.
       // NOTE: suspended events are NOT persisted — they are local-only batching

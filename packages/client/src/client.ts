@@ -1183,9 +1183,21 @@ export class RTCAgentClient implements IRTCAgentClient {
     if (buffer.length > 0) {
       const deduplicated = this.deduplicateUpdates(buffer);
 
-      // Only suspend UI updates if not already suspended by caller.
-      // Nested suspend calls cause event accumulation beyond the 1000 event limit.
-      if (!uiAlreadySuspended) {
+      // Use batch mode for large updates to avoid suspended events limit.
+      // Batch mode collects UI events in memory without persisting or dispatching,
+      // then emits a single bulk update at the end.
+      //
+      // Threshold: 100 updates = ~500 UI events (5 entities per update on average)
+      // This is well below the 1000 event limit, but using batch mode for 100+ updates
+      // provides a safety margin while avoiding unnecessary overhead for small batches.
+      const useBatchMode = deduplicated.length >= 100;
+      const batchId = useBatchMode ? `gap-fill-${channel}-${Date.now()}` : undefined;
+
+      if (useBatchMode) {
+        this.options.startBatchUIUpdates?.(batchId!);
+      } else if (!uiAlreadySuspended) {
+        // Only suspend UI updates if not already suspended by caller.
+        // Nested suspend calls cause event accumulation beyond the 1000 event limit.
         this.options.suspendUIUpdates?.();
       }
 
@@ -1219,9 +1231,12 @@ export class RTCAgentClient implements IRTCAgentClient {
         const maxOffset = Math.max(...allOffsets);
         await this.options.updateOffset?.(channel, maxOffset, epoch);
       } finally {
-        // Only resume UI updates if we suspended them in this function call.
-        // If caller already suspended, they are responsible for resuming.
-        if (!uiAlreadySuspended) {
+        // Match the suspend/batch mode logic from above
+        if (useBatchMode) {
+          this.options.endBatchUIUpdates?.(batchId!);
+        } else if (!uiAlreadySuspended) {
+          // Only resume UI updates if we suspended them in this function call.
+          // If caller already suspended, they are responsible for resuming.
           this.options.resumeUIUpdates?.();
         }
       }

@@ -199,6 +199,20 @@ export interface RTCAgentClientOptions {
    */
   resumeUIUpdates?: () => void;
   /**
+   * Optional: start batch mode for UI updates (large gap fills only).
+   * In batch mode, events are collected in memory without persisting or dispatching.
+   * Use this for processing 100+ updates to avoid exceeding the 1000 event limit.
+   *
+   * @param id - Identifier for debugging (e.g., "gap-fill-topic:u=xxx-1234567890")
+   */
+  startBatchUIUpdates?: (id: string) => void;
+  /**
+   * Optional: end batch mode and emit all collected events as a bulk update.
+   *
+   * @param id - Identifier for debugging (should match startBatchUIUpdates call)
+   */
+  endBatchUIUpdates?: (id: string) => void;
+  /**
    * Optional: called when gap fill starts (for large gaps).
    * UI can show a syncing overlay to indicate background sync is in progress.
    */

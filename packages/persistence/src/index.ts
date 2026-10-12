@@ -238,6 +238,16 @@ export class PersistenceLayer {
         (() => {
           getUIUpdateBus().resume();
         }),
+      startBatchUIUpdates:
+        config.client.startBatchUIUpdates ??
+        ((id: string) => {
+          getUIUpdateBus().startBatch(id);
+        }),
+      endBatchUIUpdates:
+        config.client.endBatchUIUpdates ??
+        ((id: string) => {
+          getUIUpdateBus().endBatch(id);
+        }),
       onGapFillStart:
         config.client.onGapFillStart ??
         (() => {
