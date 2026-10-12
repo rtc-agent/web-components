@@ -147,7 +147,6 @@ export default [
       {
         path: '/system',
         component: './system/index',
-        access: 'canSystemView',
       },
       {
         path: '/system/users',
