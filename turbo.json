@@ -3,8 +3,6 @@
   "globalDependencies": [
     "tsconfig.base.json",
     ".npmrc",
-    "pnpm-workspace.yaml",
-    "pnpm-lock.yaml",
     "biome.json"
   ],
   "tasks": {
