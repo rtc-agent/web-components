@@ -2310,30 +2310,36 @@ export class PersistenceLayer {
       let truncated = false;
 
       try {
-        const resultStr = JSON.stringify(result);
-        if (resultStr.length > MAX_RESULT_SIZE) {
-          log.warn(
-            'result too large:',
-            resultStr.length,
-            'bytes, truncating to',
-            MAX_RESULT_SIZE,
-            'bytes',
-          );
-          truncated = true;
-          // Truncation strategy: keep head and tail, omit middle
-          const keepStart = Math.floor(MAX_RESULT_SIZE * 0.8);
-          const keepEnd = Math.floor(MAX_RESULT_SIZE * 0.2);
-          const truncatedStr =
-            resultStr.substring(0, keepStart) +
-            '\n\n... [TRUNCATED: original size ' +
-            resultStr.length +
-            ' bytes] ...\n\n' +
-            resultStr.substring(resultStr.length - keepEnd);
-          // Try parsing back to object; on failure keep as string
-          try {
-            resultToSend = JSON.parse(truncatedStr);
-          } catch {
-            resultToSend = truncatedStr;
+        // Guard against undefined/null result — JSON.stringify returns "undefined" for undefined,
+        // which has no .length property and would cause "Cannot read properties of undefined"
+        if (result === undefined || result === null) {
+          resultToSend = result;
+        } else {
+          const resultStr = JSON.stringify(result);
+          if (resultStr.length > MAX_RESULT_SIZE) {
+            log.warn(
+              'result too large:',
+              resultStr.length,
+              'bytes, truncating to',
+              MAX_RESULT_SIZE,
+              'bytes',
+            );
+            truncated = true;
+            // Truncation strategy: keep head and tail, omit middle
+            const keepStart = Math.floor(MAX_RESULT_SIZE * 0.8);
+            const keepEnd = Math.floor(MAX_RESULT_SIZE * 0.2);
+            const truncatedStr =
+              resultStr.substring(0, keepStart) +
+              '\n\n... [TRUNCATED: original size ' +
+              resultStr.length +
+              ' bytes] ...\n\n' +
+              resultStr.substring(resultStr.length - keepEnd);
+            // Try parsing back to object; on failure keep as string
+            try {
+              resultToSend = JSON.parse(truncatedStr);
+            } catch {
+              resultToSend = truncatedStr;
+            }
           }
         }
       } catch (err) {
