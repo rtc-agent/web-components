@@ -82,7 +82,7 @@ function buildCurrentUser(userInfo: UserInfo): API.CurrentUser {
   return {
     userid: userInfo.id,
     name: userInfo.name,
-    avatar: userInfo.avatar_url || '',
+    avatar: userInfo.avatar_url,
     email: userInfo.email,
     access,
     roles: userInfo.roles,
@@ -121,6 +121,20 @@ const saveThemeSettings = (settings: Partial<LayoutSettings>): void => {
     // Ignore storage errors
   }
 };
+
+// Timeout for initialization to prevent permanent pending state
+const INIT_TIMEOUT_MS = 30000; // 30 seconds
+
+// Initialization promise for deduplication during rapid route changes
+// Single Promise pattern: concurrent calls await the same promise
+let initPromise: Promise<API.CurrentUser | undefined> | null = null;
+
+// Clean up init promise on HMR to prevent stale state across hot reloads
+if (typeof module !== 'undefined' && module.hot) {
+  module.hot.dispose(() => {
+    initPromise = null;
+  });
+}
 
 /**
  * @see https://umijs.org/docs/api/runtime-config#getinitialstate
@@ -180,9 +194,10 @@ export async function getInitialState(): Promise<{
 
         // 转换为 Ant Design Pro 的 CurrentUser 格式
         return buildCurrentUser(userInfo);
-      } catch (_error: any) {
+      } catch (_error: unknown) {
         // Check if this was an abort — fall through to cached fallback below
-        if (_error?.name === 'AbortError' || signal?.aborted) {
+        const errName = _error instanceof Error ? _error.name : undefined;
+        if (errName === 'AbortError' || signal?.aborted) {
           console.warn('[getInitialState] fetchUserInfo aborted');
         } else {
           // 401 错误已由 responseInterceptors 处理（自动刷新 token 或跳转登录）
@@ -317,8 +332,16 @@ export const layout: RunTimeLayoutConfig = ({
       if (location.pathname === '/') {
         const access = initialState?.currentUser?.permissions;
 
-        // 如果权限信息尚未加载，等待加载完成
-        if (!access) return;
+        // 如果权限信息尚未加载，根据认证状态决定下一步
+        if (!access) {
+          if (isAuthenticated()) {
+            // Token 有效但用户信息加载失败（网络错误/API 异常），
+            // 跳转到账户页（任意已登录用户可访问，无权限要求）
+            history.replace('/account/center');
+          }
+          // 未认证：由下方的 auth check 处理重定向到登录页
+          return;
+        }
 
         // 权限检查优先级：Dashboard > RTC Users > System
         if (access.has('dashboard:read')) {
@@ -434,13 +457,6 @@ export const request: RequestConfig = {
   baseURL: '',
   ...errorConfig,
 };
-
-// Timeout for initialization to prevent permanent pending state
-const INIT_TIMEOUT_MS = 30000; // 30 seconds
-
-// Initialization promise for deduplication during rapid route changes
-// Single Promise pattern: concurrent calls await the same promise
-let initPromise: Promise<API.CurrentUser | undefined> | null = null;
 
 export function rootContainer(container: React.ReactNode) {
   return (
