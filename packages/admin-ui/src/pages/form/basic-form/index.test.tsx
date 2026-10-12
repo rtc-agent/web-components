@@ -120,9 +120,9 @@ describe('BasicForm', () => {
       </QueryClientProvider>,
     );
 
-    expect(screen.getByText('标题')).toBeInTheDocument();
-    expect(screen.getByText('起止日期')).toBeInTheDocument();
-    expect(screen.getByText('目标描述')).toBeInTheDocument();
+    expect(screen.getByText('Title')).toBeInTheDocument();
+    expect(screen.getByText('Date range')).toBeInTheDocument();
+    expect(screen.getByText('Objective description')).toBeInTheDocument();
   });
 
   it('should have submit button', () => {

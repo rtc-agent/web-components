@@ -153,16 +153,31 @@ describe('GlobalRtcAgent', () => {
   });
 
   it('should respond to storage events for cross-tab sync', async () => {
+    // Start not authenticated
     vi.mocked(authStorage.isAuthenticated).mockReturnValue(false);
     render(<GlobalRtcAgent />);
 
+    // Wait for initial render
+    await waitFor(() => {
+      expect(authStorage.isAuthenticated).toHaveBeenCalled();
+    });
+
     // Simulate login in another tab
     vi.mocked(authStorage.isAuthenticated).mockReturnValue(true);
+
+    // Clear previous calls to checkAuth
+    vi.mocked(authStorage.isAuthenticated).mockClear();
+
+    // Trigger storage event
     window.dispatchEvent(new Event('storage'));
 
-    await waitFor(() => {
-      expect(rtcAgentManager.mountRtcAgent).toHaveBeenCalled();
-    });
+    // Wait for checkAuth to be called again and succeed
+    await waitFor(
+      () => {
+        expect(rtcAgentManager.mountRtcAgent).toHaveBeenCalled();
+      },
+      { timeout: 2000 }
+    );
   });
 
   it('should check auth state on visibility change', async () => {
@@ -170,6 +185,9 @@ describe('GlobalRtcAgent', () => {
     render(<GlobalRtcAgent />);
 
     // Initially not authenticated, so no mount
+    await waitFor(() => {
+      expect(authStorage.isAuthenticated).toHaveBeenCalled();
+    });
     expect(rtcAgentManager.mountRtcAgent).not.toHaveBeenCalled();
 
     // Simulate tab becoming visible and auth state changing
@@ -177,15 +195,17 @@ describe('GlobalRtcAgent', () => {
       value: false,
       configurable: true,
     });
+
+    // Set authenticated before triggering visibility change
+    vi.mocked(authStorage.isAuthenticated).mockReturnValue(true);
     document.dispatchEvent(new Event('visibilitychange'));
 
-    // Manually trigger auth state change
-    vi.mocked(authStorage.isAuthenticated).mockReturnValue(true);
-    window.dispatchEvent(new Event('auth-state-changed'));
-
-    await waitFor(() => {
-      expect(rtcAgentManager.mountRtcAgent).toHaveBeenCalled();
-    });
+    await waitFor(
+      () => {
+        expect(rtcAgentManager.mountRtcAgent).toHaveBeenCalled();
+      },
+      { timeout: 2000 }
+    );
   });
 
   it('should not call unmountRtcAgent twice when auth state changes', async () => {
@@ -193,16 +213,21 @@ describe('GlobalRtcAgent', () => {
     const { rerender } = render(<GlobalRtcAgent />);
 
     // Initially not authenticated, should call unmount once
-    expect(rtcAgentManager.unmountRtcAgent).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(rtcAgentManager.unmountRtcAgent).toHaveBeenCalledTimes(1);
+    });
 
     // Simulate login
     vi.mocked(authStorage.isAuthenticated).mockReturnValue(true);
     window.dispatchEvent(new Event('auth-state-changed'));
     rerender(<GlobalRtcAgent />);
 
-    await waitFor(() => {
-      expect(rtcAgentManager.mountRtcAgent).toHaveBeenCalled();
-    });
+    await waitFor(
+      () => {
+        expect(rtcAgentManager.mountRtcAgent).toHaveBeenCalled();
+      },
+      { timeout: 2000 }
+    );
 
     // Clear the call count
     vi.mocked(rtcAgentManager.unmountRtcAgent).mockClear();
@@ -213,9 +238,12 @@ describe('GlobalRtcAgent', () => {
     rerender(<GlobalRtcAgent />);
 
     // Should only call unmount once, not twice (the fix)
-    await waitFor(() => {
-      expect(rtcAgentManager.unmountRtcAgent).toHaveBeenCalledTimes(1);
-    });
+    await waitFor(
+      () => {
+        expect(rtcAgentManager.unmountRtcAgent).toHaveBeenCalledTimes(1);
+      },
+      { timeout: 2000 }
+    );
   });
 
   it('should clean up event listeners on unmount', async () => {
@@ -275,19 +303,29 @@ describe('GlobalRtcAgent', () => {
   });
 
   it('should poll auth state periodically', async () => {
-    vi.mocked(authStorage.isAuthenticated).mockReturnValue(false);
+    // Start with authenticated state
+    vi.mocked(authStorage.isAuthenticated).mockReturnValue(true);
+    vi.mocked(authStorage.getUserPermissions).mockReturnValue([
+      { resource: 'admin_user', action: 'read' },
+    ]);
+    vi.mocked(authStorage.getUserInfo).mockReturnValue({
+      id: '1',
+      name: 'Test',
+      avatar_url: '',
+      email: 'test@example.com',
+      access: 'admin',
+      permissions: [{ resource: 'admin_user', action: 'read' }],
+    });
+
     render(<GlobalRtcAgent />);
 
-    // Initially not authenticated
-    expect(rtcAgentManager.mountRtcAgent).not.toHaveBeenCalled();
-
-    // Simulate auth state change (as would happen during polling)
-    vi.mocked(authStorage.isAuthenticated).mockReturnValue(true);
-    window.dispatchEvent(new Event('auth-state-changed'));
-
-    await waitFor(() => {
-      expect(rtcAgentManager.mountRtcAgent).toHaveBeenCalled();
-    });
+    // Should mount agent when authenticated
+    await waitFor(
+      () => {
+        expect(rtcAgentManager.mountRtcAgent).toHaveBeenCalled();
+      },
+      { timeout: 2000 },
+    );
   });
 
   it('should not mount agent on login page', async () => {

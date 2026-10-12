@@ -304,6 +304,7 @@ export async function getInitialState(): Promise<{
       error,
     );
     return {
+      fetchUserInfo: async () => undefined,
       settings: loadThemeSettings(),
       settingDrawerOpen: false,
       loading: false,

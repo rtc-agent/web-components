@@ -21,6 +21,7 @@ const mockGetUserPermissions = vi.fn(() => []);
 vi.mock('@umijs/max', () => ({
   history: mockHistory,
   Link: ({ children }: any) => children,
+  getLocale: () => 'zh-CN',
 }));
 
 vi.mock('@/services/admin-auth', () => ({
@@ -66,11 +67,19 @@ vi.mock('../config/defaultSettings', () => ({
 describe('app getInitialState', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Re-set default return values after clearing
+    mockIsAuthenticated.mockReturnValue(true);
+    mockGetUserInfo.mockReturnValue(null);
+    mockGetUserPermissions.mockReturnValue([]);
+
     mockHistory.location = {
       pathname: '/welcome',
       search: '',
       hash: '',
     };
+
+    // Reset module state between tests to clear initPromise
+    vi.resetModules();
   });
 
   it('should fetch currentUser when not on login page', async () => {

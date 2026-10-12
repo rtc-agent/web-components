@@ -34,9 +34,37 @@ export default function access(
   }
 
   // 获取权限集合（Set<string>，O(1) 查询）
-  // buildPermissionSet 在 getInitialState 中始终返回 Set，不会为 undefined
-  // 添加运行时类型检查，确保 permissions 是 Set 类型
+  // 向后兼容：如果 permissions 为 undefined（旧后端），基于 access 字段判断
   const perms = currentUser.permissions;
+
+  // 向后兼容：旧后端可能没有 permissions 字段，只开放 canAdmin
+  if (perms === undefined) {
+    const isAdmin = currentUser.access === 'admin';
+    return {
+      canAdmin: isAdmin,
+      canSystemView: false,
+      canAdminUserView: false,
+      canAdminUserEdit: false,
+      canAdminUserDelete: false,
+      canAdminUserRoleEdit: false,
+      canAdminRoleView: false,
+      canAdminRoleEdit: false,
+      canPermissionView: false,
+      canPermissionEdit: false,
+      canAuditLogView: false,
+      canRtcUsersMenu: false,
+      canRtcUserView: false,
+      canRtcUserBan: false,
+      canRtcSessionView: false,
+      canRtcMessageView: false,
+      canServerConfigView: false,
+      canServerConfigEdit: false,
+      canServerConfigDelete: false,
+      canDashboardView: false,
+    };
+  }
+
+  // 运行时类型检查，确保 permissions 是 Set 类型
   if (!(perms instanceof Set)) {
     console.error(
       '[access] currentUser.permissions is not a Set, returning all permissions as false',
