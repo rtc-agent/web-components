@@ -1009,7 +1009,12 @@ export class MessageController implements ReactiveController {
       type === 'text' ||
       type === 'markdown' ||
       type === 'thinking' ||
-      type === 'user_message'
+      type === 'user_message' ||
+      type === 'toolcall_input' ||
+      type === 'toolcall_output' ||
+      type === 'error' ||
+      type === 'prompt' ||
+      type === 'summary'
     );
   }
 
