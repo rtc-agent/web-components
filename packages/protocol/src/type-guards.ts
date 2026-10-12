@@ -29,6 +29,9 @@ import type {
   ErrorContent,
   PromptContent,
   FileAttachment,
+  ErrorCategory,
+  UpdateEntity,
+  UpdateAction,
 } from './index.js';
 
 /**
@@ -40,6 +43,10 @@ function isNonNullObject(data: unknown): data is Record<string, unknown> {
 
 /**
  * Valid sets for enum discriminator checks.
+ *
+ * Type assertions are necessary because TypeScript's const arrays
+ * cannot be directly inferred as union types. The `as EnumType[]`
+ * cast ensures type safety when constructing the Set.
  */
 const SESSION_STATUSES: ReadonlySet<string> = new Set<string>([
   'active',
@@ -76,6 +83,16 @@ const RTC_STATUSES: ReadonlySet<string> = new Set<string>([
   'timeout',
   'rejected',
 ] as RtcStatus[]);
+const ERROR_CATEGORIES: ReadonlySet<string> = new Set<string>([
+  'api',
+  'stream',
+  'tool',
+  'context',
+  'system',
+  'network',
+  'timeout',
+  'permission',
+] as ErrorCategory[]);
 
 /**
  * Type guard for ContentData.
@@ -378,17 +395,6 @@ export function isSummaryContentData(
  * `message` (string), `retryable` (boolean).
  */
 export function isValidErrorContent(data: unknown): data is ErrorContent {
-  const ERROR_CATEGORIES: ReadonlySet<string> = new Set<string>([
-    'api',
-    'stream',
-    'tool',
-    'context',
-    'system',
-    'network',
-    'timeout',
-    'permission',
-  ]);
-
   return (
     isNonNullObject(data) &&
     typeof data.category === 'string' &&
@@ -448,12 +454,12 @@ const UPDATE_ENTITIES: ReadonlySet<string> = new Set<string>([
   'message',
   'rtc',
   'file',
-]);
+] as UpdateEntity[]);
 const UPDATE_ACTIONS: ReadonlySet<string> = new Set<string>([
   'created',
   'updated',
   'deleted',
-]);
+] as UpdateAction[]);
 
 /**
  * Type guard for UpdateItem.

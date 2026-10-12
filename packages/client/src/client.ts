@@ -13,7 +13,7 @@
  */
 import { Centrifuge, HistoryOptions } from 'centrifuge';
 import {
-  RpcMethod,
+  RPC_METHODS,
   SendMessageRequest,
   ForkSessionRequest,
   Update,
@@ -362,26 +362,26 @@ export class RTCAgentClient implements IRTCAgentClient {
     cursor?: string,
     limit?: number,
   ): Promise<ListSessionsResponse> {
-    return this.rpc<ListSessionsResponse>(RpcMethod.SessionList, {
+    return this.rpc<ListSessionsResponse>(RPC_METHODS.SessionList, {
       cursor,
       limit,
     });
   }
 
   async getSession(sessionId: string): Promise<GetSessionResponse> {
-    return this.rpc<GetSessionResponse>(RpcMethod.SessionGet, {
+    return this.rpc<GetSessionResponse>(RPC_METHODS.SessionGet, {
       session_id: sessionId,
     });
   }
 
   async closeSession(sessionId: string): Promise<CloseSessionResponse> {
-    return this.rpc<CloseSessionResponse>(RpcMethod.SessionClose, {
+    return this.rpc<CloseSessionResponse>(RPC_METHODS.SessionClose, {
       session_id: sessionId,
     });
   }
 
   async openSession(sessionId: string): Promise<OpenSessionResponse> {
-    return this.rpc<OpenSessionResponse>(RpcMethod.SessionOpen, {
+    return this.rpc<OpenSessionResponse>(RPC_METHODS.SessionOpen, {
       session_id: sessionId,
     });
   }
@@ -389,13 +389,13 @@ export class RTCAgentClient implements IRTCAgentClient {
   async compactSession(
     req: CompactSessionRequest,
   ): Promise<CompactSessionResponse> {
-    return this.rpc<CompactSessionResponse>(RpcMethod.SessionCompact, req);
+    return this.rpc<CompactSessionResponse>(RPC_METHODS.SessionCompact, req);
   }
 
   async updateSession(
     req: UpdateSessionRequest,
   ): Promise<UpdateSessionResponse> {
-    return this.rpc<UpdateSessionResponse>(RpcMethod.SessionUpdate, req);
+    return this.rpc<UpdateSessionResponse>(RPC_METHODS.SessionUpdate, req);
   }
 
   // ========== Messages & Turns ==========
@@ -406,15 +406,15 @@ export class RTCAgentClient implements IRTCAgentClient {
    * @param req - SendMessageRequest; client_id is used by the server for idempotent dedup.
    */
   async sendMessage(req: SendMessageRequest): Promise<SendMessageResponse> {
-    return this.rpc<SendMessageResponse>(RpcMethod.MessageSend, req);
+    return this.rpc<SendMessageResponse>(RPC_METHODS.MessageSend, req);
   }
 
   async forkSession(req: ForkSessionRequest): Promise<ForkSessionResponse> {
-    return this.rpc<ForkSessionResponse>(RpcMethod.SessionFork, req);
+    return this.rpc<ForkSessionResponse>(RPC_METHODS.SessionFork, req);
   }
 
   async stopTurn(server_session_id: string): Promise<StopTurnResponse> {
-    return this.rpc<StopTurnResponse>(RpcMethod.TurnStop, {
+    return this.rpc<StopTurnResponse>(RPC_METHODS.TurnStop, {
       session_id: server_session_id,
     });
   }
@@ -424,7 +424,7 @@ export class RTCAgentClient implements IRTCAgentClient {
     cursor?: number,
     limit?: number,
   ): Promise<MessageListResponse> {
-    return this.rpc<MessageListResponse>(RpcMethod.MessageList, {
+    return this.rpc<MessageListResponse>(RPC_METHODS.MessageList, {
       session_id: sessionId,
       cursor,
       limit,
@@ -436,7 +436,7 @@ export class RTCAgentClient implements IRTCAgentClient {
     cursor?: string,
     limit?: number,
   ): Promise<TurnListResponse> {
-    return this.rpc<TurnListResponse>(RpcMethod.TurnList, {
+    return this.rpc<TurnListResponse>(RPC_METHODS.TurnList, {
       session_id: sessionId,
       cursor,
       limit,
@@ -450,7 +450,7 @@ export class RTCAgentClient implements IRTCAgentClient {
     cursor?: string,
     limit?: number,
   ): Promise<RtcListResponse> {
-    return this.rpc<RtcListResponse>(RpcMethod.RtcList, {
+    return this.rpc<RtcListResponse>(RPC_METHODS.RtcList, {
       session_id: sessionId,
       cursor,
       limit,
@@ -461,7 +461,7 @@ export class RTCAgentClient implements IRTCAgentClient {
     rtcId: string,
     status: RtcStatus,
   ): Promise<UpdateRtcStatusResponse> {
-    return this.rpc<UpdateRtcStatusResponse>(RpcMethod.RtcUpdateStatus, {
+    return this.rpc<UpdateRtcStatusResponse>(RPC_METHODS.RtcUpdateStatus, {
       rtc_id: rtcId,
       status,
     });
@@ -473,7 +473,7 @@ export class RTCAgentClient implements IRTCAgentClient {
     result?: unknown,
     error?: string,
   ): Promise<SubmitRtcResultResponse> {
-    return this.rpc<SubmitRtcResultResponse>(RpcMethod.RtcSubmitResult, {
+    return this.rpc<SubmitRtcResultResponse>(RPC_METHODS.RtcSubmitResult, {
       rtc_id: rtcId,
       success,
       result,
@@ -1351,22 +1351,23 @@ export class RTCAgentClient implements IRTCAgentClient {
    * The server always validates the signature; a forged token will be rejected at connection time.
    *
    * Parses the exp claim from the JWT payload (Unix timestamp in seconds)
-   * and compares it with the current time. Returns false on parse failure
-   * (to avoid blocking connections due to malformed tokens).
+   * and compares it with the current time. Returns true on parse failure
+   * (to trigger refresh instead of using a potentially broken token).
    */
   private _isTokenExpired(token: string): boolean {
     const payload = parseJwtPayload(token);
     if (!payload) {
+      // Unparseable token is treated as expired to trigger refresh
       log.debug(
-        '_isTokenExpired: failed to parse JWT, treating as not expired',
+        '_isTokenExpired: failed to parse JWT, treating as expired to trigger refresh',
       );
-      return false;
+      return true;
     }
     if (typeof payload.exp !== 'number') {
       log.debug(
-        '_isTokenExpired: payload.exp is not a number, treating as not expired',
+        '_isTokenExpired: payload.exp is not a number, treating as expired',
       );
-      return false;
+      return true;
     }
     const expired = payload.exp * 1000 < Date.now();
     log.debug('_isTokenExpired: exp=', payload.exp, 'expired=', expired);
