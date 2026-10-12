@@ -2,9 +2,8 @@ import { InboxOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { history, useIntl, useSearchParams } from '@umijs/max';
-import { App, Button, Empty, Grid, Tag, theme } from 'antd';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { getFriendlyErrorMessage } from '@/utils/errorHandler';
+import { Button, Empty, Grid, Tag, theme } from 'antd';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { disabledFutureDate, parseTableSort } from '../shared/tableUtils';
 import type { SessionInfo } from './data';
 import type { SessionPageAPI } from './page-api';
@@ -18,12 +17,10 @@ const { useBreakpoint } = Grid;
 const SessionsPage: React.FC = () => {
   const actionRef = useRef<ActionType>(null);
   const intl = useIntl();
-  const { message } = App.useApp();
   const [searchParams, setSearchParams] = useSearchParams();
   const userId = searchParams.get('user_id') || '';
   const breakpoints = useBreakpoint();
   const isMobile = !breakpoints.md; // < 768px
-  const [loading, setLoading] = useState(false);
 
   // === Register Page API ===
   useEffect(() => {
@@ -298,51 +295,34 @@ const SessionsPage: React.FC = () => {
           rowKey="id"
           columns={columns}
           scroll={{ x: 'max-content' }}
-          loading={loading}
           request={async (params, sort) => {
             // Read params from searchParams (URL is single source of truth)
             const effectiveUserId = searchParams.get('user_id') || userId;
             if (!effectiveUserId) {
               return { data: [], total: 0, success: true };
             }
-            setLoading(true);
             const status = searchParams.get('status') || undefined;
             const search = searchParams.get('search') || undefined;
             const startTime = searchParams.get('start_time') || undefined;
             const endTime = searchParams.get('end_time') || undefined;
             const current = params.current || 1;
             const pageSize = params.pageSize || 10;
-            try {
-              const sortParams = parseTableSort(sort || {});
-              const response = await getSessionList({
-                user_id: effectiveUserId,
-                page: current,
-                page_size: pageSize,
-                status,
-                search,
-                start_time: startTime,
-                end_time: endTime,
-                ...sortParams,
-              });
-              return {
-                data: response.items,
-                total: response.total,
-                success: true,
-              };
-            } catch (error: unknown) {
-              message.error(
-                getFriendlyErrorMessage(
-                  error,
-                  intl.formatMessage({
-                    id: 'pages.sessions.loadFailed',
-                    defaultMessage: 'Failed to load conversations',
-                  }),
-                ),
-              );
-              return { data: [], total: 0, success: false };
-            } finally {
-              setLoading(false);
-            }
+            const sortParams = parseTableSort(sort || {});
+            const response = await getSessionList({
+              user_id: effectiveUserId,
+              page: current,
+              page_size: pageSize,
+              status,
+              search,
+              start_time: startTime,
+              end_time: endTime,
+              ...sortParams,
+            });
+            return {
+              data: response.items,
+              total: response.total,
+              success: true,
+            };
           }}
           pagination={{
             defaultPageSize: 10,

@@ -89,6 +89,48 @@ Run `/antd` in Claude Code for any antd-related work. It provides access to `@an
 
 Each page dir: `index.tsx`, optional `service.ts`, `_mock.ts`, `data.d.ts`, style files. Keep page-specific code with the page.
 
+## Service 文件组织规范
+
+API 服务文件按以下规则组织：
+
+- **页面独有 API**: 放在页面目录下的 `service.ts`（如 `src/pages/rtc-users/management/service.ts`）
+- **跨页面共享 API**: 放在 `src/services/` 目录（如 `src/services/audit-log.ts`）
+- **自动生成的 API**: 放在 `src/services/ant-design-pro/`（通过 `pnpm run openapi` 生成，**禁止手动修改**）
+- **Page API 注册**: 每个页面可在 `index.tsx` 中注册全局 Page API（`window.__pages__`），供外部系统调用
+
+**判断标准**：如果 API 只在一个页面使用，放在页面目录；如果被多个页面引用，提升到 `src/services/`。
+
+## ProTable Loading 状态管理
+
+ProTable 的 `request` prop 会自动管理 loading 状态，**无需手动维护**：
+
+```tsx
+// ✅ 正确：依赖 ProTable 内置 loading
+<ProTable
+  request={async (params, sort) => {
+    const response = await fetchData(params);
+    return { data: response.items, total: response.total, success: true };
+  }}
+/>
+
+// ❌ 错误：手动管理 loading（冗余且不一致）
+const [loading, setLoading] = useState(false);
+<ProTable
+  loading={loading}
+  request={async (params, sort) => {
+    setLoading(true);
+    try {
+      const response = await fetchData(params);
+      return { data: response.items, total: response.total, success: true };
+    } finally {
+      setLoading(false);
+    }
+  }}
+/>
+```
+
+**例外**：非 ProTable 的数据加载（如 Drawer、Modal 中的自定义列表）仍需手动管理 loading 状态。
+
 # CLAUDE.md
 
 Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.

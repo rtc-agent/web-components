@@ -2,7 +2,7 @@ import { InboxOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { history, useIntl, useSearchParams } from '@umijs/max';
-import { App, Button, Empty, Grid, Tag, theme } from 'antd';
+import { Button, Empty, Grid, Tag, theme } from 'antd';
 import React, {
   useCallback,
   useEffect,
@@ -10,7 +10,6 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import { disabledFutureDate, parseTableSort } from '../shared/tableUtils';
 import MessageDetailDrawer from './components/MessageDetailDrawer';
 import type { MessageInfo } from './data';
@@ -23,7 +22,6 @@ import { getMessageList } from './service';
 const MessagesPage: React.FC = () => {
   const actionRef = useRef<ActionType>(null);
   const intl = useIntl();
-  const { message } = App.useApp();
   const [searchParams, setSearchParams] = useSearchParams();
   const sessionId = searchParams.get('session_id') || '';
   const screens = Grid.useBreakpoint();
@@ -33,7 +31,6 @@ const MessagesPage: React.FC = () => {
   const [currentMessage, setCurrentMessage] = useState<MessageInfo | null>(
     null,
   );
-  const [loading, setLoading] = useState(false);
 
   const { token } = theme.useToken();
 
@@ -42,12 +39,7 @@ const MessagesPage: React.FC = () => {
     const pageAPI: MessagePageAPI = {
       // Sync URL filters and trigger table reload
       list: async (params = {}) => {
-        const {
-          sessionId: listSessionId,
-          role,
-          startTime,
-          endTime,
-        } = params;
+        const { sessionId: listSessionId, role, startTime, endTime } = params;
 
         // Sync filters to URL (no page refresh). Pagination is transient state, not synced.
         const newSearchParams = new URLSearchParams();
@@ -323,7 +315,6 @@ const MessagesPage: React.FC = () => {
           actionRef={actionRef}
           rowKey="id"
           columns={columns}
-          loading={loading}
           onRow={(record) => ({
             onClick: () => handleRowClick(record),
             style: { cursor: 'pointer' },
@@ -335,43 +326,27 @@ const MessagesPage: React.FC = () => {
             if (!effectiveSessionId) {
               return { data: [], total: 0, success: true };
             }
-            setLoading(true);
             const role = searchParams.get('role') || undefined;
             const createdAfter = searchParams.get('created_after') || undefined;
             const createdBefore =
               searchParams.get('created_before') || undefined;
             const current = params.current || 1;
             const pageSize = params.pageSize || 10;
-            try {
-              const sortParams = parseTableSort(sort || {});
-              const response = await getMessageList({
-                session_id: effectiveSessionId,
-                page: current,
-                page_size: pageSize,
-                role,
-                created_after: createdAfter,
-                created_before: createdBefore,
-                ...sortParams,
-              });
-              return {
-                data: response.items,
-                total: response.total,
-                success: true,
-              };
-            } catch (error: unknown) {
-              message.error(
-                getFriendlyErrorMessage(
-                  error,
-                  intl.formatMessage({
-                    id: 'pages.messages.loadFailed',
-                    defaultMessage: 'Failed to load messages',
-                  }),
-                ),
-              );
-              return { data: [], total: 0, success: false };
-            } finally {
-              setLoading(false);
-            }
+            const sortParams = parseTableSort(sort || {});
+            const response = await getMessageList({
+              session_id: effectiveSessionId,
+              page: current,
+              page_size: pageSize,
+              role,
+              created_after: createdAfter,
+              created_before: createdBefore,
+              ...sortParams,
+            });
+            return {
+              data: response.items,
+              total: response.total,
+              success: true,
+            };
           }}
           pagination={{
             defaultPageSize: 10,

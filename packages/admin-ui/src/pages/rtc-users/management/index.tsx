@@ -223,7 +223,6 @@ const RtcUserManagementPage: React.FC = () => {
   // See access.ts for canServerConfigEdit/canServerConfigDelete definitions
   const canConfigEdit = access.canServerConfigEdit as boolean;
   const canConfigDelete = access.canServerConfigDelete as boolean;
-  const [loading, setLoading] = useState(false);
   const { token } = theme.useToken();
 
   // === Register Page API ===
@@ -266,6 +265,16 @@ const RtcUserManagementPage: React.FC = () => {
           return { success: true };
         } catch (error) {
           console.error('[RtcUser Page API] ban failed:', error);
+          message.error(
+            getFriendlyErrorMessage(
+              error,
+              intl,
+              intl.formatMessage({
+                id: 'pages.rtcUsers.banFailed',
+                defaultMessage: 'Failed to ban user',
+              }),
+            ),
+          );
           return { success: false, error: 'Failed to ban user' };
         }
       },
@@ -278,6 +287,16 @@ const RtcUserManagementPage: React.FC = () => {
           return { success: true };
         } catch (error) {
           console.error('[RtcUser Page API] unban failed:', error);
+          message.error(
+            getFriendlyErrorMessage(
+              error,
+              intl,
+              intl.formatMessage({
+                id: 'pages.rtcUsers.unbanFailed',
+                defaultMessage: 'Failed to unban user',
+              }),
+            ),
+          );
           return { success: false, error: 'Failed to unban user' };
         }
       },
@@ -292,6 +311,16 @@ const RtcUserManagementPage: React.FC = () => {
           };
         } catch (error) {
           console.error('[RtcUser Page API] devices failed:', error);
+          message.error(
+            getFriendlyErrorMessage(
+              error,
+              intl,
+              intl.formatMessage({
+                id: 'pages.rtcUsers.devicesFailed',
+                defaultMessage: 'Failed to fetch user devices',
+              }),
+            ),
+          );
           return {
             success: false,
             data: [],
@@ -310,6 +339,16 @@ const RtcUserManagementPage: React.FC = () => {
           };
         } catch (error) {
           console.error('[RtcUser Page API] tokenStats failed:', error);
+          message.error(
+            getFriendlyErrorMessage(
+              error,
+              intl,
+              intl.formatMessage({
+                id: 'pages.rtcUsers.tokenStatsFailed',
+                defaultMessage: 'Failed to fetch token statistics',
+              }),
+            ),
+          );
           return {
             success: false,
             data: {
@@ -596,46 +635,25 @@ const RtcUserManagementPage: React.FC = () => {
         rowKey="id"
         columns={columns}
         scroll={{ x: 'max-content' }}
-        loading={loading}
         request={async (params, sort) => {
           // Read params from searchParams (URL is single source of truth)
           const search = searchParams.get('search') || '';
           const status = searchParams.get('status') || '';
           const current = params.current || 1;
           const pageSize = params.pageSize || 10;
-          setLoading(true);
-          try {
-            const sortParams = parseTableSort(sort || {});
-            const response = await getRtcUserList({
-              page: current,
-              page_size: pageSize,
-              search: search || undefined,
-              status: status || undefined,
-              ...sortParams,
-            });
-            return {
-              data: response.items,
-              total: response.total,
-              success: true,
-            };
-          } catch (error: unknown) {
-            message.error(
-              getFriendlyErrorMessage(
-                error,
-                intl.formatMessage({
-                  id: 'pages.rtcUsers.loadFailed',
-                  defaultMessage: 'Failed to load users',
-                }),
-              ),
-            );
-            return {
-              data: [],
-              total: 0,
-              success: false,
-            };
-          } finally {
-            setLoading(false);
-          }
+          const sortParams = parseTableSort(sort || {});
+          const response = await getRtcUserList({
+            page: current,
+            page_size: pageSize,
+            search: search || undefined,
+            status: status || undefined,
+            ...sortParams,
+          });
+          return {
+            data: response.items,
+            total: response.total,
+            success: true,
+          };
         }}
         pagination={{
           defaultPageSize: 10,
