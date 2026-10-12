@@ -18,6 +18,7 @@ import 'dayjs/locale/ar';
 import 'dayjs/locale/id';
 import 'dayjs/locale/bn';
 import 'dayjs/locale/bn-bd';
+import 'dayjs/locale/fa';
 import React from 'react';
 
 // Initialize dayjs plugins globally
@@ -39,17 +40,32 @@ import {
   isAuthenticated,
   setUserInfo,
 } from '@/utils/auth-storage';
+import {
+  loadDayjsLocale,
+  RTL_LOCALES,
+  setDocumentDirection,
+} from '@/utils/locale-helpers';
 import { buildPermissionSet, computeAccessLevel } from '@/utils/permission';
 import defaultSettings from '../config/defaultSettings';
 import { errorConfig, setGlobalSetInitialState } from './requestErrorConfig';
 
-const loginPath = '/user/login';
+// Centralized public path configuration
+const PUBLIC_PATHS = {
+  login: '/user/login',
+  register: '/user/register',
+  registerResult: '/user/register-result',
+} as const;
 
-// Paths that don't require authentication
-const PUBLIC_PATHS = [loginPath, '/user/register', '/user/register-result'];
-
-// RTL (Right-to-Left) languages
-const RTL_LOCALES = ['fa-IR', 'ar-EG', 'he-IL'];
+/** Check if a pathname is a public (unauthenticated) route */
+function isPublicPath(pathname: string): boolean {
+  // Exact match against known public paths, with optional trailing slash
+  const normalized = pathname.replace(/\/+$/, '') || '/';
+  return (
+    normalized === PUBLIC_PATHS.login ||
+    normalized === PUBLIC_PATHS.register ||
+    normalized === PUBLIC_PATHS.registerResult
+  );
+}
 
 // localStorage key for theme settings persistence
 const THEME_SETTINGS_KEY = 'admin_ui_theme';
@@ -73,41 +89,6 @@ function buildCurrentUser(userInfo: UserInfo): API.CurrentUser {
     permissions: permissionSet,
   };
 }
-
-/**
- * Set document direction (ltr/rtl) based on current locale
- */
-const setDocumentDirection = () => {
-  const locale = getLocale();
-  const isRTL = RTL_LOCALES.some((rtl) => locale.startsWith(rtl.split('-')[0]));
-  document.documentElement.dir = isRTL ? 'rtl' : 'ltr';
-  document.documentElement.lang = locale;
-};
-
-/**
- * Load dayjs locale based on current locale
- */
-const loadDayjsLocale = () => {
-  const locale = getLocale();
-  // Map locale to dayjs locale format
-  const dayjsLocaleMap: Record<string, string> = {
-    'zh-CN': 'zh-cn',
-    'zh-TW': 'zh-tw',
-    'ja-JP': 'ja',
-    'ko-KR': 'ko',
-    'fr-FR': 'fr',
-    'de-DE': 'de',
-    'es-ES': 'es',
-    'pt-PT': 'pt',
-    'pt-BR': 'pt-br',
-    'ru-RU': 'ru',
-    'ar-SA': 'ar',
-    'id-ID': 'id',
-    'bn-BD': 'bn-bd',
-  };
-  const dayjsLocale = dayjsLocaleMap[locale] || locale.toLowerCase();
-  dayjs.locale(dayjsLocale);
-};
 
 /**
  * Load theme settings from localStorage, fallback to system preference
@@ -176,7 +157,20 @@ export async function getInitialState(): Promise<{
         // 调用真正的 API 获取管理员信息
         const userInfo = await getCurrentUser({ signal });
 
-        // Check if aborted during the request
+        // 确保 userInfo 存在
+        if (!userInfo) {
+          return undefined;
+        }
+
+        // 更新 localStorage 中的管理员信息（包含权限）
+        // 即使后续 abort 检查命中，已持久化的数据可作为下次启动的 fallback
+        setUserInfo(userInfo);
+
+        // 通知权限数据已就绪（事件驱动,替代轮询）
+        window.dispatchEvent(new CustomEvent('admin-permissions-ready'));
+
+        // Check if aborted during the request — data is already persisted,
+        // but skip the in-memory state update to avoid racing with a new init
         if (signal?.aborted) {
           console.warn(
             '[getInitialState] fetchUserInfo aborted after completion, skipping state update',
@@ -184,34 +178,21 @@ export async function getInitialState(): Promise<{
           return undefined;
         }
 
-        // 确保 userInfo 存在
-        if (!userInfo) {
-          return undefined;
-        }
-
-        // 更新 localStorage 中的管理员信息（包含权限）
-        // 这样 GlobalRtcAgent 可以读取权限进行 Function 过滤
-        setUserInfo(userInfo);
-
-        // 通知权限数据已就绪（事件驱动,替代轮询）
-        window.dispatchEvent(new CustomEvent('admin-permissions-ready'));
-
         // 转换为 Ant Design Pro 的 CurrentUser 格式
         return buildCurrentUser(userInfo);
       } catch (_error: any) {
-        // Check if this was an abort
+        // Check if this was an abort — fall through to cached fallback below
         if (_error?.name === 'AbortError' || signal?.aborted) {
           console.warn('[getInitialState] fetchUserInfo aborted');
-          return undefined;
+        } else {
+          // 401 错误已由 responseInterceptors 处理（自动刷新 token 或跳转登录）
+          console.warn('[getInitialState] fetchUserInfo failed', _error);
         }
 
-        // 401 错误已由 responseInterceptors 处理（自动刷新 token 或跳转登录）
         // 尝试从 localStorage 读取旧的用户信息作为 fallback
         const cachedUserInfo = getUserInfo();
         if (cachedUserInfo) {
-          console.warn(
-            '[getInitialState] fetchUserInfo failed, using cached user info as fallback',
-          );
+          console.warn('[getInitialState] Using cached user info as fallback');
           return buildCurrentUser(cachedUserInfo);
         }
 
@@ -221,7 +202,7 @@ export async function getInitialState(): Promise<{
 
     // 如果不是登录页面，执行
     const { location } = history;
-    if (!PUBLIC_PATHS.includes(location.pathname)) {
+    if (!isPublicPath(location.pathname)) {
       // Single Promise deduplication pattern: concurrent calls await the same promise
       // This eliminates the need for dual flags (initPromise + isInitializing)
       if (!initPromise) {
@@ -233,22 +214,6 @@ export async function getInitialState(): Promise<{
         initPromise = (async () => {
           try {
             return await fetchUserInfo(initAbortController.signal);
-          } catch (error) {
-            // On timeout (abort), try to use cached data
-            if (initAbortController.signal.aborted) {
-              console.warn(
-                '[getInitialState] Initialization timeout, attempting to use cached data',
-              );
-              const cachedUserInfo = getUserInfo();
-              if (cachedUserInfo && isAuthenticated()) {
-                console.warn(
-                  '[getInitialState] Using cached user info after timeout',
-                );
-                return buildCurrentUser(cachedUserInfo);
-              }
-            }
-            // Re-throw other errors
-            throw error;
           } finally {
             clearTimeout(timeoutId);
             // Clear promise after completion to allow future re-initialization
@@ -345,11 +310,6 @@ export const layout: RunTimeLayoutConfig = ({
     // },
     footerRender: () => <Footer />,
     onPageChange: () => {
-      // If initialization is in progress, skip login check (prevent false redirects)
-      if (initPromise) {
-        return;
-      }
-
       const { location } = history;
 
       // 根路由智能重定向：根据用户权限动态决定默认页面
@@ -388,10 +348,21 @@ export const layout: RunTimeLayoutConfig = ({
         return;
       }
 
-      // 如果没有登录，重定向到 login
-      if (!initialState?.currentUser && location.pathname !== loginPath) {
+      // Skip auth check for public routes
+      if (isPublicPath(location.pathname)) {
+        return;
+      }
+
+      // Auth check: prefer token presence over currentUser object.
+      // If a valid token exists but currentUser failed to load (e.g. network issue),
+      // allow access rather than redirecting to login — the request interceptor
+      // will handle token expiry and redirect when truly unauthenticated.
+      const hasToken = isAuthenticated();
+      const hasUser = !!initialState?.currentUser;
+
+      if (!hasToken && !hasUser && location.pathname !== PUBLIC_PATHS.login) {
         history.replace(
-          `${loginPath}?redirect=${encodeURIComponent(location.pathname + location.search + location.hash)}`,
+          `${PUBLIC_PATHS.login}?redirect=${encodeURIComponent(location.pathname + location.search + location.hash)}`,
         );
         return;
       }
