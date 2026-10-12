@@ -319,50 +319,65 @@ export const refreshAccessToken = async (): Promise<string | null> => {
     return refreshPromise;
   }
 
-  // 在调用 API 之前立即标记旧 token 为已使用
-  // 这样可以防止在 API 调用期间的重放攻击
-  markRefreshTokenAsRotated();
-
-  // 设置超时保护（10 秒）
-  refreshTimeout = setTimeout(() => {
-    console.error('[refreshAccessToken] Timeout after 10s');
-    refreshPromise = null;
-    refreshTimeout = null;
-  }, 10000);
-
-  refreshPromise = (async () => {
-    try {
-      const result = await apiRefreshToken({
-        refresh_token: refreshTokenValue,
-      });
-
-      // 更新 localStorage 中的 token
-      // expires_in 默认为 1 小时（3600 秒），防止 API 未返回时 token 立即过期
-      // refresh_token_expires_in 默认为 7 天，建议后端配置更短的时间
-      setTokens(
-        result.access_token,
-        result.refresh_token,
-        result.expires_in || 3600,
-        result.refresh_token_expires_in || DEFAULT_REFRESH_TOKEN_EXPIRY,
-      );
-
-      return result.access_token;
-    } catch (error) {
-      console.error('[refreshAccessToken] 刷新失败:', error);
-      // 刷新失败，清除 auth 信息
-      // 注意：此时旧 token 已被标记为 rotated，不会再次使用
-      clearAuth();
-      return null;
-    } finally {
-      // 清理超时定时器
-      if (refreshTimeout) {
-        clearTimeout(refreshTimeout);
-        refreshTimeout = null;
-      }
-      // 清除 Promise，允许下次刷新
+  // 创建带超时的 Promise
+  refreshPromise = new Promise<string | null>((resolve, reject) => {
+    // 设置超时保护（10 秒）
+    refreshTimeout = setTimeout(() => {
+      console.error('[refreshAccessToken] Timeout after 10s');
+      // 超时后标记旧 token 为已使用（防止重放攻击）
+      markRefreshTokenAsRotated();
       refreshPromise = null;
-    }
-  })();
+      refreshTimeout = null;
+      reject(new Error('Token refresh timeout'));
+    }, 10000);
+
+    // 异步执行刷新请求
+    (async () => {
+      try {
+        const result = await apiRefreshToken({
+          refresh_token: refreshTokenValue,
+        });
+
+        // API 调用成功后再标记旧 token 为已使用
+        // 这样可以避免在 API 调用期间其他代码读取到 null
+        markRefreshTokenAsRotated();
+
+        // 更新 localStorage 中的 token
+        // expires_in 默认为 1 小时（3600 秒），防止 API 未返回时 token 立即过期
+        // refresh_token_expires_in 默认为 7 天，建议后端配置更短的时间
+        setTokens(
+          result.access_token,
+          result.refresh_token,
+          result.expires_in || 3600,
+          result.refresh_token_expires_in || DEFAULT_REFRESH_TOKEN_EXPIRY,
+        );
+
+        // 清理超时定时器
+        if (refreshTimeout) {
+          clearTimeout(refreshTimeout);
+          refreshTimeout = null;
+        }
+
+        resolve(result.access_token);
+      } catch (error) {
+        // 清理超时定时器
+        if (refreshTimeout) {
+          clearTimeout(refreshTimeout);
+          refreshTimeout = null;
+        }
+
+        console.error('[refreshAccessToken] 刷新失败:', error);
+        // 刷新失败，也标记旧 token 为已使用（防止重放攻击）
+        markRefreshTokenAsRotated();
+        // 清除 auth 信息
+        clearAuth();
+        resolve(null);
+      } finally {
+        // 清除 Promise，允许下次刷新
+        refreshPromise = null;
+      }
+    })();
+  });
 
   return refreshPromise;
 };
