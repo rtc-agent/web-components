@@ -242,7 +242,11 @@ const IframePanel: FC<IframePanelProps> = ({
             zIndex: 1,
           }}
         >
-          <Spin size="large" tip={loadingText} />
+          <Spin size="large">
+            <div style={{ padding: '24px 0', color: token.colorTextSecondary }}>
+              {loadingText}
+            </div>
+          </Spin>
         </div>
       )}
     </div>

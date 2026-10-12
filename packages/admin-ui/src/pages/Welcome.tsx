@@ -35,7 +35,12 @@ const InfoCard: React.FC<InfoCardProps> = ({ title, index, desc, href }) => {
           </div>
           <div className="min-w-0 flex-1">
             <h4 className="mb-1 mt-0 text-sm font-semibold">{title}</h4>
-            <p className="mb-0 line-clamp-2 text-xs text-zinc-500">{desc}</p>
+            <p
+              className="mb-0 line-clamp-2 text-xs"
+              style={{ color: token.colorTextSecondary }}
+            >
+              {desc}
+            </p>
           </div>
         </div>
       </Card>

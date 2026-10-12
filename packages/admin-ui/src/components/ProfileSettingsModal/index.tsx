@@ -33,17 +33,6 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
     password?: string;
     confirmPassword?: string;
   }) => {
-    // 校验密码一致性
-    if (values.password && values.password !== values.confirmPassword) {
-      message.error(
-        intl.formatMessage({
-          id: 'component.profileSettings.passwordMismatch',
-          defaultMessage: 'Passwords do not match',
-        }),
-      );
-      return false;
-    }
-
     try {
       await updateProfile({
         name: values.name,

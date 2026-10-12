@@ -46,7 +46,7 @@ const OfflineBanner: React.FC = () => {
         left: 8,
         right: 8,
         margin: '0 auto',
-        zIndex: 1001,
+        zIndex: 999,
       }}
       message={title}
     />

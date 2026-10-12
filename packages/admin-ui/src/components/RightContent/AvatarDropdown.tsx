@@ -111,13 +111,13 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({
   };
 
   if (!initialState) {
-    return <Spin size="small" />;
+    return <Spin size="small" delay={300} />;
   }
 
   const { currentUser } = initialState;
 
   if (!currentUser) {
-    return <Spin size="small" />;
+    return <Spin size="small" delay={300} />;
   }
 
   return (
@@ -137,10 +137,18 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({
       <ProfileSettingsModal
         open={profileModalOpen}
         onClose={() => setProfileModalOpen(false)}
-        onSuccess={() => {
+        onSuccess={async () => {
           setProfileModalOpen(false);
-          // 刷新全局用户状态
-          window.location.reload();
+          // Refresh user info without full page reload
+          const userInfo = await initialState?.fetchUserInfo?.();
+          if (userInfo) {
+            startTransition(() => {
+              setInitialState((s) => ({
+                ...s,
+                currentUser: userInfo,
+              }));
+            });
+          }
         }}
         initialValues={{
           name: currentUser?.name,

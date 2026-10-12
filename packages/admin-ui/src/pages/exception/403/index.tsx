@@ -1,17 +1,20 @@
 import { history, useIntl } from '@umijs/max';
 import { Button, Card, Result } from 'antd';
 import React from 'react';
+import { isAuthenticated } from '@/utils/auth-storage';
 
 const Exception403: React.FC = () => {
   const intl = useIntl();
 
   const handleGoBack = () => {
-    // 如果是从其他页面跳转来的，返回上一页
-    if (window.history.length > 1) {
+    // If no auth, redirect to login; otherwise go back or home
+    if (!isAuthenticated()) {
+      history.replace('/user/login');
+    } else if (window.history.length > 1) {
       history.back();
     } else {
-      // 否则跳转到登录页（让用户重新登录）
-      history.replace('/user/login');
+      // Authenticated but no history: go to the root for permission-based redirect
+      history.replace('/');
     }
   };
 
