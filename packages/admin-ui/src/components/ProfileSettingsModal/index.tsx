@@ -38,7 +38,7 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
       message.error(
         intl.formatMessage({
           id: 'component.profileSettings.passwordMismatch',
-          defaultMessage: 'The two passwords do not match',
+          defaultMessage: 'Passwords do not match',
         }),
       );
       return false;
@@ -62,7 +62,7 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
       message.error(
         intl.formatMessage({
           id: 'component.profileSettings.updateFailed',
-          defaultMessage: 'Update failed, please try again',
+          defaultMessage: 'Update failed, please retry',
         }),
       );
       return false;
@@ -73,7 +73,7 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
     <ModalForm
       title={intl.formatMessage({
         id: 'component.profileSettings.title',
-        defaultMessage: 'Personal settings',
+        defaultMessage: 'Profile Settings',
       })}
       formRef={formRef}
       open={open}
@@ -111,14 +111,14 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
         })}
         placeholder={intl.formatMessage({
           id: 'component.profileSettings.nickname.placeholder',
-          defaultMessage: 'Please enter nickname',
+          defaultMessage: 'Enter nickname',
         })}
         rules={[
           {
             required: true,
             message: intl.formatMessage({
               id: 'component.profileSettings.nickname.required',
-              defaultMessage: 'Please enter nickname',
+              defaultMessage: 'Nickname is required',
             }),
           },
           {
@@ -137,11 +137,11 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
         name="password"
         label={intl.formatMessage({
           id: 'component.profileSettings.newPassword.label',
-          defaultMessage: 'New password',
+          defaultMessage: 'New Password',
         })}
         placeholder={intl.formatMessage({
           id: 'component.profileSettings.newPassword.placeholder',
-          defaultMessage: 'Leave blank to keep password unchanged',
+          defaultMessage: 'Leave blank to keep current password',
         })}
         rules={[
           {
@@ -160,11 +160,11 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
         name="confirmPassword"
         label={intl.formatMessage({
           id: 'component.profileSettings.confirmPassword.label',
-          defaultMessage: 'Confirm password',
+          defaultMessage: 'Confirm Password',
         })}
         placeholder={intl.formatMessage({
           id: 'component.profileSettings.confirmPassword.placeholder',
-          defaultMessage: 'Enter new password again',
+          defaultMessage: 'Re-enter new password',
         })}
         dependencies={['password']}
         rules={[
@@ -177,7 +177,7 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
                   new Error(
                     intl.formatMessage({
                       id: 'component.profileSettings.passwordMismatch',
-                      defaultMessage: 'The two passwords do not match',
+                      defaultMessage: 'Passwords do not match',
                     }),
                   ),
                 );

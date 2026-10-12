@@ -1,7 +1,7 @@
 import { DownOutlined, PlusOutlined } from '@ant-design/icons';
 import { PageContainer } from '@ant-design/pro-components';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useIntl } from '@umijs/max';
+import { getLocale, useIntl } from '@umijs/max';
 import {
   Avatar,
   Button,
@@ -63,7 +63,7 @@ const ListContent = ({
             defaultMessage: 'Start time',
           })}
         </span>
-        <p>{dayjs(createdAt).format('YYYY-MM-DD HH:mm')}</p>
+        <p>{dayjs(createdAt).locale(getLocale()).format('L LT')}</p>
       </div>
       <div className={styles.listContentItem}>
         <Progress

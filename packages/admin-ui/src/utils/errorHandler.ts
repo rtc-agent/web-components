@@ -19,7 +19,7 @@ export interface BizError {
 }
 
 /**
- * 错误码到友好提示的映射
+ * 错误码到i18n key的映射
  * 参考：需求文档 §5.7 错误码定义
  *
  * NOTE: 所有错误码统一使用大写格式存储。
@@ -28,45 +28,45 @@ export interface BizError {
  */
 export const ERROR_CODE_MESSAGES: Record<string, string> = {
   // 管理员角色相关错误
-  CANNOT_DELETE_SYSTEM_ROLE: '系统内置管理员角色不可删除',
-  CANNOT_REMOVE_LAST_ADMIN: '不能移除最后一个管理员角色',
-  CANNOT_REMOVE_SELF_ADMIN: '不能移除自己的管理员角色',
-  ROLE_NAME_EXISTS: '管理员角色名称已存在',
-  ROLE_DISABLED: '管理员角色已禁用',
-  ROLE_NOT_FOUND: '管理员角色不存在',
+  CANNOT_DELETE_SYSTEM_ROLE: 'error.cannotDeleteSystemRole',
+  CANNOT_REMOVE_LAST_ADMIN: 'error.cannotRemoveLastAdmin',
+  CANNOT_REMOVE_SELF_ADMIN: 'error.cannotRemoveSelfAdmin',
+  ROLE_NAME_EXISTS: 'error.roleNameExists',
+  ROLE_DISABLED: 'error.roleDisabled',
+  ROLE_NOT_FOUND: 'error.roleNotFound',
 
   // 权限相关错误
-  PERMISSION_EXISTS: '权限策略已存在',
-  PERMISSION_NOT_FOUND: '权限策略不存在',
-  INVALID_RESOURCE: '无效的资源类型',
-  INVALID_ACTION: '无效的操作类型',
+  PERMISSION_EXISTS: 'error.permissionExists',
+  PERMISSION_NOT_FOUND: 'error.permissionNotFound',
+  INVALID_RESOURCE: 'error.invalidResource',
+  INVALID_ACTION: 'error.invalidAction',
 
   // 管理员相关错误
-  ADMIN_USER_NOT_FOUND: '管理员不存在',
-  ADMIN_USER_HAS_NO_ROLE: '管理员没有该管理员角色',
-  CANNOT_REMOVE_SELF: '不能移除自己的管理员角色',
+  ADMIN_USER_NOT_FOUND: 'error.adminUserNotFound',
+  ADMIN_USER_HAS_NO_ROLE: 'error.adminUserHasNoRole',
+  CANNOT_REMOVE_SELF: 'error.cannotRemoveSelf',
 
   // 登录相关错误
-  LOGIN_LOCKED: '登录尝试次数过多，请稍后再试',
-  INVALID_CREDENTIALS: '管理员邮箱或密码错误',
+  LOGIN_LOCKED: 'error.loginLocked',
+  INVALID_CREDENTIALS: 'error.invalidCredentials',
 
   // 动态配置相关错误（设计文档 §5.7 定义为大写格式）
-  OPTIMISTIC_LOCK_CONFLICT: '配置已被其他管理员修改，请重新加载后重试',
-  CONFIG_KEY_NOT_FOUND: '配置项不存在',
-  CONFIG_NOT_FOUND: '配置记录不存在',
-  USER_NOT_FOUND: '用户不存在',
-  INVALID_CONFIG_VALUE: '配置值格式不合法',
-  VERSION_NOT_FOUND: '该版本已超出保留期限',
-  NO_OP: '无需操作',
+  OPTIMISTIC_LOCK_CONFLICT: 'error.optimisticLockConflict',
+  CONFIG_KEY_NOT_FOUND: 'error.configKeyNotFound',
+  CONFIG_NOT_FOUND: 'error.configNotFound',
+  USER_NOT_FOUND: 'error.userNotFound',
+  INVALID_CONFIG_VALUE: 'error.invalidConfigValue',
+  VERSION_NOT_FOUND: 'error.versionNotFound',
+  NO_OP: 'error.noOp',
 
   // 验证错误
-  VALIDATION_ERROR: '请求参数验证失败，请检查输入',
+  VALIDATION_ERROR: 'error.validationError',
 
   // 通用错误
-  UNAUTHORIZED: '未授权，请重新登录',
-  FORBIDDEN: '无权执行此操作',
-  BAD_REQUEST: '请求参数错误',
-  INTERNAL_ERROR: '服务器内部错误',
+  UNAUTHORIZED: 'error.unauthorized',
+  FORBIDDEN: 'error.forbidden',
+  BAD_REQUEST: 'error.badRequest',
+  INTERNAL_ERROR: 'error.internalError',
 };
 
 /**
@@ -74,11 +74,13 @@ export const ERROR_CODE_MESSAGES: Record<string, string> = {
  * 内部统一将错误码转换为大写进行匹配，
  * 避免重复存储大小写版本。
  * @param error 错误对象
+ * @param intl 国际化实例（可选，如果不提供则返回i18n key）
  * @param defaultMessage 默认错误信息
  * @returns 友好的错误提示
  */
 export function getFriendlyErrorMessage(
   error: BizError | unknown,
+  intl?: { formatMessage: (descriptor: { id: string; defaultMessage?: string }) => string },
   defaultMessage = 'Operation failed',
 ): string {
   // Narrow unknown to a shape we can safely probe
@@ -92,7 +94,11 @@ export function getFriendlyErrorMessage(
   if (errorCode) {
     const normalizedCode = errorCode.toUpperCase();
     if (ERROR_CODE_MESSAGES[normalizedCode]) {
-      return ERROR_CODE_MESSAGES[normalizedCode];
+      const i18nKey = ERROR_CODE_MESSAGES[normalizedCode];
+      if (intl) {
+        return intl.formatMessage({ id: i18nKey, defaultMessage: i18nKey });
+      }
+      return i18nKey;
     }
   }
 
@@ -101,7 +107,11 @@ export function getFriendlyErrorMessage(
   if (responseErrorCode) {
     const normalizedCode = responseErrorCode.toUpperCase();
     if (ERROR_CODE_MESSAGES[normalizedCode]) {
-      return ERROR_CODE_MESSAGES[normalizedCode];
+      const i18nKey = ERROR_CODE_MESSAGES[normalizedCode];
+      if (intl) {
+        return intl.formatMessage({ id: i18nKey, defaultMessage: i18nKey });
+      }
+      return i18nKey;
     }
   }
 

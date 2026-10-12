@@ -226,11 +226,14 @@ const SystemConfigsPage: React.FC = () => {
   };
 
   /** Format config value, special handling for bool */
-  const formatDisplayValue = (value: unknown, valueType: string): string => {
-    if (value === null || value === undefined) return '-';
-    if (valueType === 'bool') return value ? 'true' : 'false';
-    return formatConfigValue(value);
-  };
+  const formatDisplayValue = useCallback(
+    (value: unknown, valueType: string): string => {
+      if (value === null || value === undefined) return '-';
+      if (valueType === 'bool') return value ? 'true' : 'false';
+      return formatConfigValue(value);
+    },
+    [],
+  );
 
   /** Table columns */
   const columns: ProColumns<ServerConfigItem>[] = useMemo(
@@ -400,7 +403,15 @@ const SystemConfigsPage: React.FC = () => {
         ),
       },
     ],
-    [intl, token, isMobile, renderConfigSource, canEdit, canDelete],
+    [
+      intl,
+      token,
+      isMobile,
+      renderConfigSource,
+      canEdit,
+      canDelete,
+      formatDisplayValue,
+    ],
   );
 
   // Register Page API for function handlers
@@ -477,7 +488,8 @@ const SystemConfigsPage: React.FC = () => {
       setActiveCategory(urlCategory);
       reload();
     }
-  }, [searchParams]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, activeCategory, reload]);
 
   return (
     <PageContainer>
@@ -491,7 +503,7 @@ const SystemConfigsPage: React.FC = () => {
             newSearchParams.set('category', key);
           }
           setSearchParams(newSearchParams, { replace: true });
-          reload();
+          // reload() will be triggered by useEffect when searchParams change
         }}
         items={CATEGORIES.map((cat) => ({
           key: cat.key,

@@ -4,6 +4,7 @@ import {
   HistoryOutlined,
   MoreOutlined,
 } from '@ant-design/icons';
+import type { ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
 import {
@@ -105,7 +106,10 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
     value: unknown;
     changeNote?: string;
   }) => {
-    if (!userId) return;
+    if (!userId) {
+      message.error('User context lost, please refresh');
+      return;
+    }
     const changeNote = data.changeNote
       ? `${data.changeNote} ${intl.formatMessage({ id: 'pages.config.system.forceOverwriteSuffix' })}`
       : intl.formatMessage({
@@ -118,9 +122,12 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
   };
 
   /** 强制删除操作 */
-  const doForceDelete = async (data: { key: string }) => {
-    if (!userId) return;
-    await deleteUserConfig(userId, data.key);
+  const doForceDelete = async (data: { key: string; version: number }) => {
+    if (!userId) {
+      message.error('User context lost, please refresh');
+      return;
+    }
+    await deleteUserConfig(userId, data.key, data.version);
   };
 
   // 乐观锁冲突处理
@@ -230,6 +237,155 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
     setHistoryOpen(true);
   };
 
+  /** Table columns */
+  const columns = useMemo<ProColumns<UserConfigItem>[]>(
+    () => [
+      {
+        title: intl.formatMessage({
+          id: 'pages.config.user.key',
+        }),
+        dataIndex: 'key',
+        width: 220,
+        render: (_, record) => (
+          <code style={{ fontSize: 12 }}>{record.key}</code>
+        ),
+      },
+      {
+        title: intl.formatMessage({
+          id: 'pages.config.user.effectiveValue',
+        }),
+        dataIndex: 'effective_value',
+        ellipsis: true,
+        render: (_, record) => {
+          const formatted = formatConfigValue(record.effective_value);
+          return (
+            <span
+              style={{ fontFamily: 'monospace', fontSize: 12 }}
+              title={formatted}
+            >
+              {formatted.length > 50
+                ? `${formatted.slice(0, 50)}...`
+                : formatted}
+            </span>
+          );
+        },
+      },
+      {
+        title: intl.formatMessage({
+          id: 'pages.config.system.source',
+        }),
+        dataIndex: 'source',
+        width: 100,
+        render: (_, record) => renderConfigSource(record.source),
+      },
+      {
+        title: intl.formatMessage({
+          id: 'pages.config.user.systemValue',
+        }),
+        dataIndex: 'system_value',
+        width: 120,
+        ellipsis: true,
+        render: (_, record) => {
+          const formatted = formatConfigValue(record.system_value);
+          return (
+            <span
+              style={{ fontFamily: 'monospace', fontSize: 12 }}
+              title={formatted}
+            >
+              {formatted !== '-' && formatted.length > 20
+                ? `${formatted.slice(0, 20)}...`
+                : formatted}
+            </span>
+          );
+        },
+      },
+      {
+        title: intl.formatMessage({
+          id: 'pages.config.system.actions',
+        }),
+        dataIndex: 'option',
+        width: 120,
+        fixed: 'right',
+        render: (_, record) => (
+          <Space>
+            {canEdit && (
+              <Button
+                type="link"
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => handleEdit(record)}
+              >
+                {intl.formatMessage({
+                  id: 'pages.config.user.edit',
+                })}
+              </Button>
+            )}
+            {record.source === 'user' && (
+              <Dropdown
+                menu={{
+                  items: [
+                    {
+                      key: 'history',
+                      icon: <HistoryOutlined />,
+                      label: intl.formatMessage({
+                        id: 'pages.config.user.history',
+                      }),
+                      onClick: () => handleViewHistory(record),
+                    },
+                    ...(canDelete
+                      ? [
+                          {
+                            key: 'delete',
+                            icon: <DeleteOutlined />,
+                            label: (
+                              <Popconfirm
+                                title={intl.formatMessage({
+                                  id: 'pages.config.user.confirmDelete',
+                                })}
+                                description={intl.formatMessage({
+                                  id: 'pages.config.user.confirmDeleteDesc',
+                                })}
+                                onConfirm={() => handleDelete(record)}
+                                okText={intl.formatMessage({
+                                  id: 'pages.config.user.confirm',
+                                })}
+                                cancelText={intl.formatMessage({
+                                  id: 'pages.config.user.cancel',
+                                })}
+                              >
+                                <span className="text-red-500">
+                                  {intl.formatMessage({
+                                    id: 'pages.config.user.deleteOverride',
+                                  })}
+                                </span>
+                              </Popconfirm>
+                            ),
+                            danger: true,
+                          },
+                        ]
+                      : []),
+                  ],
+                }}
+                trigger={['click']}
+              >
+                <Button
+                  type="link"
+                  size="small"
+                  icon={<MoreOutlined />}
+                  aria-label={intl.formatMessage({
+                    id: 'pages.config.user.moreActions',
+                    defaultMessage: 'More actions',
+                  })}
+                />
+              </Dropdown>
+            )}
+          </Space>
+        ),
+      },
+    ],
+    [intl, renderConfigSource, canEdit, canDelete],
+  );
+
   if (!user) return null;
 
   return (
@@ -273,154 +429,7 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
                 pagination={false}
                 loading={loading}
                 size="small"
-                columns={[
-                  {
-                    title: intl.formatMessage({
-                      id: 'pages.config.user.key',
-                    }),
-                    dataIndex: 'key',
-                    width: 220,
-                    render: (_, record) => (
-                      <code style={{ fontSize: 12 }}>{record.key}</code>
-                    ),
-                  },
-                  {
-                    title: intl.formatMessage({
-                      id: 'pages.config.user.effectiveValue',
-                    }),
-                    dataIndex: 'effective_value',
-                    ellipsis: true,
-                    render: (_, record) => {
-                      const formatted = formatConfigValue(
-                        record.effective_value,
-                      );
-                      return (
-                        <span
-                          style={{ fontFamily: 'monospace', fontSize: 12 }}
-                          title={formatted}
-                        >
-                          {formatted.length > 50
-                            ? `${formatted.slice(0, 50)}...`
-                            : formatted}
-                        </span>
-                      );
-                    },
-                  },
-                  {
-                    title: intl.formatMessage({
-                      id: 'pages.config.system.source',
-                    }),
-                    dataIndex: 'source',
-                    width: 100,
-                    render: (_, record) => renderConfigSource(record.source),
-                  },
-                  {
-                    title: intl.formatMessage({
-                      id: 'pages.config.user.systemValue',
-                    }),
-                    dataIndex: 'system_value',
-                    width: 120,
-                    ellipsis: true,
-                    render: (_, record) => {
-                      const formatted = formatConfigValue(record.system_value);
-                      return (
-                        <span
-                          style={{ fontFamily: 'monospace', fontSize: 12 }}
-                          title={formatted}
-                        >
-                          {formatted !== '-' && formatted.length > 20
-                            ? `${formatted.slice(0, 20)}...`
-                            : formatted}
-                        </span>
-                      );
-                    },
-                  },
-                  {
-                    title: intl.formatMessage({
-                      id: 'pages.config.system.actions',
-                    }),
-                    dataIndex: 'option',
-                    width: 120,
-                    fixed: 'right',
-                    render: (_, record) => (
-                      <Space>
-                        {canEdit && (
-                          <Button
-                            type="link"
-                            size="small"
-                            icon={<EditOutlined />}
-                            onClick={() => handleEdit(record)}
-                          >
-                            {intl.formatMessage({
-                              id: 'pages.config.user.edit',
-                            })}
-                          </Button>
-                        )}
-                        {record.source === 'user' && (
-                          <Dropdown
-                            menu={{
-                              items: [
-                                {
-                                  key: 'history',
-                                  icon: <HistoryOutlined />,
-                                  label: intl.formatMessage({
-                                    id: 'pages.config.user.history',
-                                  }),
-                                  onClick: () => handleViewHistory(record),
-                                },
-                                ...(canDelete
-                                  ? [
-                                      {
-                                        key: 'delete',
-                                        icon: <DeleteOutlined />,
-                                        label: (
-                                          <Popconfirm
-                                            title={intl.formatMessage({
-                                              id: 'pages.config.user.confirmDelete',
-                                            })}
-                                            description={intl.formatMessage({
-                                              id: 'pages.config.user.confirmDeleteDesc',
-                                            })}
-                                            onConfirm={() =>
-                                              handleDelete(record)
-                                            }
-                                            okText={intl.formatMessage({
-                                              id: 'pages.config.user.confirm',
-                                            })}
-                                            cancelText={intl.formatMessage({
-                                              id: 'pages.config.user.cancel',
-                                            })}
-                                          >
-                                            <span className="text-red-500">
-                                              {intl.formatMessage({
-                                                id: 'pages.config.user.deleteOverride',
-                                              })}
-                                            </span>
-                                          </Popconfirm>
-                                        ),
-                                        danger: true,
-                                      },
-                                    ]
-                                  : []),
-                              ],
-                            }}
-                            trigger={['click']}
-                          >
-                            <Button
-                              type="link"
-                              size="small"
-                              icon={<MoreOutlined />}
-                              aria-label={intl.formatMessage({
-                                id: 'pages.config.user.moreActions',
-                                defaultMessage: 'More actions',
-                              })}
-                            />
-                          </Dropdown>
-                        )}
-                      </Space>
-                    ),
-                  },
-                ]}
+                columns={columns}
               />
             ),
           }))}

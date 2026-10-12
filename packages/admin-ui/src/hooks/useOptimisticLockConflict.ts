@@ -25,7 +25,7 @@ export interface UseOptimisticLockConflictOptions {
   /** 强制覆盖后缀文本 i18n key */
   forceOverwriteSuffixId: string;
   /** 强制删除成功的提示消息 i18n key */
-  forceDeleteSuccessId?: string;
+  forceDeleteSuccessId: string;
 }
 
 export interface PendingOverwriteData {
@@ -154,9 +154,7 @@ export const useOptimisticLockConflict = (
       } else if (pendingAction.type === 'delete') {
         if (onForceDelete) {
           await onForceDelete(pendingAction.data);
-          const successId =
-            forceDeleteSuccessId || 'pages.config.system.deleteSuccess';
-          message.success(intl.formatMessage({ id: successId }));
+          message.success(intl.formatMessage({ id: forceDeleteSuccessId }));
         }
       }
       setConflictModalOpen(false);

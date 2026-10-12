@@ -6,8 +6,9 @@ import {
 } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
 import { App, Button, Grid, Tag } from 'antd';
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import type { ConfigHistoryItem } from '@/services/serverConfig';
+import { formatConfigValue, truncateValue } from '@/utils/configFormat';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 
 export interface ConfigHistoryTableProps {
@@ -79,90 +80,101 @@ const ConfigHistoryTable: React.FC<ConfigHistoryTableProps> = ({
   const isMobile = !breakpoints.sm;
   const modalWidth = isMobile ? '95vw' : 800;
 
-  const columns: ProColumns<ConfigHistoryItem>[] = [
-    {
-      title: intl.formatMessage({ id: 'pages.config.system.historyVersion' }),
-      dataIndex: 'version',
-      width: 80,
-      render: (_, record) => (
-        <Tag color={record.version === currentVersion ? 'blue' : 'default'}>
-          v{record.version}
-        </Tag>
-      ),
-    },
-    {
-      title: intl.formatMessage({ id: 'pages.config.system.historyOldValue' }),
-      dataIndex: 'old_value',
-      ellipsis: true,
-      render: (_, record) => {
-        const val = record.old_value;
-        if (val === null || val === undefined) return '-';
-        const text =
-          typeof val === 'object' ? JSON.stringify(val) : String(val);
-        return (
-          <span title={text} style={{ fontFamily: 'monospace', fontSize: 12 }}>
-            {text.length > 50 ? `${text.slice(0, 50)}...` : text}
-          </span>
-        );
+  const columns = useMemo<ProColumns<ConfigHistoryItem>[]>(
+    () => [
+      {
+        title: intl.formatMessage({ id: 'pages.config.system.historyVersion' }),
+        dataIndex: 'version',
+        width: 80,
+        render: (_, record) => (
+          <Tag color={record.version === currentVersion ? 'blue' : 'default'}>
+            v{record.version}
+          </Tag>
+        ),
       },
-    },
-    {
-      title: intl.formatMessage({ id: 'pages.config.system.historyNewValue' }),
-      dataIndex: 'new_value',
-      ellipsis: true,
-      render: (_, record) => {
-        const val = record.new_value;
-        if (val === null || val === undefined) return '-';
-        const text =
-          typeof val === 'object' ? JSON.stringify(val) : String(val);
-        return (
-          <span title={text} style={{ fontFamily: 'monospace', fontSize: 12 }}>
-            {text.length > 50 ? `${text.slice(0, 50)}...` : text}
-          </span>
-        );
+      {
+        title: intl.formatMessage({
+          id: 'pages.config.system.historyOldValue',
+        }),
+        dataIndex: 'old_value',
+        ellipsis: true,
+        render: (_, record) => {
+          const text = formatConfigValue(record.old_value);
+          return (
+            <span
+              title={text}
+              style={{ fontFamily: 'monospace', fontSize: 12 }}
+            >
+              {truncateValue(text, 50)}
+            </span>
+          );
+        },
       },
-    },
-    {
-      title: intl.formatMessage({ id: 'pages.config.system.historyChangedBy' }),
-      dataIndex: 'changed_by',
-      width: 150,
-      ellipsis: true,
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.config.system.historyChangeNote',
-      }),
-      dataIndex: 'change_note',
-      ellipsis: true,
-      render: (_, record) => record.change_note || '-',
-    },
-    {
-      title: intl.formatMessage({ id: 'pages.config.system.historyChangedAt' }),
-      dataIndex: 'changed_at',
-      valueType: 'dateTime',
-      width: 180,
-      sorter: (a, b) =>
-        new Date(a.changed_at).getTime() - new Date(b.changed_at).getTime(),
-      defaultSortOrder: 'descend',
-    },
-    {
-      title: intl.formatMessage({ id: 'pages.config.system.historyActions' }),
-      dataIndex: 'option',
-      width: 80,
-      render: (_, record) => (
-        <Button
-          type="link"
-          size="small"
-          onClick={() => {
-            setRollbackTarget(record);
-            setRollbackModalOpen(true);
-          }}
-        >
-          {intl.formatMessage({ id: 'pages.config.system.historyRollback' })}
-        </Button>
-      ),
-    },
-  ];
+      {
+        title: intl.formatMessage({
+          id: 'pages.config.system.historyNewValue',
+        }),
+        dataIndex: 'new_value',
+        ellipsis: true,
+        render: (_, record) => {
+          const text = formatConfigValue(record.new_value);
+          return (
+            <span
+              title={text}
+              style={{ fontFamily: 'monospace', fontSize: 12 }}
+            >
+              {truncateValue(text, 50)}
+            </span>
+          );
+        },
+      },
+      {
+        title: intl.formatMessage({
+          id: 'pages.config.system.historyChangedBy',
+        }),
+        dataIndex: 'changed_by',
+        width: 150,
+        ellipsis: true,
+      },
+      {
+        title: intl.formatMessage({
+          id: 'pages.config.system.historyChangeNote',
+        }),
+        dataIndex: 'change_note',
+        ellipsis: true,
+        render: (_, record) => record.change_note || '-',
+      },
+      {
+        title: intl.formatMessage({
+          id: 'pages.config.system.historyChangedAt',
+        }),
+        dataIndex: 'changed_at',
+        valueType: 'dateTime',
+        width: 180,
+        sorter: (a, b) =>
+          new Date(a.changed_at).getTime() - new Date(b.changed_at).getTime(),
+        defaultSortOrder: 'descend',
+      },
+      {
+        title: intl.formatMessage({ id: 'pages.config.system.historyActions' }),
+        dataIndex: 'option',
+        width: 80,
+        render: (_, record) => (
+          <Button
+            type="link"
+            size="small"
+            onClick={() => {
+              setRollbackTarget(record);
+              setRollbackModalOpen(true);
+            }}
+          >
+            {intl.formatMessage({ id: 'pages.config.system.historyRollback' })}
+          </Button>
+        ),
+      },
+    ],
+    [intl, currentVersion],
+  );
 
   if (!configKey) return null;
 

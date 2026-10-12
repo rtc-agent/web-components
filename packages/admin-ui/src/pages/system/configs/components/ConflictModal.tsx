@@ -65,8 +65,10 @@ const ConflictModal: React.FC<ConflictModalProps> = ({
             <Button
               type="primary"
               danger
+              loading={false} // Will be controlled by parent if needed
               onClick={() => {
-                onOpenChange(false);
+                // Let handleForceAction control modal lifecycle
+                // It will call setConflictModalOpen(false) on success
                 onForceAction();
               }}
             >

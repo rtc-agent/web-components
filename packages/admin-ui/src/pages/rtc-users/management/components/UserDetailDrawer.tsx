@@ -1,5 +1,5 @@
 import { Line } from '@ant-design/plots';
-import { useIntl, useRequest } from '@umijs/max';
+import { getLocale, useIntl, useRequest } from '@umijs/max';
 import {
   Badge,
   Card,
@@ -113,7 +113,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
       dataIndex: 'last_active_at',
       key: 'last_active_at',
       render: (_: unknown, record: DeviceInfo) =>
-        dayjs(record.last_active_at).format('YYYY-MM-DD HH:mm:ss'),
+        dayjs(record.last_active_at).locale(getLocale()).format('L LT'),
     },
     {
       title: intl.formatMessage({
@@ -123,7 +123,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
       dataIndex: 'created_at',
       key: 'created_at',
       render: (_: unknown, record: DeviceInfo) =>
-        dayjs(record.created_at).format('YYYY-MM-DD HH:mm:ss'),
+        dayjs(record.created_at).locale(getLocale()).format('L LT'),
     },
     {
       title: intl.formatMessage({
@@ -186,7 +186,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
       dataIndex: 'created_at',
       key: 'created_at',
       render: (_: unknown, record: TopSession) =>
-        dayjs(record.created_at).format('YYYY-MM-DD HH:mm:ss'),
+        dayjs(record.created_at).locale(getLocale()).format('L LT'),
     },
   ];
 
@@ -355,7 +355,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
                 defaultMessage: 'Created at',
               })}
             >
-              {dayjs(user.created_at).format('YYYY-MM-DD HH:mm:ss')}
+              {dayjs(user.created_at).locale(getLocale()).format('L LT')}
             </Descriptions.Item>
           </Descriptions>
 

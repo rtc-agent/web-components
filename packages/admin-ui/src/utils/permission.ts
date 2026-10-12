@@ -5,6 +5,7 @@
 /**
  * 构建权限集合（Set<string>，O(1) 查询）
  * 将后端返回的权限数组转换为 Set<string>，格式为 "resource:action"
+ * 过滤掉无效元素（null/undefined 或缺少必要字段）
  *
  * @param permissions 后端返回的权限数组
  * @returns 权限集合
@@ -12,7 +13,11 @@
 export function buildPermissionSet(
   permissions: Array<{ resource: string; action: string }> | undefined,
 ): Set<string> {
-  return new Set((permissions || []).map((p) => `${p.resource}:${p.action}`));
+  return new Set(
+    (permissions || [])
+      .filter((p) => p && p.resource && p.action) // 过滤无效元素
+      .map((p) => `${p.resource}:${p.action}`),
+  );
 }
 
 /**
