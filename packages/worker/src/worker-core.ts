@@ -642,13 +642,19 @@ export class WorkerCore implements WorkerPersistenceCore {
     log.debug('batchWriteFiles completed');
     // Single broadcast for batch write to avoid per-file notifications
     // Fix 55: Broadcast only after transaction succeeds
+    // Include affected file paths in newValue so subscribers know which files changed
+    // (without requiring individual events per file).
+    const affectedPaths = files.map((f) => f.path);
+    if (deletePaths && deletePaths.length > 0) {
+      affectedPaths.push(...deletePaths);
+    }
     this.broadcastUIUpdate({
       entity: 'file',
       action: 'updated',
       entityId: '',
       field: 'batch',
       oldValue: undefined,
-      newValue: undefined,
+      newValue: { paths: affectedPaths },
     });
   }
 

@@ -219,6 +219,21 @@ export class WorkerBridge {
    */
   private static _virtualFSProxyInstalled = false;
 
+  /**
+   * Backup of original virtualFS methods, saved before proxy installation.
+   * Used by restoreVirtualFS() to recover the original implementation on destroy().
+   */
+  private static _originalVirtualFS: {
+    read: typeof virtualFS.read;
+    write: typeof virtualFS.write;
+    ls: typeof virtualFS.ls;
+    find: typeof virtualFS.find;
+    grep: typeof virtualFS.grep;
+    queryByType: typeof virtualFS.queryByType;
+    exists: typeof virtualFS.exists;
+    remove: typeof virtualFS.remove;
+  } | null = null;
+
   private static readonly MAX_INIT_RETRIES = 3;
   private static readonly INIT_RETRY_DELAY_MS = 1000;
   /** Timeout for worker liveness verification (ping/pong). */
@@ -275,6 +290,10 @@ export class WorkerBridge {
       // This callback updates _lastProcessedSeq synchronously (no await) to ensure
       // the catch-up loop's idempotency guard (_isEventProcessed) works correctly.
       // See _isEventProcessed() for detailed race condition analysis.
+      //
+      // TODO(perf): For messages >100KB, consider offloading JSON parsing
+      // to a Worker thread to avoid blocking the main thread.
+      // See: https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API
       onUIUpdate: (payload: UIUpdatePayload) => {
         const bus = getUIUpdateBus();
         bus.publish(payload.event, {
@@ -389,6 +408,8 @@ export class WorkerBridge {
 
     // 2. Create Comlink-proxied callbacks (for cross-Worker transfer).
     // Structured Clone cannot handle functions; proxy() bridges via MessagePort.
+    // NOTE: proxy() creates internal MessagePorts that must be released in destroy()
+    // to prevent resource leaks. See _releaseProxiedCallbacks().
     this._proxiedCallbacks = proxy(this._callbacks);
 
     // Note: SharedWorker instance, Comlink wrap, and error handling are created in
@@ -828,10 +849,22 @@ export class WorkerBridge {
       }
     }
 
+    // 3b. Restore virtualFS to original implementation if this bridge installed the proxy.
+    //     This prevents post-destroy file operations from routing to a dead Worker.
+    WorkerBridge.restoreVirtualFS();
+
     // 4. Null out references to prevent memory leaks and use-after-destroy bugs.
     //    Any subsequent access via this.core will throw (expected — bridge is dead).
     this._worker = null;
     this._core = null;
+    // Release proxied callbacks reference. Comlink's proxy() creates internal
+    // MessagePorts for cross-thread function invocation. These ports are held by
+    // the proxy object. Nulling the reference allows GC to collect the proxy and
+    // its internal ports. The worker-side close() call above removes the callback
+    // from the Worker's Set, severing the worker's reference to the proxy's port.
+    // Note: _callbacks is kept alive — it's a plain JS object with no external
+    // references, so it will be GC'd when the WorkerBridge instance is collected.
+    (this as any)._proxiedCallbacks = null;
 
     // 5. Clear connection listeners and catch-up state
     this._connectionListeners.clear();
@@ -942,6 +975,21 @@ export class WorkerBridge {
 
     const core = this._ensureCore();
 
+    // Save original implementations before overwriting (only once — first installer wins).
+    // This allows restoreVirtualFS() to recover the original IndexedDB-backed methods.
+    if (!WorkerBridge._originalVirtualFS) {
+      WorkerBridge._originalVirtualFS = {
+        read: virtualFS.read,
+        write: virtualFS.write,
+        ls: virtualFS.ls,
+        find: virtualFS.find,
+        grep: virtualFS.grep,
+        queryByType: virtualFS.queryByType,
+        exists: virtualFS.exists,
+        remove: virtualFS.remove,
+      };
+    }
+
     // Mark as installed
     WorkerBridge._virtualFSProxyInstalled = true;
 
@@ -982,6 +1030,33 @@ export class WorkerBridge {
 
     virtualFS.remove = ((path: string) =>
       core.virtualFSRemove(path)) as typeof virtualFS.remove;
+  }
+
+  /**
+   * Restore the original virtualFS implementations, replacing Comlink proxies.
+   *
+   * Called during destroy() to prevent post-destroy file operations from routing
+   * to a dead Worker. After restoration, virtualFS operations use the original
+   * IndexedDB-backed implementation directly.
+   *
+   * Safe to call multiple times — no-op if no proxy was installed.
+   */
+  static restoreVirtualFS(): void {
+    if (!WorkerBridge._originalVirtualFS) {
+      return;
+    }
+    const orig = WorkerBridge._originalVirtualFS;
+    virtualFS.read = orig.read;
+    virtualFS.write = orig.write;
+    virtualFS.ls = orig.ls;
+    virtualFS.find = orig.find;
+    virtualFS.grep = orig.grep;
+    virtualFS.queryByType = orig.queryByType;
+    virtualFS.exists = orig.exists;
+    virtualFS.remove = orig.remove;
+    WorkerBridge._originalVirtualFS = null;
+    WorkerBridge._virtualFSProxyInstalled = false;
+    log.debug('virtualFS proxy restored to original implementation');
   }
 
   // ========== File Cache & S3 Proxy ==========
