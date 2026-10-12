@@ -105,7 +105,16 @@ export class OffsetManager {
     // Save previous cache state for potential rollback
     const previousValue = this.cache.get(channel);
 
-    // Write-through: update cache first (synchronous)
+    // Write-through: update cache first (synchronous).
+    //
+    // NOTE: There is a theoretical TOCTOU window between the cache update and the
+    // IndexedDB write where a concurrent getPosition() could read the uncommitted value.
+    // This is intentionally accepted because:
+    // 1. Offset updates for the same channel are serialized by WebSocket message ordering
+    //    (only one updatePosition call per channel at a time in normal operation).
+    // 2. Even if a stale read occurs, the next updatePosition will correct it.
+    // 3. The alternative (locking the cache during the async write) would block all
+    //    synchronous getPosition calls, defeating the purpose of the in-memory cache.
     this.cache.set(channel, { offset, epoch });
 
     // Then persist to IndexedDB (asynchronous)

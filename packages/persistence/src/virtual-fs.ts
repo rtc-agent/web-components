@@ -222,7 +222,6 @@ export class VirtualFS {
     return db.transaction(
       'rw',
       db.fileSystemEntries,
-      db.ui_updates,
       async () => {
         const existing = await db.fileSystemEntries.get(normalizedPath);
 
@@ -661,7 +660,6 @@ export class VirtualFS {
     return db.transaction(
       'rw',
       db.fileSystemEntries,
-      db.ui_updates,
       async () => {
         const entry = await db.fileSystemEntries.get(normalizedPath);
         if (!entry) {
@@ -748,7 +746,6 @@ export class VirtualFS {
     await db.transaction(
       'rw',
       db.fileSystemEntries,
-      db.ui_updates,
       async () => {
         const entry = await db.fileSystemEntries.get(normalizedPath);
         if (!entry) {
@@ -778,7 +775,6 @@ export class VirtualFS {
     await db.transaction(
       'rw',
       db.fileSystemEntries,
-      db.ui_updates,
       async () => {
         const entry = await db.fileSystemEntries.get(normalizedPath);
         if (entry) {

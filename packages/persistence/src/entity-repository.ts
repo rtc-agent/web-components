@@ -394,9 +394,9 @@ export class EntityRepository {
   ): Promise<LocalSession[]> {
     const db = getDatabase();
 
-    // PERFORMANCE: Use compound index [deleted_at+updated_at] for DB-level cursor pagination.
-    // For active sessions, deleted_at is undefined/falsy. We filter after querying to handle
-    // all falsy cases (undefined, null, 0).
+    // PERFORMANCE: Use compound index [deleted_at+updated_at] (added in v16) for DB-level
+    // cursor pagination. For active sessions, deleted_at is undefined/falsy. We filter after
+    // querying to handle all falsy cases (undefined, null, 0).
     //
     // Cursor pagination: find cursor session's updated_at, then query sessions with
     // updated_at < cursor.updated_at (for backward pagination through time).
@@ -559,22 +559,6 @@ export class EntityRepository {
     return db.turns.get(clientId);
   }
 
-  /**
-   * Count pending/running turns for a session in a single pass.
-   * Used for write-time aggregation: after writing turn rows, the counts are written
-   * back to the session row.
-   *
-   * IMPORTANT: The two queries are run sequentially (not in parallel) to ensure
-   * consistent counts when called within a transaction. Running them in parallel
-   * with Promise.all could interleave with other concurrent transactions (e.g.,
-   * from another tab via Dexie's observability), causing the two counts to see
-   * different snapshots of the turns table.
-   *
-   * Indexed queries (v15+): uses [session_client_id+status] compound index,
-   * directly matching both session and status without in-memory filtering.
-   * Prior implementation used where('session_client_id').filter(status===...),
-   * which required a full scan of the session's turns.
-   */
   /**
    * Count pending/running turns for a session in a single pass.
    * Used for write-time aggregation: after writing turn rows, the counts are written
@@ -1981,38 +1965,32 @@ export class EntityRepository {
     }
     if (affectedSessionIds.size === 0) return;
 
-    // Parallel calculate turn counts for all affected sessions
+    // Re-count and update turn counts for all affected sessions.
+    //
+    // NOTE: No per-session nested transaction needed — this method is called within
+    // the outer db.transaction('rw', tablesToLock) in applyUpdates(), which already
+    // holds write locks on db.sessions and db.turns. Dexie's transaction isolation
+    // ensures atomicity; concurrent applyUpdates() calls are serialized by the
+    // outer transaction scope.
     const sessionIds = [...affectedSessionIds];
-
-    // Fix: Wrap each session's read-update in a transaction to prevent lost updates
-    // when concurrent writebackTurnCountsInTx calls interleave on the same session.
-    // Dexie's transaction isolation ensures that count + update happen atomically.
     const updatePromises = sessionIds.map(async (sessionId) => {
-      await db.transaction(
-        'rw',
-        db.sessions,
-        db.turns,
-        db.ui_updates,
-        async () => {
-          // Re-count within transaction to see the latest turns (including those just written)
-          const { pending, running } = await this.countActiveTurns(sessionId);
+      // Re-count within transaction to see the latest turns (including those just written)
+      const { pending, running } = await this.countActiveTurns(sessionId);
 
-          // Read current session to check if counts actually changed
-          const session = await db.sessions.get(sessionId);
-          if (!session) return; // session doesn't exist (may have been deleted), skip
+      // Read current session to check if counts actually changed
+      const session = await db.sessions.get(sessionId);
+      if (!session) return; // session doesn't exist (may have been deleted), skip
 
-          // Only update when count actually changed (reduce unnecessary writes)
-          if (
-            session.pending_turn_count !== pending ||
-            session.running_turn_count !== running
-          ) {
-            await db.sessions.update(sessionId, {
-              pending_turn_count: pending,
-              running_turn_count: running,
-            });
-          }
-        },
-      );
+      // Only update when count actually changed (reduce unnecessary writes)
+      if (
+        session.pending_turn_count !== pending ||
+        session.running_turn_count !== running
+      ) {
+        await db.sessions.update(sessionId, {
+          pending_turn_count: pending,
+          running_turn_count: running,
+        });
+      }
     });
 
     await Promise.all(updatePromises);
