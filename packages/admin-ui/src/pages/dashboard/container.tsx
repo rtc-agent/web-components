@@ -1,11 +1,23 @@
 /**
  * Dashboard 容器组件
  *
- * 统一管理所有 dashboard iframe：
- * - Jaeger/Pyroscope 各自一个 iframe
- * - Grafana 的每个子 tab 一个独立的 iframe（通过 CSS 控制显示/隐藏）
- * - 所有 iframe 一旦加载就保持缓存，切换时瞬间显示
- * - 支持超时销毁：长时间不访问的 iframe 自动销毁（当前使用的除外）
+ * 设计意图：
+ * 为何不使用 <Outlet />：
+ * - Dashboard 使用 iframe 嵌入 Grafana/Jaeger/Pyroscope 等外部系统
+ * - iframe 加载成本高（网络请求、资源渲染），频繁切换会导致重复加载
+ * - 采用 iframe 缓存策略：所有 iframe 在组件挂载时预加载，通过 CSS display 控制显隐
+ * - 切换 tab 时瞬间显示已缓存的 iframe，无需重新加载
+ *
+ * 子路由的作用：
+ * - 菜单展示：路由配置中的 name 字段用于生成侧边栏菜单项
+ * - 权限控制：父路由的 access 字段自动继承到所有子路由
+ * - URL 定位：通过 URL path 标识当前激活的 dashboard tab
+ *
+ * 实现机制：
+ * - DASHBOARD_CONFIGS 定义所有 iframe 的 pathPrefix、cacheKey、src
+ * - useLocation() 获取当前路径，通过 CSS 控制匹配 iframe 的 visibility
+ * - IframePanel 组件内部管理 iframe 生命周期和缓存
+ * - 支持超时销毁：长时间不访问的 iframe 自动释放内存
  */
 
 import { useIntl, useLocation } from '@umijs/max';

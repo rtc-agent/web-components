@@ -54,7 +54,6 @@ export default [
         name: 'grafana',
         icon: 'lineChart',
         path: '/dashboard/grafana',
-        access: 'canDashboardView',
         routes: [
           {
             path: '/dashboard/grafana',
@@ -63,42 +62,34 @@ export default [
           {
             name: 'rtc-agent',
             path: '/dashboard/grafana/rtc-agent',
-            access: 'canDashboardView',
           },
           {
             name: 'go-runtime',
             path: '/dashboard/grafana/go-runtime',
-            access: 'canDashboardView',
           },
           {
             name: 'http-server',
             path: '/dashboard/grafana/http-server',
-            access: 'canDashboardView',
           },
           {
             name: 'error-feedback',
             path: '/dashboard/grafana/error-feedback-overview',
-            access: 'canDashboardView',
           },
           {
             name: 'logs',
             path: '/dashboard/grafana/logs-overview',
-            access: 'canDashboardView',
           },
           {
             name: 'oss3',
             path: '/dashboard/grafana/oss3-overview',
-            access: 'canDashboardView',
           },
           {
             name: 'minio',
             path: '/dashboard/grafana/minio-overview',
-            access: 'canDashboardView',
           },
           {
             name: 'health-watchdog',
             path: '/dashboard/grafana/system-health-watchdog',
-            access: 'canDashboardView',
           },
         ],
       },
@@ -223,5 +214,6 @@ export default [
   {
     component: './exception/404',
     path: '/*',
+    layout: false,
   },
 ];
