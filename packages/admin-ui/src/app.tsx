@@ -12,8 +12,12 @@ import 'dayjs/locale/fr';
 import 'dayjs/locale/de';
 import 'dayjs/locale/es';
 import 'dayjs/locale/pt';
+import 'dayjs/locale/pt-br';
 import 'dayjs/locale/ru';
 import 'dayjs/locale/ar';
+import 'dayjs/locale/id';
+import 'dayjs/locale/bn';
+import 'dayjs/locale/bn-bd';
 import React from 'react';
 
 // Initialize dayjs plugins globally
@@ -71,8 +75,11 @@ const loadDayjsLocale = () => {
     'de-DE': 'de',
     'es-ES': 'es',
     'pt-PT': 'pt',
+    'pt-BR': 'pt-br',
     'ru-RU': 'ru',
     'ar-SA': 'ar',
+    'id-ID': 'id',
+    'bn-BD': 'bn-bd',
   };
   const dayjsLocale = dayjsLocaleMap[locale] || locale.toLowerCase();
   dayjs.locale(dayjsLocale);
