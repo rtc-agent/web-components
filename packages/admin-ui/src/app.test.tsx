@@ -88,6 +88,7 @@ describe('app getInitialState', () => {
       id: '1',
       name: 'Test User',
       email: 'test@example.com',
+      avatar_url: '',
     });
 
     const state = await getInitialState();
@@ -154,6 +155,7 @@ describe('app getInitialState', () => {
       id: '1',
       name: 'User',
       email: 'user@example.com',
+      avatar_url: '',
     });
 
     const state = await getInitialState();
@@ -167,6 +169,7 @@ describe('app getInitialState', () => {
       id: '1',
       name: 'Fetched User',
       email: 'fetched@example.com',
+      avatar_url: '',
     });
 
     const state = await getInitialState();

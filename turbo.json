@@ -25,8 +25,7 @@
         "lit-localize.json",
         "!src/**/*.test.ts",
         "!src/**/*.integration.test.ts"
-      ],
-      "//": "Note: admin-ui uses Umi Max (max build) which has its own caching mechanism. Turbo will still orchestrate the build order, but admin-ui's build outputs are not cached by turbo."
+      ]
     },
     "typecheck": {
       "dependsOn": ["^build"],

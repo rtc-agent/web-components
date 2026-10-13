@@ -10,6 +10,7 @@
 
 import { history } from '@umijs/max';
 import React, { useCallback, useEffect, useState } from 'react';
+import { isPublicPath } from '@/constants/routes';
 import {
   AUTH_STATE_CHANGED_EVENT,
   getUserInfo,
@@ -21,13 +22,6 @@ import { mountRtcAgent, unmountRtcAgent } from '@/utils/rtc-agent-manager';
 
 // 权限就绪事件名称
 export const PERMISSIONS_READY_EVENT = 'admin-permissions-ready';
-
-// 不需要显示 RTCAgent 的路由
-const EXCLUDED_PATHS = [
-  '/user/login',
-  '/user/register',
-  '/user/register-result',
-];
 
 /**
  * 全局 RTC Agent 容器组件
@@ -48,13 +42,10 @@ export const GlobalRtcAgent: React.FC = () => {
   const [userInfoReady, setUserInfoReady] = useState(false);
   const [isExcludedRoute, setIsExcludedRoute] = useState(false);
 
-  // 检查当前路由是否需要排除
+  // 检查当前路由是否需要排除（使用共享的 isPublicPath 函数，避免重复定义公开路由）
   const checkRoute = useCallback(() => {
     const { pathname } = history.location;
-    const excluded = EXCLUDED_PATHS.some(
-      (path) => pathname === path || pathname.startsWith(`${path}/`),
-    );
-    setIsExcludedRoute(excluded);
+    setIsExcludedRoute(isPublicPath(pathname));
   }, []);
 
   // 检查浏览器是否支持所需特性

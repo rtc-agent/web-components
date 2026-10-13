@@ -87,8 +87,20 @@ const saveThemeSettings = (settings: Partial<LayoutSettings>): void => {
 // Timeout for initialization to prevent permanent pending state
 const INIT_TIMEOUT_MS = 30000; // 30 seconds
 
+// Track whether degraded-state warning has been shown (once per session)
+let degradedWarningShown = false;
+
 // Initialization promise for deduplication during rapid route changes
 // Single Promise pattern: concurrent calls await the same promise
+//
+// Design note on shared AbortController:
+// All concurrent awaiters share a single AbortController and timeout.
+// This is intentional: the deduplication pattern ensures only ONE fetch request
+// is in-flight regardless of how many getInitialState calls occur concurrently
+// (e.g., rapid route changes). Since all awaiters want the same data (currentUser),
+// they should share the same fate — if the fetch times out or fails, all callers
+// receive the same result (undefined or cached fallback). Creating per-caller
+// AbortControllers would defeat deduplication and cause redundant network requests.
 let initPromise: Promise<API.CurrentUser | undefined> | null = null;
 
 // Module-level references for proper cleanup during HMR
@@ -367,6 +379,29 @@ export const layout: RunTimeLayoutConfig = ({
           `${PUBLIC_PATHS.login}?redirect=${encodeURIComponent(location.pathname + location.search + location.hash)}`,
         );
         return;
+      }
+
+      // Degraded state: token exists but user info failed to load.
+      // Allow access (token is valid), but notify the user that data may be incomplete.
+      // This can happen when the /api/auth/me endpoint fails but the token is still valid.
+      if (hasToken && !hasUser) {
+        console.warn(
+          '[onPageChange] Degraded state: token present but currentUser unavailable. ' +
+            'User info may be incomplete. The request interceptor will redirect to login if the token expires.',
+        );
+        // Use message.warning for user-visible notification (imported from antd via app.tsx scope)
+        // Only show once per session to avoid repeated toasts on every route change
+        if (!degradedWarningShown) {
+          degradedWarningShown = true;
+          import('antd').then(({ message: antdMessage }) => {
+            antdMessage.warning(
+              '用户信息加载失败，部分功能可能受限。如问题持续，请重新登录。',
+            );
+          });
+        }
+      } else if (hasUser) {
+        // Reset warning flag once user info is available (e.g., after successful refresh)
+        degradedWarningShown = false;
       }
     },
     bgLayoutImgList: [

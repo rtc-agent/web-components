@@ -14,7 +14,7 @@ import type { UserInfo } from '@/services/types';
 export function buildCurrentUser(userInfo: UserInfo): API.CurrentUser {
   const permissionsArray = userInfo.permissions || [];
   const permissionSet = buildPermissionSet(permissionsArray);
-  const access = computeAccessLevel(userInfo.roles);
+  const access = computeAccessLevel(userInfo.roles, permissionsArray);
 
   return {
     userid: userInfo.id,
@@ -48,17 +48,35 @@ export function buildPermissionSet(
 /**
  * 计算管理员访问级别
  * 向后兼容：旧后端不返回 roles（roles 为 undefined），默认 admin
- * 新后端返回 roles 数组：根据是否包含 'admin' 管理员角色判断
+ * 新后端返回 roles 数组：检查是否包含 admin_user:write 权限来判断管理员身份
+ * 使用权限检查替代硬编码角色名 'admin'，与 access.ts 保持一致
  *
  * @param roles 管理员角色数组
+ * @param permissions 管理员权限数组（可选，用于权限级判断）
  * @returns 访问级别：'admin' | 'user'
  */
 export function computeAccessLevel(
   roles: Array<{ name: string }> | undefined,
+  permissions?: Array<{ resource: string; action: string }>,
 ): 'admin' | 'user' {
   if (roles === undefined) {
     return 'admin'; // 旧后端兼容：不返回 roles，默认 admin
   }
+
+  // 优先基于权限判断：如果拥有 admin_user:write 权限，视为管理员
+  // 这避免了后端角色名变更导致前端判断失效
+  if (permissions) {
+    const hasAdminPermission = permissions.some(
+      (p) => p.resource === 'admin_user' && p.action === 'write',
+    );
+    if (hasAdminPermission) {
+      return 'admin';
+    }
+    // 有权限数据但没有 admin 权限，明确返回 user
+    return 'user';
+  }
+
+  // Fallback: 无权限数据时，基于角色名判断（向后兼容）
   const roleNames = roles.map((r) => r.name);
   return roleNames.includes('admin') ? 'admin' : 'user';
 }
