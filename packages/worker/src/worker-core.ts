@@ -61,6 +61,19 @@ export class WorkerCore implements WorkerPersistenceCore {
   private callbacks = new Set<WorkerCallbacks>();
 
   /**
+   * Track consecutive broadcast failures per callback.
+   * When a tab crashes or disconnects abnormally (without calling close()),
+   * its callback remains in the Set but every broadcast attempt fails.
+   * After MAX_CONSECUTIVE_FAILURES consecutive failures, the callback is
+   * automatically removed to prevent unbounded accumulation of dead callbacks.
+   *
+   * Normal disconnection (via close()) removes the callback immediately,
+   * so this counter only increments for abnormal disconnections.
+   */
+  private _callbackFailureCounts = new Map<WorkerCallbacks, number>();
+  private static readonly MAX_CONSECUTIVE_FAILURES = 3;
+
+  /**
    * Map of operationId -> AbortController for file operations.
    *
    * When WorkerBridge starts an upload/download, it generates a unique operationId.
@@ -161,6 +174,7 @@ export class WorkerCore implements WorkerPersistenceCore {
    */
   unregisterCallback(cb: WorkerCallbacks): void {
     this.callbacks.delete(cb);
+    this._callbackFailureCounts.delete(cb);
   }
 
   /**
@@ -452,6 +466,7 @@ export class WorkerCore implements WorkerPersistenceCore {
     // If provided, remove the callback first (handles unregisterCallback failure cases)
     if (callerCallback) {
       this.callbacks.delete(callerCallback);
+      this._callbackFailureCounts.delete(callerCallback);
     }
 
     // Reference counting: only destroy shared resources if this is the last tab
@@ -476,8 +491,12 @@ export class WorkerCore implements WorkerPersistenceCore {
       log.debug(`aborting file operation: ${id}`);
       ac.abort();
     }
-    // Give operations a tick to complete finally cleanup
-    // (their Promise chains need to run the finally block to remove themselves from the Map)
+    // Yield to the event loop so abort signal handlers can execute and operations'
+    // Promise chains can progress to their finally blocks (where they self-remove
+    // from _operationControllers). Note: network operations won't complete in one tick —
+    // this only gives the abort propagation a chance to start. The .clear() below
+    // is the definitive cleanup; any still-pending operations will fail with AbortError
+    // when they next check their signal.
     if (this._operationControllers.size > 0) {
       await new Promise((resolve) => setTimeout(resolve, 0));
     }
@@ -507,6 +526,7 @@ export class WorkerCore implements WorkerPersistenceCore {
       this.layer = null;
     }
     this.callbacks.clear();
+    this._callbackFailureCounts.clear();
   }
 
   /**
@@ -778,6 +798,44 @@ export class WorkerCore implements WorkerPersistenceCore {
   // ========== Internal ==========
 
   /**
+   * Invoke a callback with failure tracking.
+   *
+   * If the callback throws (sync or async), its failure count increments.
+   * After MAX_CONSECUTIVE_FAILURES consecutive failures, the callback is removed
+   * from the Set (dead tab cleanup). On success, the failure count resets to 0.
+   *
+   * This handles abnormal tab disconnections (crash, force-close) where close()
+   * is never called. Without this, dead callbacks accumulate indefinitely.
+   *
+   * @param cb - The callback set to invoke
+   * @param invoke - The function to call with the callback
+   */
+  private _invokeWithFailureTracking(
+    cb: WorkerCallbacks,
+    invoke: (cb: WorkerCallbacks) => void,
+  ): void {
+    try {
+      invoke(cb);
+      // Success: reset failure count
+      this._callbackFailureCounts.delete(cb);
+    } catch (err) {
+      const count = (this._callbackFailureCounts.get(cb) ?? 0) + 1;
+      this._callbackFailureCounts.set(cb, count);
+      log.error(
+        `callback broadcast failed (${count}/${WorkerCore.MAX_CONSECUTIVE_FAILURES}):`,
+        err,
+      );
+      if (count >= WorkerCore.MAX_CONSECUTIVE_FAILURES) {
+        log.warn(
+          `removing dead callback after ${count} consecutive failures (tab likely crashed)`,
+        );
+        this.callbacks.delete(cb);
+        this._callbackFailureCounts.delete(cb);
+      }
+    }
+  }
+
+  /**
    * Broadcast a UIUpdateEvent to all registered Tab callbacks.
    *
    * Async-safe: if the callback returns a Promise that rejects, the error is caught
@@ -789,9 +847,7 @@ export class WorkerCore implements WorkerPersistenceCore {
   private broadcastUIUpdate(event: UIUpdateEvent, seq = 0): void {
     const payload = { event, seq };
     for (const cb of this.callbacks) {
-      try {
-        // onUIUpdate is typed as returning Promise<void> | void, but at runtime
-        // we need to handle both cases gracefully.
+      this._invokeWithFailureTracking(cb, (cb) => {
         const result = cb.onUIUpdate(payload);
         // Check for Promise-like return value using .then (safer than .catch for Comlink proxies)
         if (
@@ -803,9 +859,7 @@ export class WorkerCore implements WorkerPersistenceCore {
             log.error('onUIUpdate callback async error:', err);
           });
         }
-      } catch (err) {
-        log.error('onUIUpdate callback error:', err);
-      }
+      });
     }
   }
 
@@ -842,11 +896,9 @@ export class WorkerCore implements WorkerPersistenceCore {
       this.callbacks.size,
     );
     for (const cb of this.callbacks) {
-      try {
+      this._invokeWithFailureTracking(cb, (cb) => {
         cb.onGapFillState(isSyncing);
-      } catch (err) {
-        log.error('onGapFillState callback error:', err);
-      }
+      });
     }
   }
 
@@ -861,11 +913,9 @@ export class WorkerCore implements WorkerPersistenceCore {
       this.callbacks.size,
     );
     for (const cb of this.callbacks) {
-      try {
+      this._invokeWithFailureTracking(cb, (cb) => {
         cb.onAccountBanned(reason);
-      } catch (err) {
-        log.error('onAccountBanned callback error:', err);
-      }
+      });
     }
   }
 
@@ -979,11 +1029,9 @@ export class WorkerCore implements WorkerPersistenceCore {
       this.callbacks.size,
     );
     for (const cb of this.callbacks) {
-      try {
+      this._invokeWithFailureTracking(cb, (cb) => {
         cb.onConnectionStateChange(event);
-      } catch (err) {
-        log.error('onConnectionStateChange callback error:', err);
-      }
+      });
     }
   }
 

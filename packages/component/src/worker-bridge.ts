@@ -150,6 +150,8 @@ export class WorkerBridge {
   private _initialized = false;
   /** Promise-based dedup guard: concurrent init() calls share the same initialization. */
   private _initPromise: Promise<void> | null = null;
+  /** Set to true when destroy() begins, preventing init() from marking bridge as initialized after destroy. */
+  private _destroyed = false;
   /** AbortController for cancelling ongoing catch-up */
   private _catchUpAbortController?: AbortController;
   private _config: WorkerBridgeConfig;
@@ -731,6 +733,9 @@ export class WorkerBridge {
    * Must call initWorker() first.
    */
   async init(config: PersistenceConfig): Promise<void> {
+    if (this._destroyed) {
+      throw new Error('[WorkerBridge] cannot init(): bridge has been destroyed');
+    }
     if (this._initialized) {
       log.warn('already initialized');
       return;
@@ -743,7 +748,14 @@ export class WorkerBridge {
     this._initPromise = this._doInit(config);
     try {
       await this._initPromise;
-      this._initialized = true;
+      // RACE CONDITION GUARD: destroy() may have been called while _doInit() was in flight
+      // (destroy() waits only 100ms for init to complete). If _destroyed is true, the bridge
+      // is being torn down — do NOT mark as initialized, even though _doInit() succeeded.
+      // Without this check, _initialized would be true on a destroyed bridge, causing a second
+      // init() call to return early (thinking it's already initialized) while the bridge is dead.
+      if (!this._destroyed) {
+        this._initialized = true;
+      }
     } finally {
       this._initPromise = null;
     }
@@ -839,6 +851,10 @@ export class WorkerBridge {
    *                       redundant catch-up. Only clear on actual tab close (beforeunload).
    */
   async destroy(clearStorage = false): Promise<void> {
+    // Mark as destroyed immediately to prevent init() from completing after destroy.
+    // This is checked in init() before setting _initialized = true.
+    this._destroyed = true;
+
     // 1. Cancel ongoing catch-up immediately.
     //    This signals _doCatchUp() to bail out at the next iteration boundary.
     this._catchUpAbortController?.abort();
