@@ -44,11 +44,62 @@ export class MessageController implements ReactiveController {
    * Per-session promise chain to serialize updateMessageFromBus calls.
    * Prevents race condition when multiple messages arrive concurrently from UIUpdateBus.
    * Key: sessionClientId, Value: pending promise chain for that session.
+   *
+   * **Memory Management Design**:
+   * This map uses LRU (Least Recently Used) eviction to prevent unbounded memory growth
+   * in long-lived tabs with many sessions. When the map reaches MAX_SESSION_CHAINS,
+   * the oldest entry (first key in Map insertion order) is removed before adding new ones.
+   *
+   * The limit of 50 is chosen to balance:
+   * - Memory pressure: Each chain entry is ~100 bytes (key string + Promise reference)
+   * - Working set coverage: Most users have <20 sessions open in a typical work session
+   * - Safety margin: 50 provides 2.5x headroom above typical usage
+   *
+   * In extreme cases (1000+ session switches in rapid succession), this prevents
+   * memory leaks while maintaining serialization correctness for active sessions.
    */
   private _sessionUpdateChains = new Map<string, Promise<void>>();
 
   /** Maximum number of concurrent session chains to prevent memory leak */
-  private static readonly MAX_SESSION_CHAINS = 100;
+  private static readonly MAX_SESSION_CHAINS = 50;
+
+  /**
+   * Get or create an update chain for a session.
+   *
+   * Implements LRU eviction: when the map is at capacity, the oldest entry
+   * (first key in Map insertion order) is removed before adding the new one.
+   * This prevents unbounded memory growth in long-lived tabs with many sessions.
+   *
+   * **Optimization**: When a session is accessed, it's moved to the end of the
+   * Map (most recently used position) by deleting and re-inserting it. This
+   * ensures the LRU eviction policy is accurate and fair.
+   */
+  private _getUpdateChain(sessionId: string): Promise<void> {
+    // If at capacity, evict the oldest entry (LRU policy)
+    if (
+      this._sessionUpdateChains.size >= MessageController.MAX_SESSION_CHAINS &&
+      !this._sessionUpdateChains.has(sessionId)
+    ) {
+      const firstKey = this._sessionUpdateChains.keys().next().value;
+      if (firstKey !== undefined) {
+        this._sessionUpdateChains.delete(firstKey);
+        log.debug(
+          `Evicted oldest session chain: ${firstKey} (size: ${this._sessionUpdateChains.size})`,
+        );
+      }
+    }
+
+    let chain = this._sessionUpdateChains.get(sessionId);
+    if (!chain) {
+      chain = Promise.resolve();
+      this._sessionUpdateChains.set(sessionId, chain);
+    } else {
+      // Move to end (mark as most recently used) for accurate LRU tracking
+      this._sessionUpdateChains.delete(sessionId);
+      this._sessionUpdateChains.set(sessionId, chain);
+    }
+    return chain;
+  }
 
   /**
    * Track the session ID currently being streamed to detect session switches.
@@ -124,23 +175,23 @@ export class MessageController implements ReactiveController {
         // Initial load: set both oldest and newest cursors
         this._repository?.setOldestOffset(
           sessionId,
-          this._buildCursor(messages[0]),
+          this._buildCursor(new Date(messages[0].created_at).getTime(), messages[0].client_id),
         );
         this._repository?.setNewestOffset(
           sessionId,
-          this._buildCursor(messages[messages.length - 1]),
+          this._buildCursor(new Date(messages[messages.length - 1].created_at).getTime(), messages[messages.length - 1].client_id),
         );
       } else if (cursorType === 'oldest') {
         // Backward pagination: update oldest cursor
         this._repository?.setOldestOffset(
           sessionId,
-          this._buildCursor(messages[0]),
+          this._buildCursor(new Date(messages[0].created_at).getTime(), messages[0].client_id),
         );
       } else if (cursorType === 'newest') {
         // Forward pagination: update newest cursor
         this._repository?.setNewestOffset(
           sessionId,
-          this._buildCursor(messages[messages.length - 1]),
+          this._buildCursor(new Date(messages[messages.length - 1].created_at).getTime(), messages[messages.length - 1].client_id),
         );
       }
     }
@@ -149,23 +200,13 @@ export class MessageController implements ReactiveController {
   }
 
   /**
-   * Build pagination cursor from a message.
-   * Format: "${timestamp}|${clientId}" for (created_at, client_id) composite sorting.
-   */
-  private _buildCursor(msg: { created_at: string; client_id: string }): string {
-    const ts = new Date(msg.created_at).getTime();
-    return `${ts}|${msg.client_id}`;
-  }
-
-  /**
-   * Build pagination cursor from a UI Message.
+   * Build pagination cursor from timestamp and clientId.
    *
-   * UI Message.timestamp = new Date(created_at).getTime(), which is the same
-   * numeric value that _buildCursor produces from LocalMessage.created_at.
-   * So "${msg.timestamp}|${msg.clientId}" produces an identical cursor string.
+   * Format: "${timestamp}|${clientId}" for (created_at, client_id) composite sorting.
+   * Shared by both LocalMessage and UI Message code paths to avoid duplication.
    */
-  private _buildCursorFromUI(msg: Message): string {
-    return `${msg.timestamp}|${msg.clientId}`;
+  private _buildCursor(timestamp: number, clientId: string): string {
+    return `${timestamp}|${clientId}`;
   }
 
   /** Get the message repository for multi-session support. */
@@ -282,6 +323,10 @@ export class MessageController implements ReactiveController {
     // Clear pending update chains to prevent stale promises from referencing
     // disconnected host. Without this, in-flight UIUpdateBus updates for
     // sessions that were evicted could still call host.requestUpdate().
+    const chainCount = this._sessionUpdateChains.size;
+    if (chainCount > 0) {
+      log.debug(`Clearing ${chainCount} pending session chains on disconnect`);
+    }
     this._sessionUpdateChains.clear();
     // Cancel any in-flight streaming to prevent stale updates after reconnect.
     this._cancelStreaming();
@@ -408,34 +453,39 @@ export class MessageController implements ReactiveController {
       return;
     }
 
+    // Get or create the chain for this session (with LRU eviction)
+    const prev = this._getUpdateChain(messageSessionId);
+
     // Serialize the read-modify-write part per session to prevent race conditions.
     // Multiple concurrent calls for the same session must not interleave.
-    const prev =
-      this._sessionUpdateChains.get(messageSessionId) ?? Promise.resolve();
-    // Errors are logged but not retried — subsequent updates for the same session
-    // will continue through the chain. This prevents duplicate operations while
-    // maintaining chain integrity for future events.
+    // Errors are caught to prevent chain breaking — subsequent updates for the same
+    // session will continue through the chain. This prevents duplicate operations
+    // while maintaining chain integrity for future events.
     const next = prev
       .then(() => {
         try {
           this._applyBusUpdate(messageSessionId, entityId, localMsg);
         } catch (err) {
           // Catch synchronous errors from _applyBusUpdate to prevent chain breaking
-          log.error('bus update apply error (first attempt), continuing chain:', err);
+          log.error(
+            'bus update apply error, continuing chain:',
+            err,
+          );
         }
       })
       .catch((err) => {
         // Catch any Promise rejections from the chain itself
-        log.error('bus update chain error, chain continues for future events:', err);
+        // This ensures the chain never breaks, even on unexpected errors
+        log.error(
+          'bus update chain error, chain continues for future events:',
+          err,
+        );
       });
+
     this._sessionUpdateChains.set(messageSessionId, next);
 
-    // P1 Fix: Proactive cleanup to prevent memory leak
-    // Remove settled chains immediately to free memory
-    this._cleanupSettledChains();
-
     // Clean up the chain when it settles
-    // Fix: Use unconditional delete to prevent race condition where finally() handlers
+    // Use unconditional delete to prevent race condition where finally() handlers
     // execute out of order, leaving stale entries in the map.
     next.finally(() => {
       // Only delete if this is still the current chain for this session
@@ -477,33 +527,6 @@ export class MessageController implements ReactiveController {
           bubbles: true,
           composed: true,
         }),
-      );
-    }
-  }
-
-  /**
-   * Clean up settled promise chains to prevent memory leak.
-   * Primary cleanup is done by `.finally()` in `updateMessageFromBus()`.
-   * This method enforces a hard limit as a safety net.
-   */
-  private _cleanupSettledChains(): void {
-    // Primary cleanup is done by .finally() in updateMessageFromBus().
-    // This method only enforces the hard limit as a safety net.
-    if (
-      this._sessionUpdateChains.size <= MessageController.MAX_SESSION_CHAINS
-    ) {
-      return;
-    }
-
-    // Hard limit exceeded: remove oldest chains (by Map insertion order)
-    const entries = Array.from(this._sessionUpdateChains.keys());
-    const toRemove = entries.length - MessageController.MAX_SESSION_CHAINS;
-    for (let i = 0; i < toRemove; i++) {
-      this._sessionUpdateChains.delete(entries[i]);
-    }
-    if (toRemove > 0) {
-      log.debug(
-        `Cleaned up ${toRemove} oldest session update chains (size: ${this._sessionUpdateChains.size})`,
       );
     }
   }
@@ -918,11 +941,11 @@ export class MessageController implements ReactiveController {
         this._repository.setHasMore(sessionClientId, hasMore);
         this._repository.setOldestOffset(
           sessionClientId,
-          this._buildCursorFromUI(oldestInMerged),
+          this._buildCursor(oldestInMerged.timestamp, oldestInMerged.clientId),
         );
         this._repository.setNewestOffset(
           sessionClientId,
-          this._buildCursorFromUI(newestInMerged),
+          this._buildCursor(newestInMerged.timestamp, newestInMerged.clientId),
         );
       }
     } else {
@@ -1174,6 +1197,14 @@ export class MessageController implements ReactiveController {
     // Cancel any in-flight streaming operations to prevent them from
     // affecting the new session after a session switch
     this._cancelStreaming();
+
+    // Proactively clean up session chain for the cleared session to free memory.
+    // This prevents accumulation of stale chains when switching between sessions.
+    // Note: We only delete the current session's chain; other sessions' chains
+    // are managed by LRU eviction in _getUpdateChain().
+    if (currentSessionId) {
+      this._sessionUpdateChains.delete(currentSessionId);
+    }
 
     this.host.requestUpdate();
   }

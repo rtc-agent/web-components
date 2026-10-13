@@ -12,8 +12,8 @@
  *
  * Subclasses should:
  * - Define their own state type S and actions type A
- * - Implement methods to mutate state (calling _invalidateCache when needed)
- * - Call _invalidateCache() when state changes
+ * - Use _setState() or _updateState() to mutate state (cache invalidation is automatic)
+ * - Avoid directly manipulating _state without using the provided methods
  *
  * @example
  * ```typescript
@@ -23,8 +23,7 @@
  *   }
  *
  *   private _setMode(mode: Mode) {
- *     this._state = { currentMode: mode };
- *     this._invalidateCache();
+ *     this._setState({ currentMode: mode });  // Cache invalidation is automatic
  *     this.host.requestUpdate();
  *   }
  * }
@@ -81,6 +80,15 @@ export abstract class CachedContextController<
   /**
    * Get the cached context value.
    * Only creates a new value object if state reference has changed.
+   *
+   * **Cache Invalidation Design**:
+   * This method uses reference equality (`===`) to detect state changes. This means:
+   * - _setState() MUST create a new object reference (e.g., `{ ...oldState, ...updates }`)
+   * - Mutating properties of the existing state object will NOT trigger cache invalidation
+   * - This is intentional: it enforces immutable state updates and prevents subtle bugs
+   *
+   * @see _setState() - the intended way to update state
+   * @see _updateState() - convenience method for partial updates
    */
   get value(): { state: S; actions: A } {
     // Only create new value object if state reference changed
@@ -99,16 +107,32 @@ export abstract class CachedContextController<
 
   /**
    * Invalidate the value cache.
-   * Must be called whenever state changes.
+   * Called automatically by _setState() and _updateState().
+   * Not intended for direct use by subclasses — they should use the state
+   * mutation methods instead to ensure cache consistency.
    */
-  protected _invalidateCache(): void {
+  private _invalidateCache(): void {
     this._cachedState = undefined;
     this._cachedValue = undefined;
   }
 
   /**
    * Update state and invalidate cache.
-   * Convenience method for subclasses.
+   *
+   * **IMPORTANT**: This method MUST be called with a new object reference.
+   * The cache uses reference equality (`===`) to detect changes, so mutating
+   * the existing state object will not trigger cache invalidation.
+   *
+   * Correct usage:
+   * ```typescript
+   * this._setState({ ...this._state, someProperty: newValue });
+   * ```
+   *
+   * Incorrect usage (will NOT trigger cache invalidation):
+   * ```typescript
+   * this._state.someProperty = newValue; // ❌ Mutates existing object
+   * this._setState(this._state);          // ❌ Same reference
+   * ```
    */
   protected _setState(newState: S): void {
     this._state = newState;
@@ -127,6 +151,20 @@ export abstract class CachedContextController<
   }
 
   // ReactiveController lifecycle hooks
+
+  /**
+   * Called when the host element connects to the DOM.
+   *
+   * Override this method to perform initialization logic, such as
+   * subscribing to events or starting async operations.
+   */
   hostConnected?(): void;
+
+  /**
+   * Called when the host element disconnects from the DOM.
+   *
+   * Override this method to perform cleanup, such as unsubscribing
+   * from events, clearing timers, or aborting in-flight operations.
+   */
   hostDisconnected?(): void;
 }

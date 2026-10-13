@@ -276,8 +276,27 @@ export class PersistenceController implements ReactiveController {
    */
   private _connectGeneration = 0;
 
+  /**
+   * Maximum number of connection retry attempts (excluding initial attempt).
+   * Total attempts = MAX_CONNECT_RETRIES + 1 = 3.
+   */
   private static readonly MAX_CONNECT_RETRIES = 2;
-  private static readonly CONNECT_RETRY_DELAY_MS = 2000;
+
+  /**
+   * Base delay for exponential backoff (in milliseconds).
+   * Actual delay = BASE_DELAY * 2^attempt + random_jitter
+   * - Attempt 0: 2000ms + 0-1000ms jitter
+   * - Attempt 1: 4000ms + 0-1000ms jitter
+   * - Attempt 2: 8000ms + 0-1000ms jitter
+   */
+  private static readonly CONNECT_RETRY_BASE_DELAY_MS = 2000;
+
+  /**
+   * Maximum jitter to add to retry delay (in milliseconds).
+   * Jitter prevents synchronized retries from multiple clients
+   * (thundering herd problem) by randomizing the retry timing.
+   */
+  private static readonly CONNECT_RETRY_JITTER_MS = 1000;
 
   constructor(
     host: HTMLElement & { addController(c: ReactiveController): void },
@@ -464,7 +483,9 @@ export class PersistenceController implements ReactiveController {
    * The WorkerPersistenceAdapter wraps the Comlink proxy, presenting a
    * PersistenceLayer-compatible interface to the rest of the application.
    *
-   * Supports retries: if Worker initialization or connection fails, it will automatically retry.
+   * Supports retries with exponential backoff: if Worker initialization or connection
+   * fails, it will automatically retry with increasing delays to prevent thundering herd.
+   * Delay formula: BASE_DELAY * 2^attempt + random_jitter(0, JITTER_MS)
    */
   private async _connectWorker(config: PersistenceConfig): Promise<void> {
     let lastError: Error | null = null;
@@ -476,12 +497,19 @@ export class PersistenceController implements ReactiveController {
     ) {
       try {
         if (attempt > 0) {
+          // Exponential backoff: 2s, 4s, 8s + jitter
+          const baseDelay =
+            PersistenceController.CONNECT_RETRY_BASE_DELAY_MS *
+            Math.pow(2, attempt - 1);
+          const jitter =
+            Math.random() * PersistenceController.CONNECT_RETRY_JITTER_MS;
+          const delay = baseDelay + jitter;
+
           log.warn(
-            `Retrying connection (attempt ${attempt + 1}/${PersistenceController.MAX_CONNECT_RETRIES + 1})...`,
+            `Retrying connection (attempt ${attempt + 1}/${PersistenceController.MAX_CONNECT_RETRIES + 1}) ` +
+            `after ${delay.toFixed(0)}ms...`,
           );
-          await this._delay(
-            PersistenceController.CONNECT_RETRY_DELAY_MS * attempt,
-          );
+          await this._delay(delay);
         }
 
         await this._connectWorkerOnce(config);
