@@ -34,8 +34,20 @@ import {
   LangDropdown,
   OfflineBanner,
 } from '@/components';
+import {
+  PERM_ADMIN_USER_READ,
+  PERM_AUDIT_LOG_READ,
+  PERM_DASHBOARD_READ,
+  PERM_PERMISSION_READ,
+  PERM_ROLE_READ,
+  PERM_RTC_MESSAGE_READ,
+  PERM_RTC_SESSION_READ,
+  PERM_RTC_USER_READ,
+  PERM_SERVER_CONFIG_READ,
+} from '@/constants/permissions';
 import { isPublicPath, PUBLIC_PATHS } from '@/constants/routes';
 import { getCurrentUser } from '@/services/admin-auth';
+import { AUTH_STATE_CHANGED_EVENT } from '@/utils/auth-storage';
 import {
   getUserInfo,
   isAuthenticated,
@@ -125,17 +137,35 @@ if (typeof module !== 'undefined' && module.hot) {
       clearTimeout(initTimeoutId);
       initTimeoutId = null;
     }
+    // Reset degraded warning flag so it re-appears after HMR if the issue persists
+    degradedWarningShown = false;
   });
 }
+
+// Reset degraded warning flag on auth state changes (logout/re-login without page reload).
+// This ensures the warning can re-appear for the new session if needed.
+window.addEventListener(AUTH_STATE_CHANGED_EVENT, () => {
+  degradedWarningShown = false;
+});
 
 /**
  * @see https://umijs.org/docs/api/runtime-config#getinitialstate
  * */
 export async function getInitialState(): Promise<InitialState> {
   try {
-    // Set document direction and load dayjs locale early
-    setDocumentDirection();
-    loadDayjsLocale();
+    // Set document direction and load dayjs locale early.
+    // These are non-critical cosmetic initializations — wrap individually
+    // so their failure never blocks the authentication flow.
+    try {
+      setDocumentDirection();
+    } catch (e) {
+      console.warn('[getInitialState] setDocumentDirection failed, using default ltr', e);
+    }
+    try {
+      loadDayjsLocale();
+    } catch (e) {
+      console.warn('[getInitialState] loadDayjsLocale failed, using default en', e);
+    }
 
     const fetchUserInfo = async (
       signal?: AbortSignal,
@@ -336,24 +366,24 @@ export const layout: RunTimeLayoutConfig = ({
         }
 
         // 权限检查优先级：Dashboard > RTC Users > System
-        if (access.has('dashboard:read')) {
+        if (access.has(PERM_DASHBOARD_READ)) {
           history.replace('/dashboard/grafana/rtc-agent');
           return;
         }
         if (
-          access.has('rtc_user:read') ||
-          access.has('rtc_session:read') ||
-          access.has('rtc_message:read')
+          access.has(PERM_RTC_USER_READ) ||
+          access.has(PERM_RTC_SESSION_READ) ||
+          access.has(PERM_RTC_MESSAGE_READ)
         ) {
           history.replace('/rtc-users/management');
           return;
         }
         if (
-          access.has('admin_user:read') ||
-          access.has('role:read') ||
-          access.has('permission:read') ||
-          access.has('audit_log:read') ||
-          access.has('server_config:read')
+          access.has(PERM_ADMIN_USER_READ) ||
+          access.has(PERM_ROLE_READ) ||
+          access.has(PERM_PERMISSION_READ) ||
+          access.has(PERM_AUDIT_LOG_READ) ||
+          access.has(PERM_SERVER_CONFIG_READ)
         ) {
           history.replace('/system');
           return;
@@ -363,8 +393,13 @@ export const layout: RunTimeLayoutConfig = ({
         return;
       }
 
-      // Skip auth check for public routes
+      // Skip auth check for public routes, but redirect authenticated users
+      // away from the login page to avoid confusion (they're already logged in).
       if (isPublicPath(location.pathname)) {
+        if (location.pathname === PUBLIC_PATHS.login && isAuthenticated()) {
+          // Authenticated user on login page: redirect to root for normal routing
+          history.replace('/');
+        }
         return;
       }
 

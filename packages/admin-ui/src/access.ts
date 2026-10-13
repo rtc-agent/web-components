@@ -3,6 +3,26 @@
  * 基于管理员角色的动态权限定义
  */
 
+import {
+  PERM_ADMIN_USER_DELETE,
+  PERM_ADMIN_USER_READ,
+  PERM_ADMIN_USER_ROLE_WRITE,
+  PERM_ADMIN_USER_WRITE,
+  PERM_AUDIT_LOG_READ,
+  PERM_DASHBOARD_READ,
+  PERM_PERMISSION_READ,
+  PERM_PERMISSION_WRITE,
+  PERM_ROLE_READ,
+  PERM_ROLE_WRITE,
+  PERM_RTC_MESSAGE_READ,
+  PERM_RTC_SESSION_READ,
+  PERM_RTC_USER_BAN,
+  PERM_RTC_USER_READ,
+  PERM_SERVER_CONFIG_DELETE,
+  PERM_SERVER_CONFIG_READ,
+  PERM_SERVER_CONFIG_WRITE,
+} from '@/constants/permissions';
+
 // 默认权限对象：所有权限均为 false
 const DEFAULT_PERMISSIONS = {
   canAdmin: false,
@@ -59,27 +79,27 @@ export default function access(
   }
 
   // 各个权限点（设计文档 §6.2 定义的 13 个权限点）
-  const canAdminUserView = perms.has('admin_user:read');
-  const canAdminUserEdit = perms.has('admin_user:write');
-  const canAdminUserDelete = perms.has('admin_user:delete');
-  const canAdminUserRoleEdit = perms.has('admin_user_role:write');
-  const canAdminRoleView = perms.has('role:read');
-  const canAdminRoleEdit = perms.has('role:write');
-  const canPermissionView = perms.has('permission:read');
-  const canPermissionEdit = perms.has('permission:write');
-  const canAuditLogView = perms.has('audit_log:read');
-  const canRtcUserView = perms.has('rtc_user:read');
-  const canRtcUserBan = perms.has('rtc_user:ban');
-  const canRtcSessionView = perms.has('rtc_session:read');
-  const canRtcMessageView = perms.has('rtc_message:read');
-  const canServerConfigView = perms.has('server_config:read');
-  const canServerConfigEdit = perms.has('server_config:write');
-  const canServerConfigDelete = perms.has('server_config:delete');
-  const canDashboardView = perms.has('dashboard:read');
+  const canAdminUserView = perms.has(PERM_ADMIN_USER_READ);
+  const canAdminUserEdit = perms.has(PERM_ADMIN_USER_WRITE);
+  const canAdminUserDelete = perms.has(PERM_ADMIN_USER_DELETE);
+  const canAdminUserRoleEdit = perms.has(PERM_ADMIN_USER_ROLE_WRITE);
+  const canAdminRoleView = perms.has(PERM_ROLE_READ);
+  const canAdminRoleEdit = perms.has(PERM_ROLE_WRITE);
+  const canPermissionView = perms.has(PERM_PERMISSION_READ);
+  const canPermissionEdit = perms.has(PERM_PERMISSION_WRITE);
+  const canAuditLogView = perms.has(PERM_AUDIT_LOG_READ);
+  const canRtcUserView = perms.has(PERM_RTC_USER_READ);
+  const canRtcUserBan = perms.has(PERM_RTC_USER_BAN);
+  const canRtcSessionView = perms.has(PERM_RTC_SESSION_READ);
+  const canRtcMessageView = perms.has(PERM_RTC_MESSAGE_READ);
+  const canServerConfigView = perms.has(PERM_SERVER_CONFIG_READ);
+  const canServerConfigEdit = perms.has(PERM_SERVER_CONFIG_WRITE);
+  const canServerConfigDelete = perms.has(PERM_SERVER_CONFIG_DELETE);
+  const canDashboardView = perms.has(PERM_DASHBOARD_READ);
 
   // canAdmin 等价于 admin_user:write（需求文档 §6.2）
   // 使用权限检查替代硬编码角色名，避免后端角色名变更导致前端逻辑失效
-  const canAdmin = perms.has('admin_user:write');
+  const canAdmin = perms.has(PERM_ADMIN_USER_WRITE);
 
   return {
     // canAdmin: 等价于 admin_user:write 权限（需求文档 §6.2）

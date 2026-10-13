@@ -2,6 +2,7 @@
  * 权限相关工具函数
  */
 
+import { PERM_ADMIN_USER_WRITE } from '@/constants/permissions';
 import type { UserInfo } from '@/services/types';
 
 /**
@@ -67,7 +68,7 @@ export function computeAccessLevel(
   // 这避免了后端角色名变更导致前端判断失效
   if (permissions) {
     const hasAdminPermission = permissions.some(
-      (p) => p.resource === 'admin_user' && p.action === 'write',
+      (p) => `${p.resource}:${p.action}` === PERM_ADMIN_USER_WRITE,
     );
     if (hasAdminPermission) {
       return 'admin';
