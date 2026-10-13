@@ -63,6 +63,7 @@ export default defineConfig(({ mode }) => ({
     // 生成 JS sourcemap，便于生产环境调试和问题定位
     // 生产环境使用 'hidden'：生成 .map 文件但不在 JS 中引用，避免暴露源码
     // 开发环境使用 true：生成 .map 文件并在 JS 中添加引用
+    // 注意：persistence 包使用 tsup 构建，通过 remove-sourcemap-refs.js 脚本实现相同效果
     sourcemap: mode === 'development' ? true : 'hidden',
     lib: {
       entry: 'src/index.ts',
