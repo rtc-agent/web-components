@@ -1,4 +1,9 @@
-import { DeleteOutlined, EditOutlined, PlusOutlined, TeamOutlined } from '@ant-design/icons';
+import {
+  DeleteOutlined,
+  EditOutlined,
+  PlusOutlined,
+  TeamOutlined,
+} from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import {
   ModalForm,
@@ -9,7 +14,14 @@ import {
 } from '@ant-design/pro-components';
 import { Access, useAccess, useIntl, useSearchParams } from '@umijs/max';
 import { App, Button, Grid, List, Modal, Popconfirm, Space, Tag } from 'antd';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { usePermissionRefresh } from '@/hooks/usePermissionRefresh';
 import { useRoleOptions } from '@/hooks/useRoleOptions';
 import type { UserInfo } from '@/services/admin-auth';
@@ -48,221 +60,223 @@ const AdminUserManagementPage: React.FC = () => {
   const roleModalWidth = isMobile ? '95vw' : 600;
   const { refreshPermissions } = usePermissionRefresh();
 
+  // Cache DateTimeFormat instance to avoid re-creating on every render
+  const dateTimeFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(intl.locale, {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      }),
+    [intl.locale],
+  );
+
   // === Register Page API ===
-  useEffect(() => {
-    const pageAPI: AdminPageAPI = {
-      // Read table data
-      list: async (params = {}) => {
-        const { current = 1, pageSize = 20, keyword } = params;
+  usePageAPIRegistration(
+    'admin',
+    useCallback(
+      (): AdminPageAPI => ({
+        // Read table data
+        list: async (params = {}) => {
+          const { current = 1, pageSize = 20, keyword } = params;
 
-        // Sync URL (no page refresh)
-        const newSearchParams = new URLSearchParams();
-        if (keyword) {
-          newSearchParams.set('keyword', keyword);
-        }
-        setSearchParams(newSearchParams, { replace: true });
+          // Sync URL (no page refresh)
+          const newSearchParams = new URLSearchParams();
+          if (keyword) {
+            newSearchParams.set('keyword', keyword);
+          }
+          setSearchParams(newSearchParams, { replace: true });
 
-        try {
-          const response = await getUserList({
-            page: current,
-            page_size: pageSize,
-            keyword,
-          });
+          try {
+            const response = await getUserList({
+              page: current,
+              page_size: pageSize,
+              keyword,
+            });
 
-          return {
-            success: true,
-            data: response.items,
-            total: response.total,
-          };
-        } catch (error) {
-          console.error('[Admin Page API] list failed:', error);
-          message.error(
-            getFriendlyErrorMessage(
-              error,
-              intl,
-              intl.formatMessage({
-                id: 'pages.adminUsers.loadFailed',
-                defaultMessage: 'Failed to load administrators',
-              }),
-            ),
-          );
-          return {
-            success: false,
-            data: [],
-            total: 0,
-          };
-        }
-      },
+            return {
+              success: true,
+              data: response.items,
+              total: response.total,
+            };
+          } catch (error) {
+            console.error('[Admin Page API] list failed:', error);
+            message.error(
+              getFriendlyErrorMessage(
+                error,
+                intl,
+                intl.formatMessage({
+                  id: 'pages.adminUsers.loadFailed',
+                  defaultMessage: 'Failed to load administrators',
+                }),
+              ),
+            );
+            return {
+              success: false,
+              data: [],
+              total: 0,
+            };
+          }
+        },
 
-      // Refresh table
-      refresh: async () => {
-        actionRef.current?.reload();
-      },
-
-      // Create admin user
-      create: async (data) => {
-        try {
-          const result = await createAdminUser(data);
+        // Refresh table
+        refresh: async () => {
           actionRef.current?.reload();
-          return { success: true, id: result.id };
-        } catch (error) {
-          console.error('[Admin Page API] create failed:', error);
-          message.error(
-            getFriendlyErrorMessage(
-              error,
-              intl,
-              intl.formatMessage({
-                id: 'pages.adminUsers.createFailed',
-                defaultMessage: 'Failed to create administrator',
-              }),
-            ),
-          );
-          return { success: false };
-        }
-      },
+        },
 
-      // Update admin user
-      update: async (data) => {
-        try {
-          const { id, ...updateData } = data;
-          await updateAdminUser(id, updateData);
-          actionRef.current?.reload();
-          return { success: true };
-        } catch (error) {
-          console.error('[Admin Page API] update failed:', error);
-          message.error(
-            getFriendlyErrorMessage(
-              error,
-              intl,
-              intl.formatMessage({
-                id: 'pages.adminUsers.updateFailed',
-                defaultMessage: 'Failed to update administrator',
-              }),
-            ),
-          );
-          return { success: false };
-        }
-      },
+        // Create admin user
+        create: async (data) => {
+          try {
+            const result = await createAdminUser(data);
+            actionRef.current?.reload();
+            return { success: true, id: result.id };
+          } catch (error) {
+            console.error('[Admin Page API] create failed:', error);
+            message.error(
+              getFriendlyErrorMessage(
+                error,
+                intl,
+                intl.formatMessage({
+                  id: 'pages.adminUsers.createFailed',
+                  defaultMessage: 'Failed to create administrator',
+                }),
+              ),
+            );
+            return { success: false };
+          }
+        },
 
-      // Delete admin users (parallel execution)
-      // Note: deleteAdminUser returns void (interceptor throws on error)
-      remove: async (ids) => {
-        try {
-          await Promise.all(ids.map((id) => deleteAdminUser(id)));
-          actionRef.current?.reload();
-          // Refresh current user permissions if needed
-          await refreshPermissions();
-          return {
-            success: true,
-            deletedCount: ids.length,
-          };
-        } catch (error) {
-          console.error('[Admin Page API] remove failed:', error);
-          message.error(
-            getFriendlyErrorMessage(
-              error,
-              intl,
-              intl.formatMessage({
-                id: 'pages.adminUsers.deleteFailed',
-                defaultMessage: 'Failed to delete administrator',
-              }),
-            ),
-          );
-          return { success: false };
-        }
-      },
+        // Update admin user
+        update: async (data) => {
+          try {
+            const { id, ...updateData } = data;
+            await updateAdminUser(id, updateData);
+            actionRef.current?.reload();
+            return { success: true };
+          } catch (error) {
+            console.error('[Admin Page API] update failed:', error);
+            message.error(
+              getFriendlyErrorMessage(
+                error,
+                intl,
+                intl.formatMessage({
+                  id: 'pages.adminUsers.updateFailed',
+                  defaultMessage: 'Failed to update administrator',
+                }),
+              ),
+            );
+            return { success: false };
+          }
+        },
 
-      // Query roles assigned to a user
-      listUserRoles: async (userId) => {
-        try {
-          const response = await getUserRoles(userId);
-          return {
-            success: true,
-            data: response.items,
-            total: response.total,
-          };
-        } catch (error) {
-          console.error('[Admin Page API] listUserRoles failed:', error);
-          message.error(
-            getFriendlyErrorMessage(
-              error,
-              intl,
-              intl.formatMessage({
-                id: 'pages.adminUsers.loadRolesFailed',
-                defaultMessage: 'Failed to load user roles',
-              }),
-            ),
-          );
-          return {
-            success: false,
-            data: [],
-            total: 0,
-          };
-        }
-      },
+        // Delete admin users (parallel execution)
+        // Note: deleteAdminUser returns void (interceptor throws on error)
+        remove: async (ids) => {
+          try {
+            await Promise.all(ids.map((id) => deleteAdminUser(id)));
+            actionRef.current?.reload();
+            // Refresh current user permissions if needed
+            await refreshPermissions();
+            return {
+              success: true,
+              deletedCount: ids.length,
+            };
+          } catch (error) {
+            console.error('[Admin Page API] remove failed:', error);
+            message.error(
+              getFriendlyErrorMessage(
+                error,
+                intl,
+                intl.formatMessage({
+                  id: 'pages.adminUsers.deleteFailed',
+                  defaultMessage: 'Failed to delete administrator',
+                }),
+              ),
+            );
+            return { success: false };
+          }
+        },
 
-      // Assign roles to a user
-      assignRoles: async (userId, roleIds) => {
-        try {
-          await assignUserRoles(userId, { role_ids: roleIds });
-          actionRef.current?.reload();
-          return { success: true };
-        } catch (error) {
-          console.error('[Admin Page API] assignRoles failed:', error);
-          message.error(
-            getFriendlyErrorMessage(
-              error,
-              intl,
-              intl.formatMessage({
-                id: 'pages.adminUsers.assignRolesFailed',
-                defaultMessage: 'Failed to assign roles',
-              }),
-            ),
-          );
-          return { success: false };
-        }
-      },
+        // Query roles assigned to a user
+        listUserRoles: async (userId) => {
+          try {
+            const response = await getUserRoles(userId);
+            return {
+              success: true,
+              data: response.items,
+              total: response.total,
+            };
+          } catch (error) {
+            console.error('[Admin Page API] listUserRoles failed:', error);
+            message.error(
+              getFriendlyErrorMessage(
+                error,
+                intl,
+                intl.formatMessage({
+                  id: 'pages.adminUsers.loadRolesFailed',
+                  defaultMessage: 'Failed to load user roles',
+                }),
+              ),
+            );
+            return {
+              success: false,
+              data: [],
+              total: 0,
+            };
+          }
+        },
 
-      // Revoke a role from a user
-      revokeRole: async (userId, roleId) => {
-        try {
-          await revokeUserRole(userId, roleId);
-          actionRef.current?.reload();
-          return { success: true };
-        } catch (error) {
-          console.error('[Admin Page API] revokeRole failed:', error);
-          message.error(
-            getFriendlyErrorMessage(
-              error,
-              intl,
-              intl.formatMessage({
-                id: 'pages.adminUsers.revokeRoleFailed',
-                defaultMessage: 'Failed to revoke role',
-              }),
-            ),
-          );
-          return { success: false };
-        }
-      },
-    };
+        // Assign roles to a user
+        assignRoles: async (userId, roleIds) => {
+          try {
+            await assignUserRoles(userId, { role_ids: roleIds });
+            actionRef.current?.reload();
+            return { success: true };
+          } catch (error) {
+            console.error('[Admin Page API] assignRoles failed:', error);
+            message.error(
+              getFriendlyErrorMessage(
+                error,
+                intl,
+                intl.formatMessage({
+                  id: 'pages.adminUsers.assignRolesFailed',
+                  defaultMessage: 'Failed to assign roles',
+                }),
+              ),
+            );
+            return { success: false };
+          }
+        },
 
-    // Register to global
-    window.__pages__ = window.__pages__ || {};
-    window.__pages__.admin = pageAPI;
-
-    // Dispatch ready event (notify navigation.goto that page API is registered)
-    window.dispatchEvent(
-      new CustomEvent('page-api-ready', { detail: { page: 'admin' } }),
-    );
-
-    console.log('[AdminUserManagementPage] Page API registered');
-
-    // Cleanup
-    return () => {
-      delete window.__pages__?.admin;
-      console.log('[AdminUserManagementPage] Page API unregistered');
-    };
-  }, []);
+        // Revoke a role from a user
+        revokeRole: async (userId, roleId) => {
+          try {
+            await revokeUserRole(userId, roleId);
+            actionRef.current?.reload();
+            return { success: true };
+          } catch (error) {
+            console.error('[Admin Page API] revokeRole failed:', error);
+            message.error(
+              getFriendlyErrorMessage(
+                error,
+                intl,
+                intl.formatMessage({
+                  id: 'pages.adminUsers.revokeRoleFailed',
+                  defaultMessage: 'Failed to revoke role',
+                }),
+              ),
+            );
+            return { success: false };
+          }
+        },
+      }),
+      [],
+    ),
+  );
 
   // Listen for URL changes, auto-reload table
   useEffect(() => {
@@ -546,9 +560,9 @@ const AdminUserManagementPage: React.FC = () => {
                   } catch (error: unknown) {
                     message.error(
                       getFriendlyErrorMessage(
-          error,
-          intl,
-          intl.formatMessage({
+                        error,
+                        intl,
+                        intl.formatMessage({
                           id: 'pages.adminUsers.deleteFailed',
                           defaultMessage: 'Failed to delete admin',
                         }),
@@ -565,7 +579,12 @@ const AdminUserManagementPage: React.FC = () => {
                   defaultMessage: 'Cancel',
                 })}
               >
-                <Button type="link" danger size="small" icon={<DeleteOutlined />}>
+                <Button
+                  type="link"
+                  danger
+                  size="small"
+                  icon={<DeleteOutlined />}
+                >
                   {intl.formatMessage({
                     id: 'pages.adminUsers.delete',
                     defaultMessage: 'Delete',
@@ -628,9 +647,9 @@ const AdminUserManagementPage: React.FC = () => {
           } catch (error: unknown) {
             message.error(
               getFriendlyErrorMessage(
-          error,
-          intl,
-          intl.formatMessage({
+                error,
+                intl,
+                intl.formatMessage({
                   id: 'pages.adminUsers.loadFailed',
                   defaultMessage: 'Failed to load administrators',
                 }),
@@ -744,15 +763,9 @@ const AdminUserManagementPage: React.FC = () => {
                     defaultMessage: 'Assigned time: {time}',
                   },
                   {
-                    time: new Intl.DateTimeFormat(intl.locale, {
-                      year: 'numeric',
-                      month: '2-digit',
-                      day: '2-digit',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      second: '2-digit',
-                      hour12: false,
-                    }).format(new Date(assignment.assigned_at)),
+                    time: dateTimeFormatter.format(
+                      new Date(assignment.assigned_at),
+                    ),
                   },
                 )}
               />

@@ -8,8 +8,9 @@ import {
 } from '@ant-design/pro-components';
 import { Access, useAccess, useIntl, useSearchParams } from '@umijs/max';
 import { App, Button, Grid, Popconfirm, Space, Tag } from 'antd';
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { getActionTypes, getResourceTypes } from '@/constants/permissions';
+import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { usePermissionRefresh } from '@/hooks/usePermissionRefresh';
 import { useRoleOptions } from '@/hooks/useRoleOptions';
 import {
@@ -41,128 +42,115 @@ const PermissionListPage: React.FC = () => {
   const ACTION_TYPES = getActionTypes(intl);
 
   // === Register Page API ===
-  useEffect(() => {
-    const pageAPI: PermissionPageAPI = {
-      // Read table data
-      list: async (params = {}) => {
-        const { current = 1, pageSize = 20, role_id, resource } = params;
+  usePageAPIRegistration(
+    'permission',
+    useCallback(
+      (): PermissionPageAPI => ({
+        // Read table data
+        list: async (params = {}) => {
+          const { current = 1, pageSize = 20, role_id, resource } = params;
 
-        // Sync URL (no page refresh)
-        const newSearchParams = new URLSearchParams();
-        if (role_id) {
-          newSearchParams.set('role_id', role_id);
-        }
-        if (resource) {
-          newSearchParams.set('resource', resource);
-        }
-        setSearchParams(newSearchParams, { replace: true });
+          // Sync URL (no page refresh)
+          const newSearchParams = new URLSearchParams();
+          if (role_id) {
+            newSearchParams.set('role_id', role_id);
+          }
+          if (resource) {
+            newSearchParams.set('resource', resource);
+          }
+          setSearchParams(newSearchParams, { replace: true });
 
-        try {
-          const response = await getPermissionList({
-            page: current,
-            page_size: pageSize,
-            role_id,
-            resource,
-          });
+          try {
+            const response = await getPermissionList({
+              page: current,
+              page_size: pageSize,
+              role_id,
+              resource,
+            });
 
-          return {
-            success: true,
-            data: response.items,
-            total: response.total,
-          };
-        } catch (error) {
-          console.error('[Permission Page API] list failed:', error);
-          message.error(
-            getFriendlyErrorMessage(
-              error,
-              intl,
-              intl.formatMessage({
-                id: 'pages.permissions.loadFailed',
-                defaultMessage: 'Failed to load permissions',
-              }),
-            ),
-          );
-          return {
-            success: false,
-            data: [],
-            total: 0,
-          };
-        }
-      },
+            return {
+              success: true,
+              data: response.items,
+              total: response.total,
+            };
+          } catch (error) {
+            console.error('[Permission Page API] list failed:', error);
+            message.error(
+              getFriendlyErrorMessage(
+                error,
+                intl,
+                intl.formatMessage({
+                  id: 'pages.permissions.loadFailed',
+                  defaultMessage: 'Failed to load permissions',
+                }),
+              ),
+            );
+            return {
+              success: false,
+              data: [],
+              total: 0,
+            };
+          }
+        },
 
-      // Refresh table
-      refresh: async () => {
-        actionRef.current?.reload();
-      },
-
-      // Create permission policy
-      create: async (data) => {
-        try {
-          await createPermission(data);
+        // Refresh table
+        refresh: async () => {
           actionRef.current?.reload();
-          return { success: true };
-        } catch (error) {
-          console.error('[Permission Page API] create failed:', error);
-          message.error(
-            getFriendlyErrorMessage(
-              error,
-              intl,
-              intl.formatMessage({
-                id: 'pages.permissions.createFailed',
-                defaultMessage: 'Creation failed',
-              }),
-            ),
-          );
-          return { success: false };
-        }
-      },
+        },
 
-      // Remove permission policies (parallel execution)
-      remove: async (items) => {
-        try {
-          const results = await Promise.all(
-            items.map((item) => deletePermission(item)),
-          );
-          const failures = results.filter((r) => !r.success);
-          actionRef.current?.reload();
-          return {
-            success: failures.length === 0,
-            deletedCount: items.length - failures.length,
-          };
-        } catch (error) {
-          console.error('[Permission Page API] remove failed:', error);
-          message.error(
-            getFriendlyErrorMessage(
-              error,
-              intl,
-              intl.formatMessage({
-                id: 'pages.permissions.deleteFailed',
-                defaultMessage: 'Deletion failed',
-              }),
-            ),
-          );
-          return { success: false };
-        }
-      },
-    };
+        // Create permission policy
+        create: async (data) => {
+          try {
+            await createPermission(data);
+            actionRef.current?.reload();
+            return { success: true };
+          } catch (error) {
+            console.error('[Permission Page API] create failed:', error);
+            message.error(
+              getFriendlyErrorMessage(
+                error,
+                intl,
+                intl.formatMessage({
+                  id: 'pages.permissions.createFailed',
+                  defaultMessage: 'Creation failed',
+                }),
+              ),
+            );
+            return { success: false };
+          }
+        },
 
-    // Register to global
-    window.__pages__ = window.__pages__ || {};
-    window.__pages__.permission = pageAPI;
-
-    // Dispatch ready event (notify navigation.goto that page is loaded)
-    window.dispatchEvent(
-      new CustomEvent('page-api-ready', { detail: { page: 'permission' } }),
-    );
-
-    console.log('[PermissionListPage] Page API registered');
-
-    // Cleanup
-    return () => {
-      delete window.__pages__?.permission;
-      console.log('[PermissionListPage] Page API unregistered');
-    };
-  }, []);
+        // Remove permission policies (parallel execution)
+        remove: async (items) => {
+          try {
+            const results = await Promise.all(
+              items.map((item) => deletePermission(item)),
+            );
+            const failures = results.filter((r) => !r.success);
+            actionRef.current?.reload();
+            return {
+              success: failures.length === 0,
+              deletedCount: items.length - failures.length,
+            };
+          } catch (error) {
+            console.error('[Permission Page API] remove failed:', error);
+            message.error(
+              getFriendlyErrorMessage(
+                error,
+                intl,
+                intl.formatMessage({
+                  id: 'pages.permissions.deleteFailed',
+                  defaultMessage: 'Deletion failed',
+                }),
+              ),
+            );
+            return { success: false };
+          }
+        },
+      }),
+      [],
+    ),
+  );
 
   // Listen for URL changes, auto-reload table
   useEffect(() => {

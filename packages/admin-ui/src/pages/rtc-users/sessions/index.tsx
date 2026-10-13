@@ -2,10 +2,11 @@ import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { history, useIntl, useSearchParams } from '@umijs/max';
 import { App, Button, Grid, Tag } from 'antd';
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { TableEmptyState } from '@/components';
+import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
-import { disabledFutureDate, parseTableSort } from '../shared/tableUtils';
+import { disabledFutureDate, parseTableSort } from '@/utils/tableUtils';
 import type { SessionInfo } from './data';
 import type { SessionPageAPI } from './page-api';
 import { getSessionList } from './service';
@@ -25,71 +26,58 @@ const SessionsPage: React.FC = () => {
   const isMobile = !breakpoints.md; // < 768px
 
   // === Register Page API ===
-  useEffect(() => {
-    const pageAPI: SessionPageAPI = {
-      // Sync URL filters and trigger table reload
-      list: async (params = {}) => {
-        const {
-          userId: listUserId,
-          status,
-          search,
-          startTime,
-          endTime,
-        } = params;
+  usePageAPIRegistration(
+    'rtcSession',
+    useCallback(
+      (): SessionPageAPI => ({
+        // Sync URL filters and trigger table reload
+        list: async (params = {}) => {
+          const {
+            userId: listUserId,
+            status,
+            search,
+            startTime,
+            endTime,
+          } = params;
 
-        // Sync filters to URL (no page refresh). Pagination is transient state, not synced.
-        const newSearchParams = new URLSearchParams();
-        const effectiveUserId = listUserId || userId;
-        if (effectiveUserId) {
-          newSearchParams.set('user_id', effectiveUserId);
-        }
-        if (status) {
-          newSearchParams.set('status', status);
-        }
-        if (search) {
-          newSearchParams.set('search', search);
-        }
-        if (startTime) {
-          newSearchParams.set('start_time', startTime);
-        }
-        if (endTime) {
-          newSearchParams.set('end_time', endTime);
-        }
-        setSearchParams(newSearchParams, { replace: true });
+          // Sync filters to URL (no page refresh). Pagination is transient state, not synced.
+          const newSearchParams = new URLSearchParams();
+          const effectiveUserId = listUserId || userId;
+          if (effectiveUserId) {
+            newSearchParams.set('user_id', effectiveUserId);
+          }
+          if (status) {
+            newSearchParams.set('status', status);
+          }
+          if (search) {
+            newSearchParams.set('search', search);
+          }
+          if (startTime) {
+            newSearchParams.set('start_time', startTime);
+          }
+          if (endTime) {
+            newSearchParams.set('end_time', endTime);
+          }
+          setSearchParams(newSearchParams, { replace: true });
 
-        // Trigger table reload via actionRef (ProTable request will handle data fetching)
-        actionRef.current?.reload();
+          // Trigger table reload via actionRef (ProTable request will handle data fetching)
+          actionRef.current?.reload();
 
-        return {
-          success: true,
-          data: [],
-          total: 0,
-        };
-      },
+          return {
+            success: true,
+            data: [],
+            total: 0,
+          };
+        },
 
-      // Refresh table
-      refresh: async () => {
-        actionRef.current?.reload();
-      },
-    };
-
-    // Register to global
-    window.__pages__ = window.__pages__ || {};
-    window.__pages__.rtcSession = pageAPI;
-
-    // Dispatch ready event
-    window.dispatchEvent(
-      new CustomEvent('page-api-ready', { detail: { page: 'rtcSession' } }),
-    );
-
-    console.log('[SessionsPage] Page API registered');
-
-    // Cleanup
-    return () => {
-      delete window.__pages__?.rtcSession;
-      console.log('[SessionsPage] Page API unregistered');
-    };
-  }, []);
+        // Refresh table
+        refresh: async () => {
+          actionRef.current?.reload();
+        },
+      }),
+      [],
+    ),
+  );
 
   // Listen for URL changes, auto-reload table
   useEffect(() => {

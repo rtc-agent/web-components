@@ -10,8 +10,9 @@ import React, {
   useState,
 } from 'react';
 import { TableEmptyState } from '@/components';
+import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
-import { disabledFutureDate, parseTableSort } from '../shared/tableUtils';
+import { disabledFutureDate, parseTableSort } from '@/utils/tableUtils';
 import MessageDetailDrawer from './components/MessageDetailDrawer';
 import type { MessageInfo } from './data';
 import type { MessagePageAPI } from './page-api';
@@ -35,62 +36,49 @@ const MessagesPage: React.FC = () => {
   );
 
   // === Register Page API ===
-  useEffect(() => {
-    const pageAPI: MessagePageAPI = {
-      // Sync URL filters and trigger table reload
-      list: async (params = {}) => {
-        const { sessionId: listSessionId, role, startTime, endTime } = params;
+  usePageAPIRegistration(
+    'rtcMessage',
+    useCallback(
+      (): MessagePageAPI => ({
+        // Sync URL filters and trigger table reload
+        list: async (params = {}) => {
+          const { sessionId: listSessionId, role, startTime, endTime } = params;
 
-        // Sync filters to URL (no page refresh). Pagination is transient state, not synced.
-        const newSearchParams = new URLSearchParams();
-        const effectiveSessionId = listSessionId || sessionId;
-        if (effectiveSessionId) {
-          newSearchParams.set('session_id', effectiveSessionId);
-        }
-        if (role) {
-          newSearchParams.set('role', role);
-        }
-        if (startTime) {
-          newSearchParams.set('created_after', startTime);
-        }
-        if (endTime) {
-          newSearchParams.set('created_before', endTime);
-        }
-        setSearchParams(newSearchParams, { replace: true });
+          // Sync filters to URL (no page refresh). Pagination is transient state, not synced.
+          const newSearchParams = new URLSearchParams();
+          const effectiveSessionId = listSessionId || sessionId;
+          if (effectiveSessionId) {
+            newSearchParams.set('session_id', effectiveSessionId);
+          }
+          if (role) {
+            newSearchParams.set('role', role);
+          }
+          if (startTime) {
+            newSearchParams.set('created_after', startTime);
+          }
+          if (endTime) {
+            newSearchParams.set('created_before', endTime);
+          }
+          setSearchParams(newSearchParams, { replace: true });
 
-        // Trigger table reload via actionRef (ProTable request will handle data fetching)
-        actionRef.current?.reload();
+          // Trigger table reload via actionRef (ProTable request will handle data fetching)
+          actionRef.current?.reload();
 
-        return {
-          success: true,
-          data: [],
-          total: 0,
-        };
-      },
+          return {
+            success: true,
+            data: [],
+            total: 0,
+          };
+        },
 
-      // Refresh table
-      refresh: async () => {
-        actionRef.current?.reload();
-      },
-    };
-
-    // Register to global
-    window.__pages__ = window.__pages__ || {};
-    window.__pages__.rtcMessage = pageAPI;
-
-    // Dispatch ready event
-    window.dispatchEvent(
-      new CustomEvent('page-api-ready', { detail: { page: 'rtcMessage' } }),
-    );
-
-    console.log('[MessagesPage] Page API registered');
-
-    // Cleanup
-    return () => {
-      delete window.__pages__?.rtcMessage;
-      console.log('[MessagesPage] Page API unregistered');
-    };
-  }, []);
+        // Refresh table
+        refresh: async () => {
+          actionRef.current?.reload();
+        },
+      }),
+      [],
+    ),
+  );
 
   // Listen for URL changes, auto-reload table
   useEffect(() => {
@@ -321,7 +309,8 @@ const MessagesPage: React.FC = () => {
                 return { data: [], total: 0, success: true };
               }
               const role = searchParams.get('role') || undefined;
-              const createdAfter = searchParams.get('created_after') || undefined;
+              const createdAfter =
+                searchParams.get('created_after') || undefined;
               const createdBefore =
                 searchParams.get('created_before') || undefined;
               const current = params.current || 1;

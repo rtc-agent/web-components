@@ -32,8 +32,9 @@ import React, {
   useState,
 } from 'react';
 import { TableEmptyState } from '@/components';
+import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
-import { parseTableSort } from '../shared/tableUtils';
+import { parseTableSort } from '@/utils/tableUtils';
 import UserConfigDrawer from './components/UserConfigDrawer';
 import UserDetailDrawer from './components/UserDetailDrawer';
 import type { RtcUserInfo } from './data';
@@ -62,8 +63,13 @@ interface ModalState {
  */
 const ActionColumn = React.memo<{
   record: RtcUserInfo;
-  intl: any;
-  access: any;
+  intl: {
+    formatMessage: (descriptor: {
+      id: string;
+      defaultMessage?: string;
+    }) => string;
+  };
+  access: ReturnType<typeof useAccess>;
   canBan: boolean;
   onBan: (user: RtcUserInfo) => void;
   onUnban: (userId: string) => void;
@@ -223,164 +229,151 @@ const RtcUserManagementPage: React.FC = () => {
   const canConfigDelete = access.canServerConfigDelete as boolean;
 
   // === Register Page API ===
-  useEffect(() => {
-    const pageAPI: RtcUserPageAPI = {
-      // Sync URL filters and trigger table reload
-      list: async (params = {}) => {
-        const { search, status } = params;
+  usePageAPIRegistration(
+    'rtcUser',
+    useCallback(
+      (): RtcUserPageAPI => ({
+        // Sync URL filters and trigger table reload
+        list: async (params = {}) => {
+          const { search, status } = params;
 
-        // Sync filters to URL (no page refresh). Pagination is transient state, not synced.
-        const newSearchParams = new URLSearchParams();
-        if (search) {
-          newSearchParams.set('search', search);
-        }
-        if (status) {
-          newSearchParams.set('status', status);
-        }
-        setSearchParams(newSearchParams, { replace: true });
+          // Sync filters to URL (no page refresh). Pagination is transient state, not synced.
+          const newSearchParams = new URLSearchParams();
+          if (search) {
+            newSearchParams.set('search', search);
+          }
+          if (status) {
+            newSearchParams.set('status', status);
+          }
+          setSearchParams(newSearchParams, { replace: true });
 
-        // Trigger table reload via actionRef (ProTable request will handle data fetching)
-        actionRef.current?.reload();
-
-        return {
-          success: true,
-          data: [],
-          total: 0,
-        };
-      },
-
-      // Refresh table
-      refresh: async () => {
-        actionRef.current?.reload();
-      },
-
-      // Ban RTC user
-      ban: async (data) => {
-        try {
-          await banRtcUser(data.userId, { reason: data.reason });
+          // Trigger table reload via actionRef (ProTable request will handle data fetching)
           actionRef.current?.reload();
-          return { success: true };
-        } catch (error) {
-          console.error('[RtcUser Page API] ban failed:', error);
-          message.error(
-            getFriendlyErrorMessage(
-              error,
-              intl,
-              intl.formatMessage({
-                id: 'pages.rtcUsers.banFailed',
-                defaultMessage: 'Failed to ban user',
-              }),
-            ),
-          );
-          return { success: false, error: 'Failed to ban user' };
-        }
-      },
 
-      // Unban RTC user
-      unban: async (userId) => {
-        try {
-          await unbanRtcUser(userId);
-          actionRef.current?.reload();
-          return { success: true };
-        } catch (error) {
-          console.error('[RtcUser Page API] unban failed:', error);
-          message.error(
-            getFriendlyErrorMessage(
-              error,
-              intl,
-              intl.formatMessage({
-                id: 'pages.rtcUsers.unbanFailed',
-                defaultMessage: 'Failed to unban user',
-              }),
-            ),
-          );
-          return { success: false, error: 'Failed to unban user' };
-        }
-      },
-
-      // Get user devices
-      devices: async (userId) => {
-        try {
-          const response = await getUserDevices(userId);
           return {
             success: true,
-            data: response.items,
-          };
-        } catch (error) {
-          console.error('[RtcUser Page API] devices failed:', error);
-          message.error(
-            getFriendlyErrorMessage(
-              error,
-              intl,
-              intl.formatMessage({
-                id: 'pages.rtcUsers.devicesFailed',
-                defaultMessage: 'Failed to fetch user devices',
-              }),
-            ),
-          );
-          return {
-            success: false,
             data: [],
-            error: 'Failed to fetch user devices',
+            total: 0,
           };
-        }
-      },
+        },
 
-      // Get token statistics
-      tokenStats: async (userId, days = 30) => {
-        try {
-          const response = await getUserTokenStats(userId, days);
-          return {
-            success: true,
-            data: response,
-          };
-        } catch (error) {
-          console.error('[RtcUser Page API] tokenStats failed:', error);
-          message.error(
-            getFriendlyErrorMessage(
-              error,
-              intl,
-              intl.formatMessage({
-                id: 'pages.rtcUsers.tokenStatsFailed',
-                defaultMessage: 'Failed to fetch token statistics',
-              }),
-            ),
-          );
-          return {
-            success: false,
-            data: {
-              daily_stats: [],
-              summary: {
-                today_tokens: 0,
-                week_tokens: 0,
-                month_tokens: 0,
-                total_tokens: 0,
+        // Refresh table
+        refresh: async () => {
+          actionRef.current?.reload();
+        },
+
+        // Ban RTC user
+        ban: async (data) => {
+          try {
+            await banRtcUser(data.userId, { reason: data.reason });
+            actionRef.current?.reload();
+            return { success: true };
+          } catch (error) {
+            console.error('[RtcUser Page API] ban failed:', error);
+            message.error(
+              getFriendlyErrorMessage(
+                error,
+                intl,
+                intl.formatMessage({
+                  id: 'pages.rtcUsers.banFailed',
+                  defaultMessage: 'Failed to ban user',
+                }),
+              ),
+            );
+            return { success: false, error: 'Failed to ban user' };
+          }
+        },
+
+        // Unban RTC user
+        unban: async (userId) => {
+          try {
+            await unbanRtcUser(userId);
+            actionRef.current?.reload();
+            return { success: true };
+          } catch (error) {
+            console.error('[RtcUser Page API] unban failed:', error);
+            message.error(
+              getFriendlyErrorMessage(
+                error,
+                intl,
+                intl.formatMessage({
+                  id: 'pages.rtcUsers.unbanFailed',
+                  defaultMessage: 'Failed to unban user',
+                }),
+              ),
+            );
+            return { success: false, error: 'Failed to unban user' };
+          }
+        },
+
+        // Get user devices
+        devices: async (userId) => {
+          try {
+            const response = await getUserDevices(userId);
+            return {
+              success: true,
+              data: response.items,
+            };
+          } catch (error) {
+            console.error('[RtcUser Page API] devices failed:', error);
+            message.error(
+              getFriendlyErrorMessage(
+                error,
+                intl,
+                intl.formatMessage({
+                  id: 'pages.rtcUsers.devicesFailed',
+                  defaultMessage: 'Failed to fetch user devices',
+                }),
+              ),
+            );
+            return {
+              success: false,
+              data: [],
+              error: 'Failed to fetch user devices',
+            };
+          }
+        },
+
+        // Get token statistics
+        tokenStats: async (userId, days = 30) => {
+          try {
+            const response = await getUserTokenStats(userId, days);
+            return {
+              success: true,
+              data: response,
+            };
+          } catch (error) {
+            console.error('[RtcUser Page API] tokenStats failed:', error);
+            message.error(
+              getFriendlyErrorMessage(
+                error,
+                intl,
+                intl.formatMessage({
+                  id: 'pages.rtcUsers.tokenStatsFailed',
+                  defaultMessage: 'Failed to fetch token statistics',
+                }),
+              ),
+            );
+            return {
+              success: false,
+              data: {
+                daily_stats: [],
+                summary: {
+                  today_tokens: 0,
+                  week_tokens: 0,
+                  month_tokens: 0,
+                  total_tokens: 0,
+                },
+                top_sessions: [],
               },
-              top_sessions: [],
-            },
-            error: 'Failed to fetch token statistics',
-          };
-        }
-      },
-    };
-
-    // Register to global
-    window.__pages__ = window.__pages__ || {};
-    window.__pages__.rtcUser = pageAPI;
-
-    // Dispatch ready event
-    window.dispatchEvent(
-      new CustomEvent('page-api-ready', { detail: { page: 'rtcUser' } }),
-    );
-
-    console.log('[RtcUserManagementPage] Page API registered');
-
-    // Cleanup
-    return () => {
-      delete window.__pages__?.rtcUser;
-      console.log('[RtcUserManagementPage] Page API unregistered');
-    };
-  }, []);
+              error: 'Failed to fetch token statistics',
+            };
+          }
+        },
+      }),
+      [],
+    ),
+  );
 
   // Listen for URL changes, auto-reload table
   useEffect(() => {
@@ -420,29 +413,32 @@ const RtcUserManagementPage: React.FC = () => {
   };
 
   /** Unban user */
-  const handleUnbanUser = async (userId: string) => {
-    try {
-      await unbanRtcUser(userId);
-      message.success(
-        intl.formatMessage({
-          id: 'pages.rtcUsers.unbanSuccess',
-          defaultMessage: 'User unbanned successfully',
-        }),
-      );
-      actionRef.current?.reload();
-    } catch (error: unknown) {
-      message.error(
-        getFriendlyErrorMessage(
-          error,
-          intl,
+  const handleUnbanUser = useCallback(
+    async (userId: string) => {
+      try {
+        await unbanRtcUser(userId);
+        message.success(
           intl.formatMessage({
-            id: 'pages.rtcUsers.unbanFailed',
-            defaultMessage: 'Failed to unban user',
+            id: 'pages.rtcUsers.unbanSuccess',
+            defaultMessage: 'User unbanned successfully',
           }),
-        ),
-      );
-    }
-  };
+        );
+        actionRef.current?.reload();
+      } catch (error: unknown) {
+        message.error(
+          getFriendlyErrorMessage(
+            error,
+            intl,
+            intl.formatMessage({
+              id: 'pages.rtcUsers.unbanFailed',
+              defaultMessage: 'Failed to unban user',
+            }),
+          ),
+        );
+      }
+    },
+    [intl, message],
+  );
 
   // Memoized handlers for action column
   const handleBanClick = useCallback((user: RtcUserInfo) => {

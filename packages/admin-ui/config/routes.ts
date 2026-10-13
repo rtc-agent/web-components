@@ -9,6 +9,14 @@
  * @param name 配置路由的标题，默认读取国际化文件 menu.ts 中 menu.xxxx 的值，如配置 name 为 login，则读取 menu.ts 中 menu.login 的取值作为标题
  * @param icon 配置路由的图标，取值参考 https://ant.design/components/icon-cn， 注意去除风格后缀和大小写，如想要配置图标为 <StepBackwardOutlined /> 则取值应为 stepBackward 或 StepBackward，如想要配置图标为 <UserOutlined /> 则取值应为 user 或者 User
  * @doc https://umijs.org/docs/guides/routes
+ *
+ * ## name 命名规范
+ * 路由 `name` 字段统一使用 **kebab-case**（小写字母 + 连字符），例如：
+ * - ✅ 'rtc-users'、'audit-logs'、'go-runtime'
+ * - ❌ 'rtcUsers'、'AuditLogs'、'goRuntime'
+ *
+ * name 同时作为 i18n key（`menu.<name>`）和 URL 路径片段的一部分，
+ * 保持 kebab-case 确保命名、URL、国际化 key 三者一致。
  */
 export default [
   {
@@ -70,6 +78,14 @@ export default [
             path: '/dashboard/grafana',
             redirect: '/dashboard/grafana/rtc-agent',
           },
+          /**
+           * Grafana 子路由设计说明：
+           * - 这些子路由不配置 component，因为父路由的 component (./dashboard/container)
+           *   已经通过 iframe 缓存策略统一管理所有 dashboard 的加载和显示
+           * - 子路由的 name 字段用于生成侧边栏菜单项
+           * - 子路由的 path 用于 URL 定位和 CSS 可见性控制
+           * - 具体实现参见 src/pages/dashboard/container.tsx 的 DASHBOARD_CONFIGS
+           */
           {
             name: 'rtc-agent',
             path: '/dashboard/grafana/rtc-agent',
@@ -220,7 +236,10 @@ export default [
       },
     ],
   },
-  // Chatbot: AI assistant accessible to all authenticated users
+  // Chatbot: AI assistant accessible to all authenticated users.
+  // 不设置 `access` 字段 — 安全由 app.tsx 的 onPageChange() 统一保证：
+  // onPageChange 在路由切换时检查登录态，未登录用户会被重定向到 /user/login。
+  // 因此 chatbot 仅对已登录用户可见，无需额外的 RBAC 权限守卫。
   {
     path: '/chatbot',
     name: 'chatbot',

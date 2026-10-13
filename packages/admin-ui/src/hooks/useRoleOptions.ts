@@ -1,8 +1,8 @@
-import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { getRoleList } from '@/services/role';
-import { queryKeys } from '@/utils/queryKeys';
 import { ROLE_CACHE } from '@/utils/queryCacheConfig';
+import { queryKeys } from '@/utils/queryKeys';
 
 /**
  * 管理员角色选项 Hook
@@ -26,8 +26,13 @@ export function useRoleOptions(): UseRoleOptionsResult {
   const { data, isLoading } = useQuery({
     queryKey: queryKeys.roleList.all,
     queryFn: async () => {
-      const response = await getRoleList({ page: 1, page_size: 1000 });
-      return response.items;
+      try {
+        const response = await getRoleList({ page: 1, page_size: 1000 });
+        return response.items;
+      } catch (error) {
+        console.warn('[useRoleOptions] Failed to fetch role list:', error);
+        return [];
+      }
     },
     staleTime: ROLE_CACHE.staleTime, // 5 minutes
     gcTime: ROLE_CACHE.gcTime, // 30 minutes

@@ -1,7 +1,8 @@
 import { GridContent } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
 import { App, Menu } from 'antd';
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import BaseView from './components/base';
 import BindingView from './components/binding';
 import NotificationView from './components/notification';
@@ -96,51 +97,44 @@ const Settings: React.FC = () => {
   }, []);
 
   // Register Page API for selfAccount function group
-  useEffect(() => {
-    const pageAPI: SelfAccountSettingsPageAPI = {
-      updateProfile: async (data) => {
-        try {
-          // Validate required fields
-          if (!data.name) {
-            return { success: false, error: 'Name is required' };
+  usePageAPIRegistration(
+    'selfAccountSettings',
+    useCallback(
+      (): SelfAccountSettingsPageAPI => ({
+        updateProfile: async (data) => {
+          try {
+            // Validate required fields
+            if (!data.name) {
+              return { success: false, error: 'Name is required' };
+            }
+            if (!data.email) {
+              return { success: false, error: 'Email is required' };
+            }
+
+            // Call the real update API
+            await updateCurrentUser(data);
+            message.success(
+              intl.formatMessage({
+                id: 'pages.account.settings.updateSuccess',
+                defaultMessage: 'Profile updated successfully',
+              }),
+            );
+            return { success: true };
+          } catch (err) {
+            console.error(
+              '[SelfAccountSettings Page API] updateProfile failed:',
+              err,
+            );
+            return {
+              success: false,
+              error: 'Failed to update profile',
+            };
           }
-          if (!data.email) {
-            return { success: false, error: 'Email is required' };
-          }
-
-          // Call the real update API
-          await updateCurrentUser(data);
-          message.success('Profile updated successfully');
-          return { success: true };
-        } catch (err) {
-          console.error(
-            '[SelfAccountSettings Page API] updateProfile failed:',
-            err,
-          );
-          return {
-            success: false,
-            error: 'Failed to update profile',
-          };
-        }
-      },
-    };
-
-    window.__pages__ = window.__pages__ || {};
-    window.__pages__.selfAccountSettings = pageAPI;
-
-    window.dispatchEvent(
-      new CustomEvent('page-api-ready', {
-        detail: { page: 'selfAccountSettings' },
+        },
       }),
-    );
-
-    console.log('[SelfAccountSettingsPage] Page API registered');
-
-    return () => {
-      delete window.__pages__?.selfAccountSettings;
-      console.log('[SelfAccountSettingsPage] Page API unregistered');
-    };
-  }, []);
+      [],
+    ),
+  );
   return (
     <GridContent>
       <div

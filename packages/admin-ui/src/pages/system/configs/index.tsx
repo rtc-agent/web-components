@@ -11,6 +11,7 @@ import React, {
   useState,
 } from 'react';
 import { useOptimisticLockConflict } from '@/hooks/useOptimisticLockConflict';
+import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import type { ServerConfigItem } from '@/services/server-config';
 import {
   deleteServerConfig,
@@ -23,7 +24,7 @@ import {
   useConfigSourceRenderer,
 } from '@/utils/configFormat';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
-import { parseTableSort } from '../../rtc-users/shared/tableUtils';
+import { parseTableSort } from '@/utils/tableUtils';
 import ConfigEditModal from './components/ConfigEditModal';
 import ConfigHistoryModal from './components/ConfigHistoryModal';
 import ConflictModal from './components/ConflictModal';
@@ -421,102 +422,90 @@ const SystemConfigsPage: React.FC = () => {
         ),
       },
     ],
-    [
-      intl,
-      token,
-      isMobile,
-      renderConfigSource,
-      formatDisplayValue,
-    ],
+    [intl, token, isMobile, renderConfigSource, formatDisplayValue],
   );
 
   // Register Page API for function handlers
-  useEffect(() => {
-    const pageAPI: ServerConfigPageAPI = {
-      list: async (params) => {
-        try {
-          // Sync URL with category
-          const newSearchParams = new URLSearchParams();
-          if (params?.category) {
-            newSearchParams.set('category', params.category);
+  usePageAPIRegistration(
+    'serverConfig',
+    useCallback(
+      (): ServerConfigPageAPI => ({
+        list: async (params) => {
+          try {
+            // Sync URL with category
+            const newSearchParams = new URLSearchParams();
+            if (params?.category) {
+              newSearchParams.set('category', params.category);
+            }
+            setSearchParams(newSearchParams, { replace: true });
+
+            const response = await getServerConfigList({
+              category: params?.category,
+              page: params?.current,
+              page_size: params?.pageSize,
+            });
+            return {
+              data: response.items,
+              total: response.total,
+              success: true,
+            };
+          } catch (error) {
+            console.error('[ServerConfigPageAPI] list failed:', error);
+            message.error(
+              getFriendlyErrorMessage(
+                error,
+                intl,
+                'Failed to load configuration list',
+              ),
+            );
+            return { data: [], total: 0, success: false };
           }
-          setSearchParams(newSearchParams, { replace: true });
-
-          const response = await getServerConfigList({
-            category: params?.category,
-            page: params?.current,
-            page_size: params?.pageSize,
-          });
-          return {
-            data: response.items,
-            total: response.total,
-            success: true,
-          };
-        } catch (error) {
-          console.error('[ServerConfigPageAPI] list failed:', error);
-          message.error(
-            getFriendlyErrorMessage(
-              error,
-              intl,
-              'Failed to load configuration list',
-            ),
-          );
-          return { data: [], total: 0, success: false };
-        }
-      },
-      refresh: async () => {
-        actionRef.current?.reload();
-      },
-      update: async (data) => {
-        try {
-          await updateServerConfig(data.key, {
-            value: data.value,
-            version: data.version,
-            change_note: data.change_note,
-          });
+        },
+        refresh: async () => {
           actionRef.current?.reload();
-          return { success: true };
-        } catch (error) {
-          console.error('[ServerConfigPageAPI] update failed:', error);
-          message.error(
-            getFriendlyErrorMessage(
-              error,
-              intl,
-              'Failed to update configuration',
-            ),
-          );
-          return { success: false };
-        }
-      },
-      remove: async (data) => {
-        try {
-          await deleteServerConfig(data.key, data.version);
-          actionRef.current?.reload();
-          return { success: true };
-        } catch (error) {
-          console.error('[ServerConfigPageAPI] remove failed:', error);
-          message.error(
-            getFriendlyErrorMessage(
-              error,
-              intl,
-              'Failed to delete configuration',
-            ),
-          );
-          return { success: false };
-        }
-      },
-    };
-
-    window.__pages__ ??= {};
-    window.__pages__.serverConfig = pageAPI;
-    window.dispatchEvent(
-      new CustomEvent('page-api-ready', { detail: { page: 'serverConfig' } }),
-    );
-
-    return () => {
-      delete window.__pages__?.serverConfig;
-    };
-  }, []);
+        },
+        update: async (data) => {
+          try {
+            await updateServerConfig(data.key, {
+              value: data.value,
+              version: data.version,
+              change_note: data.change_note,
+            });
+            actionRef.current?.reload();
+            return { success: true };
+          } catch (error) {
+            console.error('[ServerConfigPageAPI] update failed:', error);
+            message.error(
+              getFriendlyErrorMessage(
+                error,
+                intl,
+                'Failed to update configuration',
+              ),
+            );
+            return { success: false };
+          }
+        },
+        remove: async (data) => {
+          try {
+            await deleteServerConfig(data.key, data.version);
+            actionRef.current?.reload();
+            return { success: true };
+          } catch (error) {
+            console.error('[ServerConfigPageAPI] remove failed:', error);
+            message.error(
+              getFriendlyErrorMessage(
+                error,
+                intl,
+                'Failed to delete configuration',
+              ),
+            );
+            return { success: false };
+          }
+        },
+      }),
+      [],
+    ),
+  );
 
   // Listen for URL changes (from Page API), sync active category
   useEffect(() => {

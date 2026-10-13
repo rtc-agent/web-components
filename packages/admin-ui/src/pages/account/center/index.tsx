@@ -7,8 +7,6 @@ import {
 import { GridContent } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
 import { useIntl } from '@umijs/max';
-import { queryKeys } from '@/utils/queryKeys';
-import { USER_CACHE } from '@/utils/queryCacheConfig';
 import {
   Avatar,
   Card,
@@ -21,7 +19,10 @@ import {
   Row,
   Tag,
 } from 'antd';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
+import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
+import { USER_CACHE } from '@/utils/queryCacheConfig';
+import { queryKeys } from '@/utils/queryKeys';
 import useStyles from './Center.style';
 import Applications from './components/Applications';
 import Articles from './components/Articles';
@@ -240,42 +241,33 @@ const Center: React.FC = () => {
   });
 
   // Register Page API for selfAccount function group
-  useEffect(() => {
-    const pageAPI: SelfAccountCenterPageAPI = {
-      getProfile: async () => {
-        try {
-          const result = await queryCurrent();
-          return {
-            success: true,
-            data: result.data,
-          };
-        } catch (err) {
-          console.error('[SelfAccountCenter Page API] getProfile failed:', err);
-          return {
-            success: false,
-            data: null,
-            error: 'Failed to get user profile',
-          };
-        }
-      },
-    };
-
-    window.__pages__ = window.__pages__ || {};
-    window.__pages__.selfAccountCenter = pageAPI;
-
-    window.dispatchEvent(
-      new CustomEvent('page-api-ready', {
-        detail: { page: 'selfAccountCenter' },
+  usePageAPIRegistration(
+    'selfAccountCenter',
+    useCallback(
+      (): SelfAccountCenterPageAPI => ({
+        getProfile: async () => {
+          try {
+            const result = await queryCurrent();
+            return {
+              success: true,
+              data: result.data,
+            };
+          } catch (err) {
+            console.error(
+              '[SelfAccountCenter Page API] getProfile failed:',
+              err,
+            );
+            return {
+              success: false,
+              data: null,
+              error: 'Failed to get user profile',
+            };
+          }
+        },
       }),
-    );
-
-    console.log('[SelfAccountCenterPage] Page API registered');
-
-    return () => {
-      delete window.__pages__?.selfAccountCenter;
-      console.log('[SelfAccountCenterPage] Page API unregistered');
-    };
-  }, []);
+      [],
+    ),
+  );
 
   // Show error result when API request fails
   if (isError) {

@@ -2,11 +2,12 @@ import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { useIntl, useSearchParams } from '@umijs/max';
 import { App, Grid, Tag, theme } from 'antd';
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import type { AuditLogItem } from '@/services/audit-log';
 import { getAuditLogList } from '@/services/audit-log';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
-import { parseTableSort } from '../../rtc-users/shared/tableUtils';
+import { parseTableSort } from '@/utils/tableUtils';
 import type { AuditLogPageAPI } from './page-api';
 
 /**
@@ -22,103 +23,90 @@ const AuditLogsPage: React.FC = () => {
   const isMobile = !breakpoint.md;
 
   // === Register Page API ===
-  useEffect(() => {
-    const pageAPI: AuditLogPageAPI = {
-      // Read table data
-      list: async (params = {}) => {
-        const {
-          current = 1,
-          pageSize = 20,
-          actor_id,
-          resource_type,
-          event_type,
-          target_id,
-          start_time,
-          end_time,
-        } = params;
-
-        // Sync URL (no page refresh)
-        const newSearchParams = new URLSearchParams();
-        if (actor_id) {
-          newSearchParams.set('actor_id', actor_id);
-        }
-        if (resource_type) {
-          newSearchParams.set('resource_type', resource_type);
-        }
-        if (event_type) {
-          newSearchParams.set('event_type', event_type);
-        }
-        if (target_id) {
-          newSearchParams.set('target_id', target_id);
-        }
-        if (start_time) {
-          newSearchParams.set('start_time', start_time);
-        }
-        if (end_time) {
-          newSearchParams.set('end_time', end_time);
-        }
-        setSearchParams(newSearchParams, { replace: true });
-
-        try {
-          const response = await getAuditLogList({
-            page: current,
-            page_size: pageSize,
+  usePageAPIRegistration(
+    'auditLog',
+    useCallback(
+      (): AuditLogPageAPI => ({
+        // Read table data
+        list: async (params = {}) => {
+          const {
+            current = 1,
+            pageSize = 20,
             actor_id,
             resource_type,
             event_type,
             target_id,
             start_time,
             end_time,
-          });
+          } = params;
 
-          return {
-            success: true,
-            data: response.items,
-            total: response.total,
-          };
-        } catch (error) {
-          console.error('[AuditLog Page API] list failed:', error);
-          message.error(
-            getFriendlyErrorMessage(
-              error,
-              intl,
-              intl.formatMessage({
-                id: 'pages.auditLogs.loadFailed',
-                defaultMessage: 'Failed to load audit logs',
-              }),
-            ),
-          );
-          return {
-            success: false,
-            data: [],
-            total: 0,
-          };
-        }
-      },
+          // Sync URL (no page refresh)
+          const newSearchParams = new URLSearchParams();
+          if (actor_id) {
+            newSearchParams.set('actor_id', actor_id);
+          }
+          if (resource_type) {
+            newSearchParams.set('resource_type', resource_type);
+          }
+          if (event_type) {
+            newSearchParams.set('event_type', event_type);
+          }
+          if (target_id) {
+            newSearchParams.set('target_id', target_id);
+          }
+          if (start_time) {
+            newSearchParams.set('start_time', start_time);
+          }
+          if (end_time) {
+            newSearchParams.set('end_time', end_time);
+          }
+          setSearchParams(newSearchParams, { replace: true });
 
-      // Refresh table
-      refresh: async () => {
-        actionRef.current?.reload();
-      },
-    };
+          try {
+            const response = await getAuditLogList({
+              page: current,
+              page_size: pageSize,
+              actor_id,
+              resource_type,
+              event_type,
+              target_id,
+              start_time,
+              end_time,
+            });
 
-    // Register to global
-    window.__pages__ = window.__pages__ || {};
-    window.__pages__.auditLog = pageAPI;
+            return {
+              success: true,
+              data: response.items,
+              total: response.total,
+            };
+          } catch (error) {
+            console.error('[AuditLog Page API] list failed:', error);
+            message.error(
+              getFriendlyErrorMessage(
+                error,
+                intl,
+                intl.formatMessage({
+                  id: 'pages.auditLogs.loadFailed',
+                  defaultMessage: 'Failed to load audit logs',
+                }),
+              ),
+            );
+            return {
+              success: false,
+              data: [],
+              total: 0,
+            };
+          }
+        },
 
-    // Send ready event (notify navigation.goto that page is loaded)
-    window.dispatchEvent(
-      new CustomEvent('page-api-ready', { detail: { page: 'auditLog' } }),
-    );
-
-    console.log('[AuditLogsPage] Page API registered');
-
-    // Cleanup
-    return () => {
-      delete window.__pages__?.auditLog;
-      console.log('[AuditLogsPage] Page API unregistered');
-    };
-  }, []);
+        // Refresh table
+        refresh: async () => {
+          actionRef.current?.reload();
+        },
+      }),
+      [],
+    ),
+  );
 
   // Listen for URL changes, auto-reload table
   useEffect(() => {

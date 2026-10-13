@@ -2,7 +2,7 @@ import { ModalForm, ProFormTextArea } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
 import { Alert, App, Form, Grid } from 'antd';
 import React, { useEffect } from 'react';
-import type { ServerConfigItem } from '@/services/serverConfig';
+import type { ServerConfigItem } from '@/services/server-config';
 import { parseConfigValue } from '@/utils/configFormat';
 import ConfigValueInput from './ConfigValueInput';
 
@@ -84,7 +84,7 @@ const ConfigEditModal: React.FC<ConfigEditModalProps> = ({
         <Alert
           type="info"
           showIcon
-          title={config.description}
+          message={config.description}
           style={{ marginBottom: 16 }}
         />
       )}

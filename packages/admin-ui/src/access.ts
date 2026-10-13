@@ -41,10 +41,8 @@ export default function access(
   // 向后兼容：如果 permissions 为 undefined（旧后端），基于 access 字段判断
   const perms = currentUser.permissions;
 
-  // 向后兼容：旧后端可能没有 permissions 字段，只开放 canAdmin
-  // 注意：当前所有调用路径都通过 buildCurrentUser()，它始终将 permissions 设为 Set。
-  // 此分支作为防御性检查保留：如果有人直接构造 CurrentUser 对象（如测试或未来重构），
-  // 此分支可防止因缺少 permissions 字段而导致的运行时错误。
+  // 防御性检查：向后兼容旧后端（无 permissions 字段）+ 防止类型错误
+  // 当前所有调用路径都通过 buildCurrentUser()，它始终将 permissions 设为 Set。
   if (perms === undefined) {
     const isAdmin = currentUser.access === 'admin';
     return isAdmin
@@ -93,6 +91,10 @@ export default function access(
     // 实现：canAdmin（权限级管理员）或拥有任一系统权限的用户可见
     // 使用 canAdmin（基于 admin_user:write 权限）替代硬编码角色名 'admin'，
     // 使权限判断完全基于后端授予的权限而非角色名称，提高可维护性。
+    //
+    // 注意：canSystemView 显式包含 canAdmin，这是防御性保留。
+    // 即使管理员没有配置任何细粒度系统权限（canAdminUserView 等），
+    // 仅凭 canAdmin 也能看到系统管理菜单，确保超级管理员始终可访问。
     canSystemView:
       canAdmin ||
       canAdminUserView ||

@@ -26,8 +26,15 @@ import {
   Tooltip,
   theme,
 } from 'antd';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { getActionTypes, getResourceTypes } from '@/constants/permissions';
+import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { usePermissionRefresh } from '@/hooks/usePermissionRefresh';
 import {
   createPermission,
@@ -43,7 +50,7 @@ import {
   updateRole,
 } from '@/services/role';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
-import { parseTableSort } from '../../rtc-users/shared/tableUtils';
+import { parseTableSort } from '@/utils/tableUtils';
 import type { RoleFormValues, RoleTableItem } from './data';
 import type { RolePageAPI } from './page-api';
 
@@ -78,145 +85,132 @@ const RoleListPage: React.FC = () => {
   const ACTION_TYPES = getActionTypes(intl);
 
   // === Register Page API ===
-  useEffect(() => {
-    const pageAPI: RolePageAPI = {
-      // Read table data
-      list: async (params = {}) => {
-        const { current = 1, pageSize = 20, keyword } = params;
+  usePageAPIRegistration(
+    'role',
+    useCallback(
+      (): RolePageAPI => ({
+        // Read table data
+        list: async (params = {}) => {
+          const { current = 1, pageSize = 20, keyword } = params;
 
-        // Sync URL (no page refresh)
-        const newSearchParams = new URLSearchParams();
-        if (keyword) {
-          newSearchParams.set('keyword', keyword);
-        }
-        setSearchParams(newSearchParams, { replace: true });
+          // Sync URL (no page refresh)
+          const newSearchParams = new URLSearchParams();
+          if (keyword) {
+            newSearchParams.set('keyword', keyword);
+          }
+          setSearchParams(newSearchParams, { replace: true });
 
-        try {
-          const response = await getRoleList({
-            page: current,
-            page_size: pageSize,
-            keyword,
-          });
+          try {
+            const response = await getRoleList({
+              page: current,
+              page_size: pageSize,
+              keyword,
+            });
 
-          return {
-            success: true,
-            data: response.items,
-            total: response.total,
-          };
-        } catch (error) {
-          console.error('[Role Page API] list failed:', error);
-          message.error(
-            getFriendlyErrorMessage(
-              error,
-              intl,
-              intl.formatMessage({
-                id: 'pages.roles.loadFailed',
-                defaultMessage: 'Failed to load admin roles',
-              }),
-            ),
-          );
-          return {
-            success: false,
-            data: [],
-            total: 0,
-          };
-        }
-      },
+            return {
+              success: true,
+              data: response.items,
+              total: response.total,
+            };
+          } catch (error) {
+            console.error('[Role Page API] list failed:', error);
+            message.error(
+              getFriendlyErrorMessage(
+                error,
+                intl,
+                intl.formatMessage({
+                  id: 'pages.roles.loadFailed',
+                  defaultMessage: 'Failed to load admin roles',
+                }),
+              ),
+            );
+            return {
+              success: false,
+              data: [],
+              total: 0,
+            };
+          }
+        },
 
-      // Refresh table
-      refresh: async () => {
-        actionRef.current?.reload();
-      },
-
-      // Create admin role
-      create: async (data) => {
-        try {
-          const result = await createRole(data);
+        // Refresh table
+        refresh: async () => {
           actionRef.current?.reload();
-          return { success: true, id: result.id };
-        } catch (error) {
-          console.error('[Role Page API] create failed:', error);
-          message.error(
-            getFriendlyErrorMessage(
-              error,
-              intl,
-              intl.formatMessage({
-                id: 'pages.roles.createFailed',
-                defaultMessage: 'Creation failed',
-              }),
-            ),
-          );
-          return { success: false };
-        }
-      },
+        },
 
-      // Update admin role
-      update: async (data) => {
-        try {
-          const { id, ...updateData } = data;
-          await updateRole(id, updateData);
-          actionRef.current?.reload();
-          return { success: true };
-        } catch (error) {
-          console.error('[Role Page API] update failed:', error);
-          message.error(
-            getFriendlyErrorMessage(
-              error,
-              intl,
-              intl.formatMessage({
-                id: 'pages.roles.updateFailed',
-                defaultMessage: 'Update failed',
-              }),
-            ),
-          );
-          return { success: false };
-        }
-      },
+        // Create admin role
+        create: async (data) => {
+          try {
+            const result = await createRole(data);
+            actionRef.current?.reload();
+            return { success: true, id: result.id };
+          } catch (error) {
+            console.error('[Role Page API] create failed:', error);
+            message.error(
+              getFriendlyErrorMessage(
+                error,
+                intl,
+                intl.formatMessage({
+                  id: 'pages.roles.createFailed',
+                  defaultMessage: 'Creation failed',
+                }),
+              ),
+            );
+            return { success: false };
+          }
+        },
 
-      // Delete admin roles (parallel execution)
-      remove: async (ids) => {
-        try {
-          const results = await Promise.all(ids.map((id) => deleteRole(id)));
-          const failures = results.filter((r) => !r.success);
-          actionRef.current?.reload();
-          return {
-            success: failures.length === 0,
-            deletedCount: ids.length - failures.length,
-          };
-        } catch (error) {
-          console.error('[Role Page API] remove failed:', error);
-          message.error(
-            getFriendlyErrorMessage(
-              error,
-              intl,
-              intl.formatMessage({
-                id: 'pages.roles.deleteFailed',
-                defaultMessage: 'Deletion failed',
-              }),
-            ),
-          );
-          return { success: false };
-        }
-      },
-    };
+        // Update admin role
+        update: async (data) => {
+          try {
+            const { id, ...updateData } = data;
+            await updateRole(id, updateData);
+            actionRef.current?.reload();
+            return { success: true };
+          } catch (error) {
+            console.error('[Role Page API] update failed:', error);
+            message.error(
+              getFriendlyErrorMessage(
+                error,
+                intl,
+                intl.formatMessage({
+                  id: 'pages.roles.updateFailed',
+                  defaultMessage: 'Update failed',
+                }),
+              ),
+            );
+            return { success: false };
+          }
+        },
 
-    // Register to global
-    window.__pages__ = window.__pages__ || {};
-    window.__pages__.role = pageAPI;
-
-    // Dispatch ready event (notify navigation.goto that page is loaded)
-    window.dispatchEvent(
-      new CustomEvent('page-api-ready', { detail: { page: 'role' } }),
-    );
-
-    console.log('[RoleListPage] Page API registered');
-
-    // Cleanup
-    return () => {
-      delete window.__pages__?.role;
-      console.log('[RoleListPage] Page API unregistered');
-    };
-  }, []);
+        // Delete admin roles (parallel execution)
+        remove: async (ids) => {
+          try {
+            const results = await Promise.all(ids.map((id) => deleteRole(id)));
+            const failures = results.filter((r) => !r.success);
+            actionRef.current?.reload();
+            return {
+              success: failures.length === 0,
+              deletedCount: ids.length - failures.length,
+            };
+          } catch (error) {
+            console.error('[Role Page API] remove failed:', error);
+            message.error(
+              getFriendlyErrorMessage(
+                error,
+                intl,
+                intl.formatMessage({
+                  id: 'pages.roles.deleteFailed',
+                  defaultMessage: 'Deletion failed',
+                }),
+              ),
+            );
+            return { success: false };
+          }
+        },
+      }),
+      [],
+    ),
+  );
 
   // Listen for URL changes, auto-reload table
   useEffect(() => {
