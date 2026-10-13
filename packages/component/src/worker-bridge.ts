@@ -220,6 +220,21 @@ export class WorkerBridge {
   private static _virtualFSProxyInstalled = false;
 
   /**
+   * Reference count for virtualFS proxy installations.
+   *
+   * Tracks how many WorkerBridge instances have called installVirtualFSProxy().
+   * restoreVirtualFS() decrements this count and only restores the original
+   * implementation when the count reaches zero. This prevents a scenario where
+   * instance A's destroy() restores the original while instance B still relies
+   * on the proxy being active.
+   *
+   * Note: This does NOT fix the fundamental overwrite issue (last installer wins),
+   * but ensures cleanup is correct — the proxy stays active as long as any
+   * instance needs it.
+   */
+  private static _virtualFSProxyRefCount = 0;
+
+  /**
    * Backup of original virtualFS methods, saved before proxy installation.
    * Used by restoreVirtualFS() to recover the original implementation on destroy().
    */
@@ -990,8 +1005,10 @@ export class WorkerBridge {
       };
     }
 
-    // Mark as installed
+    // Mark as installed and increment reference count
     WorkerBridge._virtualFSProxyInstalled = true;
+    WorkerBridge._virtualFSProxyRefCount++;
+    log.debug(`virtualFS proxy installed (refCount=${WorkerBridge._virtualFSProxyRefCount})`);
 
     virtualFS.read = ((path: string, offset?: number, limit?: number) =>
       core.virtualFSRead(path, offset, limit)) as typeof virtualFS.read;
@@ -1039,12 +1056,27 @@ export class WorkerBridge {
    * to a dead Worker. After restoration, virtualFS operations use the original
    * IndexedDB-backed implementation directly.
    *
-   * Safe to call multiple times — no-op if no proxy was installed.
+   * Uses reference counting: only restores when the last WorkerBridge instance
+   * calls this method. This prevents instance A's destroy() from breaking
+   * instance B's proxy-based operations.
+   *
+   * Safe to call multiple times — no-op if no proxy was installed or if other
+   * instances still hold references.
    */
   static restoreVirtualFS(): void {
-    if (!WorkerBridge._originalVirtualFS) {
+    if (!WorkerBridge._originalVirtualFS || WorkerBridge._virtualFSProxyRefCount <= 0) {
       return;
     }
+
+    // Decrement reference count
+    WorkerBridge._virtualFSProxyRefCount--;
+
+    // Only restore original when all instances have released their reference
+    if (WorkerBridge._virtualFSProxyRefCount > 0) {
+      log.debug(`virtualFS proxy release (refCount=${WorkerBridge._virtualFSProxyRefCount}, keeping proxy active)`);
+      return;
+    }
+
     const orig = WorkerBridge._originalVirtualFS;
     virtualFS.read = orig.read;
     virtualFS.write = orig.write;
@@ -1056,7 +1088,7 @@ export class WorkerBridge {
     virtualFS.remove = orig.remove;
     WorkerBridge._originalVirtualFS = null;
     WorkerBridge._virtualFSProxyInstalled = false;
-    log.debug('virtualFS proxy restored to original implementation');
+    log.debug('virtualFS proxy restored to original implementation (refCount=0)');
   }
 
   // ========== File Cache & S3 Proxy ==========

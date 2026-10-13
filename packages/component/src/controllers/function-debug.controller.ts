@@ -84,7 +84,19 @@ export class FunctionDebugController implements ReactiveController {
     // History loading is triggered by workerBridge setter, not here
   }
 
-  hostDisconnected() {}
+  hostDisconnected() {
+    // Clear cursor cache: cursors are tied to a specific WorkerBridge instance.
+    // After disconnect, the bridge may be destroyed or replaced, making old cursors stale.
+    // Attempting to use a stale cursor would result in skipped or duplicated items.
+    this._cursorCache.clear();
+
+    // Clear cached context value: the cached object holds references to the old state.
+    // Without clearing, a subsequent hostConnected() would return a stale cached value
+    // (since _cachedState === _state would be true even though the context may have
+    // been consumed by a different component tree after re-mount).
+    this._cachedValue = undefined;
+    this._cachedState = undefined;
+  }
 
   /**
    * Set the function registry

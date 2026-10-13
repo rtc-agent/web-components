@@ -43,6 +43,8 @@ describe('SettingsController', () => {
     // Mock document.documentElement.style
     vi.spyOn(document.documentElement.style, 'setProperty');
     vi.spyOn(document.documentElement.style, 'removeProperty');
+    // Reset the static instance counter to ensure test isolation
+    (SettingsController as any)._activeInstanceCount = 0;
     ctrl = new SettingsController(host as any);
   });
 
@@ -503,6 +505,39 @@ describe('SettingsController', () => {
       expect(
         document.documentElement.style.removeProperty,
       ).toHaveBeenCalledWith('--rtc-font-size-user');
+    });
+
+    it('should NOT cleanup CSS variable when other instances are still active', () => {
+      // Simulate multi-instance scenario:
+      // Instance A connects
+      const hostA = new MockHost();
+      const ctrlA = new SettingsController(hostA as any);
+      ctrlA.hostConnected();
+
+      // Instance B connects
+      const hostB = new MockHost();
+      const ctrlB = new SettingsController(hostB as any);
+      ctrlB.hostConnected();
+
+      // Instance A disconnects — CSS variable should NOT be removed (B still active)
+      ctrlA.hostDisconnected();
+      expect(
+        document.documentElement.style.removeProperty,
+      ).not.toHaveBeenCalled();
+
+      // Instance B disconnects — NOW the CSS variable should be removed
+      ctrlB.hostDisconnected();
+      expect(
+        document.documentElement.style.removeProperty,
+      ).toHaveBeenCalledWith('--rtc-font-size-user');
+    });
+
+    it('should handle disconnect without connect gracefully', () => {
+      // Defensive: disconnect without prior connect should not throw
+      const newHost = new MockHost();
+      const newCtrl = new SettingsController(newHost as any);
+      // Don't call hostConnected(), directly call hostDisconnected()
+      expect(() => newCtrl.hostDisconnected()).not.toThrow();
     });
   });
 

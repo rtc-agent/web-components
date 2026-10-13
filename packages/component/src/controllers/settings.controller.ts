@@ -41,6 +41,16 @@ export class SettingsController implements ReactiveController {
   private _cachedValue?: SettingsContextValue;
   private _cachedState?: SettingsState;
 
+  /**
+   * Reference count for active SettingsController instances.
+   *
+   * Tracks how many instances have set the global CSS variable --rtc-font-size-user
+   * on document.documentElement. hostDisconnected() only removes the CSS variable
+   * when the count reaches zero, preventing instance A's disconnect from breaking
+   * instance B's font size setting.
+   */
+  private static _activeInstanceCount = 0;
+
   get value(): SettingsContextValue {
     // Only create new value object if state reference changed
     if (this._cachedValue && this._cachedState === this._state) {
@@ -67,6 +77,9 @@ export class SettingsController implements ReactiveController {
   }
 
   hostConnected() {
+    // Track active instances for safe multi-instance CSS variable cleanup
+    SettingsController._activeInstanceCount++;
+
     // Clean up listeners from a previous connect cycle (disconnect → reconnect)
     // to prevent leaked event listeners accumulating on window / media query.
     this._removeGlobalListeners();
@@ -97,8 +110,17 @@ export class SettingsController implements ReactiveController {
 
   hostDisconnected() {
     this._removeGlobalListeners();
-    // Clean up font size override
-    document.documentElement.style.removeProperty('--rtc-font-size-user');
+
+    // Decrement instance count; only clean up CSS variable when the last instance disconnects.
+    // This prevents instance A's disconnect from removing the font-size CSS variable
+    // while instance B still relies on it.
+    SettingsController._activeInstanceCount = Math.max(
+      0,
+      SettingsController._activeInstanceCount - 1,
+    );
+    if (SettingsController._activeInstanceCount === 0) {
+      document.documentElement.style.removeProperty('--rtc-font-size-user');
+    }
   }
 
   /** Remove all global event listeners (safe to call even if nothing was added). */
