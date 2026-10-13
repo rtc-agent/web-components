@@ -49,7 +49,7 @@ import {
   extractClientId,
   extractStringField,
 } from '@rtc-agent/protocol';
-import type { Table } from 'dexie';
+import Dexie, { type Table } from 'dexie';
 import diff from 'microdiff';
 import { createLogger } from '@rtc-agent/protocol';
 
@@ -97,6 +97,31 @@ interface BatchEntities {
   turns: Partial<LocalTurn>[];
   messages: Partial<LocalMessage>[];
   rtcs: Partial<LocalRtc>[];
+}
+
+/**
+ * P0-FIX: Structured conflict resolution record for debugging and auditing.
+ * Provides detailed information about how conflicts were resolved.
+ */
+interface ConflictResolution {
+  /** The entity's client_id */
+  entityId: string;
+  /** Entity type (session, turn, message, rtc) */
+  entityType: string;
+  /** Resolution strategy: 'local-wins' or 'server-wins' */
+  strategy: 'local-wins' | 'server-wins';
+  /** Reason for the resolution decision */
+  reason: string;
+  /** Which version won: 'existing' (local) or 'incoming' (server) */
+  winner: 'existing' | 'incoming';
+  /** Existing entity's timestamp */
+  existingTimestamp: string;
+  /** Incoming entity's timestamp */
+  incomingTimestamp: string;
+  /** Existing entity's sync status */
+  existingSyncStatus?: string;
+  /** When the conflict was resolved */
+  resolvedAt: string;
 }
 
 /**
@@ -783,10 +808,15 @@ export class EntityRepository {
     }
 
     // No cursor: get first page
-    // Use compound index to get messages for session, sorted by created_at
+    // PERFORMANCE: Use compound index [session_client_id+created_at] for DB-level sorting.
+    // This avoids in-memory sorting and leverages IndexedDB's native ordering.
+    // The compound index was added in v15 schema migration.
     const allMessages = await db.messages
-      .where('session_client_id')
-      .equals(sessionClientId)
+      .where('[session_client_id+created_at]')
+      .between(
+        [sessionClientId, Dexie.minKey],
+        [sessionClientId, Dexie.maxKey],
+      )
       .limit(MAX_SESSION_MESSAGES)
       .toArray();
 
@@ -797,7 +827,8 @@ export class EntityRepository {
       );
     }
 
-    // Sort by created_at, then by client_id for ties
+    // Messages are already sorted by created_at via compound index.
+    // For ties in created_at, sort by client_id (secondary sort key).
     allMessages.sort((a, b) => {
       const tsA = new Date(a.created_at).getTime();
       const tsB = new Date(b.created_at).getTime();
@@ -1866,15 +1897,17 @@ export class EntityRepository {
   ): BatchEntities {
     /**
      * Compare RFC3339 timestamps and return the "winner" based on last-write-wins.
-     * Returns { winner, isConflict } where isConflict indicates existing was newer
-     * AND has unsynced local changes.
+     * Returns { winner, isConflict, resolution } where isConflict indicates existing was newer
+     * AND has unsynced local changes. Resolution provides detailed conflict resolution info.
      */
     const resolveByTimestamp = <
       T extends { updated_at?: string; sync_status?: string },
     >(
       incoming: T,
       existingEntity: T,
-    ): { winner: T; isConflict: boolean } => {
+      entityName: string,
+      clientId: string,
+    ): { winner: T; isConflict: boolean; resolution?: ConflictResolution } => {
       const incomingTs = incoming.updated_at;
       const existingTs = existingEntity.updated_at;
 
@@ -1889,14 +1922,50 @@ export class EntityRepository {
         return { winner: incoming, isConflict: false };
       } else if (existingTs > incomingTs) {
         // Existing is newer: potential conflict
-        // Only treat as conflict if existing has unsynced local changes
+        // P0-FIX: More precise sync_status check - only 'pending' indicates unsynced local changes
+        // Other statuses ('synced', 'syncing', 'error') mean the data is already on server
         const hasUnsyncedChanges = existingEntity.sync_status === 'pending';
+
         if (hasUnsyncedChanges) {
-          // Local unsynced changes: keep existing, log conflict
-          return { winner: existingEntity, isConflict: true };
+          // P0-FIX: Structured conflict resolution with detailed logging
+          const resolution: ConflictResolution = {
+            entityId: clientId,
+            entityType: entityName,
+            strategy: 'local-wins',
+            reason: 'existing-newer-with-unsynced-changes',
+            winner: 'existing',
+            existingTimestamp: existingTs,
+            incomingTimestamp: incomingTs,
+            existingSyncStatus: existingEntity.sync_status,
+            resolvedAt: nowRFC3339(),
+          };
+
+          log.warn(
+            `mergeWithExisting: conflict detected in ${entityName}`,
+            JSON.stringify(resolution, null, 2),
+          );
+
+          return { winner: existingEntity, isConflict: true, resolution };
         } else {
-          // Already synced: server data wins
-          return { winner: incoming, isConflict: false };
+          // Already synced or in other state: server data wins
+          const resolution: ConflictResolution = {
+            entityId: clientId,
+            entityType: entityName,
+            strategy: 'server-wins',
+            reason: 'existing-newer-but-already-synced',
+            winner: 'incoming',
+            existingTimestamp: existingTs,
+            incomingTimestamp: incomingTs,
+            existingSyncStatus: existingEntity.sync_status,
+            resolvedAt: nowRFC3339(),
+          };
+
+          log.debug(
+            `mergeWithExisting: conflict resolved in ${entityName} (server wins)`,
+            JSON.stringify(resolution, null, 2),
+          );
+
+          return { winner: incoming, isConflict: false, resolution };
         }
       } else {
         // Timestamps equal: use incoming for idempotency
@@ -1921,18 +1990,9 @@ export class EntityRepository {
         if (prev) {
           // If entity has updated_at, use timestamp-based conflict resolution
           if (item.updated_at && prev.updated_at) {
-            const { isConflict } = resolveByTimestamp(item, prev);
+            const { isConflict } = resolveByTimestamp(item, prev, entityName, cid);
             if (isConflict) {
-              log.warn(
-                `mergeWithExisting: conflict detected in ${entityName}`,
-                'client_id:',
-                cid,
-                'existing updated_at:',
-                prev.updated_at,
-                'incoming updated_at:',
-                item.updated_at,
-                '→ keeping existing (local unsynced changes protected)',
-              );
+              // Conflict already logged by resolveByTimestamp with structured resolution
               // Return existing unchanged (not merged with incoming)
               return prev;
             }
@@ -1979,18 +2039,9 @@ export class EntityRepository {
           // Second check: timestamp-based conflict resolution
           // Only applies if both have updated_at
           if (item.updated_at && prev.updated_at) {
-            const { isConflict } = resolveByTimestamp(item, prev);
+            const { isConflict } = resolveByTimestamp(item, prev, 'message', cid);
             if (isConflict) {
-              log.warn(
-                'mergeMessages: conflict detected',
-                'client_id:',
-                cid,
-                'existing updated_at:',
-                prev.updated_at,
-                'incoming updated_at:',
-                item.updated_at,
-                '→ keeping existing (local unsynced changes protected)',
-              );
+              // Conflict already logged by resolveByTimestamp with structured resolution
               // Return existing unchanged (not merged with incoming)
               return prev;
             }
@@ -2042,14 +2093,19 @@ export class EntityRepository {
     // holds write locks on db.sessions and db.turns. Dexie's transaction isolation
     // ensures atomicity; concurrent applyUpdates() calls are serialized by the
     // outer transaction scope.
+    //
+    // PERFORMANCE: Process sessions sequentially to avoid transaction conflicts.
+    // Although Promise.all would be faster, concurrent read-write operations within
+    // the same transaction can cause conflicts in some IndexedDB implementations.
+    // Sequential processing ensures deterministic behavior and avoids race conditions.
     const sessionIds = [...affectedSessionIds];
-    const updatePromises = sessionIds.map(async (sessionId) => {
+    for (const sessionId of sessionIds) {
       // Re-count within transaction to see the latest turns (including those just written)
       const { pending, running } = await this.countActiveTurns(sessionId);
 
       // Read current session to check if counts actually changed
       const session = await db.sessions.get(sessionId);
-      if (!session) return; // session doesn't exist (may have been deleted), skip
+      if (!session) continue; // session doesn't exist (may have been deleted), skip
 
       // Only update when count actually changed (reduce unnecessary writes)
       if (
@@ -2061,9 +2117,7 @@ export class EntityRepository {
           running_turn_count: running,
         });
       }
-    });
-
-    await Promise.all(updatePromises);
+    }
   }
 
   /**

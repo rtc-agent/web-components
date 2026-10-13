@@ -255,6 +255,12 @@ export interface FileCacheEntry {
   syncedAt?: number;
   /** Number of retry attempts for failed syncs */
   retryCount: number;
+  /**
+   * P0-FIX: Timestamp when 'syncing' state started (ms since epoch).
+   * Used for heartbeat mechanism to detect stale syncing entries.
+   * Set when transitioning to 'syncing', cleared when leaving 'syncing'.
+   */
+  syncingStartedAt?: number;
 }
 
 // ========== Upload progress (multipart resume) ==========

@@ -803,100 +803,46 @@ export class PersistenceLayer implements IPersistenceLayer {
 
     // 2. If online, attempt immediate sync to S3
     if (this.s3Client && typeof navigator !== 'undefined' && navigator.onLine) {
-      // P3-R7-02: Track whether S3 upload completed. If abort fires between
-      // upload success and state transition, we must NOT roll back to 'pending'
-      // because S3 already has the data. recoverStaleSyncing will recover.
-      let s3UploadCompleted = false;
-      try {
-        await this.fileCacheRepository.withSyncLock(md5, ext, async () => {
-          await this.fileCacheRepository.syncWithDedup(md5, ext, async () => {
-            // P0-2: use atomic transition with precondition check
-            await this.fileCacheRepository.transitionSyncStatus(
+      // P0-FIX: Use FileSyncTransaction to ensure atomic state transitions.
+      // This prevents the state from getting stuck in 'syncing' if the upload
+      // fails or the process crashes.
+      const tx = new FileSyncTransaction(
+        this.fileCacheRepository,
+        this.fileOpCoordinator,
+        this._lifecycleGuard,
+      );
+
+      const result = await tx.run(md5, ext, {
+        from: ['pending', 'failed'],
+        to: 'syncing',
+        signal,
+        action: async (_entry, txSignal) => {
+          if (blob.size > MULTIPART_THRESHOLD) {
+            // Large file: use multipart upload with resume support
+            await this._uploadMultipart(
               md5,
               ext,
-              'pending',
-              'syncing',
+              blob,
+              contentType,
+              txSignal,
+              onProgress,
             );
-
-            if (blob.size > MULTIPART_THRESHOLD) {
-              // Large file: use multipart upload with resume support
-              await this._uploadMultipart(
-                md5,
-                ext,
-                blob,
-                contentType,
-                signal,
-                onProgress,
-              );
-            } else {
-              // Small file: direct upload (existing logic)
-              await this.s3Client!.upload(this._userId, md5, ext, blob, {
-                contentType,
-                signal,
-                onProgress,
-              });
-            }
-
-            s3UploadCompleted = true;
-            await this.fileCacheRepository.transitionSyncStatus(
-              md5,
-              ext,
-              'syncing',
-              'synced',
-            );
-          });
-        });
-      } catch (err) {
-        // Handle abort separately: P0-1 fix — reset status to 'pending' so it can be retried
-        if (err instanceof Error && err.name === 'AbortError') {
-          log.info(`Upload aborted: ${md5}.${ext}`);
-          // P3-R7-02: If S3 upload already completed, don't roll back.
-          // State stays 'syncing' — recoverStaleSyncing will fix on next startup.
-          if (s3UploadCompleted) {
-            log.info(
-              `Upload aborted after S3 completed for ${md5}.${ext}, keeping syncing state`,
-            );
-            const cached = await this.fileCacheRepository.get(md5, ext);
-            return {
-              syncStatus: cached?.syncStatus ?? 'syncing',
-              syncedAt: cached?.syncedAt,
-              errorMessage: cached?.errorMessage,
-            };
+          } else {
+            // Small file: direct upload (existing logic)
+            await this.s3Client!.upload(this._userId, md5, ext, blob, {
+              contentType,
+              signal: txSignal,
+              onProgress,
+            });
           }
-          // P2-R6-02: Re-acquire lock before state transition to prevent TOCTOU race.
-          // Without the lock, another operation could have started a new upload
-          // and we'd overwrite its 'syncing' state with 'pending'.
-          await this.fileCacheRepository.withSyncLock(md5, ext, async () => {
-            const cached = await this.fileCacheRepository.get(md5, ext);
-            // Only roll back if state is still 'syncing' (our operation's state).
-            // If another operation already changed it, leave it alone.
-            if (cached?.syncStatus === 'syncing') {
-              await this.fileCacheRepository.transitionSyncStatus(
-                md5,
-                ext,
-                'syncing',
-                'pending',
-              );
-            }
-          });
-          const cached = await this.fileCacheRepository.get(md5, ext);
-          return {
-            syncStatus: cached?.syncStatus ?? 'pending',
-            syncedAt: cached?.syncedAt,
-            errorMessage: cached?.errorMessage,
-          };
-        }
-        // Sync failed: mark as failed, but file is safely stored locally
-        await this.fileCacheRepository.transitionSyncStatus(
-          md5,
-          ext,
-          ['pending', 'syncing'],
-          'failed',
-          { errorMessage: err instanceof Error ? err.message : String(err) },
-        );
+        },
+        onSuccess: 'synced',
+        onFailure: 'failed',
+      });
+
+      if (!result.success && !result.aborted) {
         log.warn(
-          `Failed to sync file ${md5}.${ext} to S3 (stored locally, userId=${this._userId}, fileSize=${blob.size}, contentType=${contentType ?? 'n/a'}):`,
-          err,
+          `Failed to sync file ${md5}.${ext} to S3 (stored locally, userId=${this._userId}, fileSize=${blob.size}, contentType=${contentType ?? 'n/a'}): ${result.error}`,
         );
       }
     }

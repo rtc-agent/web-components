@@ -17,6 +17,9 @@ const MAX_RETRY_COUNT = 3;
 /** P2-NEW-5: Default timeout for withSyncLock (5 minutes) */
 export const SYNC_LOCK_TIMEOUT_MS = 5 * 60 * 1000;
 
+/** P0-FIX: Stale syncing threshold - entries stuck in 'syncing' for more than 5 minutes are considered stale */
+export const STALE_SYNCING_THRESHOLD_MS = 5 * 60 * 1000;
+
 // FileSyncStatus is imported from @rtc-agent/protocol
 // Re-export for backward compatibility
 export { FileSyncStatus } from '@rtc-agent/protocol';
@@ -87,6 +90,16 @@ export class FileCacheRepository {
   private _lifecycleGuard = new LifecycleGuard('FileCacheRepository');
   /** H3-FIX: Lock to prevent concurrent recoverStaleSyncing calls */
   private _recoverStaleSyncingPromise: Promise<number> | null = null;
+
+  /**
+   * MD5 Worker pool for reusing worker instances.
+   * PERFORMANCE: Creating a new Worker for each MD5 calculation is expensive (~10-50ms).
+   * This pool maintains up to 4 workers to handle concurrent MD5 calculations.
+   * Workers are created lazily and reused across calculations.
+   */
+  private static _md5WorkerPool: Worker[] = [];
+  private static _md5WorkerBusy = new Set<Worker>();
+  private static readonly MAX_MD5_WORKERS = 4;
 
   /**
    * Cache a downloaded file.
@@ -283,8 +296,9 @@ export class FileCacheRepository {
   /**
    * Calculate MD5 in a Web Worker to avoid blocking the main thread.
    *
-   * Creates an inline worker using a Blob URL to compute MD5 asynchronously.
-   * This prevents main thread blocking for large files (>1MB).
+   * Uses a worker pool to reuse existing workers instead of creating new ones.
+   * This prevents main thread blocking for large files (>1MB) and reduces
+   * worker creation overhead (~10-50ms per worker).
    * Worker computation has a 30-second timeout to prevent indefinite hangs.
    *
    * @param blob Blob to calculate MD5 for
@@ -292,8 +306,86 @@ export class FileCacheRepository {
    * @throws Error if worker computation fails or times out
    */
   private async _calculateMD5InWorker(blob: Blob): Promise<string> {
-    // Create worker that loads SparkMD5 from CDN and computes MD5
-    // Using CDN keeps bundle size small while maintaining reliability
+    // Get or create a worker from the pool
+    let worker = FileCacheRepository._md5WorkerPool.find(
+      (w) => !FileCacheRepository._md5WorkerBusy.has(w),
+    );
+
+    if (!worker) {
+      // Create a new worker if pool is not full
+      if (FileCacheRepository._md5WorkerPool.length < FileCacheRepository.MAX_MD5_WORKERS) {
+        worker = FileCacheRepository._createMD5Worker();
+        FileCacheRepository._md5WorkerPool.push(worker);
+      } else {
+        // All workers are busy, wait for one to become available
+        // Use a simple polling approach with exponential backoff
+        const maxWait = 5000; // 5 seconds max wait
+        const startTime = Date.now();
+        let waitTime = 50;
+
+        while (Date.now() - startTime < maxWait) {
+          await new Promise((resolve) => setTimeout(resolve, waitTime));
+          worker = FileCacheRepository._md5WorkerPool.find(
+            (w) => !FileCacheRepository._md5WorkerBusy.has(w),
+          );
+          if (worker) break;
+          waitTime = Math.min(waitTime * 2, 500); // Exponential backoff, max 500ms
+        }
+
+        if (!worker) {
+          throw new Error('MD5 worker pool exhausted (all workers busy for 5s)');
+        }
+      }
+    }
+
+    // Mark worker as busy
+    FileCacheRepository._md5WorkerBusy.add(worker);
+
+    try {
+      // Send blob to worker and wait for result with timeout
+      const result = await new Promise<string>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('MD5 calculation timed out (30s)'));
+        }, 30000);
+
+        const onMessage = (e: MessageEvent) => {
+          clearTimeout(timeout);
+          worker!.removeEventListener('message', onMessage);
+          worker!.removeEventListener('error', onError);
+
+          if (e.data.success) {
+            resolve(e.data.hash);
+          } else {
+            reject(new Error(e.data.error));
+          }
+        };
+
+        const onError = (err: ErrorEvent) => {
+          clearTimeout(timeout);
+          worker!.removeEventListener('message', onMessage);
+          worker!.removeEventListener('error', onError);
+          reject(new Error(`Worker error: ${err.message || 'Unknown error'}`));
+        };
+
+        worker.addEventListener('message', onMessage);
+        worker.addEventListener('error', onError);
+
+        // Send blob to worker (blob is cloned, not transferred, for safety)
+        worker.postMessage({ blob });
+      });
+
+      return result;
+    } finally {
+      // Mark worker as available (don't terminate, keep in pool)
+      FileCacheRepository._md5WorkerBusy.delete(worker);
+    }
+  }
+
+  /**
+   * Create a new MD5 worker that loads SparkMD5 from CDN.
+   * Using CDN keeps bundle size small while maintaining reliability.
+   */
+  private static _createMD5Worker(): Worker {
     const workerScript = `
       importScripts('https://cdn.jsdelivr.net/npm/spark-md5@3.0.2/spark-md5.min.js');
 
@@ -309,45 +401,11 @@ export class FileCacheRepository {
       };
     `;
 
-    // Create worker from inline script via Blob URL
     const workerBlob = new Blob([workerScript], {
       type: 'application/javascript',
     });
     const workerUrl = URL.createObjectURL(workerBlob);
-    const worker = new Worker(workerUrl);
-
-    try {
-      // Send blob to worker and wait for result with timeout
-      const result = await new Promise<string>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          worker.terminate();
-          reject(new Error('MD5 calculation timed out (30s)'));
-        }, 30000);
-
-        worker.onmessage = (e) => {
-          clearTimeout(timeout);
-          if (e.data.success) {
-            resolve(e.data.hash);
-          } else {
-            reject(new Error(e.data.error));
-          }
-        };
-
-        worker.onerror = (err) => {
-          clearTimeout(timeout);
-          reject(new Error(`Worker error: ${err.message || 'Unknown error'}`));
-        };
-
-        // Send blob to worker (blob is cloned, not transferred, for safety)
-        worker.postMessage({ blob });
-      });
-
-      return result;
-    } finally {
-      // Clean up worker and URL to prevent memory leaks
-      worker.terminate();
-      URL.revokeObjectURL(workerUrl);
-    }
+    return new Worker(workerUrl);
   }
 
   // ========== Offline-first sync methods ==========
@@ -488,9 +546,16 @@ export class FileCacheRepository {
         if (to === 'synced') {
           entry.syncedAt = metadata?.syncedAt ?? Date.now();
           entry.errorMessage = undefined;
+          entry.syncingStartedAt = undefined; // P0-FIX: Clear syncing timestamp on success
         } else if (to === 'failed') {
           entry.errorMessage = metadata?.errorMessage;
           entry.retryCount = (entry.retryCount || 0) + 1;
+          entry.syncingStartedAt = undefined; // P0-FIX: Clear syncing timestamp on failure
+        } else if (to === 'syncing') {
+          // P0-FIX: Set syncing timestamp when entering syncing state (heartbeat mechanism)
+          entry.syncingStartedAt = Date.now();
+        } else if (to === 'pending') {
+          entry.syncingStartedAt = undefined; // P0-FIX: Clear syncing timestamp when returning to pending
         }
         transitioned = true;
       });
@@ -540,26 +605,55 @@ export class FileCacheRepository {
   /**
    * Internal implementation of recoverStaleSyncing.
    * Separated to enable concurrency control in the public method.
+   *
+   * P0-FIX: Now uses syncingStartedAt timestamp to detect stale entries.
+   * Only recovers entries that have been in 'syncing' state for more than
+   * STALE_SYNCING_THRESHOLD_MS (5 minutes). This prevents recovering entries
+   * that are actively being uploaded.
    */
   private async _recoverStaleSyncingInternal(): Promise<number> {
     const db = getDatabase();
-    const staleEntries = await db.fileCache
+    const now = Date.now();
+    const threshold = now - STALE_SYNCING_THRESHOLD_MS;
+
+    // Get all syncing entries
+    const allSyncingEntries = await db.fileCache
       .where('syncStatus')
       .equals('syncing')
       .toArray();
 
+    if (allSyncingEntries.length === 0) {
+      log.debug('recoverStaleSyncing: no syncing entries found');
+      return 0;
+    }
+
+    // P0-FIX: Filter to only stale entries (syncingStartedAt older than threshold)
+    // If syncingStartedAt is missing (legacy entry), treat as stale for safety
+    const staleEntries = allSyncingEntries.filter((entry) => {
+      const startedAt = entry.syncingStartedAt;
+      // If no timestamp, consider it stale (legacy entry or data corruption)
+      if (!startedAt) {
+        log.warn(
+          `recoverStaleSyncing: entry ${entry.md5}.${entry.ext} has no syncingStartedAt, treating as stale`,
+        );
+        return true;
+      }
+      return startedAt < threshold;
+    });
+
     if (staleEntries.length === 0) {
-      log.debug('recoverStaleSyncing: no stale syncing entries found');
+      log.debug('recoverStaleSyncing: no stale syncing entries found (all within threshold)');
       return 0;
     }
 
     const keys = staleEntries.map((e) => [e.md5, e.ext] as [string, string]);
     await db.fileCache.where('[md5+ext]').anyOf(keys).modify({
       syncStatus: 'pending',
+      syncingStartedAt: undefined, // P0-FIX: Clear the timestamp when recovering
     });
 
     log.info(
-      `recovered ${staleEntries.length} stale syncing entries -> pending`,
+      `recovered ${staleEntries.length} stale syncing entries -> pending (${allSyncingEntries.length - staleEntries.length} still active)`,
     );
     return staleEntries.length;
   }

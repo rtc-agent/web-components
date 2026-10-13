@@ -169,6 +169,67 @@ export interface GrepResult {
  */
 export class VirtualFS {
   /**
+   * P0-FIX: Per-file write locks to prevent TOCTOU race conditions.
+   * Uses promise chaining to queue concurrent writes to the same file.
+   * Key: normalized file path, Value: promise chain for sequential writes.
+   */
+  private _writeLocks = new Map<string, Promise<unknown>>();
+
+  /**
+   * P0-FIX: Execute an async operation with a file-level write lock.
+   *
+   * Ensures that concurrent writes to the same file are serialized,
+   * preventing TOCTOU (Time-Of-Check-Time-Of-Use) race conditions where
+   * a second write could overwrite changes made by a first write that
+   * was still in progress.
+   *
+   * Uses promise chaining (not mutex) so operations queue sequentially.
+   * Each call for the same path waits for the previous operation to settle
+   * before starting its own. Different files run in parallel.
+   *
+   * @param path Normalized file path
+   * @param fn Async function to execute under the lock
+   * @returns Result of the fn operation
+   */
+  private async withFileLock<T>(
+    path: string,
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    const prev = this._writeLocks.get(path) ?? Promise.resolve();
+
+    // Chain the new operation after the previous one settles
+    const next = prev.then(
+      () => fn(),
+      () => fn(),
+    );
+
+    // Store the chained promise (settled when fn completes or throws)
+    const settled = next.then(
+      (v) => v,
+      (e) => {
+        throw e;
+      },
+    );
+
+    // Track chain position for cleanup
+    const isFirstInChain = prev === this._writeLocks.get(path);
+
+    this._writeLocks.set(
+      path,
+      settled.finally(() => {
+        // Clean up map entry when chain is empty or this is the last operation
+        const currentHead = this._writeLocks.get(path);
+        if (isFirstInChain || currentHead === settled) {
+          if (currentHead === settled) {
+            this._writeLocks.delete(path);
+          }
+        }
+      }),
+    );
+
+    return next;
+  }
+  /**
    * Read file content.
    *
    * @param path File path
@@ -190,11 +251,20 @@ export class VirtualFS {
     let content = entry.content;
 
     if (offset !== undefined || limit !== undefined) {
-      const lines = content.split('\n');
-      // offset is 1-indexed, convert to 0-indexed
-      const startLine = offset !== undefined ? Math.max(0, offset - 1) : 0;
-      const endLine = limit !== undefined ? startLine + limit : lines.length;
-      content = lines.slice(startLine, endLine).join('\n');
+      // PERFORMANCE: For large files (>1MB), use a more memory-efficient line extraction.
+      // Instead of splitting the entire content into an array, we find line boundaries
+      // using indexOf and extract only the requested range.
+      if (content.length > 1024 * 1024) {
+        // Large file: use efficient line boundary detection
+        content = this._extractLines(content, offset, limit);
+      } else {
+        // Small file: use simple split (faster for small content)
+        const lines = content.split('\n');
+        // offset is 1-indexed, convert to 0-indexed
+        const startLine = offset !== undefined ? Math.max(0, offset - 1) : 0;
+        const endLine = limit !== undefined ? startLine + limit : lines.length;
+        content = lines.slice(startLine, endLine).join('\n');
+      }
     }
 
     log.debug('read: success, content length:', content.length);
@@ -202,7 +272,55 @@ export class VirtualFS {
   }
 
   /**
+   * Extract specific lines from content without splitting into array.
+   * PERFORMANCE: Memory-efficient for large files (>1MB).
+   * Uses indexOf to find line boundaries instead of creating a large array.
+   *
+   * @param content Full file content
+   * @param offset Starting line number (1-indexed, undefined = start from beginning)
+   * @param limit Maximum number of lines to read (undefined = read to end)
+   * @returns Extracted lines joined by newlines
+   */
+  private _extractLines(content: string, offset?: number, limit?: number): string {
+    // offset is 1-indexed, convert to 0-indexed
+    const startLine = offset !== undefined ? Math.max(0, offset - 1) : 0;
+    const endLine = limit !== undefined ? startLine + limit : Infinity;
+
+    let result = '';
+    let currentLine = 0;
+    let lineStart = 0;
+    let lineEnd = content.indexOf('\n');
+
+    while (lineStart < content.length) {
+      if (lineEnd === -1) {
+        // Last line (no trailing newline)
+        lineEnd = content.length;
+      }
+
+      if (currentLine >= startLine && currentLine < endLine) {
+        // This line is in the requested range
+        if (result.length > 0) {
+          result += '\n';
+        }
+        result += content.substring(lineStart, lineEnd);
+      } else if (currentLine >= endLine) {
+        // Past the requested range, stop
+        break;
+      }
+
+      currentLine++;
+      lineStart = lineEnd + 1;
+      lineEnd = content.indexOf('\n', lineStart);
+    }
+
+    return result;
+  }
+
+  /**
    * Write a file.
+   *
+   * P0-FIX: Now uses file-level write lock to prevent TOCTOU race conditions.
+   * Concurrent writes to the same file are serialized via withFileLock().
    *
    * @param path File path
    * @param content File content
@@ -234,63 +352,67 @@ export class VirtualFS {
 
     const type = this.inferFileType(normalizedPath);
 
-    // Wrap read-modify-write in transaction to prevent race conditions
-    return db.transaction(
-      'rw',
-      db.fileSystemEntries,
-      async () => {
-        const existing = await db.fileSystemEntries.get(normalizedPath);
+    // P0-FIX: Wrap entire operation in file lock to prevent TOCTOU race conditions.
+    // Concurrent writes to the same file are now serialized.
+    return this.withFileLock(normalizedPath, async () => {
+      // Wrap read-modify-write in transaction to prevent race conditions
+      return db.transaction(
+        'rw',
+        db.fileSystemEntries,
+        async () => {
+          const existing = await db.fileSystemEntries.get(normalizedPath);
 
-        // create-new mode: skip write if file already exists
-        if (mode === 'create-new' && existing) {
-          return existing.content.length;
-        }
-
-        let finalContent = content;
-        let metadata: FileSystemEntryMetadata;
-
-        if (existing && mode === 'append') {
-          finalContent = existing.content + content;
-          // C3-FIX: Validate combined content size for append mode
-          if (finalContent.length > MAX_FILE_SIZE) {
-            throw new Error(
-              `Appended file content exceeds maximum size limit of ${MAX_FILE_SIZE} bytes (current: ${finalContent.length} bytes)`,
-            );
+          // create-new mode: skip write if file already exists
+          if (mode === 'create-new' && existing) {
+            return existing.content.length;
           }
-          metadata = {
-            ...existing.metadata,
-            ...metadataOverride,
-            updatedAt: new Date(),
-          };
-        } else {
-          const now = new Date();
-          metadata = {
-            name: getFileName(normalizedPath),
-            description: '',
-            createdAt: existing?.metadata.createdAt || now,
-            updatedAt: now,
-            ...metadataOverride,
-          };
 
-          if (type === 'function') {
-            const group = this.extractGroupFromPath(normalizedPath);
-            if (group) {
-              metadata.group = group;
+          let finalContent = content;
+          let metadata: FileSystemEntryMetadata;
+
+          if (existing && mode === 'append') {
+            finalContent = existing.content + content;
+            // C3-FIX: Validate combined content size for append mode
+            if (finalContent.length > MAX_FILE_SIZE) {
+              throw new Error(
+                `Appended file content exceeds maximum size limit of ${MAX_FILE_SIZE} bytes (current: ${finalContent.length} bytes)`,
+              );
+            }
+            metadata = {
+              ...existing.metadata,
+              ...metadataOverride,
+              updatedAt: new Date(),
+            };
+          } else {
+            const now = new Date();
+            metadata = {
+              name: getFileName(normalizedPath),
+              description: '',
+              createdAt: existing?.metadata.createdAt || now,
+              updatedAt: now,
+              ...metadataOverride,
+            };
+
+            if (type === 'function') {
+              const group = this.extractGroupFromPath(normalizedPath);
+              if (group) {
+                metadata.group = group;
+              }
             }
           }
-        }
 
-        const entry: FileSystemEntry = {
-          path: normalizedPath,
-          type,
-          content: finalContent,
-          metadata,
-        };
+          const entry: FileSystemEntry = {
+            path: normalizedPath,
+            type,
+            content: finalContent,
+            metadata,
+          };
 
-        await db.fileSystemEntries.put(entry);
-        return finalContent.length;
-      },
-    );
+          await db.fileSystemEntries.put(entry);
+          return finalContent.length;
+        },
+      );
+    });
   }
 
   /**
