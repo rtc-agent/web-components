@@ -145,8 +145,8 @@ export class WorkerBridge {
   private _worker: SharedWorker | null = null;
   private _core: Remote<WorkerPersistenceCore> | null = null;
   private _callbacks: WorkerCallbacks;
-  /** Comlink-proxied callbacks (for cross-Worker transfer). */
-  private _proxiedCallbacks: WorkerCallbacks;
+  /** Comlink-proxied callbacks (for cross-Worker transfer). Nulled in destroy() to release resources. */
+  private _proxiedCallbacks: WorkerCallbacks | null;
   private _initialized = false;
   /** Promise-based dedup guard: concurrent init() calls share the same initialization. */
   private _initPromise: Promise<void> | null = null;
@@ -765,7 +765,9 @@ export class WorkerBridge {
       log.warn('_doInit: cleaning up partial initialization from previous failed attempt');
       let cleanupSucceeded = false;
       try {
-        await this._core.unregisterCallback(this._proxiedCallbacks);
+        if (this._proxiedCallbacks) {
+          await this._core.unregisterCallback(this._proxiedCallbacks);
+        }
         cleanupSucceeded = true;
         log.debug('_doInit: cleanup unregisterCallback succeeded');
       } catch (err) {
@@ -809,6 +811,9 @@ export class WorkerBridge {
     // Although WorkerCore.init() currently doesn't broadcast events, registering first
     // makes the code robust against future changes that might add async event broadcasting to init().
     // This also ensures callbacks are ready to receive events immediately after init() completes.
+    if (!this._proxiedCallbacks) {
+      throw new Error('[WorkerBridge] _proxiedCallbacks is null during _doInit — this should not happen');
+    }
     await this._core.registerCallback(this._proxiedCallbacks);
     // Mark callbacks as registered immediately after successful registration.
     // This ensures destroy() can properly clean up even if subsequent initialization steps fail.
@@ -884,7 +889,7 @@ export class WorkerBridge {
       // 2. If close() fails: callback might still be in the Worker's Set, but we're about
       //    to close the port anyway, so the Worker will terminate when all ports are closed
       // 3. We don't call unregisterCallback() separately to avoid the race condition
-      if (this._callbacksRegistered && this._core) {
+      if (this._callbacksRegistered && this._core && this._proxiedCallbacks) {
         try {
           // close() handles both callback removal and resource cleanup atomically
           await this._core.close(this._proxiedCallbacks);
@@ -1019,8 +1024,8 @@ export class WorkerBridge {
         // collect the proxy and its ports when all references are dropped.
         log.debug('Failed to release Comlink proxy (non-fatal):', err);
       }
-      // Null the reference to allow GC. Using 'as any' to bypass readonly constraint.
-      (this as any)._proxiedCallbacks = null;
+      // Null the reference to allow GC.
+      this._proxiedCallbacks = null;
     }
   }
 

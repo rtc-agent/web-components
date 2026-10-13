@@ -571,6 +571,7 @@ export class RtcAgent extends LitElement {
    */
   @property({ type: String, attribute: 'scenarios-url' })
   set scenariosURL(value: string) {
+    if (value === this._scenariosURL) return; // Idempotency guard: skip redundant loads
     this._scenariosURL = value;
     if (value) {
       // If persistence is connected, load scenarios immediately.
@@ -1768,6 +1769,8 @@ export class RtcAgent extends LitElement {
       this._creatingUnsavedTab = true;
       queueMicrotask(() => {
         try {
+          // Guard: component may have been disconnected while microtask was queued.
+          if (this._isDestroyed) return;
           const newId = this._session.actions.createSession();
           this._session.actions.switchSession(newId);
           this._sessionTab.actions.openOrActivate(newId, msg('未命名'), {
