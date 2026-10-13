@@ -614,7 +614,11 @@ describe('entity-repository', () => {
     });
 
     it('should paginate with cursor and limit', async () => {
-      const rtcs = await repo.listRtcBySession('s1', 1, 1);
+      // cursor is the offset value to start from (inclusive), not a position index
+      // RTCs: r2(offset=1), r3(offset=3), r1(offset=5)
+      // cursor=1, limit=1 means: start from offset >= 1, return 1 item → r2
+      // cursor=2, limit=1 means: start from offset >= 2, return 1 item → r3
+      const rtcs = await repo.listRtcBySession('s1', 2, 1);
       expect(rtcs.map((r) => r.client_id)).toEqual(['r3']);
     });
 
@@ -1502,6 +1506,7 @@ describe('entity-repository', () => {
         session_client_id: 'session-1',
       });
 
+      // streaming → streaming is allowed (same state), content gets replaced (not appended)
       await repo.applyUpdates([
         {
           id: '',
@@ -1516,9 +1521,14 @@ describe('entity-repository', () => {
             {
               id: 'server-msg-batch-2',
               client_id: 'msg-batch-2',
+              session_id: 'server-session-1',
               session_client_id: 'session-1',
+              global_offset: 1,
+              role: 'assistant',
               streaming_status: 'streaming',
-              content: 'chunk 1 chunk 2',
+              content: 'chunk 1 chunk 2', // This replaces, not appends
+              creator_kind: 'ai',
+              creator_ref_id: '',
             },
           ],
           offset: 1,
@@ -1527,7 +1537,7 @@ describe('entity-repository', () => {
 
       const msg = await repo.getClientMessage('msg-batch-2');
       expect(msg?.streaming_status).toBe('streaming');
-      expect(msg?.content).toBe('chunk 1 chunk 2');
+      expect(msg?.content).toBe('chunk 1 chunk 2'); // Content is replaced, not appended
     });
 
     it('should allow streaming to transition to completed in batch', async () => {
@@ -1552,9 +1562,14 @@ describe('entity-repository', () => {
             {
               id: 'server-msg-batch-3',
               client_id: 'msg-batch-3',
+              session_id: 'server-session-1',
               session_client_id: 'session-1',
+              global_offset: 1,
+              role: 'assistant',
               streaming_status: 'completed',
               content: 'full',
+              creator_kind: 'ai',
+              creator_ref_id: '',
             },
           ],
           offset: 1,
@@ -1602,16 +1617,26 @@ describe('entity-repository', () => {
             {
               id: 'server-msg-batch-4a',
               client_id: 'msg-batch-4a',
+              session_id: 'server-session-1',
               session_client_id: 'session-1',
+              global_offset: 1,
+              role: 'assistant',
               streaming_status: 'streaming',
               content: 'should be blocked',
+              creator_kind: 'ai',
+              creator_ref_id: '',
             },
             {
               id: 'server-msg-batch-4b',
               client_id: 'msg-batch-4b',
+              session_id: 'server-session-1',
               session_client_id: 'session-1',
+              global_offset: 2,
+              role: 'assistant',
               streaming_status: 'completed',
               content: 'final B',
+              creator_kind: 'ai',
+              creator_ref_id: '',
             },
           ],
           offset: 1,
