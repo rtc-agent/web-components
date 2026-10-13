@@ -5,9 +5,35 @@
  * admin-server 签发的 admin JWT 作为外部 JWT，通过 RTC Agent 的 Token Exchange
  * 端点交换为 RTC JWT，用于 WebSocket 连接认证。
  *
+ * ARCHITECTURE NOTE (P2-6):
+ * -------------------------
+ * This file imports AuthProvider from @rtc-agent/component, which is an internal
+ * type definition from the component package. This creates a coupling between
+ * admin-ui and component's internal implementation details.
+ *
+ * Ideally, AuthProvider should be defined in a shared protocol/types package that
+ * both component and admin-ui can depend on. This would establish a cleaner
+ * dependency hierarchy and make it easier to evolve the auth interface independently.
+ *
+ * FUTURE IMPROVEMENT:
+ * Move AuthProvider interface to @rtc-agent/protocol or create a new
+ * @rtc-agent/auth-types package:
+ *   - @rtc-agent/protocol/src/auth.ts (AuthProvider, AuthConfig)
+ *   - Both component and admin-ui import from protocol
+ *
+ * For now, importing from component is acceptable because:
+ * - AuthProvider is part of the public API (exported from component's index.ts)
+ * - The interface is stable and unlikely to change frequently
+ * - admin-ui is tightly coupled to component anyway (it hosts the component)
+ *
  * @see docs/admin-system-requirements.md 第四章 Token Exchange 流程
  */
 
+/**
+ * ARCHITECTURE NOTE (P2-6):
+ * AuthProvider is imported from component (internal type).
+ * See file-level comment for improvement suggestions.
+ */
 import type { AuthProvider } from '@rtc-agent/component';
 import { logout as apiLogout } from '@/services/admin-auth';
 import {

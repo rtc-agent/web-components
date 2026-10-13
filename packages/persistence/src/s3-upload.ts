@@ -8,6 +8,23 @@
  *
  * This module handles uploads >5MB (S3 minimum part size) using
  * the multipart upload API, with automatic resume on interruption.
+ *
+ * ARCHITECTURE NOTE (P2-3):
+ * -------------------------
+ * This file imports S3Client from @rtc-agent/client, which creates a
+ * reverse dependency: persistence (lower layer) depends on client (upper layer).
+ *
+ * This is a deliberate design compromise. The multipart upload logic needs
+ * S3Client's API (createMultipartUpload, uploadPart, etc.) to implement
+ * resume-capable uploads. Extracting S3Client to a shared "storage-client"
+ * package would be the cleanest solution, but adds complexity for a single
+ * consumer.
+ *
+ * FUTURE IMPROVEMENT:
+ * If other packages need S3Client, consider extracting it to a shared package:
+ *   @rtc-agent/storage-client (or @rtc-agent/aws-client)
+ * This would establish a proper dependency hierarchy:
+ *   persistence -> storage-client <- client
  */
 
 import { S3Client } from '@rtc-agent/client';

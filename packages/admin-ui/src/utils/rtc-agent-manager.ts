@@ -3,8 +3,34 @@
  *
  * 这是一个纯 JavaScript 模块，不依赖 React。
  * 它监听登录状态的变化，并在适当的时候创建/销毁 Web Component。
+ *
+ * ARCHITECTURE NOTE (P2-6):
+ * -------------------------
+ * This file imports RtcAgentWithLifecycle from @rtc-agent/component, which is an
+ * internal type definition. This creates a coupling to component's implementation.
+ *
+ * RtcAgentWithLifecycle is the return type of createRtcAgent(), and represents
+ * the component instance with its lifecycle methods (destroy, etc.). Ideally,
+ * this type should be part of the public API contract, defined in a shared
+ * protocol package.
+ *
+ * FUTURE IMPROVEMENT:
+ * Move RtcAgentWithLifecycle to @rtc-agent/protocol/src/component.ts:
+ *   - Define the public interface for the RTC Agent component instance
+ *   - Include lifecycle methods, event handling, and configuration types
+ *   - Both component and admin-ui import from protocol
+ *
+ * For now, importing from component is acceptable because:
+ * - It's part of the public API (exported from component's index.ts)
+ * - admin-ui is the primary consumer and needs to manage the component lifecycle
+ * - The type is stable and directly tied to createRtcAgent()'s return value
  */
 
+/**
+ * ARCHITECTURE NOTE (P2-6):
+ * RtcAgentWithLifecycle is imported from component (internal type).
+ * See file-level comment for improvement suggestions.
+ */
 import type { RtcAgentWithLifecycle } from '@rtc-agent/component';
 import { createAdminAgentConfig, createAllGroups } from '@/rtc-agent';
 import type { Permission } from '@/rtc-agent/permission-filter';

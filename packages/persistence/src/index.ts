@@ -11,6 +11,41 @@
  * cache, sync), RTC message handling, and lifecycle coordination flow through this
  * class. Splitting would scatter the integration logic across files, making it
  * harder to understand the data flow between IndexedDB, S3, and the WebSocket client.
+ *
+ * ARCHITECTURE NOTE (P2-4):
+ * -------------------------
+ * This file has grown beyond 2000 lines and handles multiple responsibilities:
+ * 1. WebSocket client lifecycle (connect/disconnect/reconnect)
+ * 2. Session/Message/RTC CRUD operations
+ * 3. File cache & S3 operations (upload/download/sync)
+ * 4. Multipart upload with resume support
+ * 5. Background sync with retry logic
+ * 6. Debug history management
+ * 7. Network-aware auto-sync
+ *
+ * While the current design keeps integration logic centralized, future refactoring
+ * could consider extracting the following concerns into separate modules:
+ *
+ * FUTURE SPLITTING STRATEGY:
+ * - FileOperationManager: encapsulate all file-related logic (upload, download, cache, sync)
+ * - SyncCoordinator: handle background sync, retry logic, network awareness
+ * - SessionController: encapsulate session/message/RTC CRUD
+ * - DebugHistoryController: already partially extracted (DebugHistoryManager)
+ *
+ * The challenge is that these concerns are tightly coupled through shared state
+ * (IndexedDB, S3Client, lifecycle guards). Any split must carefully manage these
+ * dependencies to avoid scattering integration logic across too many files.
+ *
+ * For now, the monolithic design is acceptable because:
+ * - All operations share the same lifecycle (close/shutdown coordination)
+ * - File operations need access to the same S3Client and FileCacheRepository
+ * - Background sync needs to coordinate with message sending (deduplication)
+ * - The class has clear public interfaces (IPersistenceLayer) for consumers
+ */
+/**
+ * ARCHITECTURE NOTE (P2-3):
+ * This import creates a reverse dependency: persistence -> client.
+ * See s3-upload.ts for detailed explanation and future improvement suggestions.
  */
 import {
   RTCAgentClient,
