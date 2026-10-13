@@ -1,7 +1,7 @@
 import type { Settings as LayoutSettings } from '@ant-design/pro-components';
 import { SettingDrawer } from '@ant-design/pro-components';
 import type { RequestConfig, RunTimeLayoutConfig } from '@umijs/max';
-import { getLocale, history, Link } from '@umijs/max';
+import { getLocale, history, Link, useIntl } from '@umijs/max';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import type { InitialState } from '@/initialState.types';
@@ -89,6 +89,9 @@ const saveThemeSettings = (settings: Partial<LayoutSettings>): void => {
 const INIT_TIMEOUT_MS = 30000; // 30 seconds
 
 // Track whether degraded-state warning has been shown (once per session)
+// Note: Module-level variable persists across re-renders but resets on HMR/page reload.
+// This is intentional: show the warning once per session to avoid repeated toasts,
+// but allow it to reappear after page reload (which may indicate a real issue).
 let degradedWarningShown = false;
 
 // Initialization promise for deduplication during rapid route changes
@@ -180,7 +183,9 @@ export async function getInitialState(): Promise<InitialState> {
         if (errName === 'AbortError' || signal?.aborted) {
           console.warn('[getInitialState] fetchUserInfo aborted');
         } else {
-          // 401 错误已由 responseInterceptors 处理（自动刷新 token 或跳转登录）
+          // Non-abort errors: network failures, 5xx, etc.
+          // Note: 401 errors are typically handled by responseInterceptors (token refresh/redirect),
+          // but may reach here if the interceptor itself fails or is bypassed.
           console.warn('[getInitialState] fetchUserInfo failed', _error);
         }
 
@@ -274,6 +279,7 @@ export const layout: RunTimeLayoutConfig = ({
   }, [setInitialState]);
 
   const locale = getLocale();
+  const intl = useIntl();
   const isRTL = RTL_LOCALES.some((rtl) => locale.startsWith(rtl.split('-')[0]));
 
   return {
@@ -390,7 +396,11 @@ export const layout: RunTimeLayoutConfig = ({
           degradedWarningShown = true;
           import('antd').then(({ message: antdMessage }) => {
             antdMessage.warning(
-              '用户信息加载失败，部分功能可能受限。如问题持续，请重新登录。',
+              intl.formatMessage({
+                id: 'app.degradedState.warning',
+                defaultMessage:
+                  'User information failed to load. Some features may be limited. Please log in again if the issue persists.',
+              }),
             );
           });
         }

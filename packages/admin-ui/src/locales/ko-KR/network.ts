@@ -1,6 +1,8 @@
 export default {
   'app.network.offline':
     '현재 오프라인 상태입니다. 일부 기능을 사용하지 못할 수 있습니다.',
+  'app.degradedState.warning':
+    '사용자 정보를 불러오지 못했습니다. 일부 기능이 제한될 수 있습니다. 문제가 지속되면 다시 로그인해주세요.',
   'app.error.chunk.title': '페이지 로드 실패',
   'app.error.chunk.description.offline':
     '네트워크 연결이 끊어졌습니다. 연결을 확인하고 다시 로드해주세요.',

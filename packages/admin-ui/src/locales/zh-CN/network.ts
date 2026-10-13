@@ -1,5 +1,6 @@
 export default {
   'app.network.offline': '当前处于离线状态，部分功能可能不可用',
+  'app.degradedState.warning': '用户信息加载失败，部分功能可能受限。如问题持续，请重新登录。',
   'app.error.chunk.title': '页面加载失败',
   'app.error.chunk.description.offline':
     '网络连接已断开，请检查网络后重新加载。',

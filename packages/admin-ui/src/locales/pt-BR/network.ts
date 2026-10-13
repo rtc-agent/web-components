@@ -1,6 +1,8 @@
 export default {
   'app.network.offline':
     'Você está offline no momento. Alguns recursos podem estar indisponíveis.',
+  'app.degradedState.warning':
+    'Falha ao carregar informações do usuário. Alguns recursos podem estar limitados. Se o problema persistir, faça login novamente.',
   'app.error.chunk.title': 'Falha ao carregar a página',
   'app.error.chunk.description.offline':
     'Sua conexão de rede foi perdida. Verifique sua conexão e atualize a página.',

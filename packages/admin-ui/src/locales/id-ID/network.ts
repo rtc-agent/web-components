@@ -1,6 +1,8 @@
 export default {
   'app.network.offline':
     'Anda sedang offline. Beberapa fitur mungkin tidak tersedia.',
+  'app.degradedState.warning':
+    'Gagal memuat informasi pengguna. Beberapa fitur mungkin terbatas. Jika masalah berlanjut, silakan login kembali.',
   'app.error.chunk.title': 'Gagal memuat halaman',
   'app.error.chunk.description.offline':
     'Koneksi jaringan terputus. Periksa koneksi Anda dan muat ulang halaman.',

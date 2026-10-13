@@ -1,6 +1,8 @@
 export default {
   'app.network.offline':
     'You are currently offline. Some features may be unavailable.',
+  'app.degradedState.warning':
+    'User information failed to load. Some features may be limited. Please log in again if the issue persists.',
   'app.error.chunk.title': 'Failed to load page',
   'app.error.chunk.description.offline':
     'Your network connection has been lost. Please check your connection and reload.',

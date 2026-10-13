@@ -1,5 +1,7 @@
 export default {
   'app.network.offline': '當前處於離線狀態，部分功能可能不可用',
+  'app.degradedState.warning':
+    '使用者資訊載入失敗，部分功能可能受限。如問題持續，請重新登入。',
   'app.error.chunk.title': '頁面載入失敗',
   'app.error.chunk.description.offline':
     '網路連線已中斷，請檢查網路後重新整理頁面。',
