@@ -24,7 +24,7 @@ import React, {
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { usePermissionRefresh } from '@/hooks/usePermissionRefresh';
 import { useRoleOptions } from '@/hooks/useRoleOptions';
-import type { UserInfo } from '@/services/admin-auth';
+import type { UserInfo } from '@/services/types';
 import type { UserRoleAssignment } from '@/services/user-role';
 import {
   assignUserRoles,

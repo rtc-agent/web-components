@@ -10,7 +10,7 @@
  * - Do not directly manipulate DOM
  */
 
-import type { RoleInfo } from '@/services/admin-auth';
+import type { RoleInfo } from '@/services/types';
 
 export interface RolePageAPI {
   /**

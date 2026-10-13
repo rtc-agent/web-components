@@ -1,20 +1,19 @@
 import { request } from '@umijs/max';
-import type { RoleInfo } from './admin-auth';
+import type { PaginatedRequest, PaginatedResponse, RoleInfo } from './types';
 import type { PermissionPolicy } from './permission';
 
 /** 管理员角色列表查询参数 */
-export interface RoleListParams {
-  page?: number;
-  page_size?: number;
-  keyword?: string;
-}
+export interface RoleListParams extends PaginatedRequest {}
 
-/** 管理员角色列表响应 */
-export interface RoleListResponse {
-  items: RoleInfo[];
-  total: number;
-  page: number;
-  page_size: number;
+/**
+ * 查询管理员角色列表
+ * GET /api/roles
+ */
+export async function getRoleList(params?: RoleListParams) {
+  return request<PaginatedResponse<RoleInfo>>('/api/roles', {
+    method: 'GET',
+    params,
+  });
 }
 
 /** 创建管理员角色参数 */
@@ -32,22 +31,11 @@ export interface UpdateRoleParams {
 }
 
 /**
- * 查询管理员角色列表
- * GET /api/roles
- */
-export async function getRoleList(params?: RoleListParams) {
-  return request<RoleListResponse>('/api/roles', {
-    method: 'GET',
-    params,
-  });
-}
-
-/**
  * 查询单个管理员角色
  * GET /api/roles/:id
  */
 export async function getRole(id: string) {
-  return request<RoleInfo>(`/api/roles/${id}`, {
+  return request<RoleInfo>(`/api/roles/${encodeURIComponent(id)}`, {
     method: 'GET',
   });
 }
@@ -68,7 +56,7 @@ export async function createRole(body: CreateRoleParams) {
  * PUT /api/roles/:id
  */
 export async function updateRole(id: string, body: UpdateRoleParams) {
-  return request<RoleInfo>(`/api/roles/${id}`, {
+  return request<RoleInfo>(`/api/roles/${encodeURIComponent(id)}`, {
     method: 'PUT',
     data: body,
   });
@@ -79,7 +67,7 @@ export async function updateRole(id: string, body: UpdateRoleParams) {
  * PATCH /api/roles/:id
  */
 export async function patchRole(id: string, body: UpdateRoleParams) {
-  return request<RoleInfo>(`/api/roles/${id}`, {
+  return request<RoleInfo>(`/api/roles/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     data: body,
   });
@@ -90,7 +78,7 @@ export async function patchRole(id: string, body: UpdateRoleParams) {
  * DELETE /api/roles/:id
  */
 export async function deleteRole(id: string) {
-  return request<{ status: string }>(`/api/roles/${id}`, {
+  return request<{ status: string }>(`/api/roles/${encodeURIComponent(id)}`, {
     method: 'DELETE',
   });
 }
@@ -100,7 +88,7 @@ export async function deleteRole(id: string) {
  * GET /api/roles/:id/policies
  */
 export async function getRolePolicies(id: string) {
-  return request<PermissionPolicy[]>(`/api/roles/${id}/policies`, {
+  return request<PermissionPolicy[]>(`/api/roles/${encodeURIComponent(id)}/policies`, {
     method: 'GET',
   });
 }

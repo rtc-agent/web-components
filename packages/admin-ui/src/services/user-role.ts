@@ -1,5 +1,5 @@
 import { request } from '@umijs/max';
-import type { PaginatedResponse, UserInfo } from './types';
+import type { PaginatedRequest, PaginatedResponse, UserInfo } from './types';
 
 /**
  * 管理员用户与管理员角色关联响应
@@ -13,11 +13,7 @@ export interface UserRoleAssignment {
 }
 
 /** 管理员列表查询参数 */
-export interface UserListParams {
-  page?: number;
-  page_size?: number;
-  keyword?: string;
-}
+export interface UserListParams extends PaginatedRequest {}
 
 /** 创建管理员参数 */
 export interface CreateAdminUserParams {

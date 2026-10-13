@@ -1,5 +1,6 @@
 import { request } from '@umijs/max';
-import type { SessionListResponse } from './data';
+import type { PaginatedResponse } from '@/services/types';
+import type { SessionInfo } from './data';
 
 /**
  * Get session list
@@ -15,7 +16,7 @@ export async function getSessionList(params: {
   sort_by?: string;
   sort_order?: 'asc' | 'desc';
 }) {
-  return request<SessionListResponse>('/api/rtc-users/sessions', {
+  return request<PaginatedResponse<SessionInfo>>('/api/rtc-users/sessions', {
     method: 'GET',
     params,
   });

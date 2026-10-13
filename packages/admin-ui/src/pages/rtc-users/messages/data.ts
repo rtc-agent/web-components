@@ -20,11 +20,5 @@ export type MessageInfo = Message;
 
 /**
  * Message list response
- * Admin-server specific pagination wrapper
+ * Uses standard PaginatedResponse wrapper from services/types
  */
-export type MessageListResponse = {
-  items: MessageInfo[];
-  total: number;
-  page: number;
-  page_size: number;
-};

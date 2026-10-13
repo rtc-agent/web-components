@@ -1,5 +1,6 @@
 import { request } from '@umijs/max';
-import type { MessageListResponse } from './data';
+import type { PaginatedResponse } from '@/services/types';
+import type { MessageInfo } from './data';
 
 /**
  * Get message list
@@ -15,7 +16,7 @@ export async function getMessageList(params: {
   sort_order?: 'asc' | 'desc';
 }) {
   const { session_id, ...queryParams } = params;
-  return request<MessageListResponse>(
+  return request<PaginatedResponse<MessageInfo>>(
     `/api/rtc-users/sessions/${session_id}/messages`,
     {
       method: 'GET',

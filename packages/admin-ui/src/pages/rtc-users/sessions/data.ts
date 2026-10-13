@@ -12,11 +12,5 @@ export type SessionInfo = Session;
 
 /**
  * Session list response
- * Admin-server specific pagination wrapper
+ * Uses standard PaginatedResponse wrapper from services/types
  */
-export type SessionListResponse = {
-  items: SessionInfo[];
-  total: number;
-  page: number;
-  page_size: number;
-};

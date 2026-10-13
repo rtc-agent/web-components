@@ -10,8 +10,8 @@
  * - No direct DOM manipulation
  */
 
-import type { UserInfo } from '@/services/admin-auth';
-import type { UserRoleAssignment } from '@/services/userRole';
+import type { UserInfo } from '@/services/types';
+import type { UserRoleAssignment } from '@/services/user-role';
 
 export interface AdminPageAPI {
   /**

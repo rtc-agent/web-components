@@ -1,9 +1,10 @@
 import { request } from '@umijs/max';
+import type { PaginatedResponse } from '@/services/types';
 import type {
   BanRtcUserRequest,
   BanRtcUserResponse,
   DeviceListResponse,
-  RtcUserListResponse,
+  RtcUserInfo,
   TokenStatsResponse,
   UnbanRtcUserResponse,
 } from './data';
@@ -17,7 +18,7 @@ export async function getRtcUserList(params?: {
   page?: number;
   page_size?: number;
 }) {
-  return request<RtcUserListResponse>('/api/rtc-users', {
+  return request<PaginatedResponse<RtcUserInfo>>('/api/rtc-users', {
     method: 'GET',
     params,
   });

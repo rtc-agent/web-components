@@ -21,9 +21,14 @@ import { buildCurrentUser } from '@/utils/permission';
  * Sanitize request body before logging to prevent sensitive data leaks.
  * Removes password, token, and other sensitive fields.
  */
-function sanitizeRequestBody(body: unknown): unknown {
+function sanitizeRequestBody(body: unknown, depth = 0): unknown {
   if (typeof body !== 'object' || body === null) {
     return body;
+  }
+
+  // Guard against circular references and excessively deep objects
+  if (depth > 5) {
+    return '[MAX_DEPTH]';
   }
 
   const sensitiveFields = [
@@ -43,6 +48,9 @@ function sanitizeRequestBody(body: unknown): unknown {
       )
     ) {
       sanitized[key] = '[REDACTED]';
+    } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      // Recursively sanitize nested objects
+      sanitized[key] = sanitizeRequestBody(value, depth + 1);
     } else {
       sanitized[key] = value;
     }
