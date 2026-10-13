@@ -163,5 +163,27 @@ export default function access(
 
     // 仪表盘
     canDashboardView,
+
+    /**
+     * 权限复用设计说明
+     *
+     * RTC 用户配置管理（如 canConfigEdit, canConfigDelete）复用了系统配置权限点
+     * （server_config:write, server_config:delete），而非定义独立的权限点。
+     *
+     * 设计原因：
+     * 1. 业务本质：RTC 用户配置是系统配置的一部分（用户层面的配置），与全局系统配置
+     *    共享相同的 RBAC 权限模型和审批流程
+     * 2. 简化权限模型：避免引入过多细粒度权限点，降低管理员的配置负担
+     * 3. 一致性：系统配置和 RTC 用户配置的变更往往需要相同的审批权限级别
+     *
+     * 使用边界：
+     * - canServerConfigEdit/ Delete 同时控制全局系统配置和 RTC 用户配置
+     * - 如果需要独立的权限控制（如允许编辑系统配置但不能编辑 RTC 用户配置），
+     *   应在此处拆分为独立的权限点
+     *
+     * 参见：
+     * - src/pages/rtc-users/management/index.tsx（权限使用示例）
+     * - src/pages/system/configs/index.tsx（系统配置页面）
+     */
   };
 }

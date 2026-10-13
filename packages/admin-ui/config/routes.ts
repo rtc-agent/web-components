@@ -17,6 +17,24 @@
  *
  * name 同时作为 i18n key（`menu.<name>`）和 URL 路径片段的一部分，
  * 保持 kebab-case 确保命名、URL、国际化 key 三者一致。
+ *
+ * ## 重定向策略
+ * 本配置中存在两种重定向方式，选择依据如下：
+ *
+ * 1. **静态 redirect**：用于默认子页面固定的场景
+ *    - 示例：`/dashboard` → `/dashboard/grafana`（所有用户看到的默认页面相同）
+ *    - 优点：简单、性能更好（配置层面完成，无需运行时判断）
+ *    - 使用场景：/dashboard、/rtc-users、/account 等模块
+ *
+ * 2. **动态 component**：用于需要根据用户权限动态决定的场景
+ *    - 示例：`/system` → 根据权限选择 users/audit-logs/configs 等
+ *    - 优点：灵活性高，可根据用户角色/权限动态选择默认页面
+ *    - 使用场景：/system（参见 src/pages/system/index.tsx 的权限判断逻辑）
+ *    - 实现：使用 `component: './system/index'` 而非 `redirect`，在组件内部判断权限
+ *
+ * 选择原则：
+ * - 如果默认子页面对所有用户一致 → 使用静态 redirect
+ * - 如果需要根据权限/角色动态决定 → 使用动态 component
  */
 export default [
   {
@@ -105,30 +123,37 @@ export default [
             // 参见 src/pages/dashboard/container.tsx
           },
           {
+            // NOTE: path 使用 `-overview` 后缀是为了与 Grafana dashboard 的实际名称保持一致
+            // Grafana dashboard 列表中的显示名称为 "Error Feedback Overview"
+            // 这种命名方式确保 URL 路径与 Grafana 内部标识符的可读性一致
             name: 'error-feedback',
             path: '/dashboard/grafana/error-feedback-overview',
             // 由父路由 ./dashboard/container 通过 DASHBOARD_CONFIGS 渲染
             // 参见 src/pages/dashboard/container.tsx
           },
           {
+            // NOTE: path 使用 `-overview` 后缀，与 Grafana dashboard 显示名称保持一致
             name: 'logs',
             path: '/dashboard/grafana/logs-overview',
             // 由父路由 ./dashboard/container 通过 DASHBOARD_CONFIGS 渲染
             // 参见 src/pages/dashboard/container.tsx
           },
           {
+            // NOTE: path 使用 `-overview` 后缀，与 Grafana dashboard 显示名称保持一致
             name: 'oss3',
             path: '/dashboard/grafana/oss3-overview',
             // 由父路由 ./dashboard/container 通过 DASHBOARD_CONFIGS 渲染
             // 参见 src/pages/dashboard/container.tsx
           },
           {
+            // NOTE: path 使用 `-overview` 后缀，与 Grafana dashboard 显示名称保持一致
             name: 'minio',
             path: '/dashboard/grafana/minio-overview',
             // 由父路由 ./dashboard/container 通过 DASHBOARD_CONFIGS 渲染
             // 参见 src/pages/dashboard/container.tsx
           },
           {
+            // NOTE: path 使用 `system-health-watchdog`，与 Grafana dashboard 显示名称保持一致
             name: 'health-watchdog',
             path: '/dashboard/grafana/system-health-watchdog',
             // 由父路由 ./dashboard/container 通过 DASHBOARD_CONFIGS 渲染
@@ -263,7 +288,26 @@ export default [
     icon: 'robot',
     component: './chatbot',
   },
-  // RTC Agent developer tools (admin-only for diagnostics and testing)
+  /**
+   * RTC Agent 开发者工具（仅管理员可访问）
+   *
+   * 这两个页面是 RTC Agent 组件的内部调试和诊断工具，用于开发和运维场景：
+   *
+   * - rtc-agent-test: 功能测试页面，用于验证 RTC Agent 的各项功能是否正常工作
+   *   （如 IndexedDB 虚拟文件系统、WebSocket 连接、Worker 通信等）
+   *
+   * - rtc-agent-diagnose: 诊断页面，用于收集和显示系统运行时的诊断信息
+   *   （如日志级别调整、性能指标查看、错误追踪等）
+   *
+   * 设计决策：
+   * - 这两个页面仅对管理员可见（access: 'canAdmin'），因为它们涉及底层系统调试
+   * - 路由放置在根级别（而非 system 子路由），是为了方便通过 URL 直接访问
+   * - 这些页面不应出现在常规用户的菜单中，也不应被普通用户使用
+   *
+   * 参见：
+   * - src/pages/rtc-agent-test/index.tsx
+   * - src/pages/rtc-agent-diagnose/index.tsx
+   */
   {
     path: '/rtc-agent-test',
     name: 'rtc-agent-test',
