@@ -5,7 +5,7 @@
 ## 包结构
 
 | 包名 | 描述 | 构建工具 | Lint 工具 | 备注 |
-|------|------|---------|----------|------|
+| ---- | ---- | -------- | --------- | ---- |
 | `@rtc-agent/component` | 核心 Web Components（Lit） | Vite + tsc | Biome | 主包，跨 5 个 packages |
 | `@rtc-agent/client` | 通信层（Centrifuge） | tsc | Biome | 纯 TypeScript |
 | `@rtc-agent/protocol` | 协议定义 | tsc | Biome | 类型定义 |
@@ -22,6 +22,40 @@
 - **测试框架**：`Vitest`（大部分包使用）
 - **TypeScript**：严格模式（所有包）
 
+### 构建顺序
+
+Turbo 会根据包依赖关系自动确定构建顺序。当前的构建顺序为：
+
+```text
+1. @rtc-agent/protocol (无依赖)
+   ↓
+2. @rtc-agent/client (依赖 protocol)
+   ↓
+3. @rtc-agent/persistence (依赖 client, protocol)
+   ↓
+4. @rtc-agent/worker (依赖 client, persistence, protocol)
+   ↓
+5. @rtc-agent/component (依赖 client, persistence, protocol, worker)
+   ↓
+6. @rtc-agent/admin-ui (依赖 component, protocol)
+```
+
+**注意**：
+
+- Turbo 会自动处理这个顺序，无需手动干预
+- 每个包都会等待其依赖构建完成后再开始构建
+- 独立的包会并行构建以提高效率
+
+### 版本管理
+
+所有 `@rtc-agent/*` 包必须保持相同的版本号。这通过以下方式保证：
+
+1. **本地验证**：使用 `pnpm verify-version` 检查版本对齐
+2. **本地同步**：使用 `pnpm sync-version <version>` 同步版本
+3. **CI 验证**：发布工作流会验证版本对齐，不匹配时会失败
+
+详细流程请参考 [RELEASE.md](./RELEASE.md)。
+
 ### admin-ui 的特殊性
 
 `@rtc-agent/admin-ui` 本质上是 Ant Design Pro 模板项目嵌入到 monorepo，保留了一些独立性：
@@ -30,11 +64,12 @@
 
 1. **构建工具**：使用 Umi Max 的 `max build`，而非 turbo 缓存
    - 原因：Umi Max 有自己的构建优化和缓存机制
-   
+
 2. **项目结构**：有自己的 `.husky`、`.commitlintrc` 等配置
    - 原因：继承自 Ant Design Pro 模板
-   
+
 3. **开发命令**：
+
    ```bash
    # 其他包使用 turbo
    pnpm build        # 根级 turbo run build
@@ -120,7 +155,7 @@ pnpm run test
 
 使用 Conventional Commits：
 
-```
+```text
 <type>(<scope>): <subject>
 
 <body>
@@ -130,7 +165,7 @@ pnpm run test
 
 示例：
 
-```
+```text
 feat(component): add dark mode support
 
 Implement theme switching with CSS variables.

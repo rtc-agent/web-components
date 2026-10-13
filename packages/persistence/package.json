@@ -1,6 +1,6 @@
 {
   "name": "@rtc-agent/persistence",
-  "version": "0.1.0",
+  "version": "0.3.0-rc.2",
   "description": "RTC Agent 本地持久化层：IndexedDB + Dexie.js",
   "type": "module",
   "main": "./dist/index.js",

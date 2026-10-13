@@ -1,6 +1,6 @@
 {
   "name": "@rtc-agent/admin-ui",
-  "version": "0.1.0",
+  "version": "0.3.0-rc.2",
   "private": true,
   "description": "RTC Agent Admin UI - Management console with RTC Agent integration",
   "repository": "git@github.com:rtc-agent/rtc-agent.git",

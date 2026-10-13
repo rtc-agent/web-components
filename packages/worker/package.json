@@ -1,6 +1,6 @@
 {
   "name": "@rtc-agent/worker",
-  "version": "0.1.0",
+  "version": "0.3.0-rc.2",
   "description": "RTC Agent SharedWorker：多 Tab 共享一条 WebSocket + 一个 IndexedDB",
   "type": "module",
   "main": "./dist/index.js",
@@ -26,6 +26,7 @@
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
+    "test:coverage": "vitest run --coverage --passWithNoTests",
     "lint": "biome lint src/",
     "lint:fix": "biome check --write src/",
     "format": "biome format --write src/"

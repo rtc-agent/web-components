@@ -13,14 +13,14 @@
     "dev": "turbo run dev --filter @rtc-agent/component",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
+    "test:coverage": "turbo run test:coverage",
     "lint": "turbo run lint",
     "lint:fix": "turbo run lint:fix",
     "format": "turbo run format",
     "check": "biome check .",
-    "check:fix": "biome check --write ."
-  },
-  "dependencies": {
-    "@awesome.me/webawesome": "^3.12.0"
+    "check:fix": "biome check --write .",
+    "sync-version": "node scripts/sync-version.js",
+    "verify-version": "node scripts/verify-version-alignment.js"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.3",
@@ -30,6 +30,7 @@
   },
   "pnpm": {
     "overrides": {
+      "//": "Overrides ensure consistent versions across all packages in the monorepo",
       "vitest": "^2.1.9",
       "@vitest/coverage-v8": "^2.1.9",
       "@vitest/ui": "^2.1.9",

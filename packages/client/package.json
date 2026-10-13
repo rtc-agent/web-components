@@ -1,6 +1,6 @@
 {
   "name": "@rtc-agent/client",
-  "version": "0.1.0",
+  "version": "0.3.0-rc.2",
   "description": "RTC Agent 通信层：Centrifuge 连接、RPC 调用、实时订阅、流式消息",
   "type": "module",
   "main": "./dist/index.js",
@@ -10,6 +10,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./test-utils": {
+      "types": "./dist/test-utils/index.d.ts",
+      "import": "./dist/test-utils/index.js",
+      "default": "./dist/test-utils/index.js"
     }
   },
   "files": [

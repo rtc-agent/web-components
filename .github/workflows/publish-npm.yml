@@ -71,28 +71,12 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-      - name: Sync version to all package.json files
+      - name: Verify version alignment
         env:
           VERSION: ${{ steps.release-info.outputs.version }}
         run: |
-          echo "Setting version=$VERSION across all @rtc-agent/* packages"
-          node -e "
-            const fs = require('fs');
-            const path = require('path');
-            const root = process.cwd();
-            const pkgsDir = path.join(root, 'packages');
-            const version = process.env.VERSION;
-            for (const dir of fs.readdirSync(pkgsDir)) {
-              const pkgPath = path.join(pkgsDir, dir, 'package.json');
-              if (!fs.existsSync(pkgPath)) continue;
-              const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-              if (!pkg.name || !pkg.name.startsWith('@rtc-agent/')) continue;
-              const prev = pkg.version;
-              pkg.version = version;
-              fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
-              console.log('  ' + pkg.name + ': ' + prev + ' → ' + version);
-            }
-          "
+          echo "Verifying all packages have the same version..."
+          node scripts/verify-version-alignment.js "$VERSION"
 
       - name: Publish to npm
         env:

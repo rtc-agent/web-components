@@ -1,6 +1,6 @@
 {
   "name": "@rtc-agent/protocol",
-  "version": "0.1.0",
+  "version": "0.3.0-rc.2",
   "description": "RTC Agent 协议类型定义（TypeScript）",
   "type": "module",
   "main": "./dist/index.js",
@@ -21,11 +21,13 @@
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
+    "test:coverage": "vitest run --coverage --passWithNoTests",
     "lint": "biome lint src/",
     "lint:fix": "biome check --write src/",
     "format": "biome format --write src/"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.9",
     "typescript": "5.9.3",
     "vitest": "^2.1.9"
   }
