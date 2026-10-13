@@ -38,6 +38,7 @@ import {
 } from './service';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import { getEmailRules, getPasswordRules } from '@/utils/validation';
+import { createTableRequest } from '@/utils/tableUtils';
 import type { AdminPageAPI } from './page-api';
 
 /**
@@ -51,6 +52,19 @@ const AdminUserManagementPage: React.FC = () => {
   const { message } = App.useApp();
   const [searchParams, setSearchParams] = useSearchParams();
   const [currentRow, setCurrentRow] = useState<UserInfo>();
+
+  /**
+   * Modal State Management Design Decision:
+   *
+   * We use 5 independent useState hooks for modal visibility instead of useReducer because:
+   * 1. Each modal is independent - they don't share state transitions
+   * 2. Simple boolean toggles are clearer than reducer actions
+   * 3. No complex state dependencies between modals
+   * 4. Easier to understand for developers unfamiliar with the code
+   *
+   * If we had complex state transitions (e.g., "opening modal A closes modal B and opens modal C"),
+   * we would use useReducer. But here, each modal's visibility is orthogonal to the others.
+   */
   const [roleModalVisible, setRoleModalVisible] = useState(false);
   const [userRoles, setUserRoles] = useState<UserRoleAssignment[]>([]);
   const [assignModalVisible, setAssignModalVisible] = useState(false);
@@ -631,38 +645,27 @@ const AdminUserManagementPage: React.FC = () => {
             </Button>
           </Access>,
         ]}
-        request={async (params) => {
-          // Read params from searchParams (URL is single source of truth)
-          const keyword = searchParams.get('keyword') || '';
-          try {
+        request={createTableRequest(
+          async (params) => {
+            // Read params from searchParams (URL is single source of truth)
+            const keyword = searchParams.get('keyword') || '';
             const response = await getUserList({
               page: params.current,
               page_size: params.pageSize,
               keyword,
             });
             return {
-              data: response.items,
+              items: response.items,
               total: response.total,
-              success: true,
             };
-          } catch (error: unknown) {
-            message.error(
-              getFriendlyErrorMessage(
-                error,
-                intl,
-                intl.formatMessage({
-                  id: 'pages.adminUsers.loadFailed',
-                  defaultMessage: 'Failed to load administrators',
-                }),
-              ),
-            );
-            return {
-              data: [],
-              total: 0,
-              success: false,
-            };
-          }
-        }}
+          },
+          message,
+          intl,
+          {
+            id: 'pages.adminUsers.loadFailed',
+            defaultMessage: 'Failed to load administrators',
+          },
+        )}
         columns={columns}
       />
 

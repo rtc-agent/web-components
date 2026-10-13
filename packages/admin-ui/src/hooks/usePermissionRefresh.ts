@@ -30,6 +30,28 @@ import { buildCurrentUser } from '@/utils/permission';
  */
 export function usePermissionRefresh() {
   const { setInitialState } = useModel('@@initialState');
+
+  /**
+   * Serialization Queue Design:
+   *
+   * We use a Promise chain (refreshQueue) to serialize multiple refresh requests.
+   * This prevents race conditions when:
+   * - Multiple permission-modifying operations occur in quick succession
+   * - Batch operations trigger concurrent refresh requests
+   * - User performs rapid role assignments/revocations
+   *
+   * How it works:
+   * - Each refresh request chains onto the previous one via .then()
+   * - Requests execute sequentially, not concurrently
+   * - If a request fails, it retries with exponential backoff (100ms, 200ms)
+   * - Maximum 3 attempts total (initial + 2 retries)
+   *
+   * Why not just use a mutex or lock?
+   * - Promise chain is simpler and more idiomatic in React/TypeScript
+   * - No external dependencies needed
+   * - Naturally handles async flow control
+   * - Easy to reason about and debug
+   */
   const refreshQueue = useRef<Promise<void>>(Promise.resolve());
   const isMounted = useRef(true);
 
@@ -45,7 +67,8 @@ export function usePermissionRefresh() {
   } = {}) => {
     const { showErrorMessage = false, retryCount = 0 } = options;
 
-    // Serialize refresh requests to prevent race conditions
+    // Serialize refresh requests to prevent race conditions.
+    // Each request chains onto the previous one, ensuring sequential execution.
     refreshQueue.current = refreshQueue.current.then(async () => {
       try {
         // Fetch latest user info from server
@@ -84,7 +107,8 @@ export function usePermissionRefresh() {
         window.dispatchEvent(new CustomEvent('admin-permissions-ready'));
       } catch (error) {
         if (retryCount < 2) {
-          // Retry with exponential backoff
+          // Retry with exponential backoff: 100ms, 200ms
+          // This handles transient network failures gracefully
           console.warn(
             `[usePermissionRefresh] Retry ${retryCount + 1}/2 after failure:`,
             error,
@@ -93,7 +117,7 @@ export function usePermissionRefresh() {
           return refreshPermissions({ showErrorMessage, retryCount: retryCount + 1 });
         }
 
-        // All retries exhausted
+        // All retries exhausted (3 attempts total)
         if (showErrorMessage) {
           import('antd').then(({ message }) => {
             message.error('Failed to refresh permissions');
@@ -103,7 +127,9 @@ export function usePermissionRefresh() {
           '[usePermissionRefresh] Failed to refresh permissions after 3 attempts:',
           error,
         );
-        // Don't throw - permission refresh failure shouldn't break the calling operation
+        // Don't throw - permission refresh failure shouldn't break the calling operation.
+        // The operation that triggered the refresh (e.g., role assignment) may have succeeded,
+        // and we don't want to roll it back just because the permission refresh failed.
       }
     });
 

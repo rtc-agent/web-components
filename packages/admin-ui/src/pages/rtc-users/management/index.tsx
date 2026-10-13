@@ -33,7 +33,7 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { useTableSearchParams } from '@/hooks/useTableSearchParams';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
-import { parseTableSort } from '@/utils/tableUtils';
+import { parseTableSort, createTableRequest } from '@/utils/tableUtils';
 import UserConfigDrawer from './components/UserConfigDrawer';
 import UserDetailDrawer from './components/UserDetailDrawer';
 import type { RtcUserInfo } from './data';
@@ -624,8 +624,8 @@ const RtcUserManagementPage: React.FC = () => {
         rowKey="id"
         columns={columns}
         scroll={{ x: 'max-content' }}
-        request={async (params, sort) => {
-          try {
+        request={createTableRequest(
+          async (params, sort) => {
             // Read params from URL (single source of truth)
             const { search = '', status = '' } = tableParams.get();
             const current = params.current || 1;
@@ -639,28 +639,17 @@ const RtcUserManagementPage: React.FC = () => {
               ...sortParams,
             });
             return {
-              data: response.items,
+              items: response.items,
               total: response.total,
-              success: true,
             };
-          } catch (error: unknown) {
-            message.error(
-              getFriendlyErrorMessage(
-                error,
-                intl,
-                intl.formatMessage({
-                  id: 'pages.rtcUsers.loadFailed',
-                  defaultMessage: 'Failed to load users',
-                }),
-              ),
-            );
-            return {
-              data: [],
-              total: 0,
-              success: false,
-            };
-          }
-        }}
+          },
+          message,
+          intl,
+          {
+            id: 'pages.rtcUsers.loadFailed',
+            defaultMessage: 'Failed to load users',
+          },
+        )}
         pagination={{
           defaultPageSize: 10,
           showSizeChanger: true,
