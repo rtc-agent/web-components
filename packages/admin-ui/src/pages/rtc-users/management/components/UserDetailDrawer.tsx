@@ -285,7 +285,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
       })}${titleSuffix}`}
       open={open}
       onClose={onClose}
-      width={800}
+      width={window.innerWidth < 768 ? '90%' : 800}
       destroyOnHidden
     >
       {user && (
@@ -393,7 +393,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
                 }),
                 children: (
                   <Space
-                    orientation="vertical"
+                    direction="vertical"
                     size="large"
                     style={{ width: '100%' }}
                   >

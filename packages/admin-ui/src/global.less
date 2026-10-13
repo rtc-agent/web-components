@@ -74,6 +74,13 @@ ol {
   list-style: none;
 }
 
+/* Dashboard height variable for desktop (default) */
+:root {
+  /* NOTE: --dashboard-height differs between mobile (120px offset) and desktop (140px offset).
+     Desktop uses a larger offset due to the standard header layout. */
+  --dashboard-height: calc(100vh - 140px);
+}
+
 /* RTL (Right-to-Left) Language Support */
 [dir='rtl'] {
   /* Mirror layout for RTL languages */

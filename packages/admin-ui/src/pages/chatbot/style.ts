@@ -15,6 +15,22 @@ export const useStyles = createStyles(({ css, token }) => ({
     display: flex;
     flex-direction: column;
     overflow: hidden;
+
+    @media (max-width: 768px) {
+      width: 200px;
+    }
+
+    @media (max-width: 576px) {
+      width: 100%;
+      position: absolute;
+      left: -100%;
+      z-index: 1000;
+      transition: left 0.3s ease;
+
+      &.open {
+        left: 0;
+      }
+    }
   `,
 
   main: css`

@@ -6,7 +6,7 @@ import type { ProLayoutProps } from '@ant-design/pro-components';
 const Settings: ProLayoutProps & {
   logo?: string;
 } = {
-  navTheme: 'realDark',
+  navTheme: 'light',
   colorPrimary: '#1677ff',
   layout: 'mix',
   contentWidth: 'Fluid',

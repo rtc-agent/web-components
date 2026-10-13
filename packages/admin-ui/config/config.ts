@@ -147,7 +147,6 @@ export default defineConfig({
   antd: {
     appConfig: {},
     configProvider: {
-      variant: 'filled',
       theme: {
         token: {
           fontFamily: 'AlibabaSans, sans-serif',

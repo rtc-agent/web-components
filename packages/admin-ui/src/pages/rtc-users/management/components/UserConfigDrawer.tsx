@@ -6,7 +6,7 @@ import {
 } from '@ant-design/icons';
 import type { ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
-import { useIntl } from '@umijs/max';
+import { useIntl, useRequest } from '@umijs/max';
 import {
   App,
   Button,
@@ -19,15 +19,15 @@ import {
   Tag,
   Typography,
 } from 'antd';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useOptimisticLockConflict } from '@/hooks/useOptimisticLockConflict';
 import ConflictModal from '@/pages/system/configs/components/ConflictModal';
-import type { UserConfigItem } from '@/services/userConfig';
+import type { UserConfigItem } from '@/services/user-config';
 import {
   deleteUserConfig,
   getUserConfigs,
   setUserConfig,
-} from '@/services/userConfig';
+} from '@/services/user-config';
 import {
   formatConfigValue,
   useConfigSourceRenderer,
@@ -59,8 +59,6 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
   canEdit = false,
   canDelete = false,
 }) => {
-  const [configs, setConfigs] = useState<UserConfigItem[]>([]);
-  const [loading, setLoading] = useState(false);
   const [editingConfig, setEditingConfig] = useState<UserConfigItem | null>(
     null,
   );
@@ -76,29 +74,38 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
   const renderConfigSource = useConfigSourceRenderer();
 
   /** 加载用户配置 */
-  const loadConfigs = useCallback(async () => {
-    if (!userId) return;
-    setLoading(true);
-    try {
-      const response = await getUserConfigs(userId);
-      setConfigs(response.items);
-    } catch (error: unknown) {
+  // NOTE: umi 内置的 useRequest 默认 formatResult: result => result?.data，
+  // 而 request() 已经通过响应拦截器解包了 { success, data } 结构，
+  // 所以此处需要用恒等函数覆盖，避免二次解包导致 data 为 undefined。
+  const {
+    data: configsData,
+    loading,
+    run: runLoadConfigs,
+  } = useRequest(() => (userId ? getUserConfigs(userId) : Promise.reject()), {
+    ready: open && !!userId,
+    refreshDeps: [open, userId],
+    formatResult: (res: unknown) => res,
+    onError: (error) => {
       message.error(
         getFriendlyErrorMessage(
           error,
+          intl,
           intl.formatMessage({ id: 'pages.roles.operationFailed' }),
         ),
       );
-    } finally {
-      setLoading(false);
-    }
-  }, [userId, message]);
+    },
+  }) as {
+    data: { items: UserConfigItem[] } | undefined;
+    loading: boolean;
+    run: () => void;
+  };
 
-  useEffect(() => {
-    if (open && userId) {
-      loadConfigs();
-    }
-  }, [open, userId, loadConfigs]);
+  const configs = configsData?.items || [];
+
+  /** 手动刷新配置（用于操作后重新加载） */
+  const loadConfigs = useCallback(() => {
+    runLoadConfigs();
+  }, [runLoadConfigs]);
 
   /** 强制覆盖操作 */
   const doForceOverwrite = async (data: {
@@ -107,7 +114,9 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
     changeNote?: string;
   }) => {
     if (!userId) {
-      message.error('User context lost, please refresh');
+      message.error(
+        intl.formatMessage({ id: 'pages.config.user.contextLost' }),
+      );
       return;
     }
     const changeNote = data.changeNote
@@ -122,9 +131,18 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
   };
 
   /** 强制删除操作 */
-  const doForceDelete = async (data: { key: string; version: number }) => {
+  const doForceDelete = async (data: { key: string; version?: number }) => {
     if (!userId) {
-      message.error('User context lost, please refresh');
+      message.error(
+        intl.formatMessage({ id: 'pages.config.user.contextLost' }),
+      );
+      return;
+    }
+    // version 应该总是存在的（从冲突数据或原始数据中获取）
+    if (!data.version) {
+      message.error(
+        intl.formatMessage({ id: 'pages.config.user.versionRequired' }),
+      );
       return;
     }
     await deleteUserConfig(userId, data.key, data.version);
@@ -172,12 +190,16 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
       loadConfigs();
     } catch (error: unknown) {
       // Check if it's an optimistic lock conflict
-      const handled = handleDeleteError(error, { key: item.key });
+      const handled = handleDeleteError(error, {
+        key: item.key,
+        version: item.version,
+      });
       if (!handled) {
         // Non-conflict error, show normal error message
         message.error(
           getFriendlyErrorMessage(
             error,
+            intl,
             intl.formatMessage({ id: 'pages.roles.operationFailed' }),
           ),
         );
@@ -224,6 +246,7 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
       message.error(
         getFriendlyErrorMessage(
           error,
+          intl,
           intl.formatMessage({ id: 'pages.roles.operationFailed' }),
         ),
       );
@@ -394,7 +417,7 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
         title={`${intl.formatMessage({ id: 'pages.config.user.drawerTitle' })}${user.name || user.email || user.id}`}
         open={open}
         onClose={onClose}
-        styles={{ wrapper: { width: 900 } }}
+        width={window.innerWidth < 768 ? '90%' : 900}
         destroyOnHidden
       >
         <Descriptions column={2} size="small" style={{ marginBottom: 16 }}>
