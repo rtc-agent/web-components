@@ -38,9 +38,16 @@ describe('FileCacheRepository - updateSyncStatus error handling', () => {
       } catch (err) {
         expect(err).toBeInstanceOf(Error);
         const errorMessage = (err as Error).message;
+
+        // Verify error message contains file identifier
         expect(errorMessage).toContain(md5);
         expect(errorMessage).toContain(ext);
+
+        // Verify error message format: "md5.ext"
         expect(errorMessage).toMatch(/abc123456789012345678901234567\.png/);
+
+        // Verify error message is descriptive
+        expect(errorMessage).toMatch(/file cache entry not found/i);
       }
     });
 

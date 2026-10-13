@@ -342,6 +342,35 @@ export class PersistenceLayer {
   }
 
   /**
+   * Get the number of pending sync tasks (for testing and monitoring).
+   */
+  get pendingSyncTaskCount(): number {
+    return this._syncTaskTracker.pendingCount;
+  }
+
+  /**
+   * Check if the persistence layer is closing (for testing and monitoring).
+   */
+  get isClosing(): boolean {
+    return this._closing;
+  }
+
+  /**
+   * Track a sync task (for testing and external task tracking).
+   */
+  trackSyncTask(task: Promise<void>, label: string): void {
+    this._syncTaskTracker.track(task, label);
+  }
+
+  /**
+   * Set closing state for testing purposes.
+   * @internal
+   */
+  setClosingForTest(closing: boolean): void {
+    this._closing = closing;
+  }
+
+  /**
    * P1-R5-03: Close signal — aborts when lifecycle closes.
    *
    * Passed to TrackedBackgroundTask and FileSyncTransaction so they can

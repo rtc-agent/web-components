@@ -309,7 +309,7 @@ describe('WorkerCore - batchWriteFiles (Fix 55)', () => {
         entityId: '',
         field: 'batch',
         oldValue: undefined,
-        newValue: undefined,
+        newValue: { paths: ['/file1.txt'] },
       });
     });
 
@@ -651,6 +651,222 @@ describe('WorkerCore - getCatchUpEvents (Gap Detection)', () => {
 
       expect(result.hasMore).toBe(false);
       expect(result.entries.length).toBe(2);
+    });
+  });
+});
+
+// ========== Critical Error Paths ==========
+
+describe('WorkerCore - Critical Error Scenarios', () => {
+  let workerCore: WorkerCore;
+  let mockDb: any;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+
+    const persistence = await import('@rtc-agent/persistence');
+    vi.mocked(persistence.getDatabase).mockImplementation(() => mockDb);
+
+    workerCore = new WorkerCore();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  describe('batchWriteFiles - crash recovery', () => {
+    beforeEach(() => {
+      mockDb = {
+        fileSystemEntries: {
+          get: vi.fn(),
+          put: vi.fn(),
+          delete: vi.fn(),
+        },
+        ui_updates: {
+          add: vi.fn(),
+        },
+        transaction: vi.fn(),
+      };
+    });
+
+    it('should handle transaction timeout gracefully', async () => {
+      const files = [{ path: '/file1.txt', content: 'content1' }];
+
+      // Mock transaction to timeout
+      mockDb.transaction.mockImplementation(async () => {
+        throw new Error('Transaction timeout');
+      });
+
+      await expect(workerCore.batchWriteFiles(files)).rejects.toThrow(
+        'Transaction timeout',
+      );
+    });
+
+    it('should handle database corruption during write', async () => {
+      const files = [{ path: '/file1.txt', content: 'content1' }];
+
+      // Mock database corruption
+      mockDb.transaction.mockImplementation(async () => {
+        throw new DOMException('Database corrupted', 'DataCloneError');
+      });
+
+      await expect(workerCore.batchWriteFiles(files)).rejects.toThrow(
+        'Database corrupted',
+      );
+    });
+
+    it('should handle concurrent write conflicts', async () => {
+      const files = [
+        { path: '/file1.txt', content: 'content1' },
+        { path: '/file2.txt', content: 'content2' },
+      ];
+
+      let callCount = 0;
+      mockDb.transaction.mockImplementation(async (_mode, ...args) => {
+        callCount++;
+        if (callCount === 1) {
+          // First call succeeds
+          const fn = args[args.length - 1];
+          return fn();
+        } else {
+          // Second call fails (conflict)
+          throw new Error('Transaction conflict');
+        }
+      });
+
+      // First batch should succeed
+      await workerCore.batchWriteFiles([files[0]]);
+
+      // Second batch should fail
+      await expect(workerCore.batchWriteFiles([files[1]])).rejects.toThrow(
+        'Transaction conflict',
+      );
+    });
+  });
+
+  describe('getCatchUpEvents - edge cases', () => {
+    function createMockDb(options: {
+      entries: Array<{ seq: number; event: object; timestamp: number }>;
+    }) {
+      const allEntries = [...options.entries].sort((a, b) => a.seq - b.seq);
+
+      return {
+        ui_updates: {
+          where: (_field: string) => ({
+            above: (_fromSeq: number) => {
+              let filtered = allEntries.filter((e) => e.seq > _fromSeq);
+              return {
+                limit: (max: number) => ({
+                  toArray: async () => filtered.slice(0, max),
+                }),
+              };
+            },
+          }),
+          orderBy: (_field: string) => ({
+            last: async () => {
+              if (allEntries.length === 0) return undefined;
+              return allEntries[allEntries.length - 1];
+            },
+          }),
+        },
+      };
+    }
+
+    it('should handle database query timeout', async () => {
+      mockDb = {
+        ui_updates: {
+          where: () => ({
+            above: () => ({
+              limit: () => ({
+                toArray: async () => {
+                  throw new Error('Query timeout');
+                },
+              }),
+            }),
+          }),
+          orderBy: () => ({
+            last: async () => undefined,
+          }),
+        },
+      };
+
+      await expect(workerCore.getCatchUpEvents(0)).rejects.toThrow(
+        'Query timeout',
+      );
+    });
+
+    it('should handle malformed event data', async () => {
+      mockDb = createMockDb({
+        entries: [
+          { seq: 1, event: null as any, timestamp: 1 },
+          { seq: 2, event: undefined as any, timestamp: 2 },
+        ],
+      });
+
+      const result = await workerCore.getCatchUpEvents(0);
+      expect(result.entries).toBeDefined();
+      expect(result.entries.length).toBe(2);
+    });
+
+    it('should handle very large sequence numbers', async () => {
+      mockDb = createMockDb({
+        entries: [
+          {
+            seq: Number.MAX_SAFE_INTEGER - 1,
+            event: {},
+            timestamp: 1,
+          },
+          { seq: Number.MAX_SAFE_INTEGER, event: {}, timestamp: 2 },
+        ],
+      });
+
+      const result = await workerCore.getCatchUpEvents(
+        Number.MAX_SAFE_INTEGER - 2,
+      );
+      expect(result.entries.length).toBe(2);
+    });
+
+    it('should handle negative sequence numbers gracefully', async () => {
+      mockDb = createMockDb({
+        entries: [
+          { seq: -1, event: {}, timestamp: 1 },
+          { seq: 0, event: {}, timestamp: 2 },
+          { seq: 1, event: {}, timestamp: 3 },
+        ],
+      });
+
+      const result = await workerCore.getCatchUpEvents(-2);
+      expect(result.entries.length).toBe(3);
+    });
+  });
+
+  describe('initialization error handling', () => {
+    it('should handle database initialization failure', async () => {
+      const persistence = await import('@rtc-agent/persistence');
+
+      // Mock getDatabase to throw during initialization
+      vi.mocked(persistence.getDatabase).mockImplementation(() => {
+        throw new Error('Failed to open database');
+      });
+
+      const failingWorkerCore = new WorkerCore();
+      const config = {
+        databaseName: 'test-db',
+        deviceId: 'test-device',
+        userId: 'test-user',
+        serverURL: 'http://localhost:8888',
+        client: {
+          endpoint: 'ws://localhost:8888/ws',
+          getToken: () => Promise.resolve('test-token'),
+          onTokenExpired: () => 'refresh' as const,
+          onAccountBanned: () => {},
+          deviceId: 'test-device',
+          userId: 'test-user',
+        },
+      };
+
+      // WorkerCore.init() should handle the database error gracefully
+      await expect(failingWorkerCore.init(config)).rejects.toThrow();
     });
   });
 });

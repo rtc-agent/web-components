@@ -40,58 +40,47 @@ describe('Fix 26: PersistenceLayer graceful shutdown', () => {
   });
 
   describe('SyncTaskTracker', () => {
-    it('should track active sync tasks via _syncTaskTracker', async () => {
-      // @ts-expect-error - accessing private field for testing
-      const tracker = persistence._syncTaskTracker;
-
+    it('should track active sync tasks via SyncTaskTracker', async () => {
       // Wait for initial recovery task to complete
       await new Promise((resolve) => setTimeout(resolve, 50));
 
-      // @ts-expect-error - accessing private field for testing
-      expect(tracker._tasks.size).toBe(0);
+      // Use public API to verify initial state
+      expect(persistence.pendingSyncTaskCount).toBe(0);
 
       // Create a mock sync task
       const task = new Promise<void>((resolve) => setTimeout(resolve, 100));
 
-      // Track the task
-      tracker.track(task, 'test-task');
+      // Track the task via public method
+      persistence.trackSyncTask(task, 'test-task');
 
-      // @ts-expect-error - accessing private field for testing
-      expect(tracker._tasks.size).toBe(1);
+      // Verify task is being tracked
+      expect(persistence.pendingSyncTaskCount).toBe(1);
 
       await task;
       // Wait for finally to execute
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      // @ts-expect-error - accessing private field for testing
-      expect(tracker._tasks.size).toBe(0);
+      // Verify task was removed after completion
+      expect(persistence.pendingSyncTaskCount).toBe(0);
     });
 
     it('should remove task after completion', async () => {
-      // @ts-expect-error - accessing private field for testing
-      const tracker = persistence._syncTaskTracker;
-
       // Wait for initial recovery task to complete
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       const task = Promise.resolve();
 
-      tracker.track(task, 'test-task');
+      persistence.trackSyncTask(task, 'test-task');
 
-      // @ts-expect-error - accessing private field for testing
-      expect(tracker._tasks.size).toBe(1);
+      expect(persistence.pendingSyncTaskCount).toBe(1);
 
       await task;
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      // @ts-expect-error - accessing private field for testing
-      expect(tracker._tasks.size).toBe(0);
+      expect(persistence.pendingSyncTaskCount).toBe(0);
     });
 
     it('should remove task after failure', async () => {
-      // @ts-expect-error - accessing private field for testing
-      const tracker = persistence._syncTaskTracker;
-
       // Wait for initial recovery task to complete
       await new Promise((resolve) => setTimeout(resolve, 50));
 
@@ -103,10 +92,9 @@ describe('Fix 26: PersistenceLayer graceful shutdown', () => {
         // Silently catch to prevent unhandled rejection
       });
 
-      tracker.track(task, 'test-task');
+      persistence.trackSyncTask(task, 'test-task');
 
-      // @ts-expect-error - accessing private field for testing
-      expect(tracker._tasks.size).toBe(1);
+      expect(persistence.pendingSyncTaskCount).toBe(1);
 
       // Reject the task
       rejectTask!(new Error('Sync failed'));
@@ -115,14 +103,10 @@ describe('Fix 26: PersistenceLayer graceful shutdown', () => {
       await task;
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      // @ts-expect-error - accessing private field for testing
-      expect(tracker._tasks.size).toBe(0);
+      expect(persistence.pendingSyncTaskCount).toBe(0);
     });
 
     it('should track multiple concurrent tasks', async () => {
-      // @ts-expect-error - accessing private field for testing
-      const tracker = persistence._syncTaskTracker;
-
       // Wait for initial recovery task to complete
       await new Promise((resolve) => setTimeout(resolve, 50));
 
@@ -130,30 +114,26 @@ describe('Fix 26: PersistenceLayer graceful shutdown', () => {
       const task2 = new Promise<void>((resolve) => setTimeout(resolve, 100));
       const task3 = new Promise<void>((resolve) => setTimeout(resolve, 150));
 
-      tracker.track(task1, 'task1');
-      tracker.track(task2, 'task2');
-      tracker.track(task3, 'task3');
+      persistence.trackSyncTask(task1, 'task1');
+      persistence.trackSyncTask(task2, 'task2');
+      persistence.trackSyncTask(task3, 'task3');
 
-      // @ts-expect-error - accessing private field for testing
-      expect(tracker._tasks.size).toBe(3);
+      expect(persistence.pendingSyncTaskCount).toBe(3);
 
       await Promise.all([task1, task2, task3]);
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      // @ts-expect-error - accessing private field for testing
-      expect(tracker._tasks.size).toBe(0);
+      expect(persistence.pendingSyncTaskCount).toBe(0);
     });
   });
 
   describe('close()', () => {
-    it('should set _closing flag', async () => {
-      // @ts-expect-error - accessing private field for testing
-      expect(persistence._closing).toBe(false);
+    it('should set closing flag', async () => {
+      expect(persistence.isClosing).toBe(false);
 
       await persistence.close();
 
-      // @ts-expect-error - accessing private field for testing
-      expect(persistence._closing).toBe(true);
+      expect(persistence.isClosing).toBe(true);
     });
 
     it('should wait for active sync tasks before closing', async () => {
@@ -165,9 +145,7 @@ describe('Fix 26: PersistenceLayer graceful shutdown', () => {
         }, 100);
       });
 
-      // @ts-expect-error - accessing private field for testing
-      const tracker = persistence._syncTaskTracker;
-      tracker.track(task, 'test-task');
+      persistence.trackSyncTask(task, 'test-task');
 
       // Start close (should wait for task)
       const closePromise = persistence.close();
@@ -189,9 +167,7 @@ describe('Fix 26: PersistenceLayer graceful shutdown', () => {
         // Never resolves
       });
 
-      // @ts-expect-error - accessing private field for testing
-      const tracker = persistence._syncTaskTracker;
-      tracker.track(neverEndingTask, 'never-ending-task');
+      persistence.trackSyncTask(neverEndingTask, 'never-ending-task');
 
       const startTime = Date.now();
       await persistence.close();
@@ -229,10 +205,8 @@ describe('Fix 26: PersistenceLayer graceful shutdown', () => {
         }, 150);
       });
 
-      // @ts-expect-error - accessing private field for testing
-      const tracker = persistence._syncTaskTracker;
-      tracker.track(task1, 'task1');
-      tracker.track(task2, 'task2');
+      persistence.trackSyncTask(task1, 'task1');
+      persistence.trackSyncTask(task2, 'task2');
 
       await persistence.close();
 
@@ -255,14 +229,10 @@ describe('Fix 26: PersistenceLayer graceful shutdown', () => {
       });
       vi.spyOn(mockClient, 'sendMessage').mockReturnValue(sendMessagePromise);
 
-      // @ts-expect-error - accessing private field for testing
-      const tracker = persistence._syncTaskTracker;
-
       // Wait for initial recovery task to complete
       await new Promise((resolve) => setTimeout(resolve, 50));
 
-      // @ts-expect-error - accessing private field for testing
-      expect(tracker._tasks.size).toBe(0);
+      expect(persistence.pendingSyncTaskCount).toBe(0);
 
       // Call sendMessage
       const promise = persistence.sendMessage({
@@ -274,8 +244,7 @@ describe('Fix 26: PersistenceLayer graceful shutdown', () => {
       // Wait a bit for the sync task to be created
       await new Promise((resolve) => setTimeout(resolve, 50));
 
-      // @ts-expect-error - accessing private field for testing
-      expect(tracker._tasks.size).toBe(1);
+      expect(persistence.pendingSyncTaskCount).toBe(1);
 
       // Resolve the mocked sendMessage
       resolveSendMessage!();
@@ -285,13 +254,12 @@ describe('Fix 26: PersistenceLayer graceful shutdown', () => {
       // Wait for sync task to complete
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      // @ts-expect-error - accessing private field for testing
-      expect(tracker._tasks.size).toBe(0);
+      expect(persistence.pendingSyncTaskCount).toBe(0);
     });
 
-    it('should skip sync task when _closing is true', async () => {
-      // @ts-expect-error - accessing private field for testing
-      persistence._closing = true;
+    it('should skip sync task when closing is true', async () => {
+      // Set closing state via public method
+      persistence.setClosingForTest(true);
 
       // Mock client.sendMessage
       const mockClient = persistence.getClient();
@@ -311,10 +279,8 @@ describe('Fix 26: PersistenceLayer graceful shutdown', () => {
       // sendMessage should not be called when closing
       expect(sendMessageSpy).not.toHaveBeenCalled();
 
-      // @ts-expect-error - accessing private field for testing
-      const tracker = persistence._syncTaskTracker;
-      // @ts-expect-error - accessing private field for testing
-      expect(tracker._tasks.size).toBe(0);
+      // No sync task should be tracked
+      expect(persistence.pendingSyncTaskCount).toBe(0);
     });
   });
 });

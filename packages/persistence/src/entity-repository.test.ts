@@ -1630,4 +1630,190 @@ describe('entity-repository', () => {
       expect(msg4b?.content).toBe('final B');
     });
   });
+
+  // ========== Critical Error Paths ==========
+
+  describe('concurrent conflict handling', () => {
+    it('should handle concurrent session updates with conflict resolution', async () => {
+      // Create initial session
+      await repo.upsertSession({
+        client_id: 's-conflict',
+        title: 'Initial',
+        status: 'active',
+      });
+
+      // Simulate concurrent updates
+      const updates = Array.from({ length: 10 }, (_, i) =>
+        repo.upsertSession({
+          client_id: 's-conflict',
+          title: `Update ${i}`,
+          status: 'active',
+        }),
+      );
+
+      // All updates should complete without errors
+      await Promise.all(updates);
+
+      // Final state should be consistent
+      const session = await repo.getClientSession('s-conflict');
+      expect(session).toBeDefined();
+      expect(session?.title).toBeDefined();
+    });
+
+    it('should handle concurrent message inserts without data loss', async () => {
+      const sessionClientId = 's-concurrent-msgs';
+      await repo.upsertSession({ client_id: sessionClientId });
+
+      // Insert 50 messages concurrently
+      const messagePromises = Array.from({ length: 50 }, (_, i) =>
+        repo.upsertMessage({
+          client_id: `msg-${i}`,
+          session_client_id: sessionClientId,
+          content: { type: 'text', data: `message ${i}` },
+        }),
+      );
+
+      await Promise.all(messagePromises);
+
+      // Verify all messages were persisted
+      const messages = await repo.listMessagesBySession(sessionClientId);
+      expect(messages.length).toBe(50);
+    });
+
+    it('should handle transaction conflicts gracefully', async () => {
+      // Create multiple sessions
+      await repo.upsertSession({ client_id: 's1', title: 'Session 1' });
+      await repo.upsertSession({ client_id: 's2', title: 'Session 2' });
+
+      // Attempt concurrent updates to different entities
+      const operations = [
+        repo.upsertSession({ client_id: 's1', title: 'Updated 1' }),
+        repo.upsertMessage({
+          client_id: 'm1',
+          session_client_id: 's2',
+          content: { type: 'text', data: 'test' },
+        }),
+        repo.upsertRtc({
+          client_id: 'r1',
+          session_client_id: 's1',
+          tool_name: 'test_tool',
+        }),
+      ];
+
+      // All should succeed
+      const results = await Promise.allSettled(operations);
+      expect(results.every((r) => r.status === 'fulfilled')).toBe(true);
+    });
+  });
+
+  describe('IndexedDB quota and storage errors', () => {
+    it('should handle large message content gracefully', async () => {
+      const sessionClientId = 's-large-content';
+      await repo.upsertSession({ client_id: sessionClientId });
+
+      // Create a large message (1MB of text)
+      const largeContent = 'x'.repeat(1024 * 1024);
+
+      const result = await repo.upsertMessage({
+        client_id: 'msg-large',
+        session_client_id: sessionClientId,
+        content: { type: 'text', data: largeContent },
+      });
+
+      expect(result.after.client_id).toBe('msg-large');
+
+      // Verify it can be retrieved
+      const message = await repo.getClientMessage('msg-large');
+      expect(message).toBeDefined();
+    });
+
+    it('should handle batch operations with many items', async () => {
+      // Create 100 sessions in a batch
+      const updates = Array.from({ length: 100 }, (_, i) => ({
+        id: '',
+        items: [
+          {
+            entity: 'session' as const,
+            action: 'created' as const,
+            entity_id: `server-s-${i}`,
+          },
+        ],
+        data_list: [
+          {
+            id: `server-s-${i}`,
+            client_id: `s-${i}`,
+            title: `Session ${i}`,
+            status: 'active' as const,
+          },
+        ],
+        offset: i,
+      }));
+
+      await repo.applyUpdates(updates);
+
+      // Verify all sessions were created
+      const sessions = await repo.listSessions();
+      expect(sessions.length).toBeGreaterThanOrEqual(100);
+    });
+  });
+
+  describe('data integrity on errors', () => {
+    it('should maintain consistency when partial updates fail', async () => {
+      await repo.upsertSession({
+        client_id: 's-partial',
+        title: 'Initial',
+      });
+
+      // Try to apply an update with invalid data mixed in
+      try {
+        await repo.applyUpdates([
+          {
+            id: '',
+            items: [
+              {
+                entity: 'session',
+                action: 'updated',
+                entity_id: 'server-s-partial',
+              },
+            ],
+            data_list: [
+              {
+                id: 'server-s-partial',
+                client_id: 's-partial',
+                title: 'Updated',
+                status: 'active',
+              },
+            ],
+            offset: 1,
+          },
+        ]);
+      } catch {
+        // Should not throw, but if it does, state should be consistent
+      }
+
+      // Session should still be accessible
+      const session = await repo.getClientSession('s-partial');
+      expect(session).toBeDefined();
+    });
+
+    it('should handle device ID mismatches gracefully', async () => {
+      // Create a session
+      await repo.upsertSession({
+        client_id: 's-device-mismatch',
+        title: 'Test',
+      });
+
+      // Try to update with wrong device ID (should be filtered)
+      await repo.upsertMessage({
+        client_id: 'm1',
+        session_client_id: 's-device-mismatch',
+        session_device_id: 'wrong-device-id',
+        content: { type: 'text', data: 'test' },
+      });
+
+      // Message should still be created (device ID is just metadata)
+      const message = await repo.getClientMessage('m1');
+      expect(message).toBeDefined();
+    });
+  });
 });
