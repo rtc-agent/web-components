@@ -4,6 +4,7 @@ import type { RequestConfig, RunTimeLayoutConfig } from '@umijs/max';
 import { getLocale, history, Link } from '@umijs/max';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
+import type { InitialState } from '@/initialState.types';
 import 'dayjs/locale/zh-cn';
 import 'dayjs/locale/zh-tw';
 import 'dayjs/locale/ja';
@@ -127,13 +128,7 @@ if (typeof module !== 'undefined' && module.hot) {
 /**
  * @see https://umijs.org/docs/api/runtime-config#getinitialstate
  * */
-export async function getInitialState(): Promise<{
-  settings?: Partial<LayoutSettings>;
-  currentUser?: API.CurrentUser;
-  loading?: boolean;
-  fetchUserInfo?: () => Promise<API.CurrentUser | undefined>;
-  settingDrawerOpen?: boolean;
-}> {
+export async function getInitialState(): Promise<InitialState> {
   try {
     // Set document direction and load dayjs locale early
     setDocumentDirection();

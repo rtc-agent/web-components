@@ -12,19 +12,25 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { FormattedMessage, useIntl } from '@umijs/max';
 import { App, Button, Drawer, type FormInstance, Input } from 'antd';
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import { removeRule, rule } from '@/services/ant-design-pro/api';
 import { queryKeys } from '@/utils/queryKeys';
 import CreateForm from './components/CreateForm';
 import UpdateForm from './components/UpdateForm';
+import { useTableListState } from './useTableListState';
 
 const TableList: React.FC = () => {
   const actionRef = useRef<ActionType | null>(null);
   const queryClient = useQueryClient();
-
-  const [showDetail, setShowDetail] = useState<boolean>(false);
-  const [currentRow, setCurrentRow] = useState<API.RuleListItem>();
-  const [selectedRowsState, setSelectedRows] = useState<API.RuleListItem[]>([]);
+  const {
+    showDetail,
+    currentRow,
+    selectedRowsState,
+    openDetail,
+    closeDetail,
+    setSelectedRows,
+    clearSelection,
+  } = useTableListState();
 
   /**
    * @en-US International configuration
@@ -37,186 +43,198 @@ const TableList: React.FC = () => {
   const { mutate: delRun, isPending: loading } = useMutation({
     mutationFn: removeRule,
     onSuccess: () => {
-      setSelectedRows([]);
+      clearSelection();
       actionRef.current?.reloadAndRest?.();
       queryClient.invalidateQueries({ queryKey: queryKeys.rules.list() });
 
-      message.success('Deleted successfully and will refresh soon');
+      message.success(
+        intl.formatMessage({
+          id: 'pages.searchTable.deleteSuccess',
+          defaultMessage: 'Deleted successfully and will refresh soon',
+        }),
+      );
     },
     onError: () => {
-      message.error('Delete failed, please try again');
+      message.error(
+        intl.formatMessage({
+          id: 'pages.searchTable.deleteFailed',
+          defaultMessage: 'Delete failed, please try again',
+        }),
+      );
     },
   });
 
-  const columns: ProColumns<API.RuleListItem>[] = [
-    {
-      title: (
-        <FormattedMessage
-          id="pages.searchTable.updateForm.ruleName.nameLabel"
-          defaultMessage="Rule name"
-        />
-      ),
-      dataIndex: 'name',
-      render: (dom, entity) => {
-        return (
-          <Button
-            type="link"
-            onClick={() => {
-              setCurrentRow(entity);
-              setShowDetail(true);
-            }}
-          >
-            {dom}
-          </Button>
-        );
-      },
-    },
-    {
-      title: (
-        <FormattedMessage
-          id="pages.searchTable.titleDesc"
-          defaultMessage="Description"
-        />
-      ),
-      dataIndex: 'desc',
-      valueType: 'textarea',
-    },
-    {
-      title: (
-        <FormattedMessage
-          id="pages.searchTable.titleCallNo"
-          defaultMessage="Number of service calls"
-        />
-      ),
-      dataIndex: 'callNo',
-      sorter: true,
-      hideInForm: true,
-      renderText: (val: string) =>
-        `${val}${intl.formatMessage({
-          id: 'pages.searchTable.tenThousand',
-          defaultMessage: ' ten thousand ',
-        })}`,
-    },
-    {
-      title: (
-        <FormattedMessage
-          id="pages.searchTable.titleStatus"
-          defaultMessage="Status"
-        />
-      ),
-      dataIndex: 'status',
-      hideInForm: true,
-      valueEnum: {
-        0: {
-          text: (
-            <FormattedMessage
-              id="pages.searchTable.nameStatus.default"
-              defaultMessage="Shut down"
-            />
-          ),
-          status: 'Default',
-        },
-        1: {
-          text: (
-            <FormattedMessage
-              id="pages.searchTable.nameStatus.running"
-              defaultMessage="Running"
-            />
-          ),
-          status: 'Processing',
-        },
-        2: {
-          text: (
-            <FormattedMessage
-              id="pages.searchTable.nameStatus.online"
-              defaultMessage="Online"
-            />
-          ),
-          status: 'Success',
-        },
-        3: {
-          text: (
-            <FormattedMessage
-              id="pages.searchTable.nameStatus.abnormal"
-              defaultMessage="Abnormal"
-            />
-          ),
-          status: 'Error',
-        },
-      },
-    },
-    {
-      title: (
-        <FormattedMessage
-          id="pages.searchTable.titleUpdatedAt"
-          defaultMessage="Last scheduled time"
-        />
-      ),
-      sorter: true,
-      dataIndex: 'updatedAt',
-      valueType: 'dateTime',
-      formItemRender: (
-        item: ProColumns<API.RuleListItem>,
-        {
-          defaultRender,
-          ...rest
-        }: {
-          defaultRender: (
-            item: ProColumns<API.RuleListItem>,
-          ) => React.ReactNode;
-        },
-        form: FormInstance,
-      ) => {
-        const status = form.getFieldValue('status');
-        if (`${status}` === '0') {
-          return false;
-        }
-        if (`${status}` === '3') {
-          return (
-            <Input
-              {...rest}
-              placeholder={intl.formatMessage({
-                id: 'pages.searchTable.exception',
-                defaultMessage: 'Please enter the reason for the exception!',
-              })}
-            />
-          );
-        }
-        return defaultRender(item);
-      },
-    },
-    {
-      title: (
-        <FormattedMessage
-          id="pages.searchTable.titleOption"
-          defaultMessage="Operating"
-        />
-      ),
-      dataIndex: 'option',
-      valueType: 'option',
-      render: (_, record) => [
-        <UpdateForm
-          trigger={
-            <Button type="link">
-              <FormattedMessage
-                id="pages.searchTable.config"
-                defaultMessage="Configuration"
-              />
-            </Button>
-          }
-          key="config"
-          onOk={actionRef.current?.reload}
-          values={record}
-        />,
-        <a key="subscribeAlert" href="https://procomponents.ant.design/">
+  const columns = useMemo<ProColumns<API.RuleListItem>[]>(
+    () => [
+      {
+        title: (
           <FormattedMessage
-            id="pages.searchTable.subscribeAlert"
-            defaultMessage="Subscribe to alerts"
+            id="pages.searchTable.updateForm.ruleName.nameLabel"
+            defaultMessage="Rule name"
           />
-        </a>,
-      ],
-    },
-  ];
+        ),
+        dataIndex: 'name',
+        render: (dom, entity) => {
+          return (
+            <Button
+              type="link"
+              onClick={() => {
+                openDetail(entity);
+              }}
+            >
+              {dom}
+            </Button>
+          );
+        },
+      },
+      {
+        title: (
+          <FormattedMessage
+            id="pages.searchTable.titleDesc"
+            defaultMessage="Description"
+          />
+        ),
+        dataIndex: 'desc',
+        valueType: 'textarea',
+      },
+      {
+        title: (
+          <FormattedMessage
+            id="pages.searchTable.titleCallNo"
+            defaultMessage="Number of service calls"
+          />
+        ),
+        dataIndex: 'callNo',
+        sorter: true,
+        hideInForm: true,
+        renderText: (val: string) =>
+          `${val}${intl.formatMessage({
+            id: 'pages.searchTable.tenThousand',
+            defaultMessage: ' ten thousand ',
+          })}`,
+      },
+      {
+        title: (
+          <FormattedMessage
+            id="pages.searchTable.titleStatus"
+            defaultMessage="Status"
+          />
+        ),
+        dataIndex: 'status',
+        hideInForm: true,
+        valueEnum: {
+          0: {
+            text: (
+              <FormattedMessage
+                id="pages.searchTable.nameStatus.default"
+                defaultMessage="Shut down"
+              />
+            ),
+            status: 'Default',
+          },
+          1: {
+            text: (
+              <FormattedMessage
+                id="pages.searchTable.nameStatus.running"
+                defaultMessage="Running"
+              />
+            ),
+            status: 'Processing',
+          },
+          2: {
+            text: (
+              <FormattedMessage
+                id="pages.searchTable.nameStatus.online"
+                defaultMessage="Online"
+              />
+            ),
+            status: 'Success',
+          },
+          3: {
+            text: (
+              <FormattedMessage
+                id="pages.searchTable.nameStatus.abnormal"
+                defaultMessage="Abnormal"
+              />
+            ),
+            status: 'Error',
+          },
+        },
+      },
+      {
+        title: (
+          <FormattedMessage
+            id="pages.searchTable.titleUpdatedAt"
+            defaultMessage="Last scheduled time"
+          />
+        ),
+        sorter: true,
+        dataIndex: 'updatedAt',
+        valueType: 'dateTime',
+        formItemRender: (
+          item: ProColumns<API.RuleListItem>,
+          {
+            defaultRender,
+            ...rest
+          }: {
+            defaultRender: (
+              item: ProColumns<API.RuleListItem>,
+            ) => React.ReactNode;
+          },
+          form: FormInstance,
+        ) => {
+          const status = form.getFieldValue('status');
+          if (`${status}` === '0') {
+            return false;
+          }
+          if (`${status}` === '3') {
+            return (
+              <Input
+                {...rest}
+                placeholder={intl.formatMessage({
+                  id: 'pages.searchTable.exception',
+                  defaultMessage: 'Please enter the reason for the exception!',
+                })}
+              />
+            );
+          }
+          return defaultRender(item);
+        },
+      },
+      {
+        title: (
+          <FormattedMessage
+            id="pages.searchTable.titleOption"
+            defaultMessage="Operating"
+          />
+        ),
+        dataIndex: 'option',
+        valueType: 'option',
+        render: (_, record) => [
+          <UpdateForm
+            trigger={
+              <Button type="link">
+                <FormattedMessage
+                  id="pages.searchTable.config"
+                  defaultMessage="Configuration"
+                />
+              </Button>
+            }
+            key="config"
+            onOk={actionRef.current?.reload}
+            values={record}
+          />,
+          <a key="subscribeAlert" href="https://procomponents.ant.design/">
+            <FormattedMessage
+              id="pages.searchTable.subscribeAlert"
+              defaultMessage="Subscribe to alerts"
+            />
+          </a>,
+        ],
+      },
+    ],
+    [intl],
+  );
 
   /**
    *  Delete node
@@ -227,7 +245,9 @@ const TableList: React.FC = () => {
   const handleRemove = useCallback(
     async (selectedRows: API.RuleListItem[]) => {
       if (!selectedRows?.length) {
-        message.warning(intl.formatMessage({ id: 'pages.tableList.selectDeleteItem' }));
+        message.warning(
+          intl.formatMessage({ id: 'pages.tableList.selectDeleteItem' }),
+        );
 
         return;
       }
@@ -321,8 +341,7 @@ const TableList: React.FC = () => {
         width={600}
         open={showDetail}
         onClose={() => {
-          setCurrentRow(undefined);
-          setShowDetail(false);
+          closeDetail();
         }}
         closable={false}
       >
