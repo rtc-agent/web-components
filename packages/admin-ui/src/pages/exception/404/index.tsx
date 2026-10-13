@@ -11,9 +11,9 @@ const Exception404: React.FC = () => {
         title="404"
         subTitle={intl.formatMessage({ id: 'pages.404.subTitle' })}
         extra={
-          // 统一跳回仪表盘首页，避免未登录用户被导向需权限的页面；
-          // 后续可结合 access 信息细化管理员/普通用户跳转策略
-          <Link to="/dashboard" prefetch>
+          // 统一跳回个人中心，避免未登录用户被导向需权限的页面；
+          // 个人中心对所有已认证用户可见，是安全的默认跳转目标
+          <Link to="/account/center" prefetch>
             <Button type="primary">
               {intl.formatMessage({ id: 'pages.404.buttonText' })}
             </Button>

@@ -22,8 +22,8 @@ const SystemIndexPage: React.FC = () => {
     } else if (access.canServerConfigView) {
       history.replace('/system/configs');
     } else {
-      // If no permissions, redirect to dashboard
-      history.replace('/dashboard');
+      // If no permissions, redirect to account center (safe default for all authenticated users)
+      history.replace('/account/center');
     }
   }, [access]);
 

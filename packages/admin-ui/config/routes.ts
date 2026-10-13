@@ -64,6 +64,7 @@ export default [
         name: 'grafana',
         icon: 'lineChart',
         path: '/dashboard/grafana',
+        access: 'canDashboardView',
         routes: [
           {
             path: '/dashboard/grafana',
@@ -72,34 +73,42 @@ export default [
           {
             name: 'rtc-agent',
             path: '/dashboard/grafana/rtc-agent',
+            access: 'canDashboardView',
           },
           {
             name: 'go-runtime',
             path: '/dashboard/grafana/go-runtime',
+            access: 'canDashboardView',
           },
           {
             name: 'http-server',
             path: '/dashboard/grafana/http-server',
+            access: 'canDashboardView',
           },
           {
             name: 'error-feedback',
             path: '/dashboard/grafana/error-feedback-overview',
+            access: 'canDashboardView',
           },
           {
             name: 'logs',
             path: '/dashboard/grafana/logs-overview',
+            access: 'canDashboardView',
           },
           {
             name: 'oss3',
             path: '/dashboard/grafana/oss3-overview',
+            access: 'canDashboardView',
           },
           {
             name: 'minio',
             path: '/dashboard/grafana/minio-overview',
+            access: 'canDashboardView',
           },
           {
             name: 'health-watchdog',
             path: '/dashboard/grafana/system-health-watchdog',
+            access: 'canDashboardView',
           },
         ],
       },
@@ -211,14 +220,43 @@ export default [
       },
     ],
   },
+  // Chatbot: AI assistant accessible to all authenticated users
+  {
+    path: '/chatbot',
+    name: 'chatbot',
+    icon: 'robot',
+    component: './chatbot',
+  },
+  // RTC Agent developer tools (admin-only for diagnostics and testing)
+  {
+    path: '/rtc-agent-test',
+    name: 'rtc-agent-test',
+    icon: 'experiment',
+    component: './rtc-agent-test',
+    access: 'canAdmin',
+  },
+  {
+    path: '/rtc-agent-diagnose',
+    name: 'rtc-agent-diagnose',
+    icon: 'bug',
+    component: './rtc-agent-diagnose',
+    access: 'canAdmin',
+  },
   // 异常页面：
   // - 403 页面：用户无任何权限时由 app.tsx 的 onPageChange 重定向
   // - 404 页面：未匹配的路由
+  // - 500 页面：服务器错误
   {
     path: '/exception/403',
     name: '403',
     layout: false,
     component: './exception/403',
+  },
+  {
+    path: '/exception/500',
+    name: '500',
+    layout: false,
+    component: './exception/500',
   },
   {
     component: './exception/404',
