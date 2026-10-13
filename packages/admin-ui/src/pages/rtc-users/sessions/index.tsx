@@ -187,7 +187,7 @@ const SessionsPage: React.FC = () => {
         sorter: true,
         render: (_, record) =>
           record.total_tokens != null
-            ? record.total_tokens.toLocaleString()
+            ? intl.formatNumber(record.total_tokens)
             : '-',
         hideInTable: isMobile,
       },

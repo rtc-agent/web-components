@@ -744,19 +744,6 @@ const ContentRenderer: React.FC<{ content: ContentData | null }> = ({
 
 /* ── Main Component ── */
 
-/** 格式化 Token 数字：null/undefined 时显示 '-'，否则千分位 */
-const formatTokens = (value: number | null | undefined): string =>
-  value != null ? value.toLocaleString() : '-';
-
-/** 格式化时间戳 */
-const formatDateTime = (value: string): string => {
-  try {
-    return new Date(value).toLocaleString();
-  } catch {
-    return value;
-  }
-};
-
 type MessageDetailDrawerProps = {
   open: boolean;
   message: MessageInfo | null;
@@ -784,6 +771,26 @@ const MessageDetailDrawer: React.FC<MessageDetailDrawerProps> = ({
 }) => {
   const intl = useIntl();
   const isMobile = useIsMobile();
+
+  /** 格式化 Token 数字：null/undefined 时显示 '-'，否则使用 intl 格式化 */
+  const formatTokens = (value: number | null | undefined): string =>
+    value != null ? intl.formatNumber(value) : '-';
+
+  /** 格式化时间戳：使用 intl 格式化日期时间 */
+  const formatDateTime = (value: string): string => {
+    try {
+      return intl.formatDate(value, {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      });
+    } catch {
+      return value;
+    }
+  };
 
   const titleSuffix = msg ? ` - ${msg.id.slice(0, 8)}` : '';
 

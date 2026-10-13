@@ -1,7 +1,7 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { history, useIntl, useSearchParams } from '@umijs/max';
-import { App, Button, Grid, Tag } from 'antd';
+import { App, Button, Tag } from 'antd';
 import React, {
   useCallback,
   useEffect,
@@ -11,6 +11,7 @@ import React, {
 } from 'react';
 import { TableEmptyState } from '@/components';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import { disabledFutureDate, parseTableSort } from '@/utils/tableUtils';
 import MessageDetailDrawer from './components/MessageDetailDrawer';
@@ -27,8 +28,7 @@ const MessagesPage: React.FC = () => {
   const { message } = App.useApp();
   const [searchParams, setSearchParams] = useSearchParams();
   const sessionId = searchParams.get('session_id') || '';
-  const screens = Grid.useBreakpoint();
-  const isMobile = !screens.md;
+  const isMobile = useIsMobile();
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [currentMessage, setCurrentMessage] = useState<MessageInfo | null>(
@@ -208,7 +208,7 @@ const MessagesPage: React.FC = () => {
         hideInTable: isMobile,
         render: (_, record) =>
           record.input_tokens != null
-            ? record.input_tokens.toLocaleString()
+            ? intl.formatNumber(record.input_tokens)
             : '-',
       },
       {
@@ -223,7 +223,7 @@ const MessagesPage: React.FC = () => {
         hideInTable: isMobile,
         render: (_, record) =>
           record.output_tokens != null
-            ? record.output_tokens.toLocaleString()
+            ? intl.formatNumber(record.output_tokens)
             : '-',
       },
       {

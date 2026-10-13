@@ -177,7 +177,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
       dataIndex: 'total_tokens',
       key: 'total_tokens',
       render: (_: unknown, record: TopSession) =>
-        record.total_tokens.toLocaleString(),
+        intl.formatNumber(record.total_tokens),
       sorter: (a: TopSession, b: TopSession) => a.total_tokens - b.total_tokens,
       defaultSortOrder: 'descend' as const,
     },
@@ -271,7 +271,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
     },
     tooltip: {
       channel: 'y',
-      valueFormatter: (v: number) => v.toLocaleString(),
+      valueFormatter: (v: number) => intl.formatNumber(v),
     },
     height: 300,
     autoFit: true,
