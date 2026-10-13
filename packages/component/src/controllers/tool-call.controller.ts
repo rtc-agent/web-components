@@ -12,7 +12,7 @@
  * Provided by: `<rtc-agent>` (root)
  * Consumed by: `<rtc-tool-confirm>`, `<rtc-overlay-manager>`
  */
-import type { ReactiveController, ReactiveControllerHost } from 'lit';
+import type { ReactiveControllerHost } from 'lit';
 import type {
   ToolCall,
   ToolCallState,
@@ -20,45 +20,31 @@ import type {
 } from '../types/index.js';
 import type { ToolCallContextValue } from '../contexts/tool-call.js';
 import { DEFAULT_TOOL_CALL_STATE } from '../contexts/tool-call.js';
+import { CachedContextController } from '../core/cached-context.controller.js';
 
-export class ToolCallController implements ReactiveController {
-  host: ReactiveControllerHost & EventTarget;
-
-  private _state: ToolCallState = { ...DEFAULT_TOOL_CALL_STATE };
-
-  readonly actions: ToolCallActions;
-
-  /**
-   * CRITICAL FIX: Value cache to prevent unnecessary Context consumer re-renders.
-   * @lit/context uses `===` comparison, so creating new objects every time triggers
-   * consumers even when the state hasn't changed. Cache the value object and only
-   * recreate when state reference changes.
-   */
-  private _cachedValue?: ToolCallContextValue;
-  private _cachedState?: ToolCallState;
-
-  get value(): ToolCallContextValue {
-    // Only create new value object if state reference changed
-    if (this._cachedValue && this._cachedState === this._state) {
-      return this._cachedValue;
-    }
-    this._cachedState = this._state;
-    this._cachedValue = { state: this._state, actions: this.actions };
-    return this._cachedValue;
-  }
+export class ToolCallController extends CachedContextController<
+  ToolCallState,
+  ToolCallActions
+> {
+  // Store host with EventTarget type for dispatchEvent
+  private _eventHost: ReactiveControllerHost & EventTarget;
 
   constructor(host: ReactiveControllerHost & EventTarget) {
-    this.host = host;
-    this.host.addController(this);
-    this.actions = {
+    const actions: ToolCallActions = {
       approve: (id: string) => this._approve(id),
       approveAll: (toolName: string) => this._approveAll(toolName),
       deny: (id: string) => this._deny(id),
     };
+
+    super(host, { ...DEFAULT_TOOL_CALL_STATE }, actions);
+
+    this._eventHost = host;
   }
 
-  hostConnected() {}
-  hostDisconnected() {}
+  /** Override value getter to return ToolCallContextValue type */
+  get value(): ToolCallContextValue {
+    return super.value as ToolCallContextValue;
+  }
 
   /**
    * Add a pending tool call.
@@ -68,18 +54,18 @@ export class ToolCallController implements ReactiveController {
    * User-triggered tool call operations (approve/deny) still go through Context actions.
    */
   addPendingCall(call: ToolCall) {
-    this._state = {
+    this._setState({
       pendingCalls: [...this._state.pendingCalls, call],
-    };
-    this.host.requestUpdate();
+    });
+    this._eventHost.requestUpdate();
   }
 
   private _approve(id: string) {
     const call = this._state.pendingCalls.find((tc) => tc.id === id);
     const pendingCalls = this._state.pendingCalls.filter((tc) => tc.id !== id);
-    this._state = { pendingCalls };
-    this.host.requestUpdate();
-    this.host.dispatchEvent(
+    this._setState({ pendingCalls });
+    this._eventHost.requestUpdate();
+    this._eventHost.dispatchEvent(
       new CustomEvent('rtc-tool-call-approved', {
         bubbles: true,
         composed: true,
@@ -92,9 +78,9 @@ export class ToolCallController implements ReactiveController {
     const pendingCalls = this._state.pendingCalls.filter(
       (tc) => tc.tool_name !== toolName,
     );
-    this._state = { pendingCalls };
-    this.host.requestUpdate();
-    this.host.dispatchEvent(
+    this._setState({ pendingCalls });
+    this._eventHost.requestUpdate();
+    this._eventHost.dispatchEvent(
       new CustomEvent('rtc-tool-call-approve-all', {
         bubbles: true,
         composed: true,
@@ -105,9 +91,9 @@ export class ToolCallController implements ReactiveController {
 
   private _deny(id: string) {
     const pendingCalls = this._state.pendingCalls.filter((tc) => tc.id !== id);
-    this._state = { pendingCalls };
-    this.host.requestUpdate();
-    this.host.dispatchEvent(
+    this._setState({ pendingCalls });
+    this._eventHost.requestUpdate();
+    this._eventHost.dispatchEvent(
       new CustomEvent('rtc-tool-call-denied', {
         bubbles: true,
         composed: true,

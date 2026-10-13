@@ -51,7 +51,7 @@ export abstract class CachedContextController<
   protected _state: S;
 
   /** Actions object - readonly for consumers */
-  protected readonly _actions: A;
+  public readonly actions: A;
 
   /**
    * Value cache to prevent unnecessary Context consumer re-renders.
@@ -71,7 +71,7 @@ export abstract class CachedContextController<
   ) {
     this.host = host;
     this._state = initialState;
-    this._actions = actions;
+    this.actions = actions;
     this.log = log;
 
     // Automatically register with host
@@ -88,18 +88,13 @@ export abstract class CachedContextController<
       return this._cachedValue;
     }
     this._cachedState = this._state;
-    this._cachedValue = { state: this._state, actions: this._actions };
+    this._cachedValue = { state: this._state, actions: this.actions };
     return this._cachedValue;
   }
 
   /** Get current state (for internal use) */
   protected get state(): S {
     return this._state;
-  }
-
-  /** Get actions (for internal use) */
-  protected get actions(): A {
-    return this._actions;
   }
 
   /**

@@ -11,21 +11,22 @@
  * Provided by: `<rtc-agent>` (root)
  * Consumed by: `<rtc-session-header>`, `<rtc-session-panel>`, `<rtc-content-area>`
  */
-import type { ReactiveController, ReactiveControllerHost } from 'lit';
+import type { ReactiveControllerHost } from 'lit';
 import type { Session, SessionState, SessionActions } from '../types/index.js';
 import type { SessionContextValue } from '../contexts/session.js';
 import { DEFAULT_SESSION_STATE } from '../contexts/session.js';
 import type { PersistenceLayer } from '@rtc-agent/persistence';
 import { createLogger } from '@rtc-agent/protocol';
+import { CachedContextController } from '../core/cached-context.controller.js';
 
 const log = createLogger('SessionController');
 
-export class SessionController implements ReactiveController {
-  host: ReactiveControllerHost & EventTarget;
-
-  private _state: SessionState = { ...DEFAULT_SESSION_STATE };
-
-  readonly actions: SessionActions;
+export class SessionController extends CachedContextController<
+  SessionState,
+  SessionActions
+> {
+  // Override host type to include EventTarget for dispatchEvent
+  declare host: ReactiveControllerHost & EventTarget;
 
   /** Called when session switches — root wires this to MessageController. */
   onSessionSwitch?: () => void;
@@ -38,29 +39,13 @@ export class SessionController implements ReactiveController {
    */
   persistence?: PersistenceLayer;
 
-  /**
-   * CRITICAL FIX: Value cache to prevent unnecessary Context consumer re-renders.
-   * @lit/context uses `===` comparison, so creating new objects every time triggers
-   * consumers even when the state hasn't changed. Cache the value object and only
-   * recreate when state reference changes.
-   */
-  private _cachedValue?: SessionContextValue;
-  private _cachedState?: SessionState;
-
+  /** Override value getter to return SessionContextValue type */
   get value(): SessionContextValue {
-    // Only create new value object if state reference changed
-    if (this._cachedValue && this._cachedState === this._state) {
-      return this._cachedValue;
-    }
-    this._cachedState = this._state;
-    this._cachedValue = { state: this._state, actions: this.actions };
-    return this._cachedValue;
+    return super.value as SessionContextValue;
   }
 
   constructor(host: ReactiveControllerHost & EventTarget) {
-    this.host = host;
-    this.host.addController(this);
-    this.actions = {
+    const actions: SessionActions = {
       createSession: () => this._createSession(),
       switchSession: (id: string) => this._switchSession(id),
       renameSession: (id: string, title: string) =>
@@ -73,10 +58,9 @@ export class SessionController implements ReactiveController {
       setCurrentSession: (session: Session) => this._setCurrentSession(session),
       setSessions: (sessions: Session[]) => this._setSessions(sessions),
     };
-  }
 
-  hostConnected() {}
-  hostDisconnected() {}
+    super(host, { ...DEFAULT_SESSION_STATE }, actions, log);
+  }
 
   private _createSession(): string {
     // Use crypto.randomUUID() for unique IDs (avoids Date.now() collisions)
@@ -88,7 +72,7 @@ export class SessionController implements ReactiveController {
       updatedAt: Date.now(),
     };
     const sessions = [...this._state.sessions, newSession];
-    this._state = { sessions, currentSessionId: newSession.clientId };
+    this._setState({ sessions, currentSessionId: newSession.clientId });
     this.host.requestUpdate();
     this.host.dispatchEvent(
       new CustomEvent('rtc-session-created', {
@@ -102,7 +86,7 @@ export class SessionController implements ReactiveController {
 
   private _switchSession(id: string) {
     log.debug('Switching to session:', id);
-    this._state = { ...this._state, currentSessionId: id };
+    this._setState({ ...this._state, currentSessionId: id });
     this.host.requestUpdate();
     // Clear messages for new session — delegate to root via callback
     this.onSessionSwitch?.();
@@ -127,7 +111,7 @@ export class SessionController implements ReactiveController {
         const sessions = this._state.sessions.map((s) =>
           s.clientId === id ? { ...s, title, updatedAt: Date.now() } : s,
         );
-        this._state = { ...this._state, sessions };
+        this._setState({ ...this._state, sessions });
         this.host.requestUpdate();
         this.host.dispatchEvent(
           new CustomEvent('rtc-session-renamed', {
@@ -161,7 +145,7 @@ export class SessionController implements ReactiveController {
               ? sessions[sessions.length - 1].clientId
               : null
             : this._state.currentSessionId;
-        this._state = { sessions, currentSessionId };
+        this._setState({ sessions, currentSessionId });
         this.host.requestUpdate();
 
         // If we deleted the active session, trigger switch to the new active
@@ -283,12 +267,12 @@ export class SessionController implements ReactiveController {
   }
 
   private _reset() {
-    this._state = { ...DEFAULT_SESSION_STATE };
+    this._setState({ ...DEFAULT_SESSION_STATE });
     this.host.requestUpdate();
   }
 
   private _clearCurrentSession() {
-    this._state = { ...this._state, currentSessionId: null };
+    this._setState({ ...this._state, currentSessionId: null });
     this.host.requestUpdate();
     // Trigger session switch callback to clear messages
     this.onSessionSwitch?.();
@@ -312,13 +296,13 @@ export class SessionController implements ReactiveController {
     } else {
       sessions = [...this._state.sessions, session];
     }
-    this._state = { sessions, currentSessionId: session.clientId };
+    this._setState({ sessions, currentSessionId: session.clientId });
     this.host.requestUpdate();
   }
 
   private _setSessions(sessions: Session[]) {
     // Only update sessions list, keep currentSessionId unchanged
-    this._state = { ...this._state, sessions };
+    this._setState({ ...this._state, sessions });
     this.host.requestUpdate();
   }
 }

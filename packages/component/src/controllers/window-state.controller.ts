@@ -8,7 +8,7 @@
  * Provided by: `<rtc-agent>` (root)
  * Consumed by: `<rtc-title-bar>`, `<rtc-content-wrapper>`
  */
-import type { ReactiveController, ReactiveControllerHost } from 'lit';
+import type { ReactiveControllerHost } from 'lit';
 import type {
   WindowState,
   WindowStateActions,
@@ -20,16 +20,17 @@ import { STORAGE_KEYS } from '../config/auth.js';
 import type { ResolvedWindowConfig } from '../types/window-config.js';
 import { DEFAULT_WINDOW_CONFIG } from '../types/window-config.js';
 import { createLogger } from '@rtc-agent/protocol';
+import { CachedContextController } from '../core/cached-context.controller.js';
 
 const log = createLogger('WindowStateController');
 
 /** Exclude transient fields when serializing window state (lastState is meaningless after restore) */
 type PersistedWindowState = Omit<WindowState, 'lastState'>;
 
-export class WindowStateController implements ReactiveController {
-  host: ReactiveControllerHost;
-
-  private _state: WindowState = { ...DEFAULT_WINDOW_STATE };
+export class WindowStateController extends CachedContextController<
+  WindowState,
+  WindowStateActions
+> {
   /** Whether state was restored from localStorage (used to skip initial position setup). */
   private _restored = false;
   /** Window configuration */
@@ -44,25 +45,9 @@ export class WindowStateController implements ReactiveController {
    */
   private _bubbleSizeCache: number | null = null;
 
-  readonly actions: WindowStateActions;
-
-  /**
-   * CRITICAL FIX: Value cache to prevent unnecessary Context consumer re-renders.
-   * @lit/context uses `===` comparison, so creating new objects every time triggers
-   * consumers even when the state hasn't changed. Cache the value object and only
-   * recreate when state reference changes.
-   */
-  private _cachedValue?: WindowStateContextValue;
-  private _cachedState?: WindowState;
-
+  /** Override value getter to return WindowStateContextValue type */
   get value(): WindowStateContextValue {
-    // Only create new value object if state reference changed
-    if (this._cachedValue && this._cachedState === this._state) {
-      return this._cachedValue;
-    }
-    this._cachedState = this._state;
-    this._cachedValue = { state: this._state, actions: this.actions };
-    return this._cachedValue;
+    return super.value as WindowStateContextValue;
   }
 
   /** Whether window state was restored from localStorage. */
@@ -71,18 +56,18 @@ export class WindowStateController implements ReactiveController {
   }
 
   constructor(host: ReactiveControllerHost, config?: ResolvedWindowConfig) {
-    this.host = host;
-    this._config = config ?? { ...DEFAULT_WINDOW_CONFIG };
-    this.host.addController(this);
-    this.actions = {
+    const actions: WindowStateActions = {
       setMode: (mode: WindowMode) => this._setMode(mode),
-      setPosition: (pos) => this._updateState({ position: pos }),
-      setSize: (size) => this._updateState({ size }),
+      setPosition: (pos) => this._applyPartialState({ position: pos }),
+      setSize: (size) => this._applyPartialState({ size }),
       maximize: () => this._setMode('maximized'),
       minimize: () => this._setMode('minimized'),
       restore: () => this._setMode('normal'),
     };
 
+    super(host, { ...DEFAULT_WINDOW_STATE }, actions, log);
+
+    this._config = config ?? { ...DEFAULT_WINDOW_CONFIG };
     this._restoreState();
   }
 
@@ -93,7 +78,7 @@ export class WindowStateController implements ReactiveController {
     this._bubbleSizeCache = null;
     // If no saved state, apply default mode
     if (!this._restored) {
-      this._state = { ...this._state, mode: config.defaultMode };
+      this._setState({ ...this._state, mode: config.defaultMode });
       this.host.requestUpdate();
     }
   }
@@ -177,7 +162,7 @@ export class WindowStateController implements ReactiveController {
     }
 
     if (needsUpdate) {
-      this._updateState({ position: { x, y } });
+      this._applyPartialState({ position: { x, y } });
     }
   }
 
@@ -188,7 +173,7 @@ export class WindowStateController implements ReactiveController {
       const raw = localStorage.getItem(STORAGE_KEYS.windowState);
       if (!raw) {
         // No saved state, apply default mode
-        this._state = { ...this._state, mode: this._config.defaultMode };
+        this._setState({ ...this._state, mode: this._config.defaultMode });
         return;
       }
       const saved: PersistedWindowState = JSON.parse(raw);
@@ -200,18 +185,18 @@ export class WindowStateController implements ReactiveController {
         saved.size?.width != null &&
         saved.size?.height != null
       ) {
-        this._state = { ...saved, lastState: undefined };
+        this._setState({ ...saved, lastState: undefined });
         this._restored = true;
         // Clamp to current viewport — devtools / zoom may have changed
         this._clampToViewport();
       } else {
         // Saved state is invalid, apply default mode
-        this._state = { ...this._state, mode: this._config.defaultMode };
+        this._setState({ ...this._state, mode: this._config.defaultMode });
       }
     } catch (e) {
       // localStorage may be unavailable or data corrupted
       log.debug('Failed to restore window state:', e);
-      this._state = { ...this._state, mode: this._config.defaultMode };
+      this._setState({ ...this._state, mode: this._config.defaultMode });
     }
   }
 
@@ -236,11 +221,11 @@ export class WindowStateController implements ReactiveController {
     const x = Math.max(0, Math.min(position.x, vw - width));
     const y = Math.max(0, Math.min(position.y, vh - height));
 
-    this._state = {
+    this._setState({
       ...this._state,
       position: { x, y },
       size: { width, height },
-    };
+    });
   }
 
   private _persistState() {
@@ -270,7 +255,7 @@ export class WindowStateController implements ReactiveController {
       };
     }
 
-    this._state = { ...current, mode, lastState };
+    this._setState({ ...current, mode, lastState });
     this._persistState();
     this.host.requestUpdate();
   }
@@ -330,8 +315,8 @@ export class WindowStateController implements ReactiveController {
     };
   }
 
-  private _updateState(partial: Partial<WindowState>) {
-    this._state = { ...this._state, ...partial };
+  private _applyPartialState(partial: Partial<WindowState>) {
+    this._setState({ ...this._state, ...partial });
     this._persistState();
     this.host.requestUpdate();
   }

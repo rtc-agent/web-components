@@ -6,7 +6,7 @@
  * Consumed by: <rtc-function-tree>, <rtc-functions-layout>
  * Provided by: <rtc-agent> (root)
  */
-import type { ReactiveController, ReactiveControllerHost } from 'lit';
+import type { ReactiveControllerHost } from 'lit';
 import type { FunctionRegistry } from '../core/function-registry.js';
 import {
   DEFAULT_FUNCTIONS_STATE,
@@ -15,46 +15,28 @@ import {
   type FunctionsContextValue,
 } from '../contexts/functions.js';
 import { createLogger } from '@rtc-agent/protocol';
+import { CachedContextController } from '../core/cached-context.controller.js';
 
 const log = createLogger('FunctionsController');
 
-export class FunctionsController implements ReactiveController {
-  host: ReactiveControllerHost;
-
+export class FunctionsController extends CachedContextController<
+  FunctionsState,
+  FunctionsActions
+> {
   private _registry: FunctionRegistry | null = null;
-  private _state: FunctionsState = { ...DEFAULT_FUNCTIONS_STATE };
-
-  readonly actions: FunctionsActions;
-
-  /**
-   * CRITICAL FIX: Value cache to prevent unnecessary Context consumer re-renders.
-   * @lit/context uses `===` comparison, so creating new objects every time triggers
-   * consumers even when the state hasn't changed. Cache the value object and only
-   * recreate when state reference changes.
-   */
-  private _cachedValue?: FunctionsContextValue;
-  private _cachedState?: FunctionsState;
-
-  get value(): FunctionsContextValue {
-    // Only create new value object if state reference changed
-    if (this._cachedValue && this._cachedState === this._state) {
-      return this._cachedValue;
-    }
-    this._cachedState = this._state;
-    this._cachedValue = { state: this._state, actions: this.actions };
-    return this._cachedValue;
-  }
 
   constructor(host: ReactiveControllerHost) {
-    this.host = host;
-    this.host.addController(this);
-    this.actions = {
+    const actions: FunctionsActions = {
       refresh: () => this._refresh(),
     };
+
+    super(host, { ...DEFAULT_FUNCTIONS_STATE }, actions, log);
   }
 
-  hostConnected() {}
-  hostDisconnected() {}
+  /** Override value getter to return FunctionsContextValue type */
+  get value(): FunctionsContextValue {
+    return super.value as FunctionsContextValue;
+  }
 
   /**
    * Set the function registry
@@ -67,7 +49,7 @@ export class FunctionsController implements ReactiveController {
     if (registry) {
       this._refresh();
     } else {
-      this._state = { ...DEFAULT_FUNCTIONS_STATE };
+      this._setState({ ...DEFAULT_FUNCTIONS_STATE });
       this.host.requestUpdate();
     }
   }
@@ -75,7 +57,7 @@ export class FunctionsController implements ReactiveController {
   /** Refresh function list from registry */
   private _refresh() {
     if (!this._registry) {
-      this._state = { ...DEFAULT_FUNCTIONS_STATE };
+      this._setState({ ...DEFAULT_FUNCTIONS_STATE });
       this.host.requestUpdate();
       return;
     }
@@ -83,7 +65,7 @@ export class FunctionsController implements ReactiveController {
     try {
       const functions = this._registry.listFunctions();
       const groups = this._registry.listGroups();
-      this._state = { functions, groups };
+      this._setState({ functions, groups });
       log.debug(
         'Refreshed function list:',
         functions.length,

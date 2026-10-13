@@ -44,11 +44,6 @@ export class SessionTreeController extends CachedContextController<
     this._restoreExpanded();
   }
 
-  /** Public actions getter for external access */
-  get actions(): SessionTreeActions {
-    return super.actions;
-  }
-
   /** Override value getter to return SessionTreeContextValue type */
   get value(): SessionTreeContextValue {
     return super.value as SessionTreeContextValue;
