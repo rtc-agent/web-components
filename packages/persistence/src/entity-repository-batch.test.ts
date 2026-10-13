@@ -108,8 +108,9 @@ describe('applyUpdates (batch processing)', () => {
     expect(s!.pending_turn_count).toBe(1);
   });
 
-  // TODO: Re-enable after batch delete bug is fixed (another agent is working on it).
-  // Currently resolveDeleteClientIds + bulkDelete does not correctly remove the record.
+  // KNOWN ISSUE: Batch delete bug not yet fixed (tracked in GitHub Issues)
+  // resolveDeleteClientIds + bulkDelete does not correctly remove the record.
+  // TODO: Re-enable once the batch delete bug is resolved.
   it.skip('should handle delete without data_list (hard delete)', async () => {
     // Setup: insert a session
     await repo.applyUpdates([
@@ -324,8 +325,9 @@ describe('applyUpdates (batch processing)', () => {
     expect(elapsed).toBeLessThan(5000);
   });
 
-  // TODO: Re-enable after batch delete bug is fixed (another agent is working on it).
-  // Currently resolveDeleteClientIds does not correctly delete the record via bulkDelete.
+  // KNOWN ISSUE: Batch delete bug not yet fixed (tracked in GitHub Issues)
+  // resolveDeleteClientIds does not correctly delete the record via bulkDelete.
+  // TODO: Re-enable once the batch delete bug is resolved.
   it.skip('should handle upsert and delete for same entity in one batch (delete wins)', async () => {
     // Insert session first
     await repo.applyUpdates([
