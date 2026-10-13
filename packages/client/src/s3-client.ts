@@ -9,6 +9,12 @@
  * the same credential management and client lifecycle. The multipart upload logic
  * (with progress tracking and abort support) is tightly coupled to the credential
  * refresh mechanism. Splitting would scatter the S3 protocol flow across files.
+ *
+ * ⚠️ 安全提示（2026-10-13）：
+ * 1. 客户端扩展名校验为纵深防御措施，后端必须独立验证文件扩展名、Content-Type 和 Magic Number
+ * 2. 临时凭证缓存在内存中，建议后端配置较短的有效期（15 分钟）
+ * 3. 凭证通过 SharedWorker 共享，增加暴露面，建议实施凭证使用审计
+ * 4. 所有安全相关的客户端校验均可被绕过，后端验证是关键
  */
 
 import {
@@ -161,7 +167,16 @@ export class S3Client {
    */
   private readonly allowedExtensions: ReadonlySet<string>;
 
-  /** Cached temporary credentials */
+  /**
+   * Cached temporary credentials
+   *
+   * ⚠️ 安全提示（2026-10-13）：
+   * 1. 临时凭证缓存在内存中，如果内存被恶意访问，可能泄露有效的 S3 访问凭证
+   * 2. 多个标签页可能通过 SharedWorker 共享同一凭证，增加凭证暴露面
+   * 3. 凭证在过期前 5 分钟自动刷新（CREDENTIAL_REFRESH_MARGIN_MS）
+   * 4. 建议后端配置较短的凭证有效期（15 分钟而非默认的 1 小时）
+   * 5. 建议实施凭证使用审计日志，监控异常访问
+   */
   private credentials: TemporaryCredentialsResponse | null = null;
   /** Credential expiration time */
   private expiresAt: Date | null = null;
@@ -203,6 +218,16 @@ export class S3Client {
    * 自动选择上传方式：
    * - ≤ 1MB：PutObject 直接上传
    * - > 1MB：Multipart 分片上传
+   *
+   * ⚠️ 安全提示（2026-10-13）：
+   * 1. 客户端扩展名校验为纵深防御措施，后端必须独立验证文件扩展名和 Content-Type
+   * 2. 当前仅校验扩展名，未校验文件 Magic Number（如 PDF 以 %PDF 开头）
+   * 3. 攻击者可直接调用后端 API 绕过前端校验
+   * 4. 建议后端实施：
+   *    - 独立的扩展名白名单校验
+   *    - Content-Type 与扩展名一致性检查
+   *    - 文件 Magic Number 校验（可选，对于高风险场景）
+   *    - 病毒扫描集成（大文件场景）
    *
    * @param userId 用户 ID（UUID）
    * @param md5Hash 文件内容的 MD5 哈希（32 位）

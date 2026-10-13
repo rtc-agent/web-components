@@ -5,19 +5,20 @@
  *
  * ⚠️ 安全风险提示：
  * 将 refresh_token 存储在 localStorage 中存在 XSS 攻击风险。
- * 如果应用遭受 XSS 攻击,攻击者可能窃取 refresh_token 并长期保持认证状态。
+ * 如果应用遭受 XSS 攻击，攻击者可能窃取 refresh_token 并长期保持认证状态。
+ *
+ * 🔒 当前安全措施（2026-10-13 增强）：
+ * - Token rotation：每次刷新后立即标记旧 token 为已使用
+ * - 过期时间检查：refresh_token 默认 3 天过期（从 7 天缩短）
+ * - 重放防护：刷新时验证 token 未被使用过
+ * - 超时保护：10 秒超时 + AbortController，超时后立即取消 HTTP 请求
  *
  * 📋 迁移计划：
- * 1. 短期（当前）：实现 token rotation 机制，缩短 refresh_token 过期时间
+ * 1. 短期（当前）：实施 token rotation 机制，缩短 refresh_token 过期时间
  * 2. 中期：后端改为通过 httpOnly cookie 下发 refresh_token，前端无法访问
  * 3. 长期：采用 Token Exchange 模式（RTC Agent Component 已支持）
  *    - 前端仅持有短期 access_token
  *    - 通过后端安全的 token exchange 流程获取新 token
- *
- * 🔒 当前安全措施：
- * - Token rotation：每次刷新后立即标记旧 token 为已使用
- * - 过期时间检查：refresh_token 默认 7 天过期（后端可配置更短）
- * - 重放防护：刷新时验证 token 未被使用过
  */
 
 import { refreshToken as apiRefreshToken } from '@/services/admin-auth';
@@ -32,9 +33,10 @@ const TOKEN_EXPIRY_KEY = 'admin_token_expiry';
 const REFRESH_TOKEN_EXPIRY_KEY = 'admin_refresh_token_expiry';
 const REFRESH_TOKEN_ROTATION_KEY = 'admin_refresh_token_rotation';
 
-// Refresh Token 默认过期时间：7 天（秒）
+// Refresh Token 默认过期时间：3 天（秒）
 // 建议后端配置更短的过期时间（如 1-3 天）
-const DEFAULT_REFRESH_TOKEN_EXPIRY = 7 * 24 * 60 * 60;
+// 2026-10-13: 从 7 天缩短至 3 天，减少 Token 泄露后的攻击窗口
+const DEFAULT_REFRESH_TOKEN_EXPIRY = 3 * 24 * 60 * 60;
 
 // Auth 状态变化事件名称
 export const AUTH_STATE_CHANGED_EVENT = 'admin-auth-state-changed';
@@ -299,12 +301,13 @@ const markRefreshTokenAsRotated = () => {
  * 1. 刷新前标记旧 refresh token 为已使用（防止重放攻击）
  * 2. 刷新成功后存储新的 refresh token
  * 3. 刷新失败时清除所有认证信息
- * 4. 超时保护（10 秒）防止 Promise 永远挂起
+ * 4. 超时保护（10 秒）+ AbortController，超时后立即取消 HTTP 请求
  *
  * @returns Promise<string | null> 刷新后的 access_token，失败返回 null
  */
 let refreshPromise: Promise<string | null> | null = null;
 let refreshTimeout: NodeJS.Timeout | null = null;
+let refreshAbortController: AbortController | null = null;
 
 export const refreshAccessToken = async (): Promise<string | null> => {
   const refreshTokenValue = getRefreshToken();
@@ -319,24 +322,33 @@ export const refreshAccessToken = async (): Promise<string | null> => {
     return refreshPromise;
   }
 
+  // 创建 AbortController 用于超时后取消请求
+  refreshAbortController = new AbortController();
+
   // 创建带超时的 Promise
   refreshPromise = new Promise<string | null>((resolve, reject) => {
     // 设置超时保护（10 秒）
     refreshTimeout = setTimeout(() => {
-      console.error('[refreshAccessToken] Timeout after 10s');
+      console.error('[refreshAccessToken] Timeout after 10s, aborting request');
+      // 超时后立即取消 HTTP 请求
+      if (refreshAbortController) {
+        refreshAbortController.abort();
+      }
       // 超时后标记旧 token 为已使用（防止重放攻击）
       markRefreshTokenAsRotated();
       refreshPromise = null;
       refreshTimeout = null;
+      refreshAbortController = null;
       reject(new Error('Token refresh timeout'));
     }, 10000);
 
     // 异步执行刷新请求
     (async () => {
       try {
-        const result = await apiRefreshToken({
-          refresh_token: refreshTokenValue,
-        });
+        const result = await apiRefreshToken(
+          { refresh_token: refreshTokenValue },
+          { signal: refreshAbortController?.signal },
+        );
 
         // API 调用成功后再标记旧 token 为已使用
         // 这样可以避免在 API 调用期间其他代码读取到 null
@@ -344,7 +356,7 @@ export const refreshAccessToken = async (): Promise<string | null> => {
 
         // 更新 localStorage 中的 token
         // expires_in 默认为 1 小时（3600 秒），防止 API 未返回时 token 立即过期
-        // refresh_token_expires_in 默认为 7 天，建议后端配置更短的时间
+        // refresh_token_expires_in 默认为 3 天，建议后端配置更短的时间
         setTokens(
           result.access_token,
           result.refresh_token,
@@ -357,6 +369,7 @@ export const refreshAccessToken = async (): Promise<string | null> => {
           clearTimeout(refreshTimeout);
           refreshTimeout = null;
         }
+        refreshAbortController = null;
 
         resolve(result.access_token);
       } catch (error) {
@@ -364,6 +377,16 @@ export const refreshAccessToken = async (): Promise<string | null> => {
         if (refreshTimeout) {
           clearTimeout(refreshTimeout);
           refreshTimeout = null;
+        }
+        refreshAbortController = null;
+
+        // 如果是取消请求导致的错误，不记录为刷新失败
+        if (error instanceof Error && error.name === 'AbortError') {
+          console.warn(
+            '[refreshAccessToken] Request was aborted due to timeout',
+          );
+          resolve(null);
+          return;
         }
 
         console.error('[refreshAccessToken] 刷新失败:', error);
@@ -392,5 +415,9 @@ export const cancelPendingRefresh = () => {
   if (refreshTimeout) {
     clearTimeout(refreshTimeout);
     refreshTimeout = null;
+  }
+  if (refreshAbortController) {
+    refreshAbortController.abort();
+    refreshAbortController = null;
   }
 };

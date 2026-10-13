@@ -205,17 +205,20 @@ export default defineConfig({
    *   供 rtc-agent 组件连接 Centrifuge WebSocket。
    *
    * ⚠️ **安全风险提示**：
-   * 当前 connect-src 使用 `ws: wss: http: https:` 通配，允许连接任意域名。这是为了
-   * 支持 rtc-agent 连接用户配置的任意 Centrifuge 端点（域名不固定）。
+   * 当前 connect-src 使用 `wss: https:` 限制，仅允许加密协议连接。
+   * 这是为了支持 rtc-agent 连接用户配置的 Centrifuge 端点（域名不固定）。
+   *
+   * **已实施的安全措施**（2026-10-13）：
+   * - 移除不安全的 `ws:` 和 `http:` 协议，强制使用加密连接
+   * - 防止中间人攻击和数据窃听
    *
    * **潜在风险**：
-   * - 恶意脚本可通过 CSP 允许的 connect-src 向任意外域发送数据
-   * - 如果页面存在 XSS 漏洞，攻击者可利用此宽松策略 exfiltrate 敏感信息
+   * - 仍允许连接任意域名的加密连接
+   * - 如果页面存在 XSS 漏洞，攻击者可利用此策略向任意外域发送数据
    *
    * **中期改进方案**（待实施）：
    * 1. 实现代理层白名单：rtc-agent WebSocket 连接通过后端代理，CSP 仅需放行代理域名
    * 2. 动态 CSP：在运行时根据用户配置的 Centrifuge 端点动态生成 CSP 策略
-   * 3. 限制协议：至少限制为 `wss:` 和 `https:`，避免不安全的 `ws:` 和 `http:` 协议
    *
    * - frame-ancestors 'none' 禁止任何站点嵌套本页面，避免点击劫持。
    */
@@ -227,7 +230,7 @@ export default defineConfig({
         "script-src 'self' https://www.googletagmanager.com https://www.google-analytics.com",
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data: blob: https:",
-        "connect-src 'self' https://www.google-analytics.com ws: wss: http: https:",
+        "connect-src 'self' https://www.google-analytics.com wss: https:",
         "font-src 'self' data:",
         "frame-ancestors 'none'",
         "base-uri 'self'",
