@@ -2,6 +2,7 @@ import { PlusOutlined } from '@ant-design/icons';
 import { PageContainer } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
 import { Button, Card, List, Typography } from 'antd';
+import { useIntl } from '@umijs/max';
 import { queryKeys } from '@/utils/queryKeys';
 import { LIST_CACHE } from '@/utils/queryCacheConfig';
 import type { CardListItemDataType } from './data.d';
@@ -13,6 +14,7 @@ const nullData: Partial<CardListItemDataType> = {};
 
 const CardList = () => {
   const { styles } = useStyles();
+  const intl = useIntl();
   const { data, isLoading: loading } = useQuery({
     queryKey: queryKeys.cardList.all,
     queryFn: () => queryFakeList({ count: 8 }).then((res) => res.data),
@@ -23,9 +25,11 @@ const CardList = () => {
   const content = (
     <div className={styles.pageHeaderContent}>
       <p>
-        段落示意：蚂蚁集团设计平台
-        ant.design，用最小的工作量，无缝接入蚂蚁集团生态，
-        提供跨越设计与开发的体验解决方案。
+        {intl.formatMessage({
+          id: 'pages.list.cardList.description',
+          defaultMessage:
+            'Paragraph demo: Ant Design design platform ant.design, with minimal workload, seamlessly integrated into the Ant Design ecosystem, providing experience solutions that span design and development.',
+        })}
       </p>
       <div className={styles.contentLink}>
         <a href="https://pro.ant.design/zh-CN/docs/getting-started">
@@ -33,21 +37,30 @@ const CardList = () => {
             alt=""
             src="https://gw.alipayobjects.com/zos/rmsportal/MjEImQtenlyueSmVEfUD.svg"
           />{' '}
-          快速开始
+          {intl.formatMessage({
+            id: 'pages.list.cardList.quickStart',
+            defaultMessage: 'Quick Start',
+          })}
         </a>
         <a href="https://pro.ant.design/zh-CN/docs/introduction">
           <img
             alt=""
             src="https://gw.alipayobjects.com/zos/rmsportal/NbuDUAuBlIApFuDvWiND.svg"
           />{' '}
-          产品简介
+          {intl.formatMessage({
+            id: 'pages.list.cardList.productIntro',
+            defaultMessage: 'Product Introduction',
+          })}
         </a>
         <a href="https://pro.ant.design/zh-CN/docs/overview">
           <img
             alt=""
             src="https://gw.alipayobjects.com/zos/rmsportal/ohOEPSYdDTNnyMbGuyLb.svg"
           />{' '}
-          产品文档
+          {intl.formatMessage({
+            id: 'pages.list.cardList.productDocs',
+            defaultMessage: 'Product Documentation',
+          })}
         </a>
       </div>
     </div>
@@ -55,7 +68,10 @@ const CardList = () => {
   const extraContent = (
     <div className={styles.extraImg}>
       <img
-        alt="这是一个标题"
+        alt={intl.formatMessage({
+          id: 'pages.list.cardList.headerImageAlt',
+          defaultMessage: 'This is a title',
+        })}
         src="https://gw.alipayobjects.com/zos/rmsportal/RzwpdLnhmvDJToTdfDPe.png"
       />
     </div>
@@ -85,10 +101,16 @@ const CardList = () => {
                     className={styles.card}
                     actions={[
                       <Button key="option1" type="link">
-                        操作一
+                        {intl.formatMessage({
+                          id: 'pages.list.cardList.action1',
+                          defaultMessage: 'Action 1',
+                        })}
                       </Button>,
                       <Button key="option2" type="link">
-                        操作二
+                        {intl.formatMessage({
+                          id: 'pages.list.cardList.action2',
+                          defaultMessage: 'Action 2',
+                        })}
                       </Button>,
                     ]}
                   >
@@ -119,7 +141,11 @@ const CardList = () => {
             return (
               <List.Item>
                 <Button type="dashed" className={styles.newButton}>
-                  <PlusOutlined /> 新增产品
+                  <PlusOutlined />{' '}
+                  {intl.formatMessage({
+                    id: 'pages.list.cardList.newProduct',
+                    defaultMessage: 'New Product',
+                  })}
                 </Button>
               </List.Item>
             );

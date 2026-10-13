@@ -12,11 +12,11 @@ export default {
   'layout.user.link.privacy': '隐私',
   'layout.user.link.terms': '条款',
   'app.preview.down.block': '下载此页面到本地项目',
-  ...pages,
   ...globalHeader,
   ...menu,
   ...settingDrawer,
   ...settings,
   ...network,
   ...component,
+  ...pages,
 };

@@ -806,6 +806,21 @@ export default {
   'pages.list.search.user.lisa': '李三',
   'pages.list.search.menuItem.1st': '第一个菜单项',
   'pages.list.search.menuItem.2nd': '第二个菜单项',
+  'pages.list.search.tab.articles': '文章',
+  'pages.list.search.tab.projects': '项目',
+  'pages.list.search.tab.applications': '应用',
+  'pages.list.search.inputPlaceholder': '请输入',
+  'pages.list.search.searchButton': '搜索',
+  // List Card List
+  'pages.list.cardList.description':
+    '段落示意：蚂蚁集团设计平台 ant.design，用最小的工作量，无缝接入蚂蚁集团生态，提供跨越设计与开发的体验解决方案。',
+  'pages.list.cardList.quickStart': '快速开始',
+  'pages.list.cardList.productIntro': '产品简介',
+  'pages.list.cardList.productDocs': '产品文档',
+  'pages.list.cardList.headerImageAlt': '这是一个标题',
+  'pages.list.cardList.action1': '操作一',
+  'pages.list.cardList.action2': '操作二',
+  'pages.list.cardList.newProduct': '新增产品',
   // RTC Agent Test
   'pages.rtcAgentTest.title': 'RTC Agent 集成测试',
   'pages.rtcAgentTest.status': '状态',

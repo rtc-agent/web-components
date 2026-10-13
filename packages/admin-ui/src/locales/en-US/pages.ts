@@ -851,6 +851,21 @@ export default {
   'pages.list.search.user.lisa': 'Lisa Li',
   'pages.list.search.menuItem.1st': '1st menu item',
   'pages.list.search.menuItem.2nd': '2nd menu item',
+  'pages.list.search.tab.articles': 'Articles',
+  'pages.list.search.tab.projects': 'Projects',
+  'pages.list.search.tab.applications': 'Applications',
+  'pages.list.search.inputPlaceholder': 'Please enter',
+  'pages.list.search.searchButton': 'Search',
+  // List Card List
+  'pages.list.cardList.description':
+    'Paragraph demo: Ant Design design platform ant.design, with minimal workload, seamlessly integrated into the Ant Design ecosystem, providing experience solutions that span design and development.',
+  'pages.list.cardList.quickStart': 'Quick Start',
+  'pages.list.cardList.productIntro': 'Product Introduction',
+  'pages.list.cardList.productDocs': 'Product Documentation',
+  'pages.list.cardList.headerImageAlt': 'This is a title',
+  'pages.list.cardList.action1': 'Action 1',
+  'pages.list.cardList.action2': 'Action 2',
+  'pages.list.cardList.newProduct': 'New Product',
   // RTC Agent Test
   'pages.rtcAgentTest.title': 'RTC Agent Integration Test',
   'pages.rtcAgentTest.status': 'Status',

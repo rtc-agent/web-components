@@ -1,5 +1,5 @@
 import { PageContainer } from '@ant-design/pro-components';
-import { history, Outlet, useLocation, useMatch } from '@umijs/max';
+import { history, Outlet, useLocation, useMatch, useIntl } from '@umijs/max';
 import { Input } from 'antd';
 import type { FC } from 'react';
 
@@ -7,24 +7,35 @@ type SearchProps = {
   children?: React.ReactNode;
 };
 
-const tabList = [
-  {
-    key: 'articles',
-    tab: '文章',
-  },
-  {
-    key: 'projects',
-    tab: '项目',
-  },
-  {
-    key: 'applications',
-    tab: '应用',
-  },
-];
-
 const Search: FC<SearchProps> = () => {
+  const intl = useIntl();
   const location = useLocation();
   const match = useMatch(location.pathname);
+
+  const tabList = [
+    {
+      key: 'articles',
+      tab: intl.formatMessage({
+        id: 'pages.list.search.tab.articles',
+        defaultMessage: 'Articles',
+      }),
+    },
+    {
+      key: 'projects',
+      tab: intl.formatMessage({
+        id: 'pages.list.search.tab.projects',
+        defaultMessage: 'Projects',
+      }),
+    },
+    {
+      key: 'applications',
+      tab: intl.formatMessage({
+        id: 'pages.list.search.tab.applications',
+        defaultMessage: 'Applications',
+      }),
+    },
+  ];
+
   const handleTabChange = (key: string) => {
     const url =
       match?.pathname === '/'
@@ -60,8 +71,14 @@ const Search: FC<SearchProps> = () => {
       content={
         <div style={{ textAlign: 'center' }}>
           <Input.Search
-            placeholder="请输入"
-            enterButton="搜索"
+            placeholder={intl.formatMessage({
+              id: 'pages.list.search.inputPlaceholder',
+              defaultMessage: 'Please enter',
+            })}
+            enterButton={intl.formatMessage({
+              id: 'pages.list.search.searchButton',
+              defaultMessage: 'Search',
+            })}
             size="large"
             style={{ maxWidth: 522, width: '100%' }}
           />
