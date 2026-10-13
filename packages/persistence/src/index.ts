@@ -63,14 +63,12 @@ import { FileOpCoordinator } from './file-op-coordinator.js';
 import { nowRFC3339 } from './time-utils.js';
 import { virtualFS } from './virtual-fs.js';
 import { getUIUpdateBus } from './ui-update-bus.js';
-import { createLogger } from '@rtc-agent/client';
 import { SyncTaskTracker } from './sync-task-tracker.js';
 import { LifecycleGuard, LifecycleClosedError } from './lifecycle-guard.js';
 import { FileSyncTransaction } from './file-sync-transaction.js';
 import { TrackedBackgroundTask } from './tracked-background-task.js';
 import { DebugHistoryManager } from './debug-history-manager.js';
-import { MessageRole } from '@rtc-agent/protocol';
-
+import { createLogger, MessageRole } from '@rtc-agent/protocol';
 const log = createLogger('PersistenceLayer');
 
 /** Multipart upload threshold: 5MB (S3 minimum part size) */

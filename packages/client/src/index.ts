@@ -33,6 +33,3 @@ export type {
 } from './types.js';
 export type { TokenExchangeRequest, TokenExchangeResponse } from './types.js';
 export { TokenExchangeError } from './types.js';
-
-// Re-export protocol for downstream single-import convenience.
-export * from '@rtc-agent/protocol';
