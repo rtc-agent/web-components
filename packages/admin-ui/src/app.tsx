@@ -2,6 +2,7 @@ import type { Settings as LayoutSettings } from '@ant-design/pro-components';
 import { SettingDrawer } from '@ant-design/pro-components';
 import type { RequestConfig, RunTimeLayoutConfig } from '@umijs/max';
 import { getLocale, history, Link, useIntl } from '@umijs/max';
+import { message } from 'antd';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import type { InitialState } from '@/initialState.types';
@@ -49,6 +50,7 @@ import { isPublicPath, PUBLIC_PATHS } from '@/constants/routes';
 import { getCurrentUser } from '@/services/admin-auth';
 import { AUTH_STATE_CHANGED_EVENT } from '@/utils/auth-storage';
 import {
+  cancelPendingRefresh,
   getUserInfo,
   isAuthenticated,
   setUserInfo,
@@ -139,6 +141,8 @@ if (typeof module !== 'undefined' && module.hot) {
     }
     // Reset degraded warning flag so it re-appears after HMR if the issue persists
     degradedWarningShown = false;
+    // Cancel any pending token refresh to prevent orphan requests
+    cancelPendingRefresh();
   });
 }
 
@@ -159,12 +163,18 @@ export async function getInitialState(): Promise<InitialState> {
     try {
       setDocumentDirection();
     } catch (e) {
-      console.warn('[getInitialState] setDocumentDirection failed, using default ltr', e);
+      console.warn(
+        '[getInitialState] setDocumentDirection failed, using default ltr',
+        e,
+      );
     }
     try {
       loadDayjsLocale();
     } catch (e) {
-      console.warn('[getInitialState] loadDayjsLocale failed, using default en', e);
+      console.warn(
+        '[getInitialState] loadDayjsLocale failed, using default en',
+        e,
+      );
     }
 
     const fetchUserInfo = async (
@@ -287,7 +297,8 @@ export async function getInitialState(): Promise<InitialState> {
       error,
     );
     return {
-      fetchUserInfo: async () => undefined,
+      fetchUserInfo: async (_signal?: AbortSignal) => undefined,
+      currentUser: undefined, // 明确设置 currentUser，防止后续依赖代码出现未定义错误
       settings: loadThemeSettings(),
       settingDrawerOpen: false,
       loading: false,
@@ -425,19 +436,17 @@ export const layout: RunTimeLayoutConfig = ({
           '[onPageChange] Degraded state: token present but currentUser unavailable. ' +
             'User info may be incomplete. The request interceptor will redirect to login if the token expires.',
         );
-        // Use message.warning for user-visible notification (imported from antd via app.tsx scope)
+        // Use message.warning for user-visible notification
         // Only show once per session to avoid repeated toasts on every route change
         if (!degradedWarningShown) {
           degradedWarningShown = true;
-          import('antd').then(({ message: antdMessage }) => {
-            antdMessage.warning(
-              intl.formatMessage({
-                id: 'app.degradedState.warning',
-                defaultMessage:
-                  'User information failed to load. Some features may be limited. Please log in again if the issue persists.',
-              }),
-            );
-          });
+          message.warning(
+            intl.formatMessage({
+              id: 'app.degradedState.warning',
+              defaultMessage:
+                'User information failed to load. Some features may be limited. Please log in again if the issue persists.',
+            }),
+          );
         }
       } else if (hasUser) {
         // Reset warning flag once user info is available (e.g., after successful refresh)
