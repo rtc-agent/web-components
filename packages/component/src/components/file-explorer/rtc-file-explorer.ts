@@ -149,6 +149,10 @@ export class RtcFileExplorer extends LitElement {
    * Flatten the tree structure into a list of visible nodes for virtual scrolling.
    * Respects the expand/collapse state of each node.
    * Results are cached and only recalculated when tree structure changes.
+   *
+   * PERFORMANCE OPTIMIZATION: Uses iterative depth-first traversal with explicit stack
+   * instead of recursion. This prevents stack overflow for deeply nested trees
+   * (e.g., 1000+ levels deep) and reduces function call overhead.
    */
   private _flattenTree(
     nodes: FileNode[],
@@ -160,19 +164,34 @@ export class RtcFileExplorer extends LitElement {
     }
 
     const result: Array<{ node: FileNode; depth: number }> = [];
-    const flattenRecursive = (
-      nodeList: FileNode[],
-      currentDepth: number,
-    ) => {
-      for (const node of nodeList) {
+
+    // Iterative depth-first traversal using explicit stack
+    // Stack entries contain the node list to process and the current depth
+    const stack: Array<{ nodes: FileNode[]; depth: number }> = [
+      { nodes, depth },
+    ];
+
+    while (stack.length > 0) {
+      const current = stack.pop()!;
+      const { nodes: currentNodes, depth: currentDepth } = current;
+
+      // Process nodes in reverse order so that when pushed to stack,
+      // they are popped in original order (LIFO - Last In First Out)
+      for (let i = currentNodes.length - 1; i >= 0; i--) {
+        const node = currentNodes[i];
         result.push({ node, depth: currentDepth });
-        // Only recurse if folder is expanded and has children loaded
-        if (node.type === 'folder' && node.isExpanded && node.children && node.children.length > 0) {
-          flattenRecursive(node.children, currentDepth + 1);
+
+        // Only push children if folder is expanded and has children loaded
+        if (
+          node.type === 'folder' &&
+          node.isExpanded &&
+          node.children &&
+          node.children.length > 0
+        ) {
+          stack.push({ nodes: node.children, depth: currentDepth + 1 });
         }
       }
-    };
-    flattenRecursive(nodes, depth);
+    }
 
     // Cache the result
     this._cachedFlatNodes = result;

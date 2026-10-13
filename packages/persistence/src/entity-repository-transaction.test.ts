@@ -262,14 +262,39 @@ describe('upsert transaction safety', () => {
       });
 
       // Should emit events only for changed fields
-      const titleEvents = collectedEvents.filter((e) => e.field === 'title');
+      // Support both batch format (changes array) and legacy format (single field)
+      let titleEvents: Array<{ oldValue: unknown; newValue: unknown }> = [];
+      for (const event of collectedEvents) {
+        if (event.changes) {
+          // Batch format: find title change in changes array
+          const titleChange = event.changes.find((c) => c.field === 'title');
+          if (titleChange) {
+            titleEvents.push({ oldValue: titleChange.oldValue, newValue: titleChange.newValue });
+          }
+        } else if (event.field === 'title') {
+          // Legacy format: single field
+          titleEvents.push({ oldValue: event.oldValue, newValue: event.newValue });
+        }
+      }
+
       expect(titleEvents.length).toBeGreaterThan(0);
       expect(titleEvents[0].oldValue).toBe('Old');
       expect(titleEvents[0].newValue).toBe('New');
 
       // status should not emit event (unchanged)
-      const statusEvents = collectedEvents.filter((e) => e.field === 'status');
-      expect(statusEvents.length).toBe(0);
+      let hasStatusEvent = false;
+      for (const event of collectedEvents) {
+        if (event.changes) {
+          if (event.changes.some((c) => c.field === 'status')) {
+            hasStatusEvent = true;
+            break;
+          }
+        } else if (event.field === 'status') {
+          hasStatusEvent = true;
+          break;
+        }
+      }
+      expect(hasStatusEvent).toBe(false);
     });
 
     it('should emit create events for all fields on create', async () => {
@@ -280,7 +305,19 @@ describe('upsert transaction safety', () => {
 
       // Should emit events for all top-level fields
       expect(collectedEvents.length).toBeGreaterThan(0);
-      const fields = collectedEvents.map((e) => e.field);
+
+      // Extract fields from events - support both batch format (changes array) and legacy format (single field)
+      const fields: string[] = [];
+      for (const event of collectedEvents) {
+        if (event.changes && event.changes.length > 0) {
+          // Batch format: extract all fields from changes array
+          fields.push(...event.changes.map((c) => c.field));
+        } else if (event.field) {
+          // Legacy format: single field
+          fields.push(event.field);
+        }
+      }
+
       expect(fields).toContain('client_id');
       expect(fields).toContain('title');
     });

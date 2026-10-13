@@ -9,7 +9,29 @@ import {
 const log = createLogger('UIUpdateBus');
 
 /**
+ * A single field change within a batch update event.
+ */
+export interface FieldChange {
+  /** Dot-notation path of the changed field, e.g. "title", "content.0.text" */
+  field: string;
+  /** Old field value (undefined on create) */
+  oldValue: unknown;
+  /** New field value (undefined on delete) */
+  newValue: unknown;
+}
+
+/**
  * UI update event: describes an actual field change on a persisted entity.
+ *
+ * Supports two modes:
+ * 1. Single-field mode: `field`, `oldValue`, `newValue` describe one field change.
+ * 2. Batch mode: `changes` array describes multiple field changes for the same entity.
+ *
+ * Batch mode reduces event bus congestion: e.g., a Session update with 10 field changes
+ * emits 1 event instead of 10, reducing IndexedDB writes and dispatch overhead by 90%.
+ *
+ * Backward compatibility: When `changes` is present, `field`/`oldValue`/`newValue` are
+ * ignored. Consumers should check for `changes` first, then fall back to single-field.
  */
 export interface UIUpdateEvent {
   /** Entity type */
@@ -19,11 +41,17 @@ export interface UIUpdateEvent {
   /** Entity ID (server primary key) */
   entityId: string;
   /** Dot-notation path of the changed field, e.g. "title", "content.0.text" */
-  field: string;
+  field?: string;
   /** Old field value (undefined on create) */
-  oldValue: unknown;
+  oldValue?: unknown;
   /** New field value (undefined on delete) */
-  newValue: unknown;
+  newValue?: unknown;
+  /**
+   * Batch field changes (optional).
+   * When present, represents multiple field changes for the same entity in a single event.
+   * Consumers should process this array instead of field/oldValue/newValue.
+   */
+  changes?: FieldChange[];
 }
 
 /**

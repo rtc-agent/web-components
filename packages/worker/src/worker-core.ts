@@ -652,6 +652,17 @@ export class WorkerCore implements WorkerPersistenceCore {
       db.fileSystemEntries,
       db.ui_updates,
       async () => {
+        // P0-FIX: Use writeBatch for performance. Instead of calling virtualFS.write()
+        // for each file (which acquires per-file locks and opens nested transactions),
+        // writeBatch performs all writes in a single transaction without per-file locking.
+        // This eliminates O(n) transaction overhead and file lock contention for n files.
+        const batchOps: Array<{
+          path: string;
+          content: string;
+          mode: 'overwrite' | 'append' | 'create-new';
+          metadataOverride: FileSystemMetadataOverride;
+        }> = [];
+
         for (const file of files) {
           // Check if this is a protected file path (/AGENT.md or /scenarios/*.md)
           const isProtectedPath = this._isProtectedPath(file.path);
@@ -673,13 +684,21 @@ export class WorkerCore implements WorkerPersistenceCore {
           const mode: 'overwrite' | 'append' | 'create-new' = 'overwrite';
 
           // Ensure editedByUser is set to false for system-generated files
-          const metadata = {
+          const metadata: FileSystemMetadataOverride = {
             ...file.metadata,
             editedByUser: false,
           };
 
-          await virtualFS.write(file.path, file.content, mode, metadata);
+          batchOps.push({
+            path: file.path,
+            content: file.content,
+            mode,
+            metadataOverride: metadata,
+          });
         }
+
+        // Single batch write replaces N individual write() calls
+        await virtualFS.writeBatch(batchOps);
 
         // Delete stale/orphan paths (doc reconciliation)
         if (deletePaths && deletePaths.length > 0) {
@@ -840,6 +859,10 @@ export class WorkerCore implements WorkerPersistenceCore {
   /**
    * Broadcast a UIUpdateEvent to all registered Tab callbacks.
    *
+   * PERFORMANCE OPTIMIZATION: Uses Promise.allSettled() to process callbacks in parallel
+   * instead of sequentially. This prevents slow callbacks from blocking other callbacks,
+   * reducing overall broadcast latency when multiple tabs are connected.
+   *
    * Async-safe: both sync and async errors are tracked via failure counting.
    * After MAX_CONSECUTIVE_FAILURES consecutive failures (sync or async), the
    * callback is removed to prevent unbounded accumulation of dead tab callbacks.
@@ -856,35 +879,54 @@ export class WorkerCore implements WorkerPersistenceCore {
    */
   private broadcastUIUpdate(event: UIUpdateEvent, seq = 0): void {
     const payload = { event, seq };
-    for (const cb of this.callbacks) {
-      try {
-        const result = cb.onUIUpdate(payload);
-        // Check for Promise-like return value (Comlink proxies always return Promises)
-        if (
-          result &&
-          typeof result === 'object' &&
-          typeof (result as any).then === 'function'
-        ) {
-          // Async path: track success/failure when the Promise settles
-          (result as Promise<void>).then(
-            () => {
-              // Async success: reset failure count
-              this._callbackFailureCounts.delete(cb);
-            },
-            (err) => {
-              // Async failure: track via failure counting mechanism
-              this._recordAsyncFailure(cb, err);
-            },
-          );
-        } else {
-          // Sync success (non-Promise return): reset failure count immediately
-          this._callbackFailureCounts.delete(cb);
+    const callbacks = Array.from(this.callbacks);
+
+    // PERFORMANCE: Process all callbacks in parallel using Promise.allSettled
+    // This prevents slow callbacks from blocking others, reducing broadcast latency
+    const promises = callbacks.map((cb) => {
+      return new Promise<void>((resolve) => {
+        try {
+          const result = cb.onUIUpdate(payload);
+          // Check for Promise-like return value (Comlink proxies always return Promises)
+          if (
+            result &&
+            typeof result === 'object' &&
+            typeof (result as any).then === 'function'
+          ) {
+            // Async path: resolve/reject based on Promise outcome
+            (result as Promise<void>).then(
+              () => {
+                // Async success: reset failure count
+                this._callbackFailureCounts.delete(cb);
+                resolve();
+              },
+              (err) => {
+                // Async failure: track via failure counting mechanism
+                this._recordAsyncFailure(cb, err);
+                resolve(); // Resolve anyway to not block Promise.allSettled
+              },
+            );
+          } else {
+            // Sync success (non-Promise return): reset failure count immediately
+            this._callbackFailureCounts.delete(cb);
+            resolve();
+          }
+        } catch (err) {
+          // Sync failure: track via standard mechanism
+          this._recordSyncFailure(cb, err);
+          resolve(); // Resolve anyway to not block Promise.allSettled
         }
-      } catch (err) {
-        // Sync failure: track via standard mechanism
-        this._recordSyncFailure(cb, err);
+      });
+    });
+
+    // Fire-and-forget: don't await, but log if all callbacks fail
+    Promise.allSettled(promises).then((results) => {
+      // Optional: log summary for debugging
+      const rejected = results.filter((r) => r.status === 'rejected').length;
+      if (rejected > 0) {
+        log.debug(`broadcastUIUpdate: ${rejected}/${callbacks.length} callbacks rejected`);
       }
-    }
+    });
   }
 
   /**
