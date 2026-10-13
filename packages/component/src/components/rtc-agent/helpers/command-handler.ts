@@ -20,7 +20,7 @@
  * ```
  */
 import { msg, str } from '@lit/localize';
-import type { PersistenceLayer } from '@rtc-agent/persistence';
+import type { IPersistenceLayer } from '@rtc-agent/persistence';
 import type { Logger } from '@rtc-agent/protocol';
 import { createLogger } from '@rtc-agent/protocol';
 import type { ToastActions } from '../../../controllers/toast.controller.js';
@@ -34,7 +34,7 @@ const log = createLogger('CommandHandler');
 // ── Dependency interfaces ──
 
 export interface CommandDeps {
-  persistenceLayer: PersistenceLayer | undefined;
+  persistenceLayer: IPersistenceLayer | undefined;
   currentSessionId: string | null;
   /** Current session object (for commands that need session metadata like title, tokens). */
   currentSession?: Session;

@@ -8,7 +8,7 @@ import { msg, str } from '@lit/localize';
 import { loadScenariosContent } from '../../../core/scenario-loader.js';
 import { RtcProcessor } from '@rtc-agent/persistence';
 import type {
-  PersistenceLayer,
+  IPersistenceLayer,
   LocalRtc,
   AskUserDialogFn,
 } from '@rtc-agent/persistence';
@@ -23,7 +23,7 @@ import type { ToastActions } from '../../../controllers/toast.controller.js';
 
 export interface ConnectionDeps {
   persistence: {
-    layer: PersistenceLayer | undefined;
+    layer: IPersistenceLayer | undefined;
     masterLock: { isMaster: boolean; onAcquire?: () => void } | undefined;
     workerBridge?: WorkerBridge;
     connect(): Promise<void>;
@@ -32,9 +32,9 @@ export interface ConnectionDeps {
       cb: (event: { state: ConnectionState; reason?: string }) => void,
     ): () => void;
   };
-  message: { persistence?: PersistenceLayer };
-  session: { persistence?: PersistenceLayer };
-  notification: { persistence?: PersistenceLayer };
+  message: { persistence?: IPersistenceLayer };
+  session: { persistence?: IPersistenceLayer };
+  notification: { persistence?: IPersistenceLayer };
   functionDebug: { workerBridge: WorkerBridge | null };
   activity: { active: string };
   fileExplorer: { actions: { setRoot(root: FileNode): void } };
@@ -200,7 +200,7 @@ export async function connectWithRetry(
  * Auto-injects MasterLock and triggers processLoop when becoming Master.
  */
 async function initRtcProcessor(
-  layer: PersistenceLayer,
+  layer: IPersistenceLayer,
   deps: ConnectionDeps,
 ): Promise<RtcProcessor> {
   const rtcProcessor = new RtcProcessor(layer);

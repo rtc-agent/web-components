@@ -69,6 +69,7 @@ import { LifecycleGuard, LifecycleClosedError } from './lifecycle-guard.js';
 import { FileSyncTransaction } from './file-sync-transaction.js';
 import { TrackedBackgroundTask } from './tracked-background-task.js';
 import { DebugHistoryManager } from './debug-history-manager.js';
+import { MessageRole } from '@rtc-agent/protocol';
 
 const log = createLogger('PersistenceLayer');
 
@@ -128,9 +129,98 @@ export interface PersistenceConfig {
 }
 
 /**
+ * IPersistenceLayer: Public interface for PersistenceLayer
+ *
+ * Defines the contract that PersistenceLayer and its adapters must implement.
+ * This interface enables type-safe substitution (e.g., WorkerPersistenceAdapter)
+ * without requiring `as unknown as` casts.
+ *
+ * Methods that throw in adapters:
+ * - getClient(): throws (use onConnectionStateChange instead)
+ * - getEntityRepository(): throws (no current callers)
+ * - getOffsetManager(): returns shim with only reset()
+ */
+export interface IPersistenceLayer {
+  // ========== Connection ==========
+  connect(): Promise<void>;
+  disconnect(): void;
+  reconnect(): Promise<void>;
+
+  // ========== Query ==========
+  listSessions(cursor?: string, limit?: number): Promise<LocalSession[]>;
+  getSession(clientId: string): Promise<LocalSession | undefined>;
+  listMessages(
+    sessionClientId: string,
+    cursor?: string,
+    limit?: number,
+    direction?: 'backward' | 'forward',
+  ): Promise<LocalMessage[]>;
+  getMessage(clientId: string): Promise<LocalMessage | undefined>;
+  listRtc(
+    sessionClientId: string,
+    cursor?: number,
+    limit?: number,
+  ): Promise<LocalRtc[]>;
+  getNextRtcToProcess(
+    sessionClientId?: string,
+  ): Promise<LocalRtc | undefined>;
+
+  // ========== Operations ==========
+  sendMessage(params: {
+    content: ContentData;
+    messageClientId: string;
+    sessionClientId: string;
+  }): Promise<{ session: LocalSession; message: LocalMessage }>;
+  insertLocalMessage(params: {
+    sessionClientId: string;
+    role: MessageRole;
+    content: string;
+    creatorKind?: string;
+    creatorRefId?: string;
+  }): Promise<LocalMessage>;
+  stopTurn(sessionClientId: string): Promise<void>;
+  closeSession(sessionClientId: string): Promise<void>;
+  openSession(sessionClientId: string): Promise<void>;
+  compactSession(
+    sessionClientId: string,
+    customInstruction?: string,
+  ): Promise<void>;
+  submitRtcResult(params: {
+    rtcClientId: string;
+    success: boolean;
+    result?: unknown;
+    error?: string;
+  }): Promise<void>;
+  forkSession(params: {
+    oldSessionClientId: string;
+    oldMessageClientId: string;
+    newSessionClientId: string;
+    newMessageClientId: string;
+    content: ContentData;
+    limit?: number;
+  }): Promise<{ session: LocalSession; message: LocalMessage }>;
+  deleteSession(sessionClientId: string): Promise<void>;
+  updateSessionTitle(
+    sessionClientId: string,
+    title: string,
+  ): Promise<void>;
+
+  // ========== Lifecycle ==========
+  close(): Promise<void>;
+  flushAll(): Promise<void>;
+
+  // ========== Restricted methods ==========
+  getClient(): RTCAgentClient;
+  getOffsetManager(): { reset(): Promise<void> };
+  getEntityRepository(): ReturnType<typeof getEntityRepository>;
+  getDebugHistoryRepository(): ReturnType<typeof getDebugHistoryRepository>;
+  getS3Client(): S3Client | null;
+}
+
+/**
  * PersistenceLayer: integrates RTCAgentClient + IndexedDB.
  */
-export class PersistenceLayer {
+export class PersistenceLayer implements IPersistenceLayer {
   private client: RTCAgentClient;
   private s3Client: S3Client | null = null;
   private fileCacheRepository: FileCacheRepository;

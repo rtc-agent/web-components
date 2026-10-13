@@ -416,11 +416,11 @@ export async function generateSessionHTML(
                 </span>
             </div>
             <div class="token-stats">
-                <span class="token-stat">${t('input-tokens')}: <strong>${formatNumber(session.totalInputTokens)}</strong></span>
-                <span class="token-stat">${t('output-tokens')}: <strong>${formatNumber(session.totalOutputTokens)}</strong></span>
-                <span class="token-stat">${t('cache-read')}: <strong>${formatNumber(session.totalCachedReadTokens)}</strong></span>
-                <span class="token-stat">${t('cache-write')}: <strong>${formatNumber(session.totalCachedWriteTokens)}</strong></span>
-                <span class="token-stat">${t('total-cost')}: <strong>$${(session.totalCostUsd ?? 0).toFixed(3)}</strong></span>
+                <span class="token-stat">${t('input-tokens')}: <strong>${formatNumber(session.tokenUsage?.totalInputTokens)}</strong></span>
+                <span class="token-stat">${t('output-tokens')}: <strong>${formatNumber(session.tokenUsage?.totalOutputTokens)}</strong></span>
+                <span class="token-stat">${t('cache-read')}: <strong>${formatNumber(session.tokenUsage?.totalCachedReadTokens)}</strong></span>
+                <span class="token-stat">${t('cache-write')}: <strong>${formatNumber(session.tokenUsage?.totalCachedWriteTokens)}</strong></span>
+                <span class="token-stat">${t('total-cost')}: <strong>$${(session.tokenUsage?.totalCostUsd ?? 0).toFixed(3)}</strong></span>
             </div>
         </header>
     `;

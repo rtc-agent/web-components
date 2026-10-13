@@ -113,12 +113,13 @@ export interface ScriptSandbox {
   BigInt: BigIntConstructor;
 
   // Error subclasses (structurally compatible with ErrorConstructor)
-  TypeError: ErrorConstructor;
-  RangeError: ErrorConstructor;
-  ReferenceError: ErrorConstructor;
-  SyntaxError: ErrorConstructor;
-  URIError: ErrorConstructor;
-  AggregateError: ErrorConstructor;
+  // Use a more permissive type to avoid double-casting
+  TypeError: typeof TypeError;
+  RangeError: typeof RangeError;
+  ReferenceError: typeof ReferenceError;
+  SyntaxError: typeof SyntaxError;
+  URIError: typeof URIError;
+  AggregateError: typeof AggregateError;
 
   // === Parsing and encoding functions ===
   parseInt: typeof parseInt;
@@ -229,12 +230,12 @@ export function createSandbox(
     Symbol,
     BigInt,
     // Error subclasses
-    TypeError: TypeError as unknown as ErrorConstructor,
-    RangeError: RangeError as unknown as ErrorConstructor,
-    ReferenceError: ReferenceError as unknown as ErrorConstructor,
-    SyntaxError: SyntaxError as unknown as ErrorConstructor,
-    URIError: URIError as unknown as ErrorConstructor,
-    AggregateError: AggregateError as unknown as ErrorConstructor,
+    TypeError,
+    RangeError,
+    ReferenceError,
+    SyntaxError,
+    URIError,
+    AggregateError,
     // Parsing and encoding
     parseInt,
     parseFloat,

@@ -16,11 +16,12 @@
 import type { ReactiveController } from 'lit';
 import type { Remote } from 'comlink';
 import {
-  type PersistenceLayer,
+  type IPersistenceLayer,
   type PersistenceConfig,
   type LocalSession,
   type LocalMessage,
   type LocalRtc,
+  type OffsetManager,
   type AgentMdConfig,
 } from '@rtc-agent/persistence';
 import type { ContentData } from '@rtc-agent/protocol';
@@ -38,32 +39,15 @@ import { MasterLock } from '../master-lock.js';
 import { FileStorage } from '../utils/file-storage.js';
 
 /**
- * Assert WorkerPersistenceAdapter as PersistenceLayer.
+ * Worker adapter for IPersistenceLayer
  *
- * WorkerPersistenceAdapter structurally matches PersistenceLayer, but the following methods differ in semantics:
- * - getClient(): throws (use PersistenceController.onConnectionStateChange instead)
- * - getEntityRepository(): throws (no current callers)
- * - getOffsetManager(): returns a shim with only reset()
- *
- * When modifying the PersistenceLayer public API, WorkerPersistenceAdapter must be updated accordingly.
- * Centralized in this function to avoid scattered `as unknown as` casts causing cognitive burden.
- */
-function _asPersistenceLayer(
-  adapter: WorkerPersistenceAdapter,
-): PersistenceLayer {
-  return adapter as unknown as PersistenceLayer;
-}
-
-/**
- * Worker adapter for PersistenceLayer
- *
- * Implements the PersistenceLayer public interface, internally proxying calls to SharedWorker via Comlink.
+ * Implements the IPersistenceLayer public interface, internally proxying calls to SharedWorker via Comlink.
  *
  * Note: getClient() / getOffsetManager() / getEntityRepository() cannot work directly
  * (these objects live inside the Worker) and will throw when called.
  * Connection state is handled via the unified PersistenceController.onConnectionStateChange interface.
  */
-class WorkerPersistenceAdapter {
+class WorkerPersistenceAdapter implements IPersistenceLayer {
   private _core: Remote<WorkerPersistenceCore>;
 
   constructor(core: Remote<WorkerPersistenceCore>) {
@@ -232,7 +216,7 @@ class WorkerPersistenceAdapter {
    *
    * reset() is passed through via Comlink to getOffsetManager().reset() inside the Worker.
    */
-  getOffsetManager(): { reset: () => Promise<void> } {
+  getOffsetManager(): Pick<OffsetManager, 'reset'> {
     return {
       reset: () => this._core.resetOffset(),
     };
@@ -246,10 +230,20 @@ class WorkerPersistenceAdapter {
       '[WorkerPersistenceAdapter] getEntityRepository() is not available.',
     );
   }
+
+  getDebugHistoryRepository(): never {
+    throw new Error(
+      '[WorkerPersistenceAdapter] getDebugHistoryRepository() is not available.',
+    );
+  }
+
+  getS3Client(): null {
+    return null;
+  }
 }
 
 export class PersistenceController implements ReactiveController {
-  private _layer?: PersistenceLayer;
+  private _layer?: IPersistenceLayer;
   private _auth: AuthController;
   private _workerBridge?: WorkerBridge;
   private _masterLock?: MasterLock;
@@ -313,7 +307,7 @@ export class PersistenceController implements ReactiveController {
   }
 
   /** The PersistenceLayer instance. Only available after connect(). */
-  get layer(): PersistenceLayer | undefined {
+  get layer(): IPersistenceLayer | undefined {
     return this._layer;
   }
 
@@ -556,13 +550,11 @@ export class PersistenceController implements ReactiveController {
     bridge.installVirtualFSProxy();
 
     // Create adapter that wraps the Comlink proxy.
-    // See the top comment of _asPersistenceLayer for cast semantics.
+    // See the WorkerPersistenceAdapter class for cast semantics.
     // NOTE: We do NOT assign to this._layer yet — we wait until after bridge.core.connect()
     // succeeds. If connect() fails, we must not leave a half-initialized layer on the instance,
     // as callers would see a non-null layer and assume it is connected.
-    const adapter = _asPersistenceLayer(
-      new WorkerPersistenceAdapter(bridge.core),
-    );
+    const adapter = new WorkerPersistenceAdapter(bridge.core);
 
     // Connect (starts Centrifuge WebSocket inside Worker)
     await bridge.core.connect();

@@ -15,7 +15,9 @@ import { buildCurrentUser } from '@/utils/permission';
 
 // 全局的 setInitialState 函数引用，用于在 token 刷新后更新权限
 // 在 app.tsx 的 layout 中设置
-type SetInitialStateFn = (fn: (prev: any) => any) => Promise<void>;
+type SetInitialStateFn = (
+  fn: (prev: Record<string, unknown>) => Record<string, unknown>,
+) => Promise<void>;
 let globalSetInitialState: SetInitialStateFn | null = null;
 
 /**
@@ -58,7 +60,7 @@ async function refreshTokenAndUpdatePermissions(): Promise<string | null> {
     if (userInfo && globalSetInitialState) {
       // 直接使用 setInitialState 更新权限数据
       // 等待状态更新完成，确保权限数据同步
-      await globalSetInitialState((prev: any) => ({
+      await globalSetInitialState((prev) => ({
         ...prev,
         currentUser: buildCurrentUser(userInfo),
       }));
@@ -105,7 +107,10 @@ const RETRY_DELAY_MS = 1000;
  * 判断错误是否可重试
  * 仅对网络错误（无响应）和 5xx 服务端错误进行重试
  */
-function isRetryableError(error: any): boolean {
+function isRetryableError(error: {
+  request?: unknown;
+  response?: { status: number };
+}): boolean {
   // 网络错误：请求已发出但无响应（超时、断网等）
   if (error.request && !error.response) {
     return true;
@@ -137,7 +142,7 @@ export const errorConfig: RequestConfig = {
       const { success, data, errorCode, errorMessage, showType } =
         res as unknown as ResponseStructure;
       if (!success) {
-        const error: any = new Error(errorMessage);
+        const error: Error & { name: string; info: unknown } = new Error(errorMessage);
         error.name = 'BizError';
         error.info = { errorCode, errorMessage, showType, data };
         throw error; // 抛出自制的错误
@@ -145,12 +150,15 @@ export const errorConfig: RequestConfig = {
     },
     // 错误接收及处理 - 注意：errorHandler 不能异步阻塞！
     // 401 错误处理已移到响应拦截器中
-    errorHandler: (error: any, opts: any): any => {
+    errorHandler: (
+      error: Error & { name: string; response?: { status: number; data: unknown }; request?: unknown; config?: { url?: string; method?: string } },
+      opts?: { skipErrorHandler?: boolean },
+    ): void => {
       if (opts?.skipErrorHandler) throw error;
 
       // 记录请求失败日志（含请求上下文）
       if (error.response) {
-        const serverData = error.response.data;
+        const serverData = error.response.data as { errorCode?: string };
         console.error('[API Error]', {
           url: error.config?.url || 'unknown',
           method: (error.config?.method || 'unknown').toUpperCase(),
@@ -174,7 +182,7 @@ export const errorConfig: RequestConfig = {
 
       // 我们的 errorThrower 抛出的错误。
       if (error.name === 'BizError') {
-        const errorInfo: ResponseStructure | undefined = error.info;
+        const errorInfo = error.info as ResponseStructure | undefined;
         if (errorInfo) {
           const { errorMessage, errorCode } = errorInfo;
           switch (errorInfo.showType) {
@@ -205,7 +213,7 @@ export const errorConfig: RequestConfig = {
         // 请求成功发出且服务器也响应了状态码，但状态代码超出了 2xx 的范围
 
         // 尝试从响应体中提取错误信息
-        const serverError = error.response.data;
+        const serverError = error.response.data as { errorMessage?: string };
         const errorMessage =
           typeof serverError === 'object' && serverError?.errorMessage
             ? serverError.errorMessage
@@ -255,7 +263,10 @@ export const errorConfig: RequestConfig = {
   // 响应拦截器 - 统一解包 { success, data } 格式 + 处理 401 token 刷新
   responseInterceptors: [
     // 数据解包和 401 处理
-    async (response: any) => {
+    async (response: {
+      data: { success?: boolean; errorCode?: string; data?: unknown };
+      config?: { url?: string; method?: string; headers?: Record<string, string>; _retryCount?: number };
+    }) => {
       try {
         const { data } = response;
 
@@ -363,9 +374,13 @@ export const errorConfig: RequestConfig = {
     // 类型断言用于绕过 TypeScript 限制。
     [
       // Success handler: 直接通过，由前一个拦截器处理
-      (response: any) => response,
+      (response: unknown) => response,
       // Error handler: 自动重试网络错误和 5xx 错误
-      async (error: any) => {
+      async (error: {
+        config?: { url?: string; method?: string; _retryCount?: number };
+        request?: unknown;
+        response?: { status: number };
+      }) => {
         const config = error?.config;
 
         // 无法获取配置或已跳过错误处理，直接拒绝
@@ -391,6 +406,6 @@ export const errorConfig: RequestConfig = {
         // 不可重试或已达最大重试次数，传递错误
         return Promise.reject(error);
       },
-    ] as any,
+    ] as const,
   ],
 };

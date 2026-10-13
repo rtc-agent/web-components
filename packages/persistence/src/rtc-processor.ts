@@ -1,4 +1,4 @@
-import type { PersistenceLayer } from './index.js';
+import type { IPersistenceLayer } from './index.js';
 import type { LocalRtc } from './database.js';
 import type { Mode } from './permission.js';
 import { permissionChecker } from './permission.js';
@@ -83,7 +83,7 @@ export interface MasterLike {
  * Device ID filtering is done at execution time (EntityRepository.getNextRtcToProcess); not handled here.
  */
 export class RtcProcessor {
-  private persistence: PersistenceLayer;
+  private persistence: IPersistenceLayer;
   private processing = false;
   private pendingCheck = false;
   /** In-memory retry counter: rtcClientId -> retry count (reset on refresh) */
@@ -114,7 +114,7 @@ export class RtcProcessor {
   /** M6-FIX: Configurable error retry delay (ms) */
   private _errorRetryDelayMs: number = ERROR_RETRY_DELAY_MS;
 
-  constructor(persistence: PersistenceLayer) {
+  constructor(persistence: IPersistenceLayer) {
     this.persistence = persistence;
   }
 

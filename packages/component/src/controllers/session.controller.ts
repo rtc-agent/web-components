@@ -15,7 +15,7 @@ import type { ReactiveControllerHost } from 'lit';
 import type { Session, SessionState, SessionActions } from '../types/index.js';
 import type { SessionContextValue } from '../contexts/session.js';
 import { DEFAULT_SESSION_STATE } from '../contexts/session.js';
-import type { PersistenceLayer } from '@rtc-agent/persistence';
+import type { IPersistenceLayer } from '@rtc-agent/persistence';
 import { createLogger } from '@rtc-agent/protocol';
 import { CachedContextController } from '../core/cached-context.controller.js';
 
@@ -37,7 +37,7 @@ export class SessionController extends CachedContextController<
    * When set, rename/delete operations are persisted to IndexedDB + synced to server.
    * When unset, rename/delete operate in-memory only (offline / pre-connect fallback).
    */
-  persistence?: PersistenceLayer;
+  persistence?: IPersistenceLayer;
 
   /** Override value getter to return SessionContextValue type */
   get value(): SessionContextValue {

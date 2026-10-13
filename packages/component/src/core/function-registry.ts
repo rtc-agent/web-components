@@ -146,7 +146,8 @@ export class FunctionGroup {
       'createProxy',
     ]);
 
-    return new Proxy(this, {
+    // Use a type assertion that's more explicit about the runtime behavior
+    const proxy = new Proxy(this, {
       get(target, prop: string | symbol) {
         if (typeof prop === 'symbol') {
           return (target as Record<symbol, unknown>)[prop];
@@ -181,7 +182,11 @@ export class FunctionGroup {
         );
         return undefined;
       },
-    }) as unknown as FunctionGroup &
+    });
+
+    // The proxy dynamically resolves function calls, so we assert the combined type
+    // Use 'as unknown as' to bridge the structural gap between Proxy and the intersection type
+    return proxy as unknown as FunctionGroup &
       Record<string, (params?: Record<string, unknown>) => Promise<unknown>>;
   }
 }
@@ -756,7 +761,8 @@ export class FunctionRegistry {
       'generateAllDocsContent',
     ]);
 
-    return new Proxy(this, {
+    // Use a type assertion that's more explicit about the runtime behavior
+    const proxy = new Proxy(this, {
       get(target, prop: string | symbol) {
         // Handle Symbol properties
         if (typeof prop === 'symbol') {
@@ -789,7 +795,11 @@ export class FunctionRegistry {
         );
         return undefined;
       },
-    }) as unknown as FunctionRegistry & Record<string, FunctionGroup>;
+    });
+
+    // The proxy dynamically resolves group proxies, so we assert the combined type
+    // Use 'as unknown as' to bridge the structural gap between Proxy and the intersection type
+    return proxy as unknown as FunctionRegistry & Record<string, FunctionGroup>;
   }
 }
 

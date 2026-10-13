@@ -28,7 +28,7 @@ import type { MessageController } from './message.controller.js';
 import type { ToastController } from './toast.controller.js';
 import type { SettingsController } from './settings.controller.js';
 import type { WindowStateController } from './window-state.controller.js';
-import type { PersistenceLayer } from '@rtc-agent/persistence';
+import type { IPersistenceLayer } from '@rtc-agent/persistence';
 import { getUIUpdateBus } from '@rtc-agent/persistence';
 import type { UIUpdateEvent } from '@rtc-agent/persistence';
 import { createLogger } from '@rtc-agent/protocol';
@@ -55,7 +55,7 @@ export class NotificationController implements ReactiveController {
   toastController?: ToastController;
   windowStateController?: WindowStateController;
   settingsController?: SettingsController;
-  persistence?: PersistenceLayer;
+  persistence?: IPersistenceLayer;
 
   // ─── State ──────────────────────────────────────────────
   private _state: NotificationState = { ...DEFAULT_NOTIFICATION_STATE };

@@ -72,6 +72,48 @@ export type Message = UIMessage;
 // SessionStatus is imported from @rtc-agent/protocol above
 
 /**
+ * Token usage statistics for a session.
+ *
+ * Passed through from LocalSession, populated after backend session.updated push.
+ */
+export interface TokenUsage {
+  /** Cumulative net input token count (excluding cached read/write) */
+  totalInputTokens?: number;
+  /** Cumulative output token count */
+  totalOutputTokens?: number;
+  /** Cumulative total token count (including all types) */
+  totalTokens?: number;
+  /** Actual current context token count (rewritten after compression, used for compression progress calculation) */
+  currentContextTokens?: number;
+  /** Cumulative cache read token count */
+  totalCachedReadTokens?: number;
+  /** Cumulative cache write token count */
+  totalCachedWriteTokens?: number;
+  /** Cumulative reasoning token count */
+  totalReasoningTokens?: number;
+  /** Cumulative cost (USD) */
+  totalCostUsd?: number;
+  /** Last token stats update time (ISO 8601) */
+  lastTokenUpdateAt?: string;
+}
+
+/**
+ * Token estimation for a session.
+ *
+ * Real-time computation by backend, pushed via session.updated.
+ */
+export interface TokenEstimation {
+  /** Compression trigger threshold (contextTokensLimit - autoCompactBufferTokens) */
+  compressionThreshold?: number;
+  /** Compression progress (0-100) */
+  compressionProgress?: number;
+  /** Rounds until compression (-1 means threshold already exceeded) */
+  roundsUntilCompression?: number;
+  /** Estimated token count for the next round */
+  estimatedNextRoundTokens?: number;
+}
+
+/**
  * UI-layer Session type with camelCase fields for frontend rendering.
  * @deprecated For new code, prefer using `Session` from `@rtc-agent/protocol` (snake_case) for type safety.
  * This type is maintained for backward compatibility with existing UI components.
@@ -95,35 +137,13 @@ export interface UISession {
 
   // ── Token Usage (passed through from LocalSession, populated after backend session.updated push) ──
 
-  /** Cumulative net input token count (excluding cached read/write) */
-  totalInputTokens?: number;
-  /** Cumulative output token count */
-  totalOutputTokens?: number;
-  /** Cumulative total token count (including all types) */
-  totalTokens?: number;
-  /** Actual current context token count (rewritten after compression, used for compression progress calculation) */
-  currentContextTokens?: number;
-  /** Cumulative cache read token count */
-  totalCachedReadTokens?: number;
-  /** Cumulative cache write token count */
-  totalCachedWriteTokens?: number;
-  /** Cumulative reasoning token count */
-  totalReasoningTokens?: number;
-  /** Cumulative cost (USD) */
-  totalCostUsd?: number;
-  /** Last token stats update time (ISO 8601) */
-  lastTokenUpdateAt?: string;
+  /** Token usage statistics */
+  tokenUsage?: TokenUsage;
 
   // ── Token Estimation (real-time computation by backend, pushed via session.updated) ──
 
-  /** Compression trigger threshold (contextTokensLimit - autoCompactBufferTokens) */
-  compressionThreshold?: number;
-  /** Compression progress (0-100) */
-  compressionProgress?: number;
-  /** Rounds until compression (-1 means threshold already exceeded) */
-  roundsUntilCompression?: number;
-  /** Estimated token count for the next round */
-  estimatedNextRoundTokens?: number;
+  /** Token estimation */
+  tokenEstimation?: TokenEstimation;
 }
 
 /**

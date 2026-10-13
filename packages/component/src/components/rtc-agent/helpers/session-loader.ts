@@ -9,13 +9,13 @@
  */
 import { msg } from '@lit/localize';
 import type { Logger } from '@rtc-agent/protocol';
-import type { PersistenceLayer } from '@rtc-agent/persistence';
+import type { IPersistenceLayer } from '@rtc-agent/persistence';
 import type { Session, SessionStatus } from '../../../types/index.js';
 
 // ── Dependency interfaces ──
 
 export interface SessionLoaderDeps {
-  persistenceLayer: PersistenceLayer | undefined;
+  persistenceLayer: IPersistenceLayer | undefined;
   session: {
     value: { state: { currentSessionId: string | null } };
     actions: {

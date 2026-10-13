@@ -294,27 +294,27 @@ export class RtcInputArea extends LitElement {
     }
 
     // Extract token-related fields
-    this._tokenEstimatedNext = session.estimatedNextRoundTokens ?? 0;
-    this._tokenTotalTokens = session.totalTokens ?? 0;
-    this._tokenTotalCostUsd = session.totalCostUsd ?? 0;
-    this._tokenCompressionThreshold = session.compressionThreshold ?? 0;
-    this._tokenCompressionProgress = session.compressionProgress ?? 0;
-    this._tokenRoundsUntilCompression = session.roundsUntilCompression ?? -1;
+    this._tokenEstimatedNext = session.tokenEstimation?.estimatedNextRoundTokens ?? 0;
+    this._tokenTotalTokens = session.tokenUsage?.totalTokens ?? 0;
+    this._tokenTotalCostUsd = session.tokenUsage?.totalCostUsd ?? 0;
+    this._tokenCompressionThreshold = session.tokenEstimation?.compressionThreshold ?? 0;
+    this._tokenCompressionProgress = session.tokenEstimation?.compressionProgress ?? 0;
+    this._tokenRoundsUntilCompression = session.tokenEstimation?.roundsUntilCompression ?? -1;
 
     // Build details object
     if (
-      session.totalInputTokens !== undefined ||
-      session.totalOutputTokens !== undefined ||
-      session.totalCachedReadTokens !== undefined ||
-      session.totalCachedWriteTokens !== undefined ||
-      session.totalReasoningTokens !== undefined
+      session.tokenUsage?.totalInputTokens !== undefined ||
+      session.tokenUsage?.totalOutputTokens !== undefined ||
+      session.tokenUsage?.totalCachedReadTokens !== undefined ||
+      session.tokenUsage?.totalCachedWriteTokens !== undefined ||
+      session.tokenUsage?.totalReasoningTokens !== undefined
     ) {
       this._tokenDetails = {
-        input: session.totalInputTokens,
-        output: session.totalOutputTokens,
-        cachedRead: session.totalCachedReadTokens,
-        cachedWrite: session.totalCachedWriteTokens,
-        reasoning: session.totalReasoningTokens,
+        input: session.tokenUsage.totalInputTokens,
+        output: session.tokenUsage.totalOutputTokens,
+        cachedRead: session.tokenUsage.totalCachedReadTokens,
+        cachedWrite: session.tokenUsage.totalCachedWriteTokens,
+        reasoning: session.tokenUsage.totalReasoningTokens,
       };
     } else {
       this._tokenDetails = undefined;

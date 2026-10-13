@@ -20,7 +20,7 @@ import type {
   ContentData,
 } from '../types/index.js';
 import type { MessageContextValue } from '../contexts/message.js';
-import type { PersistenceLayer, LocalMessage } from '@rtc-agent/persistence';
+import type { IPersistenceLayer, LocalMessage } from '@rtc-agent/persistence';
 import type { SessionController } from './session.controller.js';
 import type { Session } from '../types/index.js';
 import { MessageRepository, MESSAGE_PAGE_SIZE } from '../repositories/index.js';
@@ -35,7 +35,7 @@ export class MessageController implements ReactiveController {
   private _repository?: MessageRepository;
 
   /** Persistence layer — injected by root component after construction. */
-  private _persistence?: PersistenceLayer;
+  private _persistence?: IPersistenceLayer;
 
   /** Session controller — injected by root component after construction. */
   private _sessionController?: SessionController;
@@ -59,7 +59,7 @@ export class MessageController implements ReactiveController {
   readonly actions: MessageActions;
 
   /** Setter for persistence injection (avoids circular deps). */
-  set persistence(layer: PersistenceLayer) {
+  set persistence(layer: IPersistenceLayer) {
     this._persistence = layer;
     // Initialize repository when persistence is set
     if (!this._repository) {
