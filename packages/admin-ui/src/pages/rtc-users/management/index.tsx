@@ -216,9 +216,9 @@ const RtcUserManagementPage: React.FC = () => {
   const breakpoints = useBreakpoint();
   const isMobile = !breakpoints.md; // < 768px
   const canBan = access.canRtcUserBan;
-  // NOTE: User config permissions reuse system config permissions (as per design doc)
-  // This is intentional: user config management uses system config's edit/delete permission points
-  // See access.ts for canServerConfigEdit/canServerConfigDelete definitions
+  // 设计决策：RTC 用户配置权限复用系统配置权限点（server_config:write / server_config:delete）
+  // 原因：用户配置管理本质上是系统配置的一部分，共享相同的 RBAC 权限模型
+  // 参考：access.ts 中 canServerConfigEdit / canServerConfigDelete 的定义
   const canConfigEdit = access.canServerConfigEdit as boolean;
   const canConfigDelete = access.canServerConfigDelete as boolean;
 

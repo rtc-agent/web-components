@@ -84,8 +84,8 @@ export default function access(
   const canAdmin = perms.has('admin_user:write');
 
   return {
-    // 管理员权限
-    // 需求文档 §6.2：canAdmin 应检查 admin_user:write 权限
+    // canAdmin: 等价于 admin_user:write 权限（需求文档 §6.2）
+    // 语义：拥有管理员用户写权限的用户即为"管理员"，可访问 canAdmin 守卫的路由/功能
     canAdmin,
 
     // 系统管理菜单可见性

@@ -4,7 +4,7 @@ import { getIntl, history, request } from '@umijs/max';
 import { message, notification } from 'antd';
 import { PUBLIC_PATHS } from '@/constants/routes';
 import { getCurrentUser } from '@/services/admin-auth';
-import { ErrorShowType } from '@/services/types';
+import { ErrorShowType, type UserInfo } from '@/services/types';
 import {
   clearAuth,
   getAccessToken,
@@ -19,6 +19,11 @@ type SetInitialStateFn = (
   fn: (prev: Record<string, unknown>) => Record<string, unknown>,
 ) => Promise<void>;
 let globalSetInitialState: SetInitialStateFn | null = null;
+
+// Pending permission update for race condition: token refresh before layout mount
+// When token refresh occurs before layout mounts, globalSetInitialState is null.
+// Store the userInfo and apply it when setInitialState becomes available.
+let pendingUserInfo: UserInfo | null = null;
 
 /**
  * 重定向到登录页
@@ -35,9 +40,28 @@ function redirectToLogin(): void {
 /**
  * 设置全局的 setInitialState 函数
  * 在 app.tsx 的 layout 中调用
+ *
+ * 如果有待处理的权限更新（token 刷新发生在 layout mount 前），
+ * 立即应用该更新，确保权限数据同步。
  */
 export function setGlobalSetInitialState(fn: SetInitialStateFn | null) {
   globalSetInitialState = fn;
+
+  // Apply pending permission update when layout becomes available
+  if (fn && pendingUserInfo) {
+    const userInfoToApply = pendingUserInfo;
+    pendingUserInfo = null;
+    // Apply asynchronously to avoid blocking the caller
+    fn((prev) => ({
+      ...prev,
+      currentUser: buildCurrentUser(userInfoToApply),
+    })).catch((error) => {
+      console.error(
+        '[setGlobalSetInitialState] Failed to apply pending permission update:',
+        error,
+      );
+    });
+  }
 }
 
 /**
@@ -65,10 +89,12 @@ async function refreshTokenAndUpdatePermissions(): Promise<string | null> {
         currentUser: buildCurrentUser(userInfo),
       }));
     } else if (userInfo && !globalSetInitialState) {
-      // 注意：如果 globalSetInitialState 为 null，说明 layout 还未 mount
-      // 此时权限数据无法更新，管理员可能需要刷新页面才能看到最新权限
-      console.warn(
-        '[refreshTokenAndUpdatePermissions] globalSetInitialState is null, permission data not updated.',
+      // Layout 还未 mount，无法直接更新权限数据
+      // 存储 userInfo，待 setInitialState 可用时立即应用
+      // 这确保了 token 刷新发生在 layout mount 前时，权限数据不会丢失
+      pendingUserInfo = userInfo;
+      console.info(
+        '[refreshTokenAndUpdatePermissions] Layout not ready, permission update queued.',
       );
     }
   } catch (error) {
