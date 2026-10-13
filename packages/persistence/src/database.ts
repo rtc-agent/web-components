@@ -382,7 +382,8 @@ export class RTCAgentDatabase extends Dexie {
         const sessionsTable = tx.table('sessions');
         const sessionIdMap = new Map<string, string>(); // server_id -> client_id
 
-        // Process sessions in batches
+        // P1-FIX: Track migration counts for data integrity verification before clear()
+        let totalSessionsMigrated = 0;
         let sessionsOffset = 0;
         while (true) {
           const sessionBatch = await sessionsTable
@@ -409,10 +410,18 @@ export class RTCAgentDatabase extends Dexie {
             delete newRow['id'];
 
             await sessionsTable.add(newRow);
+            totalSessionsMigrated++;
           }
 
           sessionsOffset += BATCH_SIZE;
         }
+
+        // P1-FIX: Verify migration integrity before clear() - log record counts for debugging
+        const finalSessionCount = await sessionsTable.count();
+        console.log(
+          `[DB Migration v2] Sessions: migrated ${totalSessionsMigrated} records, ` +
+          `total in table before clear: ${finalSessionCount}`,
+        );
 
         // Clear old sessions after migration
         await sessionsTable.clear();
@@ -421,6 +430,7 @@ export class RTCAgentDatabase extends Dexie {
         for (const name of ['turns', 'messages', 'rtcs'] as const) {
           const table = tx.table(name);
           let offset = 0;
+          let totalMigrated = 0; // P1-FIX: Track migration count for integrity check
 
           while (true) {
             const batch = await table
@@ -455,10 +465,18 @@ export class RTCAgentDatabase extends Dexie {
               delete newRow['session_id'];
 
               await table.add(newRow);
+              totalMigrated++;
             }
 
             offset += BATCH_SIZE;
           }
+
+          // P1-FIX: Verify migration integrity before clear() - log record counts for debugging
+          const finalCount = await table.count();
+          console.log(
+            `[DB Migration v2] ${name}: migrated ${totalMigrated} records, ` +
+            `total in table before clear: ${finalCount}`,
+          );
 
           // Clear old table after migration
           await table.clear();

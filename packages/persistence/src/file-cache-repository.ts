@@ -86,6 +86,8 @@ export class FileCacheRepository {
   private syncInFlight = new Map<string, Promise<void>>();
   /** Per-file sync lock chains (ensures sequential sync per file) */
   private _syncLocks = new Map<string, Promise<unknown>>();
+  /** P1-FIX: Track Promise chain lengths for monitoring potential memory leaks */
+  private _syncLockChainLengths = new Map<string, number>();
   /** Lifecycle guard: prevents DB operations after PersistenceLayer.close() */
   private _lifecycleGuard = new LifecycleGuard('FileCacheRepository');
   /** H3-FIX: Lock to prevent concurrent recoverStaleSyncing calls */
@@ -738,6 +740,22 @@ export class FileCacheRepository {
     // we can clean up immediately after completion instead of waiting for the next operation.
     const isFirstInChain = prev === this._syncLocks.get(key);
 
+    // P1-FIX: Monitor Promise chain length to detect potential memory leaks.
+    // In high-frequency scenarios, chains can grow unbounded if cleanup fails.
+    // Log a warning if chain exceeds threshold for debugging.
+    const CHAIN_LENGTH_WARNING_THRESHOLD = 50;
+    const currentChainLength = this._syncLockChainLengths.get(key) ?? 0;
+    const newChainLength = isFirstInChain ? 1 : currentChainLength + 1;
+    this._syncLockChainLengths.set(key, newChainLength);
+
+    if (newChainLength > CHAIN_LENGTH_WARNING_THRESHOLD) {
+      log.warn(
+        `withSyncLock: Promise chain length for ${key} is ${newChainLength} ` +
+        `(threshold: ${CHAIN_LENGTH_WARNING_THRESHOLD}). ` +
+        `This may indicate a memory leak if cleanup is not working correctly.`,
+      );
+    }
+
     this._syncLocks.set(
       key,
       settled.finally(() => {
@@ -750,6 +768,13 @@ export class FileCacheRepository {
           // If settled is still the head, no new operations have queued, safe to delete
           if (currentHead === settled) {
             this._syncLocks.delete(key);
+            this._syncLockChainLengths.delete(key); // P1-FIX: Clean up chain length counter
+          }
+        } else {
+          // P1-FIX: Decrement chain length when an operation completes but chain continues
+          const currentLength = this._syncLockChainLengths.get(key) ?? 0;
+          if (currentLength > 0) {
+            this._syncLockChainLengths.set(key, currentLength - 1);
           }
         }
         // Clean up external signal listener

@@ -168,6 +168,9 @@ type EntityRecord = Record<string, unknown>;
  * This prevents live-channel streaming updates from overwriting
  * the final completed content received via the topic channel.
  *
+ * P1-FIX: Also detect streaming -> pending regression to prevent
+ * out-of-order updates from reverting in-progress streaming content.
+ *
  * Same-state updates are always allowed:
  * - streaming → streaming (newer streaming content replaces older)
  * - completed → completed (idempotent)
@@ -182,6 +185,12 @@ function isStreamingStatusRegression(
   // Terminal states must not regress to non-terminal states
   if (existingStatus === 'completed' || existingStatus === 'failed') {
     return incomingStatus === 'streaming' || incomingStatus === 'pending';
+  }
+
+  // P1-FIX: streaming -> pending is also a regression
+  // This prevents out-of-order updates from reverting streaming progress
+  if (existingStatus === 'streaming' && incomingStatus === 'pending') {
+    return true;
   }
 
   return false;
@@ -1120,6 +1129,7 @@ export class EntityRepository {
     try {
       if (totalWriteItems <= BATCH_THRESHOLD) {
         // Small batch: use original single-transaction approach
+        const txStartTime = performance.now();
         await db.transaction('rw', tablesToLock, async () => {
           // 7a. bulkGet existing records (within transaction)
           const existingData = await this.bulkGetExisting(prepared);
@@ -1151,58 +1161,118 @@ export class EntityRepository {
           // 7f. Turn count writeback (within same transaction, re-read sessions from DB)
           await this.writebackTurnCountsInTx(merged.turns);
         });
+
+        // P1-FIX: Monitor transaction duration for performance debugging
+        const txElapsed = performance.now() - txStartTime;
+        if (txElapsed > 5000) {
+          log.warn(
+            `[applyUpdates] Small batch transaction took ${txElapsed.toFixed(1)}ms ` +
+            `(>${5000}ms threshold). Consider if batch size should be reduced. ` +
+            `Items: ${totalWriteItems}`,
+          );
+        }
       } else {
         // C2-FIX: Large batch - split into multiple smaller transactions
         // Phase 1: Atomic read-merge (fast, no writes)
+        const txStartTime = performance.now();
         await db.transaction('r', tablesToLock, async () => {
           const existingData = await this.bulkGetExisting(prepared);
           this.collectBeforeSnapshots(beforeSnapshots, existingData);
           merged = this.mergeWithExisting(prepared, existingData);
         });
 
+        // P1-FIX: Monitor read-merge transaction duration
+        const readMergeElapsed = performance.now() - txStartTime;
+        if (readMergeElapsed > 5000) {
+          log.warn(
+            `[applyUpdates] Large batch read-merge took ${readMergeElapsed.toFixed(1)}ms ` +
+            `(>${5000}ms threshold). Items: ${totalWriteItems}`,
+          );
+        }
+
         // Phase 2: Split writes by entity type (each in its own transaction)
         // This reduces transaction scope and timeout risk for large datasets
         if (merged.sessions.length > 0 || deletes.sessions.length > 0) {
+          const txStart = performance.now();
           await db.transaction('rw', [db.sessions], async () => {
             if (merged.sessions.length > 0)
               await db.sessions.bulkPut(merged.sessions as LocalSession[]);
             if (deletes.sessions.length > 0)
               await db.sessions.bulkDelete(deletes.sessions);
           });
+          const elapsed = performance.now() - txStart;
+          if (elapsed > 5000) {
+            log.warn(
+              `[applyUpdates] Sessions write transaction took ${elapsed.toFixed(1)}ms ` +
+              `(>${5000}ms threshold). Items: ${merged.sessions.length + deletes.sessions.length}`,
+            );
+          }
         }
 
         if (merged.turns.length > 0 || deletes.turns.length > 0) {
+          const txStart = performance.now();
           await db.transaction('rw', [db.turns], async () => {
             if (merged.turns.length > 0)
               await db.turns.bulkPut(merged.turns as LocalTurn[]);
             if (deletes.turns.length > 0)
               await db.turns.bulkDelete(deletes.turns);
           });
+          const elapsed = performance.now() - txStart;
+          if (elapsed > 5000) {
+            log.warn(
+              `[applyUpdates] Turns write transaction took ${elapsed.toFixed(1)}ms ` +
+              `(>${5000}ms threshold). Items: ${merged.turns.length + deletes.turns.length}`,
+            );
+          }
         }
 
         if (merged.messages.length > 0 || deletes.messages.length > 0) {
+          const txStart = performance.now();
           await db.transaction('rw', [db.messages], async () => {
             if (merged.messages.length > 0)
               await db.messages.bulkPut(merged.messages as LocalMessage[]);
             if (deletes.messages.length > 0)
               await db.messages.bulkDelete(deletes.messages);
           });
+          const elapsed = performance.now() - txStart;
+          if (elapsed > 5000) {
+            log.warn(
+              `[applyUpdates] Messages write transaction took ${elapsed.toFixed(1)}ms ` +
+              `(>${5000}ms threshold). Items: ${merged.messages.length + deletes.messages.length}`,
+            );
+          }
         }
 
         if (merged.rtcs.length > 0 || deletes.rtcs.length > 0) {
+          const txStart = performance.now();
           await db.transaction('rw', [db.rtcs], async () => {
             if (merged.rtcs.length > 0)
               await db.rtcs.bulkPut(merged.rtcs as LocalRtc[]);
             if (deletes.rtcs.length > 0)
               await db.rtcs.bulkDelete(deletes.rtcs);
           });
+          const elapsed = performance.now() - txStart;
+          if (elapsed > 5000) {
+            log.warn(
+              `[applyUpdates] RTcs write transaction took ${elapsed.toFixed(1)}ms ` +
+              `(>${5000}ms threshold). Items: ${merged.rtcs.length + deletes.rtcs.length}`,
+            );
+          }
         }
 
         // Phase 3: Turn count writeback (separate transaction)
         if (merged.turns.length > 0) {
+          const txStart = performance.now();
           await db.transaction('rw', [db.sessions], async () => {
             await this.writebackTurnCountsInTx(merged.turns);
           });
+          const elapsed = performance.now() - txStart;
+          if (elapsed > 5000) {
+            log.warn(
+              `[applyUpdates] Turn count writeback took ${elapsed.toFixed(1)}ms ` +
+              `(>${5000}ms threshold). Items: ${merged.turns.length}`,
+            );
+          }
         }
       }
 
@@ -2024,14 +2094,18 @@ export class EntityRepository {
               item.streaming_status,
             )
           ) {
-            log.debug(
-              'mergeMessages: skip streaming regression',
+            // P1-FIX: Upgrade log level to warn for streaming regression detection
+            // This makes regression attempts more visible for debugging
+            log.warn(
+              'mergeMessages: blocked streaming status regression',
               'client_id:',
               cid,
               'existing:',
               prev.streaming_status,
+              '->',
               'incoming:',
               item.streaming_status,
+              '(keeping existing state)',
             );
             return prev; // Keep existing record unchanged
           }

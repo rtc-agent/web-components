@@ -18,6 +18,7 @@ import {
   type FileSystemEntryMetadata,
 } from './database.js';
 import { createLogger } from '@rtc-agent/protocol';
+import type Dexie from 'dexie';
 
 const log = createLogger('VirtualFS');
 
@@ -159,6 +160,8 @@ export interface GrepResult {
   appliedLimit?: number;
   /** Whether an offset was applied */
   appliedOffset?: number;
+  /** Files skipped due to size limit (>10MB) */
+  skippedFiles?: string[];
 }
 
 /**
@@ -561,62 +564,84 @@ export class VirtualFS {
       throw new SyntaxError(`Invalid regex pattern: ${pattern}`);
     }
 
-    let entries: FileSystemEntry[];
+    // P1-FIX: Use cursor-based processing to avoid loading all entries into memory.
+    // This prevents memory overflow when searching large file collections.
+    const matchedFiles: string[] = [];
+    const skippedFiles: string[] = []; // P1-FIX: Track files skipped due to size
+    const vcsDirs = ['.git', '.svn', '.hg', '.bzr', '.jj', '.sl'];
 
+    // Build collection based on path scope
+    let collection: Dexie.Collection<FileSystemEntry, unknown>;
     if (normalizedPath === '/') {
-      entries = await db.fileSystemEntries.toCollection().toArray();
+      collection = db.fileSystemEntries.toCollection();
     } else {
       const prefix = normalizedPath + '/';
-      // Use startsWith for efficient index-based query
-      entries = await db.fileSystemEntries
-        .where('path')
-        .startsWith(prefix)
-        .toArray();
+      collection = db.fileSystemEntries.where('path').startsWith(prefix);
     }
 
-    // Filter by type if specified
-    if (type) {
-      entries = entries.filter((entry) => {
+    // P1-FIX: Process files using cursor (each) to avoid loading all into memory.
+    // Files >10MB are skipped to prevent memory issues.
+    const startTime = performance.now();
+    let processedCount = 0;
+
+    await collection.each((entry) => {
+      processedCount++;
+
+      // Exclude VCS directories
+      const pathParts = entry.path.split('/');
+      if (pathParts.some((part) => vcsDirs.includes(part))) {
+        return;
+      }
+
+      // Filter by type if specified
+      if (type) {
         const ext = entry.path.split('.').pop()?.toLowerCase();
-        return ext === type.toLowerCase();
-      });
-    }
+        if (ext !== type.toLowerCase()) {
+          return;
+        }
+      }
 
-    // Filter by glob pattern if specified
-    if (glob) {
-      entries = entries.filter((entry) => {
+      // Filter by glob pattern if specified
+      if (glob) {
         const filename = entry.path.split('/').pop() || '';
         const relativePath =
           normalizedPath === '/'
             ? entry.path.substring(1)
             : entry.path.substring(normalizedPath.length + 1);
-        return (
-          matchGlob(glob, filename) ||
-          matchGlob(glob, relativePath) ||
-          matchGlob(glob, entry.path)
-        );
-      });
-    }
-
-    // Exclude VCS directories
-    const vcsDirs = ['.git', '.svn', '.hg', '.bzr', '.jj', '.sl'];
-    entries = entries.filter((entry) => {
-      const pathParts = entry.path.split('/');
-      return !pathParts.some((part) => vcsDirs.includes(part));
-    });
-
-    if (outputMode === 'files_with_matches') {
-      // Return list of matching file paths
-      const matchedFiles: string[] = [];
-
-      for (const entry of entries) {
-        // Reset lastIndex since regex has 'g' flag and test() maintains state
-        regex.lastIndex = 0;
-        if (regex.test(entry.content)) {
-          matchedFiles.push(entry.path);
+        if (
+          !matchGlob(glob, filename) &&
+          !matchGlob(glob, relativePath) &&
+          !matchGlob(glob, entry.path)
+        ) {
+          return;
         }
       }
 
+      // P1-FIX: Skip files larger than 10MB to prevent memory overflow
+      if (entry.content.length > MAX_FILE_SIZE) {
+        skippedFiles.push(entry.path);
+        log.warn(
+          `grep: skipping large file (${(entry.content.length / 1024 / 1024).toFixed(2)}MB):`,
+          entry.path,
+        );
+        return;
+      }
+
+      // Reset lastIndex since regex has 'g' flag and test() maintains state
+      regex.lastIndex = 0;
+      if (regex.test(entry.content)) {
+        matchedFiles.push(entry.path);
+      }
+    });
+
+    const elapsedMs = performance.now() - startTime;
+    log.debug(
+      `grep: scanned ${processedCount} files in ${elapsedMs.toFixed(2)}ms, ` +
+      `${matchedFiles.length} matches, ${skippedFiles.length} skipped`,
+    );
+
+    if (outputMode === 'files_with_matches') {
+      // Return list of matching file paths
       // Apply offset and limit
       const limitedFiles = matchedFiles.slice(
         offset,
@@ -632,6 +657,7 @@ export class VirtualFS {
             ? maxResults
             : undefined,
         appliedOffset: offset > 0 ? offset : undefined,
+        skippedFiles: skippedFiles.length > 0 ? skippedFiles : undefined,
       };
     }
 
@@ -640,7 +666,12 @@ export class VirtualFS {
       const countResults: Array<{ file: string; count: number }> = [];
       let totalMatches = 0;
 
-      for (const entry of entries) {
+      // P1-FIX: For count mode, re-load matched files and count matches.
+      // We use matchedFiles which already contains the list of matching file paths.
+      for (const filePath of matchedFiles) {
+        const entry = await db.fileSystemEntries.get(filePath);
+        if (!entry) continue;
+
         const matches = entry.content.match(regex);
         const count = matches ? matches.length : 0;
         if (count > 0) {
@@ -665,6 +696,7 @@ export class VirtualFS {
             ? maxResults
             : undefined,
         appliedOffset: offset > 0 ? offset : undefined,
+        skippedFiles: skippedFiles.length > 0 ? skippedFiles : undefined,
       };
     }
 
@@ -675,7 +707,12 @@ export class VirtualFS {
       line: string;
     }> = [];
 
-    for (const entry of entries) {
+    // P1-FIX: For content mode, we need to re-load matched files and extract matching lines.
+    // Only matched files are processed, reducing unnecessary work.
+    for (const filePath of matchedFiles) {
+      const entry = await db.fileSystemEntries.get(filePath);
+      if (!entry) continue;
+
       // Multiline mode: match against full content, not line-by-line.
       // A multiline regex can span lines, so line-by-line testing would miss matches.
       // We find the match position, then determine which lines it covers.
@@ -755,6 +792,7 @@ export class VirtualFS {
           ? maxResults
           : undefined,
       appliedOffset: offset > 0 ? offset : undefined,
+      skippedFiles: skippedFiles.length > 0 ? skippedFiles : undefined,
     };
   }
 
