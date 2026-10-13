@@ -337,6 +337,9 @@ export class WorkerBridge {
         return this._auth.handleTokenExpired();
       },
       // Worker broadcasts connection state change -> notify main-thread listeners.
+      // EXCEPTION SAFETY: Each listener is wrapped in try-catch to prevent one failing listener
+      // from breaking the notification chain for other listeners. Errors are logged but don't
+      // propagate to the Worker (which would cause unnecessary callback failures).
       onConnectionStateChange: (event: ConnectionStateEvent) => {
         log.debug(
           '[WorkerBridge] onConnectionStateChange called, state:',
@@ -346,38 +349,54 @@ export class WorkerBridge {
           'listeners:',
           this._connectionListeners.size,
         );
-        for (const listener of this._connectionListeners) {
+        // Snapshot listeners to prevent concurrent modification issues if a listener
+        // adds or removes listeners during iteration (defensive programming).
+        const listenersSnapshot = Array.from(this._connectionListeners);
+        for (const listener of listenersSnapshot) {
           try {
             listener(event);
           } catch (err) {
-            log.error('connection listener error:', err);
+            log.error('connection listener error (non-fatal, continuing to other listeners):', err);
           }
         }
       },
       // Worker broadcasts gap fill state -> main-thread UIUpdateBus.emitGapFillStart/End().
+      // EXCEPTION SAFETY: bus.emitGapFillStart/End() are synchronous and rarely throw,
+      // but we wrap them in try-catch for consistency with other callbacks and to prevent
+      // uncaught exceptions from breaking the Worker callback chain.
       onGapFillState: (isSyncing: boolean) => {
         log.debug(
           '[BulkUpdate] WorkerBridge.onGapFillState called, isSyncing:',
           isSyncing,
         );
-        const bus = getUIUpdateBus();
-        if (isSyncing) {
-          bus.emitGapFillStart();
-        } else {
-          bus.emitGapFillEnd();
+        try {
+          const bus = getUIUpdateBus();
+          if (isSyncing) {
+            bus.emitGapFillStart();
+          } else {
+            bus.emitGapFillEnd();
+          }
+        } catch (err) {
+          log.error('onGapFillState: failed to emit gap fill event (non-fatal):', err);
         }
       },
       // Catch-up detected a gap in events (TTL cleanup deleted missed events).
       // Reset cursor and trigger a full state refresh via gap fill mechanism.
+      // EXCEPTION SAFETY: Wrapped in try-catch to prevent uncaught exceptions from breaking
+      // the Worker callback chain. onStateGap is critical for recovery, so we log but don't throw.
       onStateGap: () => {
         log.warn(
           'catchUp: state gap detected — events were lost (likely TTL cleanup)',
         );
-        this._lastProcessedSeq = 0;
-        this._saveLastProcessedSeq();
-        // Only call end to trigger reload, skip start (don't show overlay)
-        const bus = getUIUpdateBus();
-        bus.emitGapFillEnd();
+        try {
+          this._lastProcessedSeq = 0;
+          this._saveLastProcessedSeq();
+          // Only call end to trigger reload, skip start (don't show overlay)
+          const bus = getUIUpdateBus();
+          bus.emitGapFillEnd();
+        } catch (err) {
+          log.error('onStateGap: failed to reset cursor or emit gap fill end (non-fatal):', err);
+        }
       },
       // Worker broadcasts account banned notification (disconnect code 4501).
       // Store ban state in sessionStorage so it survives component remounts,
@@ -387,6 +406,10 @@ export class WorkerBridge {
       // the ban state is temporary (picked up immediately by rtc-agent component),
       // and the user is logged out right away. There's no risk of cross-user
       // contamination since each user session is isolated by the logout flow.
+      //
+      // EXCEPTION SAFETY: Both sessionStorage and dispatchEvent can throw in edge cases
+      // (private browsing, detached element, etc.). We catch and log but don't propagate
+      // to the Worker, as this callback is best-effort (the Worker has already disconnected).
       onAccountBanned: (reason: string) => {
         log.warn('Account banned:', reason);
         // Persist ban state so rtc-agent can pick it up even after remount
@@ -396,23 +419,30 @@ export class WorkerBridge {
             JSON.stringify({ reason, timestamp: Date.now() }),
           );
         } catch (e) {
-          log.debug('sessionStorage unavailable for ban state', e);
+          // sessionStorage may be unavailable (private browsing, quota exceeded, etc.)
+          // This is non-fatal — the event dispatch below will still trigger immediate logout
+          log.debug('sessionStorage unavailable for ban state (non-fatal):', e);
         }
         // Dispatch event directly (no setTimeout) for immediate handling
         // Uses host element reference passed from PersistenceController to support
         // multi-instance scenarios (avoids document.querySelector which would find
         // the wrong element when multiple rtc-agent instances exist on the page).
         if (this._hostElement) {
-          this._hostElement.dispatchEvent(
-            new CustomEvent('rtc-account-banned', {
-              bubbles: true,
-              composed: true,
-              detail: { reason },
-            }),
-          );
-          log.warn(
-            'dispatched rtc-account-banned event from onAccountBanned callback',
-          );
+          try {
+            this._hostElement.dispatchEvent(
+              new CustomEvent('rtc-account-banned', {
+                bubbles: true,
+                composed: true,
+                detail: { reason },
+              }),
+            );
+            log.warn(
+              'dispatched rtc-account-banned event from onAccountBanned callback',
+            );
+          } catch (err) {
+            // dispatchEvent can throw if the element is detached or in certain error states
+            log.error('Failed to dispatch rtc-account-banned event (non-fatal):', err);
+          }
         } else {
           log.error(
             'host element not available when handling account banned; ban state saved in sessionStorage',
@@ -423,8 +453,8 @@ export class WorkerBridge {
 
     // 2. Create Comlink-proxied callbacks (for cross-Worker transfer).
     // Structured Clone cannot handle functions; proxy() bridges via MessagePort.
-    // NOTE: proxy() creates internal MessagePorts that must be released in destroy()
-    // to prevent resource leaks. See _releaseProxiedCallbacks().
+    // CRITICAL: proxy() creates internal MessagePorts that MUST be released in destroy()
+    // to prevent resource leaks. See _releaseProxiedCallbacks() for proper cleanup.
     this._proxiedCallbacks = proxy(this._callbacks);
 
     // Note: SharedWorker instance, Comlink wrap, and error handling are created in
@@ -733,10 +763,25 @@ export class WorkerBridge {
     // before re-registering to avoid duplicate callback registration in the Worker.
     if (this._callbacksRegistered) {
       log.warn('_doInit: cleaning up partial initialization from previous failed attempt');
+      let cleanupSucceeded = false;
       try {
         await this._core.unregisterCallback(this._proxiedCallbacks);
+        cleanupSucceeded = true;
+        log.debug('_doInit: cleanup unregisterCallback succeeded');
       } catch (err) {
         log.debug('_doInit: cleanup unregisterCallback failed (may be expected):', err);
+      }
+
+      // CRITICAL: If unregisterCallback failed, the Worker may still hold a reference to
+      // the old proxy. We must release the old proxy and create a new one to prevent:
+      // 1. Memory leak (old proxy's MessagePorts remain open)
+      // 2. Duplicate callback registration (Worker sees old and new proxies as different)
+      // 3. Stale callback invocation (Worker calls old proxy after we've moved on)
+      if (!cleanupSucceeded) {
+        log.warn('_doInit: cleanup failed, releasing old proxy and creating new one');
+        this._releaseProxiedCallbacks();
+        // Recreate proxied callbacks for the next attempt
+        this._proxiedCallbacks = proxy(this._callbacks);
       }
       this._callbacksRegistered = false;
     }
@@ -872,14 +917,14 @@ export class WorkerBridge {
     //    Any subsequent access via this.core will throw (expected — bridge is dead).
     this._worker = null;
     this._core = null;
-    // Release proxied callbacks reference. Comlink's proxy() creates internal
-    // MessagePorts for cross-thread function invocation. These ports are held by
-    // the proxy object. Nulling the reference allows GC to collect the proxy and
-    // its internal ports. The worker-side close() call above removes the callback
-    // from the Worker's Set, severing the worker's reference to the proxy's port.
+    // CRITICAL: Release Comlink proxy resources BEFORE nulling the reference.
+    // proxy() creates internal MessagePorts that must be explicitly released via
+    // Symbol.for('comlink.releaseProxy') to prevent memory leaks. Simply nulling
+    // the reference is insufficient — the ports remain open until GC collects
+    // the proxy, which may not happen immediately.
     // Note: _callbacks is kept alive — it's a plain JS object with no external
     // references, so it will be GC'd when the WorkerBridge instance is collected.
-    (this as any)._proxiedCallbacks = null;
+    this._releaseProxiedCallbacks();
 
     // 5. Clear connection listeners and catch-up state
     this._connectionListeners.clear();
@@ -896,15 +941,30 @@ export class WorkerBridge {
     //    (the port is about to be closed, so no message will arrive to resolve them).
     //    Resolving them allows the catch-up loop (if still running) to exit cleanly
     //    on its next iteration, where it will check signal.aborted and bail out.
+    // EXCEPTION SAFETY: This loop is designed to never throw, even if resolves shift fails.
     while (this._yieldResolves.length > 0) {
-      const resolve = this._yieldResolves.shift()!;
-      resolve();
+      try {
+        const resolve = this._yieldResolves.shift();
+        if (resolve) resolve();
+      } catch (err) {
+        // Resolution failure is non-fatal — we're destroying the bridge anyway.
+        log.debug('destroy: failed to resolve yield promise (non-fatal):', err);
+      }
     }
 
     // 7. Clean up shared yield channel (prevents memory leak if catch-up was in progress)
+    // EXCEPTION SAFETY: Port closing may fail if already closed, but that's harmless.
     if (this._yieldChannel) {
-      this._yieldChannel.port1.close();
-      this._yieldChannel.port2.close();
+      try {
+        this._yieldChannel.port1.close();
+      } catch (err) {
+        log.debug('destroy: yield channel port1 close failed (non-fatal):', err);
+      }
+      try {
+        this._yieldChannel.port2.close();
+      } catch (err) {
+        log.debug('destroy: yield channel port2 close failed (non-fatal):', err);
+      }
       this._yieldChannel = undefined;
     }
     this._yieldChannelHealthy = false;
@@ -923,6 +983,44 @@ export class WorkerBridge {
       } catch {
         // sessionStorage may be unavailable
       }
+    }
+  }
+
+  /**
+   * Release Comlink proxy resources to prevent memory leaks.
+   *
+   * Comlink's proxy() creates internal MessagePorts for cross-thread function invocation.
+   * These ports must be explicitly released using the special Symbol.for('comlink.releaseProxy')
+   * method, otherwise they remain open and leak memory even after the proxy object is garbage collected.
+   *
+   * This method:
+   * 1. Calls the releaseProxy symbol on the proxied callbacks (if still present)
+   * 2. Nulls the reference to allow GC
+   *
+   * Why this is critical:
+   * - Each proxy() call creates a MessageChannel with two MessagePorts
+   * - These ports are held by the proxy object and the Worker's callback Set
+   * - Without explicit release, the ports remain open until GC collects the proxy
+   * - In multi-instance scenarios or frequent remounts, this causes significant memory leaks
+   */
+  private _releaseProxiedCallbacks(): void {
+    if (this._proxiedCallbacks) {
+      try {
+        // Comlink exposes a special symbol for releasing proxy resources
+        // See: https://github.com/GoogleChromeLabs/comlink/blob/main/src/comlink.ts
+        const releaseSymbol = Symbol.for('comlink.releaseProxy');
+        if (releaseSymbol in this._proxiedCallbacks) {
+          (this._proxiedCallbacks as any)[releaseSymbol]();
+          log.debug('Comlink proxy released successfully');
+        }
+      } catch (err) {
+        // Release may fail if the Worker port is already closed or proxy is in a bad state.
+        // This is non-fatal — we're destroying the bridge anyway, and GC will eventually
+        // collect the proxy and its ports when all references are dropped.
+        log.debug('Failed to release Comlink proxy (non-fatal):', err);
+      }
+      // Null the reference to allow GC. Using 'as any' to bypass readonly constraint.
+      (this as any)._proxiedCallbacks = null;
     }
   }
 
@@ -1213,6 +1311,8 @@ export class WorkerBridge {
 
     // Wrap progress callback with throttle to avoid message storms
     // Use Comlink.proxy() to make the function serializable across postMessage boundary
+    // CRITICAL: The proxy MUST be released in finally to prevent memory leaks.
+    // Each proxy() call creates internal MessagePorts that remain open until explicitly released.
     const throttled = onProgress ? proxy(throttle(onProgress, 100)) : undefined;
     try {
       return await this._ensureCore().uploadFile(
@@ -1227,6 +1327,19 @@ export class WorkerBridge {
       );
     } finally {
       cleanupAbortListener?.();
+      // CRITICAL: Release the progress callback proxy to prevent memory leaks.
+      // Without this, each uploadFile() call would leak a MessageChannel.
+      if (throttled) {
+        try {
+          const releaseSymbol = Symbol.for('comlink.releaseProxy');
+          if (releaseSymbol in throttled) {
+            (throttled as any)[releaseSymbol]();
+          }
+        } catch (err) {
+          // Release failure is non-fatal during cleanup
+          log.debug('Failed to release upload progress proxy (non-fatal):', err);
+        }
+      }
     }
   }
 
@@ -1276,6 +1389,8 @@ export class WorkerBridge {
 
     // Throttle progress callback to avoid message storms
     // Use Comlink.proxy() to make the function serializable across postMessage boundary
+    // CRITICAL: The proxy MUST be released in finally to prevent memory leaks.
+    // Each proxy() call creates internal MessagePorts that remain open until explicitly released.
     const throttled = onProgress ? proxy(throttle(onProgress, 100)) : undefined;
     try {
       // P2-NEW-4 fix: pass forceRefresh to Worker
@@ -1288,6 +1403,19 @@ export class WorkerBridge {
       );
     } finally {
       cleanupAbortListener?.();
+      // CRITICAL: Release the progress callback proxy to prevent memory leaks.
+      // Without this, each downloadFile() call would leak a MessageChannel.
+      if (throttled) {
+        try {
+          const releaseSymbol = Symbol.for('comlink.releaseProxy');
+          if (releaseSymbol in throttled) {
+            (throttled as any)[releaseSymbol]();
+          }
+        } catch (err) {
+          // Release failure is non-fatal during cleanup
+          log.debug('Failed to release download progress proxy (non-fatal):', err);
+        }
+      }
     }
   }
 
@@ -1531,6 +1659,13 @@ export class WorkerBridge {
           if (performance.now() - sliceStart > FRAME_BUDGET_MS) {
             await this._yieldToMain();
             sliceStart = performance.now();
+            // Check abort signal again after yielding — the yield may have taken
+            // significant time (milliseconds), during which destroy() could have been called.
+            // This makes cancellation more responsive, especially for large catch-ups.
+            if (signal.aborted) {
+              log.debug('catchUp: abort signal received after yield, breaking');
+              break;
+            }
           }
         }
 
@@ -1550,14 +1685,25 @@ export class WorkerBridge {
         log.debug(`catchUp: delivered ${totalDelivered} total events`);
       }
     } catch (err) {
-      if (!signal.aborted) {
+      // Check if this was caused by abort (expected) or a real error
+      if (signal.aborted) {
+        log.debug('catchUp: aborted during query (expected during destroy)');
+      } else if (err instanceof Error && err.message.includes('bridge has been destroyed')) {
+        log.debug('catchUp: bridge destroyed mid-query (expected)');
+      } else {
         log.error('catchUp: failed to query events (non-fatal):', err);
       }
     } finally {
       this._catchUpAbortController = undefined;
       // Batch persist cursor to sessionStorage after catch-up completes
-      this._isCatchingUp = false;
-      this._saveLastProcessedSeq();
+      // EXCEPTION SAFETY: _saveLastProcessedSeq already has internal try-catch,
+      // but we wrap it here as well for defense-in-depth.
+      try {
+        this._isCatchingUp = false;
+        this._saveLastProcessedSeq();
+      } catch (err) {
+        log.debug('catchUp finally: failed to persist cursor (non-fatal):', err);
+      }
     }
   }
 
@@ -1586,6 +1732,12 @@ export class WorkerBridge {
    *
    * Combined with time-slicing in _doCatchUp, this prevents UI jank regardless
    * of browser (works on Safari which lacks requestIdleCallback).
+   *
+   * EXCEPTION SAFETY:
+   * This method is designed to never throw, even if the channel is closed or postMessage fails.
+   * The catch-up loop relies on _yieldToMain() to always resolve, allowing it to check
+   * signal.aborted and bail out cleanly. Throwing here would leave the loop in an inconsistent
+   * state and potentially leak resources.
    */
   private _yieldToMain(): Promise<void> {
     return new Promise((resolve) => {
@@ -1595,16 +1747,28 @@ export class WorkerBridge {
       // causing UI jank on large event sets.
       if (!this._yieldChannelHealthy) {
         if (this._yieldChannel) {
-          log.debug('_yieldToMain: recreating unhealthy yield channel');
-          this._yieldChannel.port1.close();
-          this._yieldChannel.port2.close();
+          try {
+            this._yieldChannel.port1.close();
+            this._yieldChannel.port2.close();
+          } catch (err) {
+            // Closing already-closed ports is harmless
+            log.debug('_yieldToMain: error closing unhealthy channel (non-fatal):', err);
+          }
         }
-        this._yieldChannel = new MessageChannel();
-        this._yieldChannel.port1.onmessage = () => {
-          const cb = this._yieldResolves.shift();
-          if (cb) cb();
-        };
-        this._yieldChannelHealthy = true;
+        try {
+          this._yieldChannel = new MessageChannel();
+          this._yieldChannel.port1.onmessage = () => {
+            const cb = this._yieldResolves.shift();
+            if (cb) cb();
+          };
+          this._yieldChannelHealthy = true;
+        } catch (err) {
+          // Channel creation is extremely rare to fail, but if it does, resolve immediately
+          // to allow catch-up to continue (or check abort signal and bail out).
+          log.warn('_yieldToMain: failed to create channel, resolving immediately:', err);
+          resolve();
+          return;
+        }
       }
       try {
         this._yieldResolves.push(resolve);
@@ -1662,6 +1826,16 @@ export class WorkerBridge {
 
   /**
    * Load last processed seq from sessionStorage.
+   *
+   * EXCEPTION SAFETY:
+   * sessionStorage operations can throw in several scenarios:
+   * - Private browsing mode (Safari)
+   * - Storage quota exceeded
+   * - Security restrictions (cross-origin iframes)
+   * - Concurrent access from multiple tabs (rare but possible)
+   *
+   * This method catches all exceptions and returns 0 (conservative default).
+   * Returning 0 triggers a full catch-up, which is safe (though potentially slower).
    */
   private _loadLastProcessedSeq(): number {
     try {
@@ -1669,17 +1843,28 @@ export class WorkerBridge {
       if (stored !== null) {
         const seq = parseInt(stored, 10);
         if (!isNaN(seq) && seq >= 0) {
+          log.debug(`Loaded lastProcessedSeq from sessionStorage: ${seq}`);
           return seq;
+        } else if (stored !== '') {
+          // Log warning if stored value is malformed (helps catch bugs)
+          log.warn(`Malformed lastProcessedSeq in sessionStorage: "${stored}", using 0`);
         }
       }
-    } catch {
+    } catch (err) {
       // sessionStorage may be unavailable (private browsing, etc.)
+      // Log at debug level to avoid noise — this is expected in some environments
+      log.debug('Failed to load lastProcessedSeq from sessionStorage:', err);
     }
     return 0;
   }
 
   /**
    * Save last processed seq to sessionStorage.
+   *
+   * EXCEPTION SAFETY:
+   * sessionStorage.setItem() can throw QuotaExceededError if storage is full.
+   * This is non-fatal — the cursor will be re-computed on next init() via catch-up.
+   * We log at debug level to avoid noise, since this failure mode is self-healing.
    */
   private _saveLastProcessedSeq(): void {
     try {
@@ -1687,10 +1872,12 @@ export class WorkerBridge {
         this._getSessionStorageKey(),
         String(this._lastProcessedSeq),
       );
-    } catch {
+    } catch (err) {
       // sessionStorage may be unavailable or full
+      // Common causes: private browsing, quota exceeded, security restrictions
       log.debug(
-        'Failed to save lastProcessedSeq to sessionStorage (non-fatal)',
+        'Failed to save lastProcessedSeq to sessionStorage (non-fatal, will re-compute on next init):',
+        err,
       );
     }
   }
