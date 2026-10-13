@@ -25,8 +25,8 @@ import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { usePermissionRefresh } from '@/hooks/usePermissionRefresh';
 import { useRoleOptions } from '@/hooks/useRoleOptions';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import type { UserInfo } from '@/services/types';
-import type { UserRoleAssignment } from '@/services/user-role';
+import type { UserInfo } from './service';
+import type { UserRoleAssignment } from './service';
 import {
   assignUserRoles,
   createAdminUser,
@@ -35,7 +35,7 @@ import {
   getUserRoles,
   revokeUserRole,
   updateAdminUser,
-} from '@/services/user-role';
+} from './service';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import type { AdminPageAPI } from './page-api';
 
@@ -815,6 +815,20 @@ const AdminUserManagementPage: React.FC = () => {
                 id: 'pages.adminUsers.selectRolesRequired',
                 defaultMessage: 'Please select at least one admin role',
               }),
+            },
+            {
+              validator: async (_, value) => {
+                if (!value || value.length === 0) {
+                  return Promise.reject(
+                    new Error(
+                      intl.formatMessage({
+                        id: 'pages.adminUsers.selectRolesRequired',
+                        defaultMessage: 'Please select at least one admin role',
+                      }),
+                    ),
+                  );
+                }
+              },
             },
           ]}
           options={roleOptions}

@@ -7,17 +7,18 @@ import {
   ProTable,
 } from '@ant-design/pro-components';
 import { Access, useAccess, useIntl, useSearchParams } from '@umijs/max';
-import { App, Button, Grid, Popconfirm, Space, Tag } from 'antd';
+import { App, Button, Popconfirm, Space, Tag } from 'antd';
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { getActionTypes, getResourceTypes } from '@/constants/permissions';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { usePermissionRefresh } from '@/hooks/usePermissionRefresh';
 import { useRoleOptions } from '@/hooks/useRoleOptions';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import {
   createPermission,
   deletePermission,
   getPermissionList,
-} from '@/services/permission';
+} from './service';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import type { PermissionFormValues, PermissionTableItem } from './data';
 import type { PermissionPageAPI } from './page-api';
@@ -33,8 +34,7 @@ const PermissionListPage: React.FC = () => {
   const { message } = App.useApp();
   const [modalVisible, setModalVisible] = React.useState(false);
   const { roleMap, roleOptions } = useRoleOptions();
-  const breakpoints = Grid.useBreakpoint();
-  const isMobile = !breakpoints.sm;
+  const isMobile = useIsMobile();
   const modalWidth = isMobile ? '95vw' : 520;
   const { refreshPermissions } = usePermissionRefresh();
 

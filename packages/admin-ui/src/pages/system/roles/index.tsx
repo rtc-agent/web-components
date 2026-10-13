@@ -36,19 +36,19 @@ import { getActionTypes, getResourceTypes } from '@/constants/permissions';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { usePermissionRefresh } from '@/hooks/usePermissionRefresh';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import type { PermissionPolicy } from './service';
 import {
   createPermission,
   deletePermission,
   getPermissionList,
-  type PermissionPolicy,
-} from '@/services/permission';
+} from './service';
 import {
   createRole,
   deleteRole,
   getRoleList,
   patchRole,
   updateRole,
-} from '@/services/role';
+} from './service';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import { parseTableSort } from '@/utils/tableUtils';
 import type { RoleFormValues, RoleTableItem } from './data';

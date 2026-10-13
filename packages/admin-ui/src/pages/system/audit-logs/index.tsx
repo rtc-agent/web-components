@@ -1,11 +1,12 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { useIntl, useSearchParams } from '@umijs/max';
-import { App, Grid, Tag, theme } from 'antd';
+import { App, Tag, theme } from 'antd';
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
-import type { AuditLogItem } from '@/services/audit-log';
-import { getAuditLogList } from '@/services/audit-log';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import type { AuditLogItem } from './service';
+import { getAuditLogList } from './service';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import { parseTableSort } from '@/utils/tableUtils';
 import type { AuditLogPageAPI } from './page-api';
@@ -19,8 +20,7 @@ const AuditLogsPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { token } = theme.useToken();
   const { message } = App.useApp();
-  const breakpoint = Grid.useBreakpoint();
-  const isMobile = !breakpoint.md;
+  const isMobile = useIsMobile();
 
   // === Register Page API ===
   usePageAPIRegistration(

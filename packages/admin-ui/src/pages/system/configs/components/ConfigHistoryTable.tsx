@@ -5,11 +5,12 @@ import {
   ProTable,
 } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
-import { App, Button, Grid, Tag } from 'antd';
+import { App, Button, Tag } from 'antd';
 import React, { useMemo, useRef, useState } from 'react';
-import type { ConfigHistoryItem } from '@/services/serverConfig';
+import type { ConfigHistoryItem } from '@/services/server-config';
 import { formatConfigValue, truncateValue } from '@/utils/configFormat';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 export interface ConfigHistoryTableProps {
   /** Whether the modal is open */
@@ -76,8 +77,7 @@ const ConfigHistoryTable: React.FC<ConfigHistoryTableProps> = ({
   const [rollbackModalOpen, setRollbackModalOpen] = useState(false);
   const intl = useIntl();
   const { message } = App.useApp();
-  const breakpoints = Grid.useBreakpoint();
-  const isMobile = !breakpoints.sm;
+  const isMobile = useIsMobile();
   const modalWidth = isMobile ? '95vw' : 800;
 
   const columns = useMemo<ProColumns<ConfigHistoryItem>[]>(
@@ -213,7 +213,16 @@ const ConfigHistoryTable: React.FC<ConfigHistoryTableProps> = ({
                 success: true,
               };
             } catch (error: unknown) {
-              message.error(getFriendlyErrorMessage(error));
+              message.error(
+                getFriendlyErrorMessage(
+                  error,
+                  intl,
+                  intl.formatMessage({
+                    id: 'pages.config.system.historyLoadFailed',
+                    defaultMessage: 'Failed to load history',
+                  }),
+                ),
+              );
               return { data: [], total: 0, success: false };
             }
           }}
@@ -246,7 +255,16 @@ const ConfigHistoryTable: React.FC<ConfigHistoryTableProps> = ({
             actionRef.current?.reload();
             return true;
           } catch (error: unknown) {
-            message.error(getFriendlyErrorMessage(error));
+            message.error(
+              getFriendlyErrorMessage(
+                error,
+                intl,
+                intl.formatMessage({
+                  id: 'pages.config.system.rollbackFailed',
+                  defaultMessage: 'Failed to rollback configuration',
+                }),
+              ),
+            );
             return false;
           }
         }}
