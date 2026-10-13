@@ -20,8 +20,8 @@ type GlobalHeaderRightProps = {
 
 const loginOut = async () => {
   try {
-    // 调用 admin-server 撤销 refresh_token
-    const refreshToken = getRefreshToken();
+    // 调用 admin-server 撤销 refresh_token（异步获取，因为可能需要解密）
+    const refreshToken = await getRefreshToken();
     if (refreshToken) {
       await apiLogout({ refresh_token: refreshToken });
     }

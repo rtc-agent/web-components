@@ -23,6 +23,7 @@
 
 import { refreshToken as apiRefreshToken } from '@/services/admin-auth';
 import type { RoleInfo, UserInfo } from '@/services/types';
+import { encryptToken, decryptToken, clearEncryptionKey } from './token-encryption';
 
 export type { RoleInfo, UserInfo };
 
@@ -54,22 +55,29 @@ function notifyAuthStateChanged() {
  * @param accessToken - 访问令牌
  * @param refreshToken - 刷新令牌
  * @param expiresIn - 访问令牌过期时间（秒）
- * @param refreshTokenExpiresIn - 刷新令牌过期时间（秒），默认 7 天
+ * @param refreshTokenExpiresIn - 刷新令牌过期时间（秒），默认 3 天
  */
-export const setTokens = (
+export const setTokens = async (
   accessToken: string,
   refreshToken: string,
   expiresIn: number,
   refreshTokenExpiresIn: number = DEFAULT_REFRESH_TOKEN_EXPIRY,
 ) => {
   try {
-    localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+    // 加密 access token 和 refresh token
+    const [encryptedAccess, encryptedRefresh] = await Promise.all([
+      encryptToken(accessToken),
+      encryptToken(refreshToken),
+    ]);
+
+    localStorage.setItem(ACCESS_TOKEN_KEY, encryptedAccess);
 
     // 存储 refresh token 及其 rotation 元数据
     const tokenWithRotation = {
-      token: refreshToken,
+      token: encryptedRefresh, // 存储加密后的 token
       rotated: false,
       createdAt: Date.now(),
+      encrypted: true, // 标记此 token 已加密
     };
     localStorage.setItem(REFRESH_TOKEN_KEY, JSON.stringify(tokenWithRotation));
 
@@ -100,7 +108,28 @@ export const setTokens = (
  * 获取 Access Token
  */
 export const getAccessToken = (): string | null => {
-  return localStorage.getItem(ACCESS_TOKEN_KEY);
+  const encrypted = localStorage.getItem(ACCESS_TOKEN_KEY);
+  if (!encrypted) return null;
+
+  // 同步返回，但在使用时异步解密
+  // 为了向后兼容，这里返回加密值，调用方需要调用 decryptToken
+  return encrypted;
+};
+
+/**
+ * 获取 Access Token（异步解密版本）
+ *
+ * @returns 解密后的 access token，如果无效则返回 null
+ */
+export const getAccessTokenDecrypted = async (): Promise<string | null> => {
+  const encrypted = localStorage.getItem(ACCESS_TOKEN_KEY);
+  if (!encrypted) return null;
+
+  try {
+    return await decryptToken(encrypted);
+  } catch {
+    return encrypted; // 降级：返回原值（可能是未加密的旧 token）
+  }
 };
 
 /**
@@ -109,10 +138,11 @@ export const getAccessToken = (): string | null => {
  * 返回原始的 refresh token 字符串，同时验证：
  * 1. Token 未过期
  * 2. Token 未被标记为已使用（rotation 检查）
+ * 3. Token 已解密（如果加密）
  *
  * @returns 原始 refresh token 字符串，如果无效则返回 null
  */
-export const getRefreshToken = (): string | null => {
+export const getRefreshToken = async (): Promise<string | null> => {
   const tokenStr = localStorage.getItem(REFRESH_TOKEN_KEY);
   if (!tokenStr) return null;
 
@@ -121,7 +151,7 @@ export const getRefreshToken = (): string | null => {
 
     // 检查是否为旧格式（纯字符串），兼容历史数据
     if (typeof tokenData === 'string') {
-      return tokenData;
+      return tokenData; // 旧 token 未加密，直接返回
     }
 
     // 检查 token 是否已被标记为已使用（防止重放攻击）
@@ -136,6 +166,12 @@ export const getRefreshToken = (): string | null => {
       return null;
     }
 
+    // 解密 token（如果已加密）
+    if (tokenData.encrypted) {
+      return await decryptToken(tokenData.token);
+    }
+
+    // 未加密的旧 token，直接返回
     return tokenData.token;
   } catch (error) {
     console.error('[getRefreshToken] 解析 token 失败:', error);
@@ -237,6 +273,9 @@ export const clearAuth = () => {
     localStorage.removeItem(REFRESH_TOKEN_EXPIRY_KEY);
     localStorage.removeItem(REFRESH_TOKEN_ROTATION_KEY);
 
+    // 清除加密密钥（防止 sessionStorage 中的密钥被用于解密其他标签页的 token）
+    clearEncryptionKey();
+
     // 通知 auth 状态变化
     notifyAuthStateChanged();
   } catch (error) {
@@ -303,6 +342,12 @@ const markRefreshTokenAsRotated = () => {
  * 3. 刷新失败时清除所有认证信息
  * 4. 超时保护（10 秒）+ AbortController，超时后立即取消 HTTP 请求
  *
+ * 设计权衡：去重优先于激进重试
+ * - 如果刷新请求挂起（超过 10s 超时），refreshPromise 会阻止后续刷新尝试
+ * - 这是有意为之：避免并发刷新导致的 token rotation 冲突
+ * - 超时机制（10s）确保 promise 最终会被清理，不会永久阻塞
+ * - 用户可通过重新登录恢复，无需激进重试
+ *
  * @returns Promise<string | null> 刷新后的 access_token，失败返回 null
  */
 let refreshPromise: Promise<string | null> | null = null;
@@ -310,7 +355,7 @@ let refreshTimeout: NodeJS.Timeout | null = null;
 let refreshAbortController: AbortController | null = null;
 
 export const refreshAccessToken = async (): Promise<string | null> => {
-  const refreshTokenValue = getRefreshToken();
+  const refreshTokenValue = await getRefreshToken();
 
   if (!refreshTokenValue) {
     console.warn('[refreshAccessToken] 未找到有效的 refresh token');

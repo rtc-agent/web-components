@@ -120,7 +120,8 @@ const handleLoginSuccess = async (
 ): Promise<boolean> => {
   if (!result.access_token || !result.refresh_token) return false;
 
-  handlers.setTokensFn(
+  // 异步存储 token（需要加密）
+  await handlers.setTokensFn(
     result.access_token,
     result.refresh_token,
     result.expires_in || 3600,

@@ -2,6 +2,7 @@ import '@testing-library/jest-dom/vitest';
 import { vi } from 'vitest';
 
 const store: Record<string, string> = {};
+const sessionStore: Record<string, string> = {};
 
 const localStorageMock = {
   getItem: vi.fn((key: string) => store[key] ?? null),
@@ -18,7 +19,23 @@ const localStorageMock = {
   }),
 };
 
+const sessionStorageMock = {
+  getItem: vi.fn((key: string) => sessionStore[key] ?? null),
+  setItem: vi.fn((key: string, value: string) => {
+    sessionStore[key] = String(value);
+  }),
+  removeItem: vi.fn((key: string) => {
+    delete sessionStore[key];
+  }),
+  clear: vi.fn(() => {
+    Object.keys(sessionStore).forEach((key) => {
+      delete sessionStore[key];
+    });
+  }),
+};
+
 globalThis.localStorage = localStorageMock as unknown as Storage;
+globalThis.sessionStorage = sessionStorageMock as unknown as Storage;
 
 Object.defineProperty(URL, 'createObjectURL', {
   writable: true,

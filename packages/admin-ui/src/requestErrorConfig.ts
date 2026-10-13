@@ -48,7 +48,11 @@ function sanitizeRequestBody(body: unknown, depth = 0): unknown {
       )
     ) {
       sanitized[key] = '[REDACTED]';
-    } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    } else if (
+      typeof value === 'object' &&
+      value !== null &&
+      !Array.isArray(value)
+    ) {
       // Recursively sanitize nested objects
       sanitized[key] = sanitizeRequestBody(value, depth + 1);
     } else {
@@ -208,14 +212,15 @@ function getTokenExpirationTime(token: string): number | null {
 
 /**
  * Check if token is expired or about to expire.
- * Buffer of 30 seconds to refresh before actual expiration.
+ * Buffer of 60 seconds to refresh before actual expiration.
+ * Increased from 30s to 60s to accommodate slow network conditions.
  */
 function isTokenExpired(token: string): boolean {
   const expirationTime = getTokenExpirationTime(token);
   if (!expirationTime) {
     return false; // Can't parse, assume valid
   }
-  const BUFFER_MS = 30 * 1000; // 30 seconds buffer
+  const BUFFER_MS = 60 * 1000; // 60 seconds buffer - sufficient for slow networks
   return Date.now() >= expirationTime - BUFFER_MS;
 }
 
@@ -404,6 +409,12 @@ export const errorConfig: RequestConfig = {
   },
 
   // 请求拦截器
+  //
+  // Attaches JWT token to request headers.
+  // If token is expired, skip attachment and let 401 handler trigger refresh.
+  //
+  // NOTE: Concurrent refresh prevention is handled by `refreshAccessToken` in utils/auth-storage.ts,
+  // which implements Promise deduplication to ensure only one refresh request is in-flight at a time.
   requestInterceptors: [
     (config: RequestOptions) => {
       // 从 localStorage 获取 JWT token
@@ -439,7 +450,7 @@ export const errorConfig: RequestConfig = {
         url?: string;
         method?: string;
         headers?: Record<string, string>;
-        _retryCount?: number;
+        _responseRetryCount?: number;
       };
     }) => {
       try {
@@ -495,16 +506,16 @@ export const errorConfig: RequestConfig = {
           data?.success === false &&
           data?.errorCode === ApiErrorCodes.UNAUTHORIZED
         ) {
-          // _retryCount tracks attempt count (0 = first attempt, 1 = first retry)
+          // _responseRetryCount tracks attempt count (0 = first attempt, 1 = first retry)
           // Max retry count is 1: allow one retry after token refresh
-          const retryCount = response.config?._retryCount || 0;
+          const retryCount = response.config?._responseRetryCount || 0;
           if (retryCount >= 1) {
             redirectToLogin();
             return Promise.reject(response);
           }
 
-          // 检查是否有 refresh token
-          const refreshTokenValue = getRefreshToken();
+          // 检查是否有 refresh token（异步获取，因为可能需要解密）
+          const refreshTokenValue = await getRefreshToken();
           if (!refreshTokenValue) {
             message.warning(
               getIntl().formatMessage({
@@ -538,7 +549,7 @@ export const errorConfig: RequestConfig = {
                 Authorization: `Bearer ${newToken}`,
               };
               // Increment retry count to prevent infinite loops
-              config._retryCount = retryCount + 1;
+              config._responseRetryCount = retryCount + 1;
 
               // ⚠️ 重要：必须使用 getResponse: true 获取完整 response 对象
               // 原因：响应拦截器需要返回 response 对象（含 .data 属性），umi-request 会从中提取 response.data
@@ -593,7 +604,7 @@ export const errorConfig: RequestConfig = {
       (response: unknown) => response,
       // Error handler: 自动重试网络错误和 5xx 错误
       async (error: {
-        config?: { url?: string; method?: string; _retryCount?: number };
+        config?: { url?: string; method?: string; _requestRetryCount?: number };
         request?: unknown;
         response?: { status: number };
       }) => {
@@ -605,9 +616,9 @@ export const errorConfig: RequestConfig = {
         }
 
         // 检查是否可重试且未达到最大重试次数
-        const retryCount = config._retryCount || 0;
+        const retryCount = config._requestRetryCount || 0;
         if (isRetryableError(error) && retryCount < MAX_RETRIES) {
-          config._retryCount = retryCount + 1;
+          config._requestRetryCount = retryCount + 1;
 
           console.warn(
             `[Retry] Attempt ${retryCount + 1}/${MAX_RETRIES} for ${config.method?.toUpperCase()} ${config.url}`,

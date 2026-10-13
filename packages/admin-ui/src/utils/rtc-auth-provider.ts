@@ -76,7 +76,7 @@ export function createAdminAuthProvider(): AuthProvider {
     getExchangeToken: async (): Promise<string> => {
       // 检查是否需要刷新（提前 5 分钟）
       if (isTokenExpiringSoon()) {
-        const refreshToken = getRefreshToken();
+        const refreshToken = await getRefreshToken(); // 异步获取（可能需要解密）
         if (refreshToken) {
           // 使用统一的刷新函数
           const newToken = await refreshAccessToken();
@@ -117,7 +117,7 @@ export function createAdminAuthProvider(): AuthProvider {
      * 3. 跳转登录页（由调用方处理）
      */
     logout: async (): Promise<void> => {
-      const refreshToken = getRefreshToken();
+      const refreshToken = await getRefreshToken(); // 异步获取（可能需要解密）
       if (refreshToken) {
         try {
           await apiLogout({ refresh_token: refreshToken });
