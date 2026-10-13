@@ -25,6 +25,7 @@ import { useStyles } from './style';
 
 // WELCOME_TEXT is used for typewriter animation, kept as constant
 const WELCOME_TEXT_KEY = 'pages.chatbot.welcomeText';
+const TYPEWRITER_INTERVAL_MS = 80;
 
 const TypewriterTitle: React.FC<{ text: string }> = ({ text }) => {
   const { styles } = useStyles();
@@ -40,7 +41,7 @@ const TypewriterTitle: React.FC<{ text: string }> = ({ text }) => {
         }
         return i + 1;
       });
-    }, 80);
+    }, TYPEWRITER_INTERVAL_MS);
     return () => clearInterval(timer);
   }, [text]);
 

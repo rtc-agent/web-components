@@ -42,7 +42,7 @@ const OfflineBanner: React.FC = () => {
       closable={false}
       style={{
         position: 'fixed',
-        top: 8,
+        top: 'env(safe-area-inset-top, 8px)',
         left: 8,
         right: 8,
         margin: '0 auto',

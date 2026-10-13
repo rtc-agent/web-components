@@ -9,7 +9,7 @@
  */
 
 import { history } from '@umijs/max';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useReducer } from 'react';
 import { isPublicPath } from '@/constants/routes';
 import {
   AUTH_STATE_CHANGED_EVENT,
@@ -22,6 +22,60 @@ import { mountRtcAgent, unmountRtcAgent } from '@/utils/rtc-agent-manager';
 
 // 权限就绪事件名称
 export const PERMISSIONS_READY_EVENT = 'admin-permissions-ready';
+
+// 状态类型定义
+interface GlobalRtcAgentState {
+  isLoggedIn: boolean;
+  isSupported: boolean;
+  permissionsReady: boolean;
+  userInfoReady: boolean;
+  isExcludedRoute: boolean;
+}
+
+// Action 类型定义
+type Action =
+  | { type: 'SET_LOGGED_IN'; payload: boolean }
+  | { type: 'SET_SUPPORTED'; payload: boolean }
+  | { type: 'SET_PERMISSIONS_READY'; payload: boolean }
+  | { type: 'SET_USER_INFO_READY'; payload: boolean }
+  | { type: 'SET_EXCLUDED_ROUTE'; payload: boolean }
+  | { type: 'RESET_ON_LOGOUT' };
+
+// Reducer 函数
+const reducer = (
+  state: GlobalRtcAgentState,
+  action: Action,
+): GlobalRtcAgentState => {
+  switch (action.type) {
+    case 'SET_LOGGED_IN':
+      return { ...state, isLoggedIn: action.payload };
+    case 'SET_SUPPORTED':
+      return { ...state, isSupported: action.payload };
+    case 'SET_PERMISSIONS_READY':
+      return { ...state, permissionsReady: action.payload };
+    case 'SET_USER_INFO_READY':
+      return { ...state, userInfoReady: action.payload };
+    case 'SET_EXCLUDED_ROUTE':
+      return { ...state, isExcludedRoute: action.payload };
+    case 'RESET_ON_LOGOUT':
+      return {
+        ...state,
+        permissionsReady: false,
+        userInfoReady: false,
+      };
+    default:
+      return state;
+  }
+};
+
+// 初始状态
+const initialState: GlobalRtcAgentState = {
+  isLoggedIn: false,
+  isSupported: true,
+  permissionsReady: false,
+  userInfoReady: false,
+  isExcludedRoute: false,
+};
 
 /**
  * 全局 RTC Agent 容器组件
@@ -36,16 +90,19 @@ export const PERMISSIONS_READY_EVENT = 'admin-permissions-ready';
  * 使用事件驱动 + 轮询（备用）检测 auth 状态变化
  */
 export const GlobalRtcAgent: React.FC = () => {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isSupported, setIsSupported] = useState(true);
-  const [permissionsReady, setPermissionsReady] = useState(false);
-  const [userInfoReady, setUserInfoReady] = useState(false);
-  const [isExcludedRoute, setIsExcludedRoute] = useState(false);
+  const [state, dispatch] = useReducer(reducer, initialState);
+  const {
+    isLoggedIn,
+    isSupported,
+    permissionsReady,
+    userInfoReady,
+    isExcludedRoute,
+  } = state;
 
   // 检查当前路由是否需要排除（使用共享的 isPublicPath 函数，避免重复定义公开路由）
   const checkRoute = useCallback(() => {
     const { pathname } = history.location;
-    setIsExcludedRoute(isPublicPath(pathname));
+    dispatch({ type: 'SET_EXCLUDED_ROUTE', payload: isPublicPath(pathname) });
   }, []);
 
   // 检查浏览器是否支持所需特性
@@ -61,7 +118,7 @@ export const GlobalRtcAgent: React.FC = () => {
       console.error(
         '[GlobalRtcAgent] Browser does not support required features',
       );
-      setIsSupported(false);
+      dispatch({ type: 'SET_SUPPORTED', payload: false });
     }
 
     // 初始检查路由
@@ -85,13 +142,8 @@ export const GlobalRtcAgent: React.FC = () => {
   const checkAuth = useCallback(async () => {
     // 如果在排除的路由上，不检查认证状态
     if (isExcludedRoute) {
-      setIsLoggedIn((prev) => {
-        if (prev !== false) {
-          console.log('[GlobalRtcAgent] On excluded route, forcing logout');
-          return false;
-        }
-        return prev;
-      });
+      dispatch({ type: 'SET_LOGGED_IN', payload: false });
+      console.debug('[GlobalRtcAgent] On excluded route, forcing logout');
       return;
     }
 
@@ -105,17 +157,12 @@ export const GlobalRtcAgent: React.FC = () => {
       }
     }
 
-    setIsLoggedIn((prev) => {
-      if (prev !== authenticated) {
-        console.log('[GlobalRtcAgent] Auth state changed:', authenticated);
-        return authenticated;
-      }
-      return prev;
-    });
+    dispatch({ type: 'SET_LOGGED_IN', payload: authenticated });
+    console.debug('[GlobalRtcAgent] Auth state changed:', authenticated);
   }, [isExcludedRoute]);
 
   useEffect(() => {
-    console.log('[GlobalRtcAgent] Component mounted');
+    console.debug('[GlobalRtcAgent] Component mounted');
 
     // 初始检查
     checkAuth();
@@ -128,12 +175,12 @@ export const GlobalRtcAgent: React.FC = () => {
 
     // 监听网络状态变化
     const handleOnline = () => {
-      console.log('[GlobalRtcAgent] Network online');
+      console.debug('[GlobalRtcAgent] Network online');
       // 网络恢复时，如果已登录且 agent 已挂载，组件会自动重连
     };
 
     const handleOffline = () => {
-      console.log('[GlobalRtcAgent] Network offline');
+      console.debug('[GlobalRtcAgent] Network offline');
       // 网络断开时，组件会自动处理重连逻辑
     };
 
@@ -143,10 +190,10 @@ export const GlobalRtcAgent: React.FC = () => {
     // 监听页面可见性变化（优化性能）
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        console.log('[GlobalRtcAgent] Tab hidden');
+        console.debug('[GlobalRtcAgent] Tab hidden');
         // 页面隐藏时，可以减少轮询频率或暂停某些操作
       } else {
-        console.log('[GlobalRtcAgent] Tab visible');
+        console.debug('[GlobalRtcAgent] Tab visible');
         // 页面可见时，立即检查 auth 状态
         checkAuth();
       }
@@ -160,7 +207,7 @@ export const GlobalRtcAgent: React.FC = () => {
     const interval = setInterval(checkAuth, 5000);
 
     return () => {
-      console.log('[GlobalRtcAgent] Component unmounting');
+      console.debug('[GlobalRtcAgent] Component unmounting');
       window.removeEventListener(AUTH_STATE_CHANGED_EVENT, checkAuth);
       window.removeEventListener('storage', checkAuth);
       window.removeEventListener('online', handleOnline);
@@ -172,15 +219,14 @@ export const GlobalRtcAgent: React.FC = () => {
 
   // 路由变化时重新检查认证状态
   useEffect(() => {
-    console.log('[GlobalRtcAgent] Route changed, excluded:', isExcludedRoute);
+    console.debug('[GlobalRtcAgent] Route changed, excluded:', isExcludedRoute);
     checkAuth();
   }, [isExcludedRoute, checkAuth]);
 
   // 等待权限信息和用户信息加载完成
   useEffect(() => {
     if (!isLoggedIn) {
-      setPermissionsReady(false);
-      setUserInfoReady(false);
+      dispatch({ type: 'RESET_ON_LOGOUT' });
       return;
     }
 
@@ -190,13 +236,13 @@ export const GlobalRtcAgent: React.FC = () => {
       const userInfo = getUserInfo();
 
       if (permissions.length > 0) {
-        console.log('[GlobalRtcAgent] Permissions loaded:', permissions);
-        setPermissionsReady(true);
+        console.debug('[GlobalRtcAgent] Permissions loaded:', permissions);
+        dispatch({ type: 'SET_PERMISSIONS_READY', payload: true });
       }
 
       if (userInfo?.id) {
-        console.log('[GlobalRtcAgent] User info loaded:', userInfo.id);
-        setUserInfoReady(true);
+        console.debug('[GlobalRtcAgent] User info loaded:', userInfo.id);
+        dispatch({ type: 'SET_USER_INFO_READY', payload: true });
       }
 
       return permissions.length > 0 && !!userInfo?.id;
@@ -209,7 +255,7 @@ export const GlobalRtcAgent: React.FC = () => {
 
     // 监听权限就绪事件（由 app.tsx 的 fetchUserInfo 成功后触发）
     const handlePermissionsReady = () => {
-      console.log('[GlobalRtcAgent] Permissions ready event received');
+      console.debug('[GlobalRtcAgent] Permissions ready event received');
       checkData();
     };
 
@@ -224,13 +270,13 @@ export const GlobalRtcAgent: React.FC = () => {
           console.warn(
             '[GlobalRtcAgent] Permissions not loaded after 5s, mounting with empty permissions',
           );
-          setPermissionsReady(true);
+          dispatch({ type: 'SET_PERMISSIONS_READY', payload: true });
         }
         if (!userInfoReady) {
           console.warn(
             '[GlobalRtcAgent] User info not loaded after 5s, mounting may use fallback userId',
           );
-          setUserInfoReady(true);
+          dispatch({ type: 'SET_USER_INFO_READY', payload: true });
         }
       }
     }, 100);
@@ -248,7 +294,7 @@ export const GlobalRtcAgent: React.FC = () => {
   // Mount and unmount are in separate effects so that permission/userInfo state changes
   // do not re-trigger unmount calls (which would cause double-unmount).
   useEffect(() => {
-    console.log(
+    console.debug(
       '[GlobalRtcAgent] isLoggedIn:',
       isLoggedIn,
       'permissionsReady:',
@@ -264,10 +310,10 @@ export const GlobalRtcAgent: React.FC = () => {
 
     // 等待权限和用户信息都加载完成再挂载，确保 getUserId() 能返回有效值
     if (isLoggedIn && permissionsReady && userInfoReady) {
-      console.log('[GlobalRtcAgent] Mounting RTC Agent...');
+      console.debug('[GlobalRtcAgent] Mounting RTC Agent...');
       // 从 localStorage 读取管理员权限，传递给 mountRtcAgent 进行 Function 过滤
       const permissions = getUserPermissions();
-      console.log('[GlobalRtcAgent] User permissions:', permissions);
+      console.debug('[GlobalRtcAgent] User permissions:', permissions);
       mountRtcAgent(permissions);
     }
   }, [isLoggedIn, isSupported, permissionsReady, userInfoReady]);
@@ -277,7 +323,7 @@ export const GlobalRtcAgent: React.FC = () => {
   useEffect(() => {
     if (!isSupported) return;
     if (!isLoggedIn) {
-      console.log('[GlobalRtcAgent] Unmounting RTC Agent...');
+      console.debug('[GlobalRtcAgent] Unmounting RTC Agent...');
       unmountRtcAgent();
     }
   }, [isLoggedIn, isSupported]);
@@ -287,7 +333,7 @@ export const GlobalRtcAgent: React.FC = () => {
   // from the tree while logged in.
   useEffect(() => {
     return () => {
-      console.log(
+      console.debug(
         '[GlobalRtcAgent] Component unmounting, cleaning up RTC Agent',
       );
       unmountRtcAgent();

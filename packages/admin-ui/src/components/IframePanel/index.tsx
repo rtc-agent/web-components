@@ -134,6 +134,12 @@ const IframePanel: FC<IframePanelProps> = ({
   useEffect(() => {
     const cachedIframe = iframeCacheManager.getCachedIframe(cacheKey);
 
+    // 当 visible 从 false 变为 true 时，清除错误状态以便重试
+    if (visible && error) {
+      setError(null);
+      setLoading(true);
+    }
+
     if (cachedIframe && containerRef.current) {
       // 验证缓存有效性：若 iframe 已从 DOM 中移除（加载失败被清理），视为缓存失效
       const isCacheValid = cachedIframe.parentNode != null;
@@ -163,7 +169,7 @@ const IframePanel: FC<IframePanelProps> = ({
       iframeRef.current = null;
       clearTimer();
     };
-  }, [cacheKey, src, title, visible, createIframe, clearTimer]);
+  }, [cacheKey, src, title, visible, createIframe, clearTimer, error]);
 
   const loadingText = intl.formatMessage({
     id: 'common.loading',
