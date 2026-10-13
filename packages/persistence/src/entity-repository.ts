@@ -1196,14 +1196,51 @@ export class EntityRepository {
           merged = this.mergeWithExisting(prepared, existingData);
 
           // 7d. bulkPut writes
-          if (merged.sessions.length > 0)
-            await db.sessions.bulkPut(merged.sessions as LocalSession[]);
-          if (merged.turns.length > 0)
-            await db.turns.bulkPut(merged.turns as LocalTurn[]);
-          if (merged.messages.length > 0)
-            await db.messages.bulkPut(merged.messages as LocalMessage[]);
-          if (merged.rtcs.length > 0)
-            await db.rtcs.bulkPut(merged.rtcs as LocalRtc[]);
+          // P0-FIX: Validate data before bulkPut to prevent runtime errors
+          if (merged.sessions.length > 0) {
+            const validSessions = merged.sessions.filter(s => {
+              if (!s.client_id) {
+                log.warn('bulkPut: session missing client_id, skipping');
+                return false;
+              }
+              return true;
+            });
+            if (validSessions.length > 0)
+              await db.sessions.bulkPut(validSessions as LocalSession[]);
+          }
+          if (merged.turns.length > 0) {
+            const validTurns = merged.turns.filter(t => {
+              if (!t.client_id) {
+                log.warn('bulkPut: turn missing client_id, skipping');
+                return false;
+              }
+              return true;
+            });
+            if (validTurns.length > 0)
+              await db.turns.bulkPut(validTurns as LocalTurn[]);
+          }
+          if (merged.messages.length > 0) {
+            const validMessages = merged.messages.filter(m => {
+              if (!m.client_id) {
+                log.warn('bulkPut: message missing client_id, skipping');
+                return false;
+              }
+              return true;
+            });
+            if (validMessages.length > 0)
+              await db.messages.bulkPut(validMessages as LocalMessage[]);
+          }
+          if (merged.rtcs.length > 0) {
+            const validRtcs = merged.rtcs.filter(r => {
+              if (!r.client_id) {
+                log.warn('bulkPut: rtc missing client_id, skipping');
+                return false;
+              }
+              return true;
+            });
+            if (validRtcs.length > 0)
+              await db.rtcs.bulkPut(validRtcs as LocalRtc[]);
+          }
 
           // 7e. bulkDelete deletes
           if (deletes.sessions.length > 0)
@@ -1265,10 +1302,13 @@ export class EntityRepository {
           // This reduces transaction scope and timeout risk for large datasets
           if (merged.sessions.length > 0 || deletes.sessions.length > 0) {
             const txStart = performance.now();
-            const sessionClientIds = merged.sessions.map((s) => s.client_id!);
+            const sessionClientIds = merged.sessions.map((s) => s.client_id!).filter(Boolean);
             await db.transaction('rw', [db.sessions], async () => {
-              if (merged.sessions.length > 0)
-                await db.sessions.bulkPut(merged.sessions as LocalSession[]);
+              if (merged.sessions.length > 0) {
+                const validSessions = merged.sessions.filter(s => s.client_id);
+                if (validSessions.length > 0)
+                  await db.sessions.bulkPut(validSessions as LocalSession[]);
+              }
               if (deletes.sessions.length > 0)
                 await db.sessions.bulkDelete(deletes.sessions);
             });
@@ -1289,10 +1329,13 @@ export class EntityRepository {
 
           if (merged.turns.length > 0 || deletes.turns.length > 0) {
             const txStart = performance.now();
-            const turnClientIds = merged.turns.map((t) => t.client_id!);
+            const turnClientIds = merged.turns.map((t) => t.client_id!).filter(Boolean);
             await db.transaction('rw', [db.turns], async () => {
-              if (merged.turns.length > 0)
-                await db.turns.bulkPut(merged.turns as LocalTurn[]);
+              if (merged.turns.length > 0) {
+                const validTurns = merged.turns.filter(t => t.client_id);
+                if (validTurns.length > 0)
+                  await db.turns.bulkPut(validTurns as LocalTurn[]);
+              }
               if (deletes.turns.length > 0)
                 await db.turns.bulkDelete(deletes.turns);
             });
@@ -1313,10 +1356,13 @@ export class EntityRepository {
 
           if (merged.messages.length > 0 || deletes.messages.length > 0) {
             const txStart = performance.now();
-            const messageClientIds = merged.messages.map((m) => m.client_id!);
+            const messageClientIds = merged.messages.map((m) => m.client_id!).filter(Boolean);
             await db.transaction('rw', [db.messages], async () => {
-              if (merged.messages.length > 0)
-                await db.messages.bulkPut(merged.messages as LocalMessage[]);
+              if (merged.messages.length > 0) {
+                const validMessages = merged.messages.filter(m => m.client_id);
+                if (validMessages.length > 0)
+                  await db.messages.bulkPut(validMessages as LocalMessage[]);
+              }
               if (deletes.messages.length > 0)
                 await db.messages.bulkDelete(deletes.messages);
             });
@@ -1337,10 +1383,13 @@ export class EntityRepository {
 
           if (merged.rtcs.length > 0 || deletes.rtcs.length > 0) {
             const txStart = performance.now();
-            const rtcClientIds = merged.rtcs.map((r) => r.client_id!);
+            const rtcClientIds = merged.rtcs.map((r) => r.client_id!).filter(Boolean);
             await db.transaction('rw', [db.rtcs], async () => {
-              if (merged.rtcs.length > 0)
-                await db.rtcs.bulkPut(merged.rtcs as LocalRtc[]);
+              if (merged.rtcs.length > 0) {
+                const validRtcs = merged.rtcs.filter(r => r.client_id);
+                if (validRtcs.length > 0)
+                  await db.rtcs.bulkPut(validRtcs as LocalRtc[]);
+              }
               if (deletes.rtcs.length > 0)
                 await db.rtcs.bulkDelete(deletes.rtcs);
             });

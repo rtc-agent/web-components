@@ -99,6 +99,10 @@ const ERROR_CATEGORIES: ReadonlySet<string> = new Set<string>([
  *
  * Validates that the data has the required `type` and `data` fields,
  * and that `type` is a known ContentType discriminator.
+ *
+ * Note: `ContentData.data` is typed as `unknown` (generated from OpenAPI oneOf schema).
+ * Always use this guard or the fine-grained guards below (e.g., `isStringContentData`,
+ * `isToolCallInputContent`) instead of manual `as` casts to ensure runtime safety.
  */
 export function isValidContentData(data: unknown): data is ContentData {
   return (
@@ -479,10 +483,49 @@ export function isValidUpdateItem(data: unknown): data is UpdateItem {
 }
 
 /**
+ * Validate UpdateItem data against entity-specific type guards.
+ *
+ * P0-FIX: Provides fine-grained validation for data_list items.
+ * Each item's structure is validated against its corresponding entity type.
+ *
+ * @param item - The UpdateItem containing entity type info
+ * @param data - The data to validate (from data_list)
+ * @returns true if data is valid for the given entity type
+ */
+function isValidUpdateItemData(item: UpdateItem, data: unknown): boolean {
+  // For deleted actions, data is optional (may only contain client_id)
+  if (item.action === 'deleted') {
+    return data === undefined || data === null || isNonNullObject(data);
+  }
+
+  // For created/updated actions, validate against entity-specific guards
+  switch (item.entity) {
+    case 'session':
+      return isValidSession(data);
+    case 'turn':
+      return isValidTurn(data);
+    case 'message':
+      return isValidMessage(data);
+    case 'rtc':
+      return isValidRtc(data);
+    case 'file':
+      // File entities don't have a specific type guard yet
+      // Accept any non-null object
+      return isNonNullObject(data);
+    default:
+      // Unknown entity type - log warning and accept
+      return true;
+  }
+}
+
+/**
  * Type guard for Update.
  *
  * Validates required fields: `id` (string), `items` (UpdateItem[]), `offset` (number).
  * Optional `data_list` is validated to be an array (if present) with length matching items.
+ *
+ * P0-FIX: Enhanced validation - each data_list item is validated against its
+ * corresponding entity type using isValidUpdateItemData.
  */
 export function isValidUpdate(data: unknown): data is Update {
   if (!isNonNullObject(data)) return false;
@@ -503,6 +546,24 @@ export function isValidUpdate(data: unknown): data is Update {
       data.data_list.length !== data.items.length
     ) {
       return false;
+    }
+
+    // P0-FIX: Validate each data_list item against its entity type
+    if (data.data_list.length === data.items.length) {
+      for (let i = 0; i < data.items.length; i++) {
+        const item = data.items[i];
+        const itemData = data.data_list[i];
+
+        // Skip validation for undefined data (allowed for some operations)
+        if (itemData === undefined || itemData === null) {
+          continue;
+        }
+
+        // Validate data structure matches entity type
+        if (!isValidUpdateItemData(item, itemData)) {
+          return false;
+        }
+      }
     }
   }
 

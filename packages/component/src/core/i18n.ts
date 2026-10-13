@@ -42,6 +42,10 @@ export const { getLocale, setLocale: _setLocale } = configureLocalization({
     try {
       return await loader();
     } catch (err) {
+      // P1-FIX: Provide more helpful error message in development
+      if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+        warnMissingTranslation(locale, `Failed to load locale module`);
+      }
       throw new Error(
         `[i18n] Failed to load locale "${locale}": ${err instanceof Error ? err.message : String(err)}`,
       );

@@ -1,6 +1,7 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "globalDependencies": [
+    "pnpm-lock.yaml",
     "tsconfig.base.json",
     ".npmrc",
     "biome.json"
