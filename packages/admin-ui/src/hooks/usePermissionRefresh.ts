@@ -1,5 +1,5 @@
 import { useModel } from '@umijs/max';
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { getCurrentUser } from '@/services/admin-auth';
 import { setUserInfo } from '@/utils/auth-storage';
 import { buildCurrentUser } from '@/utils/permission';
@@ -31,6 +31,13 @@ import { buildCurrentUser } from '@/utils/permission';
 export function usePermissionRefresh() {
   const { setInitialState } = useModel('@@initialState');
   const refreshQueue = useRef<Promise<void>>(Promise.resolve());
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   const refreshPermissions = useCallback(async (options: {
     showErrorMessage?: boolean;
@@ -52,6 +59,11 @@ export function usePermissionRefresh() {
         // Update localStorage (so GlobalRtcAgent can read latest permissions)
         setUserInfo(userInfo);
 
+        // Guard against updating unmounted component state
+        if (!isMounted.current) {
+          return;
+        }
+
         // Update global state (triggers re-render with new permissions)
         await setInitialState((prev) => {
           if (!prev?.currentUser) {
@@ -62,6 +74,11 @@ export function usePermissionRefresh() {
             currentUser: buildCurrentUser(userInfo),
           };
         });
+
+        // Guard against updating unmounted component state
+        if (!isMounted.current) {
+          return;
+        }
 
         // Notify other components (e.g., GlobalRtcAgent) that permissions changed
         window.dispatchEvent(new CustomEvent('admin-permissions-ready'));

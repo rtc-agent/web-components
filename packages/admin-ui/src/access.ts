@@ -97,26 +97,27 @@ export default function access(
   const canServerConfigDelete = perms.has(PERM_SERVER_CONFIG_DELETE);
   const canDashboardView = perms.has(PERM_DASHBOARD_READ);
 
-  // canAdmin 等价于 admin_user:write（需求文档 §6.2）
-  // 使用权限检查替代硬编码角色名，避免后端角色名变更导致前端逻辑失效
-  const canAdmin = perms.has(PERM_ADMIN_USER_WRITE);
+  // canAdmin: 优先检查角色，权限作为 fallback
+  // 设计决策：避免将"管理员用户写权限"等同于"管理员身份"，防止权限提升
+  // 1. 优先检查是否拥有 admin 角色（后端返回的角色信息）
+  // 2. Fallback: 使用权限检查（向后兼容旧后端无角色信息的场景）
+  const isAdminRole = currentUser.roles?.some(
+    (r) => r.name === 'admin' || r.id === 'admin',
+  );
+  const canAdmin = isAdminRole || perms.has(PERM_ADMIN_USER_WRITE);
 
   return {
-    // canAdmin: 等价于 admin_user:write 权限（需求文档 §6.2）
-    // 语义：拥有管理员用户写权限的用户即为"管理员"，可访问 canAdmin 守卫的路由/功能
+    // canAdmin: 优先检查 admin 角色，权限作为 fallback
+    // 设计决策：避免将"管理员用户写权限"等同于"管理员身份"，防止权限提升
+    // 语义：拥有 admin 角色或 admin_user:write 权限的用户可访问 canAdmin 守卫的路由/功能
     canAdmin,
 
     // 系统管理菜单可见性
-    // 需求文档 §9.2：admin 角色或拥有任一系统权限的用户可见
-    // 实现：canAdmin（权限级管理员）或拥有任一系统权限的用户可见
-    // 使用 canAdmin（基于 admin_user:write 权限）替代硬编码角色名 'admin'，
-    // 使权限判断完全基于后端授予的权限而非角色名称，提高可维护性。
-    //
-    // 注意：canSystemView 显式包含 canAdmin，这是防御性保留。
-    // 即使管理员没有配置任何细粒度系统权限（canAdminUserView 等），
-    // 仅凭 canAdmin 也能看到系统管理菜单，确保超级管理员始终可访问。
+    // 需求文档 §9.2：admin 角色或拥有任一系统读权限的用户可见
+    // 实现：admin 角色或拥有任一系统读权限的用户可见
+    // 显式包含 isAdminRole，确保即使未配置细粒度权限的超级管理员也能访问系统菜单。
     canSystemView:
-      canAdmin ||
+      isAdminRole ||
       canAdminUserView ||
       canAdminRoleView ||
       canPermissionView ||
