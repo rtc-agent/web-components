@@ -44,6 +44,19 @@ type PersistenceLayer = ReturnType<typeof createPersistenceLayer>;
  * - Wraps PersistenceLayer, passing through all query/operation methods
  * - Subscribes to UIUpdateBus, broadcasting events to all registered Tab callbacks
  * - Token requests: forwarded to any registered requestToken callback
+ *
+ * PERFORMANCE MONITORING (P2-1):
+ * This class includes performance.mark() calls at critical paths:
+ * - IndexedDB batch operations (batchWriteFiles)
+ * - WebSocket message broadcasting (broadcastUIUpdate)
+ *
+ * For detailed architecture analysis and optimization recommendations,
+ * see: /docs/worker-task-offloading.md
+ *
+ * ARCHITECTURE LIMITATIONS (P2-2):
+ * - JSON serialization still runs on main thread (migration benefit is limited due to Comlink overhead)
+ * - DOM operations cannot be moved to Worker (Window API restriction)
+ * - Large data transfers incur copying overhead (consider Transferable Objects for optimization)
  */
 export class WorkerCore implements WorkerPersistenceCore {
   private layer: PersistenceLayer | null = null;
@@ -644,6 +657,9 @@ export class WorkerCore implements WorkerPersistenceCore {
     );
     const db = getDatabase();
 
+    // P2-1: Performance monitoring for IndexedDB batch operations
+    performance.mark('indexeddb-batch-start');
+
     // Fix 55: Wrap all writes operations in a single transaction to ensure atomicity.
     // If any write fails, the entire batch is rolled back, preventing partial updates.
     // Include ui_updates table to allow UIUpdateBus.publish() to persist events within this transaction.
@@ -735,6 +751,21 @@ export class WorkerCore implements WorkerPersistenceCore {
       oldValue: undefined,
       newValue: { paths: affectedPaths },
     });
+
+    // P2-1: Performance monitoring - measure IndexedDB batch operation duration
+    performance.mark('indexeddb-batch-end');
+    const batchMeasure = performance.measure(
+      'indexeddb-batch',
+      'indexeddb-batch-start',
+      'indexeddb-batch-end',
+    );
+    log.debug(
+      `batchWriteFiles performance: ${batchMeasure.duration.toFixed(2)}ms for ${files.length} files`,
+    );
+    // Clean up performance marks to prevent memory accumulation
+    performance.clearMarks('indexeddb-batch-start');
+    performance.clearMarks('indexeddb-batch-end');
+    performance.clearMeasures('indexeddb-batch');
   }
 
   /**
@@ -878,6 +909,9 @@ export class WorkerCore implements WorkerPersistenceCore {
    * - Sync success + async reject: increment (the async result is the true indicator)
    */
   private broadcastUIUpdate(event: UIUpdateEvent, seq = 0): void {
+    // P2-1: Performance monitoring for WebSocket message processing delay
+    performance.mark('broadcast-start');
+
     const payload = { event, seq };
     const callbacks = Array.from(this.callbacks);
 
@@ -921,11 +955,31 @@ export class WorkerCore implements WorkerPersistenceCore {
 
     // Fire-and-forget: don't await, but log if all callbacks fail
     Promise.allSettled(promises).then((results) => {
+      // P2-1: Performance monitoring - measure broadcast duration
+      performance.mark('broadcast-end');
+      const broadcastMeasure = performance.measure(
+        'broadcast-ui-update',
+        'broadcast-start',
+        'broadcast-end',
+      );
+
       // Optional: log summary for debugging
       const rejected = results.filter((r) => r.status === 'rejected').length;
       if (rejected > 0) {
         log.debug(`broadcastUIUpdate: ${rejected}/${callbacks.length} callbacks rejected`);
       }
+
+      // Log slow broadcasts (>16ms frame budget) for performance debugging
+      if (broadcastMeasure.duration > 16) {
+        log.debug(
+          `broadcastUIUpdate slow: ${broadcastMeasure.duration.toFixed(2)}ms for ${callbacks.length} callbacks`,
+        );
+      }
+
+      // Clean up performance marks to prevent memory accumulation
+      performance.clearMarks('broadcast-start');
+      performance.clearMarks('broadcast-end');
+      performance.clearMeasures('broadcast-ui-update');
     });
   }
 
