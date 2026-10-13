@@ -64,15 +64,42 @@ export interface WorkerCallbacks {
 /**
  * WorkerPersistenceCore: the interface exposed by the Worker side.
  *
+ * This is a composite interface built from smaller, focused sub-interfaces.
+ * Each sub-interface groups related operations for better maintainability and documentation.
+ *
+ * Core responsibilities:
  * - init(): Initialize shared state (only the first Tab actually executes; subsequent calls are idempotent)
  * - registerCallback / unregisterCallback: manage per-Tab callbacks
  * - Other methods pass through to PersistenceLayer
+ *
+ * Interface composition:
+ * - WorkerLifecycleOps: Tab lifecycle management (close, flush)
+ * - WorkerConnectionOps: WebSocket connection management
+ * - WorkerQueryOps: Read-only queries for sessions, messages, RTCs
+ * - WorkerDebugOps: Debug history management
+ * - WorkerOperationOps: Write operations (send message, submit result, etc.)
+ * - WorkerVirtualFSOps: Virtual file system operations
+ * - WorkerFileCacheOps: File cache and S3 operations
  */
-export interface WorkerPersistenceCore {
+export interface WorkerPersistenceCore
+  extends WorkerLifecycleOps,
+    WorkerConnectionOps,
+    WorkerQueryOps,
+    WorkerDebugOps,
+    WorkerOperationOps,
+    WorkerVirtualFSOps,
+    WorkerFileCacheOps {
+  /**
+   * Initialize shared state in the Worker.
+   *
+   * Only the first Tab actually executes initialization; subsequent calls are idempotent.
+   * Must be called after registerCallback() to ensure no events are missed during init.
+   */
   init(config: PersistenceConfig): Promise<void>;
 
   /** Register a Tab's callbacks (called by facade on connect) */
   registerCallback(cb: WorkerCallbacks): void;
+
   /** Unregister a Tab's callbacks */
   unregisterCallback(cb: WorkerCallbacks): void;
 
@@ -106,94 +133,14 @@ export interface WorkerPersistenceCore {
    * SharedWorker started successfully.
    */
   ping(): string;
+}
 
-  // ========== Connection ==========
-  connect(): Promise<void>;
-  disconnect(): void;
-  reconnect(): Promise<void>;
-  getConnectionState(): Promise<ConnectionState>;
-
-  // ========== Queries ==========
-  listSessions(cursor?: string, limit?: number): Promise<LocalSession[]>;
-  getSession(clientId: string): Promise<LocalSession | undefined>;
-  listMessages(
-    sessionClientId: string,
-    cursor?: string,
-    limit?: number,
-    direction?: 'backward' | 'forward',
-  ): Promise<LocalMessage[]>;
-  getMessage(clientId: string): Promise<LocalMessage | undefined>;
-  listRtc(
-    sessionClientId: string,
-    cursor?: number,
-    limit?: number,
-  ): Promise<LocalRtc[]>;
-  getNextRtcToProcess(sessionClientId?: string): Promise<LocalRtc | undefined>;
-
-  // ========== Debug History ==========
-  addDebugHistoryItem(item: DebugHistoryItem): Promise<void>;
-  queryDebugHistory(
-    functionName?: string,
-    cursor?: string,
-    limit?: number,
-  ): Promise<PagedResult<DebugHistoryItem>>;
-  countDebugHistory(functionName?: string): Promise<number>;
-  clearDebugHistory(): Promise<void>;
-  batchDeleteDebugHistory(ids: string[]): Promise<void>;
-
-  // ========== Operations ==========
-  sendMessage(params: {
-    content: ContentData;
-    messageClientId: string;
-    sessionClientId: string;
-  }): Promise<{ session: LocalSession; message: LocalMessage }>;
-
-  /** Insert a local message (not sent to server) */
-  insertLocalMessage(params: {
-    sessionClientId: string;
-    role: 'user' | 'assistant' | 'tool' | 'system';
-    content: string;
-    creatorKind?: string;
-    creatorRefId?: string;
-  }): Promise<LocalMessage>;
-
-  stopTurn(sessionClientId: string): Promise<void>;
-
-  /** Close session (notify backend to stop turn loop) */
-  closeSession(sessionClientId: string): Promise<void>;
-
-  /** Reopen a closed session */
-  openSession(sessionClientId: string): Promise<void>;
-
-  compactSession(
-    sessionClientId: string,
-    customInstruction?: string,
-  ): Promise<void>;
-
-  submitRtcResult(params: {
-    rtcClientId: string;
-    success: boolean;
-    result?: unknown;
-    error?: string;
-  }): Promise<void>;
-
-  forkSession(params: {
-    oldSessionClientId: string;
-    oldMessageClientId: string;
-    newSessionClientId: string;
-    newMessageClientId: string;
-    content: ContentData;
-    limit?: number;
-  }): Promise<{ session: LocalSession; message: LocalMessage }>;
-
-  /** Soft-delete session (local optimistic update + async RPC sync) */
-  deleteSession(sessionClientId: string): Promise<void>;
-
-  /** Update session title (local optimistic update + async RPC sync) */
-  updateSessionTitle(sessionClientId: string, title: string): Promise<void>;
-
-  // ========== Lifecycle ==========
-
+/**
+ * Tab lifecycle operations: managing the connection between a Tab and the SharedWorker.
+ *
+ * Reference counting ensures shared resources are only destroyed when the last Tab disconnects.
+ */
+export interface WorkerLifecycleOps {
   /**
    * Close this Tab's connection to the SharedWorker.
    *
@@ -203,9 +150,181 @@ export interface WorkerPersistenceCore {
    *                         Ensures cleanup even if unregisterCallback failed earlier.
    */
   close(callerCallback?: WorkerCallbacks): Promise<void>;
-  flushAll(): Promise<void>;
 
-  // ========== Additional capabilities ==========
+  /** Flush all pending writes to IndexedDB (used for graceful shutdown). */
+  flushAll(): Promise<void>;
+}
+
+/**
+ * WebSocket connection operations: managing the Centrifuge connection lifecycle.
+ */
+export interface WorkerConnectionOps {
+  /** Establish WebSocket connection to the backend. */
+  connect(): Promise<void>;
+
+  /** Gracefully close the WebSocket connection. */
+  disconnect(): void;
+
+  /** Attempt to re-establish a lost connection. */
+  reconnect(): Promise<void>;
+
+  /** Get the current connection state (for UI indicators). */
+  getConnectionState(): Promise<ConnectionState>;
+}
+
+/**
+ * Read-only query operations: retrieving sessions, messages, and RTCs from IndexedDB.
+ *
+ * All queries are executed in the Worker (which shares IndexedDB with the main thread).
+ */
+export interface WorkerQueryOps {
+  /** List sessions with cursor-based pagination. */
+  listSessions(cursor?: string, limit?: number): Promise<LocalSession[]>;
+
+  /** Get a single session by client ID. */
+  getSession(clientId: string): Promise<LocalSession | undefined>;
+
+  /** List messages for a session with cursor-based pagination. */
+  listMessages(
+    sessionClientId: string,
+    cursor?: string,
+    limit?: number,
+    direction?: 'backward' | 'forward',
+  ): Promise<LocalMessage[]>;
+
+  /** Get a single message by client ID. */
+  getMessage(clientId: string): Promise<LocalMessage | undefined>;
+
+  /** List RTCs (tool calls) for a session. */
+  listRtc(
+    sessionClientId: string,
+    cursor?: number,
+    limit?: number,
+  ): Promise<LocalRtc[]>;
+
+  /** Get the next RTC pending processing (for worker loop). */
+  getNextRtcToProcess(sessionClientId?: string): Promise<LocalRtc | undefined>;
+}
+
+/**
+ * Debug history operations: managing the debug audit log.
+ *
+ * Debug history is persisted in IndexedDB and can be queried for troubleshooting.
+ */
+export interface WorkerDebugOps {
+  /** Add an item to the debug history. */
+  addDebugHistoryItem(item: DebugHistoryItem): Promise<void>;
+
+  /** Query debug history with pagination and optional function filter. */
+  queryDebugHistory(
+    functionName?: string,
+    cursor?: string,
+    limit?: number,
+  ): Promise<PagedResult<DebugHistoryItem>>;
+
+  /** Count debug history items (optionally filtered by function). */
+  countDebugHistory(functionName?: string): Promise<number>;
+
+  /** Clear all debug history (for privacy/compliance). */
+  clearDebugHistory(): Promise<void>;
+
+  /** Batch-delete specific debug history items by ID. */
+  batchDeleteDebugHistory(ids: string[]): Promise<void>;
+}
+
+/**
+ * Write operations: sending messages, submitting results, managing sessions.
+ *
+ * These operations modify state in IndexedDB and may trigger backend RPCs.
+ */
+export interface WorkerOperationOps {
+  /**
+   * Send a message to the backend and persist it locally.
+   *
+   * Returns both the session and message for immediate UI updates.
+   */
+  sendMessage(params: {
+    content: ContentData;
+    messageClientId: string;
+    sessionClientId: string;
+  }): Promise<{ session: LocalSession; message: LocalMessage }>;
+
+  /**
+   * Insert a local-only message (not sent to backend).
+   *
+   * Used for system messages, tool results, or optimistic UI updates.
+   */
+  insertLocalMessage(params: {
+    sessionClientId: string;
+    role: 'user' | 'assistant' | 'tool' | 'system';
+    content: string;
+    creatorKind?: string;
+    creatorRefId?: string;
+  }): Promise<LocalMessage>;
+
+  /** Stop the current turn (cancel ongoing backend processing). */
+  stopTurn(sessionClientId: string): Promise<void>;
+
+  /**
+   * Close a session (notify backend to stop the turn loop).
+   *
+   * This is a graceful shutdown: the session remains in IndexedDB but is marked closed.
+   */
+  closeSession(sessionClientId: string): Promise<void>;
+
+  /** Reopen a previously closed session. */
+  openSession(sessionClientId: string): Promise<void>;
+
+  /**
+   * Compact a session (reduce context size by summarizing old messages).
+   *
+   * Optional customInstruction allows user-guided summarization.
+   */
+  compactSession(
+    sessionClientId: string,
+    customInstruction?: string,
+  ): Promise<void>;
+
+  /**
+   * Submit the result of an RTC (tool call) to the backend.
+   *
+   * Triggers the next iteration of the agent loop.
+   */
+  submitRtcResult(params: {
+    rtcClientId: string;
+    success: boolean;
+    result?: unknown;
+    error?: string;
+  }): Promise<void>;
+
+  /**
+   * Fork a session (create a new session branched from an existing one).
+   *
+   * Used for "try again" or "branch conversation" features.
+   */
+  forkSession(params: {
+    oldSessionClientId: string;
+    oldMessageClientId: string;
+    newSessionClientId: string;
+    newMessageClientId: string;
+    content: ContentData;
+    limit?: number;
+  }): Promise<{ session: LocalSession; message: LocalMessage }>;
+
+  /**
+   * Soft-delete a session (local optimistic update + async backend sync).
+   *
+   * The session is immediately removed from the UI, then deleted from the backend.
+   * If the backend RPC fails, the session is restored locally.
+   */
+  deleteSession(sessionClientId: string): Promise<void>;
+
+  /**
+   * Update a session's title (local optimistic update + async backend sync).
+   *
+   * Similar to deleteSession: immediate local update, eventual backend consistency.
+   */
+  updateSessionTitle(sessionClientId: string, title: string): Promise<void>;
 
   /**
    * Initialize the virtual file system (AGENT.md).
@@ -241,19 +360,32 @@ export interface WorkerPersistenceCore {
    * this method passes the reset call through.
    */
   resetOffset(): Promise<void>;
+}
 
-  // ========== virtualFS proxy (main thread -> Worker) ==========
-
+/**
+ * Virtual file system operations: reading/writing files in IndexedDB-backed VirtualFS.
+ *
+ * All operations are executed in the Worker (which shares IndexedDB).
+ * The main thread cannot directly access IndexedDB, so these are proxied via Comlink.
+ */
+export interface WorkerVirtualFSOps {
   /**
-   * Read a virtual file (executed inside Worker: getDatabase + read).
+   * Read a virtual file.
    *
-   * The main thread cannot directly access IndexedDB;
-   * this method proxies virtualFS.read calls into the Worker.
+   * @param path - File path relative to VirtualFS root
+   * @param offset - Byte offset to start reading (optional)
+   * @param limit - Maximum bytes to read (optional)
    */
   virtualFSRead(path: string, offset?: number, limit?: number): Promise<string>;
 
   /**
-   * Write a virtual file (executed inside Worker).
+   * Write a virtual file.
+   *
+   * @param path - File path relative to VirtualFS root
+   * @param content - File content to write
+   * @param mode - 'overwrite' (replace) or 'append' (add to end)
+   * @param metadataOverride - Optional metadata updates (name, description, tags, etc.)
+   * @returns Number of bytes written
    */
   virtualFSWrite(
     path: string,
@@ -263,17 +395,29 @@ export interface WorkerPersistenceCore {
   ): Promise<number>;
 
   /**
-   * List directory contents (executed inside Worker).
+   * List directory contents.
+   *
+   * @param path - Directory path (omit for root)
+   * @returns Array of file/directory names
    */
   virtualFSLs(path?: string): Promise<string[]>;
 
   /**
-   * Search by file name (executed inside Worker).
+   * Search by file name (glob pattern).
+   *
+   * @param pattern - Glob pattern (e.g., "*.md", "docs/*.txt")
+   * @param path - Base directory to search in (optional)
+   * @returns Array of matching file paths
    */
   virtualFSFind(pattern: string, path?: string): Promise<string[]>;
 
   /**
-   * Search file contents (executed inside Worker).
+   * Search file contents (regex).
+   *
+   * @param pattern - Regex pattern to search for
+   * @param path - Base directory to search in (optional)
+   * @param caseSensitive - Case-sensitive search (default: false)
+   * @param maxResults - Maximum number of matches (optional)
    */
   virtualFSGrep(
     pattern: string,
@@ -283,10 +427,12 @@ export interface WorkerPersistenceCore {
   ): Promise<GrepResult>;
 
   /**
-   * Query files by type (executed inside Worker).
+   * Query files by type metadata field.
    *
    * Return type matches persistence package's FileSystemEntry;
    * Date fields are preserved as Date instances during Comlink transport.
+   *
+   * @param type - Type value to filter by (e.g., "function", "scenario")
    */
   virtualFSQueryByType(type: string): Promise<
     Array<{
@@ -305,25 +451,39 @@ export interface WorkerPersistenceCore {
   >;
 
   /**
-   * Check if a file exists (executed inside Worker).
+   * Check if a file exists.
+   *
+   * @param path - File path to check
    */
   virtualFSExists(path: string): Promise<boolean>;
 
   /**
-   * Delete a file (executed inside Worker).
+   * Delete a file.
+   *
+   * @param path - File path to delete
    */
   virtualFSRemove(path: string): Promise<void>;
+}
 
-  // ========== File Cache & S3 Operations ==========
-
+/**
+ * File cache and S3 operations: managing downloaded files and uploads.
+ *
+ * The file cache uses IndexedDB to store downloaded files locally,
+ * reducing redundant S3 downloads and enabling offline access.
+ *
+ * Upload operations are asynchronous: files are first cached locally (pending),
+ * then uploaded to S3 in the background (syncing -> synced).
+ * Failed uploads can be retried automatically when the network recovers.
+ */
+export interface WorkerFileCacheOps {
   /**
-   * Cache a downloaded file (executed inside Worker).
+   * Cache a downloaded file.
    *
-   * @param md5 File content MD5 hash (32 hex chars)
-   * @param ext File extension
-   * @param blob File content as Blob
-   * @param contentType MIME type
-   * @param ttlMs Time-to-live in milliseconds (default: 7 days)
+   * @param md5 - File content MD5 hash (32 hex chars)
+   * @param ext - File extension
+   * @param blob - File content as Blob
+   * @param contentType - MIME type
+   * @param ttlMs - Time-to-live in milliseconds (default: 7 days)
    */
   cacheFile(
     md5: string,
@@ -334,17 +494,17 @@ export interface WorkerPersistenceCore {
   ): Promise<void>;
 
   /**
-   * Cache a downloaded file with pending sync status (executed inside Worker).
+   * Cache a downloaded file with pending sync status.
    *
    * Similar to cacheFile but records the entry with syncStatus='pending',
    * meaning the file content is cached locally but not yet uploaded to S3.
    * Used for optimistic local caching before upload completes.
    *
-   * @param md5 File content MD5 hash (32 hex chars)
-   * @param ext File extension
-   * @param blob File content as Blob
-   * @param contentType MIME type
-   * @param filename Original filename (optional)
+   * @param md5 - File content MD5 hash (32 hex chars)
+   * @param ext - File extension
+   * @param blob - File content as Blob
+   * @param contentType - MIME type
+   * @param filename - Original filename (optional)
    */
   cacheFilePending(
     md5: string,
@@ -355,29 +515,29 @@ export interface WorkerPersistenceCore {
   ): Promise<void>;
 
   /**
-   * Get a cached file (executed inside Worker).
+   * Get a cached file.
    *
    * Returns null if not found or expired.
    *
-   * @param md5 File content MD5 hash
-   * @param ext File extension
+   * @param md5 - File content MD5 hash
+   * @param ext - File extension
    */
   getCachedFile(md5: string, ext: string): Promise<CachedFileInfo | null>;
 
   /**
-   * Evict all expired cache entries (executed inside Worker).
+   * Evict all expired cache entries.
    *
    * @returns Number of entries evicted
    */
   evictExpiredCache(): Promise<number>;
 
   /**
-   * Evict synced cache entries using LRU strategy (executed inside Worker).
+   * Evict synced cache entries using LRU strategy.
    *
    * Only evicts files with syncStatus='synced'. Pending/failed/syncing files
    * are preserved to prevent data loss.
    *
-   * @param targetBytes Number of bytes to free (default: 100MB)
+   * @param targetBytes - Number of bytes to free (default: 100MB)
    * @returns Actual evicted count and bytes freed
    */
   evictCache(
@@ -385,17 +545,18 @@ export interface WorkerPersistenceCore {
   ): Promise<{ evictedCount: number; evictedBytes: number }>;
 
   /**
-   * Upload a file to S3 (executed inside Worker).
+   * Upload a file to S3.
    *
    * Directly uploads without checking existence (S3 handles overwrite idempotently).
    *
-   * @param md5 File content MD5 hash (32 hex chars)
-   * @param ext File extension
-   * @param blob File content as Blob
-   * @param contentType MIME type (optional)
-   * @param filename Original filename (optional)
-   * @param operationId Unique ID for cancellation (optional, generated by WorkerBridge)
-   * @param onProgress Progress callback (optional)
+   * @param md5 - File content MD5 hash (32 hex chars)
+   * @param ext - File extension
+   * @param blob - File content as Blob
+   * @param contentType - MIME type (optional)
+   * @param filename - Original filename (optional)
+   * @param operationId - Unique ID for cancellation (optional, generated by WorkerBridge)
+   * @param onProgress - Progress callback (optional)
+   * @param cacheTtlMs - Cache TTL in milliseconds (optional)
    * @returns Upload result with sync status information
    */
   uploadFile(
@@ -414,7 +575,7 @@ export interface WorkerPersistenceCore {
   }>;
 
   /**
-   * Download a file from S3 with local caching (executed inside Worker).
+   * Download a file from S3 with local caching.
    *
    * Flow:
    * 1. Check local cache (returns if hit and not expired, unless forceRefresh=true)
@@ -424,11 +585,11 @@ export interface WorkerPersistenceCore {
    *
    * P2-NEW-4 fix: added forceRefresh parameter to bypass local cache
    *
-   * @param md5 File content MD5 hash
-   * @param ext File extension
-   * @param onProgress Progress callback for download (optional)
-   * @param operationId Unique ID for cancellation (optional, generated by WorkerBridge)
-   * @param forceRefresh If true, bypass local cache and download from S3 (optional)
+   * @param md5 - File content MD5 hash
+   * @param ext - File extension
+   * @param onProgress - Progress callback for download (optional)
+   * @param operationId - Unique ID for cancellation (optional, generated by WorkerBridge)
+   * @param forceRefresh - If true, bypass local cache and download from S3 (optional)
    */
   downloadFile(
     md5: string,
@@ -447,47 +608,43 @@ export interface WorkerPersistenceCore {
    *
    * No-op if operationId is not found (e.g., operation already completed).
    *
-   * @param operationId Unique ID returned by WorkerBridge when starting the operation
+   * @param operationId - Unique ID returned by WorkerBridge when starting the operation
    */
   cancelFileOperation(operationId: string): void;
 
   /**
-   * Delete a file from local cache and S3 (executed inside Worker).
+   * Delete a file from local cache and S3.
    *
-   * @param md5 File content MD5 hash
-   * @param ext File extension
+   * @param md5 - File content MD5 hash
+   * @param ext - File extension
    */
   deleteFile(md5: string, ext: string): Promise<void>;
 
-  // ========== MD5 Calculation ==========
-
   /**
-   * Calculate MD5 hash of a Blob (executed inside Worker).
+   * Calculate MD5 hash of a Blob.
    *
    * Runs in the Worker thread to avoid blocking the main thread.
    *
-   * @param blob Blob to calculate MD5 for
+   * @param blob - Blob to calculate MD5 for
    * @returns Promise resolving to 32-character hex MD5 hash
    */
   calculateFileMD5(blob: Blob): Promise<string>;
 
-  // ========== S3 Metadata Operations ==========
-
   /**
-   * Get file metadata from S3 without downloading (executed inside Worker).
+   * Get file metadata from S3 without downloading.
    *
-   * @param md5 File content MD5 hash
-   * @param ext File extension
+   * @param md5 - File content MD5 hash
+   * @param ext - File extension
    * @returns HeadObjectResult with contentLength, contentType, lastModified, etag
    */
   headFile(md5: string, ext: string): Promise<HeadObjectResult>;
 
   /**
-   * Get a presigned URL for file operations (executed inside Worker).
+   * Get a presigned URL for file operations.
    *
-   * @param operation 'get' or 'put'
-   * @param key S3 object key
-   * @param expiresIn Expiration time in seconds (optional)
+   * @param operation - 'get' or 'put'
+   * @param key - S3 object key
+   * @param expiresIn - Expiration time in seconds (optional)
    * @returns Presigned URL string
    */
   getPresignedUrl(
@@ -496,14 +653,12 @@ export interface WorkerPersistenceCore {
     expiresIn?: number,
   ): Promise<string>;
 
-  // ========== File List & Count ==========
-
   /**
-   * List files by sync status (executed inside Worker).
+   * List files by sync status.
    *
-   * @param syncStatus Filter by sync status (optional)
-   * @param limit Maximum number of entries (default: 100)
-   * @param offset Number of entries to skip (default: 0)
+   * @param syncStatus - Filter by sync status (optional)
+   * @param limit - Maximum number of entries (default: 100)
+   * @param offset - Number of entries to skip (default: 0)
    */
   listFiles(
     syncStatus?: FileSyncStatus,
@@ -512,14 +667,14 @@ export interface WorkerPersistenceCore {
   ): Promise<FileCacheEntry[]>;
 
   /**
-   * Count files by sync status (executed inside Worker).
+   * Count files by sync status.
    *
-   * @param syncStatus Filter by sync status (optional)
+   * @param syncStatus - Filter by sync status (optional)
    */
   countFiles(syncStatus?: FileSyncStatus): Promise<number>;
 
   /**
-   * Batch sync all pending/failed files to S3 (executed inside Worker).
+   * Batch sync all pending/failed files to S3.
    *
    * Automatically called when the network comes back online.
    * Can also be called manually to trigger sync.
@@ -567,11 +722,11 @@ export interface WorkerPersistenceCore {
   }>;
 
   /**
-   * Update file metadata (filename, contentType) in the local cache (executed inside Worker).
+   * Update file metadata (filename, contentType) in the local cache.
    *
-   * @param md5 File content MD5 hash
-   * @param ext File extension
-   * @param updates Partial metadata to update (filename and/or contentType)
+   * @param md5 - File content MD5 hash
+   * @param ext - File extension
+   * @param updates - Partial metadata to update (filename and/or contentType)
    */
   updateFileMetadata(
     md5: string,
