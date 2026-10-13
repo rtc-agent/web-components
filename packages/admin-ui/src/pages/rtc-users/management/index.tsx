@@ -82,7 +82,7 @@ const ActionColumn = React.memo<{
         key: 'config',
         label: intl.formatMessage({
           id: 'pages.rtcUsers.config',
-          defaultMessage: 'Configuration',
+          defaultMessage: 'Config',
         }),
         icon: <SettingOutlined />,
         onClick: () => onConfig(record),
@@ -91,7 +91,7 @@ const ActionColumn = React.memo<{
         key: 'sessions',
         label: intl.formatMessage({
           id: 'pages.rtcUsers.viewSessions',
-          defaultMessage: 'Conversation',
+          defaultMessage: 'Sessions',
         }),
         icon: <MessageOutlined />,
         onClick: () => history.push(`/rtc-users/sessions?user_id=${record.id}`),
@@ -524,7 +524,7 @@ const RtcUserManagementPage: React.FC = () => {
           active: {
             text: intl.formatMessage({
               id: 'pages.rtcUsers.statusActive',
-              defaultMessage: 'Normal',
+              defaultMessage: 'Active',
             }),
             status: 'Success',
           },
@@ -547,7 +547,7 @@ const RtcUserManagementPage: React.FC = () => {
                   })
                 : intl.formatMessage({
                     id: 'pages.rtcUsers.statusActive',
-                    defaultMessage: 'Normal',
+                    defaultMessage: 'Active',
                   })}
             </Tag>
           );
