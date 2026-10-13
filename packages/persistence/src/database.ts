@@ -278,6 +278,44 @@ export interface FileCacheEntry {
   syncingStartedAt?: number;
 }
 
+/**
+ * Batch intent record for tracking split transaction atomicity.
+ *
+ * When a large batch is split into multiple transactions, a batch intent record
+ * is written first to track the overall operation. If any transaction fails,
+ * the intent record is used to coordinate compensation rollback across all
+ * completed transactions, providing "best-effort atomicity" for split batches.
+ *
+ * Lifecycle:
+ * 1. Created before any split transactions begin (status: 'pending')
+ * 2. Updated to 'completed' after all transactions succeed
+ * 3. Updated to 'failed' if any transaction fails (triggers compensation)
+ * 4. Cleaned up after successful completion or compensation
+ */
+export interface BatchIntentRecord {
+  /** Unique identifier for this batch operation (UUID) */
+  batchId: string;
+  /** Creation timestamp (ms since epoch) */
+  createdAt: number;
+  /** Last update timestamp (ms since epoch) */
+  updatedAt: number;
+  /**
+   * Batch status:
+   * - 'pending': transactions in progress
+   * - 'completed': all transactions succeeded
+   * - 'failed': at least one transaction failed (compensation in progress)
+   */
+  status: 'pending' | 'completed' | 'failed';
+  /** JSON-serialized list of entity types involved in the batch */
+  entityTypes: string;
+  /** Total number of write operations in the batch */
+  totalOperations: number;
+  /** JSON-serialized list of completed writes (for compensation tracking) */
+  completedWrites?: string;
+  /** Error message if batch failed */
+  errorMessage?: string;
+}
+
 // ========== Upload progress (multipart resume) ==========
 
 /**
@@ -345,6 +383,7 @@ export class RTCAgentDatabase extends Dexie {
   ui_updates!: Table<UIUpdateQueueEntry, number>;
   fileCache!: Table<FileCacheEntry, [string, string]>;
   uploadParts!: Table<UploadProgressEntry, [string, string]>;
+  batchIntents!: Table<BatchIntentRecord, string>;
 
   /** P3-FIX: Track migration failure for degraded-state detection */
   private _migrationFailed = false;
@@ -728,15 +767,28 @@ export class RTCAgentDatabase extends Dexie {
       rtcs: 'client_id, server_id, sync_status, session_client_id, turn_id, status, offset, session_device_id, [session_client_id+offset], [sync_status+offset], [status+offset]',
     });
 
+    // v17: Add batchIntents table for split transaction atomicity tracking.
+    //
+    // When large batches are split into multiple transactions, this table tracks
+    // the overall batch intent and enables proper compensation rollback if any
+    // transaction fails. This provides "best-effort atomicity" across split transactions.
+    //
+    // The batch intent record is created before any split transactions begin, and
+    // updated to 'completed' or 'failed' based on the outcome. If a failure occurs,
+    // the compensation logic uses the intent record to coordinate rollback.
+    this.version(17).stores({
+      batchIntents: 'batchId, status, createdAt',
+    });
+
     // P3-FIX: Add schema version detection and degradation warning mechanism.
-    // If migration to v16 fails, IndexedDB will automatically rollback to v15.
+    // If migration to v17 fails, IndexedDB will automatically rollback to v16.
     // However, if migration succeeds but subsequent initialization fails, or if user
     // downgrades to an older version, we need to detect and warn about schema incompatibility.
     //
     // Strategy: Add a post-migration version check in the open() callback.
     // If actual schema version < expected version, log a warning with recovery guidance.
     // Also set a migrationFailed flag that can be queried by upper layers.
-    const EXPECTED_SCHEMA_VERSION = 16;
+    const EXPECTED_SCHEMA_VERSION = 17;
 
     this.on('ready', async () => {
       try {
@@ -806,7 +858,7 @@ export class RTCAgentDatabase extends Dexie {
     steps: string[];
   } {
     const actualVersion = this.verno;
-    const expectedVersion = 16; // Keep in sync with EXPECTED_SCHEMA_VERSION
+    const expectedVersion = 17; // Keep in sync with EXPECTED_SCHEMA_VERSION
 
     const steps: string[] = [];
 

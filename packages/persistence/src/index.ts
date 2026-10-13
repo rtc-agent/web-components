@@ -1562,6 +1562,14 @@ export class PersistenceLayer implements IPersistenceLayer {
         );
         break;
       }
+
+      // P0-3-FIX: Track freshEntry for consistent error reporting.
+      // The freshEntry is obtained inside the sync lock, but we need it
+      // for accurate error messages if the operation fails.
+      // Note: md5 and ext are part of the composite primary key and don't change,
+      // but we track them for consistency in error reporting.
+      let freshEntryRef: { md5: string; ext: string } | undefined;
+
       try {
         await this.fileCacheRepository.withSyncLock(
           entry.md5,
@@ -1582,11 +1590,19 @@ export class PersistenceLayer implements IPersistenceLayer {
                   to: 'syncing',
                   signal: this._closeSignal,
                   action: async (freshEntry, signal) => {
-                    // P1-003: use freshEntry (re-fetched) instead of stale entry.data
+                    // P0-3-FIX: Capture freshEntry data for consistent error reporting.
+                    // freshEntry.md5 and freshEntry.ext are guaranteed to match entry.md5/ext
+                    // (they are part of the composite primary key), but we track them for
+                    // consistent error messages.
+                    freshEntryRef = {
+                      md5: freshEntry.md5,
+                      ext: freshEntry.ext,
+                    };
+
                     if (freshEntry.blob.size > MULTIPART_THRESHOLD) {
                       await this._uploadMultipart(
-                        entry.md5,
-                        entry.ext,
+                        freshEntry.md5,
+                        freshEntry.ext,
                         freshEntry.blob,
                         freshEntry.contentType,
                         signal,
@@ -1594,8 +1610,8 @@ export class PersistenceLayer implements IPersistenceLayer {
                     } else {
                       await this.s3Client!.upload(
                         this._userId,
-                        entry.md5,
-                        entry.ext,
+                        freshEntry.md5,
+                        freshEntry.ext,
                         freshEntry.blob,
                         {
                           contentType: freshEntry.contentType,
@@ -1629,16 +1645,24 @@ export class PersistenceLayer implements IPersistenceLayer {
       } catch (err) {
         failedCount++;
         const errorMessage = err instanceof Error ? err.message : String(err);
+
+        // P0-3-FIX: Use freshEntry data for error reporting when available.
+        // This ensures consistency between the actual operation and error messages.
+        // freshEntryRef is populated inside the sync lock; if the error occurs after
+        // freshEntry is loaded, we use freshEntry data. Otherwise, fall back to entry.
+        const errorMd5 = freshEntryRef?.md5 ?? entry.md5;
+        const errorExt = freshEntryRef?.ext ?? entry.ext;
+
         // P3-R8-02: Abort scenario — state is 'syncing' (action was cancelled before completion).
         // Leave state unchanged; recoverStaleSyncing will reset on next startup.
         // Do NOT transition to 'failed' — the file data is valid, just not yet synced.
         if (err instanceof Error && err.name === 'AbortError') {
           log.info(
-            `sync aborted for ${entry.md5}.${entry.ext} (lifecycle closing)`,
+            `sync aborted for ${errorMd5}.${errorExt} (lifecycle closing)`,
           );
           failedFiles.push({
-            md5: entry.md5,
-            ext: entry.ext,
+            md5: errorMd5,
+            ext: errorExt,
             errorMessage: 'Aborted',
           });
           continue;
@@ -1646,18 +1670,18 @@ export class PersistenceLayer implements IPersistenceLayer {
         // P3-R5-02: FileSyncTransaction already transitions to 'failed' on operational errors.
         // Only transition here if the state is NOT already 'failed' (e.g., aborted transactions
         // leave state in 'syncing', which we want to mark as 'failed' for retry).
-        const cached = await this.fileCacheRepository.get(entry.md5, entry.ext);
+        const cached = await this.fileCacheRepository.get(errorMd5, errorExt);
         if (cached?.syncStatus !== 'failed') {
           await this.fileCacheRepository.transitionSyncStatus(
-            entry.md5,
-            entry.ext,
+            errorMd5,
+            errorExt,
             ['pending', 'syncing'],
             'failed',
             { errorMessage },
           );
         }
-        failedFiles.push({ md5: entry.md5, ext: entry.ext, errorMessage });
-        log.warn(`Failed to sync ${entry.md5}.${entry.ext}:`, err);
+        failedFiles.push({ md5: errorMd5, ext: errorExt, errorMessage });
+        log.warn(`Failed to sync ${errorMd5}.${errorExt}:`, err);
       }
     }
 

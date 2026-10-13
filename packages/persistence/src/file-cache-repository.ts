@@ -31,14 +31,29 @@ export { FileSyncStatus } from '@rtc-agent/protocol';
  * Cached file information — 所有层（PersistenceLayer、WorkerCore、WorkerBridge）统一使用此类型
  *
  * 包含文件数据（blob）和元数据（content type、同步状态、时间戳、错误信息、重试次数、文件名）。
+ *
+ * Note: md5 and ext are part of the composite primary key in FileCacheEntry.
+ * They are included here for convenience when passing entry objects to callbacks,
+ * avoiding the need to pass md5/ext as separate parameters.
  */
 export interface CachedFileInfo {
+  /** File content MD5 hash (32 hex chars) — part of composite PK */
+  md5: string;
+  /** File extension (e.g., 'txt', 'jpg') — part of composite PK */
+  ext: string;
+  /** File content as Blob */
   blob: Blob;
+  /** MIME type */
   contentType: string;
+  /** Sync status */
   syncStatus: FileSyncStatus;
+  /** Creation timestamp (ms since epoch) */
   createdAt: number;
+  /** Timestamp of last successful sync (ms since epoch) */
   syncedAt?: number;
+  /** Error message from most recent sync failure */
   errorMessage?: string;
+  /** Number of retry attempts for failed syncs */
   retryCount: number;
   /** Original filename (if stored) */
   filename?: string;
@@ -206,6 +221,8 @@ export class FileCacheRepository {
     await db.fileCache.update([md5, ext], { lastAccessedAt: Date.now() });
 
     return {
+      md5,
+      ext,
       blob: entry.data,
       contentType: entry.contentType,
       syncStatus: entry.syncStatus,

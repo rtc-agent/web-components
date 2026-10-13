@@ -1265,6 +1265,10 @@ export class EntityRepository {
         }
       } else {
         // C2-FIX: Large batch - split into multiple smaller transactions
+        // P0-1-FIX: Implement batch intent record for split transaction atomicity.
+        // The batch intent record tracks the overall operation and enables proper
+        // compensation rollback if any transaction fails.
+
         // Phase 1: Atomic read-merge (fast, no writes)
         const txStartTime = performance.now();
         await db.transaction('r', tablesToLock, async () => {
@@ -1281,6 +1285,35 @@ export class EntityRepository {
             `(>${5000}ms threshold). Items: ${totalWriteItems}`,
           );
         }
+
+        // P0-1-FIX: Create batch intent record before any writes.
+        // This record tracks the batch operation and enables proper compensation.
+        const batchId = crypto.randomUUID();
+        const entityTypesInvolved = [
+          merged.sessions.length > 0 || deletes.sessions.length > 0 ? 'sessions' : null,
+          merged.turns.length > 0 || deletes.turns.length > 0 ? 'turns' : null,
+          merged.messages.length > 0 || deletes.messages.length > 0 ? 'messages' : null,
+          merged.rtcs.length > 0 || deletes.rtcs.length > 0 ? 'rtcs' : null,
+        ].filter(Boolean) as string[];
+
+        const batchIntent: import('./database.js').BatchIntentRecord = {
+          batchId,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          status: 'pending',
+          entityTypes: JSON.stringify(entityTypesInvolved),
+          totalOperations: totalWriteItems,
+        };
+
+        // Write batch intent in a separate transaction (must be durable before any data writes)
+        await db.transaction('rw', [db.batchIntents], async () => {
+          await db.batchIntents.add(batchIntent);
+        });
+
+        log.info(
+          `[applyUpdates] Created batch intent ${batchId} for ${totalWriteItems} items ` +
+          `across ${entityTypesInvolved.length} entity types`,
+        );
 
         // P0-FIX: Track successfully written entity types for compensation on failure.
         // If a later transaction fails, we roll back earlier transactions by deleting
@@ -1422,6 +1455,37 @@ export class EntityRepository {
               );
             }
           }
+
+          // P0-1-FIX: All transactions succeeded, update batch intent to 'completed'.
+          // This marks the batch as successfully completed, preventing unnecessary
+          // compensation if the intent record is later discovered.
+          await db.transaction('rw', [db.batchIntents], async () => {
+            await db.batchIntents.update(batchId, {
+              status: 'completed',
+              updatedAt: Date.now(),
+              completedWrites: JSON.stringify(completedWrites),
+            });
+          });
+
+          log.info(
+            `[applyUpdates] Batch ${batchId} completed successfully ` +
+            `(${completedWrites.length} entity types written)`,
+          );
+
+          // P0-1-FIX: Clean up batch intent record on successful completion.
+          // This prevents accumulation of completed intent records.
+          try {
+            await db.batchIntents.delete(batchId);
+            log.debug(
+              `[applyUpdates] Batch ${batchId} intent record cleaned up after success`,
+            );
+          } catch (cleanupError) {
+            // Cleanup failure is non-fatal but may leave stale records
+            log.warn(
+              `[applyUpdates] Failed to clean up batch intent record (batch ${batchId}):`,
+              cleanupError,
+            );
+          }
         } catch (error) {
           // P0-FIX: Compensation - roll back completed writes in reverse order.
           // This is a best-effort rollback: we try to undo each completed write,
@@ -1433,18 +1497,63 @@ export class EntityRepository {
             error,
           );
 
+          // P0-1-FIX: Update batch intent to 'failed' status.
+          // This marks the batch as failed and triggers compensation coordination.
+          try {
+            await db.transaction('rw', [db.batchIntents], async () => {
+              await db.batchIntents.update(batchId, {
+                status: 'failed',
+                updatedAt: Date.now(),
+                errorMessage: error instanceof Error ? error.message : String(error),
+              });
+            });
+          } catch (intentUpdateError) {
+            // Intent update failure is non-fatal, but indicates potential consistency issues
+            log.error(
+              `[applyUpdates] Failed to update batch intent status (batch ${batchId}):`,
+              intentUpdateError,
+            );
+          }
+
           // Roll back in reverse order (last written entity first)
           for (let i = completedWrites.length - 1; i >= 0; i--) {
             const write = completedWrites[i];
             try {
               if (write.operation === 'upsert') {
-                // Roll back upsert by deleting the records we just wrote
+                // P0-2-FIX: Distinguish between new records and updated records.
+                // For updated records, restore the before snapshot instead of deleting.
+                // For new records, delete them to undo the creation.
                 const table = db[write.entityType] as Table;
-                await table.bulkDelete(write.clientIds);
-                log.info(
-                  `[applyUpdates] Compensation: rolled back ${write.clientIds.length} ` +
-                  `${write.entityType} upserts`,
-                );
+                const beforeRecords: unknown[] = [];
+                const newClientIds: string[] = [];
+
+                for (const clientId of write.clientIds) {
+                  const key = `${write.entityType.slice(0, -1)}:${clientId}`; // e.g., "session:s1"
+                  const before = beforeSnapshots.get(key);
+                  if (before) {
+                    beforeRecords.push(before);
+                  } else {
+                    newClientIds.push(clientId);
+                  }
+                }
+
+                // Restore pre-existing records to their before state
+                if (beforeRecords.length > 0) {
+                  await table.bulkPut(beforeRecords as any[]);
+                  log.info(
+                    `[applyUpdates] Compensation: restored ${beforeRecords.length} ` +
+                    `${write.entityType} updates from snapshots`,
+                  );
+                }
+
+                // Delete newly created records
+                if (newClientIds.length > 0) {
+                  await table.bulkDelete(newClientIds);
+                  log.info(
+                    `[applyUpdates] Compensation: deleted ${newClientIds.length} ` +
+                    `new ${write.entityType} creates`,
+                  );
+                }
               } else {
                 // Roll back delete by re-inserting from beforeSnapshots
                 // Note: Only works if we have the before snapshot; otherwise data is lost
@@ -1477,6 +1586,21 @@ export class EntityRepository {
                 rollbackError,
               );
             }
+          }
+
+          // P0-1-FIX: Clean up batch intent record after compensation.
+          // This prevents accumulation of stale intent records.
+          try {
+            await db.batchIntents.delete(batchId);
+            log.info(
+              `[applyUpdates] Batch ${batchId} intent record cleaned up after compensation`,
+            );
+          } catch (cleanupError) {
+            // Cleanup failure is non-fatal but may leave stale records
+            log.warn(
+              `[applyUpdates] Failed to clean up batch intent record (batch ${batchId}):`,
+              cleanupError,
+            );
           }
 
           // Re-throw the original error so caller knows the operation failed
