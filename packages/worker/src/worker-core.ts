@@ -57,8 +57,19 @@ export class WorkerCore implements WorkerPersistenceCore {
   /** Promise-based dedup guard for concurrent init() calls (e.g., React StrictMode). */
   private _initPromise: Promise<void> | null = null;
 
+  /** Promise-based dedup guard for concurrent close() calls from multiple tabs. */
+  private _closePromise: Promise<void> | null = null;
+
   /** Callback sets for all connected Tabs */
   private callbacks = new Set<WorkerCallbacks>();
+
+  /**
+   * Number of currently registered callbacks (connected tabs).
+   * Used by shared-worker.ts to determine if teardown is needed on tab disconnect.
+   */
+  get callbackCount(): number {
+    return this.callbacks.size;
+  }
 
   /**
    * Track consecutive broadcast failures per callback.
@@ -457,6 +468,10 @@ export class WorkerCore implements WorkerPersistenceCore {
    * SharedWorker architecture: all tabs share the same core/layer/database.
    * If other tabs are still connected, skip teardown to avoid breaking their operations.
    *
+   * Concurrent-safe: concurrent close() calls (e.g., multiple tabs closing simultaneously)
+   * share the same teardown Promise. Only the first call performs teardown; subsequent
+   * calls wait for it to complete and return.
+   *
    * @param callerCallback - Optional callback to remove before checking reference count.
    *                         If provided, ensures the callback is removed even if unregisterCallback
    *                         failed earlier, preventing the SharedWorker from being kept alive
@@ -479,6 +494,24 @@ export class WorkerCore implements WorkerPersistenceCore {
       return;
     }
 
+    // Promise-based dedup: concurrent close() calls share the same teardown
+    if (this._closePromise) {
+      log.debug('close() already in progress, reusing existing promise');
+      return this._closePromise;
+    }
+
+    this._closePromise = this._doClose();
+    try {
+      await this._closePromise;
+    } finally {
+      this._closePromise = null;
+    }
+  }
+
+  /**
+   * Internal teardown logic (extracted for Promise-based dedup).
+   */
+  private async _doClose(): Promise<void> {
     log.info('Last tab disconnected, tearing down shared WorkerCore resources');
 
     // Reset UIUpdateBus state to prevent publish() from accessing closed database
@@ -564,10 +597,17 @@ export class WorkerCore implements WorkerPersistenceCore {
    *
    * This is critical for browser environments where setInterval would prevent
    * the SharedWorker from being terminated when no tabs are connected.
+   *
+   * EXCEPTION SAFETY: _cleanupUIUpdateQueue() is async and called without await
+   * (to avoid blocking the event loop). We add .catch() to prevent unhandled
+   * rejections from crashing the Worker.
    */
   private _scheduleCleanup(): void {
     this._cleanupTimer = setTimeout(() => {
-      this._cleanupUIUpdateQueue();
+      // Fire-and-forget async cleanup with error handling
+      this._cleanupUIUpdateQueue().catch((err) => {
+        log.debug('Scheduled UI update queue cleanup failed (non-fatal):', err);
+      });
 
       // Only reschedule if there are still connected tabs
       if (this.callbacks.size > 0) {
@@ -798,78 +838,98 @@ export class WorkerCore implements WorkerPersistenceCore {
   // ========== Internal ==========
 
   /**
-   * Invoke a callback with failure tracking.
-   *
-   * If the callback throws (sync or async), its failure count increments.
-   * After MAX_CONSECUTIVE_FAILURES consecutive failures, the callback is removed
-   * from the Set (dead tab cleanup). On success, the failure count resets to 0.
-   *
-   * This handles abnormal tab disconnections (crash, force-close) where close()
-   * is never called. Without this, dead callbacks accumulate indefinitely.
-   *
-   * @param cb - The callback set to invoke
-   * @param invoke - The function to call with the callback
-   */
-  private _invokeWithFailureTracking(
-    cb: WorkerCallbacks,
-    invoke: (cb: WorkerCallbacks) => void,
-  ): void {
-    try {
-      invoke(cb);
-      // Success: reset failure count
-      this._callbackFailureCounts.delete(cb);
-    } catch (err) {
-      const count = (this._callbackFailureCounts.get(cb) ?? 0) + 1;
-      this._callbackFailureCounts.set(cb, count);
-      log.error(
-        `callback broadcast failed (${count}/${WorkerCore.MAX_CONSECUTIVE_FAILURES}):`,
-        err,
-      );
-      if (count >= WorkerCore.MAX_CONSECUTIVE_FAILURES) {
-        log.warn(
-          `removing dead callback after ${count} consecutive failures (tab likely crashed)`,
-        );
-        this.callbacks.delete(cb);
-        this._callbackFailureCounts.delete(cb);
-      }
-    }
-  }
-
-  /**
    * Broadcast a UIUpdateEvent to all registered Tab callbacks.
    *
-   * Async-safe: if the callback returns a Promise that rejects, the error is caught
-   * and logged rather than becoming an unhandled rejection.
+   * Async-safe: both sync and async errors are tracked via failure counting.
+   * After MAX_CONSECUTIVE_FAILURES consecutive failures (sync or async), the
+   * callback is removed to prevent unbounded accumulation of dead tab callbacks.
    *
-   * Performance note: Checks for `.then` instead of `.catch` to avoid triggering
-   * postMessage roundtrips on Comlink proxies in high-frequency broadcast scenarios.
+   * CRITICAL: This method tracks async failures explicitly. Comlink-proxied callbacks
+   * ALWAYS return Promises, so sync errors are essentially impossible. Without async
+   * failure tracking, dead tab callbacks would never be cleaned up.
    *
-   * Historical note: The synchronous path (checking for `.then`) appears to be dead code
-   * in the current Comlink-based architecture, as all callbacks are now proxied via Comlink
-   * and return Promises. However, this check is preserved for backward compatibility:
-   * - Legacy code may register non-Promise-returning callbacks
-   * - Future architectural changes might reintroduce sync callbacks
-   * - The runtime cost is negligible (single `.then` property check)
+   * Failure count lifecycle:
+   * - Sync throw: increment immediately
+   * - Async rejection: increment in .catch()
+   * - Sync success + async resolve: reset to 0
+   * - Sync success + async reject: increment (the async result is the true indicator)
    */
   private broadcastUIUpdate(event: UIUpdateEvent, seq = 0): void {
     const payload = { event, seq };
     for (const cb of this.callbacks) {
-      this._invokeWithFailureTracking(cb, (cb) => {
+      try {
         const result = cb.onUIUpdate(payload);
-        // Check for Promise-like return value using .then (safer than .catch for Comlink proxies)
-        // Note: In current Comlink architecture, this always returns a Promise, but we keep
-        // the check for backward compatibility and defensive programming.
+        // Check for Promise-like return value (Comlink proxies always return Promises)
         if (
           result &&
           typeof result === 'object' &&
           typeof (result as any).then === 'function'
         ) {
-          (result as Promise<void>).catch((err) => {
-            log.error('onUIUpdate callback async error:', err);
-          });
+          // Async path: track success/failure when the Promise settles
+          (result as Promise<void>).then(
+            () => {
+              // Async success: reset failure count
+              this._callbackFailureCounts.delete(cb);
+            },
+            (err) => {
+              // Async failure: track via failure counting mechanism
+              this._recordAsyncFailure(cb, err);
+            },
+          );
+        } else {
+          // Sync success (non-Promise return): reset failure count immediately
+          this._callbackFailureCounts.delete(cb);
         }
-      });
+      } catch (err) {
+        // Sync failure: track via standard mechanism
+        this._recordSyncFailure(cb, err);
+      }
     }
+  }
+
+  /**
+   * Record a sync failure for a callback and remove it if threshold is exceeded.
+   */
+  private _recordSyncFailure(cb: WorkerCallbacks, err: unknown): void {
+    const count = (this._callbackFailureCounts.get(cb) ?? 0) + 1;
+    this._callbackFailureCounts.set(cb, count);
+    log.error(
+      `callback sync broadcast failed (${count}/${WorkerCore.MAX_CONSECUTIVE_FAILURES}):`,
+      err,
+    );
+    if (count >= WorkerCore.MAX_CONSECUTIVE_FAILURES) {
+      this._removeDeadCallback(cb, count, 'sync');
+    }
+  }
+
+  /**
+   * Record an async failure for a callback and remove it if threshold is exceeded.
+   */
+  private _recordAsyncFailure(cb: WorkerCallbacks, err: unknown): void {
+    const count = (this._callbackFailureCounts.get(cb) ?? 0) + 1;
+    this._callbackFailureCounts.set(cb, count);
+    log.error(
+      `callback async broadcast failed (${count}/${WorkerCore.MAX_CONSECUTIVE_FAILURES}):`,
+      err,
+    );
+    if (count >= WorkerCore.MAX_CONSECUTIVE_FAILURES) {
+      this._removeDeadCallback(cb, count, 'async');
+    }
+  }
+
+  /**
+   * Remove a callback after exceeding the consecutive failure threshold.
+   */
+  private _removeDeadCallback(
+    cb: WorkerCallbacks,
+    count: number,
+    mode: 'sync' | 'async',
+  ): void {
+    log.warn(
+      `removing dead callback after ${count} consecutive ${mode} failures (tab likely crashed)`,
+    );
+    this.callbacks.delete(cb);
+    this._callbackFailureCounts.delete(cb);
   }
 
   /**
@@ -877,6 +937,8 @@ export class WorkerCore implements WorkerPersistenceCore {
    *
    * P0-2 fix: emits a UIUpdateEvent so the UI can react to sync status changes
    * (e.g., show spinner for 'syncing', checkmark for 'synced', error icon for 'failed').
+   *
+   * Uses broadcastUIUpdate internally, which handles async failure tracking correctly.
    */
   private _broadcastFileSyncStatus(
     md5: string,
@@ -896,6 +958,10 @@ export class WorkerCore implements WorkerPersistenceCore {
 
   /**
    * Broadcast gap fill state change to all registered Tab callbacks.
+   *
+   * CRITICAL: Comlink proxies all callbacks to return Promises, even void-returning ones.
+   * We explicitly handle Promise rejections to track failures and clean up dead callbacks.
+   * Without this, unhandled rejections occur when tabs crash mid-broadcast.
    */
   private broadcastGapFillState(isSyncing: boolean): void {
     log.debug(
@@ -905,14 +971,28 @@ export class WorkerCore implements WorkerPersistenceCore {
       this.callbacks.size,
     );
     for (const cb of this.callbacks) {
-      this._invokeWithFailureTracking(cb, (cb) => {
-        cb.onGapFillState(isSyncing);
-      });
+      try {
+        const result = cb.onGapFillState(isSyncing);
+        // Handle Comlink proxy: void-returning functions return Promise<void>
+        if (result && typeof result === 'object' && typeof (result as any).then === 'function') {
+          (result as Promise<void>).then(
+            () => { this._callbackFailureCounts.delete(cb); },
+            (err) => { this._recordAsyncFailure(cb, err); },
+          );
+        } else {
+          this._callbackFailureCounts.delete(cb);
+        }
+      } catch (err) {
+        this._recordSyncFailure(cb, err);
+      }
     }
   }
 
   /**
    * Broadcast account banned notification to all registered Tab callbacks.
+   *
+   * CRITICAL: Comlink proxies all callbacks to return Promises, even void-returning ones.
+   * We explicitly handle Promise rejections to track failures and clean up dead callbacks.
    */
   private broadcastAccountBanned(reason: string): void {
     log.warn(
@@ -922,9 +1002,20 @@ export class WorkerCore implements WorkerPersistenceCore {
       this.callbacks.size,
     );
     for (const cb of this.callbacks) {
-      this._invokeWithFailureTracking(cb, (cb) => {
-        cb.onAccountBanned(reason);
-      });
+      try {
+        const result = cb.onAccountBanned(reason);
+        // Handle Comlink proxy: void-returning functions return Promise<void>
+        if (result && typeof result === 'object' && typeof (result as any).then === 'function') {
+          (result as Promise<void>).then(
+            () => { this._callbackFailureCounts.delete(cb); },
+            (err) => { this._recordAsyncFailure(cb, err); },
+          );
+        } else {
+          this._callbackFailureCounts.delete(cb);
+        }
+      } catch (err) {
+        this._recordSyncFailure(cb, err);
+      }
     }
   }
 
@@ -1027,6 +1118,9 @@ export class WorkerCore implements WorkerPersistenceCore {
 
   /**
    * Broadcast a connection state change to all registered Tab callbacks.
+   *
+   * CRITICAL: Comlink proxies all callbacks to return Promises, even void-returning ones.
+   * We explicitly handle Promise rejections to track failures and clean up dead callbacks.
    */
   private broadcastConnectionState(event: ConnectionStateEvent): void {
     log.debug(
@@ -1038,9 +1132,20 @@ export class WorkerCore implements WorkerPersistenceCore {
       this.callbacks.size,
     );
     for (const cb of this.callbacks) {
-      this._invokeWithFailureTracking(cb, (cb) => {
-        cb.onConnectionStateChange(event);
-      });
+      try {
+        const result = cb.onConnectionStateChange(event);
+        // Handle Comlink proxy: void-returning functions return Promise<void>
+        if (result && typeof result === 'object' && typeof (result as any).then === 'function') {
+          (result as Promise<void>).then(
+            () => { this._callbackFailureCounts.delete(cb); },
+            (err) => { this._recordAsyncFailure(cb, err); },
+          );
+        } else {
+          this._callbackFailureCounts.delete(cb);
+        }
+      } catch (err) {
+        this._recordSyncFailure(cb, err);
+      }
     }
   }
 

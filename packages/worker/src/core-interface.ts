@@ -44,17 +44,21 @@ export interface UIUpdatePayload {
  * - onStateGap: Catch-up detected a gap in events (TTL cleanup deleted missed events).
  *               The tab should trigger a full state refresh to recover.
  * - onAccountBanned: Worker broadcasts account ban notification (disconnect code 4501) to this Tab
+ *
+ * CRITICAL: All callbacks may return void or Promise<void>. Comlink proxies always wrap
+ * returns in Promises (even for void-returning functions), so WorkerCore must handle
+ * both sync and async results for proper failure tracking.
  */
 export interface WorkerCallbacks {
   onUIUpdate: (payload: UIUpdatePayload) => Promise<void> | void;
   requestToken: () => Promise<string>;
   requestTokenRefresh: () => Promise<'refresh' | 'relogin'>;
-  onConnectionStateChange: (event: ConnectionStateEvent) => void;
-  onGapFillState: (isSyncing: boolean) => void;
+  onConnectionStateChange: (event: ConnectionStateEvent) => Promise<void> | void;
+  onGapFillState: (isSyncing: boolean) => Promise<void> | void;
   /** Called when catch-up detects a gap in events (e.g., TTL cleanup deleted missed events). */
-  onStateGap: () => void;
+  onStateGap: () => Promise<void> | void;
   /** Called when the user's account is banned (disconnect code 4501). Required: ban is a security-critical event that must not be silently dropped. */
-  onAccountBanned: (reason: string) => void;
+  onAccountBanned: (reason: string) => Promise<void> | void;
 }
 
 /**

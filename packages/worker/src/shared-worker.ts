@@ -1,6 +1,9 @@
 import { expose } from 'comlink';
 import { WorkerCore } from './worker-core.js';
 import type { WorkerCallbacks } from './core-interface.js';
+import { createLogger } from '@rtc-agent/protocol';
+
+const log = createLogger('SharedWorker');
 
 /**
  * SharedWorker entry point.
@@ -20,10 +23,41 @@ const sharedSelf = self as unknown as SharedWorkerGlobalScope;
 sharedSelf.onconnect = (e: MessageEvent): void => {
   const port = e.ports[0];
 
+  // Track the callback registered by this tab for cleanup on abnormal disconnect.
+  // When a tab crashes or is force-closed, the port fires a 'close' event.
+  // Without cleanup, the Worker retains a reference to the dead tab's callback,
+  // causing memory leaks and broadcast errors until _invokeWithFailureTracking
+  // eventually removes it (which only happens during active broadcasting).
+  let registeredCallback: WorkerCallbacks | null = null;
+
+  port.addEventListener('close', () => {
+    log.debug('Tab disconnected, cleaning up callbacks');
+    if (registeredCallback) {
+      core.unregisterCallback(registeredCallback);
+      registeredCallback = null;
+    }
+    // Also trigger reference-counted teardown if this was the last tab.
+    // core.close() without a callback argument just checks reference count
+    // and tears down shared resources if no tabs remain.
+    if (core.callbackCount === 0) {
+      core.close().catch((err) => {
+        log.debug('Tab disconnect cleanup failed (non-fatal):', err);
+      });
+    }
+  });
+
   const facade = {
     init: (config: Parameters<WorkerCore['init']>[0]) => core.init(config),
-    registerCallback: (cb: WorkerCallbacks) => core.registerCallback(cb),
-    unregisterCallback: (cb: WorkerCallbacks) => core.unregisterCallback(cb),
+    registerCallback: (cb: WorkerCallbacks) => {
+      core.registerCallback(cb);
+      registeredCallback = cb;
+    },
+    unregisterCallback: (cb: WorkerCallbacks) => {
+      core.unregisterCallback(cb);
+      if (registeredCallback === cb) {
+        registeredCallback = null;
+      }
+    },
     getCatchUpEvents: (...args: Parameters<WorkerCore['getCatchUpEvents']>) =>
       core.getCatchUpEvents(...args),
 

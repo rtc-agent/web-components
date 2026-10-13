@@ -128,6 +128,20 @@ export class UIUpdateBus {
    *    async listener invocations, each taking >10ms to complete)
    */
   private static readonly MAX_PROCESSING_CHAINS = 5000;
+  /**
+   * Hard limit for _batchEvents array size during batch mode.
+   *
+   * Batch mode is used for gap fill operations that may process thousands of events.
+   * Without a limit, a very large gap fill (e.g., tab offline for hours) could collect
+   * millions of events in memory, potentially crashing the tab.
+   *
+   * When the limit is exceeded, publish() drops the event with an error log.
+   * This is safe because batch mode events are not individually critical —
+   * they're summarized into a BulkUpdateEvent for UI reload.
+   *
+   * 10,000 events is generous: typical gap fills process 100-1000 events.
+   */
+  private static readonly MAX_BATCH_EVENTS = 10_000;
   /** Collected events during suspend */
   private _suspendedEvents: UIUpdateEvent[] = [];
   /** Track which entities were updated during suspend */
@@ -443,6 +457,15 @@ export class UIUpdateBus {
   ): Promise<void> {
     // Batch mode: collect events without persisting or dispatching
     if (this._batchMode) {
+      // Memory safety: reject if batch events exceed threshold
+      if (this._batchEvents.length >= UIUpdateBus.MAX_BATCH_EVENTS) {
+        log.error(
+          `Batch events limit exceeded (${UIUpdateBus.MAX_BATCH_EVENTS}). ` +
+            `Dropping event for ${event.entity}:${event.entityId} to prevent memory exhaustion. ` +
+            `This indicates an unusually large gap fill operation.`,
+        );
+        return;
+      }
       this._batchEvents.push(event);
       return;
     }
