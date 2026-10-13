@@ -11,7 +11,6 @@
     "**/*.test.ts",
     "**/*.test.tsx",
     "**/*.integration.test.ts",
-    "**/test-setup.ts",
-    "**/test-utils/**"
+    "**/test-setup.ts"
   ]
 }
