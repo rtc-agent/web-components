@@ -1667,6 +1667,12 @@ export class RtcAgent extends LitElement {
     this._connectGeneration++;
     this._connecting = undefined;
 
+    // Clear FileStorage reference to prevent stale WorkerBridge access after reconnect.
+    // PersistenceController.disconnect() clears its own _fileStorage; we must clear ours
+    // so _initializeFileStorage() creates a fresh instance on the next connection cycle.
+    this._fileStorage = null;
+    this._fileStorageValue = undefined;
+
     // Clear all auto-save timers
     for (const timer of this._autoSaveTimers.values()) {
       clearTimeout(timer);
@@ -1686,6 +1692,10 @@ export class RtcAgent extends LitElement {
     // Using updateComplete ensures we don't trigger change-in-update warnings
     void this.updateComplete
       .then(() => {
+        // Guard: component may have been disconnected while updateComplete was pending.
+        // Skip context sync to avoid wasted work on a detached element.
+        if (this._isDestroyed) return;
+
         this._sessionProvider.setValue(this._session.value);
         this._messageProvider.setValue(this._message.value);
         this._toolCallProvider.setValue(this._toolCall.value);

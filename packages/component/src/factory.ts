@@ -402,6 +402,12 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
       element._eventBusUnsubscribes = undefined;
     }
 
+    // 5. Close BroadcastChannel to prevent orphaned message handlers and timers.
+    // hostDisconnected keeps the channel open for React StrictMode remount,
+    // but factory.destroy() is permanent — close it to prevent cross-tab
+    // coordination from firing on a detached element.
+    element.authController?.closeBroadcastChannel?.();
+
     // NOTE: We intentionally do NOT clear localStorage tokens here.
     // Reason: destroy() is called during Vite HMR (Hot Module Replacement),
     // and clearing tokens would log the user out on every code change.

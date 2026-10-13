@@ -283,6 +283,8 @@ export class MessageController implements ReactiveController {
     // disconnected host. Without this, in-flight UIUpdateBus updates for
     // sessions that were evicted could still call host.requestUpdate().
     this._sessionUpdateChains.clear();
+    // Cancel any in-flight streaming to prevent stale updates after reconnect.
+    this._cancelStreaming();
   }
 
   /**

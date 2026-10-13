@@ -364,6 +364,30 @@ export class AuthController implements ReactiveController {
   }
 
   /**
+   * Close the BroadcastChannel and clean up cross-tab coordination state.
+   *
+   * Called by the factory's destroy() for permanent cleanup. Unlike hostDisconnected
+   * (which keeps the channel open for React StrictMode remount), this method
+   * unconditionally closes the channel to prevent orphaned message handlers
+   * and timers after the element is permanently removed from the DOM.
+   *
+   * Safe to call multiple times — no-op if the channel is already closed.
+   */
+  closeBroadcastChannel(): void {
+    if (this._refreshChannel) {
+      this._refreshChannel.close();
+      this._refreshChannel = undefined;
+    }
+    // Resolve any pending deferred refresh to unblock awaiters
+    if (this._deferredRefresh) {
+      this._deferredResolve?.(false);
+      this._deferredResolve = undefined;
+      this._deferredRefresh = undefined;
+    }
+    this._refreshStartTime = undefined;
+  }
+
+  /**
    * Convenience: trigger login directly on the controller.
    *
    * Design exception for AuthController: `login`/`logout` are exposed at the
