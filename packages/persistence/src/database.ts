@@ -368,64 +368,94 @@ export class RTCAgentDatabase extends Dexie {
         // NOTE: Dexie's upgrade() runs within a transaction. If any error occurs,
         // Dexie automatically rolls back the entire transaction. No manual backup/restore needed.
 
+        // M1-FIX: Process data in batches to avoid loading all records into memory at once
+        const BATCH_SIZE = 1000;
+
         // 1. Migrate sessions table first, building server_id -> client_id mapping
         //    (other tables need to reference session by client_id)
         const sessionsTable = tx.table('sessions');
-        const allSessions = await sessionsTable.toArray();
-        await sessionsTable.clear();
-
         const sessionIdMap = new Map<string, string>(); // server_id -> client_id
 
-        for (const row of allSessions) {
-          const r = row as Record<string, unknown>;
-          const oldId = r['id'] as string | undefined;
-          const oldClientId = r['client_id'] as string | undefined;
+        // Process sessions in batches
+        let sessionsOffset = 0;
+        while (true) {
+          const sessionBatch = await sessionsTable
+            .orderBy('id')
+            .offset(sessionsOffset)
+            .limit(BATCH_SIZE)
+            .toArray();
 
-          const newClientId = oldClientId || oldId || crypto.randomUUID();
-          if (oldId) {
-            sessionIdMap.set(oldId, newClientId);
-          }
+          if (sessionBatch.length === 0) break;
 
-          const newRow: Record<string, unknown> = { ...r };
-          newRow['client_id'] = newClientId;
-          newRow['server_id'] = oldId;
-          delete newRow['id'];
-
-          await sessionsTable.add(newRow);
-        }
-
-        // 2. Migrate other tables (turns/messages/rtcs)
-        for (const name of ['turns', 'messages', 'rtcs'] as const) {
-          const table = tx.table(name);
-          const allRows = await table.toArray();
-
-          await table.clear();
-
-          for (const row of allRows) {
+          for (const row of sessionBatch) {
             const r = row as Record<string, unknown>;
             const oldId = r['id'] as string | undefined;
             const oldClientId = r['client_id'] as string | undefined;
-            const oldSessionId = r['session_id'] as string | undefined;
+
+            const newClientId = oldClientId || oldId || crypto.randomUUID();
+            if (oldId) {
+              sessionIdMap.set(oldId, newClientId);
+            }
 
             const newRow: Record<string, unknown> = { ...r };
-
-            // client_id: prefer old value, fall back to crypto.randomUUID() to avoid empty PK collision
-            newRow['client_id'] = oldClientId || oldId || crypto.randomUUID();
-            // server_id: preserve old server UUID
+            newRow['client_id'] = newClientId;
             newRow['server_id'] = oldId;
             delete newRow['id'];
 
-            // session_id -> session_client_id: resolve via session mapping
-            if (oldSessionId) {
-              const sessionClientId = sessionIdMap.get(oldSessionId);
-              newRow['session_client_id'] = sessionClientId || oldSessionId;
-            } else {
-              newRow['session_client_id'] = '';
-            }
-            delete newRow['session_id'];
-
-            await table.add(newRow);
+            await sessionsTable.add(newRow);
           }
+
+          sessionsOffset += BATCH_SIZE;
+        }
+
+        // Clear old sessions after migration
+        await sessionsTable.clear();
+
+        // 2. Migrate other tables (turns/messages/rtcs) in batches
+        for (const name of ['turns', 'messages', 'rtcs'] as const) {
+          const table = tx.table(name);
+          let offset = 0;
+
+          while (true) {
+            const batch = await table
+              .orderBy('id')
+              .offset(offset)
+              .limit(BATCH_SIZE)
+              .toArray();
+
+            if (batch.length === 0) break;
+
+            for (const row of batch) {
+              const r = row as Record<string, unknown>;
+              const oldId = r['id'] as string | undefined;
+              const oldClientId = r['client_id'] as string | undefined;
+              const oldSessionId = r['session_id'] as string | undefined;
+
+              const newRow: Record<string, unknown> = { ...r };
+
+              // client_id: prefer old value, fall back to crypto.randomUUID() to avoid empty PK collision
+              newRow['client_id'] = oldClientId || oldId || crypto.randomUUID();
+              // server_id: preserve old server UUID
+              newRow['server_id'] = oldId;
+              delete newRow['id'];
+
+              // session_id -> session_client_id: resolve via session mapping
+              if (oldSessionId) {
+                const sessionClientId = sessionIdMap.get(oldSessionId);
+                newRow['session_client_id'] = sessionClientId || oldSessionId;
+              } else {
+                newRow['session_client_id'] = '';
+              }
+              delete newRow['session_id'];
+
+              await table.add(newRow);
+            }
+
+            offset += BATCH_SIZE;
+          }
+
+          // Clear old table after migration
+          await table.clear();
         }
       });
 

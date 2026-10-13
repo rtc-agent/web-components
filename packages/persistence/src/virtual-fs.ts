@@ -21,6 +21,9 @@ import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('VirtualFS');
 
+// C3-FIX: File size limit to prevent abuse and memory issues
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
 /**
  * Path-related error.
  */
@@ -206,6 +209,7 @@ export class VirtualFS {
    * @param mode Write mode: overwrite, append, or create-new (skip if file exists)
    * @param metadataOverride Optional partial metadata override
    * @returns Total character count of the file after write; in create-new mode returns existing file length if file already exists
+   * @throws Error if content exceeds MAX_FILE_SIZE (10MB) or contains invalid characters
    */
   async write(
     path: string,
@@ -213,6 +217,18 @@ export class VirtualFS {
     mode: 'overwrite' | 'append' | 'create-new' = 'overwrite',
     metadataOverride?: Partial<FileSystemEntryMetadata>,
   ): Promise<number> {
+    // C3-FIX: Validate content size to prevent abuse and memory issues
+    if (content.length > MAX_FILE_SIZE) {
+      throw new Error(
+        `File content exceeds maximum size limit of ${MAX_FILE_SIZE} bytes (current: ${content.length} bytes)`,
+      );
+    }
+
+    // C3-FIX: Basic content validation - check for null bytes which could indicate corruption
+    if (content.includes('\0')) {
+      throw new Error('File content contains null bytes, which is not allowed');
+    }
+
     const normalizedPath = normalizePath(path);
     const db = getDatabase();
 
@@ -235,6 +251,12 @@ export class VirtualFS {
 
         if (existing && mode === 'append') {
           finalContent = existing.content + content;
+          // C3-FIX: Validate combined content size for append mode
+          if (finalContent.length > MAX_FILE_SIZE) {
+            throw new Error(
+              `Appended file content exceeds maximum size limit of ${MAX_FILE_SIZE} bytes (current: ${finalContent.length} bytes)`,
+            );
+          }
           metadata = {
             ...existing.metadata,
             ...metadataOverride,

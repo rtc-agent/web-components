@@ -109,9 +109,23 @@ export class RtcProcessor {
    * iteration boundary or sleep checkpoint.
    */
   private _abortController?: AbortController;
+  /** M7-FIX: Configurable process timeout (ms) */
+  private _processTimeoutMs: number = PROCESS_TIMEOUT_MS;
+  /** M6-FIX: Configurable error retry delay (ms) */
+  private _errorRetryDelayMs: number = ERROR_RETRY_DELAY_MS;
 
   constructor(persistence: PersistenceLayer) {
     this.persistence = persistence;
+  }
+
+  /** M7-FIX: Set the process timeout (ms) */
+  setProcessTimeout(ms: number): void {
+    this._processTimeoutMs = ms;
+  }
+
+  /** M6-FIX: Set the error retry delay (ms) */
+  setErrorRetryDelay(ms: number): void {
+    this._errorRetryDelayMs = ms;
   }
 
   /** Set the working mode */
@@ -271,7 +285,8 @@ export class RtcProcessor {
           }
           // For other errors, wait briefly before retrying to avoid tight loops.
           // Pass abortSignal so sleep can be interrupted by cancel().
-          await this.sleep(ERROR_RETRY_DELAY_MS, abortSignal);
+          // M6-FIX: Use configurable delay instead of hardcoded constant
+          await this.sleep(this._errorRetryDelayMs, abortSignal);
         }
       }
     } catch (err) {
@@ -380,6 +395,7 @@ export class RtcProcessor {
 
         // Fix 76: Add timeout protection to prevent processOne from hanging indefinitely
         // Fix: Clear timeout handle and catch late tool rejections to prevent unhandled rejections
+        // M7-FIX: Use configurable timeout instead of hardcoded constant
         const toolExecutionPromise = toolRegistry.execute(toolName, params);
         let timeoutHandle: ReturnType<typeof setTimeout>;
         const timeoutPromise = new Promise<never>((_, reject) => {
@@ -387,10 +403,10 @@ export class RtcProcessor {
             () =>
               reject(
                 new Error(
-                  `Tool execution timeout after ${PROCESS_TIMEOUT_MS}ms`,
+                  `Tool execution timeout after ${this._processTimeoutMs}ms`,
                 ),
               ),
-            PROCESS_TIMEOUT_MS,
+            this._processTimeoutMs,
           );
         });
 

@@ -1072,38 +1072,108 @@ export class EntityRepository {
       rtcs: [],
     };
 
+    // C2-FIX: Split large transactions into smaller batches to prevent timeout.
+    // Strategy: Keep read-merge atomic, split writes by entity type.
+    // This maintains data consistency while reducing transaction scope.
+    const BATCH_THRESHOLD = 100; // Split if total items exceed this
+    const totalWriteItems =
+      merged.sessions.length +
+      merged.turns.length +
+      merged.messages.length +
+      merged.rtcs.length +
+      deletes.sessions.length +
+      deletes.turns.length +
+      deletes.messages.length +
+      deletes.rtcs.length;
+
     try {
-      await db.transaction('rw', tablesToLock, async () => {
-        // 7a. bulkGet existing records (within transaction)
-        const existingData = await this.bulkGetExisting(prepared);
+      if (totalWriteItems <= BATCH_THRESHOLD) {
+        // Small batch: use original single-transaction approach
+        await db.transaction('rw', tablesToLock, async () => {
+          // 7a. bulkGet existing records (within transaction)
+          const existingData = await this.bulkGetExisting(prepared);
 
-        // 7b. Collect before snapshots (original records before merge)
-        this.collectBeforeSnapshots(beforeSnapshots, existingData);
+          // 7b. Collect before snapshots (original records before merge)
+          this.collectBeforeSnapshots(beforeSnapshots, existingData);
 
-        // 7c. Merge in memory: { ...existing, ...newData }
-        merged = this.mergeWithExisting(prepared, existingData);
+          // 7c. Merge in memory: { ...existing, ...newData }
+          merged = this.mergeWithExisting(prepared, existingData);
 
-        // 7d. bulkPut writes
-        if (merged.sessions.length > 0)
-          await db.sessions.bulkPut(merged.sessions as LocalSession[]);
-        if (merged.turns.length > 0)
-          await db.turns.bulkPut(merged.turns as LocalTurn[]);
-        if (merged.messages.length > 0)
-          await db.messages.bulkPut(merged.messages as LocalMessage[]);
-        if (merged.rtcs.length > 0)
-          await db.rtcs.bulkPut(merged.rtcs as LocalRtc[]);
+          // 7d. bulkPut writes
+          if (merged.sessions.length > 0)
+            await db.sessions.bulkPut(merged.sessions as LocalSession[]);
+          if (merged.turns.length > 0)
+            await db.turns.bulkPut(merged.turns as LocalTurn[]);
+          if (merged.messages.length > 0)
+            await db.messages.bulkPut(merged.messages as LocalMessage[]);
+          if (merged.rtcs.length > 0)
+            await db.rtcs.bulkPut(merged.rtcs as LocalRtc[]);
 
-        // 7e. bulkDelete deletes
-        if (deletes.sessions.length > 0)
-          await db.sessions.bulkDelete(deletes.sessions);
-        if (deletes.turns.length > 0) await db.turns.bulkDelete(deletes.turns);
-        if (deletes.messages.length > 0)
-          await db.messages.bulkDelete(deletes.messages);
-        if (deletes.rtcs.length > 0) await db.rtcs.bulkDelete(deletes.rtcs);
+          // 7e. bulkDelete deletes
+          if (deletes.sessions.length > 0)
+            await db.sessions.bulkDelete(deletes.sessions);
+          if (deletes.turns.length > 0) await db.turns.bulkDelete(deletes.turns);
+          if (deletes.messages.length > 0)
+            await db.messages.bulkDelete(deletes.messages);
+          if (deletes.rtcs.length > 0) await db.rtcs.bulkDelete(deletes.rtcs);
 
-        // 7f. Turn count writeback (within same transaction, re-read sessions from DB)
-        await this.writebackTurnCountsInTx(merged.turns);
-      });
+          // 7f. Turn count writeback (within same transaction, re-read sessions from DB)
+          await this.writebackTurnCountsInTx(merged.turns);
+        });
+      } else {
+        // C2-FIX: Large batch - split into multiple smaller transactions
+        // Phase 1: Atomic read-merge (fast, no writes)
+        await db.transaction('r', tablesToLock, async () => {
+          const existingData = await this.bulkGetExisting(prepared);
+          this.collectBeforeSnapshots(beforeSnapshots, existingData);
+          merged = this.mergeWithExisting(prepared, existingData);
+        });
+
+        // Phase 2: Split writes by entity type (each in its own transaction)
+        // This reduces transaction scope and timeout risk for large datasets
+        if (merged.sessions.length > 0 || deletes.sessions.length > 0) {
+          await db.transaction('rw', [db.sessions], async () => {
+            if (merged.sessions.length > 0)
+              await db.sessions.bulkPut(merged.sessions as LocalSession[]);
+            if (deletes.sessions.length > 0)
+              await db.sessions.bulkDelete(deletes.sessions);
+          });
+        }
+
+        if (merged.turns.length > 0 || deletes.turns.length > 0) {
+          await db.transaction('rw', [db.turns], async () => {
+            if (merged.turns.length > 0)
+              await db.turns.bulkPut(merged.turns as LocalTurn[]);
+            if (deletes.turns.length > 0)
+              await db.turns.bulkDelete(deletes.turns);
+          });
+        }
+
+        if (merged.messages.length > 0 || deletes.messages.length > 0) {
+          await db.transaction('rw', [db.messages], async () => {
+            if (merged.messages.length > 0)
+              await db.messages.bulkPut(merged.messages as LocalMessage[]);
+            if (deletes.messages.length > 0)
+              await db.messages.bulkDelete(deletes.messages);
+          });
+        }
+
+        if (merged.rtcs.length > 0 || deletes.rtcs.length > 0) {
+          await db.transaction('rw', [db.rtcs], async () => {
+            if (merged.rtcs.length > 0)
+              await db.rtcs.bulkPut(merged.rtcs as LocalRtc[]);
+            if (deletes.rtcs.length > 0)
+              await db.rtcs.bulkDelete(deletes.rtcs);
+          });
+        }
+
+        // Phase 3: Turn count writeback (separate transaction)
+        if (merged.turns.length > 0) {
+          await db.transaction('rw', [db.sessions], async () => {
+            await this.writebackTurnCountsInTx(merged.turns);
+          });
+        }
+      }
 
       const elapsed = performance.now() - startTime;
       log.info(

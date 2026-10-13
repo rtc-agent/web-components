@@ -85,6 +85,8 @@ export class FileCacheRepository {
   private _syncLocks = new Map<string, Promise<unknown>>();
   /** Lifecycle guard: prevents DB operations after PersistenceLayer.close() */
   private _lifecycleGuard = new LifecycleGuard('FileCacheRepository');
+  /** H3-FIX: Lock to prevent concurrent recoverStaleSyncing calls */
+  private _recoverStaleSyncingPromise: Promise<number> | null = null;
 
   /**
    * Cache a downloaded file.
@@ -509,10 +511,37 @@ export class FileCacheRepository {
    * These entries would otherwise be stuck forever since 'syncing' has no
    * automatic recovery mechanism.
    *
+   * H3-FIX: Added concurrency control to prevent multiple simultaneous calls
+   * from interfering with each other (e.g., during rapid reconnection attempts).
+   *
    * @returns Number of entries recovered
    */
   async recoverStaleSyncing(): Promise<number> {
     this._lifecycleGuard.assertActive(); // P1-A: guard check
+
+    // H3-FIX: Deduplicate concurrent calls - return existing promise if one is in flight
+    if (this._recoverStaleSyncingPromise) {
+      log.debug('recoverStaleSyncing: already in progress, returning existing promise');
+      return this._recoverStaleSyncingPromise;
+    }
+
+    // Create and store the promise for deduplication
+    this._recoverStaleSyncingPromise = this._recoverStaleSyncingInternal();
+
+    try {
+      const result = await this._recoverStaleSyncingPromise;
+      return result;
+    } finally {
+      // Clean up the promise reference after completion
+      this._recoverStaleSyncingPromise = null;
+    }
+  }
+
+  /**
+   * Internal implementation of recoverStaleSyncing.
+   * Separated to enable concurrency control in the public method.
+   */
+  private async _recoverStaleSyncingInternal(): Promise<number> {
     const db = getDatabase();
     const staleEntries = await db.fileCache
       .where('syncStatus')
@@ -609,12 +638,25 @@ export class FileCacheRepository {
         throw e;
       },
     );
+
+    // C1-FIX: Track chain position to prevent unbounded Promise chain growth.
+    // When this is the first operation in the chain (prev was already resolved),
+    // we can clean up immediately after completion instead of waiting for the next operation.
+    const isFirstInChain = prev === this._syncLocks.get(key);
+
     this._syncLocks.set(
       key,
       settled.finally(() => {
-        // Clean up map entry when this is the last operation in the chain
-        if (this._syncLocks.get(key) === settled) {
-          this._syncLocks.delete(key);
+        // C1-FIX: Clean up map entry when chain is empty or this is the last operation.
+        // If this was the first operation and no new operations queued, remove immediately.
+        // Otherwise, only remove if we're still the head of the chain.
+        const currentHead = this._syncLocks.get(key);
+        if (isFirstInChain || currentHead === settled) {
+          // Check if a new operation has queued behind us
+          // If settled is still the head, no new operations have queued, safe to delete
+          if (currentHead === settled) {
+            this._syncLocks.delete(key);
+          }
         }
         // Clean up external signal listener
         externalSignal?.removeEventListener('abort', onExternalAbort);
