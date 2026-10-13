@@ -155,6 +155,18 @@ export class NotificationController implements ReactiveController {
   private _preloadSounds(): void {
     // Clear previously loaded sounds to avoid duplicates on reconnect cycles.
     this._sounds.clear();
+
+    // Fix: Clear any pending timers/idle callbacks from previous calls
+    // (handles React StrictMode double-mount or rapid reconnect cycles).
+    if (this._deferredSoundTimer !== undefined) {
+      clearTimeout(this._deferredSoundTimer);
+      this._deferredSoundTimer = undefined;
+    }
+    if (this._idleCallbackId !== undefined) {
+      cancelIdleCallback(this._idleCallbackId);
+      this._idleCallbackId = undefined;
+    }
+
     // Use Vite-resolved asset URLs directly; no runtime path construction needed
     const soundUrls: Record<string, string> = {
       message: messageSoundUrl,
@@ -184,13 +196,6 @@ export class NotificationController implements ReactiveController {
         this._loadSound(type, url);
       }
     };
-
-    // Cancel any previously pending idle callback (handles reconnect cycles
-    // where hostConnected fires multiple times without a disconnect in between).
-    if (this._idleCallbackId !== undefined) {
-      cancelIdleCallback(this._idleCallbackId);
-      this._idleCallbackId = undefined;
-    }
 
     if ('requestIdleCallback' in window) {
       this._idleCallbackId = requestIdleCallback(loadDeferred);
@@ -228,11 +233,11 @@ export class NotificationController implements ReactiveController {
       { once: true },
     );
 
-    audio.addEventListener(
+      audio.addEventListener(
       'error',
       () => {
         // Sound file may not exist or failed to load; degrade gracefully: don't play this sound
-        log.warn(`Audio load failed (file may not exist): ${url}`);
+        log.warn('Sound preloading failed (non-critical):', url);
         this._sounds.delete(type);
       },
       { once: true },

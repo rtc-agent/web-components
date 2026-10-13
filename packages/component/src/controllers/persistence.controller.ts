@@ -442,12 +442,19 @@ export class PersistenceController implements ReactiveController {
     // Capture the current generation so we can detect stale resolution
     const gen = this._connectGeneration;
 
-    this._connecting = this._connectWorker(config).finally(() => {
-      // Only clear _connecting if no newer attempt has superseded us
-      if (this._connectGeneration === gen) {
-        this._connecting = undefined;
+    // Use async IIFE to ensure _connecting is always cleared, even if _connectWorker
+    // throws a synchronous error before returning a Promise.
+    // This prevents _connecting from being permanently set if an unexpected error occurs.
+    this._connecting = (async () => {
+      try {
+        await this._connectWorker(config);
+      } finally {
+        // Only clear _connecting if no newer attempt has superseded us
+        if (this._connectGeneration === gen) {
+          this._connecting = undefined;
+        }
       }
-    });
+    })();
     return this._connecting;
   }
 
@@ -631,7 +638,8 @@ export class PersistenceController implements ReactiveController {
     // Increment the generation counter to invalidate the finally block of any old _connecting promise.
     // This is critical: if disconnect() interrupts an in-flight connection, the old promise's finally block
     // must not clear the new _connecting.
-    this._connectGeneration++;
+    // Fix: Add overflow protection to prevent precision loss at Number.MAX_SAFE_INTEGER.
+    this._connectGeneration = (this._connectGeneration + 1) % Number.MAX_SAFE_INTEGER;
     const gen = this._connectGeneration;
 
     // Clear the _connecting promise to allow a new connection attempt.
