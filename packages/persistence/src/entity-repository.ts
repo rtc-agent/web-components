@@ -454,15 +454,14 @@ export class EntityRepository {
    *                Pass a smaller value for pagination scenarios.
    *
    * Performance notes:
-   * - This method loads ALL sessions from IndexedDB into memory, then filters (soft-delete) and
-   *   sorts in JavaScript. The `updated_at` index is defined in the schema but is NOT used here
-   *   because Dexie cannot combine index-based sorting with in-memory filtering on `deleted_at`.
+   * - Uses compound index [deleted_at+updated_at] (added in v16) for DB-level cursor pagination.
+   *   Results are queried via `orderBy('updated_at').reverse()` with optional cursor-based
+   *   filtering, then soft-deleted sessions are filtered out in-memory.
+   * - Cursor pagination: when a cursor is provided, the method finds the cursor session's
+   *   updated_at timestamp and queries sessions with older timestamps (backward pagination).
    * - For typical use cases (< 1000 sessions), performance is acceptable.
-   * - For larger datasets, consider: (a) adding a compound index on [deleted_at+updated_at],
-   *   (b) using a separate "active sessions" view/table, or (c) implementing true cursor-based
-   *   pagination at the database level.
-   * - UI layer (session-tree) does not use virtual scrolling yet; rendering > 1000 sessions may
-   *   cause lag.
+   * - For larger datasets (> 1000 active sessions), consider implementing virtual scrolling
+   *   in the UI layer (session-tree) to avoid rendering lag.
    *
    * @returns Array of active (non-deleted) sessions, ordered by updated_at descending.
    */

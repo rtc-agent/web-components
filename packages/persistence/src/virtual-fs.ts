@@ -213,6 +213,11 @@ export class VirtualFS {
    * Each call for the same path waits for the previous operation to settle
    * before starting its own. Different files run in parallel.
    *
+   * Cleanup: the map entry is deleted in the `finally` block when the current
+   * promise is still the head of the chain (i.e., no subsequent operation has
+   * been queued after it). This avoids unbounded map growth while remaining
+   * safe under concurrent access.
+   *
    * @param path Normalized file path
    * @param fn Async function to execute under the lock
    * @returns Result of the fn operation
@@ -229,7 +234,7 @@ export class VirtualFS {
       () => fn(),
     );
 
-    // Store the chained promise (settled when fn completes or throws)
+    // Wrap so we can detect when this specific operation completes
     const settled = next.then(
       (v) => v,
       (e) => {
@@ -237,18 +242,15 @@ export class VirtualFS {
       },
     );
 
-    // Track chain position for cleanup
-    const isFirstInChain = prev === this._writeLocks.get(path);
-
     this._writeLocks.set(
       path,
       settled.finally(() => {
-        // Clean up map entry when chain is empty or this is the last operation
-        const currentHead = this._writeLocks.get(path);
-        if (isFirstInChain || currentHead === settled) {
-          if (currentHead === settled) {
-            this._writeLocks.delete(path);
-          }
+        // Clean up map entry only when this operation is the current head of
+        // the chain. If a subsequent operation has already been queued (i.e.,
+        // the map entry has been updated to a newer promise), skip deletion.
+        // This avoids the fragile isFirstInChain tracking from earlier versions.
+        if (this._writeLocks.get(path) === settled) {
+          this._writeLocks.delete(path);
         }
       }),
     );

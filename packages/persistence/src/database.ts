@@ -372,6 +372,15 @@ export interface UploadProgressEntry {
 
 // ========== Database definition ==========
 
+/**
+ * Expected schema version for the current database.
+ *
+ * MUST be updated whenever a new migration is added (this.version(N+1)).
+ * Referenced by: constructor (schema version check) and getRecoveryGuidance().
+ * Keeping this as a single source of truth prevents the two from going out of sync.
+ */
+const EXPECTED_SCHEMA_VERSION = 17;
+
 export class RTCAgentDatabase extends Dexie {
   sessions!: Table<LocalSession, string>;
   turns!: Table<LocalTurn, string>;
@@ -788,8 +797,6 @@ export class RTCAgentDatabase extends Dexie {
     // Strategy: Add a post-migration version check in the open() callback.
     // If actual schema version < expected version, log a warning with recovery guidance.
     // Also set a migrationFailed flag that can be queried by upper layers.
-    const EXPECTED_SCHEMA_VERSION = 17;
-
     this.on('ready', async () => {
       try {
         // Dexie's verno property returns the actual schema version of the opened database
@@ -858,7 +865,7 @@ export class RTCAgentDatabase extends Dexie {
     steps: string[];
   } {
     const actualVersion = this.verno;
-    const expectedVersion = 17; // Keep in sync with EXPECTED_SCHEMA_VERSION
+    const expectedVersion = EXPECTED_SCHEMA_VERSION;
 
     const steps: string[] = [];
 

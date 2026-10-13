@@ -1477,6 +1477,14 @@ export class PersistenceLayer implements IPersistenceLayer {
     // P3-FIX: Deduplicate rapid repeated calls (e.g., multiple tabs triggering online event)
     // Even with mutex, two tabs could trigger sync within milliseconds. This check prevents
     // the second tab from starting a new sync immediately after the first completes.
+    //
+    // LIMITATION: _lastSyncTime is instance-level. Since each Tab has its own
+    // PersistenceLayer instance, this does NOT prevent cross-tab sync thrashing.
+    // Each Tab's _lastSyncTime starts at 0, so two Tabs calling syncPendingFiles()
+    // simultaneously would both proceed (both see _lastSyncTime=0 and skip the guard).
+    // True cross-tab coordination would require a shared mechanism (e.g., BroadcastChannel,
+    // IndexedDB-based lock, or localStorage event). The instance-level mutex (_syncPromise)
+    // does prevent duplicate concurrent syncs within the SAME Tab.
     const now = Date.now();
     const timeSinceLastSync = now - this._lastSyncTime;
     if (timeSinceLastSync < PersistenceLayer.SYNC_DEDUP_INTERVAL_MS) {
@@ -1914,6 +1922,7 @@ export class PersistenceLayer implements IPersistenceLayer {
    * Flush all data (for development/testing).
    */
   async flushAll(): Promise<void> {
+    this._lifecycleGuard.assertActive();
     await flushAll();
   }
 
