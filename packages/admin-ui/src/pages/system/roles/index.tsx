@@ -17,7 +17,6 @@ import {
   App,
   Button,
   Checkbox,
-  Grid,
   Modal,
   Popconfirm,
   Space,
@@ -36,6 +35,7 @@ import React, {
 import { getActionTypes, getResourceTypes } from '@/constants/permissions';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { usePermissionRefresh } from '@/hooks/usePermissionRefresh';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import {
   createPermission,
   deletePermission,
@@ -75,8 +75,7 @@ const RoleListPage: React.FC = () => {
   const [togglingPermission, setTogglingPermission] = useState<string | null>(
     null,
   );
-  const breakpoints = Grid.useBreakpoint();
-  const isMobile = !breakpoints.sm;
+  const isMobile = useIsMobile();
   const modalWidth = isMobile ? '95vw' : 520;
   const permissionModalWidth = isMobile ? '95vw' : 800;
   const { refreshPermissions } = usePermissionRefresh();
@@ -899,6 +898,13 @@ const RoleListPage: React.FC = () => {
               }),
             },
             {
+              whitespace: true,
+              message: intl.formatMessage({
+                id: 'pages.roles.displayNameWhitespace',
+                defaultMessage: 'Display name cannot be only spaces',
+              }),
+            },
+            {
               max: 100,
               message: intl.formatMessage({
                 id: 'pages.roles.displayNameMaxLength',
@@ -924,6 +930,13 @@ const RoleListPage: React.FC = () => {
               message: intl.formatMessage({
                 id: 'pages.roles.descriptionWhitespace',
                 defaultMessage: 'Description cannot be empty or only spaces',
+              }),
+            },
+            {
+              max: 500,
+              message: intl.formatMessage({
+                id: 'pages.roles.descriptionMaxLength',
+                defaultMessage: 'Description cannot exceed 500 characters',
               }),
             },
           ]}

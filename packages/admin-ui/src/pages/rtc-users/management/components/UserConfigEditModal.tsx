@@ -1,10 +1,11 @@
 import { ModalForm, ProFormTextArea } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
-import { Alert, App, Form, Grid } from 'antd';
+import { Alert, App, Form } from 'antd';
 import { useEffect } from 'react';
 import ConfigValueInput from '@/pages/system/configs/components/ConfigValueInput';
-import type { UserConfigItem } from '@/services/userConfig';
+import type { UserConfigItem } from '@/services/user-config';
 import { parseConfigValue } from '@/utils/configFormat';
+import { useResponsiveModalWidth } from '@/hooks/useResponsiveModalWidth';
 
 export interface UserConfigEditModalProps {
   open: boolean;
@@ -28,9 +29,7 @@ const UserConfigEditModal: React.FC<UserConfigEditModalProps> = ({
   const [form] = Form.useForm<{ value: unknown; change_note?: string }>();
   const intl = useIntl();
   const { message } = App.useApp();
-  const breakpoints = Grid.useBreakpoint();
-  const isMobile = !breakpoints.sm;
-  const modalWidth = isMobile ? '95vw' : 520;
+  const modalWidth = useResponsiveModalWidth();
 
   useEffect(() => {
     if (open) {
@@ -95,6 +94,22 @@ const UserConfigEditModal: React.FC<UserConfigEditModalProps> = ({
           id: 'pages.config.system.changeNotePlaceholder',
         })}
         fieldProps={{ rows: 2, maxLength: 500, showCount: true }}
+        rules={[
+          {
+            whitespace: true,
+            message: intl.formatMessage({
+              id: 'pages.config.system.changeNoteWhitespace',
+              defaultMessage: 'Change description cannot be blank',
+            }),
+          },
+          {
+            max: 500,
+            message: intl.formatMessage({
+              id: 'pages.config.system.changeNoteMax',
+              defaultMessage: 'Change description cannot exceed 500 characters',
+            }),
+          },
+        ]}
       />
     </ModalForm>
   );

@@ -17,7 +17,9 @@ import React, {
   useState,
 } from 'react';
 
+import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import type { ConversationItem, ParsedMessage } from './data';
+import type { ChatbotPageAPI } from './page-api';
 import { createChatProvider } from './service';
 import { useStyles } from './style';
 
@@ -220,7 +222,8 @@ const ChatbotPage: React.FC = () => {
       key: 'preset-8',
       label: intl.formatMessage({
         id: 'pages.chatbot.faq.designTokens',
-        defaultMessage: '⚙️ Best practices for customizing themes with Ant Design Tokens',
+        defaultMessage:
+          '⚙️ Best practices for customizing themes with Ant Design Tokens',
       }),
       group: intl.formatMessage({
         id: 'pages.chatbot.earlier',
@@ -273,6 +276,105 @@ const ChatbotPage: React.FC = () => {
     ]);
     setActiveKey(key);
   };
+
+  // Refs to expose current values/functions to Page API factory
+  const sendMessageRef = useRef(sendMessage);
+  sendMessageRef.current = sendMessage;
+  const parsedMessagesRef = useRef(parsedMessages);
+  parsedMessagesRef.current = parsedMessages;
+  const activeKeyRef = useRef(activeKey);
+  activeKeyRef.current = activeKey;
+  const setConversationsRef = useRef(setConversations);
+  setConversationsRef.current = setConversations;
+  const setActiveKeyRef = useRef(setActiveKey);
+  setActiveKeyRef.current = setActiveKey;
+  const generateIdRef = useRef(generateId);
+  generateIdRef.current = generateId;
+  const intlRef = useRef(intl);
+  intlRef.current = intl;
+
+  // Register Page API for function handlers
+  usePageAPIRegistration(
+    'chatbot',
+    useCallback(
+      (): ChatbotPageAPI => ({
+        sendMessage: async (content: string) => {
+          try {
+            sendMessageRef.current(content);
+            return { success: true };
+          } catch (error) {
+            console.error('[ChatbotPageAPI] sendMessage failed:', error);
+            return { success: false };
+          }
+        },
+        getMessages: async () => {
+          return {
+            success: true,
+            data: parsedMessagesRef.current.map(
+              (msg) => msg.message as ParsedMessage,
+            ),
+          };
+        },
+        clearConversation: async () => {
+          try {
+            // Replace active conversation with a fresh one (same semantics as "new chat"
+            // followed by deleting the old one) so the chat history is reset.
+            const oldKey = activeKeyRef.current;
+            const newKey = generateIdRef.current();
+            setConversationsRef.current((prev) => {
+              const filtered = prev.filter((c) => c.key !== oldKey);
+              return [
+                {
+                  key: newKey,
+                  label: intlRef.current.formatMessage({
+                    id: 'pages.chatbot.newConversation',
+                    defaultMessage: '💬 New conversation',
+                  }),
+                  group: intlRef.current.formatMessage({
+                    id: 'pages.chatbot.today',
+                    defaultMessage: 'Today',
+                  }),
+                  isDraft: true,
+                },
+                ...filtered,
+              ];
+            });
+            setActiveKeyRef.current(newKey);
+            return { success: true };
+          } catch (error) {
+            console.error('[ChatbotPageAPI] clearConversation failed:', error);
+            return { success: false };
+          }
+        },
+        newChat: async () => {
+          try {
+            const key = generateIdRef.current();
+            setConversationsRef.current((prev) => [
+              {
+                key,
+                label: intlRef.current.formatMessage({
+                  id: 'pages.chatbot.newConversationLabel',
+                  defaultMessage: 'New conversation',
+                }),
+                group: intlRef.current.formatMessage({
+                  id: 'pages.chatbot.today',
+                  defaultMessage: 'Today',
+                }),
+                isDraft: true,
+              },
+              ...prev,
+            ]);
+            setActiveKeyRef.current(key);
+            return { success: true, conversationKey: key };
+          } catch (error) {
+            console.error('[ChatbotPageAPI] newChat failed:', error);
+            return { success: false, conversationKey: '' };
+          }
+        },
+      }),
+      [],
+    ),
+  );
 
   const bubbleItems = useMemo<BubbleItemType[]>(
     () =>

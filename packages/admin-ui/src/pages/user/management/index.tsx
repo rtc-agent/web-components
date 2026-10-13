@@ -13,7 +13,7 @@ import {
   ProTable,
 } from '@ant-design/pro-components';
 import { Access, useAccess, useIntl, useSearchParams } from '@umijs/max';
-import { App, Button, Grid, List, Modal, Popconfirm, Space, Tag } from 'antd';
+import { App, Button, List, Modal, Popconfirm, Space, Tag } from 'antd';
 import React, {
   useCallback,
   useEffect,
@@ -24,6 +24,7 @@ import React, {
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { usePermissionRefresh } from '@/hooks/usePermissionRefresh';
 import { useRoleOptions } from '@/hooks/useRoleOptions';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import type { UserInfo } from '@/services/types';
 import type { UserRoleAssignment } from '@/services/user-role';
 import {
@@ -54,8 +55,7 @@ const AdminUserManagementPage: React.FC = () => {
   const [assignModalVisible, setAssignModalVisible] = useState(false);
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
-  const breakpoints = Grid.useBreakpoint();
-  const isMobile = !breakpoints.md;
+  const isMobile = useIsMobile();
   const modalWidth = isMobile ? '95vw' : 520;
   const roleModalWidth = isMobile ? '95vw' : 600;
   const { refreshPermissions } = usePermissionRefresh();
@@ -856,6 +856,13 @@ const AdminUserManagementPage: React.FC = () => {
               message: intl.formatMessage({
                 id: 'pages.adminUsers.emailRequired',
                 defaultMessage: 'Please enter email',
+              }),
+            },
+            {
+              whitespace: true,
+              message: intl.formatMessage({
+                id: 'pages.adminUsers.emailWhitespace',
+                defaultMessage: 'Email cannot be only spaces',
               }),
             },
             {
