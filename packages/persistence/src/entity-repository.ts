@@ -1245,89 +1245,193 @@ export class EntityRepository {
           );
         }
 
-        // Phase 2: Split writes by entity type (each in its own transaction)
-        // This reduces transaction scope and timeout risk for large datasets
-        if (merged.sessions.length > 0 || deletes.sessions.length > 0) {
-          const txStart = performance.now();
-          await db.transaction('rw', [db.sessions], async () => {
-            if (merged.sessions.length > 0)
-              await db.sessions.bulkPut(merged.sessions as LocalSession[]);
-            if (deletes.sessions.length > 0)
-              await db.sessions.bulkDelete(deletes.sessions);
-          });
-          const elapsed = performance.now() - txStart;
-          if (elapsed > 5000) {
-            log.warn(
-              `[applyUpdates] Sessions write transaction took ${elapsed.toFixed(1)}ms ` +
-              `(>${5000}ms threshold). Items: ${merged.sessions.length + deletes.sessions.length}`,
-            );
-          }
-        }
+        // P0-FIX: Track successfully written entity types for compensation on failure.
+        // If a later transaction fails, we roll back earlier transactions by deleting
+        // the records we just wrote. This provides "best-effort atomicity" across
+        // multiple transactions when a single transaction would be too large.
+        //
+        // Compensation strategy: delete by primary key (client_id) for upserts,
+        // and re-insert from beforeSnapshots for deletes (though delete rollback
+        // is not attempted since deleted data is unrecoverable if the original
+        // record no longer exists).
+        const completedWrites: Array<{
+          entityType: 'sessions' | 'turns' | 'messages' | 'rtcs';
+          clientIds: string[];
+          operation: 'upsert' | 'delete';
+        }> = [];
 
-        if (merged.turns.length > 0 || deletes.turns.length > 0) {
-          const txStart = performance.now();
-          await db.transaction('rw', [db.turns], async () => {
-            if (merged.turns.length > 0)
-              await db.turns.bulkPut(merged.turns as LocalTurn[]);
-            if (deletes.turns.length > 0)
-              await db.turns.bulkDelete(deletes.turns);
-          });
-          const elapsed = performance.now() - txStart;
-          if (elapsed > 5000) {
-            log.warn(
-              `[applyUpdates] Turns write transaction took ${elapsed.toFixed(1)}ms ` +
-              `(>${5000}ms threshold). Items: ${merged.turns.length + deletes.turns.length}`,
-            );
+        try {
+          // Phase 2: Split writes by entity type (each in its own transaction)
+          // This reduces transaction scope and timeout risk for large datasets
+          if (merged.sessions.length > 0 || deletes.sessions.length > 0) {
+            const txStart = performance.now();
+            const sessionClientIds = merged.sessions.map((s) => s.client_id!);
+            await db.transaction('rw', [db.sessions], async () => {
+              if (merged.sessions.length > 0)
+                await db.sessions.bulkPut(merged.sessions as LocalSession[]);
+              if (deletes.sessions.length > 0)
+                await db.sessions.bulkDelete(deletes.sessions);
+            });
+            if (merged.sessions.length > 0) {
+              completedWrites.push({ entityType: 'sessions', clientIds: sessionClientIds, operation: 'upsert' });
+            }
+            if (deletes.sessions.length > 0) {
+              completedWrites.push({ entityType: 'sessions', clientIds: deletes.sessions, operation: 'delete' });
+            }
+            const elapsed = performance.now() - txStart;
+            if (elapsed > 5000) {
+              log.warn(
+                `[applyUpdates] Sessions write transaction took ${elapsed.toFixed(1)}ms ` +
+                `(>${5000}ms threshold). Items: ${merged.sessions.length + deletes.sessions.length}`,
+              );
+            }
           }
-        }
 
-        if (merged.messages.length > 0 || deletes.messages.length > 0) {
-          const txStart = performance.now();
-          await db.transaction('rw', [db.messages], async () => {
-            if (merged.messages.length > 0)
-              await db.messages.bulkPut(merged.messages as LocalMessage[]);
-            if (deletes.messages.length > 0)
-              await db.messages.bulkDelete(deletes.messages);
-          });
-          const elapsed = performance.now() - txStart;
-          if (elapsed > 5000) {
-            log.warn(
-              `[applyUpdates] Messages write transaction took ${elapsed.toFixed(1)}ms ` +
-              `(>${5000}ms threshold). Items: ${merged.messages.length + deletes.messages.length}`,
-            );
+          if (merged.turns.length > 0 || deletes.turns.length > 0) {
+            const txStart = performance.now();
+            const turnClientIds = merged.turns.map((t) => t.client_id!);
+            await db.transaction('rw', [db.turns], async () => {
+              if (merged.turns.length > 0)
+                await db.turns.bulkPut(merged.turns as LocalTurn[]);
+              if (deletes.turns.length > 0)
+                await db.turns.bulkDelete(deletes.turns);
+            });
+            if (merged.turns.length > 0) {
+              completedWrites.push({ entityType: 'turns', clientIds: turnClientIds, operation: 'upsert' });
+            }
+            if (deletes.turns.length > 0) {
+              completedWrites.push({ entityType: 'turns', clientIds: deletes.turns, operation: 'delete' });
+            }
+            const elapsed = performance.now() - txStart;
+            if (elapsed > 5000) {
+              log.warn(
+                `[applyUpdates] Turns write transaction took ${elapsed.toFixed(1)}ms ` +
+                `(>${5000}ms threshold). Items: ${merged.turns.length + deletes.turns.length}`,
+              );
+            }
           }
-        }
 
-        if (merged.rtcs.length > 0 || deletes.rtcs.length > 0) {
-          const txStart = performance.now();
-          await db.transaction('rw', [db.rtcs], async () => {
-            if (merged.rtcs.length > 0)
-              await db.rtcs.bulkPut(merged.rtcs as LocalRtc[]);
-            if (deletes.rtcs.length > 0)
-              await db.rtcs.bulkDelete(deletes.rtcs);
-          });
-          const elapsed = performance.now() - txStart;
-          if (elapsed > 5000) {
-            log.warn(
-              `[applyUpdates] RTcs write transaction took ${elapsed.toFixed(1)}ms ` +
-              `(>${5000}ms threshold). Items: ${merged.rtcs.length + deletes.rtcs.length}`,
-            );
+          if (merged.messages.length > 0 || deletes.messages.length > 0) {
+            const txStart = performance.now();
+            const messageClientIds = merged.messages.map((m) => m.client_id!);
+            await db.transaction('rw', [db.messages], async () => {
+              if (merged.messages.length > 0)
+                await db.messages.bulkPut(merged.messages as LocalMessage[]);
+              if (deletes.messages.length > 0)
+                await db.messages.bulkDelete(deletes.messages);
+            });
+            if (merged.messages.length > 0) {
+              completedWrites.push({ entityType: 'messages', clientIds: messageClientIds, operation: 'upsert' });
+            }
+            if (deletes.messages.length > 0) {
+              completedWrites.push({ entityType: 'messages', clientIds: deletes.messages, operation: 'delete' });
+            }
+            const elapsed = performance.now() - txStart;
+            if (elapsed > 5000) {
+              log.warn(
+                `[applyUpdates] Messages write transaction took ${elapsed.toFixed(1)}ms ` +
+                `(>${5000}ms threshold). Items: ${merged.messages.length + deletes.messages.length}`,
+              );
+            }
           }
-        }
 
-        // Phase 3: Turn count writeback (separate transaction)
-        if (merged.turns.length > 0) {
-          const txStart = performance.now();
-          await db.transaction('rw', [db.sessions], async () => {
-            await this.writebackTurnCountsInTx(merged.turns);
-          });
-          const elapsed = performance.now() - txStart;
-          if (elapsed > 5000) {
-            log.warn(
-              `[applyUpdates] Turn count writeback took ${elapsed.toFixed(1)}ms ` +
-              `(>${5000}ms threshold). Items: ${merged.turns.length}`,
-            );
+          if (merged.rtcs.length > 0 || deletes.rtcs.length > 0) {
+            const txStart = performance.now();
+            const rtcClientIds = merged.rtcs.map((r) => r.client_id!);
+            await db.transaction('rw', [db.rtcs], async () => {
+              if (merged.rtcs.length > 0)
+                await db.rtcs.bulkPut(merged.rtcs as LocalRtc[]);
+              if (deletes.rtcs.length > 0)
+                await db.rtcs.bulkDelete(deletes.rtcs);
+            });
+            if (merged.rtcs.length > 0) {
+              completedWrites.push({ entityType: 'rtcs', clientIds: rtcClientIds, operation: 'upsert' });
+            }
+            if (deletes.rtcs.length > 0) {
+              completedWrites.push({ entityType: 'rtcs', clientIds: deletes.rtcs, operation: 'delete' });
+            }
+            const elapsed = performance.now() - txStart;
+            if (elapsed > 5000) {
+              log.warn(
+                `[applyUpdates] RTcs write transaction took ${elapsed.toFixed(1)}ms ` +
+                `(>${5000}ms threshold). Items: ${merged.rtcs.length + deletes.rtcs.length}`,
+              );
+            }
           }
+
+          // Phase 3: Turn count writeback (separate transaction)
+          if (merged.turns.length > 0) {
+            const txStart = performance.now();
+            await db.transaction('rw', [db.sessions], async () => {
+              await this.writebackTurnCountsInTx(merged.turns);
+            });
+            const elapsed = performance.now() - txStart;
+            if (elapsed > 5000) {
+              log.warn(
+                `[applyUpdates] Turn count writeback took ${elapsed.toFixed(1)}ms ` +
+                `(>${5000}ms threshold). Items: ${merged.turns.length}`,
+              );
+            }
+          }
+        } catch (error) {
+          // P0-FIX: Compensation - roll back completed writes in reverse order.
+          // This is a best-effort rollback: we try to undo each completed write,
+          // but if rollback itself fails, we log the error and continue.
+          // The goal is to restore consistency, but some data loss may occur
+          // for delete operations (cannot restore deleted data without the original record).
+          log.error(
+            `[applyUpdates] Large batch write failed, attempting compensation rollback:`,
+            error,
+          );
+
+          // Roll back in reverse order (last written entity first)
+          for (let i = completedWrites.length - 1; i >= 0; i--) {
+            const write = completedWrites[i];
+            try {
+              if (write.operation === 'upsert') {
+                // Roll back upsert by deleting the records we just wrote
+                const table = db[write.entityType] as Table;
+                await table.bulkDelete(write.clientIds);
+                log.info(
+                  `[applyUpdates] Compensation: rolled back ${write.clientIds.length} ` +
+                  `${write.entityType} upserts`,
+                );
+              } else {
+                // Roll back delete by re-inserting from beforeSnapshots
+                // Note: Only works if we have the before snapshot; otherwise data is lost
+                const table = db[write.entityType] as Table;
+                const recordsToRestore: unknown[] = [];
+                for (const clientId of write.clientIds) {
+                  const key = `${write.entityType.slice(0, -1)}:${clientId}`; // e.g., "session:s1"
+                  const before = beforeSnapshots.get(key);
+                  if (before) {
+                    recordsToRestore.push(before);
+                  } else {
+                    log.warn(
+                      `[applyUpdates] Compensation: cannot restore deleted ${write.entityType} ` +
+                      `record ${clientId} (no before snapshot available)`,
+                    );
+                  }
+                }
+                if (recordsToRestore.length > 0) {
+                  await table.bulkAdd(recordsToRestore as any[]);
+                  log.info(
+                    `[applyUpdates] Compensation: restored ${recordsToRestore.length} ` +
+                    `${write.entityType} deletes from snapshots`,
+                  );
+                }
+              }
+            } catch (rollbackError) {
+              // Rollback itself failed - log but continue trying other rollbacks
+              log.error(
+                `[applyUpdates] Compensation rollback failed for ${write.entityType}:`,
+                rollbackError,
+              );
+            }
+          }
+
+          // Re-throw the original error so caller knows the operation failed
+          throw error;
         }
       }
 
@@ -2003,27 +2107,78 @@ export class EntityRepository {
   }
 
   /**
-   * Merge in memory: { ...existing, ...newData } with timestamp-based conflict resolution.
+   * Merge in memory: { ...existing, ...newData } with unified conflict resolution strategy.
    *
    * Pure synchronous operation, no DB calls. Must be called within transaction
    * (using bulkGetExisting result).
    *
-   * Conflict Resolution Strategy:
-   * - For entities with updated_at (Session, Message, Rtc): compare timestamps
-   *   - incoming newer: use incoming (normal case)
-   *   - existing newer AND has unsynced changes (sync_status='pending'): keep existing, log conflict
-   *   - existing newer AND already synced: use incoming (server data wins)
-   *   - timestamps equal: use incoming (idempotent)
-   * - For entities without updated_at (Turn): use incoming (no conflict detection possible)
+   * ## Unified Conflict Resolution Strategy
+   *
+   * The conflict resolution strategy is based on timestamp comparison and sync_status tracking.
+   * The goal is to preserve the most recent data while protecting unsynced local changes.
+   *
+   * ### General Rules (for Session, Turn, Message, Rtc):
+   *
+   * 1. **incoming.timestamp > existing.timestamp**:
+   *    - Use incoming (server data is newer, normal case)
+   *    - No conflict
+   *
+   * 2. **incoming.timestamp === existing.timestamp**:
+   *    - Use incoming (idempotent, same data)
+   *    - No conflict
+   *
+   * 3. **incoming.timestamp < existing.timestamp**:
+   *    - Check existing.sync_status:
+   *      a. If existing.sync_status === 'pending' (has unsynced local changes):
+   *         - Use existing (local-wins, protect user's unsaved work)
+   *         - Log conflict with structured resolution
+   *      b. Otherwise (existing.sync_status !== 'pending', already synced):
+   *         - Use incoming (server-wins, server data is authoritative)
+   *         - No conflict (server data is always correct when local is synced)
+   *
+   * 4. **Either lacks timestamp**:
+   *    - Use incoming (no conflict detection possible, trust server)
+   *    - No conflict
+   *
+   * ### Special Case: Message streaming_status regression detection
+   *
+   * For Message entities, there is an additional check BEFORE timestamp comparison:
+   * - If applying incoming.streaming_status would cause a state regression,
+   *   block the update and keep existing (regardless of timestamps).
+   * - Streaming status lifecycle is one-directional:
+   *   pending → streaming → completed / failed
+   * - Once a message reaches a terminal state (completed/failed), it must not
+   *   revert to an earlier state (streaming/pending).
+   * - This prevents out-of-order updates from live-channel overwriting
+   *   final state received via topic-channel.
+   *
+   * ### Turn Entities (no timestamp-based conflict detection):
+   *
+   * Turn entities do not have updated_at field, so conflict detection is not possible.
+   * Always use incoming (last-write-wins by default).
+   *
+   * @param prepared - Incoming entity data (from server or local creation)
+   * @param existing - Current entity data in IndexedDB
+   * @returns Merged entity data with conflicts resolved
    */
   private mergeWithExisting(
     prepared: BatchEntities,
     existing: ExistingData,
   ): BatchEntities {
     /**
-     * Compare RFC3339 timestamps and return the "winner" based on last-write-wins.
-     * Returns { winner, isConflict, resolution } where isConflict indicates existing was newer
-     * AND has unsynced local changes. Resolution provides detailed conflict resolution info.
+     * Compare RFC3339 timestamps and return the "winner" based on unified conflict resolution.
+     *
+     * Resolution strategy (see mergeWithExisting docstring for full rules):
+     * - incoming newer: use incoming (normal case)
+     * - timestamps equal: use incoming (idempotent)
+     * - existing newer + unsynced changes (sync_status='pending'): use existing (local-wins)
+     * - existing newer + already synced: use incoming (server-wins)
+     * - missing timestamp: use incoming (no conflict detection)
+     *
+     * @returns { winner, isConflict, resolution }
+     *   - winner: The entity data that should be used
+     *   - isConflict: True if existing was newer AND had unsynced changes (local-wins case)
+     *   - resolution: Detailed conflict resolution record (for debugging/auditing)
      */
     const resolveByTimestamp = <
       T extends { updated_at?: string; sync_status?: string },
@@ -2036,23 +2191,23 @@ export class EntityRepository {
       const incomingTs = incoming.updated_at;
       const existingTs = existingEntity.updated_at;
 
-      // If either lacks timestamp, fall back to incoming (no conflict detection)
+      // Rule 4: If either lacks timestamp, fall back to incoming (no conflict detection)
       if (!incomingTs || !existingTs) {
         return { winner: incoming, isConflict: false };
       }
 
       // Compare timestamps (RFC3339 strings are lexicographically comparable)
       if (incomingTs > existingTs) {
-        // Incoming is newer: normal case, use incoming
+        // Rule 1: Incoming is newer - normal case, use incoming
         return { winner: incoming, isConflict: false };
       } else if (existingTs > incomingTs) {
-        // Existing is newer: potential conflict
+        // Rule 3: Existing is newer - check sync_status for conflict
         // P0-FIX: More precise sync_status check - only 'pending' indicates unsynced local changes
         // Other statuses ('synced', 'syncing', 'error') mean the data is already on server
         const hasUnsyncedChanges = existingEntity.sync_status === 'pending';
 
         if (hasUnsyncedChanges) {
-          // P0-FIX: Structured conflict resolution with detailed logging
+          // Rule 3a: Existing is newer AND has unsynced changes - local-wins
           const resolution: ConflictResolution = {
             entityId: clientId,
             entityType: entityName,
@@ -2072,7 +2227,7 @@ export class EntityRepository {
 
           return { winner: existingEntity, isConflict: true, resolution };
         } else {
-          // Already synced or in other state: server data wins
+          // Rule 3b: Existing is newer but already synced - server-wins
           const resolution: ConflictResolution = {
             entityId: clientId,
             entityType: entityName,
@@ -2093,11 +2248,20 @@ export class EntityRepository {
           return { winner: incoming, isConflict: false, resolution };
         }
       } else {
-        // Timestamps equal: use incoming for idempotency
+        // Rule 2: Timestamps equal - use incoming for idempotency
         return { winner: incoming, isConflict: false };
       }
     };
 
+    /**
+     * Merge a list of entities with existing data using unified conflict resolution.
+     *
+     * For each entity:
+     * - If no existing record: use incoming (new entity)
+     * - If existing record exists and entity has updated_at: use resolveByTimestamp
+     * - If conflict detected (local-wins): return existing unchanged
+     * - Otherwise: merge { ...existing, ...incoming } (incoming overrides existing)
+     */
     const merge = <
       T extends {
         client_id?: string;
@@ -2131,8 +2295,19 @@ export class EntityRepository {
       });
     };
 
-    // Message-specific merge with streaming status monotonic guard (Issue 236)
-    // AND timestamp-based conflict resolution
+    /**
+     * Message-specific merge with TWO checks (in order):
+     *
+     * 1. Streaming status regression check (ALWAYS applies, regardless of timestamps)
+     *    - If incoming would cause regression, return existing unchanged
+     *    - See isStreamingStatusRegression() for lifecycle rules
+     *
+     * 2. Timestamp-based conflict resolution (only if both have updated_at)
+     *    - Uses same strategy as other entities (see resolveByTimestamp)
+     *    - If conflict detected (local-wins), return existing unchanged
+     *
+     * If both checks pass, merge { ...existing, ...incoming }
+     */
     const mergeMessages = (
       items: Partial<LocalMessage>[],
       existingMap: Map<string, Partial<LocalMessage>>,
@@ -2141,8 +2316,8 @@ export class EntityRepository {
         const cid = item.client_id!;
         const prev = existingMap.get(cid);
         if (prev) {
-          // First check: skip if applying this update would cause a streaming status regression
-          // This check ALWAYS applies, regardless of timestamps
+          // Check 1: Skip if applying this update would cause a streaming status regression
+          // This check ALWAYS applies, regardless of timestamps (special case for Message)
           if (
             isStreamingStatusRegression(
               prev.streaming_status,
@@ -2165,7 +2340,7 @@ export class EntityRepository {
             return prev; // Keep existing record unchanged
           }
 
-          // Second check: timestamp-based conflict resolution
+          // Check 2: Timestamp-based conflict resolution
           // Only applies if both have updated_at
           if (item.updated_at && prev.updated_at) {
             const { isConflict } = resolveByTimestamp(item, prev, 'message', cid);
@@ -2176,7 +2351,7 @@ export class EntityRepository {
             }
           }
 
-          // Normal case: merge with incoming overriding existing
+          // Both checks passed: merge with incoming overriding existing
           // For fields present in incoming, incoming wins
           // For fields not in incoming, keep existing values
           return { ...prev, ...item } as Partial<LocalMessage>;

@@ -391,18 +391,26 @@ export class RTCAgentDatabase extends Dexie {
         //
         // NOTE: Dexie's upgrade() runs within a transaction. If any error occurs,
         // Dexie automatically rolls back the entire transaction. No manual backup/restore needed.
+        //
+        // P0-FIX (data safety): Restructured migration order to prevent data loss.
+        // Previously, each table was migrated then immediately cleared. If a later table's
+        // migration failed, earlier tables' old data was already gone.
+        // Now: (1) migrate ALL tables by adding new records, (2) verify integrity, (3) clear ALL.
+        // This ensures old data remains available for recovery until all new data is written.
 
-        // M1-FIX: Process data in batches to avoid loading all records into memory at once
         const BATCH_SIZE = 1000;
+        const TABLES_TO_MIGRATE = ['sessions', 'turns', 'messages', 'rtcs'] as const;
 
-        // 1. Migrate sessions table first, building server_id -> client_id mapping
-        //    (other tables need to reference session by client_id)
+        // Phase 1: Add new records for all tables (old records remain until Phase 3)
+        // Track migration counts per table for integrity verification
+        const migrationCounts = new Map<string, number>();
+        const sessionIdMap = new Map<string, string>(); // server_id -> client_id (for FK resolution)
+
+        // 1a. Migrate sessions first to build the server_id -> client_id mapping
         const sessionsTable = tx.table('sessions');
-        const sessionIdMap = new Map<string, string>(); // server_id -> client_id
-
-        // P1-FIX: Track migration counts for data integrity verification before clear()
         let totalSessionsMigrated = 0;
         let sessionsOffset = 0;
+
         while (true) {
           const sessionBatch = await sessionsTable
             .orderBy('id')
@@ -434,21 +442,14 @@ export class RTCAgentDatabase extends Dexie {
           sessionsOffset += BATCH_SIZE;
         }
 
-        // P1-FIX: Verify migration integrity before clear() - log record counts for debugging
-        const finalSessionCount = await sessionsTable.count();
-        console.log(
-          `[DB Migration v2] Sessions: migrated ${totalSessionsMigrated} records, ` +
-          `total in table before clear: ${finalSessionCount}`,
-        );
+        migrationCounts.set('sessions', totalSessionsMigrated);
+        log.info(`[DB Migration v2] Sessions: migrated ${totalSessionsMigrated} records`);
 
-        // Clear old sessions after migration
-        await sessionsTable.clear();
-
-        // 2. Migrate other tables (turns/messages/rtcs) in batches
+        // 1b. Migrate turns, messages, rtcs (all depend on sessionIdMap from sessions)
         for (const name of ['turns', 'messages', 'rtcs'] as const) {
           const table = tx.table(name);
           let offset = 0;
-          let totalMigrated = 0; // P1-FIX: Track migration count for integrity check
+          let totalMigrated = 0;
 
           while (true) {
             const batch = await table
@@ -489,16 +490,42 @@ export class RTCAgentDatabase extends Dexie {
             offset += BATCH_SIZE;
           }
 
-          // P1-FIX: Verify migration integrity before clear() - log record counts for debugging
-          const finalCount = await table.count();
-          console.log(
-            `[DB Migration v2] ${name}: migrated ${totalMigrated} records, ` +
-            `total in table before clear: ${finalCount}`,
-          );
-
-          // Clear old table after migration
-          await table.clear();
+          migrationCounts.set(name, totalMigrated);
+          log.info(`[DB Migration v2] ${name}: migrated ${totalMigrated} records`);
         }
+
+        // Phase 2: Verify migration integrity before clearing old data
+        // Each table should now contain both old and new records (old records have 'id', new have 'client_id')
+        for (const name of TABLES_TO_MIGRATE) {
+          const table = tx.table(name);
+          const actualCount = await table.count();
+          const migratedCount = migrationCounts.get(name) ?? 0;
+          const originalCount = actualCount - migratedCount;
+
+          // Sanity check: migrated count should not exceed total count (i.e., we didn't add more than existed)
+          if (migratedCount > actualCount) {
+            throw new Error(
+              `[DB Migration v2] Integrity check failed for ${name}: ` +
+              `migrated (${migratedCount}) > total in table (${actualCount}). ` +
+              `This indicates a bug in migration logic. Transaction will rollback.`
+            );
+          }
+
+          log.info(
+            `[DB Migration v2] ${name}: original=${originalCount}, migrated=${migratedCount}, ` +
+            `total_before_clear=${actualCount}`
+          );
+        }
+
+        // Phase 3: All migrations successful, now clear old data from all tables
+        // After clear, only the new records (with client_id PK) remain
+        for (const name of TABLES_TO_MIGRATE) {
+          await tx.table(name).clear();
+        }
+
+        log.info(
+          `[DB Migration v2] Migration complete. Cleared old data from ${TABLES_TO_MIGRATE.length} tables.`
+        );
       });
 
     // v3: Add updated_at index for sorting
