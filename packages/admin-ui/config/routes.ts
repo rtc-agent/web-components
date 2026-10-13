@@ -89,34 +89,50 @@ export default [
           {
             name: 'rtc-agent',
             path: '/dashboard/grafana/rtc-agent',
+            // 由父路由 ./dashboard/container 通过 DASHBOARD_CONFIGS 渲染
+            // 参见 src/pages/dashboard/container.tsx
           },
           {
             name: 'go-runtime',
             path: '/dashboard/grafana/go-runtime',
+            // 由父路由 ./dashboard/container 通过 DASHBOARD_CONFIGS 渲染
+            // 参见 src/pages/dashboard/container.tsx
           },
           {
             name: 'http-server',
             path: '/dashboard/grafana/http-server',
+            // 由父路由 ./dashboard/container 通过 DASHBOARD_CONFIGS 渲染
+            // 参见 src/pages/dashboard/container.tsx
           },
           {
             name: 'error-feedback',
             path: '/dashboard/grafana/error-feedback-overview',
+            // 由父路由 ./dashboard/container 通过 DASHBOARD_CONFIGS 渲染
+            // 参见 src/pages/dashboard/container.tsx
           },
           {
             name: 'logs',
             path: '/dashboard/grafana/logs-overview',
+            // 由父路由 ./dashboard/container 通过 DASHBOARD_CONFIGS 渲染
+            // 参见 src/pages/dashboard/container.tsx
           },
           {
             name: 'oss3',
             path: '/dashboard/grafana/oss3-overview',
+            // 由父路由 ./dashboard/container 通过 DASHBOARD_CONFIGS 渲染
+            // 参见 src/pages/dashboard/container.tsx
           },
           {
             name: 'minio',
             path: '/dashboard/grafana/minio-overview',
+            // 由父路由 ./dashboard/container 通过 DASHBOARD_CONFIGS 渲染
+            // 参见 src/pages/dashboard/container.tsx
           },
           {
             name: 'health-watchdog',
             path: '/dashboard/grafana/system-health-watchdog',
+            // 由父路由 ./dashboard/container 通过 DASHBOARD_CONFIGS 渲染
+            // 参见 src/pages/dashboard/container.tsx
           },
         ],
       },
@@ -159,6 +175,9 @@ export default [
     path: '/system',
     name: 'system',
     icon: 'setting',
+    // 设计决策：显式设置 access 字段，统一控制整个系统管理模块的访问权限。
+    // 子路由可进一步细化权限（如 canAdminUserView、canAuditLogView），
+    // 但父级 access 作为第一道门槛，确保无权限用户完全不可见该菜单。
     access: 'canSystemView',
     routes: [
       // /system 使用动态重定向（component: './system/index'），因为需要根据用户权限
@@ -206,8 +225,10 @@ export default [
       },
     ],
   },
-  // Account pages: intentionally no `access` field - any authenticated user
-  // can view their own profile and settings. No RBAC gating needed.
+  // Account pages: intentionally no `access` field.
+  // 设计决策：任何已认证用户都可查看自己的个人资料和设置，无需 RBAC 权限控制。
+  // 安全性由 app.tsx 的 onPageChange() 保证：未登录用户会被重定向到 /user/login。
+  // 这与 /chatbot 路由的设计一致 — 认证即授权，无需额外权限守卫。
   {
     name: 'account',
     layout: false,
