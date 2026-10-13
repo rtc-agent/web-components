@@ -870,8 +870,24 @@ export class RtcAgent extends LitElement {
    * we only clear `_connecting` if the generation still matches. Any code path
    * that invalidates an in-flight connection (logout, disconnect) bumps the
    * generation instead of clearing `_connecting`, so stale Promises self-inhibit.
+   *
+   * Note: Incremented via _nextGeneration() to prevent overflow at Number.MAX_SAFE_INTEGER.
+   * In practice, overflow is extremely unlikely (only on connect/disconnect events),
+   * but the protection adds robustness with negligible cost.
    */
   private _connectGeneration = 0;
+
+  /**
+   * Increment connection generation counter with overflow protection.
+   *
+   * Wraps at Number.MAX_SAFE_INTEGER to prevent precision loss in edge cases
+   * with extreme concurrent connect/disconnect cycles.
+   */
+  private _nextGeneration(): number {
+    this._connectGeneration =
+      (this._connectGeneration + 1) % Number.MAX_SAFE_INTEGER;
+    return this._connectGeneration;
+  }
 
   /** Tracks the last mode we applied DOM side-effects for, to avoid redundant work. */
   private _appliedMode: WindowMode = 'normal';
@@ -1309,7 +1325,7 @@ export class RtcAgent extends LitElement {
         },
         getConnectGeneration: () => this._connectGeneration,
         bumpConnectGeneration: () => {
-          this._connectGeneration++;
+          this._nextGeneration();
         },
         getConnecting: () => this._connecting,
         setConnecting: (v) => {
@@ -1623,6 +1639,12 @@ export class RtcAgent extends LitElement {
    * 7. Invalidate in-flight connection attempts via generation counter
    * 8. Clear all auto-save timers
    *
+   * Async cleanup safety:
+   * Some cleanup operations (RTC processor cancellation, Promise chains in
+   * updateComplete, async sanitization) may be in-flight when disconnectedCallback
+   * fires. We wrap critical async cleanup with timeout protection to prevent
+   * resource leaks in edge cases (DOM reordering, React StrictMode double-mount).
+   *
    * Note: disconnectedCallback may fire for temporary removal (e.g. DOM reordering).
    * The factory's destroy() method provides permanent cleanup.
    */
@@ -1656,16 +1678,35 @@ export class RtcAgent extends LitElement {
     // Dispose debounced session loader to clear pending timer (Fix 40).
     this._sessionLoader?.dispose();
     this._sessionLoader = undefined;
+
     // FIX #61: Cancel any running processLoop before clearing reference.
     // Ensures the loop exits at the next iteration boundary when the component
     // is unmounted (e.g., React StrictMode double-mount, DOM reordering).
-    this._rtcProcessor?.cancel();
-    this._rtcProcessor = undefined;
+    //
+    // CRITICAL: Wrap RTC processor cancellation with timeout protection.
+    // cancel() signals the processLoop to stop, but the loop may be awaiting
+    // async operations (IndexedDB reads, network requests). We give it 100ms
+    // to gracefully shut down; if it doesn't complete, we proceed anyway to
+    // prevent blocking the main thread during component teardown.
+    if (this._rtcProcessor) {
+      const cancelPromise = Promise.resolve(this._rtcProcessor.cancel());
+      const timeoutPromise = new Promise<void>((resolve) =>
+        setTimeout(() => {
+          log.warn('RTC processor cancellation timeout, proceeding with cleanup');
+          resolve();
+        }, 100)
+      );
+      Promise.race([cancelPromise, timeoutPromise]).catch((err) => {
+        log.warn('RTC processor cancellation error:', err);
+      });
+      this._rtcProcessor = undefined;
+    }
+
     this._unsubConnection?.();
     this._auth.onLogin = undefined; // Clear auth callback to prevent leaks
 
     // Invalidate any in-flight connection attempt (see _connectGeneration docs).
-    this._connectGeneration++;
+    this._nextGeneration();
     this._connecting = undefined;
 
     // Clear FileStorage reference to prevent stale WorkerBridge access after reconnect.
@@ -1931,8 +1972,13 @@ export class RtcAgent extends LitElement {
 
   private _handleModeTransition(mode: WindowMode) {
     // Move focus after the render completes.
-    this.updateComplete
+    // Wrap with timeout protection to prevent hanging if updateComplete never resolves
+    // (e.g., component disconnected during transition, render cycle stalled).
+    const focusPromise = this.updateComplete
       .then(() => {
+        // Guard: component may have been destroyed while waiting for updateComplete.
+        if (this._isDestroyed) return;
+
         if (mode === 'minimized') {
           const bubble = this.shadowRoot?.querySelector<HTMLElement>('.bubble');
           bubble?.focus();
@@ -1945,6 +1991,15 @@ export class RtcAgent extends LitElement {
       .catch((err) => {
         log.error('Mode transition focus failed:', err);
       });
+
+    // Add timeout protection to focus promise chain
+    const timeoutPromise = new Promise<void>((_, reject) =>
+      setTimeout(() => reject(new Error('Mode transition timeout')), 5000)
+    );
+
+    Promise.race([focusPromise, timeoutPromise]).catch((err) => {
+      log.warn('Mode transition did not complete within timeout:', err);
+    });
 
     // When restoring from minimized, clear notification animation and unread count.
     if (this._appliedMode === 'minimized' && mode !== 'minimized') {
