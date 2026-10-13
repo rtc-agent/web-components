@@ -145,6 +145,9 @@ export class RtcMessageList extends LitElement {
   @state()
   private _userAtBottom = true;
 
+  /** RAF handle for scroll event throttling (performance optimization) */
+  private _scrollRAF: number | null = null;
+
   /** Debounce timer for loadMore operations to prevent rapid successive calls */
   private _loadMoreDebounceTimer?: number;
   private _loadMoreInProgress = false;
@@ -187,6 +190,21 @@ export class RtcMessageList extends LitElement {
 
   /** Virtual scroll instance for efficient rendering */
   private _virtualScroll?: MessageVirtualScroll<Message>;
+
+  /**
+   * WeakMap cache for getChangeableContent in virtual scroll.
+   *
+   * PERFORMANCE: Avoids creating a new object on every comparison during streaming.
+   * Keyed by Message object reference — when the repository emits a new array with
+   * new Message objects, cache misses naturally and old entries are GC'd via WeakMap.
+   * Same reference hits the cache, eliminating per-comparison object allocation.
+   */
+  private _changeableContentCache = new WeakMap<Message, {
+    content: Message['content'];
+    status: Message['syncStatus'];
+    timestamp: Message['timestamp'];
+    streaming: Message['streaming'];
+  }>();
 
   /** Flag to prevent ResizeObserver feedback loop during virtual scroll operations */
   private _isVirtualScrollOperation = false;
@@ -323,12 +341,20 @@ export class RtcMessageList extends LitElement {
         // Extract only the fields that affect rendering for efficient comparison.
         // Tab switching returns new array references with identical content;
         // comparing only these fields avoids unnecessary Markdown DOM recreation.
-        getChangeableContent: (msg) => ({
-          content: msg.content,
-          status: msg.syncStatus,
-          timestamp: msg.timestamp,
-          streaming: msg.streaming, // Streaming state affects timeline-dot animation
-        }),
+        // PERFORMANCE: WeakMap cache avoids per-comparison object allocation during streaming.
+        getChangeableContent: (msg: Message) => {
+          let cached = this._changeableContentCache.get(msg);
+          if (!cached) {
+            cached = {
+              content: msg.content,
+              status: msg.syncStatus,
+              timestamp: msg.timestamp,
+              streaming: msg.streaming,
+            };
+            this._changeableContentCache.set(msg, cached);
+          }
+          return cached;
+        },
         // In-place update: preserve DOM state (rendered Markdown) during streaming.
         // Without this, each streaming token would destroy-rebuild the element,
         // causing flicker and breaking auto-scroll.
@@ -385,13 +411,14 @@ export class RtcMessageList extends LitElement {
 
         if (!this._shouldAutoScroll()) return;
         // Debounced compensation: handles late async renders (Markdown, etc.)
+        // 50ms provides responsive UX during streaming while preventing feedback loops.
         clearTimeout(this._resizeDebounceTimer);
         this._resizeDebounceTimer = window.setTimeout(() => {
           if (this._shouldAutoScroll() && !this._isVirtualScrollOperation) {
             // Use debounced scroll to prevent rapid successive scrolls
             this._scrollToBottom(false);
           }
-        }, 100);
+        }, 50);
       });
       this._resizeObserver.observe(innerEl);
     }
@@ -624,6 +651,11 @@ export class RtcMessageList extends LitElement {
     clearTimeout(this._scrollToBottomTimer);
     clearTimeout(this._loadMoreDebounceTimer);
     clearTimeout(this._scrollDebounceTimer);
+    // Cleanup scroll RAF to prevent memory leaks
+    if (this._scrollRAF !== null) {
+      cancelAnimationFrame(this._scrollRAF);
+      this._scrollRAF = null;
+    }
     this.removeEventListener(
       'rtc-toolcall-jump',
       this._handleToolcallJump as EventListener,
@@ -642,6 +674,8 @@ export class RtcMessageList extends LitElement {
     this._subscription = undefined;
     this._virtualScroll?.dispose();
     this._virtualScroll = undefined;
+    // Clear WeakMap cache — old Message refs are no longer meaningful
+    this._changeableContentCache = new WeakMap();
   }
 
   /**
@@ -773,22 +807,35 @@ export class RtcMessageList extends LitElement {
     // skip geometric state update to prevent UI flicker.
     if (this._scrollingToBottom) return;
 
-    const { scrollHeight, scrollTop, clientHeight } = this._scrollEl;
-    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    // PERFORMANCE: Use requestAnimationFrame to throttle scroll updates.
+    // This reduces unnecessary re-renders during rapid scroll events.
+    // The actual state update happens on the next animation frame.
+    if (this._scrollRAF !== null) {
+      cancelAnimationFrame(this._scrollRAF);
+    }
 
-    // Pure geometric state: is the user at the bottom?
-    // Threshold 300px (matches Telegram's SCROLLED_DOWN_THRESHOLD).
-    // No hysteresis needed — this is purely geometric, not behavioral.
-    const atBottom = distanceFromBottom < AT_BOTTOM_THRESHOLD_PX;
+    this._scrollRAF = requestAnimationFrame(() => {
+      this._scrollRAF = null;
 
-    // UI state
-    this._userAtBottom = atBottom;
-    this._showNewBtn = !atBottom;
+      if (!this._scrollEl) return;
 
-    // NOTE: _onScroll does NOT modify _followInvalidatedUntil or _shouldAutoScroll().
-    // Behavioral intent is controlled exclusively by user input events
-    // (wheel/touchstart/pointerdown/keydown) via _setupFollowInvalidation().
-    // This breaks the feedback loop where programmatic scrolls could re-enable auto-scroll.
+      const { scrollHeight, scrollTop, clientHeight } = this._scrollEl;
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+
+      // Pure geometric state: is the user at the bottom?
+      // Threshold 300px (matches Telegram's SCROLLED_DOWN_THRESHOLD).
+      // No hysteresis needed — this is purely geometric, not behavioral.
+      const atBottom = distanceFromBottom < AT_BOTTOM_THRESHOLD_PX;
+
+      // UI state
+      this._userAtBottom = atBottom;
+      this._showNewBtn = !atBottom;
+
+      // NOTE: _onScroll does NOT modify _followInvalidatedUntil or _shouldAutoScroll().
+      // Behavioral intent is controlled exclusively by user input events
+      // (wheel/touchstart/pointerdown/keydown) via _setupFollowInvalidation().
+      // This breaks the feedback loop where programmatic scrolls could re-enable auto-scroll.
+    });
   };
 
   /**
@@ -829,7 +876,7 @@ export class RtcMessageList extends LitElement {
         } finally {
           this._loadMoreInProgress = false;
         }
-      }, 150); // 150ms debounce delay
+      }, 100); // 100ms debounce delay — balances responsiveness with call throttling
     });
   }
 

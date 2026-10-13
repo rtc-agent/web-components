@@ -2290,8 +2290,8 @@ export class EntityRepository {
           };
 
           log.debug(
-            `mergeWithExisting: conflict resolved in ${entityName} (server wins)`,
-            JSON.stringify(resolution, null, 2),
+            () =>
+              `mergeWithExisting: conflict resolved in ${entityName} (server wins)\n${JSON.stringify(resolution, null, 2)}`,
           );
 
           return { winner: incoming, isConflict: false, resolution };

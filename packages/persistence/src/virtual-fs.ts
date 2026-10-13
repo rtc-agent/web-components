@@ -350,7 +350,13 @@ export class VirtualFS {
       );
     }
 
-    // C3-FIX: Basic content validation - check for null bytes which could indicate corruption
+    // C3-FIX: Basic content validation - check for null bytes which could indicate corruption.
+    //
+    // PERFORMANCE NOTE: String.includes('\0') is O(n) but highly optimized in V8 (native memcmp).
+    // For a 10MB string, this takes ~1-2ms — acceptable for a security validation.
+    // Alternatives like TextEncoder.encode() + Uint8Array.includes() would require allocating
+    // and copying 10MB+ of memory, which is actually slower and increases GC pressure.
+    // We check ALL content (not just a prefix) because null bytes anywhere indicate corruption.
     if (content.includes('\0')) {
       throw new Error('File content contains null bytes, which is not allowed');
     }

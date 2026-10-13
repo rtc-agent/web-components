@@ -123,6 +123,15 @@ export class UIUpdateBus {
    * When a listener returns a Promise, subsequent events for the same
    * (entity, entityId) wait for it to complete before processing.
    * This prevents race conditions where async DB reads return stale data.
+   *
+   * MEMORY LEAK PROTECTIONS (already implemented — do NOT remove):
+   * 1. `_withTimeout()` wraps every listener call with CHAIN_TIMEOUT_MS (10s).
+   *    Stuck listeners are rejected, preventing permanent chain accumulation.
+   * 2. `next.finally()` (in _dispatchToListener) deletes settled chains from the Map.
+   *    Cleanup is automatic — no manual GC needed.
+   * 3. `MAX_PROCESSING_CHAINS` (5000) hard limit drops events if chains spike,
+   *    preventing OOM in extreme scenarios (event storms, listener bugs).
+   * 4. Multi-level monitoring at 100/500/1000 provides early warning.
    */
   private _processingChains = new Map<string, Promise<void>>();
 

@@ -11,6 +11,11 @@
  *   const log = createLogger('RTCAgentClient');
  *   log.info('connected');            // [RTCAgentClient] connected
  *   log.debug('payload', { ... });    // [RTCAgentClient] payload { ... }
+ *
+ * PERFORMANCE: Arguments that are functions (thunks) are lazily evaluated only
+ * when the log level is enabled. Use this to avoid expensive serialization
+ * (e.g., JSON.stringify) on hot paths when debug logging is disabled:
+ *   log.debug(() => `Conflict: ${JSON.stringify(details)}`);
  */
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
@@ -60,6 +65,10 @@ export interface Logger {
  * Performance optimization: the returned logger methods cache the current
  * global minimum level's priority, avoiding repeated Record lookups on
  * every log call. The cache is invalidated when `setGlobalLogLevel()` is called.
+ *
+ * Lazy evaluation: If any argument is a function (thunk), it is called to
+ * produce the actual value ONLY when the log level is enabled. This avoids
+ * expensive operations (e.g., JSON.stringify) on suppressed log calls.
  */
 export function createLogger(scope: string): Logger {
   /**
@@ -69,18 +78,37 @@ export function createLogger(scope: string): Logger {
   const shouldEmit = (level: LogLevel): boolean =>
     LOG_LEVEL_PRIORITY[level] >= LOG_LEVEL_PRIORITY[globalMinLevel];
 
+  /**
+   * Resolve thunk arguments: if an arg is a function, call it to get the value.
+   * Only invoked when the log level is enabled, avoiding unnecessary computation.
+   */
+  const resolveArgs = (args: unknown[]): unknown[] => {
+    let resolved = false;
+    for (let i = 0; i < args.length; i++) {
+      if (typeof args[i] === 'function') {
+        // Lazy: only allocate the new array when we actually need to resolve
+        if (!resolved) {
+          args = args.slice();
+          resolved = true;
+        }
+        args[i] = (args[i] as () => unknown)();
+      }
+    }
+    return args;
+  };
+
   return {
     debug(...args: unknown[]) {
-      if (shouldEmit('debug')) console.debug(`[${scope}]`, ...args);
+      if (shouldEmit('debug')) console.debug(`[${scope}]`, ...resolveArgs(args));
     },
     info(...args: unknown[]) {
-      if (shouldEmit('info')) console.info(`[${scope}]`, ...args);
+      if (shouldEmit('info')) console.info(`[${scope}]`, ...resolveArgs(args));
     },
     warn(...args: unknown[]) {
-      if (shouldEmit('warn')) console.warn(`[${scope}]`, ...args);
+      if (shouldEmit('warn')) console.warn(`[${scope}]`, ...resolveArgs(args));
     },
     error(...args: unknown[]) {
-      if (shouldEmit('error')) console.error(`[${scope}]`, ...args);
+      if (shouldEmit('error')) console.error(`[${scope}]`, ...resolveArgs(args));
     },
   };
 }
