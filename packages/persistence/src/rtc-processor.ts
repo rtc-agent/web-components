@@ -274,12 +274,11 @@ export class RtcProcessor {
           }
 
           log.error('processOne failed:', err);
-          // If it's a connection error, exit the loop and wait for connection recovery
-          const errMsg = err instanceof Error ? err.message : String(err);
-          if (
-            errMsg.includes('connection') ||
-            errMsg.includes('disconnected')
-          ) {
+          // If it's a connection error, exit the loop and wait for connection recovery.
+          // FIX: Use structured error detection instead of fragile string matching.
+          // Check for common network/connection error types and names.
+          const isConnectionError = this.isConnectionError(err);
+          if (isConnectionError) {
             log.warn('connection error detected, exiting processLoop');
             break;
           }
@@ -397,7 +396,7 @@ export class RtcProcessor {
         // Fix: Clear timeout handle and catch late tool rejections to prevent unhandled rejections
         // M7-FIX: Use configurable timeout instead of hardcoded constant
         const toolExecutionPromise = toolRegistry.execute(toolName, params);
-        let timeoutHandle: ReturnType<typeof setTimeout>;
+        let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
         const timeoutPromise = new Promise<never>((_, reject) => {
           timeoutHandle = setTimeout(
             () =>
@@ -417,9 +416,14 @@ export class RtcProcessor {
             timeoutPromise,
           ]);
         } finally {
-          clearTimeout(timeoutHandle!);
+          // Clear timeout to prevent memory leaks and late rejections
+          if (timeoutHandle !== undefined) {
+            clearTimeout(timeoutHandle);
+          }
         }
         // Catch late tool rejections after timeout wins the race (prevents unhandled rejection)
+        // This is necessary because Promise.race doesn't cancel the losing promise.
+        // If toolExecutionPromise rejects after timeout, it would become an unhandled rejection.
         toolExecutionPromise.catch(() => {});
         result = toolResult.data;
         if (!toolResult.success) {
@@ -554,5 +558,43 @@ export class RtcProcessor {
       return false;
     }
     return this.confirmDialog(rtc);
+  }
+
+  /**
+   * Check if an error is a connection-related error.
+   *
+   * Uses structured error detection instead of fragile string matching.
+   * Checks for common network error types and names.
+   *
+   * @param err The error to check
+   * @returns true if this is a connection error that should exit the process loop
+   */
+  private isConnectionError(err: unknown): boolean {
+    if (!(err instanceof Error)) {
+      return false;
+    }
+
+    // Check for standard network error types
+    const networkErrorNames = [
+      'NetworkError',
+      'TypeError', // fetch failures often throw TypeError
+      'AbortError',
+      'TimeoutError',
+    ];
+
+    if (networkErrorNames.includes(err.name)) {
+      return true;
+    }
+
+    // Check for WebSocket-specific errors
+    if (err.message.includes('WebSocket') || err.message.includes('centrifuge')) {
+      return true;
+    }
+
+    // Check for common connection-related keywords in error message
+    // This is a fallback for errors that don't have a specific type
+    const connectionKeywords = ['connection', 'disconnected', 'network', 'offline'];
+    const lowerMessage = err.message.toLowerCase();
+    return connectionKeywords.some(keyword => lowerMessage.includes(keyword));
   }
 }

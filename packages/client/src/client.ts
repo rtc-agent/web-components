@@ -1467,11 +1467,22 @@ export class RTCAgentClient implements IRTCAgentClient {
    *   - Detects offset gaps and fills history automatically
    *   - Guarantees strict +1 offset continuity in onPublication callbacks
    * - Live channel (live:u={userId}): fire-and-forget, no recovery
+   *
+   * SECURITY: Validates userId before constructing channel names to prevent
+   * injection attacks via malformed userId (e.g., containing ':' or '=')).
    */
   private subscribeChannels(): void {
     if (!this.centrifuge || !this.options.userId) return;
 
     const userId = this.options.userId;
+
+    // SECURITY: Validate userId format (UUID-like) to prevent channel name injection.
+    // Accepts standard UUID format (8-4-4-4-12) or simple alphanumeric strings.
+    if (!/^[a-zA-Z0-9_-]+$/.test(userId)) {
+      log.error('invalid userId format, refusing to subscribe:', userId);
+      this.emit('error', new Error('Invalid userId format for channel subscription'));
+      return;
+    }
 
     // Topic channel: supports offline recovery (Centrifuge handles this by default).
     const topicChannel = `topic:u=${userId}`;
@@ -1487,58 +1498,65 @@ export class RTCAgentClient implements IRTCAgentClient {
       });
 
       topicSub.on('subscribed', async (ctx) => {
-        // Debug log: record subscribed event trigger
-        log.debug(
-          `Subscription 'subscribed' event: channel=${topicChannel}, ` +
-            `serverOffset=${ctx.streamPosition?.offset}, epoch=${ctx.streamPosition?.epoch}, ` +
-            `connectionState=${this.connectionState}`,
-        );
+        try {
+          // Debug log: record subscribed event trigger
+          log.debug(
+            `Subscription 'subscribed' event: channel=${topicChannel}, ` +
+              `serverOffset=${ctx.streamPosition?.offset}, epoch=${ctx.streamPosition?.epoch}, ` +
+              `connectionState=${this.connectionState}`,
+          );
 
-        // On successful subscription, detect offset continuity to prevent losing offline messages.
-        if (ctx.streamPosition) {
-          const epoch = ctx.streamPosition.epoch;
-          const serverOffset = ctx.streamPosition.offset;
+          // On successful subscription, detect offset continuity to prevent losing offline messages.
+          if (ctx.streamPosition) {
+            const epoch = ctx.streamPosition.epoch;
+            const serverOffset = ctx.streamPosition.offset;
 
-          // Update epoch cache first (regardless of offset changes, epoch must be synced).
-          this.epochCache.set(topicChannel, epoch);
+            // Update epoch cache first (regardless of offset changes, epoch must be synced).
+            this.epochCache.set(topicChannel, epoch);
 
-          // Detect offset continuity (fast, sync check).
-          const position = await this.options.getLastOffset?.(topicChannel);
-          let localOffset: number | undefined;
+            // Detect offset continuity (fast, sync check).
+            const position = await this.options.getLastOffset?.(topicChannel);
+            let localOffset: number | undefined;
 
-          // Detect epoch change (e.g. server restart) and reset offset.
-          if (position && position.epoch !== epoch) {
-            log.warn(
-              `Epoch changed: '${position.epoch}' -> '${epoch}', resetting offset to 0`,
-            );
-            await this.options.updateOffset?.(topicChannel, 0, epoch);
-            localOffset = 0;
-          } else {
-            localOffset = position?.offset;
+            // Detect epoch change (e.g. server restart) and reset offset.
+            if (position && position.epoch !== epoch) {
+              log.warn(
+                `Epoch changed: '${position.epoch}' -> '${epoch}', resetting offset to 0`,
+              );
+              await this.options.updateOffset?.(topicChannel, 0, epoch);
+              localOffset = 0;
+            } else {
+              localOffset = position?.offset;
+            }
+
+            if (localOffset === undefined) {
+              // No local record (first subscription) — use the server offset directly.
+              await this.options.updateOffset?.(
+                topicChannel,
+                serverOffset,
+                epoch,
+              );
+              localOffset = serverOffset;
+            } else if (serverOffset <= localOffset) {
+              // Server offset <= local offset: duplicate subscription or rollback — keep local.
+            } else {
+              // Gap exists — schedule async gap fill (non-blocking).
+              // The gap fill will fetch history in batches and process through applyUpdates.
+              // Note: serverOffset + 1 because toOffset is exclusive.
+              this.scheduleGapFill(topicChannel, serverOffset + 1, epoch);
+            }
+
+            // Sync-update lastOffsetCache for scheduleUpdate enqueue dedup
+            // (avoids awaiting IndexedDB during enqueue, which would re-block the callback)
+            if (localOffset !== undefined) {
+              this.lastOffsetCache.set(topicChannel, localOffset);
+            }
           }
-
-          if (localOffset === undefined) {
-            // No local record (first subscription) — use the server offset directly.
-            await this.options.updateOffset?.(
-              topicChannel,
-              serverOffset,
-              epoch,
-            );
-            localOffset = serverOffset;
-          } else if (serverOffset <= localOffset) {
-            // Server offset <= local offset: duplicate subscription or rollback — keep local.
-          } else {
-            // Gap exists — schedule async gap fill (non-blocking).
-            // The gap fill will fetch history in batches and process through applyUpdates.
-            // Note: serverOffset + 1 because toOffset is exclusive.
-            this.scheduleGapFill(topicChannel, serverOffset + 1, epoch);
-          }
-
-          // Sync-update lastOffsetCache for scheduleUpdate enqueue dedup
-          // (avoids awaiting IndexedDB during enqueue, which would re-block the callback)
-          if (localOffset !== undefined) {
-            this.lastOffsetCache.set(topicChannel, localOffset);
-          }
+        } catch (err) {
+          // SECURITY: Async callback errors won't be caught by Centrifuge.
+          // Log and emit error to prevent silent failures.
+          log.error('subscribed callback failed:', err);
+          this.emit('error', err instanceof Error ? err : new Error(String(err)));
         }
       });
     }

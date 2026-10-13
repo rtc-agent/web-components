@@ -114,6 +114,20 @@ export class OAuth2Client {
   private static readonly TOKEN_EXCHANGE_RETRY_DELAY_MS = 1000;
 
   constructor(options: OAuth2ClientOptions) {
+    // SECURITY: Validate required options to prevent misconfiguration
+    if (!options.serverURL) {
+      throw new Error('OAuth2Client: serverURL is required');
+    }
+    if (!options.redirectUri) {
+      throw new Error('OAuth2Client: redirectUri is required');
+    }
+    // Validate URL format to prevent SSRF or malformed requests
+    try {
+      new URL(options.serverURL);
+    } catch {
+      throw new Error(`OAuth2Client: invalid serverURL format: ${options.serverURL}`);
+    }
+
     this.serverURL = options.serverURL.replace(/\/$/, '');
     this.redirectUri = options.redirectUri;
     this.timeout = options.timeout ?? 10000;
@@ -242,7 +256,10 @@ export class OAuth2Client {
     body.append('grant_type', params.grant_type);
     body.append('subject_token', params.subject_token);
     body.append('subject_token_type', params.subject_token_type);
-    body.append('device_id', params.device_id);
+    // SECURITY: Only append device_id if explicitly provided to avoid sending empty values
+    if (params.device_id) {
+      body.append('device_id', params.device_id);
+    }
     if (params.device_name) {
       body.append('device_name', params.device_name);
     }
@@ -253,6 +270,26 @@ export class OAuth2Client {
     const url = `${this.serverURL}/oauth2/token`;
     const maxRetries = 1;
 
+    return this.executeWithRetry(url, body, maxRetries);
+  }
+
+  /**
+   * Execute a token exchange request with retry logic.
+   *
+   * Extracted to a separate method to avoid code duplication between
+   * HTTP error retries and network error retries.
+   *
+   * @param url Target URL
+   * @param body Form-encoded request body
+   * @param maxRetries Maximum number of retry attempts
+   * @returns Token exchange response
+   * @throws TokenExchangeError if all attempts fail
+   */
+  private async executeWithRetry(
+    url: string,
+    body: URLSearchParams,
+    maxRetries: number,
+  ): Promise<TokenExchangeResponse> {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.timeout);
@@ -277,20 +314,7 @@ export class OAuth2Client {
             statusCode === 429;
 
           if (isRetryable && attempt < maxRetries) {
-            // Retry after exponential backoff with jitter
-            // Base delay: 1000ms, multiplier: 2^attempt (1000ms, 2000ms, 4000ms, ...)
-            // Add random jitter (0-500ms) to prevent thundering herd
-            const baseDelay = OAuth2Client.TOKEN_EXCHANGE_RETRY_DELAY_MS * Math.pow(2, attempt);
-            const jitter = Math.random() * 500;
-            const retryDelay = baseDelay + jitter;
-
-            log.debug(
-              `tokenExchange: retryable error ${statusCode}, ` +
-              `attempt ${attempt + 1}/${maxRetries + 1}, ` +
-              `retrying in ${Math.round(retryDelay)}ms`
-            );
-
-            await new Promise((resolve) => setTimeout(resolve, retryDelay));
+            await this.retryWithBackoff(attempt, maxRetries, statusCode);
             continue;
           }
 
@@ -311,19 +335,7 @@ export class OAuth2Client {
         // Network errors (fetch failures, AbortError) are retryable — they indicate
         // transient connectivity issues, not client errors.
         if (attempt < maxRetries) {
-          // Retry after exponential backoff with jitter
-          const baseDelay = OAuth2Client.TOKEN_EXCHANGE_RETRY_DELAY_MS * Math.pow(2, attempt);
-          const jitter = Math.random() * 500;
-          const retryDelay = baseDelay + jitter;
-
-          log.debug(
-            `tokenExchange: network error, ` +
-            `attempt ${attempt + 1}/${maxRetries + 1}, ` +
-            `retrying in ${Math.round(retryDelay)}ms`,
-            err instanceof Error ? err.message : String(err)
-          );
-
-          await new Promise((resolve) => setTimeout(resolve, retryDelay));
+          await this.retryWithBackoff(attempt, maxRetries, 0, err);
           continue;
         }
 
@@ -341,6 +353,45 @@ export class OAuth2Client {
       0,
       'Token exchange failed: max retries exceeded',
     );
+  }
+
+  /**
+   * Wait before retrying with exponential backoff and jitter.
+   *
+   * @param attempt Current attempt number (0-based)
+   * @param maxRetries Maximum retry attempts (for logging)
+   * @param statusCode HTTP status code (0 for network errors)
+   * @param err Original error (for network errors)
+   */
+  private async retryWithBackoff(
+    attempt: number,
+    maxRetries: number,
+    statusCode: number,
+    err?: unknown,
+  ): Promise<void> {
+    // Exponential backoff with jitter to prevent thundering herd
+    // Base delay: 1000ms, multiplier: 2^attempt (1000ms, 2000ms, 4000ms, ...)
+    // Add random jitter (0-500ms) to distribute retry attempts
+    const baseDelay = OAuth2Client.TOKEN_EXCHANGE_RETRY_DELAY_MS * Math.pow(2, attempt);
+    const jitter = Math.random() * 500;
+    const retryDelay = baseDelay + jitter;
+
+    if (statusCode > 0) {
+      log.debug(
+        `tokenExchange: retryable error ${statusCode}, ` +
+        `attempt ${attempt + 1}/${maxRetries + 1}, ` +
+        `retrying in ${Math.round(retryDelay)}ms`
+      );
+    } else {
+      log.debug(
+        `tokenExchange: network error, ` +
+        `attempt ${attempt + 1}/${maxRetries + 1}, ` +
+        `retrying in ${Math.round(retryDelay)}ms`,
+        err instanceof Error ? err.message : String(err)
+      );
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, retryDelay));
   }
 
   /**
