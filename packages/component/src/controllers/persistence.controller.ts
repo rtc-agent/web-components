@@ -371,7 +371,10 @@ export class PersistenceController implements ReactiveController {
     // Browser will clean up Worker/IndexedDB on page unload.
     // For DOM re-parenting scenarios, async cleanup may not complete.
     // The void operator explicitly ignores the Promise (fire-and-forget).
-    void this.disconnect();
+    // Fix: Add .catch() to log errors instead of silently swallowing them.
+    void this.disconnect().catch((err) => {
+      log.warn('disconnect cleanup failed:', err);
+    });
   }
 
   /**

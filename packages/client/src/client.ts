@@ -130,6 +130,15 @@ export class RTCAgentClient implements IRTCAgentClient {
   >();
   /** Current delay for exponential backoff after gap fill failure. Initialized in constructor. */
   private _reconnectDelay!: number;
+  /**
+   * In-flight token refresh promise for deduplication.
+   *
+   * Prevents concurrent token refresh requests when multiple callbacks detect expiry
+   * simultaneously (e.g., multiple tabs or reconnection attempts). The first refresh
+   * creates this promise; subsequent callers await it instead of triggering new refreshes.
+   * Cleared after completion (success or failure) to allow retry.
+   */
+  private _refreshPromise: Promise<string> | null = null;
 
   // ========== Update Scheduler: dispatch -> [buffer] -> serial executor ==========
   /**
@@ -183,33 +192,7 @@ export class RTCAgentClient implements IRTCAgentClient {
       // transport connections, and ready() calls.
       timeout: 30000,
       getToken: async () => {
-        const token = await this.options.getToken();
-
-        // Only trigger the refresh callback when the token is actually expired,
-        // avoiding unnecessary HTTP requests on every reconnect.
-        //
-        // CONCURRENCY: If multiple tabs detect token expiry simultaneously, they may
-        // all call onTokenExpired(). The AuthController's _executeRefreshWithGuard() uses
-        // a shared Promise guard to ensure only one refresh executes; others wait for it.
-        if (this._isTokenExpired(token) && this.options.onTokenExpired) {
-          log.warn('[Centrifuge] token is expired, requesting refresh...');
-          const action: TokenExpiredAction =
-            await this.options.onTokenExpired();
-          if (action === 'relogin') {
-            // Relogin required — stop reconnecting.
-            this.shouldReconnect = false;
-            this.centrifuge?.disconnect();
-            this.setConnectionState(
-              'disconnected',
-              'token expired, relogin required',
-            );
-            throw new Error('Token expired, user needs to re-login');
-          }
-          // action === 'refresh' — token has been refreshed, fetch the new one.
-          return this.options.getToken();
-        }
-
-        return token;
+        return this._getToken();
       },
     });
 
@@ -270,6 +253,11 @@ export class RTCAgentClient implements IRTCAgentClient {
         const oldCentrifuge = this.centrifuge;
         this.centrifuge = null; // Clear reference to prevent subsequent ops on old instance.
         oldCentrifuge?.disconnect(); // Explicit disconnect to stop auto-reconnect.
+        // Fix: Remove all event listeners from the old instance to prevent memory leaks.
+        // Centrifuge SDK provides removeAllListeners() method for cleanup.
+        if (oldCentrifuge && typeof oldCentrifuge.removeAllListeners === 'function') {
+          oldCentrifuge.removeAllListeners();
+        }
         // Fire-and-forget: handleInvalidToken() manages its own error handling and
         // reconnection scheduling. We return here to avoid falling through to the
         // generic setConnectionState() below — handleInvalidToken() will set the
@@ -1376,6 +1364,60 @@ export class RTCAgentClient implements IRTCAgentClient {
     const expired = payload.exp * 1000 < Date.now();
     log.debug('_isTokenExpired: exp=', payload.exp, 'expired=', expired);
     return expired;
+  }
+
+  /**
+   * Get a valid token, refreshing if necessary.
+   *
+   * Implements Promise-based deduplication to prevent concurrent refresh requests:
+   * - If a refresh is in-flight, returns the existing promise
+   * - Otherwise, creates a new refresh promise and caches it
+   * - Clears the cache after completion (success or failure) to allow retry
+   *
+   * This solves the race condition where multiple Centrifuge callbacks (e.g., during
+   * reconnection) detect token expiry simultaneously and would otherwise trigger
+   * parallel refresh requests.
+   */
+  private async _getToken(): Promise<string> {
+    const token = await this.options.getToken();
+
+    // Only trigger the refresh callback when the token is actually expired,
+    // avoiding unnecessary HTTP requests on every reconnect.
+    if (this._isTokenExpired(token) && this.options.onTokenExpired) {
+      // Deduplication: if a refresh is already in-flight, await it instead of starting a new one
+      if (this._refreshPromise) {
+        log.debug('token refresh already in-flight, awaiting existing promise');
+        return this._refreshPromise;
+      }
+
+      log.warn('[Centrifuge] token is expired, requesting refresh...');
+
+      // Create and cache the refresh promise
+      this._refreshPromise = (async () => {
+        try {
+          const action: TokenExpiredAction = await this.options.onTokenExpired!();
+          if (action === 'relogin') {
+            // Relogin required — stop reconnecting.
+            this.shouldReconnect = false;
+            this.centrifuge?.disconnect();
+            this.setConnectionState(
+              'disconnected',
+              'token expired, relogin required',
+            );
+            throw new Error('Token expired, user needs to re-login');
+          }
+          // action === 'refresh' — token has been refreshed, fetch the new one.
+          return await this.options.getToken();
+        } finally {
+          // Clear the promise after completion (success or failure) to allow retry
+          this._refreshPromise = null;
+        }
+      })();
+
+      return this._refreshPromise;
+    }
+
+    return token;
   }
 
   /**

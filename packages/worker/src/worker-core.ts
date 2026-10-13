@@ -843,6 +843,13 @@ export class WorkerCore implements WorkerPersistenceCore {
    *
    * Performance note: Checks for `.then` instead of `.catch` to avoid triggering
    * postMessage roundtrips on Comlink proxies in high-frequency broadcast scenarios.
+   *
+   * Historical note: The synchronous path (checking for `.then`) appears to be dead code
+   * in the current Comlink-based architecture, as all callbacks are now proxied via Comlink
+   * and return Promises. However, this check is preserved for backward compatibility:
+   * - Legacy code may register non-Promise-returning callbacks
+   * - Future architectural changes might reintroduce sync callbacks
+   * - The runtime cost is negligible (single `.then` property check)
    */
   private broadcastUIUpdate(event: UIUpdateEvent, seq = 0): void {
     const payload = { event, seq };
@@ -850,6 +857,8 @@ export class WorkerCore implements WorkerPersistenceCore {
       this._invokeWithFailureTracking(cb, (cb) => {
         const result = cb.onUIUpdate(payload);
         // Check for Promise-like return value using .then (safer than .catch for Comlink proxies)
+        // Note: In current Comlink architecture, this always returns a Promise, but we keep
+        // the check for backward compatibility and defensive programming.
         if (
           result &&
           typeof result === 'object' &&

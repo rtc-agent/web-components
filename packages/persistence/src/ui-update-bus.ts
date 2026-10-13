@@ -114,6 +114,20 @@ export class UIUpdateBus {
   private static readonly CHAIN_TIMEOUT_MS = 10_000;
   /** Maximum number of events to collect during suspend before warning */
   private static readonly MAX_SUSPENDED_EVENTS = 1000;
+  /**
+   * Hard limit for _processingChains Map size.
+   *
+   * Beyond this threshold, new chains are rejected to prevent unbounded memory growth
+   * in extreme scenarios (e.g., listener bugs, event storms). The soft warning at 1000
+   * provides early detection, but the hard limit at 5000 prevents OOM crashes.
+   *
+   * Rejection is preferable to silent failure because:
+   * 1. It surfaces the problem immediately via error logs
+   * 2. It prevents cascading memory pressure that could crash the browser tab
+   * 3. It's extremely unlikely to hit in normal operation (would require 5000+ concurrent
+   *    async listener invocations, each taking >10ms to complete)
+   */
+  private static readonly MAX_PROCESSING_CHAINS = 5000;
   /** Collected events during suspend */
   private _suspendedEvents: UIUpdateEvent[] = [];
   /** Track which entities were updated during suspend */
@@ -244,6 +258,9 @@ export class UIUpdateBus {
    *
    * Timeout protection: If a listener Promise never resolves, the chain will
    * timeout after CHAIN_TIMEOUT_MS to prevent permanent blocking.
+   *
+   * Memory safety: Enforces MAX_PROCESSING_CHAINS hard limit to prevent unbounded
+   * memory growth. If the limit is exceeded, the event is dropped with an error log.
    */
   private _dispatchToListener(
     listener: UIUpdateListener,
@@ -252,6 +269,16 @@ export class UIUpdateBus {
   ): void {
     const key = this._getChainKey(event.entity, event.entityId, listener);
     const prev = this._processingChains.get(key) ?? Promise.resolve();
+
+    // Memory safety: enforce hard limit on processing chains to prevent OOM
+    if (this._processingChains.size >= UIUpdateBus.MAX_PROCESSING_CHAINS) {
+      log.error(
+        `_processingChains hard limit exceeded (${this._processingChains.size} >= ${UIUpdateBus.MAX_PROCESSING_CHAINS}). ` +
+          `Dropping event for ${event.entity}:${event.entityId} to prevent memory exhaustion. ` +
+          `This indicates a serious issue: either listeners are too slow, or there's an event storm.`,
+      );
+      return; // Reject the new chain to prevent unbounded growth
+    }
 
     // Use .catch() at the end to handle both sync and async errors.
     // try-catch alone cannot catch rejected Promises returned by the listener.
