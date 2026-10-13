@@ -2,6 +2,7 @@
 import type { RequestConfig } from '@umijs/max';
 import { getIntl, history, request } from '@umijs/max';
 import { message, notification } from 'antd';
+import { PUBLIC_PATHS } from '@/constants/routes';
 import { getCurrentUser } from '@/services/admin-auth';
 import { ErrorShowType } from '@/services/types';
 import {
@@ -10,9 +11,7 @@ import {
   getRefreshToken,
   refreshAccessToken,
 } from '@/utils/auth-storage';
-import { buildPermissionSet, computeAccessLevel } from '@/utils/permission';
-
-const loginPath = '/user/login';
+import { buildCurrentUser } from '@/utils/permission';
 
 // 全局的 setInitialState 函数引用，用于在 token 刷新后更新权限
 // 在 app.tsx 的 layout 中设置
@@ -27,7 +26,7 @@ function redirectToLogin(): void {
   clearAuth();
   const { pathname, search, hash } = history.location;
   history.replace(
-    `${loginPath}?redirect=${encodeURIComponent(pathname + search + hash)}`,
+    `${PUBLIC_PATHS.login}?redirect=${encodeURIComponent(pathname + search + hash)}`,
   );
 }
 
@@ -57,24 +56,11 @@ async function refreshTokenAndUpdatePermissions(): Promise<string | null> {
   try {
     const userInfo = await getCurrentUser();
     if (userInfo && globalSetInitialState) {
-      // 构建权限集合和访问级别
-      const permissionSet = buildPermissionSet(userInfo.permissions);
-      const access = computeAccessLevel(userInfo.roles);
-
       // 直接使用 setInitialState 更新权限数据
       // 等待状态更新完成，确保权限数据同步
       await globalSetInitialState((prev: any) => ({
         ...prev,
-        currentUser: {
-          ...prev?.currentUser,
-          userid: userInfo.id,
-          name: userInfo.name,
-          email: userInfo.email,
-          avatar: userInfo.avatar_url,
-          roles: userInfo.roles,
-          access,
-          permissions: permissionSet,
-        },
+        currentUser: buildCurrentUser(userInfo),
       }));
     } else if (userInfo && !globalSetInitialState) {
       // 注意：如果 globalSetInitialState 为 null，说明 layout 还未 mount
@@ -208,7 +194,7 @@ export const errorConfig: RequestConfig = {
               });
               break;
             case ErrorShowType.REDIRECT:
-              window.location.href = '/user/login';
+              window.location.href = PUBLIC_PATHS.login;
               break;
             default:
               message.error(errorMessage);

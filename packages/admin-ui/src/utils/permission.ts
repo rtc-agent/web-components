@@ -2,6 +2,31 @@
  * 权限相关工具函数
  */
 
+import type { UserInfo } from '@/services/types';
+
+/**
+ * Build CurrentUser object from UserInfo
+ * Centralizes the conversion logic to avoid duplication across:
+ * - getInitialState (app.tsx)
+ * - refreshTokenAndUpdatePermissions (requestErrorConfig.ts)
+ * - usePermissionRefresh hook
+ */
+export function buildCurrentUser(userInfo: UserInfo): API.CurrentUser {
+  const permissionsArray = userInfo.permissions || [];
+  const permissionSet = buildPermissionSet(permissionsArray);
+  const access = computeAccessLevel(userInfo.roles);
+
+  return {
+    userid: userInfo.id,
+    name: userInfo.name,
+    avatar: userInfo.avatar_url,
+    email: userInfo.email,
+    access,
+    roles: userInfo.roles,
+    permissions: permissionSet,
+  };
+}
+
 /**
  * 构建权限集合（Set<string>，O(1) 查询）
  * 将后端返回的权限数组转换为 Set<string>，格式为 "resource:action"

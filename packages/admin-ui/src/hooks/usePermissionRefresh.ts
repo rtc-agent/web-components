@@ -2,7 +2,7 @@ import { useModel } from '@umijs/max';
 import { useCallback, useRef } from 'react';
 import { getCurrentUser } from '@/services/admin-auth';
 import { setUserInfo } from '@/utils/auth-storage';
-import { buildPermissionSet, computeAccessLevel } from '@/utils/permission';
+import { buildCurrentUser } from '@/utils/permission';
 
 /**
  * Hook for refreshing current user permissions
@@ -41,10 +41,6 @@ export function usePermissionRefresh() {
         // Update localStorage (so GlobalRtcAgent can read latest permissions)
         setUserInfo(userInfo);
 
-        // Build permission set and access level
-        const permissionSet = buildPermissionSet(userInfo.permissions || []);
-        const access = computeAccessLevel(userInfo.roles);
-
         // Update global state (triggers re-render with new permissions)
         await setInitialState((prev) => {
           if (!prev?.currentUser) {
@@ -52,16 +48,7 @@ export function usePermissionRefresh() {
           }
           return {
             ...prev,
-            currentUser: {
-              ...prev.currentUser,
-              userid: userInfo.id,
-              name: userInfo.name,
-              email: userInfo.email,
-              avatar: userInfo.avatar_url || prev.currentUser.avatar,
-              roles: userInfo.roles,
-              access,
-              permissions: permissionSet,
-            },
+            currentUser: buildCurrentUser(userInfo),
           };
         });
 

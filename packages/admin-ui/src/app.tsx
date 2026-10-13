@@ -33,8 +33,8 @@ import {
   LangDropdown,
   OfflineBanner,
 } from '@/components';
+import { isPublicPath, PUBLIC_PATHS } from '@/constants/routes';
 import { getCurrentUser } from '@/services/admin-auth';
-import type { UserInfo } from '@/services/types';
 import {
   getUserInfo,
   isAuthenticated,
@@ -45,50 +45,12 @@ import {
   RTL_LOCALES,
   setDocumentDirection,
 } from '@/utils/locale-helpers';
-import { buildPermissionSet, computeAccessLevel } from '@/utils/permission';
+import { buildCurrentUser } from '@/utils/permission';
 import defaultSettings from '../config/defaultSettings';
 import { errorConfig, setGlobalSetInitialState } from './requestErrorConfig';
 
-// Centralized public path configuration
-const PUBLIC_PATHS = {
-  login: '/user/login',
-  register: '/user/register',
-  registerResult: '/user/register-result',
-} as const;
-
-/** Check if a pathname is a public (unauthenticated) route */
-function isPublicPath(pathname: string): boolean {
-  // Exact match against known public paths, with optional trailing slash
-  const normalized = pathname.replace(/\/+$/, '') || '/';
-  return (
-    normalized === PUBLIC_PATHS.login ||
-    normalized === PUBLIC_PATHS.register ||
-    normalized === PUBLIC_PATHS.registerResult
-  );
-}
-
 // localStorage key for theme settings persistence
 const THEME_SETTINGS_KEY = 'admin_ui_theme';
-
-/**
- * Build CurrentUser object from UserInfo
- * Centralizes the conversion logic to avoid duplication
- */
-function buildCurrentUser(userInfo: UserInfo): API.CurrentUser {
-  const permissionsArray = userInfo.permissions || [];
-  const permissionSet = buildPermissionSet(permissionsArray);
-  const access = computeAccessLevel(userInfo.roles);
-
-  return {
-    userid: userInfo.id,
-    name: userInfo.name,
-    avatar: userInfo.avatar_url,
-    email: userInfo.email,
-    access,
-    roles: userInfo.roles,
-    permissions: permissionSet,
-  };
-}
 
 /**
  * Load theme settings from localStorage, fallback to system preference
@@ -129,10 +91,24 @@ const INIT_TIMEOUT_MS = 30000; // 30 seconds
 // Single Promise pattern: concurrent calls await the same promise
 let initPromise: Promise<API.CurrentUser | undefined> | null = null;
 
+// Module-level references for proper cleanup during HMR
+let initAbortController: AbortController | null = null;
+let initTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
 // Clean up init promise on HMR to prevent stale state across hot reloads
 if (typeof module !== 'undefined' && module.hot) {
   module.hot.dispose(() => {
     initPromise = null;
+    // Abort any in-flight request to prevent orphan callbacks
+    if (initAbortController) {
+      initAbortController.abort();
+      initAbortController = null;
+    }
+    // Clear the timeout to prevent orphan timer from firing
+    if (initTimeoutId) {
+      clearTimeout(initTimeoutId);
+      initTimeoutId = null;
+    }
   });
 }
 
@@ -150,9 +126,6 @@ export async function getInitialState(): Promise<{
     // Set document direction and load dayjs locale early
     setDocumentDirection();
     loadDayjsLocale();
-
-    // Create AbortController for timeout cancellation
-    const initAbortController = new AbortController();
 
     const fetchUserInfo = async (
       signal?: AbortSignal,
@@ -222,15 +195,21 @@ export async function getInitialState(): Promise<{
       // This eliminates the need for dual flags (initPromise + isInitializing)
       if (!initPromise) {
         // Set up timeout to abort the request if it takes too long
-        const timeoutId = setTimeout(() => {
-          initAbortController.abort();
+        // Stored at module level for proper cleanup during HMR
+        const controller = new AbortController();
+        initAbortController = controller;
+
+        initTimeoutId = setTimeout(() => {
+          controller.abort();
         }, INIT_TIMEOUT_MS);
 
+        const timeoutId = initTimeoutId;
         initPromise = (async () => {
           try {
-            return await fetchUserInfo(initAbortController.signal);
+            return await fetchUserInfo(controller.signal);
           } finally {
             clearTimeout(timeoutId);
+            initTimeoutId = null;
             // Clear promise after completion to allow future re-initialization
             initPromise = null;
           }
