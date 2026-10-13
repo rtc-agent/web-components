@@ -20,6 +20,7 @@ import React, {
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import type { ConversationItem, ParsedMessage } from './data';
 import type { ChatbotPageAPI } from './page-api';
+import { PRESET_SESSIONS } from './preset-sessions';
 import { createChatProvider } from './service';
 import { useStyles } from './style';
 
@@ -129,118 +130,47 @@ const ChatbotPage: React.FC = () => {
     defaultMessage: '🤖 Hello, how can I help you?',
   });
 
-  const [conversations, setConversations] = useState<ConversationItem[]>([
-    {
-      key: 'default',
-      label: intl.formatMessage({
-        id: 'pages.chatbot.newConversation',
-        defaultMessage: '💬 New conversation',
-      }),
-      group: intl.formatMessage({
-        id: 'pages.chatbot.today',
-        defaultMessage: 'Today',
-      }),
-      isDraft: true,
-    },
-    {
-      key: 'preset-1',
-      label: intl.formatMessage({
-        id: 'pages.chatbot.faq.formValidation',
-        defaultMessage: '🧩 How to implement form validation in Ant Design?',
-      }),
-      group: intl.formatMessage({
-        id: 'pages.chatbot.today',
-        defaultMessage: 'Today',
-      }),
-    },
-    {
-      key: 'preset-2',
-      label: intl.formatMessage({
-        id: 'pages.chatbot.faq.proTableToolbar',
-        defaultMessage: '📋 How to customize ProTable toolbar buttons?',
-      }),
-      group: intl.formatMessage({
-        id: 'pages.chatbot.today',
-        defaultMessage: 'Today',
-      }),
-    },
-    {
-      key: 'preset-3',
-      label: intl.formatMessage({
-        id: 'pages.chatbot.faq.darkTheme',
-        defaultMessage: '🎨 How to implement dark theme with antd-style?',
-      }),
-      group: intl.formatMessage({
-        id: 'pages.chatbot.yesterday',
-        defaultMessage: 'Yesterday',
-      }),
-    },
-    {
-      key: 'preset-4',
-      label: intl.formatMessage({
-        id: 'pages.chatbot.faq.proLayoutMenu',
-        defaultMessage: '🗂️ How to dynamically generate ProLayout sidebar menu?',
-      }),
-      group: intl.formatMessage({
-        id: 'pages.chatbot.yesterday',
-        defaultMessage: 'Yesterday',
-      }),
-    },
-    {
-      key: 'preset-5',
-      label: intl.formatMessage({
-        id: 'pages.chatbot.faq.chartsData',
-        defaultMessage: '📊 Ant Design Charts line chart data format',
-      }),
-      group: intl.formatMessage({
-        id: 'pages.chatbot.yesterday',
-        defaultMessage: 'Yesterday',
-      }),
-    },
-    {
-      key: 'preset-6',
-      label: intl.formatMessage({
-        id: 'pages.chatbot.faq.backendAuth',
-        defaultMessage: '🚀 How to integrate backend auth in Ant Design Pro?',
-      }),
-      group: intl.formatMessage({
-        id: 'pages.chatbot.earlier',
-        defaultMessage: 'Earlier',
-      }),
-    },
-    {
-      key: 'preset-7',
-      label: intl.formatMessage({
-        id: 'pages.chatbot.faq.proFormSelect',
-        defaultMessage: '🔍 How to implement remote search in ProForm Select?',
-      }),
-      group: intl.formatMessage({
-        id: 'pages.chatbot.earlier',
-        defaultMessage: 'Earlier',
-      }),
-    },
-    {
-      key: 'preset-8',
-      label: intl.formatMessage({
-        id: 'pages.chatbot.faq.designTokens',
-        defaultMessage:
-          '⚙️ Best practices for customizing themes with Ant Design Tokens',
-      }),
-      group: intl.formatMessage({
-        id: 'pages.chatbot.earlier',
-        defaultMessage: 'Earlier',
-      }),
-    },
-  ]);
+  const initialConversations = useMemo<ConversationItem[]>(
+    () => [
+      {
+        key: 'default',
+        label: intl.formatMessage({
+          id: 'pages.chatbot.newConversation',
+          defaultMessage: '💬 New conversation',
+        }),
+        group: intl.formatMessage({
+          id: 'pages.chatbot.today',
+          defaultMessage: 'Today',
+        }),
+        isDraft: true,
+      },
+      ...PRESET_SESSIONS.map((preset) => ({
+        key: preset.id,
+        label: intl.formatMessage({
+          id: preset.titleKey,
+          defaultMessage: preset.titleKey,
+        }),
+        group: intl.formatMessage({
+          id: preset.groupKey,
+          defaultMessage: preset.groupKey,
+        }),
+      })),
+    ],
+    [intl],
+  );
+
+  const [conversations, setConversations] =
+    useState<ConversationItem[]>(initialConversations);
   const [activeKey, setActiveKey] = useState<string>('default');
   const [inputValue, setInputValue] = useState('');
 
-  const provider = useMemo(() => createChatProvider() as any, []);
+  const provider = useMemo(() => createChatProvider(), []);
+
   const { onRequest, abort, isRequesting, parsedMessages } = useXChat<
     any,
     ParsedMessage
   >({
-    provider,
+    provider: provider as any,
     conversationKey: activeKey,
     parser,
     requestPlaceholder: { role: 'assistant', content: '' },
@@ -403,6 +333,33 @@ const ChatbotPage: React.FC = () => {
   );
 
   const hasMessages = parsedMessages.length > 0;
+
+  // Handle missing configuration gracefully
+  if (!provider) {
+    return (
+      <PageContainer>
+        <Card
+          style={{
+            height: 'calc(100vh - 160px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div style={{ textAlign: 'center' }}>
+            <h3>{intl.formatMessage({
+              id: 'pages.chatbot.notAvailable',
+              defaultMessage: 'Chatbot is not available',
+            })}</h3>
+            <p>{intl.formatMessage({
+              id: 'pages.chatbot.notConfigured',
+              defaultMessage: 'Please configure CHAT_API_URL environment variable',
+            })}</p>
+          </div>
+        </Card>
+      </PageContainer>
+    );
+  }
 
   return (
     <PageContainer

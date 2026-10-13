@@ -1,17 +1,17 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { history, useIntl, useSearchParams } from '@umijs/max';
-import { App, Button, Grid, Tag } from 'antd';
+import { App, Button, Tag } from 'antd';
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { TableEmptyState } from '@/components';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import { useTableSearchParams } from '@/hooks/useTableSearchParams';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import { disabledFutureDate, parseTableSort } from '@/utils/tableUtils';
 import type { SessionInfo } from './data';
 import type { SessionPageAPI } from './page-api';
 import { getSessionList } from './service';
-
-const { useBreakpoint } = Grid;
 
 /**
  * Session management page
@@ -20,10 +20,16 @@ const SessionsPage: React.FC = () => {
   const actionRef = useRef<ActionType>(null);
   const intl = useIntl();
   const { message } = App.useApp();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
+  const tableParams = useTableSearchParams<{
+    user_id: string;
+    status: string;
+    search: string;
+    start_time: string;
+    end_time: string;
+  }>();
   const userId = searchParams.get('user_id') || '';
-  const breakpoints = useBreakpoint();
-  const isMobile = !breakpoints.md; // < 768px
+  const isMobile = useIsMobile(); // < 768px
 
   // === Register Page API ===
   usePageAPIRegistration(
@@ -41,24 +47,14 @@ const SessionsPage: React.FC = () => {
           } = params;
 
           // Sync filters to URL (no page refresh). Pagination is transient state, not synced.
-          const newSearchParams = new URLSearchParams();
           const effectiveUserId = listUserId || userId;
-          if (effectiveUserId) {
-            newSearchParams.set('user_id', effectiveUserId);
-          }
-          if (status) {
-            newSearchParams.set('status', status);
-          }
-          if (search) {
-            newSearchParams.set('search', search);
-          }
-          if (startTime) {
-            newSearchParams.set('start_time', startTime);
-          }
-          if (endTime) {
-            newSearchParams.set('end_time', endTime);
-          }
-          setSearchParams(newSearchParams, { replace: true });
+          tableParams.set({
+            user_id: effectiveUserId,
+            status,
+            search,
+            start_time: startTime,
+            end_time: endTime,
+          });
 
           // Trigger table reload via actionRef (ProTable request will handle data fetching)
           actionRef.current?.reload();
@@ -75,7 +71,7 @@ const SessionsPage: React.FC = () => {
           actionRef.current?.reload();
         },
       }),
-      [],
+      [tableParams, userId],
     ),
   );
 
@@ -278,15 +274,18 @@ const SessionsPage: React.FC = () => {
           scroll={{ x: 'max-content' }}
           request={async (params, sort) => {
             try {
-              // Read params from searchParams (URL is single source of truth)
-              const effectiveUserId = searchParams.get('user_id') || userId;
+              // Read params from URL (single source of truth)
+              const {
+                user_id: effectiveUserId = userId,
+                status,
+                search,
+                start_time: startTime,
+                end_time: endTime,
+              } = tableParams.get();
+
               if (!effectiveUserId) {
                 return { data: [], total: 0, success: true };
               }
-              const status = searchParams.get('status') || undefined;
-              const search = searchParams.get('search') || undefined;
-              const startTime = searchParams.get('start_time') || undefined;
-              const endTime = searchParams.get('end_time') || undefined;
               const current = params.current || 1;
               const pageSize = params.pageSize || 10;
               const sortParams = parseTableSort(sort || {});

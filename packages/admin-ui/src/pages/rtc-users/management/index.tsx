@@ -13,17 +13,14 @@ import {
   ProFormTextArea,
   ProTable,
 } from '@ant-design/pro-components';
-import { history, useAccess, useIntl, useSearchParams } from '@umijs/max';
 import {
-  App,
-  Button,
-  Dropdown,
-  Grid,
-  Popconfirm,
-  Space,
-  Tag,
-  Tooltip,
-} from 'antd';
+  Access,
+  history,
+  useAccess,
+  useIntl,
+  useSearchParams,
+} from '@umijs/max';
+import { App, Button, Dropdown, Popconfirm, Space, Tag, Tooltip } from 'antd';
 import React, {
   useCallback,
   useEffect,
@@ -32,7 +29,9 @@ import React, {
   useState,
 } from 'react';
 import { TableEmptyState } from '@/components';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
+import { useTableSearchParams } from '@/hooks/useTableSearchParams';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import { parseTableSort } from '@/utils/tableUtils';
 import UserConfigDrawer from './components/UserConfigDrawer';
@@ -46,8 +45,6 @@ import {
   getUserTokenStats,
   unbanRtcUser,
 } from './service';
-
-const { useBreakpoint } = Grid;
 
 /**
  * Modal state interface for better organization
@@ -130,75 +127,79 @@ const ActionColumn = React.memo<{
           onClick={() => onDetail(record)}
         />
       </Tooltip>
-      {!isBanned && canBan && (
-        <Tooltip
-          title={intl.formatMessage({
-            id: 'pages.rtcUsers.ban',
-            defaultMessage: 'Ban',
-          })}
-        >
-          <Button
-            type="text"
-            danger
-            size="small"
-            icon={<StopOutlined />}
-            aria-label={intl.formatMessage({
-              id: 'pages.rtcUsers.ban',
-            })}
-            onClick={() => onBan(record)}
-          />
-        </Tooltip>
-      )}
-      {isBanned && canBan && (
-        <Popconfirm
-          title={intl.formatMessage({
-            id: 'pages.rtcUsers.confirmUnban',
-            defaultMessage: 'Are you sure you want to unban this user?',
-          })}
-          onConfirm={() => onUnban(record.id)}
-          okText={intl.formatMessage({
-            id: 'pages.rtcUsers.confirm',
-            defaultMessage: 'Confirm',
-          })}
-          cancelText={intl.formatMessage({
-            id: 'pages.rtcUsers.cancel',
-            defaultMessage: 'Cancel',
-          })}
-        >
+      <Access accessible={access.canRtcUserBan} fallback={null}>
+        {!isBanned && canBan && (
           <Tooltip
             title={intl.formatMessage({
-              id: 'pages.rtcUsers.unban',
-              defaultMessage: 'Unban',
+              id: 'pages.rtcUsers.ban',
+              defaultMessage: 'Ban',
+            })}
+          >
+            <Button
+              type="text"
+              danger
+              size="small"
+              icon={<StopOutlined />}
+              aria-label={intl.formatMessage({
+                id: 'pages.rtcUsers.ban',
+              })}
+              onClick={() => onBan(record)}
+            />
+          </Tooltip>
+        )}
+        {isBanned && canBan && (
+          <Popconfirm
+            title={intl.formatMessage({
+              id: 'pages.rtcUsers.confirmUnban',
+              defaultMessage: 'Are you sure you want to unban this user?',
+            })}
+            onConfirm={() => onUnban(record.id)}
+            okText={intl.formatMessage({
+              id: 'pages.rtcUsers.confirm',
+              defaultMessage: 'Confirm',
+            })}
+            cancelText={intl.formatMessage({
+              id: 'pages.rtcUsers.cancel',
+              defaultMessage: 'Cancel',
+            })}
+          >
+            <Tooltip
+              title={intl.formatMessage({
+                id: 'pages.rtcUsers.unban',
+                defaultMessage: 'Unban',
+              })}
+            >
+              <Button
+                type="text"
+                size="small"
+                icon={<CheckCircleOutlined />}
+                aria-label={intl.formatMessage({
+                  id: 'pages.rtcUsers.unban',
+                })}
+              />
+            </Tooltip>
+          </Popconfirm>
+        )}
+      </Access>
+      <Access accessible={access.canServerConfigEdit} fallback={null}>
+        <Dropdown menu={{ items: moreItems }} trigger={['click']}>
+          <Tooltip
+            title={intl.formatMessage({
+              id: 'pages.rtcUsers.more',
+              defaultMessage: 'More',
             })}
           >
             <Button
               type="text"
               size="small"
-              icon={<CheckCircleOutlined />}
+              icon={<DownOutlined />}
               aria-label={intl.formatMessage({
-                id: 'pages.rtcUsers.unban',
+                id: 'pages.rtcUsers.more',
               })}
             />
           </Tooltip>
-        </Popconfirm>
-      )}
-      <Dropdown menu={{ items: moreItems }} trigger={['click']}>
-        <Tooltip
-          title={intl.formatMessage({
-            id: 'pages.rtcUsers.more',
-            defaultMessage: 'More',
-          })}
-        >
-          <Button
-            type="text"
-            size="small"
-            icon={<DownOutlined />}
-            aria-label={intl.formatMessage({
-              id: 'pages.rtcUsers.more',
-            })}
-          />
-        </Tooltip>
-      </Dropdown>
+        </Dropdown>
+      </Access>
     </Space>
   );
 });
@@ -218,9 +219,9 @@ const RtcUserManagementPage: React.FC = () => {
   const access = useAccess();
   const intl = useIntl();
   const { message } = App.useApp();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const breakpoints = useBreakpoint();
-  const isMobile = !breakpoints.md; // < 768px
+  const [searchParams] = useSearchParams();
+  const tableParams = useTableSearchParams<{ search: string; status: string }>();
+  const isMobile = useIsMobile(); // < 768px
   const canBan = access.canRtcUserBan;
   // 设计决策：RTC 用户配置权限复用系统配置权限点（server_config:write / server_config:delete）
   // 原因：用户配置管理本质上是系统配置的一部分，共享相同的 RBAC 权限模型
@@ -238,14 +239,7 @@ const RtcUserManagementPage: React.FC = () => {
           const { search, status } = params;
 
           // Sync filters to URL (no page refresh). Pagination is transient state, not synced.
-          const newSearchParams = new URLSearchParams();
-          if (search) {
-            newSearchParams.set('search', search);
-          }
-          if (status) {
-            newSearchParams.set('status', status);
-          }
-          setSearchParams(newSearchParams, { replace: true });
+          tableParams.set({ search, status });
 
           // Trigger table reload via actionRef (ProTable request will handle data fetching)
           actionRef.current?.reload();
@@ -371,7 +365,7 @@ const RtcUserManagementPage: React.FC = () => {
           }
         },
       }),
-      [],
+      [tableParams],
     ),
   );
 
@@ -632,9 +626,8 @@ const RtcUserManagementPage: React.FC = () => {
         scroll={{ x: 'max-content' }}
         request={async (params, sort) => {
           try {
-            // Read params from searchParams (URL is single source of truth)
-            const search = searchParams.get('search') || '';
-            const status = searchParams.get('status') || '';
+            // Read params from URL (single source of truth)
+            const { search = '', status = '' } = tableParams.get();
             const current = params.current || 1;
             const pageSize = params.pageSize || 10;
             const sortParams = parseTableSort(sort || {});
@@ -677,10 +670,7 @@ const RtcUserManagementPage: React.FC = () => {
           labelWidth: 'auto',
         }}
         form={{
-          initialValues: {
-            search: searchParams.get('search') || '',
-            status: searchParams.get('status') || undefined,
-          },
+          initialValues: tableParams.get(),
         }}
         toolBarRender={() => [
           <Button key="refresh" onClick={() => actionRef.current?.reload()}>
