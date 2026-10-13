@@ -57,6 +57,14 @@ export class RtcSettingsPanel extends LitElement {
     );
   }
 
+  private _handleLocaleChange(e: Event) {
+    const select = e.target as HTMLSelectElement;
+    const newLocale = select.value as typeof this._localeCtx.locale;
+    this._localeCtx.setLocale(newLocale).catch((err) => {
+      log.error('Failed to switch locale:', err);
+    });
+  }
+
   render() {
     // Reference locale to ensure re-render on locale change
     void this._localeCtx.locale;
@@ -65,18 +73,49 @@ export class RtcSettingsPanel extends LitElement {
             <div class="overlay" @click=${this._close}></div>
             <div class="panel" @keydown=${this._handleKeydown}>
                 <div class="panel-header">
-                    <h2>${msg('设置')}</h2>
-                    <button class="close-btn" aria-label=${msg('关闭设置')} @click=${this._close}>
+                    <h2>${msg('Settings')}</h2>
+                    <button class="close-btn" aria-label=${msg('Close settings')} @click=${this._close}>
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                             <path d="M8 7.293l3.146-3.147a.5.5 0 01.708.708L8.707 8l3.147 3.146a.5.5 0 01-.708.708L8 8.707l-3.146 3.147a.5.5 0 01-.708-.708L7.293 8 4.146 4.854a.5.5 0 01.708-.708L8 7.293z"/>
                         </svg>
                     </button>
                 </div>
                 <div class="panel-content">
+                    <div class="settings-section">
+                        <h3>${msg('Language')}</h3>
+                        <div class="setting-item">
+                            <label for="locale-select">${msg('Interface language')}</label>
+                            <select
+                                id="locale-select"
+                                class="locale-select"
+                                @change=${this._handleLocaleChange}
+                                .value=${this._localeCtx.locale}
+                            >
+                                ${this._localeCtx.locales.map(
+                                  (locale) => html`
+                                    <option value=${locale} ?selected=${locale === this._localeCtx.locale}>
+                                        ${this._getLocaleDisplayName(locale)}
+                                    </option>
+                                  `,
+                                )}
+                            </select>
+                        </div>
+                    </div>
                     <rtc-settings-layout></rtc-settings-layout>
                 </div>
             </div>
         `;
+  }
+
+  /**
+   * Get the human-readable display name for a locale.
+   */
+  private _getLocaleDisplayName(locale: string): string {
+    const names: Record<string, string> = {
+      'zh-CN': msg('简体中文') as string,
+      'en-US': msg('English (US)') as string,
+    };
+    return names[locale] ?? locale;
   }
 }
 

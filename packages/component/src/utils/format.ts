@@ -86,11 +86,11 @@ export function formatPercentage(
  * @returns Human-readable size string (e.g., "1.5 MB")
  */
 export function formatFileSize(bytes: number | undefined | null, decimals: number = 2, locale?: string): string {
-  if (bytes === undefined || bytes === null || bytes < 0) return '0 B';
-  if (bytes === 0) return '0 B';
+  if (bytes === undefined || bytes === null || bytes < 0) return `${msg('B')}`;
+  if (bytes === 0) return `${0} ${msg('B')}`;
 
   const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+  const sizes = [msg('B'), msg('KB'), msg('MB'), msg('GB'), msg('TB'), msg('PB')];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
 
   const value = parseFloat((bytes / Math.pow(k, i)).toFixed(decimals));
@@ -142,8 +142,11 @@ function getCachedFormatter(
   type: 'date' | 'time' | 'datetime',
   options?: Intl.DateTimeFormatOptions
 ): Intl.DateTimeFormat {
-  const optionsKey = options ? JSON.stringify(options) : '';
-  const cacheKey = `${locale}_${type}_${optionsKey}`;
+  // Build cache key from commonly-used option fields to avoid JSON.stringify overhead
+  const optsKey = options
+    ? `${options.year ?? ''}${options.month ?? ''}${options.day ?? ''}${options.hour ?? ''}${options.minute ?? ''}${options.second ?? ''}${options.hour12 ?? ''}${options.timeZone ?? ''}`
+    : '';
+  const cacheKey = `${locale}_${type}_${optsKey}`;
 
   let formatter = dateFormatterCache.get(cacheKey);
   if (!formatter) {
@@ -183,7 +186,6 @@ export function formatTimestampCompact(
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
-    hour12: false,
   };
 
   if (timeZone) {
@@ -220,7 +222,6 @@ export function formatDateTime(
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
-    hour12: false,
   };
 
   if (showSeconds) {
@@ -258,7 +259,6 @@ export function formatTimeOnly(
   const options: Intl.DateTimeFormatOptions = {
     hour: '2-digit',
     minute: '2-digit',
-    hour12: false,
   };
 
   if (showSeconds) {

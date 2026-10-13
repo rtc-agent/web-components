@@ -233,7 +233,7 @@ export class RtcMessage extends LitElement implements StatefulComponent {
     } catch (err) {
       log.error('Module loading failed:', err);
       this._parseError = true;
-      this._lastErrorMessage = '模块加载失败';
+      this._lastErrorMessage = msg('模块加载失败') as string;
       this._renderedHtml = '';
       return;
     }
@@ -252,7 +252,7 @@ export class RtcMessage extends LitElement implements StatefulComponent {
     } catch (err) {
       log.error('marked.parse failed:', err);
       this._parseError = true;
-      this._lastErrorMessage = 'Markdown 解析失败';
+      this._lastErrorMessage = msg('Markdown 解析失败') as string;
       rawHtml = '';
     }
 
@@ -267,7 +267,7 @@ export class RtcMessage extends LitElement implements StatefulComponent {
     } catch (err) {
       log.error('Sanitization failed:', err);
       this._parseError = true;
-      this._lastErrorMessage = '内容处理失败';
+      this._lastErrorMessage = msg('内容处理失败') as string;
       this._renderedHtml = '';
     }
   }

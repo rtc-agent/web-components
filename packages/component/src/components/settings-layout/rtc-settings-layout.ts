@@ -200,8 +200,8 @@ export class RtcSettingsLayout extends LitElement {
                           this._liveMessage = msg(str`语言已切换为 ${locale}`);
                         }}
                     >
-                        <option value="zh-CN">简体中文</option>
-                        <option value="en-US">English</option>
+                        <option value="zh-CN">${msg('简体中文')}</option>
+                        <option value="en-US">${msg('English')}</option>
                     </select>
                 </div>
             </div>

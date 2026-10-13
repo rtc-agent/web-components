@@ -35,9 +35,11 @@ export const { getLocale, setLocale: _setLocale } = configureLocalization({
     const loader = localeModules[locale];
     if (!loader) {
       const available = Object.keys(localeModules).join(', ');
-      throw new Error(
-        `[i18n] Unknown locale: "${locale}". Available: ${available}`,
+      log.warn(
+        `[i18n] Unknown locale: "${locale}". Available: ${available}. Falling back to source locale: ${sourceLocale}`,
       );
+      // Fallback to source locale instead of throwing
+      return localeModules[sourceLocale]!();
     }
     try {
       return await loader();
@@ -46,9 +48,11 @@ export const { getLocale, setLocale: _setLocale } = configureLocalization({
       if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
         warnMissingTranslation(locale, `Failed to load locale module`);
       }
-      throw new Error(
-        `[i18n] Failed to load locale "${locale}": ${err instanceof Error ? err.message : String(err)}`,
+      log.warn(
+        `[i18n] Failed to load locale "${locale}": ${err instanceof Error ? err.message : String(err)}. Falling back to source locale: ${sourceLocale}`,
       );
+      // Fallback to source locale instead of throwing
+      return localeModules[sourceLocale]!();
     }
   },
 });
@@ -151,6 +155,14 @@ export async function switchLocale(
  */
 async function executeLocaleSwitch(locale: SupportedLocale): Promise<void> {
   try {
+    // Validate locale before attempting to switch
+    if (!isValidLocale(locale)) {
+      log.warn(
+        `[i18n] Invalid locale: "${locale}". Falling back to source locale: ${sourceLocale}`,
+      );
+      locale = sourceLocale;
+    }
+
     await _setLocale(locale);
     persistLocale(locale);
     document.documentElement.lang = locale;

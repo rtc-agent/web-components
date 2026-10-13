@@ -77,18 +77,18 @@ describe('i18n core', () => {
       expect(localStorage.getItem('rtc-agent-locale')).toBe('zh-CN');
     });
 
-    it('未知 locale 抛出明确错误', async () => {
-      await expect(switchLocale('fr-FR' as any)).rejects.toThrow();
+    it('未知 locale fallback 到源语言', async () => {
+      // switchLocale should not throw, but fallback to source locale
+      await switchLocale('fr-FR' as any);
+      // Should fallback to zh-CN (source locale)
+      expect(document.documentElement.lang).toBe('zh-CN');
     });
 
-    it('错误消息为 Invalid locale code', async () => {
-      try {
-        await switchLocale('fr-FR' as any);
-        expect.fail('Should have thrown');
-      } catch (err) {
-        expect(err).toBeInstanceOf(Error);
-        expect((err as Error).message).toContain('Invalid locale code');
-      }
+    it('无效 locale 不抛出错误而是 fallback', async () => {
+      // Our new strategy is to fallback to source locale instead of throwing
+      await switchLocale('invalid-locale' as any);
+      // Should fallback to zh-CN (source locale)
+      expect(document.documentElement.lang).toBe('zh-CN');
     });
   });
 

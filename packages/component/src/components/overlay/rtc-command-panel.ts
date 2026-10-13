@@ -65,7 +65,7 @@ export const COMMAND_CONFIGS: CommandConfig[] = [
     },
     available: true,
     icon: gearIcon,
-    keywords: ['compress', 'context', 'token', '压缩'],
+    keywords: ['compress', 'context', 'token', '压缩'], // Multi-language search keywords
   },
   {
     name: 'loop',
@@ -75,7 +75,7 @@ export const COMMAND_CONFIGS: CommandConfig[] = [
     },
     available: true,
     icon: clockIcon,
-    keywords: ['repeat', 'cycle', '循环', '重复'],
+    keywords: ['repeat', 'cycle', '循环', '重复'], // Multi-language search keywords
   },
   {
     name: 'goal',
@@ -85,7 +85,7 @@ export const COMMAND_CONFIGS: CommandConfig[] = [
     },
     available: true,
     icon: checklistIcon,
-    keywords: ['target', 'objective', '目标', '任务'],
+    keywords: ['target', 'objective', '目标', '任务'], // Multi-language search keywords
   },
   {
     name: 'export',
@@ -95,7 +95,7 @@ export const COMMAND_CONFIGS: CommandConfig[] = [
     },
     available: true,
     icon: saveIcon,
-    keywords: ['download', 'save', 'html', '导出', '下载'],
+    keywords: ['download', 'save', 'html', '导出', '下载'], // Multi-language search keywords
   },
 ];
 
