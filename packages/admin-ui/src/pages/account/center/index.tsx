@@ -26,7 +26,7 @@ import useStyles from './Center.style';
 import Applications from './components/Applications';
 import Articles from './components/Articles';
 import Projects from './components/Projects';
-import type { CurrentUser, TagType, tabKeyType } from './data.d';
+import type { CurrentUser, TagType, tabKeyType } from './data';
 import type { SelfAccountCenterPageAPI } from './page-api';
 import { queryCurrent } from './service';
 

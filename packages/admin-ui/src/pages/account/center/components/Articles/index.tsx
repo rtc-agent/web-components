@@ -6,7 +6,7 @@ import React from 'react';
 import { ArticleListContent } from '@/components';
 import { queryKeys } from '@/utils/queryKeys';
 import { LIST_CACHE } from '@/utils/queryCacheConfig';
-import type { ListItemDataType } from '../../data.d';
+import type { ListItemDataType } from '../../data';
 import { queryFakeList } from '../../service';
 import useStyles from './index.style';
 

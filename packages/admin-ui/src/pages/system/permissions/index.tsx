@@ -18,7 +18,7 @@ import {
   getPermissionList,
 } from '@/services/permission';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
-import type { PermissionFormValues, PermissionTableItem } from './data.d';
+import type { PermissionFormValues, PermissionTableItem } from './data';
 import type { PermissionPageAPI } from './page-api';
 
 /**

@@ -33,7 +33,7 @@ import {
   useConfigSourceRenderer,
 } from '@/utils/configFormat';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
-import type { RtcUserInfo } from '../data.d';
+import type { RtcUserInfo } from '../data';
 import UserConfigEditModal from './UserConfigEditModal';
 import UserConfigHistoryModal from './UserConfigHistoryModal';
 

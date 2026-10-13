@@ -1,6 +1,7 @@
 import { InboxOutlined } from '@ant-design/icons';
 import { useIntl } from '@umijs/max';
 import { Empty, theme } from 'antd';
+import type { ReactNode } from 'react';
 import React from 'react';
 
 /**
@@ -15,6 +16,8 @@ export interface TableEmptyStateProps {
   defaultDescription?: string;
   /** Icon size in pixels */
   iconSize?: number;
+  /** Optional action element (e.g., button) to display below description */
+  action?: ReactNode;
 }
 
 /**
@@ -26,6 +29,7 @@ const TableEmptyState: React.FC<TableEmptyStateProps> = ({
   descriptionId,
   defaultDescription = 'No data found',
   iconSize = 48,
+  action,
 }) => {
   const intl = useIntl();
   const { token } = theme.useToken();
@@ -45,7 +49,9 @@ const TableEmptyState: React.FC<TableEmptyStateProps> = ({
         />
       }
       description={displayDescription}
-    />
+    >
+      {action}
+    </Empty>
   );
 };
 

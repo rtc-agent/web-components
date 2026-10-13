@@ -133,9 +133,9 @@ const SystemConfigsPage: React.FC = () => {
     });
   };
 
-  /** Force delete (skip version check) */
-  const doForceDelete = async (data: { key: string }) => {
-    await deleteServerConfig(data.key);
+  /** Force delete (skip version check by passing version=0) */
+  const doForceDelete = async (data: { key: string; version?: number }) => {
+    await deleteServerConfig(data.key, data.version || 0);
   };
 
   // Optimistic lock conflict handling
@@ -454,6 +454,13 @@ const SystemConfigsPage: React.FC = () => {
           };
         } catch (error) {
           console.error('[ServerConfigPageAPI] list failed:', error);
+          message.error(
+            getFriendlyErrorMessage(
+              error,
+              intl,
+              'Failed to load configuration list',
+            ),
+          );
           return { data: [], total: 0, success: false };
         }
       },
@@ -471,6 +478,13 @@ const SystemConfigsPage: React.FC = () => {
           return { success: true };
         } catch (error) {
           console.error('[ServerConfigPageAPI] update failed:', error);
+          message.error(
+            getFriendlyErrorMessage(
+              error,
+              intl,
+              'Failed to update configuration',
+            ),
+          );
           return { success: false };
         }
       },
@@ -481,6 +495,13 @@ const SystemConfigsPage: React.FC = () => {
           return { success: true };
         } catch (error) {
           console.error('[ServerConfigPageAPI] remove failed:', error);
+          message.error(
+            getFriendlyErrorMessage(
+              error,
+              intl,
+              'Failed to delete configuration',
+            ),
+          );
           return { success: false };
         }
       },
@@ -504,8 +525,7 @@ const SystemConfigsPage: React.FC = () => {
       setActiveCategory(urlCategory);
       reload();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, activeCategory, reload]);
+  }, [searchParams]);
 
   return (
     <PageContainer>

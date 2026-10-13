@@ -10,7 +10,7 @@
  * - Falls back to direct service call when cache is unavailable
  */
 
-import type { CurrentUser } from './data.d';
+import type { CurrentUser } from './data';
 
 export interface SelfAccountCenterPageAPI {
   /**

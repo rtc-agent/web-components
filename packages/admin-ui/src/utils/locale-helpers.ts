@@ -30,6 +30,7 @@ export const loadDayjsLocale = () => {
   const dayjsLocaleMap: Record<string, string> = {
     'zh-CN': 'zh-cn',
     'zh-TW': 'zh-tw',
+    'en-US': 'en',
     'ja-JP': 'ja',
     'ko-KR': 'ko',
     'pt-BR': 'pt-br',

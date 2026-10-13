@@ -1,5 +1,5 @@
 import { request } from '@umijs/max';
-import type { CurrentUser, ListItemDataType } from './data.d';
+import type { CurrentUser, ListItemDataType } from './data';
 
 /**
  * Query current user detail for the account center page.

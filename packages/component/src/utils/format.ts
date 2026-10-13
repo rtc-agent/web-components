@@ -82,9 +82,10 @@ export function formatPercentage(
  *
  * @param bytes - Number of bytes
  * @param decimals - Number of decimal places (default: 2)
+ * @param locale - Optional locale override (defaults to current locale)
  * @returns Human-readable size string (e.g., "1.5 MB")
  */
-export function formatFileSize(bytes: number | undefined | null, decimals: number = 2): string {
+export function formatFileSize(bytes: number | undefined | null, decimals: number = 2, locale?: string): string {
   if (bytes === undefined || bytes === null || bytes < 0) return '0 B';
   if (bytes === 0) return '0 B';
 
@@ -92,7 +93,14 @@ export function formatFileSize(bytes: number | undefined | null, decimals: numbe
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
 
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(decimals))} ${sizes[i]}`;
+  const value = parseFloat((bytes / Math.pow(k, i)).toFixed(decimals));
+  const currentLocale = locale || getLocale();
+
+  try {
+    return `${value.toLocaleString(currentLocale)} ${sizes[i]}`;
+  } catch {
+    return `${value} ${sizes[i]}`;
+  }
 }
 
 /**

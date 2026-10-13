@@ -141,7 +141,10 @@ const ChatbotPage: React.FC = () => {
     },
     {
       key: 'preset-1',
-      label: '🧩 Ant Design 的 Form 表单如何做联动校验？',
+      label: intl.formatMessage({
+        id: 'pages.chatbot.faq.formValidation',
+        defaultMessage: '🧩 How to implement form validation in Ant Design?',
+      }),
       group: intl.formatMessage({
         id: 'pages.chatbot.today',
         defaultMessage: 'Today',
@@ -149,7 +152,10 @@ const ChatbotPage: React.FC = () => {
     },
     {
       key: 'preset-2',
-      label: '📋 ProTable 如何自定义工具栏按钮？',
+      label: intl.formatMessage({
+        id: 'pages.chatbot.faq.proTableToolbar',
+        defaultMessage: '📋 How to customize ProTable toolbar buttons?',
+      }),
       group: intl.formatMessage({
         id: 'pages.chatbot.today',
         defaultMessage: 'Today',
@@ -157,7 +163,10 @@ const ChatbotPage: React.FC = () => {
     },
     {
       key: 'preset-3',
-      label: '🎨 如何用 antd-style 实现暗色主题切换？',
+      label: intl.formatMessage({
+        id: 'pages.chatbot.faq.darkTheme',
+        defaultMessage: '🎨 How to implement dark theme with antd-style?',
+      }),
       group: intl.formatMessage({
         id: 'pages.chatbot.yesterday',
         defaultMessage: 'Yesterday',
@@ -165,7 +174,10 @@ const ChatbotPage: React.FC = () => {
     },
     {
       key: 'preset-4',
-      label: '🗂️ ProLayout 侧边菜单如何动态生成？',
+      label: intl.formatMessage({
+        id: 'pages.chatbot.faq.proLayoutMenu',
+        defaultMessage: '🗂️ How to dynamically generate ProLayout sidebar menu?',
+      }),
       group: intl.formatMessage({
         id: 'pages.chatbot.yesterday',
         defaultMessage: 'Yesterday',
@@ -173,7 +185,10 @@ const ChatbotPage: React.FC = () => {
     },
     {
       key: 'preset-5',
-      label: '📊 Ant Design Charts 折线图数据格式',
+      label: intl.formatMessage({
+        id: 'pages.chatbot.faq.chartsData',
+        defaultMessage: '📊 Ant Design Charts line chart data format',
+      }),
       group: intl.formatMessage({
         id: 'pages.chatbot.yesterday',
         defaultMessage: 'Yesterday',
@@ -181,7 +196,10 @@ const ChatbotPage: React.FC = () => {
     },
     {
       key: 'preset-6',
-      label: '🚀 Ant Design Pro 如何接入后端权限系统？',
+      label: intl.formatMessage({
+        id: 'pages.chatbot.faq.backendAuth',
+        defaultMessage: '🚀 How to integrate backend auth in Ant Design Pro?',
+      }),
       group: intl.formatMessage({
         id: 'pages.chatbot.earlier',
         defaultMessage: 'Earlier',
@@ -189,7 +207,10 @@ const ChatbotPage: React.FC = () => {
     },
     {
       key: 'preset-7',
-      label: '🔍 ProForm 中 Select 远程搜索怎么实现？',
+      label: intl.formatMessage({
+        id: 'pages.chatbot.faq.proFormSelect',
+        defaultMessage: '🔍 How to implement remote search in ProForm Select?',
+      }),
       group: intl.formatMessage({
         id: 'pages.chatbot.earlier',
         defaultMessage: 'Earlier',
@@ -197,7 +218,10 @@ const ChatbotPage: React.FC = () => {
     },
     {
       key: 'preset-8',
-      label: '⚙️ Ant Design Token 定制主题最佳实践',
+      label: intl.formatMessage({
+        id: 'pages.chatbot.faq.designTokens',
+        defaultMessage: '⚙️ Best practices for customizing themes with Ant Design Tokens',
+      }),
       group: intl.formatMessage({
         id: 'pages.chatbot.earlier',
         defaultMessage: 'Earlier',

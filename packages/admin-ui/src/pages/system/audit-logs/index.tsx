@@ -134,52 +134,52 @@ const AuditLogsPage: React.FC = () => {
             id: 'pages.auditLogs.eventType.createRole',
             defaultMessage: 'Create admin role',
           }),
-          color: 'green',
+          color: token.colorSuccess,
         },
         update_role: {
           text: intl.formatMessage({
             id: 'pages.auditLogs.eventType.updateRole',
             defaultMessage: 'Update admin role',
           }),
-          color: 'blue',
+          color: token.colorInfo,
         },
         delete_role: {
           text: intl.formatMessage({
             id: 'pages.auditLogs.eventType.deleteRole',
             defaultMessage: 'Delete admin role',
           }),
-          color: 'red',
+          color: token.colorError,
         },
         assign_roles: {
           text: intl.formatMessage({
             id: 'pages.auditLogs.eventType.assignRoles',
             defaultMessage: 'Assign admin role',
           }),
-          color: 'cyan',
+          color: token.colorInfo,
         },
         revoke_role: {
           text: intl.formatMessage({
             id: 'pages.auditLogs.eventType.revokeRole',
             defaultMessage: 'Revoke admin role',
           }),
-          color: 'orange',
+          color: token.colorWarning,
         },
         create_permission: {
           text: intl.formatMessage({
             id: 'pages.auditLogs.eventType.createPermission',
             defaultMessage: 'Create permission',
           }),
-          color: 'green',
+          color: token.colorSuccess,
         },
         delete_permission: {
           text: intl.formatMessage({
             id: 'pages.auditLogs.eventType.deletePermission',
             defaultMessage: 'Delete permission',
           }),
-          color: 'red',
+          color: token.colorError,
         },
       }),
-      [intl],
+      [intl, token],
     );
 
   /** Resource type mapping (i18n) */

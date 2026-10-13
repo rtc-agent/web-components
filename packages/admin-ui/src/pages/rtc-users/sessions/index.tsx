@@ -1,8 +1,7 @@
-import { InboxOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { history, useIntl, useSearchParams } from '@umijs/max';
-import { App, Button, Empty, Grid, Tag, theme } from 'antd';
+import { App, Button, Grid, Tag } from 'antd';
 import React, { useEffect, useMemo, useRef } from 'react';
 import { TableEmptyState } from '@/components';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
@@ -96,8 +95,6 @@ const SessionsPage: React.FC = () => {
   useEffect(() => {
     actionRef.current?.reload();
   }, [searchParams]);
-
-  const { token } = theme.useToken();
 
   /** Table column definitions */
   const columns: ProColumns<SessionInfo>[] = useMemo(
@@ -266,28 +263,21 @@ const SessionsPage: React.FC = () => {
   return (
     <PageContainer>
       {!userId ? (
-        <Empty
-          image={
-            <InboxOutlined
-              style={{ fontSize: 64, color: token.colorTextTertiary }}
-            />
+        <TableEmptyState
+          descriptionId="pages.sessions.emptyHint"
+          defaultDescription="Please select a user from the user management page to view conversations"
+          action={
+            <Button
+              type="primary"
+              onClick={() => history.push('/rtc-users/management')}
+            >
+              {intl.formatMessage({
+                id: 'pages.sessions.goToUsers',
+                defaultMessage: 'Go to user management',
+              })}
+            </Button>
           }
-          description={intl.formatMessage({
-            id: 'pages.sessions.emptyHint',
-            defaultMessage:
-              'Please select a user from the user management page to view conversations',
-          })}
-        >
-          <Button
-            type="primary"
-            onClick={() => history.push('/rtc-users/management')}
-          >
-            {intl.formatMessage({
-              id: 'pages.sessions.goToUsers',
-              defaultMessage: 'Go to user management',
-            })}
-          </Button>
-        </Empty>
+        />
       ) : (
         <ProTable<SessionInfo>
           headerTitle={intl.formatMessage({

@@ -25,7 +25,8 @@ const SystemIndexPage: React.FC = () => {
       // If no permissions, redirect to account center (safe default for all authenticated users)
       history.replace('/account/center');
     }
-  }, [access]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return <Skeleton active style={{ padding: 24 }} />;
 };

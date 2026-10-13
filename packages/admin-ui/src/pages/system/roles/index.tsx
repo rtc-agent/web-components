@@ -44,7 +44,7 @@ import {
 } from '@/services/role';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import { parseTableSort } from '../../rtc-users/shared/tableUtils';
-import type { RoleFormValues, RoleTableItem } from './data.d';
+import type { RoleFormValues, RoleTableItem } from './data';
 import type { RolePageAPI } from './page-api';
 
 /**
@@ -600,6 +600,8 @@ const RoleListPage: React.FC = () => {
 
     try {
       // Load permissions for this role
+      // NOTE: page_size=1000 is safe because permission count = RESOURCE_TYPES.length × ACTION_TYPES.length,
+      // which is much smaller than 1000 (currently ~50 permissions)
       const rolePerms = await getPermissionList({
         page: 1,
         page_size: 1000,
@@ -663,6 +665,8 @@ const RoleListPage: React.FC = () => {
       }
 
       // Refresh permission list
+      // NOTE: page_size=1000 is safe because permission count = RESOURCE_TYPES.length × ACTION_TYPES.length,
+      // which is much smaller than 1000 (currently ~50 permissions)
       const rolePerms = await getPermissionList({
         page: 1,
         page_size: 1000,

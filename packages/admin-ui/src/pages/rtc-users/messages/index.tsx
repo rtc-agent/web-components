@@ -1,8 +1,7 @@
-import { InboxOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { history, useIntl, useSearchParams } from '@umijs/max';
-import { App, Button, Empty, Grid, Tag, theme } from 'antd';
+import { App, Button, Grid, Tag } from 'antd';
 import React, {
   useCallback,
   useEffect,
@@ -34,8 +33,6 @@ const MessagesPage: React.FC = () => {
   const [currentMessage, setCurrentMessage] = useState<MessageInfo | null>(
     null,
   );
-
-  const { token } = theme.useToken();
 
   // === Register Page API ===
   useEffect(() => {
@@ -287,28 +284,21 @@ const MessagesPage: React.FC = () => {
   return (
     <PageContainer>
       {!sessionId ? (
-        <Empty
-          image={
-            <InboxOutlined
-              style={{ fontSize: 64, color: token.colorTextTertiary }}
-            />
+        <TableEmptyState
+          descriptionId="pages.messages.emptyHint"
+          defaultDescription="Please select a conversation from the conversation management page to view messages"
+          action={
+            <Button
+              type="primary"
+              onClick={() => history.push('/rtc-users/management')}
+            >
+              {intl.formatMessage({
+                id: 'pages.messages.goToUsers',
+                defaultMessage: 'Go to user management',
+              })}
+            </Button>
           }
-          description={intl.formatMessage({
-            id: 'pages.messages.emptyHint',
-            defaultMessage:
-              'Please select a conversation from the conversation management page to view messages',
-          })}
-        >
-          <Button
-            type="primary"
-            onClick={() => history.push('/rtc-users/management')}
-          >
-            {intl.formatMessage({
-              id: 'pages.messages.goToUsers',
-              defaultMessage: 'Go to user management',
-            })}
-          </Button>
-        </Empty>
+        />
       ) : (
         <ProTable<MessageInfo>
           headerTitle={intl.formatMessage({
