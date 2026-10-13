@@ -155,9 +155,14 @@ function getCachedFormatter(
  * message metadata where a full date would be excessive.
  *
  * Returns empty string for falsy input.
+ *
+ * @param timestamp - Unix timestamp in milliseconds
+ * @param timeZone - Optional IANA timezone name (e.g., 'Asia/Shanghai', 'America/New_York').
+ *                   Defaults to system local timezone.
  */
 export function formatTimestampCompact(
   timestamp: number | undefined | null,
+  timeZone?: string,
 ): string {
   if (!timestamp) return '';
 
@@ -165,14 +170,19 @@ export function formatTimestampCompact(
   if (!isValidDate(date)) return '';
 
   const locale = getLocale();
-  const formatter = getCachedFormatter(locale, 'datetime', {
+  const options: Intl.DateTimeFormatOptions = {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
-  });
+  };
 
+  if (timeZone) {
+    options.timeZone = timeZone;
+  }
+
+  const formatter = getCachedFormatter(locale, 'datetime', options);
   return formatter.format(date);
 }
 
@@ -181,11 +191,14 @@ export function formatTimestampCompact(
  *
  * @param timestamp - Unix timestamp in milliseconds
  * @param showSeconds - Whether to show seconds (default: false)
+ * @param timeZone - Optional IANA timezone name (e.g., 'Asia/Shanghai', 'America/New_York').
+ *                   Defaults to system local timezone.
  * @returns Formatted date-time string
  */
 export function formatDateTime(
   timestamp: number | undefined | null,
-  showSeconds: boolean = false
+  showSeconds: boolean = false,
+  timeZone?: string,
 ): string {
   if (!timestamp) return '';
 
@@ -206,6 +219,10 @@ export function formatDateTime(
     options.second = '2-digit';
   }
 
+  if (timeZone) {
+    options.timeZone = timeZone;
+  }
+
   const formatter = getCachedFormatter(locale, 'datetime', options);
   return formatter.format(date);
 }
@@ -215,11 +232,14 @@ export function formatDateTime(
  *
  * @param timestamp - Unix timestamp in milliseconds
  * @param showSeconds - Whether to show seconds (default: false)
+ * @param timeZone - Optional IANA timezone name (e.g., 'Asia/Shanghai', 'America/New_York').
+ *                   Defaults to system local timezone.
  * @returns Formatted time string
  */
 export function formatTimeOnly(
   timestamp: number | undefined | null,
-  showSeconds: boolean = false
+  showSeconds: boolean = false,
+  timeZone?: string,
 ): string {
   if (!timestamp) return '';
 
@@ -235,6 +255,10 @@ export function formatTimeOnly(
 
   if (showSeconds) {
     options.second = '2-digit';
+  }
+
+  if (timeZone) {
+    options.timeZone = timeZone;
   }
 
   const formatter = getCachedFormatter(locale, 'time', options);

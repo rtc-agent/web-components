@@ -29,11 +29,11 @@
     "typecheck": "tsc --noEmit",
     "pretypecheck": "lit-localize build",
     "test": "vitest run --passWithNoTests",
+    "test:coverage": "vitest run --coverage --passWithNoTests",
     "pretest": "lit-localize build",
     "test:e2e": "playwright test",
     "i18n:extract": "lit-localize extract",
     "i18n:build": "lit-localize build",
-    "i18n:lint": "lit-localize lint",
     "lint": "biome lint src/",
     "lint:fix": "biome check --write src/",
     "format": "biome format --write src/"

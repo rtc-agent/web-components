@@ -806,14 +806,6 @@
   <source>任务列表</source>
   <target>Task list</target>
 </trans-unit>
-<trans-unit id="s956e8dd8b5855dee">
-  <source>是否允许此次工具调用？</source>
-  <target>Allow this tool call?</target>
-</trans-unit>
-<trans-unit id="s056efa20c6a8b2e7">
-  <source>AI 想使用一个工具，请查看以下详情。</source>
-  <target>The AI wants to use a tool. Review the details below.</target>
-</trans-unit>
 <trans-unit id="saf85a24c863b4ffe">
   <source>是</source>
   <target>Yes</target>
@@ -1218,6 +1210,154 @@
 <trans-unit id="sf0c7a6109f6e9f6d">
   <source>[错误]</source>
   <target>[Error]</target>
+</trans-unit>
+<trans-unit id="s60844d2db8db86b0">
+  <source>Drag to resize</source>
+  <target>Drag to resize</target>
+</trans-unit>
+<trans-unit id="se5515495d5a897ee">
+  <source>开始新对话</source>
+  <target>Start new conversation</target>
+</trans-unit>
+<trans-unit id="sa402e43fce5c1c1e">
+  <source>发送消息开始与 AI 助手交流</source>
+  <target>Send a message to start chatting with AI assistant</target>
+</trans-unit>
+<trans-unit id="s0b7dde42f07e2a34">
+  <source>渲染失败</source>
+  <target>Render failed</target>
+</trans-unit>
+<trans-unit id="s58f417d42fd60358">
+  <source>工具执行失败</source>
+  <target>Tool execution failed</target>
+</trans-unit>
+<trans-unit id="s37a9e8aec5713460">
+  <source>More</source>
+  <target>More</target>
+</trans-unit>
+<trans-unit id="scef3eaa0606ae482">
+  <source>Open files</source>
+  <target>Open files</target>
+</trans-unit>
+<trans-unit id="sf6145192a0867983">
+  <source>Editor toolbar</source>
+  <target>Editor toolbar</target>
+</trans-unit>
+<trans-unit id="s4edbf294f1ef632e">
+  <source>该命令即将推出</source>
+  <target>This command is coming soon</target>
+</trans-unit>
+<trans-unit id="sa51a361b2ccbb581">
+  <source>已选择 <x id="0" equiv-text="${command.label}"/></source>
+  <target><x id="0" equiv-text="${command.label}"/> selected</target>
+</trans-unit>
+<trans-unit id="s107c0ae4c8fc2dd0">
+  <source>搜索命令...</source>
+  <target>Search commands...</target>
+</trans-unit>
+<trans-unit id="s976b2e082f1267cc">
+  <source>清除</source>
+  <target>Clear</target>
+</trans-unit>
+<trans-unit id="s51b0179791ece346">
+  <source>未找到匹配的命令</source>
+  <target>No matching commands found</target>
+</trans-unit>
+<trans-unit id="s38182808b6f2391a">
+  <source>待办</source>
+  <target>Todo</target>
+</trans-unit>
+<trans-unit id="s4c7b2cbb61b3b8fd">
+  <source>进行中</source>
+  <target>In Progress</target>
+</trans-unit>
+<trans-unit id="s405e21db439bb491">
+  <source>已完成</source>
+  <target>Completed</target>
+</trans-unit>
+<trans-unit id="sc2453bedb240a5bc">
+  <source><x id="0" equiv-text="${counts.completed}"/> / <x id="1" equiv-text="${counts.all}"/> 已完成</source>
+  <target><x id="0" equiv-text="${counts.completed}"/> / <x id="1" equiv-text="${counts.all}"/> completed</target>
+</trans-unit>
+<trans-unit id="sa259f804b95cf703">
+  <source>没有匹配的任务</source>
+  <target>No matching tasks</target>
+</trans-unit>
+<trans-unit id="s4319fc45b1bdf753">
+  <source>执行工具操作</source>
+  <target>Execute tool action</target>
+</trans-unit>
+<trans-unit id="seb3e51d571c73603">
+  <source>读取文件内容</source>
+  <target>Read file content</target>
+</trans-unit>
+<trans-unit id="s82f9ca9e515cd7f8">
+  <source>写入文件内容</source>
+  <target>Write file content</target>
+</trans-unit>
+<trans-unit id="s2530ebc5b8c0a5bf">
+  <source>列出目录内容</source>
+  <target>List directory contents</target>
+</trans-unit>
+<trans-unit id="s03c2a6cfdd7fab60">
+  <source>搜索文件内容</source>
+  <target>Search file content</target>
+</trans-unit>
+<trans-unit id="sac58d800d959ff03">
+  <source>查找文件</source>
+  <target>Find file</target>
+</trans-unit>
+<trans-unit id="sf1354f3ec7490ba0">
+  <source>执行脚本</source>
+  <target>Execute script</target>
+</trans-unit>
+<trans-unit id="s941bf1857a28100a">
+  <source>更新任务列表</source>
+  <target>Update task list</target>
+</trans-unit>
+<trans-unit id="sf7b767f4d0182edc">
+  <source>工具调用确认</source>
+  <target>Tool call confirmation</target>
+</trans-unit>
+<trans-unit id="s2c0efa1db5178d12">
+  <source>AI 想要执行以下操作，请确认是否允许。</source>
+  <target>AI wants to execute the following actions, please confirm whether to allow.</target>
+</trans-unit>
+<trans-unit id="s3817c53b678c0d6a">
+  <source>参数详情</source>
+  <target>Parameter details</target>
+</trans-unit>
+<trans-unit id="s7141e7080e7368b8">
+  <source>拒绝</source>
+  <target>Reject</target>
+</trans-unit>
+<trans-unit id="s15f70a089a80cabc">
+  <source>允许</source>
+  <target>Allow</target>
+</trans-unit>
+<trans-unit id="s026b7689b37abd14">
+  <source>全部允许</source>
+  <target>Allow all</target>
+</trans-unit>
+<trans-unit id="se6c1f72ac6b85df9">
+  <source>unsaved</source>
+  <target>unsaved</target>
+</trans-unit>
+<trans-unit id="s5656047dd8310ac1">
+  <source>Window controls</source>
+  <target>Window controls</target>
+</trans-unit>
+<trans-unit id="s1c109a21525649fd">
+  <source>Minimize</source>
+  <target>Minimize</target>
+</trans-unit>
+<trans-unit id="s26f91b6796e33111">
+  <source>Restore</source>
+  <target>Restore</target>
+</trans-unit>
+<trans-unit id="s2b3441b8eece504f">
+  <source>Maximize</source>
+  <target>Maximize</target>
 </trans-unit>
 </body>
 </file>

@@ -29,6 +29,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: i18n coverage check
+        run: pnpm --filter admin-ui run i18n:check
+
       - name: Build
         run: pnpm build
 

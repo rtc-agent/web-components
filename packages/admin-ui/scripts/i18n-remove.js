@@ -559,7 +559,40 @@ function updatePackageJson() {
 
 function main() {
   console.log('========================================');
-  console.log('  开始执行 i18n 移除脚本');
+  console.log('  WARNING: i18n Removal Script');
+  console.log('========================================\n');
+
+  console.log('This script will:');
+  console.log('  - Replace all i18n calls with Chinese hardcoded text');
+  console.log('  - Remove all i18n related imports and components');
+  console.log('  - Delete src/locales/ directory');
+  console.log('  - Remove i18n configuration from config files');
+  console.log('\n⚠️  This operation is IRREVERSIBLE!');
+  console.log('⚠️  Please commit your changes before proceeding.\n');
+
+  // Safety confirmation
+  const readline = require('readline');
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+
+  rl.question('Are you sure you want to proceed? (yes/no): ', (answer) => {
+    rl.close();
+
+    if (answer.toLowerCase() !== 'yes') {
+      console.log('\n❌ Operation cancelled.');
+      process.exit(0);
+    }
+
+    console.log('\n✓ Confirmation received, proceeding...\n');
+    executeRemoval();
+  });
+}
+
+function executeRemoval() {
+  console.log('========================================');
+  console.log('  Starting i18n Removal');
   console.log('========================================\n');
 
   console.log('>>> 构建中文翻译映射...');
