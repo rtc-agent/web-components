@@ -284,6 +284,60 @@ describe('Comlink Proxy Integration', () => {
       const result = await wrappedService.ping();
       expect(result).toBe('pong');
     });
+
+    it('should handle non-Error rejections (string)', async () => {
+      // Create a service that throws a string instead of Error
+      class NonErrorService {
+        async throwString(): Promise<never> {
+          // eslint-disable-next-line no-throw-literal
+          throw 'string error';
+        }
+      }
+
+      const channel2 = new MessageChannel();
+      const service2 = new NonErrorService();
+      expose(service2, channel2.port1);
+      const wrapped2 = wrap<NonErrorService>(channel2.port2);
+
+      try {
+        await wrapped2.throwString();
+        expect.fail('Should have thrown');
+      } catch (err) {
+        // Comlink should propagate the string as-is
+        expect(err).toBe('string error');
+      } finally {
+        wrapped2[releaseProxy]();
+        channel2.port1.close();
+        channel2.port2.close();
+      }
+    });
+
+    it('should handle non-Error rejections (undefined)', async () => {
+      // Create a service that throws undefined
+      class NonErrorService {
+        async throwUndefined(): Promise<never> {
+          // eslint-disable-next-line no-throw-literal
+          throw undefined;
+        }
+      }
+
+      const channel2 = new MessageChannel();
+      const service2 = new NonErrorService();
+      expose(service2, channel2.port1);
+      const wrapped2 = wrap<NonErrorService>(channel2.port2);
+
+      try {
+        await wrapped2.throwUndefined();
+        expect.fail('Should have thrown');
+      } catch (err) {
+        // Comlink should propagate undefined as-is
+        expect(err).toBeUndefined();
+      } finally {
+        wrapped2[releaseProxy]();
+        channel2.port1.close();
+        channel2.port2.close();
+      }
+    });
   });
 
   describe('Callback Proxying', () => {

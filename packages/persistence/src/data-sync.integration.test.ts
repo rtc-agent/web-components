@@ -16,6 +16,8 @@ import { OffsetManager } from './offset-manager.js';
 import { UIUpdateBus } from './ui-update-bus.js';
 
 // Enable persistence for these tests
+// Save original value to restore after tests
+const originalPersistEnabled = UIUpdateBus.persistEnabled;
 UIUpdateBus.persistEnabled = true;
 
 describe('Data Synchronization Integration', () => {
@@ -29,6 +31,8 @@ describe('Data Synchronization Integration', () => {
   afterEach(async () => {
     // Clean up: close and delete the database
     await closeDatabase();
+    // Restore global state to prevent test pollution
+    UIUpdateBus.persistEnabled = originalPersistEnabled;
     vi.restoreAllMocks();
   });
 

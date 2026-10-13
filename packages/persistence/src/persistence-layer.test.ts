@@ -7,6 +7,53 @@ import {
   initFileCacheRepository,
 } from './file-cache-repository.js';
 
+/**
+ * Wait for a condition to be true with timeout.
+ * Replaces fixed-time waits (e.g., setTimeout(50)) with polling.
+ *
+ * @param condition - Function that returns true when condition is met
+ * @param timeout - Maximum wait time in milliseconds (default: 1000)
+ * @param interval - Polling interval in milliseconds (default: 10)
+ * @param message - Error message if timeout
+ */
+async function waitForCondition(
+  condition: () => boolean | Promise<boolean>,
+  timeout = 1000,
+  interval = 10,
+  message = 'Timeout waiting for condition',
+): Promise<void> {
+  const start = Date.now();
+  while (true) {
+    const result = await condition();
+    if (result) {
+      return;
+    }
+    if (Date.now() - start > timeout) {
+      throw new Error(`${message} (timeout: ${timeout}ms)`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, interval));
+  }
+}
+
+/**
+ * Wait for all sync tasks to complete.
+ * Convenience wrapper around waitForCondition for PersistenceLayer.
+ *
+ * @param persistence - PersistenceLayer instance
+ * @param timeout - Maximum wait time in milliseconds (default: 1000)
+ */
+async function waitForSyncTasks(
+  persistence: PersistenceLayer,
+  timeout = 1000,
+): Promise<void> {
+  await waitForCondition(
+    () => persistence.pendingSyncTaskCount === 0,
+    timeout,
+    10,
+    'Timeout waiting for sync tasks to complete',
+  );
+}
+
 describe('Fix 26: PersistenceLayer graceful shutdown', () => {
   const DB_NAME = 'rtc-agent-test-persistence-layer';
   let persistence: PersistenceLayer;
@@ -41,8 +88,8 @@ describe('Fix 26: PersistenceLayer graceful shutdown', () => {
 
   describe('SyncTaskTracker', () => {
     it('should track active sync tasks via SyncTaskTracker', async () => {
-      // Wait for initial recovery task to complete
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      // Wait for initial recovery task to complete using polling
+      await waitForSyncTasks(persistence);
 
       // Use public API to verify initial state
       expect(persistence.pendingSyncTaskCount).toBe(0);
@@ -57,16 +104,16 @@ describe('Fix 26: PersistenceLayer graceful shutdown', () => {
       expect(persistence.pendingSyncTaskCount).toBe(1);
 
       await task;
-      // Wait for finally to execute
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      // Wait for finally to execute using polling
+      await waitForSyncTasks(persistence);
 
       // Verify task was removed after completion
       expect(persistence.pendingSyncTaskCount).toBe(0);
     });
 
     it('should remove task after completion', async () => {
-      // Wait for initial recovery task to complete
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      // Wait for initial recovery task to complete using polling
+      await waitForSyncTasks(persistence);
 
       const task = Promise.resolve();
 
@@ -75,14 +122,14 @@ describe('Fix 26: PersistenceLayer graceful shutdown', () => {
       expect(persistence.pendingSyncTaskCount).toBe(1);
 
       await task;
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitForSyncTasks(persistence);
 
       expect(persistence.pendingSyncTaskCount).toBe(0);
     });
 
     it('should remove task after failure', async () => {
-      // Wait for initial recovery task to complete
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      // Wait for initial recovery task to complete using polling
+      await waitForSyncTasks(persistence);
 
       // Create a task that will fail
       let rejectTask: (err: Error) => void;
@@ -99,16 +146,15 @@ describe('Fix 26: PersistenceLayer graceful shutdown', () => {
       // Reject the task
       rejectTask!(new Error('Sync failed'));
 
-      // Wait for the task to fail and be removed
-      await task;
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      // Wait for the task to fail and be removed using polling
+      await waitForSyncTasks(persistence);
 
       expect(persistence.pendingSyncTaskCount).toBe(0);
     });
 
     it('should track multiple concurrent tasks', async () => {
-      // Wait for initial recovery task to complete
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      // Wait for initial recovery task to complete using polling
+      await waitForSyncTasks(persistence);
 
       const task1 = new Promise<void>((resolve) => setTimeout(resolve, 50));
       const task2 = new Promise<void>((resolve) => setTimeout(resolve, 100));
@@ -121,7 +167,7 @@ describe('Fix 26: PersistenceLayer graceful shutdown', () => {
       expect(persistence.pendingSyncTaskCount).toBe(3);
 
       await Promise.all([task1, task2, task3]);
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await waitForSyncTasks(persistence);
 
       expect(persistence.pendingSyncTaskCount).toBe(0);
     });
@@ -229,8 +275,8 @@ describe('Fix 26: PersistenceLayer graceful shutdown', () => {
       });
       vi.spyOn(mockClient, 'sendMessage').mockReturnValue(sendMessagePromise);
 
-      // Wait for initial recovery task to complete
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      // Wait for initial recovery task to complete using polling
+      await waitForSyncTasks(persistence);
 
       expect(persistence.pendingSyncTaskCount).toBe(0);
 
@@ -242,7 +288,12 @@ describe('Fix 26: PersistenceLayer graceful shutdown', () => {
       });
 
       // Wait a bit for the sync task to be created
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await waitForCondition(
+        () => persistence.pendingSyncTaskCount > 0,
+        500,
+        10,
+        'Timeout waiting for sync task to be created',
+      );
 
       expect(persistence.pendingSyncTaskCount).toBe(1);
 
@@ -251,8 +302,8 @@ describe('Fix 26: PersistenceLayer graceful shutdown', () => {
 
       await promise;
 
-      // Wait for sync task to complete
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      // Wait for sync task to complete using polling
+      await waitForSyncTasks(persistence);
 
       expect(persistence.pendingSyncTaskCount).toBe(0);
     });
