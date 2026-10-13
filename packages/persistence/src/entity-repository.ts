@@ -2344,18 +2344,47 @@ export class EntityRepository {
       });
     };
 
-    /**
-     * Message-specific merge with TWO checks (in order):
+   /**
+     * Message-specific merge with TWO checks in strict priority order:
      *
-     * 1. Streaming status regression check (ALWAYS applies, regardless of timestamps)
-     *    - If incoming would cause regression, return existing unchanged
-     *    - See isStreamingStatusRegression() for lifecycle rules
+     * ## Conflict Resolution Priority (highest to lowest)
      *
-     * 2. Timestamp-based conflict resolution (only if both have updated_at)
-     *    - Uses same strategy as other entities (see resolveByTimestamp)
+     * 1. **Streaming status regression detection** (ALWAYS applies, regardless of timestamps)
+     *    - If incoming would cause a state regression, return existing unchanged
+     *    - This is the HIGHEST priority check — it overrides timestamp comparison
+     *    - Rationale: Prevents UI flicker and data corruption when out-of-order updates
+     *      arrive from different channels (live-channel vs topic-channel)
+     *    - See isStreamingStatusRegression() for lifecycle rules:
+     *      pending → streaming → completed/failed (one-directional, no regression allowed)
+     *
+     * 2. **Timestamp-based conflict resolution** (only if regression check passes)
+     *    - Uses same strategy as other entities (see resolveByTimestamp above)
      *    - If conflict detected (local-wins), return existing unchanged
+     *    - Rationale: Standard last-write-wins with protection for unsynced local changes
      *
-     * If both checks pass, merge { ...existing, ...incoming }
+     * ## Interaction Between Checks
+     *
+     * The streaming regression check is evaluated FIRST, before any timestamp comparison.
+     * This means:
+     * - Even if incoming has a NEWER timestamp, it will be rejected if it causes regression
+     * - Even if existing has sync_status='pending' (would normally trigger local-wins),
+     *       the streaming check still runs first
+     * - The two checks are independent: regression detection looks at streaming_status,
+     *       timestamp comparison looks at updated_at and sync_status
+     *
+     * ## Example Scenarios
+     *
+     * Scenario A: Streaming regression blocked despite newer timestamp
+     *   existing: { streaming_status: 'completed', updated_at: '10:00:00' }
+     *   incoming: { streaming_status: 'streaming', updated_at: '10:00:05' }
+     *   Result: KEEP existing (regression blocked, timestamp ignored)
+     *
+     * Scenario B: Timestamp conflict resolved after regression check passes
+     *   existing: { streaming_status: 'streaming', updated_at: '10:00:05', sync_status: 'pending' }
+     *   incoming: { streaming_status: 'completed', updated_at: '10:00:00', sync_status: 'synced' }
+     *   Result: KEEP existing (no regression, but local-wins due to newer timestamp + pending sync)
+     *
+     * If both checks pass, merge { ...existing, ...incoming } (incoming overrides existing).
      */
     const mergeMessages = (
       items: Partial<LocalMessage>[],
@@ -2365,8 +2394,8 @@ export class EntityRepository {
         const cid = item.client_id!;
         const prev = existingMap.get(cid);
         if (prev) {
-          // Check 1: Skip if applying this update would cause a streaming status regression
-          // This check ALWAYS applies, regardless of timestamps (special case for Message)
+          // Check 1 (HIGHEST PRIORITY): Skip if applying this update would cause a streaming status regression
+          // This check ALWAYS applies, regardless of timestamps or sync_status
           if (
             isStreamingStatusRegression(
               prev.streaming_status,
@@ -2389,8 +2418,9 @@ export class EntityRepository {
             return prev; // Keep existing record unchanged
           }
 
-          // Check 2: Timestamp-based conflict resolution
+          // Check 2 (LOWER PRIORITY): Timestamp-based conflict resolution
           // Only applies if both have updated_at
+          // Only reached if Check 1 passed (no streaming regression)
           if (item.updated_at && prev.updated_at) {
             const { isConflict } = resolveByTimestamp(item, prev, 'message', cid);
             if (isConflict) {

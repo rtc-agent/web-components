@@ -161,6 +161,10 @@ export default [
     icon: 'setting',
     access: 'canSystemView',
     routes: [
+      // /system 使用动态重定向（component: './system/index'），因为需要根据用户权限
+      // 决定默认子页面（如 admin 用户默认进入 users，audit 用户默认进入 audit-logs）。
+      // 其他路由（/dashboard, /rtc-users, /account）使用静态 redirect，因为默认子页面固定。
+      // 参见 src/pages/system/index.tsx 的权限判断逻辑。
       {
         path: '/system',
         component: './system/index',

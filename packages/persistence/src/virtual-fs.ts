@@ -3,6 +3,24 @@
  *
  * IndexedDB-based virtual file system providing file operation APIs for LLM.
  *
+ * ## Relationship to FileCacheRepository
+ *
+ * VirtualFS and FileCacheRepository are intentionally independent systems with
+ * no overlap in their data domains:
+ *
+ * | Aspect            | VirtualFS                        | FileCacheRepository                |
+ * |-------------------|----------------------------------|------------------------------------|
+ * | Purpose           | User-created structured content  | S3 downloaded binary file cache    |
+ * | Content type      | Text (Markdown, scripts)         | Binary blobs (images, attachments) |
+ * | Key scheme        | Semantic path (/functions/...)   | Content hash ([md5+ext])           |
+ * | Lifecycle         | Persistent (user-managed)        | Ephemeral (TTL-based eviction)     |
+ * | Sync model        | N/A (local-only)                 | Offline-first (pending/syncing/synced/failed) |
+ *
+ * VirtualFS NEVER stores the same file as FileCacheRepository. If a file exists in
+ * both systems, it indicates a bug — the file type should determine which system owns it:
+ * - User-created functions/scenarios/scripts/agent docs → VirtualFS
+ * - Downloaded attachments/binary assets → FileCacheRepository
+ *
  * Design highlights:
  * - Path normalization: unified absolute paths, .. traversal is forbidden
  * - Auto directory creation: parent directories are auto-created on write (logical directories, not stored)

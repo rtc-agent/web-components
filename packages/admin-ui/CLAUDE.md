@@ -66,6 +66,59 @@ npx antd info <Comp>    # 查询 antd 组件 API
 
 **Mock**: `mock/` (global) + `src/pages/**/_mock.ts` (co-located). Express-style handlers.
 
+## Mock 文件使用指南
+
+### 何时使用页面级 `_mock.ts`
+
+- 页面特定的演示数据（如特定格式的列表、详情）
+- 后端未实现的 API 端点（**必须**在 `service.ts` 中标注 `MOCK-ONLY`）
+- 开发阶段的快速原型（后端接口尚未就绪时）
+
+### 何时使用全局 `mock/` 目录
+
+- 跨页面共享的 mock API（如通用配置、全局状态）
+- 认证相关的 mock（登录、注册、当前用户信息等）
+- 通用数据格式（如枚举值、常量定义）
+
+### 何时不需要 mock
+
+- 页面使用真实的后端 API 进行开发（后端已实现）
+- 已有完整的后端实现且稳定
+
+### Mock-only API 端点规范
+
+当 `service.ts` 调用 mock-only 端点时（即该端点后端尚未实现，仅靠 `_mock.ts` 提供数据）：
+
+1. **在函数 JSDoc 中添加 MOCK-ONLY 警告**：
+
+   ```typescript
+   /**
+    * Fetch user preferences.
+    *
+    * MOCK-ONLY: This endpoint is not yet implemented on the backend.
+    * Data is provided by `./_mock.ts` for development purposes.
+    *
+    * TODO: Backend implementation planned for Q2 2026 (see issue #123)
+    */
+   export async function getUserPreferences() { ... }
+   ```
+
+2. **引用对应的 `_mock.ts` 文件**：说明数据来源
+
+3. **添加 TODO 说明后端实现计划**：便于追踪和清理
+
+### 当前 Mock 状态
+
+| 页面 | `service.ts` | `_mock.ts` | 说明 |
+| --- | --- | --- | --- |
+| `user/register` | YES | YES | 注册接口 mock |
+| `account/settings` | YES | YES | 账户设置 mock |
+| `account/center` | YES | YES | 账户中心 mock |
+| `chatbot` | YES | NO | 使用真实后端 API |
+| `rtc-users/management` | YES | NO | 使用真实后端 API |
+| `rtc-users/sessions` | YES | NO | 使用真实后端 API |
+| `rtc-users/messages` | YES | NO | 使用真实后端 API |
+
 **Cloudflare Worker**: `cloudflare-worker/` — separate Hono app, own `package.json`, not an npm workspace.
 
 ## AI Skills
