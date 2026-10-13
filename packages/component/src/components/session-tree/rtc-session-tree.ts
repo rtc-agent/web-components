@@ -44,6 +44,24 @@ import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('SessionTree');
 
+/** Performance metrics for session tree rendering */
+export interface SessionTreeMetrics {
+  /** Total number of sessions in the tree (including collapsed) */
+  totalSessions: number;
+  /** Number of sessions currently visible (after filtering/expansion) */
+  visibleSessions: number;
+  /** Number of expanded group nodes */
+  expandedGroups: number;
+  /** Time taken to render the tree (milliseconds) */
+  renderTimeMs: number;
+  /** Number of items currently rendered in DOM (virtual scroll) */
+  renderedItems: number;
+  /** Scroll position (pixels from top) */
+  scrollTop: number;
+  /** Container height (pixels) */
+  containerHeight: number;
+}
+
 /* ── Virtual Scroll Configuration ── */
 
 /** Height of each tree item in pixels */
@@ -101,6 +119,9 @@ export class RtcSessionTree extends LitElement {
   /** Virtual scroll state */
   @state()
   private _scrollTop = 0;
+
+  /** RAF handle for scroll event throttling */
+  private _scrollRAF: number | null = null;
 
   /** Container height for virtual scroll calculations */
   @state()
@@ -185,17 +206,59 @@ export class RtcSessionTree extends LitElement {
     return { start, end, totalHeight };
   }
 
+  /**
+   * Collect performance metrics for session tree rendering.
+   * Dispatched via custom event for monitoring and debugging.
+   */
+  private _collectMetrics(renderTimeMs: number = 0): SessionTreeMetrics {
+    const rootNodes = this._treeCtx?.state?.rootNodes ?? [];
+    const flatNodes = this._flattenTree(rootNodes);
+
+    // Count expanded groups
+    let expandedGroups = 0;
+    const countExpanded = (nodes: SessionTreeNode[]) => {
+      for (const node of nodes) {
+        if (node.isExpanded && node.children.length > 0) {
+          expandedGroups++;
+          countExpanded(node.children);
+        }
+      }
+    };
+    countExpanded(rootNodes);
+
+    return {
+      totalSessions: flatNodes.length,
+      visibleSessions: flatNodes.length, // All flattened nodes are visible
+      expandedGroups,
+      renderTimeMs,
+      renderedItems: this._sessionIdToElementMap.size,
+      scrollTop: this._scrollTop,
+      containerHeight: this._containerHeight,
+    };
+  }
+
   /* ── Event Handlers ── */
 
   /** Handle scroll events for virtual scrolling */
   private _handleScroll(e: Event) {
     const target = e.target as HTMLElement;
     const newScrollTop = target.scrollTop;
-    // Only update if scroll position actually changed (avoid unnecessary re-renders)
-    if (Math.abs(newScrollTop - this._scrollTop) > 1) {
-      this._scrollTop = newScrollTop;
-      log.debug('Virtual scroll: scrollTop =', newScrollTop);
+
+    // PERFORMANCE: Use requestAnimationFrame to throttle scroll updates.
+    // This reduces unnecessary re-renders during rapid scroll events.
+    // The actual state update happens on the next animation frame.
+    if (this._scrollRAF !== null) {
+      cancelAnimationFrame(this._scrollRAF);
     }
+
+    this._scrollRAF = requestAnimationFrame(() => {
+      this._scrollRAF = null;
+      // Only update if scroll position actually changed (avoid unnecessary re-renders)
+      if (Math.abs(newScrollTop - this._scrollTop) > 1) {
+        this._scrollTop = newScrollTop;
+        log.debug('Virtual scroll: scrollTop =', newScrollTop);
+      }
+    });
   }
 
   /** Handle container resize to update virtual scroll calculations */
@@ -381,41 +444,29 @@ export class RtcSessionTree extends LitElement {
   private _findTreeItemBySessionId(
     sessionId: string,
   ): RtcSessionTreeItem | null {
-    // Try O(1) lookup first
+    // O(1) lookup from cache
     const cachedItem = this._sessionIdToElementMap.get(sessionId);
     if (cachedItem && cachedItem.isConnected) {
       return cachedItem;
     }
 
-    // Fallback: DOM walk (for cases where map is stale)
-    const content = this.shadowRoot?.querySelector('.sidebar-content');
+    // Linear scan of directly-rendered children (flat list from virtual scroll).
+    // No recursive shadow DOM walk — only iterates items actually in the DOM.
+    const content =
+      this.shadowRoot?.querySelector('.virtual-scroll-content') ??
+      this.shadowRoot?.querySelector('.sidebar-content');
     if (!content) return null;
 
-    const walk = (parent: Element | ShadowRoot): RtcSessionTreeItem | null => {
-      for (const child of Array.from(parent.children)) {
-        if (child.tagName === 'RTC-SESSION-TREE-ITEM') {
-          const item = child as RtcSessionTreeItem;
-          const itemSessionId = item.node.session.clientId;
-
-          // Update map while walking for future lookups
-          this._sessionIdToElementMap.set(itemSessionId, item);
-
-          if (itemSessionId === sessionId) return item;
-          // Only recurse into children for expanded nodes
-          if (item.node.children.length > 0 && item.node.isExpanded) {
-            const childrenContainer =
-              item.shadowRoot?.querySelector('.children');
-            if (childrenContainer) {
-              const found = walk(childrenContainer);
-              if (found) return found;
-            }
-          }
-        }
+    for (const child of Array.from(content.children)) {
+      if (child.tagName === 'RTC-SESSION-TREE-ITEM') {
+        const item = child as RtcSessionTreeItem;
+        const id = item.node.session.clientId;
+        // Populate cache for future O(1) lookups
+        this._sessionIdToElementMap.set(id, item);
+        if (id === sessionId) return item;
       }
-      return null;
-    };
-
-    return walk(content);
+    }
+    return null;
   }
 
   private _ensureInitialFocus() {
@@ -652,6 +703,20 @@ export class RtcSessionTree extends LitElement {
     if (changed.has('_treeCtx') || changed.has('selectedSessionId')) {
       this._ensureInitialFocus();
     }
+
+    // Collect and dispatch performance metrics after rendering
+    const startTime = performance.now();
+    requestAnimationFrame(() => {
+      const renderTimeMs = performance.now() - startTime;
+      const metrics = this._collectMetrics(renderTimeMs);
+      this.dispatchEvent(
+        new CustomEvent('rtc-session-tree-metrics', {
+          bubbles: true,
+          composed: true,
+          detail: metrics,
+        }),
+      );
+    });
   }
 
   disconnectedCallback() {
@@ -660,6 +725,11 @@ export class RtcSessionTree extends LitElement {
     if (this._resizeObserver) {
       this._resizeObserver.disconnect();
       this._resizeObserver = undefined;
+    }
+    // Cleanup scroll RAF to prevent memory leaks
+    if (this._scrollRAF !== null) {
+      cancelAnimationFrame(this._scrollRAF);
+      this._scrollRAF = null;
     }
     // Cleanup session ID to element map
     this._sessionIdToElementMap.clear();
@@ -680,5 +750,6 @@ declare global {
       title: string;
     }>;
     'rtc-session-delete-requested': CustomEvent<{ sessionId: string }>;
+    'rtc-session-tree-metrics': CustomEvent<SessionTreeMetrics>;
   }
 }

@@ -31,35 +31,41 @@ const avatarSizeToClassName = (styles: any, size?: SizeType | 'mini') =>
     [styles.avatarItemMini]: size === 'mini',
   });
 
-const Item: React.FC<AvatarItemProps> = ({ src, size, tips, onClick }) => {
-  const { styles } = useStyles();
-  const cls = avatarSizeToClassName(styles, size);
-  const avatar = tips ? (
-    <Tooltip title={tips}>
-      <Avatar
-        src={src}
-        size={size}
-        style={{
-          cursor: onClick ? 'pointer' : undefined,
-        }}
-      />
-    </Tooltip>
-  ) : (
-    <Avatar src={src} size={size} />
-  );
+const Item: React.FC<AvatarItemProps> = React.memo(
+  ({ src, size, tips, onClick }) => {
+    const { styles } = useStyles();
+    const cls = avatarSizeToClassName(styles, size);
+    const avatar = tips ? (
+      <Tooltip title={tips}>
+        <Avatar
+          src={src}
+          size={size}
+          style={{
+            cursor: onClick ? 'pointer' : undefined,
+          }}
+        />
+      </Tooltip>
+    ) : (
+      <Avatar src={src} size={size} />
+    );
 
-  return (
-    <li className={cls}>
-      {onClick ? (
-        <button type="button" className={styles.avatarButton} onClick={onClick}>
-          {avatar}
-        </button>
-      ) : (
-        avatar
-      )}
-    </li>
-  );
-};
+    return (
+      <li className={cls}>
+        {onClick ? (
+          <button
+            type="button"
+            className={styles.avatarButton}
+            onClick={onClick}
+          >
+            {avatar}
+          </button>
+        ) : (
+          avatar
+        )}
+      </li>
+    );
+  },
+);
 
 const AvatarList: React.FC<AvatarListProps> & {
   Item: typeof Item;

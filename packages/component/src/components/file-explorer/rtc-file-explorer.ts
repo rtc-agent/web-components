@@ -377,31 +377,32 @@ export class RtcFileExplorer extends LitElement {
   }
 
   /**
-   * Depth-first traversal of visible (expanded) tree nodes, returns a flat list.
-   * Traverses recursive Shadow DOM via composed tree walk.
-   *
-   * NOTE: This method is kept for backward compatibility but should not be used
-   * for keyboard navigation with virtual scrolling. Use _getAllVisibleNodes() instead.
+   * Find tree node by path via flat iteration of rendered items.
+   * Uses the virtual scroll container's direct children — no recursive shadow DOM walk.
    */
-  private _getVisibleTreeItems(): RtcFileTreeItem[] {
-    const result: RtcFileTreeItem[] = [];
-    const walk = (parent: Element | ShadowRoot) => {
-      for (const child of Array.from(parent.children)) {
-        if (child.tagName === 'RTC-FILE-TREE-ITEM') {
-          const item = child as RtcFileTreeItem;
-          result.push(item);
-          // Only recurse into children for expanded folders
-          if (item.isFolder && item.expanded) {
-            const childrenContainer =
-              item.shadowRoot?.querySelector('.children');
-            if (childrenContainer) walk(childrenContainer);
-          }
-        }
+  private _findTreeItemByPath(path: string): RtcFileTreeItem | null {
+    // Try O(1) lookup from cache
+    const cachedItem = this._pathToElementMap.get(path);
+    if (cachedItem && cachedItem.isConnected) {
+      return cachedItem;
+    }
+
+    // Linear scan of directly-rendered children (flat list from virtual scroll)
+    const content =
+      this.shadowRoot?.querySelector('.virtual-scroll-content') ??
+      this.shadowRoot?.querySelector('.sidebar-content');
+    if (!content) return null;
+
+    for (const child of Array.from(content.children)) {
+      if (child.tagName === 'RTC-FILE-TREE-ITEM') {
+        const item = child as RtcFileTreeItem;
+        const itemPath = item.node.path;
+        // Populate cache for future O(1) lookups
+        this._pathToElementMap.set(itemPath, item);
+        if (itemPath === path) return item;
       }
-    };
-    const content = this.shadowRoot?.querySelector('.sidebar-content');
-    if (content) walk(content);
-    return result;
+    }
+    return null;
   }
 
   /**
@@ -470,16 +471,6 @@ export class RtcFileExplorer extends LitElement {
       // Item is below viewport, scroll down
       content.scrollTop = itemBottom - content.clientHeight;
     }
-  }
-
-  /**
-   * Find tree node by path via composed walk
-   */
-  private _findTreeItemByPath(path: string): RtcFileTreeItem | null {
-    for (const item of this._getVisibleTreeItems()) {
-      if (item.node.path === path) return item;
-    }
-    return null;
   }
 
   /**
