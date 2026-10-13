@@ -4,7 +4,7 @@ import { getIntl, history, request } from '@umijs/max';
 import { message, notification } from 'antd';
 import { PUBLIC_PATHS } from '@/constants/routes';
 import { getCurrentUser } from '@/services/admin-auth';
-import { ErrorShowType, type UserInfo } from '@/services/types';
+import { ApiErrorCodes, ErrorShowType, type UserInfo } from '@/services/types';
 import {
   clearAuth,
   getAccessToken,
@@ -26,11 +26,22 @@ function sanitizeRequestBody(body: unknown): unknown {
     return body;
   }
 
-  const sensitiveFields = ['password', 'token', 'refresh_token', 'access_token', 'secret', 'otp'];
+  const sensitiveFields = [
+    'password',
+    'token',
+    'refresh_token',
+    'access_token',
+    'secret',
+    'otp',
+  ];
   const sanitized: Record<string, unknown> = {};
 
   for (const [key, value] of Object.entries(body)) {
-    if (sensitiveFields.some((field) => key.toLowerCase().includes(field.toLowerCase()))) {
+    if (
+      sensitiveFields.some((field) =>
+        key.toLowerCase().includes(field.toLowerCase()),
+      )
+    ) {
       sanitized[key] = '[REDACTED]';
     } else {
       sanitized[key] = value;
@@ -263,7 +274,9 @@ export const errorConfig: RequestConfig = {
       const { success, data, errorCode, errorMessage, showType } =
         res as unknown as ResponseStructure;
       if (!success) {
-        const error: Error & { name: string; info: unknown } = new Error(errorMessage);
+        const error: Error & { name: string; info: unknown } = new Error(
+          errorMessage,
+        );
         error.name = 'BizError';
         error.info = { errorCode, errorMessage, showType, data };
         throw error; // 抛出自制的错误
@@ -272,7 +285,12 @@ export const errorConfig: RequestConfig = {
     // 错误接收及处理 - 注意：errorHandler 不能异步阻塞！
     // 401 错误处理已移到响应拦截器中
     errorHandler: (
-      error: Error & { name: string; response?: { status: number; data: unknown }; request?: unknown; config?: { url?: string; method?: string } },
+      error: Error & {
+        name: string;
+        response?: { status: number; data: unknown };
+        request?: unknown;
+        config?: { url?: string; method?: string; data?: unknown };
+      },
       opts?: { skipErrorHandler?: boolean },
     ): void => {
       if (opts?.skipErrorHandler) throw error;
@@ -281,8 +299,10 @@ export const errorConfig: RequestConfig = {
       // Include request body for debugging (excluding sensitive fields)
       if (error.response) {
         const serverData = error.response.data as { errorCode?: string };
-        const requestBody = (error.config as any)?.data;
-        const sanitizedBody = requestBody ? sanitizeRequestBody(requestBody) : undefined;
+        const requestBody = error.config?.data;
+        const sanitizedBody = requestBody
+          ? sanitizeRequestBody(requestBody)
+          : undefined;
         console.error('[API Error]', {
           url: error.config?.url || 'unknown',
           method: (error.config?.method || 'unknown').toUpperCase(),
@@ -292,8 +312,10 @@ export const errorConfig: RequestConfig = {
           timestamp: new Date().toISOString(),
         });
       } else if (error.request) {
-        const requestBody = (error.config as any)?.data;
-        const sanitizedBody = requestBody ? sanitizeRequestBody(requestBody) : undefined;
+        const requestBody = error.config?.data;
+        const sanitizedBody = requestBody
+          ? sanitizeRequestBody(requestBody)
+          : undefined;
         console.error('[Network Error]', {
           url: error.config?.url || 'unknown',
           method: (error.config?.method || 'unknown').toUpperCase(),
@@ -382,9 +404,12 @@ export const errorConfig: RequestConfig = {
         // Check if token is expired before sending request
         // If expired, skip adding token and let 401 handler trigger refresh
         if (isTokenExpired(accessToken)) {
-          console.warn('[Request Interceptor] Token expired, skipping token attachment. 401 handler will trigger refresh.', {
-            url: config.url,
-          });
+          console.warn(
+            '[Request Interceptor] Token expired, skipping token attachment. 401 handler will trigger refresh.',
+            {
+              url: config.url,
+            },
+          );
           return config;
         }
 
@@ -402,7 +427,12 @@ export const errorConfig: RequestConfig = {
     // 数据解包和 401 处理
     async (response: {
       data: { success?: boolean; errorCode?: string; data?: unknown };
-      config?: { url?: string; method?: string; headers?: Record<string, string>; _retryCount?: number };
+      config?: {
+        url?: string;
+        method?: string;
+        headers?: Record<string, string>;
+        _retryCount?: number;
+      };
     }) => {
       try {
         const { data } = response;
@@ -411,10 +441,13 @@ export const errorConfig: RequestConfig = {
         // If backend returns unexpected format (e.g., raw data without envelope),
         // log warning and pass through to avoid masking errors
         if (data === undefined || data === null) {
-          console.warn('[Response Interceptor] Unexpected null/undefined response data', {
-            url: response.config?.url,
-            method: (response.config?.method || 'unknown').toUpperCase(),
-          });
+          console.warn(
+            '[Response Interceptor] Unexpected null/undefined response data',
+            {
+              url: response.config?.url,
+              method: (response.config?.method || 'unknown').toUpperCase(),
+            },
+          );
           return response;
         }
 
@@ -423,10 +456,13 @@ export const errorConfig: RequestConfig = {
         if (!hasEnvelopeStructure) {
           // Backend may return raw data without envelope (e.g., direct array/object)
           // Pass through as-is, but log for debugging
-          console.debug('[Response Interceptor] Response without envelope structure, passing through', {
-            url: response.config?.url,
-            dataType: typeof data,
-          });
+          console.debug(
+            '[Response Interceptor] Response without envelope structure, passing through',
+            {
+              url: response.config?.url,
+              dataType: typeof data,
+            },
+          );
           return response;
         }
 
@@ -435,18 +471,24 @@ export const errorConfig: RequestConfig = {
           // 成功响应，解包数据
           // Safety check: ensure data.data exists before unwrapping
           if (data.data === undefined) {
-            console.warn('[Response Interceptor] Success response but data.data is undefined', {
-              url: response.config?.url,
-            });
+            console.warn(
+              '[Response Interceptor] Success response but data.data is undefined',
+              {
+                url: response.config?.url,
+              },
+            );
           }
           response.data = data.data;
           return response;
         }
 
         // 检查是否是 401 错误（unauthorized）
-        if (data?.success === false && data?.errorCode === 'unauthorized') {
-          // Use retry count instead of boolean flag to prevent infinite loops
-          // Max retry count is 1
+        if (
+          data?.success === false &&
+          data?.errorCode === ApiErrorCodes.UNAUTHORIZED
+        ) {
+          // _retryCount tracks attempt count (0 = first attempt, 1 = first retry)
+          // Max retry count is 1: allow one retry after token refresh
           const retryCount = response.config?._retryCount || 0;
           if (retryCount >= 1) {
             redirectToLogin();

@@ -75,7 +75,7 @@ declare namespace API {
     event_type: string;
     resource_type: string;
     resource_id?: string;
-    details?: Record<string, any>;
+    details?: Record<string, unknown>;
     created_at: string;
   }
 
@@ -86,7 +86,7 @@ declare namespace API {
   }
 
   /** Generic response structure */
-  interface Response<T = any> {
+  interface Response<T = unknown> {
     success: boolean;
     data?: T;
     error_code?: string;

@@ -12,6 +12,13 @@ import type { RoleInfo, PermissionInfo, UserInfo } from './types';
 
 export type { RoleInfo, PermissionInfo, UserInfo };
 
+/** Request options for auth service functions */
+interface AuthRequestOptions {
+  signal?: AbortSignal;
+  headers?: Record<string, string>;
+  [key: string]: unknown;
+}
+
 /** 登录配置 */
 export interface LoginConfig {
   password_enabled: boolean;
@@ -56,7 +63,7 @@ export interface RefreshTokenResult {
  * 管理员登录
  * POST /api/auth/login
  */
-export async function login(body: LoginParams, options?: { [key: string]: any }) {
+export async function login(body: LoginParams, options?: AuthRequestOptions) {
   return request<LoginResult>('/api/auth/login', {
     method: 'POST',
     data: body,
@@ -68,7 +75,7 @@ export async function login(body: LoginParams, options?: { [key: string]: any })
  * 刷新 Token
  * POST /api/auth/refresh
  */
-export async function refreshToken(body: { refresh_token: string }, options?: { [key: string]: any }) {
+export async function refreshToken(body: { refresh_token: string }, options?: AuthRequestOptions) {
   return request<RefreshTokenResult>('/api/auth/refresh', {
     method: 'POST',
     data: body,
@@ -80,7 +87,7 @@ export async function refreshToken(body: { refresh_token: string }, options?: { 
  * 获取当前管理员信息
  * GET /api/auth/me
  */
-export async function getCurrentUser(options?: { [key: string]: any }) {
+export async function getCurrentUser(options?: AuthRequestOptions) {
   return request<UserInfo>('/api/auth/me', {
     method: 'GET',
     ...(options || {}),
@@ -91,7 +98,7 @@ export async function getCurrentUser(options?: { [key: string]: any }) {
  * 登出
  * POST /api/auth/logout
  */
-export async function logout(body: { refresh_token: string }, options?: { [key: string]: any }) {
+export async function logout(body: { refresh_token: string }, options?: AuthRequestOptions) {
   return request<{ status: string }>('/api/auth/logout', {
     method: 'POST',
     data: body,
@@ -119,7 +126,7 @@ export interface OTPLoginParams {
  * 发送邮箱验证码
  * POST /api/auth/otp/send
  */
-export async function sendEmailOTP(body: SendOTPParams, options?: { [key: string]: any }) {
+export async function sendEmailOTP(body: SendOTPParams, options?: AuthRequestOptions) {
   return request<SendOTPResult>('/api/auth/otp/send', {
     method: 'POST',
     data: body,
@@ -131,7 +138,7 @@ export async function sendEmailOTP(body: SendOTPParams, options?: { [key: string
  * 邮箱验证码登录
  * POST /api/auth/login/otp
  */
-export async function loginWithOTP(body: OTPLoginParams, options?: { [key: string]: any }) {
+export async function loginWithOTP(body: OTPLoginParams, options?: AuthRequestOptions) {
   return request<LoginResult>('/api/auth/login/otp', {
     method: 'POST',
     data: body,
