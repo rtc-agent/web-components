@@ -13,6 +13,25 @@
  * - When the Worker broadcasts events, WorkerBridge re-publishes them on the main-thread UIUpdateBus.
  * - Only one SharedWorker instance per page (multi-tab sharing managed by the browser).
  * - Token request dedup: concurrent requests share the same Promise.
+ *
+ * ARCHITECTURE NOTE - Direct Persistence Import:
+ * ----------------------------------------------
+ * This module imports `virtualFS` directly from @rtc-agent/persistence, which may appear
+ * to violate the layered architecture (component -> worker -> persistence).
+ *
+ * This is intentional and necessary for the Comlink proxy pattern:
+ * 1. The main thread needs to expose the virtualFS API surface for backward compatibility
+ * 2. WorkerBridge installs a Comlink proxy that intercepts virtualFS method calls
+ * 3. These calls are forwarded to the Worker's actual implementation (WorkerCore)
+ * 4. The proxy is installed globally, so all UI code continues using the same API
+ *
+ * Without this direct import, we couldn't install the proxy that bridges main-thread
+ * API calls to the Worker's persistence layer. This pattern enables:
+ * - UI code to use virtualFS.read()/write() etc. without knowing about Workers
+ * - Actual persistence operations to run in the Worker thread
+ * - Seamless integration with existing code that expects virtualFS to be available
+ *
+ * See installVirtualFSProxy() and restoreVirtualFS() methods for implementation details.
  */
 import { wrap, proxy, type Remote } from 'comlink';
 import { getUIUpdateBus, virtualFS } from '@rtc-agent/persistence';

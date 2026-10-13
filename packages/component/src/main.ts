@@ -3,6 +3,9 @@ import { eventBus } from './index.js';
 import { registry } from './registry.js';
 import { escapeHtml, formatDate } from './utils.js';
 import type { Task } from './storage.js';
+// ARCHITECTURE NOTE: Direct persistence import for debug/exposure purposes
+// These are exposed on `window` for E2E tests and debugging access.
+// In production code, prefer using the registry or WorkerBridge APIs.
 import { toolRegistry, virtualFS } from '@rtc-agent/persistence';
 import { createLogger } from '@rtc-agent/protocol';
 import type { RtcAgent } from './components/rtc-agent/rtc-agent.js';
