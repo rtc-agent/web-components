@@ -801,6 +801,9 @@ export default {
     'پیکربندی فعلی توسط مدیر دیگری تغییر یافته است. عملیات حذف شما نمی‌تواند مستقیماً اجرا شود. می‌توانید انتخاب کنید که دوباره بارگذاری کنید تا آخرین وضعیت را دریافت کنید یا تغییرات شخص دیگر را به اجبار حذف کنید.',
   'pages.config.system.forceDeleteSuccess':
     'حذف اجباری پیکربندی با موفقیت انجام شد',
+  // Load and operation errors
+  'pages.config.system.loadFailed': 'بارگذاری پیکربندی‌ها ناموفق بود',
+  'pages.config.system.operationFailed': 'عملیات ناموفق بود',
   // مدیریت پیکربندی کاربر - اقدامات بیشتر
   'pages.config.user.moreActions': 'اقدامات بیشتر',
   'pages.config.user.forceDeleteSuccess':

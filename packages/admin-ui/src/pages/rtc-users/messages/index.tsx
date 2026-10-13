@@ -2,7 +2,7 @@ import { InboxOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { history, useIntl, useSearchParams } from '@umijs/max';
-import { Button, Empty, Grid, Tag, theme } from 'antd';
+import { App, Button, Empty, Grid, Tag, theme } from 'antd';
 import React, {
   useCallback,
   useEffect,
@@ -11,6 +11,7 @@ import React, {
   useState,
 } from 'react';
 import { TableEmptyState } from '@/components';
+import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import { disabledFutureDate, parseTableSort } from '../shared/tableUtils';
 import MessageDetailDrawer from './components/MessageDetailDrawer';
 import type { MessageInfo } from './data';
@@ -23,6 +24,7 @@ import { getMessageList } from './service';
 const MessagesPage: React.FC = () => {
   const actionRef = useRef<ActionType>(null);
   const intl = useIntl();
+  const { message } = App.useApp();
   const [searchParams, setSearchParams] = useSearchParams();
   const sessionId = searchParams.get('session_id') || '';
   const screens = Grid.useBreakpoint();
@@ -321,33 +323,51 @@ const MessagesPage: React.FC = () => {
             style: { cursor: 'pointer' },
           })}
           request={async (params, sort) => {
-            // Read params from searchParams (URL is single source of truth)
-            const effectiveSessionId =
-              searchParams.get('session_id') || sessionId;
-            if (!effectiveSessionId) {
-              return { data: [], total: 0, success: true };
+            try {
+              // Read params from searchParams (URL is single source of truth)
+              const effectiveSessionId =
+                searchParams.get('session_id') || sessionId;
+              if (!effectiveSessionId) {
+                return { data: [], total: 0, success: true };
+              }
+              const role = searchParams.get('role') || undefined;
+              const createdAfter = searchParams.get('created_after') || undefined;
+              const createdBefore =
+                searchParams.get('created_before') || undefined;
+              const current = params.current || 1;
+              const pageSize = params.pageSize || 10;
+              const sortParams = parseTableSort(sort || {});
+              const response = await getMessageList({
+                session_id: effectiveSessionId,
+                page: current,
+                page_size: pageSize,
+                role,
+                created_after: createdAfter,
+                created_before: createdBefore,
+                ...sortParams,
+              });
+              return {
+                data: response.items,
+                total: response.total,
+                success: true,
+              };
+            } catch (error: unknown) {
+              message.error(
+                getFriendlyErrorMessage(
+                  error,
+                  intl,
+                  intl.formatMessage({
+                    id: 'pages.messages.loadFailed',
+                    defaultMessage: 'Failed to load messages',
+                  }),
+                ),
+              );
+              return {
+                data: [],
+                total: 0,
+                success: false,
+              };
             }
-            const role = searchParams.get('role') || undefined;
-            const createdAfter = searchParams.get('created_after') || undefined;
-            const createdBefore =
-              searchParams.get('created_before') || undefined;
-            const current = params.current || 1;
-            const pageSize = params.pageSize || 10;
-            const sortParams = parseTableSort(sort || {});
-            const response = await getMessageList({
-              session_id: effectiveSessionId,
-              page: current,
-              page_size: pageSize,
-              role,
-              created_after: createdAfter,
-              created_before: createdBefore,
-              ...sortParams,
-            });
-            return {
-              data: response.items,
-              total: response.total,
-              success: true,
-            };
           }}
           pagination={{
             defaultPageSize: 10,

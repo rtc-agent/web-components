@@ -243,7 +243,7 @@ const Login: React.FC = () => {
         });
       } else {
         message.error(
-          getFriendlyErrorMessage(error, defaultLoginFailureMessage),
+          getFriendlyErrorMessage(error, intl, defaultLoginFailureMessage),
         );
         setUserLoginState({
           status: 'error',
@@ -311,7 +311,7 @@ const Login: React.FC = () => {
         });
       } else {
         message.error(
-          getFriendlyErrorMessage(error, defaultLoginFailureMessage),
+          getFriendlyErrorMessage(error, intl, defaultLoginFailureMessage),
         );
         setUserLoginState({
           status: 'error',
@@ -575,6 +575,7 @@ const Login: React.FC = () => {
                       message.error(
                         getFriendlyErrorMessage(
                           error,
+                          intl,
                           intl.formatMessage({
                             id: 'pages.login.captcha.sendFailed',
                             defaultMessage:

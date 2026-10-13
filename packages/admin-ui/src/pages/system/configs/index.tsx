@@ -200,7 +200,16 @@ const SystemConfigsPage: React.FC = () => {
         return true;
       }
       // Non-conflict error, show normal error message
-      message.error(getFriendlyErrorMessage(error));
+      message.error(
+        getFriendlyErrorMessage(
+          error,
+          intl,
+          intl.formatMessage({
+            id: 'pages.config.system.operationFailed',
+            defaultMessage: 'Operation failed',
+          }),
+        ),
+      );
       return false;
     }
   };
@@ -218,7 +227,16 @@ const SystemConfigsPage: React.FC = () => {
       const handled = handleDeleteError(error, { key: record.key });
       if (!handled) {
         // Non-conflict error, show normal error message
-        message.error(getFriendlyErrorMessage(error));
+        message.error(
+          getFriendlyErrorMessage(
+            error,
+            intl,
+            intl.formatMessage({
+              id: 'pages.config.system.operationFailed',
+              defaultMessage: 'Operation failed',
+            }),
+          ),
+        );
       }
     }
   };
@@ -543,7 +561,11 @@ const SystemConfigsPage: React.FC = () => {
             message.error(
               getFriendlyErrorMessage(
                 error,
-                intl.formatMessage({ id: 'pages.roles.operationFailed' }),
+                intl,
+                intl.formatMessage({
+                  id: 'pages.config.system.loadFailed',
+                  defaultMessage: 'Failed to load configs',
+                }),
               ),
             );
             return { data: [], total: 0, success: false };

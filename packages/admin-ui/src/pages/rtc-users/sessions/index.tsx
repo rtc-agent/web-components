@@ -2,9 +2,10 @@ import { InboxOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { history, useIntl, useSearchParams } from '@umijs/max';
-import { Button, Empty, Grid, Tag, theme } from 'antd';
+import { App, Button, Empty, Grid, Tag, theme } from 'antd';
 import React, { useEffect, useMemo, useRef } from 'react';
 import { TableEmptyState } from '@/components';
+import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import { disabledFutureDate, parseTableSort } from '../shared/tableUtils';
 import type { SessionInfo } from './data';
 import type { SessionPageAPI } from './page-api';
@@ -18,6 +19,7 @@ const { useBreakpoint } = Grid;
 const SessionsPage: React.FC = () => {
   const actionRef = useRef<ActionType>(null);
   const intl = useIntl();
+  const { message } = App.useApp();
   const [searchParams, setSearchParams] = useSearchParams();
   const userId = searchParams.get('user_id') || '';
   const breakpoints = useBreakpoint();
@@ -297,33 +299,51 @@ const SessionsPage: React.FC = () => {
           columns={columns}
           scroll={{ x: 'max-content' }}
           request={async (params, sort) => {
-            // Read params from searchParams (URL is single source of truth)
-            const effectiveUserId = searchParams.get('user_id') || userId;
-            if (!effectiveUserId) {
-              return { data: [], total: 0, success: true };
+            try {
+              // Read params from searchParams (URL is single source of truth)
+              const effectiveUserId = searchParams.get('user_id') || userId;
+              if (!effectiveUserId) {
+                return { data: [], total: 0, success: true };
+              }
+              const status = searchParams.get('status') || undefined;
+              const search = searchParams.get('search') || undefined;
+              const startTime = searchParams.get('start_time') || undefined;
+              const endTime = searchParams.get('end_time') || undefined;
+              const current = params.current || 1;
+              const pageSize = params.pageSize || 10;
+              const sortParams = parseTableSort(sort || {});
+              const response = await getSessionList({
+                user_id: effectiveUserId,
+                page: current,
+                page_size: pageSize,
+                status,
+                search,
+                start_time: startTime,
+                end_time: endTime,
+                ...sortParams,
+              });
+              return {
+                data: response.items,
+                total: response.total,
+                success: true,
+              };
+            } catch (error: unknown) {
+              message.error(
+                getFriendlyErrorMessage(
+                  error,
+                  intl,
+                  intl.formatMessage({
+                    id: 'pages.sessions.loadFailed',
+                    defaultMessage: 'Failed to load sessions',
+                  }),
+                ),
+              );
+              return {
+                data: [],
+                total: 0,
+                success: false,
+              };
             }
-            const status = searchParams.get('status') || undefined;
-            const search = searchParams.get('search') || undefined;
-            const startTime = searchParams.get('start_time') || undefined;
-            const endTime = searchParams.get('end_time') || undefined;
-            const current = params.current || 1;
-            const pageSize = params.pageSize || 10;
-            const sortParams = parseTableSort(sort || {});
-            const response = await getSessionList({
-              user_id: effectiveUserId,
-              page: current,
-              page_size: pageSize,
-              status,
-              search,
-              start_time: startTime,
-              end_time: endTime,
-              ...sortParams,
-            });
-            return {
-              data: response.items,
-              total: response.total,
-              success: true,
-            };
           }}
           pagination={{
             defaultPageSize: 10,

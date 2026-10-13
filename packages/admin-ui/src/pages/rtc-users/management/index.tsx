@@ -408,6 +408,7 @@ const RtcUserManagementPage: React.FC = () => {
       message.error(
         getFriendlyErrorMessage(
           error,
+          intl,
           intl.formatMessage({
             id: 'pages.rtcUsers.banFailed',
             defaultMessage: 'Failed to ban user',
@@ -433,6 +434,7 @@ const RtcUserManagementPage: React.FC = () => {
       message.error(
         getFriendlyErrorMessage(
           error,
+          intl,
           intl.formatMessage({
             id: 'pages.rtcUsers.unbanFailed',
             defaultMessage: 'Failed to unban user',
@@ -633,24 +635,42 @@ const RtcUserManagementPage: React.FC = () => {
         columns={columns}
         scroll={{ x: 'max-content' }}
         request={async (params, sort) => {
-          // Read params from searchParams (URL is single source of truth)
-          const search = searchParams.get('search') || '';
-          const status = searchParams.get('status') || '';
-          const current = params.current || 1;
-          const pageSize = params.pageSize || 10;
-          const sortParams = parseTableSort(sort || {});
-          const response = await getRtcUserList({
-            page: current,
-            page_size: pageSize,
-            search: search || undefined,
-            status: status || undefined,
-            ...sortParams,
-          });
-          return {
-            data: response.items,
-            total: response.total,
-            success: true,
-          };
+          try {
+            // Read params from searchParams (URL is single source of truth)
+            const search = searchParams.get('search') || '';
+            const status = searchParams.get('status') || '';
+            const current = params.current || 1;
+            const pageSize = params.pageSize || 10;
+            const sortParams = parseTableSort(sort || {});
+            const response = await getRtcUserList({
+              page: current,
+              page_size: pageSize,
+              search: search || undefined,
+              status: status || undefined,
+              ...sortParams,
+            });
+            return {
+              data: response.items,
+              total: response.total,
+              success: true,
+            };
+          } catch (error: unknown) {
+            message.error(
+              getFriendlyErrorMessage(
+                error,
+                intl,
+                intl.formatMessage({
+                  id: 'pages.rtcUsers.loadFailed',
+                  defaultMessage: 'Failed to load users',
+                }),
+              ),
+            );
+            return {
+              data: [],
+              total: 0,
+              success: false,
+            };
+          }
         }}
         pagination={{
           defaultPageSize: 10,

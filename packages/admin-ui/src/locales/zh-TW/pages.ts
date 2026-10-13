@@ -749,6 +749,9 @@ export default {
   'pages.config.system.conflict.deleteWarningDesc':
     '當前配置已被其他管理員修改，您的刪除操作無法直接執行。可以選擇重新加載獲取最新狀態，或強制刪除他人的修改。',
   'pages.config.system.forceDeleteSuccess': '配置強制刪除成功',
+  // 加載和錯誤
+  'pages.config.system.loadFailed': '加載配置失敗',
+  'pages.config.system.operationFailed': '操作失敗',
   // 用戶配置管理 - 更多操作
   'pages.config.user.moreActions': '更多操作',
   'pages.config.user.forceDeleteSuccess': '配置強制刪除成功',

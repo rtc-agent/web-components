@@ -105,6 +105,16 @@ const RoleListPage: React.FC = () => {
           };
         } catch (error) {
           console.error('[Role Page API] list failed:', error);
+          message.error(
+            getFriendlyErrorMessage(
+              error,
+              intl,
+              intl.formatMessage({
+                id: 'pages.roles.loadFailed',
+                defaultMessage: 'Failed to load admin roles',
+              }),
+            ),
+          );
           return {
             success: false,
             data: [],
@@ -126,6 +136,16 @@ const RoleListPage: React.FC = () => {
           return { success: true, id: result.id };
         } catch (error) {
           console.error('[Role Page API] create failed:', error);
+          message.error(
+            getFriendlyErrorMessage(
+              error,
+              intl,
+              intl.formatMessage({
+                id: 'pages.roles.createFailed',
+                defaultMessage: 'Creation failed',
+              }),
+            ),
+          );
           return { success: false };
         }
       },
@@ -139,6 +159,16 @@ const RoleListPage: React.FC = () => {
           return { success: true };
         } catch (error) {
           console.error('[Role Page API] update failed:', error);
+          message.error(
+            getFriendlyErrorMessage(
+              error,
+              intl,
+              intl.formatMessage({
+                id: 'pages.roles.updateFailed',
+                defaultMessage: 'Update failed',
+              }),
+            ),
+          );
           return { success: false };
         }
       },
@@ -155,6 +185,16 @@ const RoleListPage: React.FC = () => {
           };
         } catch (error) {
           console.error('[Role Page API] remove failed:', error);
+          message.error(
+            getFriendlyErrorMessage(
+              error,
+              intl,
+              intl.formatMessage({
+                id: 'pages.roles.deleteFailed',
+                defaultMessage: 'Deletion failed',
+              }),
+            ),
+          );
           return { success: false };
         }
       },
@@ -344,6 +384,7 @@ const RoleListPage: React.FC = () => {
                     message.error(
                       getFriendlyErrorMessage(
                         error,
+                        intl,
                         intl.formatMessage({
                           id: 'pages.roles.operationFailed',
                           defaultMessage: 'Operation failed',
@@ -468,6 +509,7 @@ const RoleListPage: React.FC = () => {
                       message.error(
                         getFriendlyErrorMessage(
                           error,
+                          intl,
                           intl.formatMessage({
                             id: 'pages.roles.deleteFailed',
                             defaultMessage: 'Deletion failed',
@@ -535,6 +577,7 @@ const RoleListPage: React.FC = () => {
       message.error(
         getFriendlyErrorMessage(
           error,
+          intl,
           isEdit
             ? intl.formatMessage({
                 id: 'pages.roles.updateFailed',
@@ -567,6 +610,7 @@ const RoleListPage: React.FC = () => {
       message.error(
         getFriendlyErrorMessage(
           error,
+          intl,
           intl.formatMessage({
             id: 'pages.roles.loadPermissionFailed',
             defaultMessage: 'Failed to load permission',
@@ -632,6 +676,7 @@ const RoleListPage: React.FC = () => {
       message.error(
         getFriendlyErrorMessage(
           error,
+          intl,
           intl.formatMessage({
             id: 'pages.roles.operationFailed',
             defaultMessage: 'Operation failed',
@@ -712,6 +757,7 @@ const RoleListPage: React.FC = () => {
             message.error(
               getFriendlyErrorMessage(
                 error,
+                intl,
                 intl.formatMessage({
                   id: 'pages.roles.loadFailed',
                   defaultMessage: 'Failed to load admin roles',

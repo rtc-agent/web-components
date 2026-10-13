@@ -69,6 +69,14 @@ export default {
   'pages.chatbot.delete': 'Delete',
   'pages.chatbot.createConversation': 'New Chat',
   'pages.chatbot.inputPlaceholder': 'Type a message and press Enter to send...',
+  'pages.chatbot.faq.formValidation': '🧩 How to implement form validation in Ant Design?',
+  'pages.chatbot.faq.proTableToolbar': '📋 How to customize ProTable toolbar buttons?',
+  'pages.chatbot.faq.darkTheme': '🎨 How to implement dark theme with antd-style?',
+  'pages.chatbot.faq.proLayoutMenu': '🗂️ How to dynamically generate ProLayout sidebar menu?',
+  'pages.chatbot.faq.chartsData': '📊 Ant Design Charts line chart data format',
+  'pages.chatbot.faq.backendAuth': '🚀 How to integrate backend auth in Ant Design Pro?',
+  'pages.chatbot.faq.proFormSelect': '🔍 How to implement remote search in ProForm Select?',
+  'pages.chatbot.faq.designTokens': '⚙️ Best practices for customizing themes with Ant Design Tokens',
   'pages.admin.subPage.title': 'This page can only be viewed by Admin',
   'pages.admin.subPage.alertMessage':
     'Umi ui is now released, welcome to use npm run ui to start the experience.',
@@ -113,6 +121,16 @@ export default {
   'pages.searchTable.tenThousand': '0000',
   'pages.searchTable.batchDeletion': 'batch deletion',
   'pages.searchTable.batchApproval': 'batch approval',
+  'pages.searchTable.createSuccess': 'Added successfully',
+  'pages.searchTable.createFailed': 'Adding failed, please try again!',
+  'pages.searchTable.deleteSuccess': 'Deleted successfully and will refresh soon',
+  'pages.searchTable.deleteFailed': 'Delete failed, please try again',
+  'pages.searchTable.updateSuccess': 'Configuration is successful',
+  'pages.searchTable.updateFailed': 'Configuration failed, please try again!',
+  'pages.searchTable.updateForm.ruleProps.template1': 'Rule template 1',
+  'pages.searchTable.updateForm.ruleProps.template2': 'Rule template 2',
+  'pages.searchTable.updateForm.ruleProps.type.strong': 'Strong',
+  'pages.searchTable.updateForm.ruleProps.type.weak': 'Weak',
   // RTC User Management
   'pages.rtcUsers.title': 'RTC User List',
   'pages.rtcUsers.userId': 'User ID',
@@ -293,6 +311,9 @@ export default {
     "The current config has been modified by another administrator. Your delete operation cannot be executed directly. You can choose to reload to get the latest status, or force delete the other person's changes.",
   // Force delete success
   'pages.config.system.forceDeleteSuccess': 'Config force deleted successfully',
+  // Load and operation errors
+  'pages.config.system.loadFailed': 'Failed to load configs',
+  'pages.config.system.operationFailed': 'Operation failed',
   // User Config Management
   'pages.config.user.key': 'Config Key',
   'pages.config.user.drawerTitle': 'User Configs: ',
@@ -315,6 +336,8 @@ export default {
   'pages.config.user.forceOverwriteSuccess':
     'Config force overwrite successful',
   'pages.config.user.forceDeleteSuccess': 'Config force deleted successfully',
+  'pages.config.user.contextLost': 'User context lost, please refresh',
+  'pages.config.user.versionRequired': 'Version is required for force delete',
   'pages.config.user.editTitle': 'Edit Config: ',
   'pages.config.user.historyTitle': 'Config History: ',
   'pages.config.user.moreActions': 'More actions',
@@ -615,6 +638,7 @@ export default {
   'pages.account.settings.security': 'Security Settings',
   'pages.account.settings.binding': 'Account Binding',
   'pages.account.settings.notification': 'New Message Notification',
+  'pages.account.settings.updateSuccess': 'Profile updated successfully',
   // Account Settings - Base
   'pages.account.settings.base.email': 'Email',
   'pages.account.settings.base.emailRequired': 'Please enter your email!',
@@ -823,6 +847,10 @@ export default {
   'pages.list.search.download': 'Download',
   'pages.list.search.edit': 'Edit',
   'pages.list.search.share': 'Share',
+  'pages.list.search.author.lisa': 'Lisa Wang',
+  'pages.list.search.user.lisa': 'Lisa Li',
+  'pages.list.search.menuItem.1st': '1st menu item',
+  'pages.list.search.menuItem.2nd': '2nd menu item',
   // RTC Agent Test
   'pages.rtcAgentTest.title': 'RTC Agent Integration Test',
   'pages.rtcAgentTest.status': 'Status',

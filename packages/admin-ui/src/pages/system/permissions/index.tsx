@@ -72,6 +72,16 @@ const PermissionListPage: React.FC = () => {
           };
         } catch (error) {
           console.error('[Permission Page API] list failed:', error);
+          message.error(
+            getFriendlyErrorMessage(
+              error,
+              intl,
+              intl.formatMessage({
+                id: 'pages.permissions.loadFailed',
+                defaultMessage: 'Failed to load permissions',
+              }),
+            ),
+          );
           return {
             success: false,
             data: [],
@@ -93,6 +103,16 @@ const PermissionListPage: React.FC = () => {
           return { success: true };
         } catch (error) {
           console.error('[Permission Page API] create failed:', error);
+          message.error(
+            getFriendlyErrorMessage(
+              error,
+              intl,
+              intl.formatMessage({
+                id: 'pages.permissions.createFailed',
+                defaultMessage: 'Creation failed',
+              }),
+            ),
+          );
           return { success: false };
         }
       },
@@ -111,6 +131,16 @@ const PermissionListPage: React.FC = () => {
           };
         } catch (error) {
           console.error('[Permission Page API] remove failed:', error);
+          message.error(
+            getFriendlyErrorMessage(
+              error,
+              intl,
+              intl.formatMessage({
+                id: 'pages.permissions.deleteFailed',
+                defaultMessage: 'Deletion failed',
+              }),
+            ),
+          );
           return { success: false };
         }
       },
@@ -237,6 +267,7 @@ const PermissionListPage: React.FC = () => {
                     message.error(
                       getFriendlyErrorMessage(
                         error,
+                        intl,
                         intl.formatMessage({
                           id: 'pages.permissions.deleteFailed',
                           defaultMessage: 'Deletion failed',
@@ -293,6 +324,7 @@ const PermissionListPage: React.FC = () => {
       message.error(
         getFriendlyErrorMessage(
           error,
+          intl,
           intl.formatMessage({
             id: 'pages.permissions.createFailed',
             defaultMessage: 'Creation failed',
@@ -365,6 +397,7 @@ const PermissionListPage: React.FC = () => {
             message.error(
               getFriendlyErrorMessage(
                 error,
+                intl,
                 intl.formatMessage({
                   id: 'pages.permissions.loadFailed',
                   defaultMessage: 'Failed to load permissions',

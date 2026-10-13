@@ -291,6 +291,9 @@ export default {
     '현재 설정이 다른 관리자에 의해 수정되었습니다. 삭제 작업을 직접 실행할 수 없습니다. 다시 로드하여 최신 상태를 가져오거나 다른 사람의 변경 사항을 강제로 삭제할 수 있습니다.',
   // Force delete success
   'pages.config.system.forceDeleteSuccess': '설정 강제 삭제 성공',
+  // Load and operation errors
+  'pages.config.system.loadFailed': '설정 로드 실패',
+  'pages.config.system.operationFailed': '작업 실패',
   // User Config Management
   'pages.config.user.key': '설정 키',
   'pages.config.user.drawerTitle': '사용자 설정: ',
@@ -1118,7 +1121,6 @@ export default {
   'error.forbidden': '이 작업을 수행할 권한이 없습니다',
   'error.badRequest': '요청 매개변수 오류',
   'error.internalError': '내부 서버 오류',
-  'pages.list.search.categoryOption': '카테고리 {index}',
   'pages.list.search.categoryOption': '카테고리 {index}',
   'pages.profile.advanced.desc.creatorName': '취려리',
   'pages.profile.advanced.desc.departmentName': 'XX 회사 - YY 부서',

@@ -806,6 +806,9 @@ export default {
     'Konfigurasi saat ini telah diubah oleh administrator lain. Operasi penghapusan Anda tidak dapat langsung dijalankan. Anda dapat memilih untuk memuat ulang untuk mendapatkan status terbaru, atau memaksa menghapus perubahan orang lain.',
   'pages.config.system.forceDeleteSuccess':
     'Konfigurasi berhasil dihapus paksa',
+  // Load and operation errors
+  'pages.config.system.loadFailed': 'Gagal memuat konfigurasi',
+  'pages.config.system.operationFailed': 'Operasi gagal',
   // Konfigurasi Pengguna - Tindakan Lainnya
   'pages.config.user.moreActions': 'Tindakan lainnya',
   'pages.config.user.forceDeleteSuccess': 'Konfigurasi berhasil dihapus paksa',

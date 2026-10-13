@@ -3,8 +3,8 @@ import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { useIntl, useSearchParams } from '@umijs/max';
 import { App, Grid, Tag, theme } from 'antd';
 import React, { useEffect, useMemo, useRef } from 'react';
-import type { AuditLogItem } from '@/services/auditLog';
-import { getAuditLogList } from '@/services/auditLog';
+import type { AuditLogItem } from '@/services/audit-log';
+import { getAuditLogList } from '@/services/audit-log';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import { parseTableSort } from '../../rtc-users/shared/tableUtils';
 import type { AuditLogPageAPI } from './page-api';
@@ -78,6 +78,16 @@ const AuditLogsPage: React.FC = () => {
           };
         } catch (error) {
           console.error('[AuditLog Page API] list failed:', error);
+          message.error(
+            getFriendlyErrorMessage(
+              error,
+              intl,
+              intl.formatMessage({
+                id: 'pages.auditLogs.loadFailed',
+                defaultMessage: 'Failed to load audit logs',
+              }),
+            ),
+          );
           return {
             success: false,
             data: [],
@@ -433,6 +443,7 @@ const AuditLogsPage: React.FC = () => {
             message.error(
               getFriendlyErrorMessage(
                 error,
+                intl,
                 intl.formatMessage({
                   id: 'pages.auditLogs.loadFailed',
                   defaultMessage: 'Failed to load audit logs',

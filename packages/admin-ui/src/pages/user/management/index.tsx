@@ -13,7 +13,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { usePermissionRefresh } from '@/hooks/usePermissionRefresh';
 import { useRoleOptions } from '@/hooks/useRoleOptions';
 import type { UserInfo } from '@/services/admin-auth';
-import type { UserRoleAssignment } from '@/services/userRole';
+import type { UserRoleAssignment } from '@/services/user-role';
 import {
   assignUserRoles,
   createAdminUser,
@@ -22,7 +22,7 @@ import {
   getUserRoles,
   revokeUserRole,
   updateAdminUser,
-} from '@/services/userRole';
+} from '@/services/user-role';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import type { AdminPageAPI } from './page-api';
 
@@ -76,6 +76,16 @@ const AdminUserManagementPage: React.FC = () => {
           };
         } catch (error) {
           console.error('[Admin Page API] list failed:', error);
+          message.error(
+            getFriendlyErrorMessage(
+              error,
+              intl,
+              intl.formatMessage({
+                id: 'pages.adminUsers.loadFailed',
+                defaultMessage: 'Failed to load administrators',
+              }),
+            ),
+          );
           return {
             success: false,
             data: [],
@@ -97,6 +107,16 @@ const AdminUserManagementPage: React.FC = () => {
           return { success: true, id: result.id };
         } catch (error) {
           console.error('[Admin Page API] create failed:', error);
+          message.error(
+            getFriendlyErrorMessage(
+              error,
+              intl,
+              intl.formatMessage({
+                id: 'pages.adminUsers.createFailed',
+                defaultMessage: 'Failed to create administrator',
+              }),
+            ),
+          );
           return { success: false };
         }
       },
@@ -110,24 +130,44 @@ const AdminUserManagementPage: React.FC = () => {
           return { success: true };
         } catch (error) {
           console.error('[Admin Page API] update failed:', error);
+          message.error(
+            getFriendlyErrorMessage(
+              error,
+              intl,
+              intl.formatMessage({
+                id: 'pages.adminUsers.updateFailed',
+                defaultMessage: 'Failed to update administrator',
+              }),
+            ),
+          );
           return { success: false };
         }
       },
 
       // Delete admin users (parallel execution)
+      // Note: deleteAdminUser returns void (interceptor throws on error)
       remove: async (ids) => {
         try {
-          const results = await Promise.all(ids.map((id) => deleteAdminUser(id)));
-          const failures = results.filter((r) => !r.success);
+          await Promise.all(ids.map((id) => deleteAdminUser(id)));
           actionRef.current?.reload();
           // Refresh current user permissions if needed
           await refreshPermissions();
           return {
-            success: failures.length === 0,
-            deletedCount: ids.length - failures.length,
+            success: true,
+            deletedCount: ids.length,
           };
         } catch (error) {
           console.error('[Admin Page API] remove failed:', error);
+          message.error(
+            getFriendlyErrorMessage(
+              error,
+              intl,
+              intl.formatMessage({
+                id: 'pages.adminUsers.deleteFailed',
+                defaultMessage: 'Failed to delete administrator',
+              }),
+            ),
+          );
           return { success: false };
         }
       },
@@ -143,6 +183,16 @@ const AdminUserManagementPage: React.FC = () => {
           };
         } catch (error) {
           console.error('[Admin Page API] listUserRoles failed:', error);
+          message.error(
+            getFriendlyErrorMessage(
+              error,
+              intl,
+              intl.formatMessage({
+                id: 'pages.adminUsers.loadRolesFailed',
+                defaultMessage: 'Failed to load user roles',
+              }),
+            ),
+          );
           return {
             success: false,
             data: [],
@@ -159,6 +209,16 @@ const AdminUserManagementPage: React.FC = () => {
           return { success: true };
         } catch (error) {
           console.error('[Admin Page API] assignRoles failed:', error);
+          message.error(
+            getFriendlyErrorMessage(
+              error,
+              intl,
+              intl.formatMessage({
+                id: 'pages.adminUsers.assignRolesFailed',
+                defaultMessage: 'Failed to assign roles',
+              }),
+            ),
+          );
           return { success: false };
         }
       },
@@ -171,6 +231,16 @@ const AdminUserManagementPage: React.FC = () => {
           return { success: true };
         } catch (error) {
           console.error('[Admin Page API] revokeRole failed:', error);
+          message.error(
+            getFriendlyErrorMessage(
+              error,
+              intl,
+              intl.formatMessage({
+                id: 'pages.adminUsers.revokeRoleFailed',
+                defaultMessage: 'Failed to revoke role',
+              }),
+            ),
+          );
           return { success: false };
         }
       },
@@ -226,6 +296,7 @@ const AdminUserManagementPage: React.FC = () => {
       message.error(
         getFriendlyErrorMessage(
           error,
+          intl,
           intl.formatMessage({
             id: 'pages.adminUsers.createFailed',
             defaultMessage: 'Failed to create administrator',
@@ -261,6 +332,7 @@ const AdminUserManagementPage: React.FC = () => {
       message.error(
         getFriendlyErrorMessage(
           error,
+          intl,
           intl.formatMessage({
             id: 'pages.adminUsers.updateFailed',
             defaultMessage: 'Failed to update administrator',
@@ -282,6 +354,7 @@ const AdminUserManagementPage: React.FC = () => {
       message.error(
         getFriendlyErrorMessage(
           error,
+          intl,
           intl.formatMessage({
             id: 'pages.adminUsers.loadRolesFailed',
             defaultMessage: 'Failed to load admin role',
@@ -314,6 +387,7 @@ const AdminUserManagementPage: React.FC = () => {
       message.error(
         getFriendlyErrorMessage(
           error,
+          intl,
           intl.formatMessage({
             id: 'pages.adminUsers.assignRoleFailed',
             defaultMessage: 'Failed to assign admin role',
@@ -346,6 +420,7 @@ const AdminUserManagementPage: React.FC = () => {
       message.error(
         getFriendlyErrorMessage(
           error,
+          intl,
           intl.formatMessage({
             id: 'pages.adminUsers.revokeRoleFailed',
             defaultMessage: 'Failed to remove admin role',
@@ -471,8 +546,9 @@ const AdminUserManagementPage: React.FC = () => {
                   } catch (error: unknown) {
                     message.error(
                       getFriendlyErrorMessage(
-                        error,
-                        intl.formatMessage({
+          error,
+          intl,
+          intl.formatMessage({
                           id: 'pages.adminUsers.deleteFailed',
                           defaultMessage: 'Failed to delete admin',
                         }),
@@ -552,8 +628,9 @@ const AdminUserManagementPage: React.FC = () => {
           } catch (error: unknown) {
             message.error(
               getFriendlyErrorMessage(
-                error,
-                intl.formatMessage({
+          error,
+          intl,
+          intl.formatMessage({
                   id: 'pages.adminUsers.loadFailed',
                   defaultMessage: 'Failed to load administrators',
                 }),
@@ -775,6 +852,13 @@ const AdminUserManagementPage: React.FC = () => {
                 defaultMessage: 'Please enter a valid email address',
               }),
             },
+            {
+              max: 255,
+              message: intl.formatMessage({
+                id: 'pages.adminUsers.emailMax',
+                defaultMessage: 'Email address cannot exceed 255 characters',
+              }),
+            },
           ]}
         />
         <ProFormText.Password
@@ -821,6 +905,22 @@ const AdminUserManagementPage: React.FC = () => {
             id: 'pages.adminUsers.namePlaceholder',
             defaultMessage: 'Please enter name (optional)',
           })}
+          rules={[
+            {
+              whitespace: true,
+              message: intl.formatMessage({
+                id: 'pages.adminUsers.nameWhitespace',
+                defaultMessage: 'Name cannot be all spaces',
+              }),
+            },
+            {
+              max: 100,
+              message: intl.formatMessage({
+                id: 'pages.adminUsers.nameMax',
+                defaultMessage: 'Name cannot exceed 100 characters',
+              }),
+            },
+          ]}
         />
         <ProFormSelect
           name="role_ids"
@@ -867,6 +967,22 @@ const AdminUserManagementPage: React.FC = () => {
             id: 'pages.adminUsers.nameEditPlaceholder',
             defaultMessage: 'Please enter name',
           })}
+          rules={[
+            {
+              whitespace: true,
+              message: intl.formatMessage({
+                id: 'pages.adminUsers.nameWhitespace',
+                defaultMessage: 'Name cannot be all spaces',
+              }),
+            },
+            {
+              max: 100,
+              message: intl.formatMessage({
+                id: 'pages.adminUsers.nameMax',
+                defaultMessage: 'Name cannot exceed 100 characters',
+              }),
+            },
+          ]}
         />
         <ProFormText.Password
           name="password"
@@ -884,6 +1000,13 @@ const AdminUserManagementPage: React.FC = () => {
               message: intl.formatMessage({
                 id: 'pages.adminUsers.passwordMin',
                 defaultMessage: 'Password must be at least 6 characters',
+              }),
+            },
+            {
+              max: 128,
+              message: intl.formatMessage({
+                id: 'pages.adminUsers.passwordMax',
+                defaultMessage: 'Password cannot exceed 128 characters',
               }),
             },
           ]}

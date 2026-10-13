@@ -799,6 +799,9 @@ export default {
     'বর্তমান কনফিগারেশন অন্য প্রশাসক দ্বারা পরিবর্তন করা হয়েছে। আপনার মুছে ফেলার অপারেশন সরাসরি কার্যকর করা যাবে না। আপনি সর্বশেষ অবস্থা পেতে রিলোড বেছে নিতে পারেন বা অন্য ব্যক্তির পরিবর্তনা জোরপূর্বক মুছে ফেলতে পারেন।',
   'pages.config.system.forceDeleteSuccess':
     'কনফিগারেশন জোরপূর্বক সফলভাবে মুছে ফেলা হয়েছে',
+  // Load and operation errors
+  'pages.config.system.loadFailed': 'কনফিগারেশন লোড করতে ব্যর্থ',
+  'pages.config.system.operationFailed': 'অপারেশন ব্যর্থ',
   // User Config - More Actions
   'pages.config.user.moreActions': 'আরও অপারেশন',
   'pages.config.user.forceDeleteSuccess':

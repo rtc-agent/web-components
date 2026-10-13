@@ -833,6 +833,9 @@ export default {
     'A configuração atual foi modificada por outro administrador. Sua operação de exclusão não pode ser executada diretamente. Você pode escolher recarregar para obter o status mais recente ou forçar a exclusão das alterações da outra pessoa.',
   'pages.config.system.forceDeleteSuccess':
     'Configuração forçada excluída com sucesso',
+  // Load and operation errors
+  'pages.config.system.loadFailed': 'Falha ao carregar configurações',
+  'pages.config.system.operationFailed': 'Operação falhou',
   // Gerenciamento de Configuração do Usuário - Mais Ações
   'pages.config.user.moreActions': 'Mais ações',
   'pages.config.user.forceDeleteSuccess':

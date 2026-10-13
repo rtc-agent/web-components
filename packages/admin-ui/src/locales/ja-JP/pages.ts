@@ -806,6 +806,9 @@ export default {
   'pages.config.system.conflict.deleteWarningDesc':
     '現在の設定は別の管理者によって変更されました。削除操作を直接実行できません。リロードして最新状態を取得するか、他の人の変更を強制的に削除するかを選択できます。',
   'pages.config.system.forceDeleteSuccess': '設定の強制削除が成功しました',
+  // 読み込みと操作エラー
+  'pages.config.system.loadFailed': '設定の読み込みに失敗しました',
+  'pages.config.system.operationFailed': '操作に失敗しました',
   // ユーザー設定管理 - その他の操作
   'pages.config.user.moreActions': 'その他の操作',
   'pages.config.user.forceDeleteSuccess': '設定の強制削除が成功しました',
