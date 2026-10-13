@@ -13,8 +13,59 @@ import {
 } from '@/utils/auth-storage';
 import { buildCurrentUser } from '@/utils/permission';
 
-// 全局的 setInitialState 函数引用，用于在 token 刷新后更新权限
-// 在 app.tsx 的 layout 中设置
+// ============================================================================
+// Request Body Sanitization for Logging
+// ============================================================================
+
+/**
+ * Sanitize request body before logging to prevent sensitive data leaks.
+ * Removes password, token, and other sensitive fields.
+ */
+function sanitizeRequestBody(body: unknown): unknown {
+  if (typeof body !== 'object' || body === null) {
+    return body;
+  }
+
+  const sensitiveFields = ['password', 'token', 'refresh_token', 'access_token', 'secret', 'otp'];
+  const sanitized: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(body)) {
+    if (sensitiveFields.some((field) => key.toLowerCase().includes(field.toLowerCase()))) {
+      sanitized[key] = '[REDACTED]';
+    } else {
+      sanitized[key] = value;
+    }
+  }
+
+  return sanitized;
+}
+
+// ============================================================================
+// Global State Management for Permission Sync
+// ============================================================================
+// Lifecycle:
+// 1. App initializes -> requestErrorConfig loaded -> globalSetInitialState = null
+// 2. Layout mounts (app.tsx) -> calls setGlobalSetInitialState(fn) -> globalSetInitialState set
+// 3. Token refresh occurs -> uses globalSetInitialState to sync permissions
+// 4. Layout unmounts -> calls setGlobalSetInitialState(null) -> globalSetInitialState cleared
+//
+// Race Condition Handling:
+// - If token refresh occurs BEFORE layout mount (step 2), globalSetInitialState is null
+// - Solution: Store pendingUserInfo, apply when setInitialState becomes available
+// - If token refresh occurs AFTER layout unmount (step 4), same race handling applies
+// ============================================================================
+
+/**
+ * Global reference to setInitialState function from app.tsx layout.
+ * Used to sync permission data after token refresh.
+ *
+ * Lifecycle:
+ * - null initially (before layout mount)
+ * - set to function when layout mounts
+ * - set back to null when layout unmounts
+ *
+ * @see setGlobalSetInitialState for race condition handling
+ */
 type SetInitialStateFn = (
   fn: (prev: Record<string, unknown>) => Record<string, unknown>,
 ) => Promise<void>;
@@ -116,6 +167,39 @@ async function refreshTokenAndUpdatePermissions(): Promise<string | null> {
   return newToken;
 }
 
+// ============================================================================
+// Token Management Utilities
+// ============================================================================
+
+/**
+ * Parse JWT token expiration time.
+ * Returns expiration timestamp in milliseconds, or null if parsing fails.
+ */
+function getTokenExpirationTime(token: string): number | null {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    if (payload.exp) {
+      return payload.exp * 1000; // Convert to milliseconds
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Check if token is expired or about to expire.
+ * Buffer of 30 seconds to refresh before actual expiration.
+ */
+function isTokenExpired(token: string): boolean {
+  const expirationTime = getTokenExpirationTime(token);
+  if (!expirationTime) {
+    return false; // Can't parse, assume valid
+  }
+  const BUFFER_MS = 30 * 1000; // 30 seconds buffer
+  return Date.now() >= expirationTime - BUFFER_MS;
+}
+
 // 与后端约定的响应数据格式
 interface ResponseStructure {
   success: boolean;
@@ -146,6 +230,17 @@ function isRetryableError(error: {
     return true;
   }
   return false;
+}
+
+/**
+ * Calculate retry delay with exponential backoff and jitter.
+ * Jitter prevents thundering herd problem when multiple clients retry simultaneously.
+ * Formula: baseDelay * 2^attempt + random(0, baseDelay)
+ */
+function calculateRetryDelay(attempt: number): number {
+  const exponentialDelay = RETRY_DELAY_MS * 2 ** attempt;
+  const jitter = Math.random() * RETRY_DELAY_MS;
+  return exponentialDelay + jitter;
 }
 
 /**
@@ -183,20 +278,27 @@ export const errorConfig: RequestConfig = {
       if (opts?.skipErrorHandler) throw error;
 
       // 记录请求失败日志（含请求上下文）
+      // Include request body for debugging (excluding sensitive fields)
       if (error.response) {
         const serverData = error.response.data as { errorCode?: string };
+        const requestBody = (error.config as any)?.data;
+        const sanitizedBody = requestBody ? sanitizeRequestBody(requestBody) : undefined;
         console.error('[API Error]', {
           url: error.config?.url || 'unknown',
           method: (error.config?.method || 'unknown').toUpperCase(),
           status: error.response.status,
           errorCode: serverData?.errorCode,
+          requestBody: sanitizedBody,
           timestamp: new Date().toISOString(),
         });
       } else if (error.request) {
+        const requestBody = (error.config as any)?.data;
+        const sanitizedBody = requestBody ? sanitizeRequestBody(requestBody) : undefined;
         console.error('[Network Error]', {
           url: error.config?.url || 'unknown',
           method: (error.config?.method || 'unknown').toUpperCase(),
           error: error.message || 'No response received',
+          requestBody: sanitizedBody,
           timestamp: new Date().toISOString(),
         });
       } else {
@@ -277,6 +379,15 @@ export const errorConfig: RequestConfig = {
       // 从 localStorage 获取 JWT token
       const accessToken = getAccessToken();
       if (accessToken) {
+        // Check if token is expired before sending request
+        // If expired, skip adding token and let 401 handler trigger refresh
+        if (isTokenExpired(accessToken)) {
+          console.warn('[Request Interceptor] Token expired, skipping token attachment. 401 handler will trigger refresh.', {
+            url: config.url,
+          });
+          return config;
+        }
+
         config.headers = {
           ...config.headers,
           Authorization: `Bearer ${accessToken}`,
@@ -296,9 +407,38 @@ export const errorConfig: RequestConfig = {
       try {
         const { data } = response;
 
+        // Safety check: ensure response data exists and has expected structure
+        // If backend returns unexpected format (e.g., raw data without envelope),
+        // log warning and pass through to avoid masking errors
+        if (data === undefined || data === null) {
+          console.warn('[Response Interceptor] Unexpected null/undefined response data', {
+            url: response.config?.url,
+            method: (response.config?.method || 'unknown').toUpperCase(),
+          });
+          return response;
+        }
+
+        // Check if response follows expected envelope structure
+        const hasEnvelopeStructure = 'success' in data;
+        if (!hasEnvelopeStructure) {
+          // Backend may return raw data without envelope (e.g., direct array/object)
+          // Pass through as-is, but log for debugging
+          console.debug('[Response Interceptor] Response without envelope structure, passing through', {
+            url: response.config?.url,
+            dataType: typeof data,
+          });
+          return response;
+        }
+
         // 检查是否成功
-        if (data?.success === true) {
+        if (data.success === true) {
           // 成功响应，解包数据
+          // Safety check: ensure data.data exists before unwrapping
+          if (data.data === undefined) {
+            console.warn('[Response Interceptor] Success response but data.data is undefined', {
+              url: response.config?.url,
+            });
+          }
           response.data = data.data;
           return response;
         }
@@ -423,7 +563,7 @@ export const errorConfig: RequestConfig = {
             `[Retry] Attempt ${retryCount + 1}/${MAX_RETRIES} for ${config.method?.toUpperCase()} ${config.url}`,
           );
 
-          await retryDelay(RETRY_DELAY_MS * (retryCount + 1));
+          await retryDelay(calculateRetryDelay(retryCount));
 
           // 重试请求，使用 getResponse: true 获取完整响应对象
           return request(config.url, { ...config, getResponse: true });

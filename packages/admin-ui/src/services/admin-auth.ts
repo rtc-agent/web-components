@@ -1,3 +1,12 @@
+/**
+ * Admin Authentication Service
+ *
+ * All APIs in this file are REAL backend endpoints (proxied to Go backend in dev).
+ * Mock implementations are NOT provided for these endpoints.
+ *
+ * For mock/test endpoints (e.g., /api/500, /api/404), see mock/user.ts.
+ */
+
 import { request } from '@umijs/max';
 import type { RoleInfo, PermissionInfo, UserInfo } from './types';
 
@@ -26,7 +35,10 @@ export interface LoginParams {
 export interface LoginResult {
   access_token: string;
   refresh_token: string;
+  /** Access token expiration time in seconds */
   expires_in: number;
+  /** Refresh token expiration time in seconds (optional, backend dependent) */
+  refresh_token_expires_in?: number;
   token_type: string;
   user: UserInfo;
 }
