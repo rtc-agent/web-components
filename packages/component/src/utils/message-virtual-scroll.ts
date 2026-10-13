@@ -141,6 +141,61 @@ interface ViewportSlicePart<T> {
   item: T;
 }
 
+/**
+ * LRU (Least Recently Used) Cache Implementation
+ * Uses Map's insertion order to track recency.
+ * On access, delete and re-insert to mark as most recently used.
+ * On overflow, remove the oldest (first) entry.
+ */
+class LRUCache<K, V> {
+  private _cache: Map<K, V> = new Map();
+  private readonly _capacity: number;
+
+  constructor(capacity: number) {
+    this._capacity = capacity;
+  }
+
+  get(key: K): V | undefined {
+    const value = this._cache.get(key);
+    if (value !== undefined) {
+      // Mark as most recently used
+      this._cache.delete(key);
+      this._cache.set(key, value);
+    }
+    return value;
+  }
+
+  set(key: K, value: V): void {
+    if (this._cache.has(key)) {
+      // Update existing: delete first to maintain order
+      this._cache.delete(key);
+    } else if (this._cache.size >= this._capacity) {
+      // Evict oldest (first item in Map)
+      const firstKey = this._cache.keys().next().value;
+      if (firstKey !== undefined) {
+        this._cache.delete(firstKey);
+      }
+    }
+    this._cache.set(key, value);
+  }
+
+  has(key: K): boolean {
+    return this._cache.has(key);
+  }
+
+  delete(key: K): boolean {
+    return this._cache.delete(key);
+  }
+
+  clear(): void {
+    this._cache.clear();
+  }
+
+  get size(): number {
+    return this._cache.size;
+  }
+}
+
 export class MessageVirtualScroll<T> {
   private _scrollContainer: HTMLElement;
   private _innerContainer: HTMLElement;
@@ -203,12 +258,11 @@ export class MessageVirtualScroll<T> {
   ) => void;
   private _isItemStable?: (item: T) => boolean;
 
-  /** Height cache: itemId → last known height */
-  private _heightCache: Map<string, number> = new Map();
+  /** Height cache: itemId → last known height (LRU) */
+  private _heightCache: LRUCache<string, number>;
 
-  /** Component state cache: itemId → state object */
-  private _componentStateCache: Map<string, Record<string, unknown>> =
-    new Map();
+  /** Component state cache: itemId → state object (LRU) */
+  private _componentStateCache: LRUCache<string, Record<string, unknown>>;
 
   /** Element height tracker using ResizeObserver */
   private _itemResizeObserver?: ResizeObserver;
@@ -311,6 +365,12 @@ export class MessageVirtualScroll<T> {
     this._extractComponentState = options.extractComponentState;
     this._injectComponentState = options.injectComponentState;
     this._isItemStable = options.isItemStable;
+
+    // Initialize LRU caches
+    this._heightCache = new LRUCache<string, number>(this.MAX_HEIGHT_CACHE);
+    this._componentStateCache = new LRUCache<string, Record<string, unknown>>(
+      this.MAX_STATE_CACHE,
+    );
 
     // Architecture Redesign: Initialize visibility state machine and skeleton tracker
     this._visibilityManager = new VisibilityManager();
@@ -1253,26 +1313,86 @@ export class MessageVirtualScroll<T> {
     this._settledCount = 0;
   }
 
+  /**
+   * Get comprehensive statistics about virtual scroll state.
+   *
+   * Includes metrics for:
+   * - Item counts (total, rendered, placeholders)
+   * - Scroll position and container dimensions
+   * - Cache sizes (height, component state)
+   * - Visibility and loading state
+   * - Window boundaries (first/last item IDs)
+   *
+   * Useful for debugging, performance monitoring, and testing.
+   */
   getStats() {
+    // Calculate visible range from DOM
+    const containerRect = this._scrollContainer.getBoundingClientRect();
+    const children = Array.from(this._innerContainer.children) as HTMLElement[];
+    let visibleCount = 0;
+    let firstVisibleIndex = -1;
+    let lastVisibleIndex = -1;
+
+    for (const element of children) {
+      const index = parseInt(element.dataset.messageIndex || '-1', 10);
+      if (index < 0 || index >= this._items.length) continue;
+
+      const rect = element.getBoundingClientRect();
+      const isVisible =
+        rect.bottom > containerRect.top && rect.top < containerRect.bottom;
+
+      if (isVisible) {
+        visibleCount++;
+        if (firstVisibleIndex === -1) firstVisibleIndex = index;
+        lastVisibleIndex = index;
+      }
+    }
+
     return {
+      // Core item counts
       totalItems: this._items.length,
       renderedItems: this._elementMap.size,
+      visibleItems: visibleCount,
       placeholderCount: this._skeletonTracker.size,
       pendingRestorationCount: this._pendingRestorations.length,
+
+      // Scroll position and dimensions
+      scrollTop: this._scrollContainer.scrollTop,
+      scrollHeight: this._scrollContainer.scrollHeight,
+      containerHeight: this._scrollContainer.clientHeight,
+
+      // Visible range (indices)
+      visibleRange: {
+        start: firstVisibleIndex,
+        end: lastVisibleIndex,
+      },
+
+      // State and loading flags
       visibilityState: this._visibilityManager.state,
       loadedTop: this._loadedTop,
       loadedBottom: this._loadedBottom,
+      isReady: this._isReady,
+
+      // Window boundaries (item IDs)
       firstId:
         this._items.length > 0 ? this._getItemId(this._items[0]) : undefined,
       lastId:
         this._items.length > 0
           ? this._getItemId(this._items[this._items.length - 1])
           : undefined,
-      // Phase 5 (S2): Extended metrics for monitoring and debugging
+
+      // Cache sizes (for memory monitoring)
       heightCacheSize: this._heightCache.size,
       stateCacheSize: this._componentStateCache.size,
       activeStreamCount: this._activeStreams.size,
+      settledCount: this._settledCount,
+
+      // Visibility (for debugging)
       isVisible: this._isContainerVisible(),
+
+      // Configuration
+      bufferMessages: this._bufferMessages,
+      preloadThreshold: this._preloadThreshold,
     };
   }
 
@@ -2062,48 +2182,22 @@ export class MessageVirtualScroll<T> {
   }
 
   /**
-   * Cache component state with capacity limit.
-   * When cache exceeds MAX_STATE_CACHE, removes oldest half.
-   * Uses Map iterator for O(1) key access without allocation.
+   * Cache component state with LRU eviction.
+   * The LRU cache automatically handles capacity management.
    */
   private _cacheComponentState(
     itemId: string,
     state: Record<string, unknown>,
   ): void {
     this._componentStateCache.set(itemId, state);
-
-    // Evict oldest half when over capacity
-    if (this._componentStateCache.size > this.MAX_STATE_CACHE) {
-      const iterator = this._componentStateCache.keys();
-      const removeCount = Math.floor(this._componentStateCache.size / 2);
-      for (let i = 0; i < removeCount; i++) {
-        const result = iterator.next();
-        if (!result.done) {
-          this._componentStateCache.delete(result.value);
-        }
-      }
-    }
   }
 
   /**
-   * S5: Set height cache with capacity limit.
-   * When cache exceeds MAX_HEIGHT_CACHE, removes oldest half.
-   * Uses Map iterator for O(1) key access without allocation.
+   * S5: Set height cache with LRU eviction.
+   * The LRU cache automatically handles capacity management.
    */
   private _setHeightCache(itemId: string, height: number): void {
     this._heightCache.set(itemId, height);
-
-    // Evict oldest half when over capacity
-    if (this._heightCache.size > this.MAX_HEIGHT_CACHE) {
-      const iterator = this._heightCache.keys();
-      const removeCount = Math.floor(this._heightCache.size / 2);
-      for (let i = 0; i < removeCount; i++) {
-        const result = iterator.next();
-        if (!result.done) {
-          this._heightCache.delete(result.value);
-        }
-      }
-    }
   }
 
   /**
@@ -2202,6 +2296,16 @@ export class MessageVirtualScroll<T> {
     const settleCount = this._items.length - this.MAX_HOT_ITEMS;
     const toSettle = this._items.splice(0, settleCount);
     this._settledCount += toSettle.length;
+
+    // Defensive programming: reset counter if it grows too large
+    // This prevents potential issues in long-running sessions
+    if (this._settledCount > Number.MAX_SAFE_INTEGER - 1000) {
+      log.warn(
+        `_settledCount approaching MAX_SAFE_INTEGER, resetting to 0. ` +
+        `This is normal for long-running sessions.`,
+      );
+      this._settledCount = 0;
+    }
 
     // Clean up caches and index entries for settled items
     for (const item of toSettle) {

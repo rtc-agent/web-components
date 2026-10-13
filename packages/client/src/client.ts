@@ -105,9 +105,20 @@ export class GapFillTimeoutError extends Error {
  * thread for 10-50ms per message. This is generally acceptable for typical RTC Agent usage
  * (most messages are <10KB), but could become noticeable with bulk data transfers.
  *
- * Future optimization: if large message latency becomes a problem, consider offloading
- * serialization/deserialization to a Worker thread. This would require architectural changes
- * to Centrifuge's message handling pipeline or wrapping RPC calls in a Worker-based proxy.
+ * SERIALIZATION OPTIMIZATION LIMITATION:
+ * Centrifuge SDK handles WebSocket message serialization internally, and the application
+ * layer does not have direct access to raw message buffers. Implementing Transferable Objects
+ * or Worker-based serialization would require:
+ * 1. Creating a custom transport layer for Centrifuge (complex, invasive)
+ * 2. Or modifying the SDK itself to support pluggable serialization
+ *
+ * If large message latency becomes a problem, consider:
+ * - Optimizing message size at the protocol level (compression, pagination)
+ * - Using Centrifuge's built-in compression features
+ * - Evaluating alternative real-time protocols that support custom serialization
+ *
+ * Current status: No application-level serialization optimization is feasible without
+ * significant architectural changes to the Centrifuge integration.
  */
 export class RTCAgentClient implements IRTCAgentClient {
   private readonly options: RTCAgentClientOptions;
