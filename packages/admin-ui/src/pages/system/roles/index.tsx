@@ -32,27 +32,26 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import TableEmptyState from '@/components/TableEmptyState';
 import { getActionTypes, getResourceTypes } from '@/constants/permissions';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { usePermissionRefresh } from '@/hooks/usePermissionRefresh';
-import { useIsMobile } from '@/hooks/useIsMobile';
-import type { PermissionPolicy } from './service';
-import {
-  createPermission,
-  deletePermission,
-  getPermissionList,
-} from './service';
-import {
-  createRole,
-  deleteRole,
-  getRoleList,
-  patchRole,
-  updateRole,
-} from './service';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import { parseTableSort } from '@/utils/tableUtils';
 import type { RoleFormValues, RoleTableItem } from './data';
 import type { RolePageAPI } from './page-api';
+import type { PermissionPolicy } from './service';
+import {
+  createPermission,
+  createRole,
+  deletePermission,
+  deleteRole,
+  getPermissionList,
+  getRoleList,
+  patchRole,
+  updateRole,
+} from './service';
 
 /**
  * Admin Role Management Page
@@ -769,6 +768,14 @@ const RoleListPage: React.FC = () => {
           }
         }}
         columns={columns}
+        locale={{
+          emptyText: (
+            <TableEmptyState
+              descriptionId="pages.roles.empty"
+              defaultDescription="No admin roles found"
+            />
+          ),
+        }}
       />
 
       <ModalForm<RoleFormValues>

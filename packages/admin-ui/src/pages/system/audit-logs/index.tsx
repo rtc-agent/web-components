@@ -3,13 +3,14 @@ import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { useIntl, useSearchParams } from '@umijs/max';
 import { App, Tag, theme } from 'antd';
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
-import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
+import TableEmptyState from '@/components/TableEmptyState';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import type { AuditLogItem } from './service';
-import { getAuditLogList } from './service';
+import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import { parseTableSort } from '@/utils/tableUtils';
 import type { AuditLogPageAPI } from './page-api';
+import type { AuditLogItem } from './service';
+import { getAuditLogList } from './service';
 
 /**
  * Audit Logs Page
@@ -446,6 +447,14 @@ const AuditLogsPage: React.FC = () => {
           }
         }}
         columns={columns}
+        locale={{
+          emptyText: (
+            <TableEmptyState
+              descriptionId="pages.auditLogs.empty"
+              defaultDescription="No audit logs found"
+            />
+          ),
+        }}
       />
     </PageContainer>
   );

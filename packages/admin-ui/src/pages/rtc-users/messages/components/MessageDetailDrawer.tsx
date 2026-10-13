@@ -12,6 +12,7 @@ import {
   theme,
 } from 'antd';
 import React, { useMemo } from 'react';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import type { MessageInfo } from '../data';
 
 const { Text } = Typography;
@@ -523,7 +524,7 @@ const ErrorContent: React.FC<{ data: unknown }> = ({ data }) => {
       <Alert
         type="error"
         showIcon
-        title="Error"
+        title={intl.formatMessage({ id: 'pages.messages.detail.error' })}
         description={tryFormatJson(data)}
       />
     );
@@ -547,7 +548,10 @@ const ErrorContent: React.FC<{ data: unknown }> = ({ data }) => {
         showIcon
         title={
           <Space>
-            <Text strong>{err.title || 'Error'}</Text>
+            <Text strong>
+              {err.title ||
+                intl.formatMessage({ id: 'pages.messages.detail.error' })}
+            </Text>
             {err.category && (
               <Tag color={categoryColors[err.category] || 'default'}>
                 {err.category}
@@ -779,6 +783,7 @@ const MessageDetailDrawer: React.FC<MessageDetailDrawerProps> = ({
   onClose,
 }) => {
   const intl = useIntl();
+  const isMobile = useIsMobile();
 
   const titleSuffix = msg ? ` - ${msg.id.slice(0, 8)}` : '';
 
@@ -796,7 +801,7 @@ const MessageDetailDrawer: React.FC<MessageDetailDrawerProps> = ({
       })}${titleSuffix}`}
       open={open}
       onClose={onClose}
-      size={640}
+      width={isMobile ? '90%' : 640}
       destroyOnHidden
     >
       {msg && (

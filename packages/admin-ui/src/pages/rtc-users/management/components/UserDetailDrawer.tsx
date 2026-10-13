@@ -16,6 +16,8 @@ import {
 } from 'antd';
 import dayjs from 'dayjs';
 import React, { useMemo } from 'react';
+import TableEmptyState from '@/components/TableEmptyState';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { useThemeMode } from '@/hooks/useThemeMode';
 import type {
   DeviceInfo,
@@ -51,6 +53,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
 
   // Use custom hook for robust theme detection
   const isDark = useThemeMode();
+  const isMobile = useIsMobile();
 
   // 获取设备列表
   // NOTE: umi 内置的 useRequest 默认 formatResult: result => result?.data，
@@ -273,6 +276,9 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
     height: 300,
     autoFit: true,
     theme: isDark ? 'classicDark' : 'classic',
+    style: {
+      stroke: token.colorBorder,
+    },
   };
 
   const titleSuffix = user ? ` - ${user.email || user.id.slice(0, 8)}` : '';
@@ -285,7 +291,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
       })}${titleSuffix}`}
       open={open}
       onClose={onClose}
-      width={window.innerWidth < 768 ? '90%' : 800}
+      width={isMobile ? '90%' : 800}
       destroyOnHidden
     >
       {user && (
@@ -377,10 +383,12 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
                     pagination={false}
                     scroll={{ x: 1000 }}
                     locale={{
-                      emptyText: intl.formatMessage({
-                        id: 'pages.rtcUsers.detail.noDevices',
-                        defaultMessage: 'No devices',
-                      }),
+                      emptyText: (
+                        <TableEmptyState
+                          descriptionId="pages.rtcUsers.detail.noDevices"
+                          defaultDescription="No devices"
+                        />
+                      ),
                     }}
                   />
                 ),
@@ -487,10 +495,12 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
                         rowKey="session_id"
                         pagination={false}
                         locale={{
-                          emptyText: intl.formatMessage({
-                            id: 'pages.rtcUsers.detail.noStats',
-                            defaultMessage: 'No statistics data',
-                          }),
+                          emptyText: (
+                            <TableEmptyState
+                              descriptionId="pages.rtcUsers.detail.noStats"
+                              defaultDescription="No statistics data"
+                            />
+                          ),
                         }}
                       />
                     </Card>

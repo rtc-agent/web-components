@@ -2,7 +2,7 @@ import { HistoryOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { Access, useAccess, useIntl, useSearchParams } from '@umijs/max';
-import { App, Button, Grid, Popconfirm, Space, Tabs, Tag, theme } from 'antd';
+import { App, Button, Popconfirm, Space, Tabs, Tag, theme } from 'antd';
 import React, {
   useCallback,
   useEffect,
@@ -10,6 +10,8 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import TableEmptyState from '@/components/TableEmptyState';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { useOptimisticLockConflict } from '@/hooks/useOptimisticLockConflict';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import type { ServerConfigItem } from '@/services/server-config';
@@ -29,8 +31,6 @@ import ConfigEditModal from './components/ConfigEditModal';
 import ConfigHistoryModal from './components/ConfigHistoryModal';
 import ConflictModal from './components/ConflictModal';
 import type { ServerConfigPageAPI } from './page-api';
-
-const { useBreakpoint } = Grid;
 
 /**
  * Configuration category list
@@ -97,8 +97,7 @@ const SystemConfigsPage: React.FC = () => {
   const renderConfigSource = useConfigSourceRenderer();
   const { token } = theme.useToken();
   const [searchParams, setSearchParams] = useSearchParams();
-  const breakpoints = useBreakpoint();
-  const isMobile = !breakpoints.md; // < 768px
+  const isMobile = useIsMobile(); // < 768px
 
   // Initialize active category from URL
   const [activeCategory, setActiveCategory] = useState(
@@ -586,6 +585,14 @@ const SystemConfigsPage: React.FC = () => {
             {intl.formatMessage({ id: 'pages.config.system.refresh' })}
           </Button>,
         ]}
+        locale={{
+          emptyText: (
+            <TableEmptyState
+              descriptionId="pages.config.system.empty"
+              defaultDescription="No configurations found"
+            />
+          ),
+        }}
       />
 
       {/* Edit modal */}
