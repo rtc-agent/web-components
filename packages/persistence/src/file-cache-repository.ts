@@ -180,19 +180,25 @@ export class FileCacheRepository {
       return null;
     }
 
-    // P3-FIX: For pending/failed files, check if they've exceeded the extended TTL
-    // This prevents abandoned pending/failed files from accumulating indefinitely
+    // P1-FIX: For pending/failed files that exceed standard TTL but not extended TTL,
+    // log a warning instead of deleting. This prevents accidental data loss.
     if (isExpired && isPendingOrFailed) {
-      // Check if this is a pending/failed file with extended TTL
-      // If it was created with the standard TTL, it should have been upgraded to extended TTL
-      // For safety, we use the extended TTL check here
       const extendedExpiry = entry.createdAt + PENDING_FAILED_TTL_MS;
       if (now > extendedExpiry) {
+        // Exceeded extended TTL (30 days) - safe to delete
         log.debug(
           `cache expired (pending/failed, exceeded 30-day TTL): ${md5}.${ext}`,
         );
         await db.fileCache.delete([md5, ext]);
         return null;
+      } else {
+        // P1-FIX: Still within extended TTL - log warning and preserve the file
+        // This prevents premature cleanup of unsynced data
+        log.warn(
+          `[FileCache] Skipping cleanup of unsynced file (${entry.syncStatus}): ${md5}.${ext}. ` +
+          `File will be preserved until extended TTL (30 days) expires on ${new Date(extendedExpiry).toISOString()}.`,
+        );
+        // Fall through to return the cached value
       }
     }
 

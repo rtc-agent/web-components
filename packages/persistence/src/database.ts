@@ -767,6 +767,72 @@ export class RTCAgentDatabase extends Dexie {
   isMigrationDegraded(): boolean {
     return this._migrationFailed;
   }
+
+  /**
+   * P1-FIX: Reset the migration failed flag after manual recovery.
+   *
+   * This method should be called after the user has manually recovered
+   * from a degraded state (e.g., by clearing IndexedDB or upgrading
+   * to the correct version). It resets the flag so the database can
+   * operate normally again.
+   *
+   * WARNING: This does NOT fix the underlying schema issue. The caller
+   * must ensure the database schema is compatible before calling this.
+   */
+  resetMigrationDegraded(): void {
+    if (this._migrationFailed) {
+      log.info('Resetting migration degraded flag');
+      this._migrationFailed = false;
+    }
+  }
+
+  /**
+   * P1-FIX: Attempt to recover from a degraded migration state.
+   *
+   * When migration fails, the database may be in a degraded state with
+   * a lower schema version than expected. This method provides recovery
+   * guidance based on the actual schema version.
+   *
+   * Recovery options:
+   * 1. If user data is not important: clear all IndexedDB data and reload
+   * 2. If user data must be preserved: export data, clear IndexedDB, reload, re-import
+   *
+   * @returns Recovery guidance object with actionable steps
+   */
+  getRecoveryGuidance(): {
+    canAutoRecover: boolean;
+    actualVersion: number;
+    expectedVersion: number;
+    steps: string[];
+  } {
+    const actualVersion = this.verno;
+    const expectedVersion = 16; // Keep in sync with EXPECTED_SCHEMA_VERSION
+
+    const steps: string[] = [];
+
+    if (actualVersion < expectedVersion) {
+      steps.push(
+        `Database schema is at v${actualVersion}, expected v${expectedVersion}.`,
+      );
+      steps.push('Option 1 (if data is not important):');
+      steps.push('  - Clear IndexedDB data for this site');
+      steps.push('  - Reload the page');
+      steps.push('  - Migration will run automatically');
+      steps.push('');
+      steps.push('Option 2 (if data must be preserved):');
+      steps.push('  - Export your data using the UI export feature');
+      steps.push('  - Clear IndexedDB data for this site');
+      steps.push('  - Reload the page');
+      steps.push('  - Re-import your data');
+    }
+
+    return {
+      canAutoRecover: false, // Auto-recovery is not safe without data loss
+      actualVersion,
+      expectedVersion,
+      steps,
+    };
+  }
 }
 
 // ========== Singleton ==========

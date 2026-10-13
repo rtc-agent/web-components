@@ -45,6 +45,11 @@ export class PathError extends Error {
  * - Remove redundant /
  * - Forbid .. path traversal
  * - Remove trailing / (except for root)
+ *
+ * Case sensitivity: Paths are case-sensitive, matching Linux filesystem behavior.
+ * This is intentional for consistency with server-side file systems. If case-insensitive
+ * behavior is needed (e.g., for macOS/Windows clients), it should be handled at the API
+ * layer or via a configuration option, not in the core path normalization.
  */
 export function normalizePath(path: string): string {
   if (!path || typeof path !== 'string') {
@@ -419,6 +424,109 @@ export class VirtualFS {
   }
 
   /**
+   * Batch write multiple files in a single transaction.
+   *
+   * P0-FIX: Performance optimization for batchWriteFiles. Instead of calling write()
+   * for each file (which acquires per-file locks and opens nested transactions),
+   * this method performs all writes in a single transaction without per-file locking.
+   *
+   * Use cases: Initial agent.md setup, batch file synchronization. These are one-time
+   * operations where concurrent writes to the same file are not expected, so per-file
+   * locking is unnecessary overhead.
+   *
+   * Transaction behavior: Opens its own transaction, but if called within an existing
+   * transaction (e.g., from batchWriteFiles), Dexie will reuse the outer transaction
+   * (nested transaction support).
+   *
+   * @param files Array of file write operations
+   * @throws Error if any file exceeds MAX_FILE_SIZE or contains null bytes
+   */
+  async writeBatch(
+    files: Array<{
+      path: string;
+      content: string;
+      mode?: 'overwrite' | 'append' | 'create-new';
+      metadataOverride?: Partial<FileSystemEntryMetadata>;
+    }>,
+  ): Promise<void> {
+    // Validate all files first to fail fast before any writes
+    for (const file of files) {
+      if (file.content.length > MAX_FILE_SIZE) {
+        throw new Error(
+          `File content exceeds maximum size limit of ${MAX_FILE_SIZE} bytes ` +
+            `(file: ${file.path}, current: ${file.content.length} bytes)`,
+        );
+      }
+      if (file.content.includes('\0')) {
+        throw new Error(
+          `File content contains null bytes, which is not allowed: ${file.path}`,
+        );
+      }
+    }
+
+    const db = getDatabase();
+
+    // Single transaction for all writes - Dexie will reuse outer transaction if present
+    await db.transaction('rw', db.fileSystemEntries, async () => {
+      for (const file of files) {
+        const normalizedPath = normalizePath(file.path);
+        const existing = await db.fileSystemEntries.get(normalizedPath);
+        const mode = file.mode || 'overwrite';
+
+        // create-new mode: skip if file already exists
+        if (mode === 'create-new' && existing) {
+          continue;
+        }
+
+        let finalContent = file.content;
+        let metadata: FileSystemEntryMetadata;
+        const type = this.inferFileType(normalizedPath);
+
+        if (existing && mode === 'append') {
+          finalContent = existing.content + file.content;
+          // Validate combined content size for append mode
+          if (finalContent.length > MAX_FILE_SIZE) {
+            throw new Error(
+              `Appended file content exceeds maximum size limit of ${MAX_FILE_SIZE} bytes ` +
+                `(file: ${file.path}, current: ${finalContent.length} bytes)`,
+            );
+          }
+          metadata = {
+            ...existing.metadata,
+            ...file.metadataOverride,
+            updatedAt: new Date(),
+          };
+        } else {
+          const now = new Date();
+          metadata = {
+            name: getFileName(normalizedPath),
+            description: '',
+            createdAt: existing?.metadata?.createdAt || now,
+            updatedAt: now,
+            ...file.metadataOverride,
+          };
+
+          if (type === 'function') {
+            const group = this.extractGroupFromPath(normalizedPath);
+            if (group) {
+              metadata.group = group;
+            }
+          }
+        }
+
+        const entry: FileSystemEntry = {
+          path: normalizedPath,
+          type,
+          content: finalContent,
+          metadata,
+        };
+
+        await db.fileSystemEntries.put(entry);
+      }
+    });
+  }
+
+  /**
    * List directory contents.
    *
    * @param path Directory path (default: root)
@@ -567,6 +675,10 @@ export class VirtualFS {
     // P1-FIX: Use cursor-based processing to avoid loading all entries into memory.
     // This prevents memory overflow when searching large file collections.
     const matchedFiles: string[] = [];
+    // P0-FIX: Cache matched entries during initial scan to avoid re-reading from IndexedDB
+    // in count/content modes. Without caching, each matched file would be loaded twice:
+    // once during scan and once during result formatting, doubling I/O operations.
+    const matchedEntries = new Map<string, FileSystemEntry>();
     const skippedFiles: string[] = []; // P1-FIX: Track files skipped due to size
     const vcsDirs = ['.git', '.svn', '.hg', '.bzr', '.jj', '.sl'];
 
@@ -631,6 +743,8 @@ export class VirtualFS {
       regex.lastIndex = 0;
       if (regex.test(entry.content)) {
         matchedFiles.push(entry.path);
+        // P0-FIX: Cache the matched entry to avoid re-reading from IndexedDB later
+        matchedEntries.set(entry.path, entry);
       }
     });
 
@@ -666,10 +780,10 @@ export class VirtualFS {
       const countResults: Array<{ file: string; count: number }> = [];
       let totalMatches = 0;
 
-      // P1-FIX: For count mode, re-load matched files and count matches.
-      // We use matchedFiles which already contains the list of matching file paths.
+      // P0-FIX: Use cached entries from initial scan instead of re-reading from IndexedDB.
+      // This eliminates redundant I/O operations that would double the load on IndexedDB.
       for (const filePath of matchedFiles) {
-        const entry = await db.fileSystemEntries.get(filePath);
+        const entry = matchedEntries.get(filePath);
         if (!entry) continue;
 
         const matches = entry.content.match(regex);
@@ -707,10 +821,10 @@ export class VirtualFS {
       line: string;
     }> = [];
 
-    // P1-FIX: For content mode, we need to re-load matched files and extract matching lines.
-    // Only matched files are processed, reducing unnecessary work.
+    // P0-FIX: Use cached entries from initial scan instead of re-reading from IndexedDB.
+    // This eliminates redundant I/O operations that would double the load on IndexedDB.
     for (const filePath of matchedFiles) {
-      const entry = await db.fileSystemEntries.get(filePath);
+      const entry = matchedEntries.get(filePath);
       if (!entry) continue;
 
       // Multiline mode: match against full content, not line-by-line.
@@ -810,6 +924,10 @@ export class VirtualFS {
   /**
    * Edit a file by exact string replacement.
    *
+   * P1-FIX: String processing is now done outside the transaction to minimize
+   * transaction duration. Only the final write happens inside the transaction.
+   * Uses file-level lock to prevent race conditions with concurrent edits.
+   *
    * @param path File path
    * @param oldString The text to replace
    * @param newString The text to replace it with
@@ -838,47 +956,48 @@ export class VirtualFS {
       );
     }
 
-    // Wrap read-modify-write in transaction to prevent race conditions
-    return db.transaction(
-      'rw',
-      db.fileSystemEntries,
-      async () => {
-        const entry = await db.fileSystemEntries.get(normalizedPath);
-        if (!entry) {
-          throw new PathError('ENOENT', `File not found: ${normalizedPath}`);
-        }
+    // P1-FIX: Use file-level lock to serialize concurrent edits to the same file.
+    // This prevents TOCTOU race conditions while keeping transaction scope small.
+    return this.withFileLock(normalizedPath, async () => {
+      // Step 1: Read file content OUTSIDE transaction (but inside lock)
+      const entry = await db.fileSystemEntries.get(normalizedPath);
+      if (!entry) {
+        throw new PathError('ENOENT', `File not found: ${normalizedPath}`);
+      }
 
-        const content = entry.content;
+      const content = entry.content;
 
-        // Count matches
-        let matchCount = 0;
-        let idx = 0;
-        while (true) {
-          const pos = content.indexOf(oldString, idx);
-          if (pos === -1) break;
-          matchCount++;
-          idx = pos + oldString.length;
-        }
+      // Step 2: Perform string processing OUTSIDE transaction
+      // Count matches
+      let matchCount = 0;
+      let idx = 0;
+      while (true) {
+        const pos = content.indexOf(oldString, idx);
+        if (pos === -1) break;
+        matchCount++;
+        idx = pos + oldString.length;
+      }
 
-        if (matchCount === 0) {
-          throw new Error(
-            `String to replace not found in file.\nString: ${oldString}`,
-          );
-        }
+      if (matchCount === 0) {
+        throw new Error(
+          `String to replace not found in file.\nString: ${oldString}`,
+        );
+      }
 
-        if (matchCount > 1 && !replaceAll) {
-          throw new Error(
-            `Found ${matchCount} matches of the string to replace, but replace_all is false. ` +
-              `Either provide more context to make the match unique, or set replace_all to true.`,
-          );
-        }
+      if (matchCount > 1 && !replaceAll) {
+        throw new Error(
+          `Found ${matchCount} matches of the string to replace, but replace_all is false. ` +
+            `Either provide more context to make the match unique, or set replace_all to true.`,
+        );
+      }
 
-        // Perform replacement
-        const newContent = replaceAll
-          ? content.split(oldString).join(newString)
-          : content.replace(oldString, newString);
+      // Perform replacement
+      const newContent = replaceAll
+        ? content.split(oldString).join(newString)
+        : content.replace(oldString, newString);
 
-        // Write back
+      // Step 3: Write back INSIDE transaction (fast operation)
+      await db.transaction('rw', db.fileSystemEntries, async () => {
         const metadata: FileSystemEntryMetadata = {
           ...entry.metadata,
           updatedAt: new Date(),
@@ -889,11 +1008,11 @@ export class VirtualFS {
           content: newContent,
           metadata,
         });
+      });
 
-        log.debug('edit: success, replaced:', replaceAll ? matchCount : 1);
-        return { replaced: replaceAll ? matchCount : 1 };
-      },
-    );
+      log.debug('edit: success, replaced:', replaceAll ? matchCount : 1);
+      return { replaced: replaceAll ? matchCount : 1 };
+    });
   }
 
   /**

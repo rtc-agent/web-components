@@ -370,8 +370,10 @@ export class PersistenceLayer implements IPersistenceLayer {
       this._cleanupTimer = null;
     }, 5000);
 
-    // Disabled: auto-sync on network online event (manual retry only)
-    // this.setupNetworkListener();
+    // P1-FIX: Enable network listener with debounced auto-sync
+    // When the network comes back online, wait 5 seconds before syncing to avoid
+    // rapid repeated syncs during unstable network conditions.
+    this.setupNetworkListener();
 
     // P0-1 fix: recover stale 'syncing' entries from previous crashes/aborts.
     // P2-R5-05: tracked in SyncTaskTracker so close() waits for it.
@@ -1392,10 +1394,50 @@ export class PersistenceLayer implements IPersistenceLayer {
 
   // ========== Network-Aware Sync ==========
 
-  // setupNetworkListener: DISABLED
-  // Auto-sync on network online event is disabled in favor of manual retry.
-  // Users now explicitly retry failed uploads via the UI.
-  // The method has been removed; removeNetworkListener() remains for cleanup.
+  /**
+   * P1-FIX: Setup network listener with debounced auto-sync.
+   *
+   * When the network comes back online, waits 5 seconds before triggering
+   * syncPendingFiles(). This debounce prevents rapid repeated syncs during
+   * unstable network conditions (e.g., flaky mobile connections).
+   *
+   * The listener is automatically removed during close() to prevent memory leaks.
+   */
+  private setupNetworkListener(): void {
+    if (typeof self === 'undefined' || typeof self.addEventListener !== 'function') {
+      log.debug('Network listener not supported in this environment');
+      return;
+    }
+
+    // Prevent duplicate listeners
+    if (this._onlineListener) {
+      log.debug('Network listener already setup, skipping');
+      return;
+    }
+
+    let syncTimeout: ReturnType<typeof setTimeout> | null = null;
+    const DEBOUNCE_DELAY_MS = 5000; // 5 seconds
+
+    this._onlineListener = () => {
+      log.info('Network online event received, scheduling sync...');
+
+      // Clear any existing timeout (debounce)
+      if (syncTimeout) {
+        clearTimeout(syncTimeout);
+      }
+
+      // Schedule sync after debounce delay
+      syncTimeout = setTimeout(() => {
+        syncTimeout = null;
+        this.syncPendingFiles().catch((err) => {
+          log.error('Auto-sync failed after network recovery:', err);
+        });
+      }, DEBOUNCE_DELAY_MS);
+    };
+
+    self.addEventListener('online', this._onlineListener);
+    log.info('Network listener setup complete (debounce: 5s)');
+  }
 
   /**
    * Remove the network online event listener.
