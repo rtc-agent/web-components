@@ -5,8 +5,11 @@ import type {
   OAuth2TokenExchangeResponse,
   OAuth2TokenRefreshResponse,
 } from '@rtc-agent/protocol';
+import { createLogger } from '@rtc-agent/protocol';
 import type { TokenExchangeRequest, TokenExchangeResponse } from './types.js';
 import { TokenExchangeError } from './types.js';
+
+const log = createLogger('OAuth2Client');
 
 /**
  * OAuth2 Client configuration options.
@@ -211,10 +214,10 @@ export class OAuth2Client {
    * (e.g. from its own identity provider), which is exchanged for an RTC JWT
    * that can be used for WebSocket connection.
    *
-   * Retry strategy: 1 retry with 1s delay on 502, 503, 504, 429 (network errors).
+   * Retry strategy: Up to 1 retry (2 total attempts) with 1s delay on 502, 503, 504, 429 (network errors).
    * 4xx errors are NOT retried (client error, not transient).
    *
-   * SECURITY: Retry limit is intentionally low (1 retry) to prevent resource exhaustion
+   * SECURITY: Retry limit is intentionally low (max 1 retry) to prevent resource exhaustion
    * attacks. If the external JWT is invalid or expired, retries would waste resources;
    * the caller should handle the error and prompt the user to re-authenticate.
    *
@@ -259,6 +262,7 @@ export class OAuth2Client {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: body.toString(),
+          credentials: 'omit', // SECURITY: prevent cookie leakage to cross-origin requests
           signal: controller.signal,
         });
 
@@ -279,6 +283,12 @@ export class OAuth2Client {
             const baseDelay = OAuth2Client.TOKEN_EXCHANGE_RETRY_DELAY_MS * Math.pow(2, attempt);
             const jitter = Math.random() * 500;
             const retryDelay = baseDelay + jitter;
+
+            log.debug(
+              `tokenExchange: retryable error ${statusCode}, ` +
+              `attempt ${attempt + 1}/${maxRetries + 1}, ` +
+              `retrying in ${Math.round(retryDelay)}ms`
+            );
 
             await new Promise((resolve) => setTimeout(resolve, retryDelay));
             continue;
@@ -305,6 +315,13 @@ export class OAuth2Client {
           const baseDelay = OAuth2Client.TOKEN_EXCHANGE_RETRY_DELAY_MS * Math.pow(2, attempt);
           const jitter = Math.random() * 500;
           const retryDelay = baseDelay + jitter;
+
+          log.debug(
+            `tokenExchange: network error, ` +
+            `attempt ${attempt + 1}/${maxRetries + 1}, ` +
+            `retrying in ${Math.round(retryDelay)}ms`,
+            err instanceof Error ? err.message : String(err)
+          );
 
           await new Promise((resolve) => setTimeout(resolve, retryDelay));
           continue;
@@ -340,6 +357,7 @@ export class OAuth2Client {
     try {
       const resp = await fetch(url, {
         ...init,
+        credentials: 'omit', // SECURITY: prevent cookie leakage to cross-origin requests
         signal: controller.signal,
       });
 

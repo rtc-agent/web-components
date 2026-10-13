@@ -297,13 +297,27 @@ export class UIUpdateBus {
     // Store the chain for subsequent events
     this._processingChains.set(key, next);
 
-    // Monitor Map size to detect potential memory leaks in extreme scenarios.
+    // Multi-level monitoring for _processingChains Map size to detect potential memory leaks.
     // The .finally() cleanup should keep this bounded, but high event throughput
-    // can cause temporary spikes. Warning at 1000 entries helps diagnose issues.
-    if (this._processingChains.size > 1000) {
+    // can cause temporary spikes. Different log levels help diagnose severity:
+    // - 100+ (debug): Normal during high-frequency events, no action needed
+    // - 500+ (info): Elevated throughput, monitor for persistence
+    // - 1000+ (warn): Potential issue, listeners may be too slow or event storm
+    const chainCount = this._processingChains.size;
+    if (chainCount > 1000) {
       log.warn(
-        `_processingChains size exceeded 1000: ${this._processingChains.size}. ` +
+        `_processingChains size exceeded 1000: ${chainCount}. ` +
           `This may indicate high event throughput or slow listeners.`,
+      );
+    } else if (chainCount > 500) {
+      log.info(
+        `_processingChains size exceeded 500: ${chainCount}. ` +
+          `Elevated event throughput, monitoring for persistence.`,
+      );
+    } else if (chainCount > 100) {
+      log.debug(
+        `_processingChains size exceeded 100: ${chainCount}. ` +
+          `Normal during high-frequency events.`,
       );
     }
 

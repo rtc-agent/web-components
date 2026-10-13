@@ -2168,17 +2168,25 @@ export class EntityRepository {
     // ensures atomicity; concurrent applyUpdates() calls are serialized by the
     // outer transaction scope.
     //
-    // PERFORMANCE: Process sessions sequentially to avoid transaction conflicts.
-    // Although Promise.all would be faster, concurrent read-write operations within
-    // the same transaction can cause conflicts in some IndexedDB implementations.
-    // Sequential processing ensures deterministic behavior and avoids race conditions.
+    // PERFORMANCE OPTIMIZATION: Parallelize read operations (countActiveTurns + sessions.get)
+    // using Promise.all, but keep write operations sequential to avoid transaction conflicts.
+    // Reads are safe to parallelize within the same transaction; writes must be sequential
+    // to ensure deterministic behavior across IndexedDB implementations.
     const sessionIds = [...affectedSessionIds];
-    for (const sessionId of sessionIds) {
-      // Re-count within transaction to see the latest turns (including those just written)
-      const { pending, running } = await this.countActiveTurns(sessionId);
 
-      // Read current session to check if counts actually changed
-      const session = await db.sessions.get(sessionId);
+    // Phase 1: Parallel reads - count active turns and fetch current sessions
+    const sessionData = await Promise.all(
+      sessionIds.map(async (sessionId) => {
+        const [{ pending, running }, session] = await Promise.all([
+          this.countActiveTurns(sessionId),
+          db.sessions.get(sessionId),
+        ]);
+        return { sessionId, pending, running, session };
+      }),
+    );
+
+    // Phase 2: Sequential writes - update only when counts changed
+    for (const { sessionId, pending, running, session } of sessionData) {
       if (!session) continue; // session doesn't exist (may have been deleted), skip
 
       // Only update when count actually changed (reduce unnecessary writes)

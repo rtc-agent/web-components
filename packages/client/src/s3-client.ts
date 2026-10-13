@@ -151,6 +151,12 @@ export interface UploadedPart {
  * - 管理临时凭证（自动刷新，提前 5 分钟）
  * - 提供统一的文件操作 API
  * - 自动选择普通上传或分片上传（阈值 1MB）
+ *
+ * SECURITY CONSIDERATIONS:
+ * - 临时凭证缓存在内存中，建议后端配置较短的有效期（15 分钟）
+ * - 凭证通过 SharedWorker 共享，增加暴露面，建议实施凭证使用审计
+ * - 所有客户端扩展名校验均为纵深防御，后端必须独立验证文件类型
+ * - 详见文件顶部安全提示和 credentials 字段注释
  */
 export class S3Client {
   private readonly options: Omit<Required<S3ClientOptions>, 'getToken' | 'allowedExtensions'> & {
@@ -523,6 +529,7 @@ export class S3Client {
         key,
         expires_in: expiresIn,
       }),
+      credentials: 'omit', // SECURITY: prevent cookie leakage to cross-origin requests
     });
 
     if (!response.ok) {
@@ -589,7 +596,10 @@ export class S3Client {
    * @param uploadId Multipart upload ID
    * @param partNumber Part number (1-10000)
    * @param body Part data as Uint8Array
-   * @param onProgress Progress callback (optional, called after upload completes)
+   * @param onProgress Progress callback (optional). NOTE: This is a "part completion" notification,
+   *   not real-time upload progress. It's called once after the entire part is uploaded, reporting
+   *   (body.length, body.length). For real-time progress during upload, the AWS SDK would need to
+   *   expose upload stream events, which it currently doesn't support in browser environments.
    * @param signal AbortSignal for cancellation (optional, P2-008 fix)
    * @returns UploadedPart - Contains partNumber and etag
    */
@@ -891,6 +901,7 @@ export class S3Client {
       headers: {
         Authorization: `Bearer ${token}`,
       },
+      credentials: 'omit', // SECURITY: prevent cookie leakage to cross-origin requests
     });
 
     if (!response.ok) {

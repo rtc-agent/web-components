@@ -58,6 +58,22 @@ const log = createLogger('RTCAgentClient');
 /**
  * Error thrown when gap fill operation times out.
  */
+/**
+ * Error thrown when gap fill operation exceeds the maximum wait time.
+ *
+ * RECOVERY STRATEGY: When this error occurs, the client should:
+ * 1. Log the error for diagnostics (channel, targetOffset, remainingGap)
+ * 2. Disconnect and reconnect the channel to trigger a fresh state sync
+ * 3. If the error persists, notify the user that real-time updates may be delayed
+ * 4. Consider reducing the polling interval or increasing timeout for high-latency networks
+ *
+ * The error contains diagnostic information to help identify the root cause:
+ * - channel: The affected channel name
+ * - targetOffset: The offset we were trying to reach
+ * - elapsedMs: How long we waited before timing out
+ * - currentOffset: The offset we actually reached
+ * - remainingGap: How many events we're still missing
+ */
 export class GapFillTimeoutError extends Error {
   constructor(
     readonly channel: string,
@@ -1338,9 +1354,11 @@ export class RTCAgentClient implements IRTCAgentClient {
   /**
    * Check whether a JWT has expired.
    *
-   * SECURITY: This method only checks the `exp` claim without verifying the signature.
-   * It is used solely to decide whether to trigger a token refresh, NOT for authorization decisions.
-   * The server always validates the signature; a forged token will be rejected at connection time.
+   * SECURITY BOUNDARY: This method only checks the `exp` claim without verifying the signature.
+   * It is used solely to optimize network requests (avoid using known-expired tokens), NOT for
+   * authorization decisions. The server ALWAYS validates the signature; even if a client token
+   * is forged, the server will reject the connection. This client-side check is purely a
+   * performance optimization to reduce unnecessary round trips.
    *
    * Parses the exp claim from the JWT payload (Unix timestamp in seconds)
    * and compares it with the current time. Returns true on parse failure

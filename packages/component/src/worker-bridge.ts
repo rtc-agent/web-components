@@ -575,6 +575,7 @@ export class WorkerBridge {
         try {
           const response = await fetch(workerURL, {
             cache: 'default', // CDN scripts are content-hashed in production; dev URLs are unique per HMR.
+            credentials: 'omit', // SECURITY: prevent cookie leakage to CDN domains
           });
           if (!response.ok) {
             throw new Error(`HTTP ${response.status} ${response.statusText}`);
@@ -1642,7 +1643,15 @@ export class WorkerBridge {
         // This adapts to actual event processing cost (fast events → fewer yields,
         // slow events → more yields) and works consistently across browsers
         // (no dependency on requestIdleCallback which Safari lacks).
-        const FRAME_BUDGET_MS = 8; // ~half a 16ms frame, leaves headroom for rendering
+        //
+        // FRAME_BUDGET_MS = 8ms is a conservative value that leaves headroom for:
+        // - 60Hz displays: 16ms frame budget → 8ms for processing, 8ms for rendering
+        // - 120Hz+ displays: 8.33ms frame budget → still leaves ~0.33ms for rendering
+        // - Browser overhead: Event loop, garbage collection, other tasks
+        // The goal is to ensure smooth rendering across ALL devices, not just maximize
+        // throughput on high-end displays. If profiling shows this is too conservative
+        // for 120Hz+ use cases, consider making it adaptive based on display refresh rate.
+        const FRAME_BUDGET_MS = 8;
         let sliceStart = performance.now();
 
         for (let i = 0; i < result.entries.length && !signal.aborted; i++) {
