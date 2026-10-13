@@ -131,6 +131,61 @@ const [loading, setLoading] = useState(false);
 
 **例外**：非 ProTable 的数据加载（如 Drawer、Modal 中的自定义列表）仍需手动管理 loading 状态。
 
+## 状态管理规范
+
+### 全局状态（useModel('@@initialState')）
+
+- **用途**：用户信息、主题设置、权限数据
+- **更新时机**：登录后、权限变更后、主题切换时
+- **注意事项**：避免存储频繁变化的数据
+- **示例**：`currentUser`、`settings`、`theme`
+
+### 服务端状态（useQuery）
+
+- **用途**：API 数据缓存（列表、详情、统计数据）
+- **缓存策略**：根据数据变化频率选择 `USER_CACHE` / `CONFIG_CACHE` / `LIST_CACHE`
+- **Query Keys**：统一使用 `src/utils/queryKeys.ts` 中定义的 keys
+- **Mutation**：成功后必须 invalidate 相关 queries 或使用 `actionRef.reload()`
+
+- **示例**：
+
+  ```tsx
+  // 使用 useQuery 获取数据
+  const { data } = useQuery({
+    queryKey: queryKeys.currentUser.settings(),
+    queryFn: () => queryCurrent(),
+    staleTime: USER_CACHE.staleTime,
+  });
+
+  // Mutation 后 invalidate
+  const { mutate } = useMutation({
+    mutationFn: updateConfig,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.configs.all });
+    },
+  });
+  ```
+
+### 本地状态（useState）
+
+- **用途**：UI 状态（modal 开关、表单数据、展开/收起状态）
+- **原则**：最小化 useState 使用，优先使用派生状态
+- **复杂状态**：使用 useReducer 替代多个 useState
+- **示例**：`modalVisible`、`formData`、`expandedKeys`
+
+### URL 状态（useSearchParams）
+
+- **用途**：表格筛选、分页、排序参数
+- **优点**：可分享、可刷新、可回退
+- **工具**：使用 `useTableSearchParams` hook 简化操作
+- **示例**：`?status=active&page=1&sort=created_at`
+
+### 响应式状态
+
+- **工具**：使用 `useIsMobile()` hook 统一判断移动端
+- **Modal 宽度**：使用 `useResponsiveModalWidth()` hook
+- **断点**：`< 768px` 为移动端
+
 # CLAUDE.md
 
 Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.

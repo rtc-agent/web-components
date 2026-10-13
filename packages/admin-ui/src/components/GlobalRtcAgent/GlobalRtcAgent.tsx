@@ -9,7 +9,13 @@
  */
 
 import { history } from '@umijs/max';
-import React, { useCallback, useEffect, useReducer } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useReducer,
+  useRef,
+  useState,
+} from 'react';
 import { isPublicPath } from '@/constants/routes';
 import {
   AUTH_STATE_CHANGED_EVENT,
@@ -91,6 +97,9 @@ const initialState: GlobalRtcAgentState = {
  */
 export const GlobalRtcAgent: React.FC = () => {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const [pollInterval, setPollInterval] = useState(5000);
+  const noChangeCountRef = useRef(0);
+  const lastAuthStateRef = useRef<boolean | null>(null);
   const {
     isLoggedIn,
     isSupported,
@@ -139,12 +148,12 @@ export const GlobalRtcAgent: React.FC = () => {
 
   // 防止并发 refresh 请求（已移到 auth-storage.ts 的 refreshAccessToken 中）
 
-  const checkAuth = useCallback(async () => {
+  const checkAuth = useCallback(async (): Promise<boolean> => {
     // 如果在排除的路由上，不检查认证状态
     if (isExcludedRoute) {
       dispatch({ type: 'SET_LOGGED_IN', payload: false });
       console.debug('[GlobalRtcAgent] On excluded route, forcing logout');
-      return;
+      return false;
     }
 
     let authenticated = isAuthenticated();
@@ -159,6 +168,11 @@ export const GlobalRtcAgent: React.FC = () => {
 
     dispatch({ type: 'SET_LOGGED_IN', payload: authenticated });
     console.debug('[GlobalRtcAgent] Auth state changed:', authenticated);
+
+    // Return whether state changed
+    const changed = lastAuthStateRef.current !== authenticated;
+    lastAuthStateRef.current = authenticated;
+    return changed;
   }, [isExcludedRoute]);
 
   useEffect(() => {
@@ -188,23 +202,45 @@ export const GlobalRtcAgent: React.FC = () => {
     window.addEventListener('offline', handleOffline);
 
     // 监听页面可见性变化（优化性能）
-    const handleVisibilityChange = () => {
+    const handleVisibilityChange = async () => {
       if (document.hidden) {
         console.debug('[GlobalRtcAgent] Tab hidden');
         // 页面隐藏时，可以减少轮询频率或暂停某些操作
       } else {
         console.debug('[GlobalRtcAgent] Tab visible');
-        // 页面可见时，立即检查 auth 状态
-        checkAuth();
+        // 页面可见时，立即检查 auth 状态并重置轮询间隔
+        const changed = await checkAuth();
+        if (!changed) {
+          noChangeCountRef.current = 0;
+          setPollInterval(5000);
+        }
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // 备用：定期检查登录状态变化（每 5 秒）
+    // 备用：定期检查登录状态变化（使用指数退避策略）
     // 作为事件驱动的后备方案，确保不会错过任何状态变化
-    // 注意：轮询间隔从 2 秒增加到 5 秒，减少不必要的检查
-    const interval = setInterval(checkAuth, 5000);
+    // 初始间隔 5 秒，连续无变化时逐渐增加到 30 秒
+    const checkAuthWithBackoff = async () => {
+      const changed = await checkAuth();
+
+      if (changed) {
+        // 状态变化，重置计数器
+        noChangeCountRef.current = 0;
+        setPollInterval(5000);
+      } else {
+        // 状态未变化，增加计数器
+        noChangeCountRef.current += 1;
+
+        // 连续 3 次无变化后，开始增加间隔
+        if (noChangeCountRef.current >= 3) {
+          setPollInterval((prev) => Math.min(prev * 1.5, 30000));
+        }
+      }
+    };
+
+    const interval = setInterval(checkAuthWithBackoff, pollInterval);
 
     return () => {
       console.debug('[GlobalRtcAgent] Component unmounting');
@@ -215,7 +251,7 @@ export const GlobalRtcAgent: React.FC = () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       clearInterval(interval);
     };
-  }, [checkAuth]);
+  }, [checkAuth, pollInterval]);
 
   // 路由变化时重新检查认证状态
   useEffect(() => {
