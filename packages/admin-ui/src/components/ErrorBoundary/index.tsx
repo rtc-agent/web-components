@@ -98,6 +98,30 @@ function renderErrorFallback(
   );
 }
 
+/**
+ * Global Error Boundary with offline-aware error handling.
+ *
+ * P3-FIX: Enhanced with better error messaging and recovery options.
+ *
+ * Future improvements for local ErrorBoundaries:
+ * Complex pages (e.g., dashboard with multiple widgets, form-heavy pages)
+ * could benefit from local ErrorBoundaries that:
+ * 1. Isolate errors to specific sections (prevent full-page crash)
+ * 2. Allow per-section retry without reloading the entire page
+ * 3. Show inline error messages instead of full-page error UI
+ *
+ * Implementation pattern for local boundaries:
+ * ```tsx
+ * <ErrorBoundary fallback={<WidgetErrorWidget />}>
+ *   <ComplexWidget />
+ * </ErrorBoundary>
+ * ```
+ *
+ * Consider adding local boundaries to:
+ * - Dashboard pages (Grafana embeds, stats cards)
+ * - Form-heavy pages (multi-section forms)
+ * - Data tables with complex renderers
+ */
 interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;

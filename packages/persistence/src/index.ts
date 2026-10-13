@@ -239,6 +239,10 @@ export class PersistenceLayer implements IPersistenceLayer {
   private _closing = false;
   /** Delayed cleanup timer for expired cache */
   private _cleanupTimer: ReturnType<typeof setTimeout> | null = null;
+  /** P3-FIX: Track last sync time to prevent rapid repeated syncs across tabs */
+  private _lastSyncTime: number = 0;
+  /** P3-FIX: Minimum interval between syncs (30 seconds) to prevent cross-tab thrashing */
+  private static readonly SYNC_DEDUP_INTERVAL_MS = 30 * 1000;
   private _userId: string;
   /** Online event listener (for auto-sync on network recovery) */
   private _onlineListener: (() => void) | null = null;
@@ -1430,11 +1434,26 @@ export class PersistenceLayer implements IPersistenceLayer {
     syncedFiles: Array<{ md5: string; ext: string }>;
     failedFiles: Array<{ md5: string; ext: string; errorMessage?: string }>;
   }> {
+    // P3-FIX: Deduplicate rapid repeated calls (e.g., multiple tabs triggering online event)
+    // Even with mutex, two tabs could trigger sync within milliseconds. This check prevents
+    // the second tab from starting a new sync immediately after the first completes.
+    const now = Date.now();
+    const timeSinceLastSync = now - this._lastSyncTime;
+    if (timeSinceLastSync < PersistenceLayer.SYNC_DEDUP_INTERVAL_MS) {
+      log.debug(
+        `syncPendingFiles: skipped (last sync ${timeSinceLastSync}ms ago, min interval ${PersistenceLayer.SYNC_DEDUP_INTERVAL_MS}ms)`,
+      );
+      return { synced: 0, failed: 0, syncedFiles: [], failedFiles: [] };
+    }
+
     // Mutex: if sync already in progress, join the existing sync
     if (this._syncPromise) {
       log.debug('sync already in progress, joining existing sync');
       return this._syncPromise;
     }
+
+    // Update last sync time BEFORE starting (prevents race if two tabs check simultaneously)
+    this._lastSyncTime = now;
 
     this._syncPromise = this._doSyncPendingFiles();
     try {

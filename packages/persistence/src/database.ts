@@ -15,6 +15,21 @@ export { SyncStatus } from '@rtc-agent/protocol';
 
 // ========== Local entities (client_id as primary key, server_id as server UUID) ==========
 
+/**
+ * Local entity types: client-first offline-first wrappers around protocol types.
+ *
+ * Design rationale:
+ * - Protocol types (Session, Turn, Message, Rtc) use server-assigned UUIDs as primary keys.
+ * - In an offline-first architecture, the client must generate entities before server sync.
+ * - Local types use `client_id` (client-generated UUID) as the primary key, ensuring
+ *   idempotent writes and conflict-free merges. `server_id` is populated after server response.
+ * - `sync_status` tracks the sync lifecycle (pending → syncing → synced/failed).
+ * - `session_client_id` replaces `session_id` to reference the session's client_id,
+ *   maintaining referential integrity before server IDs are assigned.
+ * - These types use `Omit<T, 'id'>` to inherit all protocol fields except the server ID,
+ *   ensuring schema alignment while swapping the key generation strategy.
+ */
+
 export interface LocalSession extends Omit<Session, 'id'> {
   /** Primary key: client-generated idempotent ID */
   client_id: string;
@@ -330,6 +345,9 @@ export class RTCAgentDatabase extends Dexie {
   ui_updates!: Table<UIUpdateQueueEntry, number>;
   fileCache!: Table<FileCacheEntry, [string, string]>;
   uploadParts!: Table<UploadProgressEntry, [string, string]>;
+
+  /** P3-FIX: Track migration failure for degraded-state detection */
+  private _migrationFailed = false;
 
   constructor(databaseName: string) {
     if (!databaseName) {
@@ -690,12 +708,15 @@ export class RTCAgentDatabase extends Dexie {
     //
     // Strategy: Add a post-migration version check in the open() callback.
     // If actual schema version < expected version, log a warning with recovery guidance.
+    // Also set a migrationFailed flag that can be queried by upper layers.
     const EXPECTED_SCHEMA_VERSION = 16;
+
     this.on('ready', async () => {
       try {
         // Dexie's verno property returns the actual schema version of the opened database
         const actualVersion = this.verno;
         if (actualVersion < EXPECTED_SCHEMA_VERSION) {
+          this._migrationFailed = true;
           log.warn(
             `Schema version mismatch: expected v${EXPECTED_SCHEMA_VERSION}, got v${actualVersion}. ` +
               `This may indicate a failed migration or database downgrade. ` +
@@ -707,6 +728,17 @@ export class RTCAgentDatabase extends Dexie {
         log.debug('Failed to check schema version (non-fatal):', err);
       }
     });
+  }
+
+  /**
+   * Check if database migration failed or is in a degraded state.
+   *
+   * P3-FIX: Returns true if the schema version is lower than expected,
+   * indicating a failed migration or database downgrade. Upper layers
+   * can query this to show degraded-state warnings to users.
+   */
+  isMigrationDegraded(): boolean {
+    return this._migrationFailed;
   }
 }
 

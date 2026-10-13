@@ -11,6 +11,9 @@ const log = createLogger('FileCacheRepository');
 /** Default TTL: 7 days */
 const DEFAULT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
+/** P3-FIX: Extended TTL for pending/failed files: 30 days (prevents premature cleanup of unsynced data) */
+const PENDING_FAILED_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
 /** Maximum retry attempts for sync operations */
 const MAX_RETRY_COUNT = 3;
 
@@ -145,6 +148,13 @@ export class FileCacheRepository {
    * Returns null if not found or expired.
    * Updates lastAccessedAt on hit.
    *
+   * P3-FIX: Race condition note — There's a theoretical window between the expiry check
+   * and the return where the entry could expire. However, this is acceptable because:
+   * 1. The TTL is conservative (7 days for synced, 30 days for pending/failed)
+   * 2. The entry is still valid at the time of check
+   * 3. Subsequent calls will see the expired entry and clean it up
+   * 4. The alternative (holding a lock during the entire operation) would hurt performance
+   *
    * @param md5 File content MD5 hash
    * @param ext File extension
    */
@@ -158,10 +168,32 @@ export class FileCacheRepository {
     }
 
     // Check expiration (but never evict pending/failed files to prevent data loss)
-    if (entry.expiresAt < Date.now() && entry.syncStatus === 'synced') {
+    // P3-FIX: pending/failed files use extended TTL (30 days) to prevent premature cleanup
+    const now = Date.now();
+    const isExpired = entry.expiresAt < now;
+    const isPendingOrFailed =
+      entry.syncStatus === 'pending' || entry.syncStatus === 'failed';
+
+    if (isExpired && entry.syncStatus === 'synced') {
       log.debug(`cache expired: ${md5}.${ext}`);
       await db.fileCache.delete([md5, ext]);
       return null;
+    }
+
+    // P3-FIX: For pending/failed files, check if they've exceeded the extended TTL
+    // This prevents abandoned pending/failed files from accumulating indefinitely
+    if (isExpired && isPendingOrFailed) {
+      // Check if this is a pending/failed file with extended TTL
+      // If it was created with the standard TTL, it should have been upgraded to extended TTL
+      // For safety, we use the extended TTL check here
+      const extendedExpiry = entry.createdAt + PENDING_FAILED_TTL_MS;
+      if (now > extendedExpiry) {
+        log.debug(
+          `cache expired (pending/failed, exceeded 30-day TTL): ${md5}.${ext}`,
+        );
+        await db.fileCache.delete([md5, ext]);
+        return null;
+      }
     }
 
     // Update lastAccessedAt
@@ -182,8 +214,10 @@ export class FileCacheRepository {
   /**
    * Evict all expired cache entries.
    *
-   * Only evicts entries with syncStatus='synced' to prevent data loss.
-   * Pending and failed files are preserved until they are successfully synced.
+   * P3-FIX: Now evicts both synced files (standard TTL) and pending/failed files
+   * that have exceeded the extended TTL (30 days). This prevents abandoned
+   * pending/failed files from accumulating indefinitely while still protecting
+   * recently failed files that might be retried.
    *
    * @returns Number of entries evicted
    */
@@ -192,24 +226,43 @@ export class FileCacheRepository {
     const db = getDatabase();
     const now = Date.now();
 
-    // Only evict expired entries that are already synced to S3
-    // Pending/failed files must be preserved to prevent data loss
-    const expired = await db.fileCache
+    // P3-FIX: Evict expired synced entries (standard TTL check)
+    const expiredSynced = await db.fileCache
       .where('expiresAt')
       .below(now)
       .filter((entry) => entry.syncStatus === 'synced')
       .toArray();
 
-    if (expired.length === 0) {
+    // P3-FIX: Evict pending/failed entries that exceed the extended TTL (30 days)
+    // This prevents abandoned files from accumulating indefinitely
+    const expiredPendingFailed = await db.fileCache
+      .where('expiresAt')
+      .below(now)
+      .filter((entry) => {
+        const isPendingOrFailed =
+          entry.syncStatus === 'pending' || entry.syncStatus === 'failed';
+        if (!isPendingOrFailed) return false;
+
+        // Check if this entry has exceeded the extended TTL from creation time
+        const extendedExpiry = entry.createdAt + PENDING_FAILED_TTL_MS;
+        return now > extendedExpiry;
+      })
+      .toArray();
+
+    const allExpired = [...expiredSynced, ...expiredPendingFailed];
+
+    if (allExpired.length === 0) {
       return 0;
     }
 
-    // Delete expired synced entries
-    const keys = expired.map((e) => [e.md5, e.ext] as [string, string]);
+    // Delete all expired entries
+    const keys = allExpired.map((e) => [e.md5, e.ext] as [string, string]);
     await db.fileCache.bulkDelete(keys);
 
-    log.info(`evicted ${expired.length} expired synced cache entries`);
-    return expired.length;
+    log.info(
+      `evicted ${allExpired.length} expired cache entries (${expiredSynced.length} synced, ${expiredPendingFailed.length} pending/failed)`,
+    );
+    return allExpired.length;
   }
 
   /**
@@ -418,13 +471,16 @@ export class FileCacheRepository {
    * Used for offline-first uploads: file is written locally with syncStatus='pending',
    * then synced to S3 asynchronously.
    *
+   * P3-FIX: pending/failed files now use extended TTL (30 days) to prevent premature cleanup.
+   * This ensures that files waiting for sync are not evicted before they can be synced.
+   *
    * @param md5 File content MD5 hash (32 hex chars)
    * @param ext File extension
    * @param data File content as Blob
    * @param contentType MIME type
    * @param syncStatus Initial sync status
    * @param filename Original filename (optional, for UI display)
-   * @param ttlMs Time-to-live in milliseconds (default: 7 days)
+   * @param ttlMs Time-to-live in milliseconds (default: 7 days for synced, 30 days for pending/failed)
    */
   async putWithSyncStatus(
     md5: string,
@@ -439,13 +495,21 @@ export class FileCacheRepository {
     const db = getDatabase();
     const now = Date.now();
 
+    // P3-FIX: Use extended TTL for pending/failed files to prevent premature cleanup
+    // This ensures that files waiting for sync are not evicted before they can be synced
+    const effectiveTtl =
+      (syncStatus === 'pending' || syncStatus === 'failed') &&
+      ttlMs === DEFAULT_TTL_MS
+        ? PENDING_FAILED_TTL_MS
+        : ttlMs;
+
     const entry: FileCacheEntry = {
       md5,
       ext,
       data,
       contentType,
       size: data.size,
-      expiresAt: now + ttlMs,
+      expiresAt: now + effectiveTtl,
       lastAccessedAt: now,
       createdAt: now,
       syncStatus,
@@ -455,7 +519,7 @@ export class FileCacheRepository {
 
     await db.fileCache.put(entry);
     log.debug(
-      `cached file with sync status: ${md5}.${ext}, status=${syncStatus}, filename=${filename ?? 'n/a'}`,
+      `cached file with sync status: ${md5}.${ext}, status=${syncStatus}, filename=${filename ?? 'n/a'}, ttl=${effectiveTtl}ms`,
     );
   }
 
