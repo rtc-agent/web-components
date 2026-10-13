@@ -44,8 +44,8 @@ const CREDENTIAL_REFRESH_MARGIN_MS = 5 * 60 * 1000;
  * a browser context. This is a client-side check; the server MUST also validate.
  *
  * The list covers common document, image, and data file types. When `allowedExtensions`
- * is not provided in S3ClientOptions, this default is used. Set `allowedExtensions: []`
- * (empty array) to disable extension validation entirely (not recommended).
+ * is not provided in S3ClientOptions, this default is used. Passing `allowedExtensions: []`
+ * (empty array) throws an Error — validation cannot be disabled.
  */
 const DEFAULT_SAFE_EXTENSIONS: ReadonlySet<string> = new Set([
   // Images
@@ -83,7 +83,7 @@ export interface S3ClientOptions {
    * SECURITY: Defense-in-depth validation to block uploading executable content types.
    * - Undefined (default): uses built-in DEFAULT_SAFE_EXTENSIONS allowlist
    * - Non-empty array: overrides the default allowlist with custom extensions
-   * - Empty array []: disables extension validation (NOT recommended)
+   * - Empty array []: throws Error (validation cannot be disabled)
    */
   allowedExtensions?: string[];
 }
@@ -157,7 +157,7 @@ export class S3Client {
    * Built from S3ClientOptions.allowedExtensions:
    * - undefined (default): DEFAULT_SAFE_EXTENSIONS
    * - non-empty array: custom allowlist (converted to Set)
-   * - empty array: empty Set (validation disabled — NOT recommended)
+   * - empty array: throws Error in constructor
    */
   private readonly allowedExtensions: ReadonlySet<string>;
 
@@ -183,7 +183,14 @@ export class S3Client {
       // Default: use built-in safe extensions
       this.allowedExtensions = DEFAULT_SAFE_EXTENSIONS;
     } else {
-      // Custom list (may be empty to disable validation)
+      // SECURITY: Reject empty arrays to prevent accidentally disabling validation.
+      // An empty allowedExtensions would bypass extension checks entirely.
+      if (options.allowedExtensions.length === 0) {
+        throw new Error(
+          'allowedExtensions cannot be empty. Use DEFAULT_SAFE_EXTENSIONS or provide specific extensions.',
+        );
+      }
+      // Custom list
       this.allowedExtensions = new Set(
         options.allowedExtensions.map((ext) => ext.toLowerCase()),
       );
@@ -759,10 +766,11 @@ export class S3Client {
    * - ext: alphanumeric only (no slashes or dots), AND checked against allowedExtensions
    */
   private buildKey(userId: string, md5Hash: string, ext: string): string {
-    // Validate userId (UUID format: alphanumeric + hyphens, 1-64 chars)
-    if (!userId || !/^[a-zA-Z0-9-]{1,64}$/.test(userId)) {
+    // Validate userId (UUID format: 8-4-4-4-12 hex digits, e.g., "550e8400-e29b-41d4-a716-446655440000")
+    // RFC 4122 compliant UUID pattern
+    if (!userId || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(userId)) {
       throw new Error(
-        `Invalid userId: must be 1-64 alphanumeric characters or hyphens`,
+        `Invalid userId: must be a valid UUID format (8-4-4-4-12 hex digits, e.g., "550e8400-e29b-41d4-a716-446655440000")`,
       );
     }
 

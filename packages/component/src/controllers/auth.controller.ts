@@ -236,7 +236,7 @@ export class AuthController implements ReactiveController {
               this._deferredResolve = undefined;
               this._deferredRefresh = undefined;
             }
-          }, 15000);
+          }, AUTH_CONFIG.crossTabRefreshTimeoutMs);
           break;
 
         case 'refresh-success':
@@ -473,8 +473,12 @@ export class AuthController implements ReactiveController {
     if (loggedIn) {
       if (this._isTokenExchangeMode) {
         // Token Exchange mode: perform token exchange immediately
+        // Fix: Set isLoggedIn: false initially to prevent race conditions where
+        // other code checks isLoggedIn before userId is populated from JWT.
+        // The state will be updated to isLoggedIn: true after token exchange completes.
+        this._pendingTokenExchange = true;
         this._state = {
-          isLoggedIn: true,
+          isLoggedIn: false, // Will be set to true after token exchange
           accessToken: '', // Will be set by token exchange
           refreshToken: '', // Not used in token exchange mode
           // DO NOT call provider.getUserId() here: in Token Exchange mode, the host
@@ -488,6 +492,7 @@ export class AuthController implements ReactiveController {
         this.host.requestUpdate();
         void this._performTokenExchange().then((success) => {
           if (this._authProvider !== provider) return;
+          this._pendingTokenExchange = false;
           if (success) {
             this._fireLogin();
           } else {
@@ -514,8 +519,10 @@ export class AuthController implements ReactiveController {
 
       if (this._isTokenExchangeMode) {
         // Token Exchange mode: attempt token exchange even if isLoggedIn() returned false
+        this._pendingTokenExchange = true;
         void this._performTokenExchange().then((success) => {
           if (this._authProvider !== provider) return;
+          this._pendingTokenExchange = false;
           if (success) {
             this._fireLogin();
           }
@@ -794,15 +801,39 @@ export class AuthController implements ReactiveController {
    * Callers MUST check for empty return and handle appropriately (e.g., logout).
    */
   private _parseUserIdFromJwtPayload(token: string): string {
-    if (!token) return '';
+    if (!token) {
+      log.warn('_parseUserIdFromJwtPayload: empty token provided');
+      return '';
+    }
     const payload = parseJwtPayload(token);
     if (!payload) {
-      log.debug('_parseUserIdFromJwt: failed to parse JWT');
+      // Enhanced logging: include token prefix for debugging (without exposing full token)
+      const tokenPrefix = token.substring(0, 20) + '...';
+      log.warn(
+        '_parseUserIdFromJwtPayload: failed to parse JWT, token prefix:',
+        tokenPrefix,
+        'Token may be malformed or not a valid JWT format',
+      );
       return '';
     }
     // RTC JWT uses `user_id`; fall back to standard `sub` for forward compatibility.
     const userId = payload.user_id ?? payload.sub;
-    if (typeof userId !== 'string') return '';
+    if (typeof userId !== 'string') {
+      log.warn(
+        '_parseUserIdFromJwtPayload: user_id/sub claim is not a string, got:',
+        typeof userId,
+        'Available claims:',
+        Object.keys(payload).join(', '),
+      );
+      return '';
+    }
+    if (!userId) {
+      log.warn(
+        '_parseUserIdFromJwtPayload: user_id/sub claim is empty string',
+      );
+      return '';
+    }
+    log.debug('_parseUserIdFromJwtPayload: successfully parsed userId from JWT');
     return userId;
   }
 
@@ -1080,8 +1111,16 @@ export class AuthController implements ReactiveController {
    * tokens after first use).
    */
   private async _executeRefreshWithGuard(): Promise<TokenExpiredAction> {
+    // Timeout protection: prevent indefinite hanging during token refresh
+    const REFRESH_TIMEOUT_MS = AUTH_CONFIG.tokenRefreshTimeoutMs;
+
     if (this._refreshing) {
-      const success = await this._refreshing;
+      const success = await Promise.race([
+        this._refreshing,
+        new Promise<boolean>((_, reject) =>
+          setTimeout(() => reject(new Error('Token refresh timeout')), REFRESH_TIMEOUT_MS)
+        )
+      ]);
       return success ? 'refresh' : 'relogin';
     }
 
@@ -1091,8 +1130,17 @@ export class AuthController implements ReactiveController {
     // a redundant refresh.
     if (this._deferredRefresh) {
       log.debug('Waiting for another tab to complete refresh');
-      const success = await this._deferredRefresh;
+      const success = await Promise.race([
+        this._deferredRefresh,
+        new Promise<boolean>((resolve) =>
+          setTimeout(() => {
+            log.debug('Other tab refresh wait timed out, proceeding independently');
+            resolve(false);
+          }, AUTH_CONFIG.crossTabRefreshTimeoutMs)
+        )
+      ]);
       this._deferredRefresh = undefined;
+      this._deferredResolve = undefined;
       // If the other tab succeeded, state was already updated by the broadcast handler.
       // If it failed or timed out, fall through to start our own refresh.
       if (success) {
@@ -1110,7 +1158,12 @@ export class AuthController implements ReactiveController {
 
     this._refreshing = this._doRefreshWithBroadcast();
     try {
-      const success = await this._refreshing;
+      const success = await Promise.race([
+        this._refreshing,
+        new Promise<boolean>((_, reject) =>
+          setTimeout(() => reject(new Error('Token refresh timeout')), REFRESH_TIMEOUT_MS)
+        )
+      ]);
       return success ? 'refresh' : 'relogin';
     } finally {
       this._refreshing = undefined;

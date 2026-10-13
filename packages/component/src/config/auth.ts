@@ -90,6 +90,12 @@ export const AUTH_CONFIG = {
 
   /** Token refresh buffer time (5 minutes before expiry) */
   refreshBufferMs: 5 * 60 * 1000,
+
+  /** Cross-tab refresh coordination timeout (15 seconds) */
+  crossTabRefreshTimeoutMs: 15000,
+
+  /** Token refresh operation timeout (30 seconds) */
+  tokenRefreshTimeoutMs: 30000,
 } as const;
 
 /** localStorage keys */

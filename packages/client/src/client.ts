@@ -274,7 +274,11 @@ export class RTCAgentClient implements IRTCAgentClient {
         // reconnection scheduling. We return here to avoid falling through to the
         // generic setConnectionState() below — handleInvalidToken() will set the
         // appropriate connection state itself.
-        void this.handleInvalidToken();
+        // Fix: Add catch to prevent unhandled promise rejection
+        this.handleInvalidToken().catch((err) => {
+          log.error('handleInvalidToken failed:', err);
+          this.setConnectionState('disconnected', 'token refresh failed');
+        });
         return;
       }
 

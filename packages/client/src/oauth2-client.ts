@@ -39,12 +39,22 @@ export interface PKCEParams {
 
 /**
  * Generate a cryptographically random code verifier for PKCE.
- * @returns Base64URL-encoded random string (43-128 characters)
+ * @returns Base64URL-encoded random string (43-128 characters per RFC 7636)
  */
 function generateCodeVerifier(): string {
   const array = new Uint8Array(32);
   crypto.getRandomValues(array);
-  return base64UrlEncode(array);
+  const verifier = base64UrlEncode(array);
+
+  // Validate length per RFC 7636 Section 4.1: minimum 43 characters, maximum 128 characters
+  // 32 bytes base64url-encoded = 43 characters (no padding)
+  if (verifier.length < 43 || verifier.length > 128) {
+    throw new Error(
+      `PKCE code verifier length out of bounds: ${verifier.length} characters (expected 43-128)`
+    );
+  }
+
+  return verifier;
 }
 
 /**
@@ -263,13 +273,14 @@ export class OAuth2Client {
             statusCode === 429;
 
           if (isRetryable && attempt < maxRetries) {
-            // Retry after delay
-            await new Promise((resolve) =>
-              setTimeout(
-                resolve,
-                OAuth2Client.TOKEN_EXCHANGE_RETRY_DELAY_MS,
-              ),
-            );
+            // Retry after exponential backoff with jitter
+            // Base delay: 1000ms, multiplier: 2^attempt (1000ms, 2000ms, 4000ms, ...)
+            // Add random jitter (0-500ms) to prevent thundering herd
+            const baseDelay = OAuth2Client.TOKEN_EXCHANGE_RETRY_DELAY_MS * Math.pow(2, attempt);
+            const jitter = Math.random() * 500;
+            const retryDelay = baseDelay + jitter;
+
+            await new Promise((resolve) => setTimeout(resolve, retryDelay));
             continue;
           }
 
@@ -290,13 +301,12 @@ export class OAuth2Client {
         // Network errors (fetch failures, AbortError) are retryable — they indicate
         // transient connectivity issues, not client errors.
         if (attempt < maxRetries) {
-          // Retry after delay
-          await new Promise((resolve) =>
-            setTimeout(
-              resolve,
-              OAuth2Client.TOKEN_EXCHANGE_RETRY_DELAY_MS,
-            ),
-          );
+          // Retry after exponential backoff with jitter
+          const baseDelay = OAuth2Client.TOKEN_EXCHANGE_RETRY_DELAY_MS * Math.pow(2, attempt);
+          const jitter = Math.random() * 500;
+          const retryDelay = baseDelay + jitter;
+
+          await new Promise((resolve) => setTimeout(resolve, retryDelay));
           continue;
         }
 
