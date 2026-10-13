@@ -35,11 +35,21 @@ export function setServerUrl(url: string | null): void {
 }
 
 /**
+ * Allowed hostnames for OAuth2 redirect URIs.
+ *
+ * Security: Prevents open redirect attacks by restricting redirect destinations
+ * to trusted domains. Add production domains to this list.
+ */
+const ALLOWED_REDIRECT_HOSTNAMES = ['localhost'];
+
+/**
  * Override the OAuth redirect URI.
  *
  * Called by the <rtc-agent> component when its `redirect-uri` attribute is set.
  * If the URI starts with '/', it's treated as a path and prepended with window.location.origin.
  * Safe to call multiple times; takes effect immediately for subsequent reads.
+ *
+ * Security: Validates URI against ALLOWED_REDIRECT_HOSTNAMES to prevent open redirects.
  */
 export function setRedirectUri(uri: string | null): void {
   if (!uri || uri.length === 0) {
@@ -50,7 +60,17 @@ export function setRedirectUri(uri: string | null): void {
   if (uri.startsWith('/')) {
     _redirectUri = `${window.location.origin}${uri}`;
   } else {
-    _redirectUri = uri.replace(/\/+$/, '');
+    // Validate absolute URL against allowed hostnames
+    try {
+      const url = new URL(uri);
+      if (!ALLOWED_REDIRECT_HOSTNAMES.includes(url.hostname)) {
+        log.error('Redirect URI hostname not allowed:', url.hostname);
+        return;
+      }
+      _redirectUri = uri.replace(/\/+$/, '');
+    } catch (err) {
+      log.error('Invalid redirect URI:', err);
+    }
   }
 }
 
