@@ -15,6 +15,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { getCityOptions, provinceOptions } from '@/utils/chinaDivision';
 import { queryKeys } from '@/utils/queryKeys';
 import { USER_CACHE } from '@/utils/queryCacheConfig';
+import { getEmailRules } from '@/utils/validation';
 import type { GeographicItemType } from '../data';
 import { queryCity, queryCurrent, queryProvince } from '../service';
 import useStyles from './index.style';
@@ -184,22 +185,7 @@ const BaseView: React.FC = () => {
                   id: 'pages.account.settings.base.email',
                   defaultMessage: 'Email',
                 })}
-                rules={[
-                  {
-                    required: true,
-                    message: intl.formatMessage({
-                      id: 'pages.account.settings.base.emailRequired',
-                      defaultMessage: 'Please enter your email!',
-                    }),
-                  },
-                  {
-                    type: 'email',
-                    message: intl.formatMessage({
-                      id: 'pages.account.settings.base.emailInvalid',
-                      defaultMessage: 'Please enter a valid email address!',
-                    }),
-                  },
-                ]}
+                rules={getEmailRules(intl.formatMessage)}
               />
               <ProFormText
                 width="md"
@@ -296,6 +282,7 @@ const BaseView: React.FC = () => {
                   {({ province }) => {
                     return (
                       <ProFormSelect
+                        // biome-ignore lint/a11y/noLabelWithoutControl: Space placeholder to align with province field above
                         label=" "
                         params={{
                           key: province?.value,

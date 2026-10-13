@@ -15,8 +15,9 @@ import {
 import type { Store } from 'antd/es/form/interface';
 import type { FC } from 'react';
 import { useEffect, useRef, useState } from 'react';
+import { queryKeys } from '@/utils/queryKeys';
 import { fakeRegister } from './service';
-import useStyles from './styles';
+import useStyles from './style';
 
 const FormItem = Form.Item;
 const { Option } = Select;
@@ -138,7 +139,7 @@ const Register: FC = () => {
     },
     onSuccess: (data, params) => {
       if (data.status === 'ok') {
-        queryClient.invalidateQueries({ queryKey: ['current-user'] });
+        queryClient.invalidateQueries({ queryKey: queryKeys.currentUser.all });
         message.success(
           intl.formatMessage({
             id: 'pages.user.register.success',
@@ -286,6 +287,13 @@ const Register: FC = () => {
               styles.password
             }
             rules={[
+              {
+                required: true,
+                message: intl.formatMessage({
+                  id: 'pages.user.register.passwordRequired',
+                  defaultMessage: 'Please enter a password!',
+                }),
+              },
               {
                 validator: checkPassword,
               },

@@ -37,6 +37,7 @@ import {
   updateAdminUser,
 } from './service';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
+import { getEmailRules, getPasswordRules } from '@/utils/validation';
 import type { AdminPageAPI } from './page-api';
 
 /**
@@ -865,32 +866,12 @@ const AdminUserManagementPage: React.FC = () => {
             defaultMessage: 'Please enter email',
           })}
           rules={[
-            {
-              required: true,
-              message: intl.formatMessage({
-                id: 'pages.adminUsers.emailRequired',
-                defaultMessage: 'Please enter email',
-              }),
-            },
+            ...getEmailRules(intl.formatMessage),
             {
               whitespace: true,
               message: intl.formatMessage({
                 id: 'pages.adminUsers.emailWhitespace',
                 defaultMessage: 'Email cannot be only spaces',
-              }),
-            },
-            {
-              type: 'email',
-              message: intl.formatMessage({
-                id: 'pages.adminUsers.emailInvalid',
-                defaultMessage: 'Please enter a valid email address',
-              }),
-            },
-            {
-              max: 255,
-              message: intl.formatMessage({
-                id: 'pages.adminUsers.emailMax',
-                defaultMessage: 'Email address cannot exceed 255 characters',
               }),
             },
           ]}
@@ -905,29 +886,7 @@ const AdminUserManagementPage: React.FC = () => {
             id: 'pages.adminUsers.passwordPlaceholder',
             defaultMessage: 'Please enter password (at least 6 characters)',
           })}
-          rules={[
-            {
-              required: true,
-              message: intl.formatMessage({
-                id: 'pages.adminUsers.passwordRequired',
-                defaultMessage: 'Please enter password',
-              }),
-            },
-            {
-              min: 6,
-              message: intl.formatMessage({
-                id: 'pages.adminUsers.passwordMin',
-                defaultMessage: 'Password must be at least 6 characters',
-              }),
-            },
-            {
-              max: 128,
-              message: intl.formatMessage({
-                id: 'pages.adminUsers.passwordMax',
-                defaultMessage: 'Password cannot exceed 128 characters',
-              }),
-            },
-          ]}
+          rules={getPasswordRules(intl.formatMessage)}
         />
         <ProFormText
           name="name"
