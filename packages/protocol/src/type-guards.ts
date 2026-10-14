@@ -100,6 +100,17 @@ const ERROR_CATEGORIES: ReadonlySet<string> = new Set<ErrorCategory>([
   ErrorCategory.Timeout,
   ErrorCategory.Permission,
 ] as const satisfies readonly ErrorCategory[]);
+const CONTENT_TYPES: ReadonlySet<string> = new Set<string>([
+  'markdown',
+  'summary',
+  'text',
+  'thinking',
+  'toolcall_input',
+  'toolcall_output',
+  'user_message',
+  'error',
+  'prompt',
+]);
 
 /**
  * Type guard for ContentData.
@@ -116,7 +127,8 @@ export function isValidContentData(data: unknown): data is ContentData {
     isNonNullObject(data) &&
     'type' in data &&
     'data' in data &&
-    typeof data.type === 'string'
+    typeof data.type === 'string' &&
+    CONTENT_TYPES.has(data.type)
   );
 }
 
@@ -501,7 +513,7 @@ export function isValidUpdateItem(data: unknown): data is UpdateItem {
  */
 function isValidUpdateItemData(item: UpdateItem, data: unknown): boolean {
   // For deleted actions, data is optional (may only contain client_id)
-  if (item.action === 'deleted') {
+  if (item.action === UpdateAction.Deleted) {
     return data === undefined || data === null || isNonNullObject(data);
   }
 

@@ -24,7 +24,7 @@ import type { IPersistenceLayer, LocalMessage } from '@rtc-agent/persistence';
 import type { SessionController } from './session.controller.js';
 import type { Session } from '../types/index.js';
 import { MessageRepository, MESSAGE_PAGE_SIZE } from '../repositories/index.js';
-import { createLogger } from '@rtc-agent/protocol';
+import { createLogger, isValidContentData } from '@rtc-agent/protocol';
 
 const log = createLogger('MessageController');
 
@@ -1040,28 +1040,6 @@ export class MessageController implements ReactiveController {
   }
 
   /**
-   * Check if a value is a valid ContentData type.
-   * Used to validate JSON.parse results before casting to ContentData.
-   */
-  private _isValidContentDataType(parsed: unknown): parsed is ContentData {
-    if (!parsed || typeof parsed !== 'object' || !('type' in parsed)) {
-      return false;
-    }
-    const type = (parsed as ContentData).type;
-    return (
-      type === 'text' ||
-      type === 'markdown' ||
-      type === 'thinking' ||
-      type === 'user_message' ||
-      type === 'toolcall_input' ||
-      type === 'toolcall_output' ||
-      type === 'error' ||
-      type === 'prompt' ||
-      type === 'summary'
-    );
-  }
-
-  /**
    * Extract plain text from a message's content field.
    *
    * Content storage formats:
@@ -1107,7 +1085,7 @@ export class MessageController implements ReactiveController {
     if (local.content) {
       try {
         const parsed = JSON.parse(local.content);
-        if (this._isValidContentDataType(parsed)) {
+        if (isValidContentData(parsed)) {
           contentData = parsed;
         } else {
           // Fallback: treat raw string as text data

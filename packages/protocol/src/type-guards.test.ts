@@ -389,7 +389,17 @@ describe('type-guards', () => {
     });
 
     it('should return true for ContentData with different types', () => {
-      const types = ['text', 'image', 'tool_call', 'tool_result'];
+      const types = [
+        'markdown',
+        'text',
+        'thinking',
+        'toolcall_input',
+        'toolcall_output',
+        'user_message',
+        'error',
+        'prompt',
+        'summary',
+      ] as const;
       types.forEach((type) => {
         const contentData = {
           type,
@@ -397,6 +407,14 @@ describe('type-guards', () => {
         };
         expect(isValidContentData(contentData)).toBe(true);
       });
+    });
+
+    it('should return false for invalid type discriminator', () => {
+      const contentData = {
+        type: 'image',
+        data: {},
+      };
+      expect(isValidContentData(contentData)).toBe(false);
     });
 
     it('should return false for missing type', () => {

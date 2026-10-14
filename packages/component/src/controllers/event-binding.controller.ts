@@ -49,6 +49,7 @@ import type { SessionTabController } from './session-tab.controller.js';
 import type { SettingsController } from './settings.controller.js';
 import type { NotificationController } from './notification.controller.js';
 import type { Logger } from '@rtc-agent/protocol';
+import type { RtcProcessor } from '@rtc-agent/persistence';
 import { formatBanMessage } from '../utils/format.js';
 
 /**
@@ -81,8 +82,8 @@ export interface EventBindingDeps {
 
   // State accessors (for logout handler)
   autoSaveTimers: Map<string, ReturnType<typeof setTimeout>>;
-  getRtcProcessor: () => any;
-  setRtcProcessor: (value: any) => void;
+  getRtcProcessor: () => RtcProcessor | undefined;
+  setRtcProcessor: (value: RtcProcessor | undefined) => void;
   getUnsubConnection: () => (() => void) | undefined;
   setUnsubConnection: (value: (() => void) | undefined) => void;
   getConnectGeneration: () => number;
