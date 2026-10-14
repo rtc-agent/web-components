@@ -5,6 +5,8 @@ export default mergeConfig(
   baseConfig,
   defineConfig({
     test: {
+      // node environment: persistence layer uses IndexedDB abstraction (Dexie),
+      // tests mock database operations without requiring DOM APIs
       environment: 'node',
       setupFiles: ['./src/test-setup.ts'],
       include: ['src/**/*.test.ts'],
