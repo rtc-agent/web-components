@@ -1,10 +1,11 @@
 /**
  * ARCHITECTURE NOTE (P2-5):
- * withMeta and z (zod) are imported from @rtc-agent/component.
- * These are validation utilities, not core component functionality.
- * FUTURE: Extract to @rtc-agent/validation-utils to reduce coupling.
+ * withMeta is imported from @rtc-agent/component for OpenAPI metadata support.
+ * z (zod) is imported directly from 'zod' for schema validation.
+ * This separates the core validation library from component-specific utilities.
  */
-import { withMeta, z } from '@rtc-agent/component';
+import { withMeta } from '@rtc-agent/component';
+import { z } from 'zod';
 import type { PermissionAwareFunctionDef } from '@/rtc-agent/permission-filter';
 import { ensurePageLoaded } from '@/rtc-agent/utils/page-loader';
 

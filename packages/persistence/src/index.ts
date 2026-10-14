@@ -868,7 +868,7 @@ export class PersistenceLayer implements IPersistenceLayer {
             );
           } else {
             // Small file: direct upload (existing logic)
-            await this.s3Client!.upload(this._userId, md5, ext, blob, {
+            await this._getS3ClientOrThrow().upload(this._userId, md5, ext, blob, {
               contentType,
               signal: txSignal,
               onProgress,
@@ -893,6 +893,17 @@ export class PersistenceLayer implements IPersistenceLayer {
       syncedAt: cached?.syncedAt,
       errorMessage: cached?.errorMessage,
     };
+  }
+
+  /**
+   * Helper method to get S3Client with null check.
+   * Throws a meaningful error if S3Client is not initialized.
+   */
+  private _getS3ClientOrThrow(): S3Client {
+    if (!this.s3Client) {
+      throw new Error('S3Client not initialized - cannot perform file operation');
+    }
+    return this.s3Client;
   }
 
   /**
@@ -938,7 +949,7 @@ export class PersistenceLayer implements IPersistenceLayer {
       try {
         // Verify uploadId is still valid by listing parts
         // P2-R7-02: Pass signal to listParts for cancellation support
-        const serverParts = await this.s3Client!.listParts(
+        const serverParts = await this._getS3ClientOrThrow().listParts(
           this._userId,
           md5,
           ext,
@@ -984,7 +995,7 @@ export class PersistenceLayer implements IPersistenceLayer {
       totalParts = Math.ceil(blob.size / partSize);
 
       // P2-R7-02: Pass signal to createMultipartUpload for cancellation support
-      uploadId = await this.s3Client!.createMultipartUpload(
+      uploadId = await this._getS3ClientOrThrow().createMultipartUpload(
         this._userId,
         md5,
         ext,
@@ -1032,7 +1043,7 @@ export class PersistenceLayer implements IPersistenceLayer {
 
           // Upload part with progress callback
           // P2-R7-02: Pass signal to uploadPart for cancellation support
-          const result = await this.s3Client!.uploadPart(
+          const result = await this._getS3ClientOrThrow().uploadPart(
             this._userId,
             md5,
             ext,
@@ -1064,7 +1075,7 @@ export class PersistenceLayer implements IPersistenceLayer {
 
       // Complete multipart upload
       // P2-R7-02: Pass signal to completeMultipartUpload for cancellation support
-      await this.s3Client!.completeMultipartUpload(
+      await this._getS3ClientOrThrow().completeMultipartUpload(
         this._userId,
         md5,
         ext,
@@ -1202,7 +1213,7 @@ export class PersistenceLayer implements IPersistenceLayer {
                         signal,
                       );
                     } else {
-                      await this.s3Client!.upload(
+                      await this._getS3ClientOrThrow().upload(
                         this._userId,
                         md5,
                         ext,
@@ -1265,7 +1276,7 @@ export class PersistenceLayer implements IPersistenceLayer {
         md5,
         ext,
         () =>
-          this.s3Client!.download(this._userId, md5, ext, {
+          this._getS3ClientOrThrow().download(this._userId, md5, ext, {
             signal,
             onProgress,
           }),
@@ -1651,7 +1662,7 @@ export class PersistenceLayer implements IPersistenceLayer {
                         signal,
                       );
                     } else {
-                      await this.s3Client!.upload(
+                      await this._getS3ClientOrThrow().upload(
                         this._userId,
                         freshEntry.md5,
                         freshEntry.ext,
@@ -1799,7 +1810,7 @@ export class PersistenceLayer implements IPersistenceLayer {
         // Check expiration
         if (progress.expiresAt < Date.now()) {
           try {
-            await this.s3Client!.abortMultipartUpload(
+            await this._getS3ClientOrThrow().abortMultipartUpload(
               this._userId,
               progress.md5,
               progress.ext,

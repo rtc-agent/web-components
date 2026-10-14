@@ -68,7 +68,12 @@ export async function renderTasks(): Promise<void> {
   const tasks = (await registry.execute('task.list', {
     filter: currentFilter,
   })) as Task[];
-  const container = document.getElementById('taskList')!;
+  const container = document.getElementById('taskList');
+
+  if (!container) {
+    log.warn('Task list container not found');
+    return;
+  }
 
   if (tasks.length === 0) {
     // SECURITY: 静态 HTML 字符串，无用户输入，安全
@@ -132,51 +137,80 @@ window.deleteTask = async function (id: string) {
 };
 
 window.openCreateModal = function () {
-  document.getElementById('modalTitle')!.textContent = 'Create Task';
-  (document.getElementById('taskForm') as HTMLFormElement).reset();
-  (document.getElementById('taskId') as HTMLInputElement).value = '';
-  document.getElementById('taskModal')!.classList.add('active');
+  const modalTitle = document.getElementById('modalTitle');
+  const taskForm = document.getElementById('taskForm') as HTMLFormElement | null;
+  const taskId = document.getElementById('taskId') as HTMLInputElement | null;
+  const taskModal = document.getElementById('taskModal');
+
+  if (!modalTitle || !taskForm || !taskId || !taskModal) {
+    log.warn('Required modal elements not found');
+    return;
+  }
+
+  modalTitle.textContent = 'Create Task';
+  taskForm.reset();
+  taskId.value = '';
+  taskModal.classList.add('active');
 };
 
 window.openEditModal = async function (id: string) {
   const task = (await registry.execute('task.get', { id })) as Task;
-  document.getElementById('modalTitle')!.textContent = 'Edit Task';
-  (document.getElementById('taskId') as HTMLInputElement).value = task.id;
-  (document.getElementById('taskTitle') as HTMLInputElement).value = task.title;
-  (document.getElementById('taskPriority') as HTMLSelectElement).value =
-    task.priority;
-  (document.getElementById('taskDueDate') as HTMLInputElement).value =
-    task.dueDate || '';
-  document.getElementById('taskModal')!.classList.add('active');
+  const modalTitle = document.getElementById('modalTitle');
+  const taskId = document.getElementById('taskId') as HTMLInputElement | null;
+  const taskTitle = document.getElementById('taskTitle') as HTMLInputElement | null;
+  const taskPriority = document.getElementById('taskPriority') as HTMLSelectElement | null;
+  const taskDueDate = document.getElementById('taskDueDate') as HTMLInputElement | null;
+  const taskModal = document.getElementById('taskModal');
+
+  if (!modalTitle || !taskId || !taskTitle || !taskPriority || !taskDueDate || !taskModal) {
+    log.warn('Required modal elements not found');
+    return;
+  }
+
+  modalTitle.textContent = 'Edit Task';
+  taskId.value = task.id;
+  taskTitle.value = task.title;
+  taskPriority.value = task.priority;
+  taskDueDate.value = task.dueDate || '';
+  taskModal.classList.add('active');
 };
 
 function closeModal() {
-  document.getElementById('taskModal')!.classList.remove('active');
+  const taskModal = document.getElementById('taskModal');
+  if (!taskModal) {
+    log.warn('Task modal not found');
+    return;
+  }
+  taskModal.classList.remove('active');
 }
 window.closeModal = closeModal;
 
 // Form submit — create or update task
-document.getElementById('taskForm')!.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const id = (document.getElementById('taskId') as HTMLInputElement).value;
-  const title = (document.getElementById('taskTitle') as HTMLInputElement)
-    .value;
-  const priority = (
-    document.getElementById('taskPriority') as HTMLSelectElement
-  ).value as 'low' | 'medium' | 'high';
-  const dueDate =
-    (document.getElementById('taskDueDate') as HTMLInputElement).value ||
-    undefined;
+const taskForm = document.getElementById('taskForm');
+if (taskForm) {
+  taskForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = (document.getElementById('taskId') as HTMLInputElement).value;
+    const title = (document.getElementById('taskTitle') as HTMLInputElement).value;
+    const priority = (document.getElementById('taskPriority') as HTMLSelectElement).value as
+      | 'low'
+      | 'medium'
+      | 'high';
+    const dueDate =
+      (document.getElementById('taskDueDate') as HTMLInputElement).value || undefined;
 
-  if (id) {
-    await registry.execute('task.update', { id, title, priority, dueDate });
-  } else {
-    await registry.execute('task.create', { title, priority, dueDate });
-  }
+    if (id) {
+      await registry.execute('task.update', { id, title, priority, dueDate });
+    } else {
+      await registry.execute('task.create', { title, priority, dueDate });
+    }
 
-  closeModal();
-  renderTasks();
-});
+    closeModal();
+    renderTasks();
+  });
+} else {
+  log.warn('Task form not found');
+}
 
 // Filter buttons
 document.querySelectorAll('.filter-btn').forEach((btn) => {
