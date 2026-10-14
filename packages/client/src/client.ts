@@ -132,6 +132,8 @@ export class RTCAgentClient implements IRTCAgentClient {
   private shouldReconnect = true;
   /** Whether a connection was ever established (distinguishes first connect from reconnect). */
   private wasConnected = false;
+  /** Guard flag to prevent concurrent reconnect() calls. */
+  private _reconnecting = false;
   /** Serialised queue for processing updates. */
   private applyUpdatesQueue: Promise<void> | null = null;
   /** Cached subscription objects keyed by channel name. */
@@ -157,6 +159,8 @@ export class RTCAgentClient implements IRTCAgentClient {
   >();
   /** Current delay for exponential backoff after gap fill failure. Initialized in constructor. */
   private _reconnectDelay!: number;
+  /** Guard flag to prevent concurrent handleInvalidToken() calls. */
+  private _handlingInvalidToken = false;
   /**
    * In-flight token refresh promise for deduplication.
    *
@@ -247,6 +251,16 @@ export class RTCAgentClient implements IRTCAgentClient {
   private static readonly HEARTBEAT_TIMEOUT_MS = 60000; // 60 seconds
   private static readonly HEARTBEAT_CHECK_INTERVAL_MS = 30000; // Check every 30 seconds
 
+  /**
+   * Create a new RTCAgentClient instance.
+   *
+   * IMPORTANT: The `options.userId` field must be extracted from the RTC JWT's `user_id` claim.
+   * This is a non-standard claim specific to the RTC system (not the standard JWT `sub` claim).
+   * The userId is used to construct channel names and must match the JWT's user_id claim for
+   * proper authorization and data isolation.
+   *
+   * @param options - Configuration options for the client
+   */
   constructor(options: RTCAgentClientOptions) {
     this.options = options;
     this._reconnectDelay = RTCAgentClient.RECONNECT_INITIAL_DELAY_MS;
@@ -384,6 +398,10 @@ export class RTCAgentClient implements IRTCAgentClient {
         log.warn(
           'message size limit exceeded, will retry connection after delay',
         );
+        // P1-FIX: Clear any existing reconnect timer to prevent multiple concurrent timers.
+        if (this._reconnectTimer) {
+          clearTimeout(this._reconnectTimer);
+        }
         // Delay reconnect to give the server some buffer time.
         this._reconnectTimer = setTimeout(() => {
           this._reconnectTimer = undefined;
@@ -454,8 +472,17 @@ export class RTCAgentClient implements IRTCAgentClient {
   }
 
   async reconnect(): Promise<void> {
-    this.disconnect();
-    await this.connect();
+    if (this._reconnecting) {
+      log.debug('reconnect already in progress, skipping');
+      return;
+    }
+    this._reconnecting = true;
+    try {
+      this.disconnect();
+      await this.connect();
+    } finally {
+      this._reconnecting = false;
+    }
   }
 
   getConnectionState(): ConnectionState {
@@ -464,6 +491,14 @@ export class RTCAgentClient implements IRTCAgentClient {
 
   /**
    * Get the current user ID.
+   *
+   * SECURITY REQUIREMENT: The userId must be extracted from the RTC JWT's `user_id` claim.
+   * This is a non-standard claim (not the standard `sub` claim) that is specific to the RTC system.
+   *
+   * The userId is used to construct channel names (topic:u={userId}, live:u={userId}) and must
+   * match the user_id claim in the JWT to ensure proper authorization and data isolation.
+   *
+   * @returns The user ID, or undefined if not set in options.
    */
   getUserId(): string | undefined {
     return this.options.userId;
@@ -907,6 +942,10 @@ export class RTCAgentClient implements IRTCAgentClient {
               lastKnownOffset: update.offset - 1,
               serverOffset: update.offset,
             });
+            // P1-FIX: Clear any existing reconnect timer to prevent multiple concurrent timers.
+            if (this._reconnectTimer) {
+              clearTimeout(this._reconnectTimer);
+            }
             this._reconnectTimer = setTimeout(() => {
               this._reconnectTimer = undefined;
               if (
@@ -1415,46 +1454,59 @@ export class RTCAgentClient implements IRTCAgentClient {
    * If onTokenExpired throws, treats it as relogin required to prevent infinite retry loops.
    */
   private async handleInvalidToken(): Promise<void> {
-    if (!this.options.onTokenExpired) {
-      log.warn('invalid token but no onTokenExpired callback provided');
+    if (this._handlingInvalidToken) {
+      log.debug('handleInvalidToken already in progress, skipping');
       return;
     }
-
-    log.info('handleInvalidToken: server rejected token, triggering refresh');
-
+    this._handlingInvalidToken = true;
     try {
-      const action: TokenExpiredAction = await this.options.onTokenExpired();
-      if (action === 'relogin') {
-        // Relogin required — stop reconnecting.
+      if (!this.options.onTokenExpired) {
+        log.warn('invalid token but no onTokenExpired callback provided');
+        return;
+      }
+
+      log.info('handleInvalidToken: server rejected token, triggering refresh');
+
+      try {
+        const action: TokenExpiredAction = await this.options.onTokenExpired();
+        if (action === 'relogin') {
+          // Relogin required — stop reconnecting.
+          this.shouldReconnect = false;
+          this.centrifuge?.disconnect();
+          this.setConnectionState(
+            'disconnected',
+            'token expired, relogin required',
+          );
+        } else {
+          // action === 'refresh' — token refreshed, attempt reconnect.
+          log.debug('token refreshed, attempting to reconnect');
+          // P1-FIX: Clear any existing reconnect timer to prevent multiple concurrent timers.
+          if (this._reconnectTimer) {
+            clearTimeout(this._reconnectTimer);
+          }
+          // Delayed reconnect to avoid rapid retry loops.
+          this._reconnectTimer = setTimeout(() => {
+            this._reconnectTimer = undefined;
+            if (this.shouldReconnect) {
+              this.reconnect().catch((err) => {
+                log.error('reconnect after token refresh failed:', err);
+              });
+            }
+          }, RTCAgentClient.RECONNECT_AFTER_TOKEN_REFRESH_DELAY_MS);
+        }
+      } catch (err) {
+        // SECURITY: onTokenExpired threw an error — treat as relogin required to prevent
+        // infinite retry loops. Log the error but do not expose details to the user.
+        log.error(
+          'handleInvalidToken: onTokenExpired threw an error, treating as relogin required:',
+          err,
+        );
         this.shouldReconnect = false;
         this.centrifuge?.disconnect();
-        this.setConnectionState(
-          'disconnected',
-          'token expired, relogin required',
-        );
-      } else {
-        // action === 'refresh' — token refreshed, attempt reconnect.
-        log.debug('token refreshed, attempting to reconnect');
-        // Delayed reconnect to avoid rapid retry loops.
-        this._reconnectTimer = setTimeout(() => {
-          this._reconnectTimer = undefined;
-          if (this.shouldReconnect) {
-            this.reconnect().catch((err) => {
-              log.error('reconnect after token refresh failed:', err);
-            });
-          }
-        }, RTCAgentClient.RECONNECT_AFTER_TOKEN_REFRESH_DELAY_MS);
+        this.setConnectionState('disconnected', 'token refresh failed');
       }
-    } catch (err) {
-      // SECURITY: onTokenExpired threw an error — treat as relogin required to prevent
-      // infinite retry loops. Log the error but do not expose details to the user.
-      log.error(
-        'handleInvalidToken: onTokenExpired threw an error, treating as relogin required:',
-        err,
-      );
-      this.shouldReconnect = false;
-      this.centrifuge?.disconnect();
-      this.setConnectionState('disconnected', 'token refresh failed');
+    } finally {
+      this._handlingInvalidToken = false;
     }
   }
 
