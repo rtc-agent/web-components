@@ -201,6 +201,42 @@ function getCachedFormatter(
 }
 
 /**
+ * Format a number as currency using current locale.
+ *
+ * Supports international currency formatting:
+ * - zh-CN: ¥123.45
+ * - en-US: $123.45
+ * - de-DE: 123,45 €
+ *
+ * @param amount - Amount to format
+ * @param currency - ISO 4217 currency code (default: 'USD')
+ * @param locale - Optional locale override (defaults to current locale)
+ * @returns Formatted currency string
+ */
+export function formatCurrency(
+  amount: number | undefined | null,
+  currency: string = 'USD',
+  locale?: string
+): string {
+  if (amount === undefined || amount === null || !Number.isFinite(amount)) {
+    return `${currency} 0.00`;
+  }
+
+  const currentLocale = locale || getLocale();
+
+  try {
+    const formatter = getCachedNumberFormatter(currentLocale, {
+      style: 'currency',
+      currency,
+    });
+    return formatter.format(amount);
+  } catch {
+    // Fallback to simple format if locale or currency is invalid
+    return `${currency} ${amount.toFixed(2)}`;
+  }
+}
+
+/**
  * Format a timestamp (ms since epoch) into a locale-aware compact string.
  *
  * Uses `Intl.DateTimeFormat` to produce a format appropriate for the current

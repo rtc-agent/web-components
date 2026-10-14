@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { formatTimestampCompact, extractTextContent } from './format.js';
+import {
+  formatTimestampCompact,
+  extractTextContent,
+  formatCurrency,
+} from './format.js';
 import type { ContentData } from '@rtc-agent/protocol';
 import { getLocale } from '../core/i18n.js';
 
@@ -170,5 +174,79 @@ describe('extractTextContent', () => {
   it('should return empty string for null data in unknown type', () => {
     const content = { type: 'unknown_type' as any, data: null };
     expect(extractTextContent(content)).toBe('');
+  });
+});
+
+describe('formatCurrency', () => {
+  // ── Null/undefined/invalid inputs ──
+
+  it('should return "USD 0.00" for undefined', () => {
+    expect(formatCurrency(undefined)).toBe('USD 0.00');
+  });
+
+  it('should return "USD 0.00" for null', () => {
+    expect(formatCurrency(null)).toBe('USD 0.00');
+  });
+
+  it('should return "USD 0.00" for NaN', () => {
+    expect(formatCurrency(NaN)).toBe('USD 0.00');
+  });
+
+  it('should return "USD 0.00" for Infinity', () => {
+    expect(formatCurrency(Infinity)).toBe('USD 0.00');
+  });
+
+  // ── Basic formatting ──
+
+  it('should format a positive amount in USD', () => {
+    const result = formatCurrency(123.45, 'USD', 'en-US');
+    expect(result).toBe('$123.45');
+  });
+
+  it('should format a negative amount in USD', () => {
+    const result = formatCurrency(-123.45, 'USD', 'en-US');
+    expect(result).toBe('-$123.45');
+  });
+
+  it('should format zero', () => {
+    const result = formatCurrency(0, 'USD', 'en-US');
+    expect(result).toBe('$0.00');
+  });
+
+  // ── Different currencies ──
+
+  it('should format in EUR with German locale', () => {
+    const result = formatCurrency(123.45, 'EUR', 'de-DE');
+    // German format: 123,45 € (with non-breaking space)
+    expect(result).toMatch(/123[,.]45\s*€/);
+  });
+
+  it('should format in CNY with Chinese locale', () => {
+    const result = formatCurrency(123.45, 'CNY', 'zh-CN');
+    expect(result).toMatch(/¥123\.45/);
+  });
+
+  // ── Different locales ──
+
+  it('should format the same amount differently based on locale', () => {
+    const usResult = formatCurrency(1234.56, 'USD', 'en-US');
+    const deResult = formatCurrency(1234.56, 'USD', 'de-DE');
+    // US: $1,234.56, DE: 1.234,56 $
+    expect(usResult).toMatch(/1,234\.56/);
+    expect(deResult).toMatch(/1\.234,56/);
+  });
+
+  // ── Fallback behavior ──
+
+  it('should handle invalid locale gracefully', () => {
+    // Intl.NumberFormat is lenient with invalid locales and will attempt to use a fallback
+    const result = formatCurrency(123.45, 'USD', 'invalid-locale');
+    // Should still produce a valid currency string (may use system fallback)
+    expect(result).toMatch(/\$?123\.45/);
+  });
+
+  it('should handle large amounts', () => {
+    const result = formatCurrency(1234567.89, 'USD', 'en-US');
+    expect(result).toMatch(/1,234,567\.89/);
   });
 });
