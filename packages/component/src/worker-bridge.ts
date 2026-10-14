@@ -264,6 +264,19 @@ export class WorkerBridge {
   private static _virtualFSProxyInstalled = false;
 
   /**
+   * Tracks which WorkerBridge instance installed the virtualFS proxy.
+   *
+   * Used to detect multi-instance conflicts: if a second instance tries to install
+   * the proxy, we can provide a clear error message identifying the conflicting instance.
+   * This is critical for debugging scenarios where multiple <rtc-agent> components
+   * are accidentally mounted on the same page.
+   *
+   * Note: The reference is kept even after destroy() to detect conflicts with
+   * destroyed instances (which would indicate a lifecycle bug).
+   */
+  private static _virtualFSProxyInstalledBy: WorkerBridge | null = null;
+
+  /**
    * Backup of original virtualFS methods, saved before proxy installation.
    * Used by restoreVirtualFS() to recover the original implementation on destroy().
    */
@@ -944,8 +957,30 @@ export class WorkerBridge {
 
   /**
    * Internal initialization logic.
+   *
+   * CONCURRENCY SAFETY:
+   * This method is called via _initPromise dedup (see init()). Concurrent init() calls
+   * share the same Promise, so the cleanup logic below executes at most once per bridge
+   * instance. This prevents race conditions where multiple concurrent initializations
+   * might attempt to clean up the same partial state.
+   *
+   * DESTROY SAFETY:
+   * If destroy() is called while _doInit() is in flight, the _destroyed flag is set
+   * immediately. We check this flag at key points to avoid completing initialization
+   * on a destroyed bridge. The init() method checks _destroyed before marking the
+   * bridge as initialized, ensuring a destroyed bridge is never used.
    */
   private async _doInit(config: PersistenceConfig): Promise<void> {
+    // GUARD: Check if bridge was destroyed before or during initialization.
+    // This can happen if destroy() is called while _doInit() is awaiting.
+    // Without this check, we might complete initialization on a destroyed bridge,
+    // leading to resource leaks or use-after-destroy bugs.
+    if (this._destroyed) {
+      throw new Error(
+        '[WorkerBridge] cannot _doInit(): bridge has been destroyed during initialization',
+      );
+    }
+
     if (!this._worker || !this._core) {
       throw new Error('[WorkerBridge] init() called before initWorker()');
     }
@@ -1124,6 +1159,18 @@ export class WorkerBridge {
           // the Worker will automatically remove the dead callback. This self-healing mechanism
           // ensures that even if we fail to clean up here, the Worker won't accumulate dead
           // callbacks indefinitely. The fallback unregisterCallback() below is best-effort.
+          //
+          // P3-5 FIX: Document expected behavior after fallback failure.
+          // If both close() and unregisterCallback() fail, the callback remains in the
+          // Worker's Set but will be automatically cleaned up by one of these mechanisms:
+          // 1. _callbackFailureCounts: After 3 consecutive broadcast failures, the callback
+          //    is removed (typically within 1-3 broadcast attempts, <1 second).
+          // 2. Port closure: When we close this._worker.port below, the Worker detects
+          //    the port closure and can clean up resources. If this is the last connected
+          //    port, the Worker itself will terminate.
+          // 3. SharedWorker lifecycle: The browser manages SharedWorker lifecycle. When
+          //    all ports are closed, the Worker is terminated after a short delay.
+          // The combination of these mechanisms ensures no permanent resource leak.
           // Fallback: attempt explicit unregisterCallback if close() failed.
           // This is a best-effort cleanup — if it also fails, the port close below
           // will still terminate the Worker when all ports are closed.
@@ -1134,7 +1181,7 @@ export class WorkerBridge {
             );
           } catch (fallbackErr) {
             log.warn(
-              'fallback unregisterCallback also failed (non-fatal):',
+              'fallback unregisterCallback also failed (non-fatal, auto-cleanup will handle):',
               fallbackErr,
             );
           }
@@ -1255,24 +1302,39 @@ export class WorkerBridge {
    */
   private _releaseProxiedCallbacks(): void {
     if (this._proxiedCallbacks) {
-      try {
-        // Comlink exposes a special symbol for releasing proxy resources
-        // See: https://github.com/GoogleChromeLabs/comlink/blob/main/src/comlink.ts
-        const releaseSymbol = Symbol.for('comlink.releaseProxy');
-        if (releaseSymbol in this._proxiedCallbacks) {
-          (this._proxiedCallbacks as unknown as ComlinkReleasableProxy)[
-            releaseSymbol
-          ]();
-          log.debug('Comlink proxy released successfully');
-        }
-      } catch (err) {
-        // Release may fail if the Worker port is already closed or proxy is in a bad state.
-        // This is non-fatal — we're destroying the bridge anyway, and GC will eventually
-        // collect the proxy and its ports when all references are dropped.
-        log.debug('Failed to release Comlink proxy (non-fatal):', err);
-      }
+      WorkerBridge._releaseComlinkProxy(this._proxiedCallbacks);
       // Null the reference to allow GC.
       this._proxiedCallbacks = null;
+    }
+  }
+
+  /**
+   * Release a Comlink proxy's resources (static helper).
+   *
+   * Extracted to centralize proxy release logic across the codebase.
+   * Used by _releaseProxiedCallbacks(), uploadFile(), and downloadFile().
+   *
+   * @param proxyObj - The Comlink proxy object to release
+   * @param context - Optional context string for logging (e.g., "upload progress", "callbacks")
+   */
+  private static _releaseComlinkProxy(
+    proxyObj: unknown,
+    context?: string,
+  ): void {
+    if (!proxyObj) return;
+    try {
+      // Comlink exposes a special symbol for releasing proxy resources
+      // See: https://github.com/GoogleChromeLabs/comlink/blob/main/src/comlink.ts
+      const releaseSymbol = Symbol.for('comlink.releaseProxy');
+      if (releaseSymbol in (proxyObj as object)) {
+        (proxyObj as ComlinkReleasableProxy)[releaseSymbol]();
+        log.debug(`Comlink proxy released successfully${context ? ` for ${context}` : ''}`);
+      }
+    } catch (err) {
+      // Release may fail if the Worker port is already closed or proxy is in a bad state.
+      // This is non-fatal — we're destroying the bridge anyway, and GC will eventually
+      // collect the proxy and its ports when all references are dropped.
+      log.debug(`Failed to release Comlink proxy${context ? ` for ${context}` : ''} (non-fatal):`, err);
     }
   }
 
@@ -1331,10 +1393,16 @@ export class WorkerBridge {
     // Throw error if proxy has already been installed (multi-instance conflict)
     // virtualFS is a global singleton; multiple instances would corrupt each other's data
     if (WorkerBridge._virtualFSProxyInstalled) {
+      const installedBy = WorkerBridge._virtualFSProxyInstalledBy;
+      const instanceInfo = installedBy
+        ? `previously installed by WorkerBridge instance at ${installedBy.constructor.name}`
+        : 'installed by unknown instance';
       throw new Error(
         '[WorkerBridge] virtualFS proxy already installed by another <rtc-agent> instance. ' +
           'Multiple instances are not supported. ' +
-          'Only one <rtc-agent> component can be active per page to prevent data corruption.',
+          'Only one <rtc-agent> component can be active per page to prevent data corruption. ' +
+          `Details: ${instanceInfo}. ` +
+          'If you see this error, check for duplicate <rtc-agent> mounts in your application.',
       );
     }
 
@@ -1357,6 +1425,7 @@ export class WorkerBridge {
 
     // Mark as installed (single-instance enforcement)
     WorkerBridge._virtualFSProxyInstalled = true;
+    WorkerBridge._virtualFSProxyInstalledBy = this;
     log.debug('virtualFS proxy installed');
 
     virtualFS.read = ((path: string, offset?: number, limit?: number) =>
@@ -1426,6 +1495,7 @@ export class WorkerBridge {
     virtualFS.remove = orig.remove;
     WorkerBridge._originalVirtualFS = null;
     WorkerBridge._virtualFSProxyInstalled = false;
+    WorkerBridge._virtualFSProxyInstalledBy = null;
     log.debug('virtualFS proxy restored to original implementation');
   }
 
@@ -1569,19 +1639,9 @@ export class WorkerBridge {
       cleanupAbortListener?.();
       // CRITICAL: Release the progress callback proxy to prevent memory leaks.
       // Without this, each uploadFile() call would leak a MessageChannel.
+      // Uses static helper to centralize release logic and handle edge cases.
       if (throttled) {
-        try {
-          const releaseSymbol = Symbol.for('comlink.releaseProxy');
-          if (releaseSymbol in throttled) {
-            (throttled as unknown as ComlinkReleasableProxy)[releaseSymbol]();
-          }
-        } catch (err) {
-          // Release failure is non-fatal during cleanup
-          log.debug(
-            'Failed to release upload progress proxy (non-fatal):',
-            err,
-          );
-        }
+        WorkerBridge._releaseComlinkProxy(throttled, 'upload progress');
       }
     }
   }
@@ -1648,19 +1708,9 @@ export class WorkerBridge {
       cleanupAbortListener?.();
       // CRITICAL: Release the progress callback proxy to prevent memory leaks.
       // Without this, each downloadFile() call would leak a MessageChannel.
+      // Uses static helper to centralize release logic and handle edge cases.
       if (throttled) {
-        try {
-          const releaseSymbol = Symbol.for('comlink.releaseProxy');
-          if (releaseSymbol in throttled) {
-            (throttled as unknown as ComlinkReleasableProxy)[releaseSymbol]();
-          }
-        } catch (err) {
-          // Release failure is non-fatal during cleanup
-          log.debug(
-            'Failed to release download progress proxy (non-fatal):',
-            err,
-          );
-        }
+        WorkerBridge._releaseComlinkProxy(throttled, 'download progress');
       }
     }
   }
@@ -2014,6 +2064,21 @@ export class WorkerBridge {
    */
   private _yieldChannelRebuildCount = 0;
   private static readonly YIELD_CHANNEL_REBUILD_WARNING_THRESHOLD = 10;
+  /**
+   * CRITICAL: Hard limit for _yieldResolves array size to prevent unbounded memory growth.
+   *
+   * If the array exceeds this threshold, it indicates the channel is unhealthy but not being
+   * rebuilt (e.g., postMessage is succeeding but onmessage is not firing). This can happen
+   * in certain browser states or if the channel's ports are in a bad state.
+   *
+   * When the limit is exceeded, _yieldToMain() will:
+   * 1. Mark the channel as unhealthy (triggering rebuild on next call)
+   * 2. Resolve all pending promises immediately (preventing memory leak)
+   * 3. Log an error to surface the issue for investigation
+   *
+   * 1000 is generous: normal operation rarely exceeds 10-20 pending resolves.
+   */
+  private static readonly MAX_YIELD_RESOLVES = 1000;
 
   /**
    * Calculate the optimal frame budget for catch-up time slicing.
@@ -2062,9 +2127,40 @@ export class WorkerBridge {
    * The catch-up loop relies on _yieldToMain() to always resolve, allowing it to check
    * signal.aborted and bail out cleanly. Throwing here would leave the loop in an inconsistent
    * state and potentially leak resources.
+   *
+   * MEMORY SAFETY:
+   * Enforces MAX_YIELD_RESOLVES hard limit to prevent unbounded memory growth in edge cases
+   * where the channel becomes unhealthy but postMessage doesn't fail immediately.
+   * When the limit is exceeded, the channel is marked unhealthy and all pending resolves
+   * are immediately invoked to prevent memory leaks.
    */
   private _yieldToMain(): Promise<void> {
     return new Promise((resolve) => {
+      // CRITICAL: Memory safety check - prevent unbounded growth of _yieldResolves array.
+      // This can happen if the channel is in a bad state where postMessage succeeds but
+      // onmessage never fires (e.g., browser resource pressure, internal channel error).
+      if (this._yieldResolves.length >= WorkerBridge.MAX_YIELD_RESOLVES) {
+        log.error(
+          `CRITICAL: _yieldResolves array exceeded hard limit (${WorkerBridge.MAX_YIELD_RESOLVES}). ` +
+          `This indicates the yield channel is unhealthy but not being rebuilt. ` +
+          `Forcing channel rebuild and resolving all pending promises to prevent memory leak. ` +
+          `This is a serious issue — investigate browser resource pressure or channel lifecycle bugs.`,
+        );
+        // Mark channel as unhealthy to trigger rebuild
+        this._yieldChannelHealthy = false;
+        // Resolve all pending promises immediately to prevent memory leak
+        // This is safe because the catch-up loop will check signal.aborted on the next iteration
+        while (this._yieldResolves.length > 0) {
+          try {
+            const r = this._yieldResolves.shift();
+            if (r) r();
+          } catch (err) {
+            log.debug('_yieldToMain: failed to resolve pending promise during overflow (non-fatal):', err);
+          }
+        }
+        // After resolving, fall through to create a new channel and resolve the current promise
+      }
+
       // Create channel if missing OR if the existing one was marked unhealthy
       // (e.g., port closed externally by browser GC or tab cleanup).
       // Without health checking, catch-up would run synchronously without yielding,

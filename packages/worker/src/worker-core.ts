@@ -1023,6 +1023,14 @@ export class WorkerCore implements WorkerPersistenceCore {
       // Recovery strategy: Clear all callbacks and failure counts to allow fresh registration.
       // The next tab that connects will re-register callbacks, restoring normal operation.
       // This is preferable to leaving dead callbacks that would never recover.
+      //
+      // P3-3 FIX: Add observability for recovery and document expected behavior.
+      // After clearing callbacks, the Worker continues operating but in a "degraded" state:
+      // - UI updates are not broadcast (no tabs to receive them)
+      // - Token requests will fail (no callbacks to obtain tokens)
+      // - The next registerCallback() call will restore normal operation
+      // This is the safest recovery path because attempting to resurrect stale callbacks
+      // could cause data corruption or unpredictable behavior.
       if (callbacks.length > 0 && rejected === callbacks.length) {
         // CRITICAL: Use log.error (not log.warn) to surface this as a critical issue.
         // log.warn would be filtered out in production logs, making this invisible.
@@ -1030,7 +1038,9 @@ export class WorkerCore implements WorkerPersistenceCore {
           `CRITICAL: broadcastUIUpdate: all ${callbacks.length} callbacks rejected, ` +
           `system entering zombie state. Triggering full cleanup and recovery. ` +
           `This indicates all connected tabs crashed or disconnected abnormally. ` +
-          `Next tab connection will re-register callbacks and restore normal operation.`,
+          `Recovery: callbacks cleared, next registerCallback() will restore normal operation. ` +
+          `Pending operations: ${this._operationControllers.size} file operations may fail. ` +
+          `Diagnostic: Check browser console for tab crashes, OOM kills, or network disconnections.`,
         );
         // Clear all callbacks and pending operations to prevent cascading failures
         this.callbacks.clear();
@@ -1039,6 +1049,19 @@ export class WorkerCore implements WorkerPersistenceCore {
         // access to the original callback references. The recovery happens naturally
         // when the next tab calls registerCallback(). This is the safest approach
         // because attempting to resurrect stale callbacks could cause data corruption.
+        //
+        // P3-4 FIX: Abort pending file operations to prevent them from hanging indefinitely.
+        // These operations will fail with AbortError, which is preferable to leaving them
+        // in a pending state where they might consume resources or block other operations.
+        if (this._operationControllers.size > 0) {
+          log.warn(
+            `Aborting ${this._operationControllers.size} pending file operations due to zombie state recovery`,
+          );
+          for (const [, ac] of this._operationControllers) {
+            ac.abort();
+          }
+          this._operationControllers.clear();
+        }
       }
 
       // Log slow broadcasts (>16ms frame budget) for performance debugging
