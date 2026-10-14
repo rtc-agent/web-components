@@ -233,7 +233,7 @@ describe('MessageController', () => {
     expect(ctrl.value.state.messages).toHaveLength(2);
   });
 
-  it('should return shallow copy of state to prevent external mutation', async () => {
+  it('should return frozen state to prevent external mutation', async () => {
     const host = new MockHost();
     const ctrl = new MessageController(host as any);
     createMockDeps(ctrl);
@@ -242,11 +242,22 @@ describe('MessageController', () => {
     const state1 = ctrl.value.state;
     const state2 = ctrl.value.state;
 
-    // Messages array should be a different reference each time
-    expect(state1.messages).not.toBe(state2.messages);
+    // P1 Fix: State is now frozen (Object.freeze) and returns the same reference.
+    // This is safe because frozen objects are immutable.
+    // This reduces garbage collection pressure and improves performance.
+    expect(state1.messages).toBe(state2.messages);
 
-    // But content should be equal
+    // State should be frozen (immutable)
+    expect(Object.isFrozen(state1)).toBe(true);
+    expect(Object.isFrozen(state1.messages)).toBe(true);
+
+    // Content should be equal
     expect(state1.messages).toEqual(state2.messages);
+
+    // Attempting to modify frozen state should throw in strict mode
+    expect(() => {
+      (state1.messages as Message[]).push({} as Message);
+    }).toThrow();
   });
 });
 

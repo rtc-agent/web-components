@@ -32,6 +32,7 @@ import { SettingsContext } from '../../contexts/settings.js';
 import type { SettingsContextValue } from '../../contexts/settings.js';
 import { AuthContext } from '../../contexts/auth.js';
 import type { AuthContextValue } from '../../contexts/auth.js';
+import { validateAuthContext } from '../../utils/context-validation.js';
 import '../logo/rtc-logo.js';
 import type { SettingsCategory } from './rtc-settings-nav.js';
 import './rtc-settings-nav.js';
@@ -435,6 +436,24 @@ export class RtcSettingsLayout extends LitElement {
   /** Render account panel */
   private _renderAccount() {
     const auth = this._authCtx;
+
+    // P1 Fix: Runtime type validation for Context consumer.
+    // Catches type mismatches early (e.g., if provider sends malformed data).
+    if (auth && !validateAuthContext(auth)) {
+      log.warn('AuthContext validation failed, rendering fallback UI');
+      return html`
+            <div class="panel-header" id="panel-header-account">${panelTitle('account')}</div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <label>${msg('账户状态')}</label>
+                </div>
+                <div class="setting-control">
+                    <span class="info-value">${msg('上下文数据异常，请刷新页面')}</span>
+                </div>
+            </div>
+        `;
+    }
+
     const userId = auth?.state.userId ?? msg('未登录');
 
     return html`
@@ -458,7 +477,7 @@ export class RtcSettingsLayout extends LitElement {
                         class="danger"
                         aria-label="${msg('登出')}"
                         ?disabled=${!auth?.state.isLoggedIn}
-                        @click=${() => auth?.logout()}
+                        @click=${() => auth?.actions.logout()}
                     >${msg('登出')}</button>
                 </div>
             </div>

@@ -30,6 +30,7 @@ import {
   SessionContext,
   type SessionContextValue,
 } from '../../contexts/session.js';
+import { validateSessionContext } from '../../utils/context-validation.js';
 import { clockIcon, plusIcon, checklistIcon } from '../../icons/index.js';
 import '../overlay/rtc-session-panel.js';
 import '../overlay/rtc-todo-panel.js';
@@ -357,6 +358,18 @@ export class RtcSessionHeader extends LitElement {
 
   render() {
     void this._localeCtx.locale;
+
+    // P1 Fix: Runtime type validation for Context consumer.
+    // Catches type mismatches early (e.g., if provider sends malformed data).
+    if (!validateSessionContext(this._sessionCtx)) {
+      log.warn('SessionContext validation failed, using fallback rendering');
+      return html`
+        <div class="session-header">
+          <span class="session-title" part="title">${msg('会话数据异常')}</span>
+        </div>
+      `;
+    }
+
     const sessions: Session[] = this._sessionCtx.state.sessions;
     const currentSessionId = this._sessionCtx.state.currentSessionId;
 

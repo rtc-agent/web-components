@@ -105,29 +105,15 @@ export class AuthController implements ReactiveController {
   private _tokenExchanging = false;
 
   /**
-   * StrictMode temporary disconnect flag — prevents BroadcastChannel from being
-   * closed during React StrictMode's unmount/remount cycle.
+   * StrictMode temporary disconnect flag — prevents redundant BroadcastChannel
+   * re-initialization during React StrictMode's unmount/remount cycle.
    *
-   * React StrictMode simulates unmount+remount to detect side-effect bugs. Without
-   * this flag, hostDisconnected() closes the BroadcastChannel, and the subsequent
-   * hostConnected() reopens it, creating a brief window where cross-tab coordination
-   * fails. By marking the disconnect as "temporary", we skip closing the channel
-   * and simply restore state on reconnect.
+   * React StrictMode simulates unmount+remount to detect side-effect bugs. When
+   * hostDisconnected() closes the BroadcastChannel, this flag marks the disconnect
+   * as "temporary" so hostConnected() can re-open it. Without this flag, every
+   * disconnect would be treated as permanent, causing unnecessary channel churn.
    */
   private _isTemporaryDisconnect = false;
-
-  /**
-   * Reconnection flag for microtask-based BroadcastChannel cleanup.
-   *
-   * Set to true in hostConnected(), checked in a queueMicrotask() after
-   * hostDisconnected(). If the host does not reconnect within the same
-   * synchronous execution (i.e., this is a permanent disconnect, not StrictMode),
-   * the BroadcastChannel is closed to prevent orphaned message handlers.
-   *
-   * This handles edge cases where the element is removed from DOM without
-   * destroy() being called (e.g., direct element.remove() by host application).
-   */
-  private _isReconnected = false;
 
   /**
    * Pending Token Exchange flag — allows refresh-success handler to accept tokens
@@ -185,7 +171,9 @@ export class AuthController implements ReactiveController {
       return this._cachedValue;
     }
     this._cachedState = this._state;
-    this._cachedValue = { state: this._state, ...this.actions };
+    // P1 Fix: Follow the standard {state, actions} pattern consistent with other Contexts.
+    // This ensures a uniform API across all contexts (SessionContext, ModeContext, etc.).
+    this._cachedValue = { state: this._state, actions: this.actions };
     return this._cachedValue;
   }
 
@@ -325,10 +313,6 @@ export class AuthController implements ReactiveController {
   }
 
   hostConnected() {
-    // Mark as reconnected so the microtask in hostDisconnected() knows not to close
-    // the BroadcastChannel (handles React StrictMode's rapid unmount/remount cycle).
-    this._isReconnected = true;
-
     this._boundVisibilityHandler = this._onVisibilityChange.bind(this);
     document.addEventListener('visibilitychange', this._boundVisibilityHandler);
 
@@ -346,10 +330,16 @@ export class AuthController implements ReactiveController {
     }
 
     // If this is a reconnect after a temporary disconnect (StrictMode),
-    // the BroadcastChannel is still open — no need to reopen it.
+    // re-open the BroadcastChannel that was closed in hostDisconnected().
+    // This ensures cross-tab token refresh coordination is restored.
     if (this._isTemporaryDisconnect) {
       log.debug('Reconnecting after temporary disconnect');
       this._isTemporaryDisconnect = false;
+      // Re-open BroadcastChannel if not already open
+      // (closed synchronously in hostDisconnected to prevent GC leaks)
+      if (!this._refreshChannel) {
+        this._initBroadcastChannel();
+      }
     }
   }
 
@@ -363,12 +353,19 @@ export class AuthController implements ReactiveController {
    * or when the controller is GC'd with the element.
    *
    * BroadcastChannel lifecycle:
-   * - React StrictMode: The channel stays open across rapid unmount/remount cycles.
-   *   The _isTemporaryDisconnect flag prevents premature closure.
-   * - Permanent disconnect (element removed without destroy()): A microtask check
-   *   detects that the host did not reconnect and closes the channel to prevent
-   *   orphaned message handlers.
-   * - Factory destroy(): Calls destroy() which explicitly closes the channel.
+   * - React StrictMode: The channel is closed synchronously here, but re-opened
+   *   in hostConnected() if the host reconnects (handles StrictMode's rapid
+   *   unmount/remount cycle).
+   * - Permanent disconnect (element removed without destroy()): The channel is
+   *   closed synchronously, preventing orphaned message handlers immediately.
+   * - Factory destroy(): Calls destroy() which explicitly closes the channel
+   *   (idempotent — safe to call multiple times).
+   *
+   * Why synchronous close instead of queueMicrotask:
+   * - The previous microtask-based approach held a closure reference to `this`,
+   *   preventing GC if the component was removed before the microtask ran.
+   * - Synchronous close eliminates this leak risk entirely.
+   * - hostConnected() re-opens the channel if needed (StrictMode remount).
    */
   hostDisconnected() {
     if (this._boundVisibilityHandler) {
@@ -389,33 +386,17 @@ export class AuthController implements ReactiveController {
       this._deferredResolve = undefined;
       this._deferredRefresh = undefined;
     }
-    // Mark as temporary disconnect — BroadcastChannel stays open for StrictMode remount.
-    // The channel will be closed by _performLogout() on actual logout/destroy,
-    // or by the microtask below if the host does not reconnect (permanent disconnect).
+    // Mark as temporary disconnect — hostConnected() will re-open the channel
+    // if the host reconnects (React StrictMode's rapid unmount/remount cycle).
     this._isTemporaryDisconnect = true;
-    // Reset reconnection flag: hostConnected() will set it to true if the host
-    // reconnects synchronously (StrictMode). If not, the microtask will close the channel.
-    this._isReconnected = false;
 
-    // Microtask check: if the host has not reconnected by the time this microtask runs,
-    // it means this is a permanent disconnect (not StrictMode). Close the BroadcastChannel
-    // to prevent orphaned message handlers and cross-tab coordination on a detached element.
-    //
-    // Why microtask instead of immediate close:
-    // - React StrictMode unmounts and remounts synchronously in the same commit
-    // - By the time the microtask runs, hostConnected() has already set _isReconnected = true
-    // - If _isReconnected is still false, we know the host did not reconnect
-    //
-    // Why this is safe:
-    // - destroy() explicitly closes the channel anyway, so this is a fallback for edge cases
-    // - closeBroadcastChannel() is idempotent (safe to call multiple times)
-    // - If the host reconnects after this microtask (unlikely but possible), the channel
-    //   will be reopened in _initBroadcastChannel() on next construction (not here)
-    queueMicrotask(() => {
-      if (!this._isReconnected) {
-        this.closeBroadcastChannel();
-      }
-    });
+    // Close BroadcastChannel synchronously to prevent message handler leaks.
+    // If the host reconnects (StrictMode), hostConnected() will re-open it.
+    // This is safe because:
+    // 1. closeBroadcastChannel() is idempotent (safe to call multiple times)
+    // 2. hostConnected() re-initializes the channel if needed
+    // 3. No closure reference to `this` is held (unlike the old queueMicrotask approach)
+    this.closeBroadcastChannel();
   }
 
   /**
@@ -482,10 +463,13 @@ export class AuthController implements ReactiveController {
   /**
    * Convenience: trigger login directly on the controller.
    *
-   * Design exception for AuthController: `login`/`logout` are exposed at the
-   * controller top level (not nested under `actions`), because auth is a
-   * root-level concern and external callers (demo page, protocol layer) need
-   * a straightforward API. Internally delegates to `_login()`.
+   * Note: For Context consumers, login/logout are accessed via `actions.login()`
+   * and `actions.logout()` to maintain consistency with other Contexts
+   * (SessionContext, ModeContext, etc.).
+   *
+   * These controller-level methods are for direct callers (demo page, protocol layer)
+   * who have a reference to the controller itself, not the Context value.
+   * Internally delegates to `_login()`.
    */
   login() {
     this._login();

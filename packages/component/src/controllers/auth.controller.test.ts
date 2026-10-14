@@ -623,17 +623,32 @@ describe('AuthController - BroadcastChannel coordination', () => {
     expect(MockBroadcastChannel.channels.get('rtc-auth-refresh')).toHaveLength(1);
   });
 
-  it('should NOT close BroadcastChannel on hostDisconnected (StrictMode support)', () => {
+  it('should close BroadcastChannel synchronously on hostDisconnected and reopen on hostConnected (StrictMode support)', () => {
     const host = createMockHost();
     const ctrl = new AuthController(host as any);
 
-    // Simulate StrictMode disconnect
-    ctrl.hostDisconnected();
-
-    // Channel should still be open
-    const channels = MockBroadcastChannel.channels.get('rtc-auth-refresh');
+    // Initial state: channel is open
+    let channels = MockBroadcastChannel.channels.get('rtc-auth-refresh');
     expect(channels).toHaveLength(1);
-    expect(channels![0].closed).toBe(false);
+    const firstChannel = channels![0];
+    expect(firstChannel.closed).toBe(false);
+
+    // Simulate StrictMode disconnect - channel closes synchronously
+    ctrl.hostDisconnected();
+    // After close(), the channel is removed from the tracking array
+    channels = MockBroadcastChannel.channels.get('rtc-auth-refresh');
+    expect(channels).toHaveLength(0);
+    // But the channel object should be marked as closed
+    expect(firstChannel.closed).toBe(true);
+
+    // Simulate StrictMode reconnect - channel reopens
+    ctrl.hostConnected();
+    channels = MockBroadcastChannel.channels.get('rtc-auth-refresh');
+    // A new channel should be created
+    expect(channels).toHaveLength(1);
+    const newChannel = channels![0];
+    expect(newChannel).not.toBe(firstChannel); // Different instance
+    expect(newChannel.closed).toBe(false);
   });
 
   it('should close BroadcastChannel on logout', async () => {

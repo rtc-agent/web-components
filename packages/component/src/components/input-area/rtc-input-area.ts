@@ -46,6 +46,7 @@ import {
   MessageContext,
   type MessageContextValue,
 } from '../../contexts/message.js';
+import { validateMessageContext } from '../../utils/context-validation.js';
 import {
   SettingsContext,
   type SettingsContextValue,
@@ -1135,6 +1136,15 @@ export class RtcInputArea extends LitElement {
 
   render() {
     void this._localeCtx.locale;
+
+    // P1 Fix: Runtime type validation for Context consumer.
+    // Catches type mismatches early (e.g., if provider sends malformed data).
+    // Only validate in dev mode to avoid production overhead.
+    if (!validateMessageContext(this._messageCtx)) {
+      log.warn('MessageContext validation failed, input may not function correctly');
+      // Don't block rendering - just log the warning
+    }
+
     return html`
       <div class="input-inner">
         <div class="textarea-container">

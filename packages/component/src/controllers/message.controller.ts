@@ -57,6 +57,14 @@ export class MessageController implements ReactiveController {
    *
    * In extreme cases (1000+ session switches in rapid succession), this prevents
    * memory leaks while maintaining serialization correctness for active sessions.
+   *
+   * **P1 Fix - Eviction Safety**:
+   * Before evicting a chain, we now check if it's still actively processing updates.
+   * An active chain is one whose Promise has not yet settled (still has pending operations).
+   * If the oldest chain is active, we skip eviction to prevent losing updates.
+   * This handles the edge case where a session has pending sync operations that
+   * haven't completed - evicting such a session would cause subsequent updates
+   * to bypass serialization, potentially leading to race conditions or lost updates.
    */
   private _sessionUpdateChains = new Map<string, Promise<void>>();
 
@@ -64,34 +72,64 @@ export class MessageController implements ReactiveController {
   private static readonly MAX_SESSION_CHAINS = 50;
 
   /**
+   * Check if a chain is still actively processing (has pending operations).
+   *
+   * We use a WeakMap to track chain activity status. When a chain's Promise settles,
+   * it's marked as inactive. This allows us to safely skip eviction of active chains.
+   *
+   * Why WeakMap? It allows garbage collection of settled chains without explicit cleanup,
+   * preventing memory leaks if chains are removed from the main map without settling.
+   */
+  private _chainActivityStatus = new WeakMap<Promise<void>, boolean>();
+
+  /**
    * Get or create an update chain for a session.
    *
-   * Implements LRU eviction: when the map is at capacity, the oldest entry
-   * (first key in Map insertion order) is removed before adding the new one.
-   * This prevents unbounded memory growth in long-lived tabs with many sessions.
+   * Implements LRU eviction with safety check: when the map is at capacity, the oldest
+   * entry (first key in Map insertion order) is removed ONLY if it's not actively processing.
+   * This prevents unbounded memory growth while ensuring no pending updates are lost.
    *
    * **Optimization**: When a session is accessed, it's moved to the end of the
    * Map (most recently used position) by deleting and re-inserting it. This
    * ensures the LRU eviction policy is accurate and fair.
+   *
+   * **P1 Safety**: If the oldest chain is still active, eviction is skipped entirely.
+   * This may cause the map to temporarily exceed MAX_SESSION_CHAINS in extreme cases,
+   * but prevents data loss from evicting chains with pending operations.
    */
   private _getUpdateChain(sessionId: string): Promise<void> {
-    // If at capacity, evict the oldest entry (LRU policy)
+    // If at capacity, try to evict the oldest entry (LRU policy)
     if (
       this._sessionUpdateChains.size >= MessageController.MAX_SESSION_CHAINS &&
       !this._sessionUpdateChains.has(sessionId)
     ) {
       const firstKey = this._sessionUpdateChains.keys().next().value;
       if (firstKey !== undefined) {
-        this._sessionUpdateChains.delete(firstKey);
-        log.debug(
-          `Evicted oldest session chain: ${firstKey} (size: ${this._sessionUpdateChains.size})`,
-        );
+        const oldestChain = this._sessionUpdateChains.get(firstKey);
+        // P1 Fix: Check if the oldest chain is still active before evicting.
+        // If it's active (has pending operations), skip eviction to prevent losing updates.
+        // The chain will be cleaned up when it settles via the finally() handler.
+        const isActive = oldestChain && this._chainActivityStatus.get(oldestChain) === true;
+        if (!isActive) {
+          this._sessionUpdateChains.delete(firstKey);
+          log.debug(
+            `Evicted oldest session chain: ${firstKey} (size: ${this._sessionUpdateChains.size})`,
+          );
+        } else {
+          // Chain is still active - skip eviction to preserve serialization correctness.
+          // Log this as it indicates high load (many concurrent sessions with pending updates).
+          log.debug(
+            `Skipped eviction of active session chain: ${firstKey} (size: ${this._sessionUpdateChains.size})`,
+          );
+        }
       }
     }
 
     let chain = this._sessionUpdateChains.get(sessionId);
     if (!chain) {
       chain = Promise.resolve();
+      // Mark the chain as active when created
+      this._chainActivityStatus.set(chain, true);
       this._sessionUpdateChains.set(sessionId, chain);
     } else {
       // Move to end (mark as most recently used) for accurate LRU tracking
@@ -346,6 +384,8 @@ export class MessageController implements ReactiveController {
       log.debug(`Clearing ${chainCount} pending session chains on disconnect`);
     }
     this._sessionUpdateChains.clear();
+    // Note: _chainActivityStatus is a WeakMap and will be automatically garbage collected
+    // when the Promise keys are no longer referenced. No explicit cleanup needed.
     // Cancel any in-flight streaming to prevent stale updates after reconnect.
     this._cancelStreaming();
   }
@@ -500,12 +540,19 @@ export class MessageController implements ReactiveController {
         );
       });
 
+    // P1 Fix: Mark the new chain as active to track its processing status.
+    // This is used by _getUpdateChain() to safely skip eviction of active chains.
+    this._chainActivityStatus.set(next, true);
     this._sessionUpdateChains.set(messageSessionId, next);
 
     // Clean up the chain when it settles
     // Use unconditional delete to prevent race condition where finally() handlers
     // execute out of order, leaving stale entries in the map.
     next.finally(() => {
+      // P1 Fix: Mark the chain as inactive when it settles.
+      // This allows _getUpdateChain() to safely evict it if needed.
+      this._chainActivityStatus.set(next, false);
+
       // Only delete if this is still the current chain for this session
       // (a newer chain may have replaced it)
       const current = this._sessionUpdateChains.get(messageSessionId);
