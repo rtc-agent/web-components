@@ -2,7 +2,8 @@ import type { Settings as LayoutSettings } from '@ant-design/pro-components';
 import { SettingDrawer } from '@ant-design/pro-components';
 import type { RequestConfig, RunTimeLayoutConfig } from '@umijs/max';
 import { getLocale, history, Link, useIntl } from '@umijs/max';
-import { message } from 'antd';
+import { App } from 'antd';
+import { useEffect } from 'react';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import type { InitialState } from '@/initialState.types';
@@ -61,11 +62,41 @@ import {
   setDocumentDirection,
 } from '@/utils/locale-helpers';
 import { buildCurrentUser } from '@/utils/permission';
+import {
+  getGlobalFeedbackInstances,
+  setGlobalFeedbackInstances,
+} from '@/utils/globalFeedback';
 import defaultSettings from '../config/defaultSettings';
 import { errorConfig, setGlobalSetInitialState } from './requestErrorConfig';
 
 // localStorage key for theme settings persistence
 const THEME_SETTINGS_KEY = 'admin_ui_theme';
+
+/**
+ * Message Theme Configurator
+ *
+ * Ant Design's static message API (message.success, message.error, etc.) doesn't
+ * automatically consume ConfigProvider theme context. This component bridges that gap
+ * by registering the context-aware instances globally for use in non-component code.
+ *
+ * Usage: Render once in the component tree, typically near the root.
+ */
+const MessageThemeConfig: React.FC = () => {
+  const { message, notification } = App.useApp();
+
+  useEffect(() => {
+    // Register global instances so non-component code (request interceptors, utilities)
+    // can access context-aware feedback APIs
+    setGlobalFeedbackInstances({ message, notification });
+
+    return () => {
+      // Cleanup on unmount (optional, but good practice)
+      setGlobalFeedbackInstances(null as any);
+    };
+  }, [message, notification]);
+
+  return null;
+};
 
 /**
  * Load theme settings from localStorage, fallback to system preference
@@ -414,19 +445,20 @@ export const layout: RunTimeLayoutConfig = ({
         return;
       }
 
-      // Auth check: prefer token presence over currentUser object.
-      // If a valid token exists but currentUser failed to load (e.g. network issue),
-      // allow access rather than redirecting to login — the request interceptor
-      // will handle token expiry and redirect when truly unauthenticated.
+      // Auth check: token is the source of truth.
+      // If no token, redirect to login immediately — do not wait for currentUser.
+      // This avoids a race condition where hasToken=true but hasUser=false,
+      // which would grant access but fail all permission checks in access.ts.
       const hasToken = isAuthenticated();
-      const hasUser = !!initialState?.currentUser;
 
-      if (!hasToken && !hasUser && location.pathname !== PUBLIC_PATHS.login) {
+      if (!hasToken && location.pathname !== PUBLIC_PATHS.login) {
         history.replace(
           `${PUBLIC_PATHS.login}?redirect=${encodeURIComponent(location.pathname + location.search + location.hash)}`,
         );
         return;
       }
+
+      const hasUser = !!initialState?.currentUser;
 
       // Degraded state: token exists but user info failed to load.
       // Allow access (token is valid), but notify the user that data may be incomplete.
@@ -440,6 +472,7 @@ export const layout: RunTimeLayoutConfig = ({
         // Only show once per session to avoid repeated toasts on every route change
         if (!degradedWarningShown) {
           degradedWarningShown = true;
+          const { message } = getGlobalFeedbackInstances();
           message.warning(
             intl.formatMessage({
               id: 'app.degradedState.warning',
@@ -524,10 +557,13 @@ export const request: RequestConfig = {
 export function rootContainer(container: React.ReactNode) {
   return (
     <ErrorBoundary>
-      <OfflineBanner />
-      {container}
-      {/* 全局 RTC Agent 浮窗 */}
-      <GlobalRtcAgent />
+      <App>
+        <MessageThemeConfig />
+        <OfflineBanner />
+        {container}
+        {/* 全局 RTC Agent 浮窗 */}
+        <GlobalRtcAgent />
+      </App>
     </ErrorBoundary>
   );
 }
