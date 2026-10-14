@@ -21,12 +21,15 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { usePermissionRefresh } from '@/hooks/usePermissionRefresh';
 import { useRoleOptions } from '@/hooks/useRoleOptions';
-import { useIsMobile } from '@/hooks/useIsMobile';
-import type { UserInfo } from './service';
-import type { UserRoleAssignment } from './service';
+import { getFriendlyErrorMessage } from '@/utils/errorHandler';
+import { createTableRequest } from '@/utils/tableUtils';
+import { getEmailRules, getPasswordRules } from '@/utils/validation';
+import type { AdminPageAPI } from './page-api';
+import type { UserInfo, UserRoleAssignment } from './service';
 import {
   assignUserRoles,
   createAdminUser,
@@ -36,10 +39,6 @@ import {
   revokeUserRole,
   updateAdminUser,
 } from './service';
-import { getFriendlyErrorMessage } from '@/utils/errorHandler';
-import { getEmailRules, getPasswordRules } from '@/utils/validation';
-import { createTableRequest } from '@/utils/tableUtils';
-import type { AdminPageAPI } from './page-api';
 
 /**
  * Admin User Management Page
@@ -48,7 +47,7 @@ const AdminUserManagementPage: React.FC = () => {
   const actionRef = useRef<ActionType>(null);
   const access = useAccess();
   const intl = useIntl();
-  const { roleOptions } = useRoleOptions();
+  const { roleOptions, loading: rolesLoading } = useRoleOptions();
   const { message } = App.useApp();
   const [searchParams, setSearchParams] = useSearchParams();
   const [currentRow, setCurrentRow] = useState<UserInfo>();
@@ -838,6 +837,9 @@ const AdminUserManagementPage: React.FC = () => {
             },
           ]}
           options={roleOptions}
+          fieldProps={{
+            loading: rolesLoading,
+          }}
         />
       </ModalForm>
 
@@ -932,6 +934,9 @@ const AdminUserManagementPage: React.FC = () => {
           })}
           mode="multiple"
           options={roleOptions}
+          fieldProps={{
+            loading: rolesLoading,
+          }}
         />
       </ModalForm>
 

@@ -1,7 +1,8 @@
 import { GridContent } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
 import { App, Menu } from 'antd';
-import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import BaseView from './components/base';
 import BindingView from './components/binding';
@@ -9,13 +10,9 @@ import NotificationView from './components/notification';
 import SecurityView from './components/security';
 import type { SelfAccountSettingsPageAPI } from './page-api';
 import { updateCurrentUser } from './service';
-import useStyles from './style.style';
+import useStyles from './style';
 
 type SettingsStateKeys = 'base' | 'security' | 'binding' | 'notification';
-type SettingsState = {
-  mode: 'inline' | 'horizontal';
-  selectKey: SettingsStateKeys;
-};
 
 const getMenuMap = (intl: any): Record<string, React.ReactNode> => ({
   base: intl.formatMessage({
@@ -62,25 +59,27 @@ const Settings: React.FC = () => {
     key: item,
     label: menuMap[item],
   }));
-  const [initConfig, setInitConfig] = useState<SettingsState>({
-    mode: 'inline',
-    selectKey: 'base',
-  });
+  const isMobile = useIsMobile();
+  const [selectKey, setSelectKey] = useState<SettingsStateKeys>('base');
   const dom = useRef<HTMLDivElement>(null);
+
+  // Derive menu mode from container width using useMemo
+  const mode = useMemo<'inline' | 'horizontal'>(() => {
+    if (!dom.current) return 'inline';
+    const { offsetWidth } = dom.current;
+    // Switch to horizontal menu when container width > 400 and (container < 641 or viewport is mobile < 768)
+    return offsetWidth > 400 && (offsetWidth < 641 || isMobile)
+      ? 'horizontal'
+      : 'inline';
+  }, [isMobile]);
 
   const resize = () => {
     requestAnimationFrame(() => {
       if (!dom.current) {
         return;
       }
-      const { offsetWidth } = dom.current;
-      // Switch to horizontal menu when container width > 400 and (container < 641 or viewport < 768)
-      const isHorizontal =
-        offsetWidth > 400 && (offsetWidth < 641 || window.innerWidth < 768);
-      setInitConfig((prev) => ({
-        ...prev,
-        mode: isHorizontal ? 'horizontal' : 'inline',
-      }));
+      // Trigger re-render by updating isMobile-dependent mode
+      // The actual mode calculation happens in useMemo
     });
   };
 
@@ -94,7 +93,7 @@ const Settings: React.FC = () => {
     return () => {
       window.removeEventListener('resize', handler);
     };
-  }, []);
+  }, [isMobile]);
 
   // Register Page API for selfAccount function group
   usePageAPIRegistration(
@@ -147,20 +146,17 @@ const Settings: React.FC = () => {
       >
         <div className={styles.leftMenu}>
           <Menu
-            mode={initConfig.mode}
-            selectedKeys={[initConfig.selectKey]}
+            mode={mode}
+            selectedKeys={[selectKey]}
             onClick={({ key }) => {
-              setInitConfig((prev) => ({
-                ...prev,
-                selectKey: key as SettingsStateKeys,
-              }));
+              setSelectKey(key as SettingsStateKeys);
             }}
             items={menuItems}
           />
         </div>
         <div className={styles.right}>
-          <div className={styles.title}>{menuMap[initConfig.selectKey]}</div>
-          <SettingsContent selectKey={initConfig.selectKey} />
+          <div className={styles.title}>{menuMap[selectKey]}</div>
+          <SettingsContent selectKey={selectKey} />
         </div>
       </div>
     </GridContent>

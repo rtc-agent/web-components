@@ -76,4 +76,6 @@ export const queryKeys = {
     all: ['diagnostics'] as const,
     agentStatus: () => [...queryKeys.diagnostics.all, 'agent-status'] as const,
   },
+  // Login configuration (login page)
+  loginConfig: () => ['login-config'] as const,
 } as const;

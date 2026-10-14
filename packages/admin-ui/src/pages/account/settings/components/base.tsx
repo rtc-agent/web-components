@@ -13,8 +13,8 @@ import { useIntl } from '@umijs/max';
 import { App, Button, Input, Skeleton, Upload } from 'antd';
 import React, { useEffect, useRef, useState } from 'react';
 import { getCityOptions, provinceOptions } from '@/utils/chinaDivision';
-import { queryKeys } from '@/utils/queryKeys';
 import { USER_CACHE } from '@/utils/queryCacheConfig';
+import { queryKeys } from '@/utils/queryKeys';
 import { getEmailRules } from '@/utils/validation';
 import type { GeographicItemType } from '../data';
 import { queryCity, queryCurrent, queryProvince } from '../service';
@@ -117,7 +117,7 @@ const BaseView: React.FC = () => {
     }
   };
 
-  const { data: currentUser, isLoading: loading } = useQuery({
+  const { data: currentUser, isLoading } = useQuery({
     queryKey: queryKeys.currentUser.settings(),
     queryFn: () => queryCurrent().then((res) => res.data),
     staleTime: USER_CACHE.staleTime, // 5 minutes
@@ -151,7 +151,7 @@ const BaseView: React.FC = () => {
 
   return (
     <div className={styles.baseView}>
-      {loading ? (
+      {isLoading ? (
         <Skeleton active paragraph={{ rows: 8 }} />
       ) : (
         <>

@@ -5,6 +5,7 @@ import {
   ProFormCheckbox,
   ProFormText,
 } from '@ant-design/pro-components';
+import { useQuery } from '@tanstack/react-query';
 import {
   FormattedMessage,
   Helmet,
@@ -12,10 +13,12 @@ import {
   useIntl,
   useModel,
 } from '@umijs/max';
-import { Alert, App, Button, Tabs } from 'antd';
+import { Alert, App, Button, Skeleton, Tabs } from 'antd';
 import { createStyles } from 'antd-style';
 import React, { startTransition, useEffect, useState } from 'react';
 import { Footer } from '@/components';
+import { CONFIG_CACHE } from '@/utils/queryCacheConfig';
+import { queryKeys } from '@/utils/queryKeys';
 import type { LoginResult } from './service';
 import {
   getLoginConfig,
@@ -151,10 +154,6 @@ const Login: React.FC = () => {
     message?: string;
   }>({});
   const [type, setType] = useState<string>('account');
-  const [loginConfig, setLoginConfig] = useState<{
-    password_enabled: boolean;
-    otp_enabled: boolean;
-  } | null>(null);
   // 提交中状态，用于禁用按钮并展示 loading
   const [submitting, setSubmitting] = useState(false);
   const { initialState, setInitialState } = useModel('@@initialState');
@@ -164,29 +163,24 @@ const Login: React.FC = () => {
 
   // 获取登录配置；失败时回退到「密码 + 验证码都启用」的默认值，
   // 保证登录页在配置接口异常时仍可正常使用。
+  const { data: loginConfig, isLoading: configLoading } = useQuery({
+    queryKey: queryKeys.loginConfig(),
+    queryFn: getLoginConfig,
+    staleTime: CONFIG_CACHE.staleTime, // 5 minutes
+    gcTime: CONFIG_CACHE.gcTime, // 30 minutes
+    placeholderData: { password_enabled: true, otp_enabled: true },
+  });
+
+  // Set default login method based on what's available
   useEffect(() => {
-    getLoginConfig()
-      .then((config) => {
-        setLoginConfig(config);
-        // Set default login method based on what's available
-        if (!config.password_enabled && config.otp_enabled) {
-          setType('email-otp');
-        } else if (config.password_enabled) {
-          setType('account');
-        }
-      })
-      .catch(() => {
-        // 配置获取失败：默认启用密码与验证码登录，避免因接口异常阻塞用户
-        message.warning(
-          intl.formatMessage({
-            id: 'pages.login.configLoadFailed',
-            defaultMessage:
-              'Login configuration failed to load, using default settings',
-          }),
-        );
-        setLoginConfig({ password_enabled: true, otp_enabled: true });
-      });
-  }, []);
+    if (loginConfig && !configLoading) {
+      if (!loginConfig.password_enabled && loginConfig.otp_enabled) {
+        setType('email-otp');
+      } else if (loginConfig.password_enabled) {
+        setType('account');
+      }
+    }
+  }, [loginConfig, configLoading]);
 
   const fetchUserInfo = async () => {
     const userInfo = await initialState?.fetchUserInfo?.();
@@ -396,66 +390,77 @@ const Login: React.FC = () => {
           padding: '32px 0',
         }}
       >
-        <LoginForm
-          contentStyle={{
-            minWidth: 280,
-            maxWidth: '75vw',
-          }}
-          logo={
-            <img
-              alt={intl.formatMessage({
-                id: 'pages.login.logoAlt',
-                defaultMessage: 'Login page Logo',
-              })}
-              src="/logo.svg"
+        {configLoading ? (
+          <div
+            style={{
+              minWidth: 280,
+              maxWidth: '75vw',
+              margin: '0 auto',
+            }}
+          >
+            <Skeleton active paragraph={{ rows: 6 }} />
+          </div>
+        ) : (
+          <LoginForm
+            contentStyle={{
+              minWidth: 280,
+              maxWidth: '75vw',
+            }}
+            logo={
+              <img
+                alt={intl.formatMessage({
+                  id: 'pages.login.logoAlt',
+                  defaultMessage: 'Login page Logo',
+                })}
+                src="/logo.svg"
+              />
+            }
+            title={Settings.title || 'RTC Agent'}
+            subTitle={intl.formatMessage({
+              id: 'pages.layouts.userLayout.title',
+              defaultMessage:
+                'Ant Design is the most influential web design specification in Xihu district',
+            })}
+            initialValues={{
+              autoLogin: true,
+            }}
+            submitter={{
+              submitButtonProps: {
+                loading: submitting,
+                disabled: submitting,
+              },
+            }}
+            onFinish={handleSubmit}
+          >
+            <Tabs
+              activeKey={type}
+              onChange={setType}
+              centered
+              items={[
+                ...(loginConfig?.password_enabled !== false
+                  ? [
+                      {
+                        key: 'account',
+                        label: intl.formatMessage({
+                          id: 'pages.login.accountLogin.tab',
+                          defaultMessage: 'Account password login',
+                        }),
+                      },
+                    ]
+                  : []),
+                ...(loginConfig?.otp_enabled !== false
+                  ? [
+                      {
+                        key: 'email-otp',
+                        label: intl.formatMessage({
+                          id: 'pages.login.emailOTP.tab',
+                          defaultMessage: 'Email verification code login',
+                        }),
+                      },
+                    ]
+                  : []),
+              ]}
             />
-          }
-          title={Settings.title || 'RTC Agent'}
-          subTitle={intl.formatMessage({
-            id: 'pages.layouts.userLayout.title',
-            defaultMessage:
-              'Ant Design is the most influential web design specification in Xihu district',
-          })}
-          initialValues={{
-            autoLogin: true,
-          }}
-          submitter={{
-            submitButtonProps: {
-              loading: submitting,
-              disabled: submitting,
-            },
-          }}
-          onFinish={handleSubmit}
-        >
-          <Tabs
-            activeKey={type}
-            onChange={setType}
-            centered
-            items={[
-              ...(loginConfig?.password_enabled !== false
-                ? [
-                    {
-                      key: 'account',
-                      label: intl.formatMessage({
-                        id: 'pages.login.accountLogin.tab',
-                        defaultMessage: 'Account password login',
-                      }),
-                    },
-                  ]
-                : []),
-              ...(loginConfig?.otp_enabled !== false
-                ? [
-                    {
-                      key: 'email-otp',
-                      label: intl.formatMessage({
-                        id: 'pages.login.emailOTP.tab',
-                        defaultMessage: 'Email verification code login',
-                      }),
-                    },
-                  ]
-                : []),
-            ]}
-          />
 
           {status === 'error' && (
             <LoginMessage
@@ -624,7 +629,8 @@ const Login: React.FC = () => {
               </Button>
             </div>
           )}
-        </LoginForm>
+          </LoginForm>
+        )}
       </div>
       <Footer />
     </div>

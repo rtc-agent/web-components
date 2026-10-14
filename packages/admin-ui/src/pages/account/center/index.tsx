@@ -23,13 +23,13 @@ import React, { useCallback, useRef, useState } from 'react';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { USER_CACHE } from '@/utils/queryCacheConfig';
 import { queryKeys } from '@/utils/queryKeys';
-import useStyles from './Center.style';
 import Applications from './components/Applications';
 import Articles from './components/Articles';
 import Projects from './components/Projects';
 import type { CurrentUser, TagType, tabKeyType } from './data';
 import type { SelfAccountCenterPageAPI } from './page-api';
 import { queryCurrent } from './service';
+import useStyles from './style';
 
 /**
  * Build the tab list for the right-side content area.
@@ -230,7 +230,7 @@ const Center: React.FC = () => {
   // Fetch user info (scoped under currentUser.center to avoid cache conflicts)
   const {
     data: currentUser,
-    isLoading: loading,
+    isLoading,
     isError,
     error,
   } = useQuery({
@@ -294,9 +294,9 @@ const Center: React.FC = () => {
             style={{
               marginBottom: 24,
             }}
-            loading={loading}
+            loading={isLoading}
           >
-            {!loading && currentUser && (
+            {!isLoading && currentUser && (
               <>
                 <div className={styles.avatarHolder}>
                   <img
