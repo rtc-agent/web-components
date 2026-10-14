@@ -1,5 +1,6 @@
 // File Cache Repository — IndexedDB file cache management
 
+import Dexie from 'dexie';
 import { getDatabase, type FileCacheEntry } from './database.js';
 import { createLogger, FileSyncStatus } from '@rtc-agent/protocol';
 import SparkMD5 from 'spark-md5';
@@ -1110,13 +1111,12 @@ export class FileCacheRepository {
    * P3-FIX: Entries with the same lastAccessedAt are processed atomically to prevent
    * cursor-based pagination from splitting or duplicating them across batches.
    *
-   * INDEX NOTE: The [syncStatus+lastAccessedAt] compound index (v15+) is defined but
-   * the current query pattern (where('lastAccessedAt').above().filter(syncStatus==='synced'))
-   * cannot directly leverage it. Dexie's compound index requires the 1st column to be the
-   * primary equality filter, while here lastAccessedAt is used for range and syncStatus for
-   * equality filter. Future optimization: rewrite as
-   * where('[syncStatus+lastAccessedAt]').between(['synced', lastProcessedTime], ['synced', Infinity])
-   * to fully utilize the compound index and eliminate the in-memory filter.
+   * PERFORMANCE OPTIMIZATION (Oct 2026): Now uses compound index [syncStatus+lastAccessedAt]
+   * (added in v15) for DB-level filtering and sorting. The query
+   * where('[syncStatus+lastAccessedAt]').between(['synced', lastProcessedTime], ['synced', Dexie.maxKey])
+   * directly leverages the compound index, eliminating the in-memory filter and sort.
+   * This reduces memory usage from O(N) to O(BATCH_SIZE) and improves query performance
+   * by avoiding full table scans.
    *
    * P1-FIX: Split into separate read and write phases to reduce lock contention.
    * The read phase (scanning for candidates) happens without exclusive lock.
@@ -1140,12 +1140,22 @@ export class FileCacheRepository {
     while (evictedBytes < targetBytes) {
       // Phase 1: Load eviction candidates (read-only, no exclusive lock held)
       // This allows other tabs to read/write while we scan for candidates.
+      //
+      // PERFORMANCE OPTIMIZATION: Use compound index [syncStatus+lastAccessedAt]
+      // (added in v15) for DB-level filtering and sorting. This avoids loading
+      // all synced entries into memory and then filtering in JavaScript.
+      // The compound index enables direct range queries on [synced, lastAccessedAt],
+      // eliminating the need for .filter() and .sortBy() which would scan the entire table.
       const batch = await db.fileCache
-        .where('lastAccessedAt')
-        .above(lastProcessedTime)
-        .filter((e) => e.syncStatus === 'synced')
+        .where('[syncStatus+lastAccessedAt]')
+        .between(
+          ['synced', lastProcessedTime],
+          ['synced', Dexie.maxKey],
+          false, // exclude lower bound (lastProcessedTime already processed)
+          true, // include upper bound
+        )
         .limit(BATCH_SIZE)
-        .sortBy('lastAccessedAt');
+        .toArray();
 
       if (batch.length === 0) break;
 
@@ -1164,10 +1174,10 @@ export class FileCacheRepository {
         firstTimeAtLastIndex < batch.length - 1
       ) {
         // Same timestamp spans multiple positions — load all entries at this timestamp
+        // Use compound index for efficient query
         const allAtLastTime = await db.fileCache
-          .where('lastAccessedAt')
-          .equals(lastTime)
-          .filter((e) => e.syncStatus === 'synced')
+          .where('[syncStatus+lastAccessedAt]')
+          .equals(['synced', lastTime])
           .toArray();
         // Replace partial batch entries at lastTime with complete set
         entriesToConsider = [
