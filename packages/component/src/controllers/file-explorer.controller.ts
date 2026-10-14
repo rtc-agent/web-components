@@ -101,22 +101,26 @@ export class FileExplorerController implements ReactiveController {
   }
 
   private _toggleNode(path: string) {
-    if (this._expandedPaths.has(path)) {
-      this._expandedPaths.delete(path);
+    const newExpanded = new Set(this._expandedPaths);
+    if (newExpanded.has(path)) {
+      newExpanded.delete(path);
     } else {
-      this._expandedPaths.add(path);
+      newExpanded.add(path);
     }
+    this._expandedPaths = newExpanded;
     this._host.requestUpdate();
   }
 
   private _expandAll() {
     if (!this._state.root) return;
-    this._collectFolderPaths(this._state.root, this._expandedPaths);
+    const newExpanded = new Set(this._expandedPaths);
+    this._collectFolderPaths(this._state.root, newExpanded);
+    this._expandedPaths = newExpanded;
     this._host.requestUpdate();
   }
 
   private _collapseAll() {
-    this._expandedPaths.clear();
+    this._expandedPaths = new Set();
     this._host.requestUpdate();
   }
 
@@ -126,11 +130,13 @@ export class FileExplorerController implements ReactiveController {
   }
 
   private _setLoading(path: string, loading: boolean) {
+    const newLoading = new Set(this._loadingPaths);
     if (loading) {
-      this._loadingPaths.add(path);
+      newLoading.add(path);
     } else {
-      this._loadingPaths.delete(path);
+      newLoading.delete(path);
     }
+    this._loadingPaths = newLoading;
     this._host.requestUpdate();
   }
 
@@ -145,8 +151,8 @@ export class FileExplorerController implements ReactiveController {
 
   private _reset() {
     this._state = { ...DEFAULT_FILE_EXPLORER_STATE };
-    this._expandedPaths.clear();
-    this._loadingPaths.clear();
+    this._expandedPaths = new Set();
+    this._loadingPaths = new Set();
     this._host.requestUpdate();
   }
 
