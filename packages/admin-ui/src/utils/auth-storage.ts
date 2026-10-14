@@ -105,14 +105,23 @@ export const setTokens = async (
 };
 
 /**
- * 获取 Access Token
+ * 获取 Access Token（同步版本，返回加密值）
+ *
+ * ⚠️ 注意：此函数返回的是**加密后的 token**，不能直接用于 API 调用。
+ * 如果需要使用 token 值，请调用 `getAccessTokenDecrypted()` 异步解密版本。
+ *
+ * 典型使用场景：
+ * - 检查 token 是否存在（如 isAuthenticated()）
+ * - 需要快速判断登录状态（同步场景）
+ *
+ * @returns 加密后的 access token 字符串，如果不存在则返回 null
  */
 export const getAccessToken = (): string | null => {
   const encrypted = localStorage.getItem(ACCESS_TOKEN_KEY);
   if (!encrypted) return null;
 
-  // 同步返回，但在使用时异步解密
-  // 为了向后兼容，这里返回加密值，调用方需要调用 decryptToken
+  // 返回加密值，调用方不应直接使用此值进行 API 调用
+  // 如需解密后的 token，请使用 getAccessTokenDecrypted()
   return encrypted;
 };
 

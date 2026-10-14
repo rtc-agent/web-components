@@ -243,6 +243,12 @@ export default defineConfig({
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data: blob: https:",
         "connect-src 'self' https://www.google-analytics.com wss: https:",
+        // TODO(P2, Security, 2026-Q4): connect-src 使用 wss: https: 过于宽松，允许连接任意加密域名。
+        //   安全风险：如果页面存在 XSS 漏洞，攻击者可利用此策略向任意外域发送数据。
+        //   迁移计划：(1) 短期 - 实现后端代理层，rtc-agent WebSocket 连接通过代理转发，CSP 仅需放行代理域名；
+        //            (2) 中期 - 实现动态 CSP，根据运行时配置的 Centrifuge 端点自动生成策略；
+        //            (3) 长期 - 限制 connect-src 到特定的已知域名白名单。
+        //   参考文档：见本文件上方详细的安全风险分析和实施方案说明（lines 199-236）。
         "font-src 'self' data:",
         "frame-ancestors 'none'",
         "base-uri 'self'",

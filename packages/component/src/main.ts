@@ -71,11 +71,15 @@ export async function renderTasks(): Promise<void> {
   const container = document.getElementById('taskList')!;
 
   if (tasks.length === 0) {
+    // SECURITY: 静态 HTML 字符串，无用户输入，安全
     container.innerHTML =
       '<div class="empty-state">No tasks yet. Create one!</div>';
     return;
   }
 
+  // SECURITY: 使用 escapeHtml() 对所有用户输入进行 XSS 防护后再插入 innerHTML
+  // escapeHtml() 会转义 &, <, >, ", ', `, / 等危险字符，防止 XSS 攻击
+  // 详见 utils.ts 中的 escapeHtml() 实现
   container.innerHTML = tasks
     .map(
       (task: Task) => `
