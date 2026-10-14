@@ -2,8 +2,7 @@
 import type { RequestConfig } from '@umijs/max';
 import { getIntl, history, request } from '@umijs/max';
 import { PUBLIC_PATHS } from '@/constants/routes';
-import { getCurrentUser } from '@/services/admin-auth';
-import { ApiErrorCodes, ErrorShowType, type UserInfo } from '@/services/types';
+import { ApiErrorCodes, ErrorShowType } from '@/services/types';
 import {
   clearAuth,
   getAccessTokenDecrypted,
@@ -11,7 +10,7 @@ import {
   refreshAccessToken,
 } from '@/utils/auth-storage';
 import { getGlobalFeedbackInstances } from '@/utils/globalFeedback';
-import { buildCurrentUser } from '@/utils/permission';
+import { fetchAndBuildCurrentUser } from '@/utils/user-utils';
 
 // ============================================================================
 // Request Body Sanitization for Logging
@@ -99,8 +98,8 @@ let globalSetInitialState: SetInitialStateFn | null = null;
 
 // Pending permission update for race condition: token refresh before layout mount
 // When token refresh occurs before layout mounts, globalSetInitialState is null.
-// Store the userInfo and apply it when setInitialState becomes available.
-let pendingUserInfo: UserInfo | null = null;
+// Store the currentUser and apply it when setInitialState becomes available.
+let pendingCurrentUser: API.CurrentUser | null = null;
 
 /**
  * 重定向到登录页
@@ -125,14 +124,14 @@ export function setGlobalSetInitialState(fn: SetInitialStateFn | null) {
   globalSetInitialState = fn;
 
   // Apply pending permission update when layout becomes available
-  if (fn && pendingUserInfo) {
-    const userInfoToApply = pendingUserInfo;
-    pendingUserInfo = null;
+  if (fn && pendingCurrentUser) {
+    const currentUserToApply = pendingCurrentUser;
+    pendingCurrentUser = null;
     // Apply asynchronously to avoid blocking the caller
     // Error boundary: prevent unhandled promise rejection
     fn((prev) => ({
       ...prev,
-      currentUser: buildCurrentUser(userInfoToApply),
+      currentUser: currentUserToApply,
     })).catch((error) => {
       // Defensive: log error but don't throw.
       // This is a fire-and-forget state update; failure is non-critical
@@ -159,17 +158,17 @@ async function refreshTokenAndUpdatePermissions(): Promise<string | null> {
     return null;
   }
 
-  // 同时刷新权限数据
+  // 同时刷新权限数据（不派发事件，避免在 token 刷新期间触发不必要的更新）
   try {
-    const userInfo = await getCurrentUser();
-    if (userInfo && globalSetInitialState) {
+    const currentUser = await fetchAndBuildCurrentUser(undefined, false);
+    if (currentUser && globalSetInitialState) {
       // 直接使用 setInitialState 更新权限数据
       // 等待状态更新完成，确保权限数据同步
       // Error boundary: wrap in try-catch to prevent unhandled promise rejection
       try {
         await globalSetInitialState((prev) => ({
           ...prev,
-          currentUser: buildCurrentUser(userInfo),
+          currentUser,
         }));
       } catch (stateError) {
         // Log but don't throw - state update failure is non-critical
@@ -179,11 +178,11 @@ async function refreshTokenAndUpdatePermissions(): Promise<string | null> {
           stateError,
         );
       }
-    } else if (userInfo && !globalSetInitialState) {
+    } else if (currentUser && !globalSetInitialState) {
       // Layout 还未 mount，无法直接更新权限数据
-      // 存储 userInfo，待 setInitialState 可用时立即应用
+      // 存储 currentUser，待 setInitialState 可用时立即应用
       // 这确保了 token 刷新发生在 layout mount 前时，权限数据不会丢失
-      pendingUserInfo = userInfo;
+      pendingCurrentUser = currentUser;
       console.info(
         '[refreshTokenAndUpdatePermissions] Layout not ready, permission update queued.',
       );

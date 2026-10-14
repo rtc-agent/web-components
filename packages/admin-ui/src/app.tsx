@@ -37,14 +37,13 @@ import {
   LangDropdown,
   OfflineBanner,
 } from '@/components';
+import { getTopLevelRedirectTarget } from '@/constants/permission-priority';
 import { isPublicPath, PUBLIC_PATHS } from '@/constants/routes';
-import { getCurrentUser } from '@/services/admin-auth';
 import {
   AUTH_STATE_CHANGED_EVENT,
   cancelPendingRefresh,
   getUserInfo,
   isAuthenticated,
-  setUserInfo,
 } from '@/utils/auth-storage';
 import {
   getGlobalFeedbackInstances,
@@ -56,6 +55,7 @@ import {
   setDocumentDirection,
 } from '@/utils/locale-helpers';
 import { buildCurrentUser } from '@/utils/permission';
+import { fetchAndBuildCurrentUser } from '@/utils/user-utils';
 import defaultSettings from '../config/defaultSettings';
 import { errorConfig, setGlobalSetInitialState } from './requestErrorConfig';
 
@@ -214,20 +214,8 @@ export async function getInitialState(): Promise<InitialState> {
       }
 
       try {
-        // 调用真正的 API 获取管理员信息
-        const userInfo = await getCurrentUser({ signal });
-
-        // 确保 userInfo 存在
-        if (!userInfo) {
-          return undefined;
-        }
-
-        // 更新 localStorage 中的管理员信息（包含权限）
-        // 即使后续 abort 检查命中，已持久化的数据可作为下次启动的 fallback
-        setUserInfo(userInfo);
-
-        // 通知权限数据已就绪（事件驱动,替代轮询）
-        window.dispatchEvent(new CustomEvent('admin-permissions-ready'));
+        // Fetch user info and build CurrentUser object using shared helper
+        const currentUser = await fetchAndBuildCurrentUser({ signal }, true);
 
         // Check if aborted during the request — data is already persisted,
         // but skip the in-memory state update to avoid racing with a new init
@@ -238,8 +226,7 @@ export async function getInitialState(): Promise<InitialState> {
           return undefined;
         }
 
-        // 转换为 Ant Design Pro 的 CurrentUser 格式
-        return buildCurrentUser(userInfo);
+        return currentUser;
       } catch (_error: unknown) {
         // Check if this was an abort — fall through to cached fallback below
         const errName = _error instanceof Error ? _error.name : undefined;
@@ -350,19 +337,10 @@ export async function getInitialState(): Promise<InitialState> {
 const redirectByPermissions = (
   accessObj: ReturnType<typeof access>,
 ): boolean => {
-  if (accessObj.canDashboardView) {
-    history.replace('/dashboard/grafana/rtc-agent');
-  } else if (
-    accessObj.canRtcUserView ||
-    accessObj.canRtcSessionView ||
-    accessObj.canRtcMessageView
-  ) {
-    history.replace('/rtc-users/management');
-  } else if (accessObj.canSystemView) {
-    history.replace('/system');
-  } else {
-    // No permissions at all, redirect to 403 page
-    history.replace('/exception/403');
+  // Use centralized permission priority configuration
+  const targetPath = getTopLevelRedirectTarget(accessObj);
+  if (targetPath) {
+    history.replace(targetPath);
   }
   return true;
 };

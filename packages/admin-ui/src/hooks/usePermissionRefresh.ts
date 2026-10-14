@@ -1,9 +1,7 @@
 import { useIntl, useModel } from '@umijs/max';
 import { App } from 'antd';
 import { useCallback, useEffect, useRef } from 'react';
-import { getCurrentUser } from '@/services/admin-auth';
-import { setUserInfo } from '@/utils/auth-storage';
-import { buildCurrentUser } from '@/utils/permission';
+import { fetchAndBuildCurrentUser } from '@/utils/user-utils';
 
 // localStorage key for user info (used for cross-tab sync)
 const USER_INFO_STORAGE_KEY = 'rtc-agent-user-info';
@@ -77,16 +75,14 @@ export function usePermissionRefresh() {
       // Each request chains onto the previous one, ensuring sequential execution.
       refreshQueue.current = refreshQueue.current.then(async () => {
         try {
-          // Fetch latest user info from server
-          const userInfo = await getCurrentUser();
+          // Fetch latest user info from server and build CurrentUser object
+          // This also updates localStorage and dispatches 'admin-permissions-ready' event
+          const currentUser = await fetchAndBuildCurrentUser(undefined, true);
 
-          if (!userInfo) {
+          if (!currentUser) {
             console.warn('[usePermissionRefresh] Failed to fetch user info');
             return;
           }
-
-          // Update localStorage (so GlobalRtcAgent can read latest permissions)
-          setUserInfo(userInfo);
 
           // Guard against updating unmounted component state
           if (!isMounted.current) {
@@ -100,7 +96,7 @@ export function usePermissionRefresh() {
             }
             return {
               ...prev,
-              currentUser: buildCurrentUser(userInfo),
+              currentUser,
             };
           });
 
@@ -108,9 +104,6 @@ export function usePermissionRefresh() {
           if (!isMounted.current) {
             return;
           }
-
-          // Notify other components (e.g., GlobalRtcAgent) that permissions changed
-          window.dispatchEvent(new CustomEvent('admin-permissions-ready'));
         } catch (error) {
           if (retryCount < 2) {
             // Retry with exponential backoff: 100ms, 200ms

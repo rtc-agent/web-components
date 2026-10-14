@@ -1,6 +1,7 @@
 import { history, useAccess, useIntl } from '@umijs/max';
 import { Button, Result, Skeleton } from 'antd';
 import React, { useEffect, useRef, useState } from 'react';
+import { getSystemSubPageRedirectTarget } from '@/constants/permission-priority';
 
 /**
  * System Management Index Page
@@ -19,21 +20,11 @@ const SystemIndexPage: React.FC = () => {
       return;
     }
 
-    // Check permissions in priority order, redirect to the first accessible page
-    if (access.canAdminUserView) {
-      history.replace('/system/users');
-      hasRedirected.current = true;
-    } else if (access.canAdminRoleView) {
-      history.replace('/system/roles');
-      hasRedirected.current = true;
-    } else if (access.canPermissionView) {
-      history.replace('/system/permissions');
-      hasRedirected.current = true;
-    } else if (access.canAuditLogView) {
-      history.replace('/system/audit-logs');
-      hasRedirected.current = true;
-    } else if (access.canServerConfigView) {
-      history.replace('/system/configs');
+    // Use centralized permission priority configuration to determine target
+    const targetPath = getSystemSubPageRedirectTarget(access);
+
+    if (targetPath) {
+      history.replace(targetPath);
       hasRedirected.current = true;
     } else if (!access.canSystemView) {
       // No admin permissions - show 403 page instead of silent redirect
