@@ -408,6 +408,20 @@ export class EntityRepository {
       let result: UpsertResult<LocalSession>;
       let action: UpdateAction;
       if (existing) {
+        // P0-FIX: Detect concurrent write conflict when existing record is newer than incoming.
+        // This can happen when multiple Tabs update the same entity simultaneously.
+        // Log at warn level for debugging and auditing purposes.
+        if (
+          existing.updated_at &&
+          session.updated_at &&
+          existing.updated_at > session.updated_at
+        ) {
+          log.warn(
+            `upsertSession: concurrent write detected for ${session.client_id}, ` +
+            `existing updated_at=${existing.updated_at}, incoming updated_at=${session.updated_at}`
+          );
+        }
+
         const before: LocalSession = { ...existing };
         const updated: LocalSession = {
           ...existing,
@@ -771,6 +785,20 @@ export class EntityRepository {
       if (existing) {
         const before: LocalMessage = { ...existing };
 
+        // P0-FIX: Detect concurrent write conflict when existing record is newer than incoming.
+        // This can happen when multiple Tabs update the same entity simultaneously.
+        // Log at warn level for debugging and auditing purposes.
+        if (
+          existing.updated_at &&
+          message.updated_at &&
+          existing.updated_at > message.updated_at
+        ) {
+          log.warn(
+            `upsertMessage: concurrent write detected for ${message.client_id}, ` +
+            `existing updated_at=${existing.updated_at}, incoming updated_at=${message.updated_at}`
+          );
+        }
+
         // ── Streaming status monotonic guard (Issue 236) ──
         // Prevent live-channel streaming updates from overwriting
         // topic-channel completed/final state.
@@ -1016,6 +1044,21 @@ export class EntityRepository {
       let action: UpdateAction;
       if (existing) {
         const before: LocalRtc = { ...existing };
+
+        // P0-FIX: Detect concurrent write conflict when existing record is newer than incoming.
+        // This can happen when multiple Tabs update the same entity simultaneously.
+        // Log at warn level for debugging and auditing purposes.
+        if (
+          existing.updated_at &&
+          rtc.updated_at &&
+          existing.updated_at > rtc.updated_at
+        ) {
+          log.warn(
+            `upsertRtc: concurrent write detected for ${rtc.client_id}, ` +
+            `existing updated_at=${existing.updated_at}, incoming updated_at=${rtc.updated_at}`
+          );
+        }
+
         const updated: LocalRtc = {
           ...existing,
           ...rtc,
