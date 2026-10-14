@@ -19,17 +19,18 @@
         "package.json",
         "vite.config.ts",
         "tsup.config.ts",
-        "vitest.config.ts",
-        "vitest.integration.config.ts",
         "tailwind.config.*",
         "tailwind.css",
         "lit-localize.json",
         "!src/**/*.test.ts",
-        "!src/**/*.integration.test.ts"
+        "!src/**/*.test.tsx",
+        "!src/**/*.integration.test.ts",
+        "!src/**/test-setup.ts",
+        "!src/**/test-utils/**"
       ]
     },
     "typecheck": {
-      "dependsOn": ["^build"],
+      "dependsOn": [],
       "inputs": [
         "src/**",
         "tsconfig.json",
@@ -48,9 +49,7 @@
         "vitest.integration.config.ts",
         "vite.config.ts",
         "tsup.config.ts",
-        "lit-localize.json",
-        "!src/**/*.test.ts",
-        "!src/**/*.integration.test.ts"
+        "lit-localize.json"
       ]
     },
     "test:coverage": {
@@ -61,9 +60,7 @@
         "vitest.integration.config.ts",
         "vite.config.ts",
         "tsup.config.ts",
-        "lit-localize.json",
-        "!src/**/*.test.ts",
-        "!src/**/*.integration.test.ts"
+        "lit-localize.json"
       ]
     },
     "dev": {

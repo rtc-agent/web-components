@@ -35,6 +35,9 @@ jobs:
       - name: i18n coverage check
         run: pnpm --filter admin-ui run i18n:check
 
+      - name: Verify version alignment
+        run: node scripts/verify-version-alignment.js
+
       - name: Build
         run: pnpm build
 

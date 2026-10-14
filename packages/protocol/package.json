@@ -24,7 +24,8 @@
     "test:coverage": "vitest run --coverage --passWithNoTests",
     "lint": "biome lint src/",
     "lint:fix": "biome check --write src/",
-    "format": "biome format --write src/"
+    "format": "biome format --write src/",
+    "generate:openapi": "openapi-typescript ../../../docs/protocol/api.yaml -o src/models.gen.ts"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.9",

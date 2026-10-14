@@ -124,8 +124,10 @@ To maintain consistency and type safety across the codebase, follow these conven
 ### 生成流程
 
 ```bash
-# 从 docs/protocol/openapi.yaml 生成 models.gen.ts
-# （具体脚本见 scripts/）
+# 从 docs/protocol/api.yaml 生成 models.gen.ts
+pnpm --filter @rtc-agent/protocol generate:openapi
+
+# 然后构建
 pnpm --filter @rtc-agent/protocol build
 ```
 

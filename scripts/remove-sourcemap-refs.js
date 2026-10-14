@@ -5,7 +5,7 @@
  *
  * ## Purpose
  *
- * Production builds generate .map files alongside .js bundles. By default, bundlers
+ * Production builds generate .map files alongside .js bundles. By default, compilers
  * append a comment like `//# sourceMappingURL=app.js.map` at the end of each JS file,
  * which tells browsers where to find the corresponding sourcemap.
  *
@@ -28,12 +28,13 @@
  *
  *   node scripts/remove-sourcemap-refs.js [file...]
  *
- * If no files are specified, processes all .js files under dist/ directory.
+ * If no files are specified, processes all .js files under dist/ directory
+ * of the package that invokes this script (detected via cwd).
  *
  * ## Integration
  *
  * Typically run as a postbuild step in package.json:
- *   "build": "vite build && node scripts/remove-sourcemap-refs.js"
+ *   "build": "tsc && node ../../scripts/remove-sourcemap-refs.js"
  *
  * ## Pattern Matched
  *
@@ -42,9 +43,10 @@
  * - `/*#@ sourceMappingURL=<filename>.map *​/` (block comment variant)
  */
 
-import { readFileSync, writeFileSync, existsSync, globSync } from 'fs';
-import { join } from 'path';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { join, dirname, basename } from 'path';
 import { fileURLToPath } from 'url';
+import { globSync } from 'fs';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
@@ -52,7 +54,7 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
  * Regex to match sourcemap reference comments.
  *
  * Matches:
- * - `//# sourceMappingURL=app.js.map` (most common, appended by Vite/Webpack/esbuild)
+ * - `//# sourceMappingURL=app.js.map` (most common, appended by Vite/Webpack/esbuild/tsc)
  * - `//@ sourceMappingURL=app.js.map` (legacy format, still seen in some tools)
  * - `/*#@ sourceMappingURL=app.js.map *​/` (block comment variant)
  *
@@ -61,23 +63,22 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
  * - `m` (multiline): `^` and `$` match line boundaries, ensuring we only match
  *   comments at the end of a line (prevents false positives in code content)
  */
-const SOURCE_MAP_REGEX = /\/\/[#@]\s*sourceMappingURL=[\w.-]+\.map\s*$|\/\*[#@]\s*sourceMappingURL=[\w.-]+\.map\s*\*\//gm;
+const SOURCE_MAP_REGEX =
+  /\/\/[#@]\s*sourceMappingURL=[\w.-]+\.map\s*$|\/\*[#@]\s*sourceMappingURL=[\w.-]+\.map\s*\*\//gm;
 
 /**
  * Remove sourcemap reference comments from a single file.
  *
- * @param filePath - Path relative to the package root (e.g., 'dist/app.js')
+ * @param filePath - Absolute path to the JS file
  * @returns true if the file was modified, false if no sourcemap reference was found
  */
 function removeSourceMapRefs(filePath) {
-  const fullPath = join(__dirname, '..', filePath);
-
-  if (!existsSync(fullPath)) {
-    console.warn(`⚠️  文件不存在: ${fullPath}`);
+  if (!existsSync(filePath)) {
+    console.warn(`⚠️  文件不存在: ${filePath}`);
     return false;
   }
 
-  const content = readFileSync(fullPath, 'utf-8');
+  const content = readFileSync(filePath, 'utf-8');
   const hasSourceMapRef = SOURCE_MAP_REGEX.test(content);
 
   if (hasSourceMapRef) {
@@ -86,25 +87,40 @@ function removeSourceMapRefs(filePath) {
     // Remove the sourcemap comment and trim trailing whitespace.
     // Append a final newline to ensure the file ends cleanly (POSIX compliance).
     const newContent = content.replace(SOURCE_MAP_REGEX, '').trimEnd() + '\n';
-    writeFileSync(fullPath, newContent, 'utf-8');
-    console.log(`✅ 已移除 sourcemap 引用: ${filePath}`);
+    writeFileSync(filePath, newContent, 'utf-8');
+    console.log(`✅ 已移除 sourcemap 引用: ${basename(filePath)}`);
     return true;
-  } else {
-    console.log(`ℹ️  未找到 sourcemap 引用: ${filePath}`);
-    return false;
   }
+  return false;
 }
 
 // Accept file paths as CLI arguments, or default to processing all .js files in dist/
 const files = process.argv.slice(2);
-const packageRoot = join(__dirname, '..');
-const filesToProcess = files.length > 0 ? files : globSync('dist/**/*.js', { cwd: packageRoot });
+const cwd = process.cwd();
+
+let filesToProcess;
+if (files.length > 0) {
+  filesToProcess = files.map((f) => (f.startsWith('/') ? f : join(cwd, f)));
+} else {
+  const distDir = join(cwd, 'dist');
+  if (!existsSync(distDir)) {
+    console.log('ℹ️  No dist/ directory found, skipping sourcemap removal');
+    process.exit(0);
+  }
+  filesToProcess = globSync('dist/**/*.js', { cwd: distDir }).map((f) =>
+    join(distDir, f),
+  );
+}
 
 let removedCount = 0;
+let processedCount = 0;
 for (const file of filesToProcess) {
+  processedCount++;
   if (removeSourceMapRefs(file)) {
     removedCount++;
   }
 }
 
-console.log(`\n处理完成: ${removedCount}/${filesToProcess.length} 个文件已移除 sourcemap 引用`);
+console.log(
+  `\n处理完成: ${removedCount}/${processedCount} 个文件已移除 sourcemap 引用`,
+);

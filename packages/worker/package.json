@@ -22,11 +22,12 @@
     "README.md"
   ],
   "scripts": {
-    "build": "rm -rf dist && tsc",
+    "build": "rm -rf dist && tsc && node ../../scripts/remove-sourcemap-refs.js",
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests",
-    "test:coverage": "vitest run --coverage --passWithNoTests",
+    "test": "vitest run --passWithNoTests --exclude '**/*.integration.test.ts'",
+    "test:coverage": "vitest run --coverage --passWithNoTests --exclude '**/*.integration.test.ts'",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "lint": "biome lint src/",
     "lint:fix": "biome check --write src/",
     "format": "biome format --write src/"
