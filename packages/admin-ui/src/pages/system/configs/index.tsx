@@ -14,19 +14,19 @@ import TableEmptyState from '@/components/TableEmptyState';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useOptimisticLockConflict } from '@/hooks/useOptimisticLockConflict';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
-import type { ServerConfigItem } from '@/services/server-config';
+import type { ServerConfigItem } from './service';
 import {
   deleteServerConfig,
   getServerConfigList,
   updateServerConfig,
-} from '@/services/server-config';
+} from './service';
 import {
   formatConfigValue,
   truncateValue,
   useConfigSourceRenderer,
 } from '@/utils/configFormat';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
-import { parseTableSort } from '@/utils/tableUtils';
+import { createTableRequest, parseTableSort } from '@/utils/tableUtils';
 import ConfigEditModal from './components/ConfigEditModal';
 import ConfigHistoryModal from './components/ConfigHistoryModal';
 import ConflictModal from './components/ConflictModal';
@@ -553,8 +553,8 @@ const SystemConfigsPage: React.FC = () => {
           showSizeChanger: true,
           showQuickJumper: true,
         }}
-        request={async (params, sort) => {
-          try {
+        request={createTableRequest(
+          async (params, sort) => {
             // Read category from searchParams (URL is single source of truth)
             const category = searchParams.get('category') || '';
             const sortParams = parseTableSort(sort || {});
@@ -565,24 +565,17 @@ const SystemConfigsPage: React.FC = () => {
               ...sortParams,
             });
             return {
-              data: response.items,
+              items: response.items,
               total: response.total,
-              success: true,
             };
-          } catch (error: unknown) {
-            message.error(
-              getFriendlyErrorMessage(
-                error,
-                intl,
-                intl.formatMessage({
-                  id: 'pages.config.system.loadFailed',
-                  defaultMessage: 'Failed to load configs',
-                }),
-              ),
-            );
-            return { data: [], total: 0, success: false };
-          }
-        }}
+          },
+          message,
+          intl,
+          {
+            id: 'pages.config.system.loadFailed',
+            defaultMessage: 'Failed to load configs',
+          },
+        )}
         columns={columns}
         toolBarRender={() => [
           <Button key="refresh" onClick={reload}>

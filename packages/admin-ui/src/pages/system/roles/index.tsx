@@ -12,7 +12,7 @@ import {
   ProFormTextArea,
   ProTable,
 } from '@ant-design/pro-components';
-import { Access, useAccess, useIntl, useSearchParams } from '@umijs/max';
+import { Access, useAccess, useIntl } from '@umijs/max';
 import {
   App,
   Button,
@@ -37,6 +37,7 @@ import { getActionTypes, getResourceTypes } from '@/constants/permissions';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { usePermissionRefresh } from '@/hooks/usePermissionRefresh';
+import { useTableSearchParams } from '@/hooks/useTableSearchParams';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import { createTableRequest, parseTableSort } from '@/utils/tableUtils';
 import type { RoleFormValues, RoleTableItem } from './data';
@@ -60,7 +61,7 @@ const RoleListPage: React.FC = () => {
   const actionRef = useRef<ActionType>(null);
   const access = useAccess();
   const intl = useIntl();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const tableParams = useTableSearchParams<{ keyword?: string }>();
   const { message } = App.useApp();
   const [currentRow, setCurrentRow] = useState<RoleTableItem>();
   const [modalVisible, setModalVisible] = useState(false);
@@ -94,11 +95,7 @@ const RoleListPage: React.FC = () => {
           const { current = 1, pageSize = 20, keyword } = params;
 
           // Sync URL (no page refresh)
-          const newSearchParams = new URLSearchParams();
-          if (keyword) {
-            newSearchParams.set('keyword', keyword);
-          }
-          setSearchParams(newSearchParams, { replace: true });
+          tableParams.set({ keyword });
 
           try {
             const response = await getRoleList({
@@ -215,7 +212,7 @@ const RoleListPage: React.FC = () => {
   // Listen for URL changes, auto-reload table
   useEffect(() => {
     actionRef.current?.reload();
-  }, [searchParams]);
+  }, [tableParams]);
 
   /** Table column definitions */
   const columns: ProColumns<RoleTableItem>[] = useMemo(
@@ -707,7 +704,7 @@ const RoleListPage: React.FC = () => {
         }}
         form={{
           initialValues: {
-            keyword: searchParams.get('keyword') || '',
+            keyword: tableParams.getParam('keyword') || '',
           },
         }}
         toolBarRender={() => [
@@ -734,8 +731,8 @@ const RoleListPage: React.FC = () => {
         ]}
         request={createTableRequest(
           async (params, sort) => {
-            // Read keyword from searchParams (URL is single source of truth)
-            const keyword = searchParams.get('keyword') || '';
+            // Read keyword from tableParams (URL is single source of truth)
+            const keyword = tableParams.getParam('keyword') || '';
             const sortParams = parseTableSort(sort || {});
             const response = await getRoleList({
               page: params.current,
@@ -938,6 +935,13 @@ const RoleListPage: React.FC = () => {
           })}
           fieldProps={{ rows: 4, maxLength: 500, showCount: true }}
           rules={[
+            {
+              required: true,
+              message: intl.formatMessage({
+                id: 'pages.roles.descriptionRequired',
+                defaultMessage: 'Please enter admin role description',
+              }),
+            },
             {
               whitespace: true,
               message: intl.formatMessage({

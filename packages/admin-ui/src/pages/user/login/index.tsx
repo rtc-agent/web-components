@@ -16,13 +16,13 @@ import { Alert, App, Button, Tabs } from 'antd';
 import { createStyles } from 'antd-style';
 import React, { startTransition, useEffect, useState } from 'react';
 import { Footer } from '@/components';
+import type { LoginResult } from './service';
 import {
   getLoginConfig,
-  type LoginResult,
   login,
   loginWithOTP,
   sendEmailOTP,
-} from '@/services/admin-auth';
+} from './service';
 import { setTokens, setUserInfo } from '@/utils/auth-storage';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import Settings from '../../../../config/defaultSettings';
@@ -130,8 +130,13 @@ const handleLoginSuccess = async (
   handlers.messageSuccess(handlers.successText);
   try {
     await handlers.fetchUserInfo();
-  } catch {
-    // fetchUserInfo 失败不影响登录流程，后续页面加载会重试
+  } catch (error) {
+    // P2-FIX: Log fetchUserInfo failure for debugging, but don't block login flow.
+    // The user info will be re-fetched on subsequent page loads.
+    console.warn(
+      '[Login] fetchUserInfo failed after successful login, will retry on next page load:',
+      error,
+    );
   }
 
   const urlParams = new URL(window.location.href).searchParams;

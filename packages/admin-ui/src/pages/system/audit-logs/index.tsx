@@ -1,11 +1,12 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { useIntl, useSearchParams } from '@umijs/max';
+import { useIntl } from '@umijs/max';
 import { App, Tag, theme } from 'antd';
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import TableEmptyState from '@/components/TableEmptyState';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
+import { useTableSearchParams } from '@/hooks/useTableSearchParams';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import { createTableRequest, parseTableSort } from '@/utils/tableUtils';
 import type { AuditLogPageAPI } from './page-api';
@@ -18,7 +19,14 @@ import { getAuditLogList } from './service';
 const AuditLogsPage: React.FC = () => {
   const actionRef = useRef<ActionType>(null);
   const intl = useIntl();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const tableParams = useTableSearchParams<{
+    actor_id?: string;
+    resource_type?: string;
+    event_type?: string;
+    target_id?: string;
+    start_time?: string;
+    end_time?: string;
+  }>();
   const { token } = theme.useToken();
   const { message } = App.useApp();
   const isMobile = useIsMobile();
@@ -42,26 +50,14 @@ const AuditLogsPage: React.FC = () => {
           } = params;
 
           // Sync URL (no page refresh)
-          const newSearchParams = new URLSearchParams();
-          if (actor_id) {
-            newSearchParams.set('actor_id', actor_id);
-          }
-          if (resource_type) {
-            newSearchParams.set('resource_type', resource_type);
-          }
-          if (event_type) {
-            newSearchParams.set('event_type', event_type);
-          }
-          if (target_id) {
-            newSearchParams.set('target_id', target_id);
-          }
-          if (start_time) {
-            newSearchParams.set('start_time', start_time);
-          }
-          if (end_time) {
-            newSearchParams.set('end_time', end_time);
-          }
-          setSearchParams(newSearchParams, { replace: true });
+          tableParams.set({
+            actor_id,
+            resource_type,
+            event_type,
+            target_id,
+            start_time,
+            end_time,
+          });
 
           try {
             const response = await getAuditLogList({
@@ -112,7 +108,7 @@ const AuditLogsPage: React.FC = () => {
   // Listen for URL changes, auto-reload table
   useEffect(() => {
     actionRef.current?.reload();
-  }, [searchParams]);
+  }, [tableParams]);
 
   /** Event type mapping (i18n) */
   const EVENT_TYPE_MAP: Record<string, { text: string; color: string }> =
@@ -376,12 +372,12 @@ const AuditLogsPage: React.FC = () => {
         }}
         form={{
           initialValues: {
-            actor_id: searchParams.get('actor_id') || undefined,
-            resource_type: searchParams.get('resource_type') || undefined,
-            event_type: searchParams.get('event_type') || undefined,
-            resource_id: searchParams.get('target_id') || undefined,
-            start_time: searchParams.get('start_time') || undefined,
-            end_time: searchParams.get('end_time') || undefined,
+            actor_id: tableParams.getParam('actor_id') || undefined,
+            resource_type: tableParams.getParam('resource_type') || undefined,
+            event_type: tableParams.getParam('event_type') || undefined,
+            resource_id: tableParams.getParam('target_id') || undefined,
+            start_time: tableParams.getParam('start_time') || undefined,
+            end_time: tableParams.getParam('end_time') || undefined,
           },
         }}
         beforeSearchSubmit={(params) => {
@@ -403,13 +399,14 @@ const AuditLogsPage: React.FC = () => {
         }}
         request={createTableRequest(
           async (params, sort) => {
-            // Read params from searchParams (URL is single source of truth)
-            const actor_id = searchParams.get('actor_id') || undefined;
-            const resource_type = searchParams.get('resource_type') || undefined;
-            const event_type = searchParams.get('event_type') || undefined;
-            const target_id = searchParams.get('target_id') || undefined;
-            const start_time = searchParams.get('start_time') || undefined;
-            const end_time = searchParams.get('end_time') || undefined;
+            // Read params from tableParams (URL is single source of truth)
+            const actor_id = tableParams.getParam('actor_id') || undefined;
+            const resource_type =
+              tableParams.getParam('resource_type') || undefined;
+            const event_type = tableParams.getParam('event_type') || undefined;
+            const target_id = tableParams.getParam('target_id') || undefined;
+            const start_time = tableParams.getParam('start_time') || undefined;
+            const end_time = tableParams.getParam('end_time') || undefined;
 
             const sortParams = parseTableSort(sort || {});
             const response = await getAuditLogList({
