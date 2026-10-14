@@ -22,6 +22,7 @@ const sharedSelf = self as unknown as SharedWorkerGlobalScope;
 
 sharedSelf.onconnect = (e: MessageEvent): void => {
   const port = e.ports[0];
+  if (!port) return; // SharedWorker always provides a port; guard for type safety
 
   // Track the callback registered by this tab for cleanup on abnormal disconnect.
   // When a tab crashes or is force-closed, the port fires a 'close' event.

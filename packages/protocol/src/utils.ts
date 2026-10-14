@@ -17,13 +17,13 @@
  * @param token - The JWT token string (format: header.payload.signature)
  * @returns The parsed payload as a record, or `null` if parsing failed
  */
-export function parseJwtPayload(
-  token: string,
-): Record<string, unknown> | null {
+export function parseJwtPayload(token: string): Record<string, unknown> | null {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
-    return JSON.parse(atob(parts[1]));
+    const payloadSegment = parts[1];
+    if (payloadSegment === undefined) return null;
+    return JSON.parse(atob(payloadSegment));
   } catch {
     return null;
   }

@@ -260,11 +260,14 @@ export class WorkerCore implements WorkerPersistenceCore {
     let hasGap = false;
     if (fromSeq > 0 && entries.length > 0) {
       // Check start gap: first entry should be fromSeq + 1
-      const minSeq = entries[0].seq;
-      if (minSeq > fromSeq + 1) {
+      const firstEntry = entries[0];
+      if (firstEntry === undefined) {
+        // Length check above guarantees at least one entry; guard for type safety
+        log.warn('getCatchUpEvents: entries[0] undefined despite length > 0');
+      } else if (firstEntry.seq > fromSeq + 1) {
         hasGap = true;
         log.warn(
-          `getCatchUpEvents: gap at start! fromSeq=${fromSeq}, lowest returned seq=${minSeq}`,
+          `getCatchUpEvents: gap at start! fromSeq=${fromSeq}, lowest returned seq=${firstEntry.seq}`,
         );
       }
     } else if (fromSeq > 0 && entries.length === 0) {

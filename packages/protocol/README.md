@@ -17,6 +17,98 @@ import { RpcMethod } from '@rtc-agent/protocol';
 const method = RpcMethod.SessionList; // 'v1.session.list'
 ```
 
+### 枚举使用
+
+枚举以 `const` + `type` 对形式导出（TypeScript const enum 模式）：
+
+```ts
+import { SyncStatus } from '@rtc-agent/protocol';
+import type { SyncStatus as SyncStatusType } from '@rtc-agent/protocol';
+
+// 使用值
+const status: SyncStatusType = SyncStatus.Syncing;
+
+// 类型守卫搭配使用
+import { isValidMessage } from '@rtc-agent/protocol';
+
+if (isValidMessage(data)) {
+  // data is narrowed to Message
+  console.log(data.role, data.streaming_status);
+}
+```
+
+### ContentData 类型安全
+
+`ContentData.data` 字段为 `unknown` 类型（由 OpenAPI oneOf 生成），应使用类型守卫而非手动断言：
+
+```ts
+import type { ContentData } from '@rtc-agent/protocol';
+import {
+  isStringContentData,
+  isToolCallInputContent,
+  isErrorContentData,
+} from '@rtc-agent/protocol';
+
+function extractText(content: ContentData): string {
+  if (isStringContentData(content)) {
+    return content.data; // narrowed to string
+  }
+  if (isErrorContentData(content)) {
+    return content.data.title; // narrowed to ErrorContent
+  }
+  return '';
+}
+```
+
+### Type Export Conventions
+
+To maintain consistency and type safety across the codebase, follow these conventions when exporting types:
+
+1. **Interfaces** — Always use `export interface` for object shapes that may be extended:
+
+   ```ts
+   export interface Session {
+     id: string;
+     title: string;
+     // ...
+   }
+   ```
+
+2. **Type Aliases** — Use `export type` for unions, intersections, or computed types:
+
+   ```ts
+   export type SyncStatus = 'syncing' | 'synced' | 'error';
+   export type EntityId = string;
+   ```
+
+3. **Enum Constants** — Use `export const` + `export type` pair (const enum pattern):
+
+   ```ts
+   export const SyncStatus = {
+     Syncing: 'syncing',
+     Synced: 'synced',
+     Error: 'error',
+   } as const;
+   export type SyncStatus = (typeof SyncStatus)[keyof typeof SyncStatus];
+   ```
+
+4. **Avoid `export *`** — Do not use wildcard re-exports in public API surfaces. Explicitly enumerate exports to prevent unintended exposure and improve tree-shaking:
+
+   ```ts
+   // Good
+   export { Session } from './session';
+   export type { Message } from './message';
+
+   // Avoid
+   export * from './session';
+   ```
+
+5. **Type-only imports** — Use `import type` for type-only imports to improve build performance:
+
+   ```ts
+   import type { Session, Message } from '@rtc-agent/protocol';
+   ```
+
 ### 生成流程
 
 ```bash

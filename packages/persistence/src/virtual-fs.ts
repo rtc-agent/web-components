@@ -526,6 +526,7 @@ export class VirtualFS {
           for (let i = 0; i < files.length; i++) {
             const file = files[i];
             const normalizedPath = normalizedPaths[i];
+            if (file === undefined || normalizedPath === undefined) continue;
             const existing = await db.fileSystemEntries.get(normalizedPath);
             const mode = file.mode || 'overwrite';
 
@@ -585,7 +586,9 @@ export class VirtualFS {
       }
 
       // Acquire lock for current path, then recursively acquire remaining locks
-      await this.withFileLock(paths[index], () =>
+      const currentPath = paths[index];
+      if (currentPath === undefined) return; // Guard: index should be within bounds
+      await this.withFileLock(currentPath, () =>
         executeWithAllLocks(paths, index + 1),
       );
     };
@@ -612,8 +615,9 @@ export class VirtualFS {
       const allKeys = await db.fileSystemEntries.toCollection().keys();
       for (const key of allKeys) {
         const parts = (key as string).split('/').filter(Boolean);
-        if (parts.length > 0) {
-          children.add(parts[0]);
+        const firstPart = parts[0];
+        if (firstPart !== undefined) {
+          children.add(firstPart);
         }
       }
     } else {
@@ -627,8 +631,9 @@ export class VirtualFS {
       for (const key of keys) {
         const remaining = (key as string).substring(prefix.length);
         const parts = remaining.split('/');
-        if (parts.length > 0) {
-          children.add(parts[0]);
+        const firstPart = parts[0];
+        if (firstPart !== undefined) {
+          children.add(firstPart);
         }
       }
     }
@@ -914,10 +919,12 @@ export class VirtualFS {
           const contextEnd = Math.min(lines.length - 1, endLine + contextAfter);
 
           for (let j = contextStart; j <= contextEnd; j++) {
+            const contextLine = lines[j];
+            if (contextLine === undefined) continue;
             contentResults.push({
               file: entry.path,
               lineNumber: j + 1,
-              line: lines[j],
+              line: contextLine,
             });
           }
 
@@ -934,6 +941,7 @@ export class VirtualFS {
 
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
+        if (line === undefined) continue;
         // Reset lastIndex since regex has 'g' flag
         regex.lastIndex = 0;
         if (regex.test(line)) {
@@ -942,10 +950,12 @@ export class VirtualFS {
           const endLine = Math.min(lines.length - 1, i + contextAfter);
 
           for (let j = startLine; j <= endLine; j++) {
+            const contextLine = lines[j];
+            if (contextLine === undefined) continue;
             contentResults.push({
               file: entry.path,
               lineNumber: j + 1,
-              line: lines[j],
+              line: contextLine,
             });
           }
         }
