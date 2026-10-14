@@ -39,6 +39,7 @@ import { styles } from './rtc-toolcall-card.styles.js';
 import type { Message } from '../../types/index.js';
 import { copyToClipboard } from '../../utils/clipboard.js';
 import { formatTimestampCompact } from '../../utils/format.js';
+import { formatPluralCount } from '../../utils/plural-rules.js';
 import { createLogger, TodoStatus } from '@rtc-agent/protocol';
 import './rtc-scroll-container.js';
 
@@ -429,7 +430,7 @@ export class RtcToolCallCard extends LitElement {
       case 'todoWrite': {
         const todos = input.todos as unknown[] | undefined;
         const count = Array.isArray(todos) ? todos.length : 0;
-        return msg(str`todoWrite (${count} tasks)`);
+        return msg(str`todoWrite (${formatPluralCount(count, 'task', 'tasks')})`);
       }
       default:
         return toolName;

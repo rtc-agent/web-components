@@ -6,7 +6,7 @@ import { getCurrentUser } from '@/services/admin-auth';
 import { ApiErrorCodes, ErrorShowType, type UserInfo } from '@/services/types';
 import {
   clearAuth,
-  getAccessToken,
+  getAccessTokenDecrypted,
   getRefreshToken,
   refreshAccessToken,
 } from '@/utils/auth-storage';
@@ -445,13 +445,13 @@ export const errorConfig: RequestConfig = {
   // NOTE: Concurrent refresh prevention is handled by `refreshAccessToken` in utils/auth-storage.ts,
   // which implements Promise deduplication to ensure only one refresh request is in-flight at a time.
   requestInterceptors: [
-    (config: RequestOptions) => {
-      // 从 localStorage 获取 JWT token
-      const accessToken = getAccessToken();
+    async (config: RequestOptions) => {
+      // 从 localStorage 获取 JWT token（异步解密）
+      const accessToken = await getAccessTokenDecrypted();
       if (accessToken) {
         // Check if token is expired before sending request
         // If expired, skip adding token and let 401 handler trigger refresh
-        if (isTokenExpired(accessToken)) {
+        if (isTokenExpired()) {
           console.warn(
             '[Request Interceptor] Token expired, skipping token attachment. 401 handler will trigger refresh.',
             {
