@@ -45,6 +45,7 @@ export default [
         path: '/user/login',
         name: 'login',
         component: './user/login',
+        // Note: No icon field needed — layout: false means no menu/sidebar is rendered
       },
       {
         path: '/user/register',

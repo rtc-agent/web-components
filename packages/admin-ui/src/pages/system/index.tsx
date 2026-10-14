@@ -1,32 +1,69 @@
 import { history, useAccess } from '@umijs/max';
-import { Skeleton } from 'antd';
-import React, { useEffect } from 'react';
+import { Button, Result, Skeleton } from 'antd';
+import React, { useEffect, useRef, useState } from 'react';
 
 /**
  * System Management Index Page
- * Intelligently redirects to the first accessible page based on admin permissions
+ * Intelligently redirects to the first accessible page based on admin permissions.
+ * If no admin permissions are available, displays a 403 Forbidden page with a helpful message.
  */
 const SystemIndexPage: React.FC = () => {
   const access = useAccess();
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const hasRedirected = useRef(false);
 
   useEffect(() => {
+    // Prevent multiple redirects if access object changes
+    if (hasRedirected.current) {
+      return;
+    }
+
     // Check permissions in priority order, redirect to the first accessible page
     if (access.canAdminUserView) {
       history.replace('/system/users');
+      hasRedirected.current = true;
     } else if (access.canAdminRoleView) {
       history.replace('/system/roles');
+      hasRedirected.current = true;
     } else if (access.canPermissionView) {
       history.replace('/system/permissions');
+      hasRedirected.current = true;
     } else if (access.canAuditLogView) {
       history.replace('/system/audit-logs');
+      hasRedirected.current = true;
     } else if (access.canServerConfigView) {
       history.replace('/system/configs');
-    } else {
-      // If no permissions, redirect to account center (safe default for all authenticated users)
-      history.replace('/account/center');
+      hasRedirected.current = true;
+    } else if (!access.canSystemView) {
+      // No admin permissions - show 403 page instead of silent redirect
+      // Note: Only set hasPermission to false if we're sure the user has no system access
+      // (canSystemView is false). This avoids showing 403 during permission loading.
+      setHasPermission(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    // If canSystemView is true but no specific sub-permission is true,
+    // the user will see the loading skeleton briefly until permissions are fully evaluated.
+  }, [access]);
+
+  // Show loading skeleton while checking permissions
+  if (hasPermission === null) {
+    return <Skeleton active style={{ padding: 24 }} />;
+  }
+
+  // Show 403 Forbidden page if no admin permissions
+  if (!hasPermission) {
+    return (
+      <Result
+        status="403"
+        title="403"
+        subTitle="抱歉，您没有系统管理权限。"
+        extra={
+          <Button type="primary" onClick={() => history.push('/')}>
+            返回首页
+          </Button>
+        }
+      />
+    );
+  }
 
   return <Skeleton active style={{ padding: 24 }} />;
 };

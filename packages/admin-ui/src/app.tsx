@@ -36,17 +36,6 @@ import {
   LangDropdown,
   OfflineBanner,
 } from '@/components';
-import {
-  PERM_ADMIN_USER_READ,
-  PERM_AUDIT_LOG_READ,
-  PERM_DASHBOARD_READ,
-  PERM_PERMISSION_READ,
-  PERM_ROLE_READ,
-  PERM_RTC_MESSAGE_READ,
-  PERM_RTC_SESSION_READ,
-  PERM_RTC_USER_READ,
-  PERM_SERVER_CONFIG_READ,
-} from '@/constants/permissions';
 import { isPublicPath, PUBLIC_PATHS } from '@/constants/routes';
 import { getCurrentUser } from '@/services/admin-auth';
 import {
@@ -66,6 +55,7 @@ import {
   setDocumentDirection,
 } from '@/utils/locale-helpers';
 import { buildCurrentUser } from '@/utils/permission';
+import access from '@/access';
 import defaultSettings from '../config/defaultSettings';
 import { errorConfig, setGlobalSetInitialState } from './requestErrorConfig';
 
@@ -350,31 +340,25 @@ export async function getInitialState(): Promise<InitialState> {
  *
  * Priority order: Dashboard > RTC Users > System > 403 (no permissions)
  *
- * @param permissions - User's permission Set, or undefined if not yet loaded
+ * Design note: This function uses the access object (computed from access.ts) rather than
+ * raw permission constants. This ensures consistency with menu visibility logic defined
+ * in access.ts and avoids duplicating permission combination rules.
+ *
+ * @param accessObj - Computed access object from access.ts
  * @returns true if a redirect was performed, false if permissions are not loaded (caller should handle fallback)
  */
 const redirectByPermissions = (
-  permissions: Set<string> | undefined,
+  accessObj: ReturnType<typeof access>,
 ): boolean => {
-  if (!permissions) {
-    return false;
-  }
-
-  if (permissions.has(PERM_DASHBOARD_READ)) {
+  if (accessObj.canDashboardView) {
     history.replace('/dashboard/grafana/rtc-agent');
   } else if (
-    permissions.has(PERM_RTC_USER_READ) ||
-    permissions.has(PERM_RTC_SESSION_READ) ||
-    permissions.has(PERM_RTC_MESSAGE_READ)
+    accessObj.canRtcUserView ||
+    accessObj.canRtcSessionView ||
+    accessObj.canRtcMessageView
   ) {
     history.replace('/rtc-users/management');
-  } else if (
-    permissions.has(PERM_ADMIN_USER_READ) ||
-    permissions.has(PERM_ROLE_READ) ||
-    permissions.has(PERM_PERMISSION_READ) ||
-    permissions.has(PERM_AUDIT_LOG_READ) ||
-    permissions.has(PERM_SERVER_CONFIG_READ)
-  ) {
+  } else if (accessObj.canSystemView) {
     history.replace('/system');
   } else {
     // No permissions at all, redirect to 403 page
@@ -449,10 +433,8 @@ export const layout: RunTimeLayoutConfig = ({
       // 根路由智能重定向：根据用户权限动态决定默认页面
       // 必须在登录检查之前执行，避免未登录用户被重定向到登录页后再跳回
       if (location.pathname === '/') {
-        const access = initialState?.currentUser?.permissions;
-
-        // 如果权限信息尚未加载，根据认证状态决定下一步
-        if (!access) {
+        // 如果用户信息尚未加载，根据认证状态决定下一步
+        if (!initialState?.currentUser) {
           if (isAuthenticated()) {
             // Token 有效但用户信息加载失败（网络错误/API 异常），
             // 跳转到账户页（任意已登录用户可访问，无权限要求）
@@ -463,7 +445,9 @@ export const layout: RunTimeLayoutConfig = ({
         }
 
         // Use shared helper to redirect based on permissions
-        redirectByPermissions(access);
+        // Compute access object to ensure consistency with menu visibility logic
+        const accessObj = access(initialState);
+        redirectByPermissions(accessObj);
         return;
       }
 
@@ -474,10 +458,13 @@ export const layout: RunTimeLayoutConfig = ({
           // Authenticated user on login page: redirect directly to the page
           // they have permission for, avoiding the intermediate `/` redirect
           // that would cause 2-3 unnecessary route hops.
-          const access = initialState?.currentUser?.permissions;
-          if (!redirectByPermissions(access)) {
+          if (!initialState?.currentUser) {
             // Permissions not yet loaded, fallback to root for normal routing
             history.replace('/');
+          } else {
+            // Compute access object to ensure consistency with menu visibility logic
+            const accessObj = access(initialState);
+            redirectByPermissions(accessObj);
           }
         }
         return;
