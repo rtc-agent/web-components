@@ -1,16 +1,16 @@
 import { getLocale } from '@umijs/max';
 import dayjs from 'dayjs';
 
-// RTL (Right-to-Left) languages
-// Note: Only include languages actually supported by the application
-export const RTL_LOCALES = ['fa-IR'];
+// RTL (Right-to-Left) language prefixes
+// Aligned with component package's RTL_LOCALES for consistency
+export const RTL_LOCALES = ['fa', 'ar', 'he', 'ur'];
 
 /**
  * Set document direction (ltr/rtl) based on current locale
  */
 export const setDocumentDirection = () => {
   const locale = getLocale();
-  const isRTL = RTL_LOCALES.some((rtl) => locale.startsWith(rtl.split('-')[0]));
+  const isRTL = RTL_LOCALES.some((rtl) => locale.startsWith(rtl));
   document.documentElement.dir = isRTL ? 'rtl' : 'ltr';
   document.documentElement.lang = locale;
 };
@@ -22,6 +22,9 @@ export const setDocumentDirection = () => {
  * so switching locales only requires calling `dayjs.locale(...)`.
  * This ensures date/time formatting (e.g. day names, month names,
  * relative time like "2 hours ago") follows the user's language.
+ *
+ * Fallback: If a locale is not in the map, it will be lowercased and used directly.
+ * This handles standard locale codes (e.g. "fr-FR" → "fr-fr").
  */
 export const loadDayjsLocale = () => {
   const locale = getLocale();

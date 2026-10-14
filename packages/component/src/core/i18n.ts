@@ -45,7 +45,7 @@ export const { getLocale, setLocale: _setLocale } = configureLocalization({
       return await loader();
     } catch (err) {
       // P1-FIX: Provide more helpful error message in development
-      if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+      if (typeof window !== 'undefined' && import.meta.env.DEV) {
         warnMissingTranslation(locale, `Failed to load locale module`);
       }
       log.warn(
@@ -128,7 +128,7 @@ const SWITCH_LOCALE_DEBOUNCE_MS = 150;
  */
 export async function switchLocale(
   locale: SupportedLocale,
-  immediate: boolean = false
+  immediate: boolean = false,
 ): Promise<void> {
   // Clear any pending switch
   if (switchLocaleTimer !== null) {
@@ -184,7 +184,7 @@ async function executeLocaleSwitch(locale: SupportedLocale): Promise<void> {
  * @param fallback - Fallback text that was used
  */
 export function warnMissingTranslation(key: string, fallback?: string): void {
-  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+  if (typeof window !== 'undefined' && import.meta.env.DEV) {
     const message = fallback
       ? `[i18n] Missing translation for key: "${key}" (using fallback: "${fallback}")`
       : `[i18n] Missing translation for key: "${key}"`;
