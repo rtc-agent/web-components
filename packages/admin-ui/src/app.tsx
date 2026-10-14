@@ -194,16 +194,18 @@ export async function getInitialState(): Promise<InitialState> {
     try {
       setDocumentDirection();
     } catch (e) {
+      const currentLocale = navigator.language || 'unknown';
       console.warn(
-        '[getInitialState] setDocumentDirection failed, using default ltr',
+        `[getInitialState] setDocumentDirection failed (locale: ${currentLocale}), using default ltr`,
         e,
       );
     }
     try {
       loadDayjsLocale();
     } catch (e) {
+      const currentLocale = navigator.language || 'unknown';
       console.warn(
-        '[getInitialState] loadDayjsLocale failed, using default en',
+        `[getInitialState] loadDayjsLocale failed (locale: ${currentLocale}), using default en`,
         e,
       );
     }

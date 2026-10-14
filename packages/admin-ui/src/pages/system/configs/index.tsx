@@ -385,6 +385,10 @@ const SystemConfigsPage: React.FC = () => {
               </Button>
             </Access>
             {record.version > 0 && (
+              // History button: no explicit <Access> guard needed.
+              // This button is only visible if the user can access this page,
+              // which requires PERM_SERVER_CONFIG_READ (granted at route level).
+              // History viewing is a read operation, covered by the read permission.
               <Button
                 type="link"
                 size="small"

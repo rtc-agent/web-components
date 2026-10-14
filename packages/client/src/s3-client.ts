@@ -826,6 +826,15 @@ export class S3Client {
     // SECURITY: Validate extension against allowedExtensions allowlist.
     // Defense-in-depth: prevents uploading executable content types (.html, .js, etc.)
     // that could be served back and executed in a browser context.
+    //
+    // IMPORTANT: This client-side validation is defense-in-depth only.
+    // The backend MUST independently validate the extension before accepting uploads.
+    // Never trust client-side validation alone — attackers can bypass it by:
+    // 1. Calling the backend API directly (bypassing this client)
+    // 2. Modifying the client code (if open-source or reverse-engineered)
+    // 3. Using tools like curl or Postman to send arbitrary requests
+    //
+    // Backend validation ensures security even if all client-side checks are bypassed.
     const extLower = ext.toLowerCase();
     if (this.allowedExtensions.size > 0 && !this.allowedExtensions.has(extLower)) {
       throw new Error(

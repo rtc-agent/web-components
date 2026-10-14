@@ -8,6 +8,27 @@ import type { Activity } from '../types/index.js';
  *
  * Provided by: <rtc-agent> (root)
  * Consumed by: <rtc-activity-bar>, <rtc-agent> (layout conditional rendering)
+ *
+ * @example
+ * ```ts
+ * // Consuming in a LitElement component:
+ * import { consume } from '@lit/context';
+ * import { ActivityContext, type ActivityContextValue } from './contexts/activity.js';
+ *
+ * class MyComponent extends LitElement {
+ *   @consume({ context: ActivityContext })
+ *   private _activityContext!: ActivityContextValue;
+ *
+ *   render() {
+ *     const { state, actions } = this._activityContext;
+ *     return html`
+ *       <div>Active: ${state.active}</div>
+ *       <button @click=${() => actions.setActivity('explorer')}>Explorer</button>
+ *       <button @click=${() => actions.toggleSidebar()}>Toggle Sidebar</button>
+ *     `;
+ *   }
+ * }
+ * ```
  */
 export interface ActivityState {
   /** Current activity */

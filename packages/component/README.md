@@ -484,6 +484,42 @@ on: {
 
 ---
 
+## 开发脚本说明
+
+### 为什么有多个 `pre*` 脚本？
+
+`package.json` 中包含多个 `pre*` 脚本（`prebuild`、`predev`、`pretypecheck`、`pretest`），它们都运行 `lit-localize build`。
+
+**原因：**
+
+1. **国际化支持**：项目使用 `@lit/localize` 进行多语言支持
+2. **模板生成**：`lit-localize build` 会生成翻译模板文件（`src/generated/`）
+3. **依赖检查**：TypeScript 编译、Vite 构建、测试运行都依赖这些生成的文件
+4. **自动化流程**：`pre*` 钩子确保在对应命令执行前，翻译文件已就绪
+
+**执行顺序示例：**
+
+```bash
+pnpm run build
+# 自动执行：
+# 1. prebuild: lit-localize build (生成翻译文件)
+# 2. build: rm -rf dist && vite build && tsc --emitDeclarationOnly
+```
+
+**为什么不能合并为一个脚本？**
+
+- `lit-localize build` 需要单独运行，因为它是独立的工具链
+- `pre*` 钩子是 npm/pnpm 的标准机制，确保依赖文件在命令执行前生成
+- 分离的脚本提供更清晰的错误定位（翻译错误 vs 构建错误）
+
+**开发时的注意事项：**
+
+- 如果修改了翻译文件（`xliff/*.xlf`），需要重新运行 `lit-localize build`
+- 如果 `src/generated/` 目录丢失，运行任意 `pre*` 命令即可恢复
+- 通常不需要手动运行 `lit-localize build`，`pre*` 钩子会自动处理
+
+---
+
 ## License
 
 [MIT](../../LICENSE)

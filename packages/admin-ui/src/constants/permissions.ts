@@ -10,44 +10,78 @@
 // ============================================================================
 // Admin User Management
 // ============================================================================
+
+/** Permission to read admin user list and details */
 export const PERM_ADMIN_USER_READ = 'admin_user:read';
+
+/** Permission to create and update admin users */
 export const PERM_ADMIN_USER_WRITE = 'admin_user:write';
+
+/** Permission to delete admin users */
 export const PERM_ADMIN_USER_DELETE = 'admin_user:delete';
+
+/** Permission to assign or modify admin user roles */
 export const PERM_ADMIN_USER_ROLE_WRITE = 'admin_user_role:write';
 
 // ============================================================================
 // Role Management
 // ============================================================================
+
+/** Permission to read role list and details */
 export const PERM_ROLE_READ = 'role:read';
+
+/** Permission to create and update roles */
 export const PERM_ROLE_WRITE = 'role:write';
 
 // ============================================================================
 // Permission Management
 // ============================================================================
+
+/** Permission to read permission list */
 export const PERM_PERMISSION_READ = 'permission:read';
+
+/** Permission to create and update permissions */
 export const PERM_PERMISSION_WRITE = 'permission:write';
 
 // ============================================================================
 // Audit Log
 // ============================================================================
+
+/** Permission to read audit logs (read-only, critical for compliance) */
 export const PERM_AUDIT_LOG_READ = 'audit_log:read';
 
 // ============================================================================
 // RTC User Management
 // ============================================================================
+
+/** Permission to read RTC user list and details */
 export const PERM_RTC_USER_READ = 'rtc_user:read';
+
+/** Permission to ban or unban RTC users (affects real-time access) */
 export const PERM_RTC_USER_BAN = 'rtc_user:ban';
+
+/** Permission to read RTC session list */
 export const PERM_RTC_SESSION_READ = 'rtc_session:read';
+
+/** Permission to read RTC message history */
 export const PERM_RTC_MESSAGE_READ = 'rtc_message:read';
 
 // ============================================================================
 // Server Configuration
 // ============================================================================
+
+/** Permission to read server configuration */
 export const PERM_SERVER_CONFIG_READ = 'server_config:read';
+
+/** Permission to create and update server configuration */
 export const PERM_SERVER_CONFIG_WRITE = 'server_config:write';
+
+/** Permission to delete server configuration entries */
 export const PERM_SERVER_CONFIG_DELETE = 'server_config:delete';
 
 // ============================================================================
 // Dashboard
 // ============================================================================
+
+/** Permission to view the dashboard and analytics */
 export const PERM_DASHBOARD_READ = 'dashboard:read';

@@ -185,6 +185,14 @@ export class WorkerBridge {
   >();
 
   /**
+   * Heartbeat timer for periodic Worker liveness checks.
+   * Set up after successful initialization; cleared in destroy().
+   * Detects silent Worker failures (e.g., OOM kills, internal crashes)
+   * that don't trigger onerror but leave the Worker unresponsive.
+   */
+  private _heartbeatTimer?: ReturnType<typeof setInterval>;
+
+  /**
    * Whether callbacks have been registered with the Worker.
    *
    * This flag is set to true immediately after registerCallback() succeeds,
@@ -274,6 +282,8 @@ export class WorkerBridge {
   private static readonly INIT_RETRY_DELAY_MS = 1000;
   /** Timeout for worker liveness verification (ping/pong). */
   private static readonly VERIFICATION_TIMEOUT_MS = 5000;
+  /** Heartbeat interval: ping the Worker every 30 seconds to detect silent failures. */
+  private static readonly HEARTBEAT_INTERVAL_MS = 30_000;
 
   /**
    * Generate a worker name for SharedWorker construction.
@@ -336,7 +346,13 @@ export class WorkerBridge {
           skipPersist: true,
           seqOverride: payload.seq,
         }).catch((err) => {
-          log.error('onUIUpdate: bus.publish() failed (non-fatal):', err);
+          // P1-FIX: Preserve error details through Comlink boundary by extracting
+          // name, message, and stack (if available). Comlink's structured clone
+          // may not preserve Error stack traces, so we log what we have.
+          const errorInfo = err instanceof Error
+            ? { name: err.name, message: err.message, stack: err.stack ?? 'no stack available' }
+            : { name: 'UnknownError', message: String(err), stack: 'no stack available' };
+          log.error('onUIUpdate: bus.publish() failed (non-fatal):', errorInfo);
         });
         // Advance cursor on real-time delivery to minimize redundant catch-up replays.
         // This update is synchronous to prevent race conditions with the catch-up loop.
@@ -377,7 +393,12 @@ export class WorkerBridge {
           try {
             listener(event);
           } catch (err) {
-            log.error('connection listener error (non-fatal, continuing to other listeners):', err);
+            // P1-FIX: Extract error details for better diagnostics. Comlink proxied
+            // callbacks may lose stack traces when errors propagate across threads.
+            const errorInfo = err instanceof Error
+              ? { name: err.name, message: err.message, stack: err.stack ?? 'no stack available' }
+              : { name: 'UnknownError', message: String(err), stack: 'no stack available' };
+            log.error('connection listener error (non-fatal, continuing to other listeners):', errorInfo);
           }
         }
       },
@@ -398,7 +419,12 @@ export class WorkerBridge {
             bus.emitGapFillEnd();
           }
         } catch (err) {
-          log.error('onGapFillState: failed to emit gap fill event (non-fatal):', err);
+          // P1-FIX: Extract error details for better diagnostics. Comlink proxied
+          // callbacks may lose stack traces when errors propagate across threads.
+          const errorInfo = err instanceof Error
+            ? { name: err.name, message: err.message, stack: err.stack ?? 'no stack available' }
+            : { name: 'UnknownError', message: String(err), stack: 'no stack available' };
+          log.error('onGapFillState: failed to emit gap fill event (non-fatal):', errorInfo);
         }
       },
       // Catch-up detected a gap in events (TTL cleanup deleted missed events).
@@ -511,6 +537,8 @@ export class WorkerBridge {
         await this._initWorkerOnce();
         // Verify the Worker actually started.
         await this._verifyWorkerAlive();
+        // Start periodic heartbeat to detect silent failures.
+        this._startHeartbeat();
 
         return;
       } catch (err) {
@@ -685,6 +713,51 @@ export class WorkerBridge {
       if (timeoutId !== undefined) {
         clearTimeout(timeoutId);
       }
+    }
+  }
+
+  /**
+   * Start periodic heartbeat to detect silent Worker failures.
+   *
+   * Calls ping() every HEARTBEAT_INTERVAL_MS (30 seconds).
+   * If ping() fails or times out, logs a warning but does not attempt recovery
+   * (recovery is handled by the application layer via connection state monitoring).
+   *
+   * Why this is useful:
+   * - SharedWorkers can fail silently (e.g., OOM kills, internal exceptions)
+   * - Without heartbeat, failures are only detected when the next operation times out
+   * - Heartbeat provides early warning and helps with observability
+   *
+   * Safety:
+   * - Errors are caught and logged (non-fatal)
+   * - If the Worker is truly dead, subsequent operations will fail and trigger cleanup
+   * - Heartbeat is cleared in destroy() to prevent leaks
+   */
+  private _startHeartbeat(): void {
+    this._stopHeartbeat(); // Clear any existing timer (defensive)
+    this._heartbeatTimer = setInterval(async () => {
+      if (!this._core) return;
+      try {
+        const result = await this._core.ping();
+        if (result !== 'pong') {
+          log.warn('Worker heartbeat: unexpected ping response:', result);
+        } else {
+          log.debug('Worker heartbeat: pong received');
+        }
+      } catch (err) {
+        log.warn('Worker heartbeat failed (Worker may be unresponsive):', err);
+      }
+    }, WorkerBridge.HEARTBEAT_INTERVAL_MS);
+  }
+
+  /**
+   * Stop the periodic heartbeat.
+   * Safe to call multiple times (idempotent).
+   */
+  private _stopHeartbeat(): void {
+    if (this._heartbeatTimer !== undefined) {
+      clearInterval(this._heartbeatTimer);
+      this._heartbeatTimer = undefined;
     }
   }
 
@@ -874,6 +947,9 @@ export class WorkerBridge {
     // Mark as destroyed immediately to prevent init() from completing after destroy.
     // This is checked in init() before setting _initialized = true.
     this._destroyed = true;
+
+    // Stop heartbeat immediately to prevent further pings to a dying Worker.
+    this._stopHeartbeat();
 
     // 1. Cancel ongoing catch-up immediately.
     //    This signals _doCatchUp() to bail out at the next iteration boundary.
@@ -1100,30 +1176,30 @@ export class WorkerBridge {
    * function-registry doc writing, scenario-loader, etc.) are automatically routed
    * to the Worker.
    *
-   * CRITICAL WARNING - Multi-Instance Risk:
-   * virtualFS is a module-level singleton; the replacement is GLOBAL. If multiple
-   * <rtc-agent> instances exist on the same page, each instance will overwrite the
-   * previous instance's proxy. This causes unpredictable behavior where file operations
-   * may be routed to the wrong Worker instance.
+   * SINGLE-INSTANCE CONSTRAINT:
+   * virtualFS is a module-level singleton; the replacement is GLOBAL. Only ONE
+   * <rtc-agent> instance per page can install this proxy. If multiple instances
+   * attempt installation, an Error is thrown to prevent data corruption.
    *
-   * Current Limitations:
-   * - Only one <rtc-agent> instance per page should call this method
-   * - Subsequent calls will overwrite previous proxies without automatic restoration
+   * Error Behavior:
+   * - First instance: successfully installs the proxy
+   * - Subsequent instances: throw Error with clear message about single-instance limitation
    * - The original implementation is preserved in WorkerBridge._originalVirtualFS
-   *   for potential future restoration, but restoration is not currently implemented
+   *   for restoration via restoreVirtualFS()
    *
-   * Future Considerations:
-   * - Consider using dependency injection to provide virtualFS instances per component
-   * - Implement instance tracking and automatic restoration on component destruction
-   * - Add a configuration option to disable proxy installation for secondary instances
+   * Architecture Rationale:
+   * Multiple <rtc-agent> instances would corrupt each other's file operations,
+   * routing reads/writes to the wrong Worker's IndexedDB database. Throwing an
+   * error enforces the constraint at runtime rather than allowing silent corruption.
    */
   installVirtualFSProxy(): void {
-    // Warn if proxy has already been installed (multi-instance conflict)
+    // Throw error if proxy has already been installed (multi-instance conflict)
+    // virtualFS is a global singleton; multiple instances would corrupt each other's data
     if (WorkerBridge._virtualFSProxyInstalled) {
-      log.warn(
-        'virtualFS proxy already installed by another WorkerBridge instance. ' +
-        'Multiple <rtc-agent> instances on the same page will conflict. ' +
-        'This may cause file operations to be routed to the wrong Worker instance.'
+      throw new Error(
+        '[WorkerBridge] virtualFS proxy already installed by another <rtc-agent> instance. ' +
+        'Multiple instances are not supported. ' +
+        'Only one <rtc-agent> component can be active per page to prevent data corruption.'
       );
     }
 
@@ -1672,12 +1748,19 @@ export class WorkerBridge {
         //
         // The adaptive algorithm:
         // 1. Detect display refresh rate via requestAnimationFrame timing
-        // 2. Allocate 50% of frame budget to catch-up processing
-        // 3. Reserve 50% for rendering, compositing, and browser overhead
+        // 2. Allocate 40-50% of frame budget to catch-up processing (range accounts for variance)
+        // 3. Reserve 50-60% for rendering, compositing, and browser overhead
         //
         // This ensures smooth rendering across ALL devices while maximizing
-        // throughput on high-end displays. The 50% allocation is conservative
+        // throughput on high-end displays. The 40-50% range is conservative
         // but prevents frame drops even under heavy rendering load.
+        //
+        // RACE CONDITION PROTECTION:
+        // Between the initial query (line ~1650) and this catch-up loop, the real-time
+        // callback (_callbacks.onUIUpdate) may have processed new events and updated
+        // _lastProcessedSeq. The _isEventProcessed() check below filters out duplicates,
+        // ensuring idempotent delivery. This window is bounded by the query duration
+        // (typically <10ms), making the race window minimal and the protection robust.
         const FRAME_BUDGET_MS = this._calculateFrameBudget();
         let sliceStart = performance.now();
 

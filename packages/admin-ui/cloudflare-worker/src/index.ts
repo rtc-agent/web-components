@@ -10,19 +10,28 @@ import profileRoutes from './routes/profile';
 import settingsRoutes from './routes/settings';
 import tableRoutes from './routes/table';
 import userRoutes from './routes/user';
-import { corsOrigin } from './utils/cors';
+import { corsOrigin, parseAllowedOrigins } from './utils/cors';
 
-const app = new Hono();
+// Environment bindings for Cloudflare Workers
+type Bindings = {
+  CORS_ORIGINS?: string;
+};
 
-// CORS middleware
+const app = new Hono<{ Bindings: Bindings }>();
+
+// CORS middleware - parse allowed origins from environment variable
 app.use(
   '/*',
-  cors({
-    origin: (origin) =>
-      corsOrigin(origin) ? origin : 'https://preview.pro.ant.design',
-    allowMethods: ['GET', 'POST', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization'],
-  }),
+  async (c, next) => {
+    const allowedOrigins = parseAllowedOrigins(c.env.CORS_ORIGINS);
+    const corsMiddleware = cors({
+      origin: (origin) =>
+        corsOrigin(origin, allowedOrigins) ? origin : 'https://preview.pro.ant.design',
+      allowMethods: ['GET', 'POST', 'OPTIONS'],
+      allowHeaders: ['Content-Type', 'Authorization'],
+    });
+    return corsMiddleware(c, next);
+  },
 );
 
 // Auth routes config

@@ -160,12 +160,40 @@ export class RTCAgentClient implements IRTCAgentClient {
   /**
    * In-flight token refresh promise for deduplication.
    *
-   * Prevents concurrent token refresh requests when multiple callbacks detect expiry
-   * simultaneously (e.g., multiple tabs or reconnection attempts). The first refresh
-   * creates this promise; subsequent callers await it instead of triggering new refreshes.
-   * Cleared after completion (success or failure) to allow retry.
+   * **Race condition scenario:**
+   * Multiple callbacks (e.g., Centrifuge's token refresh callback, reconnection logic,
+   * or multiple tabs sharing the same client instance) may detect token expiry simultaneously.
+   * Without deduplication, each callback would trigger a separate refresh request, causing:
+   * 1. Redundant network requests to the auth server
+   * 2. Potential token invalidation (if the auth server rotates tokens on refresh)
+   * 3. Wasted resources and increased latency
+   *
+   * **Deduplication mechanism:**
+   * The first caller to detect expiry creates this promise and caches it. Subsequent callers
+   * check this field and await the same promise instead of initiating new refreshes.
+   * After completion (success or failure), the promise is cleared to allow retry.
+   *
+   * **Why this is safe:**
+   * - JavaScript is single-threaded: the check-and-assign is atomic (no interleaving)
+   * - The promise is cleared in `finally`, ensuring cleanup even on exceptions
+   * - Callers awaiting the same promise receive the same result (success or failure)
+   *
+   * See: WorkerBridge Token Caching Bug (memory) for historical context on similar issues.
    */
   private _refreshPromise: Promise<string> | null = null;
+
+  // ========== P2-7: Token refresh failure tracking with exponential backoff ==========
+  /**
+   * Track consecutive token refresh failures to implement exponential backoff.
+   * Prevents overwhelming the auth server when it's experiencing issues.
+   *
+   * - _refreshFailureCount: Number of consecutive refresh failures
+   * - REFRESH_BACKOFF_MS: Base delay for exponential backoff (1s, 2s, 4s, 8s...)
+   * - REFRESH_MAX_BACKOFF_MS: Maximum backoff delay (30s)
+   */
+  private _refreshFailureCount: number = 0;
+  private static readonly REFRESH_BACKOFF_MS = 1000;
+  private static readonly REFRESH_MAX_BACKOFF_MS = 30000;
 
   // ========== Update Scheduler: dispatch -> [buffer] -> serial executor ==========
   /**
@@ -194,6 +222,31 @@ export class RTCAgentClient implements IRTCAgentClient {
   /** Multiplier for exponential backoff. */
   private static readonly RECONNECT_BACKOFF_MULTIPLIER = 2;
 
+  /**
+   * Network status event handlers for online/offline detection.
+   * Added in connect() and removed in disconnect() to trigger reconnection
+   * when network recovers from offline state.
+   */
+  private _onOnlineHandler?: () => void;
+  private _onOfflineHandler?: () => void;
+
+  // ========== P2-6: Application-level heartbeat monitoring ==========
+  /**
+   * Heartbeat monitoring to detect stale connections that Centrifuge's internal
+   * mechanism might miss (e.g., half-open connections, proxy timeouts).
+   *
+   * - _lastMessageTime: Timestamp of last received message/publication
+   * - _heartbeatCheckTimer: Periodic timer to check for message staleness
+   * - HEARTBEAT_TIMEOUT_MS: If no message received within this window, trigger reconnect
+   *
+   * This is a safety net - Centrifuge's ping/pong handles most cases, but application-level
+   * monitoring catches edge cases where the connection appears alive but data stops flowing.
+   */
+  private _lastMessageTime: number = 0;
+  private _heartbeatCheckTimer?: ReturnType<typeof setInterval>;
+  private static readonly HEARTBEAT_TIMEOUT_MS = 60000; // 60 seconds
+  private static readonly HEARTBEAT_CHECK_INTERVAL_MS = 30000; // Check every 30 seconds
+
   constructor(options: RTCAgentClientOptions) {
     this.options = options;
     this._reconnectDelay = RTCAgentClient.RECONNECT_INITIAL_DELAY_MS;
@@ -212,6 +265,31 @@ export class RTCAgentClient implements IRTCAgentClient {
     }
     this.shouldReconnect = true;
     this.setConnectionState('connecting');
+
+    // P1-FIX: Register network status listeners to trigger reconnection on recovery.
+    // When the browser goes offline, WebSocket connections are suspended. Upon coming
+    // back online, we proactively reconnect instead of waiting for Centrifuge's timeout.
+    this._onOnlineHandler = () => {
+      log.info('Network online event received, triggering reconnection');
+      if (this.connectionState === 'disconnected' && this.shouldReconnect) {
+        // Clear any pending reconnect timer to reconnect immediately
+        if (this._reconnectTimer) {
+          clearTimeout(this._reconnectTimer);
+          this._reconnectTimer = undefined;
+        }
+        this.connect().catch((err) => {
+          log.error('Reconnection after online event failed:', err);
+        });
+      }
+    };
+    this._onOfflineHandler = () => {
+      log.warn('Network offline event received, connection suspended');
+      // Centrifuge will detect the connection drop; we just log for observability
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', this._onOnlineHandler);
+      window.addEventListener('offline', this._onOfflineHandler);
+    }
 
     this.centrifuge = new Centrifuge(this.options.endpoint, {
       // Weak network tolerance: increase timeout from default 5s to 15s.
@@ -238,6 +316,9 @@ export class RTCAgentClient implements IRTCAgentClient {
       this.wasConnected = true;
       // Reset exponential backoff on successful connection
       this._reconnectDelay = RTCAgentClient.RECONNECT_INITIAL_DELAY_MS;
+      // P2-6: Initialize heartbeat timestamp and start monitoring
+      this._lastMessageTime = Date.now();
+      this._startHeartbeatMonitoring();
       this.setConnectionState('connected');
       this.subscribeChannels();
     });
@@ -334,11 +415,24 @@ export class RTCAgentClient implements IRTCAgentClient {
   disconnect(): void {
     this.shouldReconnect = false;
     this.wasConnected = false;
+    // P1-FIX: Remove network status listeners to prevent leaks and unwanted reconnects.
+    if (typeof window !== 'undefined') {
+      if (this._onOnlineHandler) {
+        window.removeEventListener('online', this._onOnlineHandler);
+      }
+      if (this._onOfflineHandler) {
+        window.removeEventListener('offline', this._onOfflineHandler);
+      }
+    }
+    this._onOnlineHandler = undefined;
+    this._onOfflineHandler = undefined;
     // Clear any pending reconnect timer to prevent zombie reconnects after explicit disconnect.
     if (this._reconnectTimer) {
       clearTimeout(this._reconnectTimer);
       this._reconnectTimer = undefined;
     }
+    // P2-6: Stop heartbeat monitoring on disconnect
+    this._stopHeartbeatMonitoring();
     // Abort all active gap fill waits to prevent zombie timers
     this._gapFillAbortControllers.forEach((controller) => controller.abort());
     this._gapFillAbortControllers.clear();
@@ -611,6 +705,8 @@ export class RTCAgentClient implements IRTCAgentClient {
         offset: update.offset,
         data: update,
       };
+      // P2-6: Update heartbeat timestamp on message receipt
+      this._lastMessageTime = Date.now();
       await this.options.onPublication(event);
     }
 
@@ -1406,6 +1502,9 @@ export class RTCAgentClient implements IRTCAgentClient {
    * This solves the race condition where multiple Centrifuge callbacks (e.g., during
    * reconnection) detect token expiry simultaneously and would otherwise trigger
    * parallel refresh requests.
+   *
+   * P2-7: Implements exponential backoff on refresh failures to prevent overwhelming
+   * the auth server during outages.
    */
   private async _getToken(): Promise<string> {
     const token = await this.options.getToken();
@@ -1417,6 +1516,18 @@ export class RTCAgentClient implements IRTCAgentClient {
       if (this._refreshPromise) {
         log.debug('token refresh already in-flight, awaiting existing promise');
         return this._refreshPromise;
+      }
+
+      // P2-7: Check if we need to back off due to recent failures
+      if (this._refreshFailureCount > 0) {
+        const backoffDelay = Math.min(
+          RTCAgentClient.REFRESH_BACKOFF_MS * Math.pow(2, this._refreshFailureCount - 1),
+          RTCAgentClient.REFRESH_MAX_BACKOFF_MS,
+        );
+        log.warn(
+          `Token refresh backing off for ${backoffDelay}ms due to ${this._refreshFailureCount} consecutive failures`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, backoffDelay));
       }
 
       log.warn('[Centrifuge] token is expired, requesting refresh...');
@@ -1436,7 +1547,19 @@ export class RTCAgentClient implements IRTCAgentClient {
             throw new Error('Token expired, user needs to re-login');
           }
           // action === 'refresh' — token has been refreshed, fetch the new one.
-          return await this.options.getToken();
+          const newToken = await this.options.getToken();
+          // P2-7: Success - reset failure count
+          this._refreshFailureCount = 0;
+          log.debug('Token refresh successful, reset failure count');
+          return newToken;
+        } catch (err) {
+          // P2-7: Increment failure count on refresh failure
+          this._refreshFailureCount++;
+          log.error(
+            `Token refresh failed (failure #${this._refreshFailureCount}):`,
+            err,
+          );
+          throw err;
         } finally {
           // Clear the promise after completion (success or failure) to allow retry
           this._refreshPromise = null;
@@ -1611,6 +1734,49 @@ export class RTCAgentClient implements IRTCAgentClient {
       log.error(`onPublication threw for channel '${event.channel}':`, err);
       sub.unsubscribe();
       throw err; // Propagate upward so the caller knows an error occurred.
+    }
+  }
+
+  // ========== P2-6: Application-level heartbeat monitoring ==========
+
+  /**
+   * Start periodic heartbeat monitoring to detect stale connections.
+   * If no message is received within HEARTBEAT_TIMEOUT_MS, trigger reconnection.
+   */
+  private _startHeartbeatMonitoring(): void {
+    this._stopHeartbeatMonitoring(); // Clear any existing timer
+    this._heartbeatCheckTimer = setInterval(() => {
+      const timeSinceLastMessage = Date.now() - this._lastMessageTime;
+      if (timeSinceLastMessage > RTCAgentClient.HEARTBEAT_TIMEOUT_MS) {
+        log.warn(
+          `Heartbeat timeout: no message received for ${timeSinceLastMessage}ms, triggering reconnect`,
+        );
+        // Emit error event to notify application
+        this.emit(
+          'error',
+          new Error(
+            `Heartbeat timeout: no message received for ${timeSinceLastMessage}ms`,
+          ),
+        );
+        // Trigger reconnection
+        this.reconnect().catch((err) => {
+          log.error('Heartbeat-triggered reconnect failed:', err);
+        });
+      } else {
+        log.debug(
+          `Heartbeat check: last message ${timeSinceLastMessage}ms ago (threshold: ${RTCAgentClient.HEARTBEAT_TIMEOUT_MS}ms)`,
+        );
+      }
+    }, RTCAgentClient.HEARTBEAT_CHECK_INTERVAL_MS);
+  }
+
+  /**
+   * Stop heartbeat monitoring.
+   */
+  private _stopHeartbeatMonitoring(): void {
+    if (this._heartbeatCheckTimer) {
+      clearInterval(this._heartbeatCheckTimer);
+      this._heartbeatCheckTimer = undefined;
     }
   }
 }

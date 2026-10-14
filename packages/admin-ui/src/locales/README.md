@@ -115,3 +115,48 @@ intl.formatMessage({
 'pages.cfg.sys.title'           // unclear
 'pages.config.system.title'     // clear
 ```
+
+## Key Organization Strategy
+
+### Feature-Based Organization
+
+Group translation keys by feature/module to improve discoverability and maintainability:
+
+```typescript
+// ✅ Good: Feature-based hierarchy
+'pages.rtcUsers.list.title': 'RTC Users'
+'pages.rtcUsers.list.searchPlaceholder': 'Search users...'
+'pages.rtcUsers.detail.title': 'User Detail'
+'pages.rtcUsers.detail.devices': 'Devices'
+
+// ❌ Avoid: Scattered keys without clear grouping
+'pages.users.title': '...'
+'pages.rtcUsersList.search': '...'
+'pages.userDetail.devices': '...'
+```
+
+### Shared vs Page-Specific Keys
+
+- **Shared keys** (`common.*`, `menu.*`, `component.*`): Used across multiple pages
+- **Page-specific keys** (`pages.<module>.*`): Only used within a specific page/module
+
+```typescript
+// Shared: reusable across the app
+'common.confirm': 'Confirm'
+'common.cancel': 'Cancel'
+
+// Page-specific: only used in RTC Users module
+'pages.rtcUsers.list.title': 'RTC Users'
+```
+
+### When to Create New Keys
+
+1. **New UI element**: Button, label, placeholder, error message
+2. **User-facing text**: Anything the user sees (except icons/brand names)
+3. **Error messages**: Validation errors, API errors, system errors
+
+### When NOT to Create New Keys
+
+1. **Developer-only text**: Debug messages, console logs
+2. **Dynamic content**: User-generated content, data from API
+3. **Brand names**: Product names, company names (unless localized)

@@ -15,6 +15,26 @@ import type { AuthState } from '../types/index.js';
  * Rationale: Auth has only two actions, so wrapping them in an `actions` sub-object
  * would add unnecessary redundancy, and `el.login()` is more semantically intuitive
  * than `el.actions.login()`.
+ *
+ * @example
+ * ```ts
+ * // Consuming in a LitElement component:
+ * import { consume } from '@lit/context';
+ * import { AuthContext, type AuthContextValue } from './contexts/auth.js';
+ *
+ * class MyComponent extends LitElement {
+ *   @consume({ context: AuthContext })
+ *   private _authContext!: AuthContextValue;
+ *
+ *   render() {
+ *     const { state, login, logout } = this._authContext;
+ *     if (!state.isLoggedIn) {
+ *       return html`<button @click=${login}>Login</button>`;
+ *     }
+ *     return html`<button @click=${logout}>Logout</button>`;
+ *   }
+ * }
+ * ```
  */
 export interface AuthContextValue {
   state: AuthState;

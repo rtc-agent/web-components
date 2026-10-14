@@ -67,6 +67,7 @@ export class ModeController extends CachedContextController<
   }
 
   private _setMode(mode: Mode) {
+    log.debug('Setting mode:', mode);
     this._setState({ currentMode: mode });
     this.host.requestUpdate();
 
