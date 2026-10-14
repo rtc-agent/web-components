@@ -143,7 +143,7 @@ export interface EventBindingDeps {
  * ```
  */
 export class EventBindingController implements ReactiveController {
-  host: ReactiveControllerHost;
+  host: ReactiveControllerHost & EventTarget;
   private deps: EventBindingDeps;
 
   // ── Bound Event Handlers ──
@@ -203,7 +203,10 @@ export class EventBindingController implements ReactiveController {
   private _boundOnWheel!: (e: WheelEvent) => void;
   private _boundOnDrawerClose!: () => void;
 
-  constructor(host: ReactiveControllerHost, deps: EventBindingDeps) {
+  constructor(
+    host: ReactiveControllerHost & EventTarget,
+    deps: EventBindingDeps,
+  ) {
     this.host = host;
     this.deps = deps;
     this.host.addController(this);

@@ -111,6 +111,18 @@ export class NotificationController implements ReactiveController {
 
   hostConnected(): void {
     this._preloadSounds();
+
+    // Defensive check: ensure critical dependencies are injected before subscribing.
+    // In React StrictMode or rapid mount/unmount cycles, dependencies may not be
+    // re-injected yet. Log a warning and skip subscription to prevent runtime errors.
+    if (!this.persistence) {
+      log.warn(
+        'NotificationController: persistence layer not ready at hostConnected, ' +
+        'skipping message subscription. Dependencies will be injected by root component.',
+      );
+      return;
+    }
+
     this._subscribeToMessages();
   }
 
