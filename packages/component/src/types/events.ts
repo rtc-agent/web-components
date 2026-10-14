@@ -25,8 +25,8 @@
  * ```
  */
 
-import type { ConnectionState } from '@rtc-agent/client';
-import type { Session, Message } from './index.js';
+import type { ConnectionState } from '@rtc-agent/protocol';
+import type { Message, Session } from './index.js';
 
 /**
  * Public custom events (for external host application listeners)
@@ -127,7 +127,9 @@ export interface RtcAgentEventDetailMap {
   // ── UI: Todo panel ──
 
   /** Todo filter changed */
-  'rtc-todo-filter-changed': { filter: 'all' | 'pending' | 'in_progress' | 'completed' };
+  'rtc-todo-filter-changed': {
+    filter: 'all' | 'pending' | 'in_progress' | 'completed';
+  };
 
   // ── UI: Message list ──
 

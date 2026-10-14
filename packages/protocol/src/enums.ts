@@ -45,7 +45,6 @@
  * - Prefer importing from this file over hardcoding string literals
  */
 
-
 /**
  * Session lifecycle status
  *
@@ -282,3 +281,22 @@ export const FileSyncStatus = {
 } as const;
 export type FileSyncStatus =
   (typeof FileSyncStatus)[keyof typeof FileSyncStatus];
+
+/**
+ * WebSocket connection state
+ *
+ * Tracks the lifecycle of the client's WebSocket connection to the server.
+ * Used by RTCAgentClient and WorkerBridge to manage connection state changes.
+ */
+export const ConnectionState = {
+  /** Connection is closed (initial state or after disconnect) */
+  Disconnected: 'disconnected',
+  /** Connection is being established */
+  Connecting: 'connecting',
+  /** Connection is active and ready for communication */
+  Connected: 'connected',
+  /** Connection is lost and being re-established automatically */
+  Reconnecting: 'reconnecting',
+} as const;
+export type ConnectionState =
+  (typeof ConnectionState)[keyof typeof ConnectionState];

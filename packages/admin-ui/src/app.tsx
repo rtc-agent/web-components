@@ -27,6 +27,7 @@ import React from 'react';
 // Initialize dayjs plugins globally
 dayjs.extend(relativeTime);
 
+import access from '@/access';
 import {
   AvatarDropdown,
   DocLink,
@@ -55,7 +56,6 @@ import {
   setDocumentDirection,
 } from '@/utils/locale-helpers';
 import { buildCurrentUser } from '@/utils/permission';
-import access from '@/access';
 import defaultSettings from '../config/defaultSettings';
 import { errorConfig, setGlobalSetInitialState } from './requestErrorConfig';
 
@@ -300,7 +300,7 @@ export async function getInitialState(): Promise<InitialState> {
           currentUser,
           settings: loadThemeSettings(),
           settingDrawerOpen: false,
-          loading: true,
+          loading: false,
           // Degraded flag: token exists but user info failed to load.
           // Downstream code (onPageChange) uses this to show a warning toast.
           degraded: !currentUser && isAuthenticated(),
@@ -379,19 +379,6 @@ export const layout: RunTimeLayoutConfig = ({
       setGlobalSetInitialState(null);
     };
   }, [setInitialState]);
-
-  // Clear initial loading flag after first render.
-  // getInitialState returns loading: true during data fetch to reflect real initialization state;
-  // this effect transitions to loading: false once the layout mounts (data is ready).
-  React.useEffect(() => {
-    if (initialState?.loading) {
-      try {
-        setInitialState((s) => ({ ...s, loading: false }));
-      } catch (error) {
-        console.error('[app.tsx] Failed to clear loading state:', error);
-      }
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const locale = getLocale();
   const intl = useIntl();
@@ -559,7 +546,10 @@ export const layout: RunTimeLayoutConfig = ({
                   settingDrawerOpen: open,
                 }));
               } catch (error) {
-                console.error('[app.tsx] Failed to toggle setting drawer:', error);
+                console.error(
+                  '[app.tsx] Failed to toggle setting drawer:',
+                  error,
+                );
               }
             }}
             settings={initialState?.settings}

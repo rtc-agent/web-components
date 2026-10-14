@@ -1,26 +1,27 @@
 import type {
-  Session,
-  Turn,
-  Message,
-  Rtc,
-  Update,
-  RtcStatus,
-  ListSessionsResponse,
-  MessageListResponse,
-  TurnListResponse,
-  RtcListResponse,
-  GetSessionResponse,
-  SendMessageResponse,
-  SendMessageRequest,
-  ForkSessionResponse,
-  ForkSessionRequest,
   CloseSessionResponse,
-  OpenSessionResponse,
-  StopTurnResponse,
-  SubmitRtcResultResponse,
-  UpdateRtcStatusResponse,
   CompactSessionRequest,
   CompactSessionResponse,
+  ConnectionState,
+  ForkSessionRequest,
+  ForkSessionResponse,
+  GetSessionResponse,
+  ListSessionsResponse,
+  Message,
+  MessageListResponse,
+  OpenSessionResponse,
+  Rtc,
+  RtcListResponse,
+  RtcStatus,
+  SendMessageRequest,
+  SendMessageResponse,
+  Session,
+  StopTurnResponse,
+  SubmitRtcResultResponse,
+  Turn,
+  TurnListResponse,
+  Update,
+  UpdateRtcStatusResponse,
 } from '@rtc-agent/protocol';
 
 // ========== Token Exchange ==========
@@ -69,14 +70,12 @@ export class TokenExchangeError extends Error {
 
 // ========== Connection State ==========
 
-export type ConnectionState =
-  | 'disconnected'
-  | 'connecting'
-  | 'connected'
-  | 'reconnecting';
+// Re-export ConnectionState from protocol for backward compatibility.
+// The canonical definition is now in @rtc-agent/protocol/src/enums.ts.
+export type { ConnectionState } from '@rtc-agent/protocol';
 
 export interface ConnectionStateEvent {
-  state: ConnectionState;
+  state: import('@rtc-agent/protocol').ConnectionState;
   reason?: string;
 }
 
@@ -254,9 +253,7 @@ export type EventCallback<E extends EventName> = (
   payload: RTCAgentClientEvents[E],
 ) => void;
 
-export interface Unsubscribe {
-  (): void;
-}
+export type Unsubscribe = () => void;
 
 // ========== Client Interface ==========
 
@@ -333,4 +330,4 @@ export interface IRTCAgentClient {
 }
 
 // Re-export protocol types for single-import convenience.
-export type { Session, Turn, Message, Rtc, Update };
+export type { Message, Rtc, Session, Turn, Update };

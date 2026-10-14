@@ -33,27 +33,25 @@
  *
  * See installVirtualFSProxy() and restoreVirtualFS() methods for implementation details.
  */
-import { wrap, proxy, type Remote } from 'comlink';
-import { getUIUpdateBus, virtualFS } from '@rtc-agent/persistence';
+
+import type { ConnectionStateEvent, HeadObjectResult } from '@rtc-agent/client';
 import type {
-  PersistenceConfig,
-  UIUpdateEvent,
-  FileSystemMetadataOverride,
   CachedFileInfo,
   FileCacheEntry,
   FileSyncStatus,
+  FileSystemMetadataOverride,
+  PersistenceConfig,
+  UIUpdateEvent,
 } from '@rtc-agent/persistence';
-import type {
-  ConnectionState,
-  ConnectionStateEvent,
-  HeadObjectResult,
-} from '@rtc-agent/client';
+import { getUIUpdateBus, virtualFS } from '@rtc-agent/persistence';
+import type { ConnectionState } from '@rtc-agent/protocol';
 import { createLogger } from '@rtc-agent/protocol';
 import type {
-  WorkerPersistenceCore,
-  WorkerCallbacks,
   UIUpdatePayload,
+  WorkerCallbacks,
+  WorkerPersistenceCore,
 } from '@rtc-agent/worker';
+import { proxy, type Remote, wrap } from 'comlink';
 import type { AuthController } from './controllers/auth.controller.js';
 
 const log = createLogger('WorkerBridge');
@@ -360,18 +358,32 @@ export class WorkerBridge {
         // However, we add .catch() to prevent unhandled promise rejections in edge cases
         // (e.g., if IndexedDB is closed or bus is in an unexpected state). This is defensive
         // programming, not an indication that failures are expected.
-        bus.publish(payload.event, {
-          skipPersist: true,
-          seqOverride: payload.seq,
-        }).catch((err) => {
-          // P1-FIX: Preserve error details through Comlink boundary by extracting
-          // name, message, and stack (if available). Comlink's structured clone
-          // may not preserve Error stack traces, so we log what we have.
-          const errorInfo = err instanceof Error
-            ? { name: err.name, message: err.message, stack: err.stack ?? 'no stack available' }
-            : { name: 'UnknownError', message: String(err), stack: 'no stack available' };
-          log.error('onUIUpdate: bus.publish() failed (non-fatal):', errorInfo);
-        });
+        bus
+          .publish(payload.event, {
+            skipPersist: true,
+            seqOverride: payload.seq,
+          })
+          .catch((err) => {
+            // P1-FIX: Preserve error details through Comlink boundary by extracting
+            // name, message, and stack (if available). Comlink's structured clone
+            // may not preserve Error stack traces, so we log what we have.
+            const errorInfo =
+              err instanceof Error
+                ? {
+                    name: err.name,
+                    message: err.message,
+                    stack: err.stack ?? 'no stack available',
+                  }
+                : {
+                    name: 'UnknownError',
+                    message: String(err),
+                    stack: 'no stack available',
+                  };
+            log.error(
+              'onUIUpdate: bus.publish() failed (non-fatal):',
+              errorInfo,
+            );
+          });
         // Advance cursor on real-time delivery to minimize redundant catch-up replays.
         // SYNCHRONIZATION GUARANTEE:
         // _lastProcessedSeq is updated synchronously (no await between the check and update).
@@ -390,7 +402,11 @@ export class WorkerBridge {
         const TIMEOUT_MS = 5000;
         const timeoutPromise = new Promise<never>((_, reject) => {
           setTimeout(() => {
-            reject(new Error(`[WorkerBridge] requestToken timeout after ${TIMEOUT_MS}ms`));
+            reject(
+              new Error(
+                `[WorkerBridge] requestToken timeout after ${TIMEOUT_MS}ms`,
+              ),
+            );
           }, TIMEOUT_MS);
         });
         const token = await Promise.race([
@@ -429,10 +445,22 @@ export class WorkerBridge {
           } catch (err) {
             // P1-FIX: Extract error details for better diagnostics. Comlink proxied
             // callbacks may lose stack traces when errors propagate across threads.
-            const errorInfo = err instanceof Error
-              ? { name: err.name, message: err.message, stack: err.stack ?? 'no stack available' }
-              : { name: 'UnknownError', message: String(err), stack: 'no stack available' };
-            log.error('connection listener error (non-fatal, continuing to other listeners):', errorInfo);
+            const errorInfo =
+              err instanceof Error
+                ? {
+                    name: err.name,
+                    message: err.message,
+                    stack: err.stack ?? 'no stack available',
+                  }
+                : {
+                    name: 'UnknownError',
+                    message: String(err),
+                    stack: 'no stack available',
+                  };
+            log.error(
+              'connection listener error (non-fatal, continuing to other listeners):',
+              errorInfo,
+            );
           }
         }
       },
@@ -455,10 +483,22 @@ export class WorkerBridge {
         } catch (err) {
           // P1-FIX: Extract error details for better diagnostics. Comlink proxied
           // callbacks may lose stack traces when errors propagate across threads.
-          const errorInfo = err instanceof Error
-            ? { name: err.name, message: err.message, stack: err.stack ?? 'no stack available' }
-            : { name: 'UnknownError', message: String(err), stack: 'no stack available' };
-          log.error('onGapFillState: failed to emit gap fill event (non-fatal):', errorInfo);
+          const errorInfo =
+            err instanceof Error
+              ? {
+                  name: err.name,
+                  message: err.message,
+                  stack: err.stack ?? 'no stack available',
+                }
+              : {
+                  name: 'UnknownError',
+                  message: String(err),
+                  stack: 'no stack available',
+                };
+          log.error(
+            'onGapFillState: failed to emit gap fill event (non-fatal):',
+            errorInfo,
+          );
         }
       },
       // Catch-up detected a gap in events (TTL cleanup deleted missed events).
@@ -476,7 +516,10 @@ export class WorkerBridge {
           const bus = getUIUpdateBus();
           bus.emitGapFillEnd();
         } catch (err) {
-          log.error('onStateGap: failed to reset cursor or emit gap fill end (non-fatal):', err);
+          log.error(
+            'onStateGap: failed to reset cursor or emit gap fill end (non-fatal):',
+            err,
+          );
         }
       },
       // Worker broadcasts account banned notification (disconnect code 4501).
@@ -522,7 +565,10 @@ export class WorkerBridge {
             );
           } catch (err) {
             // dispatchEvent can throw if the element is detached or in certain error states
-            log.error('Failed to dispatch rtc-account-banned event (non-fatal):', err);
+            log.error(
+              'Failed to dispatch rtc-account-banned event (non-fatal):',
+              err,
+            );
           }
         } else {
           log.error(
@@ -867,7 +913,9 @@ export class WorkerBridge {
    */
   async init(config: PersistenceConfig): Promise<void> {
     if (this._destroyed) {
-      throw new Error('[WorkerBridge] cannot init(): bridge has been destroyed');
+      throw new Error(
+        '[WorkerBridge] cannot init(): bridge has been destroyed',
+      );
     }
     if (this._initialized) {
       log.warn('already initialized');
@@ -907,7 +955,9 @@ export class WorkerBridge {
     // _doInit() call failed after registerCallback() succeeded. We must unregister
     // before re-registering to avoid duplicate callback registration in the Worker.
     if (this._callbacksRegistered) {
-      log.warn('_doInit: cleaning up partial initialization from previous failed attempt');
+      log.warn(
+        '_doInit: cleaning up partial initialization from previous failed attempt',
+      );
       let cleanupSucceeded = false;
       try {
         if (this._proxiedCallbacks) {
@@ -916,7 +966,10 @@ export class WorkerBridge {
         cleanupSucceeded = true;
         log.debug('_doInit: cleanup unregisterCallback succeeded');
       } catch (err) {
-        log.debug('_doInit: cleanup unregisterCallback failed (may be expected):', err);
+        log.debug(
+          '_doInit: cleanup unregisterCallback failed (may be expected):',
+          err,
+        );
       }
 
       // CRITICAL: If unregisterCallback failed, the Worker may still hold a reference to
@@ -925,7 +978,9 @@ export class WorkerBridge {
       // 2. Duplicate callback registration (Worker sees old and new proxies as different)
       // 3. Stale callback invocation (Worker calls old proxy after we've moved on)
       if (!cleanupSucceeded) {
-        log.warn('_doInit: cleanup failed, releasing old proxy and creating new one');
+        log.warn(
+          '_doInit: cleanup failed, releasing old proxy and creating new one',
+        );
         this._releaseProxiedCallbacks();
         // Recreate proxied callbacks for the next attempt
         this._proxiedCallbacks = proxy(this._callbacks);
@@ -957,7 +1012,9 @@ export class WorkerBridge {
     // makes the code robust against future changes that might add async event broadcasting to init().
     // This also ensures callbacks are ready to receive events immediately after init() completes.
     if (!this._proxiedCallbacks) {
-      throw new Error('[WorkerBridge] _proxiedCallbacks is null during _doInit — this should not happen');
+      throw new Error(
+        '[WorkerBridge] _proxiedCallbacks is null during _doInit — this should not happen',
+      );
     }
     await this._core.registerCallback(this._proxiedCallbacks);
     // Mark callbacks as registered immediately after successful registration.
@@ -1055,7 +1112,10 @@ export class WorkerBridge {
           // close() handles both callback removal and resource cleanup atomically
           await this._core.close(this._proxiedCallbacks);
         } catch (err) {
-          log.warn('close failed (callback may still be registered in Worker):', err);
+          log.warn(
+            'close failed (callback may still be registered in Worker):',
+            err,
+          );
           // P1-1 FIX: Add detailed risk assessment for close() failure
           // RACE CONDITION RISK: If close() fails, the Worker may still hold a reference
           // to the Comlink proxy. This creates a potential memory leak and stale callback
@@ -1069,9 +1129,14 @@ export class WorkerBridge {
           // will still terminate the Worker when all ports are closed.
           try {
             await this._core.unregisterCallback(this._proxiedCallbacks);
-            log.debug('fallback unregisterCallback succeeded after close() failure');
+            log.debug(
+              'fallback unregisterCallback succeeded after close() failure',
+            );
           } catch (fallbackErr) {
-            log.warn('fallback unregisterCallback also failed (non-fatal):', fallbackErr);
+            log.warn(
+              'fallback unregisterCallback also failed (non-fatal):',
+              fallbackErr,
+            );
           }
         }
       }
@@ -1132,12 +1197,18 @@ export class WorkerBridge {
       try {
         this._yieldChannel.port1.close();
       } catch (err) {
-        log.debug('destroy: yield channel port1 close failed (non-fatal):', err);
+        log.debug(
+          'destroy: yield channel port1 close failed (non-fatal):',
+          err,
+        );
       }
       try {
         this._yieldChannel.port2.close();
       } catch (err) {
-        log.debug('destroy: yield channel port2 close failed (non-fatal):', err);
+        log.debug(
+          'destroy: yield channel port2 close failed (non-fatal):',
+          err,
+        );
       }
       this._yieldChannel = undefined;
     }
@@ -1189,7 +1260,9 @@ export class WorkerBridge {
         // See: https://github.com/GoogleChromeLabs/comlink/blob/main/src/comlink.ts
         const releaseSymbol = Symbol.for('comlink.releaseProxy');
         if (releaseSymbol in this._proxiedCallbacks) {
-          (this._proxiedCallbacks as unknown as ComlinkReleasableProxy)[releaseSymbol]();
+          (this._proxiedCallbacks as unknown as ComlinkReleasableProxy)[
+            releaseSymbol
+          ]();
           log.debug('Comlink proxy released successfully');
         }
       } catch (err) {
@@ -1260,8 +1333,8 @@ export class WorkerBridge {
     if (WorkerBridge._virtualFSProxyInstalled) {
       throw new Error(
         '[WorkerBridge] virtualFS proxy already installed by another <rtc-agent> instance. ' +
-        'Multiple instances are not supported. ' +
-        'Only one <rtc-agent> component can be active per page to prevent data corruption.'
+          'Multiple instances are not supported. ' +
+          'Only one <rtc-agent> component can be active per page to prevent data corruption.',
       );
     }
 
@@ -1335,7 +1408,10 @@ export class WorkerBridge {
    * Safe to call multiple times — no-op if no proxy was installed.
    */
   static restoreVirtualFS(): void {
-    if (!WorkerBridge._originalVirtualFS || !WorkerBridge._virtualFSProxyInstalled) {
+    if (
+      !WorkerBridge._originalVirtualFS ||
+      !WorkerBridge._virtualFSProxyInstalled
+    ) {
       return;
     }
 
@@ -1501,7 +1577,10 @@ export class WorkerBridge {
           }
         } catch (err) {
           // Release failure is non-fatal during cleanup
-          log.debug('Failed to release upload progress proxy (non-fatal):', err);
+          log.debug(
+            'Failed to release upload progress proxy (non-fatal):',
+            err,
+          );
         }
       }
     }
@@ -1577,7 +1656,10 @@ export class WorkerBridge {
           }
         } catch (err) {
           // Release failure is non-fatal during cleanup
-          log.debug('Failed to release download progress proxy (non-fatal):', err);
+          log.debug(
+            'Failed to release download progress proxy (non-fatal):',
+            err,
+          );
         }
       }
     }
@@ -1880,7 +1962,10 @@ export class WorkerBridge {
       // Check if this was caused by abort (expected) or a real error
       if (signal.aborted) {
         log.debug('catchUp: aborted during query (expected during destroy)');
-      } else if (err instanceof Error && err.message.includes('bridge has been destroyed')) {
+      } else if (
+        err instanceof Error &&
+        err.message.includes('bridge has been destroyed')
+      ) {
         log.debug('catchUp: bridge destroyed mid-query (expected)');
       } else {
         log.error('catchUp: failed to query events (non-fatal):', err);
@@ -1900,7 +1985,10 @@ export class WorkerBridge {
         try {
           this._saveLastProcessedSeq();
         } catch (err) {
-          log.debug('catchUp finally: failed to persist cursor (non-fatal):', err);
+          log.debug(
+            'catchUp finally: failed to persist cursor (non-fatal):',
+            err,
+          );
         }
       }
     }
@@ -1988,7 +2076,10 @@ export class WorkerBridge {
             this._yieldChannel.port2.close();
           } catch (err) {
             // Closing already-closed ports is harmless
-            log.debug('_yieldToMain: error closing unhealthy channel (non-fatal):', err);
+            log.debug(
+              '_yieldToMain: error closing unhealthy channel (non-fatal):',
+              err,
+            );
           }
         }
         try {
@@ -2000,16 +2091,22 @@ export class WorkerBridge {
           this._yieldChannelHealthy = true;
           // P3-1: Track rebuild count and warn if exceeding threshold
           this._yieldChannelRebuildCount++;
-          if (this._yieldChannelRebuildCount >= WorkerBridge.YIELD_CHANNEL_REBUILD_WARNING_THRESHOLD) {
+          if (
+            this._yieldChannelRebuildCount >=
+            WorkerBridge.YIELD_CHANNEL_REBUILD_WARNING_THRESHOLD
+          ) {
             log.warn(
               `yieldChannel rebuilt ${this._yieldChannelRebuildCount} times, ` +
-              `which may indicate channel health issues or browser resource pressure`
+                `which may indicate channel health issues or browser resource pressure`,
             );
           }
         } catch (err) {
           // Channel creation is extremely rare to fail, but if it does, resolve immediately
           // to allow catch-up to continue (or check abort signal and bail out).
-          log.warn('_yieldToMain: failed to create channel, resolving immediately:', err);
+          log.warn(
+            '_yieldToMain: failed to create channel, resolving immediately:',
+            err,
+          );
           resolve();
           return;
         }
@@ -2020,7 +2117,9 @@ export class WorkerBridge {
       } catch (err) {
         // Port was closed between the health check and postMessage (race).
         // Mark unhealthy so next call creates a fresh channel.
-        log.debug('_yieldToMain: port closed during postMessage, resolving immediately');
+        log.debug(
+          '_yieldToMain: port closed during postMessage, resolving immediately',
+        );
         this._yieldChannelHealthy = false;
         resolve();
       }
@@ -2106,7 +2205,9 @@ export class WorkerBridge {
           return seq;
         } else if (stored !== '') {
           // Log warning if stored value is malformed (helps catch bugs)
-          log.warn(`Malformed lastProcessedSeq in sessionStorage: "${stored}", using 0`);
+          log.warn(
+            `Malformed lastProcessedSeq in sessionStorage: "${stored}", using 0`,
+          );
         }
       }
     } catch (err) {

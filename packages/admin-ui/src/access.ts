@@ -47,13 +47,26 @@ const DEFAULT_PERMISSIONS = {
   canDashboardView: false,
 } as const;
 
+// Cache for computed permissions to avoid redundant calculations on every route change.
+// Module-level variables persist across re-renders but reset on HMR/page reload.
+// This is intentional: cache is invalidated when initialState changes (e.g., after login/logout).
+let _cachedPermissions: ReturnType<typeof access> | null = null;
+let _cachedPermissionsKey: API.CurrentUser | undefined;
+
 export default function access(
   initialState: { currentUser?: API.CurrentUser } | undefined,
 ) {
   const { currentUser } = initialState ?? {};
 
+  // Return cached result if currentUser hasn't changed
+  if (_cachedPermissions && _cachedPermissionsKey === currentUser) {
+    return _cachedPermissions;
+  }
+
   // 如果没有管理员信息，返回所有权限为 false
   if (!currentUser) {
+    _cachedPermissions = DEFAULT_PERMISSIONS;
+    _cachedPermissionsKey = currentUser;
     return DEFAULT_PERMISSIONS;
   }
 
@@ -65,9 +78,12 @@ export default function access(
   // 当前所有调用路径都通过 buildCurrentUser()，它始终将 permissions 设为 Set。
   if (perms === undefined) {
     const isAdmin = currentUser.access === 'admin';
-    return isAdmin
+    const result = isAdmin
       ? { ...DEFAULT_PERMISSIONS, canAdmin: true }
       : DEFAULT_PERMISSIONS;
+    _cachedPermissions = result;
+    _cachedPermissionsKey = currentUser;
+    return result;
   }
 
   // 运行时类型检查，确保 permissions 是 Set 类型
@@ -75,6 +91,8 @@ export default function access(
     console.error(
       '[access] currentUser.permissions is not a Set, returning all permissions as false',
     );
+    _cachedPermissions = DEFAULT_PERMISSIONS;
+    _cachedPermissionsKey = currentUser;
     return DEFAULT_PERMISSIONS;
   }
 
@@ -119,7 +137,7 @@ export default function access(
     ? isAdminRole === true
     : perms.has(PERM_ADMIN_USER_WRITE);
 
-  return {
+  const result = {
     // canAdmin: 优先检查 admin 角色，权限作为 fallback
     // 设计决策：避免将"管理员用户写权限"等同于"管理员身份"，防止权限提升
     // 语义：拥有 admin 角色或 admin_user:write 权限的用户可访问 canAdmin 守卫的路由/功能
@@ -199,4 +217,8 @@ export default function access(
      * - src/pages/system/configs/index.tsx（系统配置页面）
      */
   };
+
+  _cachedPermissions = result;
+  _cachedPermissionsKey = currentUser;
+  return result;
 }
