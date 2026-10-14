@@ -607,13 +607,13 @@ export class EventBindingController implements ReactiveController {
       if (!mod) return;
 
       if (e.key === 's' || e.key === 'S') {
-        const activePath = editorArea.state.activeFilePath;
+        const activePath = editorArea.value.state.activeFilePath;
         if (activePath) {
           e.preventDefault();
           void handleEditorSave(activePath);
         }
       } else if (e.key === 'w' || e.key === 'W') {
-        const activePath = editorArea.state.activeFilePath;
+        const activePath = editorArea.value.state.activeFilePath;
         if (activePath) {
           e.preventDefault();
           editorArea.actions.closeFile(activePath);

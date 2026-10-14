@@ -2521,8 +2521,8 @@ export class RtcAgent extends LitElement {
           isFiles
             ? html`<div class="editor-area-wrapper">
               <rtc-editor-area
-                .tabs=${this._editorArea.state.tabs}
-                active-file-path=${this._editorArea.state.activeFilePath}
+                .tabs=${this._editorArea.value.state.tabs}
+                active-file-path=${this._editorArea.value.state.activeFilePath}
                 theme=${this.theme}
               ></rtc-editor-area>
               <rtc-status-bar

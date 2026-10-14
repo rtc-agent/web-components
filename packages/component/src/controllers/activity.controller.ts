@@ -11,48 +11,26 @@
  * - Saves current active activity and sidebarVisible state via localStorage
  * - Restores to last activity on page refresh
  */
-import type { ReactiveController, ReactiveControllerHost } from 'lit';
+import type { ReactiveControllerHost } from 'lit';
 import type { Activity } from '../types/index.js';
 import type {
   ActivityState,
   ActivityActions,
-  ActivityContextValue,
 } from '../contexts/activity.js';
 import { DEFAULT_ACTIVITY_STATE } from '../contexts/activity.js';
 import { STORAGE_KEYS } from '../config/auth.js';
 import { createLogger } from '@rtc-agent/protocol';
+import { CachedContextController } from '../core/cached-context.controller.js';
 
 const log = createLogger('ActivityController');
 
 // Re-export types for convenience
 export type { ActivityState, ActivityActions };
 
-export class ActivityController implements ReactiveController {
-  host: ReactiveControllerHost;
-
-  private _state: ActivityState = { ...DEFAULT_ACTIVITY_STATE };
-
-  readonly actions: ActivityActions;
-
-  /**
-   * CRITICAL FIX: Value cache to prevent unnecessary Context consumer re-renders.
-   * @lit/context uses `===` comparison, so creating new objects every time triggers
-   * consumers even when the state hasn't changed. Cache the value object and only
-   * recreate when state reference changes.
-   */
-  private _cachedValue?: ActivityContextValue;
-  private _cachedState?: ActivityState;
-
-  get value(): ActivityContextValue {
-    // Only create new value object if state reference changed
-    if (this._cachedValue && this._cachedState === this._state) {
-      return this._cachedValue;
-    }
-    this._cachedState = this._state;
-    this._cachedValue = { state: this._state, actions: this.actions };
-    return this._cachedValue;
-  }
-
+export class ActivityController extends CachedContextController<
+  ActivityState,
+  ActivityActions
+> {
   /** Current activity (readonly quick access) */
   get active(): Activity {
     return this._state.active;
@@ -64,20 +42,17 @@ export class ActivityController implements ReactiveController {
   }
 
   constructor(host: ReactiveControllerHost) {
-    this.host = host;
-    this.host.addController(this);
-    this.actions = {
+    const initialState = { ...DEFAULT_ACTIVITY_STATE };
+    const actions: ActivityActions = {
       setActivity: (activity: Activity) => this._setActivity(activity),
       showSidebar: () => this._showSidebar(),
       hideSidebar: () => this._hideSidebar(),
       toggleSidebar: () => this._toggleSidebar(),
       reset: () => this._reset(),
     };
+    super(host, initialState, actions, log);
     this._restore();
   }
-
-  hostConnected() {}
-  hostDisconnected() {}
 
   /* ─ Persistence ── */
 
@@ -130,10 +105,7 @@ export class ActivityController implements ReactiveController {
       this._toggleSidebar();
     } else {
       // Switch to new activity, preserve sidebarVisible state
-      this._state = {
-        active: activity,
-        sidebarVisible: this._state.sidebarVisible,
-      };
+      this._updateState({ active: activity });
       this._persist();
       this.host.requestUpdate();
     }
@@ -141,7 +113,7 @@ export class ActivityController implements ReactiveController {
 
   private _showSidebar() {
     if (!this._state.sidebarVisible) {
-      this._state = { ...this._state, sidebarVisible: true };
+      this._updateState({ sidebarVisible: true });
       this._persist();
       this.host.requestUpdate();
     }
@@ -149,23 +121,20 @@ export class ActivityController implements ReactiveController {
 
   private _hideSidebar() {
     if (this._state.sidebarVisible) {
-      this._state = { ...this._state, sidebarVisible: false };
+      this._updateState({ sidebarVisible: false });
       this._persist();
       this.host.requestUpdate();
     }
   }
 
   private _toggleSidebar() {
-    this._state = {
-      ...this._state,
-      sidebarVisible: !this._state.sidebarVisible,
-    };
+    this._updateState({ sidebarVisible: !this._state.sidebarVisible });
     this._persist();
     this.host.requestUpdate();
   }
 
   private _reset() {
-    this._state = { ...DEFAULT_ACTIVITY_STATE };
+    this._setState({ ...DEFAULT_ACTIVITY_STATE });
     this._persist();
     this.host.requestUpdate();
   }
