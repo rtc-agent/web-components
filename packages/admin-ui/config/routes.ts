@@ -35,6 +35,17 @@
  * 选择原则：
  * - 如果默认子页面对所有用户一致 → 使用静态 redirect
  * - 如果需要根据权限/角色动态决定 → 使用动态 component
+ *
+ * ## 根路由（/）处理策略
+ * 根路径 `/` 未在本配置中定义，而是由 `src/app.tsx` 的 `onPageChange()` 动态处理：
+ * - 未认证用户：重定向到 `/user/login`
+ * - 已认证用户：根据权限动态选择默认页面（参见 `redirectByPermissions()`）
+ *
+ * 为何不在路由配置中定义 `/`：
+ * - 需要访问用户权限信息（access 对象），路由配置无法表达
+ * - 需要根据认证状态做不同处理，静态 redirect 无法满足
+ *
+ * 参见：src/app.tsx 的 onPageChange 实现
  */
 export default [
   {
@@ -91,7 +102,7 @@ export default [
         name: 'grafana',
         icon: 'lineChart',
         path: '/dashboard/grafana',
-        access: 'canDashboardView',
+        // NOTE: No access field needed — inherits 'canDashboardView' from parent /dashboard
         routes: [
           {
             path: '/dashboard/grafana',
@@ -341,7 +352,7 @@ export default [
   },
   {
     component: './exception/404',
-    path: '/*',
+    path: './*',
     layout: false,
   },
 ];
