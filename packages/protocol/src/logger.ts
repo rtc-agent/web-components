@@ -7,6 +7,12 @@
  * verbose output. Host applications can also call `setGlobalLogLevel('debug')`
  * directly to enable verbose logging at runtime.
  *
+ * RUNTIME LOG LEVEL CONTROL:
+ * The log level can be adjusted at runtime via localStorage:
+ *   localStorage.setItem('rtc:log-level', 'debug');
+ * This takes effect immediately for all subsequent log calls. To revert:
+ *   localStorage.removeItem('rtc:log-level');
+ *
  * Usage:
  *   const log = createLogger('RTCAgentClient');
  *   log.info('connected');            // [RTCAgentClient] connected
@@ -39,12 +45,47 @@ const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
  * Defaults to 'info' in all environments. The debug API bootstrap calls
  * `setGlobalLogLevel('debug')` in dev/test builds to enable verbose output.
  * See the module docstring for details.
+ *
+ * P3-FIX: Supports runtime log level control via localStorage.
+ * On initialization, reads from 'rtc:log-level' key if present.
+ * Subsequent changes via setGlobalLogLevel() persist to localStorage.
  */
-let globalMinLevel: LogLevel = 'info';
+function getInitialLogLevel(): LogLevel {
+  // Try to read from localStorage (runtime override)
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const stored = window.localStorage.getItem('rtc:log-level');
+      if (stored && isValidLogLevel(stored)) {
+        return stored;
+      }
+    } catch {
+      // localStorage may be unavailable (private browsing, security settings)
+      // or throw if storage is full. Fall back to default.
+    }
+  }
+  return 'info';
+}
+
+/**
+ * Check if a string is a valid log level.
+ */
+function isValidLogLevel(level: string): level is LogLevel {
+  return level === 'debug' || level === 'info' || level === 'warn' || level === 'error';
+}
+
+let globalMinLevel: LogLevel = getInitialLogLevel();
 
 /** Set the global minimum log level for all loggers. */
 export function setGlobalLogLevel(level: LogLevel): void {
   globalMinLevel = level;
+  // Persist to localStorage for runtime control
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      window.localStorage.setItem('rtc:log-level', level);
+    } catch {
+      // localStorage may be unavailable or full. Silently ignore.
+    }
+  }
 }
 
 /** Get the current global minimum log level. */

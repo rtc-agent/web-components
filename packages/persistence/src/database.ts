@@ -797,6 +797,9 @@ export class RTCAgentDatabase extends Dexie {
     // Strategy: Add a post-migration version check in the open() callback.
     // If actual schema version < expected version, log a warning with recovery guidance.
     // Also set a migrationFailed flag that can be queried by upper layers.
+    //
+    // P3-FIX: Dispatch a custom event 'rtc:degraded-mode' so UI layers can show
+    // user-visible warnings about degraded functionality.
     this.on('ready', async () => {
       try {
         // Dexie's verno property returns the actual schema version of the opened database
@@ -809,6 +812,22 @@ export class RTCAgentDatabase extends Dexie {
               `Some features may not work correctly. ` +
               `Recovery: Clear IndexedDB data and reload, or upgrade to the latest version.`,
           );
+
+          // Dispatch custom event for UI notification
+          // UI layers can listen to this event and show degraded-mode warnings
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(
+              new CustomEvent('rtc:degraded-mode', {
+                detail: {
+                  actualVersion,
+                  expectedVersion: EXPECTED_SCHEMA_VERSION,
+                  reason: 'schema-version-mismatch',
+                  message: `Database schema is at v${actualVersion}, expected v${EXPECTED_SCHEMA_VERSION}. Some features may not work correctly.`,
+                  recoveryGuidance: this.getRecoveryGuidance(),
+                },
+              }),
+            );
+          }
         }
       } catch (err) {
         log.debug('Failed to check schema version (non-fatal):', err);
@@ -943,7 +962,13 @@ export async function closeDatabase(): Promise<void> {
  * Uses Dexie's dynamic table enumeration to avoid maintaining a manual table list.
  * When new tables are added to the schema, they are automatically included.
  */
-export async function flushAll(): Promise<void> {
+export async function flushAll(confirm: boolean = false): Promise<void> {
+  if (!confirm) {
+    log.warn(
+      'flushAll: missing confirmation. Pass confirm=true to actually clear all tables. No data was modified.',
+    );
+    return;
+  }
   log.warn('flushAll: clearing all database tables');
   const db = getDatabase();
   // Dexie exposes all registered tables via db.tables (derived from version().stores())

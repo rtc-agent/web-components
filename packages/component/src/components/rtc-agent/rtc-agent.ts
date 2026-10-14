@@ -306,6 +306,12 @@ export class RtcAgent extends LitElement {
   // `bubble-icon` HTML attribute or the JS property. It MUST NOT receive unsanitized
   // end-user input. If the value ever comes from user input, the caller is responsible
   // for sanitizing it (e.g. via DOMPurify) BEFORE assignment.
+  //
+  // Defense-in-depth: Even though the contract places sanitization responsibility on the
+  // caller, the component performs runtime sanitization via `_sanitizeBubbleIcon()` using
+  // DOMPurify with a strict SVG whitelist. This protects against accidental misuse and
+  // provides a safety net even if callers forget to sanitize. See `_sanitizeBubbleIcon()`
+  // for implementation details.
   @property({ type: String, attribute: 'bubble-icon' })
   bubbleIcon = '';
 
@@ -355,6 +361,13 @@ export class RtcAgent extends LitElement {
   private _logo: { light?: string; dark?: string } | null = null;
 
   /**
+   * Generation counter for logo sanitization.
+   * Prevents race conditions when logo changes rapidly — stale async results
+   * are discarded by comparing the captured generation with the current one.
+   */
+  private _logoGeneration = 0;
+
+  /**
    * Sanitize logo HTML using DOMPurify to prevent XSS.
    * Uses the same strict SVG whitelist as bubbleIcon sanitization.
    */
@@ -362,6 +375,8 @@ export class RtcAgent extends LitElement {
     value: { light?: string; dark?: string } | null,
   ): Promise<{ light?: string; dark?: string } | null> {
     if (!value) return null;
+    // Capture current generation before async operation
+    const generation = ++this._logoGeneration;
     const sanitize = async (html: string | undefined): Promise<string> => {
       if (!html) return '';
       try {
@@ -414,10 +429,13 @@ export class RtcAgent extends LitElement {
         return el.innerHTML;
       }
     };
-    return {
+    const result = {
       light: await sanitize(value.light),
       dark: await sanitize(value.dark),
     };
+    // Guard: discard stale result if logo changed again during sanitization
+    if (generation !== this._logoGeneration) return null;
+    return result;
   }
 
   /**
@@ -1737,15 +1755,19 @@ export class RtcAgent extends LitElement {
     // prevent blocking the main thread during component teardown.
     if (this._rtcProcessor) {
       const cancelPromise = Promise.resolve(this._rtcProcessor.cancel());
-      const timeoutPromise = new Promise<void>((resolve) =>
+      const timeoutPromise = new Promise<void>((resolve) => {
         setTimeout(() => {
           log.warn('RTC processor cancellation timeout, proceeding with cleanup');
           resolve();
-        }, 100)
-      );
-      Promise.race([cancelPromise, timeoutPromise]).catch((err) => {
-        log.warn('RTC processor cancellation error:', err);
+        }, 100);
       });
+      // Suppress unhandled rejections: the timeout always resolves, but the
+      // cancel() Promise may reject. Promise.race settles with the first result,
+      // so we add .catch() to prevent unhandled rejection warnings in the console.
+      Promise.race([cancelPromise, timeoutPromise])
+        .catch((err) => {
+          log.warn('RTC processor cancellation error (non-fatal):', err);
+        });
       this._rtcProcessor = undefined;
     }
 
@@ -2467,13 +2489,24 @@ export class RtcAgent extends LitElement {
   /** Cached sanitized bubble icon HTML. */
   private _sanitizedBubbleIcon = '';
 
+  /**
+   * Generation counter for bubble icon sanitization.
+   * Prevents race conditions when bubbleIcon changes rapidly — stale async results
+   * are discarded by comparing the captured generation with the current one.
+   */
+  private _bubbleIconGeneration = 0;
+
   /** Recompute sanitized icon when bubbleIcon changes. */
   willUpdate(changed: Map<string, unknown>) {
     if (changed.has('bubbleIcon') && this.bubbleIcon) {
+      // Capture current generation before async operation
+      const generation = ++this._bubbleIconGeneration;
       void this._sanitizeBubbleIcon(this.bubbleIcon)
         .then((sanitized) => {
           // Guard: component may have been destroyed while sanitization was in-flight.
           if (this._isDestroyed) return;
+          // Guard: discard stale result if bubbleIcon changed again during sanitization
+          if (generation !== this._bubbleIconGeneration) return;
           this._sanitizedBubbleIcon = sanitized;
           this.requestUpdate();
         })
@@ -2481,6 +2514,8 @@ export class RtcAgent extends LitElement {
           log.error('Bubble icon sanitization failed:', err);
           // Guard: component may have been destroyed while sanitization was in-flight.
           if (this._isDestroyed) return;
+          // Guard: discard stale error if bubbleIcon changed again during sanitization
+          if (generation !== this._bubbleIconGeneration) return;
           this._sanitizedBubbleIcon = '';
         });
     }
