@@ -54,6 +54,8 @@ export default {
   'pages.403.backHome': '返回首页',
   'pages.500.subTitle': '抱歉，服务器出错了。',
   'pages.500.backHome': '返回首页',
+  'pages.system.noPermission': '抱歉，您没有系统管理权限。',
+  'pages.permission.refreshFailed': '权限刷新失败',
   // Chatbot
   'pages.chatbot.welcomeText': '🤖 你好，有什么可以帮你？',
   'pages.chatbot.newConversation': '💬 新对话',

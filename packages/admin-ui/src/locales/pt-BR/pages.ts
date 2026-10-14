@@ -186,6 +186,7 @@ export default {
   'pages.messages.detail.toolFailed': 'Falhou',
   'pages.messages.detail.rawError': 'Erro Bruto',
   'pages.messages.detail.compressedContext': 'Contexto Comprimido',
+  'pages.messages.detail.error': 'Erro',
   // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
   'pages.messages.detail.releasedTokens': 'Liberados ${count} tokens',
   // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
@@ -551,7 +552,8 @@ export default {
   'pages.adminUsers.emailRequired': 'Por favor digite o e-mail',
   'pages.adminUsers.emailInvalid':
     'Por favor digite um endereço de e-mail válido',
-  'pages.adminUsers.emailMax': 'O endereço de e-mail não pode exceder 255 caracteres',
+  'pages.adminUsers.emailMax':
+    'O endereço de e-mail não pode exceder 255 caracteres',
   'pages.adminUsers.passwordLabel': 'Senha',
   'pages.adminUsers.passwordPlaceholder':
     'Digite senha (pelo menos 6 caracteres)',
@@ -815,6 +817,9 @@ export default {
   'pages.403.backHome': 'Voltar à página inicial',
   'pages.500.subTitle': 'Desculpe, ocorreu um erro no servidor.',
   'pages.500.backHome': 'Voltar à página inicial',
+  'pages.system.noPermission':
+    'Desculpe, você não tem permissões de gerenciamento do sistema.',
+  'pages.permission.refreshFailed': 'Falha ao atualizar permissões',
   // Chatbot
   'pages.chatbot.welcomeText': '🤖 Olá, como posso ajudá-lo?',
   'pages.chatbot.newConversation': '💬 Nova Conversa',
@@ -1079,13 +1084,18 @@ export default {
   'pages.profile.basic.mock.express': 'Armazém Cainiao',
   'pages.profile.basic.mock.address':
     'Nº 18 Wantang Road, Distrito de Xihu, Hangzhou, Zhejiang',
-  'error.adminUserHasNoRole': 'Administrador não possui esta função de administrador',
+  'error.adminUserHasNoRole':
+    'Administrador não possui esta função de administrador',
   'error.adminUserNotFound': 'Administrador não encontrado',
   'error.badRequest': 'Erro nos parâmetros da solicitação',
-  'error.cannotDeleteSystemRole': 'Função do sistema incorporada não pode ser excluída',
-  'error.cannotRemoveLastAdmin': 'Não é possível remover a última função de administrador',
-  'error.cannotRemoveSelf': 'Não é possível remover sua própria função de administrador',
-  'error.cannotRemoveSelfAdmin': 'Não é possível remover sua própria função de administrador',
+  'error.cannotDeleteSystemRole':
+    'Função do sistema incorporada não pode ser excluída',
+  'error.cannotRemoveLastAdmin':
+    'Não é possível remover a última função de administrador',
+  'error.cannotRemoveSelf':
+    'Não é possível remover sua própria função de administrador',
+  'error.cannotRemoveSelfAdmin':
+    'Não é possível remover sua própria função de administrador',
   'error.configKeyNotFound': 'Chave de configuração não encontrada',
   'error.configNotFound': 'Registro de configuração não encontrado',
   'error.forbidden': 'Você não tem permissão para realizar esta operação',
@@ -1096,7 +1106,8 @@ export default {
   'error.invalidResource': 'Tipo de recurso inválido',
   'error.loginLocked': 'Muitas tentativas de login, tente novamente mais tarde',
   'error.noOp': 'Nenhuma operação necessária',
-  'error.optimisticLockConflict': 'Configuração foi modificada por outro administrador, recarregue e tente novamente',
+  'error.optimisticLockConflict':
+    'Configuração foi modificada por outro administrador, recarregue e tente novamente',
   'error.permissionExists': 'Política de permissão já existe',
   'error.permissionNotFound': 'Política de permissão não encontrada',
   'error.roleDisabled': 'Função de administrador está desabilitada',
@@ -1104,7 +1115,8 @@ export default {
   'error.roleNotFound': 'Função de administrador não encontrada',
   'error.unauthorized': 'Não autorizado, faça login novamente',
   'error.userNotFound': 'Usuário não encontrado',
-  'error.validationError': 'Falha na validação dos parâmetros da solicitação, verifique a entrada',
+  'error.validationError':
+    'Falha na validação dos parâmetros da solicitação, verifique a entrada',
   'error.versionNotFound': 'Esta versão excedeu o período de retenção',
   'pages.list.search.activeUser': 'Usuário Ativo',
   'pages.list.search.author': 'Autor',
@@ -1137,13 +1149,17 @@ export default {
   'pages.profile.advanced.department': 'Departamento',
   'pages.profile.advanced.desc.creatorName': 'Qu Lili',
   'pages.profile.advanced.desc.departmentName': 'Empresa XX - Departamento YY',
-  'pages.profile.advanced.desc.fullAddress': 'Qu Lili 18100000000 Huanggushan Road, Xihu District, Hangzhou, Zhejiang',
+  'pages.profile.advanced.desc.fullAddress':
+    'Qu Lili 18100000000 Huanggushan Road, Xihu District, Hangzhou, Zhejiang',
   'pages.profile.advanced.desc.leaderName': 'Lin Dongdong',
-  'pages.profile.advanced.desc.longDescription': 'Esta descrição é muito longa muito longa muito longa muito longa...',
+  'pages.profile.advanced.desc.longDescription':
+    'Esta descrição é muito longa muito longa muito longa muito longa...',
   'pages.profile.advanced.desc.productName': 'Serviço XX',
-  'pages.profile.advanced.desc.remarkText': 'Por favor, confirme dentro de dois dias úteis',
+  'pages.profile.advanced.desc.remarkText':
+    'Por favor, confirme dentro de dois dias úteis',
   'pages.profile.advanced.desc.reviewerName': 'Zhou Maomao',
-  'pages.profile.advanced.desc.scientificDescription': 'Citrullus lanatus (Thunb.) Matsum. et Nakai Planta trepadeira anual...',
+  'pages.profile.advanced.desc.scientificDescription':
+    'Citrullus lanatus (Thunb.) Matsum. et Nakai Planta trepadeira anual...',
   'pages.profile.advanced.desc.stepPersonName': 'Wu Jiahao',
   'pages.profile.advanced.desc.userNameValue': 'Fu Xiaoxiao',
   'pages.profile.advanced.description': 'Descrição',
@@ -1159,7 +1175,8 @@ export default {
   'pages.profile.advanced.mainAction': 'Ação Principal',
   'pages.profile.advanced.memberCard': 'Cartão de Membro',
   'pages.profile.advanced.moreActions': 'Mais Ações',
-  'pages.profile.advanced.multiLevelInfoGroup': 'Grupo de Informações Multinível',
+  'pages.profile.advanced.multiLevelInfoGroup':
+    'Grupo de Informações Multinível',
   'pages.profile.advanced.noResponse': 'Sem Resposta',
   'pages.profile.advanced.operationLog1': 'Log de Operações 1',
   'pages.profile.advanced.operationLog2': 'Log de Operações 2',
@@ -1175,7 +1192,8 @@ export default {
   'pages.profile.advanced.pendingApproval': 'Aprovação Pendente',
   'pages.profile.advanced.processProgress': 'Progresso',
   'pages.profile.advanced.product': 'Produto',
-  'pages.profile.advanced.recentCallRecords': 'Registros de Chamadas dos Últimos 6 Meses',
+  'pages.profile.advanced.recentCallRecords':
+    'Registros de Chamadas dos Últimos 6 Meses',
   'pages.profile.advanced.reject': 'Rejeitar',
   'pages.profile.advanced.relatedDocument': 'Documento Relacionado',
   'pages.profile.advanced.remark': 'Observação',
@@ -1198,9 +1216,12 @@ export default {
   'pages.rtcAgentTest.testDynamicImport': 'Testar Importação Dinâmica',
   'pages.rtcAgentTest.reloadPage': 'Recarregar Página',
   'pages.rtcAgentTest.console': 'Console',
-  'pages.rtcAgentTest.consoleHint': 'Abra o console do navegador para ver os logs detalhados.',
-  'pages.rtcAgentTest.typeErrorHint': 'Se você ver "TypeError: Cannot destructure property \'dispatcher\' of \'useContext(...)\'" no console, a integração está quebrada.',
-  'pages.rtcAgentTest.agentAlreadyRunning': 'Agente de teste já está em execução',
+  'pages.rtcAgentTest.consoleHint':
+    'Abra o console do navegador para ver os logs detalhados.',
+  'pages.rtcAgentTest.typeErrorHint':
+    "Se você ver \"TypeError: Cannot destructure property 'dispatcher' of 'useContext(...)'\" no console, a integração está quebrada.",
+  'pages.rtcAgentTest.agentAlreadyRunning':
+    'Agente de teste já está em execução',
   'pages.rtcUsers.noData': 'Nenhum usuário encontrado',
   'pages.sessions.noData': 'Nenhuma conversa encontrada',
   'pages.tableList.selectDeleteItem': 'Selecione os itens para excluir',
@@ -1213,16 +1234,26 @@ export default {
     'Erro no processamento da resposta, por favor, atualize a página e tente novamente',
   // Missing translations
   'pages.account.settings.updateSuccess': 'Perfil atualizado com sucesso',
-  'pages.chatbot.faq.formValidation': '🧩 Como implementar validação de formulário no Ant Design?',
-  'pages.chatbot.faq.proTableToolbar': '📋 Como personalizar botões da barra de ferramentas do ProTable?',
-  'pages.chatbot.faq.darkTheme': '🎨 Como implementar tema escuro com antd-style?',
-  'pages.chatbot.faq.proLayoutMenu': '🗂️ Como gerar dinamicamente o menu da barra lateral do ProLayout?',
-  'pages.chatbot.faq.chartsData': '📊 Formato de dados do gráfico de linhas Ant Design Charts',
-  'pages.chatbot.faq.backendAuth': '🚀 Como integrar autenticação backend no Ant Design Pro?',
-  'pages.chatbot.faq.proFormSelect': '🔍 Como implementar pesquisa remota no ProForm Select?',
-  'pages.chatbot.faq.designTokens': '⚙️ Melhores práticas para personalizar temas com Ant Design Tokens',
-  'pages.config.user.contextLost': 'Contexto do usuário perdido, por favor atualize',
-  'pages.config.user.versionRequired': 'Versão é necessária para exclusão forçada',
+  'pages.chatbot.faq.formValidation':
+    '🧩 Como implementar validação de formulário no Ant Design?',
+  'pages.chatbot.faq.proTableToolbar':
+    '📋 Como personalizar botões da barra de ferramentas do ProTable?',
+  'pages.chatbot.faq.darkTheme':
+    '🎨 Como implementar tema escuro com antd-style?',
+  'pages.chatbot.faq.proLayoutMenu':
+    '🗂️ Como gerar dinamicamente o menu da barra lateral do ProLayout?',
+  'pages.chatbot.faq.chartsData':
+    '📊 Formato de dados do gráfico de linhas Ant Design Charts',
+  'pages.chatbot.faq.backendAuth':
+    '🚀 Como integrar autenticação backend no Ant Design Pro?',
+  'pages.chatbot.faq.proFormSelect':
+    '🔍 Como implementar pesquisa remota no ProForm Select?',
+  'pages.chatbot.faq.designTokens':
+    '⚙️ Melhores práticas para personalizar temas com Ant Design Tokens',
+  'pages.config.user.contextLost':
+    'Contexto do usuário perdido, por favor atualize',
+  'pages.config.user.versionRequired':
+    'Versão é necessária para exclusão forçada',
   'pages.list.cardList.action1': 'Ação 1',
   'pages.list.cardList.action2': 'Ação 2',
   'pages.list.cardList.description':
@@ -1241,14 +1272,19 @@ export default {
   'pages.list.search.tab.articles': 'Artigos',
   'pages.list.search.tab.projects': 'Projetos',
   'pages.list.search.user.lisa': 'Lisa Li',
-  'pages.searchTable.createFailed': 'Falha ao adicionar, por favor tente novamente!',
+  'pages.searchTable.createFailed':
+    'Falha ao adicionar, por favor tente novamente!',
   'pages.searchTable.createSuccess': 'Adicionado com sucesso',
-  'pages.searchTable.deleteFailed': 'Falha ao excluir, por favor tente novamente',
-  'pages.searchTable.deleteSuccess': 'Excluído com sucesso e atualizará em breve',
-  'pages.searchTable.updateFailed': 'Falha na configuração, por favor tente novamente!',
+  'pages.searchTable.deleteFailed':
+    'Falha ao excluir, por favor tente novamente',
+  'pages.searchTable.deleteSuccess':
+    'Excluído com sucesso e atualizará em breve',
+  'pages.searchTable.updateFailed':
+    'Falha na configuração, por favor tente novamente!',
   'pages.searchTable.updateForm.ruleProps.template1': 'Modelo de regra 1',
   'pages.searchTable.updateForm.ruleProps.template2': 'Modelo de regra 2',
   'pages.searchTable.updateForm.ruleProps.type.strong': 'Forte',
   'pages.searchTable.updateForm.ruleProps.type.weak': 'Fraco',
   'pages.searchTable.updateSuccess': 'Configuração bem-sucedida',
+  'pages.request.failure': 'Falha na requisição ({status})',
 };

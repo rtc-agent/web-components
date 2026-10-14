@@ -60,6 +60,8 @@ export default {
   'pages.403.backHome': '홈으로 돌아가기',
   'pages.500.subTitle': '죄송합니다, 문제가 발생했습니다.',
   'pages.500.backHome': '홈으로 돌아가기',
+  'pages.system.noPermission': '죄송합니다, 시스템 관리 권한이 없습니다.',
+  'pages.permission.refreshFailed': '권한 새로고침에 실패했습니다',
   // Chatbot
   'pages.chatbot.welcomeText': '🤖 안녕하세요, 어떻게 도와드릴까요?',
   'pages.chatbot.newConversation': '💬 새 대화',
@@ -198,6 +200,7 @@ export default {
   'pages.messages.detail.toolFailed': '실패',
   'pages.messages.detail.rawError': '원시 오류',
   'pages.messages.detail.compressedContext': '압축된 컨텍스트',
+  'pages.messages.detail.error': '오류',
   // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
   'pages.messages.detail.releasedTokens': '해제된 토큰 ${count}개',
   // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
@@ -802,8 +805,10 @@ export default {
   'pages.rtcAgentTest.testDynamicImport': '동적 가져오기 테스트',
   'pages.rtcAgentTest.reloadPage': '페이지 새로고침',
   'pages.rtcAgentTest.console': '콘솔',
-  'pages.rtcAgentTest.consoleHint': '브라우저 콘솔을 열어 상세 로그를 확인하세요.',
-  'pages.rtcAgentTest.typeErrorHint': '콘솔에 "TypeError: Cannot destructure property \'dispatcher\' of \'useContext(...)\'"가 표시되면 통합이 깨진 것입니다.',
+  'pages.rtcAgentTest.consoleHint':
+    '브라우저 콘솔을 열어 상세 로그를 확인하세요.',
+  'pages.rtcAgentTest.typeErrorHint':
+    "콘솔에 \"TypeError: Cannot destructure property 'dispatcher' of 'useContext(...)'\"가 표시되면 통합이 깨진 것입니다.",
   'pages.rtcAgentTest.agentAlreadyRunning':
     '테스트 에이전트가 이미 실행 중입니다',
   // Table List
@@ -1124,13 +1129,16 @@ export default {
   'pages.list.search.categoryOption': '카테고리 {index}',
   'pages.profile.advanced.desc.creatorName': '취려리',
   'pages.profile.advanced.desc.departmentName': 'XX 회사 - YY 부서',
-  'pages.profile.advanced.desc.fullAddress': '취려리 18100000000 저장성 항저우시 시후구 황구산로',
+  'pages.profile.advanced.desc.fullAddress':
+    '취려리 18100000000 저장성 항저우시 시후구 황구산로',
   'pages.profile.advanced.desc.leaderName': '림동동',
-  'pages.profile.advanced.desc.longDescription': '이 설명은 매우 깁니다 매우 깁니다 매우 깁니다 매우 깁니다...',
+  'pages.profile.advanced.desc.longDescription':
+    '이 설명은 매우 깁니다 매우 깁니다 매우 깁니다 매우 깁니다...',
   'pages.profile.advanced.desc.productName': 'XX 서비스',
   'pages.profile.advanced.desc.remarkText': '2영업일 이내에 확인해 주세요',
   'pages.profile.advanced.desc.reviewerName': '주모모',
-  'pages.profile.advanced.desc.scientificDescription': '수박과 수박속의 1년생 덩굴성 식물; 줄기와 가지가 굵고 뚜렷한 능선이 있음...',
+  'pages.profile.advanced.desc.scientificDescription':
+    '수박과 수박속의 1년생 덩굴성 식물; 줄기와 가지가 굵고 뚜렷한 능선이 있음...',
   'pages.profile.advanced.desc.stepPersonName': '오가호',
   'pages.profile.advanced.desc.userNameValue': '부효효',
   // Request Error Messages
@@ -1141,16 +1149,24 @@ export default {
   'pages.request.responseError':
     '응답 처리 중 오류가 발생했습니다. 페이지를 새로고침하고 다시 시도해주세요.',
   // Missing translations
-  'pages.account.settings.updateSuccess': '프로필이 성공적으로 업데이트되었습니다',
-  'pages.chatbot.faq.formValidation': '🧩 Ant Design에서 폼 유효성 검증을 구현하려면?',
-  'pages.chatbot.faq.proTableToolbar': '📋 ProTable 툴바 버튼을 커스터마이징하려면?',
+  'pages.account.settings.updateSuccess':
+    '프로필이 성공적으로 업데이트되었습니다',
+  'pages.chatbot.faq.formValidation':
+    '🧩 Ant Design에서 폼 유효성 검증을 구현하려면?',
+  'pages.chatbot.faq.proTableToolbar':
+    '📋 ProTable 툴바 버튼을 커스터마이징하려면?',
   'pages.chatbot.faq.darkTheme': '🎨 antd-style로 다크 테마를 구현하려면?',
-  'pages.chatbot.faq.proLayoutMenu': '🗂️ ProLayout 사이드바 메뉴를 동적으로 생성하려면?',
+  'pages.chatbot.faq.proLayoutMenu':
+    '🗂️ ProLayout 사이드바 메뉴를 동적으로 생성하려면?',
   'pages.chatbot.faq.chartsData': '📊 Ant Design Charts 라인 차트 데이터 형식',
-  'pages.chatbot.faq.backendAuth': '🚀 Ant Design Pro에서 백엔드 인증을 통합하려면?',
-  'pages.chatbot.faq.proFormSelect': '🔍 ProForm Select에서 원격 검색을 구현하려면?',
-  'pages.chatbot.faq.designTokens': '⚙️ Ant Design Tokens로 테마를 커스터마이징하는 모범 사례',
-  'pages.config.user.contextLost': '사용자 컨텍스트가 손실되었습니다. 새로고침하세요',
+  'pages.chatbot.faq.backendAuth':
+    '🚀 Ant Design Pro에서 백엔드 인증을 통합하려면?',
+  'pages.chatbot.faq.proFormSelect':
+    '🔍 ProForm Select에서 원격 검색을 구현하려면?',
+  'pages.chatbot.faq.designTokens':
+    '⚙️ Ant Design Tokens로 테마를 커스터마이징하는 모범 사례',
+  'pages.config.user.contextLost':
+    '사용자 컨텍스트가 손실되었습니다. 새로고침하세요',
   'pages.config.user.versionRequired': '강제 삭제에 버전이 필요합니다',
   'pages.list.cardList.action1': '작업 1',
   'pages.list.cardList.action2': '작업 2',
@@ -1173,11 +1189,13 @@ export default {
   'pages.searchTable.createFailed': '추가 실패. 다시 시도하세요!',
   'pages.searchTable.createSuccess': '성공적으로 추가됨',
   'pages.searchTable.deleteFailed': '삭제 실패. 다시 시도하세요',
-  'pages.searchTable.deleteSuccess': '성공적으로 삭제되었으며 곧 새로고침됩니다',
+  'pages.searchTable.deleteSuccess':
+    '성공적으로 삭제되었으며 곧 새로고침됩니다',
   'pages.searchTable.updateFailed': '설정 실패. 다시 시도하세요!',
   'pages.searchTable.updateForm.ruleProps.template1': '규칙 템플릿 1',
   'pages.searchTable.updateForm.ruleProps.template2': '규칙 템플릿 2',
   'pages.searchTable.updateForm.ruleProps.type.strong': '강함',
   'pages.searchTable.updateForm.ruleProps.type.weak': '약함',
   'pages.searchTable.updateSuccess': '설정이 성공했습니다',
+  'pages.request.failure': '요청 실패 ({status})',
 };

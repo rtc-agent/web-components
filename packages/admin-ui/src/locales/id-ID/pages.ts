@@ -181,6 +181,7 @@ export default {
   'pages.messages.detail.toolFailed': 'Failed',
   'pages.messages.detail.rawError': 'Raw Error',
   'pages.messages.detail.compressedContext': 'Compressed Context',
+  'pages.messages.detail.error': 'Kesalahan',
   // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
   'pages.messages.detail.releasedTokens': 'Released ${count} tokens',
   // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
@@ -788,6 +789,9 @@ export default {
   'pages.403.backHome': 'Kembali ke halaman utama',
   'pages.500.subTitle': 'Maaf, terjadi kesalahan pada server.',
   'pages.500.backHome': 'Kembali ke halaman utama',
+  'pages.system.noPermission':
+    'Maaf, Anda tidak memiliki izin manajemen sistem.',
+  'pages.permission.refreshFailed': 'Gagal menyegarkan izin',
   // Chatbot
   'pages.chatbot.welcomeText': '🤖 Halo, ada yang bisa saya bantu?',
   'pages.chatbot.newConversation': '💬 Percakapan Baru',
@@ -1034,7 +1038,8 @@ export default {
   'error.cannotDeleteSystemRole': 'Peran sistem bawaan tidak dapat dihapus',
   'error.cannotRemoveLastAdmin': 'Tidak dapat menghapus peran admin terakhir',
   'error.cannotRemoveSelf': 'Tidak dapat menghapus peran admin Anda sendiri',
-  'error.cannotRemoveSelfAdmin': 'Tidak dapat menghapus peran admin Anda sendiri',
+  'error.cannotRemoveSelfAdmin':
+    'Tidak dapat menghapus peran admin Anda sendiri',
   'error.configKeyNotFound': 'Kunci konfigurasi tidak ditemukan',
   'error.configNotFound': 'Catatan konfigurasi tidak ditemukan',
   'error.forbidden': 'Anda tidak memiliki izin untuk melakukan operasi ini',
@@ -1045,7 +1050,8 @@ export default {
   'error.invalidResource': 'Jenis sumber daya tidak valid',
   'error.loginLocked': 'Terlalu banyak percobaan login, coba lagi nanti',
   'error.noOp': 'Tidak ada operasi yang diperlukan',
-  'error.optimisticLockConflict': 'Konfigurasi telah diubah oleh admin lain, muat ulang dan coba lagi',
+  'error.optimisticLockConflict':
+    'Konfigurasi telah diubah oleh admin lain, muat ulang dan coba lagi',
   'error.permissionExists': 'Kebijakan izin sudah ada',
   'error.permissionNotFound': 'Kebijakan izin tidak ditemukan',
   'error.roleDisabled': 'Peran admin dinonaktifkan',
@@ -1086,13 +1092,17 @@ export default {
   'pages.profile.advanced.department': 'Departemen',
   'pages.profile.advanced.desc.creatorName': 'Qu Lili',
   'pages.profile.advanced.desc.departmentName': 'Perusahaan XX - Departemen YY',
-  'pages.profile.advanced.desc.fullAddress': 'Qu Lili 18100000000 Huanggushan Road, Xihu District, Hangzhou, Zhejiang',
+  'pages.profile.advanced.desc.fullAddress':
+    'Qu Lili 18100000000 Huanggushan Road, Xihu District, Hangzhou, Zhejiang',
   'pages.profile.advanced.desc.leaderName': 'Lin Dongdong',
-  'pages.profile.advanced.desc.longDescription': 'Deskripsi ini sangat panjang sangat panjang sangat panjang...',
+  'pages.profile.advanced.desc.longDescription':
+    'Deskripsi ini sangat panjang sangat panjang sangat panjang...',
   'pages.profile.advanced.desc.productName': 'Layanan XX',
-  'pages.profile.advanced.desc.remarkText': 'Harap konfirmasi dalam dua hari kerja',
+  'pages.profile.advanced.desc.remarkText':
+    'Harap konfirmasi dalam dua hari kerja',
   'pages.profile.advanced.desc.reviewerName': 'Zhou Maomao',
-  'pages.profile.advanced.desc.scientificDescription': 'Citrullus lanatus (Thunb.) Matsum. et Nakai Tanaman merambat tahunan...',
+  'pages.profile.advanced.desc.scientificDescription':
+    'Citrullus lanatus (Thunb.) Matsum. et Nakai Tanaman merambat tahunan...',
   'pages.profile.advanced.desc.stepPersonName': 'Wu Jiahao',
   'pages.profile.advanced.desc.userNameValue': 'Fu Xiaoxiao',
   'pages.profile.advanced.description': 'Deskripsi',
@@ -1124,7 +1134,8 @@ export default {
   'pages.profile.advanced.pendingApproval': 'Menunggu Persetujuan',
   'pages.profile.advanced.processProgress': 'Kemajuan',
   'pages.profile.advanced.product': 'Produk',
-  'pages.profile.advanced.recentCallRecords': 'Catatan Panggilan 6 Bulan Terakhir',
+  'pages.profile.advanced.recentCallRecords':
+    'Catatan Panggilan 6 Bulan Terakhir',
   'pages.profile.advanced.reject': 'Tolak',
   'pages.profile.advanced.relatedDocument': 'Dokumen Terkait',
   'pages.profile.advanced.remark': 'Catatan',
@@ -1147,8 +1158,10 @@ export default {
   'pages.rtcAgentTest.testDynamicImport': 'Uji Impor Dinamis',
   'pages.rtcAgentTest.reloadPage': 'Muat Ulang Halaman',
   'pages.rtcAgentTest.console': 'Konsol',
-  'pages.rtcAgentTest.consoleHint': 'Buka konsol browser untuk melihat log detail.',
-  'pages.rtcAgentTest.typeErrorHint': 'Jika Anda melihat "TypeError: Cannot destructure property \'dispatcher\' of \'useContext(...)\'" di konsol, integrasi rusak.',
+  'pages.rtcAgentTest.consoleHint':
+    'Buka konsol browser untuk melihat log detail.',
+  'pages.rtcAgentTest.typeErrorHint':
+    "Jika Anda melihat \"TypeError: Cannot destructure property 'dispatcher' of 'useContext(...)'\" di konsol, integrasi rusak.",
   'pages.rtcAgentTest.agentAlreadyRunning': 'Agen uji sudah berjalan',
   'pages.rtcUsers.noData': 'Pengguna tidak ditemukan',
   'pages.sessions.noData': 'Tidak ada percakapan ditemukan',
@@ -1162,14 +1175,21 @@ export default {
     'Kesalahan pemrosesan respons, silakan segarkan halaman dan coba lagi',
   // Missing translations
   'pages.account.settings.updateSuccess': 'Profil berhasil diperbarui',
-  'pages.chatbot.faq.formValidation': '🧩 Bagaimana implementasi validasi form di Ant Design?',
-  'pages.chatbot.faq.proTableToolbar': '📋 Bagaimana kustomisasi tombol toolbar ProTable?',
-  'pages.chatbot.faq.darkTheme': '🎨 Bagaimana implementasi tema gelap dengan antd-style?',
-  'pages.chatbot.faq.proLayoutMenu': '🗂️ Bagaimana membuat menu sidebar ProLayout secara dinamis?',
+  'pages.chatbot.faq.formValidation':
+    '🧩 Bagaimana implementasi validasi form di Ant Design?',
+  'pages.chatbot.faq.proTableToolbar':
+    '📋 Bagaimana kustomisasi tombol toolbar ProTable?',
+  'pages.chatbot.faq.darkTheme':
+    '🎨 Bagaimana implementasi tema gelap dengan antd-style?',
+  'pages.chatbot.faq.proLayoutMenu':
+    '🗂️ Bagaimana membuat menu sidebar ProLayout secara dinamis?',
   'pages.chatbot.faq.chartsData': '📊 Format data line chart Ant Design Charts',
-  'pages.chatbot.faq.backendAuth': '🚀 Bagaimana mengintegrasikan auth backend di Ant Design Pro?',
-  'pages.chatbot.faq.proFormSelect': '🔍 Bagaimana implementasi remote search di ProForm Select?',
-  'pages.chatbot.faq.designTokens': '⚙️ Praktik terbaik kustomisasi tema dengan Ant Design Tokens',
+  'pages.chatbot.faq.backendAuth':
+    '🚀 Bagaimana mengintegrasikan auth backend di Ant Design Pro?',
+  'pages.chatbot.faq.proFormSelect':
+    '🔍 Bagaimana implementasi remote search di ProForm Select?',
+  'pages.chatbot.faq.designTokens':
+    '⚙️ Praktik terbaik kustomisasi tema dengan Ant Design Tokens',
   'pages.config.user.contextLost': 'Konteks pengguna hilang, silakan refresh',
   'pages.config.user.versionRequired': 'Versi diperlukan untuk force delete',
   'pages.list.cardList.action1': 'Aksi 1',
@@ -1200,4 +1220,5 @@ export default {
   'pages.searchTable.updateForm.ruleProps.type.strong': 'Kuat',
   'pages.searchTable.updateForm.ruleProps.type.weak': 'Lemah',
   'pages.searchTable.updateSuccess': 'Konfigurasi berhasil',
+  'pages.request.failure': 'Permintaan gagal ({status})',
 };

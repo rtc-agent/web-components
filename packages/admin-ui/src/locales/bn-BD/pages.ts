@@ -110,7 +110,8 @@ export default {
   'pages.rtcUsers.actions': 'কার্যক্রম',
   'pages.rtcUsers.ban': 'নিষিদ্ধ করুন',
   'pages.rtcUsers.unban': 'নিষেধ উঠিয়ে নিন',
-  'pages.rtcUsers.confirmUnban': 'আপনি কি নিশ্চিত যে আপনি এই ব্যবহারকারীর নিষেধ উঠিয়ে নিতে চান?',
+  'pages.rtcUsers.confirmUnban':
+    'আপনি কি নিশ্চিত যে আপনি এই ব্যবহারকারীর নিষেধ উঠিয়ে নিতে চান?',
   'pages.rtcUsers.confirm': 'নিশ্চিত করুন',
   'pages.rtcUsers.cancel': 'বাতিল',
   'pages.rtcUsers.banUser': 'ব্যবহারকারী নিষিদ্ধ করুন',
@@ -145,7 +146,8 @@ export default {
   'pages.sessions.viewMessages': 'বার্তা দেখুন',
   'pages.sessions.refresh': 'রিফ্রেশ',
   'pages.sessions.loadFailed': 'সেশন তালিকা লোড করতে ব্যর্থ',
-  'pages.sessions.emptyHint': 'সেশন দেখতে ব্যবহারকারী ব্যবস্থাপনা পৃষ্ঠা থেকে একজন ব্যবহারকারী নির্বাচন করুন',
+  'pages.sessions.emptyHint':
+    'সেশন দেখতে ব্যবহারকারী ব্যবস্থাপনা পৃষ্ঠা থেকে একজন ব্যবহারকারী নির্বাচন করুন',
   'pages.sessions.goToUsers': 'ব্যবহারকারী ব্যবস্থাপনায় যান',
   // Message Management
   'pages.messages.title': 'বার্তা তালিকা',
@@ -164,7 +166,8 @@ export default {
   'pages.messages.timeRange': 'সময়সীমা',
   'pages.messages.refresh': 'রিফ্রেশ',
   'pages.messages.loadFailed': 'বার্তা তালিকা লোড করতে ব্যর্থ',
-  'pages.messages.emptyHint': 'বার্তা দেখতে সেশন ব্যবস্থাপনা পৃষ্ঠা থেকে একটি সেশন নির্বাচন করুন',
+  'pages.messages.emptyHint':
+    'বার্তা দেখতে সেশন ব্যবস্থাপনা পৃষ্ঠা থেকে একটি সেশন নির্বাচন করুন',
   'pages.messages.goToUsers': 'ব্যবহারকারী ব্যবস্থাপনায় যান',
   'pages.messages.detail.title': 'বার্তার বিবরণ',
   'pages.messages.role.user': 'ব্যবহারকারী',
@@ -208,17 +211,20 @@ export default {
   'pages.config.system.history': 'ইতিহাস',
   'pages.config.system.delete': 'মুছুন',
   'pages.config.system.confirmDelete': 'মুছে ফেলা নিশ্চিত করুন',
-  'pages.config.system.confirmDeleteDesc': 'মুছে ফেলার পরে, এটি YAML ডিফল্ট মানে ফিরে যাবে। আপনি কি নিশ্চিত?',
+  'pages.config.system.confirmDeleteDesc':
+    'মুছে ফেলার পরে, এটি YAML ডিফল্ট মানে ফিরে যাবে। আপনি কি নিশ্চিত?',
   'pages.config.system.confirm': 'নিশ্চিত করুন',
   'pages.config.system.cancel': 'বাতিল',
   'pages.config.system.updateSuccess': 'কনফিগারেশন সফলভাবে আপডেট হয়েছে',
-  'pages.config.system.deleteSuccess': 'কনফিগারেশন মুছে ফেলা হয়েছে, YAML ডিফল্ট মানে ফিরে গেছে',
+  'pages.config.system.deleteSuccess':
+    'কনফিগারেশন মুছে ফেলা হয়েছে, YAML ডিফল্ট মানে ফিরে গেছে',
   'pages.config.system.refresh': 'রিফ্রেশ',
   'pages.config.system.editTitle': 'কনফিগারেশন সম্পাদনা: ',
   'pages.config.system.configValue': 'কনফিগারেশন মান',
   'pages.config.system.configValueRequired': 'অনুগ্রহ করে কনফিগারেশন মান লিখুন',
   'pages.config.system.changeNote': 'পরিবর্তন নোট',
-  'pages.config.system.changeNotePlaceholder': 'ঐচ্ছিক, এই পরিবর্তনের কারণ ব্যাখ্যা করুন',
+  'pages.config.system.changeNotePlaceholder':
+    'ঐচ্ছিক, এই পরিবর্তনের কারণ ব্যাখ্যা করুন',
   'pages.config.system.durationFormat':
     'Format error, please enter Go duration format (e.g., 5m, 1h30m, 500ms)',
   'pages.config.system.durationPlaceholder':
@@ -774,6 +780,9 @@ export default {
   'pages.403.backHome': 'প্রধান পাতায় ফিরে যান',
   'pages.500.subTitle': 'দুঃখিত, সার্ভারে একটি ত্রুটি ঘটেছে।',
   'pages.500.backHome': 'প্রধান পাতায় ফিরে যান',
+  'pages.system.noPermission':
+    'দুঃখিত, আপনার সিস্টেম ব্যবস্থাপনা অনুমতি নেই।',
+  'pages.permission.refreshFailed': 'অনুমতি রিফ্রেশ করতে ব্যর্থ',
   // Chatbot
   'pages.chatbot.welcomeText': '🤖 হ্যালো, আমি আপনাকে কীভাবে সাহায্য করতে পারি?',
   'pages.chatbot.newConversation': '💬 নতুন কথোপকথন',
@@ -1204,4 +1213,5 @@ export default {
   'pages.searchTable.updateForm.ruleProps.type.strong': 'শক্তিশালী',
   'pages.searchTable.updateForm.ruleProps.type.weak': 'দুর্বল',
   'pages.searchTable.updateSuccess': 'কনফিগারেশন সফল হয়েছে',
+  'pages.request.failure': 'অনুরোধ ব্যর্থ হয়েছে ({status})',
 };

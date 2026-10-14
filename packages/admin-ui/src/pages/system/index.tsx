@@ -1,4 +1,4 @@
-import { history, useAccess } from '@umijs/max';
+import { history, useAccess, useIntl } from '@umijs/max';
 import { Button, Result, Skeleton } from 'antd';
 import React, { useEffect, useRef, useState } from 'react';
 
@@ -9,6 +9,7 @@ import React, { useEffect, useRef, useState } from 'react';
  */
 const SystemIndexPage: React.FC = () => {
   const access = useAccess();
+  const intl = useIntl();
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const hasRedirected = useRef(false);
 
@@ -55,10 +56,14 @@ const SystemIndexPage: React.FC = () => {
       <Result
         status="403"
         title="403"
-        subTitle="抱歉，您没有系统管理权限。"
+        subTitle={intl.formatMessage({
+          id: 'pages.system.noPermission',
+          defaultMessage:
+            'Sorry, you do not have system management permissions.',
+        })}
         extra={
           <Button type="primary" onClick={() => history.push('/')}>
-            返回首页
+            {intl.formatMessage({ id: 'pages.403.backHome' })}
           </Button>
         }
       />

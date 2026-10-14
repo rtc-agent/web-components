@@ -59,6 +59,9 @@ export default {
   'pages.403.backHome': 'Back Home',
   'pages.500.subTitle': 'Sorry, something went wrong.',
   'pages.500.backHome': 'Back Home',
+  'pages.system.noPermission':
+    'Sorry, you do not have system management permissions.',
+  'pages.permission.refreshFailed': 'Failed to refresh permissions',
   // Chatbot
   'pages.chatbot.welcomeText': '🤖 Hello, how can I help you?',
   'pages.chatbot.newConversation': '💬 New Chat',

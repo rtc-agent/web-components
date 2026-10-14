@@ -1,5 +1,5 @@
+import { useIntl, useModel } from '@umijs/max';
 import { App } from 'antd';
-import { useModel } from '@umijs/max';
 import { useCallback, useEffect, useRef } from 'react';
 import { getCurrentUser } from '@/services/admin-auth';
 import { setUserInfo } from '@/utils/auth-storage';
@@ -35,6 +35,7 @@ const USER_INFO_STORAGE_KEY = 'rtc-agent-user-info';
 export function usePermissionRefresh() {
   const { setInitialState } = useModel('@@initialState');
   const { message } = App.useApp();
+  const intl = useIntl();
 
   /**
    * Serialization Queue Design:
@@ -66,78 +67,90 @@ export function usePermissionRefresh() {
     };
   }, []);
 
-  const refreshPermissions = useCallback(async (options: {
-    showErrorMessage?: boolean;
-    retryCount?: number;
-  } = {}) => {
-    const { showErrorMessage = false, retryCount = 0 } = options;
+  const refreshPermissions = useCallback(
+    async (
+      options: { showErrorMessage?: boolean; retryCount?: number } = {},
+    ) => {
+      const { showErrorMessage = false, retryCount = 0 } = options;
 
-    // Serialize refresh requests to prevent race conditions.
-    // Each request chains onto the previous one, ensuring sequential execution.
-    refreshQueue.current = refreshQueue.current.then(async () => {
-      try {
-        // Fetch latest user info from server
-        const userInfo = await getCurrentUser();
+      // Serialize refresh requests to prevent race conditions.
+      // Each request chains onto the previous one, ensuring sequential execution.
+      refreshQueue.current = refreshQueue.current.then(async () => {
+        try {
+          // Fetch latest user info from server
+          const userInfo = await getCurrentUser();
 
-        if (!userInfo) {
-          console.warn('[usePermissionRefresh] Failed to fetch user info');
-          return;
-        }
-
-        // Update localStorage (so GlobalRtcAgent can read latest permissions)
-        setUserInfo(userInfo);
-
-        // Guard against updating unmounted component state
-        if (!isMounted.current) {
-          return;
-        }
-
-        // Update global state (triggers re-render with new permissions)
-        await setInitialState((prev) => {
-          if (!prev?.currentUser) {
-            return prev;
+          if (!userInfo) {
+            console.warn('[usePermissionRefresh] Failed to fetch user info');
+            return;
           }
-          return {
-            ...prev,
-            currentUser: buildCurrentUser(userInfo),
-          };
-        });
 
-        // Guard against updating unmounted component state
-        if (!isMounted.current) {
-          return;
-        }
+          // Update localStorage (so GlobalRtcAgent can read latest permissions)
+          setUserInfo(userInfo);
 
-        // Notify other components (e.g., GlobalRtcAgent) that permissions changed
-        window.dispatchEvent(new CustomEvent('admin-permissions-ready'));
-      } catch (error) {
-        if (retryCount < 2) {
-          // Retry with exponential backoff: 100ms, 200ms
-          // This handles transient network failures gracefully
-          console.warn(
-            `[usePermissionRefresh] Retry ${retryCount + 1}/2 after failure:`,
+          // Guard against updating unmounted component state
+          if (!isMounted.current) {
+            return;
+          }
+
+          // Update global state (triggers re-render with new permissions)
+          await setInitialState((prev) => {
+            if (!prev?.currentUser) {
+              return prev;
+            }
+            return {
+              ...prev,
+              currentUser: buildCurrentUser(userInfo),
+            };
+          });
+
+          // Guard against updating unmounted component state
+          if (!isMounted.current) {
+            return;
+          }
+
+          // Notify other components (e.g., GlobalRtcAgent) that permissions changed
+          window.dispatchEvent(new CustomEvent('admin-permissions-ready'));
+        } catch (error) {
+          if (retryCount < 2) {
+            // Retry with exponential backoff: 100ms, 200ms
+            // This handles transient network failures gracefully
+            console.warn(
+              `[usePermissionRefresh] Retry ${retryCount + 1}/2 after failure:`,
+              error,
+            );
+            await new Promise((resolve) =>
+              setTimeout(resolve, 100 * 2 ** retryCount),
+            );
+            return refreshPermissions({
+              showErrorMessage,
+              retryCount: retryCount + 1,
+            });
+          }
+
+          // All retries exhausted (3 attempts total)
+          if (showErrorMessage) {
+            message.error(
+              intl.formatMessage({
+                id: 'pages.permission.refreshFailed',
+                defaultMessage: 'Failed to refresh permissions',
+              }),
+            );
+          }
+          console.error(
+            '[usePermissionRefresh] Failed to refresh permissions after 3 attempts:',
             error,
           );
-          await new Promise((resolve) => setTimeout(resolve, 100 * 2 ** retryCount));
-          return refreshPermissions({ showErrorMessage, retryCount: retryCount + 1 });
+          // Don't throw - permission refresh failure shouldn't break the calling operation.
+          // The operation that triggered the refresh (e.g., role assignment) may have succeeded,
+          // and we don't want to roll it back just because the permission refresh failed.
         }
+      });
 
-        // All retries exhausted (3 attempts total)
-        if (showErrorMessage) {
-          message.error('Failed to refresh permissions');
-        }
-        console.error(
-          '[usePermissionRefresh] Failed to refresh permissions after 3 attempts:',
-          error,
-        );
-        // Don't throw - permission refresh failure shouldn't break the calling operation.
-        // The operation that triggered the refresh (e.g., role assignment) may have succeeded,
-        // and we don't want to roll it back just because the permission refresh failed.
-      }
-    });
-
-    return refreshQueue.current;
-  }, [setInitialState]);
+      return refreshQueue.current;
+    },
+    [setInitialState],
+  );
 
   /**
    * Cross-tab permission sync via storage event
@@ -169,7 +182,9 @@ export function usePermissionRefresh() {
 
       // If user info actually changed (not just a refresh from current tab)
       if (JSON.stringify(oldUserInfo) !== JSON.stringify(newUserInfo)) {
-        console.debug('[usePermissionRefresh] Detected cross-tab user info change, refreshing permissions');
+        console.debug(
+          '[usePermissionRefresh] Detected cross-tab user info change, refreshing permissions',
+        );
         // Trigger refresh (will be serialized via refreshQueue)
         refreshPermissions();
       }

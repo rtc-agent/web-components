@@ -113,7 +113,8 @@ export default {
   'pages.rtcUsers.actions': 'عملیات',
   'pages.rtcUsers.ban': 'ممنوع کردن',
   'pages.rtcUsers.unban': 'رفع ممنوعیت',
-  'pages.rtcUsers.confirmUnban': 'آیا مطمئن هستید که می‌خواهید ممنوعیت این کاربر را رفع کنید؟',
+  'pages.rtcUsers.confirmUnban':
+    'آیا مطمئن هستید که می‌خواهید ممنوعیت این کاربر را رفع کنید؟',
   'pages.rtcUsers.confirm': 'تأیید',
   'pages.rtcUsers.cancel': 'لغو',
   'pages.rtcUsers.banUser': 'ممنوع کردن کاربر',
@@ -121,7 +122,8 @@ export default {
   'pages.rtcUsers.banReasonPlaceholder': 'لطفاً دلیل ممنوعیت را وارد کنید',
   'pages.rtcUsers.banReasonRequired': 'لطفاً دلیل ممنوعیت را وارد کنید',
   'pages.rtcUsers.banReasonNoWhitespace': 'دلیل ممنوعیت نمی‌تواند خالی باشد',
-  'pages.rtcUsers.banReasonMaxLength': 'دلیل ممنوعیت نمی‌تواند بیشتر از ۵۰۰ کاراکتر باشد',
+  'pages.rtcUsers.banReasonMaxLength':
+    'دلیل ممنوعیت نمی‌تواند بیشتر از ۵۰۰ کاراکتر باشد',
   'pages.rtcUsers.banSuccess': 'کاربر با موفقیت ممنوع شد',
   'pages.rtcUsers.unbanSuccess': 'ممنوعیت کاربر با موفقیت رفع شد',
   'pages.rtcUsers.banFailed': 'ممنوع کردن کاربر ناموفق بود',
@@ -148,7 +150,8 @@ export default {
   'pages.sessions.viewMessages': 'مشاهده پیام‌ها',
   'pages.sessions.refresh': 'بازنشانی',
   'pages.sessions.loadFailed': 'بارگذاری فهرست جلسات ناموفق بود',
-  'pages.sessions.emptyHint': 'لطفاً کاربری را از صفحه مدیریت کاربران برای مشاهده جلسات انتخاب کنید',
+  'pages.sessions.emptyHint':
+    'لطفاً کاربری را از صفحه مدیریت کاربران برای مشاهده جلسات انتخاب کنید',
   'pages.sessions.goToUsers': 'رفتن به مدیریت کاربران',
   // Message Management
   'pages.messages.title': 'فهرست پیام‌ها',
@@ -167,7 +170,8 @@ export default {
   'pages.messages.timeRange': 'محدوده زمانی',
   'pages.messages.refresh': 'بازنشانی',
   'pages.messages.loadFailed': 'بارگذاری فهرست پیام‌ها ناموفق بود',
-  'pages.messages.emptyHint': 'لطفاً جلسه‌ای را از صفحه مدیریت جلسات برای مشاهده پیام‌ها انتخاب کنید',
+  'pages.messages.emptyHint':
+    'لطفاً جلسه‌ای را از صفحه مدیریت جلسات برای مشاهده پیام‌ها انتخاب کنید',
   'pages.messages.goToUsers': 'رفتن به مدیریت کاربران',
   'pages.messages.detail.title': 'جزئیات پیام',
   'pages.messages.role.user': 'کاربر',
@@ -211,17 +215,20 @@ export default {
   'pages.config.system.history': 'تاریخچه',
   'pages.config.system.delete': 'حذف',
   'pages.config.system.confirmDelete': 'تأیید حذف',
-  'pages.config.system.confirmDeleteDesc': 'پس از حذف، به مقدار پیش‌فرض YAML باز می‌گردد. آیا مطمئن هستید؟',
+  'pages.config.system.confirmDeleteDesc':
+    'پس از حذف، به مقدار پیش‌فرض YAML باز می‌گردد. آیا مطمئن هستید؟',
   'pages.config.system.confirm': 'تأیید',
   'pages.config.system.cancel': 'لغو',
   'pages.config.system.updateSuccess': 'پیکربندی با موفقیت به‌روزرسانی شد',
-  'pages.config.system.deleteSuccess': 'پیکربندی حذف شد، به مقدار پیش‌فرض YAML بازگشت',
+  'pages.config.system.deleteSuccess':
+    'پیکربندی حذف شد، به مقدار پیش‌فرض YAML بازگشت',
   'pages.config.system.refresh': 'بازنشانی',
   'pages.config.system.editTitle': 'ویرایش پیکربندی: ',
   'pages.config.system.configValue': 'مقدار پیکربندی',
   'pages.config.system.configValueRequired': 'لطفاً مقدار پیکربندی را وارد کنید',
   'pages.config.system.changeNote': 'یادداشت تغییر',
-  'pages.config.system.changeNotePlaceholder': 'اختیاری، دلیل این تغییر را توضیح دهید',
+  'pages.config.system.changeNotePlaceholder':
+    'اختیاری، دلیل این تغییر را توضیح دهید',
   'pages.config.system.durationFormat':
     'Format error, please enter Go duration format (e.g., 5m, 1h30m, 500ms)',
   'pages.config.system.durationPlaceholder':
@@ -379,12 +386,14 @@ export default {
   'pages.roles.no': 'خیر',
   'pages.roles.statusEnabled': 'فعال',
   'pages.roles.statusDisabled': 'غیرفعال',
-  'pages.roles.systemRoleCannotDisable': 'نقش‌های سیستم داخلی نمی‌توانند غیرفعال شوند',
+  'pages.roles.systemRoleCannotDisable':
+    'نقش‌های سیستم داخلی نمی‌توانند غیرفعال شوند',
   'pages.roles.systemRoleCannotDelete': 'نقش‌های سیستم داخلی نمی‌توانند حذف شوند',
   'pages.roles.permission': 'مجوزها',
   'pages.roles.edit': 'ویرایش',
   'pages.roles.delete': 'حذف',
-  'pages.roles.confirmDelete': 'آیا مطمئن هستید که می‌خواهید این نقش را حذف کنید؟',
+  'pages.roles.confirmDelete':
+    'آیا مطمئن هستید که می‌خواهید این نقش را حذف کنید؟',
   'pages.roles.confirmDeleteDesc': 'پس از حذف قابل بازیابی نیست',
   'pages.roles.confirmDeleteRoleWarning':
     'تمام مدیران تحت این نقش، مجوزهای خود را از دست خواهند داد',
@@ -777,6 +786,9 @@ export default {
   'pages.403.backHome': 'بازگشت به صفحه اصلی',
   'pages.500.subTitle': 'با عرض پوزش، خطایی در سرور رخ داد.',
   'pages.500.backHome': 'بازگشت به صفحه اصلی',
+  'pages.system.noPermission':
+    'متأسفید، شما مجوز مدیریت سیستم را ندارید.',
+  'pages.permission.refreshFailed': 'بازنشانی مجوزها ناموفق بود',
   // چت بات
   'pages.chatbot.welcomeText': '🤖 سلام، چطور می‌توانم به شما کمک کنم؟',
   'pages.chatbot.newConversation': '💬 گفتگوی جدید',
@@ -1212,4 +1224,5 @@ export default {
   'pages.searchTable.updateForm.ruleProps.type.strong': 'قوی',
   'pages.searchTable.updateForm.ruleProps.type.weak': 'ضعیف',
   'pages.searchTable.updateSuccess': 'پیکربندی موفقیت‌آمیز بود',
+  'pages.request.failure': 'درخواست ناموفق بود ({status})',
 };

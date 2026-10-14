@@ -170,6 +170,7 @@ export default {
   'pages.messages.detail.toolFailed': '失敗',
   'pages.messages.detail.rawError': '原始錯誤',
   'pages.messages.detail.compressedContext': '壓縮的上下文',
+  'pages.messages.detail.error': '錯誤',
   // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
   'pages.messages.detail.releasedTokens': '已釋放 ${count} tokens',
   // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
@@ -733,6 +734,8 @@ export default {
   'pages.403.backHome': '返回首頁',
   'pages.500.subTitle': '抱歉，服務器出錯了。',
   'pages.500.backHome': '返回首頁',
+  'pages.system.noPermission': '抱歉，您沒有系統管理權限。',
+  'pages.permission.refreshFailed': '權限刷新失敗',
   // Chatbot
   'pages.chatbot.welcomeText': '🤖 你好，有什麼可以幫您？',
   'pages.chatbot.newConversation': '💬 新對話',
@@ -1016,13 +1019,16 @@ export default {
   'pages.profile.advanced.department': '所屬部門',
   'pages.profile.advanced.desc.creatorName': '曲麗麗',
   'pages.profile.advanced.desc.departmentName': 'XX 公司 - YY 部門',
-  'pages.profile.advanced.desc.fullAddress': '曲麗麗 18100000000 浙江省杭州市西湖區黃姑山路',
+  'pages.profile.advanced.desc.fullAddress':
+    '曲麗麗 18100000000 浙江省杭州市西湖區黃姑山路',
   'pages.profile.advanced.desc.leaderName': '林東東',
-  'pages.profile.advanced.desc.longDescription': '這段文字超長超長超長超長超長超長超長超長超長超長超長超長超長超長...',
+  'pages.profile.advanced.desc.longDescription':
+    '這段文字超長超長超長超長超長超長超長超長超長超長超長超長超長超長...',
   'pages.profile.advanced.desc.productName': 'XX 服務',
   'pages.profile.advanced.desc.remarkText': '請在兩個工作日內確認',
   'pages.profile.advanced.desc.reviewerName': '周毛毛',
-  'pages.profile.advanced.desc.scientificDescription': '葫蘆科西瓜屬一年生蔓生藤本;莖、枝粗壯,具明顯的稜。卷須較粗壯...',
+  'pages.profile.advanced.desc.scientificDescription':
+    '葫蘆科西瓜屬一年生蔓生藤本;莖、枝粗壯,具明顯的稜。卷須較粗壯...',
   'pages.profile.advanced.desc.stepPersonName': '吳家豪',
   'pages.profile.advanced.desc.userNameValue': '付小小',
   'pages.profile.advanced.description': '描述',
@@ -1078,7 +1084,8 @@ export default {
   'pages.rtcAgentTest.reloadPage': '重新整理頁面',
   'pages.rtcAgentTest.console': '主控台',
   'pages.rtcAgentTest.consoleHint': '開啟瀏覽器主控台以查看詳細日誌。',
-  'pages.rtcAgentTest.typeErrorHint': '如果主控台顯示 "TypeError: Cannot destructure property \'dispatcher\' of \'useContext(...)\'"，表示整合已損壞。',
+  'pages.rtcAgentTest.typeErrorHint':
+    "如果主控台顯示 \"TypeError: Cannot destructure property 'dispatcher' of 'useContext(...)'\"，表示整合已損壞。",
   'pages.rtcAgentTest.agentAlreadyRunning': '測試代理已在執行中',
   'pages.rtcUsers.noData': '未找到使用者',
   'pages.sessions.noData': '未找到會話',
@@ -1091,7 +1098,8 @@ export default {
   'pages.request.responseError': '響應處理異常，請刷新頁面重試',
   // Missing translations
   'pages.account.settings.updateSuccess': '個人資料更新成功',
-  'pages.chatbot.faq.formValidation': '🧩 Ant Design 的 Form 表單如何做聯動校驗？',
+  'pages.chatbot.faq.formValidation':
+    '🧩 Ant Design 的 Form 表單如何做聯動校驗？',
   'pages.chatbot.faq.proTableToolbar': '📋 ProTable 如何自定義工具欄按鈕？',
   'pages.chatbot.faq.darkTheme': '🎨 如何用 antd-style 實現暗色主題切換？',
   'pages.chatbot.faq.proLayoutMenu': '🗂️ ProLayout 側邊選單如何動態生成？',
@@ -1129,4 +1137,5 @@ export default {
   'pages.searchTable.updateForm.ruleProps.type.strong': '強',
   'pages.searchTable.updateForm.ruleProps.type.weak': '弱',
   'pages.searchTable.updateSuccess': '配置成功',
+  'pages.request.failure': '請求失敗 ({status})',
 };

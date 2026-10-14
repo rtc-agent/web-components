@@ -185,6 +185,7 @@ export default {
   'pages.messages.detail.toolFailed': '失敗',
   'pages.messages.detail.rawError': '生エラー',
   'pages.messages.detail.compressedContext': '圧縮されたコンテキスト',
+  'pages.messages.detail.error': 'エラー',
   // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
   'pages.messages.detail.releasedTokens': '${count} トークンを解放',
   // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
@@ -535,7 +536,8 @@ export default {
   'pages.adminUsers.emailPlaceholder': 'メールを入力してください',
   'pages.adminUsers.emailRequired': 'メールを入力してください',
   'pages.adminUsers.emailInvalid': '有効なメールアドレスを入力してください',
-  'pages.adminUsers.emailMax': 'メールアドレスは255文字を超えることはできません',
+  'pages.adminUsers.emailMax':
+    'メールアドレスは255文字を超えることはできません',
   'pages.adminUsers.passwordLabel': 'パスワード',
   'pages.adminUsers.passwordPlaceholder':
     'パスワードを入力してください（6文字以上）',
@@ -790,6 +792,9 @@ export default {
   'pages.403.backHome': 'ホームに戻る',
   'pages.500.subTitle': '申し訳ありませんが、サーバーでエラーが発生しました。',
   'pages.500.backHome': 'ホームに戻る',
+  'pages.system.noPermission':
+    '申し訳ありませんが、システム管理権限がありません。',
+  'pages.permission.refreshFailed': '権限の更新に失敗しました',
   // Chatbot
   'pages.chatbot.welcomeText': '🤖 こんにちは、何かお手伝いできますか？',
   'pages.chatbot.newConversation': '💬 新しい会話',
@@ -1039,9 +1044,11 @@ export default {
   'error.invalidConfigValue': '設定値の形式が正しくありません',
   'error.invalidCredentials': '管理者メールまたはパスワードが正しくありません',
   'error.invalidResource': '無効なリソースタイプです',
-  'error.loginLocked': 'ログイン試行回数が多すぎます。しばらくしてからもう一度お試しください',
+  'error.loginLocked':
+    'ログイン試行回数が多すぎます。しばらくしてからもう一度お試しください',
   'error.noOp': '操作は必要ありません',
-  'error.optimisticLockConflict': '設定が別の管理者によって変更されました。再読み込みしてからもう一度お試しください',
+  'error.optimisticLockConflict':
+    '設定が別の管理者によって変更されました。再読み込みしてからもう一度お試しください',
   'error.permissionExists': '権限ポリシーは既に存在します',
   'error.permissionNotFound': '権限ポリシーが見つかりません',
   'error.roleDisabled': '管理者ロールは無効化されています',
@@ -1049,7 +1056,8 @@ export default {
   'error.roleNotFound': '管理者ロールが見つかりません',
   'error.unauthorized': '認証されていません。再度ログインしてください',
   'error.userNotFound': 'ユーザーが見つかりません',
-  'error.validationError': 'リクエストパラメータの検証に失敗しました。入力を確認してください',
+  'error.validationError':
+    'リクエストパラメータの検証に失敗しました。入力を確認してください',
   'error.versionNotFound': 'このバージョンは保持期間を超過しています',
   'pages.list.search.activeUser': 'アクティブユーザー',
   'pages.list.search.author': '著者',
@@ -1082,13 +1090,16 @@ export default {
   'pages.profile.advanced.department': '部署',
   'pages.profile.advanced.desc.creatorName': '曲麗麗',
   'pages.profile.advanced.desc.departmentName': 'XX 会社 - YY 部門',
-  'pages.profile.advanced.desc.fullAddress': '曲麗麗 18100000000 浙江省杭州市西湖区黄姑山路',
+  'pages.profile.advanced.desc.fullAddress':
+    '曲麗麗 18100000000 浙江省杭州市西湖区黄姑山路',
   'pages.profile.advanced.desc.leaderName': '林東東',
-  'pages.profile.advanced.desc.longDescription': 'このテキストはとても長いですとても長いですとても長いです...',
+  'pages.profile.advanced.desc.longDescription':
+    'このテキストはとても長いですとても長いですとても長いです...',
   'pages.profile.advanced.desc.productName': 'XX サービス',
   'pages.profile.advanced.desc.remarkText': '2 営業日以内に確認してください',
   'pages.profile.advanced.desc.reviewerName': '周毛毛',
-  'pages.profile.advanced.desc.scientificDescription': 'ウリ科スイカ属の一年生つる性植物。茎と枝は太く、はっきりした稜を持つ...',
+  'pages.profile.advanced.desc.scientificDescription':
+    'ウリ科スイカ属の一年生つる性植物。茎と枝は太く、はっきりした稜を持つ...',
   'pages.profile.advanced.desc.stepPersonName': '吳家豪',
   'pages.profile.advanced.desc.userNameValue': '付小小',
   'pages.profile.advanced.description': '説明',
@@ -1143,9 +1154,12 @@ export default {
   'pages.rtcAgentTest.testDynamicImport': '動的インポートをテスト',
   'pages.rtcAgentTest.reloadPage': 'ページをリロード',
   'pages.rtcAgentTest.console': 'コンソール',
-  'pages.rtcAgentTest.consoleHint': 'ブラウザコンソールを開いて詳細ログを確認してください。',
-  'pages.rtcAgentTest.typeErrorHint': 'コンソールに "TypeError: Cannot destructure property \'dispatcher\' of \'useContext(...)\'" が表示された場合、統合が壊れています。',
-  'pages.rtcAgentTest.agentAlreadyRunning': 'テストエージェントは既に実行中です',
+  'pages.rtcAgentTest.consoleHint':
+    'ブラウザコンソールを開いて詳細ログを確認してください。',
+  'pages.rtcAgentTest.typeErrorHint':
+    "コンソールに \"TypeError: Cannot destructure property 'dispatcher' of 'useContext(...)'\" が表示された場合、統合が壊れています。",
+  'pages.rtcAgentTest.agentAlreadyRunning':
+    'テストエージェントは既に実行中です',
   'pages.rtcUsers.noData': 'ユーザーが見つかりません',
   'pages.sessions.noData': 'セッションが見つかりません',
   'pages.tableList.selectDeleteItem': '削除する項目を選択してください',
@@ -1158,15 +1172,22 @@ export default {
     'レスポンスの処理中にエラーが発生しました。ページをリフレッシュして再試行してください。',
   // Missing translations
   'pages.account.settings.updateSuccess': 'プロフィールが正常に更新されました',
-  'pages.chatbot.faq.formValidation': '🧩 Ant Designでフォームバリデーションを実装するには？',
-  'pages.chatbot.faq.proTableToolbar': '📋 ProTableツールバーボタンをカスタマイズするには？',
+  'pages.chatbot.faq.formValidation':
+    '🧩 Ant Designでフォームバリデーションを実装するには？',
+  'pages.chatbot.faq.proTableToolbar':
+    '📋 ProTableツールバーボタンをカスタマイズするには？',
   'pages.chatbot.faq.darkTheme': '🎨 antd-styleでダークテーマを実装するには？',
-  'pages.chatbot.faq.proLayoutMenu': '🗂️ ProLayoutサイドバーメニューを動的に生成するには？',
+  'pages.chatbot.faq.proLayoutMenu':
+    '🗂️ ProLayoutサイドバーメニューを動的に生成するには？',
   'pages.chatbot.faq.chartsData': '📊 Ant Design Charts折れ線グラフデータ形式',
-  'pages.chatbot.faq.backendAuth': '🚀 Ant Design Proでバックエンド認証を統合するには？',
-  'pages.chatbot.faq.proFormSelect': '🔍 ProForm Selectでリモート検索を実装するには？',
-  'pages.chatbot.faq.designTokens': '⚙️ Ant Design Tokensでテーマをカスタマイズするベストプラクティス',
-  'pages.config.user.contextLost': 'ユーザーコンテキストが失われました。リフレッシュしてください',
+  'pages.chatbot.faq.backendAuth':
+    '🚀 Ant Design Proでバックエンド認証を統合するには？',
+  'pages.chatbot.faq.proFormSelect':
+    '🔍 ProForm Selectでリモート検索を実装するには？',
+  'pages.chatbot.faq.designTokens':
+    '⚙️ Ant Design Tokensでテーマをカスタマイズするベストプラクティス',
+  'pages.config.user.contextLost':
+    'ユーザーコンテキストが失われました。リフレッシュしてください',
   'pages.config.user.versionRequired': '強制削除にはバージョンが必要です',
   'pages.list.cardList.action1': 'アクション1',
   'pages.list.cardList.action2': 'アクション2',
@@ -1196,4 +1217,5 @@ export default {
   'pages.searchTable.updateForm.ruleProps.type.strong': '強',
   'pages.searchTable.updateForm.ruleProps.type.weak': '弱',
   'pages.searchTable.updateSuccess': '設定が成功しました',
+  'pages.request.failure': 'リクエスト失敗 ({status})',
 };
