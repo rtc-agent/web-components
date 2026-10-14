@@ -1,5 +1,5 @@
 import { Line } from '@ant-design/plots';
-import { getLocale, useIntl, useRequest } from '@umijs/max';
+import { getLocale, useIntl } from '@umijs/max';
 import {
   Badge,
   Card,
@@ -18,14 +18,9 @@ import dayjs from 'dayjs';
 import React, { useMemo } from 'react';
 import TableEmptyState from '@/components/TableEmptyState';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useSafeRequest } from '@/hooks/useSafeRequest';
 import { useThemeMode } from '@/hooks/useThemeMode';
-import type {
-  DeviceInfo,
-  DeviceListResponse,
-  RtcUserInfo,
-  TokenStatsResponse,
-  TopSession,
-} from '../data';
+import type { DeviceInfo, RtcUserInfo, TopSession } from '../data';
 import { getUserDevices, getUserTokenStats } from '../service';
 
 const { Text } = Typography;
@@ -56,27 +51,28 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
   const isMobile = useIsMobile();
 
   // 获取设备列表
-  // NOTE: umi 内置的 useRequest 默认 formatResult: result => result?.data，
-  // 而 request() 已经通过响应拦截器解包了 { success, data } 结构，
-  // 所以此处需要用恒等函数覆盖，避免二次解包导致 data 为 undefined。
-  const { data: devicesData, loading: devicesLoading } = useRequest(
+  // NOTE: 使用 useSafeRequest 消除类型断言，该 hook 已正确处理 formatResult
+  // DESIGN: 设备列表和 Token 统计是两个独立的 useSafeRequest 调用，因为：
+  // 1. 两个请求分别服务于不同的 Tab（设备列表 vs Token 消耗）
+  // 2. 数据完全独立，无依赖关系
+  // 3. 未来可能有不同的刷新频率（设备状态更频繁，统计数据较稳定）
+  // 4. 分离后可按需单独触发刷新，避免不必要的数据重新获取
+  const { data: devicesData, loading: devicesLoading } = useSafeRequest(
     () => (user ? getUserDevices(user.id) : Promise.reject()),
     {
       ready: !!user,
       refreshDeps: [user?.id],
-      formatResult: (res: unknown) => res,
     },
-  ) as { data: DeviceListResponse | undefined; loading: boolean };
+  );
 
-  // 获取 Token 统计 (同上 formatResult 说明)
-  const { data: statsData, loading: statsLoading } = useRequest(
+  // 获取 Token 统计 (使用 useSafeRequest 消除类型断言)
+  const { data: statsData, loading: statsLoading } = useSafeRequest(
     () => (user ? getUserTokenStats(user.id, 30) : Promise.reject()),
     {
       ready: !!user,
       refreshDeps: [user?.id],
-      formatResult: (res: unknown) => res,
     },
-  ) as { data: TokenStatsResponse | undefined; loading: boolean };
+  );
 
   // 设备列表列定义
   const deviceColumns = [
