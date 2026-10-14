@@ -22,4 +22,9 @@ export interface InitialState {
   ) => Promise<API.CurrentUser | undefined>;
   /** Whether the settings drawer is open */
   settingDrawerOpen?: boolean;
+  /**
+   * Degraded state flag: set when token exists but user info failed to load.
+   * Used by onPageChange to display a warning toast about incomplete data.
+   */
+  degraded?: boolean;
 }

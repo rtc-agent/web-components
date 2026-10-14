@@ -388,6 +388,43 @@ export class AuthController implements ReactiveController {
   }
 
   /**
+   * Permanently destroy the AuthController and release all resources.
+   *
+   * This method should be called when the component is permanently removed
+   * from the DOM (not just temporarily disconnected for React StrictMode).
+   *
+   * Cleanup includes:
+   * - Closing the BroadcastChannel (prevents message handler leaks)
+   * - Clearing all timers (prevents orphaned setTimeout callbacks)
+   * - Releasing all provider references (allows GC)
+   *
+   * Unlike _performLogout(), this does NOT dispatch a logout event or clear
+   * localStorage, as the user may still be logged in in other tabs.
+   */
+  destroy(): void {
+    // Close BroadcastChannel (prevents orphaned message handlers)
+    this.closeBroadcastChannel();
+
+    // Clear refresh timer (prevents orphaned setTimeout callbacks)
+    if (this._refreshTimer) {
+      clearTimeout(this._refreshTimer);
+      this._refreshTimer = undefined;
+    }
+
+    // Clear in-flight refresh state
+    this._refreshing = undefined;
+    this._tokenExchanging = false;
+    this._pendingTokenExchange = false;
+
+    // Release provider references (allows GC)
+    this._authProvider = undefined;
+    this._oauth2Client = undefined;
+
+    // Clear the login callback to prevent closure leaks
+    this.onLogin = undefined;
+  }
+
+  /**
    * Convenience: trigger login directly on the controller.
    *
    * Design exception for AuthController: `login`/`logout` are exposed at the
@@ -979,7 +1016,25 @@ export class AuthController implements ReactiveController {
     }
   }
 
-  /** Save tokens to localStorage with QuotaExceededError handling */
+  /**
+   * Save tokens to localStorage with QuotaExceededError handling.
+   *
+   * SECURITY NOTE (XSS & Token Storage):
+   * Tokens are stored in localStorage, which is accessible via JavaScript.
+   * This is a deliberate design choice given the component's architecture:
+   * - The component runs in an isolated Web Component shadow DOM
+   * - DOMPurify sanitizes all user-generated content before rendering
+   * - CSP policy (script-src without unsafe-inline) prevents inline script injection
+   *
+   * Defense-in-depth measures already in place:
+   * 1. DOMPurify: All user content is sanitized before DOM insertion
+   * 2. CSP: Strict Content-Security-Policy blocks inline scripts and eval()
+   * 3. Shadow DOM: Component encapsulation limits attack surface
+   *
+   * Future enhancement: For higher-security deployments, consider migrating
+   * to httpOnly cookies (requires backend coordination for token refresh flow).
+   * See: https://owasp.org/www-community/HttpOnly
+   */
   private _saveTokens(tokens: StoredTokens) {
     try {
       localStorage.setItem(STORAGE_KEYS.tokens, JSON.stringify(tokens));
@@ -1033,6 +1088,7 @@ export class AuthController implements ReactiveController {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh_token: refreshToken }),
+        credentials: 'omit', // SECURITY: prevent cookie leakage to cross-origin requests
         signal: controller.signal,
       });
 

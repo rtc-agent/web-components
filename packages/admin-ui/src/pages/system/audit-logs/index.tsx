@@ -7,7 +7,7 @@ import TableEmptyState from '@/components/TableEmptyState';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
-import { parseTableSort } from '@/utils/tableUtils';
+import { createTableRequest, parseTableSort } from '@/utils/tableUtils';
 import type { AuditLogPageAPI } from './page-api';
 import type { AuditLogItem } from './service';
 import { getAuditLogList } from './service';
@@ -401,16 +401,16 @@ const AuditLogsPage: React.FC = () => {
           }
           return params;
         }}
-        request={async (params, sort) => {
-          // Read params from searchParams (URL is single source of truth)
-          const actor_id = searchParams.get('actor_id') || undefined;
-          const resource_type = searchParams.get('resource_type') || undefined;
-          const event_type = searchParams.get('event_type') || undefined;
-          const target_id = searchParams.get('target_id') || undefined;
-          const start_time = searchParams.get('start_time') || undefined;
-          const end_time = searchParams.get('end_time') || undefined;
+        request={createTableRequest(
+          async (params, sort) => {
+            // Read params from searchParams (URL is single source of truth)
+            const actor_id = searchParams.get('actor_id') || undefined;
+            const resource_type = searchParams.get('resource_type') || undefined;
+            const event_type = searchParams.get('event_type') || undefined;
+            const target_id = searchParams.get('target_id') || undefined;
+            const start_time = searchParams.get('start_time') || undefined;
+            const end_time = searchParams.get('end_time') || undefined;
 
-          try {
             const sortParams = parseTableSort(sort || {});
             const response = await getAuditLogList({
               page: params.current,
@@ -424,28 +424,17 @@ const AuditLogsPage: React.FC = () => {
               ...sortParams,
             });
             return {
-              data: response.items,
+              items: response.items,
               total: response.total,
-              success: true,
             };
-          } catch (error: unknown) {
-            message.error(
-              getFriendlyErrorMessage(
-                error,
-                intl,
-                intl.formatMessage({
-                  id: 'pages.auditLogs.loadFailed',
-                  defaultMessage: 'Failed to load audit logs',
-                }),
-              ),
-            );
-            return {
-              data: [],
-              total: 0,
-              success: false,
-            };
-          }
-        }}
+          },
+          message,
+          intl,
+          {
+            id: 'pages.auditLogs.loadFailed',
+            defaultMessage: 'Failed to load audit logs',
+          },
+        )}
         columns={columns}
         locale={{
           emptyText: (

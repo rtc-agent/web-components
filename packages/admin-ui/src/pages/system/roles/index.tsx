@@ -38,7 +38,7 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { usePermissionRefresh } from '@/hooks/usePermissionRefresh';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
-import { parseTableSort } from '@/utils/tableUtils';
+import { createTableRequest, parseTableSort } from '@/utils/tableUtils';
 import type { RoleFormValues, RoleTableItem } from './data';
 import type { RolePageAPI } from './page-api';
 import type { PermissionPolicy } from './service';
@@ -78,6 +78,8 @@ const RoleListPage: React.FC = () => {
   const modalWidth = isMobile ? '95vw' : 520;
   const permissionModalWidth = isMobile ? '95vw' : 800;
   const { refreshPermissions } = usePermissionRefresh();
+  /** Debounce timer ref for async role name validation (prevents excessive API calls) */
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const RESOURCE_TYPES = getResourceTypes(intl);
   const ACTION_TYPES = getActionTypes(intl);
@@ -730,10 +732,10 @@ const RoleListPage: React.FC = () => {
             </Button>
           </Access>,
         ]}
-        request={async (params, sort) => {
-          // Read keyword from searchParams (URL is single source of truth)
-          const keyword = searchParams.get('keyword') || '';
-          try {
+        request={createTableRequest(
+          async (params, sort) => {
+            // Read keyword from searchParams (URL is single source of truth)
+            const keyword = searchParams.get('keyword') || '';
             const sortParams = parseTableSort(sort || {});
             const response = await getRoleList({
               page: params.current,
@@ -742,31 +744,20 @@ const RoleListPage: React.FC = () => {
               ...sortParams,
             });
             return {
-              data: response.items.map((item) => ({
+              items: response.items.map((item) => ({
                 ...item,
                 key: item.id,
               })),
               total: response.total,
-              success: true,
             };
-          } catch (error: unknown) {
-            message.error(
-              getFriendlyErrorMessage(
-                error,
-                intl,
-                intl.formatMessage({
-                  id: 'pages.roles.loadFailed',
-                  defaultMessage: 'Failed to load admin roles',
-                }),
-              ),
-            );
-            return {
-              data: [],
-              total: 0,
-              success: false,
-            };
-          }
-        }}
+          },
+          message,
+          intl,
+          {
+            id: 'pages.roles.loadFailed',
+            defaultMessage: 'Failed to load admin roles',
+          },
+        )}
         columns={columns}
         locale={{
           emptyText: (
@@ -832,10 +823,14 @@ const RoleListPage: React.FC = () => {
             },
             {
               min: 3,
-              message: intl.formatMessage({
-                id: 'pages.roles.nameMinLength',
-                defaultMessage: 'Admin role name must be at least 3 characters',
-              }),
+              message: intl.formatMessage(
+                {
+                  id: 'pages.roles.nameMinLength',
+                  defaultMessage:
+                    'Admin role name must be at least {min} characters',
+                },
+                { min: 3 },
+              ),
             },
             {
               pattern: /^[a-z][a-z0-9_]*$/,
@@ -848,6 +843,14 @@ const RoleListPage: React.FC = () => {
             {
               validator: async (_rule, value) => {
                 if (!value || isEdit) return Promise.resolve();
+                // Debounce async validation (300ms) to reduce API calls during rapid typing.
+                // Uses a shared timer per component instance via closure.
+                await new Promise<void>((resolve) => {
+                  if (debounceTimerRef.current) {
+                    clearTimeout(debounceTimerRef.current);
+                  }
+                  debounceTimerRef.current = setTimeout(resolve, 300);
+                });
                 // Async check if role name already exists
                 try {
                   const response = await getRoleList({
@@ -913,10 +916,13 @@ const RoleListPage: React.FC = () => {
             },
             {
               max: 100,
-              message: intl.formatMessage({
-                id: 'pages.roles.displayNameMaxLength',
-                defaultMessage: 'Display name cannot exceed 100 characters',
-              }),
+              message: intl.formatMessage(
+                {
+                  id: 'pages.roles.displayNameMaxLength',
+                  defaultMessage: 'Display name cannot exceed {max} characters',
+                },
+                { max: 100 },
+              ),
             },
           ]}
         />
@@ -941,10 +947,13 @@ const RoleListPage: React.FC = () => {
             },
             {
               max: 500,
-              message: intl.formatMessage({
-                id: 'pages.roles.descriptionMaxLength',
-                defaultMessage: 'Description cannot exceed 500 characters',
-              }),
+              message: intl.formatMessage(
+                {
+                  id: 'pages.roles.descriptionMaxLength',
+                  defaultMessage: 'Description cannot exceed {max} characters',
+                },
+                { max: 500 },
+              ),
             },
           ]}
         />

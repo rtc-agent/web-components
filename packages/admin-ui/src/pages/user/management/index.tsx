@@ -992,22 +992,7 @@ const AdminUserManagementPage: React.FC = () => {
             id: 'pages.adminUsers.newPasswordPlaceholder',
             defaultMessage: 'Leave blank to keep password unchanged',
           })}
-          rules={[
-            {
-              min: 6,
-              message: intl.formatMessage({
-                id: 'pages.adminUsers.passwordMin',
-                defaultMessage: 'Password must be at least 6 characters',
-              }),
-            },
-            {
-              max: 128,
-              message: intl.formatMessage({
-                id: 'pages.adminUsers.passwordMax',
-                defaultMessage: 'Password cannot exceed 128 characters',
-              }),
-            },
-          ]}
+          rules={getPasswordRules(intl.formatMessage, { required: false })}
         />
       </ModalForm>
     </PageContainer>

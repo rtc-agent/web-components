@@ -309,6 +309,9 @@ export async function getInitialState(): Promise<InitialState> {
           settings: loadThemeSettings(),
           settingDrawerOpen: false,
           loading: false,
+          // Degraded flag: token exists but user info failed to load.
+          // Downstream code (onPageChange) uses this to show a warning toast.
+          degraded: !currentUser && isAuthenticated(),
         };
       } catch (error) {
         console.error('[getInitialState] Initialization failed:', error);
@@ -320,6 +323,7 @@ export async function getInitialState(): Promise<InitialState> {
       settings: loadThemeSettings(),
       settingDrawerOpen: false,
       loading: false,
+      degraded: false,
     };
   } catch (error) {
     // 顶层 try-catch：防止未捕获的异常导致页面白屏
@@ -333,6 +337,7 @@ export async function getInitialState(): Promise<InitialState> {
       settings: loadThemeSettings(),
       settingDrawerOpen: false,
       loading: false,
+      degraded: false,
     };
   }
 }
@@ -439,8 +444,35 @@ export const layout: RunTimeLayoutConfig = ({
       // away from the login page to avoid confusion (they're already logged in).
       if (isPublicPath(location.pathname)) {
         if (location.pathname === PUBLIC_PATHS.login && isAuthenticated()) {
-          // Authenticated user on login page: redirect to root for normal routing
-          history.replace('/');
+          // Authenticated user on login page: redirect directly to the page
+          // they have permission for, avoiding the intermediate `/` redirect
+          // that would cause 2-3 unnecessary route hops.
+          const access = initialState?.currentUser?.permissions;
+          if (access) {
+            // Permission-based priority: Dashboard > RTC Users > System
+            if (access.has(PERM_DASHBOARD_READ)) {
+              history.replace('/dashboard/grafana/rtc-agent');
+            } else if (
+              access.has(PERM_RTC_USER_READ) ||
+              access.has(PERM_RTC_SESSION_READ) ||
+              access.has(PERM_RTC_MESSAGE_READ)
+            ) {
+              history.replace('/rtc-users/management');
+            } else if (
+              access.has(PERM_ADMIN_USER_READ) ||
+              access.has(PERM_ROLE_READ) ||
+              access.has(PERM_PERMISSION_READ) ||
+              access.has(PERM_AUDIT_LOG_READ) ||
+              access.has(PERM_SERVER_CONFIG_READ)
+            ) {
+              history.replace('/system');
+            } else {
+              history.replace('/exception/403');
+            }
+          } else {
+            // Permissions not yet loaded, fallback to root for normal routing
+            history.replace('/');
+          }
         }
         return;
       }

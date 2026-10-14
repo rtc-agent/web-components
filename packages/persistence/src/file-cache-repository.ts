@@ -28,6 +28,25 @@ export const STALE_SYNCING_THRESHOLD_MS = 5 * 60 * 1000;
 export { FileSyncStatus } from '@rtc-agent/protocol';
 
 /**
+ * Schedule a callback to run during browser idle time, falling back to
+ * setTimeout if requestIdleCallback is not available (e.g., Safari).
+ *
+ * Used for low-priority housekeeping tasks (e.g., expired cache cleanup)
+ * that should not block the main thread during user-interactive operations.
+ *
+ * @param callback - The task to execute during idle time
+ * @param timeout - Maximum wait time in ms before forced execution (default: 2000ms)
+ */
+function scheduleIdleTask(callback: () => void, timeout = 2000): void {
+  if (typeof requestIdleCallback === 'function') {
+    requestIdleCallback(callback, { timeout });
+  } else {
+    // Safari fallback: use setTimeout with a small delay
+    setTimeout(callback, 0);
+  }
+}
+
+/**
  * Cached file information — 所有层（PersistenceLayer、WorkerCore、WorkerBridge）统一使用此类型
  *
  * 包含文件数据（blob）和元数据（content type、同步状态、时间戳、错误信息、重试次数、文件名）。
@@ -191,7 +210,14 @@ export class FileCacheRepository {
 
     if (isExpired && entry.syncStatus === 'synced') {
       log.debug(`cache expired: ${md5}.${ext}`);
-      await db.fileCache.delete([md5, ext]);
+      // Defer cleanup to idle time to avoid blocking the main thread during cache reads.
+      // The entry is already treated as "not found" (returning null), so the delete
+      // is purely housekeeping — safe to defer without affecting correctness.
+      scheduleIdleTask(() => {
+        db.fileCache.delete([md5, ext]).catch((err) => {
+          log.warn(`Failed to clean up expired cache entry ${md5}.${ext}:`, err);
+        });
+      });
       return null;
     }
 
@@ -204,7 +230,12 @@ export class FileCacheRepository {
         log.debug(
           `cache expired (pending/failed, exceeded 30-day TTL): ${md5}.${ext}`,
         );
-        await db.fileCache.delete([md5, ext]);
+        // Defer cleanup to idle time (same rationale as synced expiry above)
+        scheduleIdleTask(() => {
+          db.fileCache.delete([md5, ext]).catch((err) => {
+            log.warn(`Failed to clean up expired cache entry ${md5}.${ext}:`, err);
+          });
+        });
         return null;
       } else {
         // P1-FIX: Still within extended TTL - log warning and preserve the file
@@ -699,52 +730,63 @@ export class FileCacheRepository {
    * Only recovers entries that have been in 'syncing' state for more than
    * STALE_SYNCING_THRESHOLD_MS (5 minutes). This prevents recovering entries
    * that are actively being uploaded.
+   *
+   * P1-FIX: Uses cursor-based iteration (.each()) instead of .toArray() to avoid
+   * loading all syncing entries into memory at once. This prevents memory issues
+   * when there are many syncing entries. Only stale entry keys are accumulated.
    */
   private async _recoverStaleSyncingInternal(): Promise<number> {
     const db = getDatabase();
     const now = Date.now();
     const threshold = now - STALE_SYNCING_THRESHOLD_MS;
 
-    // Get all syncing entries
-    const allSyncingEntries = await db.fileCache
+    // P1-FIX: Process entries via cursor to avoid loading all into memory.
+    // .each() iterates one entry at a time, which is O(1) memory instead of O(n).
+    // Only stale entry keys are accumulated (expected to be a small subset).
+    const staleKeys: [string, string][] = [];
+    let totalSyncingCount = 0;
+
+    await db.fileCache
       .where('syncStatus')
       .equals('syncing')
-      .toArray();
+      .each((entry) => {
+        totalSyncingCount++;
+        const startedAt = entry.syncingStartedAt;
+        // If no timestamp, consider it stale (legacy entry or data corruption)
+        if (!startedAt) {
+          log.warn(
+            `recoverStaleSyncing: entry ${entry.md5}.${entry.ext} has no syncingStartedAt, treating as stale`,
+          );
+          staleKeys.push([entry.md5, entry.ext]);
+        } else if (startedAt < threshold) {
+          staleKeys.push([entry.md5, entry.ext]);
+        }
+      });
 
-    if (allSyncingEntries.length === 0) {
+    if (totalSyncingCount === 0) {
       log.debug('recoverStaleSyncing: no syncing entries found');
       return 0;
     }
 
-    // P0-FIX: Filter to only stale entries (syncingStartedAt older than threshold)
-    // If syncingStartedAt is missing (legacy entry), treat as stale for safety
-    const staleEntries = allSyncingEntries.filter((entry) => {
-      const startedAt = entry.syncingStartedAt;
-      // If no timestamp, consider it stale (legacy entry or data corruption)
-      if (!startedAt) {
-        log.warn(
-          `recoverStaleSyncing: entry ${entry.md5}.${entry.ext} has no syncingStartedAt, treating as stale`,
-        );
-        return true;
-      }
-      return startedAt < threshold;
-    });
-
-    if (staleEntries.length === 0) {
+    if (staleKeys.length === 0) {
       log.debug('recoverStaleSyncing: no stale syncing entries found (all within threshold)');
       return 0;
     }
 
-    const keys = staleEntries.map((e) => [e.md5, e.ext] as [string, string]);
-    await db.fileCache.where('[md5+ext]').anyOf(keys).modify({
-      syncStatus: 'pending',
-      syncingStartedAt: undefined, // P0-FIX: Clear the timestamp when recovering
-    });
+    // Update stale entries in batches to avoid oversized transactions
+    const RECOVERY_BATCH_SIZE = 100;
+    for (let i = 0; i < staleKeys.length; i += RECOVERY_BATCH_SIZE) {
+      const batchKeys = staleKeys.slice(i, i + RECOVERY_BATCH_SIZE);
+      await db.fileCache.where('[md5+ext]').anyOf(batchKeys).modify({
+        syncStatus: 'pending',
+        syncingStartedAt: undefined, // P0-FIX: Clear the timestamp when recovering
+      });
+    }
 
     log.info(
-      `recovered ${staleEntries.length} stale syncing entries -> pending (${allSyncingEntries.length - staleEntries.length} still active)`,
+      `recovered ${staleKeys.length} stale syncing entries -> pending (${totalSyncingCount - staleKeys.length} still active)`,
     );
-    return staleEntries.length;
+    return staleKeys.length;
   }
 
   /**
@@ -1076,6 +1118,13 @@ export class FileCacheRepository {
    * where('[syncStatus+lastAccessedAt]').between(['synced', lastProcessedTime], ['synced', Infinity])
    * to fully utilize the compound index and eliminate the in-memory filter.
    *
+   * P1-FIX: Split into separate read and write phases to reduce lock contention.
+   * The read phase (scanning for candidates) happens without exclusive lock.
+   * Only the delete phase takes an exclusive write lock, and only briefly.
+   * Race conditions between read and delete are acceptable for LRU eviction:
+   * if another tab deletes an entry first, bulkDelete silently skips it;
+   * if another tab adds a newer entry, it won't be in the candidate list.
+   *
    * @param targetBytes Number of bytes to free
    * @returns Actual evicted count and bytes freed
    */
@@ -1088,71 +1137,69 @@ export class FileCacheRepository {
     let evictedCount = 0;
     let lastProcessedTime = -1;
 
-    // P1-FIX: Wrap entire LRU eviction in transaction to ensure atomicity.
-    // If bulkDelete fails (e.g., database closed), statistics won't be returned.
-    // Transaction also prevents concurrent Tab interference during read-modify-write cycle.
-    await db.transaction('rw!', db.fileCache, async () => {
-      while (evictedBytes < targetBytes) {
-        // Load one batch of synced entries, ordered by lastAccessedAt ascending (oldest first)
-        const batch = await db.fileCache
+    while (evictedBytes < targetBytes) {
+      // Phase 1: Load eviction candidates (read-only, no exclusive lock held)
+      // This allows other tabs to read/write while we scan for candidates.
+      const batch = await db.fileCache
+        .where('lastAccessedAt')
+        .above(lastProcessedTime)
+        .filter((e) => e.syncStatus === 'synced')
+        .limit(BATCH_SIZE)
+        .sortBy('lastAccessedAt');
+
+      if (batch.length === 0) break;
+
+      // CRITICAL: If the last entry shares its timestamp with earlier entries,
+      // load ALL entries at that timestamp to avoid splitting them across batches.
+      // sortBy('lastAccessedAt') doesn't guarantee order within the same timestamp,
+      // so splitting could cause entries to be skipped or duplicated.
+      const lastTime = batch[batch.length - 1].lastAccessedAt;
+      const firstTimeAtLastIndex = batch.findIndex(
+        (e) => e.lastAccessedAt === lastTime,
+      );
+
+      let entriesToConsider = batch;
+      if (
+        firstTimeAtLastIndex >= 0 &&
+        firstTimeAtLastIndex < batch.length - 1
+      ) {
+        // Same timestamp spans multiple positions — load all entries at this timestamp
+        const allAtLastTime = await db.fileCache
           .where('lastAccessedAt')
-          .above(lastProcessedTime)
+          .equals(lastTime)
           .filter((e) => e.syncStatus === 'synced')
-          .limit(BATCH_SIZE)
-          .sortBy('lastAccessedAt');
-
-        if (batch.length === 0) break;
-
-        // CRITICAL: If the last entry shares its timestamp with earlier entries,
-        // load ALL entries at that timestamp to avoid splitting them across batches.
-        // sortBy('lastAccessedAt') doesn't guarantee order within the same timestamp,
-        // so splitting could cause entries to be skipped or duplicated.
-        const lastTime = batch[batch.length - 1].lastAccessedAt;
-        const firstTimeAtLastIndex = batch.findIndex(
-          (e) => e.lastAccessedAt === lastTime,
-        );
-
-        let entriesToConsider = batch;
-        if (
-          firstTimeAtLastIndex >= 0 &&
-          firstTimeAtLastIndex < batch.length - 1
-        ) {
-          // Same timestamp spans multiple positions — load all entries at this timestamp
-          const allAtLastTime = await db.fileCache
-            .where('lastAccessedAt')
-            .equals(lastTime)
-            .filter((e) => e.syncStatus === 'synced')
-            .toArray();
-          // Replace partial batch entries at lastTime with complete set
-          entriesToConsider = [
-            ...batch.slice(0, firstTimeAtLastIndex),
-            ...allAtLastTime,
-          ];
-        }
-
-        const keysToDelete: [string, string][] = [];
-        let batchBytes = 0;
-        let batchCount = 0;
-        for (const entry of entriesToConsider) {
-          if (evictedBytes + batchBytes >= targetBytes) break;
-          keysToDelete.push([entry.md5, entry.ext]);
-          batchBytes += entry.size ?? 0;
-          batchCount++;
-        }
-
-        // Advance cursor past the last processed timestamp
-        lastProcessedTime = lastTime;
-
-        if (keysToDelete.length > 0) {
-          // bulkDelete is now within transaction — if it fails, batchBytes/batchCount
-          // won't be committed to evictedBytes/evictedCount
-          await db.fileCache.bulkDelete(keysToDelete);
-          // Only update statistics after successful deletion
-          evictedBytes += batchBytes;
-          evictedCount += batchCount;
-        }
+          .toArray();
+        // Replace partial batch entries at lastTime with complete set
+        entriesToConsider = [
+          ...batch.slice(0, firstTimeAtLastIndex),
+          ...allAtLastTime,
+        ];
       }
-    });
+
+      const keysToDelete: [string, string][] = [];
+      let batchBytes = 0;
+      let batchCount = 0;
+      for (const entry of entriesToConsider) {
+        if (evictedBytes + batchBytes >= targetBytes) break;
+        keysToDelete.push([entry.md5, entry.ext]);
+        batchBytes += entry.size ?? 0;
+        batchCount++;
+      }
+
+      // Advance cursor past the last processed timestamp
+      lastProcessedTime = lastTime;
+
+      if (keysToDelete.length > 0) {
+        // Phase 2: Delete in a short write transaction (exclusive lock held briefly)
+        // This minimizes the time other tabs are blocked from accessing the database.
+        await db.transaction('rw', db.fileCache, async () => {
+          await db.fileCache.bulkDelete(keysToDelete);
+        });
+        // Update statistics after successful deletion
+        evictedBytes += batchBytes;
+        evictedCount += batchCount;
+      }
+    }
 
     if (evictedCount > 0) {
       log.info(
