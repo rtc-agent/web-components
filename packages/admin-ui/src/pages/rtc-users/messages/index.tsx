@@ -10,10 +10,13 @@ import React, {
   useState,
 } from 'react';
 import { TableEmptyState } from '@/components';
-import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import { getFriendlyErrorMessage } from '@/utils/errorHandler';
-import { disabledFutureDate, parseTableSort } from '@/utils/tableUtils';
+import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
+import {
+  createTableRequest,
+  disabledFutureDate,
+  parseTableSort,
+} from '@/utils/tableUtils';
 import MessageDetailDrawer from './components/MessageDetailDrawer';
 import type { MessageInfo } from './data';
 import type { MessagePageAPI } from './page-api';
@@ -300,13 +303,13 @@ const MessagesPage: React.FC = () => {
             onClick: () => handleRowClick(record),
             style: { cursor: 'pointer' },
           })}
-          request={async (params, sort) => {
-            try {
+          request={createTableRequest(
+            async (params, sort) => {
               // Read params from searchParams (URL is single source of truth)
               const effectiveSessionId =
                 searchParams.get('session_id') || sessionId;
               if (!effectiveSessionId) {
-                return { data: [], total: 0, success: true };
+                return { items: [], total: 0 };
               }
               const role = searchParams.get('role') || undefined;
               const createdAfter =
@@ -326,28 +329,17 @@ const MessagesPage: React.FC = () => {
                 ...sortParams,
               });
               return {
-                data: response.items,
+                items: response.items,
                 total: response.total,
-                success: true,
               };
-            } catch (error: unknown) {
-              message.error(
-                getFriendlyErrorMessage(
-                  error,
-                  intl,
-                  intl.formatMessage({
-                    id: 'pages.messages.loadFailed',
-                    defaultMessage: 'Failed to load messages',
-                  }),
-                ),
-              );
-              return {
-                data: [],
-                total: 0,
-                success: false,
-              };
-            }
-          }}
+            },
+            message,
+            intl,
+            {
+              id: 'pages.messages.loadFailed',
+              defaultMessage: 'Failed to load messages',
+            },
+          )}
           pagination={{
             defaultPageSize: 10,
             showSizeChanger: true,

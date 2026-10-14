@@ -1,4 +1,4 @@
-import type { MappingAlgorithm } from 'antd';
+import type { MappingAlgorithm, ThemeConfig } from 'antd';
 import { theme } from 'antd';
 
 /**
@@ -8,59 +8,16 @@ import { theme } from 'antd';
 
 /**
  * Get theme tokens for custom styling
- * Useful for components that need direct token access outside of antd's theme context
+ * Uses antd's official getDesignToken() API to ensure consistency with the theme system.
+ * @param isDark - Whether dark mode is enabled
+ * @returns Design token object from antd theme system
  */
-export const getThemeTokens = (isDark: boolean) => ({
-  // Background colors
-  colorBg: isDark ? '#141414' : '#ffffff',
-  colorBgContainer: isDark ? '#1f1f1f' : '#ffffff',
-  colorBgElevated: isDark ? '#1f1f1f' : '#ffffff',
-  colorBgLayout: isDark ? '#000000' : '#f5f5f5',
-
-  // Text colors
-  colorText: isDark ? '#ffffff' : '#000000',
-  colorTextSecondary: isDark
-    ? 'rgba(255, 255, 255, 0.65)'
-    : 'rgba(0, 0, 0, 0.65)',
-  colorTextTertiary: isDark
-    ? 'rgba(255, 255, 255, 0.45)'
-    : 'rgba(0, 0, 0, 0.45)',
-  colorTextQuaternary: isDark
-    ? 'rgba(255, 255, 255, 0.25)'
-    : 'rgba(0, 0, 0, 0.25)',
-
-  // Border colors
-  colorBorder: isDark ? '#424242' : '#d9d9d9',
-  colorBorderSecondary: isDark ? '#303030' : '#f0f0f0',
-
-  // Status colors
-  colorPrimary: '#1677ff',
-  colorSuccess: '#52c41a',
-  colorWarning: '#faad14',
-  colorError: '#ff4d4f',
-  colorInfo: '#1677ff',
-
-  // Spacing
-  padding: 16,
-  paddingSM: 12,
-  paddingLG: 24,
-  paddingXL: 32,
-  paddingXS: 8,
-  paddingXXS: 4,
-
-  // Border radius
-  borderRadius: 6,
-  borderRadiusSM: 4,
-  borderRadiusLG: 8,
-
-  // Shadows
-  boxShadow: isDark
-    ? '0 6px 16px 0 rgba(0, 0, 0, 0.32)'
-    : '0 6px 16px 0 rgba(0, 0, 0, 0.08)',
-  boxShadowSecondary: isDark
-    ? '0 3px 8px 0 rgba(0, 0, 0, 0.24)'
-    : '0 3px 8px 0 rgba(0, 0, 0, 0.06)',
-});
+export const getThemeTokens = (isDark: boolean) => {
+  const themeConfig: ThemeConfig = {
+    algorithm: isDark ? theme.darkAlgorithm : theme.defaultAlgorithm,
+  };
+  return theme.getDesignToken(themeConfig);
+};
 
 /**
  * Toggle theme between light and dark

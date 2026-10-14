@@ -7,10 +7,11 @@ import {
 import { useIntl } from '@umijs/max';
 import { App, Button, Tag } from 'antd';
 import React, { useMemo, useRef, useState } from 'react';
+import TableEmptyState from '@/components/TableEmptyState';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import type { ConfigHistoryItem } from '@/services/server-config';
 import { formatConfigValue, truncateValue } from '@/utils/configFormat';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
-import { useIsMobile } from '@/hooks/useIsMobile';
 
 export interface ConfigHistoryTableProps {
   /** Whether the modal is open */
@@ -200,6 +201,7 @@ const ConfigHistoryTable: React.FC<ConfigHistoryTableProps> = ({
           }
           search={false}
           options={false}
+          locale={{ emptyText: <TableEmptyState /> }}
           pagination={{ defaultPageSize: 10, showSizeChanger: false }}
           request={async (params) => {
             try {

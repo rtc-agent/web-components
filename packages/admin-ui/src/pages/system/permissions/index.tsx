@@ -9,19 +9,20 @@ import {
 import { Access, useAccess, useIntl, useSearchParams } from '@umijs/max';
 import { App, Button, Popconfirm, Space, Tag } from 'antd';
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import TableEmptyState from '@/components/TableEmptyState';
 import { getActionTypes, getResourceTypes } from '@/constants/permissions';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { usePermissionRefresh } from '@/hooks/usePermissionRefresh';
 import { useRoleOptions } from '@/hooks/useRoleOptions';
-import { useIsMobile } from '@/hooks/useIsMobile';
+import { getFriendlyErrorMessage } from '@/utils/errorHandler';
+import type { PermissionFormValues, PermissionTableItem } from './data';
+import type { PermissionPageAPI } from './page-api';
 import {
   createPermission,
   deletePermission,
   getPermissionList,
 } from './service';
-import { getFriendlyErrorMessage } from '@/utils/errorHandler';
-import type { PermissionFormValues, PermissionTableItem } from './data';
-import type { PermissionPageAPI } from './page-api';
 
 /**
  * Permission Management Page
@@ -334,6 +335,7 @@ const PermissionListPage: React.FC = () => {
         rowKey={(record) =>
           `${record.role_id}-${record.resource}-${record.action}`
         }
+        locale={{ emptyText: <TableEmptyState /> }}
         search={{
           labelWidth: 'auto',
         }}

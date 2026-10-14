@@ -20,6 +20,7 @@ import {
   Typography,
 } from 'antd';
 import React, { useCallback, useMemo, useState } from 'react';
+import TableEmptyState from '@/components/TableEmptyState';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useOptimisticLockConflict } from '@/hooks/useOptimisticLockConflict';
 import ConflictModal from '@/pages/system/configs/components/ConflictModal';
@@ -451,6 +452,7 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
                 loading={loading}
                 size="small"
                 columns={columns}
+                locale={{ emptyText: <TableEmptyState /> }}
               />
             ),
           }))}

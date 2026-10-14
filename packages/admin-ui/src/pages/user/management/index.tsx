@@ -21,6 +21,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import TableEmptyState from '@/components/TableEmptyState';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { usePermissionRefresh } from '@/hooks/usePermissionRefresh';
@@ -624,6 +625,7 @@ const AdminUserManagementPage: React.FC = () => {
         })}
         actionRef={actionRef}
         rowKey="id"
+        locale={{ emptyText: <TableEmptyState /> }}
         search={{
           labelWidth: 'auto',
         }}

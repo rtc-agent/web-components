@@ -4,11 +4,14 @@ import { history, useIntl, useSearchParams } from '@umijs/max';
 import { App, Button, Tag } from 'antd';
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { TableEmptyState } from '@/components';
-import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { useTableSearchParams } from '@/hooks/useTableSearchParams';
-import { getFriendlyErrorMessage } from '@/utils/errorHandler';
-import { disabledFutureDate, parseTableSort } from '@/utils/tableUtils';
+import {
+  createTableRequest,
+  disabledFutureDate,
+  parseTableSort,
+} from '@/utils/tableUtils';
 import type { SessionInfo } from './data';
 import type { SessionPageAPI } from './page-api';
 import { getSessionList } from './service';
@@ -272,8 +275,8 @@ const SessionsPage: React.FC = () => {
           rowKey="id"
           columns={columns}
           scroll={{ x: 'max-content' }}
-          request={async (params, sort) => {
-            try {
+          request={createTableRequest(
+            async (params, sort) => {
               // Read params from URL (single source of truth)
               const {
                 user_id: effectiveUserId = userId,
@@ -284,7 +287,7 @@ const SessionsPage: React.FC = () => {
               } = tableParams.get();
 
               if (!effectiveUserId) {
-                return { data: [], total: 0, success: true };
+                return { items: [], total: 0 };
               }
               const current = params.current || 1;
               const pageSize = params.pageSize || 10;
@@ -300,28 +303,17 @@ const SessionsPage: React.FC = () => {
                 ...sortParams,
               });
               return {
-                data: response.items,
+                items: response.items,
                 total: response.total,
-                success: true,
               };
-            } catch (error: unknown) {
-              message.error(
-                getFriendlyErrorMessage(
-                  error,
-                  intl,
-                  intl.formatMessage({
-                    id: 'pages.sessions.loadFailed',
-                    defaultMessage: 'Failed to load sessions',
-                  }),
-                ),
-              );
-              return {
-                data: [],
-                total: 0,
-                success: false,
-              };
-            }
-          }}
+            },
+            message,
+            intl,
+            {
+              id: 'pages.sessions.loadFailed',
+              defaultMessage: 'Failed to load sessions',
+            },
+          )}
           pagination={{
             defaultPageSize: 10,
             showSizeChanger: true,

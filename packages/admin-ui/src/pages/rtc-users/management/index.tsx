@@ -33,7 +33,7 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { useTableSearchParams } from '@/hooks/useTableSearchParams';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
-import { parseTableSort, createTableRequest } from '@/utils/tableUtils';
+import { createTableRequest, parseTableSort } from '@/utils/tableUtils';
 import UserConfigDrawer from './components/UserConfigDrawer';
 import UserDetailDrawer from './components/UserDetailDrawer';
 import type { RtcUserInfo } from './data';
@@ -223,7 +223,10 @@ const RtcUserManagementPage: React.FC = () => {
   const intl = useIntl();
   const { message } = App.useApp();
   const [searchParams] = useSearchParams();
-  const tableParams = useTableSearchParams<{ search: string; status: string }>();
+  const tableParams = useTableSearchParams<{
+    search: string;
+    status: string;
+  }>();
   const isMobile = useIsMobile(); // < 768px
   const canBan = access.canRtcUserBan;
   // 设计决策：RTC 用户配置权限复用系统配置权限点（server_config:write / server_config:delete）
