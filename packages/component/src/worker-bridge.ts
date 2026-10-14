@@ -12,7 +12,7 @@
  * - The main thread retains the UIUpdateBus singleton (existing UI code continues to subscribe).
  * - When the Worker broadcasts events, WorkerBridge re-publishes them on the main-thread UIUpdateBus.
  * - Only one SharedWorker instance per page (multi-tab sharing managed by the browser).
- * - Token request dedup: concurrent requests share the same Promise.
+ * - Token requests: Parallel execution via Promise.any() in WorkerCore. All registered callbacks are tried concurrently; first success wins.
  *
  * ARCHITECTURE NOTE - Direct Persistence Import:
  * ----------------------------------------------
@@ -260,31 +260,10 @@ export class WorkerBridge {
    * If multiple <rtc-agent> instances exist on the same page, each instance will
    * overwrite the previous instance's proxy, causing unpredictable behavior.
    *
-   * This flag is used to warn developers about multi-instance conflicts.
+   * This flag is used to enforce single-instance semantics and warn developers
+   * about multi-instance conflicts.
    */
   private static _virtualFSProxyInstalled = false;
-
-  /**
-   * Reference count for virtualFS proxy installations.
-   *
-   * Tracks how many WorkerBridge instances have called installVirtualFSProxy().
-   * restoreVirtualFS() decrements this count and only restores the original
-   * implementation when the count reaches zero. This prevents a scenario where
-   * instance A's destroy() restores the original while instance B still relies
-   * on the proxy being active.
-   *
-   * Lifecycle:
-   * - Incremented in installVirtualFSProxy()
-   * - Decremented in restoreVirtualFS() (called from destroy())
-   * - When count reaches 0, _originalVirtualFS is restored and nulled,
-   *   _virtualFSProxyInstalled is reset to false
-   * - A new WorkerBridge instance can then successfully install the proxy again
-   *
-   * Note: This does NOT fix the fundamental overwrite issue (last installer wins),
-   * but ensures cleanup is correct — the proxy stays active as long as any
-   * instance needs it.
-   */
-  private static _virtualFSProxyRefCount = 0;
 
   /**
    * Backup of original virtualFS methods, saved before proxy installation.
@@ -394,14 +373,30 @@ export class WorkerBridge {
           log.error('onUIUpdate: bus.publish() failed (non-fatal):', errorInfo);
         });
         // Advance cursor on real-time delivery to minimize redundant catch-up replays.
-        // This update is synchronous to prevent race conditions with the catch-up loop.
+        // SYNCHRONIZATION GUARANTEE:
+        // _lastProcessedSeq is updated synchronously (no await between the check and update).
+        // This ensures the catch-up loop's idempotency guard (_isEventProcessed)
+        // works correctly, even if events arrive during the async query.
+        // JavaScript's single-threaded execution model guarantees no interleaving here.
         if (payload.seq > this._lastProcessedSeq) {
           this._updateLastProcessedSeq(payload.seq);
         }
       },
       // Worker requests token -> AuthController.getAccessTokenAsync().
+      // TIMEOUT PROTECTION: 5-second timeout prevents infinite blocking if AuthController hangs.
+      // Without this, a stuck getAccessTokenAsync() would block the Worker's token request
+      // indefinitely, preventing reconnection and causing silent failures.
       requestToken: async (): Promise<string> => {
-        const token = await this._auth.getAccessTokenAsync();
+        const TIMEOUT_MS = 5000;
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => {
+            reject(new Error(`[WorkerBridge] requestToken timeout after ${TIMEOUT_MS}ms`));
+          }, TIMEOUT_MS);
+        });
+        const token = await Promise.race([
+          this._auth.getAccessTokenAsync(),
+          timeoutPromise,
+        ]);
         if (!token) {
           throw new Error('[WorkerBridge] no access token available');
         }
@@ -980,9 +975,18 @@ export class WorkerBridge {
   /**
    * Destroy the bridge.
    *
-   * 1. Unregister callbacks and close the Worker connection atomically.
-   * 2. Close the port.
-   * 3. Terminate the Worker (note: SharedWorker only terminates after all ports are closed).
+   * Performs comprehensive cleanup in a specific order to prevent resource leaks
+   * and race conditions during teardown:
+   *
+   * 1. Mark as destroyed immediately — prevents init() from completing after destroy.
+   * 2. Stop heartbeat — prevents further pings to a dying Worker.
+   * 3. Cancel ongoing catch-up — signals _doCatchUp() to bail out at next iteration.
+   * 4. Wait for ongoing init() — serializes cleanup with a 100ms timeout.
+   * 5. Clean up Worker resources — unregister callbacks, close port, restore virtualFS.
+   * 6. Null out references — prevents use-after-destroy bugs and allows GC.
+   * 7. Resolve pending yield promises — allows catch-up loop to exit cleanly.
+   * 8. Clear yield channel — prevents memory leaks.
+   * 9. Optionally clear sessionStorage cursor — only on actual tab close.
    *
    * @param clearStorage - If true, clear sessionStorage cursor (use when tab is closing).
    *                       If false (default), keep cursor so component remount doesn't trigger
@@ -1278,10 +1282,9 @@ export class WorkerBridge {
       };
     }
 
-    // Mark as installed and increment reference count
+    // Mark as installed (single-instance enforcement)
     WorkerBridge._virtualFSProxyInstalled = true;
-    WorkerBridge._virtualFSProxyRefCount++;
-    log.debug(`virtualFS proxy installed (refCount=${WorkerBridge._virtualFSProxyRefCount})`);
+    log.debug('virtualFS proxy installed');
 
     virtualFS.read = ((path: string, offset?: number, limit?: number) =>
       core.virtualFSRead(path, offset, limit)) as typeof virtualFS.read;
@@ -1329,24 +1332,10 @@ export class WorkerBridge {
    * to a dead Worker. After restoration, virtualFS operations use the original
    * IndexedDB-backed implementation directly.
    *
-   * Uses reference counting: only restores when the last WorkerBridge instance
-   * calls this method. This prevents instance A's destroy() from breaking
-   * instance B's proxy-based operations.
-   *
-   * Safe to call multiple times — no-op if no proxy was installed or if other
-   * instances still hold references.
+   * Safe to call multiple times — no-op if no proxy was installed.
    */
   static restoreVirtualFS(): void {
-    if (!WorkerBridge._originalVirtualFS || WorkerBridge._virtualFSProxyRefCount <= 0) {
-      return;
-    }
-
-    // Decrement reference count
-    WorkerBridge._virtualFSProxyRefCount--;
-
-    // Only restore original when all instances have released their reference
-    if (WorkerBridge._virtualFSProxyRefCount > 0) {
-      log.debug(`virtualFS proxy release (refCount=${WorkerBridge._virtualFSProxyRefCount}, keeping proxy active)`);
+    if (!WorkerBridge._originalVirtualFS || !WorkerBridge._virtualFSProxyInstalled) {
       return;
     }
 
@@ -1361,7 +1350,7 @@ export class WorkerBridge {
     virtualFS.remove = orig.remove;
     WorkerBridge._originalVirtualFS = null;
     WorkerBridge._virtualFSProxyInstalled = false;
-    log.debug('virtualFS proxy restored to original implementation (refCount=0)');
+    log.debug('virtualFS proxy restored to original implementation');
   }
 
   // ========== File Cache & S3 Proxy ==========
@@ -1737,6 +1726,11 @@ export class WorkerBridge {
    * - The onUIUpdate callback updates _lastProcessedSeq synchronously (no await)
    * - Even if _lastProcessedSeq was updated during the await, the check will correctly
    *   skip already-delivered events
+   *
+   * SYNCHRONIZATION GUARANTEE:
+   * _lastProcessedSeq is updated synchronously in onUIUpdate (no await).
+   * This ensures the catch-up loop's idempotency guard (_isEventProcessed)
+   * works correctly, even if events arrive during the async query.
    *
    * @param entrySeq - The seq number of the event being considered for delivery
    * @returns true if the event has already been delivered (should be skipped)
