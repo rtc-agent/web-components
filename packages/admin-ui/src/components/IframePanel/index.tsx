@@ -176,7 +176,8 @@ const IframePanel: FC<IframePanelProps> = ({
     defaultMessage: 'Loading...',
   });
 
-  // 错误态：显示错误提示与重试按钮
+  // Error state: show error message with retry button
+  // Uses aria-live="assertive" to announce errors to screen readers
   if (error) {
     const errorTitle =
       error === 'timeout'
@@ -196,6 +197,8 @@ const IframePanel: FC<IframePanelProps> = ({
 
     return (
       <div
+        role="alert"
+        aria-live="assertive"
         style={{
           width: '100%',
           height: '100%',
@@ -222,7 +225,7 @@ const IframePanel: FC<IframePanelProps> = ({
     <div
       ref={containerRef}
       style={{
-        // 使用 position + visibility 而非 display，避免 iframe 尺寸为 0
+        // Use position + visibility instead of display:none to keep iframe dimensions
         position: visible ? 'relative' : 'absolute',
         visibility: visible ? 'visible' : 'hidden',
         width: visible ? '100%' : '100%',
@@ -235,6 +238,9 @@ const IframePanel: FC<IframePanelProps> = ({
     >
       {loading && (
         <div
+          role="status"
+          aria-live="polite"
+          aria-label={loadingText}
           style={{
             position: 'absolute',
             top: 0,

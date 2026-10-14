@@ -21,8 +21,13 @@ export interface TableEmptyStateProps {
 }
 
 /**
- * Unified empty state component for ProTable
- * Ensures consistent styling and behavior across all tables
+ * Unified empty state component for ProTable.
+ * Ensures consistent styling and behavior across all tables.
+ *
+ * Accessibility:
+ * - Uses role="status" and aria-live="polite" to announce empty state to screen readers
+ * - Icon has aria-hidden="true" as it is purely decorative
+ * - Description is the primary accessible label
  */
 const TableEmptyState: React.FC<TableEmptyStateProps> = ({
   description,
@@ -42,16 +47,19 @@ const TableEmptyState: React.FC<TableEmptyStateProps> = ({
     });
 
   return (
-    <Empty
-      image={
-        <InboxOutlined
-          style={{ fontSize: iconSize, color: token.colorTextTertiary }}
-        />
-      }
-      description={displayDescription}
-    >
-      {action}
-    </Empty>
+    <div role="status" aria-live="polite">
+      <Empty
+        image={
+          <InboxOutlined
+            aria-hidden="true"
+            style={{ fontSize: iconSize, color: token.colorTextTertiary }}
+          />
+        }
+        description={displayDescription}
+      >
+        {action}
+      </Empty>
+    </div>
   );
 };
 

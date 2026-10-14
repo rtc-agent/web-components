@@ -33,59 +33,59 @@ import useStyles from './style';
 
 /**
  * Build the tab list for the right-side content area.
- * Each tab displays i18n text and a corresponding item count (currently static).
+ *
+ * NOTE: The counts shown in tabs (e.g., "(8)") are currently mock placeholders
+ * because the backend does not yet expose dedicated count endpoints for articles,
+ * applications, and projects. Once those endpoints are available, replace the
+ * hardcoded numbers with real API data.
+ *
+ * TODO: Fetch real counts from backend API when available (see issue #XYZ).
+ *
+ * @param intl - Intl shape from useIntl()
+ * @param counts - Optional counts per tab key; falls back to static placeholders if undefined
  */
-const getOperationTabList = (intl: any) => [
+const getOperationTabList = (
+  intl: any,
+  counts?: Partial<Record<tabKeyType, number>>,
+) => [
   {
-    key: 'articles',
+    key: 'articles' as const,
     tab: (
       <span>
         {intl.formatMessage({
           id: 'pages.account.center.articles',
           defaultMessage: 'Article',
         })}{' '}
-        <span
-          style={{
-            fontSize: 14,
-          }}
-        >
-          (8)
+        <span style={{ fontSize: 14 }}>
+          ({counts?.articles ?? '—'})
         </span>
       </span>
     ),
   },
   {
-    key: 'applications',
+    key: 'applications' as const,
     tab: (
       <span>
         {intl.formatMessage({
           id: 'pages.account.center.applications',
           defaultMessage: 'Application',
         })}{' '}
-        <span
-          style={{
-            fontSize: 14,
-          }}
-        >
-          (8)
+        <span style={{ fontSize: 14 }}>
+          ({counts?.applications ?? '—'})
         </span>
       </span>
     ),
   },
   {
-    key: 'projects',
+    key: 'projects' as const,
     tab: (
       <span>
         {intl.formatMessage({
           id: 'pages.account.center.projects',
           defaultMessage: 'Project',
         })}{' '}
-        <span
-          style={{
-            fontSize: 14,
-          }}
-        >
-          (8)
+        <span style={{ fontSize: 14 }}>
+          ({counts?.projects ?? '—'})
         </span>
       </span>
     ),
@@ -225,6 +225,8 @@ const Center: React.FC = () => {
   const { styles } = useStyles();
   const intl = useIntl();
   const [tabKey, setTabKey] = useState<tabKeyType>('articles');
+  // TODO: Replace with real counts from backend when API is available.
+  // For now, pass undefined so tabs show '—' instead of misleading hardcoded numbers.
   const operationTabList = getOperationTabList(intl);
 
   // Fetch user info (scoped under currentUser.center to avoid cache conflicts)
