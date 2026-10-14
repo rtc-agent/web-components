@@ -25,6 +25,7 @@ import { theme } from 'antd';
 import type { FC } from 'react';
 import { useEffect } from 'react';
 import IframePanel from '@/components/IframePanel';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { iframeCacheManager } from '@/utils/iframe-cache';
 
 /**
@@ -92,6 +93,7 @@ const DashboardContainer: FC = () => {
   const location = useLocation();
   const intl = useIntl();
   const { token } = theme.useToken();
+  const isMobile = useIsMobile();
   const currentPath = location.pathname;
 
   // 找到当前活跃的 dashboard
@@ -114,7 +116,10 @@ const DashboardContainer: FC = () => {
         width: '100%',
         // Use CSS variable for height calculation
         // Fallback: 140px = header (64px) + padding (24px * 2) + gap (28px)
-        height: 'var(--dashboard-height, calc(100vh - 140px))',
+        // Mobile: 100px = header (48px) + padding (16px * 2) + gap (20px)
+        height: isMobile
+          ? 'var(--dashboard-height-mobile, calc(100vh - 100px))'
+          : 'var(--dashboard-height, calc(100vh - 140px))',
         background: token.colorBgContainer,
         borderRadius: token.borderRadius,
         overflow: 'hidden',
