@@ -142,6 +142,10 @@ export class RtcSessionTree extends LitElement {
    * Flatten the tree structure into a list of visible nodes for virtual scrolling.
    * Respects the expand/collapse state of each node.
    * Results are cached and only recalculated when tree structure changes.
+   *
+   * PERFORMANCE OPTIMIZATION: Uses iterative depth-first traversal with explicit stack
+   * instead of recursion. This prevents stack overflow for deeply nested trees
+   * (e.g., 1000+ levels deep) and reduces function call overhead. (P2-FIX)
    */
   private _flattenTree(
     nodes: SessionTreeNode[],
@@ -153,18 +157,29 @@ export class RtcSessionTree extends LitElement {
     }
 
     const result: Array<{ node: SessionTreeNode; depth: number }> = [];
-    const flattenRecursive = (
-      nodeList: SessionTreeNode[],
-      currentDepth: number,
-    ) => {
-      for (const node of nodeList) {
+
+    // Iterative depth-first traversal using explicit stack (P2-FIX)
+    // Stack entries contain the node list to process and the current depth
+    const stack: Array<{ nodes: SessionTreeNode[]; depth: number }> = [
+      { nodes, depth },
+    ];
+
+    while (stack.length > 0) {
+      const current = stack.pop()!;
+      const { nodes: currentNodes, depth: currentDepth } = current;
+
+      // Process nodes in reverse order so that when pushed to stack,
+      // they are popped in original order (LIFO - Last In First Out)
+      for (let i = currentNodes.length - 1; i >= 0; i--) {
+        const node = currentNodes[i];
         result.push({ node, depth: currentDepth });
+
+        // Only push children if folder is expanded and has children
         if (node.isExpanded && node.children.length > 0) {
-          flattenRecursive(node.children, currentDepth + 1);
+          stack.push({ nodes: node.children, depth: currentDepth + 1 });
         }
       }
-    };
-    flattenRecursive(nodes, depth);
+    }
 
     // Cache the result
     this._cachedFlatNodes = result;

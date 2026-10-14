@@ -544,9 +544,24 @@ export class MessageVirtualScroll<T> {
   }
 
   /**
+   * Reusable Set for _computeDiff to reduce GC pressure.
+   * Only used during diff computation, cleared after each use.
+   */
+  private _diffSetCache: {
+    oldIdSet: Set<string>;
+    newIdSet: Set<string>;
+  } = {
+    oldIdSet: new Set(),
+    newIdSet: new Set(),
+  };
+
+  /**
    * Compute diff between old and new items.
    * Detects: prepended (before old first), appended (after old last),
    * middleInserted (between old first and last), removals, and content updates.
+   *
+   * PERFORMANCE: Reuses Set objects via _diffSetCache to reduce GC pressure
+   * in high-frequency update scenarios. Sets are cleared before each use.
    */
   private _computeDiff(
     oldItems: T[],
@@ -558,8 +573,18 @@ export class MessageVirtualScroll<T> {
     hasUpdates: boolean;
     hasRemovals: boolean;
   } {
-    const oldIdSet = new Set(oldItems.map((item) => this._getItemId(item)));
-    const newIdSet = new Set(newItems.map((item) => this._getItemId(item)));
+    // Reuse cached Sets to reduce GC pressure (P2-FIX)
+    const oldIdSet = this._diffSetCache.oldIdSet;
+    const newIdSet = this._diffSetCache.newIdSet;
+    oldIdSet.clear();
+    newIdSet.clear();
+
+    for (const item of oldItems) {
+      oldIdSet.add(this._getItemId(item));
+    }
+    for (const item of newItems) {
+      newIdSet.add(this._getItemId(item));
+    }
 
     // Find prepended items (new items before old first)
     const oldFirstId =
@@ -796,12 +821,20 @@ export class MessageVirtualScroll<T> {
     this._applyItemUpdates(items);
   }
 
+  /** Maximum object size for JSON.stringify comparison (bytes). Larger objects return false directly. */
+  private readonly MAX_COMPARE_SIZE = 10 * 1024; // 10KB
+
   /**
    * Deep compare two items for equality.
    * If getChangeableContent is provided, only compares the extracted content
    * using shallow equality (own-property reference check) — avoids the cost
    * and key-order fragility of JSON.stringify.
-   * Otherwise, falls back to JSON.stringify comparison.
+   * Otherwise, falls back to JSON.stringify comparison with size guard.
+   *
+   * PERFORMANCE: For large objects (>10KB), JSON.stringify is expensive.
+   * We add a size threshold - if objects are too large, we return false
+   * instead of paying the serialization cost. Callers should provide
+   * getChangeableContent for efficient comparison of large objects.
    */
   protected _itemsEqual(a: T, b: T): boolean {
     if (this._getChangeableContent) {
@@ -810,19 +843,66 @@ export class MessageVirtualScroll<T> {
       const contentB = this._getChangeableContent(b);
       return this._shallowEqual(contentA, contentB);
     }
-    // Fallback: compare entire items
-    return JSON.stringify(a) === JSON.stringify(b);
+    // Fallback: compare entire items with size guard (P2-FIX)
+    return this._safeDeepEqual(a, b);
+  }
+
+  /**
+   * Safe deep equality with size guard.
+   * For small objects, uses JSON.stringify. For large objects, returns false
+   * to avoid the O(n) serialization cost.
+   */
+  private _safeDeepEqual(a: T, b: T): boolean {
+    // Fast path: reference equality
+    if (a === b) return true;
+    if (a == null || b == null) return false;
+
+    // Size guard: estimate size before JSON.stringify
+    // JSON.stringify is O(n) where n is object size, which can be very slow for large objects
+    const estimatedSize = this._estimateObjectSize(a) + this._estimateObjectSize(b);
+    if (estimatedSize > this.MAX_COMPARE_SIZE) {
+      // Objects are too large for efficient comparison
+      // Return false to force a re-render (safer than potentially stale equality)
+      return false;
+    }
+
+    try {
+      return JSON.stringify(a) === JSON.stringify(b);
+    } catch {
+      // JSON.stringify failed (e.g., circular reference) - treat as not equal
+      return false;
+    }
+  }
+
+  /**
+   * Estimate object size without JSON.stringify overhead.
+   * Provides a fast, approximate size by traversing primitive values.
+   */
+  private _estimateObjectSize(obj: unknown, maxDepth: number = 5, currentDepth: number = 0): number {
+    if (currentDepth >= maxDepth) return 1024; // Conservative estimate for deep nesting
+    if (obj === null || obj === undefined) return 0;
+    if (typeof obj === 'string') return obj.length * 2;
+    if (typeof obj === 'number' || typeof obj === 'boolean') return 8;
+    if (Array.isArray(obj)) {
+      return obj.reduce((sum, item) => sum + this._estimateObjectSize(item, maxDepth, currentDepth + 1), 8);
+    }
+    if (typeof obj === 'object') {
+      return Object.entries(obj as Record<string, unknown>).reduce(
+        (sum, [k, v]) => sum + k.length * 2 + this._estimateObjectSize(v, maxDepth, currentDepth + 1),
+        8
+      );
+    }
+    return 8;
   }
 
   /**
    * Shallow equality for plain objects: same own keys, same values (by reference).
-   * Falls back to JSON.stringify for non-object / null values.
+   * For non-object values, uses reference equality (P2-FIX: avoid JSON.stringify).
    */
   private _shallowEqual(a: unknown, b: unknown): boolean {
     if (a === b) return true;
     if (a == null || b == null) return false;
-    if (typeof a !== 'object' || typeof b !== 'object')
-      return JSON.stringify(a) === JSON.stringify(b);
+    if (typeof a !== 'object' || typeof b !== 'object') return false; // P2-FIX: reference equality only
 
     const keysA = Object.keys(a as Record<string, unknown>);
     const keysB = Object.keys(b as Record<string, unknown>);

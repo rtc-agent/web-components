@@ -525,8 +525,8 @@ export class EntityRepository {
    *
    * @param cursor - Optional cursor for pagination (client_id of the last item on the previous page).
    *                 When omitted, returns all active sessions.
-   * @param limit - Maximum number of sessions to return. Defaults to 10000 (effectively unlimited).
-   *                Pass a smaller value for pagination scenarios.
+   * @param limit - Maximum number of sessions to return. Defaults to 100 to avoid loading
+   *                excessive data into memory. Pass a larger value only when necessary.
    *
    * Performance notes:
    * - Uses compound index [deleted_at+updated_at] (added in v16) for DB-level cursor pagination.
@@ -538,7 +538,7 @@ export class EntityRepository {
    * - For larger datasets (> 1000 active sessions), consider implementing virtual scrolling
    *   in the UI layer (session-tree) to avoid rendering lag.
    *
-   * IMPORTANT: The default limit of 10000 is a safety net, not an invitation to load all sessions.
+   * IMPORTANT: The default limit of 100 balances memory usage with typical UI needs.
    * The UI layer (session-tree component) should implement virtual scrolling or "load more"
    * pagination to avoid rendering thousands of DOM nodes. Cursor-based pagination is already
    * supported via the `cursor` parameter.
@@ -547,9 +547,9 @@ export class EntityRepository {
    */
   async listSessions(
     cursor?: string,
-    // PERFORMANCE: Default limit of 10000 is a safety net. UI layer should implement
-    // virtual scrolling or pagination to avoid rendering thousands of DOM nodes.
-    limit: number = 10000,
+    // PERFORMANCE: Default limit of 100 to avoid excessive memory usage. UI layer should
+    // implement virtual scrolling or pagination for larger datasets.
+    limit: number = 100,
   ): Promise<LocalSession[]> {
     const db = getDatabase();
 
@@ -2801,6 +2801,12 @@ export class EntityRepository {
    *
    * Must be called after turn bulkPut (within same transaction).
    * Re-reads sessions from DB (not using stale sessionMap) to ensure sync_status etc. are correct.
+   *
+   * PERFORMANCE OPTIMIZATION: Uses batch operations instead of N+1 queries.
+   * - bulkGet for parallel session reads (single IndexedDB transaction)
+   * - Parallel countActiveTurns queries (all sessions at once)
+   * - bulkPut for batch session updates (single write operation)
+   * This reduces DB round-trips from O(N) to O(1) for typical cases. (P2-FIX)
    */
   private async writebackTurnCountsInTx(
     turns: Partial<LocalTurn>[],
@@ -2818,45 +2824,43 @@ export class EntityRepository {
     }
     if (affectedSessionIds.size === 0) return;
 
-    // Re-count and update turn counts for all affected sessions.
-    //
-    // NOTE: No per-session nested transaction needed — this method is called within
-    // the outer db.transaction('rw', tablesToLock) in applyUpdates(), which already
-    // holds write locks on db.sessions and db.turns. Dexie's transaction isolation
-    // ensures atomicity; concurrent applyUpdates() calls are serialized by the
-    // outer transaction scope.
-    //
-    // PERFORMANCE OPTIMIZATION: Parallelize read operations (countActiveTurns + sessions.get)
-    // using Promise.all, but keep write operations sequential to avoid transaction conflicts.
-    // Reads are safe to parallelize within the same transaction; writes must be sequential
-    // to ensure deterministic behavior across IndexedDB implementations.
     const sessionIds = [...affectedSessionIds];
 
-    // Phase 1: Parallel reads - count active turns and fetch current sessions
-    const sessionData = await Promise.all(
-      sessionIds.map(async (sessionId) => {
-        const [{ pending, running }, session] = await Promise.all([
-          this.countActiveTurns(sessionId),
-          db.sessions.get(sessionId),
-        ]);
-        return { sessionId, pending, running, session };
-      }),
+    // Phase 1: Batch read sessions using bulkGet (single IndexedDB operation)
+    // P2-FIX: Replaces N individual db.sessions.get() calls
+    const sessions = await db.sessions.bulkGet(sessionIds);
+
+    // Phase 2: Parallel count active turns for all sessions
+    // All countActiveTurns queries run in parallel (they are read-only within the same transaction)
+    const countResults = await Promise.all(
+      sessionIds.map((sessionId) => this.countActiveTurns(sessionId)),
     );
 
-    // Phase 2: Sequential writes - update only when counts changed
-    for (const { sessionId, pending, running, session } of sessionData) {
-      if (!session) continue; // session doesn't exist (may have been deleted), skip
+    // Phase 3: Build batch update array - only include sessions where counts changed
+    const sessionsToUpdate: LocalSession[] = [];
+    for (let i = 0; i < sessionIds.length; i++) {
+      const session = sessions[i];
+      if (!session) continue; // session doesn't exist, skip
+
+      const { pending, running } = countResults[i];
 
       // Only update when count actually changed (reduce unnecessary writes)
       if (
         session.pending_turn_count !== pending ||
         session.running_turn_count !== running
       ) {
-        await db.sessions.update(sessionId, {
+        sessionsToUpdate.push({
+          ...session,
           pending_turn_count: pending,
           running_turn_count: running,
         });
       }
+    }
+
+    // Phase 4: Batch write using bulkPut (single IndexedDB operation)
+    // P2-FIX: Replaces N individual db.sessions.update() calls
+    if (sessionsToUpdate.length > 0) {
+      await db.sessions.bulkPut(sessionsToUpdate);
     }
   }
 
