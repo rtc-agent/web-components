@@ -509,17 +509,14 @@ export class EntityRepository {
   ): Promise<LocalSession[]> {
     const db = getDatabase();
 
-    // PERFORMANCE: Use compound index [deleted_at+updated_at] (added in v16) for DB-level
-    // cursor pagination. For active sessions, deleted_at is undefined/falsy. We use a range
-    // query on the compound index to filter out soft-deleted sessions at the DB level.
+    // PERFORMANCE: Use updated_at index for cursor pagination.
+    // Filter out soft-deleted sessions in-memory (where deleted_at is truthy).
     //
-    // Cursor pagination: find cursor session's updated_at, then query sessions with
-    // updated_at < cursor.updated_at (for backward pagination through time).
-    //
-    // OPTIMIZATION: Query sessions where deleted_at is undefined (falsy) using compound index
-    // range query. Dexie's between() with [undefined, minKey] to [undefined, maxKey] matches
-    // records where deleted_at is undefined. We then filter for other falsy values (null, 0)
-    // in-memory as they cannot be expressed in the index query.
+    // NOTE: We previously used compound index [deleted_at+updated_at] with undefined values,
+    // but that approach is not portable across all IndexedDB implementations (e.g., fake-indexeddb
+    // used in tests does not support undefined in compound keys). The current approach uses
+    // the simpler updated_at index and filters deleted_at in-memory, which is compatible with
+    // all IndexedDB implementations and still performant for typical use cases.
 
     let cursorUpdatedAt: number | null = null;
     if (cursor) {
@@ -533,32 +530,19 @@ export class EntityRepository {
       }
     }
 
-    // Query sessions where deleted_at is undefined (most common case for active sessions)
-    // Use compound index [deleted_at+updated_at] for efficient range query
-    let query = db.sessions
-      .where('[deleted_at+updated_at]')
-      .between(
-        [undefined, Dexie.minKey], // deleted_at undefined, updated_at any value
-        [undefined, Dexie.maxKey], // deleted_at undefined, updated_at any value
-        true, // include lower bound
-        true, // include upper bound
-      )
-      .reverse(); // Descending by updated_at
+    // Query sessions using updated_at index (descending order for pagination)
+    let query = db.sessions.orderBy('updated_at').reverse();
 
     // If cursor provided, start from sessions older than cursor
     if (cursorUpdatedAt !== null) {
+      // Use upperBound to get sessions with updated_at < cursor date
       query = db.sessions
-        .where('[deleted_at+updated_at]')
-        .between(
-          [undefined, Dexie.minKey],
-          [undefined, new Date(cursorUpdatedAt).toISOString()],
-          true, // include lower bound
-          false, // exclude upper bound (cursor date)
-        )
+        .where('updated_at')
+        .below(new Date(cursorUpdatedAt).toISOString())
         .reverse();
     }
 
-    // Filter for other falsy deleted_at values (null, 0) that compound index range misses
+    // Filter out soft-deleted sessions in-memory
     // This is an O(n) filter but only runs on the already-fetched page of results
     const active = await query
       .filter((s) => !s.deleted_at)
