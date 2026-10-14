@@ -24,7 +24,8 @@ import {
 } from '@/constants/permissions';
 
 // 默认权限对象：所有权限均为 false
-const DEFAULT_PERMISSIONS = {
+// Object.freeze() 防止意外修改，确保缓存键的稳定性
+const DEFAULT_PERMISSIONS = Object.freeze({
   canAdmin: false,
   canSystemView: false,
   canAdminUserView: false,
@@ -45,18 +46,51 @@ const DEFAULT_PERMISSIONS = {
   canServerConfigEdit: false,
   canServerConfigDelete: false,
   canDashboardView: false,
-} as const;
+} as const);
 
 // Cache for computed permissions to avoid redundant calculations on every route change.
 // Module-level variables persist across re-renders but reset on HMR/page reload.
 // This is intentional: cache is invalidated when initialState changes (e.g., after login/logout).
-let _cachedPermissions: ReturnType<typeof access> | null = null;
+//
+// Type annotation uses explicit interface to avoid circular reference with ReturnType<typeof access>.
+// Object.freeze() returns Readonly<T>, which we need to unwrap for cache storage.
+type AccessResult = {
+  canAdmin: boolean;
+  canSystemView: boolean;
+  canAdminUserView: boolean;
+  canAdminUserEdit: boolean;
+  canAdminUserDelete: boolean;
+  canAdminUserRoleEdit: boolean;
+  canAdminRoleView: boolean;
+  canAdminRoleEdit: boolean;
+  canPermissionView: boolean;
+  canPermissionEdit: boolean;
+  canAuditLogView: boolean;
+  canRtcUsersMenu: boolean;
+  canRtcUserView: boolean;
+  canRtcUserBan: boolean;
+  canRtcSessionView: boolean;
+  canRtcMessageView: boolean;
+  canServerConfigView: boolean;
+  canServerConfigEdit: boolean;
+  canServerConfigDelete: boolean;
+  canDashboardView: boolean;
+};
+
+let _cachedPermissions: Readonly<AccessResult> | null = null;
 let _cachedPermissionsKey: API.CurrentUser | undefined;
 
 export default function access(
   initialState: { currentUser?: API.CurrentUser } | undefined,
-) {
+): Readonly<AccessResult> {
   const { currentUser } = initialState ?? {};
+
+  // Freeze currentUser to prevent mutable object vulnerabilities.
+  // If any code mutates currentUser in-place, the cache won't detect the change
+  // because it uses reference equality (===). Freezing ensures immutability.
+  if (currentUser && !Object.isFrozen(currentUser)) {
+    Object.freeze(currentUser);
+  }
 
   // Return cached result if currentUser hasn't changed
   if (_cachedPermissions && _cachedPermissionsKey === currentUser) {
@@ -79,8 +113,8 @@ export default function access(
   if (perms === undefined) {
     const isAdmin = currentUser.access === 'admin';
     const result = isAdmin
-      ? { ...DEFAULT_PERMISSIONS, canAdmin: true }
-      : DEFAULT_PERMISSIONS;
+      ? Object.freeze({ ...DEFAULT_PERMISSIONS, canAdmin: true })
+      : DEFAULT_PERMISSIONS; // DEFAULT_PERMISSIONS is already frozen
     _cachedPermissions = result;
     _cachedPermissionsKey = currentUser;
     return result;
@@ -220,6 +254,9 @@ export default function access(
      * - src/pages/system/configs/index.tsx（系统配置页面）
      */
   };
+
+  // Freeze the result to prevent external mutation, ensuring cache integrity.
+  Object.freeze(result);
 
   _cachedPermissions = result;
   _cachedPermissionsKey = currentUser;

@@ -492,6 +492,15 @@ export const layout: RunTimeLayoutConfig = ({
         return;
       }
 
+      // Race condition fix: token exists but currentUser not yet loaded.
+      // Show loading state instead of rendering the page with undefined user.
+      // This prevents permission checks from failing due to missing currentUser.
+      if (hasToken && !initialState?.currentUser && !initialState?.degraded) {
+        // currentUser is still being fetched, wait for it to load
+        // The layout will show a loading indicator via initialState.loading
+        return;
+      }
+
       // Degraded state: token exists but user info failed to load.
       // Allow access (token is valid), but notify the user that data may be incomplete.
       // This can happen when the /api/auth/me endpoint fails but the token is still valid.
