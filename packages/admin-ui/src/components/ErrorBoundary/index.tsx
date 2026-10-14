@@ -127,6 +127,8 @@ interface ErrorBoundaryState {
   error: Error | null;
   isOnline: boolean;
   retryCount: number;
+  /** Previous children reference, used to detect route changes and reset retryCount */
+  _prevChildren?: React.ReactNode;
 }
 
 export default class ErrorBoundary extends React.Component<
@@ -142,6 +144,33 @@ export default class ErrorBoundary extends React.Component<
 
   static getDerivedStateFromError(error: Error): Partial<ErrorBoundaryState> {
     return { hasError: true, error };
+  }
+
+  /**
+   * Reset retryCount and error state when children change (route navigation).
+   *
+   * This ensures that:
+   * 1. Users get fresh retry attempts when navigating to a new page
+   * 2. Stale error states don't persist across route changes
+   * 3. The ErrorBoundary can recover gracefully after transient errors
+   *
+   * Without this reset, a user who exhausted retries on one page would have
+   * no retry capability on subsequent pages, even though the error may be
+   * page-specific (e.g., a chunk load failure for that route's component).
+   */
+  static getDerivedStateFromProps(
+    nextProps: { children: React.ReactNode },
+    prevState: ErrorBoundaryState,
+  ): Partial<ErrorBoundaryState> | null {
+    if (prevState._prevChildren !== nextProps.children) {
+      return {
+        hasError: false,
+        error: null,
+        retryCount: 0,
+        _prevChildren: nextProps.children,
+      };
+    }
+    return null;
   }
 
   componentDidMount() {
@@ -177,6 +206,21 @@ export default class ErrorBoundary extends React.Component<
     // Incrementing retryCount changes the key on the children fragment,
     // forcing React to unmount and remount all lazy components.
     // This causes React.lazy to re-execute import() for the failed chunk.
+    //
+    // P2-FIX: Add maximum retry limit (3 attempts) to prevent infinite retry loops.
+    // After 3 failed retries, the error is likely persistent (e.g., server issue,
+    // corrupted bundle), and further retries would only frustrate the user.
+    const MAX_RETRIES = 3;
+    if (this.state.retryCount >= MAX_RETRIES) {
+      console.error(
+        `[ErrorBoundary] Maximum retry attempts (${MAX_RETRIES}) exceeded. ` +
+          `Error persists: ${this.state.error?.message}`,
+      );
+      // Optionally trigger a full page reload as a last resort
+      window.location.reload();
+      return;
+    }
+
     this.setState((prev) => ({
       hasError: false,
       error: null,

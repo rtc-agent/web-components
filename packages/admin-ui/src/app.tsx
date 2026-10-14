@@ -3,9 +3,9 @@ import { SettingDrawer } from '@ant-design/pro-components';
 import type { RequestConfig, RunTimeLayoutConfig } from '@umijs/max';
 import { getLocale, history, Link, useIntl } from '@umijs/max';
 import { App } from 'antd';
-import { useEffect } from 'react';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
+import { useEffect } from 'react';
 import type { InitialState } from '@/initialState.types';
 import 'dayjs/locale/zh-cn';
 import 'dayjs/locale/zh-tw';
@@ -49,23 +49,23 @@ import {
 } from '@/constants/permissions';
 import { isPublicPath, PUBLIC_PATHS } from '@/constants/routes';
 import { getCurrentUser } from '@/services/admin-auth';
-import { AUTH_STATE_CHANGED_EVENT } from '@/utils/auth-storage';
 import {
+  AUTH_STATE_CHANGED_EVENT,
   cancelPendingRefresh,
   getUserInfo,
   isAuthenticated,
   setUserInfo,
 } from '@/utils/auth-storage';
 import {
+  getGlobalFeedbackInstances,
+  setGlobalFeedbackInstances,
+} from '@/utils/globalFeedback';
+import {
   loadDayjsLocale,
   RTL_LOCALES,
   setDocumentDirection,
 } from '@/utils/locale-helpers';
 import { buildCurrentUser } from '@/utils/permission';
-import {
-  getGlobalFeedbackInstances,
-  setGlobalFeedbackInstances,
-} from '@/utils/globalFeedback';
 import defaultSettings from '../config/defaultSettings';
 import { errorConfig, setGlobalSetInitialState } from './requestErrorConfig';
 
@@ -310,7 +310,7 @@ export async function getInitialState(): Promise<InitialState> {
           currentUser,
           settings: loadThemeSettings(),
           settingDrawerOpen: false,
-          loading: false,
+          loading: true,
           // Degraded flag: token exists but user info failed to load.
           // Downstream code (onPageChange) uses this to show a warning toast.
           degraded: !currentUser && isAuthenticated(),
@@ -344,6 +344,45 @@ export async function getInitialState(): Promise<InitialState> {
   }
 }
 
+/**
+ * Redirect to the appropriate page based on user permissions.
+ * Used by both root route ("/") redirect and login page redirect to avoid duplication.
+ *
+ * Priority order: Dashboard > RTC Users > System > 403 (no permissions)
+ *
+ * @param permissions - User's permission Set, or undefined if not yet loaded
+ * @returns true if a redirect was performed, false if permissions are not loaded (caller should handle fallback)
+ */
+const redirectByPermissions = (
+  permissions: Set<string> | undefined,
+): boolean => {
+  if (!permissions) {
+    return false;
+  }
+
+  if (permissions.has(PERM_DASHBOARD_READ)) {
+    history.replace('/dashboard/grafana/rtc-agent');
+  } else if (
+    permissions.has(PERM_RTC_USER_READ) ||
+    permissions.has(PERM_RTC_SESSION_READ) ||
+    permissions.has(PERM_RTC_MESSAGE_READ)
+  ) {
+    history.replace('/rtc-users/management');
+  } else if (
+    permissions.has(PERM_ADMIN_USER_READ) ||
+    permissions.has(PERM_ROLE_READ) ||
+    permissions.has(PERM_PERMISSION_READ) ||
+    permissions.has(PERM_AUDIT_LOG_READ) ||
+    permissions.has(PERM_SERVER_CONFIG_READ)
+  ) {
+    history.replace('/system');
+  } else {
+    // No permissions at all, redirect to 403 page
+    history.replace('/exception/403');
+  }
+  return true;
+};
+
 // ProLayout 支持的api https://procomponents.ant.design/components/layout
 export const layout: RunTimeLayoutConfig = ({
   initialState,
@@ -356,6 +395,15 @@ export const layout: RunTimeLayoutConfig = ({
       setGlobalSetInitialState(null);
     };
   }, [setInitialState]);
+
+  // Clear initial loading flag after first render.
+  // getInitialState returns loading: true during data fetch to reflect real initialization state;
+  // this effect transitions to loading: false once the layout mounts (data is ready).
+  React.useEffect(() => {
+    if (initialState?.loading) {
+      setInitialState((s) => ({ ...s, loading: false }));
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const locale = getLocale();
   const intl = useIntl();
@@ -414,31 +462,8 @@ export const layout: RunTimeLayoutConfig = ({
           return;
         }
 
-        // 权限检查优先级：Dashboard > RTC Users > System
-        if (access.has(PERM_DASHBOARD_READ)) {
-          history.replace('/dashboard/grafana/rtc-agent');
-          return;
-        }
-        if (
-          access.has(PERM_RTC_USER_READ) ||
-          access.has(PERM_RTC_SESSION_READ) ||
-          access.has(PERM_RTC_MESSAGE_READ)
-        ) {
-          history.replace('/rtc-users/management');
-          return;
-        }
-        if (
-          access.has(PERM_ADMIN_USER_READ) ||
-          access.has(PERM_ROLE_READ) ||
-          access.has(PERM_PERMISSION_READ) ||
-          access.has(PERM_AUDIT_LOG_READ) ||
-          access.has(PERM_SERVER_CONFIG_READ)
-        ) {
-          history.replace('/system');
-          return;
-        }
-        // 无任何权限，跳转到 403 页面
-        history.replace('/exception/403');
+        // Use shared helper to redirect based on permissions
+        redirectByPermissions(access);
         return;
       }
 
@@ -450,28 +475,7 @@ export const layout: RunTimeLayoutConfig = ({
           // they have permission for, avoiding the intermediate `/` redirect
           // that would cause 2-3 unnecessary route hops.
           const access = initialState?.currentUser?.permissions;
-          if (access) {
-            // Permission-based priority: Dashboard > RTC Users > System
-            if (access.has(PERM_DASHBOARD_READ)) {
-              history.replace('/dashboard/grafana/rtc-agent');
-            } else if (
-              access.has(PERM_RTC_USER_READ) ||
-              access.has(PERM_RTC_SESSION_READ) ||
-              access.has(PERM_RTC_MESSAGE_READ)
-            ) {
-              history.replace('/rtc-users/management');
-            } else if (
-              access.has(PERM_ADMIN_USER_READ) ||
-              access.has(PERM_ROLE_READ) ||
-              access.has(PERM_PERMISSION_READ) ||
-              access.has(PERM_AUDIT_LOG_READ) ||
-              access.has(PERM_SERVER_CONFIG_READ)
-            ) {
-              history.replace('/system');
-            } else {
-              history.replace('/exception/403');
-            }
-          } else {
+          if (!redirectByPermissions(access)) {
             // Permissions not yet loaded, fallback to root for normal routing
             history.replace('/');
           }
@@ -492,12 +496,13 @@ export const layout: RunTimeLayoutConfig = ({
         return;
       }
 
-      const hasUser = !!initialState?.currentUser;
-
       // Degraded state: token exists but user info failed to load.
       // Allow access (token is valid), but notify the user that data may be incomplete.
       // This can happen when the /api/auth/me endpoint fails but the token is still valid.
-      if (hasToken && !hasUser) {
+      //
+      // Use initialState.degraded flag (set in getInitialState) instead of recalculating
+      // to ensure consistency between initial state and route-change handling.
+      if (initialState?.degraded) {
         console.warn(
           '[onPageChange] Degraded state: token present but currentUser unavailable. ' +
             'User info may be incomplete. The request interceptor will redirect to login if the token expires.',
@@ -515,7 +520,7 @@ export const layout: RunTimeLayoutConfig = ({
             }),
           );
         }
-      } else if (hasUser) {
+      } else if (initialState?.currentUser) {
         // Reset warning flag once user info is available (e.g., after successful refresh)
         degradedWarningShown = false;
       }
