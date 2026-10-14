@@ -100,11 +100,13 @@ export default function access(
   // canAdmin: 优先检查角色，权限作为 fallback
   // 设计决策：避免将"管理员用户写权限"等同于"管理员身份"，防止权限提升
   // 1. 优先检查是否拥有 admin 角色（后端返回的角色信息）
-  // 2. Fallback: 使用权限检查（向后兼容旧后端无角色信息的场景）
+  // 2. Fallback: 仅在后端未返回角色信息时，使用权限检查（向后兼容旧后端）
+  // 关键：当后端已返回 roles 字段时，禁止回退到权限检查，防止权限提升
+  const hasRolesData = currentUser.roles !== undefined;
   const isAdminRole = currentUser.roles?.some(
     (r) => r.name === 'admin' || r.id === 'admin',
   );
-  const canAdmin = isAdminRole || perms.has(PERM_ADMIN_USER_WRITE);
+  const canAdmin = hasRolesData ? isAdminRole === true : perms.has(PERM_ADMIN_USER_WRITE);
 
   return {
     // canAdmin: 优先检查 admin 角色，权限作为 fallback

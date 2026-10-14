@@ -1,8 +1,12 @@
+import { App } from 'antd';
 import { useModel } from '@umijs/max';
 import { useCallback, useEffect, useRef } from 'react';
 import { getCurrentUser } from '@/services/admin-auth';
 import { setUserInfo } from '@/utils/auth-storage';
 import { buildCurrentUser } from '@/utils/permission';
+
+// localStorage key for user info (used for cross-tab sync)
+const USER_INFO_STORAGE_KEY = 'rtc-agent-user-info';
 
 /**
  * Hook for refreshing current user permissions
@@ -30,6 +34,7 @@ import { buildCurrentUser } from '@/utils/permission';
  */
 export function usePermissionRefresh() {
   const { setInitialState } = useModel('@@initialState');
+  const { message } = App.useApp();
 
   /**
    * Serialization Queue Design:
@@ -113,15 +118,13 @@ export function usePermissionRefresh() {
             `[usePermissionRefresh] Retry ${retryCount + 1}/2 after failure:`,
             error,
           );
-          await new Promise((resolve) => setTimeout(resolve, 100 * Math.pow(2, retryCount)));
+          await new Promise((resolve) => setTimeout(resolve, 100 * 2 ** retryCount));
           return refreshPermissions({ showErrorMessage, retryCount: retryCount + 1 });
         }
 
         // All retries exhausted (3 attempts total)
         if (showErrorMessage) {
-          import('antd').then(({ message }) => {
-            message.error('Failed to refresh permissions');
-          });
+          message.error('Failed to refresh permissions');
         }
         console.error(
           '[usePermissionRefresh] Failed to refresh permissions after 3 attempts:',
@@ -135,6 +138,48 @@ export function usePermissionRefresh() {
 
     return refreshQueue.current;
   }, [setInitialState]);
+
+  /**
+   * Cross-tab permission sync via storage event
+   *
+   * When another tab modifies user info (e.g., role assignment), we detect it
+   * and trigger a permission refresh to keep all tabs in sync.
+   *
+   * Implementation:
+   * - Listen to 'storage' event (fires when localStorage changes in OTHER tabs)
+   * - Check if the change is for user info key
+   * - Verify the change is meaningful (user info actually differs)
+   * - Trigger refreshPermissions() to sync current tab's state
+   *
+   * Why this design:
+   * - Minimal overhead: only refreshes when user info actually changes
+   * - No polling: event-driven, instant sync
+   * - Avoids loops: 'storage' event only fires for OTHER tabs' changes
+   */
+  useEffect(() => {
+    const handleStorageChange = (event: StorageEvent) => {
+      // Only react to user info changes
+      if (event.key !== USER_INFO_STORAGE_KEY) {
+        return;
+      }
+
+      // Parse old and new values to compare
+      const oldUserInfo = event.oldValue ? JSON.parse(event.oldValue) : null;
+      const newUserInfo = event.newValue ? JSON.parse(event.newValue) : null;
+
+      // If user info actually changed (not just a refresh from current tab)
+      if (JSON.stringify(oldUserInfo) !== JSON.stringify(newUserInfo)) {
+        console.debug('[usePermissionRefresh] Detected cross-tab user info change, refreshing permissions');
+        // Trigger refresh (will be serialized via refreshQueue)
+        refreshPermissions();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [refreshPermissions]);
 
   return { refreshPermissions };
 }

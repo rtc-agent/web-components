@@ -572,6 +572,8 @@ const AdminUserManagementPage: React.FC = () => {
                       }),
                     );
                     actionRef.current?.reload();
+                    // Refresh current user permissions in case of self-deletion or role changes
+                    await refreshPermissions();
                   } catch (error: unknown) {
                     message.error(
                       getFriendlyErrorMessage(

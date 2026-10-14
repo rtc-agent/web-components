@@ -109,6 +109,9 @@ const ActionColumn = React.memo<{
     });
   }, [record, intl, access, onConfig]);
 
+  // Check if any dropdown item is visible (union of child permissions)
+  const hasDropdownAccess = moreItems.length > 0;
+
   return (
     <Space size={0}>
       <Tooltip
@@ -181,7 +184,7 @@ const ActionColumn = React.memo<{
           </Popconfirm>
         )}
       </Access>
-      <Access accessible={access.canServerConfigEdit} fallback={null}>
+      {hasDropdownAccess && (
         <Dropdown menu={{ items: moreItems }} trigger={['click']}>
           <Tooltip
             title={intl.formatMessage({
@@ -199,7 +202,7 @@ const ActionColumn = React.memo<{
             />
           </Tooltip>
         </Dropdown>
-      </Access>
+      )}
     </Space>
   );
 });
