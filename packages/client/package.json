@@ -26,6 +26,7 @@
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests --exclude '**/*.integration.test.ts'",
+    "test:coverage": "vitest run --coverage --passWithNoTests --exclude '**/*.integration.test.ts'",
     "test:watch": "vitest",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "lint": "biome lint src/",
