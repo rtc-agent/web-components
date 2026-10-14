@@ -184,8 +184,13 @@ export class FunctionGroup {
       },
     });
 
-    // The proxy dynamically resolves function calls, so we assert the combined type
-    // Use 'as unknown as' to bridge the structural gap between Proxy and the intersection type
+    // Type assertion explanation:
+    // The Proxy constructor returns a Proxy<T> type, which TypeScript's structural type system
+    // cannot automatically reconcile with the intersection type (FunctionGroup & Record<...>).
+    // This is a known limitation: Proxy types are opaque to the type checker, so we must
+    // explicitly assert the intended return type. The Proxy's get() handler dynamically resolves
+    // function calls at runtime, ensuring type safety through runtime behavior rather than
+    // compile-time type inference.
     return proxy as unknown as FunctionGroup &
       Record<string, (params?: Record<string, unknown>) => Promise<unknown>>;
   }
@@ -797,8 +802,13 @@ export class FunctionRegistry {
       },
     });
 
-    // The proxy dynamically resolves group proxies, so we assert the combined type
-    // Use 'as unknown as' to bridge the structural gap between Proxy and the intersection type
+    // Type assertion explanation:
+    // The Proxy constructor returns a Proxy<T> type, which TypeScript's structural type system
+    // cannot automatically reconcile with the intersection type (FunctionRegistry & Record<...>).
+    // This is a known limitation: Proxy types are opaque to the type checker, so we must
+    // explicitly assert the intended return type. The Proxy's get() handler dynamically resolves
+    // group proxies at runtime, ensuring type safety through runtime behavior rather than
+    // compile-time type inference.
     return proxy as unknown as FunctionRegistry & Record<string, FunctionGroup>;
   }
 }

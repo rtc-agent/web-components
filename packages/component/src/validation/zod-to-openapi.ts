@@ -34,6 +34,33 @@ interface ZodMeta {
 }
 
 /**
+ * Zod internal definition type for accessing schema internals.
+ *
+ * Zod does not expose _def in its public API, but it is necessary for:
+ * - Unwrapping optional/default wrappers
+ * - Accessing the inner shape of ZodObject
+ * - Reading type identifiers for version compatibility
+ * - Accessing checks, values, defaultValue, and other internal properties
+ *
+ * This type uses an index signature to allow access to all internal properties
+ * without requiring exhaustive enumeration of every Zod internal field.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ZodInternalDef = Record<string, any>;
+
+/**
+ * Extended Zod type with internal definition access.
+ *
+ * Uses intersection type to preserve ZodType compatibility while adding
+ * access to internal _def, description, and _zod properties.
+ */
+type ZodWithInternal = ZodType & {
+  _def?: ZodInternalDef;
+  description?: string;
+  _zod?: { bag?: ZodMeta };
+};
+
+/**
  * Generate OpenAPI parameters from Zod schema
  *
  * @param shape ZodObject schema
@@ -44,7 +71,7 @@ export function zodToParams<T extends ZodType>(
   descriptions?: Record<string, string>,
 ): ParameterDef[] {
   const params: ParameterDef[] = [];
-  let obj = shape as any;
+  let obj: ZodWithInternal | undefined = shape as ZodWithInternal;
 
   // Unwrap ZodOptional/ZodDefault to get the inner ZodObject
   // Handles z.object({...}).optional() case
@@ -115,7 +142,8 @@ function extractFieldInfo(schema: ZodType): {
   description?: string;
   example?: unknown;
 } {
-  const def = (schema as any)._def;
+  const zodSchema = schema as ZodWithInternal;
+  const def = zodSchema._def;
   if (!def) return { isOptional: false };
 
   let isOptional = false;
@@ -147,8 +175,8 @@ function extractFieldInfo(schema: ZodType): {
   // v4: schema.description (top-level property, not in _def)
   if (def.description) {
     description = def.description;
-  } else if ((schema as any).description) {
-    description = (schema as any).description;
+  } else if (zodSchema.description) {
+    description = zodSchema.description;
   }
 
   // Read metadata (example values) - v3 uses def.meta
@@ -160,7 +188,8 @@ function extractFieldInfo(schema: ZodType): {
   }
 
   // v4: Check _zod.bag (zod v4's metadata storage location)
-  const zodBag = (schema as any)._zod?.bag as ZodMeta | undefined;
+  const zodSchemaForBag = schema as ZodWithInternal;
+  const zodBag = zodSchemaForBag._zod?.bag as ZodMeta | undefined;
   if (example === undefined && zodBag?.example !== undefined) {
     example = zodBag.example;
   } else if (
@@ -216,7 +245,8 @@ export function zodToOpenAPISchema(schema: ZodType): OpenAPISchema {
  * Compatible with Zod v3 and v4
  */
 function zodFieldToOpenAPI(schema: ZodType): OpenAPISchema {
-  const def = (schema as any)._def;
+  const zodSchema = schema as ZodWithInternal;
+  const def = zodSchema._def;
 
   if (!def) return {};
 
@@ -342,7 +372,8 @@ function zodFieldToOpenAPI(schema: ZodType): OpenAPISchema {
       }
 
       // Add description from .describe() if available
-      const description = def.description || (schema as any).description;
+      const zodSchemaForDesc = schema as ZodWithInternal;
+      const description = def.description || zodSchemaForDesc.description;
       if (description) {
         result.description = description;
       }
@@ -452,7 +483,8 @@ function zodFieldToOpenAPI(schema: ZodType): OpenAPISchema {
  * ```
  */
 export function withMeta<T extends ZodType>(schema: T, meta: ZodMeta): T {
-  const def = (schema as any)._def;
+  const zodSchema = schema as ZodWithInternal;
+  const def = zodSchema._def;
   if (def) {
     def.meta = { ...def.meta, ...meta };
   }

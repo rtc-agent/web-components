@@ -6,6 +6,10 @@ export * from './models.gen.js';
 
 import type { components } from './models.gen.js';
 
+// ---------- 手动扩展类型（非自动生成） ----------
+
+export * from './extensions.js';
+
 // ---------- 枚举类型 ----------
 
 export * from './enums.js';
@@ -25,8 +29,16 @@ export type ErrorContent = components['schemas']['ErrorContent'];
 /** RPC method type (string literal union from OpenAPI) */
 export type RpcMethod = components['schemas']['RpcMethod'];
 
-/** RPC 方法名常量（命名空间对象，供 `RpcMethod.SessionList` 形式访问） */
-export const RpcMethod = {
+/**
+ * Runtime RPC method name constants.
+ *
+ * Provides convenient access to RPC method names as string constants.
+ * Use with dot notation: `RPC_METHODS.SessionList`
+ *
+ * @remarks
+ * This is the runtime value export. For the type definition, see {@link RpcMethod}.
+ */
+export const RPC_METHODS = {
   // Session
   SessionList: 'v1.session.list',
   SessionGet: 'v1.session.get',

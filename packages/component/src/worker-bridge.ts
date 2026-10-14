@@ -89,6 +89,22 @@ import workerFactory from '../../worker/src/shared-worker.ts?sharedworker';
 type WorkerFactoryFunction = (options?: WorkerOptions) => SharedWorker;
 
 /**
+ * Comlink proxy with release capability.
+ *
+ * Comlink proxies expose a special symbol (Symbol.for('comlink.releaseProxy')) for
+ * releasing the underlying MessagePort. This interface allows type-safe access to
+ * that symbol without using 'as any' assertions throughout the codebase.
+ *
+ * The index signature with [key: symbol] allows access to any symbol-keyed property,
+ * which is necessary because Comlink's release symbol is dynamically looked up via
+ * Symbol.for('comlink.releaseProxy') at runtime.
+ */
+interface ComlinkReleasableProxy {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [key: symbol]: ((...args: any[]) => void) | any;
+}
+
+/**
  * Extract the worker chunk URL from a Vite-generated worker factory function source.
  *
  * Vite generates different factory function formats depending on the mode:
@@ -298,7 +314,8 @@ export class WorkerBridge {
   private static _getWorkerName(): string {
     const baseName = 'rtc-agent-worker';
     // Use import.meta.env.DEV for Vite dev mode detection
-    if (typeof import.meta !== 'undefined' && (import.meta as any).env?.DEV) {
+    // Vite's ImportMetaEnv interface provides type-safe access to environment variables
+    if (typeof import.meta !== 'undefined' && import.meta.env?.DEV) {
       return `${baseName}-dev-${Date.now()}`;
     }
     return baseName;
@@ -610,6 +627,12 @@ export class WorkerBridge {
         // Call it without 'new' since it's a factory function, not a constructor.
         // Pass workerName to control the SharedWorker's name (important for dev mode
         // to avoid connecting to stale workers from previous sessions).
+        // Type assertion explanation:
+        // Vite's TypeScript definition for ?sharedworker imports incorrectly marks the
+        // import as a SharedWorker constructor (typeof SharedWorker), but at runtime it
+        // is actually a plain factory function that returns a SharedWorker instance.
+        // This mismatch requires casting to WorkerFactoryFunction to call it without 'new'.
+        // See: https://vitejs.dev/guide/assets.html#importing-script
         this._worker = (workerFactory as unknown as WorkerFactoryFunction)({
           name: workerName,
           type: 'module',
@@ -1127,7 +1150,7 @@ export class WorkerBridge {
         // See: https://github.com/GoogleChromeLabs/comlink/blob/main/src/comlink.ts
         const releaseSymbol = Symbol.for('comlink.releaseProxy');
         if (releaseSymbol in this._proxiedCallbacks) {
-          (this._proxiedCallbacks as any)[releaseSymbol]();
+          (this._proxiedCallbacks as unknown as ComlinkReleasableProxy)[releaseSymbol]();
           log.debug('Comlink proxy released successfully');
         }
       } catch (err) {
@@ -1450,7 +1473,7 @@ export class WorkerBridge {
         try {
           const releaseSymbol = Symbol.for('comlink.releaseProxy');
           if (releaseSymbol in throttled) {
-            (throttled as any)[releaseSymbol]();
+            (throttled as unknown as ComlinkReleasableProxy)[releaseSymbol]();
           }
         } catch (err) {
           // Release failure is non-fatal during cleanup
@@ -1526,7 +1549,7 @@ export class WorkerBridge {
         try {
           const releaseSymbol = Symbol.for('comlink.releaseProxy');
           if (releaseSymbol in throttled) {
-            (throttled as any)[releaseSymbol]();
+            (throttled as unknown as ComlinkReleasableProxy)[releaseSymbol]();
           }
         } catch (err) {
           // Release failure is non-fatal during cleanup

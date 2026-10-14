@@ -39,6 +39,23 @@ const log = createLogger('WorkerCore');
 type PersistenceLayer = ReturnType<typeof createPersistenceLayer>;
 
 /**
+ * Type guard for Promise-like objects (thenables).
+ *
+ * Used to detect Promise return values from callbacks, which may be either:
+ * - Actual Promise instances (from async functions)
+ * - Comlink proxy Promises (which are Promise-like but not instanceof Promise)
+ *
+ * This avoids using 'as any' casts when checking for .then() method.
+ */
+function isPromiseLike<T>(value: unknown): value is Promise<T> {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    typeof (value as { then?: unknown }).then === 'function'
+  );
+}
+
+/**
  * WorkerPersistenceCore implementation.
  *
  * - Wraps PersistenceLayer, passing through all query/operation methods
@@ -922,13 +939,9 @@ export class WorkerCore implements WorkerPersistenceCore {
         try {
           const result = cb.onUIUpdate(payload);
           // Check for Promise-like return value (Comlink proxies always return Promises)
-          if (
-            result &&
-            typeof result === 'object' &&
-            typeof (result as any).then === 'function'
-          ) {
+          if (isPromiseLike<void>(result)) {
             // Async path: resolve/reject based on Promise outcome
-            (result as Promise<void>).then(
+            result.then(
               () => {
                 // Async success: reset failure count
                 this._callbackFailureCounts.delete(cb);
@@ -967,6 +980,19 @@ export class WorkerCore implements WorkerPersistenceCore {
       const rejected = results.filter((r) => r.status === 'rejected').length;
       if (rejected > 0) {
         log.debug(`broadcastUIUpdate: ${rejected}/${callbacks.length} callbacks rejected`);
+      }
+
+      // P2-3: If ALL callbacks rejected, this indicates all connected tabs may have
+      // crashed/disconnected. Trigger immediate cleanup to prevent resource leaks.
+      // This is a defensive measure - individual failures are handled by _recordAsyncFailure,
+      // but total failure suggests a systemic issue (e.g., SharedWorker lost all ports).
+      if (callbacks.length > 0 && rejected === callbacks.length) {
+        log.warn(
+          `broadcastUIUpdate: all ${callbacks.length} callbacks rejected, triggering full cleanup`,
+        );
+        // Clear all callbacks and pending operations to prevent cascading failures
+        this.callbacks.clear();
+        this._callbackFailureCounts.clear();
       }
 
       // Log slow broadcasts (>16ms frame budget) for performance debugging
@@ -1070,8 +1096,8 @@ export class WorkerCore implements WorkerPersistenceCore {
       try {
         const result = cb.onGapFillState(isSyncing);
         // Handle Comlink proxy: void-returning functions return Promise<void>
-        if (result && typeof result === 'object' && typeof (result as any).then === 'function') {
-          (result as Promise<void>).then(
+        if (isPromiseLike<void>(result)) {
+          result.then(
             () => { this._callbackFailureCounts.delete(cb); },
             (err) => { this._recordAsyncFailure(cb, err); },
           );
@@ -1101,8 +1127,8 @@ export class WorkerCore implements WorkerPersistenceCore {
       try {
         const result = cb.onAccountBanned(reason);
         // Handle Comlink proxy: void-returning functions return Promise<void>
-        if (result && typeof result === 'object' && typeof (result as any).then === 'function') {
-          (result as Promise<void>).then(
+        if (isPromiseLike<void>(result)) {
+          result.then(
             () => { this._callbackFailureCounts.delete(cb); },
             (err) => { this._recordAsyncFailure(cb, err); },
           );
@@ -1231,8 +1257,8 @@ export class WorkerCore implements WorkerPersistenceCore {
       try {
         const result = cb.onConnectionStateChange(event);
         // Handle Comlink proxy: void-returning functions return Promise<void>
-        if (result && typeof result === 'object' && typeof (result as any).then === 'function') {
-          (result as Promise<void>).then(
+        if (isPromiseLike<void>(result)) {
+          result.then(
             () => { this._callbackFailureCounts.delete(cb); },
             (err) => { this._recordAsyncFailure(cb, err); },
           );

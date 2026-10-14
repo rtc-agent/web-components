@@ -555,11 +555,27 @@ export function buildExtAPI(): Pick<
         return ws;
       } as unknown as typeof WebSocket;
 
+      // Type assertion explanation:
+      // OfflineWebSocket is constructed via Object.create(new EventTarget()) to avoid
+      // instanceof WebSocket checks (see note above). TypeScript cannot infer that this
+      // function-shaped object satisfies the typeof WebSocket interface (which includes
+      // both instance methods and static constants). The 'as unknown as typeof WebSocket'
+      // assertion bridges this gap, allowing OfflineWebSocket to replace window.WebSocket.
+      // The static constants below (CONNECTING, OPEN, CLOSING, CLOSED) are required by
+      // the WebSocket interface contract and must be assigned after the function definition.
+
       // Static constants required by the WebSocket interface.
-      (OfflineWebSocket as unknown as Record<string, number>).CONNECTING = 0;
-      (OfflineWebSocket as unknown as Record<string, number>).OPEN = 1;
-      (OfflineWebSocket as unknown as Record<string, number>).CLOSING = 2;
-      (OfflineWebSocket as unknown as Record<string, number>).CLOSED = 3;
+      // Single cast to a mutable interface to avoid repeated 'as unknown as' assertions.
+      const WebSocketStatics = OfflineWebSocket as unknown as {
+        CONNECTING: number;
+        OPEN: number;
+        CLOSING: number;
+        CLOSED: number;
+      };
+      WebSocketStatics.CONNECTING = 0;
+      WebSocketStatics.OPEN = 1;
+      WebSocketStatics.CLOSING = 2;
+      WebSocketStatics.CLOSED = 3;
 
       window.WebSocket = OfflineWebSocket;
       _networkState.isOffline = true;
