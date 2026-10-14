@@ -64,7 +64,8 @@ export default {
   'pages.chatbot.delete': '删除',
   'pages.chatbot.createConversation': '新建对话',
   'pages.chatbot.inputPlaceholder': '输入消息，按 Enter 发送...',
-  'pages.chatbot.faq.formValidation': '🧩 Ant Design 的 Form 表单如何做联动校验？',
+  'pages.chatbot.faq.formValidation':
+    '🧩 Ant Design 的 Form 表单如何做联动校验？',
   'pages.chatbot.faq.proTableToolbar': '📋 ProTable 如何自定义工具栏按钮？',
   'pages.chatbot.faq.darkTheme': '🎨 如何用 antd-style 实现暗色主题切换？',
   'pages.chatbot.faq.proLayoutMenu': '🗂️ ProLayout 侧边菜单如何动态生成？',
@@ -205,6 +206,7 @@ export default {
   'pages.messages.detail.toolFailed': '执行失败',
   'pages.messages.detail.rawError': '原始错误',
   'pages.messages.detail.compressedContext': '已压缩上下文',
+  'pages.messages.detail.error': '错误',
   // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
   'pages.messages.detail.releasedTokens': '释放 ${count} tokens',
   // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
@@ -829,7 +831,8 @@ export default {
   'pages.rtcAgentTest.reloadPage': '刷新页面',
   'pages.rtcAgentTest.console': '控制台',
   'pages.rtcAgentTest.consoleHint': '打开浏览器控制台查看详细日志。',
-  'pages.rtcAgentTest.typeErrorHint': '如果在控制台看到 "TypeError: Cannot destructure property \'dispatcher\' of \'useContext(...)\'"，说明集成已损坏。',
+  'pages.rtcAgentTest.typeErrorHint':
+    "如果在控制台看到 \"TypeError: Cannot destructure property 'dispatcher' of 'useContext(...)'\"，说明集成已损坏。",
   'pages.rtcAgentTest.agentAlreadyRunning': '测试 agent 已在运行中',
   // Table List
   'pages.tableList.selectDeleteItem': '请选择删除项',
@@ -1136,4 +1139,5 @@ export default {
   'pages.request.noResponse': '无响应！请重试。',
   'pages.request.error': '请求错误，请重试。',
   'pages.request.responseError': '响应处理异常，请刷新页面重试',
+  'pages.request.failure': '请求失败 ({status})',
 };

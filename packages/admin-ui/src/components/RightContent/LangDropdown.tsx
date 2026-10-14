@@ -22,7 +22,7 @@ const localeLabelMap: Record<string, { emoji: string; label: string }> = {
 const onLangClick: MenuProps['onClick'] = ({ key }) => {
   if (key.startsWith('lang-')) {
     const newLocale = key.replace('lang-', '');
-    setLocaleWithDayjs(newLocale);
+    setLocaleWithDayjs(newLocale, true);
   }
 };
 

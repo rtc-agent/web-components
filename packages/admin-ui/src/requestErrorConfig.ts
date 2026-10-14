@@ -385,7 +385,13 @@ export const errorConfig: RequestConfig = {
         const errorMessage =
           typeof serverError === 'object' && serverError?.errorMessage
             ? serverError.errorMessage
-            : `请求失败 (${error.response.status || 'unknown'})`;
+            : getIntl().formatMessage(
+                {
+                  id: 'pages.request.failure',
+                  defaultMessage: 'Request failed ({status})',
+                },
+                { status: error.response.status || 'unknown' },
+              );
         const { message } = getGlobalFeedbackInstances();
         message.error(errorMessage);
       } else if (typeof navigator !== 'undefined' && !navigator.onLine) {

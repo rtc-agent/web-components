@@ -69,14 +69,21 @@ export default {
   'pages.chatbot.delete': 'Delete',
   'pages.chatbot.createConversation': 'New Chat',
   'pages.chatbot.inputPlaceholder': 'Type a message and press Enter to send...',
-  'pages.chatbot.faq.formValidation': '🧩 How to implement form validation in Ant Design?',
-  'pages.chatbot.faq.proTableToolbar': '📋 How to customize ProTable toolbar buttons?',
-  'pages.chatbot.faq.darkTheme': '🎨 How to implement dark theme with antd-style?',
-  'pages.chatbot.faq.proLayoutMenu': '🗂️ How to dynamically generate ProLayout sidebar menu?',
+  'pages.chatbot.faq.formValidation':
+    '🧩 How to implement form validation in Ant Design?',
+  'pages.chatbot.faq.proTableToolbar':
+    '📋 How to customize ProTable toolbar buttons?',
+  'pages.chatbot.faq.darkTheme':
+    '🎨 How to implement dark theme with antd-style?',
+  'pages.chatbot.faq.proLayoutMenu':
+    '🗂️ How to dynamically generate ProLayout sidebar menu?',
   'pages.chatbot.faq.chartsData': '📊 Ant Design Charts line chart data format',
-  'pages.chatbot.faq.backendAuth': '🚀 How to integrate backend auth in Ant Design Pro?',
-  'pages.chatbot.faq.proFormSelect': '🔍 How to implement remote search in ProForm Select?',
-  'pages.chatbot.faq.designTokens': '⚙️ Best practices for customizing themes with Ant Design Tokens',
+  'pages.chatbot.faq.backendAuth':
+    '🚀 How to integrate backend auth in Ant Design Pro?',
+  'pages.chatbot.faq.proFormSelect':
+    '🔍 How to implement remote search in ProForm Select?',
+  'pages.chatbot.faq.designTokens':
+    '⚙️ Best practices for customizing themes with Ant Design Tokens',
   'pages.admin.subPage.title': 'This page can only be viewed by Admin',
   'pages.admin.subPage.alertMessage':
     'Umi ui is now released, welcome to use npm run ui to start the experience.',
@@ -123,7 +130,8 @@ export default {
   'pages.searchTable.batchApproval': 'batch approval',
   'pages.searchTable.createSuccess': 'Added successfully',
   'pages.searchTable.createFailed': 'Adding failed, please try again!',
-  'pages.searchTable.deleteSuccess': 'Deleted successfully and will refresh soon',
+  'pages.searchTable.deleteSuccess':
+    'Deleted successfully and will refresh soon',
   'pages.searchTable.deleteFailed': 'Delete failed, please try again',
   'pages.searchTable.updateSuccess': 'Configuration is successful',
   'pages.searchTable.updateFailed': 'Configuration failed, please try again!',
@@ -217,6 +225,7 @@ export default {
   'pages.messages.detail.toolFailed': 'Failed',
   'pages.messages.detail.rawError': 'Raw Error',
   'pages.messages.detail.compressedContext': 'Compressed Context',
+  'pages.messages.detail.error': 'Error',
   // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
   'pages.messages.detail.releasedTokens': 'Released ${count} tokens',
   // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
@@ -873,8 +882,10 @@ export default {
   'pages.rtcAgentTest.testDynamicImport': 'Test Dynamic Import',
   'pages.rtcAgentTest.reloadPage': 'Reload Page',
   'pages.rtcAgentTest.console': 'Console',
-  'pages.rtcAgentTest.consoleHint': 'Open the browser console to see detailed logs.',
-  'pages.rtcAgentTest.typeErrorHint': 'If you see "TypeError: Cannot destructure property \'dispatcher\' of \'useContext(...)\'" in the console, the integration is broken.',
+  'pages.rtcAgentTest.consoleHint':
+    'Open the browser console to see detailed logs.',
+  'pages.rtcAgentTest.typeErrorHint':
+    "If you see \"TypeError: Cannot destructure property 'dispatcher' of 'useContext(...)'\" in the console, the integration is broken.",
   'pages.rtcAgentTest.agentAlreadyRunning': 'Test agent is already running',
   // Table List
   'pages.tableList.selectDeleteItem': 'Please select items to delete',
@@ -1205,4 +1216,5 @@ export default {
   'pages.request.error': 'Request error, please retry.',
   'pages.request.responseError':
     'Response processing error, please refresh the page and try again',
+  'pages.request.failure': 'Request failed ({status})',
 };
