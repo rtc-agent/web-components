@@ -1,6 +1,6 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { useIntl } from '@umijs/max';
+import { useIntl, useSearchParams } from '@umijs/max';
 import { App, Tag, theme } from 'antd';
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import TableEmptyState from '@/components/TableEmptyState';
@@ -19,6 +19,7 @@ import { getAuditLogList } from './service';
 const AuditLogsPage: React.FC = () => {
   const actionRef = useRef<ActionType>(null);
   const intl = useIntl();
+  const [searchParams] = useSearchParams();
   const tableParams = useTableSearchParams<{
     actor_id?: string;
     resource_type?: string;
@@ -108,7 +109,7 @@ const AuditLogsPage: React.FC = () => {
   // Listen for URL changes, auto-reload table
   useEffect(() => {
     actionRef.current?.reload();
-  }, [tableParams]);
+  }, [searchParams]);
 
   /** Event type mapping (i18n) */
   const EVENT_TYPE_MAP: Record<string, { text: string; color: string }> =

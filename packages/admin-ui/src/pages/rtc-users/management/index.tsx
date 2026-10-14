@@ -402,6 +402,7 @@ const RtcUserManagementPage: React.FC = () => {
       actionRef.current?.reload();
       return true;
     } catch (error: unknown) {
+      console.error('[RtcUser Management] ban failed:', error);
       message.error(
         getFriendlyErrorMessage(
           error,
@@ -429,6 +430,7 @@ const RtcUserManagementPage: React.FC = () => {
         );
         actionRef.current?.reload();
       } catch (error: unknown) {
+        console.error('[RtcUser Management] unban failed:', error);
         message.error(
           getFriendlyErrorMessage(
             error,

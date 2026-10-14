@@ -16,6 +16,7 @@ import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { usePermissionRefresh } from '@/hooks/usePermissionRefresh';
 import { useRoleOptions } from '@/hooks/useRoleOptions';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
+import { createTableRequest } from '@/utils/tableUtils';
 import type { PermissionFormValues, PermissionTableItem } from './data';
 import type { PermissionPageAPI } from './page-api';
 import {
@@ -364,8 +365,8 @@ const PermissionListPage: React.FC = () => {
             </Button>
           </Access>,
         ]}
-        request={async (params) => {
-          try {
+        request={createTableRequest(
+          async (params) => {
             // Read all query params from searchParams (URL is single source of truth)
             const roleId = searchParams.get('role_id') || undefined;
             const resource = searchParams.get('resource') || undefined;
@@ -375,32 +376,22 @@ const PermissionListPage: React.FC = () => {
               role_id: roleId,
               resource,
             });
+            // Return { items, total } format for createTableRequest
             return {
-              data: response.items.map((item) => ({
+              items: response.items.map((item) => ({
                 ...item,
                 key: `${item.role_id}-${item.resource}-${item.action}`,
               })),
               total: response.total,
-              success: true,
             };
-          } catch (error: unknown) {
-            message.error(
-              getFriendlyErrorMessage(
-                error,
-                intl,
-                intl.formatMessage({
-                  id: 'pages.permissions.loadFailed',
-                  defaultMessage: 'Failed to load permissions',
-                }),
-              ),
-            );
-            return {
-              data: [],
-              total: 0,
-              success: false,
-            };
-          }
-        }}
+          },
+          message,
+          intl,
+          {
+            id: 'pages.permissions.loadFailed',
+            defaultMessage: 'Failed to load permissions',
+          },
+        )}
         columns={columns}
       />
 
