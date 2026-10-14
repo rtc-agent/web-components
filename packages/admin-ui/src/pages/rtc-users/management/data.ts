@@ -1,4 +1,10 @@
 /**
+ * Page-specific types for RTC user management
+ * These types are only used within the rtc-users/management page.
+ * If they need to be shared across multiple pages, consider moving to services/rtc-user.ts
+ */
+
+/**
  * RTC 用户信息
  */
 export interface RtcUserInfo {

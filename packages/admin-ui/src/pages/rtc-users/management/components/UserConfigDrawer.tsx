@@ -20,20 +20,17 @@ import {
   Typography,
 } from 'antd';
 import React, { useCallback, useMemo, useState } from 'react';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { useOptimisticLockConflict } from '@/hooks/useOptimisticLockConflict';
 import ConflictModal from '@/pages/system/configs/components/ConflictModal';
-import type { UserConfigItem } from '@/services/user-config';
-import {
-  deleteUserConfig,
-  getUserConfigs,
-  setUserConfig,
-} from '@/services/user-config';
 import {
   formatConfigValue,
   useConfigSourceRenderer,
 } from '@/utils/configFormat';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import type { RtcUserInfo } from '../data';
+import type { UserConfigItem } from '../service';
+import { deleteUserConfig, getUserConfigs, setUserConfig } from '../service';
 import UserConfigEditModal from './UserConfigEditModal';
 import UserConfigHistoryModal from './UserConfigHistoryModal';
 
@@ -72,6 +69,7 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
   const intl = useIntl();
   const { message } = App.useApp();
   const renderConfigSource = useConfigSourceRenderer();
+  const isMobile = useIsMobile();
 
   /** 加载用户配置 */
   // NOTE: umi 内置的 useRequest 默认 formatResult: result => result?.data，
@@ -417,7 +415,7 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
         title={`${intl.formatMessage({ id: 'pages.config.user.drawerTitle' })}${user.name || user.email || user.id}`}
         open={open}
         onClose={onClose}
-        width={window.innerWidth < 768 ? '90%' : 900}
+        width={isMobile ? '90%' : 900}
         destroyOnHidden
       >
         <Descriptions column={2} size="small" style={{ marginBottom: 16 }}>

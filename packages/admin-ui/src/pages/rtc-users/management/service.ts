@@ -1,5 +1,11 @@
 import { request } from '@umijs/max';
 import type { PaginatedResponse } from '@/services/types';
+import type { UserConfigItem } from '@/services/user-config';
+import {
+  deleteUserConfig,
+  getUserConfigs,
+  setUserConfig,
+} from '@/services/user-config';
 import type {
   BanRtcUserRequest,
   BanRtcUserResponse,
@@ -8,6 +14,10 @@ import type {
   TokenStatsResponse,
   UnbanRtcUserResponse,
 } from './data';
+
+// Re-export types and functions that components need from this service file
+export type { UserConfigItem };
+export { deleteUserConfig, getUserConfigs, setUserConfig };
 
 /**
  * 获取 RTC 用户列表

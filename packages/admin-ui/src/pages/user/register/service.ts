@@ -14,6 +14,14 @@ export interface UserRegisterParams {
   prefix: string;
 }
 
+/**
+ * Fake user registration (mock-only endpoint)
+ *
+ * MOCK-ONLY: This endpoint is not yet implemented on the backend.
+ * Data is provided by `./_mock.ts` for development purposes.
+ *
+ * TODO: Backend implementation needed for production use
+ */
 export async function fakeRegister(params: UserRegisterParams) {
   return request('/api/register', {
     method: 'POST',

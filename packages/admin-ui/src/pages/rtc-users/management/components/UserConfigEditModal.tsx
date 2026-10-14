@@ -2,10 +2,10 @@ import { ModalForm, ProFormTextArea } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
 import { Alert, App, Form } from 'antd';
 import { useEffect } from 'react';
-import ConfigValueInput from '@/pages/system/configs/components/ConfigValueInput';
-import type { UserConfigItem } from '@/services/user-config';
-import { parseConfigValue } from '@/utils/configFormat';
 import { useResponsiveModalWidth } from '@/hooks/useResponsiveModalWidth';
+import ConfigValueInput from '@/pages/system/configs/components/ConfigValueInput';
+import { parseConfigValue } from '@/utils/configFormat';
+import type { UserConfigItem } from '../service';
 
 export interface UserConfigEditModalProps {
   open: boolean;

@@ -1,7 +1,6 @@
 ﻿import type { RequestOptions } from '@@/plugin-request/request';
 import type { RequestConfig } from '@umijs/max';
 import { getIntl, history, request } from '@umijs/max';
-import { message, notification } from 'antd';
 import { PUBLIC_PATHS } from '@/constants/routes';
 import { getCurrentUser } from '@/services/admin-auth';
 import { ApiErrorCodes, ErrorShowType, type UserInfo } from '@/services/types';
@@ -11,6 +10,7 @@ import {
   getRefreshToken,
   refreshAccessToken,
 } from '@/utils/auth-storage';
+import { getGlobalFeedbackInstances } from '@/utils/globalFeedback';
 import { buildCurrentUser } from '@/utils/permission';
 
 // ============================================================================
@@ -48,11 +48,14 @@ function sanitizeRequestBody(body: unknown, depth = 0): unknown {
       )
     ) {
       sanitized[key] = '[REDACTED]';
-    } else if (
-      typeof value === 'object' &&
-      value !== null &&
-      !Array.isArray(value)
-    ) {
+    } else if (Array.isArray(value)) {
+      // Recursively sanitize arrays
+      sanitized[key] = value.map((item) =>
+        typeof item === 'object' && item !== null
+          ? sanitizeRequestBody(item, depth + 1)
+          : item,
+      );
+    } else if (typeof value === 'object' && value !== null) {
       // Recursively sanitize nested objects
       sanitized[key] = sanitizeRequestBody(value, depth + 1);
     } else {
@@ -178,6 +181,7 @@ async function refreshTokenAndUpdatePermissions(): Promise<string | null> {
     );
     // 权限数据刷新失败时，通知管理员可能需要刷新页面
     // 但不阻断 token 刷新流程
+    const { message } = getGlobalFeedbackInstances();
     message.warning(
       getIntl().formatMessage({
         id: 'pages.request.permissionSyncFailed',
@@ -348,6 +352,7 @@ export const errorConfig: RequestConfig = {
         const errorInfo = error.info as ResponseStructure | undefined;
         if (errorInfo) {
           const { errorMessage, errorCode } = errorInfo;
+          const { message, notification } = getGlobalFeedbackInstances();
           switch (errorInfo.showType) {
             case ErrorShowType.SILENT:
               // do nothing
@@ -381,8 +386,10 @@ export const errorConfig: RequestConfig = {
           typeof serverError === 'object' && serverError?.errorMessage
             ? serverError.errorMessage
             : `请求失败 (${error.response.status || 'unknown'})`;
+        const { message } = getGlobalFeedbackInstances();
         message.error(errorMessage);
       } else if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        const { message } = getGlobalFeedbackInstances();
         message.error(
           getIntl().formatMessage({
             id: 'app.request.offline',
@@ -391,6 +398,7 @@ export const errorConfig: RequestConfig = {
           }),
         );
       } else if (error.request) {
+        const { message } = getGlobalFeedbackInstances();
         message.error(
           getIntl().formatMessage({
             id: 'pages.request.noResponse',
@@ -398,6 +406,7 @@ export const errorConfig: RequestConfig = {
           }),
         );
       } else {
+        const { message } = getGlobalFeedbackInstances();
         message.error(
           getIntl().formatMessage({
             id: 'pages.request.error',
@@ -474,14 +483,28 @@ export const errorConfig: RequestConfig = {
         const hasEnvelopeStructure = 'success' in data;
         if (!hasEnvelopeStructure) {
           // Backend may return raw data without envelope (e.g., direct array/object)
-          // Pass through as-is, but log for debugging
-          console.debug(
-            '[Response Interceptor] Response without envelope structure, passing through',
-            {
-              url: response.config?.url,
-              dataType: typeof data,
-            },
-          );
+          // In development, warn loudly so developers notice and fix the API response format.
+          // In production, log at debug level to avoid noise for end users.
+          const isDev = process.env.NODE_ENV === 'development';
+          if (isDev) {
+            console.warn(
+              '[Response Interceptor] Response without envelope structure detected. ' +
+                'Backend should return { success, data } format per API specification.',
+              {
+                url: response.config?.url,
+                dataType: typeof data,
+                responseKeys: Object.keys(data || {}),
+              },
+            );
+          } else {
+            console.debug(
+              '[Response Interceptor] Response without envelope structure, passing through',
+              {
+                url: response.config?.url,
+                dataType: typeof data,
+              },
+            );
+          }
           return response;
         }
 
@@ -517,6 +540,7 @@ export const errorConfig: RequestConfig = {
           // 检查是否有 refresh token（异步获取，因为可能需要解密）
           const refreshTokenValue = await getRefreshToken();
           if (!refreshTokenValue) {
+            const { message } = getGlobalFeedbackInstances();
             message.warning(
               getIntl().formatMessage({
                 id: 'pages.auth.sessionExpired',
@@ -532,6 +556,7 @@ export const errorConfig: RequestConfig = {
             .then((newToken) => {
               if (!newToken) {
                 // 刷新失败，提示用户后跳转登录
+                const { message } = getGlobalFeedbackInstances();
                 message.warning(
                   getIntl().formatMessage({
                     id: 'pages.auth.sessionExpired',
@@ -584,6 +609,7 @@ export const errorConfig: RequestConfig = {
               : String(interceptorError),
           timestamp: new Date().toISOString(),
         });
+        const { message } = getGlobalFeedbackInstances();
         message.error(
           getIntl().formatMessage({
             id: 'pages.request.responseError',
