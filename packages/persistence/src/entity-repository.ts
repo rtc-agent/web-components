@@ -1159,26 +1159,29 @@ export class EntityRepository {
 
     // 7. Atomic transaction: bulkGet → merge → bulkPut/bulkDelete
     const beforeSnapshots = new Map<string, EntityRecord>();
+
+    // C2-FIX: Split large transactions into smaller batches to prevent timeout.
+    // Strategy: Keep read-merge atomic, split writes by entity type.
+    // This maintains data consistency while reducing transaction scope.
+    // P0-FIX: Calculate total write items BEFORE entering transaction branches,
+    // based on prepared data (upserts) and deletes, not on empty merged array.
+    const BATCH_THRESHOLD = 100; // Split if total items exceed this
+    const totalWriteItems =
+      prepared.sessions.length +
+      prepared.turns.length +
+      prepared.messages.length +
+      prepared.rtcs.length +
+      deletes.sessions.length +
+      deletes.turns.length +
+      deletes.messages.length +
+      deletes.rtcs.length;
+
     let merged: BatchEntities = {
       sessions: [],
       turns: [],
       messages: [],
       rtcs: [],
     };
-
-    // C2-FIX: Split large transactions into smaller batches to prevent timeout.
-    // Strategy: Keep read-merge atomic, split writes by entity type.
-    // This maintains data consistency while reducing transaction scope.
-    const BATCH_THRESHOLD = 100; // Split if total items exceed this
-    const totalWriteItems =
-      merged.sessions.length +
-      merged.turns.length +
-      merged.messages.length +
-      merged.rtcs.length +
-      deletes.sessions.length +
-      deletes.turns.length +
-      deletes.messages.length +
-      deletes.rtcs.length;
 
     try {
       if (totalWriteItems <= BATCH_THRESHOLD) {
@@ -2301,10 +2304,10 @@ export class EntityRepository {
    *
    * 3. **incoming.timestamp < existing.timestamp**:
    *    - Check existing.sync_status:
-   *      a. If existing.sync_status === 'pending' (has unsynced local changes):
+   *      a. If existing.sync_status === 'pending' or 'syncing' (has unsynced local changes):
    *         - Use existing (local-wins, protect user's unsaved work)
    *         - Log conflict with structured resolution
-   *      b. Otherwise (existing.sync_status !== 'pending', already synced):
+   *      b. Otherwise (existing.sync_status === 'synced' or 'error', already synced):
    *         - Use incoming (server-wins, server data is authoritative)
    *         - No conflict (server data is always correct when local is synced)
    *
@@ -2343,7 +2346,7 @@ export class EntityRepository {
      * Resolution strategy (see mergeWithExisting docstring for full rules):
      * - incoming newer: use incoming (normal case)
      * - timestamps equal: use incoming (idempotent)
-     * - existing newer + unsynced changes (sync_status='pending'): use existing (local-wins)
+     * - existing newer + unsynced changes (sync_status='pending' or 'syncing'): use existing (local-wins)
      * - existing newer + already synced: use incoming (server-wins)
      * - missing timestamp: use incoming (no conflict detection)
      *
@@ -2374,9 +2377,13 @@ export class EntityRepository {
         return { winner: incoming, isConflict: false };
       } else if (existingTs > incomingTs) {
         // Rule 3: Existing is newer - check sync_status for conflict
-        // P0-FIX: More precise sync_status check - only 'pending' indicates unsynced local changes
-        // Other statuses ('synced', 'syncing', 'error') mean the data is already on server
-        const hasUnsyncedChanges = existingEntity.sync_status === 'pending';
+        // P1-FIX: Both 'pending' and 'syncing' indicate unsynced local changes
+        // - 'pending': local changes not yet uploaded
+        // - 'syncing': local changes currently being uploaded
+        // Both must be protected to prevent server old data from overwriting local modifications
+        const hasUnsyncedChanges =
+          existingEntity.sync_status === 'pending' ||
+          existingEntity.sync_status === 'syncing';
 
         if (hasUnsyncedChanges) {
           // Rule 3a: Existing is newer AND has unsynced changes - local-wins

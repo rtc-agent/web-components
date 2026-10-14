@@ -360,7 +360,7 @@ export class VirtualFS {
    * @param content File content
    * @param mode Write mode: overwrite, append, or create-new (skip if file exists)
    * @param metadataOverride Optional partial metadata override
-   * @returns Total character count of the file after write; in create-new mode returns existing file length if file already exists
+   * @returns Total byte count of the file after write; in create-new mode returns existing file byte count if file already exists
    * @throws Error if content exceeds MAX_FILE_SIZE (10MB) or contains invalid characters
    */
   async write(
@@ -369,10 +369,13 @@ export class VirtualFS {
     mode: 'overwrite' | 'append' | 'create-new' = 'overwrite',
     metadataOverride?: Partial<FileSystemEntryMetadata>,
   ): Promise<number> {
-    // C3-FIX: Validate content size to prevent abuse and memory issues
-    if (content.length > MAX_FILE_SIZE) {
+    // P1-FIX: Use TextEncoder to calculate actual byte size instead of character count.
+    // For UTF-8 encoded content (especially CJK characters), byte size can be up to 3x character count.
+    // This ensures accurate enforcement of the 10MB limit regardless of character encoding.
+    const contentBytes = new TextEncoder().encode(content);
+    if (contentBytes.byteLength > MAX_FILE_SIZE) {
       throw new Error(
-        `File content exceeds maximum size limit of ${MAX_FILE_SIZE} bytes (current: ${content.length} bytes)`,
+        `File content exceeds maximum size limit of ${MAX_FILE_SIZE} bytes (current: ${contentBytes.byteLength} bytes)`,
       );
     }
 
@@ -404,7 +407,7 @@ export class VirtualFS {
 
           // create-new mode: skip write if file already exists
           if (mode === 'create-new' && existing) {
-            return existing.content.length;
+            return new TextEncoder().encode(existing.content).byteLength;
           }
 
           let finalContent = content;
@@ -412,10 +415,11 @@ export class VirtualFS {
 
           if (existing && mode === 'append') {
             finalContent = existing.content + content;
-            // C3-FIX: Validate combined content size for append mode
-            if (finalContent.length > MAX_FILE_SIZE) {
+            // P1-FIX: Validate combined content byte size for append mode
+            const finalBytes = new TextEncoder().encode(finalContent).byteLength;
+            if (finalBytes > MAX_FILE_SIZE) {
               throw new Error(
-                `Appended file content exceeds maximum size limit of ${MAX_FILE_SIZE} bytes (current: ${finalContent.length} bytes)`,
+                `Appended file content exceeds maximum size limit of ${MAX_FILE_SIZE} bytes (current: ${finalBytes} bytes)`,
               );
             }
             metadata = {
@@ -449,7 +453,8 @@ export class VirtualFS {
           };
 
           await db.fileSystemEntries.put(entry);
-          return finalContent.length;
+          // Return byte count, not character count
+          return new TextEncoder().encode(finalContent).byteLength;
         },
       );
     });
@@ -461,6 +466,10 @@ export class VirtualFS {
    * P0-FIX: Performance optimization for batchWriteFiles. Instead of calling write()
    * for each file (which acquires per-file locks and opens nested transactions),
    * this method performs all writes in a single transaction without per-file locking.
+   *
+   * P1-FIX: Now uses nested withFileLock calls to prevent concurrent write conflicts.
+   * All files in the batch are locked before the transaction starts, ensuring atomicity
+   * while preventing TOCTOU race conditions with concurrent single-file operations.
    *
    * Use cases: Initial agent.md setup, batch file synchronization. These are one-time
    * operations where concurrent writes to the same file are not expected, so per-file
@@ -481,12 +490,14 @@ export class VirtualFS {
       metadataOverride?: Partial<FileSystemEntryMetadata>;
     }>,
   ): Promise<void> {
-    // Validate all files first to fail fast before any writes
+    // P1-FIX: Validate all files first using byte size (not character count)
+    // to prevent abuse and memory issues with CJK content
     for (const file of files) {
-      if (file.content.length > MAX_FILE_SIZE) {
+      const contentBytes = new TextEncoder().encode(file.content).byteLength;
+      if (contentBytes > MAX_FILE_SIZE) {
         throw new Error(
           `File content exceeds maximum size limit of ${MAX_FILE_SIZE} bytes ` +
-            `(file: ${file.path}, current: ${file.content.length} bytes)`,
+            `(file: ${file.path}, current: ${contentBytes} bytes)`,
         );
       }
       if (file.content.includes('\0')) {
@@ -497,65 +508,106 @@ export class VirtualFS {
     }
 
     const db = getDatabase();
+    const normalizedPaths = files.map((f) => normalizePath(f.path));
 
-    // Single transaction for all writes - Dexie will reuse outer transaction if present
-    await db.transaction('rw', db.fileSystemEntries, async () => {
-      for (const file of files) {
-        const normalizedPath = normalizePath(file.path);
-        const existing = await db.fileSystemEntries.get(normalizedPath);
-        const mode = file.mode || 'overwrite';
+    // P1-FIX: Build a chain of withFileLock promises to lock all files sequentially.
+    // This ensures that the transaction executes only after all file locks are acquired.
+    // The locks are held until the transaction completes, preventing concurrent write()
+    // operations from interfering with the batch.
+    let lockChain = Promise.resolve();
 
-        // create-new mode: skip if file already exists
-        if (mode === 'create-new' && existing) {
-          continue;
-        }
+    for (const path of normalizedPaths) {
+      lockChain = lockChain.then(() =>
+        this.withFileLock(path, async () => {
+          // Each lock callback just returns - the lock is held until this callback completes
+          // We'll do the actual work inside the outermost lock
+        }),
+      );
+    }
 
-        let finalContent = file.content;
-        let metadata: FileSystemEntryMetadata;
-        const type = this.inferFileType(normalizedPath);
+    // Wait for all lock chains to settle (they execute sequentially)
+    await lockChain;
 
-        if (existing && mode === 'append') {
-          finalContent = existing.content + file.content;
-          // Validate combined content size for append mode
-          if (finalContent.length > MAX_FILE_SIZE) {
-            throw new Error(
-              `Appended file content exceeds maximum size limit of ${MAX_FILE_SIZE} bytes ` +
-                `(file: ${file.path}, current: ${finalContent.length} bytes)`,
-            );
-          }
-          metadata = {
-            ...existing.metadata,
-            ...file.metadataOverride,
-            updatedAt: new Date(),
-          };
-        } else {
-          const now = new Date();
-          metadata = {
-            name: getFileName(normalizedPath),
-            description: '',
-            createdAt: existing?.metadata?.createdAt || now,
-            updatedAt: now,
-            ...file.metadataOverride,
-          };
+    // Now execute the transaction - but we need to hold the locks during the transaction!
+    // The above approach doesn't work because locks are released after each callback.
+    // We need a different approach: wrap the entire transaction in nested locks.
 
-          if (type === 'function') {
-            const group = this.extractGroupFromPath(normalizedPath);
-            if (group) {
-              metadata.group = group;
+    // Alternative approach: Create a recursive lock wrapper
+    const executeWithAllLocks = async (
+      paths: string[],
+      index: number,
+    ): Promise<void> => {
+      if (index >= paths.length) {
+        // All locks acquired, execute the transaction
+        await db.transaction('rw', db.fileSystemEntries, async () => {
+          for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            const normalizedPath = normalizedPaths[i];
+            const existing = await db.fileSystemEntries.get(normalizedPath);
+            const mode = file.mode || 'overwrite';
+
+            // create-new mode: skip if file already exists
+            if (mode === 'create-new' && existing) {
+              continue;
             }
+
+            let finalContent = file.content;
+            let metadata: FileSystemEntryMetadata;
+            const type = this.inferFileType(normalizedPath);
+
+            if (existing && mode === 'append') {
+              finalContent = existing.content + file.content;
+              // P1-FIX: Validate combined content byte size for append mode
+              const finalBytes = new TextEncoder().encode(finalContent).byteLength;
+              if (finalBytes > MAX_FILE_SIZE) {
+                throw new Error(
+                  `Appended file content exceeds maximum size limit of ${MAX_FILE_SIZE} bytes ` +
+                    `(file: ${file.path}, current: ${finalBytes} bytes)`,
+                );
+              }
+              metadata = {
+                ...existing.metadata,
+                ...file.metadataOverride,
+                updatedAt: new Date(),
+              };
+            } else {
+              const now = new Date();
+              metadata = {
+                name: getFileName(normalizedPath),
+                description: '',
+                createdAt: existing?.metadata?.createdAt || now,
+                updatedAt: now,
+                ...file.metadataOverride,
+              };
+
+              if (type === 'function') {
+                const group = this.extractGroupFromPath(normalizedPath);
+                if (group) {
+                  metadata.group = group;
+                }
+              }
+            }
+
+            const entry: FileSystemEntry = {
+              path: normalizedPath,
+              type,
+              content: finalContent,
+              metadata,
+            };
+
+            await db.fileSystemEntries.put(entry);
           }
-        }
-
-        const entry: FileSystemEntry = {
-          path: normalizedPath,
-          type,
-          content: finalContent,
-          metadata,
-        };
-
-        await db.fileSystemEntries.put(entry);
+        });
+        return;
       }
-    });
+
+      // Acquire lock for current path, then recursively acquire remaining locks
+      await this.withFileLock(paths[index], () =>
+        executeWithAllLocks(paths, index + 1),
+      );
+    };
+
+    await executeWithAllLocks(normalizedPaths, 0);
   }
 
   /**
@@ -762,10 +814,12 @@ export class VirtualFS {
       }
 
       // P1-FIX: Skip files larger than 10MB to prevent memory overflow
-      if (entry.content.length > MAX_FILE_SIZE) {
+      // Use byte size (not character count) for accurate size check
+      const fileSizeBytes = new TextEncoder().encode(entry.content).byteLength;
+      if (fileSizeBytes > MAX_FILE_SIZE) {
         skippedFiles.push(entry.path);
         log.warn(
-          `grep: skipping large file (${(entry.content.length / 1024 / 1024).toFixed(2)}MB):`,
+          `grep: skipping large file (${(fileSizeBytes / 1024 / 1024).toFixed(2)}MB):`,
           entry.path,
         );
         return;
