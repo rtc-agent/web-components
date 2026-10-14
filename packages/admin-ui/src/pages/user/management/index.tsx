@@ -7,7 +7,7 @@ import {
   ProFormText,
   ProTable,
 } from '@ant-design/pro-components';
-import { Access, useAccess, useIntl, useSearchParams } from '@umijs/max';
+import { Access, useAccess, useIntl } from '@umijs/max';
 import { App, Button, List, Modal, Popconfirm, Space, Tag } from 'antd';
 import React, {
   useCallback,
@@ -21,6 +21,7 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { usePermissionRefresh } from '@/hooks/usePermissionRefresh';
 import { useRoleOptions } from '@/hooks/useRoleOptions';
+import { useTableSearchParams } from '@/hooks/useTableSearchParams';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import { createTableRequest } from '@/utils/tableUtils';
 import { getEmailRules, getPasswordRules } from '@/utils/validation';
@@ -46,7 +47,7 @@ const AdminUserManagementPage: React.FC = () => {
   const intl = useIntl();
   const { roleOptions, loading: rolesLoading } = useRoleOptions();
   const { message } = App.useApp();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const tableParams = useTableSearchParams<{ keyword?: string }>();
   const [currentRow, setCurrentRow] = useState<UserInfo>();
 
   /**
@@ -96,11 +97,7 @@ const AdminUserManagementPage: React.FC = () => {
           const { current = 1, pageSize = 20, keyword } = params;
 
           // Sync URL (no page refresh)
-          const newSearchParams = new URLSearchParams();
-          if (keyword) {
-            newSearchParams.set('keyword', keyword);
-          }
-          setSearchParams(newSearchParams, { replace: true });
+          tableParams.set({ keyword });
 
           try {
             const response = await getUserList({
@@ -285,14 +282,14 @@ const AdminUserManagementPage: React.FC = () => {
           }
         },
       }),
-      [],
+      [tableParams],
     ),
   );
 
   // Listen for URL changes, auto-reload table
   useEffect(() => {
     actionRef.current?.reload();
-  }, [searchParams]);
+  }, [tableParams]);
 
   /** Create admin user */
   const handleCreateUser = async (values: {
@@ -583,7 +580,7 @@ const AdminUserManagementPage: React.FC = () => {
         }}
         form={{
           initialValues: {
-            keyword: searchParams.get('keyword') || '',
+            keyword: tableParams.getParam('keyword') || '',
           },
         }}
         toolBarRender={() => [
@@ -602,8 +599,8 @@ const AdminUserManagementPage: React.FC = () => {
         ]}
         request={createTableRequest(
           async (params) => {
-            // Read params from searchParams (URL is single source of truth)
-            const keyword = searchParams.get('keyword') || '';
+            // Read params from tableParams (URL is single source of truth)
+            const keyword = tableParams.getParam('keyword') || '';
             const response = await getUserList({
               page: params.current,
               page_size: params.pageSize,

@@ -1,6 +1,6 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { history, useIntl, useSearchParams } from '@umijs/max';
+import { history, useIntl } from '@umijs/max';
 import { App, Button, Tag } from 'antd';
 import React, {
   useCallback,
@@ -12,6 +12,7 @@ import React, {
 import { TableEmptyState } from '@/components';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
+import { useTableSearchParams } from '@/hooks/useTableSearchParams';
 import {
   createTableRequest,
   disabledFutureDate,
@@ -29,8 +30,13 @@ const MessagesPage: React.FC = () => {
   const actionRef = useRef<ActionType>(null);
   const intl = useIntl();
   const { message } = App.useApp();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const sessionId = searchParams.get('session_id') || '';
+  const tableParams = useTableSearchParams<{
+    session_id: string;
+    role: string;
+    created_after: string;
+    created_before: string;
+  }>();
+  const sessionId = tableParams.getParam('session_id') || '';
   const isMobile = useIsMobile();
 
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -48,21 +54,13 @@ const MessagesPage: React.FC = () => {
           const { sessionId: listSessionId, role, startTime, endTime } = params;
 
           // Sync filters to URL (no page refresh). Pagination is transient state, not synced.
-          const newSearchParams = new URLSearchParams();
           const effectiveSessionId = listSessionId || sessionId;
-          if (effectiveSessionId) {
-            newSearchParams.set('session_id', effectiveSessionId);
-          }
-          if (role) {
-            newSearchParams.set('role', role);
-          }
-          if (startTime) {
-            newSearchParams.set('created_after', startTime);
-          }
-          if (endTime) {
-            newSearchParams.set('created_before', endTime);
-          }
-          setSearchParams(newSearchParams, { replace: true });
+          tableParams.set({
+            session_id: effectiveSessionId,
+            role,
+            created_after: startTime,
+            created_before: endTime,
+          });
 
           // Trigger table reload via actionRef (ProTable request will handle data fetching)
           actionRef.current?.reload();
@@ -79,7 +77,7 @@ const MessagesPage: React.FC = () => {
           actionRef.current?.reload();
         },
       }),
-      [],
+      [tableParams, sessionId],
     ),
   );
 
@@ -88,7 +86,7 @@ const MessagesPage: React.FC = () => {
     if (sessionId) {
       actionRef.current?.reload();
     }
-  }, [searchParams]);
+  }, [tableParams]);
 
   /** Open message detail drawer */
   const handleRowClick = useCallback((record: MessageInfo) => {
@@ -305,17 +303,17 @@ const MessagesPage: React.FC = () => {
           })}
           request={createTableRequest(
             async (params, sort) => {
-              // Read params from searchParams (URL is single source of truth)
+              // Read params from tableParams (URL is single source of truth)
               const effectiveSessionId =
-                searchParams.get('session_id') || sessionId;
+                tableParams.getParam('session_id') || sessionId;
               if (!effectiveSessionId) {
                 return { items: [], total: 0 };
               }
-              const role = searchParams.get('role') || undefined;
+              const role = tableParams.getParam('role') || undefined;
               const createdAfter =
-                searchParams.get('created_after') || undefined;
+                tableParams.getParam('created_after') || undefined;
               const createdBefore =
-                searchParams.get('created_before') || undefined;
+                tableParams.getParam('created_before') || undefined;
               const current = params.current || 1;
               const pageSize = params.pageSize || 10;
               const sortParams = parseTableSort(sort || {});
@@ -350,8 +348,8 @@ const MessagesPage: React.FC = () => {
           }}
           form={{
             initialValues: {
-              session_id: searchParams.get('session_id') || '',
-              role: searchParams.get('role') || undefined,
+              session_id: tableParams.getParam('session_id') || '',
+              role: tableParams.getParam('role') || undefined,
             },
           }}
           options={{
