@@ -56,9 +56,6 @@ import type {
 const log = createLogger('RTCAgentClient');
 
 /**
- * Error thrown when gap fill operation times out.
- */
-/**
  * Error thrown when gap fill operation exceeds the maximum wait time.
  *
  * RECOVERY STRATEGY: When this error occurs, the client should:
@@ -225,6 +222,18 @@ export class RTCAgentClient implements IRTCAgentClient {
   private static readonly RECONNECT_MAX_DELAY_MS = 30000;
   /** Multiplier for exponential backoff. */
   private static readonly RECONNECT_BACKOFF_MULTIPLIER = 2;
+
+  /** Initial polling interval (ms) for gap fill wait with exponential backoff. */
+  private static readonly GAP_FILL_INITIAL_POLL_INTERVAL_MS = 100;
+  /** Maximum polling interval (ms) for gap fill wait with exponential backoff. */
+  private static readonly GAP_FILL_MAX_POLL_INTERVAL_MS = 2000;
+  /**
+   * Threshold for switching to batch mode when processing gap fill updates.
+   * When deduplicated update count >= this value, use batch UI updates to avoid
+   * suspended events limit (UIUpdateBus.MAX_SUSPENDED_EVENTS = 1000).
+   * Rationale: 100 updates * ~5 entities/update = ~500 events, well below 1000 limit.
+   */
+  private static readonly BATCH_MODE_THRESHOLD = 100;
 
   /**
    * Network status event handlers for online/offline detection.
@@ -766,8 +775,8 @@ export class RTCAgentClient implements IRTCAgentClient {
     targetOffset: number,
   ): Promise<void> {
     const MAX_WAIT_MS = 30000; // 30 seconds timeout
-    const INITIAL_POLL_INTERVAL_MS = 100;
-    const MAX_POLL_INTERVAL_MS = 2000;
+    const INITIAL_POLL_INTERVAL_MS = RTCAgentClient.GAP_FILL_INITIAL_POLL_INTERVAL_MS;
+    const MAX_POLL_INTERVAL_MS = RTCAgentClient.GAP_FILL_MAX_POLL_INTERVAL_MS;
     const BACKOFF_MULTIPLIER = 2;
 
     let pollInterval = INITIAL_POLL_INTERVAL_MS;
@@ -1353,7 +1362,7 @@ export class RTCAgentClient implements IRTCAgentClient {
       // Threshold: 100 updates = ~500 UI events (5 entities per update on average)
       // This is well below the 1000 event limit, but using batch mode for 100+ updates
       // provides a safety margin while avoiding unnecessary overhead for small batches.
-      const useBatchMode = deduplicated.length >= 100;
+      const useBatchMode = deduplicated.length >= RTCAgentClient.BATCH_MODE_THRESHOLD;
       const batchId = useBatchMode ? `gap-fill-${channel}-${Date.now()}` : undefined;
 
       if (useBatchMode) {

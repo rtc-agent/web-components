@@ -423,6 +423,13 @@ export class OAuth2Client {
         // SECURITY: Only include HTTP status code in error message to avoid leaking
         // sensitive server response details (internal paths, database errors, etc.).
         // This prevents information disclosure attacks.
+        //
+        // Log detailed error information for diagnostics. This is safe because:
+        // 1. We're already in an error path (performance is not critical)
+        // 2. The error body is only logged, not exposed to the caller
+        // 3. Debug logging is typically disabled in production
+        const errorBody = await resp.text().catch(() => 'Unknown');
+        log.debug('OAuth2 API error details:', errorBody);
         throw new Error(`OAuth2 API error ${resp.status}`);
       }
 

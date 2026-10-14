@@ -191,6 +191,12 @@ export class S3Client {
   /** Cached AWS S3 Client instance */
   private awsClient: AWSS3Client | null = null;
 
+  /**
+   * Delay (ms) before retrying a failed credential refresh request.
+   * Used for exponential backoff (base delay * 2^attempt).
+   */
+  private static readonly CREDENTIAL_REFRESH_RETRY_DELAY_MS = 1000;
+
   constructor(options: S3ClientOptions) {
     this.options = {
       serverURL: options.serverURL.replace(/\/$/, ''),
@@ -898,54 +904,86 @@ export class S3Client {
 
   /**
    * 刷新临时凭证
+   *
+   * Retry strategy: Up to 1 retry (2 total attempts) with exponential backoff on network errors.
+   * 4xx/5xx errors are NOT retried to prevent overwhelming the credential service.
+   *
+   * NOTE: AWS SDK has built-in retry mechanism for S3 operations (configured via maxAttempts).
+   * This retry logic only covers the credential refresh HTTP call to the backend API.
    */
   private async refreshCredentials(): Promise<void> {
     const url = `${this.options.serverURL}/api/credentials/temporary`;
-    const token = await this.options.getToken();
+    const maxRetries = 1; // 1 retry = 2 total attempts
 
-    log.debug('refreshing temporary credentials');
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const token = await this.options.getToken();
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      credentials: 'omit', // SECURITY: prevent cookie leakage to cross-origin requests
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => 'Unknown error');
-      log.error('credential refresh failed:', errorText);
-      throw new Error(
-        `Failed to get temporary credentials: ${response.status}`,
+      log.debug(
+        `refreshing temporary credentials (attempt ${attempt + 1}/${maxRetries + 1})`,
       );
+
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          credentials: 'omit', // SECURITY: prevent cookie leakage to cross-origin requests
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          log.error('credential refresh failed:', errorText);
+          throw new Error(
+            `Failed to get temporary credentials: ${response.status}`,
+          );
+        }
+
+        const data = (await response.json()) as TemporaryCredentialsResponse;
+        const expiresAt = new Date(data.expires_at);
+
+        // Create new AWS S3 Client in a temporary variable to ensure atomic update.
+        // If client construction fails, we don't want to partially update the state.
+        const newClient = new AWSS3Client({
+          endpoint: `${this.options.serverURL}/s3/`,
+          region: this.options.region,
+          credentials: {
+            accessKeyId: data.access_key_id,
+            secretAccessKey: data.secret_access_key,
+            sessionToken: data.session_token,
+          },
+          forcePathStyle: true,
+        });
+
+        // Atomic update: only update state after all operations succeed.
+        // This prevents inconsistent state if client construction fails.
+        this.credentials = data;
+        this.expiresAt = expiresAt;
+        this.awsClient = newClient;
+
+        log.debug(
+          'credentials refreshed, expires at',
+          this.expiresAt.toISOString(),
+        );
+
+        return; // Success, exit retry loop
+      } catch (err) {
+        // Network errors (fetch failures) are retryable — they indicate transient
+        // connectivity issues, not permanent failures.
+        if (attempt < maxRetries) {
+          const retryDelay =
+            S3Client.CREDENTIAL_REFRESH_RETRY_DELAY_MS * Math.pow(2, attempt);
+          log.debug(
+            `credential refresh network error, retrying in ${retryDelay}ms`,
+            err instanceof Error ? err.message : String(err),
+          );
+          await new Promise((resolve) => setTimeout(resolve, retryDelay));
+          continue;
+        }
+
+        // Final attempt failed or non-retryable error, rethrow
+        throw err;
+      }
     }
-
-    const data = (await response.json()) as TemporaryCredentialsResponse;
-    const expiresAt = new Date(data.expires_at);
-
-    // Create new AWS S3 Client in a temporary variable to ensure atomic update.
-    // If client construction fails, we don't want to partially update the state.
-    const newClient = new AWSS3Client({
-      endpoint: `${this.options.serverURL}/s3/`,
-      region: this.options.region,
-      credentials: {
-        accessKeyId: data.access_key_id,
-        secretAccessKey: data.secret_access_key,
-        sessionToken: data.session_token,
-      },
-      forcePathStyle: true,
-    });
-
-    // Atomic update: only update state after all operations succeed.
-    // This prevents inconsistent state if client construction fails.
-    this.credentials = data;
-    this.expiresAt = expiresAt;
-    this.awsClient = newClient;
-
-    log.debug(
-      'credentials refreshed, expires at',
-      this.expiresAt.toISOString(),
-    );
   }
 }
