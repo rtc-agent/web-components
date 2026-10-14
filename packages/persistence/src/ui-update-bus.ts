@@ -323,12 +323,40 @@ export class UIUpdateBus {
 
     // Memory safety: enforce hard limit on processing chains to prevent OOM
     if (this._processingChains.size >= UIUpdateBus.MAX_PROCESSING_CHAINS) {
-      log.error(
-        `_processingChains hard limit exceeded (${this._processingChains.size} >= ${UIUpdateBus.MAX_PROCESSING_CHAINS}). ` +
+      // P1-3 FIX: Check if this is a system-critical event that should bypass the limit.
+      // Account banned events are critical for security and must not be dropped, even under
+      // extreme load. We allow these events to bypass the limit by logging a critical error
+      // but still processing them. This is a deliberate trade-off: we risk memory pressure
+      // over dropping security-critical events.
+      //
+      // Note: This bypass is intentionally narrow (only account banned) to prevent abuse.
+      // Other high-priority events (e.g., connection state changes) are not bypassed because
+      // they are more frequent and less critical. If you need to add more bypassed events,
+      // carefully consider the memory implications under event storm scenarios.
+      const isCriticalEvent =
+        event.entity === 'session' &&
+        event.action === 'deleted' &&
+        event.field === 'banned';
+
+      if (isCriticalEvent) {
+        // CRITICAL: System-level event bypassing the chain limit.
+        // This indicates extreme memory pressure (5000+ concurrent chains).
+        // We log at error level to surface this for immediate investigation.
+        log.error(
+          `CRITICAL: _processingChains hard limit exceeded (${this._processingChains.size} >= ${UIUpdateBus.MAX_PROCESSING_CHAINS}). ` +
+          `Bypassing limit for system-critical event (account banned) to prevent security risk. ` +
+          `This indicates extreme memory pressure — investigate listener performance or event storms. ` +
+          `Event: ${event.entity}:${event.entityId}`,
+        );
+        // Fall through to process the event despite the limit
+      } else {
+        log.error(
+          `_processingChains hard limit exceeded (${this._processingChains.size} >= ${UIUpdateBus.MAX_PROCESSING_CHAINS}). ` +
           `Dropping event for ${event.entity}:${event.entityId} to prevent memory exhaustion. ` +
           `This indicates a serious issue: either listeners are too slow, or there's an event storm.`,
-      );
-      return; // Reject the new chain to prevent unbounded growth
+        );
+        return; // Reject the new chain to prevent unbounded growth
+      }
     }
 
     // Use .catch() at the end to handle both sync and async errors.
@@ -351,23 +379,23 @@ export class UIUpdateBus {
     // Multi-level monitoring for _processingChains Map size to detect potential memory leaks.
     // The .finally() cleanup should keep this bounded, but high event throughput
     // can cause temporary spikes. Different log levels help diagnose severity:
-    // - 100+ (debug): Normal during high-frequency events, no action needed
-    // - 500+ (info): Elevated throughput, monitor for persistence
-    // - 1000+ (warn): Potential issue, listeners may be too slow or event storm
+    // - 50+ (debug): Normal during high-frequency events, no action needed
+    // - 200+ (info): Elevated throughput, monitor for persistence
+    // - 500+ (warn): Potential issue, listeners may be too slow or event storm
     const chainCount = this._processingChains.size;
-    if (chainCount > 1000) {
+    if (chainCount > 500) {
       log.warn(
-        `_processingChains size exceeded 1000: ${chainCount}. ` +
+        `_processingChains size exceeded 500: ${chainCount}. ` +
           `This may indicate high event throughput or slow listeners.`,
       );
-    } else if (chainCount > 500) {
+    } else if (chainCount > 200) {
       log.info(
-        `_processingChains size exceeded 500: ${chainCount}. ` +
+        `_processingChains size exceeded 200: ${chainCount}. ` +
           `Elevated event throughput, monitoring for persistence.`,
       );
-    } else if (chainCount > 100) {
+    } else if (chainCount > 50) {
       log.debug(
-        `_processingChains size exceeded 100: ${chainCount}. ` +
+        `_processingChains size exceeded 50: ${chainCount}. ` +
           `Normal during high-frequency events.`,
       );
     }

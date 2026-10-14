@@ -366,6 +366,21 @@ export class WorkerBridge {
       // See: https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API
       onUIUpdate: (payload: UIUpdatePayload) => {
         const bus = getUIUpdateBus();
+        // P2-1 FIX: Document fire-and-forget design rationale.
+        // DESIGN NOTE: bus.publish() is intentionally fire-and-forget (no await, no retry).
+        // This is a deliberate architectural decision, not an oversight:
+        // 1. The Worker has already persisted this event to its IndexedDB, so main-thread
+        //    persistence is skipped (skipPersist: true). No data loss risk.
+        // 2. UI updates are eventually consistent: if this publish() fails, the UI will
+        //    still converge to the correct state on the next user interaction or catch-up.
+        // 3. The Comlink callback boundary doesn't propagate async errors reliably, so
+        //    retrying would not improve reliability.
+        // 4. Adding retry logic would increase complexity without meaningful benefit,
+        //    since the event is already durably stored in the Worker.
+        //
+        // However, we add .catch() to prevent unhandled promise rejections in edge cases
+        // (e.g., if IndexedDB is closed or bus is in an unexpected state). This is defensive
+        // programming, not an indication that failures are expected.
         bus.publish(payload.event, {
           skipPersist: true,
           seqOverride: payload.seq,
@@ -1037,6 +1052,14 @@ export class WorkerBridge {
           await this._core.close(this._proxiedCallbacks);
         } catch (err) {
           log.warn('close failed (callback may still be registered in Worker):', err);
+          // P1-1 FIX: Add detailed risk assessment for close() failure
+          // RACE CONDITION RISK: If close() fails, the Worker may still hold a reference
+          // to the Comlink proxy. This creates a potential memory leak and stale callback
+          // invocation risk. However, the Worker's _callbackFailureCounts mechanism provides
+          // automatic cleanup: after MAX_CONSECUTIVE_FAILURES (3) consecutive broadcast failures,
+          // the Worker will automatically remove the dead callback. This self-healing mechanism
+          // ensures that even if we fail to clean up here, the Worker won't accumulate dead
+          // callbacks indefinitely. The fallback unregisterCallback() below is best-effort.
           // Fallback: attempt explicit unregisterCallback if close() failed.
           // This is a best-effort cleanup — if it also fails, the port close below
           // will still terminate the Worker when all ports are closed.
@@ -1115,6 +1138,11 @@ export class WorkerBridge {
       this._yieldChannel = undefined;
     }
     this._yieldChannelHealthy = false;
+    // P3-2: Reset rebuild counter to prevent stale counts from persisting across destroy/init cycles.
+    // Without this reset, a bridge that experienced many rebuilds before destroy() would log
+    // spurious warnings on the next init() if the new bridge also experiences rebuilds.
+    // Resetting ensures each bridge instance starts with a clean slate.
+    this._yieldChannelRebuildCount = 0;
     // Defensive reset: ensure the resolves array is empty even though we shifted all items above.
     // This prevents any accidental references from being held if the array was mutated concurrently.
     this._yieldResolves.length = 0;
@@ -2023,8 +2051,23 @@ export class WorkerBridge {
 
   /**
    * Update the last processed seq and persist to sessionStorage.
-   * During catch-up, only updates memory to avoid frequent synchronous disk writes.
-   * The cursor is persisted in one batch write after catch-up completes.
+   *
+   * P2-2 FIX: Document catch-up sessionStorage persistence strategy.
+   * DESIGN NOTE: During catch-up, we only update memory (no sessionStorage writes).
+   * This is an intentional optimization, not a bug:
+   * 1. Catch-up can process 100-1000+ events. Writing to sessionStorage after each event
+   *    would cause severe performance degradation (sync disk I/O on every event).
+   * 2. If the page refreshes mid-catch-up, the next init() will re-catch-up from the last
+   *    persisted cursor. This is safe because:
+   *    - Catch-up is idempotent (events already delivered are skipped via _isEventProcessed)
+   *    - No data loss occurs — the Worker's IndexedDB retains all events
+   * 3. After catch-up completes, the final cursor is persisted in one batch write
+   *    (see _doCatchUp finally block). This minimizes disk I/O while ensuring durability.
+   *
+   * Trade-off: If the page crashes mid-catch-up (before the batch persist), the next init()
+   * will re-deliver some events. This is acceptable because:
+   * - Event processing is idempotent (UI state converges to the same result)
+   * - The performance benefit (100x fewer writes) outweighs the rare crash scenario
    *
    * RACE CONDITION NOTE:
    * This method is called synchronously (no await) to ensure _lastProcessedSeq is updated

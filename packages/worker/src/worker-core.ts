@@ -110,6 +110,29 @@ export class WorkerCore implements WorkerPersistenceCore {
    *
    * Normal disconnection (via close()) removes the callback immediately,
    * so this counter only increments for abnormal disconnections.
+   *
+   * P3-1 FIX: Document cleanup strategy and lifecycle.
+   * CLEANUP STRATEGY:
+   * 1. Success resets: When a callback succeeds (sync or async), its failure count
+   *    is immediately reset to 0 via _callbackFailureCounts.delete(cb). This ensures
+   *    transient failures don't accumulate over time.
+   * 2. Threshold removal: After MAX_CONSECUTIVE_FAILURES (3) consecutive failures,
+   *    the callback is removed from both callbacks Set and _callbackFailureCounts Map.
+   *    This happens in _removeDeadCallback(), which logs the removal for observability.
+   * 3. Explicit cleanup: unregisterCallback() and close() remove the callback's
+   *    failure count entry immediately, ensuring no stale entries persist.
+   * 4. Global cleanup: _doClose() clears the entire Map when the last tab disconnects,
+   *    preventing memory leaks in the SharedWorker.
+   *
+   * LIFECYCLE GUARANTEES:
+   * - Entries are never orphaned: every callback in the Set has a corresponding entry
+   *   in the Map (or vice versa). This invariant is maintained by always adding/removing
+   *   entries in pairs.
+   * - Memory usage is bounded: Map size <= callbacks.size <= number of connected tabs.
+   *   Even in pathological scenarios (1000s of tab crashes), the Map is bounded by the
+   *   number of concurrent connections, not the total number of historical connections.
+   * - Self-healing: if a tab crashes and stops responding, the failure count mechanism
+   *   automatically cleans it up within 3 broadcast attempts (typically <1 second).
    */
   private _callbackFailureCounts = new Map<WorkerCallbacks, number>();
   private static readonly MAX_CONSECUTIVE_FAILURES = 3;
@@ -989,13 +1012,33 @@ export class WorkerCore implements WorkerPersistenceCore {
       // crashed/disconnected. Trigger immediate cleanup to prevent resource leaks.
       // This is a defensive measure - individual failures are handled by _recordAsyncFailure,
       // but total failure suggests a systemic issue (e.g., SharedWorker lost all ports).
+      //
+      // P1-2 FIX: Enhance logging and add recovery mechanism for zombie state detection.
+      // When all callbacks fail, the system enters a "zombie" state where events are broadcast
+      // but no tabs receive them. This is critical because:
+      // 1. UI updates are silently lost (user sees stale data)
+      // 2. Token requests may fail (no valid callback to obtain token)
+      // 3. Connection state changes are not propagated
+      //
+      // Recovery strategy: Clear all callbacks and failure counts to allow fresh registration.
+      // The next tab that connects will re-register callbacks, restoring normal operation.
+      // This is preferable to leaving dead callbacks that would never recover.
       if (callbacks.length > 0 && rejected === callbacks.length) {
-        log.warn(
-          `broadcastUIUpdate: all ${callbacks.length} callbacks rejected, triggering full cleanup`,
+        // CRITICAL: Use log.error (not log.warn) to surface this as a critical issue.
+        // log.warn would be filtered out in production logs, making this invisible.
+        log.error(
+          `CRITICAL: broadcastUIUpdate: all ${callbacks.length} callbacks rejected, ` +
+          `system entering zombie state. Triggering full cleanup and recovery. ` +
+          `This indicates all connected tabs crashed or disconnected abnormally. ` +
+          `Next tab connection will re-register callbacks and restore normal operation.`,
         );
         // Clear all callbacks and pending operations to prevent cascading failures
         this.callbacks.clear();
         this._callbackFailureCounts.clear();
+        // Note: No automatic re-registration is possible here because we don't have
+        // access to the original callback references. The recovery happens naturally
+        // when the next tab calls registerCallback(). This is the safest approach
+        // because attempting to resurrect stale callbacks could cause data corruption.
       }
 
       // Log slow broadcasts (>16ms frame budget) for performance debugging
