@@ -7,15 +7,18 @@ import {
   ProTable,
 } from '@ant-design/pro-components';
 import { Access, useAccess, useIntl, useSearchParams } from '@umijs/max';
+import { useQueryClient } from '@tanstack/react-query';
 import { App, Button, Popconfirm, Space, Tag } from 'antd';
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import TableEmptyState from '@/components/TableEmptyState';
 import { getActionTypes, getResourceTypes } from '@/constants/permissions';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useModalState } from '@/hooks/useModalState';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { usePermissionRefresh } from '@/hooks/usePermissionRefresh';
 import { useRoleOptions } from '@/hooks/useRoleOptions';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
+import { queryKeys } from '@/utils/queryKeys';
 import { createTableRequest } from '@/utils/tableUtils';
 import type { PermissionFormValues, PermissionTableItem } from './data';
 import type { PermissionPageAPI } from './page-api';
@@ -34,7 +37,8 @@ const PermissionListPage: React.FC = () => {
   const intl = useIntl();
   const [searchParams, setSearchParams] = useSearchParams();
   const { message } = App.useApp();
-  const [modalVisible, setModalVisible] = React.useState(false);
+  const queryClient = useQueryClient();
+  const modal = useModalState();
   const { roleMap, roleOptions } = useRoleOptions();
   const isMobile = useIsMobile();
   const modalWidth = isMobile ? '95vw' : 520;
@@ -105,6 +109,8 @@ const PermissionListPage: React.FC = () => {
           try {
             await createPermission(data);
             actionRef.current?.reload();
+            // Invalidate role list cache so other pages see the updated permissions
+            queryClient.invalidateQueries({ queryKey: queryKeys.roleList.all });
             return { success: true };
           } catch (error) {
             console.error('[Permission Page API] create failed:', error);
@@ -130,6 +136,8 @@ const PermissionListPage: React.FC = () => {
             );
             const failures = results.filter((r) => !r.success);
             actionRef.current?.reload();
+            // Invalidate role list cache so other pages see the updated permissions
+            queryClient.invalidateQueries({ queryKey: queryKeys.roleList.all });
             return {
               success: failures.length === 0,
               deletedCount: items.length - failures.length,
@@ -251,6 +259,10 @@ const PermissionListPage: React.FC = () => {
                       }),
                     );
                     actionRef.current?.reload();
+                    // Invalidate role list cache so other pages see the updated permissions
+                    queryClient.invalidateQueries({
+                      queryKey: queryKeys.roleList.all,
+                    });
                     // Refresh current user permissions (permission removal may affect access)
                     await refreshPermissions();
                   } catch (error: unknown) {
@@ -306,7 +318,9 @@ const PermissionListPage: React.FC = () => {
         }),
       );
       actionRef.current?.reload();
-      setModalVisible(false);
+      modal.close();
+      // Invalidate role list cache so other pages see the updated permissions
+      queryClient.invalidateQueries({ queryKey: queryKeys.roleList.all });
       // Refresh current user permissions (new permission may grant additional access)
       await refreshPermissions();
       return true;
@@ -355,7 +369,7 @@ const PermissionListPage: React.FC = () => {
               type="primary"
               icon={<PlusOutlined />}
               onClick={() => {
-                setModalVisible(true);
+                modal.open();
               }}
             >
               {intl.formatMessage({
@@ -400,8 +414,14 @@ const PermissionListPage: React.FC = () => {
           id: 'pages.permissions.createPermission',
           defaultMessage: 'Create permission policy',
         })}
-        open={modalVisible}
-        onOpenChange={setModalVisible}
+        open={modal.state.open}
+        onOpenChange={(visible) => {
+          if (visible) {
+            modal.open();
+          } else {
+            modal.close();
+          }
+        }}
         width={modalWidth}
         modalProps={{
           destroyOnClose: true,

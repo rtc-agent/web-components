@@ -29,6 +29,7 @@ import React, {
 import TableEmptyState from '@/components/TableEmptyState';
 import { getActionTypes, getResourceTypes } from '@/constants/permissions';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useModalState } from '@/hooks/useModalState';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { usePermissionRefresh } from '@/hooks/usePermissionRefresh';
 import { useTableSearchParams } from '@/hooks/useTableSearchParams';
@@ -61,10 +62,13 @@ const RoleListPage: React.FC = () => {
   const { message } = App.useApp();
   const queryClient = useQueryClient();
   const [currentRow, setCurrentRow] = useState<RoleTableItem>();
-  const [modalVisible, setModalVisible] = useState(false);
   const { token } = theme.useToken();
   const [isEdit, setIsEdit] = useState(false);
-  const [permissionModalVisible, setPermissionModalVisible] = useState(false);
+
+  // Modal state management using useModalState hook
+  const roleModal = useModalState<RoleTableItem>();
+  const permissionModal = useModalState<RoleTableItem>();
+
   const [rolePermissions, setRolePermissions] = useState<PermissionPolicy[]>(
     [],
   );
@@ -221,7 +225,7 @@ const RoleListPage: React.FC = () => {
   const handleEditRole = useCallback((record: RoleTableItem) => {
     setCurrentRow(record);
     setIsEdit(true);
-    setModalVisible(true);
+    roleModal.open(record);
   }, []);
 
   /** Handle role delete with optimistic feedback and cache invalidation */
@@ -262,7 +266,7 @@ const RoleListPage: React.FC = () => {
   const handleManagePermissions = useCallback(
     async (role: RoleTableItem) => {
       setCurrentRow(role);
-      setPermissionModalVisible(true);
+      permissionModal.open(role);
 
       try {
         // NOTE: page_size=1000 is safe because permission count = RESOURCE_TYPES.length × ACTION_TYPES.length,
@@ -527,7 +531,7 @@ const RoleListPage: React.FC = () => {
       actionRef.current?.reload();
       // Invalidate role list cache so other pages see the changes
       queryClient.invalidateQueries({ queryKey: queryKeys.roleList.all });
-      setModalVisible(false);
+      roleModal.close();
       setCurrentRow(undefined);
       setIsEdit(false);
       return true;
@@ -657,7 +661,7 @@ const RoleListPage: React.FC = () => {
               onClick={() => {
                 setCurrentRow(undefined);
                 setIsEdit(false);
-                setModalVisible(true);
+                roleModal.open();
               }}
             >
               {intl.formatMessage({
@@ -716,8 +720,14 @@ const RoleListPage: React.FC = () => {
                 defaultMessage: 'Create admin role',
               })
         }
-        open={modalVisible}
-        onOpenChange={setModalVisible}
+        open={roleModal.state.open}
+        onOpenChange={(visible) => {
+          if (visible) {
+            roleModal.open();
+          } else {
+            roleModal.close();
+          }
+        }}
         width={modalWidth}
         modalProps={{
           destroyOnClose: true,
@@ -910,9 +920,9 @@ const RoleListPage: React.FC = () => {
           },
           { name: currentRow?.display_name || currentRow?.name },
         )}
-        open={permissionModalVisible}
+        open={permissionModal.state.open}
         onCancel={() => {
-          setPermissionModalVisible(false);
+          permissionModal.close();
           setCurrentRow(undefined);
           setRolePermissions([]);
         }}
@@ -920,7 +930,7 @@ const RoleListPage: React.FC = () => {
           <Button
             key="close"
             onClick={() => {
-              setPermissionModalVisible(false);
+              permissionModal.close();
               setCurrentRow(undefined);
               setRolePermissions([]);
             }}

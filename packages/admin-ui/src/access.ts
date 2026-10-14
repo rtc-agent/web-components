@@ -79,11 +79,22 @@ type AccessResult = {
 
 let _cachedPermissions: Readonly<AccessResult> | null = null;
 let _cachedPermissionsKey: API.CurrentUser | undefined;
+let _cachedPermissionsTimestamp = 0;
+
+/**
+ * Maximum cache duration for permissions (5 minutes).
+ *
+ * Even if currentUser reference hasn't changed, permissions may be modified
+ * on the server side (e.g., role changes by another admin). This TTL ensures
+ * the client eventually picks up server-side changes.
+ */
+const PERMISSION_CACHE_MAX_AGE_MS = 5 * 60 * 1000;
 
 export default function access(
   initialState: { currentUser?: API.CurrentUser } | undefined,
 ): Readonly<AccessResult> {
   const { currentUser } = initialState ?? {};
+  const now = Date.now();
 
   // Freeze currentUser to prevent mutable object vulnerabilities.
   // If any code mutates currentUser in-place, the cache won't detect the change
@@ -92,8 +103,12 @@ export default function access(
     Object.freeze(currentUser);
   }
 
-  // Return cached result if currentUser hasn't changed
-  if (_cachedPermissions && _cachedPermissionsKey === currentUser) {
+  // Return cached result if currentUser hasn't changed AND cache hasn't expired
+  if (
+    _cachedPermissions &&
+    _cachedPermissionsKey === currentUser &&
+    now - _cachedPermissionsTimestamp < PERMISSION_CACHE_MAX_AGE_MS
+  ) {
     return _cachedPermissions;
   }
 
@@ -101,6 +116,7 @@ export default function access(
   if (!currentUser) {
     _cachedPermissions = DEFAULT_PERMISSIONS;
     _cachedPermissionsKey = currentUser;
+    _cachedPermissionsTimestamp = now;
     return DEFAULT_PERMISSIONS;
   }
 
@@ -117,6 +133,7 @@ export default function access(
       : DEFAULT_PERMISSIONS; // DEFAULT_PERMISSIONS is already frozen
     _cachedPermissions = result;
     _cachedPermissionsKey = currentUser;
+    _cachedPermissionsTimestamp = now;
     return result;
   }
 
@@ -124,12 +141,13 @@ export default function access(
   if (!(perms instanceof Set)) {
     console.error(
       '[access] currentUser.permissions is not a Set. ' +
-      'This may indicate a backend API change or data corruption. ' +
-      'Returning all permissions as false.',
+        'This may indicate a backend API change or data corruption. ' +
+        'Returning all permissions as false.',
       { actualType: typeof perms, value: perms },
     );
     _cachedPermissions = DEFAULT_PERMISSIONS;
     _cachedPermissionsKey = currentUser;
+    _cachedPermissionsTimestamp = now;
     return DEFAULT_PERMISSIONS;
   }
 
@@ -155,23 +173,19 @@ export default function access(
   // canAdmin: 优先检查角色，权限作为 fallback
   //
   // 设计决策：避免将"管理员用户写权限"等同于"管理员身份"，防止权限提升
-  // 1. 优先检查是否拥有 admin 角色（后端返回的角色信息）
-  // 2. Fallback: 仅在后端未返回角色信息时，使用权限检查（向后兼容旧后端）
+  // - 新后端（返回 roles）：严格基于角色判断，权限检查被禁用
+  // - 旧后端（无 roles）：基于权限判断（向后兼容，逐步废弃）
   //
   // 安全约束：当后端已返回 roles 字段时，禁止回退到权限检查。
   // 即使用户拥有 PERM_ADMIN_USER_WRITE 权限，如果其角色不是 admin，
   // canAdmin 也必须为 false。这是为了防止权限提升攻击——拥有某个写权限
   // 不应自动获得完整的管理员身份。
-  //
-  // hasRolesData 区分两种场景：
-  // - 新后端（返回 roles）：严格基于角色判断，权限检查被禁用
-  // - 旧后端（无 roles）：基于权限判断（向后兼容，逐步废弃）
   const hasRolesData = currentUser.roles !== undefined;
   const isAdminRole = currentUser.roles?.some(
     (r) => r.name === 'admin' || r.id === 'admin',
   );
   const canAdmin = hasRolesData
-    ? isAdminRole === true
+    ? !!isAdminRole
     : perms.has(PERM_ADMIN_USER_WRITE);
 
   const result = {
@@ -260,5 +274,6 @@ export default function access(
 
   _cachedPermissions = result;
   _cachedPermissionsKey = currentUser;
+  _cachedPermissionsTimestamp = now;
   return result;
 }

@@ -18,6 +18,7 @@ import React, {
 } from 'react';
 import TableEmptyState from '@/components/TableEmptyState';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useModalState } from '@/hooks/useModalState';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { usePermissionRefresh } from '@/hooks/usePermissionRefresh';
 import { useRoleOptions } from '@/hooks/useRoleOptions';
@@ -50,23 +51,15 @@ const AdminUserManagementPage: React.FC = () => {
   const tableParams = useTableSearchParams<{ keyword?: string }>();
   const [currentRow, setCurrentRow] = useState<UserInfo>();
 
-  /**
-   * Modal State Management Design Decision:
-   *
-   * We use 5 independent useState hooks for modal visibility instead of useReducer because:
-   * 1. Each modal is independent - they don't share state transitions
-   * 2. Simple boolean toggles are clearer than reducer actions
-   * 3. No complex state dependencies between modals
-   * 4. Easier to understand for developers unfamiliar with the code
-   *
-   * If we had complex state transitions (e.g., "opening modal A closes modal B and opens modal C"),
-   * we would use useReducer. But here, each modal's visibility is orthogonal to the others.
-   */
-  const [roleModalVisible, setRoleModalVisible] = useState(false);
+  // Modal state management using useModalState hook
+  // Each modal is independent - they don't share state transitions
+  const roleModal = useModalState<UserInfo>();
+  const assignModal = useModalState();
+  const createModal = useModalState();
+  const editModal = useModalState<UserInfo>();
+
+  // Legacy state for role management (needs additional data)
   const [userRoles, setUserRoles] = useState<UserRoleAssignment[]>([]);
-  const [assignModalVisible, setAssignModalVisible] = useState(false);
-  const [createModalVisible, setCreateModalVisible] = useState(false);
-  const [editModalVisible, setEditModalVisible] = useState(false);
   const isMobile = useIsMobile();
   const modalWidth = isMobile ? '95vw' : 520;
   const roleModalWidth = isMobile ? '95vw' : 600;
@@ -311,7 +304,7 @@ const AdminUserManagementPage: React.FC = () => {
           defaultMessage: 'Administrator created successfully',
         }),
       );
-      setCreateModalVisible(false);
+      createModal.close();
       actionRef.current?.reload();
       return true;
     } catch (error: unknown) {
@@ -346,7 +339,7 @@ const AdminUserManagementPage: React.FC = () => {
           defaultMessage: 'Administrator updated successfully',
         }),
       );
-      setEditModalVisible(false);
+      editModal.close();
       setCurrentRow(undefined);
       actionRef.current?.reload();
       return true;
@@ -371,7 +364,7 @@ const AdminUserManagementPage: React.FC = () => {
       const response = await getUserRoles(user.id);
       setCurrentRow(user);
       setUserRoles(response.items);
-      setRoleModalVisible(true);
+      roleModal.open(user);
     } catch (error: unknown) {
       message.error(
         getFriendlyErrorMessage(
@@ -397,7 +390,7 @@ const AdminUserManagementPage: React.FC = () => {
           defaultMessage: 'Admin role assigned successfully',
         }),
       );
-      setAssignModalVisible(false);
+      assignModal.close();
       // Refresh admin user role list
       const response = await getUserRoles(currentRow.id);
       setUserRoles(response.items);
@@ -455,7 +448,7 @@ const AdminUserManagementPage: React.FC = () => {
   /** Handle admin user edit button click */
   const handleEditUser = useCallback((record: UserInfo) => {
     setCurrentRow(record);
-    setEditModalVisible(true);
+    editModal.open(record);
   }, []);
 
   /** Handle admin user delete with permission refresh */
@@ -588,7 +581,7 @@ const AdminUserManagementPage: React.FC = () => {
             <Button
               type="primary"
               icon={<PlusOutlined />}
-              onClick={() => setCreateModalVisible(true)}
+              onClick={() => createModal.open()}
             >
               {intl.formatMessage({
                 id: 'pages.adminUsers.create',
@@ -630,9 +623,9 @@ const AdminUserManagementPage: React.FC = () => {
           },
           { email: currentRow?.email },
         )}
-        open={roleModalVisible}
+        open={roleModal.state.open}
         onCancel={() => {
-          setRoleModalVisible(false);
+          roleModal.close();
           setCurrentRow(undefined);
           setUserRoles([]);
         }}
@@ -646,7 +639,7 @@ const AdminUserManagementPage: React.FC = () => {
               type="primary"
               icon={<PlusOutlined />}
               onClick={() => {
-                setAssignModalVisible(true);
+                assignModal.open();
               }}
             >
               {intl.formatMessage({
@@ -658,7 +651,7 @@ const AdminUserManagementPage: React.FC = () => {
           <Button
             key="close"
             onClick={() => {
-              setRoleModalVisible(false);
+              roleModal.close();
               setCurrentRow(undefined);
               setUserRoles([]);
             }}
@@ -745,8 +738,14 @@ const AdminUserManagementPage: React.FC = () => {
           },
           { email: currentRow?.email },
         )}
-        open={assignModalVisible}
-        onOpenChange={setAssignModalVisible}
+        open={assignModal.state.open}
+        onOpenChange={(visible) => {
+          if (visible) {
+            assignModal.open();
+          } else {
+            assignModal.close();
+          }
+        }}
         width={modalWidth}
         modalProps={{
           destroyOnClose: true,
@@ -805,8 +804,14 @@ const AdminUserManagementPage: React.FC = () => {
           id: 'pages.adminUsers.createTitle',
           defaultMessage: 'Create administrator',
         })}
-        open={createModalVisible}
-        onOpenChange={setCreateModalVisible}
+        open={createModal.state.open}
+        onOpenChange={(visible) => {
+          if (visible) {
+            createModal.open();
+          } else {
+            createModal.close();
+          }
+        }}
         width={modalWidth}
         modalProps={{
           destroyOnClose: true,
@@ -900,8 +905,14 @@ const AdminUserManagementPage: React.FC = () => {
           },
           { email: currentRow?.email },
         )}
-        open={editModalVisible}
-        onOpenChange={setEditModalVisible}
+        open={editModal.state.open}
+        onOpenChange={(visible) => {
+          if (visible) {
+            editModal.open();
+          } else {
+            editModal.close();
+          }
+        }}
         width={modalWidth}
         modalProps={{
           destroyOnClose: true,
