@@ -4,7 +4,7 @@ export interface TagType {
   label: string;
 }
 
-export type GeographicType = {
+export interface GeographicType {
   province: {
     label: string;
     key: string;
@@ -13,9 +13,9 @@ export type GeographicType = {
     label: string;
     key: string;
   };
-};
+}
 
-export type NoticeType = {
+export interface NoticeType {
   id: string;
   title: string;
   logo: string;
@@ -24,9 +24,9 @@ export type NoticeType = {
   member: string;
   href: string;
   memberLink: string;
-};
+}
 
-export type CurrentUser = {
+export interface CurrentUser {
   name: string;
   avatar: string;
   userid: string;
@@ -42,15 +42,15 @@ export type CurrentUser = {
   geographic: GeographicType;
   address: string;
   phone: string;
-};
+}
 
-export type Member = {
+export interface Member {
   avatar: string;
   name: string;
   id: string;
-};
+}
 
-export type ListItemDataType = {
+export interface ListItemDataType {
   id: string;
   owner: string;
   title: string;
@@ -72,4 +72,4 @@ export type ListItemDataType = {
   message: number;
   content: string;
   members: Member[];
-};
+}

@@ -1,8 +1,7 @@
-import { HistoryOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { Access, useAccess, useIntl, useSearchParams } from '@umijs/max';
-import { App, Button, Popconfirm, Space, Tabs, Tag, theme } from 'antd';
+import { useAccess, useIntl, useSearchParams } from '@umijs/max';
+import { App, Button, Tabs, Tag, theme } from 'antd';
 import React, {
   useCallback,
   useEffect,
@@ -14,12 +13,6 @@ import TableEmptyState from '@/components/TableEmptyState';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useOptimisticLockConflict } from '@/hooks/useOptimisticLockConflict';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
-import type { ServerConfigItem } from './service';
-import {
-  deleteServerConfig,
-  getServerConfigList,
-  updateServerConfig,
-} from './service';
 import {
   formatConfigValue,
   truncateValue,
@@ -27,10 +20,17 @@ import {
 } from '@/utils/configFormat';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import { createTableRequest, parseTableSort } from '@/utils/tableUtils';
+import ActionColumn from './components/ActionColumn';
 import ConfigEditModal from './components/ConfigEditModal';
 import ConfigHistoryModal from './components/ConfigHistoryModal';
 import ConflictModal from './components/ConflictModal';
 import type { ServerConfigPageAPI } from './page-api';
+import type { ServerConfigItem } from './service';
+import {
+  deleteServerConfig,
+  getServerConfigList,
+  updateServerConfig,
+} from './service';
 
 /**
  * Configuration category list
@@ -374,54 +374,14 @@ const SystemConfigsPage: React.FC = () => {
         search: false,
         fixed: 'right',
         render: (_, record) => (
-          <Space>
-            <Access accessible={access.canServerConfigEdit} fallback={null}>
-              <Button
-                type="link"
-                size="small"
-                onClick={() => handleEdit(record)}
-              >
-                {intl.formatMessage({ id: 'pages.config.system.edit' })}
-              </Button>
-            </Access>
-            {record.version > 0 && (
-              // History button: no explicit <Access> guard needed.
-              // This button is only visible if the user can access this page,
-              // which requires PERM_SERVER_CONFIG_READ (granted at route level).
-              // History viewing is a read operation, covered by the read permission.
-              <Button
-                type="link"
-                size="small"
-                icon={<HistoryOutlined />}
-                onClick={() => handleViewHistory(record)}
-              >
-                {intl.formatMessage({ id: 'pages.config.system.history' })}
-              </Button>
-            )}
-            <Access accessible={access.canServerConfigDelete} fallback={null}>
-              {record.source === 'system' && (
-                <Popconfirm
-                  title={intl.formatMessage({
-                    id: 'pages.config.system.confirmDelete',
-                  })}
-                  description={intl.formatMessage({
-                    id: 'pages.config.system.confirmDeleteDesc',
-                  })}
-                  onConfirm={() => handleDelete(record)}
-                  okText={intl.formatMessage({
-                    id: 'pages.config.system.confirm',
-                  })}
-                  cancelText={intl.formatMessage({
-                    id: 'pages.config.system.cancel',
-                  })}
-                >
-                  <Button type="link" size="small" danger>
-                    {intl.formatMessage({ id: 'pages.config.system.delete' })}
-                  </Button>
-                </Popconfirm>
-              )}
-            </Access>
-          </Space>
+          <ActionColumn
+            record={record}
+            intl={intl}
+            access={access}
+            onEdit={handleEdit}
+            onViewHistory={handleViewHistory}
+            onDelete={handleDelete}
+          />
         ),
       },
     ],

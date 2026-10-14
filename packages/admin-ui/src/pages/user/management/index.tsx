@@ -1,9 +1,4 @@
-import {
-  DeleteOutlined,
-  EditOutlined,
-  PlusOutlined,
-  TeamOutlined,
-} from '@ant-design/icons';
+import { PlusOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import {
   ModalForm,
@@ -29,6 +24,7 @@ import { useRoleOptions } from '@/hooks/useRoleOptions';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import { createTableRequest } from '@/utils/tableUtils';
 import { getEmailRules, getPasswordRules } from '@/utils/validation';
+import ActionColumn from './components/ActionColumn';
 import type { AdminPageAPI } from './page-api';
 import type { UserInfo, UserRoleAssignment } from './service';
 import {
@@ -459,6 +455,42 @@ const AdminUserManagementPage: React.FC = () => {
     }
   };
 
+  /** Handle admin user edit button click */
+  const handleEditUser = useCallback((record: UserInfo) => {
+    setCurrentRow(record);
+    setEditModalVisible(true);
+  }, []);
+
+  /** Handle admin user delete with permission refresh */
+  const handleDeleteUser = useCallback(
+    async (record: UserInfo) => {
+      try {
+        await deleteAdminUser(record.id);
+        message.success(
+          intl.formatMessage({
+            id: 'pages.adminUsers.deleteSuccess',
+            defaultMessage: 'Admin deleted successfully',
+          }),
+        );
+        actionRef.current?.reload();
+        // Refresh current user permissions in case of self-deletion or role changes
+        await refreshPermissions();
+      } catch (error: unknown) {
+        message.error(
+          getFriendlyErrorMessage(
+            error,
+            intl,
+            intl.formatMessage({
+              id: 'pages.adminUsers.deleteFailed',
+              defaultMessage: 'Failed to delete admin',
+            }),
+          ),
+        );
+      }
+    },
+    [intl, message, refreshPermissions],
+  );
+
   /** Table column definitions */
   const columns: ProColumns<UserInfo>[] = useMemo(
     () => [
@@ -522,98 +554,18 @@ const AdminUserManagementPage: React.FC = () => {
         dataIndex: 'option',
         valueType: 'option',
         render: (_, record) => (
-          <Space>
-            <Access accessible={access.canAdminUserEdit} fallback={null}>
-              <Button
-                type="link"
-                size="small"
-                icon={<EditOutlined />}
-                onClick={() => {
-                  setCurrentRow(record);
-                  setEditModalVisible(true);
-                }}
-              >
-                {intl.formatMessage({
-                  id: 'pages.adminUsers.edit',
-                  defaultMessage: 'Edit',
-                })}
-              </Button>
-            </Access>
-            <Access accessible={access.canAdminUserRoleEdit} fallback={null}>
-              <Button
-                type="link"
-                size="small"
-                icon={<TeamOutlined />}
-                onClick={() => handleViewRoles(record)}
-              >
-                {intl.formatMessage({
-                  id: 'pages.adminUsers.manageRoles',
-                  defaultMessage: 'Manage role',
-                })}
-              </Button>
-            </Access>
-            <Access accessible={access.canAdminUserDelete} fallback={null}>
-              <Popconfirm
-                title={intl.formatMessage({
-                  id: 'pages.adminUsers.confirmDelete',
-                  defaultMessage: 'Are you sure you want to delete this admin?',
-                })}
-                description={intl.formatMessage({
-                  id: 'pages.adminUsers.confirmDeleteDesc',
-                  defaultMessage: 'This action cannot be undone',
-                })}
-                onConfirm={async () => {
-                  try {
-                    await deleteAdminUser(record.id);
-                    message.success(
-                      intl.formatMessage({
-                        id: 'pages.adminUsers.deleteSuccess',
-                        defaultMessage: 'Admin deleted successfully',
-                      }),
-                    );
-                    actionRef.current?.reload();
-                    // Refresh current user permissions in case of self-deletion or role changes
-                    await refreshPermissions();
-                  } catch (error: unknown) {
-                    message.error(
-                      getFriendlyErrorMessage(
-                        error,
-                        intl,
-                        intl.formatMessage({
-                          id: 'pages.adminUsers.deleteFailed',
-                          defaultMessage: 'Failed to delete admin',
-                        }),
-                      ),
-                    );
-                  }
-                }}
-                okText={intl.formatMessage({
-                  id: 'pages.adminUsers.confirm',
-                  defaultMessage: 'Confirm',
-                })}
-                cancelText={intl.formatMessage({
-                  id: 'pages.adminUsers.cancel',
-                  defaultMessage: 'Cancel',
-                })}
-              >
-                <Button
-                  type="link"
-                  danger
-                  size="small"
-                  icon={<DeleteOutlined />}
-                >
-                  {intl.formatMessage({
-                    id: 'pages.adminUsers.delete',
-                    defaultMessage: 'Delete',
-                  })}
-                </Button>
-              </Popconfirm>
-            </Access>
-          </Space>
+          <ActionColumn
+            record={record}
+            intl={intl}
+            access={access}
+            onEdit={handleEditUser}
+            onManageRoles={handleViewRoles}
+            onDelete={handleDeleteUser}
+          />
         ),
       },
     ],
-    [intl, access, isMobile],
+    [intl, access, isMobile, handleEditUser, handleViewRoles, handleDeleteUser],
   );
 
   return (

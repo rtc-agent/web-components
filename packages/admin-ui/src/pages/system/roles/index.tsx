@@ -1,9 +1,4 @@
-import {
-  DeleteOutlined,
-  EditOutlined,
-  PlusOutlined,
-  SafetyOutlined,
-} from '@ant-design/icons';
+import { PlusOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import {
   ModalForm,
@@ -19,8 +14,6 @@ import {
   Button,
   Checkbox,
   Modal,
-  Popconfirm,
-  Space,
   Switch,
   Tag,
   Tooltip,
@@ -42,6 +35,7 @@ import { useTableSearchParams } from '@/hooks/useTableSearchParams';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import { queryKeys } from '@/utils/queryKeys';
 import { createTableRequest, parseTableSort } from '@/utils/tableUtils';
+import ActionColumn from './components/ActionColumn';
 import type { RoleFormValues, RoleTableItem } from './data';
 import type { RolePageAPI } from './page-api';
 import type { PermissionPolicy } from './service';
@@ -222,6 +216,78 @@ const RoleListPage: React.FC = () => {
   useEffect(() => {
     actionRef.current?.reload();
   }, [tableParams]);
+
+  /** Handle role edit button click */
+  const handleEditRole = useCallback((record: RoleTableItem) => {
+    setCurrentRow(record);
+    setIsEdit(true);
+    setModalVisible(true);
+  }, []);
+
+  /** Handle role delete with optimistic feedback and cache invalidation */
+  const handleDeleteRole = useCallback(
+    async (record: RoleTableItem) => {
+      try {
+        await deleteRole(record.id);
+        message.success(
+          intl.formatMessage({
+            id: 'pages.roles.deleteSuccess',
+            defaultMessage: 'Deleted successfully',
+          }),
+        );
+        actionRef.current?.reload();
+        // Invalidate role list cache so other pages see the deletion
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.roleList.all,
+        });
+        // Refresh current user permissions (deleted role may have been assigned to current user)
+        await refreshPermissions();
+      } catch (error: unknown) {
+        message.error(
+          getFriendlyErrorMessage(
+            error,
+            intl,
+            intl.formatMessage({
+              id: 'pages.roles.deleteFailed',
+              defaultMessage: 'Deletion failed',
+            }),
+          ),
+        );
+      }
+    },
+    [intl, message, queryClient, refreshPermissions],
+  );
+
+  /** Open permission management modal */
+  const handleManagePermissions = useCallback(
+    async (role: RoleTableItem) => {
+      setCurrentRow(role);
+      setPermissionModalVisible(true);
+
+      try {
+        // NOTE: page_size=1000 is safe because permission count = RESOURCE_TYPES.length × ACTION_TYPES.length,
+        // which is much smaller than 1000 (currently ~50 permissions)
+        const rolePerms = await getPermissionList({
+          page: 1,
+          page_size: 1000,
+          role_id: role.id,
+        });
+        setRolePermissions(rolePerms.items);
+      } catch (error: unknown) {
+        message.error(
+          getFriendlyErrorMessage(
+            error,
+            intl,
+            intl.formatMessage({
+              id: 'pages.roles.loadPermissionFailed',
+              defaultMessage: 'Failed to load permission',
+            }),
+          ),
+        );
+      }
+    },
+    [intl, message],
+  );
 
   /** Table column definitions */
   const columns: ProColumns<RoleTableItem>[] = useMemo(
@@ -416,140 +482,26 @@ const RoleListPage: React.FC = () => {
         dataIndex: 'option',
         valueType: 'option',
         render: (_, record) => (
-          <Space>
-            <Access accessible={access.canAdminRoleEdit} fallback={null}>
-              <Button
-                type="link"
-                size="small"
-                icon={<SafetyOutlined />}
-                onClick={() => handleManagePermissions(record)}
-              >
-                {intl.formatMessage({
-                  id: 'pages.roles.permission',
-                  defaultMessage: 'Permission',
-                })}
-              </Button>
-            </Access>
-            <Access accessible={access.canAdminRoleEdit} fallback={null}>
-              <Button
-                type="link"
-                size="small"
-                icon={<EditOutlined />}
-                onClick={() => {
-                  setCurrentRow(record);
-                  setIsEdit(true);
-                  setModalVisible(true);
-                }}
-              >
-                {intl.formatMessage({
-                  id: 'pages.roles.edit',
-                  defaultMessage: 'Edit',
-                })}
-              </Button>
-            </Access>
-            <Access accessible={access.canAdminRoleEdit} fallback={null}>
-              {record.is_system ? (
-                <Tooltip
-                  title={intl.formatMessage({
-                    id: 'pages.roles.systemRoleCannotDelete',
-                    defaultMessage:
-                      'System built-in admin role cannot be deleted',
-                  })}
-                >
-                  <Button
-                    type="link"
-                    danger
-                    size="small"
-                    icon={<DeleteOutlined />}
-                    disabled
-                  >
-                    {intl.formatMessage({
-                      id: 'pages.roles.delete',
-                      defaultMessage: 'Delete',
-                    })}
-                  </Button>
-                </Tooltip>
-              ) : (
-                <Popconfirm
-                  title={intl.formatMessage({
-                    id: 'pages.roles.confirmDelete',
-                    defaultMessage:
-                      'Are you sure you want to delete this admin role?',
-                  })}
-                  description={
-                    <>
-                      <p>
-                        {intl.formatMessage({
-                          id: 'pages.roles.confirmDeleteDesc',
-                          defaultMessage: 'Cannot be recovered after deletion',
-                        })}
-                      </p>
-                      <p style={{ color: token.colorWarning, fontWeight: 500 }}>
-                        {intl.formatMessage({
-                          id: 'pages.roles.confirmDeleteRoleWarning',
-                          defaultMessage:
-                            'All administrators under this role will lose corresponding permissions',
-                        })}
-                      </p>
-                    </>
-                  }
-                  onConfirm={async () => {
-                    try {
-                      await deleteRole(record.id);
-                      message.success(
-                        intl.formatMessage({
-                          id: 'pages.roles.deleteSuccess',
-                          defaultMessage: 'Deleted successfully',
-                        }),
-                      );
-                      actionRef.current?.reload();
-                      // Invalidate role list cache so other pages see the deletion
-                      queryClient.invalidateQueries({
-                        queryKey: queryKeys.roleList.all,
-                      });
-                      // Refresh current user permissions (deleted role may have been assigned to current user)
-                      await refreshPermissions();
-                    } catch (error: unknown) {
-                      message.error(
-                        getFriendlyErrorMessage(
-                          error,
-                          intl,
-                          intl.formatMessage({
-                            id: 'pages.roles.deleteFailed',
-                            defaultMessage: 'Deletion failed',
-                          }),
-                        ),
-                      );
-                    }
-                  }}
-                  okText={intl.formatMessage({
-                    id: 'pages.roles.confirm',
-                    defaultMessage: 'Confirm',
-                  })}
-                  cancelText={intl.formatMessage({
-                    id: 'pages.roles.cancel',
-                    defaultMessage: 'Cancel',
-                  })}
-                >
-                  <Button
-                    type="link"
-                    danger
-                    size="small"
-                    icon={<DeleteOutlined />}
-                  >
-                    {intl.formatMessage({
-                      id: 'pages.roles.delete',
-                      defaultMessage: 'Delete',
-                    })}
-                  </Button>
-                </Popconfirm>
-              )}
-            </Access>
-          </Space>
+          <ActionColumn
+            record={record}
+            intl={intl}
+            access={access}
+            warningColor={token.colorWarning}
+            onPermission={handleManagePermissions}
+            onEdit={handleEditRole}
+            onDelete={handleDeleteRole}
+          />
         ),
       },
     ],
-    [intl, access, token],
+    [
+      intl,
+      access,
+      token,
+      handleManagePermissions,
+      handleEditRole,
+      handleDeleteRole,
+    ],
   );
 
   /** Submit form */
@@ -596,35 +548,6 @@ const RoleListPage: React.FC = () => {
         ),
       );
       return false;
-    }
-  };
-
-  /** Open permission management modal */
-  const handleManagePermissions = async (role: RoleTableItem) => {
-    setCurrentRow(role);
-    setPermissionModalVisible(true);
-
-    try {
-      // Load permissions for this role
-      // NOTE: page_size=1000 is safe because permission count = RESOURCE_TYPES.length × ACTION_TYPES.length,
-      // which is much smaller than 1000 (currently ~50 permissions)
-      const rolePerms = await getPermissionList({
-        page: 1,
-        page_size: 1000,
-        role_id: role.id,
-      });
-      setRolePermissions(rolePerms.items);
-    } catch (error: unknown) {
-      message.error(
-        getFriendlyErrorMessage(
-          error,
-          intl,
-          intl.formatMessage({
-            id: 'pages.roles.loadPermissionFailed',
-            defaultMessage: 'Failed to load permission',
-          }),
-        ),
-      );
     }
   };
 
