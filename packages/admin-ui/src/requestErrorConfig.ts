@@ -208,6 +208,171 @@ async function refreshTokenAndUpdatePermissions(): Promise<string | null> {
 }
 
 // ============================================================================
+// Response Interceptor Helper Functions
+// ============================================================================
+
+/**
+ * Log response error with context for debugging
+ */
+function logResponseError(
+  response: {
+    config?: { url?: string; method?: string };
+    data?: { errorCode?: string; errorMessage?: string };
+  },
+  error?: unknown,
+): void {
+  console.error('[Response Interceptor Error]', {
+    url: response.config?.url,
+    method: (response.config?.method || 'unknown').toUpperCase(),
+    errorCode: response.data?.errorCode,
+    errorMessage: response.data?.errorMessage,
+    error: error instanceof Error ? error.message : String(error),
+    timestamp: new Date().toISOString(),
+  });
+}
+
+/**
+ * Handle authentication errors (401 Unauthorized)
+ * Attempts to refresh token and retry the request.
+ *
+ * @returns Response if token refresh succeeded and request retried, null otherwise
+ */
+async function handleAuthError(
+  response: {
+    data: { success?: boolean; errorCode?: string; data?: unknown };
+    config?: {
+      url?: string;
+      method?: string;
+      headers?: Record<string, string>;
+      _responseRetryCount?: number;
+    };
+  },
+): Promise<{
+  data: unknown;
+  config?: {
+    url?: string;
+    method?: string;
+    headers?: Record<string, string>;
+    _responseRetryCount?: number;
+  };
+} | null> {
+  const { data, config } = response;
+
+  // Check if this is a 401 error
+  if (data?.success !== false || data?.errorCode !== ApiErrorCodes.UNAUTHORIZED) {
+    return null;
+  }
+
+  // Check retry count to prevent infinite loops
+  const retryCount = config?._responseRetryCount || 0;
+  if (retryCount >= 1) {
+    redirectToLogin();
+    return Promise.reject(response);
+  }
+
+  // Check if refresh token exists
+  const refreshTokenValue = await getRefreshToken();
+  if (!refreshTokenValue) {
+    const { message } = getGlobalFeedbackInstances();
+    message.warning(
+      getIntl().formatMessage({
+        id: 'pages.auth.sessionExpired',
+        defaultMessage: '登录已过期，请重新登录',
+      }),
+    );
+    redirectToLogin();
+    return Promise.reject(response);
+  }
+
+  // Attempt token refresh and retry
+  try {
+    const newToken = await refreshTokenAndUpdatePermissions();
+
+    if (!newToken) {
+      const { message } = getGlobalFeedbackInstances();
+      message.warning(
+        getIntl().formatMessage({
+          id: 'pages.auth.sessionExpired',
+          defaultMessage: '登录已过期，请重新登录',
+        }),
+      );
+      redirectToLogin();
+      return Promise.reject(response);
+    }
+
+    // Retry original request with new token
+    if (config) {
+      config.headers = {
+        ...config.headers,
+        Authorization: `Bearer ${newToken}`,
+      };
+      config._responseRetryCount = retryCount + 1;
+
+      // Important: must use getResponse: true to get full response object
+      // Response interceptor needs to return response object (with .data property)
+      return request(config.url, { ...config, getResponse: true });
+    }
+
+    return null;
+  } catch (refreshError) {
+    console.error('[Token Refresh Failed]', {
+      url: config?.url,
+      method: (config?.method || 'unknown').toUpperCase(),
+      error: refreshError instanceof Error ? refreshError.message : String(refreshError),
+      timestamp: new Date().toISOString(),
+    });
+    return Promise.reject(refreshError);
+  }
+}
+
+/**
+ * Handle business errors from API responses
+ * Extracts error message and shows user feedback
+ */
+function handleBusinessError(
+  response: {
+    data: { success?: boolean; errorCode?: string; errorMessage?: string; showType?: ErrorShowType };
+  },
+): void {
+  const { data } = response;
+
+  // Only handle failed responses
+  if (data?.success !== false) {
+    return;
+  }
+
+  const { errorMessage, errorCode, showType } = data;
+  const { message, notification } = getGlobalFeedbackInstances();
+
+  // Show error based on showType
+  switch (showType) {
+    case ErrorShowType.SILENT:
+      // Do nothing
+      break;
+    case ErrorShowType.WARN_MESSAGE:
+      message.warning(errorMessage);
+      break;
+    case ErrorShowType.ERROR_MESSAGE:
+      message.error(errorMessage);
+      break;
+    case ErrorShowType.NOTIFICATION:
+      notification.open({
+        title: errorCode,
+        description: errorMessage,
+      });
+      break;
+    case ErrorShowType.REDIRECT:
+      window.location.href = PUBLIC_PATHS.login;
+      break;
+    default:
+      // Default: show error message
+      if (errorMessage) {
+        message.error(errorMessage);
+      }
+  }
+}
+
+// ============================================================================
 // Token Management Utilities
 // ============================================================================
 
@@ -485,8 +650,6 @@ export const errorConfig: RequestConfig = {
         const { data } = response;
 
         // Safety check: ensure response data exists and has expected structure
-        // If backend returns unexpected format (e.g., raw data without envelope),
-        // log warning and pass through to avoid masking errors
         if (data === undefined || data === null) {
           console.warn(
             '[Response Interceptor] Unexpected null/undefined response data',
@@ -501,9 +664,7 @@ export const errorConfig: RequestConfig = {
         // Check if response follows expected envelope structure
         const hasEnvelopeStructure = 'success' in data;
         if (!hasEnvelopeStructure) {
-          // Backend may return raw data without envelope (e.g., direct array/object)
-          // In development, warn loudly so developers notice and fix the API response format.
-          // In production, log at debug level to avoid noise for end users.
+          // Backend may return raw data without envelope
           const isDev = process.env.NODE_ENV === 'development';
           if (isDev) {
             console.warn(
@@ -527,10 +688,8 @@ export const errorConfig: RequestConfig = {
           return response;
         }
 
-        // 检查是否成功
+        // Success response: unwrap data
         if (data.success === true) {
-          // 成功响应，解包数据
-          // Safety check: ensure data.data exists before unwrapping
           if (data.data === undefined) {
             console.warn(
               '[Response Interceptor] Success response but data.data is undefined',
@@ -543,91 +702,19 @@ export const errorConfig: RequestConfig = {
           return response;
         }
 
-        // 检查是否是 401 错误（unauthorized）
-        if (
-          data?.success === false &&
-          data?.errorCode === ApiErrorCodes.UNAUTHORIZED
-        ) {
-          // _responseRetryCount tracks attempt count (0 = first attempt, 1 = first retry)
-          // Max retry count is 1: allow one retry after token refresh
-          const retryCount = response.config?._responseRetryCount || 0;
-          if (retryCount >= 1) {
-            redirectToLogin();
-            return Promise.reject(response);
-          }
-
-          // 检查是否有 refresh token（异步获取，因为可能需要解密）
-          const refreshTokenValue = await getRefreshToken();
-          if (!refreshTokenValue) {
-            const { message } = getGlobalFeedbackInstances();
-            message.warning(
-              getIntl().formatMessage({
-                id: 'pages.auth.sessionExpired',
-                defaultMessage: '登录已过期，请重新登录',
-              }),
-            );
-            redirectToLogin();
-            return Promise.reject(response);
-          }
-
-          // 使用统一的刷新函数（内部已处理并发控制）
-          return refreshTokenAndUpdatePermissions()
-            .then((newToken) => {
-              if (!newToken) {
-                // 刷新失败，提示用户后跳转登录
-                const { message } = getGlobalFeedbackInstances();
-                message.warning(
-                  getIntl().formatMessage({
-                    id: 'pages.auth.sessionExpired',
-                    defaultMessage: '登录已过期，请重新登录',
-                  }),
-                );
-                redirectToLogin();
-                return Promise.reject(response);
-              }
-
-              // 重试原请求
-              const config = response.config;
-              config.headers = {
-                ...config.headers,
-                Authorization: `Bearer ${newToken}`,
-              };
-              // Increment retry count to prevent infinite loops
-              config._responseRetryCount = retryCount + 1;
-
-              // ⚠️ 重要：必须使用 getResponse: true 获取完整 response 对象
-              // 原因：响应拦截器需要返回 response 对象（含 .data 属性），umi-request 会从中提取 response.data
-              // 如果不传 getResponse: true，request() 默认返回解包后的 data，导致 umi-request 提取不到 .data 而返回 undefined
-              return request(config.url, { ...config, getResponse: true });
-            })
-            .catch((refreshError) => {
-              // Log token refresh failure with context
-              console.error('[Token Refresh Failed]', {
-                url: response.config?.url,
-                method: (response.config?.method || 'unknown').toUpperCase(),
-                error:
-                  refreshError instanceof Error
-                    ? refreshError.message
-                    : String(refreshError),
-                timestamp: new Date().toISOString(),
-              });
-              return Promise.reject(refreshError);
-            });
+        // Handle 401 authentication errors with token refresh
+        const authRetryResponse = await handleAuthError(response);
+        if (authRetryResponse) {
+          return authRetryResponse;
         }
 
-        // 其他错误响应，返回原始响应
+        // Handle other business errors (show user feedback)
+        handleBusinessError(response);
+
         return response;
       } catch (interceptorError) {
-        // Catch unexpected errors during interceptor processing (e.g., malformed data)
-        console.error('[Response Interceptor Error]', {
-          url: response.config?.url,
-          method: (response.config?.method || 'unknown').toUpperCase(),
-          error:
-            interceptorError instanceof Error
-              ? interceptorError.message
-              : String(interceptorError),
-          timestamp: new Date().toISOString(),
-        });
+        // Catch unexpected errors during interceptor processing
+        logResponseError(response, interceptorError);
         const { message } = getGlobalFeedbackInstances();
         message.error(
           getIntl().formatMessage({
