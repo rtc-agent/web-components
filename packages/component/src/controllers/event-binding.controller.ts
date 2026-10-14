@@ -789,6 +789,14 @@ export class EventBindingController implements ReactiveController {
    *
    * Call this in disconnectedCallback to prevent memory leaks.
    *
+   * Note: this.deps references are intentionally NOT cleared here.
+   * The deps object contains references to other controllers, which have
+   * their own lifecycle management. Clearing deps here would break the
+   * controller if unbindEvents() is called but the host element is later
+   * reconnected (e.g., React StrictMode). The deps will be garbage collected
+   * when the EventBindingController itself is GC'd (when the host element
+   * is permanently destroyed).
+   *
    * @param element The element to detach listeners from (typically `this` in rtc-agent.ts)
    */
   unbindEvents(element: Element) {

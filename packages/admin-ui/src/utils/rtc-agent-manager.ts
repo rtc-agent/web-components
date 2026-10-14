@@ -230,7 +230,7 @@ export function mountRtcAgent(userPermissions: Permission[] = []) {
     });
 }
 
-export function unmountRtcAgent() {
+export async function unmountRtcAgent() {
   console.log('[RTC Agent Manager] unmountRtcAgent called');
 
   // 取消挂载请求（防止竞态条件）
@@ -239,7 +239,7 @@ export function unmountRtcAgent() {
   if (rtcAgentInstance) {
     console.log('[RTC Agent Manager] Destroying RTC Agent instance...');
     try {
-      rtcAgentInstance.destroy();
+      await rtcAgentInstance.destroy();
       console.log('[RTC Agent Manager] RTC Agent destroyed successfully');
     } catch (e) {
       console.warn('[RTC Agent Manager] Failed to destroy RTC Agent:', e);

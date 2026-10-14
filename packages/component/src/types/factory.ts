@@ -669,12 +669,18 @@ export interface RtcAgentWithLifecycle extends RtcAgent {
    *
    * Performs complete cleanup:
    * 1. Removes element from DOM (triggers disconnectedCallback)
-   * 2. Clears external token references (added in Phase 2)
-   * 3. Cancels all DOM event subscriptions (added in Phase 3 part 1)
-   * 4. Cancels all EventBus subscriptions (added in Phase 3 part 2)
-   * 5. Optionally clears localStorage tokens
+   * 2. Awaits PersistenceController disconnect (ensures Worker/IndexedDB cleanup)
+   * 3. Clears external token references (added in Phase 2)
+   * 4. Cancels all DOM event subscriptions (added in Phase 3 part 1)
+   * 5. Cancels all EventBus subscriptions (added in Phase 3 part 2)
+   * 6. Destroys AuthController (closes BroadcastChannel, timers)
+   *
+   * The method is async because PersistenceController.disconnect() involves
+   * async Worker cleanup (resetting offsets, closing IndexedDB/WebSocket).
+   * Awaiting ensures AuthController is not destroyed while disconnect() is
+   * still accessing shared resources.
    *
    * After calling destroy(), the agent instance should not be reused.
    */
-  destroy(): void;
+  destroy(): Promise<void>;
 }

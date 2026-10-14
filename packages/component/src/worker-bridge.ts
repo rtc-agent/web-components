@@ -273,6 +273,13 @@ export class WorkerBridge {
    * instance A's destroy() restores the original while instance B still relies
    * on the proxy being active.
    *
+   * Lifecycle:
+   * - Incremented in installVirtualFSProxy()
+   * - Decremented in restoreVirtualFS() (called from destroy())
+   * - When count reaches 0, _originalVirtualFS is restored and nulled,
+   *   _virtualFSProxyInstalled is reset to false
+   * - A new WorkerBridge instance can then successfully install the proxy again
+   *
    * Note: This does NOT fix the fundamental overwrite issue (last installer wins),
    * but ensures cleanup is correct — the proxy stays active as long as any
    * instance needs it.
@@ -1858,14 +1865,21 @@ export class WorkerBridge {
       }
     } finally {
       this._catchUpAbortController = undefined;
-      // Batch persist cursor to sessionStorage after catch-up completes
-      // EXCEPTION SAFETY: _saveLastProcessedSeq already has internal try-catch,
-      // but we wrap it here as well for defense-in-depth.
-      try {
+      // Guard: only persist cursor if catch-up was actually in progress.
+      // If destroy() has already reset _isCatchingUp to false (step 5 in destroy()),
+      // skip the sessionStorage write to avoid redundant operations after cleanup.
+      // This prevents a race where destroy() clears the cursor in step 8, then
+      // _doCatchUp's finally block re-writes it with stale data.
+      if (this._isCatchingUp) {
         this._isCatchingUp = false;
-        this._saveLastProcessedSeq();
-      } catch (err) {
-        log.debug('catchUp finally: failed to persist cursor (non-fatal):', err);
+        // Batch persist cursor to sessionStorage after catch-up completes
+        // EXCEPTION SAFETY: _saveLastProcessedSeq already has internal try-catch,
+        // but we wrap it here as well for defense-in-depth.
+        try {
+          this._saveLastProcessedSeq();
+        } catch (err) {
+          log.debug('catchUp finally: failed to persist cursor (non-fatal):', err);
+        }
       }
     }
   }

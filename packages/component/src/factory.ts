@@ -50,7 +50,7 @@ import { eventBus } from './core/event-bus.js';
  * document.body.appendChild(agent);
  *
  * // Later, when done:
- * agent.destroy();
+ * await agent.destroy();
  * ```
  *
  * @example
@@ -383,30 +383,40 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
   // For the current scale (~15 DOM events + ~4 EventBus listeners), this is
   // negligible. All references are nullified after cleanup to help GC reclaim
   // closures and their captured scopes promptly.
-  element.destroy = () => {
+  element.destroy = async () => {
     // 1. Remove element from DOM (triggers disconnectedCallback)
+    //    This fires hostDisconnected() on all controllers. PersistenceController
+    //    starts async disconnect (fire-and-forget via void), but we must await
+    //    it below to ensure Worker/IndexedDB cleanup completes before AuthController
+    //    is destroyed. Without this, the auth provider could be cleared while
+    //    disconnect() is still accessing shared token resources.
     element.remove();
 
-    // 2. Clear external token references
+    // 2. Await PersistenceController disconnect to ensure Worker cleanup completes.
+    //    hostDisconnected() fires void this.disconnect() (async), but we need to
+    //    wait for it before destroying AuthController. Catch any errors to prevent
+    //    them from blocking the rest of the cleanup.
+    await element.persistenceController?.disconnect?.().catch(() => {});
+
+    // 3. Clear external token references
     element._pendingAuthProvider = undefined;
 
-    // 3. Cancel all DOM event subscriptions
+    // 4. Cancel all DOM event subscriptions
     if (element._eventUnsubscribes) {
       element._eventUnsubscribes.forEach((unsub) => unsub());
       element._eventUnsubscribes = undefined;
     }
 
-    // 4. Cancel all EventBus subscriptions
+    // 5. Cancel all EventBus subscriptions
     if (element._eventBusUnsubscribes) {
       element._eventBusUnsubscribes.forEach((unsub) => unsub());
       element._eventBusUnsubscribes = undefined;
     }
 
-    // 5. Close BroadcastChannel to prevent orphaned message handlers and timers.
-    // hostDisconnected keeps the channel open for React StrictMode remount,
-    // but factory.destroy() is permanent — close it to prevent cross-tab
-    // coordination from firing on a detached element.
-    element.authController?.closeBroadcastChannel?.();
+    // 6. Destroy AuthController to release all resources (BroadcastChannel, timers, providers).
+    //    Called AFTER persistence disconnect completes to avoid races where disconnect()
+    //    accesses auth state (e.g., token callbacks) after AuthController is destroyed.
+    element.authController?.destroy?.();
 
     // NOTE: We intentionally do NOT clear localStorage tokens here.
     // Reason: destroy() is called during Vite HMR (Hot Module Replacement),

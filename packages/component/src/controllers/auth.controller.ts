@@ -117,6 +117,19 @@ export class AuthController implements ReactiveController {
   private _isTemporaryDisconnect = false;
 
   /**
+   * Reconnection flag for microtask-based BroadcastChannel cleanup.
+   *
+   * Set to true in hostConnected(), checked in a queueMicrotask() after
+   * hostDisconnected(). If the host does not reconnect within the same
+   * synchronous execution (i.e., this is a permanent disconnect, not StrictMode),
+   * the BroadcastChannel is closed to prevent orphaned message handlers.
+   *
+   * This handles edge cases where the element is removed from DOM without
+   * destroy() being called (e.g., direct element.remove() by host application).
+   */
+  private _isReconnected = false;
+
+  /**
    * Pending Token Exchange flag — allows refresh-success handler to accept tokens
    * even when isLoggedIn is false during initial token exchange setup.
    *
@@ -312,6 +325,10 @@ export class AuthController implements ReactiveController {
   }
 
   hostConnected() {
+    // Mark as reconnected so the microtask in hostDisconnected() knows not to close
+    // the BroadcastChannel (handles React StrictMode's rapid unmount/remount cycle).
+    this._isReconnected = true;
+
     this._boundVisibilityHandler = this._onVisibilityChange.bind(this);
     document.addEventListener('visibilitychange', this._boundVisibilityHandler);
 
@@ -345,8 +362,13 @@ export class AuthController implements ReactiveController {
    * they persist across temporary disconnects and are cleared by _performLogout()
    * or when the controller is GC'd with the element.
    *
-   * BroadcastChannel is NOT closed here to support React StrictMode's rapid
-   * unmount/remount cycle. The channel is closed in _performLogout() instead.
+   * BroadcastChannel lifecycle:
+   * - React StrictMode: The channel stays open across rapid unmount/remount cycles.
+   *   The _isTemporaryDisconnect flag prevents premature closure.
+   * - Permanent disconnect (element removed without destroy()): A microtask check
+   *   detects that the host did not reconnect and closes the channel to prevent
+   *   orphaned message handlers.
+   * - Factory destroy(): Calls destroy() which explicitly closes the channel.
    */
   hostDisconnected() {
     if (this._boundVisibilityHandler) {
@@ -368,8 +390,32 @@ export class AuthController implements ReactiveController {
       this._deferredRefresh = undefined;
     }
     // Mark as temporary disconnect — BroadcastChannel stays open for StrictMode remount.
-    // The channel will be closed by _performLogout() on actual logout/destroy.
+    // The channel will be closed by _performLogout() on actual logout/destroy,
+    // or by the microtask below if the host does not reconnect (permanent disconnect).
     this._isTemporaryDisconnect = true;
+    // Reset reconnection flag: hostConnected() will set it to true if the host
+    // reconnects synchronously (StrictMode). If not, the microtask will close the channel.
+    this._isReconnected = false;
+
+    // Microtask check: if the host has not reconnected by the time this microtask runs,
+    // it means this is a permanent disconnect (not StrictMode). Close the BroadcastChannel
+    // to prevent orphaned message handlers and cross-tab coordination on a detached element.
+    //
+    // Why microtask instead of immediate close:
+    // - React StrictMode unmounts and remounts synchronously in the same commit
+    // - By the time the microtask runs, hostConnected() has already set _isReconnected = true
+    // - If _isReconnected is still false, we know the host did not reconnect
+    //
+    // Why this is safe:
+    // - destroy() explicitly closes the channel anyway, so this is a fallback for edge cases
+    // - closeBroadcastChannel() is idempotent (safe to call multiple times)
+    // - If the host reconnects after this microtask (unlikely but possible), the channel
+    //   will be reopened in _initBroadcastChannel() on next construction (not here)
+    queueMicrotask(() => {
+      if (!this._isReconnected) {
+        this.closeBroadcastChannel();
+      }
+    });
   }
 
   /**
