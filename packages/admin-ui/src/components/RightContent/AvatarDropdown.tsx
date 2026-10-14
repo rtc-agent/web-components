@@ -94,13 +94,21 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({
     const { key } = event;
     if (key === 'logout') {
       startTransition(() => {
-        setInitialState((s) => ({ ...s, currentUser: undefined }));
+        try {
+          setInitialState((s) => ({ ...s, currentUser: undefined }));
+        } catch (error) {
+          console.error('[AvatarDropdown] Failed to clear user state on logout:', error);
+        }
       });
       loginOut();
       return;
     }
     if (key === 'theme') {
-      setInitialState((s) => ({ ...s, settingDrawerOpen: true }));
+      try {
+        setInitialState((s) => ({ ...s, settingDrawerOpen: true }));
+      } catch (error) {
+        console.error('[AvatarDropdown] Failed to open theme settings:', error);
+      }
       return;
     }
     if (key === 'settings') {
@@ -143,10 +151,14 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({
           const userInfo = await initialState?.fetchUserInfo?.();
           if (userInfo) {
             startTransition(() => {
-              setInitialState((s) => ({
-                ...s,
-                currentUser: userInfo,
-              }));
+              try {
+                setInitialState((s) => ({
+                  ...s,
+                  currentUser: userInfo,
+                }));
+              } catch (error) {
+                console.error('[AvatarDropdown] Failed to update user info after profile change:', error);
+              }
             });
           }
         }}

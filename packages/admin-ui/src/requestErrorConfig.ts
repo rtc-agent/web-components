@@ -129,10 +129,14 @@ export function setGlobalSetInitialState(fn: SetInitialStateFn | null) {
     const userInfoToApply = pendingUserInfo;
     pendingUserInfo = null;
     // Apply asynchronously to avoid blocking the caller
+    // Error boundary: prevent unhandled promise rejection
     fn((prev) => ({
       ...prev,
       currentUser: buildCurrentUser(userInfoToApply),
     })).catch((error) => {
+      // Defensive: log error but don't throw.
+      // This is a fire-and-forget state update; failure is non-critical
+      // as the data is already persisted in localStorage.
       console.error(
         '[setGlobalSetInitialState] Failed to apply pending permission update:',
         error,
@@ -161,10 +165,20 @@ async function refreshTokenAndUpdatePermissions(): Promise<string | null> {
     if (userInfo && globalSetInitialState) {
       // 直接使用 setInitialState 更新权限数据
       // 等待状态更新完成，确保权限数据同步
-      await globalSetInitialState((prev) => ({
-        ...prev,
-        currentUser: buildCurrentUser(userInfo),
-      }));
+      // Error boundary: wrap in try-catch to prevent unhandled promise rejection
+      try {
+        await globalSetInitialState((prev) => ({
+          ...prev,
+          currentUser: buildCurrentUser(userInfo),
+        }));
+      } catch (stateError) {
+        // Log but don't throw - state update failure is non-critical
+        // The token refresh succeeded, and user info is persisted in localStorage
+        console.error(
+          '[refreshTokenAndUpdatePermissions] Failed to update global state with new user info:',
+          stateError,
+        );
+      }
     } else if (userInfo && !globalSetInitialState) {
       // Layout 还未 mount，无法直接更新权限数据
       // 存储 userInfo，待 setInitialState 可用时立即应用

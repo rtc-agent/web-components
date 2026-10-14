@@ -186,10 +186,19 @@ const Login: React.FC = () => {
     const userInfo = await initialState?.fetchUserInfo?.();
     if (userInfo) {
       startTransition(() => {
-        setInitialState((s) => ({
-          ...s,
-          currentUser: userInfo,
-        }));
+        try {
+          setInitialState((s) => ({
+            ...s,
+            currentUser: userInfo,
+          }));
+        } catch (error) {
+          // P2-FIX: Log error but don't block login flow.
+          // User info will be re-fetched on subsequent page loads.
+          console.warn(
+            '[Login] Failed to update user info after successful login:',
+            error,
+          );
+        }
       });
     }
   };

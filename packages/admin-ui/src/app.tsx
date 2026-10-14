@@ -385,7 +385,11 @@ export const layout: RunTimeLayoutConfig = ({
   // this effect transitions to loading: false once the layout mounts (data is ready).
   React.useEffect(() => {
     if (initialState?.loading) {
-      setInitialState((s) => ({ ...s, loading: false }));
+      try {
+        setInitialState((s) => ({ ...s, loading: false }));
+      } catch (error) {
+        console.error('[app.tsx] Failed to clear loading state:', error);
+      }
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -549,18 +553,26 @@ export const layout: RunTimeLayoutConfig = ({
             enableDarkTheme
             collapse={initialState?.settingDrawerOpen}
             onCollapseChange={(open) => {
-              setInitialState((s) => ({
-                ...s,
-                settingDrawerOpen: open,
-              }));
+              try {
+                setInitialState((s) => ({
+                  ...s,
+                  settingDrawerOpen: open,
+                }));
+              } catch (error) {
+                console.error('[app.tsx] Failed to toggle setting drawer:', error);
+              }
             }}
             settings={initialState?.settings}
             onSettingChange={(settings) => {
               saveThemeSettings(settings);
-              setInitialState((s) => ({
-                ...s,
-                settings,
-              }));
+              try {
+                setInitialState((s) => ({
+                  ...s,
+                  settings,
+                }));
+              } catch (error) {
+                console.error('[app.tsx] Failed to update settings:', error);
+              }
             }}
           />
         </>
