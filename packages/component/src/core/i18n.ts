@@ -5,6 +5,7 @@ import {
   safeLocalStorageGet,
   safeLocalStorageSet,
 } from '../utils/safe-local-storage.js';
+import { clearFormatterCaches } from '../utils/format.js';
 import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('i18n');
@@ -111,42 +112,29 @@ export function persistLocale(locale: SupportedLocale): void {
 }
 
 /**
- * Debounce timer for locale switching
- * Prevents rapid locale switching that could cause performance issues
+ * Guard flag to prevent concurrent locale switches
  */
-let switchLocaleTimer: ReturnType<typeof setTimeout> | null = null;
-const SWITCH_LOCALE_DEBOUNCE_MS = 150;
+let _isSwitching = false;
 
 /**
  * Switch language and synchronize all related state
  * Components should call this function instead of calling _setLocale directly
  *
- * Includes debouncing to prevent rapid switching that could cause performance issues.
+ * Uses a simple guard to prevent concurrent switching without unnecessary debounce delay.
  *
  * @param locale - Target locale to switch to
- * @param immediate - If true, skip debouncing and switch immediately (default: false)
  */
-export async function switchLocale(
-  locale: SupportedLocale,
-  immediate: boolean = false,
-): Promise<void> {
-  // Clear any pending switch
-  if (switchLocaleTimer !== null) {
-    clearTimeout(switchLocaleTimer);
-    switchLocaleTimer = null;
+export async function switchLocale(locale: SupportedLocale): Promise<void> {
+  if (_isSwitching) {
+    log.debug('Locale switch already in progress, ignoring request');
+    return;
   }
 
-  if (immediate) {
+  _isSwitching = true;
+  try {
     await executeLocaleSwitch(locale);
-  } else {
-    // Debounce the locale switch
-    await new Promise<void>((resolve) => {
-      switchLocaleTimer = setTimeout(async () => {
-        switchLocaleTimer = null;
-        await executeLocaleSwitch(locale);
-        resolve();
-      }, SWITCH_LOCALE_DEBOUNCE_MS);
-    });
+  } finally {
+    _isSwitching = false;
   }
 }
 
@@ -167,6 +155,8 @@ async function executeLocaleSwitch(locale: SupportedLocale): Promise<void> {
     persistLocale(locale);
     document.documentElement.lang = locale;
     document.documentElement.dir = isRTLLocale(locale) ? 'rtl' : 'ltr';
+    // Clear formatter caches to avoid stale locale-specific formatting
+    clearFormatterCaches();
     log.info(`Locale switched to: ${locale}`);
   } catch (err) {
     log.error(`Failed to switch locale to ${locale}:`, err);

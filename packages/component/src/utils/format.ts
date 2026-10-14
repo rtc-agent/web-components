@@ -42,10 +42,12 @@ export function formatNumber(
   }
 
   try {
-    return num.toLocaleString(currentLocale);
+    const formatter = getCachedNumberFormatter(currentLocale);
+    return formatter.format(num);
   } catch {
     // Fallback to US format if locale is invalid
-    return num.toLocaleString('en-US');
+    const formatter = getCachedNumberFormatter('en-US');
+    return formatter.format(num);
   }
 }
 
@@ -68,10 +70,11 @@ export function formatPercentage(
   const locale = getLocale();
 
   try {
-    return `${percentValue.toLocaleString(locale, {
+    const formatter = getCachedNumberFormatter(locale, {
       minimumFractionDigits: decimals,
       maximumFractionDigits: decimals
-    })}%`;
+    });
+    return `${formatter.format(percentValue)}%`;
   } catch {
     return `${percentValue.toFixed(decimals)}%`;
   }
@@ -97,7 +100,8 @@ export function formatFileSize(bytes: number | undefined | null, decimals: numbe
   const currentLocale = locale || getLocale();
 
   try {
-    return `${value.toLocaleString(currentLocale)} ${sizes[i]}`;
+    const formatter = getCachedNumberFormatter(currentLocale);
+    return `${formatter.format(value)} ${sizes[i]}`;
   } catch {
     return `${value} ${sizes[i]}`;
   }
@@ -129,10 +133,49 @@ export function isValidDate(value: unknown): boolean {
 }
 
 /**
+ * Cache for NumberFormat instances to avoid repeated allocations.
+ * Key format: `${locale}_${options_hash}`
+ */
+const numberFormatterCache = new Map<string, Intl.NumberFormat>();
+
+/**
  * Cache for DateTimeFormat instances to avoid repeated allocations.
  * Key format: `${locale}_${type}_${options_hash}`
  */
 const dateFormatterCache = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * Clear formatter caches to free memory and ensure fresh formatters after locale switch.
+ *
+ * Called automatically when locale changes via `switchLocale()`.
+ * Normally not needed for manual calls.
+ */
+export function clearFormatterCaches(): void {
+  numberFormatterCache.clear();
+  dateFormatterCache.clear();
+}
+
+/**
+ * Get or create a cached NumberFormat instance.
+ */
+function getCachedNumberFormatter(
+  locale: string,
+  options?: Intl.NumberFormatOptions
+): Intl.NumberFormat {
+  // Build cache key from commonly-used option fields to avoid JSON.stringify overhead
+  const optsKey = options
+    ? `${options.minimumFractionDigits ?? ''}${options.maximumFractionDigits ?? ''}${options.style ?? ''}${options.currency ?? ''}`
+    : '';
+  const cacheKey = `${locale}_${optsKey}`;
+
+  let formatter = numberFormatterCache.get(cacheKey);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(locale, options);
+    numberFormatterCache.set(cacheKey, formatter);
+  }
+
+  return formatter;
+}
 
 /**
  * Get or create a cached DateTimeFormat instance.

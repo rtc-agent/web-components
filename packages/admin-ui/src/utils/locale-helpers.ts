@@ -1,4 +1,4 @@
-import { getLocale } from '@umijs/max';
+import { getLocale, setLocale } from '@umijs/max';
 import dayjs from 'dayjs';
 
 // RTL (Right-to-Left) language prefixes
@@ -26,8 +26,8 @@ export const setDocumentDirection = () => {
  * Fallback: If a locale is not in the map, it will be lowercased and used directly.
  * This handles standard locale codes (e.g. "fr-FR" → "fr-fr").
  */
-export const loadDayjsLocale = () => {
-  const locale = getLocale();
+export const loadDayjsLocale = (targetLocale?: string) => {
+  const locale = targetLocale || getLocale();
   // Map Ant Design Pro locale codes to dayjs locale identifiers
   // Only includes locales actually supported by the application
   const dayjsLocaleMap: Record<string, string> = {
@@ -43,4 +43,22 @@ export const loadDayjsLocale = () => {
   };
   const dayjsLocale = dayjsLocaleMap[locale] || locale.toLowerCase();
   dayjs.locale(dayjsLocale);
+};
+
+/**
+ * Set locale with dayjs synchronization
+ *
+ * Combines `setLocale` (umi) with `loadDayjsLocale` to ensure dayjs
+ * date formatting stays in sync with the application locale.
+ *
+ * @param newLocale - Target locale code (e.g., 'en-US', 'zh-CN')
+ * @param reload - Whether to reload the page after locale change (default: false)
+ */
+export const setLocaleWithDayjs = (
+  newLocale: string,
+  reload: boolean = false,
+): void => {
+  setLocale(newLocale, reload);
+  loadDayjsLocale(newLocale);
+  setDocumentDirection();
 };
