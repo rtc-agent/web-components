@@ -1884,6 +1884,12 @@ export class WorkerBridge {
   private _yieldChannel?: MessageChannel;
   private _yieldChannelHealthy = false;
   private _yieldResolves: Array<() => void> = [];
+  /**
+   * P3-1: Counter for yieldChannel rebuilds to detect excessive rebuilds that may indicate
+   * channel health issues or browser resource pressure.
+   */
+  private _yieldChannelRebuildCount = 0;
+  private static readonly YIELD_CHANNEL_REBUILD_WARNING_THRESHOLD = 10;
 
   /**
    * Calculate the optimal frame budget for catch-up time slicing.
@@ -1956,6 +1962,14 @@ export class WorkerBridge {
             if (cb) cb();
           };
           this._yieldChannelHealthy = true;
+          // P3-1: Track rebuild count and warn if exceeding threshold
+          this._yieldChannelRebuildCount++;
+          if (this._yieldChannelRebuildCount >= WorkerBridge.YIELD_CHANNEL_REBUILD_WARNING_THRESHOLD) {
+            log.warn(
+              `yieldChannel rebuilt ${this._yieldChannelRebuildCount} times, ` +
+              `which may indicate channel health issues or browser resource pressure`
+            );
+          }
         } catch (err) {
           // Channel creation is extremely rare to fail, but if it does, resolve immediately
           // to allow catch-up to continue (or check abort signal and bail out).

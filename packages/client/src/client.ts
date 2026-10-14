@@ -1790,12 +1790,34 @@ export class RTCAgentClient implements IRTCAgentClient {
    * Handle channel publication callback.
    *
    * If the callback throws, unsubscribe (crash semantics).
+   *
+   * PERFORMANCE MONITORING: Logs a warning for large messages (>10KB) to help identify
+   * potential performance bottlenecks. Large messages can block the main thread during
+   * JSON parsing and processing.
    */
   private async handlePublication(
     event: PublicationEvent,
     sub: ReturnType<Centrifuge['newSubscription']>,
   ): Promise<void> {
     if (!this.options.onPublication) return;
+
+    // P2-2: Monitor large WebSocket messages for performance debugging
+    const LARGE_MESSAGE_THRESHOLD = 10 * 1024; // 10KB
+    try {
+      const messageStr = JSON.stringify(event.data);
+      if (messageStr.length > LARGE_MESSAGE_THRESHOLD) {
+        log.warn(
+          `Large WebSocket message: ${(messageStr.length / 1024).toFixed(1)}KB`,
+          {
+            channel: event.channel,
+            type: (event.data as Record<string, unknown>)?.type,
+          }
+        );
+      }
+    } catch {
+      // JSON.stringify failed (e.g., circular reference) - skip size monitoring
+      log.debug('handlePublication: failed to estimate message size (non-fatal)');
+    }
 
     try {
       await this.options.onPublication(event);
