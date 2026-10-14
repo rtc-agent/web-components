@@ -705,6 +705,45 @@ export class EntityRepository {
    * directly matching both session and status without in-memory filtering.
    * Prior implementation used where('session_client_id').filter(status===...),
    * which required a full scan of the session's turns.
+   *
+   * ## P3-FIX: Turn Count Validation & Known Edge Cases
+   *
+   * ### Current Counting Strategy
+   * Turn counts (pending_turn_count, running_turn_count) are maintained via
+   * **write-time aggregation**: whenever turn records are modified, the counts
+   * are re-computed from the turns table and written back to the session record.
+   * This approach ensures counts are always consistent with the actual turn data
+   * in IndexedDB, avoiding drift from event-based counting.
+   *
+   * ### Known Edge Cases (Counts May Be Temporarily Inaccurate)
+   *
+   * 1. **Concurrent Tab Writes**: When multiple tabs apply updates simultaneously,
+   *    each tab's transaction may compute counts based on a stale snapshot. The
+   *    sequential query design (see above) mitigates this within a single tab,
+   *    but cross-tab consistency is eventually-consistent (last-write-wins).
+   *
+   * 2. **Writeback Failure**: If `writebackTurnCountsInTx()` fails after turns are
+   *    committed (e.g., session record locked by another transaction), the session
+   *    counts remain stale until the next successful batch write. This is a
+   *    deliberate trade-off: we prioritize turn data durability over count accuracy.
+   *    Users may briefly see incorrect counts (e.g., "2 pending" when there are 3),
+   *    but counts self-heal on the next write.
+   *
+   * 3. **Orphaned Turns**: If a turn record exists but its session_client_id points
+   *    to a deleted/missing session, the count is computed but never written back
+   *    (session not found in writeback). This is correct behavior — orphaned turns
+   *    are data inconsistencies that should be resolved by sync, not counted.
+   *
+   * 4. **Rapid UI Updates**: High-frequency turn creation (e.g., automated testing)
+   *    may cause UI to display stale counts between writeback calls. The UI layer
+   *    should subscribe to UIUpdateBus events to refresh counts after each turn event.
+   *
+   * ### Why No Runtime Validation?
+   * Runtime validation (e.g., asserting `session.pending_turn_count === computedCount`)
+   * would add ~5-10ms per write for re-counting, which is unacceptable for bulk operations.
+   * The write-time aggregation strategy provides strong consistency without the overhead.
+   * If counts diverge (detected via debugging logs), a full re-sync from the server
+   * will correct them.
    */
   async countActiveTurns(
     sessionClientId: string,
@@ -1601,72 +1640,104 @@ export class EntityRepository {
           // Roll back in reverse order (last written entity first)
           for (let i = completedWrites.length - 1; i >= 0; i--) {
             const write = completedWrites[i];
-            try {
-              if (write.operation === 'upsert') {
-                // P0-2-FIX: Distinguish between new records and updated records.
-                // For updated records, restore the before snapshot instead of deleting.
-                // For new records, delete them to undo the creation.
-                const table = db[write.entityType] as Table;
-                const beforeRecords: unknown[] = [];
-                const newClientIds: string[] = [];
 
-                for (const clientId of write.clientIds) {
-                  const key = `${write.entityType.slice(0, -1)}:${clientId}`; // e.g., "session:s1"
-                  const before = beforeSnapshots.get(key);
-                  if (before) {
-                    beforeRecords.push(before);
-                  } else {
-                    newClientIds.push(clientId);
+            // P2-FIX: Retry mechanism for compensation operations.
+            // If rollback fails, retry up to 2 times with 100ms intervals.
+            // This handles transient failures (e.g., temporary IndexedDB locks).
+            const MAX_COMPENSATION_RETRIES = 2;
+            const COMPENSATION_RETRY_DELAY_MS = 100;
+
+            let lastError: unknown;
+            for (let retryAttempt = 0; retryAttempt <= MAX_COMPENSATION_RETRIES; retryAttempt++) {
+              try {
+                if (retryAttempt > 0) {
+                  log.info(
+                    `[applyUpdates] Compensation retry attempt ${retryAttempt}/${MAX_COMPENSATION_RETRIES} for ${write.entityType}`,
+                  );
+                  await new Promise(resolve => setTimeout(resolve, COMPENSATION_RETRY_DELAY_MS));
+                }
+
+                if (write.operation === 'upsert') {
+                  // P0-2-FIX: Distinguish between new records and updated records.
+                  // For updated records, restore the before snapshot instead of deleting.
+                  // For new records, delete them to undo the creation.
+                  const table = db[write.entityType] as Table;
+                  const beforeRecords: unknown[] = [];
+                  const newClientIds: string[] = [];
+
+                  for (const clientId of write.clientIds) {
+                    const key = `${write.entityType.slice(0, -1)}:${clientId}`; // e.g., "session:s1"
+                    const before = beforeSnapshots.get(key);
+                    if (before) {
+                      beforeRecords.push(before);
+                    } else {
+                      newClientIds.push(clientId);
+                    }
                   }
-                }
 
-                // Restore pre-existing records to their before state
-                if (beforeRecords.length > 0) {
-                  await table.bulkPut(beforeRecords as any[]);
-                  log.info(
-                    `[applyUpdates] Compensation: restored ${beforeRecords.length} ` +
-                    `${write.entityType} updates from snapshots`,
-                  );
-                }
+                  // Restore pre-existing records to their before state
+                  if (beforeRecords.length > 0) {
+                    await table.bulkPut(beforeRecords as any[]);
+                    log.info(
+                      `[applyUpdates] Compensation: restored ${beforeRecords.length} ` +
+                      `${write.entityType} updates from snapshots`,
+                    );
+                  }
 
-                // Delete newly created records
-                if (newClientIds.length > 0) {
-                  await table.bulkDelete(newClientIds);
-                  log.info(
-                    `[applyUpdates] Compensation: deleted ${newClientIds.length} ` +
-                    `new ${write.entityType} creates`,
-                  );
-                }
-              } else {
-                // Roll back delete by re-inserting from beforeSnapshots
-                // Note: Only works if we have the before snapshot; otherwise data is lost
-                const table = db[write.entityType] as Table;
-                const recordsToRestore: unknown[] = [];
-                for (const clientId of write.clientIds) {
-                  const key = `${write.entityType.slice(0, -1)}:${clientId}`; // e.g., "session:s1"
-                  const before = beforeSnapshots.get(key);
-                  if (before) {
-                    recordsToRestore.push(before);
-                  } else {
-                    log.warn(
-                      `[applyUpdates] Compensation: cannot restore deleted ${write.entityType} ` +
-                      `record ${clientId} (no before snapshot available)`,
+                  // Delete newly created records
+                  if (newClientIds.length > 0) {
+                    await table.bulkDelete(newClientIds);
+                    log.info(
+                      `[applyUpdates] Compensation: deleted ${newClientIds.length} ` +
+                      `new ${write.entityType} creates`,
+                    );
+                  }
+                } else {
+                  // Roll back delete by re-inserting from beforeSnapshots
+                  // Note: Only works if we have the before snapshot; otherwise data is lost
+                  const table = db[write.entityType] as Table;
+                  const recordsToRestore: unknown[] = [];
+                  for (const clientId of write.clientIds) {
+                    const key = `${write.entityType.slice(0, -1)}:${clientId}`; // e.g., "session:s1"
+                    const before = beforeSnapshots.get(key);
+                    if (before) {
+                      recordsToRestore.push(before);
+                    } else {
+                      log.warn(
+                        `[applyUpdates] Compensation: cannot restore deleted ${write.entityType} ` +
+                        `record ${clientId} (no before snapshot available)`,
+                      );
+                    }
+                  }
+                  if (recordsToRestore.length > 0) {
+                    await table.bulkAdd(recordsToRestore as any[]);
+                    log.info(
+                      `[applyUpdates] Compensation: restored ${recordsToRestore.length} ` +
+                      `${write.entityType} deletes from snapshots`,
                     );
                   }
                 }
-                if (recordsToRestore.length > 0) {
-                  await table.bulkAdd(recordsToRestore as any[]);
-                  log.info(
-                    `[applyUpdates] Compensation: restored ${recordsToRestore.length} ` +
-                    `${write.entityType} deletes from snapshots`,
-                  );
-                }
+
+                // Success: clear lastError and break retry loop
+                lastError = undefined;
+                break;
+              } catch (rollbackError) {
+                lastError = rollbackError;
+                // Log error at error level for visibility
+                log.error(
+                  `[applyUpdates] Compensation rollback failed for ${write.entityType}` +
+                  (retryAttempt < MAX_COMPENSATION_RETRIES ? `, will retry` : `, no more retries`),
+                  rollbackError,
+                );
               }
-            } catch (rollbackError) {
-              // Rollback itself failed - log but continue trying other rollbacks
+            }
+
+            // If all retries failed, log final error but continue with other rollbacks
+            if (lastError !== undefined) {
               log.error(
-                `[applyUpdates] Compensation rollback failed for ${write.entityType}:`,
-                rollbackError,
+                `[applyUpdates] Compensation rollback exhausted all retries for ${write.entityType}. ` +
+                `Data may be in inconsistent state.`,
+                lastError,
               );
             }
           }

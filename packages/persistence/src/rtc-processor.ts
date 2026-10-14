@@ -5,6 +5,7 @@ import { permissionChecker } from './permission.js';
 import { toolRegistry } from './tools/index.js';
 import type { ToolName, ToolParams } from './tools/types.js';
 import { createLogger } from '@rtc-agent/protocol';
+import { getUIUpdateBus } from './ui-update-bus.js';
 
 const log = createLogger('RtcProcessor');
 
@@ -338,6 +339,36 @@ export class RtcProcessor {
       } catch (err) {
         // Failure: increment retry counter
         this.retryCountMap.set(rtc.client_id, retryCount + 1);
+
+        // P2-FIX: Log detailed error and publish UI error event for user notification.
+        // This ensures users are aware when RTC result submission fails after retries.
+        console.error(
+          `[RtcProcessor] submitRtcResult failed for RTC ${rtc.client_id} ` +
+          `(retry ${retryCount + 1}/${MAX_SUBMIT_RETRY_COUNT}):`,
+          err,
+        );
+
+        // Publish error event to UIUpdateBus so UI layer can show user-friendly notification
+        try {
+          const bus = getUIUpdateBus();
+          await bus.publish({
+            entity: 'rtc',
+            action: 'updated',
+            entityId: rtc.client_id,
+            field: 'sync_error',
+            oldValue: undefined,
+            newValue: {
+              type: 'submit_failed',
+              message: `RTC result submission failed (retry ${retryCount + 1}/${MAX_SUBMIT_RETRY_COUNT})`,
+              retryCount: retryCount + 1,
+              timestamp: new Date().toISOString(),
+            },
+          });
+        } catch (publishErr) {
+          // UIUpdateBus publish failure is non-fatal, but log it
+          log.error('Failed to publish RTC submit error to UIUpdateBus:', publishErr);
+        }
+
         throw err;
       }
     } else {
@@ -443,7 +474,35 @@ export class RtcProcessor {
           error: errorMsg,
         });
       } catch (err) {
+        // P2-FIX: Enhanced error logging and UI notification for RTC result submission failures.
+        // This ensures users are aware when their tool execution results cannot be submitted.
         log.error('submitRtcResult failed:', err);
+        console.error(
+          `[RtcProcessor] submitRtcResult failed for RTC ${rtc.client_id} ` +
+          `(tool: ${rtc.tool_name}, success: ${success}):`,
+          err,
+        );
+
+        // Publish error event to UIUpdateBus so UI layer can show user-friendly notification
+        try {
+          const bus = getUIUpdateBus();
+          await bus.publish({
+            entity: 'rtc',
+            action: 'updated',
+            entityId: rtc.client_id,
+            field: 'sync_error',
+            oldValue: undefined,
+            newValue: {
+              type: 'submit_failed',
+              message: `RTC result submission failed for tool '${rtc.tool_name}'`,
+              toolName: rtc.tool_name,
+              timestamp: new Date().toISOString(),
+            },
+          });
+        } catch (publishErr) {
+          // UIUpdateBus publish failure is non-fatal, but log it
+          log.error('Failed to publish RTC submit error to UIUpdateBus:', publishErr);
+        }
       }
     }
   }
