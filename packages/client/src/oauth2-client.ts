@@ -149,6 +149,15 @@ export class OAuth2Client {
    * This client only forwards the state to the server; it does not store or verify it.
    * The server validates state via Redis + Lua GetDel to prevent replay attacks.
    *
+   * CSRF PROTECTION: The state parameter MUST be:
+   * 1. Cryptographically random (e.g., 32+ bytes from crypto.getRandomValues)
+   * 2. Stored in the user's session (localStorage/sessionStorage) before redirect
+   * 3. Validated on callback to ensure it matches the stored value
+   * 4. Used only once (delete after validation)
+   *
+   * The caller (AuthProvider) is responsible for implementing these checks.
+   * This client only forwards the state to the server for server-side validation.
+   *
    * @param provider Provider name (e.g. 'github', 'google', 'mock')
    * @param pkce PKCE parameters (code_challenge and code_challenge_method)
    * @returns Response containing redirect_url and state

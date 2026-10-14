@@ -265,8 +265,19 @@ export class RTCAgentClient implements IRTCAgentClient {
    *
    * IMPORTANT: The `options.userId` field must be extracted from the RTC JWT's `user_id` claim.
    * This is a non-standard claim specific to the RTC system (not the standard JWT `sub` claim).
-   * The userId is used to construct channel names and must match the JWT's user_id claim for
-   * proper authorization and data isolation.
+   *
+   * TOKEN EXCHANGE MODE: When using Token Exchange (RFC 8693), the external JWT provider may use
+   * standard claims (like `sub`), but the RTC JWT issued by the backend will always use `user_id`.
+   * The caller must parse the RTC JWT (not the external JWT) to extract the userId.
+   *
+   * Example of parsing userId from RTC JWT:
+   * ```typescript
+   * const payload = parseJwtPayload(rtcJwt);
+   * const userId = payload.user_id; // NOT payload.sub
+   * ```
+   *
+   * SECURITY: The userId is used to construct channel names and must match the JWT's user_id claim
+   * for proper authorization and data isolation. Mismatched userIds will cause subscription failures.
    *
    * @param options - Configuration options for the client
    */
@@ -292,9 +303,13 @@ export class RTCAgentClient implements IRTCAgentClient {
     // P1-FIX: Register network status listeners to trigger reconnection on recovery.
     // When the browser goes offline, WebSocket connections are suspended. Upon coming
     // back online, we proactively reconnect instead of waiting for Centrifuge's timeout.
+    //
+    // SECURITY: Only trigger reconnection if we were previously connected (wasConnected=true).
+    // This prevents attempting to reconnect on initial page load before any connection was established,
+    // which could cause unnecessary network traffic and race conditions with the initial connect() call.
     this._onOnlineHandler = () => {
       log.info('Network online event received, triggering reconnection');
-      if (this.connectionState === 'disconnected' && this.shouldReconnect) {
+      if (this.connectionState === 'disconnected' && this.shouldReconnect && this.wasConnected) {
         // Clear any pending reconnect timer to reconnect immediately
         if (this._reconnectTimer) {
           clearTimeout(this._reconnectTimer);
@@ -1624,11 +1639,18 @@ export class RTCAgentClient implements IRTCAgentClient {
           return newToken;
         } catch (err) {
           // P2-7: Increment failure count on refresh failure
+          // SECURITY: Only increment for transient errors (network, server errors).
+          // If the error indicates permanent failure (e.g., invalid refresh token),
+          // the caller should handle it and not retry.
           this._refreshFailureCount++;
           log.error(
             `Token refresh failed (failure #${this._refreshFailureCount}):`,
             err,
           );
+          // Prevent unbounded growth of failure count (max 10 retries = ~17min backoff)
+          if (this._refreshFailureCount > 10) {
+            this._refreshFailureCount = 10;
+          }
           throw err;
         } finally {
           // Clear the promise after completion (success or failure) to allow retry
@@ -1834,6 +1856,10 @@ export class RTCAgentClient implements IRTCAgentClient {
   /**
    * Start periodic heartbeat monitoring to detect stale connections.
    * If no message is received within HEARTBEAT_TIMEOUT_MS, trigger reconnection.
+   *
+   * SECURITY: This is a safety net to catch half-open connections that Centrifuge's
+   * internal ping/pong might miss (e.g., due to proxy timeouts, NAT issues).
+   * The timeout is intentionally conservative (60s) to avoid false positives on slow networks.
    */
   private _startHeartbeatMonitoring(): void {
     this._stopHeartbeatMonitoring(); // Clear any existing timer
@@ -1851,11 +1877,18 @@ export class RTCAgentClient implements IRTCAgentClient {
           ),
         );
         // Trigger reconnection
-        this.reconnect().catch((err) => {
-          log.error('Heartbeat-triggered reconnect failed:', err);
-          // Restart heartbeat monitoring to continue detecting connection issues
-          this._startHeartbeatMonitoring();
-        });
+        // SECURITY: Only reconnect if we should reconnect and are not already in a reconnecting state
+        if (this.shouldReconnect && !this._reconnecting) {
+          this.reconnect().catch((err) => {
+            log.error('Heartbeat-triggered reconnect failed:', err);
+            // Restart heartbeat monitoring to continue detecting connection issues
+            this._startHeartbeatMonitoring();
+          });
+        } else {
+          log.debug(
+            `Heartbeat timeout skipped: shouldReconnect=${this.shouldReconnect}, reconnecting=${this._reconnecting}`,
+          );
+        }
       } else {
         log.debug(
           `Heartbeat check: last message ${timeSinceLastMessage}ms ago (threshold: ${RTCAgentClient.HEARTBEAT_TIMEOUT_MS}ms)`,

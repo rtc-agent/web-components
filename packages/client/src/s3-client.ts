@@ -908,6 +908,11 @@ export class S3Client {
    * Retry strategy: Up to 1 retry (2 total attempts) with exponential backoff on network errors.
    * 4xx/5xx errors are NOT retried to prevent overwhelming the credential service.
    *
+   * SECURITY CONSIDERATIONS:
+   * 1. Credentials are cached in memory - recommend short backend expiry (15 min)
+   * 2. Credentials shared via SharedWorker increases exposure surface
+   * 3. All client-side validation is defense-in-depth; backend MUST validate independently
+   *
    * NOTE: AWS SDK has built-in retry mechanism for S3 operations (configured via maxAttempts).
    * This retry logic only covers the credential refresh HTTP call to the backend API.
    */
@@ -934,6 +939,21 @@ export class S3Client {
         if (!response.ok) {
           const errorText = await response.text().catch(() => 'Unknown error');
           log.error('credential refresh failed:', errorText);
+          // SECURITY: Provide specific error messages for different status codes
+          // to help with debugging while avoiding information disclosure
+          if (response.status === 401 || response.status === 403) {
+            throw new Error(
+              `Credential refresh failed: authentication error (${response.status})`,
+            );
+          } else if (response.status === 429) {
+            throw new Error(
+              'Credential refresh failed: rate limit exceeded, please retry later',
+            );
+          } else if (response.status >= 500) {
+            throw new Error(
+              `Credential refresh failed: server error (${response.status})`,
+            );
+          }
           throw new Error(
             `Failed to get temporary credentials: ${response.status}`,
           );
@@ -941,6 +961,19 @@ export class S3Client {
 
         const data = (await response.json()) as TemporaryCredentialsResponse;
         const expiresAt = new Date(data.expires_at);
+
+        // SECURITY: Validate expiration time is reasonable (not too far in the future)
+        // This prevents accepting credentials with suspicious expiration times
+        const maxValidityMs = 24 * 60 * 60 * 1000; // 24 hours
+        const validityMs = expiresAt.getTime() - Date.now();
+        if (validityMs <= 0) {
+          throw new Error('Credential refresh failed: credentials already expired');
+        }
+        if (validityMs > maxValidityMs) {
+          log.warn(
+            `Credential expiration time is unusually far in the future: ${validityMs}ms`,
+          );
+        }
 
         // Create new AWS S3 Client in a temporary variable to ensure atomic update.
         // If client construction fails, we don't want to partially update the state.
