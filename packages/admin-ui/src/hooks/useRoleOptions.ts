@@ -25,15 +25,7 @@ export interface UseRoleOptionsResult {
 export function useRoleOptions(): UseRoleOptionsResult {
   const { data, isLoading } = useQuery({
     queryKey: queryKeys.roleList.all,
-    queryFn: async () => {
-      try {
-        const response = await getRoleList({ page: 1, page_size: 1000 });
-        return response.items;
-      } catch (error) {
-        console.warn('[useRoleOptions] Failed to fetch role list:', error);
-        return [];
-      }
-    },
+    queryFn: () => getRoleList({ page: 1, page_size: 1000 }).then((r) => r.items),
     staleTime: ROLE_CACHE.staleTime, // 5 minutes
     gcTime: ROLE_CACHE.gcTime, // 30 minutes
   });

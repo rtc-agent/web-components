@@ -123,54 +123,94 @@ const saveThemeSettings = (settings: Partial<LayoutSettings>): void => {
 // Timeout for initialization to prevent permanent pending state
 const INIT_TIMEOUT_MS = 30000; // 30 seconds
 
-// Track whether degraded-state warning has been shown (once per session)
-// Note: Module-level variable persists across re-renders but resets on HMR/page reload.
-// This is intentional: show the warning once per session to avoid repeated toasts,
-// but allow it to reappear after page reload (which may indicate a real issue).
-let degradedWarningShown = false;
+/**
+ * InitManager encapsulates module-level state for getInitialState deduplication.
+ *
+ * Design rationale:
+ * - Single Promise pattern: concurrent calls await the same promise
+ * - Shared AbortController: all concurrent awaiters share one abort/timeout
+ *   (see design note in original code about shared fate)
+ * - HMR cleanup: dispose() aborts in-flight requests and resets state
+ * - Auth reset: resetDegradedWarning() allows re-warning after re-login
+ */
+class InitManager {
+  private _initPromise: Promise<API.CurrentUser | undefined> | null = null;
+  private _initAbortController: AbortController | null = null;
+  private _initTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  private _degradedWarningShown = false;
 
-// Initialization promise for deduplication during rapid route changes
-// Single Promise pattern: concurrent calls await the same promise
-//
-// Design note on shared AbortController:
-// All concurrent awaiters share a single AbortController and timeout.
-// This is intentional: the deduplication pattern ensures only ONE fetch request
-// is in-flight regardless of how many getInitialState calls occur concurrently
-// (e.g., rapid route changes). Since all awaiters want the same data (currentUser),
-// they should share the same fate — if the fetch times out or fails, all callers
-// receive the same result (undefined or cached fallback). Creating per-caller
-// AbortControllers would defeat deduplication and cause redundant network requests.
-let initPromise: Promise<API.CurrentUser | undefined> | null = null;
+  get initPromise(): Promise<API.CurrentUser | undefined> | null {
+    return this._initPromise;
+  }
 
-// Module-level references for proper cleanup during HMR
-let initAbortController: AbortController | null = null;
-let initTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  set initPromise(value: Promise<API.CurrentUser | undefined> | null) {
+    this._initPromise = value;
+  }
+
+  get initAbortController(): AbortController | null {
+    return this._initAbortController;
+  }
+
+  set initAbortController(value: AbortController | null) {
+    this._initAbortController = value;
+  }
+
+  get initTimeoutId(): ReturnType<typeof setTimeout> | null {
+    return this._initTimeoutId;
+  }
+
+  set initTimeoutId(value: ReturnType<typeof setTimeout> | null) {
+    this._initTimeoutId = value;
+  }
+
+  get degradedWarningShown(): boolean {
+    return this._degradedWarningShown;
+  }
+
+  set degradedWarningShown(value: boolean) {
+    this._degradedWarningShown = value;
+  }
+
+  /**
+   * Dispose all pending state — called during HMR to prevent stale state
+   * and orphan timers/callbacks across hot reloads.
+   */
+  dispose(): void {
+    this._initPromise = null;
+    if (this._initAbortController) {
+      this._initAbortController.abort();
+      this._initAbortController = null;
+    }
+    if (this._initTimeoutId) {
+      clearTimeout(this._initTimeoutId);
+      this._initTimeoutId = null;
+    }
+    this._degradedWarningShown = false;
+    cancelPendingRefresh();
+  }
+
+  /**
+   * Reset degraded warning flag on auth state changes (logout/re-login).
+   * Ensures the warning can re-appear for the new session if needed.
+   */
+  resetDegradedWarning(): void {
+    this._degradedWarningShown = false;
+  }
+}
+
+const initManager = new InitManager();
 
 // Clean up init promise on HMR to prevent stale state across hot reloads
 if (typeof module !== 'undefined' && module.hot) {
   module.hot.dispose(() => {
-    initPromise = null;
-    // Abort any in-flight request to prevent orphan callbacks
-    if (initAbortController) {
-      initAbortController.abort();
-      initAbortController = null;
-    }
-    // Clear the timeout to prevent orphan timer from firing
-    if (initTimeoutId) {
-      clearTimeout(initTimeoutId);
-      initTimeoutId = null;
-    }
-    // Reset degraded warning flag so it re-appears after HMR if the issue persists
-    degradedWarningShown = false;
-    // Cancel any pending token refresh to prevent orphan requests
-    cancelPendingRefresh();
+    initManager.dispose();
   });
 }
 
 // Reset degraded warning flag on auth state changes (logout/re-login without page reload).
 // This ensures the warning can re-appear for the new session if needed.
 window.addEventListener(AUTH_STATE_CHANGED_EVENT, () => {
-  degradedWarningShown = false;
+  initManager.resetDegradedWarning();
 });
 
 /**
@@ -255,33 +295,33 @@ export async function getInitialState(): Promise<InitialState> {
     if (!isPublicPath(location.pathname)) {
       // Single Promise deduplication pattern: concurrent calls await the same promise
       // This eliminates the need for dual flags (initPromise + isInitializing)
-      if (!initPromise) {
+      if (!initManager.initPromise) {
         // Set up timeout to abort the request if it takes too long
-        // Stored at module level for proper cleanup during HMR
+        // Stored in initManager for proper cleanup during HMR
         const controller = new AbortController();
-        initAbortController = controller;
+        initManager.initAbortController = controller;
 
-        initTimeoutId = setTimeout(() => {
+        initManager.initTimeoutId = setTimeout(() => {
           controller.abort();
         }, INIT_TIMEOUT_MS);
 
-        const timeoutId = initTimeoutId;
-        initPromise = (async () => {
+        const timeoutId = initManager.initTimeoutId;
+        initManager.initPromise = (async () => {
           try {
             return await fetchUserInfo(controller.signal);
           } finally {
             clearTimeout(timeoutId);
-            initTimeoutId = null;
+            initManager.initTimeoutId = null;
             // Clear promise after completion to allow future re-initialization
-            initPromise = null;
+            initManager.initPromise = null;
           }
         })();
       }
 
       try {
         // Wait for initialization to complete
-        // initPromise is guaranteed to be non-null here due to the check above
-        const currentUser = await initPromise;
+        // initManager.initPromise is guaranteed to be non-null here due to the check above
+        const currentUser = await initManager.initPromise;
         return {
           fetchUserInfo,
           currentUser,
@@ -465,8 +505,8 @@ export const layout: RunTimeLayoutConfig = ({
         );
         // Use message.warning for user-visible notification
         // Only show once per session to avoid repeated toasts on every route change
-        if (!degradedWarningShown) {
-          degradedWarningShown = true;
+        if (!initManager.degradedWarningShown) {
+          initManager.degradedWarningShown = true;
           const { message } = getGlobalFeedbackInstances();
           message.warning(
             intl.formatMessage({
@@ -478,7 +518,7 @@ export const layout: RunTimeLayoutConfig = ({
         }
       } else if (initialState?.currentUser) {
         // Reset warning flag once user info is available (e.g., after successful refresh)
-        degradedWarningShown = false;
+        initManager.resetDegradedWarning();
       }
     },
     bgLayoutImgList: [

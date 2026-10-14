@@ -199,7 +199,29 @@ export default class ErrorBoundary extends React.Component<
   };
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    console.error('[ErrorBoundary]', error, info.componentStack);
+    // Log full error details including component stack for debugging
+    console.error('[ErrorBoundary] Render error caught:', error, '\nComponent stack:', info.componentStack);
+
+    // Report error to backend for production monitoring.
+    // navigator.sendBeacon is fire-and-forget, ideal for error reporting
+    // because it doesn't block page unload and works even when the page is closing.
+    if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+      try {
+        const payload = {
+          message: error.message,
+          stack: error.stack,
+          componentStack: info.componentStack,
+          url: typeof window !== 'undefined' ? window.location.href : undefined,
+          timestamp: Date.now(),
+        };
+        // Use Blob to ensure Content-Type is application/json
+        const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+        navigator.sendBeacon('/api/error-report', blob);
+      } catch (_reportError) {
+        // Error reporting itself failed — log but don't throw
+        console.warn('[ErrorBoundary] Failed to report error:', _reportError);
+      }
+    }
   }
 
   handleRetry = () => {
