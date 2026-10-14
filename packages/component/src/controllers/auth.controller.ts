@@ -153,6 +153,15 @@ export class AuthController implements ReactiveController {
    * @lit/context uses `===` comparison, so creating new objects every time triggers
    * consumers even when the state hasn't changed. Cache the value object and only
    * recreate when state reference changes.
+   *
+   * NOTE: This duplicates the caching pattern from CachedContextController.
+   * AuthController cannot inherit from CachedContextController because:
+   * 1. AuthController requires `ReactiveControllerHost & EventTarget` (for dispatching events)
+   * 2. AuthController has additional root-level methods (login, logout, setTokens, setAuthProvider)
+   *    that are not part of the context pattern
+   * 3. AuthController manages complex token refresh logic with BroadcastChannel coordination
+   *
+   * The caching pattern is simple enough that duplication is acceptable here.
    */
   private _cachedValue?: AuthContextValue;
   private _cachedState?: AuthState;

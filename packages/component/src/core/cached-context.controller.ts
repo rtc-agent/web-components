@@ -123,9 +123,20 @@ export abstract class CachedContextController<
    * The cache uses reference equality (`===`) to detect changes, so mutating
    * the existing state object will not trigger cache invalidation.
    *
+   * **IMPORTANT**: This method does NOT call `this.host.requestUpdate()`.
+   * Callers MUST call `this.host.requestUpdate()` after calling this method
+   * to trigger a re-render of the host element.
+   *
    * Correct usage:
    * ```typescript
    * this._setState({ ...this._state, someProperty: newValue });
+   * this.host.requestUpdate();  // Required to trigger re-render
+   * ```
+   *
+   * Incorrect usage (will NOT trigger re-render):
+   * ```typescript
+   * this._setState({ ...this._state, someProperty: newValue });
+   * // Forgot to call this.host.requestUpdate()
    * ```
    *
    * Incorrect usage (will NOT trigger cache invalidation):
@@ -142,6 +153,10 @@ export abstract class CachedContextController<
   /**
    * Partially update state (for object states).
    * Convenience method for subclasses.
+   *
+   * **IMPORTANT**: This method does NOT call `this.host.requestUpdate()`.
+   * Callers MUST call `this.host.requestUpdate()` after calling this method
+   * to trigger a re-render of the host element.
    */
   protected _updateState(partial: Partial<S>): void {
     if (typeof this._state === 'object' && this._state !== null) {

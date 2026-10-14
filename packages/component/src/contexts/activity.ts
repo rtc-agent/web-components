@@ -43,7 +43,7 @@ export interface ActivityActions {
    *
    * Logic:
    * - If clicking the current activity → toggle sidebar
-   * - If clicking a different activity → switch activity and show sidebar
+   * - If clicking a different activity → switch activity, preserving the current sidebar state
    */
   setActivity(activity: Activity): void;
   /** Force show the sidebar */

@@ -1,4 +1,4 @@
-import { type ReactiveController, type ReactiveControllerHost } from 'lit';
+import { type ReactiveControllerHost } from 'lit';
 import { ContextConsumer } from '@lit/context';
 import { localeContext, sourceLocale, targetLocales } from './i18n.js';
 
@@ -18,7 +18,7 @@ import { localeContext, sourceLocale, targetLocales } from './i18n.js';
  * }
  * ```
  */
-export class LocaleController implements ReactiveController {
+export class LocaleController {
   private _consumer: ContextConsumer<
     typeof localeContext,
     ReactiveControllerHost & HTMLElement
@@ -29,7 +29,6 @@ export class LocaleController implements ReactiveController {
       context: localeContext,
       subscribe: true,
     });
-    host.addController(this);
   }
 
   get locale() {
@@ -38,9 +37,5 @@ export class LocaleController implements ReactiveController {
 
   get locales() {
     return this._consumer.value?.locales ?? [sourceLocale, ...targetLocales];
-  }
-
-  hostUpdated() {
-    // Automatically triggers re-render when Context value changes
   }
 }

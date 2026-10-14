@@ -53,8 +53,6 @@ export interface WindowInteractionValue {
 }
 
 export class WindowInteractionController implements ReactiveController {
-  value: WindowInteractionValue;
-
   // Callbacks — wired by host component
   onPositionChange?: (x: number, y: number) => void;
   onSizeChange?: (width: number, height: number) => void;
@@ -96,6 +94,15 @@ export class WindowInteractionController implements ReactiveController {
   private _boundOnKeydown = (event: KeyboardEvent) =>
     this._handleKeydown(event);
 
+  /** Actions object (created once, methods reference `this` for current state) */
+  private readonly _actions: InteractionActions = {
+    enable: () => this._enable(),
+    disable: () => this._disable(),
+    enterMoveMode: () => this._enterMoveMode(),
+    enterResizeMode: () => this._enterResizeMode(),
+    exitInteractionMode: () => this._exitInteractionMode(),
+  };
+
   constructor(
     host: ReactiveControllerHost,
     config?: { draggable?: boolean; resizable?: boolean },
@@ -106,20 +113,21 @@ export class WindowInteractionController implements ReactiveController {
 
     // selectstart event interception registered at enable time
 
-    this.value = {
-      state: this._state,
-      actions: {
-        enable: () => this._enable(),
-        disable: () => this._disable(),
-        enterMoveMode: () => this._enterMoveMode(),
-        enterResizeMode: () => this._enterResizeMode(),
-        exitInteractionMode: () => this._exitInteractionMode(),
-      },
-    };
-
     // Listen for reduced motion preference changes — currently unused since
     // ghost preview disables inertia unconditionally, but kept as a hook for
     // future animation tuning.
+  }
+
+  /**
+   * Get the current interaction value (state + actions).
+   * Uses a getter to ensure `state` always reflects the current state,
+   * not a stale reference from construction time.
+   */
+  get value(): WindowInteractionValue {
+    return {
+      state: this._state,
+      actions: this._actions,
+    };
   }
 
   /** Update config */
