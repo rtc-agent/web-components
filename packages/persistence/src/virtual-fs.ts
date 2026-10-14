@@ -372,6 +372,7 @@ export class VirtualFS {
     // P1-FIX: Use TextEncoder to calculate actual byte size instead of character count.
     // For UTF-8 encoded content (especially CJK characters), byte size can be up to 3x character count.
     // This ensures accurate enforcement of the 10MB limit regardless of character encoding.
+    // PERFORMANCE: Encode once and reuse the result to avoid redundant encoding.
     const contentBytes = new TextEncoder().encode(content);
     if (contentBytes.byteLength > MAX_FILE_SIZE) {
       throw new Error(
@@ -411,15 +412,16 @@ export class VirtualFS {
           }
 
           let finalContent = content;
+          let finalByteLength = contentBytes.byteLength;
           let metadata: FileSystemEntryMetadata;
 
           if (existing && mode === 'append') {
             finalContent = existing.content + content;
             // P1-FIX: Validate combined content byte size for append mode
-            const finalBytes = new TextEncoder().encode(finalContent).byteLength;
-            if (finalBytes > MAX_FILE_SIZE) {
+            finalByteLength = new TextEncoder().encode(finalContent).byteLength;
+            if (finalByteLength > MAX_FILE_SIZE) {
               throw new Error(
-                `Appended file content exceeds maximum size limit of ${MAX_FILE_SIZE} bytes (current: ${finalBytes} bytes)`,
+                `Appended file content exceeds maximum size limit of ${MAX_FILE_SIZE} bytes (current: ${finalByteLength} bytes)`,
               );
             }
             metadata = {
@@ -453,8 +455,8 @@ export class VirtualFS {
           };
 
           await db.fileSystemEntries.put(entry);
-          // Return byte count, not character count
-          return new TextEncoder().encode(finalContent).byteLength;
+          // Return byte count, not character count (reuse pre-computed value)
+          return finalByteLength;
         },
       );
     });
@@ -510,29 +512,10 @@ export class VirtualFS {
     const db = getDatabase();
     const normalizedPaths = files.map((f) => normalizePath(f.path));
 
-    // P1-FIX: Build a chain of withFileLock promises to lock all files sequentially.
-    // This ensures that the transaction executes only after all file locks are acquired.
-    // The locks are held until the transaction completes, preventing concurrent write()
-    // operations from interfering with the batch.
-    let lockChain = Promise.resolve();
-
-    for (const path of normalizedPaths) {
-      lockChain = lockChain.then(() =>
-        this.withFileLock(path, async () => {
-          // Each lock callback just returns - the lock is held until this callback completes
-          // We'll do the actual work inside the outermost lock
-        }),
-      );
-    }
-
-    // Wait for all lock chains to settle (they execute sequentially)
-    await lockChain;
-
-    // Now execute the transaction - but we need to hold the locks during the transaction!
-    // The above approach doesn't work because locks are released after each callback.
-    // We need a different approach: wrap the entire transaction in nested locks.
-
-    // Alternative approach: Create a recursive lock wrapper
+    // P1-FIX: Use recursive nested locks to hold all file locks during the transaction.
+    // Each path is locked before proceeding to the next, and all locks are held until
+    // the transaction completes. This prevents concurrent write() operations from
+    // interfering with the batch.
     const executeWithAllLocks = async (
       paths: string[],
       index: number,

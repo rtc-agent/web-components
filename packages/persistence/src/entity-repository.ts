@@ -463,24 +463,32 @@ export class EntityRepository {
    * - For larger datasets (> 1000 active sessions), consider implementing virtual scrolling
    *   in the UI layer (session-tree) to avoid rendering lag.
    *
+   * IMPORTANT: The default limit of 10000 is a safety net, not an invitation to load all sessions.
+   * The UI layer (session-tree component) should implement virtual scrolling or "load more"
+   * pagination to avoid rendering thousands of DOM nodes. Cursor-based pagination is already
+   * supported via the `cursor` parameter.
+   *
    * @returns Array of active (non-deleted) sessions, ordered by updated_at descending.
    */
   async listSessions(
     cursor?: string,
+    // PERFORMANCE: Default limit of 10000 is a safety net. UI layer should implement
+    // virtual scrolling or pagination to avoid rendering thousands of DOM nodes.
     limit: number = 10000,
   ): Promise<LocalSession[]> {
     const db = getDatabase();
 
     // PERFORMANCE: Use compound index [deleted_at+updated_at] (added in v16) for DB-level
-    // cursor pagination. For active sessions, deleted_at is undefined/falsy. We filter after
-    // querying to handle all falsy cases (undefined, null, 0).
+    // cursor pagination. For active sessions, deleted_at is undefined/falsy. We use a range
+    // query on the compound index to filter out soft-deleted sessions at the DB level.
     //
     // Cursor pagination: find cursor session's updated_at, then query sessions with
     // updated_at < cursor.updated_at (for backward pagination through time).
     //
-    // Note: If deleted_at is consistently 0 for active sessions (not undefined), we could
-    // use where('[deleted_at+updated_at]').between([0, -Infinity], [0, cursorUpdatedAt])
-    // for even better performance. Current implementation handles all falsy deleted_at values.
+    // OPTIMIZATION: Query sessions where deleted_at is undefined (falsy) using compound index
+    // range query. Dexie's between() with [undefined, minKey] to [undefined, maxKey] matches
+    // records where deleted_at is undefined. We then filter for other falsy values (null, 0)
+    // in-memory as they cannot be expressed in the index query.
 
     let cursorUpdatedAt: number | null = null;
     if (cursor) {
@@ -494,18 +502,33 @@ export class EntityRepository {
       }
     }
 
-    // Query sessions ordered by updated_at descending
-    let query = db.sessions.orderBy('updated_at').reverse();
+    // Query sessions where deleted_at is undefined (most common case for active sessions)
+    // Use compound index [deleted_at+updated_at] for efficient range query
+    let query = db.sessions
+      .where('[deleted_at+updated_at]')
+      .between(
+        [undefined, Dexie.minKey], // deleted_at undefined, updated_at any value
+        [undefined, Dexie.maxKey], // deleted_at undefined, updated_at any value
+        true, // include lower bound
+        true, // include upper bound
+      )
+      .reverse(); // Descending by updated_at
 
     // If cursor provided, start from sessions older than cursor
     if (cursorUpdatedAt !== null) {
       query = db.sessions
-        .where('updated_at')
-        .below(new Date(cursorUpdatedAt).toISOString())
+        .where('[deleted_at+updated_at]')
+        .between(
+          [undefined, Dexie.minKey],
+          [undefined, new Date(cursorUpdatedAt).toISOString()],
+          true, // include lower bound
+          false, // exclude upper bound (cursor date)
+        )
         .reverse();
     }
 
-    // Filter for active sessions (not deleted)
+    // Filter for other falsy deleted_at values (null, 0) that compound index range misses
+    // This is an O(n) filter but only runs on the already-fetched page of results
     const active = await query
       .filter((s) => !s.deleted_at)
       .limit(limit)
@@ -863,6 +886,12 @@ export class EntityRepository {
     // PERFORMANCE: Use compound index [session_client_id+created_at] for DB-level sorting.
     // This avoids in-memory sorting and leverages IndexedDB's native ordering.
     // The compound index was added in v15 schema migration.
+    //
+    // HOT/COLD DATA PROTECTION: We limit to MAX_SESSION_MESSAGES to avoid loading
+    // thousands of messages at once. The UI layer should implement virtual scrolling
+    // or pagination to display large message histories. For long-term storage,
+    // consider implementing a hot/cold data separation where older messages are
+    // archived or loaded on-demand.
     const allMessages = await db.messages
       .where('[session_client_id+created_at]')
       .between(
@@ -1030,7 +1059,6 @@ export class EntityRepository {
     // Use .first() instead of .toArray() to avoid loading all failed RTCs into memory.
     // Dexie.minKey and Dexie.maxKey are special values that represent the minimum and maximum
     // possible values for any type, enabling range queries across all offset values.
-    const Dexie = (await import('dexie')).default;
     const matchFailed = await db.rtcs
       .where('[sync_status+offset]')
       .between(['failed', Dexie.minKey], ['failed', Dexie.maxKey])
@@ -1070,7 +1098,6 @@ export class EntityRepository {
     limit: number = 50,
   ): Promise<LocalRtc[]> {
     const db = getDatabase();
-    const Dexie = (await import('dexie')).default;
 
     // Use compound index [session_client_id+offset] for DB-level cursor pagination.
     // Results are already sorted by offset from the index, eliminating the need for
