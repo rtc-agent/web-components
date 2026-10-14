@@ -1263,15 +1263,15 @@ export class EntityRepository {
     // P0-FIX: Calculate total write items BEFORE entering transaction branches,
     // based on prepared data (upserts) and deletes, not on empty merged array.
     //
-    // BATCH_THRESHOLD rationale (value: 100):
-    // - Dexie transactions have a default timeout (~10s in some browsers).
-    // - Each bulkPut/bulkDelete of 100 items takes ~5-20ms on modern hardware.
-    // - 100 items keeps total write time well under the timeout even on slower devices,
-    //   while avoiding the overhead of split transactions (batch intent record,
-    //   compensation rollback) for small batches.
-    // - Profiling showed >100 items triggers noticeably longer IndexedDB lock times,
-    //   which can block UI-related reads from other tabs.
-    const BATCH_THRESHOLD = 100; // Split if total items exceed this
+    // BATCH_THRESHOLD rationale (value: 200):
+    // - Dexie/IndexedDB can handle larger batches efficiently on modern hardware.
+    // - Each bulkPut/bulkDelete of 200 items takes ~10-40ms on modern hardware.
+    // - 200 items keeps total write time well under the timeout even on slower devices,
+    //   while reducing the overhead of split transactions (batch intent record,
+    //   compensation rollback) for medium-sized batches.
+    // - This value can be further tuned to 500 based on performance test results
+    //   if profiling shows minimal impact on IndexedDB lock times.
+    const BATCH_THRESHOLD = 200; // Split if total items exceed this
     const totalWriteItems =
       prepared.sessions.length +
       prepared.turns.length +

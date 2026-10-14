@@ -67,14 +67,33 @@ export default defineConfig(({ mode }) => ({
     sourcemap: mode === 'development' ? true : 'hidden',
     lib: {
       entry: 'src/index.ts',
-      formats: ['es', 'umd'],
-      fileName: (format) => (format === 'es' ? 'index.js' : 'index.umd.js'),
+      formats: ['es'], // P0-FIX: ES format only to enable code splitting (UMD forces inlineDynamicImports)
+      fileName: (format) => 'index.js',
       name: 'RtcAgentModule',
     },
     rollupOptions: {
       // Lit 作为外部依赖还是打包进来？
       // Web Component 通常是独立使用，所以把 Lit 打包进来更友好。
       // 如需外部化，可在此处添加 external: ['lit']
+      output: {
+        // P0-FIX: Code splitting by functionality for better caching and loading performance
+        manualChunks(id) {
+          // Vendor bundles: third-party libraries
+          if (id.includes('node_modules/lit/') || id === 'lit') {
+            return 'vendor-lit';
+          }
+          // Core modules: internal functionality (merged to avoid circular dependencies)
+          if (
+            id.includes('/src/core/') ||
+            id.includes('/src/controllers/')
+          ) {
+            return 'core-controllers';
+          }
+          if (id.includes('/src/components/')) {
+            return 'components-ui';
+          }
+        },
+      },
     },
   },
   server: {

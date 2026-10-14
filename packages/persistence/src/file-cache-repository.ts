@@ -140,6 +140,10 @@ export class FileCacheRepository {
   private static _md5WorkerPool: Worker[] = [];
   private static _md5WorkerBusy = new Set<Worker>();
   private static readonly MAX_MD5_WORKERS = 4;
+  /** P0-FIX: Counter for pending MD5 tasks waiting for worker availability */
+  private static _pendingMd5Tasks = 0;
+  /** Threshold for warning about excessive pending MD5 tasks */
+  private static readonly PENDING_MD5_WARNING_THRESHOLD = 10;
 
   /**
    * Cache a downloaded file.
@@ -416,6 +420,10 @@ export class FileCacheRepository {
    * @throws Error if worker computation fails or times out
    */
   private async _calculateMD5InWorker(blob: Blob): Promise<string> {
+    // P0-FIX: Track pending tasks for monitoring
+    FileCacheRepository._pendingMd5Tasks++;
+    const pendingOnEntry = FileCacheRepository._pendingMd5Tasks;
+
     // Get or create a worker from the pool
     let worker = FileCacheRepository._md5WorkerPool.find(
       (w) => !FileCacheRepository._md5WorkerBusy.has(w),
@@ -426,7 +434,16 @@ export class FileCacheRepository {
       if (FileCacheRepository._md5WorkerPool.length < FileCacheRepository.MAX_MD5_WORKERS) {
         worker = FileCacheRepository._createMD5Worker();
         FileCacheRepository._md5WorkerPool.push(worker);
+        log.debug(
+          `MD5 worker pool expanded to ${FileCacheRepository._md5WorkerPool.length} workers`,
+        );
       } else {
+        // P0-FIX: Log warning when pool is at max capacity
+        log.warn(
+          `MD5 worker pool at max capacity (${FileCacheRepository.MAX_MD5_WORKERS} workers), ` +
+            `${pendingOnEntry} tasks pending. Waiting for worker availability...`,
+        );
+
         // All workers are busy, wait for one to become available
         // Use a simple polling approach with exponential backoff
         const maxWait = 5000; // 5 seconds max wait
@@ -443,9 +460,18 @@ export class FileCacheRepository {
         }
 
         if (!worker) {
+          FileCacheRepository._pendingMd5Tasks--;
           throw new Error('MD5 worker pool exhausted (all workers busy for 5s)');
         }
       }
+    }
+
+    // P0-FIX: Warn if pending tasks exceed threshold
+    if (pendingOnEntry > FileCacheRepository.PENDING_MD5_WARNING_THRESHOLD) {
+      log.warn(
+        `High MD5 task queue depth: ${pendingOnEntry} pending tasks ` +
+          `(threshold: ${FileCacheRepository.PENDING_MD5_WARNING_THRESHOLD})`,
+      );
     }
 
     // Mark worker as busy
@@ -488,6 +514,8 @@ export class FileCacheRepository {
     } finally {
       // Mark worker as available (don't terminate, keep in pool)
       FileCacheRepository._md5WorkerBusy.delete(worker);
+      // P0-FIX: Decrement pending task counter
+      FileCacheRepository._pendingMd5Tasks--;
     }
   }
 
