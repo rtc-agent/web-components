@@ -16,7 +16,6 @@
       "!**/server",
       "!**/public",
       "!**/.worktrees",
-      "!biome.json",
       "!package-lock.json",
       "!pnpm-lock.yaml",
       "!tailwind.css"

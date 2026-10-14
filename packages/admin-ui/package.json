@@ -5,6 +5,7 @@
   "description": "RTC Agent Admin UI - Management console with RTC Agent integration",
   "repository": "git@github.com:rtc-agent/rtc-agent.git",
   "scripts": {
+    "preinstall": "node -e \"if(process.env.npm_execpath&&process.env.npm_execpath.indexOf('pnpm')===-1) throw new Error('Please use pnpm')\"",
     "analyze": "cross-env ANALYZE=1 max build",
     "build": "max build",
     "deploy": "cross-env CI=true max build && gh-pages -d dist",
@@ -99,7 +100,7 @@
   },
   "engines": {
     "node": ">=22.0.0",
-    "npm": "please-use-pnpm",
+    "npm": ">=9.0.0",
     "pnpm": ">=8.0.0"
   },
   "create-umi": {

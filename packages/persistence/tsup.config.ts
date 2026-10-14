@@ -11,7 +11,7 @@ export default defineConfig((options) => ({
   // Force bundle dexie + microdiff to prevent version conflicts with host applications.
   // tsup externalizes package.json `dependencies` by default; noExternal overrides that.
   noExternal: ['dexie', 'microdiff'],
-  // Workspace siblings (they have their own dist) and @babel/* (too heavy, unlikely browser conflict)
+  // Workspace siblings (they have their own dist) and @babel/* (runtime deps, too heavy to bundle)
   external: [
     '@rtc-agent/client',
     '@rtc-agent/protocol',
