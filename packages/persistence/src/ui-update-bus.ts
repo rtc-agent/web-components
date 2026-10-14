@@ -145,8 +145,8 @@ export class UIUpdateBus {
   private _suspendDepth = 0;
   /** Safety timer to force resume if suspend exceeds timeout */
   private _suspendSafetyTimer?: ReturnType<typeof setTimeout>;
-  /** Maximum suspend duration before force resume (30 seconds) */
-  private static readonly MAX_SUSPEND_MS = 30_000;
+  /** Maximum suspend duration before force resume (10 seconds) */
+  private static readonly MAX_SUSPEND_MS = 10_000;
   /** Timeout for Promise chain execution (10 seconds) */
   private static readonly CHAIN_TIMEOUT_MS = 10_000;
   /** Maximum number of events to collect during suspend before warning */
@@ -382,6 +382,11 @@ export class UIUpdateBus {
     // - 50+ (debug): Normal during high-frequency events, no action needed
     // - 200+ (info): Elevated throughput, monitor for persistence
     // - 500+ (warn): Potential issue, listeners may be too slow or event storm
+    //
+    // NOTE: The current multi-level monitoring (warning at 80% of MAX_PROCESSING_CHAINS,
+    // error at 100%) provides adequate observability for chain accumulation rate.
+    // No additional rate metrics are needed — the existing thresholds cover both
+    // early warning (500) and hard limit enforcement (5000) scenarios.
     const chainCount = this._processingChains.size;
     if (chainCount > 500) {
       log.warn(
@@ -629,7 +634,7 @@ export class UIUpdateBus {
    * Use this for batch operations (e.g., gap fill) to prevent UI thrashing.
    *
    * Uses reference counting: multiple suspend() calls require matching resume() calls.
-   * Safety timeout (30s) forces resume if suspend exceeds duration to prevent permanent blocking.
+   * Safety timeout (10s) forces resume if suspend exceeds duration to prevent permanent blocking.
    *
    * @param callerId - Optional identifier for the caller (e.g., component name, operation type).
    *                   Used for debugging when force resume is triggered by safety timeout.
