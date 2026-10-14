@@ -28,4 +28,52 @@ export const queryKeys = {
     applications: (count?: number) =>
       [...queryKeys.accountCenter.all, 'applications', count] as const,
   },
+  // System configuration list (server-config.ts)
+  configs: {
+    all: ['configs'] as const,
+    list: (params?: Record<string, unknown>) =>
+      [...queryKeys.configs.all, 'list', params] as const,
+    detail: (key: string) => [...queryKeys.configs.all, 'detail', key] as const,
+    history: (key: string) =>
+      [...queryKeys.configs.all, 'history', key] as const,
+  },
+  // RTC Agent management (rtc-users pages)
+  rtcAgent: {
+    all: ['rtc-agent'] as const,
+    // User management list
+    users: (params?: Record<string, unknown>) =>
+      [...queryKeys.rtcAgent.all, 'users', params] as const,
+    // User detail/info
+    userDetail: (userId: string) =>
+      [...queryKeys.rtcAgent.all, 'user-detail', userId] as const,
+    // User sessions list
+    userSessions: (userId: string, params?: Record<string, unknown>) =>
+      [...queryKeys.rtcAgent.all, 'user-sessions', userId, params] as const,
+    // User messages list
+    userMessages: (userId: string, params?: Record<string, unknown>) =>
+      [...queryKeys.rtcAgent.all, 'user-messages', userId, params] as const,
+    // User configs
+    userConfigs: (userId: string, category?: string) =>
+      [...queryKeys.rtcAgent.all, 'user-configs', userId, category] as const,
+  },
+  // Audit logs (audit-logs page)
+  auditLogs: {
+    all: ['audit-logs'] as const,
+    list: (params?: Record<string, unknown>) =>
+      [...queryKeys.auditLogs.all, 'list', params] as const,
+    detail: (id: string) => [...queryKeys.auditLogs.all, 'detail', id] as const,
+  },
+  // RTC Users (legacy - use rtcAgent instead, kept for backward compatibility)
+  rtcUsers: {
+    all: ['rtc-users'] as const,
+    list: (params?: Record<string, unknown>) =>
+      [...queryKeys.rtcUsers.all, 'list', params] as const,
+    detail: (userId: string) =>
+      [...queryKeys.rtcUsers.all, 'detail', userId] as const,
+  },
+  // Diagnostics (RTC Agent integration diagnosis page)
+  diagnostics: {
+    all: ['diagnostics'] as const,
+    agentStatus: () => [...queryKeys.diagnostics.all, 'agent-status'] as const,
+  },
 } as const;

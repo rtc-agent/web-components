@@ -12,6 +12,7 @@ import {
   ProFormTextArea,
   ProTable,
 } from '@ant-design/pro-components';
+import { useQueryClient } from '@tanstack/react-query';
 import { Access, useAccess, useIntl } from '@umijs/max';
 import {
   App,
@@ -39,6 +40,7 @@ import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { usePermissionRefresh } from '@/hooks/usePermissionRefresh';
 import { useTableSearchParams } from '@/hooks/useTableSearchParams';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
+import { queryKeys } from '@/utils/queryKeys';
 import { createTableRequest, parseTableSort } from '@/utils/tableUtils';
 import type { RoleFormValues, RoleTableItem } from './data';
 import type { RolePageAPI } from './page-api';
@@ -63,6 +65,7 @@ const RoleListPage: React.FC = () => {
   const intl = useIntl();
   const tableParams = useTableSearchParams<{ keyword?: string }>();
   const { message } = App.useApp();
+  const queryClient = useQueryClient();
   const [currentRow, setCurrentRow] = useState<RoleTableItem>();
   const [modalVisible, setModalVisible] = useState(false);
   const { token } = theme.useToken();
@@ -139,6 +142,8 @@ const RoleListPage: React.FC = () => {
           try {
             const result = await createRole(data);
             actionRef.current?.reload();
+            // Invalidate role list cache so other pages (e.g., user management) see the new role
+            queryClient.invalidateQueries({ queryKey: queryKeys.roleList.all });
             return { success: true, id: result.id };
           } catch (error) {
             console.error('[Role Page API] create failed:', error);
@@ -162,6 +167,8 @@ const RoleListPage: React.FC = () => {
             const { id, ...updateData } = data;
             await updateRole(id, updateData);
             actionRef.current?.reload();
+            // Invalidate role list cache so other pages see the updated role
+            queryClient.invalidateQueries({ queryKey: queryKeys.roleList.all });
             return { success: true };
           } catch (error) {
             console.error('[Role Page API] update failed:', error);
@@ -185,6 +192,8 @@ const RoleListPage: React.FC = () => {
             const results = await Promise.all(ids.map((id) => deleteRole(id)));
             const failures = results.filter((r) => !r.success);
             actionRef.current?.reload();
+            // Invalidate role list cache so other pages see the deletion
+            queryClient.invalidateQueries({ queryKey: queryKeys.roleList.all });
             return {
               success: failures.length === 0,
               deletedCount: ids.length - failures.length,
@@ -494,6 +503,10 @@ const RoleListPage: React.FC = () => {
                         }),
                       );
                       actionRef.current?.reload();
+                      // Invalidate role list cache so other pages see the deletion
+                      queryClient.invalidateQueries({
+                        queryKey: queryKeys.roleList.all,
+                      });
                       // Refresh current user permissions (deleted role may have been assigned to current user)
                       await refreshPermissions();
                     } catch (error: unknown) {
@@ -560,6 +573,8 @@ const RoleListPage: React.FC = () => {
         );
       }
       actionRef.current?.reload();
+      // Invalidate role list cache so other pages see the changes
+      queryClient.invalidateQueries({ queryKey: queryKeys.roleList.all });
       setModalVisible(false);
       setCurrentRow(undefined);
       setIsEdit(false);

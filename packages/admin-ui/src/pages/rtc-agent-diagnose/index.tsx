@@ -5,61 +5,35 @@
  */
 
 import { PageContainer } from '@ant-design/pro-components';
+import { useQuery } from '@tanstack/react-query';
 import { useIntl, useModel } from '@umijs/max';
 import { Alert, App, Button, Card, Space, Typography } from 'antd';
-import { useEffect, useRef, useState } from 'react';
+import { useRef } from 'react';
+import { queryKeys } from '@/utils/queryKeys';
 
 const { Title, Text, Paragraph } = Typography;
 
 export default function RtcAgentDiagnosePage() {
   const intl = useIntl();
   const { message } = App.useApp();
-  const [status, setStatus] = useState<'checking' | 'success'>('checking');
-  const [agentFound, setAgentFound] = useState(false);
-  const checkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const destroyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Normal hook call (cannot wrap Hooks in try-catch)
   const modelState = useModel('@@initialState');
 
-  useEffect(() => {
-    // Check if RTC Agent is mounted
-    const checkAgent = () => {
+  // 使用 useQuery 轮询检查 RTC Agent 是否挂载
+  const { data: agentStatus } = useQuery({
+    queryKey: queryKeys.diagnostics.agentStatus(),
+    queryFn: () => {
       const agent = document.querySelector('rtc-agent');
-      if (agent) {
-        setAgentFound(true);
-        if (status === 'checking') {
-          setStatus('success');
-        }
-      } else {
-        setAgentFound(false);
-        if (status === 'checking') {
-          // Check again after 2 seconds
-          checkTimerRef.current = setTimeout(() => {
-            const agent2 = document.querySelector('rtc-agent');
-            if (agent2) {
-              setAgentFound(true);
-              setStatus('success');
-            }
-            // Note: If agent is still not found after 2 seconds, keep 'checking' status
-            // This allows users to see diagnosis info and test manually
-            checkTimerRef.current = null;
-          }, 2000);
-        }
-      }
-    };
+      return { found: agent !== null };
+    },
+    refetchInterval: 2000,
+    staleTime: 0,
+  });
 
-    checkAgent();
-
-    return () => {
-      if (checkTimerRef.current) {
-        clearTimeout(checkTimerRef.current);
-      }
-      if (destroyTimerRef.current) {
-        clearTimeout(destroyTimerRef.current);
-      }
-    };
-  }, [status]);
+  const status = agentStatus?.found ? 'success' : 'checking';
+  const agentFound = agentStatus?.found ?? false;
 
   const handleTestDynamicImport = async () => {
     // Prevent double-mount
