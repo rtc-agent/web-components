@@ -3,17 +3,7 @@ import { Access } from '@umijs/max';
 import { Button, Popconfirm, Space } from 'antd';
 import React from 'react';
 import type { UserInfo } from '../service';
-
-/**
- * Intl descriptor shape accepted by ActionColumn.
- * Keeps the component decoupled from the exact intl implementation.
- */
-interface IntlShape {
-  formatMessage: (descriptor: {
-    id: string;
-    defaultMessage?: string;
-  }) => string;
-}
+import type { IntlShape } from '@/types/intl';
 
 interface AccessShape {
   canAdminUserEdit: boolean;

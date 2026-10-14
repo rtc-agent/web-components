@@ -58,6 +58,17 @@ export class NotificationController implements ReactiveController {
   persistence?: IPersistenceLayer;
 
   // ─── State ──────────────────────────────────────────────
+  /**
+   * Notification state with cached unreadCount.
+   *
+   * Design note: unreadCount is maintained incrementally (incremented on notification,
+   * reset to 0 on markAsRead) rather than computed from a notifications array because:
+   * (1) The controller only tracks a counter, not a list of notifications
+   * (2) Incremental updates are O(1) vs O(n) for filtering a list
+   * (3) No memory overhead from storing notification history in state
+   * If future requirements need to track individual notifications, consider
+   * switching to a computed getter pattern with a notifications array.
+   */
   private _state: NotificationState = { ...DEFAULT_NOTIFICATION_STATE };
 
   readonly actions: NotificationActions;

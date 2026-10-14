@@ -92,15 +92,27 @@ To maintain consistency and type safety across the codebase, follow these conven
    export type SyncStatus = (typeof SyncStatus)[keyof typeof SyncStatus];
    ```
 
-4. **Avoid `export *`** — Do not use wildcard re-exports in public API surfaces. Explicitly enumerate exports to prevent unintended exposure and improve tree-shaking:
+4. **Avoid `export *`** — Do not use wildcard re-exports in non-barrel files. Explicitly enumerate exports to prevent unintended exposure and improve tree-shaking:
 
    ```ts
-   // Good
+   // Good (non-barrel file)
    export { Session } from './session';
    export type { Message } from './message';
 
-   // Avoid
+   // Avoid (non-barrel file)
    export * from './session';
+   ```
+
+   **Exception**: Barrel files (e.g., `index.ts`) may use `export *` to simplify re-exports from multiple modules. This is acceptable because:
+   - Barrel files are aggregation points, not API design surfaces
+   - Explicit enumeration in barrel files adds maintenance overhead without meaningful safety gains
+   - The source modules remain the single source of truth for what's exported
+
+   ```ts
+   // Acceptable in barrel files (index.ts)
+   export * from './models.js';
+   export * from './extensions.js';
+   export * from './enums.js';
    ```
 
 5. **Type-only imports** — Use `import type` for type-only imports to improve build performance:

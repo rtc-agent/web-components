@@ -7,17 +7,7 @@ import { Access } from '@umijs/max';
 import { Button, Popconfirm, Space, Tooltip } from 'antd';
 import React from 'react';
 import type { RoleTableItem } from '../data';
-
-/**
- * Intl descriptor shape accepted by ActionColumn.
- * Keeps the component decoupled from the exact intl implementation.
- */
-interface IntlShape {
-  formatMessage: (descriptor: {
-    id: string;
-    defaultMessage?: string;
-  }) => string;
-}
+import type { IntlShape } from '@/types/intl';
 
 interface AccessShape {
   canAdminRoleEdit: boolean;
