@@ -1218,4 +1218,23 @@ export default {
   'pages.searchTable.updateForm.ruleProps.type.weak': '弱',
   'pages.searchTable.updateSuccess': '設定が成功しました',
   'pages.request.failure': 'リクエスト失敗 ({status})',
+  // Validation Messages
+  'validation.email.required': 'メールアドレスを入力してください',
+  'validation.email.invalid': 'メールアドレスの形式が正しくありません',
+  'validation.email.tooLong': 'メールアドレスは{max}文字以内にしてください',
+  'validation.password.required': 'パスワードを入力してください',
+  'validation.password.tooShort': 'パスワードは{min}文字以上にしてください',
+  'validation.password.tooLong': 'パスワードは{max}文字以内にしてください',
+  'validation.phone.required': '電話番号を入力してください',
+  'validation.phone.invalid':
+    '電話番号の形式が正しくありません（予想：{example}）',
+  'validation.confirmPassword.required': 'パスワードを確認してください',
+  'validation.confirmPassword.mismatch': 'パスワードが一致しません',
+  'error.networkError':
+    'ネットワークエラー。接続を確認して再試行してください。',
+  'pages.config.system.changeNoteMax': '変更メモは{max}文字以内にしてください',
+  'pages.config.system.changeNoteWhitespace': '変更メモは空白のみにできません',
+  'pages.config.system.changeNoteRequired': '変更メモを入力してください',
+  'pages.config.system.historyLoadFailed': '設定履歴の読み込みに失敗しました',
+  'pages.config.system.rollbackFailed': '設定のロールバックに失敗しました',
 };

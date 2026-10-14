@@ -1142,4 +1142,23 @@ export default {
   'pages.request.error': '请求错误，请重试。',
   'pages.request.responseError': '响应处理异常，请刷新页面重试',
   'pages.request.failure': '请求失败 ({status})',
+  // Validation Messages
+  'validation.email.required': '请输入邮箱',
+  'validation.email.invalid': '邮箱格式不正确',
+  'validation.email.tooLong': '邮箱不能超过 {max} 个字符',
+  'validation.password.required': '请输入密码',
+  'validation.password.tooShort': '密码至少需要 {min} 个字符',
+  'validation.password.tooLong': '密码不能超过 {max} 个字符',
+  'validation.phone.required': '请输入手机号',
+  'validation.phone.invalid': '手机号格式不正确（预期：{example}）',
+  'validation.confirmPassword.required': '请确认密码',
+  'validation.confirmPassword.mismatch': '两次输入的密码不一致',
+  // Network Error
+  'error.networkError': '网络错误，请检查网络连接后重试',
+  // Config System Additional Keys
+  'pages.config.system.changeNoteMax': '变更说明不能超过 {max} 个字符',
+  'pages.config.system.changeNoteWhitespace': '变更说明不能全为空格',
+  'pages.config.system.changeNoteRequired': '请输入变更说明',
+  'pages.config.system.historyLoadFailed': '加载配置历史失败',
+  'pages.config.system.rollbackFailed': '配置回滚失败',
 };

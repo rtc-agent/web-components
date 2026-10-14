@@ -780,8 +780,7 @@ export default {
   'pages.403.backHome': 'প্রধান পাতায় ফিরে যান',
   'pages.500.subTitle': 'দুঃখিত, সার্ভারে একটি ত্রুটি ঘটেছে।',
   'pages.500.backHome': 'প্রধান পাতায় ফিরে যান',
-  'pages.system.noPermission':
-    'দুঃখিত, আপনার সিস্টেম ব্যবস্থাপনা অনুমতি নেই।',
+  'pages.system.noPermission': 'দুঃখিত, আপনার সিস্টেম ব্যবস্থাপনা অনুমতি নেই।',
   'pages.permission.refreshFailed': 'অনুমতি রিফ্রেশ করতে ব্যর্থ',
   // Chatbot
   'pages.chatbot.welcomeText': '🤖 হ্যালো, আমি আপনাকে কীভাবে সাহায্য করতে পারি?',
@@ -1214,4 +1213,25 @@ export default {
   'pages.searchTable.updateForm.ruleProps.type.weak': 'দুর্বল',
   'pages.searchTable.updateSuccess': 'কনফিগারেশন সফল হয়েছে',
   'pages.request.failure': 'অনুরোধ ব্যর্থ হয়েছে ({status})',
+  // Validation Messages
+  'validation.email.required': 'Email is required',
+  'validation.email.invalid': 'Invalid email format',
+  'validation.email.tooLong': 'Email cannot exceed {max} characters',
+  'validation.password.required': 'Password is required',
+  'validation.password.tooShort': 'Password must be at least {min} characters',
+  'validation.password.tooLong': 'Password cannot exceed {max} characters',
+  'validation.phone.required': 'Phone number is required',
+  'validation.phone.invalid': 'Invalid phone format (expected: {example})',
+  'validation.confirmPassword.required': 'Please confirm your password',
+  'validation.confirmPassword.mismatch':
+    'The passwords you entered do not match',
+  'error.networkError':
+    'Network error. Please check your connection and try again.',
+  'pages.config.system.changeNoteMax':
+    'Change note cannot exceed {max} characters',
+  'pages.config.system.changeNoteWhitespace':
+    'Change note cannot be only whitespace',
+  'pages.config.system.changeNoteRequired': 'Change note is required',
+  'pages.config.system.historyLoadFailed': 'Failed to load config history',
+  'pages.config.system.rollbackFailed': 'Failed to rollback config',
 };

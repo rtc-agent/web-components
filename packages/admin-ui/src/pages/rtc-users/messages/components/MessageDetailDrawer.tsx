@@ -223,7 +223,10 @@ const ThinkingContent: React.FC<{ data: unknown }> = ({ data }) => {
           key: '1',
           label: (
             <Text type="secondary">
-              {intl.formatMessage({ id: 'pages.messages.detail.thinking' })}
+              {intl.formatMessage({
+                id: 'pages.messages.detail.thinking',
+                defaultMessage: 'Thinking Process',
+              })}
             </Text>
           ),
           children: (
@@ -301,7 +304,11 @@ const ToolCallInputContent: React.FC<{ data: unknown }> = ({ data }) => {
             {parsed.name && (
               <div>
                 <Text type="secondary">
-                  {intl.formatMessage({ id: 'pages.messages.name' })}:{' '}
+                  {intl.formatMessage({
+                    id: 'pages.messages.name',
+                    defaultMessage: 'Name',
+                  })}
+                  :{' '}
                 </Text>
                 <Text code>{parsed.name}</Text>
               </div>
@@ -361,7 +368,10 @@ const ToolCallInputContent: React.FC<{ data: unknown }> = ({ data }) => {
       title={
         <Space>
           <Tag color="geekblue">
-            {intl.formatMessage({ id: 'pages.messages.detail.toolCall' })}
+            {intl.formatMessage({
+              id: 'pages.messages.detail.toolCall',
+              defaultMessage: 'Tool Call',
+            })}
           </Tag>
           <Text strong>{header}</Text>
           {tc.status && <Tag>{tc.status}</Tag>}
@@ -396,7 +406,10 @@ const ToolCallOutputContent: React.FC<{ data: unknown }> = ({ data }) => {
         title={
           <Space>
             <Tag color="green">
-              {intl.formatMessage({ id: 'pages.messages.detail.toolResult' })}
+              {intl.formatMessage({
+                id: 'pages.messages.detail.toolResult',
+                defaultMessage: 'Tool Result',
+              })}
             </Tag>
             <Text>{header}</Text>
           </Space>
@@ -494,7 +507,10 @@ const ToolCallOutputContent: React.FC<{ data: unknown }> = ({ data }) => {
       title={
         <Space>
           <Tag color="green">
-            {intl.formatMessage({ id: 'pages.messages.toolResult' })}
+            {intl.formatMessage({
+              id: 'pages.messages.toolResult',
+              defaultMessage: 'Tool Result',
+            })}
           </Tag>
           <Text>{header}</Text>
         </Space>
@@ -524,7 +540,10 @@ const ErrorContent: React.FC<{ data: unknown }> = ({ data }) => {
       <Alert
         type="error"
         showIcon
-        title={intl.formatMessage({ id: 'pages.messages.detail.error' })}
+        title={intl.formatMessage({
+          id: 'pages.messages.detail.error',
+          defaultMessage: 'Error',
+        })}
         description={tryFormatJson(data)}
       />
     );
@@ -550,7 +569,10 @@ const ErrorContent: React.FC<{ data: unknown }> = ({ data }) => {
           <Space>
             <Text strong>
               {err.title ||
-                intl.formatMessage({ id: 'pages.messages.detail.error' })}
+                intl.formatMessage({
+                  id: 'pages.messages.detail.error',
+                  defaultMessage: 'Error',
+                })}
             </Text>
             {err.category && (
               <Tag color={categoryColors[err.category] || 'default'}>
@@ -569,7 +591,10 @@ const ErrorContent: React.FC<{ data: unknown }> = ({ data }) => {
               key: '1',
               label: (
                 <Text type="secondary">
-                  {intl.formatMessage({ id: 'pages.messages.detail.rawError' })}
+                  {intl.formatMessage({
+                    id: 'pages.messages.detail.rawError',
+                    defaultMessage: 'Raw Error',
+                  })}
                 </Text>
               ),
               children: (
@@ -638,7 +663,10 @@ const SummaryContent: React.FC<{ data: unknown }> = ({ data }) => {
 
   return (
     <Tag color="default" style={{ padding: '4px 8px' }}>
-      {intl.formatMessage({ id: 'pages.messages.detail.compressedContext' })}
+      {intl.formatMessage({
+        id: 'pages.messages.detail.compressedContext',
+        defaultMessage: 'Compressed Context',
+      })}
       {tokensSaved !== 0 && (
         <span
           style={{

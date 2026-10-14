@@ -786,8 +786,7 @@ export default {
   'pages.403.backHome': 'بازگشت به صفحه اصلی',
   'pages.500.subTitle': 'با عرض پوزش، خطایی در سرور رخ داد.',
   'pages.500.backHome': 'بازگشت به صفحه اصلی',
-  'pages.system.noPermission':
-    'متأسفید، شما مجوز مدیریت سیستم را ندارید.',
+  'pages.system.noPermission': 'متأسفید، شما مجوز مدیریت سیستم را ندارید.',
   'pages.permission.refreshFailed': 'بازنشانی مجوزها ناموفق بود',
   // چت بات
   'pages.chatbot.welcomeText': '🤖 سلام، چطور می‌توانم به شما کمک کنم؟',
@@ -1225,4 +1224,25 @@ export default {
   'pages.searchTable.updateForm.ruleProps.type.weak': 'ضعیف',
   'pages.searchTable.updateSuccess': 'پیکربندی موفقیت‌آمیز بود',
   'pages.request.failure': 'درخواست ناموفق بود ({status})',
+  // Validation Messages
+  'validation.email.required': 'Email is required',
+  'validation.email.invalid': 'Invalid email format',
+  'validation.email.tooLong': 'Email cannot exceed {max} characters',
+  'validation.password.required': 'Password is required',
+  'validation.password.tooShort': 'Password must be at least {min} characters',
+  'validation.password.tooLong': 'Password cannot exceed {max} characters',
+  'validation.phone.required': 'Phone number is required',
+  'validation.phone.invalid': 'Invalid phone format (expected: {example})',
+  'validation.confirmPassword.required': 'Please confirm your password',
+  'validation.confirmPassword.mismatch':
+    'The passwords you entered do not match',
+  'error.networkError':
+    'Network error. Please check your connection and try again.',
+  'pages.config.system.changeNoteMax':
+    'Change note cannot exceed {max} characters',
+  'pages.config.system.changeNoteWhitespace':
+    'Change note cannot be only whitespace',
+  'pages.config.system.changeNoteRequired': 'Change note is required',
+  'pages.config.system.historyLoadFailed': 'Failed to load config history',
+  'pages.config.system.rollbackFailed': 'Failed to rollback config',
 };

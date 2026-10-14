@@ -126,6 +126,7 @@ const ActionColumn = React.memo<{
           icon={<EyeOutlined />}
           aria-label={intl.formatMessage({
             id: 'pages.rtcUsers.detail.viewDetail',
+            defaultMessage: 'View details',
           })}
           onClick={() => onDetail(record)}
         />
@@ -145,6 +146,7 @@ const ActionColumn = React.memo<{
               icon={<StopOutlined />}
               aria-label={intl.formatMessage({
                 id: 'pages.rtcUsers.ban',
+                defaultMessage: 'Ban',
               })}
               onClick={() => onBan(record)}
             />
@@ -178,6 +180,7 @@ const ActionColumn = React.memo<{
                 icon={<CheckCircleOutlined />}
                 aria-label={intl.formatMessage({
                   id: 'pages.rtcUsers.unban',
+                  defaultMessage: 'Unban',
                 })}
               />
             </Tooltip>
@@ -198,6 +201,7 @@ const ActionColumn = React.memo<{
               icon={<DownOutlined />}
               aria-label={intl.formatMessage({
                 id: 'pages.rtcUsers.more',
+                defaultMessage: 'More',
               })}
             />
           </Tooltip>

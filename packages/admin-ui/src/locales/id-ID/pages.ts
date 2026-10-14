@@ -1221,4 +1221,25 @@ export default {
   'pages.searchTable.updateForm.ruleProps.type.weak': 'Lemah',
   'pages.searchTable.updateSuccess': 'Konfigurasi berhasil',
   'pages.request.failure': 'Permintaan gagal ({status})',
+  // Validation Messages
+  'validation.email.required': 'Email is required',
+  'validation.email.invalid': 'Invalid email format',
+  'validation.email.tooLong': 'Email cannot exceed {max} characters',
+  'validation.password.required': 'Password is required',
+  'validation.password.tooShort': 'Password must be at least {min} characters',
+  'validation.password.tooLong': 'Password cannot exceed {max} characters',
+  'validation.phone.required': 'Phone number is required',
+  'validation.phone.invalid': 'Invalid phone format (expected: {example})',
+  'validation.confirmPassword.required': 'Please confirm your password',
+  'validation.confirmPassword.mismatch':
+    'The passwords you entered do not match',
+  'error.networkError':
+    'Network error. Please check your connection and try again.',
+  'pages.config.system.changeNoteMax':
+    'Change note cannot exceed {max} characters',
+  'pages.config.system.changeNoteWhitespace':
+    'Change note cannot be only whitespace',
+  'pages.config.system.changeNoteRequired': 'Change note is required',
+  'pages.config.system.historyLoadFailed': 'Failed to load config history',
+  'pages.config.system.rollbackFailed': 'Failed to rollback config',
 };

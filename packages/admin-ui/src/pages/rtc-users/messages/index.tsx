@@ -127,11 +127,17 @@ const MessagesPage: React.FC = () => {
         valueType: 'select',
         valueEnum: {
           user: {
-            text: intl.formatMessage({ id: 'pages.messages.role.user' }),
+            text: intl.formatMessage({
+              id: 'pages.messages.role.user',
+              defaultMessage: 'User',
+            }),
             status: 'Processing',
           },
           assistant: {
-            text: intl.formatMessage({ id: 'pages.messages.role.assistant' }),
+            text: intl.formatMessage({
+              id: 'pages.messages.role.assistant',
+              defaultMessage: 'Assistant',
+            }),
             status: 'Success',
           },
         },
@@ -140,8 +146,14 @@ const MessagesPage: React.FC = () => {
           return (
             <Tag color={isUser ? 'blue' : 'green'}>
               {isUser
-                ? intl.formatMessage({ id: 'pages.messages.role.user' })
-                : intl.formatMessage({ id: 'pages.messages.role.assistant' })}
+                ? intl.formatMessage({
+                    id: 'pages.messages.role.user',
+                    defaultMessage: 'User',
+                  })
+                : intl.formatMessage({
+                    id: 'pages.messages.role.assistant',
+                    defaultMessage: 'Assistant',
+                  })}
             </Tag>
           );
         },

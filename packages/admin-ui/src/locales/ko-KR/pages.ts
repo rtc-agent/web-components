@@ -1198,4 +1198,24 @@ export default {
   'pages.searchTable.updateForm.ruleProps.type.weak': '약함',
   'pages.searchTable.updateSuccess': '설정이 성공했습니다',
   'pages.request.failure': '요청 실패 ({status})',
+  // Validation Messages
+  'validation.email.required': '이메일을 입력해주세요',
+  'validation.email.invalid': '이메일 형식이 올바르지 않습니다',
+  'validation.email.tooLong': '이메일은 {max}자를 초과할 수 없습니다',
+  'validation.password.required': '비밀번호를 입력해주세요',
+  'validation.password.tooShort': '비밀번호는 최소 {min}자 이상이어야 합니다',
+  'validation.password.tooLong': '비밀번호는 {max}자를 초과할 수 없습니다',
+  'validation.phone.required': '전화번호를 입력해주세요',
+  'validation.phone.invalid':
+    '전화번호 형식이 올바르지 않습니다 (예상: {example})',
+  'validation.confirmPassword.required': '비밀번호를 확인해주세요',
+  'validation.confirmPassword.mismatch': '입력한 비밀번호가 일치하지 않습니다',
+  'error.networkError': '네트워크 오류. 연결을 확인하고 다시 시도해주세요.',
+  'pages.config.system.changeNoteMax':
+    '변경 메모는 {max}자를 초과할 수 없습니다',
+  'pages.config.system.changeNoteWhitespace':
+    '변경 메모는 공백만으로 할 수 없습니다',
+  'pages.config.system.changeNoteRequired': '변경 메모를 입력해주세요',
+  'pages.config.system.historyLoadFailed': '구성 기록을 로드하지 못했습니다',
+  'pages.config.system.rollbackFailed': '구성 롤백에 실패했습니다',
 };
