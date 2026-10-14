@@ -7,6 +7,50 @@
  *
  * 此文件包含对 models.gen.ts 中自动生成的 OpenAPI 类型的扩展。
  * 这些扩展是手动维护的，不应被自动生成。
+ *
+ * ## ContentData.data Type Safety
+ *
+ * ContentData.data is typed as `unknown` in models.gen.ts because the OpenAPI spec
+ * uses a oneOf schema that openapi-typescript cannot automatically narrow.
+ *
+ * To safely work with ContentData.data, use the type guards and typed utilities
+ * in type-guards.ts:
+ *
+ * ```typescript
+ * import {
+ *   isValidContentData,
+ *   isStringContentData,
+ *   isMarkdownContent,
+ *   isToolCallInputContent,
+ *   TypedContentData,
+ *   ContentDataTypeMap,
+ * } from '@rtc-agent/protocol';
+ *
+ * // Type guard approach
+ * if (isMarkdownContent(contentData)) {
+ *   // contentData.data is now typed as string
+ *   console.log(contentData.data);
+ * }
+ *
+ * // Discriminated union approach
+ * const markdown: TypedContentData<'markdown'> = {
+ *   type: 'markdown',
+ *   data: '# Hello'
+ * };
+ * ```
+ *
+ * The ContentDataTypeMap interface provides a mapping from ContentType to the
+ * concrete type of the `data` field:
+ *
+ * - `markdown` → string
+ * - `summary` → SummaryContentData (object)
+ * - `text` → string
+ * - `thinking` → string
+ * - `toolcall_input` → ToolCall
+ * - `toolcall_output` → ToolCall
+ * - `user_message` → UserMessageContent
+ * - `error` → ErrorContent
+ * - `prompt` → PromptContent
  */
 
 /**

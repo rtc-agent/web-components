@@ -4,11 +4,47 @@
  * These const objects provide type-safe constants for status fields and other categorical values.
  * They are derived from the OpenAPI specification and exported for use across the codebase.
  *
+ * ## Relationship with models.gen.ts
+ *
+ * The OpenAPI spec defines enum types as string literal unions in models.gen.ts:
+ * ```typescript
+ * // models.gen.ts (auto-generated)
+ * export type SessionStatus = 'active' | 'closed' | 'idle';
+ * ```
+ *
+ * This file provides:
+ * 1. Runtime values for use in comparisons and switch statements
+ * 2. Type definitions that align with the generated types
+ *
+ * ```typescript
+ * // enums.ts (this file)
+ * export const SessionStatus = {
+ *   Active: 'active',
+ *   Closed: 'closed',
+ *   Idle: 'idle',
+ * } as const;
+ * export type SessionStatus = (typeof SessionStatus)[keyof typeof SessionStatus];
+ * ```
+ *
+ * The type `SessionStatus` from this file is compatible with (and assignable to)
+ * the type from models.gen.ts, since both resolve to the same string literal union.
+ *
+ * ## Why not use TypeScript enums?
+ *
  * Using const objects with `as const` instead of TypeScript enums ensures:
  * 1. String literal compatibility (values can be used where string literals are expected)
  * 2. Tree-shaking support (unused values are eliminated)
  * 3. Simpler type definitions (no enum nominal type issues)
+ * 4. Better IDE autocomplete and refactoring support
+ *
+ * ## Usage Guidelines
+ *
+ * - Use the const object for runtime values: `if (status === SessionStatus.Active)`
+ * - Use the type for type annotations: `const status: SessionStatus = 'active'`
+ * - The generated type and the const object type are interchangeable
+ * - Prefer importing from this file over hardcoding string literals
  */
+
 
 /**
  * Session lifecycle status

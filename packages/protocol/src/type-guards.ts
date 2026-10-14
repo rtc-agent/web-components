@@ -10,6 +10,16 @@
  * validator like zod.
  */
 
+import {
+  SessionStatus,
+  TurnStatus,
+  MessageRole,
+  MessageStreamingStatus,
+  RtcStatus,
+  ErrorCategory,
+  UpdateEntity,
+  UpdateAction,
+} from './enums.js';
 import type {
   ContentData,
   Session,
@@ -18,20 +28,12 @@ import type {
   Rtc,
   Update,
   UpdateItem,
-  SessionStatus,
-  TurnStatus,
-  MessageRole,
-  MessageStreamingStatus,
-  RtcStatus,
   ContentType,
   ToolCall,
   UserMessageContent,
   ErrorContent,
   PromptContent,
   FileAttachment,
-  ErrorCategory,
-  UpdateEntity,
-  UpdateAction,
 } from './index.js';
 
 /**
@@ -44,55 +46,60 @@ function isNonNullObject(data: unknown): data is Record<string, unknown> {
 /**
  * Valid sets for enum discriminator checks.
  *
- * Type assertions are necessary because TypeScript's const arrays
- * cannot be directly inferred as union types. The `as EnumType[]`
- * cast ensures type safety when constructing the Set.
+ * Using `as const satisfies readonly EnumType[]` pattern ensures:
+ * 1. Type safety without explicit type assertions during construction
+ * 2. Compile-time validation that all enum values are included
+ * 3. Proper narrowing when used with Set.has()
+ *
+ * Note: Sets are typed as ReadonlySet<string> (not ReadonlySet<EnumType>)
+ * because type guards check if an unknown string value is a valid enum member.
+ * The `as const satisfies` ensures we only include valid enum values.
  */
-const SESSION_STATUSES: ReadonlySet<string> = new Set<string>([
-  'active',
-  'closed',
-  'idle',
-] as SessionStatus[]);
-const TURN_STATUSES: ReadonlySet<string> = new Set<string>([
-  'pending',
-  'running',
-  'completed',
-  'failed',
-  'cancelled',
-  'interrupted',
-  'merged',
-] as TurnStatus[]);
-const MESSAGE_ROLES: ReadonlySet<string> = new Set<string>([
-  'user',
-  'assistant',
-  'tool',
-  'system',
-] as MessageRole[]);
-const MESSAGE_STREAMING_STATUSES: ReadonlySet<string> = new Set<string>([
-  'pending',
-  'streaming',
-  'completed',
-  'failed',
-] as MessageStreamingStatus[]);
-const RTC_STATUSES: ReadonlySet<string> = new Set<string>([
-  'pending',
-  'sent',
-  'executing',
-  'completed',
-  'failed',
-  'timeout',
-  'rejected',
-] as RtcStatus[]);
-const ERROR_CATEGORIES: ReadonlySet<string> = new Set<string>([
-  'api',
-  'stream',
-  'tool',
-  'context',
-  'system',
-  'network',
-  'timeout',
-  'permission',
-] as ErrorCategory[]);
+const SESSION_STATUSES: ReadonlySet<string> = new Set<SessionStatus>([
+  SessionStatus.Active,
+  SessionStatus.Closed,
+  SessionStatus.Idle,
+] as const satisfies readonly SessionStatus[]);
+const TURN_STATUSES: ReadonlySet<string> = new Set<TurnStatus>([
+  TurnStatus.Pending,
+  TurnStatus.Running,
+  TurnStatus.Completed,
+  TurnStatus.Failed,
+  TurnStatus.Cancelled,
+  TurnStatus.Interrupted,
+  TurnStatus.Merged,
+] as const satisfies readonly TurnStatus[]);
+const MESSAGE_ROLES: ReadonlySet<string> = new Set<MessageRole>([
+  MessageRole.User,
+  MessageRole.Assistant,
+  MessageRole.Tool,
+  MessageRole.System,
+] as const satisfies readonly MessageRole[]);
+const MESSAGE_STREAMING_STATUSES: ReadonlySet<string> = new Set<MessageStreamingStatus>([
+  MessageStreamingStatus.Pending,
+  MessageStreamingStatus.Streaming,
+  MessageStreamingStatus.Completed,
+  MessageStreamingStatus.Failed,
+] as const satisfies readonly MessageStreamingStatus[]);
+const RTC_STATUSES: ReadonlySet<string> = new Set<RtcStatus>([
+  RtcStatus.Pending,
+  RtcStatus.Sent,
+  RtcStatus.Executing,
+  RtcStatus.Completed,
+  RtcStatus.Failed,
+  RtcStatus.Timeout,
+  RtcStatus.Rejected,
+] as const satisfies readonly RtcStatus[]);
+const ERROR_CATEGORIES: ReadonlySet<string> = new Set<ErrorCategory>([
+  ErrorCategory.Api,
+  ErrorCategory.Stream,
+  ErrorCategory.Tool,
+  ErrorCategory.Context,
+  ErrorCategory.System,
+  ErrorCategory.Network,
+  ErrorCategory.Timeout,
+  ErrorCategory.Permission,
+] as const satisfies readonly ErrorCategory[]);
 
 /**
  * Type guard for ContentData.
@@ -452,18 +459,18 @@ export function isValidFileAttachment(data: unknown): data is FileAttachment {
 /**
  * Valid sets for Update discriminator checks.
  */
-const UPDATE_ENTITIES: ReadonlySet<string> = new Set<string>([
-  'session',
-  'turn',
-  'message',
-  'rtc',
-  'file',
-] as UpdateEntity[]);
-const UPDATE_ACTIONS: ReadonlySet<string> = new Set<string>([
-  'created',
-  'updated',
-  'deleted',
-] as UpdateAction[]);
+const UPDATE_ENTITIES: ReadonlySet<string> = new Set<UpdateEntity>([
+  UpdateEntity.Session,
+  UpdateEntity.Turn,
+  UpdateEntity.Message,
+  UpdateEntity.Rtc,
+  UpdateEntity.File,
+] as const satisfies readonly UpdateEntity[]);
+const UPDATE_ACTIONS: ReadonlySet<string> = new Set<UpdateAction>([
+  UpdateAction.Created,
+  UpdateAction.Updated,
+  UpdateAction.Deleted,
+] as const satisfies readonly UpdateAction[]);
 
 /**
  * Type guard for UpdateItem.

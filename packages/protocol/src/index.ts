@@ -35,6 +35,25 @@ export type RpcMethod = components['schemas']['RpcMethod'];
  * Provides convenient access to RPC method names as string constants.
  * Use with dot notation: `RPC_METHODS.SessionList`
  *
+ * ## Type Safety
+ *
+ * This uses `as const satisfies Record<string, RpcMethod>` pattern:
+ * - `as const` preserves literal types for each property
+ * - `satisfies` validates that all values are valid RpcMethod strings
+ * - The resulting type is a const object with literal string values
+ *
+ * This pattern is consistent with the enum definitions in enums.ts.
+ *
+ * @example
+ * ```typescript
+ * // Access method name
+ * const method = RPC_METHODS.SessionList; // 'v1.session.list'
+ *
+ * // Use in type-safe context
+ * function callRpc(method: RpcMethod) { ... }
+ * callRpc(RPC_METHODS.SessionList); // OK
+ * ```
+ *
  * @remarks
  * This is the runtime value export. For the type definition, see {@link RpcMethod}.
  */
@@ -221,3 +240,11 @@ export * from './logger.js';
 // ---------- Utils ----------
 
 export * from './utils.js';
+
+// ---------- Utility Types ----------
+
+export * from './utility-types.js';
+
+// ---------- HTTP Types ----------
+
+export * from './http-types.js';
