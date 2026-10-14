@@ -35,16 +35,31 @@ export type Nullable<T> = T | null | undefined;
 /**
  * DeepPartial - Make all properties recursively optional
  *
+ * Handles Map, Set, and Array as special cases to avoid recursively
+ * partial-izing their internal structures.
+ *
  * @example
  * ```typescript
  * interface User { name: string; address: { city: string } }
  * type PartialUser = DeepPartial<User>;
  * // { name?: string; address?: { city?: string } }
+ *
+ * type StringArray = string[];
+ * type PartialArray = DeepPartial<StringArray>;
+ * // Array<string> (not Array<{}>)
  * ```
  */
-export type DeepPartial<T> = {
-  [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
-};
+export type DeepPartial<T> = T extends Map<infer K, infer V>
+  ? Map<K, DeepPartial<V>>
+  : T extends Set<infer U>
+    ? Set<DeepPartial<U>>
+    : T extends Array<infer U>
+      ? Array<DeepPartial<U>>
+      : T extends ReadonlyArray<infer U>
+        ? ReadonlyArray<DeepPartial<U>>
+        : T extends object
+          ? { [P in keyof T]?: DeepPartial<T[P]> }
+          : T;
 
 /**
  * DeepReadonly - Make all properties recursively readonly

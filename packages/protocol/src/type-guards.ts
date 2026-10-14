@@ -34,6 +34,7 @@ import type {
   ErrorContent,
   PromptContent,
   FileAttachment,
+  SummaryContentData,
 } from './index.js';
 
 /**
@@ -100,6 +101,15 @@ const ERROR_CATEGORIES: ReadonlySet<string> = new Set<ErrorCategory>([
   ErrorCategory.Timeout,
   ErrorCategory.Permission,
 ] as const satisfies readonly ErrorCategory[]);
+
+/**
+ * Valid role values for PromptContent.
+ *
+ * Extracted from PromptContent['role'] type to ensure type safety.
+ * Using a Set for consistent pattern with other enum checks.
+ */
+const PROMPT_ROLES: ReadonlySet<string> = new Set<string>(['system', 'user']);
+
 const CONTENT_TYPES: ReadonlySet<string> = new Set<string>([
   'markdown',
   'summary',
@@ -267,7 +277,7 @@ export function extractStringField(
  *
  * Type mapping (from OpenAPI spec):
  * - `markdown` → string
- * - `summary` → SummaryContentData (object with optional items/metadata)
+ * - `summary` → SummaryContentData[] (array of summary items)
  * - `text` → string
  * - `thinking` → string
  * - `toolcall_input` → ToolCall
@@ -278,7 +288,7 @@ export function extractStringField(
  */
 export interface ContentDataTypeMap {
   markdown: string;
-  summary: unknown;
+  summary: SummaryContentData;
   text: string;
   thinking: string;
   toolcall_input: ToolCall;
@@ -402,11 +412,13 @@ export function isPromptContentData(
 
 /**
  * Type guard for summary ContentData.
+ *
+ * Validates that the data is an array (SummaryContentData is ReadonlyArray).
  */
 export function isSummaryContentData(
   c: ContentData,
 ): c is TypedContentData<'summary'> {
-  return c.type === 'summary' && isNonNullObject(c.data);
+  return c.type === 'summary' && Array.isArray(c.data);
 }
 
 // ========== Standalone Type Guards for Complex Types ==========
@@ -432,7 +444,7 @@ export function isValidErrorContent(data: unknown): data is ErrorContent {
  * Type guard for PromptContent.
  *
  * Validates required fields: `name` (string), `prompt` (string).
- * Optional `title` and `role` are not validated unless present.
+ * Optional `title` and `role` are validated against allowed values if present.
  */
 export function isValidPromptContent(data: unknown): data is PromptContent {
   if (!isNonNullObject(data)) return false;
@@ -440,8 +452,11 @@ export function isValidPromptContent(data: unknown): data is PromptContent {
   if (typeof data.prompt !== 'string') return false;
 
   // Optional role validation (if present)
+  // Uses PROMPT_ROLES set to ensure consistency with OpenAPI spec
   if ('role' in data && data.role !== undefined) {
-    if (data.role !== 'system' && data.role !== 'user') return false;
+    if (typeof data.role !== 'string' || !PROMPT_ROLES.has(data.role)) {
+      return false;
+    }
   }
 
   return true;

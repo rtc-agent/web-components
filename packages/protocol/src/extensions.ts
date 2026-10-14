@@ -43,7 +43,7 @@
  * concrete type of the `data` field:
  *
  * - `markdown` → string
- * - `summary` → SummaryContentData (object)
+ * - `summary` → SummaryContentData[] (array of summary items)
  * - `text` → string
  * - `thinking` → string
  * - `toolcall_input` → ToolCall
@@ -52,6 +52,21 @@
  * - `error` → ErrorContent
  * - `prompt` → PromptContent
  */
+
+/**
+ * SummaryContentData - Structure for summary content
+ *
+ * Since the OpenAPI spec does not define the exact structure of SummaryItem,
+ * we define a flexible but constrained type that represents an array of
+ * summary items. Each item is a record with string keys and unknown values,
+ * providing better type safety than `unknown` while maintaining flexibility.
+ *
+ * 由于 OpenAPI spec 没有定义 SummaryItem 的确切结构，
+ * 我们定义了一个灵活但有约束的类型，表示摘要项的数组。
+ * 每个项是一个带有字符串键和未知值的记录，
+ * 在保持灵活性的同时提供了比 `unknown` 更好的类型安全。
+ */
+export type SummaryContentData = ReadonlyArray<Readonly<Record<string, unknown>>>;
 
 /**
  * FileAttachmentExtra - Extended metadata for file attachments
