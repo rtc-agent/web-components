@@ -89,14 +89,17 @@ export default function access(
   // 运行时类型检查，确保 permissions 是 Set 类型
   if (!(perms instanceof Set)) {
     console.error(
-      '[access] currentUser.permissions is not a Set, returning all permissions as false',
+      '[access] currentUser.permissions is not a Set. ' +
+      'This may indicate a backend API change or data corruption. ' +
+      'Returning all permissions as false.',
+      { actualType: typeof perms, value: perms },
     );
     _cachedPermissions = DEFAULT_PERMISSIONS;
     _cachedPermissionsKey = currentUser;
     return DEFAULT_PERMISSIONS;
   }
 
-  // 各个权限点（设计文档 §6.2 定义的 13 个权限点）
+  // 各个权限点（设计文档定义的 13 个权限点）
   const canAdminUserView = perms.has(PERM_ADMIN_USER_READ);
   const canAdminUserEdit = perms.has(PERM_ADMIN_USER_WRITE);
   const canAdminUserDelete = perms.has(PERM_ADMIN_USER_DELETE);

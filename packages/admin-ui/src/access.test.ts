@@ -83,8 +83,9 @@ describe('access', () => {
         },
       });
 
-      // canAdmin 基于 admin_user:write 权限（需求文档 §6.2）
-      expect(result.canAdmin).toBe(true); // 因为有 admin_user:write
+      // canAdmin 基于 admin 角色判断（新后端有 roles 字段时，严格基于角色，不回退到权限检查）
+      // 这是为了防止权限提升攻击：拥有 admin_user:write 权限不应自动获得完整管理员身份
+      expect(result.canAdmin).toBe(false); // operator 角色不是 admin，即使有 admin_user:write 权限
       expect(result.canSystemView).toBe(true); // 因为有 role:read
       expect(result.canAdminUserView).toBe(true);
       expect(result.canAdminUserEdit).toBe(true);
@@ -149,7 +150,8 @@ describe('access', () => {
         },
       });
 
-      expect(result.canAdmin).toBe(true); // 因为有 admin_user:write（需求文档 §6.2）
+      // canAdmin 基于 admin 角色判断（新后端有 roles 字段时，严格基于角色）
+      expect(result.canAdmin).toBe(false); // operator 角色不是 admin，即使有 admin_user:write 权限
       expect(result.canSystemView).toBe(true); // 因为有 role:read
       expect(result.canAdminUserView).toBe(true);
       expect(result.canAdminUserEdit).toBe(true);
