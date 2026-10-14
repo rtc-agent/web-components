@@ -1677,6 +1677,11 @@ export class EntityRepository {
 
                   // Restore pre-existing records to their before state
                   if (beforeRecords.length > 0) {
+                    // `beforeRecords` is typed as unknown[] because it holds heterogeneous entity snapshots
+                    // from `beforeSnapshots: Map<string, EntityRecord>`. The table is dynamically selected
+                    // (sessions/turns/messages/rtcs) via `db[write.entityType] as Table`, so the compiler
+                    // cannot prove the element type matches the table's row type. The cast is safe because
+                    // each snapshot was originally read from the same table during bulkGetExisting().
                     await table.bulkPut(beforeRecords as any[]);
                     log.info(
                       `[applyUpdates] Compensation: restored ${beforeRecords.length} ` +
@@ -1710,6 +1715,11 @@ export class EntityRepository {
                     }
                   }
                   if (recordsToRestore.length > 0) {
+                    // `recordsToRestore` is typed as unknown[] because it holds heterogeneous entity snapshots
+                    // from `beforeSnapshots: Map<string, EntityRecord>`. The table is dynamically selected
+                    // (sessions/turns/messages/rtcs) via `db[write.entityType] as Table`, so the compiler
+                    // cannot prove the element type matches the table's row type. The cast is safe because
+                    // each snapshot was originally read from the same table during bulkGetExisting().
                     await table.bulkAdd(recordsToRestore as any[]);
                     log.info(
                       `[applyUpdates] Compensation: restored ${recordsToRestore.length} ` +

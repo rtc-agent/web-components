@@ -39,6 +39,9 @@ const log = createLogger('S3Client');
 /** Multipart upload threshold: 5MB (S3 minimum part size) */
 const MULTIPART_THRESHOLD = 5 * 1024 * 1024;
 
+/** Maximum allowed file size for upload: 100MB */
+const MAX_FILE_SIZE = 100 * 1024 * 1024;
+
 /** Credential early refresh margin: 5 minutes */
 const CREDENTIAL_REFRESH_MARGIN_MS = 5 * 60 * 1000;
 
@@ -254,6 +257,14 @@ export class S3Client {
     file: File | Blob,
     options?: UploadOptions,
   ): Promise<void> {
+    // SECURITY: Enforce client-side file size limit to prevent memory overflow and upload timeouts.
+    // This is a defense-in-depth measure; the backend MUST also enforce its own size limit.
+    if (file.size > MAX_FILE_SIZE) {
+      throw new Error(
+        `File size ${file.size} bytes exceeds maximum allowed size of ${MAX_FILE_SIZE} bytes (100MB)`,
+      );
+    }
+
     const key = this.buildKey(userId, md5Hash, ext);
     const client = await this.getClient();
 
@@ -968,6 +979,16 @@ export class S3Client {
         const validityMs = expiresAt.getTime() - Date.now();
         if (validityMs <= 0) {
           throw new Error('Credential refresh failed: credentials already expired');
+        }
+        // Warn if credentials have an unusually short remaining validity (< 5 minutes).
+        // This helps detect clock skew or backend misconfiguration before the credentials
+        // expire mid-operation, which would cause confusing S3 auth errors.
+        const minValidityMs = 5 * 60 * 1000; // 5 minutes
+        if (validityMs < minValidityMs) {
+          log.warn(
+            `Credentials will expire in ${Math.round(validityMs / 1000)}s ` +
+            `(< ${minValidityMs / 1000}s minimum). Consider refreshing.`,
+          );
         }
         if (validityMs > maxValidityMs) {
           log.warn(

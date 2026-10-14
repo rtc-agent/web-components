@@ -486,6 +486,9 @@ export class FileStorage {
       // AWS SDK errors have $metadata.httpStatusCode, or code property
       const isNotFound = (() => {
         if (!e || typeof e !== 'object') return false;
+        // AWS SDK v3 error types are not uniformly typed across client packages.
+        // The error shape ({ $metadata, code, name }) is documented but not expressed
+        // in a shared TypeScript interface, so `as any` is required to probe these fields.
         const anyErr = e as any;
         return (
           anyErr.$metadata?.httpStatusCode === 404 ||

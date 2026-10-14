@@ -593,6 +593,10 @@ export class UIUpdateBus {
         // Handle nested transactions: if we're already inside a transaction,
         // use tx.table() instead of db.ui_updates to avoid "Table not included in parent transaction" error
         try {
+          // Dexie does not expose currentTransaction on its public API.
+          // Accessing it via (db.constructor as any) is necessary because the type system
+          // does not model this internal Dexie property, but it is required to detect
+          // whether we are inside a nested transaction at runtime.
           const tx = (db.constructor as any).currentTransaction;
           if (tx) {
             // Inside a transaction - use the transaction's table reference
