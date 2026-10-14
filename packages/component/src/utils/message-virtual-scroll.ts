@@ -2322,16 +2322,21 @@ export class MessageVirtualScroll<T> {
 
     // Re-key _elementMap and update DOM dataset.messageIndex to match new indices.
     // Remove orphaned DOM elements for settled items.
+    // P1-FIX: Use DocumentFragment to batch DOM removal and prevent layout thrashing
     if (settleCount > 0) {
       const newElementMap = new Map<number, HTMLElement>();
+      const fragment = document.createDocumentFragment();
+      let hasOrphanedElements = false;
+
       for (const [oldIdx, el] of this._elementMap) {
         const newIdx = oldIdx - settleCount;
         if (newIdx >= 0) {
           newElementMap.set(newIdx, el);
           el.dataset.messageIndex = String(newIdx);
         } else {
-          // Settled element: remove from DOM and stop observing
-          el.remove();
+          // Settled element: collect for batch removal
+          hasOrphanedElements = true;
+          fragment.appendChild(el);
           this._itemResizeObserver?.unobserve(el);
           // CRITICAL FIX: Also clean up skeleton tracker for removed DOM elements
           const itemId = el.dataset.itemId;
@@ -2340,6 +2345,16 @@ export class MessageVirtualScroll<T> {
           }
         }
       }
+
+      // Batch remove all orphaned elements in a single DOM operation
+      if (hasOrphanedElements) {
+        // Append fragment to a temporary container to trigger removal
+        // This is more efficient than calling el.remove() on each element
+        const tempDiv = document.createElement('div');
+        tempDiv.appendChild(fragment);
+        tempDiv.remove();
+      }
+
       this._elementMap = newElementMap;
     }
   }

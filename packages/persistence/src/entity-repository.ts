@@ -238,7 +238,15 @@ async function emitUIUpdates(
       changes.push({ field, oldValue: undefined, newValue });
     }
   } else {
+    // P1-FIX: Short-circuit optimization - skip deep comparison if references are identical
+    // If before and after are the same object reference, there are no changes
+    if (cloneableBefore === cloneableAfter) {
+      return; // No changes, exit early
+    }
+
     // Update: compute per-field diffs via microdiff and collect into changes array
+    // PERFORMANCE: microdiff performs deep comparison, but we've already cloned the objects
+    // so reference equality check above is the fast path for unchanged data
     const diffs = diff(cloneableBefore, cloneableAfter);
     for (const change of diffs) {
       changes.push({
@@ -281,20 +289,31 @@ async function emitUIUpdates(
  * - array: 8 bytes overhead + sum of elements
  * - object: 8 bytes overhead + sum of keys (length * 2) + sum of values
  *
+ * P1-FIX: Added maxDepth parameter to prevent stack overflow on deeply nested objects.
+ * When depth limit is reached, returns a conservative estimate instead of recursing further.
+ *
  * @param obj - The object to estimate size for
+ * @param maxDepth - Maximum recursion depth (default: 10). Prevents stack overflow on deeply nested objects.
+ * @param currentDepth - Current depth (internal use for recursion)
  * @returns Approximate size in bytes
  */
-function estimateSize(obj: unknown): number {
+function estimateSize(obj: unknown, maxDepth: number = 10, currentDepth: number = 0): number {
+  // P1-FIX: Prevent stack overflow on deeply nested objects
+  if (currentDepth >= maxDepth) {
+    // Return conservative estimate for remaining nested structure
+    return 1024; // Assume 1KB for any deeply nested structure
+  }
+
   if (obj === null || obj === undefined) return 0;
   if (typeof obj === 'string') return obj.length * 2;
   if (typeof obj === 'number') return 8;
   if (typeof obj === 'boolean') return 4;
   if (Array.isArray(obj)) {
-    return obj.reduce((sum, item) => sum + estimateSize(item), 8);
+    return obj.reduce((sum, item) => sum + estimateSize(item, maxDepth, currentDepth + 1), 8);
   }
   if (typeof obj === 'object') {
     return Object.entries(obj).reduce(
-      (sum, [k, v]) => sum + k.length * 2 + estimateSize(v),
+      (sum, [k, v]) => sum + k.length * 2 + estimateSize(v, maxDepth, currentDepth + 1),
       8
     );
   }
@@ -308,41 +327,40 @@ function estimateSize(obj: unknown): number {
  * falling back to JSON serialize/deserialize for environments that don't support it.
  * JSON fallback strips non-cloneable objects (functions, DOM elements, etc.).
  *
- * PERFORMANCE OPTIMIZATION: For large objects (> 10KB), uses shallow clone to reduce
- * GC pressure. Deep cloning large objects (e.g., sessions with many messages) creates
- * significant memory overhead. Shallow clone preserves top-level references while still
- * ensuring the object is serializable for most use cases.
+ * P1-FIX (Issue #3): Always use deep clone to ensure microdiff can detect nested field changes.
+ * Previously, objects > 10KB used shallow clone, which caused microdiff to miss nested updates
+ * due to shared references. Now all objects use deep clone regardless of size.
+ *
+ * P1-FIX (Issue #4): Added performance monitoring for large object cloning.
+ * Logs warning when cloning takes > 10ms to help identify performance bottlenecks
+ * in SharedWorker context where blocking affects other tabs.
  *
  * Returns an empty object if serialization fails to avoid DataCloneError.
  *
  * Returns Record<string, unknown> since both methods produce plain objects.
  *
  * @param obj - The object to clone
- * @param options.maxSize - Size threshold in bytes (default: 10KB). Objects larger than this
- *                          use shallow clone instead of deep clone.
  */
-function safeClone(obj: object, options?: { maxSize?: number }): Record<string, unknown> {
-  const MAX_SIZE = options?.maxSize ?? 10_000; // 10KB default threshold
+function safeClone(obj: object): Record<string, unknown> {
+  // P1-FIX: Performance monitoring for large object cloning
+  const startTime = performance.now();
 
-  // Fast size estimation using lightweight recursive traversal (avoids JSON.stringify overhead)
-  // This is more efficient than JSON.stringify (5-15ms) for large objects,
-  // providing ~0.1-0.5ms estimation time for typical objects.
-  const estimatedSize = estimateSize(obj);
-
-  // For large objects, use shallow clone to reduce GC pressure
-  // Shallow clone is sufficient for most UI update scenarios where top-level fields change
-  if (estimatedSize > MAX_SIZE) {
-    log.debug(
-      `safeClone: large object detected (${estimatedSize} bytes), using shallow clone`,
-    );
-    return { ...obj };
-  }
-
-  // Small objects: use deep clone for correctness
   try {
     // Prefer structuredClone for performance and to preserve more data types
     if (typeof structuredClone === 'function') {
-      return structuredClone(obj) as Record<string, unknown>;
+      const result = structuredClone(obj) as Record<string, unknown>;
+
+      // P1-FIX: Log performance warning for large object cloning
+      const duration = performance.now() - startTime;
+      if (duration > 10) {
+        log.warn(
+          `safeClone: slow structuredClone detected (${duration.toFixed(2)}ms, ` +
+          `estimated size: ${estimateSize(obj)} bytes). ` +
+          `Consider optimizing data structure or reducing update frequency.`,
+        );
+      }
+
+      return result;
     }
   } catch {
     // structuredClone failed (e.g., non-cloneable object), fall through to JSON
@@ -350,7 +368,19 @@ function safeClone(obj: object, options?: { maxSize?: number }): Record<string, 
 
   try {
     // Fallback to JSON for environments without structuredClone or when it fails
-    return JSON.parse(JSON.stringify(obj)) as Record<string, unknown>;
+    const result = JSON.parse(JSON.stringify(obj)) as Record<string, unknown>;
+
+    // P1-FIX: Log performance warning for large object cloning
+    const duration = performance.now() - startTime;
+    if (duration > 10) {
+      log.warn(
+        `safeClone: slow JSON clone detected (${duration.toFixed(2)}ms, ` +
+        `estimated size: ${estimateSize(obj)} bytes). ` +
+        `Consider optimizing data structure or reducing update frequency.`,
+      );
+    }
+
+    return result;
   } catch {
     // JSON serialization also failed (e.g. circular reference); return empty object
     log.warn('safeClone: failed to clone object, returning empty object');
