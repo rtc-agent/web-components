@@ -160,3 +160,108 @@ Group translation keys by feature/module to improve discoverability and maintain
 1. **Developer-only text**: Debug messages, console logs
 2. **Dynamic content**: User-generated content, data from API
 3. **Brand names**: Product names, company names (unless localized)
+
+## Usage Best Practices
+
+### When to Use `defaultMessage`
+
+Always provide a `defaultMessage` in the code when using `useIntl().formatMessage()`. This serves as:
+
+1. **Fallback**: Displayed if the key is missing from locale files
+2. **Documentation**: Makes the purpose of the translation clear
+3. **Development aid**: Allows the app to work even before translations are added
+
+```typescript
+// Good - has descriptive fallback
+intl.formatMessage({
+  id: 'pages.rtcUsers.ban.confirm',
+  defaultMessage: 'Are you sure you want to ban this user?',
+})
+
+// Bad - no fallback, unclear purpose
+intl.formatMessage({ id: 'some.key' })
+
+// Bad - generic fallback doesn't help
+intl.formatMessage({
+  id: 'pages.rtcUsers.ban.confirm',
+  defaultMessage: 'Confirm',
+})
+```
+
+**Exception**: When the translation is purely cosmetic (e.g., decorative text), `defaultMessage` can be minimal.
+
+### Handling Dynamic Parameters
+
+Use ICU message syntax for dynamic values. Parameters are wrapped in `{paramName}`.
+
+```typescript
+// In locale file
+'pages.user.greeting': 'Hello, {name}!',
+'pages.items.count': '{count, plural, =0 {No items} one {# item} other {# items}}',
+
+// In component
+intl.formatMessage(
+  { id: 'pages.user.greeting' },
+  { name: currentUser.name }
+)
+
+intl.formatMessage(
+  { id: 'pages.items.count' },
+  { count: selectedItems.length }
+)
+```
+
+**Important**: If your translation contains `${variable}` syntax (e.g., `'Released ${count} tokens'`), add a biome-ignore comment to suppress the false-positive lint warning:
+
+```typescript
+// biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
+'pages.messages.detail.releasedTokens': 'Released ${count} tokens',
+```
+
+### Step-by-Step: Adding New Translations
+
+When adding a new feature or UI element:
+
+1. **Define the key** following the naming convention (see above)
+2. **Add to all locale files** — at minimum `en-US` and `zh-CN`
+3. **Use the key in code** with a descriptive `defaultMessage`
+4. **Run coverage check**: `pnpm run i18n:check`
+
+```typescript
+// Step 1: Add to en-US/pages.ts
+'pages.myFeature.newButton': 'Click Me',
+
+// Step 2: Add to zh-CN/pages.ts
+'pages.myFeature.newButton': '点击我',
+
+// Step 3: Use in component
+<Button>
+  {intl.formatMessage({
+    id: 'pages.myFeature.newButton',
+    defaultMessage: 'Click Me',
+  })}
+</Button>
+
+// Step 4: Verify coverage
+pnpm run i18n:check
+```
+
+**Tip**: Use the i18n-remove script (`scripts/i18n-remove.js`) to find and remove unused translation keys.
+
+### Common Pitfalls
+
+1. **Hardcoded strings**: Always extract user-facing text to locale files
+2. **String concatenation**: Use parameters instead of concatenating translations
+3. **Missing pluralization**: Use ICU plural syntax for countable items
+4. **Inconsistent terminology**: Use the same term across the app (e.g., always "Delete" not sometimes "Remove")
+
+```typescript
+// Bad - concatenation breaks in other languages
+intl.formatMessage({ id: 'greeting' }) + ' ' + userName
+
+// Good - use parameter substitution
+intl.formatMessage(
+  { id: 'greeting.withName' },
+  { name: userName }
+)
+```
