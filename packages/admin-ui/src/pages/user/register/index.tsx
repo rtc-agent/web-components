@@ -1,11 +1,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { history, Link, useIntl } from '@umijs/max';
 import {
+  App,
   Button,
   Col,
   Form,
   Input,
-  message,
   Popover,
   Progress,
   Row,
@@ -16,6 +16,7 @@ import type { Store } from 'antd/es/form/interface';
 import type { FC } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { queryKeys } from '@/utils/queryKeys';
+import { getPhoneRules } from '@/utils/validation';
 import { fakeRegister } from './service';
 import useStyles from './style';
 
@@ -62,6 +63,7 @@ const PasswordProgress: React.FC<{
 const Register: FC = () => {
   const { styles } = useStyles();
   const intl = useIntl();
+  const { message } = App.useApp();
   const [count, setCount]: [number, any] = useState(0);
   const [open, setVisible]: [boolean, any] = useState(false);
   const [prefix, setPrefix]: [string, any] = useState('86');
@@ -335,22 +337,32 @@ const Register: FC = () => {
         </FormItem>
         <FormItem
           name="mobile"
-          rules={[
-            {
-              required: true,
-              message: intl.formatMessage({
-                id: 'pages.user.register.phoneRequired',
-                defaultMessage: 'Please enter your phone number!',
-              }),
-            },
-            {
-              pattern: /^\d{11}$/,
-              message: intl.formatMessage({
-                id: 'pages.user.register.phoneInvalid',
-                defaultMessage: 'The phone number format is incorrect!',
-              }),
-            },
-          ]}
+          rules={getPhoneRules(intl.formatMessage.bind(intl), {
+            required: true,
+            areaCode: prefix,
+          }).map((rule) => {
+            // Override the required message to use page-specific i18n key
+            if ('required' in rule && rule.required) {
+              return {
+                ...rule,
+                message: intl.formatMessage({
+                  id: 'pages.user.register.phoneRequired',
+                  defaultMessage: 'Please enter your phone number!',
+                }),
+              };
+            }
+            // Override the pattern message to use page-specific i18n key
+            if ('pattern' in rule) {
+              return {
+                ...rule,
+                message: intl.formatMessage({
+                  id: 'pages.user.register.phoneInvalid',
+                  defaultMessage: 'The phone number format is incorrect!',
+                }),
+              };
+            }
+            return rule;
+          })}
         >
           <Space.Compact style={{ width: '100%' }}>
             <Select

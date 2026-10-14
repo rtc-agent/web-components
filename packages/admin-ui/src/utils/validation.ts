@@ -102,13 +102,23 @@ export const getPasswordRules = (
 };
 
 /**
- * Phone number validation rules factory (China mainland format)
+ * Phone number validation rules factory
+ * Supports different phone number formats based on area code
  */
 export const getPhoneRules = (
   formatMessage: MessageFormatter,
-  options?: { required?: boolean },
+  options?: { required?: boolean; areaCode?: string },
 ) => {
-  const { required = true } = options || {};
+  const { required = true, areaCode = '86' } = options || {};
+
+  // Different phone number patterns based on area code
+  const phonePatterns: Record<string, { pattern: RegExp; example: string }> = {
+    '86': { pattern: /^\d{11}$/, example: '11 digits' }, // China mainland: 11 digits
+    '87': { pattern: /^\d{8,12}$/, example: '8-12 digits' }, // Other regions: 8-12 digits (flexible)
+  };
+
+  const phoneConfig = phonePatterns[areaCode] || phonePatterns['86'];
+
   return [
     ...(required
       ? [
@@ -122,11 +132,14 @@ export const getPhoneRules = (
         ]
       : []),
     {
-      pattern: /^\d{11}$/,
-      message: formatMessage({
-        id: 'validation.phone.invalid',
-        defaultMessage: 'Invalid phone format',
-      }),
+      pattern: phoneConfig.pattern,
+      message: formatMessage(
+        {
+          id: 'validation.phone.invalid',
+          defaultMessage: `Invalid phone format (expected: ${phoneConfig.example})`,
+        },
+        { example: phoneConfig.example },
+      ),
     },
   ];
 };
@@ -177,8 +190,14 @@ export const VALIDATION_RULES = {
     { min: 6, message: 'Password must be at least 6 characters' },
     { max: 128, message: 'Password cannot exceed 128 characters' },
   ],
-  phone: [
-    { required: true, message: 'Phone number is required' },
-    { pattern: /^\d{11}$/, message: 'Invalid phone format' },
-  ],
+  getPhoneRules: (areaCode: string = '86') => {
+    const patterns: Record<string, RegExp> = {
+      '86': /^\d{11}$/, // China mainland: 11 digits
+      '87': /^\d{8,12}$/, // Other regions: 8-12 digits (flexible)
+    };
+    return [
+      { required: true, message: 'Phone number is required' },
+      { pattern: patterns[areaCode] || patterns['86'], message: 'Invalid phone format' },
+    ];
+  },
 } as const;
