@@ -9,6 +9,14 @@ export default mergeConfig(
       // no DOM APIs required
       environment: 'node',
       include: ['src/**/*.test.ts'],
+      coverage: {
+        thresholds: {
+          lines: 60,
+          branches: 60,
+          functions: 60,
+          statements: 60,
+        },
+      },
     },
   }),
 );

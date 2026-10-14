@@ -12,7 +12,10 @@ export default mergeConfig(
       include: ['src/**/*.test.ts'],
       coverage: {
         thresholds: {
-          lines: 50,
+          lines: 60,
+          branches: 60,
+          functions: 60,
+          statements: 60,
         },
       },
     },
