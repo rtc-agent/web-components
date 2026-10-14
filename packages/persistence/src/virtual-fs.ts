@@ -244,15 +244,21 @@ export class VirtualFS {
 
     this._writeLocks.set(
       path,
-      settled.finally(() => {
-        // Clean up map entry only when this operation is the current head of
-        // the chain. If a subsequent operation has already been queued (i.e.,
-        // the map entry has been updated to a newer promise), skip deletion.
-        // This avoids the fragile isFirstInChain tracking from earlier versions.
-        if (this._writeLocks.get(path) === settled) {
-          this._writeLocks.delete(path);
-        }
-      }),
+      settled
+        .finally(() => {
+          // Clean up map entry only when this operation is the current head of
+          // the chain. If a subsequent operation has already been queued (i.e.,
+          // the map entry has been updated to a newer promise), skip deletion.
+          // This avoids the fragile isFirstInChain tracking from earlier versions.
+          if (this._writeLocks.get(path) === settled) {
+            this._writeLocks.delete(path);
+          }
+        })
+        .catch(() => {
+          // Error is already propagated to the caller via `next`.
+          // This catch prevents unhandled rejection on the lock-tracking
+          // branch (settled + finally), which is only used for cleanup.
+        }),
     );
 
     return next;
