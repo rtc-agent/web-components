@@ -776,6 +776,15 @@ export class RTCAgentClient implements IRTCAgentClient {
     // Create AbortController for this gap fill wait
     const waitAbort = new AbortController();
     const mapKey = `${channel}:${targetOffset}`;
+    // Clean up old controllers for the same channel to prevent memory leaks.
+    // If a previous gap fill wait is still pending for this channel (with a different targetOffset),
+    // abort it — the new request supersedes it.
+    for (const [key, controller] of this._gapFillAbortControllers.entries()) {
+      if (key.startsWith(`${channel}:`)) {
+        controller.abort();
+        this._gapFillAbortControllers.delete(key);
+      }
+    }
     this._gapFillAbortControllers.set(mapKey, waitAbort);
 
     try {
@@ -1813,6 +1822,8 @@ export class RTCAgentClient implements IRTCAgentClient {
         // Trigger reconnection
         this.reconnect().catch((err) => {
           log.error('Heartbeat-triggered reconnect failed:', err);
+          // Restart heartbeat monitoring to continue detecting connection issues
+          this._startHeartbeatMonitoring();
         });
       } else {
         log.debug(

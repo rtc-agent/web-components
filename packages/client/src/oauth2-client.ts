@@ -279,8 +279,15 @@ export class OAuth2Client {
    * Extracted to a separate method to avoid code duplication between
    * HTTP error retries and network error retries.
    *
+   * NOTE: The `body` parameter (URLSearchParams) is reused across retry attempts.
+   * This is safe because:
+   * 1. URLSearchParams.toString() is a read-only operation — it does not mutate the object.
+   * 2. Token exchange is an idempotent operation (RFC 8693) — the same request body
+   *    produces the same result, so retries do not cause duplicate side effects.
+   * 3. The server uses the `subject_token` for idempotency deduplication.
+   *
    * @param url Target URL
-   * @param body Form-encoded request body
+   * @param body Form-encoded request body (URLSearchParams, safe to reuse)
    * @param maxRetries Maximum number of retry attempts
    * @returns Token exchange response
    * @throws TokenExchangeError if all attempts fail

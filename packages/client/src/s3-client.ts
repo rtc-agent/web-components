@@ -921,20 +921,27 @@ export class S3Client {
       );
     }
 
-    this.credentials = (await response.json()) as TemporaryCredentialsResponse;
-    this.expiresAt = new Date(this.credentials.expires_at);
+    const data = (await response.json()) as TemporaryCredentialsResponse;
+    const expiresAt = new Date(data.expires_at);
 
-    // Create new AWS S3 Client
-    this.awsClient = new AWSS3Client({
+    // Create new AWS S3 Client in a temporary variable to ensure atomic update.
+    // If client construction fails, we don't want to partially update the state.
+    const newClient = new AWSS3Client({
       endpoint: `${this.options.serverURL}/s3/`,
       region: this.options.region,
       credentials: {
-        accessKeyId: this.credentials.access_key_id,
-        secretAccessKey: this.credentials.secret_access_key,
-        sessionToken: this.credentials.session_token,
+        accessKeyId: data.access_key_id,
+        secretAccessKey: data.secret_access_key,
+        sessionToken: data.session_token,
       },
       forcePathStyle: true,
     });
+
+    // Atomic update: only update state after all operations succeed.
+    // This prevents inconsistent state if client construction fails.
+    this.credentials = data;
+    this.expiresAt = expiresAt;
+    this.awsClient = newClient;
 
     log.debug(
       'credentials refreshed, expires at',
