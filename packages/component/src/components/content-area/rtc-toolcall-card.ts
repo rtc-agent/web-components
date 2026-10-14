@@ -41,6 +41,7 @@ import { copyToClipboard } from '../../utils/clipboard.js';
 import { formatTimestampCompact } from '../../utils/format.js';
 import { formatPluralCount } from '../../utils/plural-rules.js';
 import { createLogger, TodoStatus } from '@rtc-agent/protocol';
+import type { ToolCallExtended } from '@rtc-agent/protocol';
 import './rtc-scroll-container.js';
 
 const log = createLogger('ToolCallCard');
@@ -53,46 +54,54 @@ export interface ToolCallPair {
 }
 
 /**
- * Parsed tool call data from the message content.
- */
-interface ToolCallData {
-  id: string;
-  tool_name: string;
-  input: unknown;
-  output?: string;
-  status?: string;
-  error?: string;
-}
-
-/**
  * Parse tool call data from a Message's content.
  *
  * Handles both shapes of content.data:
- *   1. Already an object:  { id, tool_name, input, output?, status? }
+ *   1. Already an object:  { id, tool_name, input, output?, status?, error? }
  *   2. JSON string:        '{"id":"...","tool_name":"ls",...}'
+ *
+ * Uses Protocol's ToolCallExtended type for type safety.
  */
-function parseToolCallData(message: Message): ToolCallData | null {
+function parseToolCallData(message: Message): ToolCallExtended | null {
   try {
     const data = message.content?.data;
     if (!data) return null;
 
-    // Case 1: data is already an object with tool_name
-    if (
-      typeof data === 'object' &&
-      !Array.isArray(data) &&
-      'tool_name' in (data as object)
-    ) {
-      return data as ToolCallData;
+    let parsed: unknown;
+    // Case 1: data is already an object
+    if (typeof data === 'object' && !Array.isArray(data)) {
+      parsed = data;
+    } else if (typeof data === 'string') {
+      // Case 2: data is a JSON string — parse it
+      parsed = JSON.parse(data);
+    } else {
+      return null;
     }
 
-    // Case 2: data is a JSON string — parse it
-    const raw = typeof data === 'string' ? data : JSON.stringify(data);
-    const parsed = JSON.parse(raw);
+    // Validate the parsed object has required ToolCall fields
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      'id' in parsed &&
+      'tool_name' in parsed &&
+      typeof parsed.id === 'string' &&
+      typeof parsed.tool_name === 'string'
+    ) {
+      return parsed as ToolCallExtended;
+    }
 
-    // The parsed result might have the tool call fields at the top level,
-    // or nested under a `data` key
-    if (parsed?.tool_name) return parsed as ToolCallData;
-    if (parsed?.data?.tool_name) return parsed.data as ToolCallData;
+    // Check if parsed.data contains the tool call (nested structure)
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      'data' in parsed &&
+      parsed.data &&
+      typeof parsed.data === 'object' &&
+      'id' in (parsed.data as Record<string, unknown>) &&
+      'tool_name' in (parsed.data as Record<string, unknown>)
+    ) {
+      return parsed.data as ToolCallExtended;
+    }
 
     return null;
   } catch {
@@ -110,9 +119,9 @@ interface TodoItem {
 }
 
 /**
- * Parse todoWrite tool input from ToolCallData.
+ * Parse todoWrite tool input from ToolCallExtended.
  */
-function parseTodoWriteInput(toolData: ToolCallData): TodoItem[] | null {
+function parseTodoWriteInput(toolData: ToolCallExtended): TodoItem[] | null {
   if (toolData.tool_name !== 'todoWrite') return null;
   try {
     let raw: unknown;
@@ -143,9 +152,9 @@ interface ScriptInput {
 }
 
 /**
- * Parse script tool input from ToolCallData.
+ * Parse script tool input from ToolCallExtended.
  */
-function parseScriptInput(toolData: ToolCallData): ScriptInput | null {
+function parseScriptInput(toolData: ToolCallExtended): ScriptInput | null {
   if (toolData.tool_name !== 'script') return null;
   try {
     let raw: unknown;
@@ -387,7 +396,7 @@ export class RtcToolCallCard extends LitElement {
    */
   private _formatHeader(
     toolName: string,
-    toolData: ToolCallData | null,
+    toolData: ToolCallExtended | null,
   ): string {
     if (!toolData) return toolName;
 
@@ -440,7 +449,7 @@ export class RtcToolCallCard extends LitElement {
   /**
    * Render input section based on tool type.
    */
-  private _renderInputSection(toolName: string, toolData: ToolCallData | null) {
+  private _renderInputSection(toolName: string, toolData: ToolCallExtended | null) {
     // read/ls/write/grep/find: header-only, no content section
     if (['read', 'ls', 'write', 'grep', 'find'].includes(toolName)) {
       return nothing;
@@ -472,7 +481,7 @@ export class RtcToolCallCard extends LitElement {
   /**
    * Render script tool input based on action type.
    */
-  private _renderScriptInput(toolData: ToolCallData) {
+  private _renderScriptInput(toolData: ToolCallExtended) {
     const script = parseScriptInput(toolData);
     if (!script) {
       // Fallback to default rendering
@@ -542,7 +551,7 @@ export class RtcToolCallCard extends LitElement {
   /**
    * Render todoWrite tool input as a todo list.
    */
-  private _renderTodoWriteInput(toolData: ToolCallData) {
+  private _renderTodoWriteInput(toolData: ToolCallExtended) {
     const todos = parseTodoWriteInput(toolData);
     if (!todos || todos.length === 0) {
       // Fallback to default rendering

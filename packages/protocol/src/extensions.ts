@@ -53,6 +53,11 @@
  * - `prompt` → PromptContent
  */
 
+import type { components } from './models.gen.js';
+
+// Extract base ToolCall type from OpenAPI components
+type BaseToolCall = components['schemas']['ToolCall'];
+
 /**
  * SummaryContentData - Structure for summary content
  *
@@ -86,4 +91,19 @@ export interface FileAttachmentExtra {
   mimeType?: string;
   /** Additional custom properties */
   [key: string]: unknown;
+}
+
+/**
+ * ToolCallExtended - Extended ToolCall with error information
+ *
+ * Extends the base ToolCall from OpenAPI spec with an optional `error` field
+ * to capture tool execution errors. This is used by the frontend to display
+ * error states in tool call cards.
+ *
+ * 扩展 OpenAPI spec 中的基础 ToolCall，添加可选的 `error` 字段
+ * 以捕获工具执行错误。前端使用此字段在工具调用卡片中显示错误状态。
+ */
+export interface ToolCallExtended extends BaseToolCall {
+  /** Error message if tool execution failed */
+  error?: string;
 }

@@ -32,6 +32,7 @@ import {
 } from '../../core/i18n.js';
 import { timelineStyles } from './timeline.styles.js';
 import type { ErrorContent, ErrorCategory } from '@rtc-agent/protocol';
+import { isValidErrorContent } from '@rtc-agent/protocol';
 import type { Message } from '../../types/index.js';
 import { formatTimestampCompact } from '../../utils/format.js';
 import { createLogger } from '@rtc-agent/protocol';
@@ -235,11 +236,12 @@ export class RtcErrorMessage extends LitElement implements StatefulComponent {
 
   /**
    * Extract ErrorContent from the message's content data.
+   * Uses Protocol's isValidErrorContent type guard for runtime validation.
    */
   private get _errorData(): ErrorContent | null {
     const data = this.message?.content?.data;
-    if (data && typeof data === 'object' && !Array.isArray(data)) {
-      return data as ErrorContent;
+    if (isValidErrorContent(data)) {
+      return data;
     }
     return null;
   }
