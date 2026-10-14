@@ -4,6 +4,10 @@
  * Uses native Intl.RelativeTimeFormat, no third-party library needed.
  * Automatically uses current locale from i18n system.
  * Supports any locale, automatically selects the best unit (seconds/minutes/hours/days/weeks/months/years).
+ *
+ * Note: Component package intentionally supports only zh-CN and en-US to minimize bundle size.
+ * Admin UI supports 9 languages for broader enterprise deployment.
+ * See lit-localize.json for configuration details.
  */
 
 import { getLocale } from '../core/i18n.js';
@@ -19,6 +23,33 @@ const DIVISIONS: { amount: number; name: Intl.RelativeTimeFormatUnit }[] = [
 ];
 
 /**
+ * Cache for RelativeTimeFormat instances to avoid repeated allocations.
+ * Key format: `${locale}`
+ */
+const relativeTimeFormatterCache = new Map<string, Intl.RelativeTimeFormat>();
+
+/**
+ * Get or create a cached RelativeTimeFormat instance.
+ */
+function getCachedRelativeTimeFormatter(locale: string): Intl.RelativeTimeFormat {
+  let formatter = relativeTimeFormatterCache.get(locale);
+  if (!formatter) {
+    formatter = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+    relativeTimeFormatterCache.set(locale, formatter);
+  }
+  return formatter;
+}
+
+/**
+ * Clear relative time formatter cache to free memory and ensure fresh formatters after locale switch.
+ *
+ * Called automatically when locale changes via `switchLocale()` in format.ts.
+ */
+export function clearRelativeTimeFormatterCache(): void {
+  relativeTimeFormatterCache.clear();
+}
+
+/**
  * Format a timestamp as relative time
  * @param timestamp Millisecond timestamp
  * @param locale Optional locale override (defaults to current i18n locale)
@@ -26,7 +57,7 @@ const DIVISIONS: { amount: number; name: Intl.RelativeTimeFormatUnit }[] = [
  */
 export function formatRelativeTime(timestamp: number, locale?: string): string {
   const lang = locale ?? getLocale();
-  const rtf = new Intl.RelativeTimeFormat(lang, { numeric: 'auto' });
+  const rtf = getCachedRelativeTimeFormatter(lang);
   let duration = (timestamp - Date.now()) / 1000;
 
   for (const division of DIVISIONS) {

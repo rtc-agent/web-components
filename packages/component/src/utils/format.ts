@@ -9,6 +9,7 @@
 import type { ContentData, PromptContent } from '../types/index.js';
 import { msg, str } from '@lit/localize';
 import { getLocale } from '../core/i18n.js';
+import { clearRelativeTimeFormatterCache } from './relative-time.js';
 
 /**
  * Format a number with thousand separators using current locale.
@@ -153,6 +154,7 @@ const dateFormatterCache = new Map<string, Intl.DateTimeFormat>();
 export function clearFormatterCaches(): void {
   numberFormatterCache.clear();
   dateFormatterCache.clear();
+  clearRelativeTimeFormatterCache();
 }
 
 /**
