@@ -614,16 +614,30 @@ export class PersistenceController implements ReactiveController {
     // Create MasterLock and start election
     const userId = this._auth.state.userId;
     if (userId) {
-      this._masterLock = new MasterLock(userId);
-      this._masterLock.onAcquire = () => {
+      const masterLock = new MasterLock(userId);
+      masterLock.onAcquire = () => {
         log.info('this Tab became Master');
       };
-      this._masterLock.onRelease = () => {
+      masterLock.onRelease = () => {
         log.info('this Tab lost Master');
       };
+
+      // CRITICAL CHECKPOINT: If disconnect() fired between the previous checkpoint
+      // and this MasterLock creation, the captured `masterLock` in disconnect() was
+      // undefined (the old value), so our new lock would be orphaned — never released,
+      // leaking the Web Lock. Detect this race and self-correct by releasing immediately.
+      if (this._workerBridge !== bridge) {
+        log.warn('disconnect() fired before MasterLock creation, releasing orphaned lock');
+        masterLock.release();
+        return;
+      }
+
+      // Safe to assign: disconnect() will now capture this lock and release it.
+      this._masterLock = masterLock;
+
       // Start trying to acquire the lock (may queue)
       // Catch errors to prevent unhandled promise rejection
-      this._masterLock.acquire().catch((err) => {
+      masterLock.acquire().catch((err) => {
         log.warn('MasterLock acquire failed:', err);
       });
     }
