@@ -37,6 +37,7 @@ import {
 } from './database.js';
 import { createLogger } from '@rtc-agent/protocol';
 import type Dexie from 'dexie';
+import { LifecycleGuard } from './lifecycle-guard.js';
 
 const log = createLogger('VirtualFS');
 
@@ -195,6 +196,12 @@ export interface GrepResult {
  */
 export class VirtualFS {
   /**
+   * P0-FIX: LifecycleGuard to prevent operations on closed database.
+   * All DB operations must call assertActive() before proceeding.
+   */
+  private _lifecycleGuard = new LifecycleGuard('VirtualFS');
+
+  /**
    * P0-FIX: Per-file write locks to prevent TOCTOU race conditions.
    * Uses promise chaining to queue concurrent writes to the same file.
    * Key: normalized file path, Value: promise chain for sequential writes.
@@ -270,8 +277,10 @@ export class VirtualFS {
    * @param offset Starting line number (1-indexed). Only provide if the file is too large to read at once.
    * @param limit Maximum number of lines to read. Only provide if the file is too large to read at once.
    * @throws PathError ENOENT if file does not exist
+   * @throws LifecycleClosedError if the VirtualFS has been closed
    */
   async read(path: string, offset?: number, limit?: number): Promise<string> {
+    this._lifecycleGuard.assertActive();
     const normalizedPath = normalizePath(path);
     log.debug('read:', normalizedPath, 'offset:', offset, 'limit:', limit);
     const db = getDatabase();
@@ -362,6 +371,7 @@ export class VirtualFS {
    * @param metadataOverride Optional partial metadata override
    * @returns Total byte count of the file after write; in create-new mode returns existing file byte count if file already exists
    * @throws Error if content exceeds MAX_FILE_SIZE (10MB) or contains invalid characters
+   * @throws LifecycleClosedError if the VirtualFS has been closed
    */
   async write(
     path: string,
@@ -369,6 +379,7 @@ export class VirtualFS {
     mode: 'overwrite' | 'append' | 'create-new' = 'overwrite',
     metadataOverride?: Partial<FileSystemEntryMetadata>,
   ): Promise<number> {
+    this._lifecycleGuard.assertActive();
     // P1-FIX: Use TextEncoder to calculate actual byte size instead of character count.
     // For UTF-8 encoded content (especially CJK characters), byte size can be up to 3x character count.
     // This ensures accurate enforcement of the 10MB limit regardless of character encoding.
@@ -483,6 +494,7 @@ export class VirtualFS {
    *
    * @param files Array of file write operations
    * @throws Error if any file exceeds MAX_FILE_SIZE or contains null bytes
+   * @throws LifecycleClosedError if the VirtualFS has been closed
    */
   async writeBatch(
     files: Array<{
@@ -492,6 +504,7 @@ export class VirtualFS {
       metadataOverride?: Partial<FileSystemEntryMetadata>;
     }>,
   ): Promise<void> {
+    this._lifecycleGuard.assertActive();
     // P1-FIX: Validate all files first using byte size (not character count)
     // to prevent abuse and memory issues with CJK content
     for (const file of files) {
@@ -601,8 +614,10 @@ export class VirtualFS {
    *
    * @param path Directory path (default: root)
    * @returns File name list (without full paths)
+   * @throws LifecycleClosedError if the VirtualFS has been closed
    */
   async ls(path: string = '/'): Promise<string[]> {
+    this._lifecycleGuard.assertActive();
     const normalizedPath = normalizePath(path);
     log.debug('ls:', normalizedPath);
     const db = getDatabase();
@@ -647,8 +662,10 @@ export class VirtualFS {
    * @param pattern Glob pattern (supports * and ?)
    * @param path Search scope (default: root)
    * @returns Matching file path list
+   * @throws LifecycleClosedError if the VirtualFS has been closed
    */
   async find(pattern: string, path: string = '/'): Promise<string[]> {
+    this._lifecycleGuard.assertActive();
     const normalizedPath = normalizePath(path);
     log.debug('find: pattern:', pattern, 'path:', normalizedPath);
     const db = getDatabase();
@@ -699,6 +716,7 @@ export class VirtualFS {
    * @param glob Glob pattern to filter files
    * @param type File type to search
    * @returns Search results based on output mode
+   * @throws LifecycleClosedError if the VirtualFS has been closed
    */
   async grep(
     pattern: string,
@@ -717,6 +735,7 @@ export class VirtualFS {
     glob?: string,
     type?: string,
   ): Promise<GrepResult> {
+    this._lifecycleGuard.assertActive();
     const normalizedPath = normalizePath(path);
     log.debug(
       'grep: pattern:',
@@ -994,8 +1013,10 @@ export class VirtualFS {
    *
    * @param type File type
    * @returns File entry list
+   * @throws LifecycleClosedError if the VirtualFS has been closed
    */
   async queryByType(type: FileSystemEntryType): Promise<FileSystemEntry[]> {
+    this._lifecycleGuard.assertActive();
     const db = getDatabase();
     return db.fileSystemEntries.where('type').equals(type).toArray();
   }
@@ -1014,6 +1035,7 @@ export class VirtualFS {
    * @throws PathError ENOENT if file does not exist
    * @throws Error if oldString is not found, matches multiple times (with replaceAll=false),
    *         or oldString equals newString
+   * @throws LifecycleClosedError if the VirtualFS has been closed
    */
   async edit(
     path: string,
@@ -1021,6 +1043,7 @@ export class VirtualFS {
     newString: string,
     replaceAll: boolean = false,
   ): Promise<{ replaced: number }> {
+    this._lifecycleGuard.assertActive();
     const normalizedPath = normalizePath(path);
     log.debug('edit:', normalizedPath, 'replaceAll:', replaceAll);
     const db = getDatabase();
@@ -1045,6 +1068,17 @@ export class VirtualFS {
       }
 
       const content = entry.content;
+
+      // P1-FIX: Warn about large file edits to prevent memory issues.
+      // Files >5MB may cause performance problems when processed in memory (split/join).
+      const LARGE_FILE_THRESHOLD = 5 * 1024 * 1024; // 5MB
+      if (content.length > LARGE_FILE_THRESHOLD) {
+        log.warn(
+          `Editing large file (${(content.length / (1024 * 1024)).toFixed(2)}MB): ${normalizedPath}. ` +
+            `String processing (split/join) happens in memory and may cause performance issues. ` +
+            `Consider breaking the file into smaller chunks if possible.`,
+        );
+      }
 
       // Step 2: Perform string processing OUTSIDE transaction
       // Count matches
@@ -1096,8 +1130,11 @@ export class VirtualFS {
 
   /**
    * Check if a file exists.
+   *
+   * @throws LifecycleClosedError if the VirtualFS has been closed
    */
   async exists(path: string): Promise<boolean> {
+    this._lifecycleGuard.assertActive();
     const normalizedPath = normalizePath(path);
     const db = getDatabase();
     const entry = await db.fileSystemEntries.get(normalizedPath);
@@ -1116,8 +1153,11 @@ export class VirtualFS {
    * where the distinction matters for error reporting.
    *
    * If idempotent deletion is needed (delete-if-exists), use `removeIfExists()` instead.
+   *
+   * @throws LifecycleClosedError if the VirtualFS has been closed
    */
   async remove(path: string): Promise<void> {
+    this._lifecycleGuard.assertActive();
     const normalizedPath = normalizePath(path);
     log.debug('remove:', normalizedPath);
     const db = getDatabase();
@@ -1145,8 +1185,11 @@ export class VirtualFS {
    * Returns true if the file was deleted, false if it didn't exist.
    *
    * Use this when the caller wants "delete if present" semantics without error handling.
+   *
+   * @throws LifecycleClosedError if the VirtualFS has been closed
    */
   async removeIfExists(path: string): Promise<boolean> {
+    this._lifecycleGuard.assertActive();
     const normalizedPath = normalizePath(path);
     log.debug('removeIfExists:', normalizedPath);
     const db = getDatabase();
@@ -1206,6 +1249,20 @@ export class VirtualFS {
       return parts[1];
     }
     return undefined;
+  }
+
+  /**
+   * Close the lifecycle guard to prevent further operations.
+   *
+   * P0-FIX: Called by PersistenceLayer during shutdown to reject any VirtualFS
+   * operations attempted after the database has been closed. This prevents
+   * DatabaseClosedError from Dexie by providing early, semantic rejection.
+   *
+   * After calling this, any attempt to use VirtualFS methods will throw
+   * LifecycleClosedError instead of the opaque DatabaseClosedError.
+   */
+  closeLifecycleGuard(): void {
+    this._lifecycleGuard.close();
   }
 }
 

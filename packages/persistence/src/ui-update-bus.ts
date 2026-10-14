@@ -546,6 +546,19 @@ export class UIUpdateBus {
       // and will be dispatched by resume(). Persisting them would cause duplicate
       // delivery on the next page refresh (resume delivers + catch-up replays).
 
+      // P1-FIX: Warn when approaching the limit to provide early warning of memory pressure
+      const SUSPENDED_EVENTS_WARN_THRESHOLD = Math.floor(
+        UIUpdateBus.MAX_SUSPENDED_EVENTS * 0.8,
+      ); // 800 events (80% of 1000)
+
+      if (this._suspendedEvents.length === SUSPENDED_EVENTS_WARN_THRESHOLD) {
+        log.warn(
+          `Suspended events count is approaching limit: ${this._suspendedEvents.length} / ${UIUpdateBus.MAX_SUSPENDED_EVENTS} ` +
+            `(${Math.round((this._suspendedEvents.length / UIUpdateBus.MAX_SUSPENDED_EVENTS) * 100)}%). ` +
+            `Consider resuming soon to prevent event loss or memory pressure.`,
+        );
+      }
+
       // Memory safety: reject if suspended events exceed threshold
       if (this._suspendedEvents.length >= UIUpdateBus.MAX_SUSPENDED_EVENTS) {
         throw new Error(

@@ -902,8 +902,22 @@ export class FileCacheRepository {
     // In high-frequency scenarios, chains can grow unbounded if cleanup fails.
     // Log a warning if chain exceeds threshold for debugging.
     const CHAIN_LENGTH_WARNING_THRESHOLD = 50;
+    const CHAIN_LENGTH_HARD_LIMIT = 100;
     const currentChainLength = this._syncLockChainLengths.get(key) ?? 0;
     const newChainLength = isFirstInChain ? 1 : currentChainLength + 1;
+
+    // P1-FIX: Enforce hard limit to prevent unbounded memory growth.
+    // If chain length exceeds 100, reject the operation to force investigation.
+    if (newChainLength > CHAIN_LENGTH_HARD_LIMIT) {
+      throw new Error(
+        `withSyncLock: Promise chain length for ${key} exceeded hard limit ` +
+        `(${newChainLength} > ${CHAIN_LENGTH_HARD_LIMIT}). ` +
+        `Rejecting operation to prevent memory exhaustion. ` +
+        `This indicates a serious memory leak or extremely high concurrency. ` +
+        `Investigate why cleanup is not working correctly.`
+      );
+    }
+
     this._syncLockChainLengths.set(key, newChainLength);
 
     if (newChainLength > CHAIN_LENGTH_WARNING_THRESHOLD) {
