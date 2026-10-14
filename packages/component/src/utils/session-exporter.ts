@@ -649,7 +649,7 @@ export async function generateSessionHTML(
         .message-content h4 { font-size: 14px; }
 
         .message-content ul, .message-content ol {
-            padding-left: 24px;
+            padding-inline-start: 24px;
             margin: 8px 0;
         }
 
@@ -702,8 +702,8 @@ export async function generateSessionHTML(
         }
 
         .message-content blockquote {
-            border-left: 3px solid var(--border-color);
-            padding-left: 14px;
+            border-inline-start: 3px solid var(--border-color);
+            padding-inline-start: 14px;
             color: var(--text-secondary);
             margin: 10px 0;
         }
@@ -768,7 +768,7 @@ export async function generateSessionHTML(
             border-radius: 4px;
             background: var(--bg-badge);
             color: var(--text-secondary);
-            margin-left: 4px;
+            margin-inline-start: 4px;
             vertical-align: middle;
         }
 

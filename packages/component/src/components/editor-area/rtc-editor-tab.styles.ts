@@ -21,7 +21,7 @@ export const styles = css`
         gap: 6px;
         cursor: pointer;
         background: var(--rtc-color-bg-tertiary, #2d2d30);
-        border-right: 1px solid var(--rtc-color-border, #3c3c3c);
+        border-inline-end: 1px solid var(--rtc-color-border, #3c3c3c);
         color: var(--rtc-color-text-secondary, #858585);
         font-size: var(--rtc-font-size-sm, 13px);
         position: relative;
@@ -45,8 +45,8 @@ export const styles = css`
         content: '';
         position: absolute;
         top: 0;
-        left: 0;
-        right: 0;
+        inset-inline-start: 0;
+        inset-inline-end: 0;
         height: 1px;
         background: var(--rtc-color-primary, #2741fe);
     }

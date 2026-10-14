@@ -18,8 +18,8 @@ export const styles = css`
         /* Drawer panel positioning base: left offset controlled via --rtc-drawer-left */
         position: absolute;
         top: 0;
-        left: var(--rtc-drawer-left, 0px);
-        right: 0;
+        inset-inline-start: var(--rtc-drawer-left, 0px);
+        inset-inline-end: 0;
         height: 100%;
         z-index: var(--rtc-z-drawer, 20);
         pointer-events: none;
@@ -48,11 +48,11 @@ export const styles = css`
     .panel {
         position: absolute;
         top: 0;
-        left: 0;
+        inset-inline-start: 0;
         height: 100%;
         width: var(--rtc-drawer-width, 240px);
         background: var(--rtc-color-bg-secondary, #252526);
-        border-right: var(--rtc-border-width, 1px) solid var(--rtc-color-border, #3c3c3c);
+        border-inline-end: var(--rtc-border-width, 1px) solid var(--rtc-color-border, #3c3c3c);
         display: flex;
         flex-direction: column;
         overflow: hidden;

@@ -192,7 +192,7 @@ export const styles = css`
     .toggle-thumb {
         position: absolute;
         top: 2px;
-        left: 2px;
+        inset-inline-start: 2px;
         width: 14px;
         height: 14px;
         background: var(--rtc-color-text-tertiary, #666666);
