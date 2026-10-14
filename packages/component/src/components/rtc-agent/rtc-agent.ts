@@ -78,10 +78,7 @@ import { SessionTabContext } from '../../contexts/session-tab.js';
 import { MessageContext } from '../../contexts/message.js';
 import { ModeContext } from '../../contexts/mode.js';
 import { ToolCallContext } from '../../contexts/tool-call.js';
-import {
-  TurnCountContext,
-  DEFAULT_TURN_COUNT,
-} from '../../contexts/turn-count.js';
+import { TurnCountContext } from '../../contexts/turn-count.js';
 import { SkillContext, DEFAULT_SKILL_STATE } from '../../contexts/skill.js';
 import { ActivityContext } from '../../contexts/activity.js';
 import { FileExplorerContext } from '../../contexts/file-explorer.js';
@@ -120,6 +117,7 @@ import { NotificationController } from '../../controllers/notification.controlle
 import { EventBindingController } from '../../controllers/event-binding.controller.js';
 import { FunctionsController } from '../../controllers/functions.controller.js';
 import { FunctionDebugController } from '../../controllers/function-debug.controller.js';
+import { TurnCountController } from '../../controllers/turn-count.controller.js';
 
 // Scenario loading
 import { setServerUrl, setRedirectUri } from '../../config/auth.js';
@@ -821,6 +819,7 @@ export class RtcAgent extends LitElement {
   private _notification = new NotificationController(this);
   private _functions = new FunctionsController(this);
   private _functionDebug = new FunctionDebugController(this);
+  private _turnCount = new TurnCountController(this);
 
   /** Whether the file tree has been loaded (loaded once on first entry to files activity). */
   private _fileTreeLoaded = false;
@@ -961,6 +960,24 @@ export class RtcAgent extends LitElement {
    * this flag before updating state to prevent memory leaks and errors when
    * the component is unmounted while async work is in-flight.
    *
+   * **Defensive Programming Pattern**:
+   * The `if (this._isDestroyed) return;` check appears in multiple async callbacks
+   * throughout this component. This is intentional and follows the "early return on
+   * destroyed component" pattern. While it may seem repetitive, each check protects
+   * against a specific async operation completing after unmount:
+   *
+   * - Logo sanitization (async DOMPurify)
+   * - Bubble icon sanitization (async DOMPurify)
+   * - Context provider sync (updateComplete.then)
+   * - Mode transition focus (updateComplete.then)
+   * - Microtask callbacks (queueMicrotask)
+   *
+   * **Why not extract to a utility method?**
+   * The guard is a simple 1-line check. Extracting it would add indirection without
+   * meaningful benefit. The current approach is explicit, easy to understand, and
+   * follows the principle of "make the common case obvious." Each async callback
+   * clearly shows its exit condition at the point where it matters.
+   *
    * Note: disconnectedCallback may fire for temporary removal (e.g., DOM reordering),
    * so the flag is reset in connectedCallback to support reconnect scenarios.
    */
@@ -1033,6 +1050,9 @@ export class RtcAgent extends LitElement {
   get functionDebugController() {
     return this._functionDebug;
   }
+  get turnCountController() {
+    return this._turnCount;
+  }
 
   /* ── Public Methods ── */
 
@@ -1094,7 +1114,7 @@ export class RtcAgent extends LitElement {
   });
   private _turnCountProvider = new ContextProvider(this, {
     context: TurnCountContext,
-    initialValue: DEFAULT_TURN_COUNT,
+    initialValue: this._turnCount.value,
   });
   private _skillProvider = new ContextProvider(this, {
     context: SkillContext,
@@ -1166,6 +1186,29 @@ export class RtcAgent extends LitElement {
    * consumers even when the locale value hasn't changed.
    */
   private _localeValue?: LocaleContextValue;
+
+  /**
+   * P1-FIX: Context value caches to prevent unnecessary re-renders.
+   * Controllers may return new object references even when state hasn't changed.
+   * Caching the last-set value and comparing by reference prevents ContextProvider.setValue()
+   * from triggering consumer re-renders when the actual value is identical.
+   */
+  private _sessionValue?: typeof this._session.value;
+  private _messageValue?: typeof this._message.value;
+  private _toolCallValue?: typeof this._toolCall.value;
+  private _authValue?: typeof this._auth.value;
+  private _modeValue?: typeof this._mode.value;
+  private _windowStateValue?: typeof this._windowState.value;
+  private _skillValue?: typeof this._skill.value;
+  private _activityValue?: typeof this._activity.value;
+  private _fileExplorerValue?: typeof this._fileExplorer.value;
+  private _sessionTreeValue?: typeof this._sessionTree.value;
+  private _sessionTabValue?: typeof this._sessionTab.value;
+  private _settingsValue?: typeof this._settings.value;
+  private _notificationValue?: typeof this._notification.value;
+  private _functionsValue?: typeof this._functions.value;
+  private _functionDebugValue?: typeof this._functionDebug.value;
+  private _turnCountValue?: typeof this._turnCount.value;
 
   /**
    * Initialize FileStorage when WorkerBridge and userId are available.
@@ -1261,7 +1304,7 @@ export class RtcAgent extends LitElement {
         this._message.actions.clearMessages();
       }
       // Immediately sync turn count to new session's value on session switch.
-      void this._refreshTurnCounts();
+      void this._turnCount.refresh();
     };
 
     // Inject persistence layer and session controller into MessageController
@@ -1269,8 +1312,12 @@ export class RtcAgent extends LitElement {
       this._message.persistence = this._persistence.layer;
       // Inject persistence into SessionController (for rename/delete persistence).
       this._session.persistence = this._persistence.layer;
+      // Inject persistence into TurnCountController
+      this._turnCount.setPersistence(this._persistence.layer);
     }
     this._message.sessionController = this._session;
+    // Inject session ID getter into TurnCountController
+    this._turnCount.setSessionIdGetter(() => this._session.value.state.currentSessionId);
 
     // Note: workerBridge injection into FunctionDebugController is handled in connection-setup.ts
     // after the connection is established, when workerBridge is confirmed to be available.
@@ -1400,7 +1447,7 @@ export class RtcAgent extends LitElement {
       persistence: this._persistence,
       getRtcProcessor: () => this._rtcProcessor,
       sessionLoader: this._sessionLoader,
-      refreshTurnCounts: () => this._refreshTurnCounts(),
+      refreshTurnCounts: () => this._turnCount.refresh(),
       handleFileChange: (entityId, field) =>
         this._handleFileChange(entityId, field),
       log,
@@ -1429,7 +1476,7 @@ export class RtcAgent extends LitElement {
       }
       // Refresh turn counts if turn entity was updated
       if (event.entities.has('turn')) {
-        void this._refreshTurnCounts();
+        void this._turnCount.refresh();
       }
       // Reload file tree if file entity was updated
       if (event.entities.has('file')) {
@@ -1454,7 +1501,7 @@ export class RtcAgent extends LitElement {
         if (currentSessionId) {
           void this._message.reload();
         }
-        void this._refreshTurnCounts();
+        void this._turnCount.refresh();
         void this._loadFileTree();
         this._rtcProcessor?.onRtcUpdate();
       }
@@ -1738,21 +1785,91 @@ export class RtcAgent extends LitElement {
         // Skip context sync to avoid wasted work on a detached element.
         if (this._isDestroyed) return;
 
-        this._sessionProvider.setValue(this._session.value);
-        this._messageProvider.setValue(this._message.value);
-        this._toolCallProvider.setValue(this._toolCall.value);
-        this._authProvider.setValue(this._auth.value);
-        this._modeProvider.setValue(this._mode.value);
-        this._windowStateProvider.setValue(this._windowState.value);
-        this._skillProvider.setValue(this._skill.value);
-        this._activityProvider.setValue(this._activity.value);
-        this._fileExplorerProvider.setValue(this._fileExplorer.value);
-        this._sessionTreeProvider.setValue(this._sessionTree.value);
-        this._sessionTabProvider.setValue(this._sessionTab.value);
-        this._settingsProvider.setValue(this._settings.value);
-        this._notificationProvider.setValue(this._notification.value);
-        this._functionsProvider.setValue(this._functions.value);
-        this._functionDebugProvider.setValue(this._functionDebug.value);
+        // P1-FIX: Only update context providers if value actually changed (by reference).
+        // @lit/context uses === to detect changes; calling setValue() with a new object
+        // reference triggers all context consumers to re-render even if the value is identical.
+        // Controllers may return new object references on each .value access, so we cache
+        // the last-set value and compare before calling setValue().
+        const sessionValue = this._session.value;
+        if (this._sessionValue !== sessionValue) {
+          this._sessionValue = sessionValue;
+          this._sessionProvider.setValue(sessionValue);
+        }
+        const messageValue = this._message.value;
+        if (this._messageValue !== messageValue) {
+          this._messageValue = messageValue;
+          this._messageProvider.setValue(messageValue);
+        }
+        const toolCallValue = this._toolCall.value;
+        if (this._toolCallValue !== toolCallValue) {
+          this._toolCallValue = toolCallValue;
+          this._toolCallProvider.setValue(toolCallValue);
+        }
+        const authValue = this._auth.value;
+        if (this._authValue !== authValue) {
+          this._authValue = authValue;
+          this._authProvider.setValue(authValue);
+        }
+        const modeValue = this._mode.value;
+        if (this._modeValue !== modeValue) {
+          this._modeValue = modeValue;
+          this._modeProvider.setValue(modeValue);
+        }
+        const windowStateValue = this._windowState.value;
+        if (this._windowStateValue !== windowStateValue) {
+          this._windowStateValue = windowStateValue;
+          this._windowStateProvider.setValue(windowStateValue);
+        }
+        const skillValue = this._skill.value;
+        if (this._skillValue !== skillValue) {
+          this._skillValue = skillValue;
+          this._skillProvider.setValue(skillValue);
+        }
+        const activityValue = this._activity.value;
+        if (this._activityValue !== activityValue) {
+          this._activityValue = activityValue;
+          this._activityProvider.setValue(activityValue);
+        }
+        const fileExplorerValue = this._fileExplorer.value;
+        if (this._fileExplorerValue !== fileExplorerValue) {
+          this._fileExplorerValue = fileExplorerValue;
+          this._fileExplorerProvider.setValue(fileExplorerValue);
+        }
+        const sessionTreeValue = this._sessionTree.value;
+        if (this._sessionTreeValue !== sessionTreeValue) {
+          this._sessionTreeValue = sessionTreeValue;
+          this._sessionTreeProvider.setValue(sessionTreeValue);
+        }
+        const sessionTabValue = this._sessionTab.value;
+        if (this._sessionTabValue !== sessionTabValue) {
+          this._sessionTabValue = sessionTabValue;
+          this._sessionTabProvider.setValue(sessionTabValue);
+        }
+        const settingsValue = this._settings.value;
+        if (this._settingsValue !== settingsValue) {
+          this._settingsValue = settingsValue;
+          this._settingsProvider.setValue(settingsValue);
+        }
+        const notificationValue = this._notification.value;
+        if (this._notificationValue !== notificationValue) {
+          this._notificationValue = notificationValue;
+          this._notificationProvider.setValue(notificationValue);
+        }
+        const functionsValue = this._functions.value;
+        if (this._functionsValue !== functionsValue) {
+          this._functionsValue = functionsValue;
+          this._functionsProvider.setValue(functionsValue);
+        }
+        const functionDebugValue = this._functionDebug.value;
+        if (this._functionDebugValue !== functionDebugValue) {
+          this._functionDebugValue = functionDebugValue;
+          this._functionDebugProvider.setValue(functionDebugValue);
+        }
+        const turnCountValue = this._turnCount.value;
+        if (this._turnCountValue !== turnCountValue) {
+          this._turnCountValue = turnCountValue;
+          this._turnCountProvider.setValue(turnCountValue);
+        }
 
         // Initialize FileStorage if not already done
         this._initializeFileStorage();
@@ -2108,37 +2225,7 @@ export class RtcAgent extends LitElement {
     this._previewFile = null;
   }
 
-  /* ── Session & Turn Count ── */
-
-  /**
-   * Read current session's pending_turn_count / running_turn_count from persistence,
-   * write to TurnCountContext for <rtc-input-area> to render send/stop buttons.
-   *
-   * Pushes zero values when there's no currentSessionId or persistence isn't ready.
-   */
-  private async _refreshTurnCounts() {
-    const currentId = this._session.value.state.currentSessionId;
-    if (!currentId || !this._persistence.layer) {
-      this._turnCountProvider.setValue(DEFAULT_TURN_COUNT);
-      return;
-    }
-    try {
-      const session = await this._persistence.layer.getSession(currentId);
-      if (!session) {
-        this._turnCountProvider.setValue(DEFAULT_TURN_COUNT);
-        return;
-      }
-      this._turnCountProvider.setValue({
-        pendingTurnCount: session.pending_turn_count,
-        runningTurnCount: session.running_turn_count,
-      });
-    } catch (err) {
-      // getSession() can throw if Worker/IndexedDB communication fails.
-      // Degrade gracefully: reset to defaults instead of unhandled rejection.
-      log.warn('Failed to refresh turn counts:', err);
-      this._turnCountProvider.setValue(DEFAULT_TURN_COUNT);
-    }
-  }
+  /* ── Session Management ── */
 
   /**
    * Load sessions list from persistence and sync into SessionController (delegated to session-loader).

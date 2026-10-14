@@ -239,6 +239,32 @@ export class MessageController implements ReactiveController {
   private _cachedSessionId?: string | null;
   private _cachedRepoVersion?: number;
 
+  /**
+   * Get the current message context value.
+   *
+   * **Object.freeze() Design Decision**:
+   * This controller uses Object.freeze() to create immutable state and value objects.
+   * This is a defensive measure specific to MessageController because:
+   *
+   * 1. **High-frequency state changes**: Messages are updated constantly during streaming,
+   *    tool calls, and user interactions. Immutable state prevents accidental mutations
+   *    from causing subtle bugs.
+   *
+   * 2. **Shared references**: The messages array is passed to multiple consumers
+   *    (message-list, input-area, tool-call overlays). Freeze prevents any consumer
+   *    from accidentally mutating the shared source of truth.
+   *
+   * 3. **Performance optimization**: Frozen objects can be safely returned by reference,
+   *    reducing garbage collection pressure. Without freeze, we'd need to deep-copy
+   *    on every access to prevent mutations.
+   *
+   * Other controllers (e.g., SessionController, ModeController) don't use freeze because:
+   * - They have lower update frequency
+   * - Their state is typically replaced entirely on updates (new object references)
+   * - The cost of freeze() outweighs the benefit for rarely-accessed state
+   *
+   * @see CachedContextController for base caching logic
+   */
   get value(): MessageContextValue {
     const currentSessionId =
       this._sessionController?.value.state.currentSessionId;
@@ -259,41 +285,33 @@ export class MessageController implements ReactiveController {
     ) {
       this._cachedSessionId = currentSessionId;
       this._cachedRepoVersion = repoVersion;
-      this._cachedState = {
-        messages: [...source.messages],
+      // P2-4: Use Object.freeze() to create immutable state, preventing external mutation
+      // while avoiding unnecessary deep copies. Consumers can still read properties,
+      // but attempts to modify will throw in strict mode (fail-fast principle).
+      this._cachedState = Object.freeze({
+        messages: Object.freeze([...source.messages]),
         hasMore: source.hasMore,
         isLoadingMore: source.isLoadingMore,
         hasMoreNewer: source.hasMoreNewer,
         isLoadingNewer: source.isLoadingNewer,
-      };
+      } as MessageState);
       stateChanged = true;
     }
 
-    // Always create fresh shallow copies to prevent external mutation
-    // This ensures each access returns a new object reference for change detection
-    const state: MessageState = {
-      messages: [...this._cachedState.messages],
-      hasMore: this._cachedState.hasMore,
-      isLoadingMore: this._cachedState.isLoadingMore,
-      hasMoreNewer: this._cachedState.hasMoreNewer,
-      isLoadingNewer: this._cachedState.isLoadingNewer,
-    };
+    // P2-4: Return frozen state directly - no need to create shallow copies on every access
+    // Object.freeze() ensures immutability, so we can safely return the same reference.
+    // This reduces garbage collection pressure and improves performance.
+    const state = this._cachedState!;
 
     // Only recreate value object if state changed or first access
     // This prevents unnecessary object creation on every get() call
     if (!this._cachedValue || stateChanged) {
-      this._cachedValue = {
+      this._cachedValue = Object.freeze({
         state,
         actions: this.actions,
         getUserMessageHistory: (sessionId: string, limit?: number) =>
           this.getUserMessageHistory(sessionId, limit),
-      };
-    } else {
-      // State hasn't changed, but we still need to return fresh state object
-      this._cachedValue = {
-        ...this._cachedValue,
-        state,
-      };
+      } as MessageContextValue);
     }
 
     return this._cachedValue;

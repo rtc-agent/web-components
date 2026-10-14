@@ -162,8 +162,15 @@ export class RtcInputArea extends LitElement {
   @consume({ context: TurnCountContext, subscribe: true })
   @state()
   private _turnCount: TurnCountContextValue = {
-    pendingTurnCount: 0,
-    runningTurnCount: 0,
+    state: {
+      pendingTurnCount: 0,
+      runningTurnCount: 0,
+    },
+    actions: {
+      refresh: async () => {
+        // No-op default implementation
+      },
+    },
   };
 
   @consume({ context: MessageContext, subscribe: true })
@@ -643,7 +650,7 @@ export class RtcInputArea extends LitElement {
   }
 
   private get _hasActiveTurns(): boolean {
-    return this._turnCount.runningTurnCount > 0;
+    return this._turnCount.state.runningTurnCount > 0;
   }
 
   /** Current session has active turns and input is empty → show stop button; otherwise show send button. */

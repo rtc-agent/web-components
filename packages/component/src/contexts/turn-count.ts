@@ -14,16 +14,53 @@ import { createContext } from '@lit/context';
  * Provided by: <rtc-agent> (root)
  * Consumed by: <rtc-input-area>
  */
-export interface TurnCountContextValue {
+
+/**
+ * Turn count state shape.
+ * Represents the number of pending and running turns.
+ */
+export interface TurnCountState {
   pendingTurnCount: number;
   runningTurnCount: number;
+}
+
+/**
+ * Turn count actions interface.
+ * Currently read-only from consumer perspective — refresh is internal to the controller.
+ */
+export interface TurnCountActions {
+  /** Force refresh turn counts from persistence (for external triggers). */
+  refresh: () => Promise<void>;
+}
+
+/**
+ * Turn count context value.
+ * Follows the standard { state, actions } pattern used by other controllers.
+ */
+export interface TurnCountContextValue {
+  state: TurnCountState;
+  actions: TurnCountActions;
 }
 
 export const TurnCountContext = createContext<TurnCountContextValue>(
   Symbol('turn-count-context'),
 );
 
-export const DEFAULT_TURN_COUNT: TurnCountContextValue = {
+export const DEFAULT_TURN_COUNT_STATE: TurnCountState = {
   pendingTurnCount: 0,
   runningTurnCount: 0,
+};
+
+/**
+ * @deprecated Use DEFAULT_TURN_COUNT_STATE instead.
+ * Kept for backward compatibility with existing consumers.
+ */
+export const DEFAULT_TURN_COUNT: TurnCountContextValue = {
+  state: DEFAULT_TURN_COUNT_STATE,
+  actions: {
+    refresh: async () => {
+      // No-op default implementation
+      console.warn('TurnCountContext: refresh() called on default context');
+    },
+  },
 };
