@@ -387,19 +387,20 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
   // negligible. All references are nullified after cleanup to help GC reclaim
   // closures and their captured scopes promptly.
   element.destroy = async () => {
-    // 1. Remove element from DOM (triggers disconnectedCallback)
-    //    This fires hostDisconnected() on all controllers. PersistenceController
-    //    starts async disconnect (fire-and-forget via void), but we must await
-    //    it below to ensure Worker/IndexedDB cleanup completes before AuthController
-    //    is destroyed. Without this, the auth provider could be cleared while
-    //    disconnect() is still accessing shared token resources.
-    element.remove();
+    // 1. Call PersistenceController.destroy() explicitly BEFORE removing from DOM.
+    //    This ensures WorkerBridge and other resources are fully cleaned up.
+    //    We do this before remove() because remove() triggers disconnectedCallback,
+    //    which would call hostDisconnected() on controllers. By destroying first,
+    //    we ensure complete cleanup with proper awaiting.
+    //    Note: destroy() is idempotent, so calling it here and then having
+    //    disconnectedCallback fire is safe.
+    await element.persistenceController?.destroy?.().catch(() => {});
 
-    // 2. Await PersistenceController disconnect to ensure Worker cleanup completes.
-    //    hostDisconnected() fires void this.disconnect() (async), but we need to
-    //    wait for it before destroying AuthController. Catch any errors to prevent
-    //    them from blocking the rest of the cleanup.
-    await element.persistenceController?.disconnect?.().catch(() => {});
+    // 2. Remove element from DOM (triggers disconnectedCallback)
+    //    This fires hostDisconnected() on all controllers, but PersistenceController
+    //    has already been destroyed above, so it's a no-op for that controller.
+    //    Other controllers (AuthController, etc.) will clean up their own resources.
+    element.remove();
 
     // 3. Clear external token references
     element._pendingAuthProvider = undefined;
@@ -417,7 +418,7 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
     }
 
     // 6. Destroy AuthController to release all resources (BroadcastChannel, timers, providers).
-    //    Called AFTER persistence disconnect completes to avoid races where disconnect()
+    //    Called AFTER persistence destroy completes to avoid races where destroy()
     //    accesses auth state (e.g., token callbacks) after AuthController is destroyed.
     element.authController?.destroy?.();
 

@@ -26,7 +26,7 @@ describe('createRtcAgent integration', () => {
   // ── 1. Complete lifecycle ─────────────────────────────────────────
 
   describe('complete lifecycle', () => {
-    it('should complete create → configure → mount → use → destroy', () => {
+    it('should complete create → configure → mount → use → destroy', async () => {
       const ready = vi.fn();
       const agent = createRtcAgent({
         appLabel: 'Lifecycle Test',
@@ -52,8 +52,8 @@ describe('createRtcAgent integration', () => {
       agent.dispatchEvent(new CustomEvent('rtc-agent-ready'));
       expect(ready).toHaveBeenCalledTimes(1);
 
-      // Destroy
-      agent.destroy();
+      // Destroy (async)
+      await agent.destroy();
       expect(document.body.contains(agent)).toBe(false);
     });
 
@@ -458,7 +458,7 @@ describe('createRtcAgent integration', () => {
       agent.destroy();
     });
 
-    it('should handle multiple agents independently', () => {
+    it('should handle multiple agents independently', async () => {
       const ready1 = vi.fn();
       const ready2 = vi.fn();
 
@@ -485,8 +485,8 @@ describe('createRtcAgent integration', () => {
       agent2.dispatchEvent(new CustomEvent('rtc-agent-ready'));
       expect(ready2).toHaveBeenCalledTimes(1);
 
-      agent1.destroy();
-      agent2.destroy();
+      await agent1.destroy();
+      await agent2.destroy();
 
       expect(document.body.contains(agent1)).toBe(false);
       expect(document.body.contains(agent2)).toBe(false);

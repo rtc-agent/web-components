@@ -420,12 +420,15 @@ export class RtcAgent extends LitElement {
       if (!html) return '';
       try {
         const DOMPurify = await this._loadDOMPurify();
-        return DOMPurify.sanitize(html, SVG_SANITIZE_CONFIG);
+        const sanitized = DOMPurify.sanitize(html, SVG_SANITIZE_CONFIG);
+        // If DOMPurify strips everything (e.g., entirely malicious input),
+        // return empty string to trigger default logo fallback
+        return sanitized || '';
       } catch {
-        // DOMPurify not available — strip all tags as a safe fallback
-        const el = document.createElement('div');
-        el.textContent = html;
-        return el.innerHTML;
+        // DOMPurify not available or failed — return empty string to trigger
+        // default logo fallback. This is safer than returning escaped text,
+        // which would render as garbage instead of falling back gracefully.
+        return '';
       }
     };
     const result = {

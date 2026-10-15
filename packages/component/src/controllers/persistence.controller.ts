@@ -473,10 +473,14 @@ export class PersistenceController implements ReactiveController {
    * for permanent teardown scenarios.
    */
   hostDisconnected() {
-    // Call destroy() for synchronous cleanup of critical resources.
-    // This ensures WorkerBridge and MasterLock are properly released,
-    // preventing resource leaks even if the component is GC'd immediately.
-    this.destroy();
+    // NOTE: We intentionally do NOT call destroy() here.
+    // hostDisconnected() is called synchronously from Lit's disconnectedCallback,
+    // but destroy() needs to await WorkerBridge cleanup to ensure complete resource
+    // release. The factory's destroy() method handles this by calling destroy()
+    // explicitly and awaiting it after element.remove().
+    //
+    // For temporary disconnections (e.g., DOM reordering), disconnect() is more
+    // appropriate than destroy() anyway. Permanent cleanup is handled by the factory.
   }
 
   /**
@@ -868,7 +872,7 @@ export class PersistenceController implements ReactiveController {
   /**
    * Permanently destroy the PersistenceController and release all resources.
    *
-   * This method ensures synchronous cleanup of critical resources, particularly
+   * This method ensures complete cleanup of critical resources, particularly
    * the WorkerBridge, to prevent resource leaks when the component is permanently
    * removed from the DOM.
    *
@@ -879,11 +883,12 @@ export class PersistenceController implements ReactiveController {
    *
    * Unlike disconnect(), this method is designed to be called when the component
    * is permanently destroyed (not just temporarily disconnected). It performs
-   * synchronous cleanup where possible to minimize leak windows.
+   * synchronous cleanup where possible and awaits async cleanup to ensure
+   * complete resource release.
    *
    * Safe to call multiple times — idempotent.
    */
-  destroy(): void {
+  async destroy(): Promise<void> {
     // Capture and clear references to prevent use-after-destroy
     const workerBridge = this._workerBridge;
     const masterLock = this._masterLock;
@@ -916,12 +921,15 @@ export class PersistenceController implements ReactiveController {
       }
     }
 
-    // Asynchronously destroy WorkerBridge (cannot be fully synchronous due to Comlink)
-    // Fire-and-forget with error handling to prevent unhandled rejections
+    // Await WorkerBridge destruction to ensure complete resource release.
+    // This includes closing the SharedWorker port and releasing Comlink proxies.
+    // Fire-and-forget would risk leaving these resources dangling.
     if (workerBridge) {
-      void workerBridge.destroy().catch((err) => {
+      try {
+        await workerBridge.destroy();
+      } catch (err) {
         log.debug('destroy: WorkerBridge.destroy() failed (non-fatal):', err);
-      });
+      }
     }
   }
 

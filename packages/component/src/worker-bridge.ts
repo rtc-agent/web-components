@@ -580,6 +580,14 @@ export class WorkerBridge {
       //
       // DEDUPLICATION: Uses _tokenRequestPromise to prevent concurrent requests.
       // If multiple callbacks request tokens simultaneously, they all await the same promise.
+      //
+      // PROMISE RESET: The dedup promise is cleared in the finally block (runs before the
+      // promise settles), ensuring that:
+      // 1. New callers after completion (success or failure) create a fresh request
+      // 2. Callers already awaiting the promise receive the result (success or rejection)
+      // 3. No stale promise reference persists after the request completes
+      // This prevents the edge case where a failed request would block all subsequent
+      // token requests until manual intervention.
       requestToken: async (): Promise<string> => {
         // Deduplication: if a request is already in-flight, await it instead of starting a new one
         if (this._tokenRequestPromise) {
@@ -609,6 +617,13 @@ export class WorkerBridge {
               throw new Error('[WorkerBridge] no access token available');
             }
             return token;
+          } catch (err) {
+            // Log timeout and other errors for observability
+            log.warn(
+              '[WorkerBridge] token request failed (will retry on next request):',
+              err instanceof Error ? err.message : String(err),
+            );
+            throw err;
           } finally {
             // CRITICAL: Clear timeout to prevent unhandled rejection when getAccessTokenAsync()
             // resolves first. Without this, the timer fires after 5s and rejects an already-settled
@@ -616,7 +631,10 @@ export class WorkerBridge {
             if (timeoutId !== undefined) {
               clearTimeout(timeoutId);
             }
-            // Clear the promise after completion (success or failure) to allow retry
+            // CRITICAL: Clear the dedup promise IMMEDIATELY after completion (success or failure).
+            // This runs BEFORE the promise settles, so new callers will create a fresh request
+            // instead of awaiting a stale/rejected promise. This ensures the dedup mechanism
+            // doesn't permanently block new token requests after a failure.
             this._tokenRequestPromise = null;
           }
         })();
