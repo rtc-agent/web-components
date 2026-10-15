@@ -1,4 +1,5 @@
 export default {
+  'app.loading': '載入中...',
   'app.network.offline': '當前處於離線狀態，部分功能可能不可用',
   'app.degradedState.warning':
     '使用者資訊載入失敗，部分功能可能受限。如問題持續，請重新登入。',

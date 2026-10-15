@@ -34,6 +34,7 @@ export default {
   'pages.getCaptchaSecondText': 'detik tersisa',
   'pages.login.rememberMe': 'Ingat saya',
   'pages.login.forgotPassword': 'Lupa Kata Sandi?',
+  'pages.login.forgotPassword.notImplemented': 'Fitur ini akan segera hadir',
   'pages.login.configLoadFailed':
     'Gagal memuat konfigurasi login, menggunakan pengaturan default',
   'pages.login.logoAlt': 'Logo Halaman Login',

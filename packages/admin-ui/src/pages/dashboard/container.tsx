@@ -21,9 +21,9 @@
  */
 
 import { useIntl, useLocation } from '@umijs/max';
-import { theme } from 'antd';
 import type { FC } from 'react';
 import { useEffect } from 'react';
+import { createStyles } from 'antd-style';
 import IframePanel from '@/components/IframePanel';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { iframeCacheManager } from '@/utils/iframe-cache';
@@ -89,10 +89,26 @@ const DASHBOARD_CONFIGS: DashboardConfig[] = [
   ),
 ];
 
+const useStyles = createStyles(({ token }) => ({
+  container: {
+    width: '100%',
+    // Use CSS variable for height calculation to accommodate header + padding + gap
+    // Desktop fallback: 140px = header (64px) + padding (24px * 2) + gap (28px)
+    // Mobile fallback: 100px = header (48px) + padding (16px * 2) + gap (20px)
+    height: 'var(--dashboard-height, calc(100vh - 140px))',
+    background: token.colorBgContainer,
+    borderRadius: token.borderRadius,
+    overflow: 'hidden',
+  },
+  containerMobile: {
+    height: 'var(--dashboard-height-mobile, calc(100vh - 100px))',
+  },
+}));
+
 const DashboardContainer: FC = () => {
   const location = useLocation();
   const intl = useIntl();
-  const { token } = theme.useToken();
+  const { styles } = useStyles();
   const isMobile = useIsMobile();
   const currentPath = location.pathname;
 
@@ -111,20 +127,7 @@ const DashboardContainer: FC = () => {
   }, [activeConfig?.cacheKey]);
 
   return (
-    <div
-      style={{
-        width: '100%',
-        // Use CSS variable for height calculation
-        // Fallback: 140px = header (64px) + padding (24px * 2) + gap (28px)
-        // Mobile: 100px = header (48px) + padding (16px * 2) + gap (20px)
-        height: isMobile
-          ? 'var(--dashboard-height-mobile, calc(100vh - 100px))'
-          : 'var(--dashboard-height, calc(100vh - 140px))',
-        background: token.colorBgContainer,
-        borderRadius: token.borderRadius,
-        overflow: 'hidden',
-      }}
-    >
+    <div className={isMobile ? styles.containerMobile : styles.container}>
       {DASHBOARD_CONFIGS.map((config) => {
         const isVisible = currentPath.startsWith(config.pathPrefix);
         const title = intl.formatMessage({

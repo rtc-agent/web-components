@@ -1,4 +1,5 @@
 export default {
+  'app.loading': 'در حال بارگذاری...',
   'app.network.offline':
     'شما اکنون آفلاین هستید. برخی از قابلیت‌ها ممکن است در دسترس نباشند.',
   'app.degradedState.warning':

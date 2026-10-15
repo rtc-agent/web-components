@@ -34,6 +34,8 @@ export default {
   'pages.getCaptchaSecondText': 'sec(s)',
   'pages.login.rememberMe': 'Remember me',
   'pages.login.forgotPassword': 'Forgot Password?',
+  'pages.login.forgotPassword.notImplemented':
+    'This feature is coming soon',
   'pages.login.configLoadFailed':
     'Failed to load login config, using default settings',
   'pages.login.logoAlt': 'Login Page Logo',

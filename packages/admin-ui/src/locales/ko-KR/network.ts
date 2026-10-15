@@ -1,4 +1,5 @@
 export default {
+  'app.loading': '로딩 중...',
   'app.network.offline':
     '현재 오프라인 상태입니다. 일부 기능을 사용하지 못할 수 있습니다.',
   'app.degradedState.warning':

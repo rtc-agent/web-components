@@ -1,4 +1,5 @@
 export default {
+  'app.loading': 'Carregando...',
   'app.network.offline':
     'Você está offline no momento. Alguns recursos podem estar indisponíveis.',
   'app.degradedState.warning':

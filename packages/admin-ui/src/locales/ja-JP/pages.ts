@@ -35,6 +35,7 @@ export default {
   'pages.getCaptchaSecondText': '秒',
   'pages.login.rememberMe': 'ログイン状態を保持する',
   'pages.login.forgotPassword': 'パスワードをお忘れですか？',
+  'pages.login.forgotPassword.notImplemented': 'この機能は近日公開予定です',
   'pages.login.configLoadFailed':
     'ログイン設定の読み込みに失敗しました。デフォルト設定を使用します',
   'pages.login.logoAlt': 'ログインページロゴ',

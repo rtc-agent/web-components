@@ -31,6 +31,7 @@ export default {
   'pages.getCaptchaSecondText': '秒後重新獲取',
   'pages.login.rememberMe': '自動登錄',
   'pages.login.forgotPassword': '忘記密碼 ？',
+  'pages.login.forgotPassword.notImplemented': '此功能即將推出',
   'pages.login.configLoadFailed': '登錄配置加載失敗，使用默認設置',
   'pages.login.logoAlt': '登錄頁 Logo',
   'pages.login.submit': '登錄',

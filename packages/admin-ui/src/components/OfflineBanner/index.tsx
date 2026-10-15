@@ -20,7 +20,14 @@ const getOnlineStatus = () =>
  * Fixed-position alert displayed at the top of the viewport when the user is offline.
  * Uses theme tokens for background color to support both light and dark modes.
  *
- * z-index is set to 999 to sit above most UI elements but below modal/drawer layers.
+ * z-index layering strategy (see CLAUDE.md / design system tokens):
+ * - Page content: 0-100
+ * - Sticky headers/nav: 100-500
+ * - Offline banner: 900 (above page content, below overlays)
+ * - GlobalLoadingOverlay: token.zIndexPopupBase (typically 1000)
+ * - Drawer: 1000
+ * - Modal: 1000+
+ *
  * safe-area-inset-top is used to respect device notches (e.g., iPhone).
  */
 const OfflineBanner: React.FC = () => {
@@ -59,8 +66,9 @@ const OfflineBanner: React.FC = () => {
         // Use theme token for warning background to support dark mode
         backgroundColor: token.colorWarningBg,
         borderColor: token.colorWarningBorder,
-        // z-index below modals (1000+) and drawers (1000) but above page content
-        zIndex: 999,
+        // z-index 900: above page content but below GlobalLoadingOverlay (zIndexPopupBase ~1000)
+        // and modal/drawer layers (1000+). See component JSDoc for layering strategy.
+        zIndex: 900,
       }}
       message={title}
     />

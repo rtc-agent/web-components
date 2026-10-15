@@ -35,6 +35,7 @@ export default {
   'pages.getCaptchaSecondText': 'ثانیه',
   'pages.login.rememberMe': 'مرا به خاطر بسپار',
   'pages.login.forgotPassword': 'رمز عبور را فراموش کرده اید ?',
+  'pages.login.forgotPassword.notImplemented': 'این قابلیت به زودی ارائه می‌شود',
   'pages.login.configLoadFailed':
     'خطا در بارگذاری پیکربندی ورود، استفاده از تنظیمات پیش‌فرض',
   'pages.login.logoAlt': 'لوگوی صفحه ورود',

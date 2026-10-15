@@ -4,7 +4,6 @@ import { useAccess, useIntl, useSearchParams } from '@umijs/max';
 import { App, Button, Tabs, Tag, theme } from 'antd';
 import React, {
   useCallback,
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -99,12 +98,8 @@ const SystemConfigsPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const isMobile = useIsMobile(); // < 768px
 
-  // Initialize active category from URL
-  const [activeCategory, setActiveCategory] = useState(
-    searchParams.get('category') || '',
-  );
-  // Extract category from URL for precise dependency tracking
-  const urlCategory = searchParams.get('category') || '';
+  // Derive active category directly from URL (single source of truth)
+  const activeCategory = searchParams.get('category') || '';
   const [editingConfig, setEditingConfig] = useState<ServerConfigItem | null>(
     null,
   );
@@ -490,27 +485,17 @@ const SystemConfigsPage: React.FC = () => {
     ),
   );
 
-  // Listen for URL changes (from Page API), sync active category
-  useEffect(() => {
-    if (urlCategory !== activeCategory) {
-      setActiveCategory(urlCategory);
-      reload();
-    }
-  }, [urlCategory]); // Precise dependency: only react to category changes
-
   return (
     <PageContainer>
       <Tabs
         activeKey={activeCategory}
         onChange={(key) => {
-          setActiveCategory(key);
-          // Sync URL with category change
           const newSearchParams = new URLSearchParams();
           if (key) {
             newSearchParams.set('category', key);
           }
           setSearchParams(newSearchParams, { replace: true });
-          // reload() will be triggered by useEffect when searchParams change
+          reload();
         }}
         items={CATEGORIES.map((cat) => ({
           key: cat.key,

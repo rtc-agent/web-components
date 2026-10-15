@@ -33,6 +33,7 @@ export default {
   'pages.getCaptchaSecondText': 'সেকেন্ড',
   'pages.login.rememberMe': 'আমাকে মনে রাখুন',
   'pages.login.forgotPassword': 'পাসওয়ার্ড ভুলে গেছেন?',
+  'pages.login.forgotPassword.notImplemented': 'এই বৈশিষ্ট্যটি শীঘ্রই আসছে',
   'pages.login.configLoadFailed':
     'লগইন কনফিগারেশন লোড করতে ব্যর্থ, ডিফল্ট সেটিংস ব্যবহার করা হচ্ছে',
   'pages.login.logoAlt': 'লগইন পেজ লোগো',

@@ -35,6 +35,7 @@ export default {
   'pages.getCaptchaSecondText': 'seg(s)',
   'pages.login.rememberMe': 'Lembre-me',
   'pages.login.forgotPassword': 'Perdeu a Senha?',
+  'pages.login.forgotPassword.notImplemented': 'Esta funcionalidade estará disponível em breve',
   'pages.login.configLoadFailed':
     'Falha ao carregar configuração de login, usando configurações padrão',
   'pages.login.logoAlt': 'Logo da Página de Login',

@@ -81,6 +81,10 @@ export function usePermissionRefresh() {
       // Each request chains onto the previous one, ensuring sequential execution.
       refreshQueue.current = refreshQueue.current.then(async () => {
         try {
+          // Immediately clear the permission cache so subsequent access() calls
+          // recompute instead of serving stale data within the 60s TTL window.
+          clearPermissionCache();
+
           // Fetch latest user info from server and build CurrentUser object
           // This also updates localStorage and dispatches 'admin-permissions-ready' event
           const currentUser = await fetchAndBuildCurrentUser(undefined, true);

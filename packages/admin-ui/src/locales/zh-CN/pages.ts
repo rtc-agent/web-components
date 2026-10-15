@@ -31,6 +31,7 @@ export default {
   'pages.getCaptchaSecondText': '秒后重新获取',
   'pages.login.rememberMe': '自动登录',
   'pages.login.forgotPassword': '忘记密码？',
+  'pages.login.forgotPassword.notImplemented': '该功能即将上线',
   'pages.login.configLoadFailed': '登录配置加载失败，使用默认设置',
   'pages.login.logoAlt': '登录页 Logo',
   'pages.login.submit': '登录',

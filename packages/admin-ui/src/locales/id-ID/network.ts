@@ -1,4 +1,5 @@
 export default {
+  'app.loading': 'Memuat...',
   'app.network.offline':
     'Anda sedang offline. Beberapa fitur mungkin tidak tersedia.',
   'app.degradedState.warning':

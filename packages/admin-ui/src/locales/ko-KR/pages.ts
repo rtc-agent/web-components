@@ -34,6 +34,7 @@ export default {
   'pages.getCaptchaSecondText': '초',
   'pages.login.rememberMe': '자동 로그인',
   'pages.login.forgotPassword': '비밀번호를 잊으셨나요?',
+  'pages.login.forgotPassword.notImplemented': '곧 출시될 기능입니다',
   'pages.login.configLoadFailed':
     '로그인 설정을 로드할 수 없어 기본 설정을 사용합니다',
   'pages.login.logoAlt': '로그인 페이지 로고',
