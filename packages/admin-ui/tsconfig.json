@@ -1,4 +1,12 @@
 {
+  // P2-8: This tsconfig extends the workspace base but uses Umi Max conventions.
+  // Differences from other workspace packages:
+  // - "jsx": "react-jsx" - Required by Umi Max (React 17+ automatic runtime)
+  // - "experimentalDecorators": true - Needed for legacy decorators in some Umi plugins
+  // - "paths" - Umi Max uses "@/" for src/, "@@/" for .umi/ generated files
+  // - "types" - Includes vitest/globals for testing, node for server-side types
+  // These differences are intentional and align with Umi Max framework requirements.
+  // Do not refactor to match other packages' tsconfig patterns without careful testing.
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "jsx": "react-jsx",

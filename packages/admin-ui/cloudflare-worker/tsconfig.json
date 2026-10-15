@@ -1,4 +1,6 @@
 {
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "_comment": "This tsconfig does NOT extend the base tsconfig.base.json because Cloudflare Workers require a specialized TypeScript configuration: ES2021 target (not ES2022+), @cloudflare/workers-types, and specific module resolution. The Workers runtime has different capabilities and constraints than Node.js/browser environments.",
   "compilerOptions": {
     "target": "ES2021",
     "module": "ESNext",
