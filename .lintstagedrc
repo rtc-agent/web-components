@@ -5,9 +5,6 @@
   "packages/component/**/*.md": [
     "pnpm --filter @rtc-agent/component exec biome check --write"
   ],
-  "packages/shared/**/*.{js,jsx,tsx,ts,css,less}": [
-    "pnpm --filter @rtc-agent/shared exec biome check --write"
-  ],
   "*.{js,jsx,tsx,ts,css,less,json,md}": [
     "biome check --write"
   ]

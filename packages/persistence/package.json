@@ -16,8 +16,9 @@
     "dist",
     "README.md"
   ],
+  "sideEffects": false,
   "scripts": {
-    "build": "tsup && tsc --emitDeclarationOnly --declaration --declarationMap && node ../../scripts/remove-sourcemap-refs.js",
+    "build": "tsup && tsc --emitDeclarationOnly --declaration --declarationMap && node ../../scripts/remove-sourcemap-refs.mjs",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests --exclude '**/*.integration.test.ts'",

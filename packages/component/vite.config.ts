@@ -1,7 +1,7 @@
-import { defineConfig } from 'vite';
 import path from 'path';
-import { nodePolyfills } from 'vite-plugin-node-polyfills';
 import { visualizer } from 'rollup-plugin-visualizer';
+import { defineConfig } from 'vite';
+import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
 // Vite 构建配置：
 // - 入口：src/index.ts（注册所有 Web Components）
@@ -63,7 +63,7 @@ export default defineConfig(({ mode }) => ({
     // 生成 JS sourcemap，便于生产环境调试和问题定位
     // 生产环境使用 'hidden'：生成 .map 文件但不在 JS 中引用，避免暴露源码
     // 开发环境使用 true：生成 .map 文件并在 JS 中添加引用
-    // 注意：persistence 包使用 tsup 构建，通过 remove-sourcemap-refs.js 脚本实现相同效果
+    // 注意：persistence 包使用 tsup 构建，通过 remove-sourcemap-refs.mjs 脚本实现相同效果
     sourcemap: mode === 'development' ? true : 'hidden',
     lib: {
       entry: 'src/index.ts',
@@ -83,10 +83,7 @@ export default defineConfig(({ mode }) => ({
             return 'vendor-lit';
           }
           // Core modules: internal functionality (merged to avoid circular dependencies)
-          if (
-            id.includes('/src/core/') ||
-            id.includes('/src/controllers/')
-          ) {
+          if (id.includes('/src/core/') || id.includes('/src/controllers/')) {
             return 'core-controllers';
           }
           if (id.includes('/src/components/')) {

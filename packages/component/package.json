@@ -21,6 +21,9 @@
     "bin",
     "README.md"
   ],
+  "sideEffects": [
+    "./dist/index.js"
+  ],
   "scripts": {
     "build": "lit-localize build && rm -rf dist && vite build && tsc --emitDeclarationOnly --declaration --declarationMap",
     "dev": "vite",

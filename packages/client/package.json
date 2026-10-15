@@ -21,8 +21,9 @@
     "dist",
     "README.md"
   ],
+  "sideEffects": false,
   "scripts": {
-    "build": "rm -rf dist && tsc && node ../../scripts/remove-sourcemap-refs.js",
+    "build": "rm -rf dist && tsc && node ../../scripts/remove-sourcemap-refs.mjs",
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests --exclude '**/*.integration.test.ts'",
