@@ -96,6 +96,19 @@ export class SessionTabController implements ReactiveController {
   hostDisconnected() {}
 
   /**
+   * Update state and invalidate the value cache.
+   *
+   * This helper ensures that the cached Context value is invalidated
+   * whenever state changes, preventing stale references from being served
+   * to Context consumers. All state mutations MUST go through this method.
+   */
+  private _setState(newState: SessionTabState): void {
+    this._state = newState;
+    this._cachedState = undefined;
+    this._cachedValue = undefined;
+  }
+
+  /**
    * Filter out invalid tabs (session has been deleted or does not exist)
    *
    * Called after session list is loaded from IndexedDB to clean up stale persisted tabs.
@@ -116,7 +129,7 @@ export class SessionTabController implements ReactiveController {
     }
 
     if (tabs.length !== before) {
-      this._state = { tabs, activeSessionId };
+      this._setState({ tabs, activeSessionId });
 
       this.host.requestUpdate();
       return true;
@@ -157,7 +170,7 @@ export class SessionTabController implements ReactiveController {
     });
 
     if (changed) {
-      this._state = { ...this._state, tabs };
+      this._setState({ ...this._state, tabs });
 
       this.host.requestUpdate();
     }
@@ -181,7 +194,7 @@ export class SessionTabController implements ReactiveController {
       return t;
     });
     if (changed) {
-      this._state = { ...this._state, tabs };
+      this._setState({ ...this._state, tabs });
 
       this.host.requestUpdate();
     }
@@ -208,7 +221,7 @@ export class SessionTabController implements ReactiveController {
     const tabs = this._state.tabs.map((t) =>
       t.sessionId === sessionId ? { ...t, isUnsaved: false } : t,
     );
-    this._state = { ...this._state, tabs };
+    this._setState({ ...this._state, tabs });
 
     this.host.requestUpdate();
   }
@@ -220,7 +233,7 @@ export class SessionTabController implements ReactiveController {
     const tabs = this._state.tabs.map((t) =>
       t.sessionId === sessionId ? { ...t, status } : t,
     );
-    this._state = { ...this._state, tabs };
+    this._setState({ ...this._state, tabs });
 
     this.host.requestUpdate();
   }
@@ -258,7 +271,7 @@ export class SessionTabController implements ReactiveController {
         log.debug('Protected tab title:', existing.title);
         // Only update activeSessionId when activation is needed
         if (shouldActivate && this._state.activeSessionId !== sessionId) {
-          this._state = { ...this._state, activeSessionId: sessionId };
+          this._setState({ ...this._state, activeSessionId: sessionId });
           if (!skipPersist) this._persistActiveSessionId(sessionId);
           this.host.requestUpdate();
         }
@@ -281,7 +294,7 @@ export class SessionTabController implements ReactiveController {
       const newActiveId = shouldActivate
         ? sessionId
         : this._state.activeSessionId;
-      this._state = { tabs, activeSessionId: newActiveId };
+      this._setState({ tabs, activeSessionId: newActiveId });
       if (shouldActivate && !skipPersist) {
         this._persistActiveSessionId(newActiveId);
       }
@@ -303,7 +316,7 @@ export class SessionTabController implements ReactiveController {
       const newActiveId = shouldActivate
         ? sessionId
         : this._state.activeSessionId;
-      this._state = { tabs, activeSessionId: newActiveId };
+      this._setState({ tabs, activeSessionId: newActiveId });
       if (shouldActivate && !skipPersist) {
         this._persistActiveSessionId(newActiveId);
       }
@@ -334,25 +347,25 @@ export class SessionTabController implements ReactiveController {
       this._persistActiveSessionId(activeSessionId);
     }
 
-    this._state = { tabs, activeSessionId };
+    this._setState({ tabs, activeSessionId });
 
     this.host.requestUpdate();
   }
 
   private _setActiveTab(sessionId: string | null) {
     if (sessionId !== null && sessionId !== this._state.activeSessionId) {
-      this._state = { ...this._state, activeSessionId: sessionId };
+      this._setState({ ...this._state, activeSessionId: sessionId });
       this._persistActiveSessionId(sessionId);
       this.host.requestUpdate();
     } else if (sessionId === null && this._state.activeSessionId !== null) {
-      this._state = { ...this._state, activeSessionId: null };
+      this._setState({ ...this._state, activeSessionId: null });
       this._persistActiveSessionId(null);
       this.host.requestUpdate();
     }
   }
 
   private _clearAll() {
-    this._state = { tabs: [], activeSessionId: null };
+    this._setState({ tabs: [], activeSessionId: null });
     this._persistActiveSessionId(null);
     this.host.requestUpdate();
   }
@@ -402,7 +415,7 @@ export class SessionTabController implements ReactiveController {
           }
         : t,
     );
-    this._state = { ...this._state, tabs };
+    this._setState({ ...this._state, tabs });
     this.host.requestUpdate();
   }
 
@@ -417,7 +430,7 @@ export class SessionTabController implements ReactiveController {
         ? { ...t, initialInputValue: undefined, noticeMessage: undefined }
         : t,
     );
-    this._state = { ...this._state, tabs };
+    this._setState({ ...this._state, tabs });
     this.host.requestUpdate();
   }
 
@@ -440,7 +453,7 @@ export class SessionTabController implements ReactiveController {
       return false;
     }
     log.debug('Restoring active tab:', stored);
-    this._state = { ...this._state, activeSessionId: stored };
+    this._setState({ ...this._state, activeSessionId: stored });
     this.host.requestUpdate();
     return true;
   }

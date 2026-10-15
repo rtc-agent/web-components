@@ -62,7 +62,7 @@ export class ActivityController extends CachedContextController<
       const isValidActivity = (v: unknown): v is Activity =>
         v === 'files' || v === 'chat' || v === 'settings' || v === 'functions';
       if (saved && typeof saved === 'object') {
-        this._state = {
+        this._setState({
           active: isValidActivity(saved.active)
             ? saved.active
             : DEFAULT_ACTIVITY_STATE.active,
@@ -70,7 +70,7 @@ export class ActivityController extends CachedContextController<
             typeof saved.sidebarVisible === 'boolean'
               ? saved.sidebarVisible
               : DEFAULT_ACTIVITY_STATE.sidebarVisible,
-        };
+        });
       }
     } catch (e) {
       // localStorage may be unavailable or data corrupted

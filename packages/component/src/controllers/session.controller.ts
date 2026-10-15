@@ -108,7 +108,7 @@ export class SessionController extends CachedContextController<
     return this._executeSessionOperation(
       id,
       'rename',
-      () => this.persistence!.updateSessionTitle(id, title),
+      () => this.persistence?.updateSessionTitle(id, title) ?? Promise.resolve(),
       () => {
         const sessions = this._state.sessions.map((s) =>
           s.clientId === id ? { ...s, title, updatedAt: Date.now() } : s,
@@ -135,8 +135,9 @@ export class SessionController extends CachedContextController<
       id,
       'delete',
       async () => {
+        if (!this.persistence) return;
         log.debug('calling persistence.deleteSession');
-        await this.persistence!.deleteSession(id);
+        await this.persistence.deleteSession(id);
         log.debug('persistence.deleteSession completed');
       },
       () => {
