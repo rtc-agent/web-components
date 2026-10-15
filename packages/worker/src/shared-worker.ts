@@ -1,7 +1,7 @@
-import { expose } from 'comlink';
-import { WorkerCore } from './worker-core.js';
-import type { WorkerCallbacks } from './core-interface.js';
 import { createLogger } from '@rtc-agent/protocol';
+import { expose } from 'comlink';
+import type { WorkerCallbacks } from './core-interface.js';
+import { WorkerCore } from './worker-core.js';
 
 const log = createLogger('SharedWorker');
 
@@ -50,6 +50,17 @@ sharedSelf.onconnect = (e: MessageEvent): void => {
   const facade = {
     init: (config: Parameters<WorkerCore['init']>[0]) => core.init(config),
     registerCallback: (cb: WorkerCallbacks) => {
+      // Defensive check: prevent duplicate callback registration on the same port.
+      // If registerCallback is called multiple times without unregisterCallback,
+      // the old callback would be overwritten, causing a memory leak (the old callback
+      // remains in core.callbacks Set but is no longer tracked by registeredCallback).
+      // This ensures cleanup happens before re-registration.
+      if (registeredCallback) {
+        log.warn(
+          'registerCallback called multiple times on same port, unregistering previous callback',
+        );
+        core.unregisterCallback(registeredCallback);
+      }
       core.registerCallback(cb);
       registeredCallback = cb;
     },

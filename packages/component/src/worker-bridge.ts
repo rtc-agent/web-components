@@ -591,7 +591,9 @@ export class WorkerBridge {
       requestToken: async (): Promise<string> => {
         // Deduplication: if a request is already in-flight, await it instead of starting a new one
         if (this._tokenRequestPromise) {
-          log.debug('token request already in-flight, awaiting existing promise');
+          log.debug(
+            'token request already in-flight, awaiting existing promise',
+          );
           return this._tokenRequestPromise;
         }
 
@@ -1387,7 +1389,9 @@ export class WorkerBridge {
       try {
         if (this._proxiedCallbacks) {
           await this._core.unregisterCallback(this._proxiedCallbacks);
-          log.debug('_doInit: cleanup unregisterCallback succeeded after failure');
+          log.debug(
+            '_doInit: cleanup unregisterCallback succeeded after failure',
+          );
         }
         // Reset flag since we successfully unregistered
         this._callbacksRegistered = false;
@@ -2506,9 +2510,23 @@ export class WorkerBridge {
    * where the channel becomes unhealthy but postMessage doesn't fail immediately.
    * When the limit is exceeded, the channel is marked unhealthy and all pending resolves
    * are immediately invoked to prevent memory leaks.
+   *
+   * DESTROY SAFETY:
+   * Checks _destroyed flag at the beginning to prevent accessing _yieldChannel after
+   * destroy() has cleared it. If destroyed, resolves immediately to allow the catch-up
+   * loop to exit cleanly on its next iteration.
    */
   private _yieldToMain(): Promise<void> {
     return new Promise((resolve) => {
+      // DESTROY SAFETY: Check if bridge has been destroyed before accessing _yieldChannel.
+      // destroy() clears _yieldChannel and resolves all pending promises. If _yieldToMain()
+      // is called after destroy() (e.g., from a catch-up loop that hasn't checked signal.aborted
+      // yet), we should resolve immediately instead of accessing a cleared channel.
+      if (this._destroyed) {
+        resolve();
+        return;
+      }
+
       // CRITICAL: Memory safety check - prevent unbounded growth of _yieldResolves array.
       // This can happen if the channel is in a bad state where postMessage succeeds but
       // onmessage never fires (e.g., browser resource pressure, internal channel error).

@@ -1,33 +1,33 @@
-import {
-  createPersistenceLayer,
-  getUIUpdateBus,
-  getOffsetManager,
-  initializeVirtualFS,
-  virtualFS,
-  getDatabase,
-  type PersistenceConfig,
-  type AgentMdConfig,
-  type UIUpdateEvent,
-  type UIUpdateQueueEntry,
-  type LocalSession,
-  type LocalMessage,
-  type LocalRtc,
-  type DebugHistoryItem,
-  type PagedResult,
-  type FileSystemEntryType,
-  type FileSystemMetadataOverride,
-  type CachedFileInfo,
-  type FileCacheEntry,
-  type FileSyncStatus,
-  type GrepResult,
-} from '@rtc-agent/persistence';
-import type { HeadObjectResult } from '@rtc-agent/client';
-import type { ContentData } from '@rtc-agent/protocol';
 import type {
   ConnectionState,
   ConnectionStateEvent,
+  HeadObjectResult,
   TokenExpiredAction,
 } from '@rtc-agent/client';
+import {
+  type AgentMdConfig,
+  type CachedFileInfo,
+  createPersistenceLayer,
+  type DebugHistoryItem,
+  type FileCacheEntry,
+  type FileSyncStatus,
+  type FileSystemEntryType,
+  type FileSystemMetadataOverride,
+  type GrepResult,
+  getDatabase,
+  getOffsetManager,
+  getUIUpdateBus,
+  initializeVirtualFS,
+  type LocalMessage,
+  type LocalRtc,
+  type LocalSession,
+  type PagedResult,
+  type PersistenceConfig,
+  type UIUpdateEvent,
+  type UIUpdateQueueEntry,
+  virtualFS,
+} from '@rtc-agent/persistence';
+import type { ContentData } from '@rtc-agent/protocol';
 import { createLogger } from '@rtc-agent/protocol';
 import type {
   WorkerCallbacks,
@@ -952,12 +952,10 @@ export class WorkerCore implements WorkerPersistenceCore {
    * - Sync success + async reject: increment (the async result is the true indicator)
    *
    * ZOMBIE STATE DETECTION:
-   * After all callbacks have been individually attempted, checks if ALL failed.
-   * This uses a shared failure counter (allFailedCount) instead of relying on
-   * Promise.allSettled results, because the outer promises always resolve (by design,
-   * to avoid blocking Promise.allSettled). The individual failure tracking via
-   * _recordAsyncFailure/_recordSyncFailure handles per-callback cleanup, but the
-   * "all failed" zombie recovery requires an aggregate check.
+   * Uses Promise.allSettled() return values to count failures. Each callback's Promise
+   * is wrapped to reject on failure (instead of always resolving), allowing allSettled
+   * to accurately track rejected promises. When all promises reject, the system enters
+   * zombie state and clears all callbacks for recovery.
    */
   private broadcastUIUpdate(event: UIUpdateEvent, seq = 0): void {
     // P2-1: Performance monitoring for WebSocket message processing delay
@@ -966,14 +964,10 @@ export class WorkerCore implements WorkerPersistenceCore {
     const payload = { event, seq };
     const callbacks = Array.from(this.callbacks);
 
-    // Track how many callbacks failed in this broadcast round.
-    // Used for zombie state detection after all promises settle.
-    let allFailedCount = 0;
-
     // PERFORMANCE: Process all callbacks in parallel using Promise.allSettled
     // This prevents slow callbacks from blocking others, reducing broadcast latency
     const promises = callbacks.map((cb) => {
-      return new Promise<void>((resolve) => {
+      return new Promise<void>((resolve, reject) => {
         try {
           const result = cb.onUIUpdate(payload);
           // Check for Promise-like return value (Comlink proxies always return Promises)
@@ -988,8 +982,7 @@ export class WorkerCore implements WorkerPersistenceCore {
               (err) => {
                 // Async failure: track via failure counting mechanism
                 this._recordAsyncFailure(cb, err);
-                allFailedCount++;
-                resolve(); // Resolve anyway to not block Promise.allSettled
+                reject(err); // Reject to allow allSettled to count failures
               },
             );
           } else {
@@ -1000,14 +993,13 @@ export class WorkerCore implements WorkerPersistenceCore {
         } catch (err) {
           // Sync failure: track via standard mechanism
           this._recordSyncFailure(cb, err);
-          allFailedCount++;
-          resolve(); // Resolve anyway to not block Promise.allSettled
+          reject(err); // Reject to allow allSettled to count failures
         }
       });
     });
 
-    // Fire-and-forget: don't await, but detect zombie state when all callbacks fail
-    Promise.allSettled(promises).then(() => {
+    // Fire-and-forget: detect zombie state when all callbacks fail
+    Promise.allSettled(promises).then((results) => {
       // P3-1 FIX: Wrap performance measurement in try-finally to ensure cleanup
       // always executes, preventing memory leaks from accumulated performance marks
       try {
@@ -1020,19 +1012,18 @@ export class WorkerCore implements WorkerPersistenceCore {
         );
 
         // ZOMBIE STATE DETECTION:
-        // If ALL callbacks failed in this round, the system is in a zombie state:
-        // events are broadcast but no tabs receive them. This typically indicates
-        // all connected tabs crashed or disconnected abnormally.
-        //
-        // NOTE: We use the allFailedCount counter (tracked per-callback in the
-        // promise wrappers above) instead of checking Promise.allSettled results,
-        // because the outer promises always resolve by design.
-        //
+        // Count rejected promises from allSettled results. When ALL callbacks fail,
+        // the system is in a zombie state: events are broadcast but no tabs receive them.
+        // This typically indicates all connected tabs crashed or disconnected abnormally.
+        const failedCount = results.filter(
+          (r) => r.status === 'rejected',
+        ).length;
+
         // Recovery strategy: Clear all callbacks and failure counts to allow fresh
         // registration. The next tab that connects will re-register callbacks,
         // restoring normal operation. This is the safest recovery path because
         // attempting to resurrect stale callbacks could cause data corruption.
-        if (callbacks.length > 0 && allFailedCount === callbacks.length) {
+        if (callbacks.length > 0 && failedCount === callbacks.length) {
           // CRITICAL: Use log.error (not log.warn) to surface this as a critical issue.
           // log.warn would be filtered out in production logs, making this invisible.
           log.error(
@@ -1145,8 +1136,8 @@ export class WorkerCore implements WorkerPersistenceCore {
     if (totalCallbacks > 0 && failCount === totalCallbacks) {
       log.error(
         `CRITICAL: ${context}: all ${totalCallbacks} callbacks failed, ` +
-        `system entering zombie state. Clearing callbacks for recovery. ` +
-        `Next registerCallback() will restore normal operation.`,
+          `system entering zombie state. Clearing callbacks for recovery. ` +
+          `Next registerCallback() will restore normal operation.`,
       );
       this.callbacks.clear();
       this._callbackFailureCounts.clear();
@@ -1187,9 +1178,8 @@ export class WorkerCore implements WorkerPersistenceCore {
    * We explicitly handle Promise rejections to track failures and clean up dead callbacks.
    *
    * ZOMBIE STATE DETECTION:
-   * After all callbacks have been individually attempted, checks if ALL failed.
-   * Uses a shared failure counter (allFailedCount) tracked inside the promise wrappers,
-   * because the outer promises always resolve (by design, to avoid blocking allSettled).
+   * Uses Promise.allSettled() return values to count failures. When all promises reject,
+   * the system enters zombie state and clears all callbacks for recovery.
    */
   private broadcastGapFillState(isSyncing: boolean): void {
     log.debug(
@@ -1200,11 +1190,8 @@ export class WorkerCore implements WorkerPersistenceCore {
     );
     const callbacks = Array.from(this.callbacks);
 
-    // Track how many callbacks failed in this broadcast round (zombie detection)
-    let allFailedCount = 0;
-
     const promises = callbacks.map((cb) => {
-      return new Promise<void>((resolve) => {
+      return new Promise<void>((resolve, reject) => {
         try {
           const result = cb.onGapFillState(isSyncing);
           if (isPromiseLike<void>(result)) {
@@ -1215,8 +1202,7 @@ export class WorkerCore implements WorkerPersistenceCore {
               },
               (err) => {
                 this._recordAsyncFailure(cb, err);
-                allFailedCount++;
-                resolve(); // Resolve anyway to not block Promise.allSettled
+                reject(err); // Reject to allow allSettled to count failures
               },
             );
           } else {
@@ -1225,15 +1211,19 @@ export class WorkerCore implements WorkerPersistenceCore {
           }
         } catch (err) {
           this._recordSyncFailure(cb, err);
-          allFailedCount++;
-          resolve();
+          reject(err); // Reject to allow allSettled to count failures
         }
       });
     });
 
     // Fire-and-forget: detect zombie state when all callbacks fail
-    Promise.allSettled(promises).then(() => {
-      this._checkZombieState(callbacks.length, allFailedCount, 'broadcastGapFillState');
+    Promise.allSettled(promises).then((results) => {
+      const failedCount = results.filter((r) => r.status === 'rejected').length;
+      this._checkZombieState(
+        callbacks.length,
+        failedCount,
+        'broadcastGapFillState',
+      );
     });
   }
 
@@ -1247,9 +1237,8 @@ export class WorkerCore implements WorkerPersistenceCore {
    * We explicitly handle Promise rejections to track failures and clean up dead callbacks.
    *
    * ZOMBIE STATE DETECTION:
-   * After all callbacks have been individually attempted, checks if ALL failed.
-   * Uses a shared failure counter (allFailedCount) tracked inside the promise wrappers,
-   * because the outer promises always resolve (by design, to avoid blocking allSettled).
+   * Uses Promise.allSettled() return values to count failures. When all promises reject,
+   * the system enters zombie state and clears all callbacks for recovery.
    */
   private broadcastAccountBanned(reason: string): void {
     log.warn(
@@ -1260,11 +1249,8 @@ export class WorkerCore implements WorkerPersistenceCore {
     );
     const callbacks = Array.from(this.callbacks);
 
-    // Track how many callbacks failed in this broadcast round (zombie detection)
-    let allFailedCount = 0;
-
     const promises = callbacks.map((cb) => {
-      return new Promise<void>((resolve) => {
+      return new Promise<void>((resolve, reject) => {
         try {
           const result = cb.onAccountBanned(reason);
           if (isPromiseLike<void>(result)) {
@@ -1275,8 +1261,7 @@ export class WorkerCore implements WorkerPersistenceCore {
               },
               (err) => {
                 this._recordAsyncFailure(cb, err);
-                allFailedCount++;
-                resolve(); // Resolve anyway to not block Promise.allSettled
+                reject(err); // Reject to allow allSettled to count failures
               },
             );
           } else {
@@ -1285,15 +1270,19 @@ export class WorkerCore implements WorkerPersistenceCore {
           }
         } catch (err) {
           this._recordSyncFailure(cb, err);
-          allFailedCount++;
-          resolve();
+          reject(err); // Reject to allow allSettled to count failures
         }
       });
     });
 
     // Fire-and-forget: detect zombie state when all callbacks fail
-    Promise.allSettled(promises).then(() => {
-      this._checkZombieState(callbacks.length, allFailedCount, 'broadcastAccountBanned');
+    Promise.allSettled(promises).then((results) => {
+      const failedCount = results.filter((r) => r.status === 'rejected').length;
+      this._checkZombieState(
+        callbacks.length,
+        failedCount,
+        'broadcastAccountBanned',
+      );
     });
   }
 
@@ -1426,7 +1415,11 @@ export class WorkerCore implements WorkerPersistenceCore {
       log.error('all requestTokenRefresh callbacks failed:', err);
 
       // ZOMBIE STATE DETECTION: If all callbacks failed, check for zombie state
-      this._checkZombieState(callbacks.length, allFailedCount, 'requestTokenRefresh');
+      this._checkZombieState(
+        callbacks.length,
+        allFailedCount,
+        'requestTokenRefresh',
+      );
 
       return 'relogin';
     }
@@ -1483,9 +1476,8 @@ export class WorkerCore implements WorkerPersistenceCore {
    * We explicitly handle Promise rejections to track failures and clean up dead callbacks.
    *
    * ZOMBIE STATE DETECTION:
-   * After all callbacks have been individually attempted, checks if ALL failed.
-   * Uses a shared failure counter (allFailedCount) tracked inside the promise wrappers,
-   * because the outer promises always resolve (by design, to avoid blocking allSettled).
+   * Uses Promise.allSettled() return values to count failures. When all promises reject,
+   * the system enters zombie state and clears all callbacks for recovery.
    */
   private broadcastConnectionState(event: ConnectionStateEvent): void {
     log.debug(
@@ -1498,11 +1490,8 @@ export class WorkerCore implements WorkerPersistenceCore {
     );
     const callbacks = Array.from(this.callbacks);
 
-    // Track how many callbacks failed in this broadcast round (zombie detection)
-    let allFailedCount = 0;
-
     const promises = callbacks.map((cb) => {
-      return new Promise<void>((resolve) => {
+      return new Promise<void>((resolve, reject) => {
         try {
           const result = cb.onConnectionStateChange(event);
           if (isPromiseLike<void>(result)) {
@@ -1513,8 +1502,7 @@ export class WorkerCore implements WorkerPersistenceCore {
               },
               (err) => {
                 this._recordAsyncFailure(cb, err);
-                allFailedCount++;
-                resolve(); // Resolve anyway to not block Promise.allSettled
+                reject(err); // Reject to allow allSettled to count failures
               },
             );
           } else {
@@ -1523,15 +1511,19 @@ export class WorkerCore implements WorkerPersistenceCore {
           }
         } catch (err) {
           this._recordSyncFailure(cb, err);
-          allFailedCount++;
-          resolve();
+          reject(err); // Reject to allow allSettled to count failures
         }
       });
     });
 
     // Fire-and-forget: detect zombie state when all callbacks fail
-    Promise.allSettled(promises).then(() => {
-      this._checkZombieState(callbacks.length, allFailedCount, 'broadcastConnectionState');
+    Promise.allSettled(promises).then((results) => {
+      const failedCount = results.filter((r) => r.status === 'rejected').length;
+      this._checkZombieState(
+        callbacks.length,
+        failedCount,
+        'broadcastConnectionState',
+      );
     });
   }
 
