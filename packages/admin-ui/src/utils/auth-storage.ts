@@ -90,30 +90,62 @@ export const setTokens = async (
       encryptToken(refreshToken),
     ]);
 
-    localStorage.setItem(ACCESS_TOKEN_KEY, encryptedAccess);
+    // P2 修复：检查 localStorage 容量，捕获 QuotaExceededError
+    try {
+      localStorage.setItem(ACCESS_TOKEN_KEY, encryptedAccess);
 
-    // 存储 refresh token 及其 rotation 元数据
-    const tokenWithRotation = {
-      token: encryptedRefresh, // 存储加密后的 token
-      rotated: false,
-      createdAt: Date.now(),
-      encrypted: true, // 标记此 token 已加密
-    };
-    localStorage.setItem(REFRESH_TOKEN_KEY, JSON.stringify(tokenWithRotation));
+      // 存储 refresh token 及其 rotation 元数据
+      const tokenWithRotation = {
+        token: encryptedRefresh, // 存储加密后的 token
+        rotated: false,
+        createdAt: Date.now(),
+        encrypted: true, // 标记此 token 已加密
+      };
+      localStorage.setItem(
+        REFRESH_TOKEN_KEY,
+        JSON.stringify(tokenWithRotation),
+      );
 
-    // 计算并存储 access token 过期时间戳
-    const expiryTime = Date.now() + expiresIn * 1000;
-    localStorage.setItem(TOKEN_EXPIRY_KEY, expiryTime.toString());
+      // 计算并存储 access token 过期时间戳
+      const expiryTime = Date.now() + expiresIn * 1000;
+      localStorage.setItem(TOKEN_EXPIRY_KEY, expiryTime.toString());
 
-    // 计算并存储 refresh token 过期时间戳
-    const refreshExpiryTime = Date.now() + refreshTokenExpiresIn * 1000;
-    localStorage.setItem(
-      REFRESH_TOKEN_EXPIRY_KEY,
-      refreshExpiryTime.toString(),
-    );
+      // 计算并存储 refresh token 过期时间戳
+      const refreshExpiryTime = Date.now() + refreshTokenExpiresIn * 1000;
+      localStorage.setItem(
+        REFRESH_TOKEN_EXPIRY_KEY,
+        refreshExpiryTime.toString(),
+      );
 
-    // 清除旧的 rotation 标记
-    localStorage.removeItem(REFRESH_TOKEN_ROTATION_KEY);
+      // 清除旧的 rotation 标记
+      localStorage.removeItem(REFRESH_TOKEN_ROTATION_KEY);
+    } catch (storageError) {
+      // P2 修复：处理 localStorage 容量不足
+      if (
+        storageError instanceof DOMException &&
+        storageError.name === 'QuotaExceededError'
+      ) {
+        console.error(
+          '[setTokens] localStorage quota exceeded. ' +
+            'Please clear browser storage and try again.',
+          storageError,
+        );
+        // 清除已部分写入的 token，防止明文泄漏
+        try {
+          localStorage.removeItem(ACCESS_TOKEN_KEY);
+          localStorage.removeItem(REFRESH_TOKEN_KEY);
+          localStorage.removeItem(TOKEN_EXPIRY_KEY);
+          localStorage.removeItem(REFRESH_TOKEN_EXPIRY_KEY);
+        } catch {
+          // 清除失败时忽略错误
+        }
+        throw new Error(
+          'Browser storage is full. Please clear browser data and try again.',
+        );
+      }
+      // 其他存储错误（如存储被禁用）
+      throw storageError;
+    }
 
     // 通知 auth 状态变化
     notifyAuthStateChanged();
@@ -313,11 +345,23 @@ export const isRefreshTokenExpired = (): boolean => {
 
 /**
  * 存储管理员信息
+ *
+ * P2 修复：添加 localStorage 容量检查，捕获 QuotaExceededError
  */
 export const setUserInfo = (userInfo: UserInfo) => {
   try {
     localStorage.setItem(USER_INFO_KEY, JSON.stringify(userInfo));
   } catch (error) {
+    // P2 修复：处理 localStorage 容量不足
+    if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+      console.error(
+        '[setUserInfo] localStorage quota exceeded. User info not saved.',
+        error,
+      );
+      // User info 不是关键数据，不影响认证，仅记录错误
+      return;
+    }
+    // 其他错误（如存储被禁用）
     console.error('Failed to save user info to localStorage:', error);
     // Continue anyway - user info is not critical for authentication
   }

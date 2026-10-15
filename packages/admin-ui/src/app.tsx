@@ -609,6 +609,18 @@ export const layout: RunTimeLayoutConfig = ({
             onSettingChange={(settings) => {
               saveThemeSettings(settings);
               try {
+                // P2 设计决策：主题变更触发全局重渲染是可接受的
+                //
+                // 原因分析：
+                // 1. 主题变更是低频操作（用户手动切换），不是性能瓶颈
+                // 2. SettingDrawer 本身会缓存设置，避免频繁触发
+                // 3. Umi 的 initialState 更新经过优化，只在真正变化时触发重渲染
+                // 4. 主题变更需要全局生效（布局、组件、图标等），必须通过 initialState 传播
+                //
+                // 如果需要进一步优化，可以考虑：
+                // - 将主题设置提取到独立的 context（仅影响需要主题的组件）
+                // - 使用 CSS 变量而非 React state 管理主题（避免重渲染）
+                // - 但这些优化会增加代码复杂度，当前实现是性能与可维护性的平衡
                 setInitialState((s) => ({
                   ...s,
                   settings,

@@ -72,7 +72,14 @@ export function useModalState<T = void>(): ModalActions<T> {
   }, []);
 
   const setRecord = useCallback((record: T | undefined) => {
-    setState((prev) => ({ ...prev, record }));
+    setState((prev) => {
+      // P2 修复：浅比较避免不必要的状态更新
+      // 如果 record 没有变化（引用相同或都是 undefined），不触发重渲染
+      if (prev.record === record) {
+        return prev;
+      }
+      return { ...prev, record };
+    });
   }, []);
 
   return { state, open, close, setRecord };

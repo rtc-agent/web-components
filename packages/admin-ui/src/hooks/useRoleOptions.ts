@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { getRoleList } from '@/services/role';
 import { ROLE_CACHE } from '@/utils/queryCacheConfig';
 import { queryKeys } from '@/utils/queryKeys';
@@ -20,15 +20,25 @@ export interface UseRoleOptionsResult {
   roleOptions: Array<{ label: string; value: string }>;
   /** 是否正在加载 */
   loading: boolean;
+  /** 加载失败时的错误信息 */
+  error?: Error;
 }
 
 export function useRoleOptions(): UseRoleOptionsResult {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: queryKeys.roleList.all,
-    queryFn: () => getRoleList({ page: 1, page_size: 1000 }).then((r) => r.items),
+    queryFn: () =>
+      getRoleList({ page: 1, page_size: 1000 }).then((r) => r.items),
     staleTime: ROLE_CACHE.staleTime, // 5 minutes
     gcTime: ROLE_CACHE.gcTime, // 30 minutes
   });
+
+  // Log error for debugging when query fails
+  useEffect(() => {
+    if (error) {
+      console.error('[useRoleOptions] Failed to load roles:', error);
+    }
+  }, [error]);
 
   const { roleMap, roleOptions } = useMemo(() => {
     const map = new Map<string, string>();
@@ -46,5 +56,10 @@ export function useRoleOptions(): UseRoleOptionsResult {
     return { roleMap: map, roleOptions: options };
   }, [data]);
 
-  return { roleMap, roleOptions, loading: isLoading };
+  return {
+    roleMap,
+    roleOptions,
+    loading: isLoading,
+    error: error ?? undefined,
+  };
 }

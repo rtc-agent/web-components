@@ -1,6 +1,8 @@
-import { useIntl, useModel } from '@umijs/max';
+import { useIntl, useModel, useQueryClient } from '@umijs/max';
 import { App } from 'antd';
 import { useCallback, useEffect, useRef } from 'react';
+import { clearPermissionCache } from '@/access';
+import { queryKeys } from '@/utils/queryKeys';
 import { fetchAndBuildCurrentUser } from '@/utils/user-utils';
 
 // localStorage key for user info (used for cross-tab sync)
@@ -34,6 +36,10 @@ export function usePermissionRefresh() {
   const { setInitialState } = useModel('@@initialState');
   const { message } = App.useApp();
   const intl = useIntl();
+  // Access QueryClient instance to invalidate user-related caches
+  // when permissions change. This ensures react-query doesn't serve
+  // stale user data after permission updates.
+  const queryClient = useQueryClient();
 
   /**
    * Serialization Queue Design:
@@ -84,6 +90,14 @@ export function usePermissionRefresh() {
             return;
           }
 
+          if (process.env.NODE_ENV === 'development') {
+            console.info('[usePermissionRefresh] Permissions refreshed', {
+              userId: currentUser.userid,
+              timestamp: new Date().toISOString(),
+              permissionCount: currentUser.permissions?.size ?? 0,
+            });
+          }
+
           // Guard against updating unmounted component state
           if (!isMounted.current) {
             return;
@@ -98,6 +112,13 @@ export function usePermissionRefresh() {
               ...prev,
               currentUser,
             };
+          });
+
+          // Invalidate user-related react-query caches to ensure consistency
+          // between permission cache and server state. This forces components
+          // to refetch user data with the new permissions.
+          queryClient?.invalidateQueries({
+            queryKey: queryKeys.currentUser.all,
           });
 
           // Guard against updating unmounted component state
@@ -142,7 +163,7 @@ export function usePermissionRefresh() {
 
       return refreshQueue.current;
     },
-    [setInitialState],
+    [setInitialState, queryClient],
   );
 
   /**
@@ -182,6 +203,11 @@ export function usePermissionRefresh() {
         console.debug(
           '[usePermissionRefresh] Detected cross-tab user info change, scheduling refresh',
         );
+
+        // Clear permission cache first to force recalculation.
+        // Without this, access() might return stale cached permissions
+        // even after refreshPermissions() completes.
+        clearPermissionCache();
 
         // Debounce: clear any pending refresh and schedule a new one
         // This prevents race conditions when multiple storage events fire in quick succession

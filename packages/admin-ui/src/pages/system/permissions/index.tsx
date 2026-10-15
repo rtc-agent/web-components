@@ -9,7 +9,7 @@ import {
 import { Access, useAccess, useIntl } from '@umijs/max';
 import { useQueryClient } from '@tanstack/react-query';
 import { App, Button, Popconfirm, Space, Tag } from 'antd';
-import React, { useCallback, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import TableEmptyState from '@/components/TableEmptyState';
 import { getActionTypes, getResourceTypes } from '@/constants/permissions';
 import { useIsMobile } from '@/hooks/useIsMobile';
@@ -43,10 +43,22 @@ const PermissionListPage: React.FC = () => {
   const { message } = App.useApp();
   const queryClient = useQueryClient();
   const modal = useModalState();
-  const { roleMap, roleOptions } = useRoleOptions();
+  const { roleMap, roleOptions, error: rolesError } = useRoleOptions();
   const isMobile = useIsMobile();
   const modalWidth = isMobile ? '95vw' : 520;
   const { refreshPermissions } = usePermissionRefresh();
+
+  // Show error message when role options fail to load
+  useEffect(() => {
+    if (rolesError) {
+      message.error(
+        intl.formatMessage({
+          id: 'pages.permission.roleLoadError',
+          defaultMessage: 'Failed to load role options',
+        }),
+      );
+    }
+  }, [rolesError, message, intl]);
 
   const RESOURCE_TYPES = getResourceTypes(intl);
   const ACTION_TYPES = getActionTypes(intl);
@@ -134,9 +146,7 @@ const PermissionListPage: React.FC = () => {
         // Remove permission policies (parallel execution)
         remove: async (items) => {
           try {
-            await Promise.all(
-              items.map((item) => deletePermission(item)),
-            );
+            await Promise.all(items.map((item) => deletePermission(item)));
             actionRef.current?.reload();
             // Invalidate role list cache so other pages see the updated permissions
             queryClient.invalidateQueries({ queryKey: queryKeys.roleList.all });
@@ -192,7 +202,10 @@ const PermissionListPage: React.FC = () => {
         dataIndex: 'resource',
         valueType: 'select',
         valueEnum: RESOURCE_TYPES.reduce(
-          (acc: Record<string, { text: string }>, cur: { value: string; label: string }) => {
+          (
+            acc: Record<string, { text: string }>,
+            cur: { value: string; label: string },
+          ) => {
             acc[cur.value] = { text: cur.label };
             return acc;
           },
@@ -200,7 +213,8 @@ const PermissionListPage: React.FC = () => {
         ),
         render: (_, record) => {
           const resource = RESOURCE_TYPES.find(
-            (r: { value: string; label: string }) => r.value === record.resource,
+            (r: { value: string; label: string }) =>
+              r.value === record.resource,
           );
           return <Tag color="green">{resource?.label || record.resource}</Tag>;
         },
@@ -213,14 +227,19 @@ const PermissionListPage: React.FC = () => {
         dataIndex: 'action',
         valueType: 'select',
         valueEnum: ACTION_TYPES.reduce(
-          (acc: Record<string, { text: string }>, cur: { value: string; label: string }) => {
+          (
+            acc: Record<string, { text: string }>,
+            cur: { value: string; label: string },
+          ) => {
             acc[cur.value] = { text: cur.label };
             return acc;
           },
           {} as Record<string, { text: string }>,
         ),
         render: (_, record) => {
-          const action = ACTION_TYPES.find((a: { value: string; label: string }) => a.value === record.action);
+          const action = ACTION_TYPES.find(
+            (a: { value: string; label: string }) => a.value === record.action,
+          );
           return <Tag color="orange">{action?.label || record.action}</Tag>;
         },
       },

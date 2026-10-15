@@ -46,10 +46,27 @@ const AdminUserManagementPage: React.FC = () => {
   const actionRef = useRef<ActionType>(null);
   const access = useAccess();
   const intl = useIntl();
-  const { roleOptions, loading: rolesLoading } = useRoleOptions();
+  const {
+    roleOptions,
+    loading: rolesLoading,
+    error: rolesError,
+  } = useRoleOptions();
   const { message } = App.useApp();
   const tableParams = useTableSearchParams<{ keyword?: string }>();
   const [currentRow, setCurrentRow] = useState<UserInfo>();
+
+  // Show error message when role options fail to load
+  useEffect(() => {
+    if (rolesError) {
+      message.error(
+        intl.formatMessage({
+          id: 'pages.user.roleLoadError',
+          defaultMessage:
+            'Failed to load role options. Some features may be limited.',
+        }),
+      );
+    }
+  }, [rolesError, message, intl]);
 
   // Modal state management using useModalState hook
   // Each modal is independent - they don't share state transitions
