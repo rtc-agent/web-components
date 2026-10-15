@@ -1693,16 +1693,27 @@ export class RtcAgent extends LitElement {
   /**
    * Lifecycle: element disconnected from DOM.
    *
+   * **IMPORTANT: Not Reentrant**
+   * This method is NOT safe to call concurrently or re-entrantly. It performs
+   * synchronous state mutations (setting _isDestroyed, clearing references)
+   * followed by async cleanup (RTC processor cancellation). If called while
+   * already executing, it may cause race conditions or double-cleanup.
+   *
+   * Lit's lifecycle guarantees disconnectedCallback is called sequentially,
+   * but be cautious if manually invoking or if future refactoring introduces
+   * re-entrancy paths.
+   *
    * Memory management strategy:
    * Performs comprehensive cleanup of all resources registered in connectedCallback():
-   * 1. Dispatch 'rtc-before-destroy' event (for external listeners)
-   * 2. Clear async hooks (_beforeMessageSendHook) to release captured closures
-   * 3. Remove all DOM event listeners via EventBindingController.unbindEvents()
-   * 4. Unsubscribe all UIUpdateBus listeners (message, bulk update, gap fill)
-   * 5. Release RTC processor and connection state references
-   * 6. Clear auth onLogin callback (prevents closure leak to _connectWithRetry)
-   * 7. Invalidate in-flight connection attempts via generation counter
-   * 8. Clear all auto-save timers
+   * 1. Set destruction guard (_isDestroyed) to block async state updates
+   * 2. Dispatch 'rtc-before-destroy' event (for external listeners)
+   * 3. Clear async hooks (_beforeMessageSendHook) to release captured closures
+   * 4. Remove all DOM event listeners via EventBindingController.unbindEvents()
+   * 5. Unsubscribe all UIUpdateBus listeners (message, bulk update, gap fill)
+   * 6. Release RTC processor and connection state references
+   * 7. Clear auth onLogin callback (prevents closure leak to _connectWithRetry)
+   * 8. Invalidate in-flight connection attempts via generation counter
+   * 9. Clear all auto-save timers
    *
    * Async cleanup safety:
    * Some cleanup operations (RTC processor cancellation, Promise chains in

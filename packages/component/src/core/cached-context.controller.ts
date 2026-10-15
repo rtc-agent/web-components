@@ -55,6 +55,10 @@ export abstract class CachedContextController<
   /**
    * Value cache to prevent unnecessary Context consumer re-renders.
    * Only recreated when state reference changes.
+   *
+   * For high-frequency controllers, we implement shallow comparison of state
+   * properties to avoid creating new value objects when state hasn't meaningfully
+   * changed. This prevents cascading re-renders in Context consumers.
    */
   private _cachedValue?: { state: S; actions: A };
   private _cachedState?: S;
@@ -79,25 +83,57 @@ export abstract class CachedContextController<
 
   /**
    * Get the cached context value.
-   * Only creates a new value object if state reference has changed.
    *
-   * **Cache Invalidation Design**:
-   * This method uses reference equality (`===`) to detect state changes. This means:
-   * - _setState() MUST create a new object reference (e.g., `{ ...oldState, ...updates }`)
+   * Uses shallow comparison to detect state changes. This means:
+   * - If state is a new object reference but all properties are equal, we reuse the cached value
+   * - _setState() SHOULD create a new object reference (e.g., `{ ...oldState, ...updates }`)
    * - Mutating properties of the existing state object will NOT trigger cache invalidation
    * - This is intentional: it enforces immutable state updates and prevents subtle bugs
+   *
+   * For high-frequency controllers, shallow comparison prevents unnecessary Context
+   * consumer re-renders when state objects are recreated but values haven't changed.
    *
    * @see _setState() - the intended way to update state
    * @see _updateState() - convenience method for partial updates
    */
   get value(): { state: S; actions: A } {
-    // Only create new value object if state reference changed
-    if (this._cachedValue && this._cachedState === this._state) {
+    // Only create new value object if state meaningfully changed
+    if (this._cachedValue && this._shallowEqual(this._cachedState, this._state)) {
       return this._cachedValue;
     }
     this._cachedState = this._state;
     this._cachedValue = { state: this._state, actions: this.actions };
     return this._cachedValue;
+  }
+
+  /**
+   * Shallow equality comparison for state objects.
+   *
+   * Compares own enumerable properties using strict equality (===).
+   * Returns true if:
+   * - Both references are the same (===)
+   * - Both are objects with the same keys and equal property values
+   *
+   * This prevents unnecessary context updates when state is recreated but
+   * values haven't changed (common in high-frequency controller scenarios).
+   */
+  private _shallowEqual(a: S | undefined, b: S): boolean {
+    if (a === b) return true;
+    if (!a || typeof a !== 'object' || typeof b !== 'object') return false;
+
+    const keysA = Object.keys(a);
+    const keysB = Object.keys(b);
+    if (keysA.length !== keysB.length) return false;
+
+    for (const key of keysA) {
+      if (
+        !Object.prototype.hasOwnProperty.call(b, key) ||
+        (a as Record<string, unknown>)[key] !== (b as Record<string, unknown>)[key]
+      ) {
+        return false;
+      }
+    }
+    return true;
   }
 
   /** Get current state (for internal use) */

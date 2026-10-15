@@ -146,6 +146,13 @@ export class EventBindingController implements ReactiveController {
   host: ReactiveControllerHost & EventTarget;
   private deps: EventBindingDeps;
 
+  /**
+   * Tracks whether events are currently bound.
+   * Ensures unbindEvents() is idempotent and can be called multiple times safely.
+   * Also guards against calling unbindEvents() before bindEvents().
+   */
+  private _bound = false;
+
   // ── Bound Event Handlers ──
   // Each handler is an arrow function to preserve `this` context.
   // Stored as instance fields so we can remove them in unbindEvents.
@@ -683,6 +690,9 @@ export class EventBindingController implements ReactiveController {
    * @param element The element to attach listeners to (typically `this` in rtc-agent.ts)
    */
   bindEvents(element: Element) {
+    if (this._bound) return; // Prevent duplicate bindings
+    this._bound = true;
+
     // Window control
     element.addEventListener('rtc-window-minimize', this._boundOnMinimize);
     element.addEventListener('rtc-window-maximize', this._boundOnMaximize);
@@ -793,6 +803,9 @@ export class EventBindingController implements ReactiveController {
    *
    * Call this in disconnectedCallback to prevent memory leaks.
    *
+   * **Idempotency**: This method is safe to call multiple times. If events
+   * are already unbound (or never bound), it returns immediately without error.
+   *
    * Note: this.deps references are intentionally NOT cleared here.
    * The deps object contains references to other controllers, which have
    * their own lifecycle management. Clearing deps here would break the
@@ -804,9 +817,8 @@ export class EventBindingController implements ReactiveController {
    * @param element The element to detach listeners from (typically `this` in rtc-agent.ts)
    */
   unbindEvents(element: Element) {
-    // Safety check: ensure handlers are initialized before removing
-    // (guards against calling unbindEvents before bindEvents)
-    if (!this._boundOnMinimize) return;
+    if (!this._bound) return; // Idempotent: early return if already unbound
+    this._bound = false;
 
     // Window control
     element.removeEventListener('rtc-window-minimize', this._boundOnMinimize);
