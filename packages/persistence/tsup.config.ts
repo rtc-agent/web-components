@@ -3,7 +3,7 @@ import { defineConfig } from 'tsup';
 export default defineConfig((options) => ({
   entry: ['src/index.ts'],
   format: ['esm'],
-  dts: true,
+  dts: false,
   // tsup 只支持 boolean | 'inline' 的 sourcemap 选项
   // 生产环境和开发环境都生成 sourcemap，但生产环境可以后续通过脚本删除引用
   sourcemap: true,

@@ -4,7 +4,8 @@
     "pnpm-lock.yaml",
     "tsconfig.base.json",
     ".npmrc",
-    "biome.json"
+    "biome.json",
+    "vitest.base.config.ts"
   ],
   "tasks": {
     "build": {
@@ -30,7 +31,7 @@
       ]
     },
     "typecheck": {
-      "dependsOn": [],
+      "dependsOn": ["^build"],
       "inputs": [
         "src/**",
         "tsconfig.json",
