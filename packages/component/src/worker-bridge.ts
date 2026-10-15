@@ -2377,7 +2377,14 @@ export class WorkerBridge {
         }
 
         // Advance cursor for next page
-        fromSeq = result.entries[result.entries.length - 1].seq;
+        // OPTIMIZATION: Use the latest cursor (may have been updated by real-time events
+        // during processing or yield). This avoids redundant queries for events that were
+        // already processed by real-time callbacks. The idempotency guard (_isEventProcessed)
+        // would still catch duplicates, but updating fromSeq here is more efficient.
+        fromSeq = Math.max(
+          this._lastProcessedSeq,
+          result.entries[result.entries.length - 1].seq,
+        );
 
         // Check if there are more pages
         hasMore = result.hasMore;
@@ -2428,15 +2435,34 @@ export class WorkerBridge {
   }
 
   /**
-   * Shared MessageChannel for yielding to the main thread during catch-up.
+   * YIELD CHANNEL DESIGN:
+   * ---------------------
+   * A single MessageChannel is reused across _yieldToMain() calls to avoid allocation overhead.
+   * For large catch-ups (1000+ events with frequent yields), this significantly reduces GC pressure
+   * by avoiding the creation of a new MessageChannel (and two MessagePorts) per yield.
    *
-   * Reusing a single channel avoids creating a new MessageChannel (and two MessagePorts)
-   * per yield. For large catch-ups (1000+ events with frequent yields), this significantly
-   * reduces GC pressure.
+   * HEALTH CHECK MECHANISM:
+   * The _yieldChannelHealthy flag tracks whether the current channel can be safely reused.
+   * It is set to false when:
+   * 1. postMessage fails (port closed externally by browser GC or tab cleanup)
+   * 2. The channel exceeds MAX_YIELD_RESOLVES pending resolves (indicates unhealthy state)
+   * 3. destroy() is called (cleanup)
    *
-   * Lazily initialized on first yield; closed in destroy().
-   * _yieldChannelHealthy is set to false when a postMessage fails (port closed externally),
-   * triggering channel recreation on the next yield.
+   * When the channel is unhealthy, the next _yieldToMain() call will:
+   * 1. Close the old channel (if present)
+   * 2. Create a new MessageChannel
+   * 3. Set up the onmessage handler
+   * 4. Mark the channel as healthy
+   *
+   * REUSE STRATEGY:
+   * The channel is lazily initialized on first yield and closed in destroy().
+   * Between these points, it is reused across all _yieldToMain() calls unless marked unhealthy.
+   * This design balances performance (reuse) with correctness (health check).
+   *
+   * OBSERVABILITY:
+   * _yieldChannelRebuildCount tracks how many times the channel has been rebuilt.
+   * If it exceeds YIELD_CHANNEL_REBUILD_WARNING_THRESHOLD (10), a warning is logged to help
+   * diagnose potential channel health issues or browser resource pressure.
    */
   private _yieldChannel?: MessageChannel;
   private _yieldChannelHealthy = false;

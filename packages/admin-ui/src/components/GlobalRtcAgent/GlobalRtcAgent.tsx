@@ -175,6 +175,8 @@ export const GlobalRtcAgent: React.FC = () => {
     return changed;
   }, [isExcludedRoute]);
 
+  // Event listener effect: stable, does not re-run when pollInterval changes.
+  // This prevents 5+ event listeners from being removed and re-registered on every poll interval change.
   useEffect(() => {
     console.debug('[GlobalRtcAgent] Component mounted');
 
@@ -219,6 +221,19 @@ export const GlobalRtcAgent: React.FC = () => {
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
+    return () => {
+      console.debug('[GlobalRtcAgent] Event listeners cleanup');
+      window.removeEventListener(AUTH_STATE_CHANGED_EVENT, checkAuth);
+      window.removeEventListener('storage', checkAuth);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [checkAuth]);
+
+  // Polling effect: re-runs when pollInterval changes to set up a new interval with the new value.
+  // Separated from event listener effect to avoid re-registering listeners on every interval change.
+  useEffect(() => {
     // 备用：定期检查登录状态变化（使用指数退避策略）
     // 作为事件驱动的后备方案，确保不会错过任何状态变化
     // 初始间隔 5 秒，连续无变化时逐渐增加到 30 秒
@@ -243,12 +258,7 @@ export const GlobalRtcAgent: React.FC = () => {
     const interval = setInterval(checkAuthWithBackoff, pollInterval);
 
     return () => {
-      console.debug('[GlobalRtcAgent] Component unmounting');
-      window.removeEventListener(AUTH_STATE_CHANGED_EVENT, checkAuth);
-      window.removeEventListener('storage', checkAuth);
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      console.debug('[GlobalRtcAgent] Polling cleanup');
       clearInterval(interval);
     };
   }, [checkAuth, pollInterval]);
