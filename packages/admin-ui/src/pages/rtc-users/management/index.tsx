@@ -24,10 +24,10 @@ import React, {
   useCallback,
   useMemo,
   useRef,
-  useState,
 } from 'react';
 import { TableEmptyState } from '@/components';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useModalState } from '@/hooks/useModalState';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { useTableSearchParams } from '@/hooks/useTableSearchParams';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
@@ -43,15 +43,6 @@ import {
   getUserTokenStats,
   unbanRtcUser,
 } from './service';
-
-/**
- * Modal state interface for better organization
- */
-interface ModalState {
-  ban: { visible: boolean; user?: RtcUserInfo };
-  config: { open: boolean; user: RtcUserInfo | null };
-  detail: { open: boolean; user: RtcUserInfo | null };
-}
 
 /**
  * Action column component with memoization to prevent unnecessary re-renders
@@ -224,11 +215,10 @@ ActionColumn.displayName = 'ActionColumn';
  */
 const RtcUserManagementPage: React.FC = () => {
   const actionRef = useRef<ActionType>(null);
-  const [modalState, setModalState] = useState<ModalState>({
-    ban: { visible: false },
-    config: { open: false, user: null },
-    detail: { open: false, user: null },
-  });
+  // Use separate useModalState hooks for each modal for better type safety and cleaner API
+  const banModal = useModalState<RtcUserInfo>();
+  const configModal = useModalState<RtcUserInfo>();
+  const detailModal = useModalState<RtcUserInfo>();
   const access = useAccess();
   const intl = useIntl();
   const { message } = App.useApp();
@@ -418,24 +408,21 @@ const RtcUserManagementPage: React.FC = () => {
 
   /** Ban user */
   const handleBanUser = async (values: { reason: string }) => {
-    if (!modalState.ban.user) return false;
+    if (!banModal.state.record) return false;
     try {
-      await banRtcUser(modalState.ban.user.id, { reason: values.reason });
+      await banRtcUser(banModal.state.record.id, { reason: values.reason });
       message.success(
         intl.formatMessage({
           id: 'pages.rtcUsers.banSuccess',
           defaultMessage: 'User banned successfully',
         }),
       );
-      setModalState((prev) => ({
-        ...prev,
-        ban: { visible: false },
-      }));
+      banModal.close();
       actionRef.current?.reload();
       return true;
     } catch (error: unknown) {
       console.error('[RtcUser Management] ban failed:', {
-        userId: modalState.ban.user.id,
+        userId: banModal.state.record.id,
         error,
       });
       message.error(
@@ -485,26 +472,26 @@ const RtcUserManagementPage: React.FC = () => {
   );
 
   // Memoized handlers for action column
-  const handleBanClick = useCallback((user: RtcUserInfo) => {
-    setModalState((prev) => ({
-      ...prev,
-      ban: { visible: true, user },
-    }));
-  }, []);
+  const handleBanClick = useCallback(
+    (user: RtcUserInfo) => {
+      banModal.open(user);
+    },
+    [banModal],
+  );
 
-  const handleConfigClick = useCallback((user: RtcUserInfo) => {
-    setModalState((prev) => ({
-      ...prev,
-      config: { open: true, user },
-    }));
-  }, []);
+  const handleConfigClick = useCallback(
+    (user: RtcUserInfo) => {
+      configModal.open(user);
+    },
+    [configModal],
+  );
 
-  const handleDetailClick = useCallback((user: RtcUserInfo) => {
-    setModalState((prev) => ({
-      ...prev,
-      detail: { open: true, user },
-    }));
-  }, []);
+  const handleDetailClick = useCallback(
+    (user: RtcUserInfo) => {
+      detailModal.open(user);
+    },
+    [detailModal],
+  );
 
   /** Table column definitions */
   const columns: ProColumns<RtcUserInfo>[] = useMemo(
@@ -735,21 +722,19 @@ const RtcUserManagementPage: React.FC = () => {
           id: 'pages.rtcUsers.banUser',
           defaultMessage: 'Ban user',
         })}
-        open={modalState.ban.visible}
-        onOpenChange={(visible) =>
-          setModalState((prev) => ({
-            ...prev,
-            ban: { visible, user: visible ? prev.ban.user : undefined },
-          }))
-        }
+        open={banModal.state.open}
+        onOpenChange={(visible) => {
+          if (visible) {
+            // Keep the current record when opening
+            banModal.open(banModal.state.record);
+          } else {
+            banModal.close();
+          }
+        }}
         width={isMobile ? '95vw' : 520}
         modalProps={{
           destroyOnClose: true,
-          onCancel: () =>
-            setModalState((prev) => ({
-              ...prev,
-              ban: { visible: false },
-            })),
+          onCancel: () => banModal.close(),
         }}
         onFinish={handleBanUser}
       >
@@ -796,28 +781,18 @@ const RtcUserManagementPage: React.FC = () => {
 
       {/* User config drawer */}
       <UserConfigDrawer
-        open={modalState.config.open}
-        onClose={() =>
-          setModalState((prev) => ({
-            ...prev,
-            config: { open: false, user: null },
-          }))
-        }
-        user={modalState.config.user}
+        open={configModal.state.open}
+        onClose={() => configModal.close()}
+        user={configModal.state.record ?? null}
         canEdit={canConfigEdit}
         canDelete={canConfigDelete}
       />
 
       {/* User detail drawer */}
       <UserDetailDrawer
-        open={modalState.detail.open}
-        user={modalState.detail.user}
-        onClose={() =>
-          setModalState((prev) => ({
-            ...prev,
-            detail: { open: false, user: null },
-          }))
-        }
+        open={detailModal.state.open}
+        user={detailModal.state.record ?? null}
+        onClose={() => detailModal.close()}
       />
     </PageContainer>
   );
