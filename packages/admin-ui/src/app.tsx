@@ -412,8 +412,9 @@ const redirectByPermissions = (
   const targetPath = getTopLevelRedirectTarget(accessObj);
   if (targetPath) {
     history.replace(targetPath);
+    return true;
   }
-  return true;
+  return false;
 };
 
 // ProLayout 支持的api https://procomponents.ant.design/components/layout

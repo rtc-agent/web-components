@@ -34,13 +34,17 @@ vi.mock('@/utils/globalFeedback', () => ({
   })),
 }));
 
+const { mockHistoryReplace } = vi.hoisted(() => ({
+  mockHistoryReplace: vi.fn(),
+}));
+
 vi.mock('@umijs/max', () => ({
   getIntl: vi.fn(() => ({
     formatMessage: vi.fn(({ defaultMessage }) => defaultMessage),
   })),
   history: {
     location: { pathname: '/', search: '', hash: '' },
-    replace: vi.fn(),
+    replace: mockHistoryReplace,
   },
   request: vi.fn(),
 }));
@@ -215,6 +219,8 @@ describe('requestErrorConfig', () => {
 
       errorHandler(error, {});
 
+      // REDIRECT uses history.replace (consistent with rest of app)
+      expect(mockHistoryReplace).toHaveBeenCalledWith('/user/login');
       // REDIRECT 分支不应触发任何消息/通知提示
       expect(mockMessage.warning).not.toHaveBeenCalled();
       expect(mockMessage.error).not.toHaveBeenCalled();

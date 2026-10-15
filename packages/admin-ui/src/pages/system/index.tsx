@@ -1,22 +1,33 @@
-import { history, useAccess, useIntl } from '@umijs/max';
-import { Button, Result, Skeleton } from 'antd';
-import React, { useEffect, useRef, useState } from 'react';
+import { history, useAccess } from '@umijs/max';
+import { Skeleton } from 'antd';
+import React, { useEffect, useRef } from 'react';
 import { getSystemSubPageRedirectTarget } from '@/constants/permission-priority';
 
 /**
  * System Management Index Page
  * Intelligently redirects to the first accessible page based on admin permissions.
- * If no admin permissions are available, displays a 403 Forbidden page with a helpful message.
+ *
+ * Behavior:
+ * - Redirects to first accessible sub-page based on priority (users > roles > permissions > ...)
+ * - Redirects to /exception/403 if no admin permissions are available
+ * - Shows loading skeleton while access object is being loaded (prevents race conditions)
+ *
+ * Note: Uses centralized redirect to /exception/403 for consistency with the rest of the app
+ * (same 403 page used by app.tsx's root redirect and other permission violations).
  */
 const SystemIndexPage: React.FC = () => {
   const access = useAccess();
-  const intl = useIntl();
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const hasRedirected = useRef(false);
 
   useEffect(() => {
     // Prevent multiple redirects if access object changes
     if (hasRedirected.current) {
+      return;
+    }
+
+    // Race condition fix: wait until access.canSystemView is fully loaded
+    // access values start as undefined during initialization
+    if (access.canSystemView === undefined) {
       return;
     }
 
@@ -27,40 +38,16 @@ const SystemIndexPage: React.FC = () => {
       history.replace(targetPath);
       hasRedirected.current = true;
     } else if (!access.canSystemView) {
-      // No admin permissions - show 403 page instead of silent redirect
-      // Note: Only set hasPermission to false if we're sure the user has no system access
-      // (canSystemView is false). This avoids showing 403 during permission loading.
-      setHasPermission(false);
+      // No admin permissions - redirect to 403 page for consistency
+      // (matches app.tsx's behavior when no top-level permission matches)
+      history.replace('/exception/403');
+      hasRedirected.current = true;
     }
     // If canSystemView is true but no specific sub-permission is true,
     // the user will see the loading skeleton briefly until permissions are fully evaluated.
   }, [access]);
 
   // Show loading skeleton while checking permissions
-  if (hasPermission === null) {
-    return <Skeleton active style={{ padding: 24 }} />;
-  }
-
-  // Show 403 Forbidden page if no admin permissions
-  if (!hasPermission) {
-    return (
-      <Result
-        status="403"
-        title="403"
-        subTitle={intl.formatMessage({
-          id: 'pages.system.noPermission',
-          defaultMessage:
-            'Sorry, you do not have system management permissions.',
-        })}
-        extra={
-          <Button type="primary" onClick={() => history.push('/')}>
-            {intl.formatMessage({ id: 'pages.403.backHome' })}
-          </Button>
-        }
-      />
-    );
-  }
-
   return <Skeleton active style={{ padding: 24 }} />;
 };
 

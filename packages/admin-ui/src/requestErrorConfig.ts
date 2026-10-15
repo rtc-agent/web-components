@@ -369,7 +369,7 @@ function showBizError(
       });
       break;
     case ErrorShowType.REDIRECT:
-      window.location.href = PUBLIC_PATHS.login;
+      history.replace(PUBLIC_PATHS.login);
       break;
     default:
       if (errorMessage) {
