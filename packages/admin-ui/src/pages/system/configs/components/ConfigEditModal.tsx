@@ -2,10 +2,15 @@ import { ModalForm, ProFormTextArea } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
 import { Alert, App, Form } from 'antd';
 import React, { useEffect } from 'react';
-import type { ServerConfigItem } from '@/services/server-config';
-import { parseConfigValue } from '@/utils/configFormat';
-import ConfigValueInput from './ConfigValueInput';
+import {
+  getMaxLengthRule,
+  getRequiredRule,
+  getWhitespaceRule,
+} from '@/constants/form-rules';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { parseConfigValue } from '@/utils/configFormat';
+import type { ServerConfigItem } from '../service';
+import ConfigValueInput from './ConfigValueInput';
 
 export interface ConfigEditModalProps {
   open: boolean;
@@ -96,27 +101,18 @@ const ConfigEditModal: React.FC<ConfigEditModalProps> = ({
           id: 'pages.config.system.changeNotePlaceholder',
         })}
         rules={[
-          {
-            required: true,
-            message: intl.formatMessage({
-              id: 'pages.config.system.changeNoteRequired',
-              defaultMessage: 'Please enter change description',
-            }),
-          },
-          {
-            whitespace: true,
-            message: intl.formatMessage({
-              id: 'pages.config.system.changeNoteWhitespace',
-              defaultMessage: 'Change description cannot be blank',
-            }),
-          },
-          {
-            max: 500,
-            message: intl.formatMessage({
-              id: 'pages.config.system.changeNoteMax',
-              defaultMessage: 'Change description cannot exceed 500 characters',
-            }),
-          },
+          getRequiredRule(intl.formatMessage, {
+            id: 'pages.config.system.changeNoteRequired',
+            defaultMessage: 'Please enter change description',
+          }),
+          getWhitespaceRule(intl.formatMessage, {
+            id: 'pages.config.system.changeNoteWhitespace',
+            defaultMessage: 'Change description cannot be blank',
+          }),
+          getMaxLengthRule(500, intl.formatMessage, {
+            id: 'pages.config.system.changeNoteMax',
+            defaultMessage: 'Change description cannot exceed 500 characters',
+          }),
         ]}
         fieldProps={{ rows: 2, maxLength: 500, showCount: true }}
       />

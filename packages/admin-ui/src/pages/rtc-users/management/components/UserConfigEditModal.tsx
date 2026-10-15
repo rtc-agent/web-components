@@ -2,6 +2,11 @@ import { ModalForm, ProFormTextArea } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
 import { Alert, App, Form } from 'antd';
 import { useEffect } from 'react';
+import {
+  getMaxLengthRule,
+  getRequiredRule,
+  getWhitespaceRule,
+} from '@/constants/form-rules';
 import { useResponsiveModalWidth } from '@/hooks/useResponsiveModalWidth';
 import ConfigValueInput from '@/pages/system/configs/components/ConfigValueInput';
 import { parseConfigValue } from '@/utils/configFormat';
@@ -95,27 +100,18 @@ const UserConfigEditModal: React.FC<UserConfigEditModalProps> = ({
         })}
         fieldProps={{ rows: 2, maxLength: 500, showCount: true }}
         rules={[
-          {
-            required: true,
-            message: intl.formatMessage({
-              id: 'pages.config.system.changeNoteRequired',
-              defaultMessage: 'Please enter change description',
-            }),
-          },
-          {
-            whitespace: true,
-            message: intl.formatMessage({
-              id: 'pages.config.system.changeNoteWhitespace',
-              defaultMessage: 'Change description cannot be blank',
-            }),
-          },
-          {
-            max: 500,
-            message: intl.formatMessage({
-              id: 'pages.config.system.changeNoteMax',
-              defaultMessage: 'Change description cannot exceed 500 characters',
-            }),
-          },
+          getRequiredRule(intl.formatMessage, {
+            id: 'pages.config.system.changeNoteRequired',
+            defaultMessage: 'Please enter change description',
+          }),
+          getWhitespaceRule(intl.formatMessage, {
+            id: 'pages.config.system.changeNoteWhitespace',
+            defaultMessage: 'Change description cannot be blank',
+          }),
+          getMaxLengthRule(500, intl.formatMessage, {
+            id: 'pages.config.system.changeNoteMax',
+            defaultMessage: 'Change description cannot exceed 500 characters',
+          }),
         ]}
       />
     </ModalForm>

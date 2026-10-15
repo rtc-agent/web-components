@@ -28,6 +28,13 @@ import React, {
 } from 'react';
 import TableEmptyState from '@/components/TableEmptyState';
 import { getActionTypes, getResourceTypes } from '@/constants/permissions';
+import {
+  getMaxLengthRule,
+  getMinLengthRule,
+  getPatternRule,
+  getRequiredRule,
+  getWhitespaceRule,
+} from '@/constants/form-rules';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useModalState } from '@/hooks/useModalState';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
@@ -768,39 +775,32 @@ const RoleListPage: React.FC = () => {
               'Please enter admin role name (English, e.g., admin)',
           })}
           rules={[
-            {
-              required: true,
-              message: intl.formatMessage({
-                id: 'pages.roles.nameRequired',
-                defaultMessage: 'Please enter admin role name',
-              }),
-            },
-            {
-              whitespace: true,
-              message: intl.formatMessage({
-                id: 'pages.roles.nameNoWhitespace',
-                defaultMessage: 'Admin role name cannot be only spaces',
-              }),
-            },
-            {
-              min: 3,
-              message: intl.formatMessage(
-                {
-                  id: 'pages.roles.nameMinLength',
-                  defaultMessage:
-                    'Admin role name must be at least {min} characters',
-                },
-                { min: 3 },
-              ),
-            },
-            {
-              pattern: /^[a-z][a-z0-9_]*$/,
-              message: intl.formatMessage({
+            getRequiredRule(intl.formatMessage, {
+              id: 'pages.roles.nameRequired',
+              defaultMessage: 'Please enter admin role name',
+            }),
+            getWhitespaceRule(intl.formatMessage, {
+              id: 'pages.roles.nameNoWhitespace',
+              defaultMessage: 'Admin role name cannot be only spaces',
+            }),
+            getMinLengthRule(
+              3,
+              intl.formatMessage,
+              {
+                id: 'pages.roles.nameMinLength',
+                defaultMessage:
+                  'Admin role name must be at least {min} characters',
+              },
+            ),
+            getPatternRule(
+              /^[a-z][a-z0-9_]*$/,
+              intl.formatMessage,
+              {
                 id: 'pages.roles.namePattern',
                 defaultMessage:
                   'Admin role name can only contain lowercase letters, numbers, and underscores, and must start with a letter',
-              }),
-            },
+              },
+            ),
             {
               validator: async (_rule, value) => {
                 if (!value || isEdit) return Promise.resolve();
@@ -861,30 +861,22 @@ const RoleListPage: React.FC = () => {
             defaultMessage: 'Please enter display name (e.g., Administrator)',
           })}
           rules={[
-            {
-              required: true,
-              message: intl.formatMessage({
-                id: 'pages.roles.displayNameRequired',
-                defaultMessage: 'Please enter display name',
-              }),
-            },
-            {
-              whitespace: true,
-              message: intl.formatMessage({
-                id: 'pages.roles.displayNameWhitespace',
-                defaultMessage: 'Display name cannot be only spaces',
-              }),
-            },
-            {
-              max: 100,
-              message: intl.formatMessage(
-                {
-                  id: 'pages.roles.displayNameMaxLength',
-                  defaultMessage: 'Display name cannot exceed {max} characters',
-                },
-                { max: 100 },
-              ),
-            },
+            getRequiredRule(intl.formatMessage, {
+              id: 'pages.roles.displayNameRequired',
+              defaultMessage: 'Please enter display name',
+            }),
+            getWhitespaceRule(intl.formatMessage, {
+              id: 'pages.roles.displayNameWhitespace',
+              defaultMessage: 'Display name cannot be only spaces',
+            }),
+            getMaxLengthRule(
+              100,
+              intl.formatMessage,
+              {
+                id: 'pages.roles.displayNameMaxLength',
+                defaultMessage: 'Display name cannot exceed {max} characters',
+              },
+            ),
           ]}
         />
         <ProFormTextArea
@@ -899,30 +891,22 @@ const RoleListPage: React.FC = () => {
           })}
           fieldProps={{ rows: 4, maxLength: 500, showCount: true }}
           rules={[
-            {
-              required: true,
-              message: intl.formatMessage({
-                id: 'pages.roles.descriptionRequired',
-                defaultMessage: 'Please enter admin role description',
-              }),
-            },
-            {
-              whitespace: true,
-              message: intl.formatMessage({
-                id: 'pages.roles.descriptionWhitespace',
-                defaultMessage: 'Description cannot be empty or only spaces',
-              }),
-            },
-            {
-              max: 500,
-              message: intl.formatMessage(
-                {
-                  id: 'pages.roles.descriptionMaxLength',
-                  defaultMessage: 'Description cannot exceed {max} characters',
-                },
-                { max: 500 },
-              ),
-            },
+            getRequiredRule(intl.formatMessage, {
+              id: 'pages.roles.descriptionRequired',
+              defaultMessage: 'Please enter admin role description',
+            }),
+            getWhitespaceRule(intl.formatMessage, {
+              id: 'pages.roles.descriptionWhitespace',
+              defaultMessage: 'Description cannot be empty or only spaces',
+            }),
+            getMaxLengthRule(
+              500,
+              intl.formatMessage,
+              {
+                id: 'pages.roles.descriptionMaxLength',
+                defaultMessage: 'Description cannot exceed {max} characters',
+              },
+            ),
           ]}
         />
       </ModalForm>

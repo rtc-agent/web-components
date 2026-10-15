@@ -23,7 +23,7 @@ export interface UserRegisterParams {
  * TODO: Backend implementation needed for production use
  */
 export async function fakeRegister(params: UserRegisterParams) {
-  return request('/api/register', {
+  return request<StateType>('/api/register', {
     method: 'POST',
     data: params,
   });
