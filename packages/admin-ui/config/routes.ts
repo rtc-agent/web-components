@@ -351,6 +351,7 @@ export default [
     component: './exception/500',
   },
   {
+    name: '404',
     component: './exception/404',
     path: './*',
     layout: false,
