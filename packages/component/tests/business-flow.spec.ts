@@ -12,7 +12,21 @@
  *
  * Run: npx playwright test --config=packages/component/playwright.config.ts
  */
-import { test, expect, type Page } from '@playwright/test';
+import { expect, type Page, test } from '@playwright/test';
+import type { RtcAgentDebugAPI } from '../src/debug-api-types.js';
+
+/**
+ * Augment the global Window type with the debug API.
+ *
+ * This eliminates `as any` casts when accessing `window.rtcAgentDebug`
+ * inside page.evaluate() callbacks. The debug API is installed at runtime
+ * by the component's dev-mode bootstrap code.
+ */
+declare global {
+  interface Window {
+    rtcAgentDebug: RtcAgentDebugAPI;
+  }
+}
 
 /** URL of the debug page that hosts <rtc-agent> and installs the debug API. */
 const DEBUG_PAGE = '/debug/index.html';
@@ -23,7 +37,6 @@ const DEBUG_PAGE = '/debug/index.html';
 async function waitForDebugAPI(page: Page): Promise<void> {
   await page.waitForFunction(
     () => {
-      // @ts-expect-error debug API not in default types
       return typeof window.rtcAgentDebug !== 'undefined';
     },
     { timeout: 15_000 },
@@ -49,7 +62,7 @@ test.describe('Business Flow - Session Lifecycle', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const el = api.element;
       const actions = el.sessionController.value.actions;
 
@@ -62,7 +75,7 @@ test.describe('Business Flow - Session Lifecycle', () => {
       await new Promise((r) => requestAnimationFrame(r));
 
       // Verify: B is current (last created)
-      let state = el.sessionController.value.state;
+      const state = el.sessionController.value.state;
       const afterCreate = {
         sessionCount: state.sessions.length,
         currentId: state.currentSessionId,
@@ -77,7 +90,7 @@ test.describe('Business Flow - Session Lifecycle', () => {
       await actions.renameSession(idA, 'Renamed Session A');
       await new Promise((r) => requestAnimationFrame(r));
       const renamedSession = el.sessionController.value.state.sessions.find(
-        (s: any) => s.clientId === idA,
+        (s: { clientId: string }) => s.clientId === idA,
       );
 
       // Step 5: Delete current session (A)
@@ -114,7 +127,7 @@ test.describe('Business Flow - Session Lifecycle', () => {
     await waitForDebugAPI(page);
 
     const events = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const el = api.element;
       const actions = el.sessionController.value.actions;
       const firedEvents: string[] = [];
@@ -183,7 +196,7 @@ test.describe('Business Flow - Session Lifecycle', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const el = api.element;
       const actions = el.sessionController.value.actions;
 
@@ -197,7 +210,9 @@ test.describe('Business Flow - Session Lifecycle', () => {
       await new Promise((r) => setTimeout(r, 200));
 
       const state = el.sessionController.value.state;
-      const sessionIds = state.sessions.map((s: any) => s.clientId);
+      const sessionIds = state.sessions.map(
+        (s: { clientId: string }) => s.clientId,
+      );
 
       return {
         expectedCount: ids.length,
@@ -228,7 +243,7 @@ test.describe('Business Flow - Auth Integration', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const el = api.element;
 
       // Step 1: Verify initial state (not logged in)
@@ -276,7 +291,7 @@ test.describe('Business Flow - Auth Integration', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
 
       // First login
       api.loginAs('user-round-1');
@@ -322,7 +337,7 @@ test.describe('Business Flow - Window State Machine', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const el = api.element;
       const actions = el.windowStateController.actions;
 
@@ -364,7 +379,7 @@ test.describe('Business Flow - Window State Machine', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const el = api.element;
       const actions = el.windowStateController.actions;
 
@@ -406,7 +421,7 @@ test.describe('Business Flow - Session Tab Management', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const el = api.element;
       const tabActions = el.sessionTabController.value.actions;
 
@@ -453,7 +468,7 @@ test.describe('Business Flow - Session Tab Management', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const el = api.element;
       const tabActions = el.sessionTabController.value.actions;
 
@@ -465,7 +480,7 @@ test.describe('Business Flow - Session Tab Management', () => {
 
       const state = el.sessionTabController.value.state;
       const dupTabs = state.tabs.filter(
-        (t: any) => t.sessionId === 'dup-session',
+        (t: { sessionId: string }) => t.sessionId === 'dup-session',
       );
 
       return {
@@ -488,7 +503,7 @@ test.describe('Business Flow - Session Tab Management', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const el = api.element;
       const tabActions = el.sessionTabController.value.actions;
 
@@ -531,7 +546,7 @@ test.describe('Business Flow - Data Persistence', () => {
 
     // Set mode to 'auto'
     await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const el = api.element;
       el.modeController.value.actions.setMode('auto');
       await new Promise((r) => requestAnimationFrame(r));
@@ -539,7 +554,7 @@ test.describe('Business Flow - Data Persistence', () => {
 
     // Verify mode is 'auto' before reload
     const modeBefore = await evalInPage(page, () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const el = api.element;
       return el.modeController.value.state.currentMode;
     });
@@ -551,7 +566,7 @@ test.describe('Business Flow - Data Persistence', () => {
 
     // Verify mode is still 'auto' after reload
     const modeAfter = await evalInPage(page, () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const el = api.element;
       return el.modeController.value.state.currentMode;
     });
@@ -591,7 +606,7 @@ test.describe('Business Flow - Data Persistence', () => {
 
     // Clear data
     await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       await api.clearData();
     });
 
@@ -617,7 +632,7 @@ test.describe('Business Flow - VirtualFS Batch Operations', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
 
       // Write 10 files concurrently
       const writePromises = [];
@@ -655,7 +670,7 @@ test.describe('Business Flow - VirtualFS Batch Operations', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const path = `/e2e-cycle-${Date.now()}.txt`;
 
       // Write -> overwrite -> read -> delete -> read
@@ -687,7 +702,7 @@ test.describe('Business Flow - VirtualFS Batch Operations', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
 
       await api.seedData({
         files: [
@@ -731,7 +746,7 @@ test.describe('Business Flow - Error Recovery', () => {
       localStorage.setItem('e2e-cleanup-preload', 'will-be-cleared');
     });
     await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       await api.writeFile('/before-clear.txt', 'old-data');
     });
 
@@ -743,7 +758,7 @@ test.describe('Business Flow - Error Recovery', () => {
 
     // Clear all data
     await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       await api.clearData();
     });
 
@@ -755,7 +770,7 @@ test.describe('Business Flow - Error Recovery', () => {
 
     // Verify VirtualFS file is gone (after clearData, database was deleted)
     const fileContent = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       return api.readFile('/before-clear.txt');
     });
     expect(fileContent).toBe('');
@@ -767,7 +782,7 @@ test.describe('Business Flow - Error Recovery', () => {
 
     // Login and do some work
     await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       api.loginAs('recovery-user');
       await new Promise((r) => requestAnimationFrame(r));
       const el = api.element;
@@ -776,26 +791,26 @@ test.describe('Business Flow - Error Recovery', () => {
 
     // Clear all data (now disconnects SharedWorker + resets auth, no stale callbacks)
     await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       await api.clearData();
     });
 
     // No reload needed: clearData properly tears down persistence and auth.
     const auth = await evalInPage(page, () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       return api.getState().auth as Record<string, unknown>;
     });
     expect(auth.isLoggedIn).toBe(false);
 
     // Re-login works cleanly without page reload
     await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       api.loginAs('recovery-user-2');
       await new Promise((r) => setTimeout(r, 100));
     });
 
     const afterLogin = await evalInPage(page, () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       return api.getState().auth as Record<string, unknown>;
     });
     expect(afterLogin.isLoggedIn).toBe(true);
@@ -807,7 +822,7 @@ test.describe('Business Flow - Error Recovery', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const el = api.element;
 
       // Rapid login/logout cycle
@@ -857,7 +872,7 @@ test.describe('Business Flow - State Consistency', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const el = api.element;
 
       // Setup: login, create session, set mode
@@ -867,29 +882,36 @@ test.describe('Business Flow - State Consistency', () => {
       el.windowStateController.actions.minimize();
       await new Promise((r) => requestAnimationFrame(r));
 
-      // Get state via debug API
+      // Get state via debug API (typed as Record<string, unknown>).
+      // We know the shape of the returned state from the debug API implementation,
+      // so we cast to the expected types for comparison. This is acceptable in tests
+      // because the goal is to verify that getState() returns the same data as the
+      // controllers — any type mismatch would indicate a bug in the debug API.
       const state = api.getState();
+      const stateAuth = state.auth as Record<string, unknown>;
+      const stateSession = state.session as Record<string, unknown> & {
+        sessions: unknown[];
+      };
+      const stateWindow = state.window as Record<string, unknown>;
+      const statePersistence = state.persistence as Record<string, unknown>;
 
       // Get state directly from controllers
       const directAuth = el.authController.state;
       const directSession = el.sessionController.value.state;
       const directWindow = el.windowStateController.value.state;
-      const directMode = el.modeController.value.state;
+      const _directMode = el.modeController.value.state;
 
       return {
         authMatch:
-          (state.auth as any).isLoggedIn === directAuth.isLoggedIn &&
-          (state.auth as any).userId === directAuth.userId,
+          stateAuth.isLoggedIn === directAuth.isLoggedIn &&
+          stateAuth.userId === directAuth.userId,
         sessionMatch:
-          (state.session as any).currentSessionId ===
-            directSession.currentSessionId &&
-          (state.session as any).sessions.length ===
-            directSession.sessions.length,
-        windowMatch: (state.window as any).mode === directWindow.mode,
-        modeInState: (state.window as any).mode,
+          stateSession.currentSessionId === directSession.currentSessionId &&
+          stateSession.sessions.length === directSession.sessions.length,
+        windowMatch: stateWindow.mode === directWindow.mode,
+        modeInState: stateWindow.mode,
         persistenceMatch:
-          (state.persistence as any).isConnected ===
-          el.persistenceController.isConnected,
+          statePersistence.isConnected === el.persistenceController.isConnected,
       };
     });
 
@@ -907,7 +929,7 @@ test.describe('Business Flow - State Consistency', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const el = api.element;
       const sessionActions = el.sessionController.value.actions;
       const tabActions = el.sessionTabController.value.actions;
@@ -931,7 +953,7 @@ test.describe('Business Flow - State Consistency', () => {
 
       // Check: session 2 should not be in sessions
       const session2Exists = sessionState.sessions.some(
-        (s: any) => s.clientId === id2,
+        (s: { clientId: string }) => s.clientId === id2,
       );
 
       // Tab state is independent (tabs may still reference deleted sessions
@@ -960,7 +982,7 @@ test.describe('Business Flow - Log Integration', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
 
       // Clear logs
       api.clearLogs();
@@ -1007,13 +1029,13 @@ test.describe('Business Flow - Multi-Tab Simulation', () => {
 
     // Write file in first context
     await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       await api.writeFile('/shared-data.txt', 'from-context-1');
     });
 
     // Verify file is readable
     const content = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       return api.readFile('/shared-data.txt');
     });
 
@@ -1025,7 +1047,7 @@ test.describe('Business Flow - Multi-Tab Simulation', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
 
       // Write a file
       await api.writeFile('/before-clear.txt', 'old-data');
@@ -1060,18 +1082,18 @@ test.describe('Business Flow - Component Lifecycle', () => {
 
     // Use waitForReady instead of waitForDebugAPI
     const tagName = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       if (!api) {
         // Wait for API to be available
         await new Promise<void>((resolve) => {
           const check = () => {
-            if ((window as any).rtcAgentDebug) resolve();
+            if (window.rtcAgentDebug) resolve();
             else requestAnimationFrame(check);
           };
           check();
         });
       }
-      const el = await (window as any).rtcAgentDebug.waitForReady(10000);
+      const el = await window.rtcAgentDebug.waitForReady(10000);
       return el.tagName.toLowerCase();
     });
 
@@ -1083,7 +1105,7 @@ test.describe('Business Flow - Component Lifecycle', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
 
       const el1 = api.element;
       const el2 = api.element;

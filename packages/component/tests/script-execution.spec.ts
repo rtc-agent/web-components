@@ -5,7 +5,7 @@
  * via the script tool (toolRegistry.get('script')).
  */
 
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 test.describe('Task Manager - Script Execution', () => {
   test('should execute rtcAgent.task.create via script tool', async ({
@@ -29,7 +29,7 @@ test.describe('Task Manager - Script Execution', () => {
     // (SkillController bridges rtcAgentAPI into toolRegistry when registry is set on <rtc-agent>)
     await page.waitForFunction(
       () => {
-        return window.toolRegistry && window.toolRegistry.has('script');
+        return window.toolRegistry?.has('script');
       },
       { timeout: 5000 },
     );
@@ -59,8 +59,8 @@ test.describe('Task Manager - Script Execution', () => {
     // Verify console output was captured
     const scriptResult = result.result as { data?: { logs?: string[] } };
     expect(scriptResult.data?.logs).toBeDefined();
-    expect(scriptResult.data!.logs!.length).toBeGreaterThan(0);
-    expect(scriptResult.data!.logs![0]).toContain('Created:');
+    expect(scriptResult.data?.logs?.length).toBeGreaterThan(0);
+    expect(scriptResult.data?.logs?.[0]).toContain('Created:');
 
     // Verify the task was created in the registry (stored in localStorage by TaskManager)
     const tasks = await page.evaluate(async () => {

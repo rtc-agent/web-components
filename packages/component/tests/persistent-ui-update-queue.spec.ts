@@ -11,7 +11,30 @@
  *
  * Run: npx playwright test tests/persistent-ui-update-queue.spec.ts --config=packages/component/playwright.config.ts
  */
-import { test, expect, type BrowserContext, type Page } from '@playwright/test';
+import { expect, type Page, test } from '@playwright/test';
+import type { RtcAgentDebugAPI } from '../src/debug-api-types.js';
+
+/**
+ * Augment the global Window type with test-specific properties.
+ *
+ * The debug page installs helper functions and counters on `window` for E2E testing.
+ * These declarations eliminate `as any` casts inside page.evaluate() callbacks.
+ */
+declare global {
+  interface Window {
+    rtcAgentDebug: RtcAgentDebugAPI;
+    /** Test helper: returns the UIUpdateBus singleton from the page context. */
+    __getUIUpdateBus?: () => unknown;
+    /** Test counters for verifying call frequencies. */
+    __loadSessionsCount?: number;
+    __messageReloadCount?: number;
+    __loadFileTreeCount?: number;
+    /** Test flags for destroy lifecycle verification. */
+    __destroyStarted?: boolean;
+    __destroyCompleted?: boolean;
+    __destroyError?: string;
+  }
+}
 
 /** URL of the debug page that hosts <rtc-agent> and installs the debug API. */
 const DEBUG_PAGE = '/debug/index.html';
@@ -22,7 +45,6 @@ const DEBUG_PAGE = '/debug/index.html';
 async function waitForDebugAPI(page: Page): Promise<void> {
   await page.waitForFunction(
     () => {
-      // @ts-expect-error debug API not in default types
       return typeof window.rtcAgentDebug !== 'undefined';
     },
     { timeout: 15_000 },
@@ -35,7 +57,7 @@ async function waitForDebugAPI(page: Page): Promise<void> {
 async function waitForBusHelper(page: Page): Promise<void> {
   await page.waitForFunction(
     () => {
-      return typeof (window as any).__getUIUpdateBus === 'function';
+      return typeof window.__getUIUpdateBus === 'function';
     },
     { timeout: 15_000 },
   );
@@ -43,14 +65,19 @@ async function waitForBusHelper(page: Page): Promise<void> {
 
 /**
  * Helper: execute a function inside page context.
+ *
+ * The `unknown` type for fn/arg reflects Playwright's serialization boundary:
+ * data is serialized to JSON when crossing the Node.js <-> browser boundary.
+ * We cast to the expected types inside page.evaluate() callbacks.
  */
 async function evalInPage<T>(
   page: Page,
-  fn: (arg?: any) => T | Promise<T>,
-  arg?: any,
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type -- Playwright evaluate requires function type
+  fn: Function,
+  arg?: unknown,
 ): Promise<T> {
   return arg !== undefined
-    ? page.evaluate(fn as (arg: any) => Promise<T>, arg)
+    ? page.evaluate(fn as (arg: unknown) => Promise<T>, arg)
     : page.evaluate(fn as () => Promise<T>);
 }
 
@@ -91,15 +118,15 @@ async function writeUIUpdateEntry(
     (args: { evt: typeof event; ts: number | undefined }) => {
       return new Promise<number>(async (resolve, reject) => {
         const { evt, ts } = args;
-        const dbs = await (window as any).indexedDB.databases();
-        const rtcDb = dbs.find((d: any) => d.name?.startsWith('rtc-agent'));
+        const dbs = await window.indexedDB.databases();
+        const rtcDb = dbs.find((d) => d.name?.startsWith('rtc-agent'));
         if (!rtcDb) {
           reject(new Error('RTC Agent database not found'));
           return;
         }
 
-        const request = (window as any).indexedDB.open(rtcDb.name);
-        request.onsuccess = (e: any) => {
+        const request = window.indexedDB.open(rtcDb.name);
+        request.onsuccess = () => {
           const db = e.target.result;
           if (!db.objectStoreNames.contains('ui_updates')) {
             db.close();
@@ -136,13 +163,13 @@ async function writeUIUpdateEntry(
  */
 async function countUIUpdates(page: Page): Promise<number> {
   return evalInPage(page, async () => {
-    const dbs = await (window as any).indexedDB.databases();
-    const rtcDb = dbs.find((d: any) => d.name?.startsWith('rtc-agent'));
+    const dbs = await window.indexedDB.databases();
+    const rtcDb = dbs.find((d) => d.name?.startsWith('rtc-agent'));
     if (!rtcDb) return 0;
 
     return new Promise<number>((resolve) => {
-      const request = (window as any).indexedDB.open(rtcDb.name);
-      request.onsuccess = (e: any) => {
+      const request = window.indexedDB.open(rtcDb.name);
+      request.onsuccess = () => {
         const db = e.target.result;
         if (!db.objectStoreNames.contains('ui_updates')) {
           db.close();
@@ -177,15 +204,15 @@ async function getUIUpdatesAfterSeq(
     page,
     (seq: number) => {
       return new Promise(async (resolve) => {
-        const dbs = await (window as any).indexedDB.databases();
-        const rtcDb = dbs.find((d: any) => d.name?.startsWith('rtc-agent'));
+        const dbs = await window.indexedDB.databases();
+        const rtcDb = dbs.find((d) => d.name?.startsWith('rtc-agent'));
         if (!rtcDb) {
           resolve([]);
           return;
         }
 
-        const request = (window as any).indexedDB.open(rtcDb.name);
-        request.onsuccess = (e: any) => {
+        const request = window.indexedDB.open(rtcDb.name);
+        request.onsuccess = () => {
           const db = e.target.result;
           if (!db.objectStoreNames.contains('ui_updates')) {
             db.close();
@@ -198,11 +225,13 @@ async function getUIUpdatesAfterSeq(
           const getAllReq = store.getAll(range);
           getAllReq.onsuccess = () => {
             db.close();
-            const entries = getAllReq.result.map((entry: any) => ({
-              seq: entry.seq,
-              event: entry.event,
-              timestamp: entry.timestamp,
-            }));
+            const entries = getAllReq.result.map(
+              (entry: { seq: number; event: string; timestamp?: number }) => ({
+                seq: entry.seq,
+                event: entry.event,
+                timestamp: entry.timestamp,
+              }),
+            );
             resolve(entries);
           };
           getAllReq.onerror = () => {
@@ -222,13 +251,13 @@ async function getUIUpdatesAfterSeq(
  */
 async function clearUIUpdates(page: Page): Promise<void> {
   await evalInPage(page, async () => {
-    const dbs = await (window as any).indexedDB.databases();
-    const rtcDb = dbs.find((d: any) => d.name?.startsWith('rtc-agent'));
+    const dbs = await window.indexedDB.databases();
+    const rtcDb = dbs.find((d) => d.name?.startsWith('rtc-agent'));
     if (!rtcDb) return;
 
     return new Promise<void>((resolve) => {
-      const request = (window as any).indexedDB.open(rtcDb.name);
-      request.onsuccess = (e: any) => {
+      const request = window.indexedDB.open(rtcDb.name);
+      request.onsuccess = () => {
         const db = e.target.result;
         if (!db.objectStoreNames.contains('ui_updates')) {
           db.close();
@@ -692,7 +721,7 @@ async function emitGapFillOnBus(page: Page, isSyncing: boolean): Promise<void> {
   await evalInPage(
     page,
     (syncing: boolean) => {
-      const getUIUpdateBus = (window as any).__getUIUpdateBus;
+      const getUIUpdateBus = window.__getUIUpdateBus;
       if (!getUIUpdateBus)
         throw new Error('__getUIUpdateBus not available on window');
       const bus = getUIUpdateBus();
@@ -712,28 +741,33 @@ async function emitGapFillOnBus(page: Page, isSyncing: boolean): Promise<void> {
  */
 async function installLoadSessionsSpy(page: Page): Promise<void> {
   await evalInPage(page, async () => {
-    const api = (window as any).rtcAgentDebug;
-    if (!api || !api.element) return;
+    const api = window.rtcAgentDebug;
+    if (!api?.element) return;
     const el = api.element;
     // Track reload count on window
-    (window as any).__loadSessionsCount = 0;
-    (window as any).__messageReloadCount = 0;
-    (window as any).__loadFileTreeCount = 0;
+    window.__loadSessionsCount = 0;
+    window.__messageReloadCount = 0;
+    window.__loadFileTreeCount = 0;
 
-    // Monkey-patch _loadSessions to count invocations
+    // Monkey-patch _loadSessions to count invocations.
+    // Note: `...args: any[]` is used because these are private methods with
+    // complex internal types that are irrelevant to the spy — we only need
+    // to forward all arguments transparently to the original implementation.
     const origLoadSessions = el._loadSessions?.bind(el);
     if (origLoadSessions) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- spy forwarding
       el._loadSessions = (...args: any[]) => {
-        (window as any).__loadSessionsCount++;
+        window.__loadSessionsCount++;
         return origLoadSessions(...args);
       };
     }
 
-    // Monkey-patch _loadFileTree to count invocations
+    // Monkey-patch _loadFileTree to count invocations.
     const origLoadFileTree = el._loadFileTree?.bind(el);
     if (origLoadFileTree) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- spy forwarding
       el._loadFileTree = (...args: any[]) => {
-        (window as any).__loadFileTreeCount++;
+        window.__loadFileTreeCount++;
         return origLoadFileTree(...args);
       };
     }
@@ -748,8 +782,8 @@ async function getReloadCounts(page: Page): Promise<{
   loadFileTree: number;
 }> {
   return evalInPage(page, () => ({
-    loadSessions: (window as any).__loadSessionsCount || 0,
-    loadFileTree: (window as any).__loadFileTreeCount || 0,
+    loadSessions: window.__loadSessionsCount || 0,
+    loadFileTree: window.__loadFileTreeCount || 0,
   }));
 }
 
@@ -761,16 +795,16 @@ async function deleteUIUpdatesBySeq(page: Page, seqs: number[]): Promise<void> {
   await evalInPage(
     page,
     (seqList: number[]) => {
-      return new Promise<void>(async (resolve, reject) => {
-        const dbs = await (window as any).indexedDB.databases();
-        const rtcDb = dbs.find((d: any) => d.name?.startsWith('rtc-agent'));
+      return new Promise<void>(async (resolve, _reject) => {
+        const dbs = await window.indexedDB.databases();
+        const rtcDb = dbs.find((d) => d.name?.startsWith('rtc-agent'));
         if (!rtcDb) {
           resolve();
           return;
         }
 
-        const request = (window as any).indexedDB.open(rtcDb.name);
-        request.onsuccess = (e: any) => {
+        const request = window.indexedDB.open(rtcDb.name);
+        request.onsuccess = () => {
           const db = e.target.result;
           if (!db.objectStoreNames.contains('ui_updates')) {
             db.close();
@@ -804,15 +838,15 @@ async function deleteUIUpdatesBySeq(page: Page, seqs: number[]): Promise<void> {
 async function getAllSeqs(page: Page): Promise<number[]> {
   return evalInPage(page, async () => {
     return new Promise<number[]>(async (resolve) => {
-      const dbs = await (window as any).indexedDB.databases();
-      const rtcDb = dbs.find((d: any) => d.name?.startsWith('rtc-agent'));
+      const dbs = await window.indexedDB.databases();
+      const rtcDb = dbs.find((d) => d.name?.startsWith('rtc-agent'));
       if (!rtcDb) {
         resolve([]);
         return;
       }
 
-      const request = (window as any).indexedDB.open(rtcDb.name);
-      request.onsuccess = (e: any) => {
+      const request = window.indexedDB.open(rtcDb.name);
+      request.onsuccess = () => {
         const db = e.target.result;
         if (!db.objectStoreNames.contains('ui_updates')) {
           db.close();
@@ -824,7 +858,7 @@ async function getAllSeqs(page: Page): Promise<number[]> {
         const getAllReq = store.getAll();
         getAllReq.onsuccess = () => {
           db.close();
-          resolve(getAllReq.result.map((entry: any) => entry.seq));
+          resolve(getAllReq.result.map((entry: { seq: number }) => entry.seq));
         };
         getAllReq.onerror = () => {
           db.close();
@@ -851,7 +885,7 @@ test.describe('Persistent UIUpdateBus Queue - Gap Fill & onStateGap', () => {
 
       // Subscribe, emit, and read in a single eval to avoid timing issues
       const states = await evalInPage(page, () => {
-        const getUIUpdateBus = (window as any).__getUIUpdateBus;
+        const getUIUpdateBus = window.__getUIUpdateBus;
         const bus = getUIUpdateBus();
         const recorded: boolean[] = [];
         const unsub = bus.onGapFillState((isSyncing: boolean) => {
@@ -888,7 +922,7 @@ test.describe('Persistent UIUpdateBus Queue - Gap Fill & onStateGap', () => {
 
       // Subscribe, emit start+end, and read in a single eval
       const states = await evalInPage(page, () => {
-        const getUIUpdateBus = (window as any).__getUIUpdateBus;
+        const getUIUpdateBus = window.__getUIUpdateBus;
         const bus = getUIUpdateBus();
         const recorded: boolean[] = [];
         const unsub = bus.onGapFillState((isSyncing: boolean) => {
@@ -928,7 +962,7 @@ test.describe('Persistent UIUpdateBus Queue - Gap Fill & onStateGap', () => {
       const result = await evalInPage(
         page,
         (uid: string) => {
-          const getUIUpdateBus = (window as any).__getUIUpdateBus;
+          const getUIUpdateBus = window.__getUIUpdateBus;
           const bus = getUIUpdateBus();
           const recorded: boolean[] = [];
           const unsub = bus.onGapFillState((isSyncing: boolean) => {
@@ -969,7 +1003,7 @@ test.describe('Persistent UIUpdateBus Queue - Gap Fill & onStateGap', () => {
 
       // Wait for component to be fully ready
       await evalInPage(page, async () => {
-        await (window as any).rtcAgentDebug.waitForReady(10000);
+        await window.rtcAgentDebug.waitForReady(10000);
       });
 
       // Install spy on reload methods
@@ -1229,26 +1263,26 @@ test.describe('Persistent UIUpdateBus Queue - AbortController', () => {
       // even when catch-up could be running.
       // This tests the AbortController cleanup path.
       await evalInPage(page, async () => {
-        const api = (window as any).rtcAgentDebug;
-        if (!api || !api.element) return;
+        const api = window.rtcAgentDebug;
+        if (!api?.element) return;
 
         // Access the component's persistence connector
         // The destroy path should safely abort any pending catch-up
-        const el = api.element;
+        const _el = api.element;
 
         // Verify the element exists and has a worker bridge or persistence
         // that uses AbortController
-        (window as any).__destroyStarted = false;
-        (window as any).__destroyCompleted = false;
+        window.__destroyStarted = false;
+        window.__destroyCompleted = false;
 
         // Call clearData which internally calls destroy on the persistence layer
-        (window as any).__destroyStarted = true;
+        window.__destroyStarted = true;
         try {
           await api.clearData();
-          (window as any).__destroyCompleted = true;
+          window.__destroyCompleted = true;
         } catch (e) {
-          (window as any).__destroyError = (e as Error).message;
-          (window as any).__destroyCompleted = true;
+          window.__destroyError = (e as Error).message;
+          window.__destroyCompleted = true;
         }
       });
 
@@ -1256,9 +1290,9 @@ test.describe('Persistent UIUpdateBus Queue - AbortController', () => {
       await page.waitForTimeout(500);
 
       const result = await evalInPage(page, () => ({
-        started: (window as any).__destroyStarted,
-        completed: (window as any).__destroyCompleted,
-        error: (window as any).__destroyError || null,
+        started: window.__destroyStarted,
+        completed: window.__destroyCompleted,
+        error: window.__destroyError || null,
       }));
 
       expect(result.started).toBe(true);
@@ -1300,7 +1334,7 @@ test.describe('Persistent UIUpdateBus Queue - AbortController', () => {
 
       // Clear data (destroy with clearStorage=false by default)
       await evalInPage(page, async () => {
-        const api = (window as any).rtcAgentDebug;
+        const api = window.rtcAgentDebug;
         if (api) await api.clearData();
       });
       await page.waitForTimeout(500);
@@ -1360,7 +1394,7 @@ test.describe('Persistent UIUpdateBus Queue - AbortController', () => {
       // This tests that the AbortController cleanup in destroy() doesn't
       // corrupt the cursor state.
       await evalInPage(page, async () => {
-        const api = (window as any).rtcAgentDebug;
+        const api = window.rtcAgentDebug;
         if (api) await api.logout();
       });
       await page.waitForTimeout(500);

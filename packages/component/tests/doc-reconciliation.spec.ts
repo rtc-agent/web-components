@@ -16,7 +16,21 @@
  *
  * Run: npx playwright test --config=packages/component/playwright.config.ts tests/doc-reconciliation.spec.ts
  */
-import { test, expect, type Page } from '@playwright/test';
+import { expect, type Page, test } from '@playwright/test';
+import type { RtcAgentDebugAPI } from '../src/debug-api-types.js';
+
+/**
+ * Augment the global Window type with the debug API.
+ *
+ * This eliminates `as any` casts when accessing `window.rtcAgentDebug`
+ * inside page.evaluate() callbacks. The debug API is installed at runtime
+ * by the component's dev-mode bootstrap code.
+ */
+declare global {
+  interface Window {
+    rtcAgentDebug: RtcAgentDebugAPI;
+  }
+}
 
 /** URL of the debug page that hosts <rtc-agent> and installs the debug API. */
 const DEBUG_PAGE = '/debug/index.html';
@@ -27,7 +41,6 @@ const DEBUG_PAGE = '/debug/index.html';
 async function waitForDebugAPI(page: Page): Promise<void> {
   await page.waitForFunction(
     () => {
-      // @ts-expect-error debug API not in default types
       return typeof window.rtcAgentDebug !== 'undefined';
     },
     { timeout: 15_000 },
@@ -61,39 +74,54 @@ async function setConfigAndReconcile(
   deletedPaths: string[];
 }> {
   return page.evaluate((cfg) => {
-    const api = (window as any).rtcAgentDebug;
+    const api = window.rtcAgentDebug;
     const el = api.element;
 
     // 1. Build registry from config (with handlers in browser context)
     const rebuiltConfig = {
       ...cfg,
-      groups: (cfg.groups || []).map((g: any) => ({
-        ...g,
-        functions: g.functions.map((f: any) => ({
-          ...f,
-          handler: async () => `${f.name} result`,
-        })),
-      })),
+      groups: (cfg.groups || []).map(
+        (g: {
+          name: string;
+          description?: string;
+          functions: Array<{ name: string; description: string }>;
+        }) => ({
+          ...g,
+          functions: g.functions.map(
+            (f: { name: string; description: string }) => ({
+              ...f,
+              handler: async () => `${f.name} result`,
+            }),
+          ),
+        }),
+      ),
     };
     el.agentConfig = rebuiltConfig;
 
     // 2. Get registry and generate docs content (computes orphan paths)
     const registry = el._skill.actions.getRegistry();
-    return registry.generateAllDocsContent(0).then(async (result: any) => {
-      // 3. Write files
-      for (const file of result.files) {
-        await api.writeFile(file.path, file.content);
-      }
-      // 4. Delete orphans
-      for (const path of result.deletePaths) {
-        await api.deleteFile(path);
-      }
-      return {
-        filesWritten: result.files.length,
-        pathsDeleted: result.deletePaths.length,
-        deletedPaths: result.deletePaths,
-      };
-    });
+    return registry
+      .generateAllDocsContent(0)
+      .then(
+        async (result: {
+          files: Array<{ path: string; content: string }>;
+          deletePaths: string[];
+        }) => {
+          // 3. Write files
+          for (const file of result.files) {
+            await api.writeFile(file.path, file.content);
+          }
+          // 4. Delete orphans
+          for (const path of result.deletePaths) {
+            await api.deleteFile(path);
+          }
+          return {
+            filesWritten: result.files.length,
+            pathsDeleted: result.deletePaths.length,
+            deletedPaths: result.deletePaths,
+          };
+        },
+      );
   }, config);
 }
 
@@ -134,7 +162,7 @@ test.describe('Doc Reconciliation - Basic Generation', () => {
     expect(result.filesWritten).toBeGreaterThan(2);
 
     const docs = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       return {
         addDoc: await api.readFile('/functions/math/add.md'),
         subDoc: await api.readFile('/functions/math/subtract.md'),
@@ -170,7 +198,7 @@ test.describe('Doc Reconciliation - Basic Generation', () => {
     });
 
     const doc = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       return await api.readFile('/functions/editor/getCode.md');
     });
 
@@ -208,7 +236,7 @@ test.describe('Doc Reconciliation - Orphan Cleanup', () => {
 
     // Verify all 3 docs exist
     const before = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       return {
         create: (await api.readFile('/functions/task/create.md')).length > 0,
         update: (await api.readFile('/functions/task/update.md')).length > 0,
@@ -236,7 +264,7 @@ test.describe('Doc Reconciliation - Orphan Cleanup', () => {
 
     // Verify 'delete' doc is gone, others remain
     const after = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       return {
         create: (await api.readFile('/functions/task/create.md')).length > 0,
         update: (await api.readFile('/functions/task/update.md')).length > 0,
@@ -289,7 +317,7 @@ test.describe('Doc Reconciliation - Orphan Cleanup', () => {
 
     // Verify VFS state
     const after = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       return {
         mathAdd: (await api.readFile('/functions/math/add.md')).length > 0,
         textUpper: (await api.readFile('/functions/text/upper.md')).length > 0,
@@ -307,7 +335,7 @@ test.describe('Doc Reconciliation - Orphan Cleanup', () => {
 
     // Seed orphan function docs (simulating stale docs from a previous config)
     await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       await api.seedData({
         files: [
           {
@@ -345,7 +373,7 @@ test.describe('Doc Reconciliation - Orphan Cleanup', () => {
 
     // Verify VFS state
     const after = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       return {
         old1:
           (await api.readFile('/functions/oldGroup/oldFunc1.md')).length > 0,
@@ -398,7 +426,7 @@ test.describe('Doc Reconciliation - System File Protection', () => {
 
     // INDEX.md should still exist (regenerated with empty content)
     const indexDoc = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       return await api.readFile('/functions/INDEX.md');
     });
     expect(indexDoc.length).toBeGreaterThan(0);
@@ -427,7 +455,7 @@ test.describe('Doc Reconciliation - System File Protection', () => {
     expect(reconcile.deletedPaths).not.toContain('/AGENT.md');
 
     const agentDoc = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       return await api.readFile('/AGENT.md');
     });
     expect(agentDoc).toContain('NamedAgent');
@@ -472,7 +500,7 @@ test.describe('Doc Reconciliation - System File Protection', () => {
 
     // Verify VFS state
     const after = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       return {
         a1: (await api.readFile('/functions/alpha/a1.md')).length > 0,
         a2: (await api.readFile('/functions/alpha/a2.md')).length > 0,
@@ -511,7 +539,7 @@ test.describe('Doc Reconciliation - Re-registration', () => {
     });
 
     let pingDoc = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       return await api.readFile('/functions/svc/ping.md');
     });
     expect(pingDoc.length).toBeGreaterThan(0);
@@ -529,7 +557,7 @@ test.describe('Doc Reconciliation - Re-registration', () => {
     });
 
     pingDoc = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       return await api.readFile('/functions/svc/ping.md');
     });
     expect(pingDoc.length).toBe(0);
@@ -547,7 +575,7 @@ test.describe('Doc Reconciliation - Re-registration', () => {
     });
 
     pingDoc = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       return await api.readFile('/functions/svc/ping.md');
     });
     expect(pingDoc.length).toBeGreaterThan(0);
@@ -576,7 +604,7 @@ test.describe('Doc Reconciliation - Re-registration', () => {
     expect(second.pathsDeleted).toBe(0);
 
     const result = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       return {
         fn1: (await api.readFile('/functions/grp/fn1.md')).length > 0,
         fn2: (await api.readFile('/functions/grp/fn2.md')).length > 0,
@@ -602,7 +630,7 @@ test.describe('Doc Reconciliation - Edge Cases', () => {
 
     // Seed non-.md files under /functions/
     await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       await api.seedData({
         files: [
           { path: '/functions/stray.json', content: '{"orphan": true}' },
@@ -627,7 +655,7 @@ test.describe('Doc Reconciliation - Edge Cases', () => {
     expect(reconcile.deletedPaths).toContain('/functions/notes.txt');
 
     const after = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       return {
         json: (await api.readFile('/functions/stray.json')).length > 0,
         txt: (await api.readFile('/functions/notes.txt')).length > 0,
@@ -647,7 +675,7 @@ test.describe('Doc Reconciliation - Edge Cases', () => {
 
     // Seed files in other directories
     await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       await api.seedData({
         files: [
           { path: '/scripts/myscript.js', content: 'console.log("hello")' },
@@ -670,7 +698,7 @@ test.describe('Doc Reconciliation - Edge Cases', () => {
 
     // Non-function files should be untouched
     const result = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       return {
         script: (await api.readFile('/scripts/myscript.js')).length > 0,
         custom: (await api.readFile('/custom/readme.md')).length > 0,
@@ -698,7 +726,7 @@ test.describe('Doc Reconciliation - Edge Cases', () => {
     };
 
     // First reconcile: creates docs
-    const first = await setConfigAndReconcile(page, config);
+    const _first = await setConfigAndReconcile(page, config);
     // first may have orphans from the debug page's built-in registry setup
     // (system functions are always present)
 
@@ -727,7 +755,7 @@ test.describe('Doc Reconciliation - Edge Cases', () => {
     });
 
     const result = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       return {
         delay: (await api.readFile('/functions/system/delay.md')).length > 0,
         uuid: (await api.readFile('/functions/system/uuid.md')).length > 0,
@@ -769,14 +797,14 @@ test.describe('Doc Reconciliation - Edge Cases', () => {
       });
     }
 
-    const first = await setConfigAndReconcile(page, {
+    const _first = await setConfigAndReconcile(page, {
       name: 'StressAgent',
       groups,
     });
 
     // Spot-check docs
-    let docs = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+    const docs = await page.evaluate(async () => {
+      const api = window.rtcAgentDebug;
       return {
         first: (await api.readFile('/functions/group0/func_0_0.md')).length > 0,
         middle:
@@ -804,7 +832,7 @@ test.describe('Doc Reconciliation - Edge Cases', () => {
     expect(second.pathsDeleted).toBeGreaterThanOrEqual(50);
 
     const after = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       return {
         oldFirst:
           (await api.readFile('/functions/group0/func_0_0.md')).length > 0,
@@ -831,7 +859,7 @@ test.describe('Doc Reconciliation - Edge Cases', () => {
 
     // Seed an orphan in a subdirectory
     await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       await api.writeFile(
         '/functions/removedGroup/removedFunc.md',
         '# removed\nOld doc',

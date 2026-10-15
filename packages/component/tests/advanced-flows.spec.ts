@@ -16,7 +16,21 @@
  *
  * Run: npx playwright test --config=packages/component/playwright.config.ts
  */
-import { test, expect, type Page } from '@playwright/test';
+import { expect, type Page, test } from '@playwright/test';
+import type { RtcAgentDebugAPI } from '../src/debug-api-types.js';
+
+/**
+ * Augment the global Window type with the debug API.
+ *
+ * This eliminates `as any` casts when accessing `window.rtcAgentDebug`
+ * inside page.evaluate() callbacks. The debug API is installed at runtime
+ * by the component's dev-mode bootstrap code.
+ */
+declare global {
+  interface Window {
+    rtcAgentDebug: RtcAgentDebugAPI;
+  }
+}
 
 /** URL of the debug page that hosts <rtc-agent> and installs the debug API. */
 const DEBUG_PAGE = '/debug/index.html';
@@ -27,7 +41,6 @@ const DEBUG_PAGE = '/debug/index.html';
 async function waitForDebugAPI(page: Page): Promise<void> {
   await page.waitForFunction(
     () => {
-      // @ts-expect-error debug API not in default types
       return typeof window.rtcAgentDebug !== 'undefined';
     },
     { timeout: 15_000 },
@@ -51,7 +64,7 @@ test.describe('Advanced Flow - Settings Management', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
 
       // Get initial settings
       const initial = api.getSettings();
@@ -85,7 +98,7 @@ test.describe('Advanced Flow - Settings Management', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
 
       const initial = api.getSettings();
       api.updateSettings('appearance', { fontSize: 16 });
@@ -113,7 +126,7 @@ test.describe('Advanced Flow - Settings Management', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
 
       const initial = api.getSettings();
       api.updateSettings('chat', { sendShortcut: 'Ctrl+Enter' });
@@ -141,7 +154,7 @@ test.describe('Advanced Flow - Settings Management', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
 
       const initial = api.getSettings();
       api.updateSettings('chat', { density: 'compact' });
@@ -169,7 +182,7 @@ test.describe('Advanced Flow - Settings Management', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
 
       const initial = api.getSettings();
       api.updateSettings('files', { autoSave: false });
@@ -197,7 +210,7 @@ test.describe('Advanced Flow - Settings Management', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
 
       const initial = api.getSettings();
       api.updateSettings('notifications', {
@@ -239,7 +252,7 @@ test.describe('Advanced Flow - Settings Management', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
 
       // This should log a warning but not throw
       try {
@@ -266,7 +279,7 @@ test.describe('Advanced Flow - Activity Management', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const el = api.element;
 
       const initial = api.getActivity();
@@ -302,7 +315,7 @@ test.describe('Advanced Flow - Activity Management', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const el = api.element;
 
       const initial = api.getActivity();
@@ -332,7 +345,7 @@ test.describe('Advanced Flow - Activity Management', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const el = api.element;
 
       el.activityController.actions.hideSidebar();
@@ -358,7 +371,7 @@ test.describe('Advanced Flow - Activity Management', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const el = api.element;
 
       // Change state
@@ -393,7 +406,7 @@ test.describe('Advanced Flow - Activity Management', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const el = api.element;
 
       // Start with chat active
@@ -440,7 +453,7 @@ test.describe('Advanced Flow - Network Simulation', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
 
       api.simulateOffline();
       await new Promise((r) => setTimeout(r, 50));
@@ -449,7 +462,7 @@ test.describe('Advanced Flow - Network Simulation', () => {
       let wsError: string | null = null;
       try {
         const ws = new WebSocket('ws://localhost:9999');
-        await new Promise<void>((resolve, reject) => {
+        await new Promise<void>((resolve, _reject) => {
           ws.addEventListener('error', () => {
             wsError = 'WebSocket error fired';
             resolve();
@@ -480,7 +493,7 @@ test.describe('Advanced Flow - Network Simulation', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
 
       // Setup initial state and wait for it to settle
       api.loginAs('network-test-user');
@@ -528,7 +541,7 @@ test.describe('Advanced Flow - Network Simulation', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
 
       const states: boolean[] = [];
 
@@ -569,7 +582,7 @@ test.describe('Advanced Flow - Network Simulation', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
 
       // Ensure we start with a clean state
       if (api.isOffline) {
@@ -604,7 +617,7 @@ test.describe('Advanced Flow - Network Simulation', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
 
       // Ensure we're online
       if (api.isOffline) {
@@ -636,7 +649,7 @@ test.describe('Advanced Flow - Tool Call Workflow', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
 
       api.addPendingToolCall({
         id: 'tc-params-test',
@@ -648,7 +661,7 @@ test.describe('Advanced Flow - Tool Call Workflow', () => {
       await new Promise((r) => requestAnimationFrame(r));
 
       const calls = api.getToolCalls();
-      const call = calls.find((c: any) => c.id === 'tc-params-test');
+      const call = calls.find((c: { id: string }) => c.id === 'tc-params-test');
 
       return {
         found: !!call,
@@ -671,7 +684,7 @@ test.describe('Advanced Flow - Tool Call Workflow', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
 
       // Add 5 tool calls rapidly
       for (let i = 0; i < 5; i++) {
@@ -687,7 +700,7 @@ test.describe('Advanced Flow - Tool Call Workflow', () => {
 
       return {
         count: calls.length,
-        ids: calls.map((c: any) => c.id),
+        ids: calls.map((c: { id: string }) => c.id),
       };
     });
 
@@ -701,7 +714,7 @@ test.describe('Advanced Flow - Tool Call Workflow', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
 
       // Add 3 tool calls
       api.addPendingToolCall({ id: 'tc-approve-1', toolName: 'bash' });
@@ -745,7 +758,7 @@ test.describe('Advanced Flow - Tool Call Workflow', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
 
       // Add mixed tool calls
       api.addPendingToolCall({ id: 'tc-bash-1', toolName: 'bash' });
@@ -766,7 +779,7 @@ test.describe('Advanced Flow - Tool Call Workflow', () => {
       return {
         beforeCount: before.length,
         afterCount: after.length,
-        remainingTools: after.map((c: any) => c.toolName),
+        remainingTools: after.map((c: { toolName: string }) => c.toolName),
       };
     });
 
@@ -782,7 +795,7 @@ test.describe('Advanced Flow - Tool Call Workflow', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
 
       // Add tool call without ID
       api.addPendingToolCall({
@@ -819,7 +832,7 @@ test.describe('Advanced Flow - Cross-Controller Integration', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const el = api.element;
 
       // Step 1: Login
@@ -878,7 +891,7 @@ test.describe('Advanced Flow - Cross-Controller Integration', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const el = api.element;
 
       // Change settings
@@ -925,7 +938,7 @@ test.describe('Advanced Flow - Cross-Controller Integration', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
 
       // Ensure clean network state
       if (api.isOffline) {
@@ -973,7 +986,7 @@ test.describe('Advanced Flow - Cross-Controller Integration', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const el = api.element;
 
       // Create 3 sessions
@@ -1029,7 +1042,7 @@ test.describe('Advanced Flow - Performance Metrics', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
 
       // Get initial metrics
       const before = api.getMetrics();
@@ -1074,7 +1087,7 @@ test.describe('Advanced Flow - Performance Metrics', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
 
       const metrics = api.getMetrics();
       const dom = metrics.dom;
@@ -1101,7 +1114,7 @@ test.describe('Advanced Flow - Edge Cases', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const el = api.element;
 
       // Rapidly change activity
@@ -1135,7 +1148,7 @@ test.describe('Advanced Flow - Edge Cases', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
 
       // Rapidly update settings
       for (let i = 0; i < 10; i++) {
@@ -1158,7 +1171,7 @@ test.describe('Advanced Flow - Edge Cases', () => {
     await waitForDebugAPI(page);
 
     const result = await evalInPage(page, async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
 
       try {
         // Try to approve non-existent tool call

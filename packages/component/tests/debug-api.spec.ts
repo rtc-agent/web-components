@@ -9,7 +9,21 @@
  *
  * Run: npx playwright test --config=packages/component/playwright.config.ts
  */
-import { test, expect, type Page } from '@playwright/test';
+import { expect, type Page, test } from '@playwright/test';
+import type { RtcAgentDebugAPI } from '../src/debug-api-types.js';
+
+/**
+ * Augment the global Window type with the debug API.
+ *
+ * This eliminates `as any` casts when accessing `window.rtcAgentDebug`
+ * inside page.evaluate() callbacks. The debug API is installed at runtime
+ * by the component's dev-mode bootstrap code.
+ */
+declare global {
+  interface Window {
+    rtcAgentDebug: RtcAgentDebugAPI;
+  }
+}
 
 /** URL of the debug page that hosts <rtc-agent> and installs the debug API. */
 const DEBUG_PAGE = '/debug/index.html';
@@ -23,7 +37,6 @@ const DEBUG_PAGE = '/debug/index.html';
 async function waitForDebugAPI(page: Page): Promise<void> {
   await page.waitForFunction(
     () => {
-      // @ts-expect-error debug API not in default types
       return typeof window.rtcAgentDebug !== 'undefined';
     },
     { timeout: 15_000 },
@@ -273,7 +286,7 @@ test.describe('Debug API - Auth Bypass', () => {
     await waitForDebugAPI(page);
 
     const transitions = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const states: boolean[] = [];
 
       // Initial state
@@ -306,7 +319,7 @@ test.describe('Debug API - VirtualFS', () => {
     await waitForDebugAPI(page);
 
     const content = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const path = `/e2e-test-read-${Date.now()}.txt`;
       await api.writeFile(path, 'hello e2e');
       return api.readFile(path);
@@ -320,7 +333,7 @@ test.describe('Debug API - VirtualFS', () => {
     await waitForDebugAPI(page);
 
     const files = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const path = `/e2e-test-list-${Date.now()}.txt`;
       await api.writeFile(path, 'test content');
       return api.listFiles('/') as Promise<string[]>;
@@ -335,7 +348,7 @@ test.describe('Debug API - VirtualFS', () => {
     await waitForDebugAPI(page);
 
     const result = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const path = `/e2e-test-delete-${Date.now()}.txt`;
 
       await api.writeFile(path, 'to be deleted');
@@ -355,7 +368,7 @@ test.describe('Debug API - VirtualFS', () => {
     await waitForDebugAPI(page);
 
     const result = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const path = `/e2e-test-overwrite-${Date.now()}.txt`;
 
       await api.writeFile(path, 'version 1');
@@ -464,7 +477,7 @@ test.describe('Debug API - Log Capture', () => {
     await waitForDebugAPI(page);
 
     const result = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       api.clearLogs();
 
       console.info('e2e-test-log-entry');
@@ -486,7 +499,7 @@ test.describe('Debug API - Log Capture', () => {
     await waitForDebugAPI(page);
 
     const result = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       console.warn('some noise');
       await new Promise((r) => setTimeout(r, 50));
 
@@ -598,11 +611,11 @@ test.describe('Debug API - Session Management', () => {
     await waitForDebugAPI(page);
 
     const result = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
-      const before = api.getSessions() as any[];
+      const api = window.rtcAgentDebug;
+      const before = api.getSessions();
       const clientId = api.createSession() as string;
       await new Promise((r) => requestAnimationFrame(r));
-      const after = api.getSessions() as any[];
+      const after = api.getSessions();
       const currentId = api.getCurrentSessionId();
       return {
         clientId,
@@ -622,10 +635,10 @@ test.describe('Debug API - Session Management', () => {
     await waitForDebugAPI(page);
 
     const result = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const id1 = api.createSession();
       await new Promise((r) => requestAnimationFrame(r));
-      const id2 = api.createSession();
+      const _id2 = api.createSession();
       await new Promise((r) => requestAnimationFrame(r));
 
       // Should be on id2 now
@@ -651,7 +664,7 @@ test.describe('Debug API - Session Management', () => {
     await waitForDebugAPI(page);
 
     const result = await page.evaluate(() => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       return api.switchSession('non-existent-id');
     });
 
@@ -663,12 +676,12 @@ test.describe('Debug API - Session Management', () => {
     await waitForDebugAPI(page);
 
     const result = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const id = api.createSession();
       await new Promise((r) => requestAnimationFrame(r));
       const renameResult = await api.renameSession(id, 'New Title');
       await new Promise((r) => requestAnimationFrame(r));
-      const sessions = api.getSessions() as any[];
+      const sessions = api.getSessions();
       const session = sessions.find((s: any) => s.clientId === id);
       return { renameResult, title: session?.title };
     });
@@ -682,7 +695,7 @@ test.describe('Debug API - Session Management', () => {
     await waitForDebugAPI(page);
 
     const result = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const id = api.createSession();
       await new Promise((r) => requestAnimationFrame(r));
       const beforeCount = api.getSessions().length;
@@ -701,10 +714,10 @@ test.describe('Debug API - Session Management', () => {
     await waitForDebugAPI(page);
 
     const sessions = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       api.createSession();
       await new Promise((r) => requestAnimationFrame(r));
-      return api.getSessions() as any[];
+      return api.getSessions();
     });
 
     expect(Array.isArray(sessions)).toBe(true);
@@ -724,8 +737,8 @@ test.describe('Debug API - Message Operations', () => {
     await waitForDebugAPI(page);
 
     const messages = await page.evaluate(() => {
-      const api = (window as any).rtcAgentDebug;
-      return api.getMessages() as any[];
+      const api = window.rtcAgentDebug;
+      return api.getMessages();
     });
 
     expect(Array.isArray(messages)).toBe(true);
@@ -736,7 +749,7 @@ test.describe('Debug API - Message Operations', () => {
     await waitForDebugAPI(page);
 
     const result = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const before = api.getMessages().length;
       api.addDemoMessage('Hello from debug API');
       await new Promise((r) => requestAnimationFrame(r));
@@ -754,7 +767,7 @@ test.describe('Debug API - Message Operations', () => {
     await waitForDebugAPI(page);
 
     const result = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       api.addDemoMessage('message to clear');
       await new Promise((r) => requestAnimationFrame(r));
       const before = api.getMessages().length;
@@ -781,7 +794,7 @@ test.describe('Debug API - Tool Call Simulation', () => {
     await waitForDebugAPI(page);
 
     const result = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const before = api.getToolCalls().length;
       api.addPendingToolCall({
         toolName: 'bash',
@@ -804,7 +817,7 @@ test.describe('Debug API - Tool Call Simulation', () => {
     await waitForDebugAPI(page);
 
     const result = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       api.addPendingToolCall({ id: 'tc-test-approve', toolName: 'read' });
       await new Promise((r) => requestAnimationFrame(r));
       const before = api.getToolCalls().length;
@@ -823,7 +836,7 @@ test.describe('Debug API - Tool Call Simulation', () => {
     await waitForDebugAPI(page);
 
     const result = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       api.addPendingToolCall({ id: 'tc-test-deny', toolName: 'write' });
       await new Promise((r) => requestAnimationFrame(r));
       const before = api.getToolCalls().length;
@@ -844,7 +857,7 @@ test.describe('Debug API - Tool Call Simulation', () => {
     await waitForDebugAPI(page);
 
     const result = await page.evaluate(() => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       return api.approveToolCall('non-existent-id');
     });
 
@@ -858,7 +871,7 @@ test.describe('Debug API - Tool Call Simulation', () => {
     await waitForDebugAPI(page);
 
     const result = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       api.addPendingToolCall({ id: 'tc-bash-1', toolName: 'bash' });
       api.addPendingToolCall({ id: 'tc-bash-2', toolName: 'bash' });
       api.addPendingToolCall({ id: 'tc-read-1', toolName: 'read' });
@@ -867,7 +880,7 @@ test.describe('Debug API - Tool Call Simulation', () => {
       api.approveAllToolCalls('bash');
       await new Promise((r) => requestAnimationFrame(r));
       const after = api.getToolCalls().length;
-      const remaining = api.getToolCalls() as any[];
+      const remaining = api.getToolCalls();
       return { before, after, remaining };
     });
 
@@ -887,10 +900,10 @@ test.describe('Debug API - Toast', () => {
     await waitForDebugAPI(page);
 
     const result = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       api.showToast('Test notification', 'success');
       await new Promise((r) => requestAnimationFrame(r));
-      const toasts = api.getToasts() as any[];
+      const toasts = api.getToasts();
       return { count: toasts.length, lastToast: toasts[toasts.length - 1] };
     });
 
@@ -904,8 +917,8 @@ test.describe('Debug API - Toast', () => {
     await waitForDebugAPI(page);
 
     const toasts = await page.evaluate(() => {
-      const api = (window as any).rtcAgentDebug;
-      return api.getToasts() as any[];
+      const api = window.rtcAgentDebug;
+      return api.getToasts();
     });
 
     expect(Array.isArray(toasts)).toBe(true);
@@ -922,7 +935,7 @@ test.describe('Debug API - Settings', () => {
     await waitForDebugAPI(page);
 
     const settings = await page.evaluate(() => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       return api.getSettings() as Record<string, unknown>;
     });
 
@@ -941,7 +954,7 @@ test.describe('Debug API - Activity', () => {
     await waitForDebugAPI(page);
 
     const activity = await page.evaluate(() => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       return api.getActivity() as { active: string; sidebarVisible: boolean };
     });
 
@@ -954,7 +967,7 @@ test.describe('Debug API - Activity', () => {
     await waitForDebugAPI(page);
 
     const result = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       api.setActivity('chat');
       await new Promise((r) => requestAnimationFrame(r));
       const after = api.getActivity() as { active: string };
@@ -975,7 +988,7 @@ test.describe('Debug API - Performance Metrics', () => {
     await waitForDebugAPI(page);
 
     const metrics = await page.evaluate(() => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       return api.getMetrics() as Record<string, unknown>;
     });
 
@@ -994,7 +1007,7 @@ test.describe('Debug API - Performance Metrics', () => {
     await waitForDebugAPI(page);
 
     const metrics = await page.evaluate(() => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       return api.getMetrics() as Record<string, unknown>;
     });
 
@@ -1018,7 +1031,7 @@ test.describe('Debug API - Network Simulation', () => {
     await waitForDebugAPI(page);
 
     const result = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       const wasOnline = api.isOffline;
       api.simulateOffline();
       const offline = api.isOffline;
@@ -1035,7 +1048,7 @@ test.describe('Debug API - Network Simulation', () => {
     await waitForDebugAPI(page);
 
     const result = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       api.simulateOffline();
       api.restoreNetwork();
       return api.isOffline;
@@ -1049,7 +1062,7 @@ test.describe('Debug API - Network Simulation', () => {
     await waitForDebugAPI(page);
 
     const result = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       api.simulateOffline();
       try {
         await fetch('/some-endpoint');
@@ -1070,7 +1083,7 @@ test.describe('Debug API - Network Simulation', () => {
     await waitForDebugAPI(page);
 
     const result = await page.evaluate(async () => {
-      const api = (window as any).rtcAgentDebug;
+      const api = window.rtcAgentDebug;
       api.simulateOffline();
       api.restoreNetwork();
 
