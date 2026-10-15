@@ -252,6 +252,19 @@ async function emitUIUpdates(
     // Update: compute per-field diffs via microdiff and collect into changes array
     // PERFORMANCE: microdiff performs deep comparison, but we've already cloned the objects
     // so reference equality check above is the fast path for unchanged data
+    //
+    // PERFORMANCE NOTE: microdiff performs deep comparison in O(n) time where n is the
+    // total number of properties in both objects. For large entities (e.g., Session with
+    // 10+ fields, nested objects), this may take 5-15ms. The impact is mitigated by:
+    // 1. Reference equality check above (fast path for unchanged data)
+    // 2. Batch event emission (reduces event bus congestion)
+    // 3. safeClone uses size thresholds to limit comparison scope
+    //
+    // If profiling shows this as a bottleneck, consider:
+    // - Structural sharing to reduce comparison scope (e.g., hash-based change detection)
+    // - Moving comparison to Worker thread (if main thread blocking becomes critical)
+    // - Using shallow comparison where deep equality is not required
+    // - Incremental updates: track changed fields at write time instead of diffing snapshots
     const diffs = diff(cloneableBefore, cloneableAfter);
     for (const change of diffs) {
       changes.push({
@@ -648,7 +661,10 @@ export class EntityRepository {
           .filter((s) => !s.deleted_at);
       } else {
         // No cursor: use orderBy('updated_at').reverse() for all sessions
-        query = db.sessions.orderBy('updated_at').reverse().filter((s) => !s.deleted_at);
+        query = db.sessions
+          .orderBy('updated_at')
+          .reverse()
+          .filter((s) => !s.deleted_at);
       }
 
       // Use limit() to fetch exactly the number we need
@@ -1139,7 +1155,9 @@ export class EntityRepository {
       // Filter strictly less than cursor (handle ties with client_id)
       const filtered = messages.filter((m) => {
         const ts = new Date(m.created_at).getTime();
-        return ts < cursorTs || (ts === cursorTs && m.client_id < cursorClientId);
+        return (
+          ts < cursorTs || (ts === cursorTs && m.client_id < cursorClientId)
+        );
       });
 
       // Sort in ascending order (oldest first) before returning
@@ -1165,7 +1183,9 @@ export class EntityRepository {
       // Filter strictly greater than cursor
       const filtered = messages.filter((m) => {
         const ts = new Date(m.created_at).getTime();
-        return ts > cursorTs || (ts === cursorTs && m.client_id > cursorClientId);
+        return (
+          ts > cursorTs || (ts === cursorTs && m.client_id > cursorClientId)
+        );
       });
 
       // Sort in ascending order (oldest first) before returning
@@ -1409,7 +1429,9 @@ export class EntityRepository {
     // This avoids the overhead of batch processing for simple cases.
     // Single updates WITH deletes must go through batch logic for proper server_id → client_id resolution.
     if (updates.length === 1) {
-      const hasDeletes = updates[0].items.some((item) => item.action === 'deleted');
+      const hasDeletes = updates[0].items.some(
+        (item) => item.action === 'deleted',
+      );
       if (!hasDeletes) {
         return this.applyUpdateOriginal(updates[0]);
       }

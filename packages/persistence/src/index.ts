@@ -55,11 +55,36 @@
  * - File operations need access to the same S3Client and FileCacheRepository
  * - Background sync needs to coordinate with message sending (deduplication)
  * - The class has clear public interfaces (IPersistenceLayer) for consumers
+ *
+ * ARCHITECTURE NOTE (P0): Reverse Dependency on @rtc-agent/client
+ * ----------------------------------------------------------------
+ * Expected dependency direction: persistence <- client (client depends on persistence)
+ * Actual dependency: persistence -> client (bidirectional dependency)
+ *
+ * The persistence package imports from @rtc-agent/client:
+ * - RTCAgentClient: WebSocket communication (session/message/RTC CRUD)
+ * - S3Client: File upload/download operations
+ *
+ * This creates a circular dependency that complicates the package graph and makes
+ * it harder to test or replace either package independently.
+ *
+ * FUTURE FIX:
+ * 1. Short-term: Extract interfaces (IWebSocketClient, IObjectStorageClient) and
+ *    inject them via constructor. PersistenceLayer would depend on abstractions,
+ *    not concrete implementations.
+ *
+ * 2. Long-term: Move S3Client to a separate @rtc-agent/storage-client package.
+ *    Dependency graph: persistence -> storage-client <- client
+ *
+ * For now, the circular dependency is acceptable because:
+ * - Both packages are deployed together (same application)
+ * - The integration logic is tightly coupled (S3 upload needs WebSocket callbacks)
+ * - Extracting interfaces would add complexity without immediate benefit
  */
 /**
  * ARCHITECTURE NOTE (P2-3):
  * This import creates a reverse dependency: persistence -> client.
- * See s3-upload.ts for detailed explanation and future improvement suggestions.
+ * See the detailed explanation in the file header above for future improvement suggestions.
  */
 import {
   type HeadObjectResult,
@@ -326,7 +351,10 @@ export class PersistenceLayer implements IPersistenceLayer {
   /** P1-FIX: Event deduplication cache for cross-tab sync.
    * Stores recently processed event IDs (channel:offset) to prevent duplicate processing
    * when multiple tabs receive the same publication event.
-   * Uses a Set with bounded size (LRU-style cleanup when size exceeds threshold).
+   * Uses a Set with bounded size (FIFO-style cleanup when size exceeds threshold).
+   * Note: This is FIFO, not true LRU, as Set iteration order is insertion order.
+   * For deduplication purposes, FIFO is sufficient since we only need to prevent
+   * duplicate processing of recent events, not optimize for access patterns.
    */
   private _processedEventIds = new Set<string>();
   /** Maximum size of the event deduplication cache.
@@ -676,9 +704,11 @@ export class PersistenceLayer implements IPersistenceLayer {
   /**
    * Evict oldest entries from the event deduplication cache.
    *
-   * P1-FIX: Simple LRU-style cleanup. When the cache exceeds its size threshold,
+   * P1-FIX: Simple FIFO-style cleanup. When the cache exceeds its size threshold,
    * we remove the oldest entries (first 20% of the Set, which maintains insertion order).
    * This prevents memory leaks while maintaining effective deduplication.
+   * Note: This is not true LRU eviction since Set iteration order is insertion order,
+   * not access order. For event deduplication, FIFO is sufficient.
    */
   private _evictOldestEventIds(): void {
     const evictCount = Math.floor(

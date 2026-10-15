@@ -456,6 +456,29 @@ export class VirtualFS {
    * transaction (e.g., from batchWriteFiles), Dexie will reuse the outer transaction
    * (nested transaction support).
    *
+   * ARCHITECTURE NOTE (P0):
+   * -----------------------
+   * writeBatch acquires locks in array order to prevent deadlocks.
+   * However, IndexedDB transactions within the batch are not fully atomic:
+   * if one `put` operation fails mid-loop, previously written files cannot be rolled back.
+   *
+   * Current behavior:
+   * - Locks are acquired recursively for all files before the transaction starts
+   * - Within the transaction, files are written in a loop (lines 509-569)
+   * - If file N fails, files 0..N-1 have already been committed to IndexedDB
+   * - The transaction aborts, but Dexie's transaction model does not provide
+   *   true rollback for previously committed operations within the same transaction
+   *
+   * FUTURE IMPROVEMENT:
+   * Use a single Dexie transaction wrapping all writes to ensure atomicity.
+   * This requires restructuring the lock acquisition to work within a transaction context.
+   * See: https://dexie.org/docs/Transaction/Transaction
+   *
+   * For now, this limitation is acceptable because:
+   * 1. Batch writes are typically one-time operations (initial setup, migrations)
+   * 2. Failures are rare and usually indicate content validation errors (size, null bytes)
+   * 3. Callers can retry the entire batch if needed (idempotent for create-new mode)
+   *
    * @param files Array of file write operations
    * @throws Error if any file exceeds MAX_FILE_SIZE or contains null bytes
    * @throws LifecycleClosedError if the VirtualFS has been closed

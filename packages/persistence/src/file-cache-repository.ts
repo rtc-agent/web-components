@@ -130,6 +130,18 @@ export class FileCacheRepository {
   private _recoverStaleSyncingPromise: Promise<number> | null = null;
 
   /**
+   * P1-FIX: Promise-based serialization lock for LRU eviction.
+   * Prevents concurrent eviction operations across multiple Tabs from skipping
+   * or duplicating entries. Each eviction chains onto this promise, ensuring
+   * only one eviction runs at a time within this instance.
+   *
+   * Note: This is instance-level only. Cross-tab coordination would require
+   * a shared mechanism (e.g., IndexedDB-based lock), but instance-level is
+   * sufficient since each Tab has its own PersistenceLayer instance.
+   */
+  private _evictionLock: Promise<void> = Promise.resolve();
+
+  /**
    * MD5 Worker pool for reusing worker instances.
    * PERFORMANCE: Creating a new Worker for each MD5 calculation is expensive (~10-50ms).
    * This pool maintains up to 4 workers to handle concurrent MD5 calculations.
@@ -1101,10 +1113,45 @@ export class FileCacheRepository {
    * if another tab deletes an entry first, bulkDelete silently skips it;
    * if another tab adds a newer entry, it won't be in the candidate list.
    *
+   * P1-FIX (concurrent eviction): Now uses instance-level Promise-based serialization
+   * to prevent concurrent eviction operations from skipping or duplicating entries.
+   * Multiple eviction calls are chained onto _evictionLock, ensuring only one runs
+   * at a time within this instance.
+   *
    * @param targetBytes Number of bytes to free
    * @returns Actual evicted count and bytes freed
    */
   async evictLRU(
+    targetBytes: number,
+  ): Promise<{ evictedCount: number; evictedBytes: number }> {
+    // P1-FIX: Chain eviction operations to prevent concurrent eviction.
+    // Each call waits for the previous one to complete before starting.
+    // This prevents multiple Tabs from interfering with each other's cursor position.
+    const previousLock = this._evictionLock;
+
+    let resolveCurrentLock: () => void;
+    this._evictionLock = new Promise<void>((resolve) => {
+      resolveCurrentLock = resolve;
+    });
+
+    try {
+      // Wait for any ongoing eviction to complete
+      await previousLock;
+
+      // Now perform the actual eviction
+      const result = await this._evictLRUInternal(targetBytes);
+      return result;
+    } finally {
+      // Release the lock so the next eviction can proceed
+      resolveCurrentLock!();
+    }
+  }
+
+  /**
+   * Internal implementation of evictLRU.
+   * Separated to enable concurrency control in the public method.
+   */
+  private async _evictLRUInternal(
     targetBytes: number,
   ): Promise<{ evictedCount: number; evictedBytes: number }> {
     const db = getDatabase();
