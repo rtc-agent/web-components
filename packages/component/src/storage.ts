@@ -1,12 +1,18 @@
-// Data storage module (demo uses localStorage, does not write into the virtual file system)
+/**
+ * Data storage module (demo uses localStorage, does not write into the virtual file system)
+ *
+ * Note: This is a demo-only module. For production, use the persistence layer
+ * (IndexedDB via SharedWorker) instead of localStorage.
+ */
 
 import {
   safeLocalStorageGetJSON,
   safeLocalStorageSetJSON,
 } from './utils/safe-local-storage.js';
+import { STORAGE_KEYS } from './config/auth.js';
 
-// Use rtc_ prefix to follow localStorage key naming convention
-const STORAGE_KEY = 'rtc_agent_tasks';
+// Use centralized STORAGE_KEYS for consistency
+const STORAGE_KEY = STORAGE_KEYS.demoTasks;
 
 export interface Task {
   id: string;

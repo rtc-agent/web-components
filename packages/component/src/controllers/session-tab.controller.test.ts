@@ -417,28 +417,28 @@ describe('SessionTabController', () => {
   describe('localStorage persistence', () => {
     it('should persist activeSessionId to localStorage', () => {
       ctrl.actions.openOrActivate('session-1', 'Test');
-      const stored = localStorage.getItem('rtc:active-tab');
+      const stored = localStorage.getItem('rtc_active_tab');
       expect(stored).toBe('session-1');
     });
 
     it('should remove from localStorage when clearing all', () => {
       ctrl.actions.openOrActivate('session-1', 'Test');
       ctrl.actions.clearAll();
-      const stored = localStorage.getItem('rtc:active-tab');
+      const stored = localStorage.getItem('rtc_active_tab');
       expect(stored).toBeNull();
     });
 
     it('should remove from localStorage when setting active to null', () => {
       ctrl.actions.openOrActivate('session-1', 'Test');
       ctrl.actions.setActiveTab(null);
-      const stored = localStorage.getItem('rtc:active-tab');
+      const stored = localStorage.getItem('rtc_active_tab');
       expect(stored).toBeNull();
     });
 
     it('should restore active tab from storage', () => {
       ctrl.actions.openOrActivate('session-1', 'First');
       ctrl.actions.openOrActivate('session-2', 'Second');
-      localStorage.setItem('rtc:active-tab', 'session-1');
+      localStorage.setItem('rtc_active_tab', 'session-1');
 
       const restored = ctrl.actions.restoreActiveFromStorage();
       expect(restored).toBe(true);
@@ -447,7 +447,7 @@ describe('SessionTabController', () => {
 
     it('should not restore if stored ID not in tabs', () => {
       ctrl.actions.openOrActivate('session-1', 'Test');
-      localStorage.setItem('rtc:active-tab', 'non-existent');
+      localStorage.setItem('rtc_active_tab', 'non-existent');
 
       const restored = ctrl.actions.restoreActiveFromStorage();
       expect(restored).toBe(false);
@@ -456,7 +456,7 @@ describe('SessionTabController', () => {
 
     it('should not restore if already active', () => {
       ctrl.actions.openOrActivate('session-1', 'Test');
-      localStorage.setItem('rtc:active-tab', 'session-1');
+      localStorage.setItem('rtc_active_tab', 'session-1');
 
       const restored = ctrl.actions.restoreActiveFromStorage();
       expect(restored).toBe(false);

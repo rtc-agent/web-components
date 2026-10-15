@@ -186,8 +186,8 @@ class WorkerPersistenceAdapter implements IPersistenceLayer {
     await this._core.close();
   }
 
-  async flushAll(): Promise<void> {
-    return this._core.flushAll();
+  async flushAll(confirm: boolean = false): Promise<void> {
+    return this._core.flushAll(confirm);
   }
 
   /**
@@ -298,6 +298,17 @@ export class PersistenceController implements ReactiveController {
    */
   private static readonly CONNECT_RETRY_JITTER_MS = 1000;
 
+  /**
+   * Deferred resolver for waitForReady().
+   *
+   * Set when waitForReady() is called before connection completes.
+   * Resolved when connection succeeds (layer is set) or rejected on disconnect.
+   * This allows consumers to await persistence readiness without polling.
+   */
+  private _readyResolve?: () => void;
+  private _readyReject?: (err: Error) => void;
+  private _readyPromise?: Promise<void>;
+
   constructor(
     host: HTMLElement & { addController(c: ReactiveController): void },
     auth: AuthController,
@@ -381,19 +392,89 @@ export class PersistenceController implements ReactiveController {
     return this._fileStorage;
   }
 
+  /**
+   * Wait for the persistence layer to become ready (connected).
+   *
+   * Returns a Promise that resolves when:
+   * - The persistence layer is already connected (immediately)
+   * - A pending connect() completes successfully
+   *
+   * Rejects when:
+   * - disconnect() is called while waiting
+   * - The connection fails
+   *
+   * Use this method when you need to perform operations that require persistence
+   * but may be called before connect() has completed (e.g., in hostConnected()
+   * of other controllers that depend on persistence).
+   *
+   * @param timeoutMs - Optional timeout in milliseconds (default: 30000)
+   * @returns Promise that resolves when ready
+   * @throws Error if timeout expires or connection fails
+   *
+   * @example
+   * ```ts
+   * try {
+   *   await persistenceController.waitForReady(5000);
+   *   // Safe to use persistenceController.layer now
+   * } catch (err) {
+   *   // Handle timeout or connection failure
+   * }
+   * ```
+   */
+  async waitForReady(timeoutMs: number = 30000): Promise<void> {
+    // Already connected
+    if (this._layer) {
+      return;
+    }
+
+    // If a connection attempt is in progress, wait for it
+    if (this._connecting) {
+      return this._connecting;
+    }
+
+    // No connection attempt started - create a deferred promise
+    // that will be resolved when connect() succeeds or rejected on disconnect
+    if (!this._readyPromise) {
+      this._readyPromise = new Promise<void>((resolve, reject) => {
+        this._readyResolve = resolve;
+        this._readyReject = reject;
+      });
+    }
+
+    // Add timeout protection
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(
+          new Error(
+            `[PersistenceController] waitForReady() timeout after ${timeoutMs}ms`,
+          ),
+        );
+      }, timeoutMs);
+    });
+
+    return Promise.race([this._readyPromise, timeoutPromise]);
+  }
+
   hostConnected() {
     // No-op: connection is driven by auth state, not host lifecycle.
   }
 
+  /**
+   * ReactiveController lifecycle: host disconnected from DOM.
+   *
+   * Performs synchronous cleanup to prevent resource leaks when the component
+   * is removed from the DOM. This includes destroying the WorkerBridge and
+   * releasing the MasterLock.
+   *
+   * Note: For temporary disconnects (e.g., React StrictMode), the factory should
+   * call reconnect() or create a new component instance. This method is designed
+   * for permanent teardown scenarios.
+   */
   hostDisconnected() {
-    // Note: disconnect() is async but lifecycle methods are sync.
-    // Browser will clean up Worker/IndexedDB on page unload.
-    // For DOM re-parenting scenarios, async cleanup may not complete.
-    // The void operator explicitly ignores the Promise (fire-and-forget).
-    // Fix: Add .catch() to log errors instead of silently swallowing them.
-    void this.disconnect().catch((err) => {
-      log.warn('disconnect cleanup failed:', err);
-    });
+    // Call destroy() for synchronous cleanup of critical resources.
+    // This ensures WorkerBridge and MasterLock are properly released,
+    // preventing resource leaks even if the component is GC'd immediately.
+    this.destroy();
   }
 
   /**
@@ -547,99 +628,124 @@ export class PersistenceController implements ReactiveController {
     // Asynchronously load worker script: extract URL from Vite factory function -> fetch -> blob URL -> SharedWorker.
     // This way SharedWorker inherits the page origin, avoiding cross-origin errors in CDN deployments.
     // See the top comment in worker-bridge.ts for details.
-    await bridge.initWorker();
+    try {
+      await bridge.initWorker();
 
-    // Checkpoint: if disconnect() was called during await, exit gracefully.
-    // disconnect() will have set this._workerBridge to undefined or a new bridge.
-    if (this._workerBridge !== bridge) {
-      await bridge.destroy().catch(() => {}); // Ignore cleanup errors
-      return;
-    }
-
-    // Strip non-serializable callback functions (Structured Clone does not support functions).
-    // The Worker side replaces getToken/onTokenExpired/onAccountBanned with its own bridges in init(),
-    // so the main-thread callbacks are not needed in the Worker config.
-    // Specifically for onAccountBanned: the Worker has its own broadcastAccountBanned() that
-    // dispatches to registered WorkerCallbacks (including WorkerBridge's handler), so this
-    // client-level callback is only used by the Centrifuge client on the main thread.
-    const {
-      getToken: _gt,
-      onTokenExpired: _ote,
-      onAccountBanned: _oab,
-      ...serializableClient
-    } = config.client;
-    const workerConfig: PersistenceConfig = {
-      ...config,
-      client: serializableClient as PersistenceConfig['client'],
-    };
-
-    // Initialize the Worker (creates PersistenceLayer inside Worker)
-    await bridge.init(workerConfig);
-
-    // Checkpoint: if disconnect() was called during await, exit gracefully.
-    if (this._workerBridge !== bridge) {
-      await bridge.destroy().catch(() => {});
-      return;
-    }
-
-    // Replace the main-thread virtualFS methods with a Comlink proxy.
-    // The main thread cannot directly access IndexedDB,
-    // so all virtualFS operations (tool execution, script reads, etc.) are automatically routed to the Worker.
-    bridge.installVirtualFSProxy();
-
-    // Create adapter that wraps the Comlink proxy.
-    // See the WorkerPersistenceAdapter class for cast semantics.
-    // NOTE: We do NOT assign to this._layer yet — we wait until after bridge.core.connect()
-    // succeeds. If connect() fails, we must not leave a half-initialized layer on the instance,
-    // as callers would see a non-null layer and assume it is connected.
-    const adapter = new WorkerPersistenceAdapter(bridge.core);
-
-    // Connect (starts Centrifuge WebSocket inside Worker)
-    await bridge.core.connect();
-
-    // Connect succeeded — now safe to expose the layer.
-    this._layer = adapter;
-
-    // Checkpoint: if disconnect() was called during the connect() await,
-    // tear down the just-connected bridge and exit gracefully.
-    // Without this, MasterLock would be created on a disconnected controller,
-    // and the WebSocket connection would remain open without any owner.
-    if (this._workerBridge !== bridge) {
-      log.warn('disconnect() fired during bridge.core.connect(), tearing down');
-      this._layer = undefined; // Clear layer we just set (disconnect already cleared its copy)
-      await bridge.destroy().catch(() => {});
-      return;
-    }
-
-    // Create MasterLock and start election
-    const userId = this._auth.state.userId;
-    if (userId) {
-      const masterLock = new MasterLock(userId);
-      masterLock.onAcquire = () => {
-        log.info('this Tab became Master');
-      };
-      masterLock.onRelease = () => {
-        log.info('this Tab lost Master');
-      };
-
-      // CRITICAL CHECKPOINT: If disconnect() fired between the previous checkpoint
-      // and this MasterLock creation, the captured `masterLock` in disconnect() was
-      // undefined (the old value), so our new lock would be orphaned — never released,
-      // leaking the Web Lock. Detect this race and self-correct by releasing immediately.
+      // Checkpoint: if disconnect() was called during await, exit gracefully.
+      // disconnect() will have set this._workerBridge to undefined or a new bridge.
       if (this._workerBridge !== bridge) {
-        log.warn('disconnect() fired before MasterLock creation, releasing orphaned lock');
-        masterLock.release();
+        await bridge.destroy().catch(() => {}); // Ignore cleanup errors
         return;
       }
 
-      // Safe to assign: disconnect() will now capture this lock and release it.
-      this._masterLock = masterLock;
+      // Strip non-serializable callback functions (Structured Clone does not support functions).
+      // The Worker side replaces getToken/onTokenExpired/onAccountBanned with its own bridges in init(),
+      // so the main-thread callbacks are not needed in the Worker config.
+      // Specifically for onAccountBanned: the Worker has its own broadcastAccountBanned() that
+      // dispatches to registered WorkerCallbacks (including WorkerBridge's handler), so this
+      // client-level callback is only used by the Centrifuge client on the main thread.
+      const {
+        getToken: _gt,
+        onTokenExpired: _ote,
+        onAccountBanned: _oab,
+        ...serializableClient
+      } = config.client;
+      const workerConfig: PersistenceConfig = {
+        ...config,
+        client: serializableClient as PersistenceConfig['client'],
+      };
 
-      // Start trying to acquire the lock (may queue)
-      // Catch errors to prevent unhandled promise rejection
-      masterLock.acquire().catch((err) => {
-        log.warn('MasterLock acquire failed:', err);
-      });
+      // Initialize the Worker (creates PersistenceLayer inside Worker)
+      await bridge.init(workerConfig);
+
+      // Checkpoint: if disconnect() was called during await, exit gracefully.
+      if (this._workerBridge !== bridge) {
+        await bridge.destroy().catch(() => {});
+        return;
+      }
+
+      // Replace the main-thread virtualFS methods with a Comlink proxy.
+      // The main thread cannot directly access IndexedDB,
+      // so all virtualFS operations (tool execution, script reads, etc.) are automatically routed to the Worker.
+      bridge.installVirtualFSProxy();
+
+      // Create adapter that wraps the Comlink proxy.
+      // See the WorkerPersistenceAdapter class for cast semantics.
+      // NOTE: We do NOT assign to this._layer yet — we wait until after bridge.core.connect()
+      // succeeds. If connect() fails, we must not leave a half-initialized layer on the instance,
+      // as callers would see a non-null layer and assume it is connected.
+      const adapter = new WorkerPersistenceAdapter(bridge.core);
+
+      // Connect (starts Centrifuge WebSocket inside Worker)
+      await bridge.core.connect();
+
+      // Connect succeeded — now safe to expose the layer.
+      this._layer = adapter;
+
+      // Resolve any pending waitForReady() callers
+      if (this._readyResolve) {
+        this._readyResolve();
+        this._readyResolve = undefined;
+        this._readyReject = undefined;
+        this._readyPromise = undefined;
+      }
+
+      // Checkpoint: if disconnect() was called during the connect() await,
+      // tear down the just-connected bridge and exit gracefully.
+      // Without this, MasterLock would be created on a disconnected controller,
+      // and the WebSocket connection would remain open without any owner.
+      if (this._workerBridge !== bridge) {
+        log.warn('disconnect() fired during bridge.core.connect(), tearing down');
+        this._layer = undefined; // Clear layer we just set (disconnect already cleared its copy)
+        await bridge.destroy().catch(() => {});
+        return;
+      }
+
+      // Create MasterLock and start election
+      const userId = this._auth.state.userId;
+      if (userId) {
+        const masterLock = new MasterLock(userId);
+        masterLock.onAcquire = () => {
+          log.info('this Tab became Master');
+        };
+        masterLock.onRelease = () => {
+          log.info('this Tab lost Master');
+        };
+
+        // CRITICAL CHECKPOINT 1: If disconnect() fired between the previous checkpoint
+        // and this MasterLock creation, the captured `masterLock` in disconnect() was
+        // undefined (the old value), so our new lock would be orphaned — never released,
+        // leaking the Web Lock. Detect this race and self-correct by releasing immediately.
+        if (this._workerBridge !== bridge) {
+          log.warn('disconnect() fired before MasterLock creation, releasing orphaned lock');
+          masterLock.release();
+          return;
+        }
+
+        // Safe to assign: disconnect() will now capture this lock and release it.
+        this._masterLock = masterLock;
+
+        // CRITICAL CHECKPOINT 2: If disconnect() fired after assignment but before acquire(),
+        // disconnect() would have cleared this._masterLock (capturing the old undefined value).
+        // Our newly assigned lock would be orphaned. Detect and release.
+        // This handles the React StrictMode double-mount scenario where disconnect() can fire
+        // between synchronous operations.
+        if (this._masterLock !== masterLock) {
+          log.warn('disconnect() fired after MasterLock assignment, releasing orphaned lock');
+          masterLock.release();
+          return;
+        }
+
+        // Start trying to acquire the lock (may queue)
+        // Catch errors to prevent unhandled promise rejection
+        masterLock.acquire().catch((err) => {
+          log.warn('MasterLock acquire failed:', err);
+        });
+      }
+    } catch (err) {
+      // Ensure cleanup on any error during initialization
+      await this._cleanupFailedConnection();
+      throw err;
     }
   }
 
@@ -677,6 +783,19 @@ export class PersistenceController implements ReactiveController {
    * Call this on logout or when auth is lost.
    */
   async disconnect(): Promise<void> {
+    // Reject any pending waitForReady() callers - they should not wait forever
+    // if the connection is being torn down
+    if (this._readyReject) {
+      this._readyReject(
+        new Error(
+          '[PersistenceController] disconnect() called while waiting for ready',
+        ),
+      );
+      this._readyResolve = undefined;
+      this._readyReject = undefined;
+      this._readyPromise = undefined;
+    }
+
     // Increment the generation counter to invalidate the finally block of any old _connecting promise.
     // This is critical: if disconnect() interrupts an in-flight connection, the old promise's finally block
     // must not clear the new _connecting.
@@ -734,6 +853,64 @@ export class PersistenceController implements ReactiveController {
     // only the old captured instances, so the new connection is unaffected.
     if (this._connectGeneration !== gen) {
       log.debug('disconnect completed; new connect() already in progress');
+    }
+  }
+
+  /**
+   * Permanently destroy the PersistenceController and release all resources.
+   *
+   * This method ensures synchronous cleanup of critical resources, particularly
+   * the WorkerBridge, to prevent resource leaks when the component is permanently
+   * removed from the DOM.
+   *
+   * Cleanup includes:
+   * - Destroying the WorkerBridge (closes SharedWorker port, releases Comlink proxies)
+   * - Releasing the MasterLock (prevents Web Lock leaks)
+   * - Clearing all references (allows GC)
+   *
+   * Unlike disconnect(), this method is designed to be called when the component
+   * is permanently destroyed (not just temporarily disconnected). It performs
+   * synchronous cleanup where possible to minimize leak windows.
+   *
+   * Safe to call multiple times — idempotent.
+   */
+  destroy(): void {
+    // Capture and clear references to prevent use-after-destroy
+    const workerBridge = this._workerBridge;
+    const masterLock = this._masterLock;
+
+    // Reject any pending waitForReady() callers
+    if (this._readyReject) {
+      this._readyReject(
+        new Error('[PersistenceController] destroy() called while waiting for ready'),
+      );
+      this._readyResolve = undefined;
+      this._readyReject = undefined;
+      this._readyPromise = undefined;
+    }
+
+    // Clear references immediately
+    this._layer = undefined;
+    this._workerBridge = undefined;
+    this._masterLock = undefined;
+    this._fileStorage = undefined;
+    this._connecting = undefined;
+
+    // Synchronously release MasterLock (prevents Web Lock leaks)
+    if (masterLock) {
+      try {
+        masterLock.release();
+      } catch (err) {
+        log.debug('destroy: MasterLock release failed (non-fatal):', err);
+      }
+    }
+
+    // Asynchronously destroy WorkerBridge (cannot be fully synchronous due to Comlink)
+    // Fire-and-forget with error handling to prevent unhandled rejections
+    if (workerBridge) {
+      void workerBridge.destroy().catch((err) => {
+        log.debug('destroy: WorkerBridge.destroy() failed (non-fatal):', err);
+      });
     }
   }
 

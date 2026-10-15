@@ -1,12 +1,14 @@
 import { createLogger } from '@rtc-agent/protocol';
+import {
+  safeLocalStorageGet,
+  safeLocalStorageSet,
+} from '../utils/safe-local-storage.js';
+import { STORAGE_KEYS } from '../config/auth.js';
 
 const log = createLogger('Theme');
 
 // Theme types
 export type Theme = 'light' | 'dark' | 'system';
-
-// Storage key for theme persistence
-const STORAGE_KEY = 'rtc-agent-theme';
 
 /**
  * Get the current effective theme (resolves 'system' to 'light' or 'dark')
@@ -26,13 +28,9 @@ export function getEffectiveTheme(
  * Get the stored theme preference from localStorage
  */
 export function getStoredTheme(): Theme {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === 'light' || stored === 'dark' || stored === 'system') {
-      return stored;
-    }
-  } catch (err) {
-    log.debug('localStorage unavailable for reading theme:', err);
+  const stored = safeLocalStorageGet(STORAGE_KEYS.theme);
+  if (stored === 'light' || stored === 'dark' || stored === 'system') {
+    return stored;
   }
   return 'system';
 }
@@ -41,11 +39,7 @@ export function getStoredTheme(): Theme {
  * Persist theme preference to localStorage
  */
 export function persistTheme(theme: Theme): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, theme);
-  } catch (err) {
-    log.debug('localStorage unavailable for persisting theme:', err);
-  }
+  safeLocalStorageSet(STORAGE_KEYS.theme, theme);
 }
 
 /**

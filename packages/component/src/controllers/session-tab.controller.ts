@@ -20,10 +20,14 @@ import type {
   SessionStatus,
 } from '../types/index.js';
 import { createLogger } from '@rtc-agent/protocol';
+import {
+  safeLocalStorageGet,
+  safeLocalStorageSet,
+  safeLocalStorageRemove,
+} from '../utils/safe-local-storage.js';
+import { STORAGE_KEYS } from '../config/auth.js';
 
 const log = createLogger('SessionTabController');
-
-const ACTIVE_TAB_STORAGE_KEY = 'rtc:active-tab';
 
 export class SessionTabController implements ReactiveController {
   host: ReactiveControllerHost;
@@ -356,19 +360,13 @@ export class SessionTabController implements ReactiveController {
   /**
    * Write activeSessionId to localStorage
    *
-   * Only runs in browser environments (SSR-safe); any errors are silently ignored
-   * (e.g., private mode quota is 0).
+   * Uses safe localStorage wrapper for SSR safety and error handling.
    */
   private _persistActiveSessionId(sessionId: string | null): void {
-    try {
-      if (typeof window === 'undefined' || !window.localStorage) return;
-      if (sessionId === null) {
-        window.localStorage.removeItem(ACTIVE_TAB_STORAGE_KEY);
-      } else {
-        window.localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, sessionId);
-      }
-    } catch {
-      // localStorage unavailable (private mode / quota full), ignore
+    if (sessionId === null) {
+      safeLocalStorageRemove(STORAGE_KEYS.activeTab);
+    } else {
+      safeLocalStorageSet(STORAGE_KEYS.activeTab, sessionId);
     }
   }
 
@@ -379,12 +377,7 @@ export class SessionTabController implements ReactiveController {
    * Returns null if localStorage is empty or unavailable.
    */
   private _getStoredActiveSessionId(): string | null {
-    try {
-      if (typeof window === 'undefined' || !window.localStorage) return null;
-      return window.localStorage.getItem(ACTIVE_TAB_STORAGE_KEY);
-    } catch {
-      return null;
-    }
+    return safeLocalStorageGet(STORAGE_KEYS.activeTab);
   }
 
   /**

@@ -55,7 +55,32 @@ export class NotificationController implements ReactiveController {
   toastController?: ToastController;
   windowStateController?: WindowStateController;
   settingsController?: SettingsController;
-  persistence?: IPersistenceLayer;
+
+  /**
+   * Persistence layer setter with lazy subscription.
+   *
+   * When persistence is set, if the host is connected, we automatically subscribe
+   * to UIUpdateBus. This handles the case where dependencies are injected after
+   * hostConnected() runs (e.g., in React StrictMode or async initialization).
+   *
+   * The setter pattern ensures subscription happens exactly once when both:
+   * 1. Host is connected (hostConnected has been called)
+   * 2. Persistence layer is available (set by root component)
+   */
+  private _persistence?: IPersistenceLayer;
+  private _isHostConnected = false;
+
+  get persistence(): IPersistenceLayer | undefined {
+    return this._persistence;
+  }
+
+  set persistence(layer: IPersistenceLayer | undefined) {
+    this._persistence = layer;
+    // If host is connected and persistence just became available, subscribe
+    if (this._isHostConnected && layer) {
+      this._subscribeToMessages();
+    }
+  }
 
   // ─── State ──────────────────────────────────────────────
   /**
@@ -121,23 +146,26 @@ export class NotificationController implements ReactiveController {
   // ─── Lifecycle ─────────────────────────────────────────
 
   hostConnected(): void {
+    this._isHostConnected = true;
     this._preloadSounds();
 
-    // Defensive check: ensure critical dependencies are injected before subscribing.
-    // In React StrictMode or rapid mount/unmount cycles, dependencies may not be
-    // re-injected yet. Log a warning and skip subscription to prevent runtime errors.
-    if (!this.persistence) {
-      log.warn(
+    // Try to subscribe if persistence is already available.
+    // If not, the persistence setter will trigger subscription when called.
+    if (this._persistence) {
+      this._subscribeToMessages();
+    } else {
+      // Defensive: persistence not yet injected. Log at debug level (not warn)
+      // because this is expected in React StrictMode and async initialization.
+      // The persistence setter will handle subscription when dependencies arrive.
+      log.debug(
         'NotificationController: persistence layer not ready at hostConnected, ' +
-        'skipping message subscription. Dependencies will be injected by root component.',
+        'will subscribe when persistence is injected.',
       );
-      return;
     }
-
-    this._subscribeToMessages();
   }
 
   hostDisconnected(): void {
+    this._isHostConnected = false;
     this._busUnsubscribe?.();
     this._sounds.clear();
     if (this._deferredSoundTimer) {
@@ -161,7 +189,7 @@ export class NotificationController implements ReactiveController {
     this.toastController = undefined;
     this.windowStateController = undefined;
     this.settingsController = undefined;
-    this.persistence = undefined;
+    this._persistence = undefined;
   }
 
   // ─── Audio management ──────────────────────────────────

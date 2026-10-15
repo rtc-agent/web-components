@@ -118,13 +118,23 @@ export const AUTH_CONFIG = {
   tokenRefreshTimeoutMs: 30000,
 } as const;
 
-/** localStorage keys */
+/** localStorage keys
+ *
+ * All localStorage keys used across the component are centralized here.
+ * This ensures consistency, prevents key collisions, and makes it easy
+ * to audit all persisted data.
+ *
+ * Naming convention: rtc_ prefix for all keys, snake_case for separators.
+ */
 export const STORAGE_KEYS = {
+  // ─── Auth & Session ────────────────────────────────────────
   tokens: 'rtc_auth_tokens',
   deviceId: 'rtc_device_id',
   deviceName: 'rtc_device_name',
   oauthState: 'rtc_oauth_state',
   pkceCodeVerifier: 'rtc_pkce_code_verifier',
+
+  // ─── UI State ──────────────────────────────────────────────
   mode: 'rtc_mode',
   /** Window state: mode, position, size */
   windowState: 'rtc_window_state',
@@ -138,10 +148,24 @@ export const STORAGE_KEYS = {
   settings: 'rtc_settings',
   /** Input Area height (resize handle position) */
   inputAreaHeight: 'rtc_input_area_height',
+  /** Active tab sessionId for session tab bar */
+  activeTab: 'rtc_active_tab',
+
+  // ─── Debug & Function Tree ─────────────────────────────────
   /** Function debug history */
   functionDebugHistory: 'rtc_function_debug_history',
   /** Function tree expand state: nodeId → isExpanded */
   functionTreeExpanded: 'rtc_function_tree_expanded',
   /** Function tree active (selected) function name */
   functionTreeActive: 'rtc_function_tree_active',
+
+  // ─── Theme & i18n ──────────────────────────────────────────
+  /** Theme preference: 'light' | 'dark' | 'system' */
+  theme: 'rtc-agent-theme',
+  /** Locale preference (i18n) */
+  locale: 'rtc-agent-locale',
+
+  // ─── Demo / Legacy ─────────────────────────────────────────
+  /** Demo task storage (legacy, used by storage.ts demo) */
+  demoTasks: 'rtc_agent_tasks',
 } as const;

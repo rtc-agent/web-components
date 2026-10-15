@@ -7,6 +7,7 @@ import {
 } from '../utils/safe-local-storage.js';
 import { clearFormatterCaches } from '../utils/format.js';
 import { createLogger } from '@rtc-agent/protocol';
+import { STORAGE_KEYS } from '../config/auth.js';
 
 const log = createLogger('i18n');
 
@@ -76,8 +77,7 @@ export function isValidLocale(value: string): value is SupportedLocale {
   return validLocales.includes(value);
 }
 
-// 6. Persistence
-const STORAGE_KEY = 'rtc-agent-locale';
+// 6. Persistence (uses STORAGE_KEYS.locale from config/auth.ts)
 
 function getInitialLocale(hostLang?: string): SupportedLocale {
   // 1. Host application's HTML attribute (highest priority)
@@ -85,7 +85,7 @@ function getInitialLocale(hostLang?: string): SupportedLocale {
     return hostLang;
   }
   // 2. Persisted preference in localStorage
-  const saved = safeLocalStorageGet(STORAGE_KEY);
+  const saved = safeLocalStorageGet(STORAGE_KEYS.locale);
   if (saved && isValidLocale(saved)) {
     return saved;
   }
@@ -108,7 +108,7 @@ export async function initLocale(hostLang?: string): Promise<void> {
 }
 
 export function persistLocale(locale: SupportedLocale): void {
-  safeLocalStorageSet(STORAGE_KEY, locale);
+  safeLocalStorageSet(STORAGE_KEYS.locale, locale);
 }
 
 /**
