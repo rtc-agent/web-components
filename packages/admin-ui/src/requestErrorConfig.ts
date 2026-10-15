@@ -19,8 +19,10 @@ import { fetchAndBuildCurrentUser } from '@/utils/user-utils';
 /**
  * Sanitize request body before logging to prevent sensitive data leaks.
  * Removes password, token, and other sensitive fields.
+ *
+ * @internal Exported for unit testing; not part of the public API.
  */
-function sanitizeRequestBody(body: unknown, depth = 0): unknown {
+export function sanitizeRequestBody(body: unknown, depth = 0): unknown {
   if (typeof body !== 'object' || body === null) {
     return body;
   }
@@ -104,12 +106,23 @@ let pendingCurrentUser: API.CurrentUser | null = null;
 /**
  * 重定向到登录页
  * 用于 401 错误或未认证场景
+ *
+ * 设计决策：如果当前已在登录页，跳过重定向以避免不必要的 history.replace。
+ * 场景：登录请求返回 401 时，不应再次重定向到登录页。
  */
 function redirectToLogin(): void {
+  const { pathname } = history.location;
+
+  // Guard: skip redirect if already on login page
+  if (pathname === PUBLIC_PATHS.login) {
+    console.debug('[redirectToLogin] Already on login page, skipping redirect');
+    return;
+  }
+
   clearAuth();
-  const { pathname, search, hash } = history.location;
+  const { pathname: currentPath, search, hash } = history.location;
   history.replace(
-    `${PUBLIC_PATHS.login}?redirect=${encodeURIComponent(pathname + search + hash)}`,
+    `${PUBLIC_PATHS.login}?redirect=${encodeURIComponent(currentPath + search + hash)}`,
   );
 }
 
@@ -237,17 +250,15 @@ function logResponseError(
  *
  * @returns Response if token refresh succeeded and request retried, null otherwise
  */
-async function handleAuthError(
-  response: {
-    data: { success?: boolean; errorCode?: string; data?: unknown };
-    config?: {
-      url?: string;
-      method?: string;
-      headers?: Record<string, string>;
-      _responseRetryCount?: number;
-    };
-  },
-): Promise<{
+async function handleAuthError(response: {
+  data: { success?: boolean; errorCode?: string; data?: unknown };
+  config?: {
+    url?: string;
+    method?: string;
+    headers?: Record<string, string>;
+    _responseRetryCount?: number;
+  };
+}): Promise<{
   data: unknown;
   config?: {
     url?: string;
@@ -259,7 +270,10 @@ async function handleAuthError(
   const { data, config } = response;
 
   // Check if this is a 401 error
-  if (data?.success !== false || data?.errorCode !== ApiErrorCodes.UNAUTHORIZED) {
+  if (
+    data?.success !== false ||
+    data?.errorCode !== ApiErrorCodes.UNAUTHORIZED
+  ) {
     return null;
   }
 
@@ -318,7 +332,10 @@ async function handleAuthError(
     console.error('[Token Refresh Failed]', {
       url: config?.url,
       method: (config?.method || 'unknown').toUpperCase(),
-      error: refreshError instanceof Error ? refreshError.message : String(refreshError),
+      error:
+        refreshError instanceof Error
+          ? refreshError.message
+          : String(refreshError),
       timestamp: new Date().toISOString(),
     });
     return Promise.reject(refreshError);
@@ -326,28 +343,17 @@ async function handleAuthError(
 }
 
 /**
- * Handle business errors from API responses
- * Extracts error message and shows user feedback
+ * Display a business error to the user based on showType.
+ * Shared by errorThrower (BizError) and response interceptor (envelope errors).
  */
-function handleBusinessError(
-  response: {
-    data: { success?: boolean; errorCode?: string; errorMessage?: string; showType?: ErrorShowType };
-  },
+function showBizError(
+  errorCode: string | undefined,
+  errorMessage: string | undefined,
+  showType: ErrorShowType | undefined,
 ): void {
-  const { data } = response;
-
-  // Only handle failed responses
-  if (data?.success !== false) {
-    return;
-  }
-
-  const { errorMessage, errorCode, showType } = data;
   const { message, notification } = getGlobalFeedbackInstances();
-
-  // Show error based on showType
   switch (showType) {
     case ErrorShowType.SILENT:
-      // Do nothing
       break;
     case ErrorShowType.WARN_MESSAGE:
       message.warning(errorMessage);
@@ -365,11 +371,32 @@ function handleBusinessError(
       window.location.href = PUBLIC_PATHS.login;
       break;
     default:
-      // Default: show error message
       if (errorMessage) {
         message.error(errorMessage);
       }
   }
+}
+
+/**
+ * Handle business errors from API responses
+ * Extracts error message and shows user feedback
+ */
+function handleBusinessError(response: {
+  data: {
+    success?: boolean;
+    errorCode?: string;
+    errorMessage?: string;
+    showType?: ErrorShowType;
+  };
+}): void {
+  const { data } = response;
+
+  // Only handle failed responses
+  if (data?.success !== false) {
+    return;
+  }
+
+  showBizError(data.errorCode, data.errorMessage, data.showType);
 }
 
 // ============================================================================
@@ -379,8 +406,10 @@ function handleBusinessError(
 /**
  * Parse JWT token expiration time.
  * Returns expiration timestamp in milliseconds, or null if parsing fails.
+ *
+ * @internal Exported for unit testing; not part of the public API.
  */
-function getTokenExpirationTime(token: string): number | null {
+export function getTokenExpirationTime(token: string): number | null {
   try {
     const payload = JSON.parse(atob(token.split('.')[1]));
     if (payload.exp) {
@@ -396,8 +425,10 @@ function getTokenExpirationTime(token: string): number | null {
  * Check if token is expired or about to expire.
  * Buffer of 60 seconds to refresh before actual expiration.
  * Increased from 30s to 60s to accommodate slow network conditions.
+ *
+ * @internal Exported for unit testing; not part of the public API.
  */
-function isTokenExpired(token: string): boolean {
+export function isTokenExpired(token: string): boolean {
   const expirationTime = getTokenExpirationTime(token);
   if (!expirationTime) {
     return false; // Can't parse, assume valid
@@ -442,8 +473,10 @@ function isRetryableError(error: {
  * Calculate retry delay with exponential backoff and jitter.
  * Jitter prevents thundering herd problem when multiple clients retry simultaneously.
  * Formula: baseDelay * 2^attempt + random(0, baseDelay)
+ *
+ * @internal Exported for unit testing; not part of the public API.
  */
-function calculateRetryDelay(attempt: number): number {
+export function calculateRetryDelay(attempt: number): number {
   const exponentialDelay = RETRY_DELAY_MS * 2 ** attempt;
   const jitter = Math.random() * RETRY_DELAY_MS;
   return exponentialDelay + jitter;
@@ -465,6 +498,8 @@ export const errorConfig: RequestConfig = {
   // 错误处理： umi@3 的错误处理方案。
   errorConfig: {
     // 错误抛出
+    // Throws BizError when API returns success=false. The BizError carries
+    // errorCode/errorMessage/showType in `info` for errorHandler to display.
     errorThrower: (res) => {
       const { success, data, errorCode, errorMessage, showType } =
         res as unknown as ResponseStructure;
@@ -529,30 +564,11 @@ export const errorConfig: RequestConfig = {
       if (error.name === 'BizError') {
         const errorInfo = error.info as ResponseStructure | undefined;
         if (errorInfo) {
-          const { errorMessage, errorCode } = errorInfo;
-          const { message, notification } = getGlobalFeedbackInstances();
-          switch (errorInfo.showType) {
-            case ErrorShowType.SILENT:
-              // do nothing
-              break;
-            case ErrorShowType.WARN_MESSAGE:
-              message.warning(errorMessage);
-              break;
-            case ErrorShowType.ERROR_MESSAGE:
-              message.error(errorMessage);
-              break;
-            case ErrorShowType.NOTIFICATION:
-              notification.open({
-                title: errorCode,
-                description: errorMessage,
-              });
-              break;
-            case ErrorShowType.REDIRECT:
-              window.location.href = PUBLIC_PATHS.login;
-              break;
-            default:
-              message.error(errorMessage);
-          }
+          showBizError(
+            errorInfo.errorCode,
+            errorInfo.errorMessage,
+            errorInfo.showType,
+          );
         }
       } else if (error.response) {
         // Axios 的错误
@@ -615,11 +631,25 @@ export const errorConfig: RequestConfig = {
       if (accessToken) {
         // Check if token is expired before sending request
         // If expired, skip adding token and let 401 handler trigger refresh
-        if (isTokenExpired()) {
-          console.warn(
-            '[Request Interceptor] Token expired, skipping token attachment. 401 handler will trigger refresh.',
+        if (isTokenExpired(accessToken)) {
+          // Extract expiration time for debugging
+          const expirationTime = getTokenExpirationTime(accessToken);
+          const expirationDate = expirationTime
+            ? new Date(expirationTime).toISOString()
+            : 'unknown';
+          const currentDate = new Date().toISOString();
+
+          console.debug(
+            '[Request Interceptor] Token expired, skipping attachment',
             {
               url: config.url,
+              tokenExpiration: expirationDate,
+              currentTime: currentDate,
+              timeUntilExpiryMs: expirationTime
+                ? expirationTime - Date.now()
+                : null,
+              bufferMs: 60000, // 60s buffer
+              note: '401 handler will trigger refresh if needed',
             },
           );
           return config;
@@ -752,11 +782,19 @@ export const errorConfig: RequestConfig = {
         if (isRetryableError(error) && retryCount < MAX_RETRIES) {
           config._requestRetryCount = retryCount + 1;
 
-          console.warn(
-            `[Retry] Attempt ${retryCount + 1}/${MAX_RETRIES} for ${config.method?.toUpperCase()} ${config.url}`,
-          );
+          const retryDelayMs = calculateRetryDelay(retryCount);
+          console.warn('[Retry] Network/server error, retrying request', {
+            attempt: `${retryCount + 1}/${MAX_RETRIES}`,
+            url: config.url,
+            method: (config.method || 'GET').toUpperCase(),
+            delayMs: Math.round(retryDelayMs),
+            errorType: error.response
+              ? `${error.response.status}`
+              : 'network-error',
+            timestamp: new Date().toISOString(),
+          });
 
-          await retryDelay(calculateRetryDelay(retryCount));
+          await retryDelay(retryDelayMs);
 
           // 重试请求，使用 getResponse: true 获取完整响应对象
           return request(config.url, { ...config, getResponse: true });
