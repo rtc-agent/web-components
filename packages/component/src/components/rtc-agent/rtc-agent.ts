@@ -959,7 +959,17 @@ export class RtcAgent extends LitElement {
     message: { content: string; metadata?: Record<string, unknown> };
   }) => boolean | Promise<boolean>;
 
-  /** Whether gap fill syncing overlay is shown. */
+  /**
+   * Whether gap fill syncing overlay is shown.
+   *
+   * NOT marked @state() because it's updated via manual requestUpdate() in the
+   * busGapFill subscription handler. This is intentional: the subscription callback
+   * also triggers data reloads (_loadSessions, _message.reload, etc.), and we want
+   * to batch all state changes into a single render cycle rather than triggering
+   * multiple renders.
+   *
+   * @see busGapFill subscription in connectedCallback
+   */
   private _isSyncing = false;
 
   /** File currently being previewed (null = modal closed). Rendered at window-container level. */
