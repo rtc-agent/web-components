@@ -194,14 +194,13 @@ const RoleListPage: React.FC = () => {
         // Delete admin roles (parallel execution)
         remove: async (ids) => {
           try {
-            const results = await Promise.all(ids.map((id) => deleteRole(id)));
-            const failures = results.filter((r) => !r.success);
+            await Promise.all(ids.map((id) => deleteRole(id)));
             actionRef.current?.reload();
             // Invalidate role list cache so other pages see the deletion
             queryClient.invalidateQueries({ queryKey: queryKeys.roleList.all });
             return {
-              success: failures.length === 0,
-              deletedCount: ids.length - failures.length,
+              success: true,
+              deletedCount: ids.length,
             };
           } catch (error) {
             console.error('[Role Page API] remove failed:', {
@@ -980,7 +979,7 @@ const RoleListPage: React.FC = () => {
                     defaultMessage: 'Resource type',
                   })}
                 </th>
-                {ACTION_TYPES.map((action) => (
+                {ACTION_TYPES.map((action: { value: string; label: string }) => (
                   <th
                     key={action.value}
                     style={{ textAlign: 'center', padding: '12px 8px' }}
@@ -991,7 +990,7 @@ const RoleListPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {RESOURCE_TYPES.map((resource) => (
+              {RESOURCE_TYPES.map((resource: { value: string; label: string }) => (
                 <tr
                   key={resource.value}
                   style={{
@@ -1009,7 +1008,7 @@ const RoleListPage: React.FC = () => {
                       {resource.value}
                     </div>
                   </td>
-                  {ACTION_TYPES.map((action) => (
+                  {ACTION_TYPES.map((action: { value: string; label: string }) => (
                     <td
                       key={action.value}
                       style={{ textAlign: 'center', padding: '12px 8px' }}

@@ -85,3 +85,68 @@ export const PERM_SERVER_CONFIG_DELETE = 'server_config:delete';
 
 /** Permission to view the dashboard and analytics */
 export const PERM_DASHBOARD_READ = 'dashboard:read';
+
+// ============================================================================
+// Resource and Action Type Helpers
+// ============================================================================
+
+/**
+ * Get resource type options for UI selectors
+ * Extracts unique resources from permission strings
+ */
+export function getResourceTypes(intl: { formatMessage: (descriptor: { id: string; defaultMessage: string }) => string }): Array<{ value: string; label: string }> {
+  const resources = [
+    'admin_user',
+    'admin_user_role',
+    'role',
+    'permission',
+    'audit_log',
+    'rtc_user',
+    'rtc_session',
+    'rtc_message',
+    'server_config',
+    'dashboard',
+  ];
+
+  const resourceLabels: Record<string, string> = {
+    admin_user: intl.formatMessage({ id: 'pages.permissions.resource.adminUser', defaultMessage: 'Admin User' }),
+    admin_user_role: intl.formatMessage({ id: 'pages.permissions.resource.adminUserRole', defaultMessage: 'Admin User Role' }),
+    role: intl.formatMessage({ id: 'pages.permissions.resource.role', defaultMessage: 'Role' }),
+    permission: intl.formatMessage({ id: 'pages.permissions.resource.permission', defaultMessage: 'Permission' }),
+    audit_log: intl.formatMessage({ id: 'pages.permissions.resource.auditLog', defaultMessage: 'Audit Log' }),
+    rtc_user: intl.formatMessage({ id: 'pages.permissions.resource.rtcUser', defaultMessage: 'RTC User' }),
+    rtc_session: intl.formatMessage({ id: 'pages.permissions.resource.rtcSession', defaultMessage: 'RTC Session' }),
+    rtc_message: intl.formatMessage({ id: 'pages.permissions.resource.rtcMessage', defaultMessage: 'RTC Message' }),
+    server_config: intl.formatMessage({ id: 'pages.permissions.resource.serverConfig', defaultMessage: 'Server Config' }),
+    dashboard: intl.formatMessage({ id: 'pages.permissions.resource.dashboard', defaultMessage: 'Dashboard' }),
+  };
+
+  return resources.map((resource) => ({
+    value: resource,
+    label: resourceLabels[resource] || resource,
+  }));
+}
+
+/**
+ * Get action type options for UI selectors
+ */
+export function getActionTypes(intl: { formatMessage: (descriptor: { id: string; defaultMessage: string }) => string }): Array<{ value: string; label: string }> {
+  return [
+    {
+      value: 'read',
+      label: intl.formatMessage({ id: 'pages.permissions.action.read', defaultMessage: 'Read' }),
+    },
+    {
+      value: 'write',
+      label: intl.formatMessage({ id: 'pages.permissions.action.write', defaultMessage: 'Write' }),
+    },
+    {
+      value: 'delete',
+      label: intl.formatMessage({ id: 'pages.permissions.action.delete', defaultMessage: 'Delete' }),
+    },
+    {
+      value: 'ban',
+      label: intl.formatMessage({ id: 'pages.permissions.action.ban', defaultMessage: 'Ban' }),
+    },
+  ];
+}

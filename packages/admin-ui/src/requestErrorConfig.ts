@@ -316,7 +316,7 @@ export async function handleAuthError(response: {
     }
 
     // Retry original request with new token
-    if (config) {
+    if (config && config.url) {
       config.headers = {
         ...config.headers,
         Authorization: `Bearer ${newToken}`,
@@ -325,7 +325,7 @@ export async function handleAuthError(response: {
 
       // Important: must use getResponse: true to get full response object
       // Response interceptor needs to return response object (with .data property)
-      return request(config.url, { ...config, getResponse: true });
+      return request(config.url, { ...config, getResponse: true }) as Promise<any>;
     }
 
     return null;
@@ -505,9 +505,7 @@ export const errorConfig: RequestConfig = {
       const { success, data, errorCode, errorMessage, showType } =
         res as unknown as ResponseStructure;
       if (!success) {
-        const error: Error & { name: string; info: unknown } = new Error(
-          errorMessage,
-        );
+        const error = new Error(errorMessage) as Error & { name: string; info: unknown };
         error.name = 'BizError';
         error.info = { errorCode, errorMessage, showType, data };
         throw error; // 抛出自制的错误
@@ -518,6 +516,7 @@ export const errorConfig: RequestConfig = {
     errorHandler: (
       error: Error & {
         name: string;
+        info?: unknown;
         response?: { status: number; data: unknown };
         request?: unknown;
         config?: { url?: string; method?: string; data?: unknown };
@@ -668,15 +667,7 @@ export const errorConfig: RequestConfig = {
   // 响应拦截器 - 统一解包 { success, data } 格式 + 处理 401 token 刷新
   responseInterceptors: [
     // 数据解包和 401 处理
-    async (response: {
-      data: { success?: boolean; errorCode?: string; data?: unknown };
-      config?: {
-        url?: string;
-        method?: string;
-        headers?: Record<string, string>;
-        _responseRetryCount?: number;
-      };
-    }) => {
+    async (response: any) => {
       try {
         const { data } = response;
 
@@ -764,13 +755,9 @@ export const errorConfig: RequestConfig = {
     // 类型断言用于绕过 TypeScript 限制。
     [
       // Success handler: 直接通过，由前一个拦截器处理
-      (response: unknown) => response,
+      (response: any) => response,
       // Error handler: 自动重试网络错误和 5xx 错误
-      async (error: {
-        config?: { url?: string; method?: string; _requestRetryCount?: number };
-        request?: unknown;
-        response?: { status: number };
-      }) => {
+      async (error: any) => {
         const config = error?.config;
 
         // 无法获取配置或已跳过错误处理，直接拒绝
@@ -798,12 +785,14 @@ export const errorConfig: RequestConfig = {
           await retryDelay(retryDelayMs);
 
           // 重试请求，使用 getResponse: true 获取完整响应对象
-          return request(config.url, { ...config, getResponse: true });
+          if (config.url) {
+            return request(config.url, { ...config, getResponse: true });
+          }
         }
 
         // 不可重试或已达最大重试次数，传递错误
         return Promise.reject(error);
       },
-    ] as const,
+    ] as any,
   ],
 };

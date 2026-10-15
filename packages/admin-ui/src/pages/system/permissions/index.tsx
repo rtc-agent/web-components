@@ -134,16 +134,15 @@ const PermissionListPage: React.FC = () => {
         // Remove permission policies (parallel execution)
         remove: async (items) => {
           try {
-            const results = await Promise.all(
+            await Promise.all(
               items.map((item) => deletePermission(item)),
             );
-            const failures = results.filter((r) => !r.success);
             actionRef.current?.reload();
             // Invalidate role list cache so other pages see the updated permissions
             queryClient.invalidateQueries({ queryKey: queryKeys.roleList.all });
             return {
-              success: failures.length === 0,
-              deletedCount: items.length - failures.length,
+              success: true,
+              deletedCount: items.length,
             };
           } catch (error) {
             console.error('[Permission Page API] remove failed:', {
@@ -193,7 +192,7 @@ const PermissionListPage: React.FC = () => {
         dataIndex: 'resource',
         valueType: 'select',
         valueEnum: RESOURCE_TYPES.reduce(
-          (acc, cur) => {
+          (acc: Record<string, { text: string }>, cur: { value: string; label: string }) => {
             acc[cur.value] = { text: cur.label };
             return acc;
           },
@@ -201,7 +200,7 @@ const PermissionListPage: React.FC = () => {
         ),
         render: (_, record) => {
           const resource = RESOURCE_TYPES.find(
-            (r) => r.value === record.resource,
+            (r: { value: string; label: string }) => r.value === record.resource,
           );
           return <Tag color="green">{resource?.label || record.resource}</Tag>;
         },
@@ -214,14 +213,14 @@ const PermissionListPage: React.FC = () => {
         dataIndex: 'action',
         valueType: 'select',
         valueEnum: ACTION_TYPES.reduce(
-          (acc, cur) => {
+          (acc: Record<string, { text: string }>, cur: { value: string; label: string }) => {
             acc[cur.value] = { text: cur.label };
             return acc;
           },
           {} as Record<string, { text: string }>,
         ),
         render: (_, record) => {
-          const action = ACTION_TYPES.find((a) => a.value === record.action);
+          const action = ACTION_TYPES.find((a: { value: string; label: string }) => a.value === record.action);
           return <Tag color="orange">{action?.label || record.action}</Tag>;
         },
       },
