@@ -12,6 +12,7 @@ export type {
   ListObjectItem,
   ListObjectsResult,
   S3ClientOptions,
+  UploadedPart,
   UploadOptions,
 } from './s3-client.js';
 export { S3Client } from './s3-client.js';

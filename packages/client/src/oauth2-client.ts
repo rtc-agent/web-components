@@ -42,22 +42,21 @@ export interface PKCEParams {
 
 /**
  * Generate a cryptographically random code verifier for PKCE.
- * @returns Base64URL-encoded random string (43-128 characters per RFC 7636)
+ * @returns Base64URL-encoded random string (43 characters per RFC 7636)
  */
 function generateCodeVerifier(): string {
   const array = new Uint8Array(32);
   crypto.getRandomValues(array);
   const verifier = base64UrlEncode(array);
 
-  // Per RFC 7636 Section 4.1: code verifier must be 43-128 characters.
   // 32 bytes Base64URL-encoded (no padding) = ceil(32 * 4/3) = 43 characters exactly.
-  // This validation is defensive — it should never fail with 32-byte input.
-  // Kept for safety in case the random byte count changes in the future.
-  if (verifier.length < 43 || verifier.length > 128) {
-    throw new Error(
-      `PKCE code verifier length out of bounds: ${verifier.length} characters (expected 43-128)`,
-    );
-  }
+  // This assertion is a sanity check - it should never fail with 32-byte input.
+  // Per RFC 7636 Section 4.1: code verifier must be 43-128 characters.
+  // Using console.assert instead of runtime check since the length is deterministic.
+  console.assert(
+    verifier.length === 43,
+    `PKCE code verifier length mismatch: expected 43, got ${verifier.length}`,
+  );
 
   return verifier;
 }
@@ -337,7 +336,37 @@ export class OAuth2Client {
             statusCode === 429;
 
           if (isRetryable && attempt < maxRetries) {
-            await this.retryWithBackoff(attempt, maxRetries, statusCode);
+            // P1-FIX: Respect Retry-After header for 429 responses to prevent overwhelming rate-limited servers
+            const retryAfterHeader = resp.headers.get('Retry-After');
+            let retryDelay: number;
+
+            if (retryAfterHeader) {
+              const retryAfterSeconds = parseInt(retryAfterHeader, 10);
+              if (!isNaN(retryAfterSeconds) && retryAfterSeconds > 0) {
+                retryDelay = retryAfterSeconds * 1000;
+                log.debug(
+                  `tokenExchange: respecting Retry-After header (${retryAfterSeconds}s)`,
+                );
+              } else {
+                // Invalid Retry-After value, fall back to exponential backoff
+                retryDelay =
+                  OAuth2Client.TOKEN_EXCHANGE_RETRY_DELAY_MS * 2 ** attempt +
+                  Math.random() * 500;
+              }
+            } else {
+              // No Retry-After header, use exponential backoff with jitter
+              retryDelay =
+                OAuth2Client.TOKEN_EXCHANGE_RETRY_DELAY_MS * 2 ** attempt +
+                Math.random() * 500;
+            }
+
+            await this.retryWithBackoff(
+              attempt,
+              maxRetries,
+              statusCode,
+              undefined,
+              retryDelay,
+            );
             continue;
           }
 
@@ -385,19 +414,20 @@ export class OAuth2Client {
    * @param maxRetries Maximum retry attempts (for logging)
    * @param statusCode HTTP status code (0 for network errors)
    * @param err Original error (for network errors)
+   * @param customDelay Optional custom delay in milliseconds (overrides calculated delay)
    */
   private async retryWithBackoff(
     attempt: number,
     maxRetries: number,
     statusCode: number,
     err?: unknown,
+    customDelay?: number,
   ): Promise<void> {
-    // Exponential backoff with jitter to prevent thundering herd
-    // Base delay: 1000ms, multiplier: 2^attempt (1000ms, 2000ms, 4000ms, ...)
-    // Add random jitter (0-500ms) to distribute retry attempts
-    const baseDelay = OAuth2Client.TOKEN_EXCHANGE_RETRY_DELAY_MS * 2 ** attempt;
-    const jitter = Math.random() * 500;
-    const retryDelay = baseDelay + jitter;
+    // Use custom delay if provided (e.g., from Retry-After header), otherwise calculate
+    const retryDelay =
+      customDelay ??
+      OAuth2Client.TOKEN_EXCHANGE_RETRY_DELAY_MS * 2 ** attempt +
+        Math.random() * 500;
 
     if (statusCode > 0) {
       log.debug(

@@ -257,14 +257,18 @@ export class RTCAgentClient implements IRTCAgentClient {
    * Heartbeat monitoring to detect stale connections that Centrifuge's internal
    * mechanism might miss (e.g., half-open connections, proxy timeouts).
    *
-   * - _lastMessageTime: Timestamp of last received message/publication
-   * - _heartbeatCheckTimer: Periodic timer to check for message staleness
-   * - HEARTBEAT_TIMEOUT_MS: If no message received within this window, trigger reconnect
+   * - _lastActivityTime: Timestamp of last received message/publication or sent RPC
+   * - _heartbeatCheckTimer: Periodic timer to check for activity staleness
+   * - HEARTBEAT_TIMEOUT_MS: If no activity within this window, trigger reconnect
    *
    * This is a safety net - Centrifuge's ping/pong handles most cases, but application-level
    * monitoring catches edge cases where the connection appears alive but data stops flowing.
+   *
+   * SECURITY: Monitors both send and receive activity to prevent false positives in
+   * half-open connection scenarios where the connection is healthy but no downstream
+   * messages are being received (e.g., idle connections with only periodic RPC calls).
    */
-  private _lastMessageTime: number = 0;
+  private _lastActivityTime: number = 0;
   private _heartbeatCheckTimer?: ReturnType<typeof setInterval>;
   // HEARTBEAT_TIMEOUT_MS: 45 seconds
   // Rationale: Centrifuge's default ping interval is 25s. A 45s timeout allows
@@ -293,8 +297,17 @@ export class RTCAgentClient implements IRTCAgentClient {
    * for proper authorization and data isolation. Mismatched userIds will cause subscription failures.
    *
    * @param options - Configuration options for the client
+   * @throws Error if userId is provided but fails format validation
    */
   constructor(options: RTCAgentClientOptions) {
+    // SECURITY: Validate userId format at construction time to fail fast on misconfiguration.
+    // This prevents delayed failures during subscribeChannels() and ensures early detection
+    // of JWT parsing errors or incorrect userId extraction.
+    if (options.userId && !/^[a-zA-Z0-9_-]{1,128}$/.test(options.userId)) {
+      throw new Error(
+        'RTCAgentClient: userId must be 1-128 alphanumeric characters, underscores, or hyphens',
+      );
+    }
     this.options = options;
     this._reconnectDelay = RTCAgentClient.RECONNECT_INITIAL_DELAY_MS;
   }
@@ -373,7 +386,7 @@ export class RTCAgentClient implements IRTCAgentClient {
         // Reset exponential backoff on successful connection
         this._reconnectDelay = RTCAgentClient.RECONNECT_INITIAL_DELAY_MS;
         // P2-6: Initialize heartbeat timestamp and start monitoring
-        this._lastMessageTime = Date.now();
+        this._lastActivityTime = Date.now();
         this._startHeartbeatMonitoring();
         this.setConnectionState('connected');
         this.subscribeChannels();
@@ -401,7 +414,10 @@ export class RTCAgentClient implements IRTCAgentClient {
         // Case 1: Account banned — terminal disconnect, no reconnection.
         // Server uses disconnect code 4501 (application-specific, no auto-reconnect).
         if (ctx?.code === 4501) {
-          log.warn('account banned, disconnect code 4501, reason:', ctx?.reason);
+          log.warn(
+            'account banned, disconnect code 4501, reason:',
+            ctx?.reason,
+          );
           this.shouldReconnect = false;
           this.wasConnected = false;
           // Call onAccountBanned callback if provided
@@ -455,7 +471,10 @@ export class RTCAgentClient implements IRTCAgentClient {
           // Delay reconnect to give the server some buffer time.
           this._reconnectTimer = setTimeout(() => {
             this._reconnectTimer = undefined;
-            if (this.shouldReconnect && this.connectionState === 'disconnected') {
+            if (
+              this.shouldReconnect &&
+              this.connectionState === 'disconnected'
+            ) {
               log.debug('attempting reconnect after message size limit error');
               this.reconnect().catch((err) => {
                 log.error('reconnect failed:', err);
@@ -469,13 +488,16 @@ export class RTCAgentClient implements IRTCAgentClient {
 
         // Reset heartbeat timestamp to prevent stale values from previous
         // connection triggering false timeout detection after reconnection.
-        this._lastMessageTime = 0;
+        this._lastActivityTime = 0;
 
         this.setConnectionState('disconnected', ctx?.reason);
       });
       this.centrifuge.on('error', (ctx) => {
         log.error('centrifuge error:', ctx?.error);
-        this.emit('error', new Error(ctx?.error?.message ?? 'centrifuge error'));
+        this.emit(
+          'error',
+          new Error(ctx?.error?.message ?? 'centrifuge error'),
+        );
       });
 
       log.debug('calling centrifuge.connect() synchronously');
@@ -515,7 +537,8 @@ export class RTCAgentClient implements IRTCAgentClient {
     // P2-6: Stop heartbeat monitoring on disconnect
     this._stopHeartbeatMonitoring();
     // Abort all active gap fill waits to prevent zombie timers
-    for (const [, controller] of this._gapFillAbortControllers) controller.abort();
+    for (const [, controller] of this._gapFillAbortControllers)
+      controller.abort();
     this._gapFillAbortControllers.clear();
     // Clear pending gap fill tasks to prevent stale tasks after reconnect
     this.gapFillTasks.clear();
@@ -532,7 +555,7 @@ export class RTCAgentClient implements IRTCAgentClient {
     this.pendingUpdates.length = 0;
     this.lastOffsetCache.clear();
     // Reset heartbeat timestamp to prevent stale values affecting reconnection
-    this._lastMessageTime = 0;
+    this._lastActivityTime = 0;
     // Reset token refresh failure count for clean reconnection
     this._refreshFailureCount = 0;
     this.setConnectionState('disconnected');
@@ -552,7 +575,9 @@ export class RTCAgentClient implements IRTCAgentClient {
       this.disconnect();
       // Defensive check: ensure disconnect() actually cleared the instance
       if (this.centrifuge !== null) {
-        log.warn('reconnect(): centrifuge instance not cleared after disconnect()');
+        log.warn(
+          'reconnect(): centrifuge instance not cleared after disconnect()',
+        );
         this.centrifuge = null;
       }
       await this.connect();
@@ -840,7 +865,7 @@ export class RTCAgentClient implements IRTCAgentClient {
         data: update,
       };
       // P2-6: Update heartbeat timestamp on message receipt
-      this._lastMessageTime = Date.now();
+      this._lastActivityTime = Date.now();
       await this.options.onPublication(event);
     }
 
@@ -1747,6 +1772,10 @@ export class RTCAgentClient implements IRTCAgentClient {
 
   /**
    * Send an RPC request to the backend via Centrifuge RPC.
+   *
+   * P2-6: Updates _lastActivityTime before sending to track send activity for heartbeat monitoring.
+   * This prevents false timeout detection in half-open connections where only upstream
+   * messages (RPC calls) are being sent but no downstream messages are received.
    */
   private async rpc<T>(method: string, payload: unknown): Promise<T> {
     if (!this.centrifuge) {
@@ -1759,6 +1788,8 @@ export class RTCAgentClient implements IRTCAgentClient {
     }
 
     try {
+      // P2-6: Update activity timestamp before sending RPC to track send activity
+      this._lastActivityTime = Date.now();
       const result = await this.centrifuge.rpc(method, payload);
       return result.data as T;
     } catch (error) {
@@ -1966,25 +1997,29 @@ export class RTCAgentClient implements IRTCAgentClient {
 
   /**
    * Start periodic heartbeat monitoring to detect stale connections.
-   * If no message is received within HEARTBEAT_TIMEOUT_MS, trigger reconnection.
+   * If no activity (send or receive) is detected within HEARTBEAT_TIMEOUT_MS, trigger reconnection.
    *
    * SECURITY: This is a safety net to catch half-open connections that Centrifuge's
    * internal ping/pong might miss (e.g., due to proxy timeouts, NAT issues).
-   * The timeout is intentionally conservative (60s) to avoid false positives on slow networks.
+   * The timeout is intentionally conservative (45s) to avoid false positives on slow networks.
+   *
+   * P2-6: Monitors both send and receive activity to prevent false positives in scenarios
+   * where the connection is healthy but no downstream messages are being received
+   * (e.g., idle connections with only periodic RPC calls).
    */
   private _startHeartbeatMonitoring(): void {
     this._stopHeartbeatMonitoring(); // Clear any existing timer
     this._heartbeatCheckTimer = setInterval(() => {
-      const timeSinceLastMessage = Date.now() - this._lastMessageTime;
-      if (timeSinceLastMessage > RTCAgentClient.HEARTBEAT_TIMEOUT_MS) {
+      const timeSinceLastActivity = Date.now() - this._lastActivityTime;
+      if (timeSinceLastActivity > RTCAgentClient.HEARTBEAT_TIMEOUT_MS) {
         log.warn(
-          `Heartbeat timeout: no message received for ${timeSinceLastMessage}ms, triggering reconnect`,
+          `Heartbeat timeout: no activity (send/receive) for ${timeSinceLastActivity}ms, triggering reconnect`,
         );
         // Emit error event to notify application
         this.emit(
           'error',
           new Error(
-            `Heartbeat timeout: no message received for ${timeSinceLastMessage}ms`,
+            `Heartbeat timeout: no activity for ${timeSinceLastActivity}ms`,
           ),
         );
         // Trigger reconnection
@@ -2008,7 +2043,7 @@ export class RTCAgentClient implements IRTCAgentClient {
         }
       } else {
         log.debug(
-          `Heartbeat check: last message ${timeSinceLastMessage}ms ago (threshold: ${RTCAgentClient.HEARTBEAT_TIMEOUT_MS}ms)`,
+          `Heartbeat check: last activity ${timeSinceLastActivity}ms ago (threshold: ${RTCAgentClient.HEARTBEAT_TIMEOUT_MS}ms)`,
         );
       }
     }, RTCAgentClient.HEARTBEAT_CHECK_INTERVAL_MS);
