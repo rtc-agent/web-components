@@ -59,27 +59,9 @@ const DEFAULT_PERMISSIONS = Object.freeze({
 //
 // Type annotation uses explicit interface to avoid circular reference with ReturnType<typeof access>.
 // Object.freeze() returns Readonly<T>, which we need to unwrap for cache storage.
+// Using a mapped type to convert all property values to boolean while preserving keys.
 type AccessResult = {
-  canAdmin: boolean;
-  canSystemView: boolean;
-  canAdminUserView: boolean;
-  canAdminUserEdit: boolean;
-  canAdminUserDelete: boolean;
-  canAdminUserRoleEdit: boolean;
-  canAdminRoleView: boolean;
-  canAdminRoleEdit: boolean;
-  canPermissionView: boolean;
-  canPermissionEdit: boolean;
-  canAuditLogView: boolean;
-  canRtcUsersMenu: boolean;
-  canRtcUserView: boolean;
-  canRtcUserBan: boolean;
-  canRtcSessionView: boolean;
-  canRtcMessageView: boolean;
-  canServerConfigView: boolean;
-  canServerConfigEdit: boolean;
-  canServerConfigDelete: boolean;
-  canDashboardView: boolean;
+  readonly [K in keyof typeof DEFAULT_PERMISSIONS]: boolean;
 };
 
 let _cachedPermissions: Readonly<AccessResult> | null = null;
