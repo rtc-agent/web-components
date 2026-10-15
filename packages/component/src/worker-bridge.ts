@@ -588,6 +588,12 @@ export class WorkerBridge {
       // 3. No stale promise reference persists after the request completes
       // This prevents the edge case where a failed request would block all subsequent
       // token requests until manual intervention.
+      //
+      // NOTE: Promise dedup timing guarantee
+      // `finally` executes before the Promise settles to external observers.
+      // If a new caller arrives after `finally` clears _tokenRequestPromise
+      // but before the Promise resolves externally, a new Promise is created.
+      // This is correct behavior - the new caller gets a fresh request.
       requestToken: async (): Promise<string> => {
         // Deduplication: if a request is already in-flight, await it instead of starting a new one
         if (this._tokenRequestPromise) {

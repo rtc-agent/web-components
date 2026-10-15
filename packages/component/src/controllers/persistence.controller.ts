@@ -473,14 +473,10 @@ export class PersistenceController implements ReactiveController {
    * for permanent teardown scenarios.
    */
   hostDisconnected() {
-    // NOTE: We intentionally do NOT call destroy() here.
-    // hostDisconnected() is called synchronously from Lit's disconnectedCallback,
-    // but destroy() needs to await WorkerBridge cleanup to ensure complete resource
-    // release. The factory's destroy() method handles this by calling destroy()
-    // explicitly and awaiting it after element.remove().
-    //
-    // For temporary disconnections (e.g., DOM reordering), disconnect() is more
-    // appropriate than destroy() anyway. Permanent cleanup is handled by the factory.
+    // Fire-and-forget cleanup for non-factory usage patterns.
+    // Factory's destroy() will call destroy() explicitly (which is idempotent),
+    // so this is safe even when factory is used.
+    this.destroy().catch(() => {});
   }
 
   /**

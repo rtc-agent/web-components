@@ -32,7 +32,7 @@ import {
  * If the backend adds/modifies categories, this list should be updated accordingly.
  */
 const CATEGORIES = [
-  { key: '', labelId: 'pages.config.system.all', defaultLabel: '全部' },
+  { key: '', labelId: 'pages.config.system.all', defaultLabel: 'All' },
   {
     key: 'llm',
     labelId: 'pages.config.system.category.llm',
@@ -46,12 +46,12 @@ const CATEGORIES = [
   {
     key: 'feature',
     labelId: 'pages.config.system.category.feature',
-    defaultLabel: '功能开关',
+    defaultLabel: 'Feature Flags',
   },
   {
     key: 'storage',
     labelId: 'pages.config.system.category.storage',
-    defaultLabel: '存储',
+    defaultLabel: 'Storage',
   },
   {
     key: 'asynq',
@@ -61,12 +61,12 @@ const CATEGORIES = [
   {
     key: 'web_search',
     labelId: 'pages.config.system.category.webSearch',
-    defaultLabel: '搜索',
+    defaultLabel: 'Search',
   },
   {
     key: 'web_fetch',
     labelId: 'pages.config.system.category.webFetch',
-    defaultLabel: '抓取',
+    defaultLabel: 'Fetch',
   },
   {
     key: 'api',
@@ -76,7 +76,7 @@ const CATEGORIES = [
   {
     key: 'log',
     labelId: 'pages.config.system.category.log',
-    defaultLabel: '日志',
+    defaultLabel: 'Log',
   },
 ];
 

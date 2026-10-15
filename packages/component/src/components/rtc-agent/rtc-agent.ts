@@ -249,47 +249,48 @@ const BAN_STATE_TTL_MS = 5 * 60 * 1000;
  * security policy and eliminate maintenance burden of duplicate arrays.
  * Only SVG elements and safe presentational attributes are allowed.
  */
-const SVG_SANITIZE_CONFIG: { ALLOWED_TAGS: string[]; ALLOWED_ATTR: string[] } = {
-  ALLOWED_TAGS: [
-    'svg',
-    'path',
-    'g',
-    'circle',
-    'rect',
-    'line',
-    'polyline',
-    'polygon',
-    'text',
-    'use',
-  ],
-  ALLOWED_ATTR: [
-    'viewBox',
-    'd',
-    'xmlns',
-    'fill',
-    'stroke',
-    'stroke-width',
-    'class',
-    'width',
-    'height',
-    'transform',
-    'cx',
-    'cy',
-    'r',
-    'x',
-    'y',
-    'x1',
-    'y1',
-    'x2',
-    'y2',
-    'points',
-    'dx',
-    'dy',
-    'text-anchor',
-    'font-size',
-    'href',
-  ],
-};
+const SVG_SANITIZE_CONFIG: { ALLOWED_TAGS: string[]; ALLOWED_ATTR: string[] } =
+  {
+    ALLOWED_TAGS: [
+      'svg',
+      'path',
+      'g',
+      'circle',
+      'rect',
+      'line',
+      'polyline',
+      'polygon',
+      'text',
+      'use',
+    ],
+    ALLOWED_ATTR: [
+      'viewBox',
+      'd',
+      'xmlns',
+      'fill',
+      'stroke',
+      'stroke-width',
+      'class',
+      'width',
+      'height',
+      'transform',
+      'cx',
+      'cy',
+      'r',
+      'x',
+      'y',
+      'x1',
+      'y1',
+      'x2',
+      'y2',
+      'points',
+      'dx',
+      'dy',
+      'text-anchor',
+      'font-size',
+      'href',
+    ],
+  };
 
 @localized()
 @customElement('rtc-agent')
@@ -1782,6 +1783,14 @@ export class RtcAgent extends LitElement {
     // async operations (IndexedDB reads, network requests). We give it 100ms
     // to gracefully shut down; if it doesn't complete, we proceed anyway to
     // prevent blocking the main thread during component teardown.
+    //
+    // CANCELLATION SEMANTICS:
+    // cancel() signals processLoop to exit at the next iteration boundary.
+    // The 100ms timeout prevents blocking the main thread during teardown
+    // if the loop is awaiting a long-running operation (e.g., user confirmation dialog).
+    // After timeout, we proceed with cleanup. The processLoop will eventually
+    // complete or be interrupted by the bridge destruction below.
+    // This is a "best effort" cancellation — not guaranteed to be synchronous.
     if (this._rtcProcessor) {
       const cancelPromise = Promise.resolve(this._rtcProcessor.cancel());
       const timeoutPromise = new Promise<void>((resolve) => {
