@@ -19,10 +19,11 @@ import {
   Tag,
   Typography,
 } from 'antd';
-import React, { useCallback, useMemo, useState } from 'react';
-import TableEmptyState from '@/components/TableEmptyState';
+import React, { useCallback, useMemo } from 'react';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useModalState } from '@/hooks/useModalState';
 import { useOptimisticLockConflict } from '@/hooks/useOptimisticLockConflict';
+import { useProTableLocale } from '@/hooks/useProTableLocale';
 import ConflictModal from '@/pages/system/configs/components/ConflictModal';
 import {
   formatConfigValue,
@@ -57,20 +58,19 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
   canEdit = false,
   canDelete = false,
 }) => {
-  const [editingConfig, setEditingConfig] = useState<UserConfigItem | null>(
-    null,
-  );
-  const [editModalOpen, setEditModalOpen] = useState(false);
-
-  // 历史弹窗
-  const [historyItem, setHistoryItem] = useState<UserConfigItem | null>(null);
-  const [historyOpen, setHistoryOpen] = useState(false);
+  // Modal states managed by useModalState hook for consistency
+  const editModal = useModalState<UserConfigItem>();
+  const historyModal = useModalState<UserConfigItem>();
 
   const userId = user?.id;
   const intl = useIntl();
   const { message } = App.useApp();
   const renderConfigSource = useConfigSourceRenderer();
   const isMobile = useIsMobile();
+  const tableLocale = useProTableLocale(
+    'pages.config.user.empty',
+    'No configurations found',
+  );
 
   /** 加载用户配置 */
   // NOTE: 此处使用 umi 内置的 useRequest 而非 @tanstack/react-query，原因如下：
@@ -212,8 +212,7 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
 
   /** 打开编辑 */
   const handleEdit = (item: UserConfigItem) => {
-    setEditingConfig(item);
-    setEditModalOpen(true);
+    editModal.open(item);
   };
 
   /** 提交编辑 */
@@ -221,28 +220,28 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
     value: unknown;
     change_note?: string;
   }) => {
-    if (!editingConfig || !userId) return false;
+    if (!editModal.state.record || !userId) return false;
     try {
-      await setUserConfig(userId, editingConfig.key, {
+      await setUserConfig(userId, editModal.state.record.key, {
         value: values.value,
-        version: editingConfig.version,
+        version: editModal.state.record.version,
         change_note: values.change_note,
       });
       message.success(
         intl.formatMessage({ id: 'pages.config.user.updateSuccess' }),
       );
-      setEditModalOpen(false);
+      editModal.close();
       loadConfigs();
       return true;
     } catch (error: unknown) {
       // 使用 hook 处理乐观锁冲突
       const handled = handleEditError(error, {
-        key: editingConfig.key,
+        key: editModal.state.record.key,
         value: values.value,
         changeNote: values.change_note,
       });
       if (handled) {
-        setEditModalOpen(false);
+        editModal.close();
         return true;
       }
       // 非冲突错误，显示普通错误消息
@@ -259,8 +258,7 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
 
   /** 打开历史 */
   const handleViewHistory = (item: UserConfigItem) => {
-    setHistoryItem(item);
-    setHistoryOpen(true);
+    historyModal.open(item);
   };
 
   /** Table columns */
@@ -458,7 +456,7 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
                 loading={loading}
                 size="small"
                 columns={columns}
-                locale={{ emptyText: <TableEmptyState /> }}
+                locale={tableLocale}
               />
             ),
           }))}
@@ -466,24 +464,24 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
       </Drawer>
 
       {/* 编辑弹窗 */}
-      {editingConfig && (
+      {editModal.state.record && (
         <UserConfigEditModal
-          open={editModalOpen}
-          onOpenChange={setEditModalOpen}
-          item={editingConfig}
+          open={editModal.state.open}
+          onOpenChange={editModal.close}
+          item={editModal.state.record}
           onFinish={handleEditFinish}
         />
       )}
 
       {/* 历史弹窗 */}
-      {historyItem && userId && (
+      {historyModal.state.record && userId && (
         <UserConfigHistoryModal
-          open={historyOpen}
-          onOpenChange={setHistoryOpen}
+          open={historyModal.state.open}
+          onOpenChange={historyModal.close}
           userId={userId}
-          item={historyItem}
+          item={historyModal.state.record}
           onRollbackSuccess={() => {
-            setHistoryOpen(false);
+            historyModal.close();
             loadConfigs();
           }}
         />

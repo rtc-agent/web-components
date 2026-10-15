@@ -2,11 +2,12 @@ import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { useAccess, useIntl, useSearchParams } from '@umijs/max';
 import { App, Button, Tabs, Tag, theme } from 'antd';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
-import TableEmptyState from '@/components/TableEmptyState';
+import React, { useCallback, useMemo, useRef } from 'react';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useModalState } from '@/hooks/useModalState';
 import { useOptimisticLockConflict } from '@/hooks/useOptimisticLockConflict';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
+import { useProTableLocale } from '@/hooks/useProTableLocale';
 import {
   formatConfigValue,
   truncateValue,
@@ -92,16 +93,17 @@ const SystemConfigsPage: React.FC = () => {
   const { token } = theme.useToken();
   const [searchParams, setSearchParams] = useSearchParams();
   const isMobile = useIsMobile(); // < 768px
+  const locale = useProTableLocale(
+    'pages.config.system.empty',
+    'No configurations found',
+  );
+
+  // Modal states managed by useModalState hook for consistency
+  const editModal = useModalState<ServerConfigItem>();
+  const historyModal = useModalState<ServerConfigItem>();
 
   // Derive active category directly from URL (single source of truth)
   const activeCategory = searchParams.get('category') || '';
-  const [editingConfig, setEditingConfig] = useState<ServerConfigItem | null>(
-    null,
-  );
-  const [editModalOpen, setEditModalOpen] = useState(false);
-  const [historyModalOpen, setHistoryModalOpen] = useState(false);
-  const [historyConfigKey, setHistoryConfigKey] = useState<string | null>(null);
-  const [historyVersion, setHistoryVersion] = useState(0);
 
   /** Reload table */
   const reload = useCallback(() => {
@@ -151,15 +153,12 @@ const SystemConfigsPage: React.FC = () => {
 
   /** Open edit modal */
   const handleEdit = (record: ServerConfigItem) => {
-    setEditingConfig(record);
-    setEditModalOpen(true);
+    editModal.open(record);
   };
 
   /** Open history modal */
   const handleViewHistory = (record: ServerConfigItem) => {
-    setHistoryConfigKey(record.key);
-    setHistoryVersion(record.version);
-    setHistoryModalOpen(true);
+    historyModal.open(record);
   };
 
   /** Handle edit submission */
@@ -167,17 +166,17 @@ const SystemConfigsPage: React.FC = () => {
     value: unknown;
     change_note?: string;
   }) => {
-    if (!editingConfig) return false;
+    if (!editModal.state.record) return false;
     try {
-      await updateServerConfig(editingConfig.key, {
+      await updateServerConfig(editModal.state.record.key, {
         value: values.value,
-        version: editingConfig.version,
+        version: editModal.state.record.version,
         change_note: values.change_note,
       });
       message.success(
         intl.formatMessage({ id: 'pages.config.system.updateSuccess' }),
       );
-      setEditModalOpen(false);
+      editModal.close();
       reload();
       return true;
     } catch (error: unknown) {
@@ -190,12 +189,12 @@ const SystemConfigsPage: React.FC = () => {
       // — no further error processing or modal state management is needed
       // at the caller level.
       const handled = handleEditError(error, {
-        key: editingConfig.key,
+        key: editModal.state.record.key,
         value: values.value,
         changeNote: values.change_note,
       });
       if (handled) {
-        setEditModalOpen(false);
+        editModal.close();
         return true;
       }
       // Non-conflict error, show normal error message
@@ -550,30 +549,23 @@ const SystemConfigsPage: React.FC = () => {
             {intl.formatMessage({ id: 'pages.config.system.refresh' })}
           </Button>,
         ]}
-        locale={{
-          emptyText: (
-            <TableEmptyState
-              descriptionId="pages.config.system.empty"
-              defaultDescription="No configurations found"
-            />
-          ),
-        }}
+        locale={locale}
       />
 
       {/* Edit modal */}
       <ConfigEditModal
-        open={editModalOpen}
-        onOpenChange={setEditModalOpen}
-        config={editingConfig}
+        open={editModal.state.open}
+        onOpenChange={editModal.close}
+        config={editModal.state.record ?? null}
         onFinish={handleEditFinish}
       />
 
       {/* History modal */}
       <ConfigHistoryModal
-        open={historyModalOpen}
-        onOpenChange={setHistoryModalOpen}
-        configKey={historyConfigKey}
-        currentVersion={historyVersion}
+        open={historyModal.state.open}
+        onOpenChange={historyModal.close}
+        configKey={historyModal.state.record?.key ?? null}
+        currentVersion={historyModal.state.record?.version ?? 0}
         onChanged={reload}
       />
 
