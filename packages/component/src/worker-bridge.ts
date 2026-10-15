@@ -1355,12 +1355,59 @@ export class WorkerBridge {
     // This ensures destroy() can properly clean up even if subsequent initialization steps fail.
     this._callbacksRegistered = true;
 
-    // Initialize the Worker-side shared state.
-    await this._core.init(config);
+    // P1-3 FIX: Wrap remaining init steps in try-catch to ensure cleanup on failure.
+    // If init() or _doCatchUp() fails after registerCallback(), the proxy would remain
+    // in the Worker's callbacks Set, causing a memory leak. This try-catch ensures we
+    // attempt to unregister the callback before propagating the error.
+    //
+    // CLEANUP STRATEGY:
+    // 1. If unregister succeeds: proxy is removed from Worker's callbacks Set (clean state)
+    // 2. If unregister fails: release proxy on main thread and mark for retry cleanup
+    //    (next _doInit() call will attempt unregister again via the cleanup block above)
+    //
+    // WHY THIS IS CRITICAL:
+    // Without this cleanup, failed init attempts would leave orphaned proxies in the Worker.
+    // These proxies would receive broadcast events but fail (main thread released them),
+    // contributing to the failure count and potentially triggering zombie state detection.
+    try {
+      // Initialize the Worker-side shared state.
+      await this._core.init(config);
 
-    // Catch up on missed UI update events AFTER registering real-time callbacks.
-    // Paginated: handles >1000 missed events. Detects gaps from TTL cleanup.
-    await this._doCatchUp();
+      // Catch up on missed UI update events AFTER registering real-time callbacks.
+      // Paginated: handles >1000 missed events. Detects gaps from TTL cleanup.
+      await this._doCatchUp();
+    } catch (err) {
+      log.error(
+        '_doInit: init() or catchUp failed, attempting to unregister callback to prevent proxy leak',
+        err,
+      );
+
+      // Attempt to unregister the callback to prevent proxy leak in the Worker.
+      // If this fails, the cleanup block at the top of _doInit() will retry on the next attempt.
+      try {
+        if (this._proxiedCallbacks) {
+          await this._core.unregisterCallback(this._proxiedCallbacks);
+          log.debug('_doInit: cleanup unregisterCallback succeeded after failure');
+        }
+        // Reset flag since we successfully unregistered
+        this._callbacksRegistered = false;
+      } catch (unregisterErr) {
+        // Unregister failed — the Worker may still hold the proxy reference.
+        // Release the proxy on main thread to free resources. The next _doInit() call
+        // will detect _callbacksRegistered=true and attempt cleanup again.
+        log.warn(
+          '_doInit: cleanup unregisterCallback failed (Worker may still hold proxy). ' +
+            'Releasing proxy on main thread; next retry will attempt cleanup again.',
+          unregisterErr,
+        );
+        this._releaseProxiedCallbacks();
+        // Note: We intentionally do NOT reset _callbacksRegistered here.
+        // Keeping it true ensures the next _doInit() call will retry the cleanup.
+      }
+
+      // Re-throw the original error to propagate to the caller
+      throw err;
+    }
   }
 
   /**
