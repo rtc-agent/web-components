@@ -122,17 +122,27 @@ function renderErrorFallback(
  * - Form-heavy pages (multi-section forms)
  * - Data tables with complex renderers
  */
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+  /**
+   * Optional location pathname for resetting error state on route changes.
+   * Pass `location.pathname` from your router to enable route-based reset.
+   * If not provided, the ErrorBoundary will only reset on manual retry.
+   */
+  locationPathname?: string;
+}
+
 interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
   isOnline: boolean;
   retryCount: number;
-  /** Previous children reference, used to detect route changes and reset retryCount */
-  _prevChildren?: React.ReactNode;
+  /** Previous location pathname, used to detect route changes and reset error state */
+  _prevPathname?: string;
 }
 
 export default class ErrorBoundary extends React.Component<
-  { children: React.ReactNode },
+  ErrorBoundaryProps,
   ErrorBoundaryState
 > {
   state: ErrorBoundaryState = {
@@ -147,27 +157,32 @@ export default class ErrorBoundary extends React.Component<
   }
 
   /**
-   * Reset retryCount and error state when children change (route navigation).
+   * Reset error state when location pathname changes (route navigation).
    *
    * This ensures that:
-   * 1. Users get fresh retry attempts when navigating to a new page
+   * 1. Users get fresh error recovery when navigating to a new route
    * 2. Stale error states don't persist across route changes
    * 3. The ErrorBoundary can recover gracefully after transient errors
    *
-   * Without this reset, a user who exhausted retries on one page would have
-   * no retry capability on subsequent pages, even though the error may be
-   * page-specific (e.g., a chunk load failure for that route's component).
+   * P2-FIX: Changed from tracking children reference to tracking location pathname.
+   * Previously, ANY children change (including state updates in parent components)
+   * would reset the error state, potentially masking persistent errors.
+   * Now only actual route changes (pathname changes) trigger a reset.
    */
   static getDerivedStateFromProps(
-    nextProps: { children: React.ReactNode },
-    prevState: ErrorBoundaryState,
+    nextProps: Readonly<ErrorBoundaryProps>,
+    prevState: Readonly<ErrorBoundaryState>,
   ): Partial<ErrorBoundaryState> | null {
-    if (prevState._prevChildren !== nextProps.children) {
+    // Only reset if pathname is provided AND has changed
+    if (
+      nextProps.locationPathname &&
+      prevState._prevPathname !== nextProps.locationPathname
+    ) {
       return {
         hasError: false,
         error: null,
         retryCount: 0,
-        _prevChildren: nextProps.children,
+        _prevPathname: nextProps.locationPathname,
       };
     }
     return null;
@@ -200,7 +215,12 @@ export default class ErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     // Log full error details including component stack for debugging
-    console.error('[ErrorBoundary] Render error caught:', error, '\nComponent stack:', info.componentStack);
+    console.error(
+      '[ErrorBoundary] Render error caught:',
+      error,
+      '\nComponent stack:',
+      info.componentStack,
+    );
 
     // Report error to backend for production monitoring.
     // navigator.sendBeacon is fire-and-forget, ideal for error reporting
@@ -215,7 +235,9 @@ export default class ErrorBoundary extends React.Component<
           timestamp: Date.now(),
         };
         // Use Blob to ensure Content-Type is application/json
-        const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+        const blob = new Blob([JSON.stringify(payload)], {
+          type: 'application/json',
+        });
         navigator.sendBeacon('/api/error-report', blob);
       } catch (_reportError) {
         // Error reporting itself failed — log but don't throw

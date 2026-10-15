@@ -1,8 +1,9 @@
 import { LockOutlined, UserOutlined } from '@ant-design/icons';
 import { ModalForm, ProFormText } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
-import { App, Grid } from 'antd';
+import { App } from 'antd';
 import React, { useRef } from 'react';
+import { useResponsiveModalWidth } from '@/hooks/useResponsiveModalWidth';
 import { updateProfile } from '@/services/admin-profile';
 
 export type ProfileSettingsModalProps = {
@@ -24,9 +25,7 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
   const formRef = useRef<any>(null);
   const intl = useIntl();
   const { message } = App.useApp();
-  const breakpoints = Grid.useBreakpoint();
-  const isMobile = !breakpoints.sm;
-  const modalWidth = isMobile ? '95vw' : 480;
+  const modalWidth = useResponsiveModalWidth();
 
   const handleSubmit = async (values: {
     name?: string;

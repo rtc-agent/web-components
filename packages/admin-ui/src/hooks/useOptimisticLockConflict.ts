@@ -1,7 +1,7 @@
 import { useIntl } from '@umijs/max';
 import { App } from 'antd';
 import { useState } from 'react';
-import type { OptimisticLockConflictData } from '@/services/serverConfig';
+import type { OptimisticLockConflictData } from '@/services/server-config';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 
 /**
@@ -17,7 +17,7 @@ export interface UseOptimisticLockConflictOptions {
     changeNote?: string;
   }) => Promise<void>;
   /** 强制删除时的实际操作函数 */
-  onForceDelete?: (data: { key: string }) => Promise<void>;
+  onForceDelete?: (data: { key: string; version?: number }) => Promise<void>;
   /** 冲突被解决后（重新加载或强制覆盖成功）的回调 */
   onConflictResolved: () => void;
   /** 强制覆盖成功的提示消息 i18n key */
@@ -36,6 +36,7 @@ export interface PendingOverwriteData {
 
 export interface PendingDeleteData {
   key: string;
+  version?: number;
 }
 
 export type PendingAction =
@@ -115,7 +116,7 @@ export const useOptimisticLockConflict = (
    * 如果错误是冲突类型，则打开冲突对话框
    *
    * @param error - 捕获的错误对象
-   * @param deleteData - 删除的数据（key）
+   * @param deleteData - 删除的数据（key，可选 version）
    * @returns true 表示错误已被处理（冲突对话框已打开），false 表示需要继续处理
    */
   const handleDeleteError = (
@@ -126,7 +127,14 @@ export const useOptimisticLockConflict = (
 
     if (conflictInfo) {
       setConflictData(conflictInfo);
-      setPendingAction({ type: 'delete', data: deleteData });
+      // 使用冲突数据中的版本号，如果没有则使用传入的版本号
+      setPendingAction({
+        type: 'delete',
+        data: {
+          key: deleteData.key,
+          version: deleteData.version ?? conflictInfo.current_version,
+        },
+      });
       setConflictModalOpen(true);
       return true;
     }

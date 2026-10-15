@@ -329,6 +329,7 @@ export async function getInitialState(): Promise<InitialState> {
           } finally {
             clearTimeout(timeoutId);
             initManager.initTimeoutId = null;
+            initManager.initAbortController = null;
             // Design note: Clear promise immediately after completion to allow
             // future re-initialization. This is intentional behavior:
             // - Fast consecutive calls may trigger duplicate fetches

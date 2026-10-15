@@ -97,7 +97,10 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({
         try {
           setInitialState((s) => ({ ...s, currentUser: undefined }));
         } catch (error) {
-          console.error('[AvatarDropdown] Failed to clear user state on logout:', error);
+          console.error(
+            '[AvatarDropdown] Failed to clear user state on logout:',
+            error,
+          );
         }
       });
       loginOut();
@@ -157,7 +160,10 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({
                   currentUser: userInfo,
                 }));
               } catch (error) {
-                console.error('[AvatarDropdown] Failed to update user info after profile change:', error);
+                console.error(
+                  '[AvatarDropdown] Failed to update user info after profile change:',
+                  error,
+                );
               }
             });
           }

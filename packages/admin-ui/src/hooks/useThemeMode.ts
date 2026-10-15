@@ -25,6 +25,10 @@ export const useThemeMode = (): boolean => {
     return false;
   });
 
+  // Intentionally empty dependency array: the MutationObserver and mediaQuery listener
+  // are set up once on mount and persist across renders. They trigger state updates
+  // via setIsDark (which is stable from useState), causing re-renders independently.
+  // Adding setIsDark or other values to deps would unnecessarily recreate observers.
   useEffect(() => {
     // Update when data-theme attribute changes
     const observer = new MutationObserver((mutations) => {

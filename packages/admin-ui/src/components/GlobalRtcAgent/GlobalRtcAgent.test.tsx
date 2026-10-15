@@ -176,7 +176,7 @@ describe('GlobalRtcAgent', () => {
       () => {
         expect(rtcAgentManager.mountRtcAgent).toHaveBeenCalled();
       },
-      { timeout: 2000 }
+      { timeout: 2000 },
     );
   });
 
@@ -204,7 +204,7 @@ describe('GlobalRtcAgent', () => {
       () => {
         expect(rtcAgentManager.mountRtcAgent).toHaveBeenCalled();
       },
-      { timeout: 2000 }
+      { timeout: 2000 },
     );
   });
 
@@ -226,7 +226,7 @@ describe('GlobalRtcAgent', () => {
       () => {
         expect(rtcAgentManager.mountRtcAgent).toHaveBeenCalled();
       },
-      { timeout: 2000 }
+      { timeout: 2000 },
     );
 
     // Clear the call count
@@ -242,7 +242,7 @@ describe('GlobalRtcAgent', () => {
       () => {
         expect(rtcAgentManager.unmountRtcAgent).toHaveBeenCalledTimes(1);
       },
-      { timeout: 2000 }
+      { timeout: 2000 },
     );
   });
 
