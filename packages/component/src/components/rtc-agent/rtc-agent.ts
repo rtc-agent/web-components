@@ -242,6 +242,55 @@ const INITIAL_POSITION_MARGIN_PX = 20;
 /** TTL (ms) for pending ban state stored in sessionStorage. Entries older than this are discarded as stale. */
 const BAN_STATE_TTL_MS = 5 * 60 * 1000;
 
+/**
+ * DOMPurify configuration for SVG sanitization (bubble icon + logo).
+ *
+ * Shared between _sanitizeBubbleIcon() and _sanitizeLogo() to ensure consistent
+ * security policy and eliminate maintenance burden of duplicate arrays.
+ * Only SVG elements and safe presentational attributes are allowed.
+ */
+const SVG_SANITIZE_CONFIG: { ALLOWED_TAGS: string[]; ALLOWED_ATTR: string[] } = {
+  ALLOWED_TAGS: [
+    'svg',
+    'path',
+    'g',
+    'circle',
+    'rect',
+    'line',
+    'polyline',
+    'polygon',
+    'text',
+    'use',
+  ],
+  ALLOWED_ATTR: [
+    'viewBox',
+    'd',
+    'xmlns',
+    'fill',
+    'stroke',
+    'stroke-width',
+    'class',
+    'width',
+    'height',
+    'transform',
+    'cx',
+    'cy',
+    'r',
+    'x',
+    'y',
+    'x1',
+    'y1',
+    'x2',
+    'y2',
+    'points',
+    'dx',
+    'dy',
+    'text-anchor',
+    'font-size',
+    'href',
+  ],
+};
+
 @localized()
 @customElement('rtc-agent')
 export class RtcAgent extends LitElement {
@@ -371,47 +420,7 @@ export class RtcAgent extends LitElement {
       if (!html) return '';
       try {
         const DOMPurify = await this._loadDOMPurify();
-        return DOMPurify.sanitize(html, {
-          ALLOWED_TAGS: [
-            'svg',
-            'path',
-            'g',
-            'circle',
-            'rect',
-            'line',
-            'polyline',
-            'polygon',
-            'text',
-            'use',
-          ],
-          ALLOWED_ATTR: [
-            'viewBox',
-            'd',
-            'xmlns',
-            'fill',
-            'stroke',
-            'stroke-width',
-            'class',
-            'width',
-            'height',
-            'transform',
-            'cx',
-            'cy',
-            'r',
-            'x',
-            'y',
-            'x1',
-            'y1',
-            'x2',
-            'y2',
-            'points',
-            'dx',
-            'dy',
-            'text-anchor',
-            'font-size',
-            'href',
-          ],
-        });
+        return DOMPurify.sanitize(html, SVG_SANITIZE_CONFIG);
       } catch {
         // DOMPurify not available — strip all tags as a safe fallback
         const el = document.createElement('div');
@@ -1911,21 +1920,21 @@ export class RtcAgent extends LitElement {
         // CRITICAL FIX: Only update locale provider if value actually changed.
         // @lit/context uses === to detect changes; new object references trigger
         // all context consumers to re-render even if the locale value is identical.
+        //
+        // OPTIMIZATION: setLocale (switchLocale) and locales array contents are
+        // module-level constants that never change after initialization. Only the
+        // `locale` field can change (via switchLocale()). Compare the locale string
+        // first to avoid allocating a new object + array on every render when locale
+        // hasn't changed (the common case).
         const currentLocale = getLocale() as
           | typeof sourceLocale
           | (typeof targetLocales)[number];
-        const newLocaleValue: LocaleContextValue = {
-          locale: currentLocale,
-          setLocale: switchLocale,
-          locales: [sourceLocale, ...targetLocales],
-        };
-        if (
-          !this._localeValue ||
-          this._localeValue.locale !== newLocaleValue.locale ||
-          this._localeValue.setLocale !== newLocaleValue.setLocale ||
-          this._localeValue.locales !== newLocaleValue.locales
-        ) {
-          this._localeValue = newLocaleValue;
+        if (!this._localeValue || this._localeValue.locale !== currentLocale) {
+          this._localeValue = {
+            locale: currentLocale,
+            setLocale: switchLocale,
+            locales: [sourceLocale, ...targetLocales],
+          };
           this._localeProvider.setValue(this._localeValue);
         }
       })
@@ -2433,47 +2442,7 @@ export class RtcAgent extends LitElement {
   private async _sanitizeBubbleIcon(raw: string): Promise<string> {
     try {
       const DOMPurify = await this._loadDOMPurify();
-      return DOMPurify.sanitize(raw, {
-        ALLOWED_TAGS: [
-          'svg',
-          'path',
-          'g',
-          'circle',
-          'rect',
-          'line',
-          'polyline',
-          'polygon',
-          'text',
-          'use',
-        ],
-        ALLOWED_ATTR: [
-          'viewBox',
-          'd',
-          'xmlns',
-          'fill',
-          'stroke',
-          'stroke-width',
-          'class',
-          'width',
-          'height',
-          'transform',
-          'cx',
-          'cy',
-          'r',
-          'x',
-          'y',
-          'x1',
-          'y1',
-          'x2',
-          'y2',
-          'points',
-          'dx',
-          'dy',
-          'text-anchor',
-          'font-size',
-          'href',
-        ],
-      });
+      return DOMPurify.sanitize(raw, SVG_SANITIZE_CONFIG);
     } catch {
       // DOMPurify not available — strip all tags as a safe fallback
       const el = document.createElement('div');

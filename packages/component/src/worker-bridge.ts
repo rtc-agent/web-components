@@ -863,11 +863,22 @@ export class WorkerBridge {
    * - Errors are caught and logged (non-fatal)
    * - If the Worker is truly dead, subsequent operations will fail and trigger cleanup
    * - Heartbeat is cleared in destroy() to prevent leaks
+   * - Overlapping pings are prevented: if a ping is still in-flight when the next
+   *   interval fires, the new ping is skipped (prevents accumulation during network issues)
    */
+  private _heartbeatInFlight = false;
+
   private _startHeartbeat(): void {
     this._stopHeartbeat(); // Clear any existing timer (defensive)
+    this._heartbeatInFlight = false;
     this._heartbeatTimer = setInterval(async () => {
       if (!this._core) return;
+      // Skip if a previous ping is still in-flight (prevents accumulation during network issues)
+      if (this._heartbeatInFlight) {
+        log.debug('Worker heartbeat: skipping (previous ping still in-flight)');
+        return;
+      }
+      this._heartbeatInFlight = true;
       try {
         const result = await this._core.ping();
         if (result !== 'pong') {
@@ -877,6 +888,8 @@ export class WorkerBridge {
         }
       } catch (err) {
         log.warn('Worker heartbeat failed (Worker may be unresponsive):', err);
+      } finally {
+        this._heartbeatInFlight = false;
       }
     }, WorkerBridge.HEARTBEAT_INTERVAL_MS);
   }
@@ -890,6 +903,7 @@ export class WorkerBridge {
       clearInterval(this._heartbeatTimer);
       this._heartbeatTimer = undefined;
     }
+    this._heartbeatInFlight = false;
   }
 
   /**
