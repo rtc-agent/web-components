@@ -15,17 +15,12 @@ import {
 } from '@umijs/max';
 import { Alert, App, Button, Skeleton, Tabs } from 'antd';
 import { createStyles } from 'antd-style';
-import React, { startTransition, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Footer } from '@/components';
 import { CONFIG_CACHE } from '@/utils/queryCacheConfig';
 import { queryKeys } from '@/utils/queryKeys';
 import type { LoginResult } from './service';
-import {
-  getLoginConfig,
-  login,
-  loginWithOTP,
-  sendEmailOTP,
-} from './service';
+import { getLoginConfig, login, loginWithOTP, sendEmailOTP } from './service';
 import { setTokens, setUserInfo } from '@/utils/auth-storage';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import Settings from '../../../../config/defaultSettings';
@@ -156,7 +151,7 @@ const Login: React.FC = () => {
   const [type, setType] = useState<string>('account');
   // 提交中状态，用于禁用按钮并展示 loading
   const [submitting, setSubmitting] = useState(false);
-  const { initialState, setInitialState } = useModel('@@initialState');
+  const { initialState } = useModel('@@initialState');
   const { styles } = useStyles();
   const { message } = App.useApp();
   const intl = useIntl();
@@ -183,23 +178,19 @@ const Login: React.FC = () => {
   }, [loginConfig, configLoading]);
 
   const fetchUserInfo = async () => {
-    const userInfo = await initialState?.fetchUserInfo?.();
-    if (userInfo) {
-      startTransition(() => {
-        try {
-          setInitialState((s) => ({
-            ...s,
-            currentUser: userInfo,
-          }));
-        } catch (error) {
-          // P2-FIX: Log error but don't block login flow.
-          // User info will be re-fetched on subsequent page loads.
-          console.warn(
-            '[Login] Failed to update user info after successful login:',
-            error,
-          );
-        }
-      });
+    try {
+      // Call the shared fetchUserInfo from initialState (defined in app.tsx).
+      // This function handles token validation, API calls, and fallback logic.
+      // We don't manually call setInitialState here — instead, we rely on the
+      // unified initialization flow to update state after redirect.
+      await initialState?.fetchUserInfo?.();
+    } catch (error) {
+      // Log fetchUserInfo failure for debugging, but don't block login flow.
+      // The user info will be re-fetched on subsequent page loads.
+      console.warn(
+        '[Login] fetchUserInfo failed after successful login, will retry on next page load:',
+        error,
+      );
     }
   };
 
@@ -471,173 +462,173 @@ const Login: React.FC = () => {
               ]}
             />
 
-          {status === 'error' && (
-            <LoginMessage
-              content={
-                userLoginState.message ||
-                intl.formatMessage({
-                  id: 'pages.login.failure',
-                  defaultMessage: 'Login failed',
-                })
-              }
-            />
-          )}
-
-          {type === 'account' && (
-            <>
-              <ProFormText {...emailFieldConfig} />
-              <ProFormText.Password
-                name="password"
-                fieldProps={{
-                  size: 'large',
-                  prefix: <LockOutlined />,
-                }}
-                placeholder={intl.formatMessage({
-                  id: 'pages.login.password.placeholder',
-                  defaultMessage: 'Password',
-                })}
-                rules={[
-                  {
-                    required: true,
-                    message: (
-                      <FormattedMessage
-                        id="pages.login.password.required"
-                        defaultMessage="Please enter password!"
-                      />
-                    ),
-                  },
-                ]}
+            {status === 'error' && (
+              <LoginMessage
+                content={
+                  userLoginState.message ||
+                  intl.formatMessage({
+                    id: 'pages.login.failure',
+                    defaultMessage: 'Login failed',
+                  })
+                }
               />
-            </>
-          )}
+            )}
 
-          {type === 'email-otp' && (
-            <>
-              {/* 邮箱字段复用共享配置，仅覆盖前缀图标 */}
-              <ProFormText
-                name={emailFieldConfig.name}
-                fieldProps={emailFieldConfig.fieldProps}
-                placeholder={emailFieldConfig.placeholder}
-                rules={emailFieldConfig.rules}
-              />
-              <ProFormCaptcha
-                fieldProps={{
-                  size: 'large',
-                  prefix: <LockOutlined />,
-                }}
-                captchaProps={{
-                  size: 'large',
-                  type: 'primary',
-                  ghost: true,
-                }}
-                placeholder={intl.formatMessage({
-                  id: 'pages.login.captcha.placeholder',
-                  defaultMessage: 'Please enter verification code',
-                })}
-                captchaTextRender={(timing, count) => {
-                  if (timing) {
-                    return `${count} ${intl.formatMessage({
-                      id: 'pages.getCaptchaSecondText',
+            {type === 'account' && (
+              <>
+                <ProFormText {...emailFieldConfig} />
+                <ProFormText.Password
+                  name="password"
+                  fieldProps={{
+                    size: 'large',
+                    prefix: <LockOutlined />,
+                  }}
+                  placeholder={intl.formatMessage({
+                    id: 'pages.login.password.placeholder',
+                    defaultMessage: 'Password',
+                  })}
+                  rules={[
+                    {
+                      required: true,
+                      message: (
+                        <FormattedMessage
+                          id="pages.login.password.required"
+                          defaultMessage="Please enter password!"
+                        />
+                      ),
+                    },
+                  ]}
+                />
+              </>
+            )}
+
+            {type === 'email-otp' && (
+              <>
+                {/* 邮箱字段复用共享配置，仅覆盖前缀图标 */}
+                <ProFormText
+                  name={emailFieldConfig.name}
+                  fieldProps={emailFieldConfig.fieldProps}
+                  placeholder={emailFieldConfig.placeholder}
+                  rules={emailFieldConfig.rules}
+                />
+                <ProFormCaptcha
+                  fieldProps={{
+                    size: 'large',
+                    prefix: <LockOutlined />,
+                  }}
+                  captchaProps={{
+                    size: 'large',
+                    type: 'primary',
+                    ghost: true,
+                  }}
+                  placeholder={intl.formatMessage({
+                    id: 'pages.login.captcha.placeholder',
+                    defaultMessage: 'Please enter verification code',
+                  })}
+                  captchaTextRender={(timing, count) => {
+                    if (timing) {
+                      return `${count} ${intl.formatMessage({
+                        id: 'pages.getCaptchaSecondText',
+                        defaultMessage: 'Get verification code',
+                      })}`;
+                    }
+                    return intl.formatMessage({
+                      id: 'pages.login.phoneLogin.getVerificationCode',
                       defaultMessage: 'Get verification code',
-                    })}`;
-                  }
-                  return intl.formatMessage({
-                    id: 'pages.login.phoneLogin.getVerificationCode',
-                    defaultMessage: 'Get verification code',
-                  });
-                }}
-                name="otp"
-                phoneName="email"
-                rules={[
-                  {
-                    required: true,
-                    message: (
-                      <FormattedMessage
-                        id="pages.login.captcha.required"
-                        defaultMessage="Please enter verification code!"
-                      />
-                    ),
-                  },
-                  {
-                    len: 6,
-                    message: (
-                      <FormattedMessage
-                        id="pages.login.captcha.invalid"
-                        defaultMessage="Verification code is 6 digits"
-                      />
-                    ),
-                  },
-                ]}
-                onGetCaptcha={async (email) => {
-                  try {
-                    await sendEmailOTP({ email });
-                    message.success(
-                      intl.formatMessage({
-                        id: 'pages.login.captcha.sent',
-                        defaultMessage:
-                          'Verification code has been sent, please check your email',
-                      }),
-                    );
-                  } catch (error: unknown) {
-                    const err = error as {
-                      response?: { data?: { errorCode?: string } };
-                    };
-                    const errorCode = err?.response?.data?.errorCode;
-                    if (errorCode === 'rate_limited') {
-                      message.warning(
+                    });
+                  }}
+                  name="otp"
+                  phoneName="email"
+                  rules={[
+                    {
+                      required: true,
+                      message: (
+                        <FormattedMessage
+                          id="pages.login.captcha.required"
+                          defaultMessage="Please enter verification code!"
+                        />
+                      ),
+                    },
+                    {
+                      len: 6,
+                      message: (
+                        <FormattedMessage
+                          id="pages.login.captcha.invalid"
+                          defaultMessage="Verification code is 6 digits"
+                        />
+                      ),
+                    },
+                  ]}
+                  onGetCaptcha={async (email) => {
+                    try {
+                      await sendEmailOTP({ email });
+                      message.success(
                         intl.formatMessage({
-                          id: 'pages.login.captcha.rateLimited',
+                          id: 'pages.login.captcha.sent',
                           defaultMessage:
-                            'Too many requests, please try again later',
+                            'Verification code has been sent, please check your email',
                         }),
                       );
-                    } else {
-                      message.error(
-                        getFriendlyErrorMessage(
-                          error,
-                          intl,
+                    } catch (error: unknown) {
+                      const err = error as {
+                        response?: { data?: { errorCode?: string } };
+                      };
+                      const errorCode = err?.response?.data?.errorCode;
+                      if (errorCode === 'rate_limited') {
+                        message.warning(
                           intl.formatMessage({
-                            id: 'pages.login.captcha.sendFailed',
+                            id: 'pages.login.captcha.rateLimited',
                             defaultMessage:
-                              'Failed to send verification code, please try again later',
+                              'Too many requests, please try again later',
                           }),
-                        ),
-                      );
+                        );
+                      } else {
+                        message.error(
+                          getFriendlyErrorMessage(
+                            error,
+                            intl,
+                            intl.formatMessage({
+                              id: 'pages.login.captcha.sendFailed',
+                              defaultMessage:
+                                'Failed to send verification code, please try again later',
+                            }),
+                          ),
+                        );
+                      }
+                      // 抛出错误以触发 ProFormCaptcha 内部重置倒计时
+                      throw error;
                     }
-                    // 抛出错误以触发 ProFormCaptcha 内部重置倒计时
-                    throw error;
-                  }
-                }}
-              />
-            </>
-          )}
-
-          {loginConfig?.password_enabled !== false && (
-            <div
-              style={{
-                marginBottom: 24,
-              }}
-            >
-              <ProFormCheckbox noStyle name="autoLogin">
-                <FormattedMessage
-                  id="pages.login.rememberMe"
-                  defaultMessage="Auto login"
+                  }}
                 />
-              </ProFormCheckbox>
-              <Button
-                type="link"
+              </>
+            )}
+
+            {loginConfig?.password_enabled !== false && (
+              <div
                 style={{
-                  float: 'inline-end',
-                  padding: 0,
+                  marginBottom: 24,
                 }}
               >
-                <FormattedMessage
-                  id="pages.login.forgotPassword"
-                  defaultMessage="Forgot password"
-                />
-              </Button>
-            </div>
-          )}
+                <ProFormCheckbox noStyle name="autoLogin">
+                  <FormattedMessage
+                    id="pages.login.rememberMe"
+                    defaultMessage="Auto login"
+                  />
+                </ProFormCheckbox>
+                <Button
+                  type="link"
+                  style={{
+                    float: 'inline-end',
+                    padding: 0,
+                  }}
+                >
+                  <FormattedMessage
+                    id="pages.login.forgotPassword"
+                    defaultMessage="Forgot password"
+                  />
+                </Button>
+              </div>
+            )}
           </LoginForm>
         )}
       </div>

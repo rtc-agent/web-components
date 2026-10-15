@@ -63,14 +63,6 @@ export const queryKeys = {
       [...queryKeys.auditLogs.all, 'list', params] as const,
     detail: (id: string) => [...queryKeys.auditLogs.all, 'detail', id] as const,
   },
-  // RTC Users (legacy - use rtcAgent instead, kept for backward compatibility)
-  rtcUsers: {
-    all: ['rtc-users'] as const,
-    list: (params?: Record<string, unknown>) =>
-      [...queryKeys.rtcUsers.all, 'list', params] as const,
-    detail: (userId: string) =>
-      [...queryKeys.rtcUsers.all, 'detail', userId] as const,
-  },
   // Diagnostics (RTC Agent integration diagnosis page)
   diagnostics: {
     all: ['diagnostics'] as const,

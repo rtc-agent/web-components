@@ -155,14 +155,18 @@ export function usePermissionRefresh() {
    * - Listen to 'storage' event (fires when localStorage changes in OTHER tabs)
    * - Check if the change is for user info key
    * - Verify the change is meaningful (user info actually differs)
-   * - Trigger refreshPermissions() to sync current tab's state
+   * - Debounce refresh to prevent race conditions from rapid successive changes
    *
    * Why this design:
    * - Minimal overhead: only refreshes when user info actually changes
    * - No polling: event-driven, instant sync
    * - Avoids loops: 'storage' event only fires for OTHER tabs' changes
+   * - Debouncing prevents race conditions when multiple changes occur in quick succession
    */
   useEffect(() => {
+    // Debounce timer ID for cross-tab sync
+    let syncTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
     const handleStorageChange = (event: StorageEvent) => {
       // Only react to user info changes
       if (event.key !== USER_INFO_STORAGE_KEY) {
@@ -176,16 +180,30 @@ export function usePermissionRefresh() {
       // If user info actually changed (not just a refresh from current tab)
       if (JSON.stringify(oldUserInfo) !== JSON.stringify(newUserInfo)) {
         console.debug(
-          '[usePermissionRefresh] Detected cross-tab user info change, refreshing permissions',
+          '[usePermissionRefresh] Detected cross-tab user info change, scheduling refresh',
         );
-        // Trigger refresh (will be serialized via refreshQueue)
-        refreshPermissions();
+
+        // Debounce: clear any pending refresh and schedule a new one
+        // This prevents race conditions when multiple storage events fire in quick succession
+        if (syncTimeoutId !== null) {
+          clearTimeout(syncTimeoutId);
+        }
+
+        syncTimeoutId = setTimeout(() => {
+          syncTimeoutId = null;
+          // Trigger refresh (will be serialized via refreshQueue)
+          refreshPermissions();
+        }, 100); // 100ms debounce window
       }
     };
 
     window.addEventListener('storage', handleStorageChange);
     return () => {
       window.removeEventListener('storage', handleStorageChange);
+      // Clean up pending debounce timer on unmount
+      if (syncTimeoutId !== null) {
+        clearTimeout(syncTimeoutId);
+      }
     };
   }, [refreshPermissions]);
 
